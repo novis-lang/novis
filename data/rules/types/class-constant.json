@@ -6,7 +6,6 @@
     "0125",
     "0007"
   ],
-  "divergesFromPhp": "`$m::class` on a `mixed` is refused where it is written rather than failing at run time; narrow the receiver first, the way `->` already requires",
   "seeAlso": [
     "types/class-reference",
     "types/conversion",

@@ -400,7 +400,7 @@ the record. The pair is `data/rules/<topic>/<slug>.json` — the structure, whic
 the `rules` list of its topic's record, `data/rules/<topic>.json`, inserted at the position § *Where a
 rule sits in the order* below gives it — never appended because it is the newest. `docs/rules/<topic>.md`
 is generated from all of them by `bun nv rules --render` and **is never edited**, along with
-[ground-rules.md](../ground-rules.md) and [divergences.md](../divergences.md).
+[ground-rules.md](../ground-rules.md).
 
 The record, `data/rules/core-classes/schema-plan.json`:
 
@@ -409,7 +409,6 @@ The record, `data/rules/core-classes/schema-plan.json`:
   "title": "Every plan step carries a grade and its complete SQL, and an unknown grade grades up",
   "status": "shipped",
   "because": ["0145", "0067"],
-  "divergesFromPhp": "the sentence after “PHP …” — omit the field entirely when it does not",
   "seeAlso": ["core-classes/schema-converges"],
   "guardedBy": ["tests/conformance/core/db-schema-plans-every-difference.nvst"]
 }

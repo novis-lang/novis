@@ -4,7 +4,6 @@
   "because": [
     "0044"
   ],
-  "divergesFromPhp": "a `.bat`, `.cmd` or `.ps1` target does not run at all; a shebang script does, because `execve` reads it without re-parsing anything",
   "seeAlso": [
     "core-classes/process-is-argv-only",
     "core-classes/process-run"

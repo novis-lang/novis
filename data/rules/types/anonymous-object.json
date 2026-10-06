@@ -8,7 +8,6 @@
     "0029",
     "0030"
   ],
-  "divergesFromPhp": "there is no shorthand `{x, y}` and no computed key, so no path leads back to PHP's dynamic properties",
   "seeAlso": [
     "types/shape-type",
     "types/object-top",

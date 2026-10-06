@@ -6,7 +6,6 @@
     "0147",
     "0135"
   ],
-  "divergesFromPhp": "there are no `bool` flag parameters, no `int` bitmask constants and no positional optional tail longer than one",
   "seeAlso": [
     "core-api/parameters-are-callable-by-name",
     "core-api/shape-parameter",

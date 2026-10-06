@@ -8,7 +8,6 @@
     "0074",
     "0077"
   ],
-  "divergesFromPhp": "there is no per-IP or per-path limiting, no `[ratelimit]` config block and no middleware writing a `429` for you",
   "seeAlso": [
     "core-classes/ratelimit-gcra",
     "core-classes/ratelimit-unreachable-store-throws",

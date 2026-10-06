@@ -6,7 +6,6 @@
     "0007",
     "0066"
   ],
-  "divergesFromPhp": "PHP's `@` is gone, and the one-liner that would regrow it is named at compile time instead",
   "seeAlso": [
     "expressions/catch-arm-is-an-expression",
     "expressions/catch-expression",

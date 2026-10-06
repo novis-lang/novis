@@ -4,7 +4,6 @@
   "because": [
     "0129"
   ],
-  "divergesFromPhp": "`password_hash($p, PASSWORD_BCRYPT)` has no spelling; the algorithm is not a parameter",
   "seeAlso": [
     "security/bcrypt-read-roster",
     "security/needs-rehash-answers-weaker"

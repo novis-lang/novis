@@ -6,7 +6,6 @@
     "0003",
     "0059"
   ],
-  "divergesFromPhp": "FFI, stream wrappers, shared memory and `eval` are absent rather than disabled, so no safety claim downstream needs an \"unless it is enabled\"",
   "seeAlso": [
     "security/no-ffi",
     "security/a-path-is-not-a-url",

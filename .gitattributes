@@ -35,7 +35,6 @@ website/src/data/rules.json               linguist-generated
 # Written by `bun nv rules --render` from `data/rules/` and the fragments under `docs/rules/<topic>/`.
 docs/rules/*.md                           linguist-generated
 docs/ground-rules.md                      linguist-generated
-docs/divergences.md                       linguist-generated
 
 # Binary
 *.png     binary

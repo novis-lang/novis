@@ -4,7 +4,6 @@
   "because": [
     "0039"
   ],
-  "divergesFromPhp": "php-cs-fixer's `ordered_class_elements` has no counterpart; a member's position is kept",
   "seeAlso": [
     "tooling/fmt-sorts-the-use-block",
     "core-classes/derive-field-list",

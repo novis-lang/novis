@@ -4,7 +4,6 @@
   "because": [
     "0063"
   ],
-  "divergesFromPhp": "`ARRAY_FILTER_USE_KEY` and `ARRAY_FILTER_USE_BOTH` have nothing to select, and there is no `map`/`mapWithKey` pair",
   "seeAlso": [
     "core-api/no-mode-strings",
     "types/callable-arity",

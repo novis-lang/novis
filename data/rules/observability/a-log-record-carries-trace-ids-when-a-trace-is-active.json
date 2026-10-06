@@ -6,7 +6,6 @@
     "0020",
     "0092"
   ],
-  "divergesFromPhp": "`error_log` writes no correlation id; every JSON-Lines record written inside a traced request can be joined to its trace from the line alone",
   "seeAlso": [
     "errors/log-write",
     "errors/log-fields",

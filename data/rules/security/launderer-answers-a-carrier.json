@@ -8,7 +8,6 @@
     "0086",
     "0056"
   ],
-  "divergesFromPhp": "`htmlspecialchars($x)` in a string-building position does not compile, because escaping twice is a corruption the type can refuse",
   "seeAlso": [
     "security/launderers-are-sink-named",
     "security/capture-answers-the-carrier",

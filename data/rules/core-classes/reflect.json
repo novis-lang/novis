@@ -5,7 +5,6 @@
     "0019",
     "0043"
   ],
-  "divergesFromPhp": "reflection is always present rather than a compiled-in extension, it covers no traits because there are none, and it never widens access",
   "seeAlso": [
     "core-classes/ast-is-inert",
     "enums/reflection",

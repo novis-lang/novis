@@ -6,7 +6,6 @@
     "0064",
     "0006"
   ],
-  "divergesFromPhp": "a Composer package's files may `require` anything the process can read; here a `..`, an absolute path or a symlink that leaves the package is a compile error",
   "seeAlso": [
     "packaging/a-package-is-its-digest",
     "config/nvs-toml-is-not-a-project-manifest",

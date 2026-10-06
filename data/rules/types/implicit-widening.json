@@ -8,7 +8,6 @@
     "0238",
     "0239"
   ],
-  "divergesFromPhp": "the widening throws above 2^53 instead of rounding, and no other implicit coercion survives",
   "seeAlso": [
     "types/conversion",
     "types/arithmetic",

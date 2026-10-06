@@ -9,7 +9,6 @@
     "0042",
     "0048"
   ],
-  "divergesFromPhp": "`eval`, a string-argument `assert` and `create_function` do not exist in any spelling",
   "seeAlso": [
     "security/closed-doors",
     "security/reflection-needs-no-capability",

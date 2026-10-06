@@ -5,7 +5,6 @@
     "0019",
     "0006"
   ],
-  "divergesFromPhp": "`token_get_all`'s untyped arrays are replaced by one type per production, and there is no `eval` for a rewritten tree to reach",
   "seeAlso": [
     "core-classes/reflect",
     "types/declaration",

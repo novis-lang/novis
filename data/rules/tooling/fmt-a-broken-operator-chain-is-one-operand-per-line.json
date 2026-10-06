@@ -4,7 +4,6 @@
   "because": [
     "0267"
   ],
-  "divergesFromPhp": "PER lets a broken condition put its boolean operators at the start or the end of the line; here they always start it",
   "seeAlso": [
     "tooling/fmt-never-reflows",
     "tooling/fmt-base-style-is-per",

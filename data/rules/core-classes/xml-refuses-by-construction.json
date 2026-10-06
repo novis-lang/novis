@@ -4,7 +4,6 @@
   "because": [
     "0168"
   ],
-  "divergesFromPhp": "there is no `libxml_disable_entity_loader`, no `LIBXML_NOENT` and no entity loader for either to have switched — a `<!DOCTYPE …>` does not parse at all",
   "seeAlso": [
     "core-classes/xml-tree-and-stream",
     "core-classes/decompression-bound",

@@ -4,7 +4,6 @@
   "because": [
     "0180"
   ],
-  "divergesFromPhp": "`curl.cainfo` and `openssl.cafile` are `ini` settings a script can widen with `ini_set`; here the three keys are `System` class and no code-side spelling for any of them exists",
   "seeAlso": [
     "security/one-tls-client",
     "security/tls-trust-is-relaxed-only-under-a-host-grant",

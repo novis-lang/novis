@@ -5,7 +5,6 @@
     "0076",
     "0051"
   ],
-  "divergesFromPhp": "there is no client library to install and no `record(name, value, kind)`; a counter, a histogram and a gauge are three members, and a name is validated at a literal call site",
   "seeAlso": [
     "observability/a-name-is-fixed-to-one-kind",
     "observability/the-exporter-is-a-feature-and-core-metrics-is-not",

@@ -4,7 +4,6 @@
   "because": [
     "0180"
   ],
-  "divergesFromPhp": "curl follows a hop from `https` to `http` silently, so one `Location` header strips a call's TLS; here it needs a grant and a call-site option, and the refusal names the grant",
   "seeAlso": [
     "http-server/redirects-are-off-and-every-hop-is-re-pinned",
     "security/capability-question-is-grant-and-scope",

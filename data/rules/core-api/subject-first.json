@@ -4,7 +4,6 @@
   "because": [
     "0063"
   ],
-  "divergesFromPhp": "`array_map(f, a)` beside `array_filter(a, f)`, and `in_array`, `str_replace` and `preg_match` disagreeing about haystack-before-needle, all become one order",
   "seeAlso": [
     "core-api/shape-rules",
     "core-api/one-name-one-signature"

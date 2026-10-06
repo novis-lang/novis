@@ -7,7 +7,6 @@
     "0042",
     "0003"
   ],
-  "divergesFromPhp": "a Composer dependency is a name that resolves to whatever the registry serves today; here two archives with the same digest are the same package and two with different digests are different packages whatever they call themselves",
   "seeAlso": [
     "packaging/a-package-name-is-vendor-slash-name",
     "packaging/a-package-cannot-reach-its-host",

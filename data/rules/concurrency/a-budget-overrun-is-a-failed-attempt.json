@@ -5,7 +5,6 @@
     "0084",
     "0005"
   ],
-  "divergesFromPhp": "exhausting memory in background work is a bounded failed attempt rather than a fatal that takes the process with it",
   "seeAlso": [
     "errors/escalation-ladder",
     "concurrency/attempts-are-finite-and-a-dead-letter-is-kept"

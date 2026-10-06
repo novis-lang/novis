@@ -4,7 +4,6 @@
   "because": [
     "0149"
   ],
-  "divergesFromPhp": "a PHP editor continues a `/** */` docblock and autocompletes tags into it; here the continuation is a `///` run and there is no tag to complete",
   "seeAlso": [
     "ide/language-configuration-is-content",
     "tooling/doc-comment-is-three-slashes",

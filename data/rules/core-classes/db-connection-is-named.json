@@ -8,7 +8,6 @@
     "0033",
     "0047"
   ],
-  "divergesFromPhp": "a credential is never a DSN string in program source, and there is no destructor to close a connection — the request teardown does it",
   "seeAlso": [
     "core-classes/db-capabilities",
     "core-classes/db-safe-connection-defaults",

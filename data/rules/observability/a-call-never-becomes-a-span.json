@@ -5,7 +5,6 @@
     "0041",
     "0076"
   ],
-  "divergesFromPhp": "an OpenTelemetry SDK installed as a library lets a program open a span around any function; here the set of things that become a span is closed and a function call is not in it",
   "seeAlso": [
     "observability/trace-events-carry-a-kind",
     "observability/gc-pause-is-its-own-event",

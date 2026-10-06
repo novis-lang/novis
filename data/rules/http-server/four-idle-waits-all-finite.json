@@ -5,7 +5,6 @@
     "0097",
     "0074"
   ],
-  "divergesFromPhp": "`max_execution_time` and `request_terminate_timeout` bound a whole request; these bound a stalled socket only, so a slow 2 GB upload completes while a stalled one is closed",
   "seeAlso": [
     "http-server/the-server-block-is-boot-class",
     "concurrency/connection-bounds-are-finite"

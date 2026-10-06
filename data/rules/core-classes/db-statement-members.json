@@ -6,7 +6,6 @@
     "0004",
     "0063"
   ],
-  "divergesFromPhp": "there is no unbuffered-query flag and no per-driver difference in what a second statement on a busy connection does",
   "seeAlso": [
     "core-classes/db-streaming",
     "core-classes/db-column-types",

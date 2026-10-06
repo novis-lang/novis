@@ -5,7 +5,6 @@
     "0142",
     "0058"
   ],
-  "divergesFromPhp": "`Redis::connect('/run/redis.sock')` and a socket path in a DSN a program builds are refused — the path has to be in root-owned configuration",
   "seeAlso": [
     "config/cache-shared-is-the-grant-over-the-configured-store",
     "config/unix-scheme-in-a-url-and-a-bare-path-in-a-host",

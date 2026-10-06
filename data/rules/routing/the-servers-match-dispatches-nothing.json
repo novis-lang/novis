@@ -5,7 +5,6 @@
     "0102",
     "0077"
   ],
-  "divergesFromPhp": "a matched route never calls anything; the program or the framework dispatches, and a `null` route is a fact the program reads rather than a 404 anything sends",
   "seeAlso": [
     "routing/matched-once-before-the-handler",
     "routing/a-match-is-not-invocable",

@@ -5,7 +5,6 @@
     "0077",
     "0102"
   ],
-  "divergesFromPhp": "there is no route cache to warm or to go stale — the scan is compile-time work keyed and invalidated with the compiled unit",
   "seeAlso": [
     "programs/implementing",
     "programs/no-runtime-autoload",

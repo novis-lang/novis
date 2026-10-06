@@ -4,7 +4,6 @@
   "because": [
     "0079"
   ],
-  "divergesFromPhp": "test code is absent from a built artifact by construction, rather than excluded by whatever the deployment happened to copy",
   "seeAlso": [
     "testing/test-attribute",
     "testing/determinism-declared-on-the-test"

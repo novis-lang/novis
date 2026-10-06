@@ -5,7 +5,6 @@
     "0131",
     "0063"
   ],
-  "divergesFromPhp": "`tmpfile`, `tempnam` and `sys_get_temp_dir` collapse into one member, and there is no `temporaryFile`",
   "seeAlso": [
     "core-api/one-name-one-signature",
     "core-api/one-paradigm-per-operation"

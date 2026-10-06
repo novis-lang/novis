@@ -5,7 +5,6 @@
     "0083",
     "0074"
   ],
-  "divergesFromPhp": "there is no `onMessage` callback and no event registration — suspension has no colour, so a blocking-shaped `while` is the whole program",
   "seeAlso": [
     "concurrency/receive-is-the-one-wait",
     "concurrency/a-peer-frame-is-tainted",

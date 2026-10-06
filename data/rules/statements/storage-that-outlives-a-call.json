@@ -8,7 +8,6 @@
     "0012",
     "0006"
   ],
-  "divergesFromPhp": "there is no global constant and no superglobal, so nothing holds state without a declaration a reader can find",
   "seeAlso": [
     "statements/no-function-static-and-no-global",
     "statements/no-host-populated-variables",

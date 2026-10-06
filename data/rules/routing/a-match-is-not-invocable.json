@@ -7,7 +7,6 @@
     "0007",
     "0199"
   ],
-  "divergesFromPhp": "there is no `$route->getCallable()`; the handler is reached by a `switch` the framework generates or the application writes",
   "seeAlso": [
     "routing/the-servers-match-dispatches-nothing",
     "types/grammar",

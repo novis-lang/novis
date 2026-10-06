@@ -6,7 +6,6 @@
     "0077",
     "0046"
   ],
-  "divergesFromPhp": "a framework's `methods: ['POST', 'PUT']` on one named route becomes one `#[Route]` line per verb, each carrying the same `name` and the same `path`",
   "seeAlso": [
     "routing/a-shared-name-is-one-endpoint-everywhere",
     "routing/no-wildcard-verb",

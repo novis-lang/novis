@@ -4,7 +4,6 @@
   "because": [
     "0060"
   ],
-  "divergesFromPhp": "`alg: none` and the RS256-to-HS256 confusion have no code path, because no attacker-supplied string selects a verifier",
   "seeAlso": [
     "security/jwt-expiry-is-mandatory",
     "security/verification-throws-and-compares-in-constant-time",

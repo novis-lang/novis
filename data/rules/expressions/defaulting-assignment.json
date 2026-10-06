@@ -4,7 +4,6 @@
   "because": [
     "0254"
   ],
-  "divergesFromPhp": "PHP has none of the three operators; its `$a[$k]++` and `$a[$k] .= $s` on an absent key read it as `null` with a warning",
   "seeAlso": [
     "types/absent-storage-is-never-a-zero-value",
     "types/arithmetic",

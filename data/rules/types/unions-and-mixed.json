@@ -8,7 +8,6 @@
     "0047",
     "0150"
   ],
-  "divergesFromPhp": "there is no `is_int()`-style free function to narrow with — the question is the `is` operator (`rule:types/type-test`) — and `mixed` never absorbs implicitly: `int $n = $m;` is a diagnostic rather than a runtime check",
   "seeAlso": [
     "types/narrowing",
     "types/conversion",

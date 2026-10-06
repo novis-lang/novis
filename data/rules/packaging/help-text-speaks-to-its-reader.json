@@ -4,7 +4,6 @@
   "because": [
     "0152"
   ],
-  "divergesFromPhp": "`php --help` lists flags the manual explains elsewhere; `nvs --help` is the explanation, and it names no repository document, no decision record and no file extension the binary does not act on",
   "seeAlso": [
     "packaging/the-cli-surface-is-novis-own",
     "packaging/the-banner-states-the-build",

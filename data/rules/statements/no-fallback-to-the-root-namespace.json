@@ -5,7 +5,6 @@
     "0113",
     "0011"
   ],
-  "divergesFromPhp": "there is no fallback to the root namespace, so a namespaced file that catches writes `use Throwable;`",
   "seeAlso": [
     "statements/a-qualified-name-is-absolute",
     "statements/storage-that-outlives-a-call"

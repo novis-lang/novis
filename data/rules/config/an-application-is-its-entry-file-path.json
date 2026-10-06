@@ -6,7 +6,6 @@
     "0097",
     "0005"
   ],
-  "divergesFromPhp": "a per-directory `php.ini`, a `.user.ini` or a PHP-FPM pool keys on a directory the web server chose; an `[[app]]` block keys on the entry file's own path, so `nvs run` has the same identity as a served request",
   "seeAlso": [
     "config/app-keys-are-canonicalized-before-matching",
     "config/origin-is-a-block-key-and-there-is-no-app-table",

@@ -5,7 +5,6 @@
     "0104",
     "0103"
   ],
-  "divergesFromPhp": "PHP applies the nearest `.user.ini` and stops; here a host-wide block and an application's own block compose, the narrower one winning only the keys it states",
   "seeAlso": [
     "config/an-application-is-its-entry-file-path",
     "config/later-wins-and-every-override-is-recorded",

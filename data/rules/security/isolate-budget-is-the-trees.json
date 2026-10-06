@@ -7,7 +7,6 @@
     "0005",
     "0004"
   ],
-  "divergesFromPhp": "a spawned unit of work receives no budget of its own; it spends the one the inbound request already holds",
   "seeAlso": [
     "security/isolate-shares-nothing",
     "security/arena-is-an-ownership-root",

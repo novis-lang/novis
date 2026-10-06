@@ -6,7 +6,6 @@
     "0024",
     "0063"
   ],
-  "divergesFromPhp": "PHP's open, cross-version `serialize` wire format is not readable, and no hook fires during reconstruction, so the object-injection class has nothing to drive",
   "seeAlso": [
     "classes/graph-copy",
     "classes/two-copy-depths",

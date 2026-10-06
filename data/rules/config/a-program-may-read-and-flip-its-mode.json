@@ -5,7 +5,6 @@
     "0091",
     "0005"
   ],
-  "divergesFromPhp": "a script can turn development defaults on for itself only where the operator opened a ceiling, and the flip never reaches another request",
   "seeAlso": [
     "config/a-mode-is-five-defaults",
     "config/a-runtime-set-is-request-local",

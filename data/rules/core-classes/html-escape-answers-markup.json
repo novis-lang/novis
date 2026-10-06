@@ -6,7 +6,6 @@
     "0024",
     "0087"
   ],
-  "divergesFromPhp": "`htmlspecialchars`'s replacement does not answer a `string`, so its result cannot be concatenated back into one and double-escaped",
   "seeAlso": [
     "core-classes/html-auto-escape",
     "core-classes/html-to-source",

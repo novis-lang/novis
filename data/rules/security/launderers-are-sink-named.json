@@ -7,7 +7,6 @@
     "0055",
     "0248"
   ],
-  "divergesFromPhp": "there is no `sanitize()`, no `clean()` and no `filter_var` catch-all; a value safe for HTML is not safe for a path",
   "seeAlso": [
     "security/assert-trusted",
     "security/launderer-answers-a-carrier",

@@ -7,7 +7,6 @@
     "0040",
     "0108"
   ],
-  "divergesFromPhp": "no convention routing — a class rename never moves a URL, because the derived path is inserted as source text once and is ordinary text from then on",
   "seeAlso": [
     "routing/repeated-routes-share-a-name-when-they-share-a-path",
     "core-api/identifier-casing",

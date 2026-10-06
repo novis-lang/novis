@@ -13,8 +13,6 @@ export const rule = defineRecord({
     title: s.string(),
     status: s.enum("shipped", "designed"),
     because: s.array(s.ref("decision")),
-    /** The sentence after "PHP …", for a rule whose behaviour differs from PHP's. */
-    divergesFromPhp: s.optional(s.string()),
     seeAlso: s.array(s.ref("rule")),
     /** Repo-rooted paths of what fails when the rule is broken. */
     guardedBy: s.array(s.string()),

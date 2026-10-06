@@ -5,7 +5,6 @@
     "0074",
     "0180"
   ],
-  "divergesFromPhp": "a retried `POST` in PHP does whatever the loop the developer wrote does, including charging a card twice; here the missing key is a red squiggle before the program runs",
   "seeAlso": [
     "http-server/retry-is-opt-in-jittered-and-closed",
     "core-api/shape-rules",

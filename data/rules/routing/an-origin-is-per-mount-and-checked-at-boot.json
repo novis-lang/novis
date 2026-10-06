@@ -8,7 +8,6 @@
     "0078",
     "0219"
   ],
-  "divergesFromPhp": "a multi-tenant deployment configures one origin line with a capture in it rather than computing a base URL per request",
   "seeAlso": [
     "routing/an-absolute-link-takes-a-configured-origin",
     "routing/a-request-reads-its-mount",

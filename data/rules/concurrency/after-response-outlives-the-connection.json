@@ -6,7 +6,6 @@
     "0006",
     "0266"
   ],
-  "divergesFromPhp": "`fastcgi_finish_request` keeps the whole worker busy with no accounting, no cap and no deadline; this keeps the tree, and the tree is still bounded",
   "seeAlso": [
     "programs/memory-priority",
     "security/isolate-budget-is-the-trees",

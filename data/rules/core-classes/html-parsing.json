@@ -8,7 +8,6 @@
     "0121",
     "0223"
   ],
-  "divergesFromPhp": "there is no `LIBXML_*` flag matrix and no document class that flips between recovering and throwing — the two front doors are two classes",
   "seeAlso": [
     "core-classes/html-sanitize",
     "core-classes/pdf-one-engine",

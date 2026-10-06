@@ -4,7 +4,6 @@
   "because": [
     "0130"
   ],
-  "divergesFromPhp": "PHP advertises itself through `X-Powered-By` and measures nothing; here nothing leaves the machine unless the operator switched it on",
   "seeAlso": [
     "tooling/telemetry-counters-are-a-closed-set",
     "tooling/a-serving-process-never-uploads",

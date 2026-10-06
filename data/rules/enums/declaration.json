@@ -4,7 +4,6 @@
   "because": [
     "0010"
   ],
-  "divergesFromPhp": "every case has an integer value even where none is written, so PHP's valueless pure case does not exist",
   "seeAlso": [
     "enums/closed-integer-type",
     "enums/one-backing-type",

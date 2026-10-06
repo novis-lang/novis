@@ -6,7 +6,6 @@
     "0094",
     "0077"
   ],
-  "divergesFromPhp": "no PHP framework can refuse to build a route whose author wrote no access decision",
   "seeAlso": [
     "attributes/access-payload",
     "attributes/api-adds-and-cannot-contradict"

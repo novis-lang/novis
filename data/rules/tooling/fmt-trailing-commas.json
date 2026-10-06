@@ -5,7 +5,6 @@
     "0039",
     "0267"
   ],
-  "divergesFromPhp": "php-cs-fixer's `trailing_comma_in_multiline` is a choice; here it is the only layout",
   "seeAlso": [
     "tooling/fmt-never-reflows",
     "tooling/fmt-novis-constructs"

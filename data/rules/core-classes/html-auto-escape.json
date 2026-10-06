@@ -10,7 +10,6 @@
     "0169",
     "0266"
   ],
-  "divergesFromPhp": "output is escaped by the sink rather than by a call the developer remembers, and a runtime-computed string can never become `Markup` through `as`",
   "seeAlso": [
     "core-classes/html-template",
     "core-classes/html-later",

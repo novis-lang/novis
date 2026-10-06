@@ -5,7 +5,6 @@
     "0084",
     "0005"
   ],
-  "divergesFromPhp": "background work carries its own memory, CPU and time budget, and its permissions can only shrink from those of the code that enqueued it",
   "seeAlso": [
     "security/capability-check-at-the-door",
     "concurrency/a-job-runs-as-a-root-isolate"

@@ -7,7 +7,6 @@
     "0086",
     "0087"
   ],
-  "divergesFromPhp": "a cut, a cycle and a redaction are nodes in the record, so every rendering agrees on them instead of truncating per formatter",
   "seeAlso": [
     "errors/diagnostic-record",
     "errors/renderings",

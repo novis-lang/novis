@@ -5,7 +5,6 @@
     "0072",
     "0136"
   ],
-  "divergesFromPhp": "there is no PHP construct that runs several calls at once and hands back their results already typed",
   "seeAlso": [
     "types/object-top",
     "core-api/shape-rules"

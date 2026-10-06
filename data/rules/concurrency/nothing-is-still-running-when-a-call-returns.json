@@ -5,7 +5,6 @@
     "0072",
     "0266"
   ],
-  "divergesFromPhp": "a PHP script that starts something in the background has no construct that waits for it, so nothing there guarantees this",
   "seeAlso": [
     "concurrency/cancellation-runs-no-user-code",
     "security/isolate-shares-nothing",

@@ -4,7 +4,6 @@
   "because": [
     "0120"
   ],
-  "divergesFromPhp": "there are no palette images, no `imagesetpixel`, no drawing primitives and no `imageaffine` — four named transforms cover the affine cases a web application reaches for",
   "seeAlso": [
     "core-classes/image-pipeline",
     "core-classes/image-format-roster"

@@ -4,7 +4,6 @@
   "because": [
     "0168"
   ],
-  "divergesFromPhp": "`DOMDocument`, `SimpleXMLElement`, `XMLReader` and the expat callbacks are four vocabularies for one document — there are two here, they share a node family, and they share no operation",
   "seeAlso": [
     "core-classes/html-parsing",
     "core-classes/xml-refuses-by-construction",

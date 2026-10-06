@@ -6,7 +6,6 @@
     "0007",
     "0024"
   ],
-  "divergesFromPhp": "an array bound to a placeholder is one value rather than a silently expanded list, and an empty `inList` throws instead of guessing",
   "seeAlso": [
     "core-classes/db-one-api",
     "core-classes/db-statement-members"

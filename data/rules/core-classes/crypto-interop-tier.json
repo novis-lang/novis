@@ -4,7 +4,6 @@
   "because": [
     "0179"
   ],
-  "divergesFromPhp": "there is no cipher name in a string and no unauthenticated mode to reach for, so `aes-256-ecb` has no spelling",
   "seeAlso": [
     "core-api/tier-roster",
     "security/algorithm-comes-from-the-key",

@@ -5,7 +5,6 @@
     "0064",
     "0103"
   ],
-  "divergesFromPhp": "`php.ini` silently takes the last of two copies of a key and ignores one it does not recognise; both refuse the boot here, naming the line",
   "seeAlso": [
     "config/later-wins-and-every-override-is-recorded",
     "config/the-file-is-nvs-toml-and-it-is-toml",

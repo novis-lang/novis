@@ -7,7 +7,6 @@
     "0042",
     "0218"
   ],
-  "divergesFromPhp": "`opcache.validate_timestamps` shape, but the check runs in the background rather than in a request, the cache key is the program's content rather than a file's path, so a stale `mtime` never serves stale code, and there is no `opcache_reset()` and no `validate_timestamps=0`",
   "seeAlso": [
     "config/a-request-keeps-the-unit-it-resolved",
     "config/a-broken-edit-fails-the-requests-that-resolve-it",

@@ -4,7 +4,6 @@
   "because": [
     "0092"
   ],
-  "divergesFromPhp": "five levels rather than PSR-3's eight, because nobody has a rule for choosing `notice` over `info`",
   "seeAlso": [
     "errors/log-write",
     "errors/diagnostic-record"

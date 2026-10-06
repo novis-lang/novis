@@ -5,7 +5,6 @@
     "0061",
     "0253"
   ],
-  "divergesFromPhp": "a plugin roster is a compile-time array literal, not a `foreach` over `new $className`",
   "seeAlso": [
     "programs/no-runtime-autoload",
     "programs/autoload",

@@ -6,7 +6,6 @@
     "0124",
     "0059"
   ],
-  "divergesFromPhp": "there is no `SessionHandlerInterface` and no `validateId`; an id the store never issued, one that expired and one an attacker minted are all the same absent answer, and `start` issues a fresh record for each",
   "seeAlso": [
     "core-api/session-roster",
     "core-classes/session-is-started-explicitly",

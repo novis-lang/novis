@@ -6,7 +6,6 @@
     "0007",
     "0047"
   ],
-  "divergesFromPhp": "a failed conversion is a `null` the caller tests, where `(int)$x` — which does not parse at all — answered `0` and said nothing",
   "seeAlso": [
     "expressions/nullable-conversion-availability",
     "expressions/conversion-keeps-qualifiers",

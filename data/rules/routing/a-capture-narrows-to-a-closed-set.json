@@ -9,7 +9,6 @@
     "0186",
     "0274"
   ],
-  "divergesFromPhp": "there is no `->where('lang', 'en|de|fr')`; the constraint is the parameter's type, and a regex on a route is refused outright",
   "seeAlso": [
     "security/route-capture-is-laundered-by-its-type",
     "types/single-value-types",

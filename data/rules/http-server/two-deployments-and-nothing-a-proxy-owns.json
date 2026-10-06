@@ -8,7 +8,6 @@
     "0074",
     "0095"
   ],
-  "divergesFromPhp": "there is no php-fpm and no FastCGI: the origin speaks HTTP/1.1 over TCP or a Unix socket, terminates no TLS and compresses nothing, so nginx's `fastcgi_pass` becomes `proxy_pass`",
   "seeAlso": [
     "http-server/a-path-is-never-derived-from-a-url",
     "errors/http-message-defects",

@@ -6,7 +6,6 @@
     "0058",
     "0059"
   ],
-  "divergesFromPhp": "a Redis on loopback needs one grant naming the store, not a host allow-list plus an exception for the loopback range the store lives in",
   "seeAlso": [
     "security/net-address-policy",
     "security/capability-question-is-grant-and-scope",

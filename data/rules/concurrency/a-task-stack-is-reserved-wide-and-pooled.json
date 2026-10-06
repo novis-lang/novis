@@ -6,7 +6,6 @@
     "0106",
     "0116"
   ],
-  "divergesFromPhp": "concurrency costs a stack rather than a process, so one machine holds tasks in the hundred-thousands instead of workers in the hundreds",
   "seeAlso": [
     "programs/memory-priority",
     "concurrency/a-tasks-recursion-limit-comes-from-its-own-stack",

@@ -7,7 +7,6 @@
     "0064",
     "0112"
   ],
-  "divergesFromPhp": "composer.json drives the autoloader; here a populated `vendor/` resolves every name identically whether the manifest is present, absent or malformed",
   "seeAlso": [
     "packaging/a-fetched-package-is-an-autoload-line",
     "config/nvs-toml-is-not-a-project-manifest",

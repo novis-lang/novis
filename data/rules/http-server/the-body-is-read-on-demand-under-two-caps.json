@@ -9,7 +9,6 @@
     "0095",
     "0156"
   ],
-  "divergesFromPhp": "`upload_max_filesize`, `post_max_size` and `$_FILES['tmp_name']` have no counterpart: there is no temp file, `Core\\Request::files()` yields streams, and a route raises its own cap before reading",
   "seeAlso": [
     "http-server/four-idle-waits-all-finite",
     "core-classes/io-write-stream",

@@ -4,7 +4,6 @@
   "because": [
     "0139"
   ],
-  "divergesFromPhp": "`session.gc_probability` and `session.gc_divisor` have no counterpart, because both backends can expire an entry themselves and a filesystem cannot",
   "seeAlso": [
     "http-server/a-session-store-answers-four-operations",
     "http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot",

@@ -7,7 +7,6 @@
     "0123",
     "0246"
   ],
-  "divergesFromPhp": "a Composer package is source only and a PHP extension is a binary only; an extension package here is both, and the builder a program names is ordinary Novis source",
   "seeAlso": [
     "core-classes/image-pipeline",
     "core-classes/spreadsheet-has-no-io",

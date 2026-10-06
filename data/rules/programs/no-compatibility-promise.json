@@ -7,7 +7,6 @@
     "0152",
     "0274"
   ],
-  "divergesFromPhp": "existing PHP packages, frameworks and code do not run, and no document may imply otherwise",
   "seeAlso": [
     "programs/audience",
     "programs/three-claims",

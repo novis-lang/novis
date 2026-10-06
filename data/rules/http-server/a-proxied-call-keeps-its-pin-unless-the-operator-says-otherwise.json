@@ -4,7 +4,6 @@
   "because": [
     "0182"
   ],
-  "divergesFromPhp": "curl hands the proxy the destination's host name in every case, having no approved address to hand it; here that is one of two written answers, the other tunnels to the address the check approved, and the one that gives up the pin is announced at every boot",
   "seeAlso": [
     "http-server/an-outbound-proxy-is-operator-configured",
     "http-server/allow-url-pins-the-address",

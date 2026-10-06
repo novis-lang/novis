@@ -8,7 +8,6 @@
     "0022",
     "0126"
   ],
-  "divergesFromPhp": "a missing name, a wrong-typed write and a receiver holding no object are all catchable throws, never a warning plus a `null`, and a write can never create a field",
   "seeAlso": [
     "types/mixed-subscript",
     "types/shape-type",

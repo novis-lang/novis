@@ -5,7 +5,6 @@
     "0061",
     "0215"
   ],
-  "divergesFromPhp": "PSR-4 imposes this by convention; here it is a diagnostic",
   "seeAlso": [
     "programs/autoload",
     "programs/no-runtime-autoload"

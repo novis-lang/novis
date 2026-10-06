@@ -6,7 +6,6 @@
     "0005",
     "0112"
   ],
-  "divergesFromPhp": "there is no `open_basedir`, no `disable_functions` and no safe mode; the runtime cannot reach the OS except through a checked door",
   "seeAlso": [
     "security/capability-question-is-grant-and-scope",
     "security/capability-declaration-is-one-table",

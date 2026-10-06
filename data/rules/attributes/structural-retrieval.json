@@ -8,7 +8,6 @@
     "0022",
     "0033"
   ],
-  "divergesFromPhp": "there is no `ReflectionAttribute` and no lookup by attribute class name; two unrelated libraries can ask for the same shape without agreeing on a name",
   "seeAlso": [
     "attributes/retrieval-folds-while-checking",
     "attributes/call-site-type-argument",

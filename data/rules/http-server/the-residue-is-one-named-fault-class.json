@@ -6,7 +6,6 @@
     "0093",
     "0002"
   ],
-  "divergesFromPhp": "there is no per-request worker process to absorb an engine crash; a fault of this class loses every request in flight and is answered by a restart in about a cold start",
   "seeAlso": [
     "http-server/a-requests-blast-radius-is-bounded-at-four-tiers",
     "http-server/containment-does-not-end-at-the-helper",

@@ -4,7 +4,6 @@
   "because": [
     "0074"
   ],
-  "divergesFromPhp": "PHP has no CORS default at all, so a preflight nobody handled is whatever the route does; here it is a `403` until an origin is written",
   "seeAlso": [
     "http-server/a-wildcard-origin-with-credentials-is-refused",
     "http-server/policy-headers-are-runtime-class-and-setheader-wins"

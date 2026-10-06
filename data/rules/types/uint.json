@@ -6,7 +6,6 @@
     "0004",
     "0150"
   ],
-  "divergesFromPhp": "PHP has one integer type; Novis has two, told apart by `Core\\Reflect::typeOf` and by `$x is uint` (`rule:types/type-test`), so a value PHP's `is_int()` accepted answers `is uint` and not `is int`, and the whole 64-bit range is representable",
   "seeAlso": [
     "types/arithmetic",
     "types/integer-literals",

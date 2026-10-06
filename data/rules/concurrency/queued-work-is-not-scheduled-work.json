@@ -5,7 +5,6 @@
     "0084",
     "0073"
   ],
-  "divergesFromPhp": "cron-style entries and background jobs are two mechanisms with two guarantees, rather than one worker loop doing both",
   "seeAlso": [
     "concurrency/delivery-is-at-least-once",
     "concurrency/attempts-are-finite-and-a-dead-letter-is-kept"

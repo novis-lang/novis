@@ -6,7 +6,6 @@
     "0063",
     "0024"
   ],
-  "divergesFromPhp": "there is no `move_uploaded_file` and no temp file to move — a part is streamed to a path the program chose, and `overwrite` defaults to false",
   "seeAlso": [
     "core-classes/temporary-dir-sweep",
     "core-classes/process-run"

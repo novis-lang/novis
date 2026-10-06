@@ -5,7 +5,6 @@
     "0117",
     "0167"
   ],
-  "divergesFromPhp": "there is no `php --rf`, no reflection dump and no phpDocumentor pass over the standard library; one command from the binary is the reference's only input",
   "seeAlso": [
     "core-api/reference-card",
     "core-api/field-wise-precedence",

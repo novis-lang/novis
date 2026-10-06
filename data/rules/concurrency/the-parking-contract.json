@@ -5,7 +5,6 @@
     "0115",
     "0106"
   ],
-  "divergesFromPhp": "a request that waits on I/O suspends one task and hands its core to another, rather than occupying a process until the kernel answers",
   "seeAlso": [
     "concurrency/the-reactor-reports-readiness",
     "concurrency/try-the-syscall-then-park",

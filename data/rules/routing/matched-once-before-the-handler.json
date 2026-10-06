@@ -6,7 +6,6 @@
     "0077",
     "0097"
   ],
-  "divergesFromPhp": "the match is made by the server and read off the request, not by a framework kernel in userland that matches and then calls the controller",
   "seeAlso": [
     "routing/the-servers-match-dispatches-nothing",
     "security/csrf-is-on-by-default",

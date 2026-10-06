@@ -6,7 +6,6 @@
     "0024",
     "0118"
   ],
-  "divergesFromPhp": "`exec`, `system`, `shell_exec`, `passthru`, `popen`, `proc_open` and backticks are all gone, and no flag brings a command line back",
   "seeAlso": [
     "core-classes/process-run",
     "core-classes/process-refuses-a-shell-target",

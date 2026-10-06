@@ -4,7 +4,6 @@
   "because": [
     "0115"
   ],
-  "divergesFromPhp": "a read that would block suspends the task rather than the process, and a socket with bytes already buffered costs one ordinary syscall",
   "seeAlso": [
     "concurrency/the-parking-contract",
     "concurrency/a-stream-is-an-ordinary-io-stream"

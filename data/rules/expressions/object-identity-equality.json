@@ -8,7 +8,6 @@
     "0028",
     "0079"
   ],
-  "divergesFromPhp": "PHP's `==` walked properties; here there is no property walk, no `__equals`, no `equals()` protocol and no `Equatable` interface",
   "seeAlso": [
     "expressions/equality-semantics",
     "expressions/one-equality-operator",

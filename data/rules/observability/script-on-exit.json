@@ -6,7 +6,6 @@
     "0063",
     "0148"
   ],
-  "divergesFromPhp": "`register_shutdown_function` is gone; the hook takes a typed `Script\\ExitReport` with the reason, the status and the live `Throwable`, where PHP reads `error_get_last()`",
   "seeAlso": [
     "observability/three-endings-fire-the-exit-queue",
     "observability/a-fatal-and-a-cancellation-run-no-exit-hook",

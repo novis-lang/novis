@@ -6,7 +6,6 @@
     "0097",
     "0024"
   ],
-  "divergesFromPhp": "there is no `tmp_name`, no `upload_tmp_dir`, no `move_uploaded_file` and no `is_uploaded_file`; an upload nobody saves is never on disk, and one that is saved is there because the program wrote it",
   "seeAlso": [
     "http-server/a-part-is-consumed-in-one-of-three-ways",
     "http-server/request-body-and-upload-total-are-two-caps",

@@ -5,7 +5,6 @@
     "0103",
     "0064"
   ],
-  "divergesFromPhp": "an include may override the file that pulled it in — the base-plus-local shape — but only because the override is reported; nothing is shadowed silently the way a later `php.ini` line shadows an earlier one",
   "seeAlso": [
     "config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one",
     "config/a-value-array-replaces-and-a-table-appends",

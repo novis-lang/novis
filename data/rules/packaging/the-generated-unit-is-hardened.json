@@ -6,7 +6,6 @@
     "0097",
     "0051"
   ],
-  "divergesFromPhp": "`NoNewPrivileges`, `ProtectSystem=strict` and an emptied `CapabilityBoundingSet` are emitted for you rather than left to whoever writes the unit",
   "seeAlso": [
     "packaging/the-unit-is-printed-and-install-is-the-opt-in",
     "packaging/a-c-dependency-answers-two-questions",

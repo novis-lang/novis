@@ -4,7 +4,6 @@
   "because": [
     "0259"
   ],
-  "divergesFromPhp": "PHP has no html template, so there is nothing to convert to; an editor's string-to-template intention there is text logic in the editor",
   "seeAlso": [
     "core-classes/html-template",
     "ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows",

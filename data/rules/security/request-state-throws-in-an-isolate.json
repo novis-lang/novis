@@ -5,7 +5,6 @@
     "0012",
     "0006"
   ],
-  "divergesFromPhp": "`$_GET` inside an included file is the parent's array; here the accessor throws, because a child is not a request",
   "seeAlso": [
     "statements/no-host-populated-variables",
     "security/isolate-shares-nothing",

@@ -7,7 +7,6 @@
     "0043",
     "0002"
   ],
-  "divergesFromPhp": "there is no `beginTransaction`/`commit`/`rollBack` on the connection and no `inTransaction`; nesting is a savepoint, and a rollback signal survives an intervening `catch (Throwable)`",
   "seeAlso": [
     "core-classes/db-error",
     "core-classes/db-statement-members",

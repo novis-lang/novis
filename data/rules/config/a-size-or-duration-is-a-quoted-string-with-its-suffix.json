@@ -5,7 +5,6 @@
     "0064",
     "0005"
   ],
-  "divergesFromPhp": "`memory_limit = 128M` becomes `memory = \"128M\"` — quoted, because the value is typed and the suffix is part of it — and `-1` for no limit becomes `false`",
   "seeAlso": [
     "config/one-parser-for-the-boot-path-and-config-set"
   ],

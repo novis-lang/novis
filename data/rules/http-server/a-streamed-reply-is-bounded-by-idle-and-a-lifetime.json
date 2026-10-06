@@ -4,7 +4,6 @@
   "because": [
     "0180"
   ],
-  "divergesFromPhp": "a PHP stream has `default_socket_timeout` and nothing that bounds how long a body may take; here a streamed body has two finite bounds it cannot be without, and reading it twice throws",
   "seeAlso": [
     "http-server/one-deadline-covers-the-whole-call",
     "http-server/no-spelling-for-an-unbounded-wait",

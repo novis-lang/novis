@@ -7,7 +7,6 @@
     "0059",
     "0008"
   ],
-  "divergesFromPhp": "`$_SESSION` does not exist, nothing starts a session implicitly, and a member called before `start` throws",
   "seeAlso": [
     "statements/no-host-populated-variables",
     "core-classes/cli-arguments",

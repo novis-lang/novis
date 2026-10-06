@@ -6,7 +6,6 @@
     "0086",
     "0118"
   ],
-  "divergesFromPhp": "`$argv` and `$argc` do not exist, the elements are `tainted`, and the answer is a process fact rather than a per-isolate one",
   "seeAlso": [
     "core-classes/script-args",
     "core-classes/session-is-started-explicitly",

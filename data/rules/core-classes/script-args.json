@@ -6,7 +6,6 @@
     "0006",
     "0023"
   ],
-  "divergesFromPhp": "Novis's own `$_ARGS` superglobal was retired for the same reason PHP's were — a spawned isolate reads its argument through a member",
   "seeAlso": [
     "core-classes/cli-arguments",
     "statements/no-host-populated-variables",

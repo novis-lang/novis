@@ -5,7 +5,6 @@
     "0099",
     "0149"
   ],
-  "divergesFromPhp": "double-clicking `$total` selects `$total`; a configuration borrowed from a PHP extension selects `total` and puts every rename-adjacent interaction off by one character",
   "seeAlso": [
     "ide/doc-comment-authoring-is-the-editors-own",
     "ide/contributions-are-frozen-and-only-ever-added",

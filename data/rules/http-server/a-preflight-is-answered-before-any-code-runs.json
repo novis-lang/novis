@@ -6,7 +6,6 @@
     "0074",
     "0102"
   ],
-  "divergesFromPhp": "no `header('Access-Control-Allow-Origin: …')` in application code answers a preflight; the policy answers it before the program exists",
   "seeAlso": [
     "http-server/head-runs-as-get",
     "routing/matched-once-before-the-handler",

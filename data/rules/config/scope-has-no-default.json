@@ -4,7 +4,6 @@
   "because": [
     "0073"
   ],
-  "divergesFromPhp": "the `flock`-and-hope guard a PHP deployment adds per cron job is one required word per entry, and forgetting it is a boot error rather than four copies of a nightly run",
   "seeAlso": [
     "config/a-fleet-entry-fires-at-most-once-under-a-lease",
     "config/scheduled-work-is-a-config-block",

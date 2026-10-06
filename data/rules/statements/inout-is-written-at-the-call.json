@@ -5,7 +5,6 @@
     "0107",
     "0080"
   ],
-  "divergesFromPhp": "PHP removed call-time by-reference in 5.4 and left the caller no marker at all; here the marker is mandatory in both directions",
   "seeAlso": [
     "statements/inout-is-the-by-reference-spelling",
     "statements/an-inout-argument-is-a-local"

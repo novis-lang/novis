@@ -4,7 +4,6 @@
   "because": [
     "0040"
   ],
-  "divergesFromPhp": "PhpStorm's auto-import may add `use Foo as Bar` to dodge a clash; here an alias is not a spelling the language has, so the editor cannot write one",
   "seeAlso": [
     "statements/nothing-gets-a-second-name",
     "types/var-inference",

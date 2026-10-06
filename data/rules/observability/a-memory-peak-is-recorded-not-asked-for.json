@@ -4,7 +4,6 @@
   "because": [
     "0148"
   ],
-  "divergesFromPhp": "`memory_get_peak_usage` reads a mark PHP keeps because its allocator holds its chunks; here the mark is kept deliberately, because deterministic release means the current figure falls back to the baseline and hides the spike",
   "seeAlso": [
     "observability/memory-is-three-numbers-on-core-budget",
     "observability/memory-high-water-writes-a-warn",

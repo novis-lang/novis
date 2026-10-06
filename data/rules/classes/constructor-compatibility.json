@@ -5,7 +5,6 @@
     "0125",
     "0022"
   ],
-  "divergesFromPhp": "the mismatch is refused at the `new` rather than discovered when the wrong subclass arrives",
   "seeAlso": [
     "types/class-reference",
     "types/class-reference-sites",

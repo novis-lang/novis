@@ -5,7 +5,6 @@
     "0048",
     "0093"
   ],
-  "divergesFromPhp": "there is no `.phar` and no archive format: the shipped file is the runtime itself with the source appended, and it is remade by its author rather than updated in place",
   "seeAlso": [
     "programs/bundle-trust-domain",
     "packaging/a-bundle-carries-source-not-artifacts",

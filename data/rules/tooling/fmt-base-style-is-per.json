@@ -5,7 +5,6 @@
     "0039",
     "0267"
   ],
-  "divergesFromPhp": "PER's modifier order is enforced rather than recommended, and `else if` is always written `elseif`",
   "seeAlso": [
     "tooling/fmt-is-one-canonical-style",
     "tooling/fmt-sorts-the-use-block",

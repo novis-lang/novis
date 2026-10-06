@@ -5,7 +5,6 @@
     "0102",
     "0097"
   ],
-  "divergesFromPhp": "there is no base URL derived from `$_SERVER['HTTP_HOST']`; an absolute link comes from a configured origin or the call throws",
   "seeAlso": [
     "routing/a-leftover-link-key-is-a-query-string",
     "routing/an-origin-is-per-mount-and-checked-at-boot",

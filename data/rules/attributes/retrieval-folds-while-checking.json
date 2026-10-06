@@ -5,7 +5,6 @@
     "0046",
     "0036"
   ],
-  "divergesFromPhp": "\"which one did I get?\" for a repeated attribute is a diagnostic at the call site rather than a question a test run answers, and no reflection table reaches the compiled unit",
   "seeAlso": [
     "attributes/structural-retrieval",
     "attributes/payload-is-a-compile-time-constant",

@@ -7,7 +7,6 @@
     "0014",
     "0011"
   ],
-  "divergesFromPhp": "`ArrayAccess` and `Countable` do not exist; a collection exposes `->get($k)`, `->set($k, $v)` and `->count()` instead",
   "seeAlso": [
     "iteration/foreach-subjects",
     "iteration/two-interfaces"

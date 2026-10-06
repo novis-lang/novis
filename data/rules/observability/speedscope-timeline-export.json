@@ -6,7 +6,6 @@
     "0040",
     "0018"
   ],
-  "divergesFromPhp": "there is no Xdebug cachegrind file to open in a bespoke viewer; the timeline is speedscope's open evented format, the same file the sampling profiler writes",
   "seeAlso": [
     "observability/trace-events-carry-a-kind",
     "testing/debug-surface"

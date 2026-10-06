@@ -5,7 +5,6 @@
     "0091",
     "0012"
   ],
-  "divergesFromPhp": "`APP_ENV` and its kind are ordinary `Core\\Env::get` values with no effect on the runtime; the operator's switch is a reload of the root-owned file",
   "seeAlso": [
     "config/two-modes-and-the-default-is-production",
     "config/the-mode-flag-wins-over-the-file",

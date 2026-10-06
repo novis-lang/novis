@@ -8,7 +8,6 @@
     "0052",
     "0043"
   ],
-  "divergesFromPhp": "no class is generated and no source is evaluated; a double is a value the checker compares against the interface, and a loose or nice double is not expressible",
   "seeAlso": [
     "testing/interaction-after-the-fact",
     "testing/assertions-are-typed"

@@ -4,7 +4,6 @@
   "because": [
     "0072"
   ],
-  "divergesFromPhp": "there is no queue in front of this and no silent backlog; overload is reported to the request that caused it",
   "seeAlso": [
     "concurrency/deferred-is-bounded-by-two-directives",
     "core-classes/queue-storage-is-a-table"

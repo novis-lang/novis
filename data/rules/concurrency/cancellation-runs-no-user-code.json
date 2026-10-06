@@ -6,7 +6,6 @@
     "0106",
     "0265"
   ],
-  "divergesFromPhp": "the `finally`-shaped cleanup a PHP developer would reach for does not run, and there is nothing to catch",
   "seeAlso": [
     "errors/throwable-hierarchy",
     "errors/escalation-ladder",

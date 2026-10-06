@@ -4,7 +4,6 @@
   "because": [
     "0099"
   ],
-  "divergesFromPhp": "a PHP grammar colours `===`, `(int)$x` and `if (...): endif;` as syntax; here they render as body text so the editor never confirms what the compiler refuses",
   "seeAlso": [
     "ide/highlighting-is-two-layers",
     "expressions/one-equality-operator",

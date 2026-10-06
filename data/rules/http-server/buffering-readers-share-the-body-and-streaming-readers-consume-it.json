@@ -4,7 +4,6 @@
   "because": [
     "0156"
   ],
-  "divergesFromPhp": "`$_POST` is populated before the program runs and leaves `php://input` empty for a multipart body; here nothing is read until a member asks, and which reader may follow which is stated rather than decided by `enable_post_data_reading`",
   "seeAlso": [
     "http-server/the-body-is-read-on-demand-under-two-caps",
     "http-server/a-part-is-a-file-iff-it-carries-a-filename",

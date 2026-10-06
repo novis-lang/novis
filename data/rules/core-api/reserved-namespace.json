@@ -6,7 +6,6 @@
     "0015",
     "0051"
   ],
-  "divergesFromPhp": "a misspelled built-in is a compile error naming the member rather than a run-time undefined-function fatal",
   "seeAlso": [
     "core-api/core-means-always-present",
     "core-api/a-domain-class-is-a-singular-noun",

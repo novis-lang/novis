@@ -6,7 +6,6 @@
     "0027",
     "0007"
   ],
-  "divergesFromPhp": "there is no `Closure` type, no `Closure::fromCallable`, and no `call_user_func`/`call_user_func_array`; `bind`, `bindTo` and `call` take no scope argument and throw for an object outside the anonymous function's own class",
   "seeAlso": [
     "types/callable-values",
     "types/anonymous-function",

@@ -4,7 +4,6 @@
   "because": [
     "0039"
   ],
-  "divergesFromPhp": "PHP's case-insensitive keywords are not normalized; `IF` is a legal class name and fixing an identifier's case is a rename, not a layout",
   "seeAlso": [
     "types/duration",
     "classes/reserved-spellings-are-lower-case",

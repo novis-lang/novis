@@ -5,7 +5,6 @@
     "0056",
     "0009"
   ],
-  "divergesFromPhp": "Unicode mode is not a flag because `string` is always UTF-8, and `/e` and its relatives are not reintroduced",
   "seeAlso": [
     "core-classes/regex-two-tiers",
     "types/string-is-utf8",

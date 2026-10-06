@@ -6,7 +6,6 @@
     "0085",
     "0071"
   ],
-  "divergesFromPhp": "a query key is declared on the handler's parameter with a type, matched nominally as `Core\\Query`, rather than read out of `$_GET` and validated by hand",
   "seeAlso": [
     "routing/a-bad-query-value-is-a-400",
     "routing/a-capture-narrows-to-a-closed-set",

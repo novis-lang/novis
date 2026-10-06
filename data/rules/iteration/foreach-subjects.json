@@ -6,7 +6,6 @@
     "0007",
     "0251"
   ],
-  "divergesFromPhp": "an object is iterable only by declaring `Iterable<T>` or `Iterator<T>`; walking an ordinary object's public properties does not compile",
   "seeAlso": [
     "iteration/two-interfaces",
     "iteration/no-magic-collection-interfaces",

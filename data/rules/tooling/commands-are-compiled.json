@@ -7,7 +7,6 @@
     "0061",
     "0071"
   ],
-  "divergesFromPhp": "`getopt()` and hand-parsed `$argv` become a table built while compiling; a duplicate command, two options sharing a spelling, or an `#[Option]` on a type no text converts into is a compile error rather than a run-time surprise",
   "seeAlso": [
     "tooling/a-parameter-is-an-argument-unless-it-is-an-option",
     "tooling/command-run-dispatches-and-help-is-generated",

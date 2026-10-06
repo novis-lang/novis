@@ -6,7 +6,6 @@
     "0103",
     "0078"
   ],
-  "divergesFromPhp": "there is no INI dialect: the file is TOML, its name is `nvs.toml`, and no `php.ini` carries over under any syntax because the directive set shares almost no key with it",
   "seeAlso": [
     "config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one",
     "config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults",

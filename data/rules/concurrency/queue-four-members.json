@@ -6,7 +6,6 @@
     "0063",
     "0153"
   ],
-  "divergesFromPhp": "the queue is four members of the runtime rather than a framework façade, and what `push` answers is a handle rather than an integer id",
   "seeAlso": [
     "core-api/shape-rules",
     "concurrency/a-job-between-attempts-is-pending",

@@ -5,7 +5,6 @@
     "0005",
     "0064"
   ],
-  "divergesFromPhp": "`false` is what PHP returns too, but a value above the ceiling is refused whole rather than run at some other number",
   "seeAlso": [
     "config/three-changeability-classes",
     "config/ceilings-are-their-own-directives",

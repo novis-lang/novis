@@ -6,7 +6,6 @@
     "0009",
     "0007"
   ],
-  "divergesFromPhp": "`bytes` has no PHP neighbour and takes emptiness alone, so a one-octet `\"0\"` buffer is truthy where the string `\"0\"` is falsy",
   "seeAlso": [
     "expressions/truthy-positions",
     "enums/truthiness",

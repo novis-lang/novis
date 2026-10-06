@@ -7,7 +7,6 @@
     "0099",
     "0095"
   ],
-  "divergesFromPhp": "a `#!` first line is stripped by PHP but the file still needs `<?php` on line 2; here the shebang itself opens code mode, and a `<?nvs` after it is E0009",
   "seeAlso": [
     "statements/nvs-is-the-only-open-tag",
     "statements/exit-is-the-only-termination-keyword",

@@ -6,7 +6,6 @@
     "0022",
     "0029"
   ],
-  "divergesFromPhp": "the constructor is spelled `constructor`; `__construct` is refused where it is written, with a diagnostic naming the rename",
   "seeAlso": [
     "classes/no-leading-underscore-identifiers",
     "classes/definite-property-initialization",

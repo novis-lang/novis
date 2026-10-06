@@ -5,7 +5,6 @@
     "0097",
     "0095"
   ],
-  "divergesFromPhp": "`cgi.fix_pathinfo`, `SCRIPT_FILENAME` and `PATH_INFO` have no counterpart: a request selects a mount from a table expanded at boot and can never name a file",
   "seeAlso": [
     "http-server/a-mount-table-expands-at-boot",
     "security/a-path-is-not-a-url",

@@ -5,7 +5,6 @@
     "0058",
     "0074"
   ],
-  "divergesFromPhp": "curl's `FOLLOWLOCATION` is off by default too, but a hop it follows is never checked against anything; here each hop passes the same policy the first URL did and a denied one fails the call rather than being dropped from the chain",
   "seeAlso": [
     "http-server/allow-url-pins-the-address",
     "http-server/one-deadline-covers-the-whole-call",

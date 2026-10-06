@@ -5,7 +5,6 @@
     "0097",
     "0093"
   ],
-  "divergesFromPhp": "the same `listen = /run/nvs.sock` shape as php-fpm, but a Windows host has no named-pipe equivalent and listens on TCP loopback",
   "seeAlso": [
     "http-server/the-server-block-is-boot-class",
     "http-server/trusted-proxies-is-empty-and-empty-reads-nothing",

@@ -8,7 +8,6 @@
     "0071",
     "0232"
   ],
-  "divergesFromPhp": "a named attribute resolves to a `type` alias rather than to a class, so there is no per-attribute-kind declaration and no second namespace of attribute names",
   "seeAlso": [
     "attributes/inert-metadata",
     "attributes/payload-is-a-compile-time-constant",

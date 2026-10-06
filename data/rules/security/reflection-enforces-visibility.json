@@ -6,7 +6,6 @@
     "0014",
     "0274"
   ],
-  "divergesFromPhp": "`ReflectionProperty::setAccessible(true)` and every equivalent are rejected outright, not merely undocumented",
   "seeAlso": [
     "security/reflection-needs-no-capability",
     "enums/reflection"

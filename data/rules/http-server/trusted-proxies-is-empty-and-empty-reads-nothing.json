@@ -6,7 +6,6 @@
     "0080",
     "0095"
   ],
-  "divergesFromPhp": "`$_SERVER['REMOTE_ADDR']` and `HTTP_X_FORWARDED_FOR` are replaced by one `clientIp(): ?tainted string`, which is the socket peer until an operator names the proxies",
   "seeAlso": [
     "http-server/x-forwarded-for-is-the-only-address-header",
     "http-server/a-forwarded-token-is-read-withheld-or-refused",

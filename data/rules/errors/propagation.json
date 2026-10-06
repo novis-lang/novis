@@ -4,7 +4,6 @@
   "because": [
     "0002"
   ],
-  "divergesFromPhp": "an exception is a status value checked after every call, not a stack unwind",
   "seeAlso": [
     "errors/helper-abi",
     "errors/throw-is-not-slower",

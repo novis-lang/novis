@@ -6,7 +6,6 @@
     "0041",
     "0148"
   ],
-  "divergesFromPhp": "request rate, latency, query time, GC pause and spawn overhead are on the scrape endpoint before the application emits anything, where PHP needs an APM agent or a hand-written StatsD client for the first three and cannot reach the last two at all",
   "seeAlso": [
     "observability/the-runtime-exports-what-it-already-measures",
     "observability/route-label-is-the-declared-name",

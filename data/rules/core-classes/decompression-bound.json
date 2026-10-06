@@ -4,7 +4,6 @@
   "because": [
     "0166"
   ],
-  "divergesFromPhp": "`$max_length` was optional and defaulted to unlimited, so the safe call was the one the caller had to remember to write",
   "seeAlso": [
     "core-api/tier-roster",
     "config/three-changeability-classes",

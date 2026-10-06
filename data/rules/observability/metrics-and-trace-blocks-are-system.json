@@ -6,7 +6,6 @@
     "0064",
     "0005"
   ],
-  "divergesFromPhp": "a request cannot switch tracing on for itself the way `xdebug_start_trace()` or an `ini_set` can; where telemetry ships is the deployment's decision",
   "seeAlso": [
     "config/system-means-a-request-may-not-set-it",
     "config/three-changeability-classes",

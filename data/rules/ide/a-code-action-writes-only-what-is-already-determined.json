@@ -5,7 +5,6 @@
     "0108",
     "0114"
   ],
-  "divergesFromPhp": "implement-missing-members copies real signatures instead of guessing at them, and there is no getter/setter generator because property hooks make the pair pointless",
   "seeAlso": [
     "ide/narrowing-is-a-diff-never-a-save-time-fix",
     "classes/property-observer",

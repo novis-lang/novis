@@ -6,7 +6,6 @@
     "0002",
     "0020"
   ],
-  "divergesFromPhp": "PHP has no expression-level `catch`; a one-line fallback for a throwing call is a language form rather than a swallowed `@` or a five-line block",
   "seeAlso": [
     "expressions/catch-arm-is-an-expression",
     "expressions/catch-result-type",

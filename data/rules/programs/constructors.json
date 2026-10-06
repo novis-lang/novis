@@ -4,7 +4,6 @@
   "because": [
     "0253"
   ],
-  "divergesFromPhp": "a plugin factory list is a compile-time array literal of callables, not `new $className(...$args)` over discovered names",
   "seeAlso": [
     "programs/implementing",
     "programs/implementing-with",

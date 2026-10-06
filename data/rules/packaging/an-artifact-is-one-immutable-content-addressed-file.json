@@ -6,7 +6,6 @@
     "0078",
     "0017"
   ],
-  "divergesFromPhp": "opcache's file cache is keyed by path and revalidated by timestamp; an artifact here is keyed by the source's digest and the environment's, so a file built for another machine, compiler or extension set is never opened at all",
   "seeAlso": [
     "config/the-extension-set-is-in-every-unit-key",
     "config/opcache-file-cache-directives-are-system",

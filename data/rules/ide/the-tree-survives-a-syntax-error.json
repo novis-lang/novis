@@ -5,7 +5,6 @@
     "0040",
     "0099"
   ],
-  "divergesFromPhp": "an editor over PHP goes dark below the first syntax error until it is fixed; here completion and hover keep working on the well-formed code around it",
   "seeAlso": [
     "ide/one-grammar-one-tree",
     "ide/the-first-server-answers-a-closed-list",

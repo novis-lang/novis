@@ -16,7 +16,7 @@ exist in the registry (or the reverse).
 
 Every item was decided against the ADR that owns it; the decisions that were open were put to the user
 and are folded into their ADRs (0006, 0007, 0033, 0047, 0071, 0090, 0091, 0094, 0103, 0107,
-`README.md` § *Decisions taken at project start*, `divergences.md`). The code and card work is the five
+`README.md` § *Decisions taken at project start*). The code and card work is the five
 rows whose owner is an item number, 31 to 35. An item's owner is the row it sits in.
 
 | Verdict | Items | Owner |
@@ -27,7 +27,7 @@ rows whose owner is an item number, 31 to 35. An item's owner is the row it sits
 | Code — lowering and library gaps | P1, P4, D1, D7, D8, D10, D12, D16, D17, D21, D22, D23, D27, D33, D35, U21, M1 | item 34 |
 | Docs in the tree — cards, help texts, module docs, reference chapters | M10, D2, D3, D4, D6, D9, D20, D29, U13, M2, M3, M4, M6, M7, and § *Facts worth keeping* | item 35 |
 | Planned, and unchanged by this pass | U7, U8, U9, U16, D31, D11 and D28 | each finding's own entry below |
-| Closed — the binary is right and the doc now says so | U10 (`rule:config/ownership-is-the-trust-boundary` states the `run`/`check`/`dump` exemption), U17 (`rule:types/grammar`: a bare `array` is `array<mixed>`), D13 (`rule:security/isolate-shares-nothing`: capture is the default), D18 (`rule:types/erased-member-access`), D19 (`rule:types/enum-case-type`: `as` is the only narrowing), D26 (`divergences.md`), D32 (a validator does not launder) | — |
+| Closed — the binary is right and the doc now says so | U10 (`rule:config/ownership-is-the-trust-boundary` states the `run`/`check`/`dump` exemption), U17 (`rule:types/grammar`: a bare `array` is `array<mixed>`), D13 (`rule:security/isolate-shares-nothing`: capture is the default), D18 (`rule:types/erased-member-access`), D19 (`rule:types/enum-case-type`: `as` is the only narrowing), D26, D32 (a validator does not launder) | — |
 
 ## Panics and aborts (P)
 

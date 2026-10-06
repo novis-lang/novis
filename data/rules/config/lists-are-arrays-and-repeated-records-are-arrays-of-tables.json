@@ -7,7 +7,6 @@
     "0006",
     "0018"
   ],
-  "divergesFromPhp": "no comma-joined or `PATH`-joined strings: a list of roots is `[\"/a\", \"/b\", \"C:\\\\srv\"]`, which is what makes a Windows absolute path spellable at all",
   "seeAlso": [
     "config/a-value-array-replaces-and-a-table-appends",
     "config/include-takes-a-path-or-a-dir"

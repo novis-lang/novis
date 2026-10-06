@@ -6,7 +6,6 @@
     "0078",
     "0064"
   ],
-  "divergesFromPhp": "an `ini_set` never outlives the request even under a long-running process, and no other request can observe it",
   "seeAlso": [
     "config/three-changeability-classes",
     "config/the-config-is-an-immutable-snapshot",

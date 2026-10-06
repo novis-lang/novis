@@ -4,7 +4,6 @@
   "because": [
     "0039"
   ],
-  "divergesFromPhp": "no `php -l`-style check ever holds a stylistic opinion, and formatting never lands in the same report as an error",
   "seeAlso": [
     "tooling/fmt-check-writes-nothing",
     "tooling/fmt-is-one-canonical-style",

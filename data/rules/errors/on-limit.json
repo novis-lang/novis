@@ -4,7 +4,6 @@
   "because": [
     "0020"
   ],
-  "divergesFromPhp": "the handler is request-local rather than global, and runs on a reserve carved out before execution started",
   "seeAlso": [
     "errors/escalation-ladder",
     "errors/stack-depth",

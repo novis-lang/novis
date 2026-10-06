@@ -6,7 +6,6 @@
     "0040",
     "0137"
   ],
-  "divergesFromPhp": "a PHP editor — PhpStorm, Intelephense — carries a parser of its own beside `php`; here the editor parses with the compiler's one grammar, so what the editor accepts and what `nvs check` accepts cannot drift",
   "seeAlso": [
     "ide/tokens-plus-trivia-reproduce-the-file",
     "ide/recovery-is-explicit",

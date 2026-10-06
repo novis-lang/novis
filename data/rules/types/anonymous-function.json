@@ -6,7 +6,6 @@
     "0027",
     "0015"
   ],
-  "divergesFromPhp": "`function (...) {...}` and `function (...) use (...) {...}` do not parse at all; `fn` gains the block body PHP's arrow form never had",
   "seeAlso": [
     "types/implicit-capture",
     "types/anonymous-function-self-name",

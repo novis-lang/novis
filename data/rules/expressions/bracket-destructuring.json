@@ -5,7 +5,6 @@
     "0050",
     "0049"
   ],
-  "divergesFromPhp": "one of PHP's two destructuring spellings is refused, so `list($a, $b) = $pair;` is a diagnostic naming the bracket form",
   "seeAlso": [
     "expressions/no-keyword-logical-operators"
   ],

@@ -7,7 +7,6 @@
     "0046",
     "0071"
   ],
-  "divergesFromPhp": "Composer's `scripts` (`post-install-cmd` and friends) and plugins execute at install time; here there is no hook, build step, macro or code generation of any kind",
   "seeAlso": [
     "packaging/a-package-is-its-digest",
     "security/no-eval",

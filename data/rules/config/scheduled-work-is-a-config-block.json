@@ -7,7 +7,6 @@
     "0005",
     "0006"
   ],
-  "divergesFromPhp": "there is no crontab line and no scheduler API — a job, its cadence and its concurrency policy are an entry in `nvs.toml`, refused at boot when it cannot be armed",
   "seeAlso": [
     "config/scope-has-no-default",
     "config/cron-is-five-fields-and-nothing-more",

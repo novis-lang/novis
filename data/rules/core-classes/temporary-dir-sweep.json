@@ -10,7 +10,6 @@
     "0059",
     "0004"
   ],
-  "divergesFromPhp": "there is no `tmpfile`, no `sys_get_temp_dir` writing and no `tempnam` — the runtime hands out a directory it owns and reclaims it",
   "seeAlso": [
     "core-classes/temporary-dir-orphan-sweep",
     "core-classes/io-write-stream",

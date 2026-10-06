@@ -5,7 +5,6 @@
     "0102",
     "0097"
   ],
-  "divergesFromPhp": "the deployment prefix is never derived from `REQUEST_URI` or `SCRIPT_NAME`; the server hands it over, and a tenant is a mount capture rather than a `host` field on the route",
   "seeAlso": [
     "routing/matched-once-before-the-handler",
     "routing/an-origin-is-per-mount-and-checked-at-boot",

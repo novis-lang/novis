@@ -5,7 +5,6 @@
     "0129",
     "0033"
   ],
-  "divergesFromPhp": "`password_verify` answers `false` for a column it cannot read; this throws, so a wrong column wakes an operator",
   "seeAlso": [
     "security/bcrypt-read-roster",
     "security/secret-sinks-refuse",

@@ -9,7 +9,6 @@
     "0177",
     "0219"
   ],
-  "divergesFromPhp": "there is no unbounded wait to configure your way into: an idle, a lifetime and a send timeout all apply before any configuration is written",
   "seeAlso": [
     "concurrency/a-connection-is-a-root-isolate",
     "concurrency/a-drain-closes-a-connection-cleanly",

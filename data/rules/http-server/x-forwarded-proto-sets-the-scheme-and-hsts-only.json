@@ -6,7 +6,6 @@
     "0074",
     "0077"
   ],
-  "divergesFromPhp": "`$_SERVER['HTTPS']` is `Core\\Request::scheme()`, set only by a trusted proxy, and a redirect never reconstructs a scheme from it",
   "seeAlso": [
     "http-server/trusted-proxies-is-empty-and-empty-reads-nothing",
     "http-server/host-matching-is-on-the-host-part-only",

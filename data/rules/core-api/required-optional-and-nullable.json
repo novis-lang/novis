@@ -5,7 +5,6 @@
     "0071",
     "0063"
   ],
-  "divergesFromPhp": "`?T` never means \"the key may be absent\", and there is no omit-when-null encoding option",
   "seeAlso": [
     "core-api/written-participation",
     "core-api/omission-is-not-a-written-null",

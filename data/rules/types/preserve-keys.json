@@ -5,7 +5,6 @@
     "0069",
     "0007"
   ],
-  "divergesFromPhp": "PHP renumbers integer keys and silently keeps string ones; `false` means the result is a list, and nothing else",
   "seeAlso": [
     "types/array-combination",
     "types/arrays"

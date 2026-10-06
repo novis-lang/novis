@@ -6,7 +6,6 @@
     "0007",
     "0049"
   ],
-  "divergesFromPhp": "`(int)`, `(uint)`, `(float)`, `(string)`, `(bool)`, `(array)` and `(object)` are all parse errors rather than a second spelling of `as`",
   "seeAlso": [
     "types/conversion"
   ],

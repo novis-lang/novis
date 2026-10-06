@@ -4,7 +4,6 @@
   "because": [
     "0084"
   ],
-  "divergesFromPhp": "the guarantee is stated rather than implied, so a job is written to tolerate running twice instead of assuming it will not",
   "seeAlso": [
     "concurrency/claiming-is-one-statement",
     "concurrency/attempts-are-finite-and-a-dead-letter-is-kept"

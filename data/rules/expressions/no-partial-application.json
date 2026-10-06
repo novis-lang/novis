@@ -6,7 +6,6 @@
     "0027",
     "0031"
   ],
-  "divergesFromPhp": "PHP 8.6's `f(?, $x)` does not parse; write `fn($a) => f($a, $x)`",
   "seeAlso": [
     "types/anonymous-function",
     "types/callable-values",

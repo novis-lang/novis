@@ -4,7 +4,6 @@
   "because": [
     "0086"
   ],
-  "divergesFromPhp": "a hand-rolled `\"\\e[1m\"` string fails the build instead of styling the output",
   "seeAlso": [
     "tooling/terminal-output-is-a-sink",
     "tooling/text-is-the-one-raw-path"

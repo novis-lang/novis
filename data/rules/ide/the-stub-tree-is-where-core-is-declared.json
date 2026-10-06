@@ -4,7 +4,6 @@
   "because": [
     "0214"
   ],
-  "divergesFromPhp": "PhpStorm ships a hand-maintained stub tree for PHP's built-ins; here the stubs are generated from the registry the runtime dispatches on, so a stub cannot say what the binary does not do",
   "seeAlso": [
     "ide/one-server-two-thin-clients",
     "ide/the-index-answers-the-cursor",

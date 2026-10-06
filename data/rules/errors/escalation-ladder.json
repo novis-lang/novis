@@ -4,7 +4,6 @@
   "because": [
     "0020"
   ],
-  "divergesFromPhp": "every failure category ends in a log line, and no handler is ever given a second attempt at the same failure",
   "seeAlso": [
     "errors/on-limit",
     "errors/on-uncaught-throw",

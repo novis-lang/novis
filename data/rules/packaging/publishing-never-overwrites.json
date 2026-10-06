@@ -4,7 +4,6 @@
   "because": [
     "0081"
   ],
-  "divergesFromPhp": "a Packagist release is whatever tag the repository points at and can be moved; here a published version is immutable and is in the transparency log before it is downloadable",
   "seeAlso": [
     "packaging/the-registry-keeps-an-append-only-log",
     "packaging/a-git-dependency-is-root-only",

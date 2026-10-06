@@ -6,7 +6,6 @@
     "0024",
     "0077"
   ],
-  "divergesFromPhp": "an argument arrives as the parameter's declared type, `uint` unqualified and `string` `tainted`, instead of every option being a string in an array",
   "seeAlso": [
     "tooling/commands-are-compiled",
     "security/route-capture-is-laundered-by-its-type",

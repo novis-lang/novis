@@ -6,7 +6,6 @@
     "0020",
     "0072"
   ],
-  "divergesFromPhp": "PHP's shutdown functions fire on most fatals; here a resource-limit `FATAL` reaches only `Core\\Fatal::onLimit`, and a migrator moves that one use there",
   "seeAlso": [
     "observability/three-endings-fire-the-exit-queue",
     "errors/on-limit",

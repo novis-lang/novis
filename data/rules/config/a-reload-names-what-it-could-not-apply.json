@@ -5,7 +5,6 @@
     "0078",
     "0219"
   ],
-  "divergesFromPhp": "a changed listen address is named in the reply rather than silently ignored until the next restart",
   "seeAlso": [
     "config/reloadability-is-its-own-field",
     "config/the-config-is-an-immutable-snapshot",

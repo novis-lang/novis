@@ -4,7 +4,6 @@
   "because": [
     "0148"
   ],
-  "divergesFromPhp": "PHP has no warning short of the fatal: a request that touched 96% of `memory_limit` and returned successfully is indistinguishable from one that never passed 30%",
   "seeAlso": [
     "observability/a-memory-peak-is-recorded-not-asked-for",
     "observability/a-slow-query-is-logged-past-a-threshold",

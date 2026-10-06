@@ -4,7 +4,6 @@
   "because": [
     "0063"
   ],
-  "divergesFromPhp": "the `sleep`/`usleep`/`time_nanosleep` split does not exist — one parameter takes one `Duration`",
   "seeAlso": [
     "core-api/no-mode-strings",
     "types/duration"

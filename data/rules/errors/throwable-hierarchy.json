@@ -4,7 +4,6 @@
   "because": [
     "0020"
   ],
-  "divergesFromPhp": "`catch (Throwable)` provably cannot see a resource-limit fatal; `Exception` and `Error` are not class names",
   "seeAlso": [
     "errors/escalation-ladder",
     "errors/on-limit",

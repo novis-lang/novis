@@ -7,7 +7,6 @@
     "0029",
     "0215"
   ],
-  "divergesFromPhp": "the map is a declaration in source rather than a registered loader or a `psr-4` manifest, and it travels with the code instead of with the deployment",
   "seeAlso": [
     "programs/no-runtime-autoload",
     "programs/one-declaration-per-autoloaded-file",

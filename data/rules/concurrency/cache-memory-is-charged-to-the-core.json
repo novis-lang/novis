@@ -6,7 +6,6 @@
     "0004",
     "0005"
   ],
-  "divergesFromPhp": "`apc.shm_size` exhaustion makes a store fail; here the cap forgets an older entry and the write succeeds",
   "seeAlso": [
     "programs/memory-priority",
     "concurrency/cross-request-state-is-explicit"

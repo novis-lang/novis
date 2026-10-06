@@ -6,7 +6,6 @@
     "0110",
     "0102"
   ],
-  "divergesFromPhp": "the attribute is read while compiling rather than by a reflection scan at boot, a route's name is never derived from the class and method, and there is no class-level prefix attribute",
   "seeAlso": [
     "core-classes/derive-attribute",
     "attributes/inert-metadata",

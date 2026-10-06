@@ -6,7 +6,6 @@
     "0106",
     "0219"
   ],
-  "divergesFromPhp": "php-fpm's `pm.max_children` queues on the socket and the proxy reports a 504; here the origin answers `503` with `Retry-After: 1` itself, and no custom error page runs",
   "seeAlso": [
     "http-server/the-server-block-is-boot-class",
     "errors/on-limit",

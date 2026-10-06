@@ -6,7 +6,6 @@
     "0008",
     "0007"
   ],
-  "divergesFromPhp": "neither gets a `Core` class, so `extract($_GET)`-shaped code has no straight-line conversion",
   "seeAlso": [
     "statements/no-host-populated-variables",
     "statements/storage-that-outlives-a-call"

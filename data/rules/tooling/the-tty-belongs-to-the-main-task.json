@@ -6,7 +6,6 @@
     "0088",
     "0006"
   ],
-  "divergesFromPhp": "a request handler cannot reach the terminal at all, where PHP-FPM's `STDOUT` quietly lands in the server log",
   "seeAlso": [
     "tooling/echo-always-has-a-sink",
     "tooling/the-terminal-is-restored-on-every-exit-path",

@@ -7,7 +7,6 @@
     "0082",
     "0033"
   ],
-  "divergesFromPhp": "a frame is untrusted by type rather than by convention, so it reaches no sink until it has been validated",
   "seeAlso": [
     "concurrency/a-connection-is-a-loop",
     "core-classes/topic"

@@ -7,7 +7,6 @@
     "0135",
     "0022"
   ],
-  "divergesFromPhp": "PHP has no way to ask either question of an argument; here the two are different requests at every `Core` member",
   "seeAlso": [
     "core-api/a-nullable-field-omits-as-the-never-written-marker",
     "core-api/a-written-null-removes",

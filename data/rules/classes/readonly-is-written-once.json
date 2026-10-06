@@ -4,7 +4,6 @@
   "because": [
     "0270"
   ],
-  "divergesFromPhp": "PHP admits the first write from any method of the declaring class and throws only on the second.",
   "seeAlso": [
     "classes/lateinit-restrictions",
     "classes/property-hooks",

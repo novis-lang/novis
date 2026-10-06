@@ -8,7 +8,6 @@
     "0005",
     "0072"
   ],
-  "divergesFromPhp": "there is nothing a PHP process can hold across requests, so a connection has no counterpart at all — and it is a root rather than a request that never ends",
   "seeAlso": [
     "security/isolate-shares-nothing",
     "errors/escalation-ladder",

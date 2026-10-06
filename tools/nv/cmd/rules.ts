@@ -16,8 +16,7 @@
 // citation token everywhere is `rule:` and the id. A chapter's place is its topic record's `order`,
 // and a rule's place is its position in that record's `rules` list.
 //
-// `docs/rules/<topic>.md`, `docs/ground-rules.md` and `docs/divergences.md` are rendered from the two
-// and never edited. `because` points at decision records, and nothing about the reverse direction is
+// `docs/rules/<topic>.md` and `docs/ground-rules.md` are rendered from the two and never edited. `because` points at decision records, and nothing about the reverse direction is
 // written by hand. A file that teaches the citation syntax rather than using it carries the marker
 // `rules-py:examples`, and its `rule:` tokens are then examples rather than citations. This file
 // carries it.
@@ -78,7 +77,6 @@ interface Rule {
   title: string;
   status: string;
   because: string[];
-  diverges: string | null;
   seeAlso: string[];
   guardedBy: string[];
   bodyPath: string;
@@ -157,7 +155,7 @@ export class Rulebook {
           title: r.value.title,
           status: r.value.status,
           because: r.value.because,
-          diverges: r.value.divergesFromPhp ?? null,
+
           seeAlso: r.value.seeAlso,
           guardedBy: r.value.guardedBy,
           bodyPath: join(RULES_DIR, topic, `${slug}.md`),
@@ -276,30 +274,11 @@ export class Rulebook {
     return lines.join("\n").replace(/\n+$/, "") + "\n";
   }
 
-  renderDivergences(): string {
-    const lines = [
-      generatedHeader("docs/rules/", "<topic>"),
-      "# Where Novis deliberately differs from PHP\n",
-      "Every rule carrying a `divergesFromPhp` note, with the rule that owns it. Generated " +
-        `from \`docs/rules/\` by \`${RENDER_COMMAND}\`.\n`,
-      "| Topic | Divergence | Rule |",
-      "|---|---|---|",
-    ];
-    for (const t of this.topics) {
-      for (const r of t.rules) {
-        if (r.diverges) lines.push(`| ${t.title} | ${r.diverges} | [\`${r.id}\`](rules/${t.topic}.md#${anchor(r)}) |`);
-      }
-    }
-    return lines.join("\n").replace(/\n+$/, "") + "\n";
-  }
 
   /** Every generated file and the text it should hold, in the order they are reported. */
   generated(): [string, string][] {
     const out: [string, string][] = this.topics.map((t) => [mdPath(t), this.renderTopic(t)]);
-    if (this.topics.length > 0) {
-      out.push([join(ROOT, "docs", "ground-rules.md"), this.renderGroundRules()]);
-      out.push([join(ROOT, "docs", "divergences.md"), this.renderDivergences()]);
-    }
+    if (this.topics.length > 0) out.push([join(ROOT, "docs", "ground-rules.md"), this.renderGroundRules()]);
     return out;
   }
 }
@@ -440,7 +419,7 @@ export async function run(args: string[]): Promise<number> {
       return 1;
     }
     out.push(`# ${r.title}   rule:${r.id}`, `status:   ${r.status}`, `because:  ${r.because.join(", ") || "-"}`);
-    if (r.diverges) out.push(`diverges: ${r.diverges}`);
+
     if (r.seeAlso.length > 0) out.push(`seeAlso:  ${r.seeAlso.join(", ")}`);
     out.push("", body(r));
     flush();

@@ -7,7 +7,6 @@
     "0020",
     "0004"
   ],
-  "divergesFromPhp": "there is no worker process per request to die and be respawned; a request is contained in-process and the process boundary is reserved for one named residue",
   "seeAlso": [
     "http-server/containment-does-not-end-at-the-helper",
     "http-server/no-path-reaches-abort",

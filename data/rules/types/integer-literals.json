@@ -4,7 +4,6 @@
   "because": [
     "0007"
   ],
-  "divergesFromPhp": "`017` is decimal seventeen where PHP reads octal fifteen; PHP's leading-zero octal is refused rather than reinterpreted",
   "seeAlso": [
     "types/uint",
     "types/numeric-literal-placement",

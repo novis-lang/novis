@@ -6,7 +6,6 @@
     "0012",
     "0124"
   ],
-  "divergesFromPhp": "`$_SESSION` does not exist and no member silently starts a session — `session_start` has to be written",
   "seeAlso": [
     "core-api/failure-throws",
     "core-api/reserved-namespace",

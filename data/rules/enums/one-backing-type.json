@@ -5,7 +5,6 @@
     "0010",
     "0007"
   ],
-  "divergesFromPhp": "there is no pure enum and no `string`-backed enum, and `BackedEnum` and `UnitEnum` do not exist",
   "seeAlso": [
     "enums/declaration",
     "enums/closed-integer-type",

@@ -6,7 +6,6 @@
     "0002",
     "0067"
   ],
-  "divergesFromPhp": "a decode failure is one throw carrying a located list, not the first problem the parser happened to hit",
   "seeAlso": [
     "core-classes/derive-field-list",
     "core-classes/db-error",

@@ -6,7 +6,6 @@
     "0007",
     "0008"
   ],
-  "divergesFromPhp": "an enum is not a class in disguise — a case is a compile-time constant, with no singleton, no allocation and no identity",
   "seeAlso": [
     "enums/declaration",
     "enums/one-backing-type",

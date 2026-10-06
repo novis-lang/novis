@@ -5,7 +5,6 @@
     "0066",
     "0063"
   ],
-  "divergesFromPhp": "`is_numeric`, `ctype_digit`, `filter_var(FILTER_VALIDATE_INT)` and their kind have no replacement — the conversion is the test",
   "seeAlso": [
     "expressions/nullable-conversion",
     "expressions/try-parse",

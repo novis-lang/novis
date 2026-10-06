@@ -6,7 +6,6 @@
     "0011",
     "0036"
   ],
-  "divergesFromPhp": "there are no dynamic properties and no `__get`/`__set` to catch one — a wrong name is a diagnostic or a checked throw, never a newly created field",
   "seeAlso": [
     "classes/property-observer",
     "types/erased-member-access",

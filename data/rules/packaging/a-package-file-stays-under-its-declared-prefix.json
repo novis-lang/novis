@@ -5,7 +5,6 @@
     "0112",
     "0081"
   ],
-  "divergesFromPhp": "a Composer package may declare any PSR-4 prefix, including the application's; here a package file declaring `namespace App;` to reach the application's grants fails to compile",
   "seeAlso": [
     "security/grants-are-keyed-on-a-namespace",
     "security/authority-is-the-enclosing-namespace",

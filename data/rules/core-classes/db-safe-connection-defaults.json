@@ -5,7 +5,6 @@
     "0067",
     "0009"
   ],
-  "divergesFromPhp": "`LOCAL INFILE` cannot be enabled, TLS verifies fully rather than `prefer`, and the charset is forced to UTF-8",
   "seeAlso": [
     "core-classes/db-capabilities",
     "core-classes/db-column-types",

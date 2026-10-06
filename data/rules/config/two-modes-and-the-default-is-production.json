@@ -5,7 +5,6 @@
     "0091",
     "0005"
   ],
-  "divergesFromPhp": "there is no `php.ini-development`/`php.ini-production` pair to copy and no `APP_ENV`; staging is `production` with different configuration, not a third value",
   "seeAlso": [
     "config/a-mode-is-five-defaults",
     "config/a-program-may-read-and-flip-its-mode",

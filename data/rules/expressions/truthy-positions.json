@@ -5,7 +5,6 @@
     "0035",
     "0007"
   ],
-  "divergesFromPhp": "the implicit conversion to `bool` is confined to six positions, where PHP applies it wherever a `bool` is wanted",
   "seeAlso": [
     "expressions/truthy-table",
     "expressions/nullable-condition-lint",

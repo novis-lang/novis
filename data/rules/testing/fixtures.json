@@ -5,7 +5,6 @@
     "0079",
     "0023"
   ],
-  "divergesFromPhp": "shared setup is resolved by declared type while compiling, so an unsatisfiable parameter is a diagnostic rather than a null at run time",
   "seeAlso": [
     "testing/data-rows",
     "testing/constructor-is-setup",

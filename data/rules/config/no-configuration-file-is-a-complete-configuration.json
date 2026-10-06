@@ -6,7 +6,6 @@
     "0005",
     "0091"
   ],
-  "divergesFromPhp": "a host without a `php.ini` runs on PHP's built-in defaults, which allow nearly everything; the shipped defaults here deny every capability and start in `production`",
   "seeAlso": [
     "config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults",
     "config/ini-set-is-core-config-set",

@@ -5,7 +5,6 @@
     "0043",
     "0015"
   ],
-  "divergesFromPhp": "`trait`, a class-body `use Trait;` and `insteadof` are not in the grammar at all",
   "seeAlso": [
     "classes/interface-default-methods",
     "classes/interface-private-methods",

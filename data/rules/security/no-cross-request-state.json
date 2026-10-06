@@ -6,7 +6,6 @@
     "0059",
     "0006"
   ],
-  "divergesFromPhp": "`shmop`, `sysvshm`, APCu, `putenv`, `setlocale`, `bcscale`, `mb_internal_encoding` and `date_default_timezone_set` have no replacement",
   "seeAlso": [
     "security/closed-doors",
     "security/isolate-shares-nothing",

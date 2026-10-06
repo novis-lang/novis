@@ -4,7 +4,6 @@
   "because": [
     "0013"
   ],
-  "divergesFromPhp": "two objects of different classes are a compile error rather than a comparison PHP answers by falling through its own coercion rules",
   "seeAlso": [
     "classes/comparable",
     "classes/ordering-lowers-to-compare-to"

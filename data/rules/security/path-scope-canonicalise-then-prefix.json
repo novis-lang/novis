@@ -5,7 +5,6 @@
     "0118",
     "0104"
   ],
-  "divergesFromPhp": "`..` and a planted symlink cannot leave a granted root, because the comparison is made after resolution and never on the text",
   "seeAlso": [
     "security/capability-question-is-grant-and-scope",
     "security/a-path-is-not-a-url",

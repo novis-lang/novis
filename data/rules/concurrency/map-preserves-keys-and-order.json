@@ -4,7 +4,6 @@
   "because": [
     "0072"
   ],
-  "divergesFromPhp": "`array_map` runs sequentially; this one runs the callback concurrently and still answers in the input's order",
   "seeAlso": [
     "core-api/subject-first",
     "core-api/callback-receives-value-and-key"

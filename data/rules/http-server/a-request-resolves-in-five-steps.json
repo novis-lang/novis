@@ -7,7 +7,6 @@
     "0197",
     "0219"
   ],
-  "divergesFromPhp": "`try_files $uri /index.php` is the development sequence only; in production a URL naming an existing `.nvs` file still runs the mount's entry",
   "seeAlso": [
     "http-server/a-mount-table-expands-at-boot",
     "http-server/static-serving-is-one-policy",

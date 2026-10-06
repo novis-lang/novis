@@ -5,7 +5,6 @@
     "0102",
     "0097"
   ],
-  "divergesFromPhp": "a wrong verb on a known path is a 405 with an `Allow:` list asked of the table, rather than the 404 a hand-rolled dispatch falls into",
   "seeAlso": [
     "routing/matched-once-before-the-handler",
     "routing/a-trailing-segment-may-be-absent",

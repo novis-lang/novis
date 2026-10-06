@@ -6,7 +6,6 @@
     "0079",
     "0041"
   ],
-  "divergesFromPhp": "there is no instrumented build and no extension to load; the probes are compiled into every unit and a bit is flipped on a request already in flight",
   "seeAlso": [
     "testing/debug-surface",
     "testing/debug-mode-directive",

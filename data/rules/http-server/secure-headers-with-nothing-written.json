@@ -4,7 +4,6 @@
   "because": [
     "0074"
   ],
-  "divergesFromPhp": "a php-fpm response carries none of these unless the nginx server block or the application adds them; here they are on every response with nothing configured, and there is no default `Content-Security-Policy` beyond `frame-ancestors`",
   "seeAlso": [
     "http-server/hsts-follows-the-effective-scheme",
     "http-server/policy-headers-are-runtime-class-and-setheader-wins",

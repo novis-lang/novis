@@ -4,7 +4,6 @@
   "because": [
     "0164"
   ],
-  "divergesFromPhp": "`json_encode` reports a recursive reference by returning `false` and setting `JSON_ERROR_RECURSION`, and names no path; here the encoder throws and the message carries the property chain that closed the cycle",
   "seeAlso": [
     "classes/graph-copy",
     "classes/serialize-is-a-closed-format",

@@ -6,7 +6,6 @@
     "0100",
     "0015"
   ],
-  "divergesFromPhp": "a file opening with `<?php` reports a diagnostic, though the code after the tag still parses",
   "seeAlso": [
     "statements/exit-is-the-only-termination-keyword"
   ],

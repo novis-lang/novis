@@ -7,7 +7,6 @@
     "0064",
     "0097"
   ],
-  "divergesFromPhp": "`upload_max_filesize` and `post_max_size` are replaced by a cap on what is parsed into memory and a cap on what is streamed past it, and a file's size is never checked against the first",
   "seeAlso": [
     "http-server/upload-total-is-enforced-on-the-wire",
     "http-server/a-part-is-consumed-in-one-of-three-ways",

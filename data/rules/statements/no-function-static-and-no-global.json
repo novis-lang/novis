@@ -6,7 +6,6 @@
     "0007",
     "0006"
   ],
-  "divergesFromPhp": "`static int $calls = 0;` inside a function and `global $x;` are both parse-time refusals, each naming a class static, a constant or a parameter as the replacement",
   "seeAlso": [
     "statements/static-is-a-member-modifier",
     "statements/storage-that-outlives-a-call"

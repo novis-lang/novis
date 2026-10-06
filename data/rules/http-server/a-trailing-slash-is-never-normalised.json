@@ -6,7 +6,6 @@
     "0095",
     "0077"
   ],
-  "divergesFromPhp": "no `DirectorySlash`, no framework redirect and no `rtrim($uri, '/')`: whether the two name one resource is the application's knowledge",
   "seeAlso": [
     "http-server/head-runs-as-get",
     "routing/a-trailing-segment-may-be-absent",

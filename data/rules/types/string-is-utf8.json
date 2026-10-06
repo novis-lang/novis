@@ -5,7 +5,6 @@
     "0009",
     "0007"
   ],
-  "divergesFromPhp": "`strlen` counts bytes and needs `mb_strlen` plus a correct ambient encoding to count characters; a Novis `string` has one encoding and one length, counting extended grapheme clusters unconditionally",
   "seeAlso": [
     "types/bytes",
     "types/conversion"

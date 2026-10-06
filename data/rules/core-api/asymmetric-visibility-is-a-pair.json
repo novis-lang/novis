@@ -4,7 +4,6 @@
   "because": [
     "0094"
   ],
-  "divergesFromPhp": "PHP 8.4 infers a `public` read side for a bare `private(set)`; that is the same implicit `public` in a different spelling and is refused",
   "seeAlso": [
     "core-api/written-visibility"
   ],

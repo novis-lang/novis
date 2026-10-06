@@ -4,7 +4,6 @@
   "because": [
     "0192"
   ],
-  "divergesFromPhp": "PHP keeps `instanceof` beside the `is` it has reserved; Novis refuses the spelling outright and names the rewrite, and gives `$x is $cls` the dynamic class test PHP's Pattern Matching RFC leaves unclaimed",
   "seeAlso": [
     "types/type-test",
     "types/narrowing",

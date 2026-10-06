@@ -4,7 +4,6 @@
   "because": [
     "0007"
   ],
-  "divergesFromPhp": "`f()[0] = 2` is `E0700` rather than a silently discarded write, and `(new Box())->rows[0] = 2` is accepted where PHP 8.5 refuses it",
   "seeAlso": [
     "types/arrays"
   ],

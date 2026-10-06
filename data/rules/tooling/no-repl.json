@@ -10,7 +10,6 @@
     "0079",
     "0092"
   ],
-  "divergesFromPhp": "there is no `php -a`; the loop an interactive shell serves is `nvs run` over a cached artifact and `nvs test`",
   "seeAlso": [
     "tooling/python-claims",
     "testing/nvst-is-separate",

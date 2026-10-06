@@ -7,7 +7,6 @@
     "0060",
     "0074"
   ],
-  "divergesFromPhp": "a deployment with nothing configured already rejects a forged `POST`",
   "seeAlso": [
     "security/access-is-checked-for-presence-not-meaning",
     "security/protocol-roster",

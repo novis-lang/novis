@@ -4,7 +4,6 @@
   "because": [
     "0124"
   ],
-  "divergesFromPhp": "`readonly int $n = 1;` is refused where PHP 8.6 allows it",
   "seeAlso": [
     "types/class-constant",
     "classes/lateinit",

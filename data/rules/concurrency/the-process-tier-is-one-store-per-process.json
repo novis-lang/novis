@@ -4,7 +4,6 @@
   "because": [
     "0181"
   ],
-  "divergesFromPhp": "APCu's segment is shared between every worker of an FPM pool and outlives any one of them; this tier is one process's own memory and goes when that process does",
   "seeAlso": [
     "core-api/two-cache-tiers",
     "concurrency/cross-request-state-is-explicit",

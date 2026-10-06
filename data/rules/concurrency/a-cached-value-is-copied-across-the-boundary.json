@@ -6,7 +6,6 @@
     "0033",
     "0181"
   ],
-  "divergesFromPhp": "APCu's serialize-on-store is a wire format with its own type losses; this is the language's own copy, and it refuses what may not cross rather than mangling it",
   "seeAlso": [
     "classes/two-copy-depths",
     "security/isolate-values-cross-by-copy",

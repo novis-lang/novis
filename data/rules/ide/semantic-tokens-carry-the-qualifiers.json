@@ -6,7 +6,6 @@
     "0101",
     "0214"
   ],
-  "divergesFromPhp": "no PHP tool shows a value's taint at its use sites; here `tainted` and `secret` travel as token modifiers to every use, not only the declaration",
   "seeAlso": [
     "ide/highlighting-is-two-layers",
     "ide/novis-ships-names-not-colours",

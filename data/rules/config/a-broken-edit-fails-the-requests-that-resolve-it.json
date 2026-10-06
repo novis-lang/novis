@@ -5,7 +5,6 @@
     "0017",
     "0078"
   ],
-  "divergesFromPhp": "the same behaviour as `validate_timestamps`, chosen over the more forgiving keep-serving policy some caches adopt",
   "seeAlso": [
     "config/an-edit-reaches-the-next-request-without-a-restart",
     "config/a-request-keeps-the-unit-it-resolved"

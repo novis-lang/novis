@@ -4,7 +4,6 @@
   "because": [
     "0182"
   ],
-  "divergesFromPhp": "curl and PHP's stream wrappers take a proxy from `HTTP_PROXY`/`HTTPS_PROXY` in the environment, or per handle from `CURLOPT_PROXY`; here it is one root-owned block, no environment variable is read, and no program-side spelling exists",
   "seeAlso": [
     "http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise",
     "http-server/the-client-trust-roots-are-the-operators",

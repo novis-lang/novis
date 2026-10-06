@@ -6,7 +6,6 @@
     "0071",
     "0007"
   ],
-  "divergesFromPhp": "`Foo::BAR < X > ($y)` reads as a call carrying a type argument where PHP reads two comparisons",
   "seeAlso": [
     "attributes/structural-retrieval",
     "programs/implementing"

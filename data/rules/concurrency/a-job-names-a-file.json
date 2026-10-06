@@ -7,7 +7,6 @@
     "0023",
     "0071"
   ],
-  "divergesFromPhp": "a job is a file rather than a class implementing an interface, and nothing about it is a serialized object graph waiting to be reconstructed",
   "seeAlso": [
     "concurrency/a-job-runs-as-a-root-isolate",
     "concurrency/a-payload-refuses-secret-and-keeps-its-qualifiers"

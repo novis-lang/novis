@@ -3,7 +3,7 @@
 A decision record is the reasoning behind a rule: what was asked, what was considered, why this
 answer, and what it costs. The rule itself lives in [docs/rules/](../rules/) — the chapters are the
 read surface, [docs/ground-rules.md](../ground-rules.md) is one line per rule, and
-[docs/divergences.md](../divergences.md) is every rule that departs from PHP, all three generated
+`docs/divergences.md` is every rule that departs from PHP, all three generated
 from the rulebook by `bun nv rules --render`. A record is where you go to *change* a rule,
 never to learn one; `bun nv brief --where <keyword>` routes a topic to the rule that owns it.
 

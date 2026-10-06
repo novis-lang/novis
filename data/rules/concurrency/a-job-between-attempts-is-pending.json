@@ -4,7 +4,6 @@
   "because": [
     "0084"
   ],
-  "divergesFromPhp": "there is no failed state to poll for — a job waiting out its backoff is indistinguishable from one that has not run yet, and \"did it fail\" is a question about the dead-letter table",
   "seeAlso": [
     "enums/closed-integer-type",
     "concurrency/attempts-are-finite-and-a-dead-letter-is-kept"

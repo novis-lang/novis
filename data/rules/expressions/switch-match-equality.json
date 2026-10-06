@@ -5,7 +5,6 @@
     "0090",
     "0035"
   ],
-  "divergesFromPhp": "`switch` no longer compares loosely while `match` compares identically — there is one comparison, and both use it",
   "seeAlso": [
     "expressions/one-equality-operator",
     "expressions/disjoint-comparison-refused",

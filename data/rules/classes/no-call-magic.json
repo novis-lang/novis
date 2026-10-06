@@ -6,7 +6,6 @@
     "0029",
     "0011"
   ],
-  "divergesFromPhp": "dispatch to an undeclared method name does not exist in any form, and the two names cannot even be written down",
   "seeAlso": [
     "classes/no-magic-methods",
     "classes/no-dynamic-properties",

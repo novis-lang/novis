@@ -7,7 +7,6 @@
     "0078",
     "0246"
   ],
-  "divergesFromPhp": "`extension=` in a `php.ini` names a file; an `[[extension]]` entry names a file and its digest, a project cannot add one, and a changed binary under its pin is refused rather than loaded",
   "seeAlso": [
     "config/ownership-is-the-trust-boundary",
     "config/lists-are-arrays-and-repeated-records-are-arrays-of-tables",

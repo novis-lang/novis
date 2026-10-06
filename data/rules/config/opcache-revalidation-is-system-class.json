@@ -7,7 +7,6 @@
     "0005",
     "0218"
   ],
-  "divergesFromPhp": "`opcache.validate_timestamps` and `revalidate_freq` are `PHP_INI_ALL` in PHP; here no request may touch either, and there is no value that turns checking off",
   "seeAlso": [
     "config/system-means-a-request-may-not-set-it",
     "config/a-startup-default-is-never-flipped",

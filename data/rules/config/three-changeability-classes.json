@@ -6,7 +6,6 @@
     "0078",
     "0064"
   ],
-  "divergesFromPhp": "`ini_set` may widen `memory_limit` here too, but only up to a ceiling the file states in its own block, and a `System` directive has no `ini_set` at all",
   "seeAlso": [
     "config/ceilings-are-their-own-directives",
     "config/a-refused-set-returns-false",

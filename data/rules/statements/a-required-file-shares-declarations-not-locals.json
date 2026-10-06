@@ -6,7 +6,6 @@
     "0007",
     "0006"
   ],
-  "divergesFromPhp": "an included file cannot see the includer's locals, and the includer cannot see its own",
   "seeAlso": [
     "statements/require-is-the-only-inclusion-construct",
     "statements/storage-that-outlives-a-call"

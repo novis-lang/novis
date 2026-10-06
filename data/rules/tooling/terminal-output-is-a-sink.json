@@ -6,7 +6,6 @@
     "0024",
     "0087"
   ],
-  "divergesFromPhp": "`echo \"\\e[31m\"` prints `␛[31m` rather than turning the text red, on a pipe and a terminal alike; colour is `Core\\Cli\\Text`",
   "seeAlso": [
     "tooling/text-is-the-one-raw-path",
     "tooling/an-escape-in-source-text-is-a-compile-error",

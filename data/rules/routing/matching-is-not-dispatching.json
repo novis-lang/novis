@@ -7,7 +7,6 @@
     "0199",
     "0255"
   ],
-  "divergesFromPhp": "no framework router's dispatch is here — no controller base class, no middleware, no return-value-to-response rule, no `HEAD`-implies-`GET` or trailing-slash normalisation; the program or its framework writes the `switch`",
   "seeAlso": [
     "routing/link-name-and-params-are-checked",
     "routing/routes-are-compiled-not-registered",

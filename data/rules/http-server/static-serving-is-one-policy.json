@@ -5,7 +5,6 @@
     "0097",
     "0074"
   ],
-  "divergesFromPhp": "there is no `Last-Modified`, no directory index, no `.htaccess` and no `max-age`; `php -S` serving any file under the root, source included, has no counterpart",
   "seeAlso": [
     "http-server/a-request-resolves-in-five-steps",
     "http-server/an-unsafe-or-unbounded-default-is-a-defect"

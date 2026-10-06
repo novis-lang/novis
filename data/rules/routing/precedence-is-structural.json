@@ -5,7 +5,6 @@
     "0077",
     "0102"
   ],
-  "divergesFromPhp": "a routes file is not read top to bottom — first-match-wins does not exist, so moving a declaration between files cannot change which route answers",
   "seeAlso": [
     "routing/path-grammar",
     "routing/routes-are-compiled-not-registered",

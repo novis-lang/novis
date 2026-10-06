@@ -4,7 +4,6 @@
   "because": [
     "0129"
   ],
-  "divergesFromPhp": "PHP compares the stored parameters for difference; this answers whether the stored hash is weaker than what `hash` writes now",
   "seeAlso": [
     "security/bcrypt-read-roster",
     "security/hash-writes-argon2id-only"

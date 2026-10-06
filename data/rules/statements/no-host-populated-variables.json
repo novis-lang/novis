@@ -8,7 +8,6 @@
     "0009",
     "0006"
   ],
-  "divergesFromPhp": "`$_SERVER`, `$_GET`, `$_POST`, `$_COOKIE`, `$_FILES`, `$_SESSION`, `$_ENV`, `$argv` and `$argc` do not exist as variables at all",
   "seeAlso": [
     "statements/globals-and-request-are-dropped-outright",
     "statements/storage-that-outlives-a-call",

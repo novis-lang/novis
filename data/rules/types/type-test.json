@@ -6,7 +6,6 @@
     "0192",
     "0261"
   ],
-  "divergesFromPhp": "`int` and `uint` are separate tags, so a `BIGINT UNSIGNED` value answers `is uint` and not `is int` where `is_int()` was true for both, and `string` and `bytes` are separate the same way; `is 3.14` is refused outright, there being no `float` single-value type",
   "seeAlso": [
     "types/narrowing",
     "types/conversion",

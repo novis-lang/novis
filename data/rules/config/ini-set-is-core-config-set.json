@@ -6,7 +6,6 @@
     "0005",
     "0011"
   ],
-  "divergesFromPhp": "`ini_set`, `ini_get`, `ini_restore` and `ini_get_all` are static members of `Core\\Config`, a refused set answers `false` and moves nothing, and an accepted one is request-local",
   "seeAlso": [
     "config/one-parser-for-the-boot-path-and-config-set",
     "classes/no-free-functions-or-constants",

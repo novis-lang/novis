@@ -6,7 +6,6 @@
     "0009",
     "0005"
   ],
-  "divergesFromPhp": "captured output is `bytes`, so text costs an `as string` that throws on invalid UTF-8 rather than mangling it",
   "seeAlso": [
     "core-classes/process-is-argv-only",
     "core-classes/process-options",

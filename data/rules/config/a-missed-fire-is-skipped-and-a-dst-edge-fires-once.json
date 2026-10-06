@@ -5,7 +5,6 @@
     "0073",
     "0063"
   ],
-  "divergesFromPhp": "there is no ambient timezone to fall back on and no anacron-style replay — the interval a host slept through is logged as skipped, not run late",
   "seeAlso": [
     "config/overlap-is-skip-queue-or-kill",
     "config/cron-is-five-fields-and-nothing-more",

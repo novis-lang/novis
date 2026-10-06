@@ -5,7 +5,6 @@
     "0081",
     "0042"
   ],
-  "divergesFromPhp": "composer.lock pins a version and a `dist` URL; here the lock pins bytes, and a vendored tree is re-checked against it on every build rather than trusted once",
   "seeAlso": [
     "packaging/a-package-is-its-digest",
     "packaging/the-registry-keeps-an-append-only-log",

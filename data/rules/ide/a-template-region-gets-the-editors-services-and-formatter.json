@@ -6,7 +6,6 @@
     "0169",
     "0173"
   ],
-  "divergesFromPhp": "the markup half of a file gets completion, hover, tag renaming, the colour picker and the HTML formatter as in a PHP editor, but each markup chunk is indented from the `?>` that opened it — the Novis block's depth — rather than from the markup's own nesting alone",
   "seeAlso": [
     "ide/redaction-ranges-come-from-the-server",
     "programs/first-party-framework",

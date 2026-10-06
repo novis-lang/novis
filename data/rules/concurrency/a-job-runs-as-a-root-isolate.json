@@ -7,7 +7,6 @@
     "0017",
     "0271"
   ],
-  "divergesFromPhp": "a job shares nothing with the request that enqueued it — no statics, no session, no superglobals — because it is a fresh isolate rather than the same process continuing",
   "seeAlso": [
     "concurrency/a-job-names-a-file",
     "concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue"

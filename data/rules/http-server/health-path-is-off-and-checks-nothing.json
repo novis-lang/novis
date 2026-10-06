@@ -4,7 +4,6 @@
   "because": [
     "0097"
   ],
-  "divergesFromPhp": "php-fpm's `ping.path` and `pm.status_path` have a counterpart that reports no status page, no version and no pool statistics",
   "seeAlso": [
     "http-server/the-server-block-is-boot-class",
     "concurrency/a-drain-closes-a-connection-cleanly"

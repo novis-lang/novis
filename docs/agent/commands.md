@@ -79,9 +79,9 @@ stale paths beside it stay reports — a quoted path is often gone *because* the
 `docs` job runs it.
 
 The rulebook is the same arrangement one tree over: `bun nv rules --render` writes
-`docs/rules/<topic>.md`, `docs/ground-rules.md` and `docs/divergences.md` from the topic JSON and the
-fragments, which own every line, and `--render --check` reports a rendered copy that has drifted. The
-decision records under `docs/decisions/` are frozen and derive nothing by hand: `bun nv records --check`
+`docs/rules/<topic>.md` and `docs/ground-rules.md` from the topic JSON and the fragments, which own
+every line, and `--render --check` reports a rendered copy that has drifted. The decision records
+under `docs/decisions/` are frozen and derive nothing by hand: `bun nv records --check`
 is their audit, `--stats`, `--graph NNNN` and `--orphans` its readings. This is the pattern
 `docs/novis.md` already established below — derive the machine-derivable half, and let a `--check` fail
 when the committed copy stops agreeing with it.

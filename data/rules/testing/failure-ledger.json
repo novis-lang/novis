@@ -6,7 +6,6 @@
     "0024",
     "0020"
   ],
-  "divergesFromPhp": "a `catch (Throwable)` around a failing assertion cannot turn a red test green; the runner reads its own ledger rather than the exception state",
   "seeAlso": [
     "testing/assertions-are-typed",
     "testing/runner-is-strict",

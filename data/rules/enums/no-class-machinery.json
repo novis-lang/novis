@@ -6,7 +6,6 @@
     "0008",
     "0011"
   ],
-  "divergesFromPhp": "no methods, no interfaces, no enum constants, and no `::cases()`, `::from()`, `::tryFrom()`, `->value` or `->name`",
   "seeAlso": [
     "enums/closed-integer-type",
     "enums/representation",

@@ -4,7 +4,6 @@
   "because": [
     "0010"
   ],
-  "divergesFromPhp": "`case Hearts = 1;` is not a spelling this language has — an enum body is a comma list",
   "seeAlso": [
     "enums/declaration",
     "enums/no-class-machinery"

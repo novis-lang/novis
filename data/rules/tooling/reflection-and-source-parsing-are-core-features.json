@@ -4,7 +4,6 @@
   "because": [
     "0019"
   ],
-  "divergesFromPhp": "`Core\\Ast` is built in where PHP needs `nikic/php-parser` or the PECL `ast` extension, and there is no `setAccessible(true)`",
   "seeAlso": [
     "core-classes/reflect",
     "core-classes/ast-is-inert",

@@ -5,7 +5,6 @@
     "0103",
     "0064"
   ],
-  "divergesFromPhp": "PHP's `--with-config-file-scan-dir` reads a directory in an order the build chose; here a `dir` include is every `*.toml` directly inside it, ascending by filename, written in the file itself",
   "seeAlso": [
     "config/an-include-cycle-is-refused-and-nesting-is-capped-at-eight",
     "config/later-wins-and-every-override-is-recorded",

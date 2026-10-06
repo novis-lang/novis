@@ -6,7 +6,6 @@
     "0102",
     "0110"
   ],
-  "divergesFromPhp": "there is no runtime registry and no routes file — a `$router->get(...)` call has no counterpart, and a duplicate route, an unbound placeholder or a stale link name fails the build rather than a request",
   "seeAlso": [
     "routing/table-is-opt-in",
     "routing/matching-is-not-dispatching",

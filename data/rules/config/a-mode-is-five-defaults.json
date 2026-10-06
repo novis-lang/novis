@@ -8,7 +8,6 @@
     "0097",
     "0005"
   ],
-  "divergesFromPhp": "\"what does development mode change?\" has a closed, printable answer, which no `APP_ENV` or `NODE_ENV` convention can give",
   "seeAlso": [
     "config/two-modes-and-the-default-is-production",
     "config/a-startup-default-is-never-flipped",

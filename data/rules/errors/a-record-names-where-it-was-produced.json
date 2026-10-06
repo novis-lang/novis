@@ -4,7 +4,6 @@
   "because": [
     "0165"
   ],
-  "divergesFromPhp": "no stack is captured per record, where `getTrace` snapshots the whole stack at construction; the call path is the trace's answer and a record carries only where it was produced",
   "seeAlso": [
     "errors/diagnostic-record",
     "errors/record-producers",

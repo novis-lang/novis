@@ -10,7 +10,6 @@
     "0024",
     "0077"
   ],
-  "divergesFromPhp": "there is no handler object and no callable to hand a socket to; the entry is named at the call site the way a spawned script names one, and its arguments are copied rather than shared",
   "seeAlso": [
     "security/isolate-shares-nothing",
     "classes/graph-copy",

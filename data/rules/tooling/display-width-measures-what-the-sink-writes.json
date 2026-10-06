@@ -4,7 +4,6 @@
   "because": [
     "0086"
   ],
-  "divergesFromPhp": "`mb_strwidth` counts code points and sees an escape sequence as zero columns; `displayWidth` counts the substituted string, so a control byte costs one column",
   "seeAlso": [
     "tooling/the-terminal-profile-resolves-once",
     "tooling/terminal-output-is-a-sink",

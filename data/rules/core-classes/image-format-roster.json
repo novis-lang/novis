@@ -6,7 +6,6 @@
     "0051",
     "0128"
   ],
-  "divergesFromPhp": "TIFF, BMP, TGA, ICO, PNM, HEIC and gd's own formats are not readable at all, and JPEG XL decodes without encoding",
   "seeAlso": [
     "core-classes/image-pipeline",
     "core-classes/pdf-page-is-an-image-source",

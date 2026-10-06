@@ -5,7 +5,6 @@
     "0129",
     "0051"
   ],
-  "divergesFromPhp": "`$2x$` is refused rather than emulated, because verifying it means reimplementing `crypt_blowfish`'s overflow",
   "seeAlso": [
     "security/hash-writes-argon2id-only",
     "security/needs-rehash-answers-weaker",

@@ -4,7 +4,6 @@
   "because": [
     "0180"
   ],
-  "divergesFromPhp": "curl reuses a connection keyed on host and port inside one handle, and PHP's stream functions reuse nothing; here the key carries the pinned address, the client identity and the call's TLS policy, so reuse cannot widen what a check approved",
   "seeAlso": [
     "http-server/allow-url-pins-the-address",
     "http-server/redirects-are-off-and-every-hop-is-re-pinned",

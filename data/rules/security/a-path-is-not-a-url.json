@@ -5,7 +5,6 @@
     "0052",
     "0023"
   ],
-  "divergesFromPhp": "`phar://`, `php://filter`, `data://` and `http://` are file names that do not exist, not protocols",
   "seeAlso": [
     "security/closed-doors",
     "security/sink-predicate",

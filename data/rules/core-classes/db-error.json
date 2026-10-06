@@ -7,7 +7,6 @@
     "0063",
     "0002"
   ],
-  "divergesFromPhp": "an application branches on `ErrorKind::UniqueViolation` rather than on `1062`, `23505` or the text `\"Duplicate entry\"`",
   "seeAlso": [
     "core-classes/db-transactions",
     "errors/throwable-hierarchy",

@@ -5,7 +5,6 @@
     "0020",
     "0106"
   ],
-  "divergesFromPhp": "recursion is bounded by an 8 MB native stack rather than by `memory_limit`, so deep PHP recursion needs a rewrite",
   "seeAlso": [
     "errors/on-limit",
     "errors/propagation"

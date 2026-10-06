@@ -8,7 +8,6 @@
     "0145",
     "0024"
   ],
-  "divergesFromPhp": "PHP's extension partition tracks 1997 C build engineering and is not inherited — `ctype` and `str_pad` land in the same place",
   "seeAlso": [
     "core-api/five-placements",
     "core-api/tier-roster",

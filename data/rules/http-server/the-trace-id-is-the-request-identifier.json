@@ -5,7 +5,6 @@
     "0097",
     "0076"
   ],
-  "divergesFromPhp": "there is no `X-Request-ID` and no `$_SERVER['UNIQUE_ID']`; the W3C trace id is the one identifier on every log line, error page and response",
   "seeAlso": [
     "http-server/the-access-log-is-a-mode-default",
     "errors/log-fields",

@@ -6,7 +6,6 @@
     "0058",
     "0180"
   ],
-  "divergesFromPhp": "PHP's clients have no retry, so every application writes its own loop; here it is three flat options, the jitter is not configurable, and a `Retry-After` header replaces the computed wait",
   "seeAlso": [
     "http-server/one-deadline-covers-the-whole-call",
     "http-server/a-non-idempotent-retry-needs-an-idempotency-key",

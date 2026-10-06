@@ -9,7 +9,6 @@
     "0047",
     "0054"
   ],
-  "divergesFromPhp": "`\"1\" == 1` neither answers `true` nor `false`; it does not compile, and the diagnostic names the conversion the author meant",
   "seeAlso": [
     "expressions/one-equality-operator",
     "expressions/equality-semantics",

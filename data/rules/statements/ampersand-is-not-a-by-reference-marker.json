@@ -7,7 +7,6 @@
     "0045",
     "0034"
   ],
-  "divergesFromPhp": "`&` keeps only bitwise AND, logical AND and the intersection type; every by-reference spelling of it is a diagnostic",
   "seeAlso": [
     "statements/inout-is-the-by-reference-spelling",
     "statements/inout-is-written-at-the-call"

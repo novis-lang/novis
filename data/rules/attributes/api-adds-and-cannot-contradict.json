@@ -6,7 +6,6 @@
     "0071",
     "0077"
   ],
-  "divergesFromPhp": "an annotation that disagrees with the handler is a compile error rather than a documentation bug nobody notices",
   "seeAlso": [
     "attributes/access-is-a-required-sibling",
     "attributes/inert-metadata"

@@ -4,7 +4,6 @@
   "because": [
     "0151"
   ],
-  "divergesFromPhp": "`php` carries `-i`, `-a`, `-r`, `-f` and a lowercase `-v`; `nvs` inherits none of them, spells every operation as a subcommand, and declares exactly one short flag of its own",
   "seeAlso": [
     "packaging/nvs-info-is-the-one-call",
     "packaging/the-banner-states-the-build",

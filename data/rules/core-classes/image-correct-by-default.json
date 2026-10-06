@@ -4,7 +4,6 @@
   "because": [
     "0120"
   ],
-  "divergesFromPhp": "a phone photo is upright and a CMYK JPEG is sRGB without the caller knowing the tags exist, and location data does not survive a re-encode",
   "seeAlso": [
     "core-classes/image-pipeline",
     "core-classes/image-one-entry-point-per-job"

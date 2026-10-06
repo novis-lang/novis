@@ -7,7 +7,6 @@
     "0056",
     "0002"
   ],
-  "divergesFromPhp": "`max_execution_time` fires between statements; here a deadline also reaches inside one `Core` call over a large value, and reaches it by a flag rather than a clock",
   "seeAlso": [
     "http-server/a-requests-blast-radius-is-bounded-at-four-tiers",
     "http-server/a-wedged-core-is-detected-by-its-deadline",

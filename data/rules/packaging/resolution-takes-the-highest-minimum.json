@@ -4,7 +4,6 @@
   "because": [
     "0081"
   ],
-  "divergesFromPhp": "there are no version ranges and no solver, so `^1.4` and \"your requirements could not be resolved\" both cease to exist; a version arrives only because somebody named it",
   "seeAlso": [
     "packaging/a-breaking-release-is-a-new-name",
     "packaging/a-known-bad-version-is-retracted-not-deleted",

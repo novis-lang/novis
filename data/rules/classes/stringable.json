@@ -6,7 +6,6 @@
     "0013",
     "0007"
   ],
-  "divergesFromPhp": "`__toString` is not recognized; the capability is `implements Stringable` and its absence is refused where the object is rendered",
   "seeAlso": [
     "classes/no-magic-methods",
     "classes/comparable",

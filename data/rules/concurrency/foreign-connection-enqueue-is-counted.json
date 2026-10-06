@@ -4,7 +4,6 @@
   "because": [
     "0084"
   ],
-  "divergesFromPhp": "losing atomicity between a write and its job is a measured deployment fact rather than an unstated one",
   "seeAlso": [
     "concurrency/enqueue-commits-with-your-write",
     "concurrency/queue-four-members"

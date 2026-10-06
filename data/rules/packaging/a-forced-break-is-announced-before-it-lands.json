@@ -4,7 +4,6 @@
   "because": [
     "0068"
   ],
-  "divergesFromPhp": "PHP's deprecation notices are runtime `E_DEPRECATED` output a production `error_reporting` hides; here the warning is the compiler's, and a warning that does not name the replacement is not a deprecation",
   "seeAlso": [
     "packaging/a-dependency-break-is-absorbed-never-forwarded",
     "packaging/who-can-see-it-decides-the-release-slot"

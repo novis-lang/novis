@@ -4,7 +4,6 @@
   "because": [
     "0048"
   ],
-  "divergesFromPhp": "there is no `composer install` step inside the bundler: resolving dependencies and packaging them are two commands that compose, not one",
   "seeAlso": [
     "packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host"
   ],

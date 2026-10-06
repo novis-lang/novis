@@ -5,7 +5,6 @@
     "0013",
     "0011"
   ],
-  "divergesFromPhp": "PHP's recursive property-by-property comparison of two same-class objects does not exist; ordering an unorderable pair is a compile error rather than an ambient walk",
   "seeAlso": [
     "classes/ordering-lowers-to-compare-to",
     "classes/comparable-is-same-class-only",

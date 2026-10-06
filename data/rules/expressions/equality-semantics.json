@@ -9,7 +9,6 @@
     "0031",
     "0009"
   ],
-  "divergesFromPhp": "each row where PHP's two operators disagreed takes `===`'s answer — two strings compare as text and never as numbers, and an array compares in key order",
   "seeAlso": [
     "expressions/one-equality-operator",
     "expressions/object-identity-equality",

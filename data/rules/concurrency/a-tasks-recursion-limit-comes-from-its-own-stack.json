@@ -4,7 +4,6 @@
   "because": [
     "0115"
   ],
-  "divergesFromPhp": "deep recursion throws a catchable error at a bound derived from the actual stack, rather than crashing the process or being counted by a configured depth alone",
   "seeAlso": [
     "errors/on-limit",
     "concurrency/a-task-stack-is-reserved-wide-and-pooled"

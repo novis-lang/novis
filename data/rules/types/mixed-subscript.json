@@ -5,7 +5,6 @@
     "0007",
     "0036"
   ],
-  "divergesFromPhp": "a read that finds no array and no key is a catchable throw, never PHP's warning and a `null`",
   "seeAlso": [
     "types/arrays",
     "types/erased-member-access",

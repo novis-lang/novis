@@ -10,7 +10,6 @@
     "0058",
     "0051"
   ],
-  "divergesFromPhp": "an HTTP test needs no socket, no port and no web server; the real route table and the real middleware chain answer it in microseconds",
   "seeAlso": [
     "testing/isolate-per-test",
     "testing/task-tree-and-virtual-clock"

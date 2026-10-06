@@ -8,7 +8,6 @@
     "0027",
     "0029"
   ],
-  "divergesFromPhp": "a double-underscore method name is refused where it is written, so no class can declare a hook the runtime would call on its own",
   "seeAlso": [
     "classes/stringable",
     "classes/no-destructors",

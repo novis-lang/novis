@@ -5,7 +5,6 @@
     "0016",
     "0040"
   ],
-  "divergesFromPhp": "Reformat Code runs `nvs fmt` with no PhpStorm Code Style page behind it, and PSI-level refactoring, structural search and the native debugger are absent for `.nvs`",
   "seeAlso": [
     "ide/one-server-two-thin-clients",
     "ide/nvs-is-its-own-file-type",

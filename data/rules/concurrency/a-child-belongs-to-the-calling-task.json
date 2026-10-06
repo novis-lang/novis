@@ -5,7 +5,6 @@
     "0072",
     "0006"
   ],
-  "divergesFromPhp": "PHP has no task, so it has no orphan either; here an unparented task is impossible rather than discouraged",
   "seeAlso": [
     "security/isolate-shares-nothing",
     "security/isolate-budget-is-the-trees",

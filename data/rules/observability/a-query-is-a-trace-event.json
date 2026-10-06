@@ -5,7 +5,6 @@
     "0067",
     "0041"
   ],
-  "divergesFromPhp": "there are no mysqlnd statistics and no general query log; a statement is a trace event, filed in the driver and off the hot path, and it never carries a bound value",
   "seeAlso": [
     "observability/a-slow-query-is-logged-past-a-threshold",
     "observability/four-kinds-become-a-span",

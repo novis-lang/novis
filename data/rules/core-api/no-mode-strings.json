@@ -4,7 +4,6 @@
   "because": [
     "0063"
   ],
-  "divergesFromPhp": "`fopen($p, \"r+b\")`, `hash(\"sha256\", …)` and `MB_CASE_TITLE` have no spelling; a closed enum, or a subset of one, takes their place",
   "seeAlso": [
     "core-api/units-are-types",
     "enums/closed-integer-type",

@@ -5,7 +5,6 @@
     "0048",
     "0042"
   ],
-  "divergesFromPhp": "a `.phar` can be stripped or compressed; a bundle's source is embedded byte for byte and is recoverable by anyone who looks",
   "seeAlso": [
     "packaging/an-artifact-is-one-immutable-content-addressed-file",
     "packaging/a-bundled-require-resolves-at-build-time"

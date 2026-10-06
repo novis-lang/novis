@@ -5,7 +5,6 @@
     "0059",
     "0181"
   ],
-  "divergesFromPhp": "`apcu_add`, `apcu_cas` and `apcu_inc` have no counterpart, so a lock or a counter is not built on the cache at all",
   "seeAlso": [
     "concurrency/a-cached-value-is-copied-across-the-boundary",
     "core-classes/ratelimit-two-members",

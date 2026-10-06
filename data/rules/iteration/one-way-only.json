@@ -5,7 +5,6 @@
     "0053",
     "0051"
   ],
-  "divergesFromPhp": "no `yield from`, no `send()`, no `throw()` into a generator, no keyed `yield`, and no generator return value to retrieve",
   "seeAlso": [
     "iteration/generators",
     "iteration/yield-lexical-confinement"

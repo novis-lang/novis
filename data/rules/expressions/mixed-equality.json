@@ -5,7 +5,6 @@
     "0090",
     "0007"
   ],
-  "divergesFromPhp": "a cross-type pairing is `false` rather than PHP's converting comparison, and it is the one place a comparison answers instead of refusing to compile",
   "seeAlso": [
     "expressions/disjoint-comparison-refused",
     "expressions/equality-semantics",

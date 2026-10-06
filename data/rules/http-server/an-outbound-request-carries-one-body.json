@@ -4,7 +4,6 @@
   "because": [
     "0180"
   ],
-  "divergesFromPhp": "curl takes `CURLOPT_POSTFIELDS` as a string, an array or a file handle and infers the encoding from which one it got; here the key names what is sent, two keys are refused before the program runs, and a `Part::file` streams from disk rather than being held whole",
   "seeAlso": [
     "core-api/shape-rules",
     "core-api/options-bag",

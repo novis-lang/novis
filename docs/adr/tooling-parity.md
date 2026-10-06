@@ -67,7 +67,7 @@ code. CI reads `nvs check --json`
 One axis, two ends, both decided: what can hide a bug is a hard compile error with no suppression —
 casing ([0029](../decisions/0029.md)), written visibility
 ([0094](../decisions/0094.md)), one spelling per construct
-throughout [divergences.md](../divergences.md) — and what is purely layout is `nvs fmt`
+throughout `docs/divergences.md` — and what is purely layout is `nvs fmt`
 ([0039](../decisions/0039.md)): canonical, zero-configuration, never wired into the
 compiler. The entire configure-a-ruleset category (`.php-cs-fixer.php`, sniff selection) is designed
 out rather than replaced, which is that ADR's § 3.

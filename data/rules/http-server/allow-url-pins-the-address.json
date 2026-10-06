@@ -7,7 +7,6 @@
     "0180",
     "0183"
   ],
-  "divergesFromPhp": "`file_get_contents($userUrl)` and `curl_setopt(CURLOPT_URL, $userUrl)` are a compile-time diagnostic, and the laundered value is a `Target` the program cannot read an address back out of, not a string",
   "seeAlso": [
     "security/outbound-url-is-a-sink",
     "security/net-address-policy",

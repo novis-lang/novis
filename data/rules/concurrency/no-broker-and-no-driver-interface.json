@@ -4,7 +4,6 @@
   "because": [
     "0084"
   ],
-  "divergesFromPhp": "there is no Redis, SQS or AMQP backend to choose and nothing to configure between the application and its jobs",
   "seeAlso": [
     "concurrency/enqueue-commits-with-your-write",
     "core-classes/queue-storage-is-a-table"

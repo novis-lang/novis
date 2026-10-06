@@ -6,7 +6,6 @@
     "0007",
     "0047"
   ],
-  "divergesFromPhp": "there is no operator downcast: `$s as ?Core\\Uri` is a compile error rather than a cast, and text reaches a class only through that class's own reader",
   "seeAlso": [
     "expressions/nullable-conversion",
     "expressions/try-parse",

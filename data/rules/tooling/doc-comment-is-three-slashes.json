@@ -5,7 +5,6 @@
     "0137",
     "0213"
   ],
-  "divergesFromPhp": "there is no `/** */` docblock; the PHPDoc shape is an ordinary comment nothing reads",
   "seeAlso": [
     "tooling/doc-comment-attaches-to-the-next-declaration",
     "tooling/doc-comment-tags-are-see-and-example",

@@ -5,7 +5,6 @@
     "0145",
     "0082"
   ],
-  "divergesFromPhp": "there is no version number, no history table, no `up`/`down` pair and no fleet lock — the plan is recomputed from the database every time",
   "seeAlso": [
     "core-classes/schema-plan",
     "core-classes/schema-introspection",

@@ -4,7 +4,6 @@
   "because": [
     "0179"
   ],
-  "divergesFromPhp": "there is no `zip`, no `jku` and no `x5u`, so a token cannot talk the verifier into a fetch or a decompression",
   "seeAlso": [
     "security/algorithm-comes-from-the-key",
     "security/jws-issued-subset",

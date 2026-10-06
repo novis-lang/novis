@@ -4,7 +4,6 @@
   "because": [
     "0186"
   ],
-  "divergesFromPhp": "there is no backed-versus-pure split to route on — every enum is integer-backed, so what decides the spelling is whether the value was written",
   "seeAlso": [
     "routing/a-capture-narrows-to-a-closed-set",
     "routing/a-query-parameter-is-declared-like-a-capture",

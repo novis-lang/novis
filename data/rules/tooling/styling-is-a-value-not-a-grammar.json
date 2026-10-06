@@ -5,7 +5,6 @@
     "0086",
     "0063"
   ],
-  "divergesFromPhp": "there is no escape string and no `<red>…</red>` markup; a style is `Cli\\Style::of({...})` over `Cli\\Color` values",
   "seeAlso": [
     "tooling/text-is-the-one-raw-path",
     "tooling/the-terminal-profile-resolves-once",

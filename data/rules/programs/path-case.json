@@ -5,7 +5,6 @@
     "0062",
     "0021"
   ],
-  "divergesFromPhp": "`require` does not inherit the filesystem's case behaviour, so a path that resolves on Windows or macOS resolves on Linux or fails on all three",
   "seeAlso": [
     "programs/autoload"
   ],

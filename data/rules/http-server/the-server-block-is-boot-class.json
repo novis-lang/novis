@@ -10,7 +10,6 @@
     "0186",
     "0219"
   ],
-  "divergesFromPhp": "`listen` is the origin's own address rather than a php-fpm pool's, and `workers` counts accept cores rather than sizing a `pm.*` process pool",
   "seeAlso": [
     "http-server/four-idle-waits-all-finite",
     "http-server/max-in-flight-refuses-before-allocating",

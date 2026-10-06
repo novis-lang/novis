@@ -5,7 +5,6 @@
     "0019",
     "0010"
   ],
-  "divergesFromPhp": "there are no case instances for a description to hand back — it carries the type's name and its case list, and nothing that acts",
   "seeAlso": [
     "enums/no-class-machinery",
     "enums/closed-integer-type"

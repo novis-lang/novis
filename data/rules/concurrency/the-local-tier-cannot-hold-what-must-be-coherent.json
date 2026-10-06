@@ -7,7 +7,6 @@
     "0073",
     "0181"
   ],
-  "divergesFromPhp": "an APCu-backed session, lock or rate limit does not port: the local tier is not among the backends, so the miswiring is a configuration error rather than a race",
   "seeAlso": [
     "core-api/session-roster",
     "statements/no-host-populated-variables",

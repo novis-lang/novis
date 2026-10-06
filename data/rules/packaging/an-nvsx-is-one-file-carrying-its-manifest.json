@@ -6,7 +6,6 @@
     "0055",
     "0246"
   ],
-  "divergesFromPhp": "a PHP extension is a per-platform binary registered by an ini line; an `.nvsx` is one file for every platform and carries its own declarations inside it",
   "seeAlso": [
     "packaging/extension-calls-are-statically-typed",
     "security/extension-manifest-only-tightens",

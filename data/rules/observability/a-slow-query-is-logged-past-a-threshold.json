@@ -4,7 +4,6 @@
   "because": [
     "0067"
   ],
-  "divergesFromPhp": "the slow-query log is a per-connection threshold in `nvs.toml` written by the application's operator, not the server's `slow_query_log`, and it reports the same facts the trace does",
   "seeAlso": [
     "observability/a-query-is-a-trace-event",
     "core-classes/db-connection-is-named",

@@ -7,7 +7,6 @@
     "0028",
     "0033"
   ],
-  "divergesFromPhp": "there is no `JsonSerializable`-style magic hook and no structural encoding of public properties",
   "seeAlso": [
     "core-api/required-optional-and-nullable",
     "classes/no-magic-methods",

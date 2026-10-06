@@ -4,7 +4,6 @@
   "because": [
     "0074"
   ],
-  "divergesFromPhp": "curl defaults to no timeout and `file_get_contents` to `default_socket_timeout`'s sixty seconds; here there is no `null`, no `0` and no option that means unbounded, so a long call names its own `deadline`",
   "seeAlso": [
     "http-server/one-deadline-covers-the-whole-call",
     "http-server/retry-is-opt-in-jittered-and-closed",

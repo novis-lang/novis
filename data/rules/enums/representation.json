@@ -8,7 +8,6 @@
     "0004",
     "0261"
   ],
-  "divergesFromPhp": "a case is a scalar, so it copies across an isolate boundary like an `int` and has no identity to preserve",
   "seeAlso": [
     "enums/no-class-machinery",
     "enums/one-backing-type",

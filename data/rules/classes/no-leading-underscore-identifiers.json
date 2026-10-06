@@ -5,7 +5,6 @@
     "0030",
     "0029"
   ],
-  "divergesFromPhp": "PHP's `_private` and `$_unused` conventions do not compile; there is no leading-underscore allowance in any identifier category",
   "seeAlso": [
     "classes/constructor-is-a-method-named-constructor"
   ],

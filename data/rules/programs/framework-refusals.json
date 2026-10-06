@@ -5,7 +5,6 @@
     "0082",
     "0253"
   ],
-  "divergesFromPhp": "the ORM, the service container, the facade, the route cache and the autoload dump have no equivalent, and each is absent by construction rather than by omission",
   "seeAlso": [
     "programs/first-party-framework",
     "programs/implementing"

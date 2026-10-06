@@ -5,7 +5,6 @@
     "0062",
     "0029"
   ],
-  "divergesFromPhp": "`IF`, `TRUE` and `NULL` are not keywords or literals — they lex as ordinary identifiers, and only `<?NVS` gets a diagnostic of its own",
   "seeAlso": [
     "classes/names-resolve-case-sensitively",
     "statements/nvs-is-the-only-open-tag"

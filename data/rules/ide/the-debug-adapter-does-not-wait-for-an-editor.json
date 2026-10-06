@@ -5,7 +5,6 @@
     "0016",
     "0040"
   ],
-  "divergesFromPhp": "there is no Xdebug-style listener to configure in the editor; the editor points its own debugger UI at `nvs dap` and renders what the adapter reports",
   "seeAlso": [
     "ide/the-extension-builds-no-ui-the-editor-already-has",
     "ide/phpstorm-bridges-to-the-same-server",

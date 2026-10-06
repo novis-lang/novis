@@ -5,7 +5,6 @@
     "0014",
     "0011"
   ],
-  "divergesFromPhp": "`__get`/`__set` are not recognized by name; observation is a declared `implements` that sees every property, not an ambient fallback that sees only the undefined ones",
   "seeAlso": [
     "classes/property-observer-pipeline",
     "classes/no-dynamic-properties",

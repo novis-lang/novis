@@ -4,7 +4,6 @@
   "because": [
     "0153"
   ],
-  "divergesFromPhp": "removing queued work is two members of the runtime behind a capability, rather than a framework command or a raw delete against a table the runtime owns",
   "seeAlso": [
     "concurrency/queue-four-members",
     "concurrency/cancel-is-a-race-it-can-lose",

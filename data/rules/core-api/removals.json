@@ -5,7 +5,6 @@
     "0063",
     "0051"
   ],
-  "divergesFromPhp": "roughly 1,900 built-ins become about 450 members covering strictly more ground",
   "seeAlso": [
     "core-api/no-ambient-state",
     "core-api/one-paradigm-per-operation",

@@ -7,7 +7,6 @@
     "0067",
     "0102"
   ],
-  "divergesFromPhp": "no class is serialisable by being a class — a wire format is opted into at the declaration, and visibility never decides what is encoded",
   "seeAlso": [
     "core-classes/derive-field-list",
     "core-classes/derive-generates-what-is-missing",

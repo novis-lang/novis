@@ -7,7 +7,6 @@
     "0112",
     "0024"
   ],
-  "divergesFromPhp": "`shell_exec`, `system`, `passthru` and the backtick operator do not exist; there is an argv array and a grant",
   "seeAlso": [
     "security/capability-check-at-the-door",
     "security/sink-predicate",

@@ -7,7 +7,6 @@
     "0051",
     "0004"
   ],
-  "divergesFromPhp": "`bcmath` and `gmp` are retired rather than ported — exact fractional arithmetic is a register-sized scalar, and arbitrary-magnitude integers are `Core\\BigInt`",
   "seeAlso": [
     "types/numeric-literal-placement",
     "types/arithmetic",

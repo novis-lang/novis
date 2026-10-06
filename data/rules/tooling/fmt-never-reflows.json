@@ -5,7 +5,6 @@
     "0039",
     "0267"
   ],
-  "divergesFromPhp": "php-cs-fixer and Prettier-style tools re-wrap to a column limit; here there is no line-length rule at all, soft or hard",
   "seeAlso": [
     "tooling/fmt-a-list-is-one-line-or-one-item-per-line",
     "tooling/fmt-a-broken-call-chain-is-one-call-per-line",

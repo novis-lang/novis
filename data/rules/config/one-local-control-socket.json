@@ -7,7 +7,6 @@
     "0042",
     "0219"
   ],
-  "divergesFromPhp": "there is no `SIGUSR2`, no `php-fpm reload` and no signal at all; the operator speaks HTTP to a local socket and gets a report back",
   "seeAlso": [
     "config/the-config-is-an-immutable-snapshot",
     "config/a-reload-names-what-it-could-not-apply",

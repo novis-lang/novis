@@ -6,7 +6,6 @@
     "0120",
     "0121"
   ],
-  "divergesFromPhp": "there is no Ghostscript to install and no ImageMagick policy to loosen; a page becomes an image through the same sandboxed component every other format uses",
   "seeAlso": [
     "core-classes/pdf-page-is-an-image-source",
     "core-classes/image-format-roster",

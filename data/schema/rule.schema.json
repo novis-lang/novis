@@ -21,9 +21,6 @@
         "x-references": "decision"
       }
     },
-    "divergesFromPhp": {
-      "type": "string"
-    },
     "seeAlso": {
       "type": "array",
       "items": {

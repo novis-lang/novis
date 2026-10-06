@@ -6,7 +6,6 @@
     "0103",
     "0061"
   ],
-  "divergesFromPhp": "there is no `.user.ini` or `.htaccess` discovered beside the code — the file is read from one directory the operator chose, and it holds no source-tree state",
   "seeAlso": [
     "config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults",
     "config/ownership-is-the-trust-boundary",

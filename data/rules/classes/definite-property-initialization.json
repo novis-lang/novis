@@ -7,7 +7,6 @@
     "0023",
     "0038"
   ],
-  "divergesFromPhp": "a constructor that leaves a typed property unset on some path is refused at compile time rather than throwing at whichever read discovers it",
   "seeAlso": [
     "classes/an-unwritten-property-read-throws",
     "classes/no-undefined-value",

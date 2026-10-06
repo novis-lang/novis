@@ -4,7 +4,6 @@
   "because": [
     "0063"
   ],
-  "divergesFromPhp": "no member returns `false` to signal failure, no member returns an error code, and there is no `json_last_error` or `error_get_last`",
   "seeAlso": [
     "core-api/verb-lexicon",
     "core-api/one-refusal-except-expiry",

@@ -5,7 +5,6 @@
     "0086",
     "0020"
   ],
-  "divergesFromPhp": "a script that dies mid-prompt does not leave the shell in raw mode; restoration is the runtime's obligation rather than a `finally` the author remembers",
   "seeAlso": [
     "tooling/in-place-output-is-a-scoped-live-region",
     "tooling/the-tty-belongs-to-the-main-task",

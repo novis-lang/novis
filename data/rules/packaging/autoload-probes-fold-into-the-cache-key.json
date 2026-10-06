@@ -6,7 +6,6 @@
     "0042",
     "0218"
   ],
-  "divergesFromPhp": "OPcache revalidates the files it compiled; here adding a file that shadows an already-resolved name, or a module nothing references yet, invalidates the unit although no hashed file changed",
   "seeAlso": [
     "programs/autoload",
     "programs/implementing",

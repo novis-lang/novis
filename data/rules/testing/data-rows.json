@@ -6,7 +6,6 @@
     "0046",
     "0071"
   ],
-  "divergesFromPhp": "a data provider is a checked attribute payload rather than an `array<array<mixed>>` a method returns, so a row that does not fit the signature is refused where it is written",
   "seeAlso": [
     "testing/fixtures",
     "testing/test-attribute",

@@ -4,7 +4,6 @@
   "because": [
     "0079"
   ],
-  "divergesFromPhp": "there is no reflection to reach a private member with, so white-box testing is bought by co-location and by nothing else",
   "seeAlso": [
     "testing/test-attribute",
     "testing/tests-never-reach-a-build"

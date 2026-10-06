@@ -4,7 +4,6 @@
   "because": [
     "0183"
   ],
-  "divergesFromPhp": "there is no outbound WebSocket in PHP's standard library at all — `ext-sockets` and a userland client are what a program reaches for, and neither passes an address policy",
   "seeAlso": [
     "http-server/allow-url-pins-the-address",
     "security/outbound-url-is-a-sink",

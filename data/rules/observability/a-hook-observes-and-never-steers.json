@@ -6,7 +6,6 @@
     "0020",
     "0072"
   ],
-  "divergesFromPhp": "a shutdown function in PHP can call `exit` to change the status or silently swallow the pending error; here neither is possible",
   "seeAlso": [
     "observability/script-on-exit",
     "observability/a-fatal-and-a-cancellation-run-no-exit-hook",

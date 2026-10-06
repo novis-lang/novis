@@ -4,7 +4,6 @@
   "because": [
     "0076"
   ],
-  "divergesFromPhp": "a trace crosses a service boundary with no header code in the application, where a PHP client has to be wrapped to carry one",
   "seeAlso": [
     "observability/a-trace-id-exists-for-every-request",
     "observability/an-inbound-traceparent-is-continued",

@@ -6,7 +6,6 @@
     "0091",
     "0085"
   ],
-  "divergesFromPhp": "a forgotten dump writes a log line; the spelling that puts it in a production response does not exist",
   "seeAlso": [
     "errors/renderings",
     "errors/record-transformations",

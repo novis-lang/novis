@@ -6,7 +6,6 @@
     "0007",
     "0028"
   ],
-  "divergesFromPhp": "no `rewind()`, `key()`, `valid()` or `IteratorAggregate`, and none of the ~20 SPL iterator classes; a cursor has two members and no key half",
   "seeAlso": [
     "iteration/foreach-subjects",
     "iteration/concrete-generic-implements",

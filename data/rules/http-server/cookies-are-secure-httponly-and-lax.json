@@ -4,7 +4,6 @@
   "because": [
     "0074"
   ],
-  "divergesFromPhp": "`setcookie` defaults to no `Secure`, no `HttpOnly` and no `SameSite`; here every cookie starts with all three, `SameSite` is an enum rather than a string, and a script-readable cookie is one written field at the call",
   "seeAlso": [
     "http-server/a-wildcard-origin-with-credentials-is-refused",
     "errors/cookie-name-bytes",

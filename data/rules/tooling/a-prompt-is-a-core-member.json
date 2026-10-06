@@ -7,7 +7,6 @@
     "0024",
     "0052"
   ],
-  "divergesFromPhp": "`readline()` reads standard input; `Cli::ask` reads the controlling terminal, so a piped program can still ask a question",
   "seeAlso": [
     "tooling/a-prompt-never-blocks",
     "security/secret-qualifier",

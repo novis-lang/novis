@@ -5,7 +5,6 @@
     "0137",
     "0234"
   ],
-  "divergesFromPhp": "the renderer ships inside the binary rather than as a phpDocumentor-style tool a project installs",
   "seeAlso": [
     "tooling/one-json-several-renderers",
     "tooling/meta-json-takes-a-program"

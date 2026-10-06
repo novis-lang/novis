@@ -9,7 +9,6 @@
     "0095",
     "0246"
   ],
-  "divergesFromPhp": "a decompression bomb is refused from its declared dimensions rather than discovered by exhausting memory",
   "seeAlso": [
     "core-classes/image-pipeline",
     "core-classes/pdf-page-is-an-image-source",

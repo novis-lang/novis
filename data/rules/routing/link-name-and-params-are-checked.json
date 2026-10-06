@@ -5,7 +5,6 @@
     "0077",
     "0102"
   ],
-  "divergesFromPhp": "a link is built from the route's name and checked while compiling, never assembled by hand — a renamed route fails the build at every stale `url()` rather than in a sent email",
   "seeAlso": [
     "routing/route-attribute",
     "routing/link-carries-the-mount-prefix",

@@ -6,7 +6,6 @@
     "0042",
     "0078"
   ],
-  "divergesFromPhp": "PHP reads `php.ini` and `.user.ini` whatever their owner and mode; a config file or its directory that any other account can write refuses the boot, on Unix by mode and on Windows by effective DACL rights",
   "seeAlso": [
     "config/optional-covers-absence-and-moves-the-check-to-the-directory",
     "config/any-file-in-the-tree-may-set-any-directive",

@@ -7,7 +7,6 @@
     "0067",
     "0170"
   ],
-  "divergesFromPhp": "a fleet needs no supervisor, no heartbeat and no coordinator process — the database provides the mutual exclusion",
   "seeAlso": [
     "core-classes/db-one-api",
     "concurrency/delivery-is-at-least-once"

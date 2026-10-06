@@ -7,7 +7,6 @@
     "0067",
     "0180"
   ],
-  "divergesFromPhp": "Xdebug's trace is a log of function calls; here a collector pause, an isolate spawn and a database statement are events of their own on the same stream, tagged so a viewer can tell them apart",
   "seeAlso": [
     "testing/debug-probes",
     "security/secret-qualifier",

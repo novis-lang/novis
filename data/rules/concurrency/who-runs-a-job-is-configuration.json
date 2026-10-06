@@ -5,7 +5,6 @@
     "0084",
     "0154"
   ],
-  "divergesFromPhp": "workers are the runtime's own and start from configuration — there is no separate daemon or process manager to install beside the server",
   "seeAlso": [
     "core-classes/queue-storage-is-a-table",
     "concurrency/a-job-runs-as-a-root-isolate",

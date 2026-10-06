@@ -7,7 +7,6 @@
     "0241",
     "0245"
   ],
-  "divergesFromPhp": "a relative path in `php.ini` resolves against whatever the process's working directory happens to be; here it resolves against the file that wrote it, so a config directory survives being copied whole",
   "seeAlso": [
     "config/include-takes-a-path-or-a-dir",
     "config/app-keys-are-canonicalized-before-matching",

@@ -4,7 +4,6 @@
   "because": [
     "0093"
   ],
-  "divergesFromPhp": "a hand-registered service runs as `LocalSystem`, and so does one installed here with no `--account`; the per-service virtual account and its grants are one `--account` away",
   "seeAlso": [
     "packaging/the-installer-is-a-sink",
     "packaging/a-service-answers-its-manager"

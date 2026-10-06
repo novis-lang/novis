@@ -5,7 +5,6 @@
     "0065",
     "0151"
   ],
-  "divergesFromPhp": "`php -i` prints ini settings and the request's own server variables; `nvs info` reports the build, the host and the licences, never per-request state, and it is spelled one way",
   "seeAlso": [
     "packaging/the-notice-is-embedded-in-the-binary",
     "packaging/a-build-records-no-timestamp",

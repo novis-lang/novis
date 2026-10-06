@@ -4,7 +4,6 @@
   "because": [
     "0039"
   ],
-  "divergesFromPhp": "there is no `.php-cs-fixer.php`, no ruleset and no style flag; every knob php-cs-fixer and PHP_CodeSniffer expose is one fixed answer here",
   "seeAlso": [
     "tooling/fmt-base-style-is-per",
     "tooling/fmt-never-reflows",

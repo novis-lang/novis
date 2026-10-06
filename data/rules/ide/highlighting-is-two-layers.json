@@ -5,7 +5,6 @@
     "0099",
     "0040"
   ],
-  "divergesFromPhp": "type annotations sit where PHP has none — parameters, returns, properties, `foreach` bindings, typed locals, inline shapes — so a borrowed PHP grammar mis-colours the largest part of a Novis file",
   "seeAlso": [
     "ide/rejected-syntax-gets-no-colour",
     "ide/semantic-tokens-carry-the-qualifiers",

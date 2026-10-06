@@ -4,7 +4,6 @@
   "because": [
     "0137"
   ],
-  "divergesFromPhp": "there is no `@param`, `@return`, `@throws`, `@var` or `@deprecated`; what PHPDoc tags carried is the signature, an attribute or a declared capability",
   "seeAlso": [
     "tooling/doc-comment-is-three-slashes",
     "tooling/meta-json-takes-a-program",

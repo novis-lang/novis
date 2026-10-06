@@ -6,7 +6,6 @@
     "0005",
     "0104"
   ],
-  "divergesFromPhp": "there is no `php.ini-development` to copy: a production host that wrote nothing is unreachable from code, and one root-owned line opens it",
   "seeAlso": [
     "config/a-program-may-read-and-flip-its-mode",
     "config/ceilings-are-their-own-directives",

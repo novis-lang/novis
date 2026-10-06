@@ -6,7 +6,6 @@
     "0091",
     "0004"
   ],
-  "divergesFromPhp": "there is no `-1` meaning unlimited; a ceiling is removed with `false` in a root-owned block, and never from a script — and PHP's one `max_execution_time`, CPU time on Linux and elapsed time on Windows, is two keys: `cpu_time` and `wall_time`",
   "seeAlso": [
     "config/three-changeability-classes",
     "config/a-refused-set-returns-false",

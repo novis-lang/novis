@@ -8,7 +8,6 @@
     "0092",
     "0177"
   ],
-  "divergesFromPhp": "`echo` in a scheduled script, a job worker or a test neutralizes control bytes rather than writing raw, and only an HTTP request makes it HTML",
   "seeAlso": [
     "tooling/terminal-output-is-a-sink",
     "tooling/the-tty-belongs-to-the-main-task",

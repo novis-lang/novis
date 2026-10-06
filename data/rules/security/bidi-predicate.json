@@ -5,7 +5,6 @@
     "0087",
     "0029"
   ],
-  "divergesFromPhp": "a Trojan Source payload does not survive the lexer, and there is no attribute that switches the check off",
   "seeAlso": [
     "security/bidi-boundaries",
     "security/bidi-scope-is-the-whole-target",

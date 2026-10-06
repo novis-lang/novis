@@ -76,15 +76,15 @@ A frozen record is exempt: its body was true on its date, and a pass leaves it a
 **2. A count kept in more than one file.** Always wrong somewhere. An earlier pass found two: the
 PHP-divergence count, which stopped at "the twelfth" while sixteen more records added rows, and the
 compiler-recognized-attribute count, which 0102 § 9 had already found wrong in seven places. The fix
-is a register with one home — [divergences.md](../divergences.md), generated from every rule carrying
-`divergesFromPhp`, is now that home for the first — and prose that says "joins the closed list" without
-a number. `--only "stale counters"` looks for the spellings; a new kind of count needs a new pattern in
+is prose that says "joins the closed list" without a number, and where a count is really needed, a
+register generated from the files that hold the items. `--only "stale counters"` looks for the
+spellings; a new kind of count needs a new pattern in
 `COUNTERS`.
 
 **3. A derivable index maintained by hand.** README's index table's *Decision* cell was a second copy
 of each record's own title, and had drifted: 26 of 102 cells past 200 bytes, one at 836. That table is
-gone, and so are the authored `ground-rules.md` and `divergences.md`: `bun nv rules --render`
-writes both and every `docs/rules/<topic>.md` chapter from the topic JSON and the fragments, and
+gone, and so is the authored `ground-rules.md`: `bun nv rules --render`
+writes it and every `docs/rules/<topic>.md` chapter from the topic JSON and the fragments, and
 `--check` reports a copy that has drifted. Look for the same shape elsewhere before writing a new list
 by hand: if a fact can be derived from the files, derive it.
 
@@ -95,8 +95,8 @@ by hand: if a fact can be derived from the files, derive it.
 - **Never touches the live goal's prose, record or handoff record, `data/chain.json`, or the plan's
   status block.** Those are the running loop's state.
 - **Never renumbers a record or a section.** Constraints 1 and 2.
-- **Never edits a generated file.** `docs/ground-rules.md`, `docs/divergences.md` and
-  `docs/rules/<topic>.md` are written by `bun nv rules --render`; an edit there is lost on the
+- **Never edits a generated file.** `docs/ground-rules.md` and `docs/rules/<topic>.md` are written
+  by `bun nv rules --render`; an edit there is lost on the
   next render, and the file that lost it does not say so. Edit the fragment or the topic JSON.
 - **Never changes what a rule decides** — only what its fragment says the current rule is. A change
   of substance is a new decision record.
@@ -116,9 +116,9 @@ Read for these directly; there is no check for any of them.
 - **A doc-vs-code disagreement.** If the code shipped something a rule still calls designed, or carries
   a type a rule describes and the compiler never had, say so and fix it. Flag the call to the user
   rather than making it silently.
-- **A claim with no home.** `divergences.md` exists because "the tenth deliberate divergence" was a
-  fact nobody owned. When a pass finds prose counting or summarising across rules, that is the signal
-  for a register, not for better prose.
+- **A claim with no home.** "The tenth deliberate divergence" was a fact nobody owned. When a pass
+  finds prose counting or summarising across rules, that is the signal for a register generated from
+  the rules, not for better prose.
 
 ## Finishing
 

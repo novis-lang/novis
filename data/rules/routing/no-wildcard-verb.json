@@ -8,7 +8,6 @@
     "0096",
     "0010"
   ],
-  "divergesFromPhp": "`Route::any()` and `methods: ['*']` have no spelling — each verb a route answers is its own `#[Route]` line, because `Allow:` and the CSRF classification read the exact set",
   "seeAlso": [
     "routing/repeated-routes-share-a-name-when-they-share-a-path",
     "security/csrf-is-on-by-default",

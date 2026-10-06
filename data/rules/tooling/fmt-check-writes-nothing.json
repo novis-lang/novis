@@ -4,7 +4,6 @@
   "because": [
     "0039"
   ],
-  "divergesFromPhp": "`php-cs-fixer fix --dry-run` is the habit; the flag is `--check` and its exit status is the whole contract",
   "seeAlso": [
     "tooling/fmt-is-never-a-diagnostic",
     "tooling/fmt-is-idempotent"

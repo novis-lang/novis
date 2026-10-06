@@ -5,7 +5,6 @@
     "0137",
     "0234"
   ],
-  "divergesFromPhp": "an IDE cannot answer the check with a generated docblock, because there is no tag to generate",
   "seeAlso": [
     "tooling/doc-comment-tags-are-see-and-example",
     "tooling/doc-comment-attaches-to-the-next-declaration",

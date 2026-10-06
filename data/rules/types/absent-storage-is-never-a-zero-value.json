@@ -5,7 +5,6 @@
     "0007",
     "0254"
   ],
-  "divergesFromPhp": "reading an undefined variable or an absent array key does not warn and yield `null`, and `$a[] .= \"x\"` does not append; `??`, `??=`, `isset` and `empty` keep PHP's answer",
   "seeAlso": [
     "types/arrays",
     "types/declaration",

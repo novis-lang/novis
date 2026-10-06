@@ -5,7 +5,6 @@
     "0154",
     "0230"
   ],
-  "divergesFromPhp": "one process is the whole deployment — there is no process manager, no worker daemon and no cron entry beside it",
   "seeAlso": [
     "concurrency/who-runs-a-job-is-configuration",
     "concurrency/queued-work-is-not-scheduled-work",

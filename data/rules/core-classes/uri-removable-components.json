@@ -5,7 +5,6 @@
     "0147",
     "0146"
   ],
-  "divergesFromPhp": "there is no `parse_url`/`http_build_query` round trip to lose a component in — removing one is a written `null`, and an empty query is a different value from no query",
   "seeAlso": [
     "core-classes/signature"
   ],

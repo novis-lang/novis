@@ -6,7 +6,6 @@
     "0007",
     "0063"
   ],
-  "divergesFromPhp": "there is no `merge` under any spelling and no array `+` operator; `array_merge`'s rule chosen by a key's type does not survive a language where every key is a `string`",
   "seeAlso": [
     "types/arrays",
     "types/preserve-keys"

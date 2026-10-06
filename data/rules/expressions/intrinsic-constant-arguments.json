@@ -6,7 +6,6 @@
     "0046",
     "0042"
   ],
-  "divergesFromPhp": "a malformed pattern, URI, duration or format string is a compile error at the offset inside the string literal, rather than a throw on the first request that reaches the call",
   "seeAlso": [
     "expressions/intrinsic-list-is-closed",
     "expressions/preparation-preserves-behaviour"

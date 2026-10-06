@@ -5,7 +5,6 @@
     "0081",
     "0061"
   ],
-  "divergesFromPhp": "there is no `vendor/autoload.php` classmap or loader to `require`; the generated file holds declarations the compiler resolves like any other source",
   "seeAlso": [
     "programs/no-runtime-autoload",
     "programs/autoload",

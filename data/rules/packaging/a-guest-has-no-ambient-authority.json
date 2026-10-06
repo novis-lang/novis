@@ -5,7 +5,6 @@
     "0003",
     "0246"
   ],
-  "divergesFromPhp": "native extension code calls `open()` and `connect()` directly; a guest reaches the filesystem and the network only through the same grants script code has",
   "seeAlso": [
     "security/capability-check-at-the-door",
     "security/capability-question-is-grant-and-scope",

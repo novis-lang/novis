@@ -4,7 +4,6 @@
   "because": [
     "0180"
   ],
-  "divergesFromPhp": "curl tries every address a name answers and checks none of them; here each is checked before any is tried, one denied refuses the whole host, and the lookup runs off the core",
   "seeAlso": [
     "http-server/allow-url-pins-the-address",
     "security/net-address-policy",

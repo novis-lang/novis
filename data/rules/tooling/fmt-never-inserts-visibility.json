@@ -6,7 +6,6 @@
     "0089",
     "0039"
   ],
-  "divergesFromPhp": "php-cs-fixer's `visibility_required` fixer writes the missing `public`; the formatter here never changes meaning",
   "seeAlso": [
     "core-api/written-visibility",
     "tooling/fmt-base-style-is-per"

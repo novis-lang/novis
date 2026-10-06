@@ -4,7 +4,6 @@
   "because": [
     "0046"
   ],
-  "divergesFromPhp": "repeatability is the default and needs no `Attribute::IS_REPEATABLE` marker",
   "seeAlso": [
     "attributes/structural-retrieval",
     "attributes/retrieval-folds-while-checking",

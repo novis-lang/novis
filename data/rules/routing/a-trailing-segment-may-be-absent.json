@@ -7,7 +7,6 @@
     "0095",
     "0097"
   ],
-  "divergesFromPhp": "an optional segment is declared by the parameter's default, not by a second route or an optional regex group, and `/posts/` does not match `/posts/{page?}`",
   "seeAlso": [
     "routing/a-refused-verb-is-not-a-missing-path",
     "errors/ambiguous-input-refused",

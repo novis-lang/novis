@@ -4,7 +4,6 @@
   "because": [
     "0148"
   ],
-  "divergesFromPhp": "there is no `$real_usage` boolean and no second accounting behind it: `memory_get_usage`'s two numbers were one member with a flag, where the request's held bytes and the process's resident set are two members on the two classes that own them",
   "seeAlso": [
     "observability/a-memory-peak-is-recorded-not-asked-for",
     "observability/memory-high-water-writes-a-warn",

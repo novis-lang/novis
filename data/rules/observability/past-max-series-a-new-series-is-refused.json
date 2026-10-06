@@ -4,7 +4,6 @@
   "because": [
     "0076"
   ],
-  "divergesFromPhp": "past the cap the newest label set is dropped with a warning, not the oldest evicted; a counter never appears to reset",
   "seeAlso": [
     "observability/a-registry-is-per-core-and-nothing-reads-it",
     "observability/default-series",

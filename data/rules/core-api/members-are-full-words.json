@@ -5,7 +5,6 @@
     "0063",
     "0011"
   ],
-  "divergesFromPhp": "`strlen` is `Core\\Str::length`, not `Core\\Str::len`",
   "seeAlso": [
     "core-api/identifier-casing",
     "core-api/a-domain-class-is-a-singular-noun"

@@ -5,7 +5,6 @@
     "0102",
     "0077"
   ],
-  "divergesFromPhp": "the query string is built by the same member that builds the path, and `url(...) . '?page=' . $n` is the concatenation the launderer exists to prevent",
   "seeAlso": [
     "routing/a-query-parameter-is-declared-like-a-capture",
     "routing/an-absolute-link-takes-a-configured-origin",

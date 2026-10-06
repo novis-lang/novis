@@ -8,7 +8,6 @@
     "0135",
     "0147"
   ],
-  "divergesFromPhp": "PHP's built-ins have no API at all — argument order, failure signalling and option encoding vary between neighbouring functions in the same extension",
   "seeAlso": [
     "core-api/subject-first",
     "core-api/options-bag",

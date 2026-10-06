@@ -8,7 +8,6 @@
     "0122",
     "0044"
   ],
-  "divergesFromPhp": "there is no second FPDF-shaped imperative engine with its own coordinate model — drawings are inline SVG",
   "seeAlso": [
     "core-classes/pdf-render-has-no-io",
     "core-classes/pdf-css-subset",

@@ -8,7 +8,6 @@
     "0258",
     "0259"
   ],
-  "divergesFromPhp": "there is no inspection profile to tune; a fix exists only where a diagnostic already carries its replacement text, and running fixes on save is `editor.codeActionsOnSave`, never part of the formatter",
   "seeAlso": [
     "ide/the-tree-survives-a-syntax-error",
     "ide/the-first-server-answers-a-closed-list",

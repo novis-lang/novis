@@ -8,7 +8,6 @@
     "0175",
     "0219"
   ],
-  "divergesFromPhp": "there is no `PHP_INI_SYSTEM` bundle meaning both \"the file only\" and \"read once at boot\"; the two questions are two fields",
   "seeAlso": [
     "config/three-changeability-classes",
     "config/system-means-a-request-may-not-set-it",

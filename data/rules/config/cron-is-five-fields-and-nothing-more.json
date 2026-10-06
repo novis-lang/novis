@@ -5,7 +5,6 @@
     "0073",
     "0064"
   ],
-  "divergesFromPhp": "a seconds field or Quartz's `L`/`W`/`#`/`?` is refused at boot rather than accepted by whichever cron the host happens to run",
   "seeAlso": [
     "config/scheduled-work-is-a-config-block",
     "config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once"

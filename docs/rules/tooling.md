@@ -565,7 +565,7 @@ style knob. A configurable knob would let two files in one project, or two proje
 tool, disagree about what "formatted" means, which is the exact question a canonical formatter exists to
 close.
 
-The style is PER wherever Novis's grammar matches PHP's ([`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per)), extended
+The style is PER for every construct PER covers ([`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per)), extended
 with one layout for each construct PER has never seen ([`tooling/fmt-novis-constructs`](tooling.md#tooling-fmt-novis-constructs)). It is
 deterministic in the gofmt sense, not Prettier's: it never reflows an expression to fit a width
 ([`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows)), running it twice changes nothing ([`tooling/fmt-is-idempotent`](tooling.md#tooling-fmt-is-idempotent)),
@@ -1689,8 +1689,8 @@ record or the prose fragment it is rendered from, and the file is rendered again
 
 The command that writes it has a check form that writes nothing and fails when the file no longer
 matches its sources — `bun nv render --check` for the website's pages and data, `bun nv rules --render
---check` for the rulebook's chapters, `docs/ground-rules.md` and `docs/divergences.md`. CI's `docs`
-job runs both. After a merge conflict in a rendered file, it is rendered again from the merged
+--check` for the rulebook's chapters and `docs/ground-rules.md`. CI's `docs` job runs both. After a
+merge conflict in a rendered file, it is rendered again from the merged
 records, never merged by hand.
 
 <sub>See also [`tooling/a-repository-fact-is-one-json-record`](tooling.md#tooling-a-repository-fact-is-one-json-record). Decided in [0221](../decisions/0221.md).</sub>

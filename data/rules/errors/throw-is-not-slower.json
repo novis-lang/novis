@@ -4,7 +4,6 @@
   "because": [
     "0002"
   ],
-  "divergesFromPhp": "throwing is not a performance cliff, so exceptions may be used on ordinary control-flow paths",
   "seeAlso": [
     "errors/propagation"
   ],

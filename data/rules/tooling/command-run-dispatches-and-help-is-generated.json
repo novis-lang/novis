@@ -5,7 +5,6 @@
     "0086",
     "0102"
   ],
-  "divergesFromPhp": "nobody writes a usage block or a completion script; `--help` and `bash`/`zsh`/`fish`/`pwsh` completions are read off the compiled table",
   "seeAlso": [
     "tooling/commands-are-compiled",
     "tooling/a-parameter-is-an-argument-unless-it-is-an-option",

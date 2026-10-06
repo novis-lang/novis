@@ -4,7 +4,6 @@
   "because": [
     "0053"
   ],
-  "divergesFromPhp": "a generator is a compiled state machine rather than a suspended stack, so it costs one small object and behaves the same on every compile target",
   "seeAlso": [
     "iteration/yield-lexical-confinement",
     "iteration/one-way-only",

@@ -6,7 +6,6 @@
     "0117",
     "0167"
   ],
-  "divergesFromPhp": "phpDocumentor re-derives documentation from source at every run; here nothing does, and the renderers share one JSON",
   "seeAlso": [
     "tooling/meta-json",
     "tooling/meta-json-takes-a-program",

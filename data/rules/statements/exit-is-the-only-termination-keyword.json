@@ -5,7 +5,6 @@
     "0049",
     "0015"
   ],
-  "divergesFromPhp": "`die` and `die('bye')` do not compile; `exit` is the exact replacement",
   "seeAlso": [
     "statements/nvs-is-the-only-open-tag"
   ],

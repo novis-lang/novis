@@ -8,7 +8,6 @@
     "0112",
     "0071"
   ],
-  "divergesFromPhp": "a relative qualified name (`Models\\User` inside `namespace App;`) names nothing, and a namespace-prefix import reaches nothing under it",
   "seeAlso": [
     "statements/no-fallback-to-the-root-namespace",
     "statements/a-leading-separator-does-not-parse",

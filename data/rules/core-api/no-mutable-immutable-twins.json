@@ -4,7 +4,6 @@
   "because": [
     "0063"
   ],
-  "divergesFromPhp": "there is no `DateTime`/`DateTimeImmutable` pair — one type, immutable",
   "seeAlso": [
     "core-api/nothing-mutates",
     "core-api/one-paradigm-per-operation",

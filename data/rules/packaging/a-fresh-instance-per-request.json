@@ -4,7 +4,6 @@
   "because": [
     "0003"
   ],
-  "divergesFromPhp": "a stateful PHP extension keeps its globals for the worker's lifetime; a guest starts pristine on every request and nothing it stored is there on the next one",
   "seeAlso": [
     "security/no-cross-request-state",
     "concurrency/cross-request-state-is-explicit",

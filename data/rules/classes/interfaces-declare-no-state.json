@@ -4,7 +4,6 @@
   "because": [
     "0210"
   ],
-  "divergesFromPhp": "8.4 admits a hooked property in an interface; Novis admits no property there at all",
   "seeAlso": [
     "classes/no-traits",
     "classes/interface-default-methods",

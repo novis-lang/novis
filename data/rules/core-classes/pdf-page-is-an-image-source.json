@@ -7,7 +7,6 @@
     "0121",
     "0051"
   ],
-  "divergesFromPhp": "rasterising a page needs no Imagick, no Ghostscript and no shell — it is `Image::open` with a `page` and a `dpi`",
   "seeAlso": [
     "core-classes/image-pixel-cap",
     "core-classes/image-format-roster",

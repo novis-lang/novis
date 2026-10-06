@@ -7,7 +7,6 @@
     "0092",
     "0076"
   ],
-  "divergesFromPhp": "there is no Common or Combined Log Format and no pool `access.log`: the line is a diagnostic record, text in development and JSON in production",
   "seeAlso": [
     "http-server/the-trace-id-is-the-request-identifier",
     "http-server/health-path-is-off-and-checks-nothing",

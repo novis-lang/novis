@@ -5,7 +5,6 @@
     "0079",
     "0020"
   ],
-  "divergesFromPhp": "a test with no assertion is a failure rather than a risky-marked pass, and a case that only passed on a retry never counts as green",
   "seeAlso": [
     "testing/failure-ledger",
     "testing/report-formats",

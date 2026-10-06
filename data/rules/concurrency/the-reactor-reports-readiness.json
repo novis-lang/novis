@@ -6,7 +6,6 @@
     "0106",
     "0051"
   ],
-  "divergesFromPhp": "there is no event loop to install and no extension to pick — readiness is the runtime's own and behaves the same on all three platforms",
   "seeAlso": [
     "concurrency/the-parking-contract",
     "concurrency/try-the-syscall-then-park"

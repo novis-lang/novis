@@ -5,7 +5,6 @@
     "0097",
     "0095"
   ],
-  "divergesFromPhp": "`clientIp()` is nullable and `null` is an answer, never repaired to `\"\"` or `0.0.0.0`",
   "seeAlso": [
     "http-server/trusted-proxies-is-empty-and-empty-reads-nothing",
     "http-server/x-forwarded-for-is-the-only-address-header",

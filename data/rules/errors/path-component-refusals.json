@@ -4,7 +4,6 @@
   "because": [
     "0095"
   ],
-  "divergesFromPhp": "Windows device names, trailing dots and 8.3 short names are refused on Linux and macOS too",
   "seeAlso": [
     "errors/ambiguous-input-refused"
   ],

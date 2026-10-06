@@ -4,7 +4,6 @@
   "because": [
     "0039"
   ],
-  "divergesFromPhp": "there is no grouped `use A\\{B, C};` form to order, because Novis's `use` names exactly one path",
   "seeAlso": [
     "tooling/fmt-base-style-is-per",
     "tooling/fmt-never-reorders-members",

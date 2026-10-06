@@ -5,7 +5,6 @@
     "0074",
     "0058"
   ],
-  "divergesFromPhp": "curl's `CURLOPT_TIMEOUT` bounds one transfer, so three attempts at five seconds is a fifteen-second call; here the stated number is the bound on everything",
   "seeAlso": [
     "http-server/no-spelling-for-an-unbounded-wait",
     "http-server/retry-is-opt-in-jittered-and-closed",

@@ -6,7 +6,6 @@
     "0031",
     "0053"
   ],
-  "divergesFromPhp": "`&$x` is not a by-reference marker; the word is `inout` and it goes before the type",
   "seeAlso": [
     "statements/inout-is-written-at-the-call",
     "statements/ampersand-is-not-a-by-reference-marker",

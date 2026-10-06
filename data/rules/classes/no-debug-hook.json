@@ -6,7 +6,6 @@
     "0092",
     "0019"
   ],
-  "divergesFromPhp": "`__debugInfo` does not exist, so a dump cannot be filtered, renamed or synthesized by the class being dumped",
   "seeAlso": [
     "classes/no-magic-methods",
     "errors/debug-dump",

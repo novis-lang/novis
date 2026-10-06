@@ -6,7 +6,6 @@
     "0014",
     "0006"
   ],
-  "divergesFromPhp": "`__clone`, `__serialize`, `__unserialize`, `__sleep` and `__wakeup` do not exist, so a copy always means what the language says it means",
   "seeAlso": [
     "classes/clone-is-shallow",
     "classes/graph-copy",

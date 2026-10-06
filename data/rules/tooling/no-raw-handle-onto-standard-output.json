@@ -6,7 +6,6 @@
     "0063",
     "0051"
   ],
-  "divergesFromPhp": "`STDOUT`, `STDERR`, `php://stdout` and `fwrite(STDOUT, …)` have no counterpart; byte-exact output names a file, and standard input is `Core\\IO::stdin()` alone",
   "seeAlso": [
     "tooling/terminal-output-is-a-sink",
     "tooling/text-is-the-one-raw-path",

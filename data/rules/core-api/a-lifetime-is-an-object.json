@@ -5,7 +5,6 @@
     "0063",
     "0003"
   ],
-  "divergesFromPhp": "there is no `resource`, no integer handle and no `$link`-first convention anywhere in `Core`",
   "seeAlso": [
     "core-api/one-paradigm-per-operation",
     "classes/no-destructors",

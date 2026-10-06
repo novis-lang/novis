@@ -4,7 +4,6 @@
   "because": [
     "0179"
   ],
-  "divergesFromPhp": "a token with no `kid` cannot be walked against a key set, so verification costs one signature check whatever the sender wrote",
   "seeAlso": [
     "security/algorithm-comes-from-the-key",
     "security/jwt-expiry-is-mandatory",

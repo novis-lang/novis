@@ -6,7 +6,6 @@
     "0043",
     "0029"
   ],
-  "divergesFromPhp": "`function f()`, `const X = 1`, `var $x;` and `readonly int $x;` all fail to compile — PHP's silent `public` has no successor",
   "seeAlso": [
     "core-api/a-parameter-is-not-a-member",
     "core-api/asymmetric-visibility-is-a-pair",

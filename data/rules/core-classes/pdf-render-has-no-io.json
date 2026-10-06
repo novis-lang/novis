@@ -8,7 +8,6 @@
     "0058",
     "0095"
   ],
-  "divergesFromPhp": "the SSRF and local-file-read class that defines PHP's HTML-to-PDF libraries is absent by construction — there is nothing in the sandbox to fetch with",
   "seeAlso": [
     "core-classes/pdf-one-engine",
     "core-classes/pdf-output-is-inert",

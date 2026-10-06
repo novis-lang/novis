@@ -5,7 +5,6 @@
     "0147",
     "0063"
   ],
-  "divergesFromPhp": "PHP spreads clearing across `unset`, `\"\"`, `false` and per-function sentinels; here one spelling means one thing at every member",
   "seeAlso": [
     "core-api/omission-is-not-a-written-null",
     "core-api/a-lifetime-is-written",

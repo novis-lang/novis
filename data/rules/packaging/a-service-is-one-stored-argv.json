@@ -5,7 +5,6 @@
     "0093",
     "0078"
   ],
-  "divergesFromPhp": "there is no shim — no NSSM, no WinSW, no hand-written unit around `php-fpm` — and the hosted program's own flags follow a `--` the installer never reads past",
   "seeAlso": [
     "packaging/the-installer-is-a-sink",
     "packaging/the-argv-lives-in-imagepath",

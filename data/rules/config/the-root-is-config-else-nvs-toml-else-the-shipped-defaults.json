@@ -6,7 +6,6 @@
     "0064",
     "0093"
   ],
-  "divergesFromPhp": "there is no search path, no `PHPRC` and no compiled-in location: a `--config` list, else `./nvs.toml` in exactly the working directory, else the shipped defaults",
   "seeAlso": [
     "config/no-configuration-file-is-a-complete-configuration",
     "config/the-resolved-root-is-announced-and-stored",

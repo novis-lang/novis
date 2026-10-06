@@ -5,7 +5,6 @@
     "0076",
     "0059"
   ],
-  "divergesFromPhp": "there is no APCu-style shared counter store; every core keeps its own approximate aggregate and the merge is arithmetic at scrape time",
   "seeAlso": [
     "concurrency/cross-request-state-is-explicit",
     "concurrency/cache-memory-is-charged-to-the-core",

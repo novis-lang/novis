@@ -6,7 +6,6 @@
     "0022",
     "0014"
   ],
-  "divergesFromPhp": "`unset($obj->prop)` does not remove a property — the one surviving operand is an array element",
   "seeAlso": [
     "classes/definite-property-initialization",
     "classes/no-dynamic-properties",

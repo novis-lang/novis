@@ -6,7 +6,6 @@
     "0018",
     "0041"
   ],
-  "divergesFromPhp": "there is no APM extension in the request path and no userland StatsD or OpenTelemetry client to reconcile with it; the runtime's own probes are the only instrumentation",
   "seeAlso": [
     "testing/debug-probes",
     "observability/default-series",

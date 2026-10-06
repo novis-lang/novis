@@ -5,7 +5,6 @@
     "0086",
     "0067"
   ],
-  "divergesFromPhp": "there is no `\\r`-and-overwrite progress bar and no cursor movement; `Cli::live` and `Cli::progress` hand the body a handle and paint nothing at all on a pipe",
   "seeAlso": [
     "tooling/the-terminal-is-restored-on-every-exit-path",
     "tooling/the-terminal-profile-resolves-once",

@@ -4,7 +4,6 @@
   "because": [
     "0074"
   ],
-  "divergesFromPhp": "php-fpm behind nginx ships no security headers, no cookie flags and no outbound timeout until somebody writes them; here nothing written is already the safe and finite configuration",
   "seeAlso": [
     "http-server/secure-headers-with-nothing-written",
     "http-server/cors-is-closed-until-origins-are-named",

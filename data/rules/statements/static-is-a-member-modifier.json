@@ -8,7 +8,6 @@
     "0211",
     "0231"
   ],
-  "divergesFromPhp": "`self::m()` and `parent::m()` inside an anonymous function set the called class to the class the anonymous function is written in, where PHP forwards the enclosing method's called class; `self::m()` in a method body on an `abstract static` `m` runs the subclass's body, where PHP throws",
   "seeAlso": [
     "statements/no-function-static-and-no-global",
     "statements/an-anonymous-function-captures-this-only-where-it-uses-it",

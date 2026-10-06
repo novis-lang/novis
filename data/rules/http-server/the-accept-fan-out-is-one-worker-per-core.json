@@ -5,7 +5,6 @@
     "0161",
     "0181"
   ],
-  "divergesFromPhp": "php-fpm sizes a pool of request *processes* with `pm.*`; `workers` counts accept cores, and one core answers many requests at once",
   "seeAlso": [
     "http-server/the-server-block-is-boot-class",
     "http-server/a-unix-socket-listener",

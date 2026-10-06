@@ -4,7 +4,6 @@
   "because": [
     "0093"
   ],
-  "divergesFromPhp": "the unit is generated rather than written by hand, and printing rather than installing is the default because configuration management owns the directory",
   "seeAlso": [
     "packaging/the-generated-unit-is-hardened",
     "packaging/the-argv-lives-in-imagepath",

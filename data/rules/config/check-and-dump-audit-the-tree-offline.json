@@ -5,7 +5,6 @@
     "0103",
     "0093"
   ],
-  "divergesFromPhp": "`php --ini` names the files read and `phpinfo()` prints values from inside a request; here one offline command validates the whole tree in CI and names, per key, the file and line that set it and the one it overrode",
   "seeAlso": [
     "config/later-wins-and-every-override-is-recorded",
     "config/ctl-config-reports-the-live-snapshot",

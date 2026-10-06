@@ -5,7 +5,6 @@
     "0079",
     "0022"
   ],
-  "divergesFromPhp": "there is no `setUp`, `setUpBeforeClass` or `tearDownAfterClass`; the constructor is the only one, and every property is assigned before any test body runs",
   "seeAlso": [
     "testing/after-hook",
     "testing/fixtures",

@@ -7,7 +7,6 @@
     "0005",
     "0219"
   ],
-  "divergesFromPhp": "`session.save_handler = files` and an APCu-backed handler have no counterpart; the choices are the shared tier or the database, and `local` is `E0626` where it is written rather than a session that forgets people",
   "seeAlso": [
     "concurrency/the-local-tier-cannot-hold-what-must-be-coherent",
     "http-server/no-session-block-means-no-store",

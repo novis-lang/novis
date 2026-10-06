@@ -5,7 +5,6 @@
     "0142",
     "0097"
   ],
-  "divergesFromPhp": "`redis://`, `rediss://` and `unix:` are the only schemes `[cache.shared] url` reads — a credential is `[cache.shared] password` rather than userinfo, and a database index is `[cache.shared] database` rather than a path on the URL",
   "seeAlso": [
     "config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it",
     "core-classes/db-unix-socket-path",

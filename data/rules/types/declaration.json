@@ -9,7 +9,6 @@
     "0011",
     "0251"
   ],
-  "divergesFromPhp": "a local, a `foreach` binding, a `for` counter and a destructuring target all carry a type, written or (for the first three) taken with `var`, and PHP source with neither does not compile",
   "seeAlso": [
     "types/var-inference",
     "types/conversion",

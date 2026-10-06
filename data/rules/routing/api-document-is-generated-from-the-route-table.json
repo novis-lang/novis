@@ -8,7 +8,6 @@
     "0102",
     "0110"
   ],
-  "divergesFromPhp": "there is no hand-written or annotation-scanned OpenAPI file to keep in sync — the document is a build output of the route table, and a program with no `#[Route]` produces none",
   "seeAlso": [
     "routing/api-document-is-a-deterministic-build-artifact",
     "routing/api-diff-fails-a-breaking-change",

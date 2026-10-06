@@ -8,7 +8,6 @@
     "0090",
     "0007"
   ],
-  "divergesFromPhp": "the argument order is `(actual, expected)`, the reverse of PHPUnit's, and comparing an `int` against a `string` does not compile",
   "seeAlso": [
     "testing/failure-ledger",
     "testing/runner-is-strict",

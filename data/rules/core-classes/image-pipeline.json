@@ -6,7 +6,6 @@
     "0063",
     "0003"
   ],
-  "divergesFromPhp": "gd's mutable resource and its ambient mode flags are gone; an operation answers a new value, and the component's entry points are coarse by rule",
   "seeAlso": [
     "core-classes/image-pixel-model",
     "core-classes/image-pixel-cap",

@@ -7,7 +7,6 @@
     "0004",
     "0181"
   ],
-  "divergesFromPhp": "APCu, `shmop`, `sysvshm`, `sysvsem` and `sysvmsg` are gone, and there is no ambient place a value can be left for the next request to find",
   "seeAlso": [
     "security/no-cross-request-state",
     "security/closed-doors",

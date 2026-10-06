@@ -6,7 +6,6 @@
     "0033",
     "0056"
   ],
-  "divergesFromPhp": "no verifier returns a falsy value a loose comparison could read as success",
   "seeAlso": [
     "security/secret-comparison-is-constant-time",
     "security/algorithm-comes-from-the-key",

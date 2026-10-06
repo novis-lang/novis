@@ -4,7 +4,6 @@
   "because": [
     "0076"
   ],
-  "divergesFromPhp": "recording one name as a counter here and a gauge there is a throw at the second call, not a series the backend quietly reports twice",
   "seeAlso": [
     "observability/metrics-three-members",
     "observability/past-max-series-a-new-series-is-refused"

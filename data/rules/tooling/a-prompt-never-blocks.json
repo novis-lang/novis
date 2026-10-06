@@ -6,7 +6,6 @@
     "0074",
     "0079"
   ],
-  "divergesFromPhp": "`readline()` in CI hangs until the pipeline kills it; here it throws, and no `timeout` option lengthens the wait",
   "seeAlso": [
     "tooling/a-prompt-is-a-core-member",
     "programs/memory-priority",

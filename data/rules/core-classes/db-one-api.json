@@ -8,7 +8,6 @@
     "0051",
     "0063"
   ],
-  "divergesFromPhp": "there is no PDO, no mysqli, no pgsql and no sqlite3 twin, no `quote`/`real_escape_string`, no emulated prepares and no multi-statement query",
   "seeAlso": [
     "core-classes/db-parameters",
     "core-classes/db-statement-members",

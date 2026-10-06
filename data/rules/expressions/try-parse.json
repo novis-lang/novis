@@ -5,7 +5,6 @@
     "0066",
     "0063"
   ],
-  "divergesFromPhp": "no validator sits next to a parser the way `filter_var` sits next to `parse_url`; `tryParse` is `parse` with the throw caught, so the two can never read one string differently",
   "seeAlso": [
     "expressions/nullable-conversion-availability",
     "expressions/nullable-conversion"

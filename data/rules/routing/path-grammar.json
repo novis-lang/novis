@@ -5,7 +5,6 @@
     "0077",
     "0102"
   ],
-  "divergesFromPhp": "`{name}` rather than `:name`, a capture is always a whole segment so `/u{id}` and `/{id}.json` are refused rather than partially matched, and there is no inline constraint — the parameter's type is the constraint",
   "seeAlso": [
     "routing/precedence-is-structural",
     "security/route-capture-is-laundered-by-its-type",

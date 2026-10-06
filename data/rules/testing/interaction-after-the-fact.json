@@ -4,7 +4,6 @@
   "because": [
     "0079"
   ],
-  "divergesFromPhp": "there is no `expects()`; the method being asserted on is a compile-checked reference, so renaming it breaks the test rather than leaving it passing",
   "seeAlso": [
     "testing/doubles",
     "testing/assertions-are-typed"

@@ -4,7 +4,6 @@
   "because": [
     "0267"
   ],
-  "divergesFromPhp": "PER allows a split argument list but leaves when to split to a width or to the author; here the author's break decides and the layout after it is fixed",
   "seeAlso": [
     "tooling/fmt-never-reflows",
     "tooling/fmt-base-style-is-per",

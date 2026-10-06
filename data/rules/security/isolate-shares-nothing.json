@@ -7,7 +7,6 @@
     "0023",
     "0052"
   ],
-  "divergesFromPhp": "there is no subprocess and no `exec('php …')`; a second script runs in this process, under this request's budget and its own arena",
   "seeAlso": [
     "security/isolate-values-cross-by-copy",
     "security/isolate-budget-is-the-trees",

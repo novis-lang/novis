@@ -6,7 +6,6 @@
     "0097",
     "0053"
   ],
-  "divergesFromPhp": "there is no `$_FILES` array and no buffered accessor beside the iterator; every application that accepts a file writes a `foreach`, and a part's bytes are readable once, in order",
   "seeAlso": [
     "http-server/a-part-is-a-file-iff-it-carries-a-filename",
     "http-server/a-part-is-consumed-in-one-of-three-ways",

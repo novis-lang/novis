@@ -5,7 +5,6 @@
     "0008",
     "0031"
   ],
-  "divergesFromPhp": "an anonymous function that never names `$this` is unbound, and `bindTo()`/`bind()` on it return an equivalent callable rather than rebinding anything",
   "seeAlso": [
     "statements/static-is-a-member-modifier"
   ],

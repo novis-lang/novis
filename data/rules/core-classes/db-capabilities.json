@@ -8,7 +8,6 @@
     "0118",
     "0145"
   ],
-  "divergesFromPhp": "opening a connection is a granted act rather than a library call, and a hostname reaching `Settings.host` may not be `tainted`",
   "seeAlso": [
     "core-classes/db-connection-is-named",
     "core-classes/schema-apply-capability",

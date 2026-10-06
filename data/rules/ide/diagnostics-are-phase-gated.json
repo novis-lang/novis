@@ -4,7 +4,6 @@
   "because": [
     "0099"
   ],
-  "divergesFromPhp": "a PHP editor's diagnostics come from one pass with no phase to gate, so a mid-statement typo shows every consequence it cascades into",
   "seeAlso": [
     "errors/diagnostic-record",
     "ide/the-request-set-is-closed",

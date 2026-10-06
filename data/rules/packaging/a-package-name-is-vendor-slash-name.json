@@ -6,7 +6,6 @@
     "0062",
     "0051"
   ],
-  "divergesFromPhp": "Composer lowercases and compares names case-insensitively; here a name is compared exactly so that one which resolves on one operating system resolves on all three",
   "seeAlso": [
     "packaging/a-package-is-its-digest",
     "core-api/reserved-namespace",

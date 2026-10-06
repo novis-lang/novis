@@ -7,7 +7,6 @@
     "0102",
     "0110"
   ],
-  "divergesFromPhp": "a series is keyed by the route's compiled name rather than by the request path a StatsD client would key on, so `/users/1`, `/users/2` is one series and not one per user",
   "seeAlso": [
     "observability/default-series",
     "routing/routes-are-compiled-not-registered",

@@ -5,7 +5,6 @@
     "0079",
     "0008"
   ],
-  "divergesFromPhp": "time and randomness are controlled by a declaration on the test rather than by a clock parameter threaded through every time-aware class",
   "seeAlso": [
     "testing/task-tree-and-virtual-clock",
     "testing/isolate-per-test",

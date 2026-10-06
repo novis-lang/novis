@@ -4,7 +4,6 @@
   "because": [
     "0108"
   ],
-  "divergesFromPhp": "break-on-uncaught and break-on-thrown are two exception filters rather than PHP's five categories, and a spawned isolate appears as a thread rather than as a second session",
   "seeAlso": [
     "errors/escalation-ladder",
     "security/isolate-shares-nothing",

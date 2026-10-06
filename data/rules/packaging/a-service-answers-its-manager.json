@@ -6,7 +6,6 @@
     "0078",
     "0204"
   ],
-  "divergesFromPhp": "a shim can only report that the process exited; the service itself reports an advancing stop checkpoint and performs a reload in-process",
   "seeAlso": [
     "config/a-reload-names-what-it-could-not-apply",
     "concurrency/a-drain-closes-a-connection-cleanly",

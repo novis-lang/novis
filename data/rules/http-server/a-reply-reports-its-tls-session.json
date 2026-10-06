@@ -5,7 +5,6 @@
     "0180",
     "0217"
   ],
-  "divergesFromPhp": "`curl_getinfo` answers a flat array of thirty-odd keys mixing timings, sizes and TLS facts; here the session is an object read through members and the timings are the trace's",
   "seeAlso": [
     "security/tls-trust-is-relaxed-only-under-a-host-grant",
     "http-server/the-client-trust-roots-are-the-operators",

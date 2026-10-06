@@ -6,7 +6,6 @@
     "0002",
     "0004"
   ],
-  "divergesFromPhp": "`__destruct` does not exist in any form, and nothing user-declared runs when a refcount reaches zero",
   "seeAlso": [
     "classes/no-magic-methods",
     "iteration/generators",

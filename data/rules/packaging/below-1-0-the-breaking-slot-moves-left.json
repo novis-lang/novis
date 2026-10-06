@@ -4,7 +4,6 @@
   "because": [
     "0068"
   ],
-  "divergesFromPhp": "PHP numbers a runtime that programs then target; here `nvs --version` is the language version, and `0.MINOR` rather than `MAJOR` is what carries a break until 1.0",
   "seeAlso": [
     "packaging/the-version-contract-starts-at-0-1-0",
     "packaging/who-can-see-it-decides-the-release-slot"

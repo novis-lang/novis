@@ -7,7 +7,6 @@
     "0063",
     "0156"
   ],
-  "divergesFromPhp": "`move_uploaded_file` is `saveTo`, `file_get_contents($tmp)` is `readAll` under `request_body`, and a second pass over an upload has to say where the first one put it",
   "seeAlso": [
     "http-server/an-upload-is-received-only-through-files",
     "http-server/request-body-and-upload-total-are-two-caps",

@@ -4,7 +4,6 @@
   "because": [
     "0130"
   ],
-  "divergesFromPhp": "there is no daemon, no timer and no background process; a server under load makes zero outbound telemetry connections",
   "seeAlso": [
     "tooling/telemetry-is-two-opt-ins",
     "tooling/a-failed-upload-never-fails-the-command",

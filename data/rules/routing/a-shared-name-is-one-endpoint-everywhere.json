@@ -7,7 +7,6 @@
     "0102",
     "0076"
   ],
-  "divergesFromPhp": "the generated `operationId` is the route name, suffixed with the lowercased verb only where two operations share it — never a counter",
   "seeAlso": [
     "routing/repeated-routes-share-a-name-when-they-share-a-path",
     "routing/api-document-is-generated-from-the-route-table",

@@ -6,7 +6,6 @@
     "0095",
     "0197"
   ],
-  "divergesFromPhp": "there is no `ALLOWED_HOSTS`-style allowlist and no `$_SERVER['HTTP_HOST']`: the host mounts are the allowlist, and nginx must send `proxy_set_header Host $host`",
   "seeAlso": [
     "http-server/a-mount-table-expands-at-boot",
     "http-server/x-forwarded-proto-sets-the-scheme-and-hsts-only",

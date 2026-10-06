@@ -4,7 +4,6 @@
   "because": [
     "0063"
   ],
-  "divergesFromPhp": "`sort($a)` becomes `$a = Arr::sort($a)`; there are no by-reference mutators, no out-parameters and no in-place variants",
   "seeAlso": [
     "core-api/shape-rules",
     "core-api/no-mutable-immutable-twins",

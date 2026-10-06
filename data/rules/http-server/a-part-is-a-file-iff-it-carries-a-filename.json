@@ -7,7 +7,6 @@
     "0024",
     "0156"
   ],
-  "divergesFromPhp": "a part answers `name()`, `filename()` and `contentType()` as tainted strings through members, and there is no `size`, no `tmp_name` and no `error` slot",
   "seeAlso": [
     "http-server/an-upload-is-received-only-through-files",
     "http-server/request-body-and-upload-total-are-two-caps",

@@ -5,7 +5,6 @@
     "0097",
     "0095"
   ],
-  "divergesFromPhp": "`X-Real-IP`, `CF-Connecting-IP`, `True-Client-IP`, `Fastly-Client-IP`, `X-Client-IP` and RFC 7239 `Forwarded` are never read, so the common `proxy_set_header X-Real-IP` recipe alone leaves every client as the proxy",
   "seeAlso": [
     "http-server/trusted-proxies-is-empty-and-empty-reads-nothing",
     "http-server/a-forwarded-token-is-read-withheld-or-refused",

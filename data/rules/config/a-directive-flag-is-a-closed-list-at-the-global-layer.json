@@ -7,7 +7,6 @@
     "0097",
     "0064"
   ],
-  "divergesFromPhp": "there is no `php -d key=value`: argv is world-readable and would be a second spelling of the whole format, so only the flags a rule introduces by name reach a directive",
   "seeAlso": [
     "config/later-wins-and-every-override-is-recorded",
     "config/every-matching-app-block-applies-least-specific-first",

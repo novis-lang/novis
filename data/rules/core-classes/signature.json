@@ -6,7 +6,6 @@
     "0060",
     "0033"
   ],
-  "divergesFromPhp": "there is no string to assemble and therefore nothing for two sides to disagree about, and a verified payload comes back `tainted`",
   "seeAlso": [
     "core-classes/router-signed-url",
     "core-classes/uri-removable-components",

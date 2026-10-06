@@ -6,7 +6,6 @@
     "0013",
     "0029"
   ],
-  "divergesFromPhp": "there is no loose-versus-strict pair to pick between — one operator, which never converts either operand",
   "seeAlso": [
     "expressions/disjoint-comparison-refused",
     "expressions/equality-semantics",

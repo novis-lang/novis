@@ -6,7 +6,6 @@
     "0007",
     "0274"
   ],
-  "divergesFromPhp": "a value decoded from input stays `array<mixed>` on purpose and gets no offer, where a PHP editor would happily type it from one observed payload",
   "seeAlso": [
     "ide/narrow-an-annotation-to-its-literal",
     "types/unions-and-mixed",

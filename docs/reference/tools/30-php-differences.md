@@ -227,7 +227,7 @@ Constructor promotion (`public function constructor(public int $x)`), `static::`
 # What parses but behaves differently
 
 Moving a spelling across without a diagnostic does not yet mean it behaves the same. These are the
-changes that survive the parser. <!-- src: docs/divergences.md is the register; the ADR each row cites there is the rule -->
+changes that survive the parser. <!-- src: each row's rule under docs/rules/ states the behaviour -->
 
 Values and comparison:
 

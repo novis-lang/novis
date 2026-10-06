@@ -6,7 +6,6 @@
     "0202",
     "0213"
   ],
-  "divergesFromPhp": "there is no html template in PHP; the nearest thing is `<?= ?>` in an inline-HTML region, and this is that rule available in expression position",
   "seeAlso": [
     "core-classes/html-auto-escape",
     "core-classes/html-escape-answers-markup",

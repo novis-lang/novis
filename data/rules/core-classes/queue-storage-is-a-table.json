@@ -9,7 +9,6 @@
     "0153",
     "0187"
   ],
-  "divergesFromPhp": "there is no broker, no daemon of its own and no implicit boot-time DDL — the tables are created by `nvs queue migrate` and by nothing else",
   "seeAlso": [
     "core-classes/schema-converges",
     "core-classes/schema-apply-capability",

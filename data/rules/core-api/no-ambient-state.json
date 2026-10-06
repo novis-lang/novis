@@ -5,7 +5,6 @@
     "0063",
     "0051"
   ],
-  "divergesFromPhp": "`setlocale`, `date_default_timezone_set`, the internal array pointer and every error global are absent; a `Zone` is an argument at every instant↔calendar conversion",
   "seeAlso": [
     "core-api/removals",
     "core-api/tier-placement",

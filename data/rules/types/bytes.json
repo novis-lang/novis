@@ -7,7 +7,6 @@
     "0006",
     "0012"
   ],
-  "divergesFromPhp": "PHP has one type for text and for a buffer and never says which a value is; a request body, a socket read, a file's contents and a digest all arrive as `bytes` and become text only by a conversion that can throw",
   "seeAlso": [
     "types/string-is-utf8",
     "types/conversion",

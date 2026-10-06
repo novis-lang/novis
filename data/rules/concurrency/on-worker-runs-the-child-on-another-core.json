@@ -4,7 +4,6 @@
   "because": [
     "0184"
   ],
-  "divergesFromPhp": "PHP places nothing — a request is one core's worth of work, and its nearest equivalent is another process, which shares not even the compiled code",
   "seeAlso": [
     "concurrency/a-wake-never-moves-a-task",
     "security/isolate-shares-nothing",
