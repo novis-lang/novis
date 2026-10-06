@@ -916,6 +916,22 @@ impl rand::TryRng for SplitMix {
     }
 }
 
+/// Fills `out` from the seeded generator at `state`, and advances `state` past what it drew.
+///
+/// The same generator and the same byte order as a seeded [`draw`], for a caller that holds a
+/// context's [`random_state`](nvs_runtime::Ctx::random_state) away from the context: an
+/// extension's guest draws while its request's context is borrowed by the call, and its host
+/// writes the advanced state back when the call returns. So one seed fixes a test's draws
+/// whether `Core\Random` or a guest makes them.
+pub fn fill_seeded(state: &mut u64, out: &mut [u8]) {
+    let mut seeded = SplitMix(*state);
+    for chunk in out.chunks_mut(8) {
+        let drawn = seeded.step().to_le_bytes();
+        chunk.copy_from_slice(&drawn[..chunk.len()]);
+    }
+    *state = seeded.0;
+}
+
 /// Runs `with` against the generator this context draws from: `rule:testing/determinism-declared-on-the-test`'s
 /// seeded one where a `#[Test(seed: …)]` armed it, and the thread's CSPRNG
 /// otherwise.

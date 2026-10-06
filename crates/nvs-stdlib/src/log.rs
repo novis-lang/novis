@@ -330,6 +330,42 @@ fn record(ctx: &Ctx, source: Option<Source>, level: Level, message: &str, fields
     record
 }
 
+/// Writes one line an extension's guest logged — through `nvs:ext/log`, or a line of its stdout
+/// or stderr — as a record of `ctx`'s request, with the extension's name as its `channel` field.
+///
+/// It takes the path [`nvs_core_log_write`] takes, so `[log] level`, `target` and `format` and
+/// the repeat bound apply to a guest's line as they apply to the program's own: one record
+/// shape, whoever wrote it (`rule:errors/log-write`). The record has no `source`, because no
+/// Novis call site wrote it.
+///
+/// # Errors
+///
+/// Whatever [`Ctx::write_log_record`] returns for a configured target that fails.
+pub fn extension_line(
+    ctx: &mut Ctx,
+    level: Level,
+    channel: &str,
+    message: &str,
+) -> std::io::Result<()> {
+    if !ctx.log_writes(level) {
+        return Ok(());
+    }
+    let mut record = Record::at(level);
+    record.envelope.message = Some(Rendered::new(message));
+    record.envelope.fields = vec![(
+        "channel".to_owned(),
+        Node::Scalar(nvs_render::Scalar::Str {
+            text: Rendered::new(channel),
+            bytes: channel.len(),
+        }),
+    )];
+    ctx.stamp_envelope(&mut record.envelope);
+    if !nvs_runtime::floor::admit_log_record(&mut record) {
+        return Ok(());
+    }
+    ctx.write_log_record(&record, LogChannel::Output)
+}
+
 /// The `fields` bag as the envelope's named nodes.
 ///
 /// Walked by [`crate::debug::node`] — the *one* walk — rather than by a second

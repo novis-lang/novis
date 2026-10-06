@@ -35,9 +35,11 @@
 //! normally dropped on the request's core. A tree whose last task finished on another core is
 //! dropped there, and its resources' destructors run on that core.
 //!
-//! The request's budget is an `nvs_ext::call::Meter` made at the first call from the request's
-//! `[limits]`: its CPU time from then on, and its memory as a second allowance beside the one the
-//! runtime counts. A shape argument crosses as its set fields by name
+//! The request's budget is a [`Spent`] made at the first call from the request's `[limits]`: its
+//! CPU time from then on, and its memory as a second allowance beside the one the runtime counts.
+//! A guest's log lines are the request's log records, its wall clock and random bytes are the
+//! request's, so a test's fixed clock and seed reach it, and `nvs:ext/settings` reads the
+//! `[ext.<name>]` block of the request's snapshot. A shape argument crosses as its set fields by name
 //! (`nvs_runtime::Value::shape_fields`). A returned record is converted by the manifest's declared
 //! return type, and a shape in it is built as an instance of the class the compiled unit declared
 //! for its label (`nvs_runtime::Ctx::new_shape`), which the lowering records for every shape in
@@ -74,7 +76,7 @@ use nvs_config::resolve::Origin;
 use nvs_config::tree::{Config, Extension};
 use nvs_config::value::{Quantity, Unit};
 use nvs_diagnostics::{Diagnostic, SourceMap};
-use nvs_ext::call::{Host, Limit, Meter, Outcome, Request};
+use nvs_ext::call::{Budget, Host, Level, Limit, Meter, Outcome, Request};
 use nvs_ext::convert::{Key, Value as Crossed, fits};
 use nvs_ext::load::{CacheKey, Entry, Loader, ModuleCache, Set};
 use nvs_ext::manifest::Manifest;
@@ -244,7 +246,7 @@ impl nvs_runtime::extension::Extensions for Served {
 /// is the extension's, and the request has already finished, so it is not reported.
 pub(crate) struct Calls {
     set: Arc<Set>,
-    request: OnceLock<Request>,
+    request: OnceLock<(Request, Arc<Spent>)>,
 }
 
 impl Calls {
@@ -261,8 +263,8 @@ impl Calls {
         }
     }
 
-    /// The request, made at the first call from `ctx`'s limits.
-    fn request(&self, ctx: &Ctx) -> Result<&Request, Fault> {
+    /// The request and its budget, made at the first call from `ctx`'s limits and configuration.
+    fn request(&self, ctx: &Ctx) -> Result<&(Request, Arc<Spent>), Fault> {
         if let Some(request) = self.request.get() {
             return Ok(request);
         }
@@ -275,17 +277,123 @@ impl Calls {
             0 => None,
             bytes => u64::try_from(bytes).ok(),
         };
-        Ok(self
-            .request
-            .get_or_init(|| host.request(Arc::new(Meter::new(cpu, memory)))))
+        Ok(self.request.get_or_init(|| {
+            let spent = Arc::new(Spent {
+                meter: Meter::new(cpu, memory),
+                snapshot: ctx.config().map(|config| Arc::clone(config.snapshot())),
+                clock: Mutex::new(None),
+                seed: Mutex::new(None),
+                lines: Mutex::new(Vec::new()),
+            });
+            (host.request(spent.clone()), spent)
+        }))
     }
 }
 
 impl Drop for Calls {
     fn drop(&mut self) {
-        if let Some(request) = self.request.take() {
+        if let Some((request, _)) = self.request.take() {
             drop(drive(request.end()));
         }
+    }
+}
+
+/// A request's budget for its guests: [`Meter`]'s CPU deadline and memory count, and the
+/// request's own log, clock, generator and configuration.
+///
+/// A guest runs while the request's context is borrowed by the call, so this keeps what it needs
+/// of the context beside it. [`Spent::enter`] copies the context's fixed clock and seed in
+/// before each call, and [`Spent::leave`] writes the advanced seed back and the guest's log lines
+/// out after it. A test's `#[Test(at: …)]` and `#[Test(seed: …)]` therefore reach a guest, and one
+/// seed fixes the draws `Core\Random` and a guest make together. Lines a guest writes while its
+/// resources are dropped at the request's end have no context left to write to, and are dropped.
+///
+/// What it spends: one `Arc` of the request's snapshot, and each logged line until the call that
+/// wrote it returns.
+pub(crate) struct Spent {
+    meter: Meter,
+    snapshot: Option<Arc<nvs_config::Snapshot>>,
+    clock: Mutex<Option<i128>>,
+    seed: Mutex<Option<u64>>,
+    lines: Mutex<Vec<(Level, String, String)>>,
+}
+
+impl Spent {
+    /// Copies `ctx`'s fixed clock and seed in, before a call.
+    fn enter(&self, ctx: &Ctx) {
+        *self.clock.lock().unwrap_or_else(PoisonError::into_inner) = ctx.fixed_clock();
+        *self.seed.lock().unwrap_or_else(PoisonError::into_inner) = ctx.random_state();
+    }
+
+    /// Writes the advanced seed back to `ctx`, and the lines the guest logged to its log, after a
+    /// call.
+    ///
+    /// A configured log target that fails to write is not reported: the line is the guest's, and
+    /// the program did not ask for it.
+    fn leave(&self, ctx: &mut Ctx) {
+        if let Some(state) = *self.seed.lock().unwrap_or_else(PoisonError::into_inner) {
+            ctx.set_random_state(state);
+        }
+        let lines = std::mem::take(&mut *self.lines.lock().unwrap_or_else(PoisonError::into_inner));
+        for (level, channel, message) in lines {
+            let level = match level {
+                Level::Debug => nvs_render::Level::Debug,
+                Level::Info => nvs_render::Level::Info,
+                Level::Warn => nvs_render::Level::Warn,
+                Level::Error => nvs_render::Level::Error,
+                Level::Critical => nvs_render::Level::Critical,
+            };
+            drop(nvs_stdlib::extension_line(ctx, level, &channel, &message));
+        }
+    }
+}
+
+impl Budget for Spent {
+    fn cpu_spent(&self) -> bool {
+        self.meter.cpu_spent()
+    }
+
+    fn charge(&self, bytes: i64) -> bool {
+        self.meter.charge(bytes)
+    }
+
+    fn log(&self, level: Level, channel: &str, message: &str) {
+        self.lines
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push((level, channel.to_owned(), message.to_owned()));
+    }
+
+    fn wall_clock(&self) -> Duration {
+        match *self.clock.lock().unwrap_or_else(PoisonError::into_inner) {
+            Some(nanos) => u64::try_from(nanos).map_or(Duration::ZERO, Duration::from_nanos),
+            None => self.meter.wall_clock(),
+        }
+    }
+
+    /// The meter's: a monotonic reading measures an interval that really elapsed, so a fixed
+    /// clock does not fix it, as it does not fix `Core\Time::monotonic`.
+    fn monotonic_clock(&self) -> u64 {
+        self.meter.monotonic_clock()
+    }
+
+    fn random(&self, out: &mut [u8]) {
+        match &mut *self.seed.lock().unwrap_or_else(PoisonError::into_inner) {
+            Some(state) => nvs_stdlib::random::fill_seeded(state, out),
+            None => self.meter.random(out),
+        }
+    }
+
+    /// The value at `ext.<block>.<key>` in the request's snapshot, as JSON.
+    fn setting(&self, block: &str, key: &str) -> Option<serde_json::Value> {
+        let value = self
+            .snapshot
+            .as_ref()?
+            .table
+            .get("ext")?
+            .get(block)?
+            .get(key)?;
+        serde_json::to_value(value).ok()
     }
 }
 
@@ -308,8 +416,11 @@ impl nvs_runtime::extension::Extensions for Calls {
             .map(|arg| crossed(*arg))
             .collect::<Result<Vec<_>, _>>()
             .map_err(refused)?;
-        let request = self.request(ctx)?;
-        match drive(request.call_values(extension, method, args)) {
+        let (request, spent) = self.request(ctx)?;
+        spent.enter(ctx);
+        let called = drive(request.call_values(extension, method, args));
+        spent.leave(ctx);
+        match called {
             Ok(None) => Ok(Value::null()),
             Ok(Some(result)) => {
                 let manifest = &extension.manifest;
@@ -668,5 +779,47 @@ mod tests {
         fs::write(&path, bytes).expect("the entry is writable");
         assert_eq!(modules.get(&key(&pin, "engine")), None);
         assert!(!path.exists(), "a corrupt entry is deleted");
+    }
+
+    /// A request's budget takes its context's fixed clock, seed, log and snapshot: a guest's
+    /// draws continue the seeded sequence and advance it in the context, its wall clock is the
+    /// fixed one, its log line is a record of the request with the extension as its channel, and
+    /// a setting is read from the snapshot's `[ext.<name>]` block.
+    #[test]
+    fn a_request_budget_is_its_contexts_clock_seed_log_and_settings() {
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(Arc::new(nvs_config::Snapshot {
+            table: toml::from_str("[ext.geo]\nzoom = 3\n").expect("a table"),
+            ..nvs_config::Snapshot::default()
+        }));
+        ctx.set_fixed_clock(1_500_000_000);
+        ctx.set_random_state(7);
+        let spent = Spent {
+            meter: Meter::new(UNCAPPED, None),
+            snapshot: ctx.config().map(|config| Arc::clone(config.snapshot())),
+            clock: Mutex::new(None),
+            seed: Mutex::new(None),
+            lines: Mutex::new(Vec::new()),
+        };
+
+        spent.enter(&ctx);
+        let mut drawn = [0; 12];
+        spent.random(&mut drawn);
+        spent.log(Level::Info, "geo", "tile loaded");
+        assert_eq!(spent.wall_clock(), Duration::from_millis(1500));
+        assert_eq!(spent.setting("geo", "zoom"), Some(serde_json::json!(3)));
+        assert_eq!(spent.setting("geo", "missing"), None);
+        assert_eq!(spent.setting("shop", "zoom"), None);
+        spent.leave(&mut ctx);
+
+        let mut state = 7;
+        let mut expected = [0; 12];
+        nvs_stdlib::random::fill_seeded(&mut state, &mut expected);
+        assert_eq!(drawn, expected);
+        assert_eq!(ctx.random_state(), Some(state));
+        let output = String::from_utf8(ctx.take_buffered_output().expect("a buffer"))
+            .expect("a log line is text");
+        assert!(output.contains("tile loaded"), "{output}");
+        assert!(output.contains("geo"), "{output}");
     }
 }

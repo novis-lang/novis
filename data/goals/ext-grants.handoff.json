@@ -1,26 +1,27 @@
 {
-  "state": "**Goal `ext-grants` — a guest reaches only the files and hosts all three parties grant — Stage 2's two checks pass locally.** M9. No floor is carried: the suites, the `.nvst` trees and `nv verify` are the safety net, and goals `ext-host` and `ext-compiler`'s tests stay green as tests of the tree.\n\nThe design is ADR 0246 § 7 and the user's, and the goal file's § *Standing decisions* answers every call a session meets. No record slot: a question the record leaves is settled under AGENTS.md's priority ordering and written in the module doc of the file that answers it.\n\n**On disk:** `nvs_ext::wasi` links the world's WASI but `wasi:http` (`LINKED`), with an empty context; stdout and stderr go to `Budget::log` at `debug`, and the clocks and random bytes are the `Budget`'s. `nvs_ext::world` (`crates/nvs-ext/src/world.rs`) links `nvs:ext/log` (`Budget::log`, channel the class) and `nvs:ext/settings` (`Budget::setting(block, key)`, else the manifest's default, `none` for an undeclared key). `manifest::Settings::check` refuses an unknown key or a wrongly typed value in an `[ext.<name>]` block — the check boot must run. `crates/nvs-ext/tests/wasi.rs` covers both checks of stage 2.\n\n**Still a placeholder:** the CLI hands every request a `Meter` (`crates/nvs-cli/src/extensions.rs:280`): no log, the process's clocks and `rand::rng()`, and no settings. `nvs.toml` has no `[ext.<name>]` block yet (`crates/nvs-config/src/tree.rs`, not checked whether an `ext` table is refused today), so nothing calls `Settings::check` at boot. Monotonic subscriptions are `Ready` at once.",
+  "state": "**Goal `ext-grants` — a guest reaches only the files and hosts all three parties grant — Stage 2's two checks pass locally, and the CLI hands a guest the request's own budget.** M9. No floor is carried: the suites, the `.nvst` trees and `nv verify` are the safety net, and goals `ext-host` and `ext-compiler`'s tests stay green as tests of the tree.\n\nThe design is ADR 0246 § 7 and the user's, and the goal file's § *Standing decisions* answers every call a session meets. No record slot: a question the record leaves is settled under AGENTS.md's priority ordering and written in the module doc of the file that answers it.\n\n**On disk:** `nvs_ext::wasi` links the world's WASI but `wasi:http`, with an empty context; `nvs_ext::world` links `nvs:ext/log` and `nvs:ext/settings`. `manifest::Settings::check` refuses an unknown key or a wrongly typed value in an `[ext.<name>]` block. In the CLI, `nvs_cli::extensions::Spent` is the request's budget: guest log lines become request log records (`nvs_stdlib::extension_line`, channel field = extension name), a test's fixed clock and seed reach the guest (`nvs_stdlib::random::fill_seeded`, seed written back to the `Ctx` after each call), and `setting` reads `ext.<block>.<key>` from the request snapshot's raw `table`.\n\n**Still open:** `nvs.toml` refuses an `ext` table today (`Config` is `deny_unknown_fields`, `crates/nvs-config/src/tree.rs:73`), so no `[ext.<name>]` block can be written and nothing calls `Settings::check` at boot. Monotonic subscriptions are `Ready` at once. Stage 3 (the grant) has not started.",
   "next": {
     "stage": 2,
     "title": "the empty WASI",
     "files": [
-      "crates/nvs-cli/src/extensions.rs",
       "crates/nvs-config/src/tree.rs",
-      "crates/nvs-ext/src/call.rs"
+      "crates/nvs-config/src/directive.rs",
+      "crates/nvs-cli/src/extensions.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**A real request budget in the CLI** — replace `Meter` at `crates/nvs-cli/src/extensions.rs:280` with a `Budget` over the request's own log, fixed clock and seeded generator, and its `setting` reading the snapshot's `[ext.<name>]` block. `rule:packaging/a-guest-has-no-ambient-authority`; the trait is at `crates/nvs-ext/src/call.rs:94`."
+        "text": "**`[ext.<name>]` in `nvs.toml`, checked at boot** — an `ext: BTreeMap<String, toml::Table>` block in `Config` at `crates/nvs-config/src/tree.rs:87`, classed `System`/`Reload` in `crates/nvs-config/src/directive.rs`, and handed to each loaded extension's `manifest::Settings::check` in `loaded` at `crates/nvs-cli/src/extensions.rs:111` at boot and reload, a refusal naming the entry (`E0652`). ADR 0246 § 9; `Spent::setting` already reads the raw table."
       },
       {
         "done": false,
-        "text": "**`[ext.<name>]` in `nvs.toml`, checked at boot** — a `System`/`Reload` table of blocks in the config tree at `crates/nvs-config/src/tree.rs:87`, handed to each loaded extension's `manifest::Settings::check` at boot and reload, a refusal naming the entry. ADR 0246 § 9."
+        "text": "**Stage 3: `[[extension]] grants`** — `grants = { read, write, connect }` on `Extension` in `crates/nvs-config/src/tree.rs:87`, relative roots resolved against the writing file, not in `env_hash` (`crates/nvs-config/src/cache.rs`). `rule:security/extension-grants-are-an-intersection`; the acceptance check `nvs-config-an-extension-entry-carries-its-grants` names its tests."
       }
     ]
   },
   "backlog": [
-    "Stage 3, the grant: `[[extension]] grants` and the three-way intersection (`rule:security/extension-grants-are-an-intersection`).",
-    "Monotonic `subscribe-*` is ready at once (`crates/nvs-ext/src/wasi.rs` module doc)."
+    "Monotonic `subscribe-duration`/`subscribe-instant` are `Ready` at once — `crates/nvs-ext/src/wasi.rs` module doc.",
+    "Lines a guest logs while its resources drop at the request's end are discarded — `nvs_cli::extensions::Spent` doc.",
+    "A conformance case where a guest's `nvs:ext/log` line reaches `nvs run`'s output needs a fixture export on `tests/conformance/ext/fixtures/ledger` and a re-pack — `rule:packaging/a-guest-has-no-ambient-authority`."
   ]
 }

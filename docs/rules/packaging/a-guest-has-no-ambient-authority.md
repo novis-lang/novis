@@ -23,6 +23,7 @@ ones it links (`crates/nvs-ext/tests/wasi.rs`). Every guest holds no preopen, no
 arguments and an empty stdin, and its stdout and stderr write each line to the log of the request
 `nvs_ext::call::Budget` names, and its clocks and random bytes are that budget's, so a fixed clock
 and a seed reach it. A libc-shaped guest fits one pool slot, and its `exit` throws `ExtensionError`.
-`nvs run` and `nvs serve` hand it a `Meter`, which keeps no log and reads the process's clocks and
-generator, so neither a line nor a test clock reaches a real request yet. No grant reaches a guest,
-and `wasi:http` is not linked.
+`nvs run` and `nvs serve` hand it the request's own budget (`nvs_cli::extensions::Spent`): a line it
+logs is a record of the request with the extension as its channel, and a test's fixed clock and seed
+reach it. `nvs:ext/settings` reads the `[ext.<name>]` block of the request's snapshot, but
+`nvs.toml` does not accept that block yet. No grant reaches a guest, and `wasi:http` is not linked.
