@@ -12,6 +12,7 @@
     "config/the-extension-set-is-in-every-unit-key"
   ],
   "guardedBy": [
-    "crates/nvs-ext/tests/manifest.rs"
+    "crates/nvs-ext/tests/manifest.rs",
+    "crates/nvs-ext/tests/load.rs"
   ]
 }

@@ -31,5 +31,7 @@ core.
 
 **Not on disk.** The entry's shape is enforced: `nvs_config::extension::validate` refuses an entry
 with no `path`, no `sha256` or a pin that is not 64 hexadecimal digits, at boot and at reload, naming
-its file and line (`E0651`), and the pins fold into `env_hash`. Nothing reads the file yet, so no
-digest is compared and none of the load refusals runs, and `nvs ext pin` does not exist.
+its file and line (`E0651`), and the pins fold into `env_hash`. `nvs_ext::load` reads the file and
+runs every load refusal above, each naming the entry's path (`crates/nvs-ext/tests/load.rs`), but
+nothing calls it at boot or at reload yet, no named type (an enum, a `Core` value class, a union, a
+`resource`) passes its export check, and `nvs ext pin` does not exist.

@@ -1467,9 +1467,9 @@ newer minor or another major is refused, naming both versions. An `.nvsx` compil
 **Not on disk.** The world `nvs:ext@1.0.0` is written under `wit/nvs-ext/`, with the WASI 0.2 WIT it
 imports vendored under `deps/`, and `crates/nvs-stdlib/tests/ext_world.rs` parses it. `nvs-ext`
 reads both sections and parses the manifest and the source list without linking wasmtime
-(`crates/nvs-ext/tests/manifest.rs`), and its module doc owns the JSON shapes. There is no component
-loader, so no manifest is checked against its exports, and nothing builds a component against the
-world.
+(`crates/nvs-ext/tests/manifest.rs`), and its module doc owns the JSON shapes. `nvs_ext::load`
+checks a manifest against its component's exports and the world's version
+(`crates/nvs-ext/tests/load.rs`), and nothing builds a component against the world.
 
 <sub>See also [`packaging/extension-calls-are-statically-typed`](packaging.md#packaging-extension-calls-are-statically-typed), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key). Decided in [0003](../decisions/0003.md), [0055](../decisions/0055.md), [0246](../decisions/0246.md).</sub>
 
@@ -1543,8 +1543,10 @@ core.
 
 **Not on disk.** The entry's shape is enforced: `nvs_config::extension::validate` refuses an entry
 with no `path`, no `sha256` or a pin that is not 64 hexadecimal digits, at boot and at reload, naming
-its file and line (`E0651`), and the pins fold into `env_hash`. Nothing reads the file yet, so no
-digest is compared and none of the load refusals runs, and `nvs ext pin` does not exist.
+its file and line (`E0651`), and the pins fold into `env_hash`. `nvs_ext::load` reads the file and
+runs every load refusal above, each naming the entry's path (`crates/nvs-ext/tests/load.rs`), but
+nothing calls it at boot or at reload yet, no named type (an enum, a `Core` value class, a union, a
+`resource`) passes its export check, and `nvs ext pin` does not exist.
 
 <sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`](config.md#config-lists-are-arrays-and-repeated-records-are-arrays-of-tables), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-extension-package-carries-two-payloads`](packaging.md#packaging-an-extension-package-carries-two-payloads), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0003](../decisions/0003.md), [0064](../decisions/0064.md), [0078](../decisions/0078.md), [0246](../decisions/0246.md).</sub>
 
