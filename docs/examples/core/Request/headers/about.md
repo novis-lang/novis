@@ -9,5 +9,3 @@ line, and the list has one entry for each line, in the order they arrived. So no
 When the request has no headers, the array is empty. Every string in it is tainted, which means it
 came from outside your program. A command-line program answers no request, so `headers` throws a
 `LogicError` there.
-
-This replaces PHP's `getallheaders`.

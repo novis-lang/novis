@@ -1,4 +1,4 @@
-Turns a password into a hash that you can store in a database. This replaces PHP's `password_hash`.
+Turns a password into a hash that you can store in a database.
 
 You never store the password itself. You store the string `hash` returns, and later you give it to
 `Core\Password::verify` to check a password somebody types. The string starts with `$argon2id$` and

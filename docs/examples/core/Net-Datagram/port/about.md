@@ -1,5 +1,4 @@
-Returns the port number a UDP socket is bound to. This replaces the port part of PHP's
-`stream_socket_get_name`.
+Returns the port number a UDP socket is bound to.
 
 You usually open a socket with port `0`, which means "pick any free port". The operating system then
 picks the port, and `port()` is how your program finds out which one it is. You give that number to

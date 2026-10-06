@@ -5,8 +5,6 @@ The path is the same from every folder you start the program in. Give `thisDir` 
 in quotes, such as `'data/rates.json'`, and it adds that path to the folder. `.` and `..`
 are removed from the result.
 
-Replaces PHP's `__DIR__`.
-
 **Good to know:** the path you add must be a string in quotes, written directly in the code. A
 variable does not compile. For a part that your program builds, use `Core\Path::join(Core\Path::thisDir(), $part)`.
 

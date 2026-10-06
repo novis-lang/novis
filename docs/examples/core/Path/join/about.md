@@ -1,5 +1,4 @@
-Joins a path and any number of parts into one path, with one separator between each part. It
-replaces the `$folder . "/" . $file` that PHP programs write by hand.
+Joins a path and any number of parts into one path, with one separator between each part.
 
 The method works on the text of the paths and never looks at the disk. `/srv/shop` joined with
 `uploads` and `logo.png` gives `/srv/shop/uploads/logo.png`. Extra separators are removed, so

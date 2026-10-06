@@ -9,5 +9,3 @@ When two cookies have the same name, the first one is returned. A cookie whose n
 
 The result is tainted, which means it came from outside your program. A command-line program
 answers no request, so `cookie` throws a `LogicError` there.
-
-This replaces PHP's `$_COOKIE`.

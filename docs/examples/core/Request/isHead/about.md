@@ -10,5 +10,3 @@ You do not need to check for `HEAD` for your program to be correct. Check it whe
 is expensive and you want to skip that work, or when a `HEAD` request should not count as a visit.
 
 A command-line program answers no request, so `isHead` throws a `LogicError` there.
-
-This replaces `$_SERVER['REQUEST_METHOD'] === 'HEAD'` in PHP.

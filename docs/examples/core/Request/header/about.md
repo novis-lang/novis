@@ -10,5 +10,3 @@ on its own.
 
 The result is tainted, which means it came from outside your program. A command-line program
 answers no request, so `header` throws a `LogicError` there.
-
-This replaces the `HTTP_` entries of PHP's `$_SERVER`.

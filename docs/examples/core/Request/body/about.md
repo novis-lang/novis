@@ -9,5 +9,3 @@ command-line program answers no request, so `body` throws a `LogicError` there t
 **Good to know:** the result is tainted, which means it came from outside your program. You cannot
 use it as the pattern of a regular expression or as other text that Novis parses. You can still
 print it, hash it, compare it and store it.
-
-This replaces PHP's `file_get_contents('php://input')`.

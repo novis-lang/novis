@@ -1,6 +1,5 @@
 Waits for the next client to connect to a TCP server, and returns a `Core\Net\Stream` for that
-client. The server reads from the stream and writes to it to talk to that one client. This replaces
-PHP's `stream_socket_accept`.
+client. The server reads from the stream and writes to it to talk to that one client.
 
 `$within` is how long `accept` waits. If no client connects in that time, it throws a
 `TimeoutError`. The server still works after a timeout, and you can call `accept` again. A client

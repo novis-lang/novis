@@ -1,5 +1,4 @@
-Closes a UDP socket. The port is free again, and other programs can use it. This replaces PHP's
-`fclose` on a socket.
+Closes a UDP socket. The port is free again, and other programs can use it.
 
 After `close`, every method of the socket throws a `RuntimeError`, and so does a second `close`.
 Messages you already received stay readable, because each `Core\Net\Datagram\Message` has its own

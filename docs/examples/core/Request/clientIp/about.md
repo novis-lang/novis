@@ -9,5 +9,3 @@ client cannot choose its own address.
 The result is `null` when the request has no address, for example over a Unix socket. The result
 is tainted, which means it came from outside your program. A command-line program answers no
 request, so `clientIp` throws a `LogicError` there.
-
-This replaces PHP's `$_SERVER['REMOTE_ADDR']`.

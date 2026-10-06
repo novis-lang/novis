@@ -9,5 +9,3 @@ header of the request is not checked.
 
 `maxDepth` limits how deeply the document may nest. The default is 512. Every call returns the same
 value, so you can call `json` more than once.
-
-This replaces `json_decode(file_get_contents('php://input'), true)` in PHP.

@@ -1,4 +1,4 @@
-Reads a JSON text and returns the value it contains. It replaces PHP's `json_decode`.
+Reads a JSON text and returns the value it contains.
 
 A JSON object becomes an array with string keys, and a JSON array becomes a list. Numbers, strings,
 `true`, `false` and `null` stay what they are. The result has the type `mixed`, so you convert each

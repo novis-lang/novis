@@ -1,4 +1,4 @@
-Returns the name of the machine your program runs on. This replaces PHP's `gethostname`.
+Returns the name of the machine your program runs on.
 
 The name is the one the machine has for itself. Reading it does not use the network, so it is quick
 and works on a machine with no network at all.

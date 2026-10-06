@@ -5,8 +5,7 @@ whole text.
 Two matches next to each other give an empty piece. The `keepEmpty: false` option removes the
 empty pieces. The `limit` option sets the largest number of pieces, and the last piece then
 contains the rest of the text. A negative `limit` removes that many pieces from the end, and `0`
-returns the whole text as one piece. This replaces PHP's `preg_split`, which reads `0` and `-1` as
-no limit.
+returns the whole text as one piece.
 
 **Good to know:** to split at one fixed text, such as a comma, `Core\Str::split` is simpler.
 

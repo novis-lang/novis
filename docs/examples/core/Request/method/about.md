@@ -9,8 +9,5 @@ A `HEAD` request returns `Get`, because Novis runs it the same way as a `GET` re
 `Core\Request::isHead` when you need to tell the two apart.
 
 A command-line program answers no request, so `method` throws a `LogicError` there.
-
-This replaces `$_SERVER['REQUEST_METHOD']` in PHP.
-
 **The examples below** show a form that is shown or saved, a page that answers `405` for a
 method it does not support, and one address that reads, changes and deletes a record.

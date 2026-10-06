@@ -1,4 +1,4 @@
-Writes a value as JSON text and returns it as a `string`. It replaces PHP's `json_encode`.
+Writes a value as JSON text and returns it as a `string`.
 
 A list becomes a JSON array, and an array with string keys or a shape becomes a JSON object.
 Numbers, strings, `true`, `false` and `null` stay what they are. An instance of a class with the

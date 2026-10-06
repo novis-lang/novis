@@ -13,8 +13,5 @@ you also need the uploaded files, call `Core\Request::files()` first.
 The result has the type `mixed`, so you convert it with `as`. A command-line program answers no
 request, so `post` throws a `LogicError` there. When an escape in the form is not valid UTF-8
 text, `post` throws a `RuntimeError`.
-
-This replaces PHP's `$_POST`.
-
 **The examples below** read a contact form, show a field that is missing or empty, and read an
 order form with several products.

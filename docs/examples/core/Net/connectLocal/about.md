@@ -1,6 +1,6 @@
 Connects to a server on the same computer through a socket file. This kind of connection is called
-a Unix-domain socket. Many local services accept connections this way, such as a database or a
-cache. This replaces the `unix://` form of PHP's `stream_socket_client`.
+a Unix-domain socket. Many local services accept connections this way,
+such as a database or a cache.
 
 You give the path of the socket file and the longest time the connection may take to open. The
 result is a `Core\Net\Stream`, the same as for `Core\Net::connect`. You call `write` and `read` on

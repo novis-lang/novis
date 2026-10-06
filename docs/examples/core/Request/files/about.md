@@ -12,5 +12,3 @@ loop. When the request has no `multipart/form-data` body, the loop runs zero tim
 The body can be read only once in this way. After `files`, the methods `body`, `bytes`,
 `bodyStream` and `json` throw a `LogicError`. A command-line program answers no request, so
 `files` throws a `LogicError` there.
-
-This replaces PHP's `$_FILES` and `move_uploaded_file`.

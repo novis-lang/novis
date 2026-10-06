@@ -1,4 +1,4 @@
-Reads the bytes that have arrived on a TCP connection. This replaces PHP's `fread` on a socket.
+Reads the bytes that have arrived on a TCP connection.
 
 `read` returns at most `$max` bytes. It often returns fewer, because it gives you what has arrived
 so far and does not wait for more. A program that needs a whole message calls `read` again until it

@@ -4,8 +4,8 @@ If there is no match, it returns the same text.
 The replacement text can contain parts of the match. `$0` is the whole match. `$1`, `$2` and so on
 are the groups of the pattern, counted from the left. A named group is written `${name}`. Write
 `${1}0` when a digit comes right after a group, and `$$` for one dollar sign. A group that the
-pattern does not have inserts nothing. The `limit` option replaces only the first matches. This
-replaces PHP's `preg_replace`. PHP's `\1` is not a group here.
+pattern does not have inserts nothing. The `limit` option replaces only the first matches.
+`\1` is not a group in the replacement text.
 
 **Good to know:** the replacement is the same text for every match. To build a different text
 for each match with your own code, use `Core\Regex::replaceWith`.

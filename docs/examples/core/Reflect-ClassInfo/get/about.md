@@ -6,8 +6,8 @@ as for a normal read.
 
 `get` follows the same rules as a normal property read at the same place in your code. A private
 or protected property cannot be read from outside its class, and `get` throws a `RuntimeError`.
-A name that is not a property of the class throws a `LogicError`. It replaces PHP's
-`ReflectionProperty::getValue`, and there is no way to switch the visibility check off.
+A name that is not a property of the class throws a `LogicError`. You cannot switch the
+visibility check off.
 
 **The examples below** show a read by name, the two errors, and a report that writes only the
 columns a user chose.

@@ -1,5 +1,4 @@
-Checks whether a text is valid JSON and returns `true` or `false`. It replaces PHP's
-`json_validate`.
+Checks whether a text is valid JSON and returns `true` or `false`.
 
 `isValid` returns `true` exactly when `Core\Json::decode` would read the text with its default
 options. It returns `false` for text that is not JSON, for a document nested deeper than 512

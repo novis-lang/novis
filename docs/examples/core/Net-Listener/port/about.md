@@ -1,5 +1,4 @@
-Returns the port number a TCP server is listening on. This replaces PHP's `stream_socket_get_name`
-for a server.
+Returns the port number a TCP server is listening on.
 
 You need it when you start a server with port `0`. Port `0` tells the operating system to pick any
 free port, and `port` tells you which one it picked. A client needs that number to connect. Tests

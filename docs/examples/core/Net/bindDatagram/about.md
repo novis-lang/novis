@@ -3,7 +3,7 @@ no connection: each message is sent on its own, to an address you name when you 
 
 The result is a `Core\Net\Datagram`. Its `send` method sends one message, and its `receive` method
 waits for the next one. Port `0` lets the operating system pick a free port, and `port` tells you
-which one it picked. This replaces PHP's `stream_socket_server` with a `udp://` address.
+which one it picked.
 
 The address must be an IP address, such as `127.0.0.1` or `0.0.0.0`, and never a hostname. The exact
 address and port must be allowed under `listen` in the `[capabilities.net]` block of `nvs.toml`.

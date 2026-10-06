@@ -11,8 +11,5 @@ and the result is an array with the key `color`.
 The result has the type `mixed`, so you convert it with `as`, for example `as int`. A command-line
 program answers no request, so `query` throws a `LogicError` there. When an escape in the query
 string is not valid UTF-8 text, `query` throws a `RuntimeError`.
-
-This replaces PHP's `$_GET`.
-
 **The examples below** show a search page, a parameter that is missing or is not a number, and a
 product list filtered with bracket names.

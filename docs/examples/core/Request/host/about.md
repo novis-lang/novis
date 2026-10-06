@@ -11,5 +11,3 @@ exactly as it arrived.
 
 The result is tainted, which means it came from outside your program. A command-line program
 answers no request, so `host` throws a `LogicError` there.
-
-This replaces `$_SERVER['HTTP_HOST']` in PHP.

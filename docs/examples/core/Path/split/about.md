@@ -1,5 +1,5 @@
-Splits a path into its parts: the folders and the file name, in order. It replaces PHP's
-`explode("/", $path)`, and it reads both `/` and `\` as separators.
+Splits a path into its parts: the folders and the file name, in order. It reads both `/` and
+`\` as separators.
 
 The method works on the text of the path and never looks at the disk. `srv/shop/logo.png` gives
 three parts: `srv`, `shop` and `logo.png`. The result never has an empty part. A separator that is

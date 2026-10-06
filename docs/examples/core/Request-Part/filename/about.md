@@ -1,5 +1,5 @@
 Returns the file name that the client sent with an uploaded file, such as `invoice.pdf`. This is the
-name the file had on the client's computer. Replaces the `name` field of PHP's `$_FILES`.
+name the file had on the client's computer.
 
 The result is a `tainted string`, which means it came from outside your program. The client can send
 any name: an empty one, a very long one, or one like `../../config.toml` that points to another

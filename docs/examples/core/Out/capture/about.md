@@ -1,5 +1,4 @@
-Runs a function and gives you everything it printed, as a value. This replaces PHP's `ob_start` and
-`ob_get_clean`.
+Runs a function and gives you everything it printed, as a value.
 
 The function uses `echo` as usual, but nothing it prints reaches the output. `capture` collects it
 and returns it as a value. In a command-line program the value is a `Core\Cli\Text`. In a web

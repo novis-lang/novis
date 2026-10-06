@@ -1,4 +1,4 @@
-Closes a TCP connection. This replaces PHP's `fclose` on a socket.
+Closes a TCP connection.
 
 The other side can still read the bytes you wrote before `close`. After those bytes, its `read`
 returns no bytes, which tells it that you closed the connection.

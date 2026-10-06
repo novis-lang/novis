@@ -6,8 +6,7 @@ class with no constructor parameters. The result has the type `mixed`, so conver
 
 `construct` follows the same rules as `new` at the same place in your code. A private constructor
 cannot be used from outside its class. Too few arguments, or an argument of the wrong type, throws
-a `LogicError` and no object is created. It replaces PHP's `ReflectionClass::newInstanceArgs`, and
-there is no way to switch the visibility check off.
+a `LogicError` and no object is created. You cannot switch the visibility check off.
 
 **The examples below** show an object created from a class name, the errors for a private
 constructor and a missing argument, and a program that creates the handler its configuration

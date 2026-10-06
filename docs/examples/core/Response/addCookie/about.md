@@ -1,5 +1,5 @@
 Adds a cookie to the response. The browser stores it and sends it back with its next requests,
-where `Core\Request::cookie` reads it. Replaces PHP's `setcookie`.
+where `Core\Request::cookie` reads it.
 
 A cookie without options is safe by default. It is sent over HTTPS only, JavaScript cannot read it,
 and other websites cannot send it with their forms. These defaults come from `[http.cookies]` in

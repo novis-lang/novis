@@ -1,5 +1,4 @@
-Returns the number the operating system gives this program's process. This replaces PHP's
-`getmypid`.
+Returns the number the operating system gives this program's process.
 
 The number does not change while the process runs. It belongs to the whole process, not to one
 request. A server process that handles many requests returns the same number for all of them. Two

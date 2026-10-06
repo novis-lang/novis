@@ -1,5 +1,4 @@
-Returns the last part of a path: the file name, or the name of the last folder. This replaces PHP's
-`basename`.
+Returns the last part of a path: the file name, or the name of the last folder.
 
 The method reads the path as text and never looks at the disk. It accepts `/` and `\` as separators
 on every platform, so `C:\reports\may.pdf` and `/srv/reports/may.pdf` both give `may.pdf`. A

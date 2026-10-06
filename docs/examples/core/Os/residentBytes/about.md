@@ -1,5 +1,4 @@
-Returns the most memory this program's process has used so far, in bytes. This replaces the
-`ru_maxrss` figure of PHP's `getrusage`.
+Returns the most memory this program's process has used so far, in bytes.
 
 The number is the highest point, not the memory in use right now. It never gets smaller, even
 when the program frees memory. It covers the whole process. A server process adds up every request

@@ -1,5 +1,4 @@
-Returns a path with the extension of its last part changed. PHP has no function for this, so PHP
-programs cut the string by hand.
+Returns a path with the extension of its last part changed.
 
 The method works on the text of the path and never looks at the disk. `orders.csv` with `xlsx`
 gives `orders.xlsx`. A name without an extension gets one, so `notes` with `txt` gives `notes.txt`.

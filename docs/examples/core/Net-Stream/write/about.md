@@ -1,4 +1,4 @@
-Sends bytes to the other side of a TCP connection. This replaces PHP's `fwrite` on a socket.
+Sends bytes to the other side of a TCP connection.
 
 `write` returns how many bytes it sent. This can be fewer than you gave it, when the connection
 cannot take more right now. To send a whole message, call `write` again with the bytes that are

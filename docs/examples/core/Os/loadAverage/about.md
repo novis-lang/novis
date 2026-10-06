@@ -1,4 +1,4 @@
-Returns how busy the machine is, as three numbers. This replaces PHP's `sys_getloadavg`.
+Returns how busy the machine is, as three numbers.
 
 The numbers are averages over the last 1, 5 and 15 minutes. Each one counts the processes that are
 running or waiting to run. A number larger than `Core\Os::cpuCount()` means some processes are

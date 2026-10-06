@@ -1,6 +1,5 @@
 Starts a server on a socket file, so programs on the same computer can connect to it by its path.
-This kind of socket is called a Unix-domain socket, and it opens no network port. This replaces the
-`unix://` form of PHP's `stream_socket_server`.
+This kind of socket is called a Unix-domain socket, and it opens no network port.
 
 The result is a `Core\Net\Listener`, the same as for `Core\Net::listen`. Its `accept` method waits
 for the next client and returns a `Core\Net\Stream` for that client. Clients connect with

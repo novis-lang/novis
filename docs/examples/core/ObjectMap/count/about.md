@@ -1,5 +1,5 @@
-Returns the number of entries in a `Core\ObjectMap`. The result is a `uint`, and it is `0` for an
-empty map. This replaces PHP's `count()` on an `SplObjectStorage`.
+Returns the number of entries in a `Core\ObjectMap`. The result is a `uint`, and it is
+`0` for an empty map.
 
 Each key is counted once. When you call `set` with a key that is already in the map, the value is
 replaced and the count stays the same. `remove` makes the count one smaller, and `clear` makes it

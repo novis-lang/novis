@@ -7,8 +7,7 @@ no way to switch this check off. The value must have the type the property decla
 watches its properties, `set` informs it the same way a normal write does.
 
 A private property and a value of the wrong type throw a `RuntimeError`. A name that is not a
-property of the class throws a `LogicError`. After an error, the object is unchanged. It replaces
-PHP's `ReflectionProperty::setValue`.
+property of the class throws a `LogicError`. After an error, the object is unchanged.
 
 **The examples below** write two properties by name, show the three errors, and fill a settings
 object from configuration values.

@@ -5,8 +5,6 @@ The path is the same from every folder you start the program in. A call in a fil
 with `require` returns the path of that file, not the path of the first file. Use
 `Core\Path::thisDir` for the folder of the file.
 
-Replaces PHP's `__FILE__`.
-
 **Good to know:** the full path is different on every computer. Print `Core\Path::basename` of
 it when you only need the file name.
 

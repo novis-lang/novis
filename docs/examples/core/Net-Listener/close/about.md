@@ -1,5 +1,5 @@
-Closes a TCP server. The server stops taking new clients, and its port is free again for other
-programs. This replaces PHP's `fclose` on a server socket.
+Closes a TCP server. The server stops taking new clients, and its port is free
+again for other programs.
 
 Connections the server already accepted are not closed. Each one is a separate
 `Core\Net\Stream`, so you can keep reading and writing it, and you close it on its own.
