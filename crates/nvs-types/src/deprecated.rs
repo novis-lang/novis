@@ -23,13 +23,18 @@
 //! position warns as it is lowered, and an override as its method is entered.
 //! Nothing outside a window warns, so a template, a signature or a later pass
 //! that lowers the same annotation again never raises a second warning.
+//!
+//! Each warning names the template filled in at its use, and carries that
+//! text as its fix where [`fix`] can write one.
 
+mod fix;
 mod template;
 
 use std::fmt::Write as _;
 
 use nvs_diagnostics::{Diagnostic, Span, code};
 use nvs_hir::QName;
+use nvs_syntax::SyntaxIndex;
 use nvs_syntax::ast::{
     Attribute, AttributeGroup, ClassMember, ClassMemberKind, EnumCase, ExprKind, NamespaceDecl,
     Param, Stmt, StmtKind,
@@ -97,19 +102,28 @@ pub(crate) struct Deprecations {
     sites: FxHashMap<(QName, Member), Deprecation>,
 }
 
-/// The string fields of one `#[Core\Deprecated]`, as their values read. A
-/// field that is not written, or not a string, is `None`.
+/// The string fields of one `#[Core\Deprecated]`, as their values read, and
+/// what its fix reads where the declaration is written. A field that is not
+/// written, or not a string, is `None`.
 #[derive(Default)]
 pub(crate) struct Deprecation {
     since: Option<String>,
     note: Option<String>,
     replace: Option<String>,
     construct: Option<String>,
+    /// The parameters the template fills in: the method's, or on a class the
+    /// constructor's, which `construct` fills in.
+    params: Vec<fix::Param>,
+    /// Where the template's names resolve.
+    scope: fix::Scope,
 }
 
 impl Deprecation {
-    fn of(attr: &Attribute, src: &nvs_diagnostics::SourceFile) -> Self {
-        let mut out = Self::default();
+    fn of(attr: &Attribute, src: &nvs_diagnostics::SourceFile, scope: fix::Scope) -> Self {
+        let mut out = Self {
+            scope,
+            ..Self::default()
+        };
         for field in &attr.fields {
             let ExprKind::Str(lit) = field.value.kind else {
                 continue;
@@ -170,7 +184,7 @@ pub(crate) fn window<'e, R>(
 /// `W1003` at `span`, when `member` of `owner` is deprecated and a window is
 /// open.
 pub(crate) fn warn(span: Span, owner: &QName, member: Member, env: &mut Env<'_>) {
-    report(span, owner, member, false, env);
+    report(span, owner, member, false, &mut None, env);
 }
 
 /// `W1003` at an override of a deprecated method: `name` is declared by
@@ -208,7 +222,17 @@ pub(crate) fn warn_override(class: &QName, name: &str, span: Span, env: &mut Env
     }
 }
 
-fn report(span: Span, owner: &QName, member: Member, at_new: bool, env: &mut Env<'_>) {
+/// `W1003` at `span`, naming the template filled in at this use and carrying
+/// it as the fix where [`fix::fill`] writes one. `index` is the file's syntax
+/// index, built the first time a fix needs it.
+fn report(
+    span: Span,
+    owner: &QName,
+    member: Member,
+    at_new: bool,
+    index: &mut Option<SyntaxIndex>,
+    env: &mut Env<'_>,
+) {
     let table = env.deprecations;
     let Some(deprecation) = table.get(owner, &member) else {
         return;
@@ -219,15 +243,45 @@ fn report(span: Span, owner: &QName, member: Member, at_new: bool, env: &mut Env
     if !uses.0.insert((span, owner.clone(), member.clone())) {
         return;
     }
-    let replacement = match at_new {
+    let template = match at_new && deprecation.construct.is_some() {
         true => deprecation.construct.as_deref(),
         false => deprecation.replace.as_deref(),
     };
+    let site = nvs_hir::import_site(env.stmts, env.src, span.start);
+    let fill = template
+        .and_then(|_| fix::fill(span, owner, &member, at_new, deprecation, index, env))
+        .filter(|fill| fill.imports.is_empty() || site.is_some());
     let what = template::describe(owner, &member);
-    env.diags.report(
-        Diagnostic::warning(code::W_DEPRECATED, message(&what, deprecation, replacement))
-            .with_primary(span, "this is deprecated"),
-    );
+    let shown = fill
+        .as_ref()
+        .map_or(template, |fill| Some(fill.shown.as_str()));
+    let mut diagnostic =
+        Diagnostic::warning(code::W_DEPRECATED, message(&what, deprecation, shown))
+            .with_primary(span, "this is deprecated");
+    match (&fill, template) {
+        (Some(fill), _) => {
+            diagnostic = diagnostic.with_fix(
+                fill.span,
+                fill.text.clone(),
+                format!("replace with `{}`", fill.shown),
+            );
+            if let Some(site) = site.filter(|_| !fill.imports.is_empty()) {
+                diagnostic = diagnostic.with_fix(
+                    site.span(span.file),
+                    site.use_lines(&fill.imports),
+                    format!("import `{}`", fill.imports[0]),
+                );
+            }
+        }
+        (None, Some(template)) if member != Member::Type => {
+            diagnostic = diagnostic.with_help(format!(
+                "write `{template}` here, with the values this use passes in place of its \
+                 parameters"
+            ));
+        }
+        (None, _) => {}
+    }
+    env.diags.report(diagnostic);
 }
 
 /// The member, then `since`, then `note`, then the replacement.
@@ -272,8 +326,9 @@ fn warn_uses(mark: usize, env: &mut Env<'_>) {
             }
         }
     }
+    let mut index = None;
     for (span, owner, member, at_new) in found {
-        report(span, &owner, member, at_new, env);
+        report(span, &owner, member, at_new, &mut index, env);
     }
 }
 
@@ -339,10 +394,20 @@ fn collect(
                             ) == QName::parse(crate::derive::DEPRECATED)
                         })
                 })
-                .map(|attr| Deprecation::of(attr, src))
+                .map(|attr| {
+                    Deprecation::of(attr, src, fix::Scope::new(&current_ns, &current_imports))
+                })
         };
+        let params = |params: &[Param]| params.iter().map(|p| fix::Param::of(p, src)).collect();
         let mut found = Vec::new();
-        if let Some(d) = deprecated(attributes) {
+        if let Some(mut d) = deprecated(attributes) {
+            let constructor = members.iter().find_map(|member| match &member.kind {
+                ClassMemberKind::Method(m) if span_text(src, m.name) == "constructor" => Some(m),
+                _ => None,
+            });
+            if let Some(constructor) = constructor {
+                d.params = params(&constructor.params);
+            }
             found.push((Member::Type, d));
         }
         for member in members {
@@ -366,7 +431,8 @@ fn collect(
                             found.push((Member::Param(method.clone(), name), d));
                         }
                     }
-                    if let Some(d) = deprecated(&m.attributes) {
+                    if let Some(mut d) = deprecated(&m.attributes) {
+                        d.params = params(&m.params);
                         found.push((Member::Method(method), d));
                     }
                 }
