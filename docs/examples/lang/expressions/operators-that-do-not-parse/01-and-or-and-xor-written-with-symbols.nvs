@@ -1,6 +1,6 @@
 <?nvs
-// Shows the three logical operators. PHP writes two of them as the words `and`
-// and `or`; Novis has only `&&` and `||`, and `!=` does the work of `xor`.
+// Shows how to write "and", "or" and "xor" between two conditions. Use `&&` for
+// "and" and `||` for "or". For "xor" on two `bool` values, use `!=`.
 
 bool $paid = true;
 bool $inStock = true;

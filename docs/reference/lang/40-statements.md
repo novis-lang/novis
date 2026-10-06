@@ -1,7 +1,7 @@
 ---
 id: statements
 title: Statements and control flow
-summary: expression statements, blocks and local declarations, `if`, the four loops, `switch`, `break`/`continue` with levels, `return`, `try`/`catch`/`finally`, `throw`, `echo`, `unset`, and the PHP statement forms that do not parse
+summary: expression statements, blocks and local declarations, `if`, the four loops, `switch`, `break`/`continue` with levels, `return`, `try`/`catch`/`finally`, `throw`, `echo`, `unset`, and the statement forms that do not parse
 keywords: statement, block, scope, definite assignment, if, elseif, else if, else, endif, alternative syntax, while, endwhile, do while, for, foreach, endforeach, as, key, value, inout, by reference, Iterator, Iterable, switch, case, default, fallthrough, break, continue, break 2, continue 2, levels, return, try, catch, finally, multi-catch, throw, echo, print, unset, exit, yield, goto, label, declare, strict_types, global, static variable
 ---
 
@@ -42,7 +42,7 @@ read before any assignment
 
 # `if`, `elseif`, `else`
 
-The condition is any expression, read as a condition (the truth table in the expressions chapter); it is not converted to `bool` and need not be one. `elseif` and `else if` are the same thing. A body is one statement, so braces are optional around a single one. PHP's alternative syntax — `if (…): … endif;`, and `endwhile`, `endfor`, `endforeach`, `endswitch` — does not parse.
+The condition is any expression, read as a condition (the truth table in the expressions chapter); it is not converted to `bool` and need not be one. `elseif` and `else if` are the same thing. A body is one statement, so braces are optional around a single one. The colon form `if (…): … endif;` does not parse, and neither do `endwhile`, `endfor`, `endforeach` and `endswitch`.
 
 ```nvs
 <?nvs
@@ -243,7 +243,7 @@ stopping
 
 # `break` and `continue`
 
-`break` leaves the innermost loop or `switch`; `continue` starts the next iteration of the innermost loop. `break N` and `continue N` count enclosing loops **and `switch`es** outward from 1, PHP's way, so `continue 2` inside a `switch` inside a loop is that loop's next iteration — and so is a plain `continue` there, because a `switch` has nothing to continue. `N` is an integer literal, and a level with no matching statement — `break` outside any loop, `break 3` under one loop, `continue` under only a `switch` — is a compile error.
+`break` leaves the innermost loop or `switch`; `continue` starts the next iteration of the innermost loop. `break N` and `continue N` count enclosing loops **and `switch`es** outward from 1, so `continue 2` inside a `switch` inside a loop is that loop's next iteration — and so is a plain `continue` there, because a `switch` has nothing to continue. `N` is an integer literal, and a level with no matching statement — `break` outside any loop, `break 3` under one loop, `continue` under only a `switch` — is a compile error.
 
 ```nvs
 <?nvs
@@ -493,16 +493,17 @@ takes an array element of a named holder
 
 # Statement forms that do not parse
 
-| PHP | Novis |
-|---|---|
-| `goto label;`, `label:` | restructure with a loop, an early `return` or a flag |
-| `declare(strict_types=1);`, `declare(ticks=…)` | nothing to declare: every file is strict, and the line is a syntax error |
-| `if (…): … endif;` and the other `end…` forms | braces |
-| `global $x;` | pass a parameter, or a `static` property |
-| `static $n = 0;` inside a method | a `private static` property |
-| `list($a, $b) = …` | `[int $a, int $b] = …` |
-| `include`, `require_once` | `require` |
-| `class`, `interface`, `enum`, `type`, `namespace`, `use`, `autoload` inside a body | file scope only |
+Each of these is a compile error:
+
+- `goto label;` and `label:`. Write a loop, an early `return` or a flag.
+- `declare(…)`, with any setting. Every file is already strict, so there is nothing to declare.
+- `if (…): … endif;` and the other `end…` forms. Write braces.
+- `global $x;`. Pass a parameter, or use a `static` property.
+- `static $n = 0;` inside a method. Use a `private static` property.
+- `list($a, $b) = …`. Write `[int $a, int $b] = …`.
+- `include` and `require_once`. Write `require`.
+- `class`, `interface`, `enum`, `type`, `namespace`, `use` or `autoload` inside a body. These are
+  allowed at file scope only.
 
 ```nvs error
 <?nvs

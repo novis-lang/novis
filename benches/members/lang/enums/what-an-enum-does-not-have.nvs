@@ -1,7 +1,7 @@
 <?nvs
-// Turns a case into the text a person reads, through the `match` in a class of your own that
-// replaces PHP's `->name`. A program meets this shape when it writes a status into a page or a log
-// line. The length of the text is added up so the call stays inside the loop.
+// Turns a case into the text a person reads, with a `match` in a class of your own. A program
+// does this when it writes a status into a page or a log line. The length of the text is added
+// up so the call stays inside the loop.
 // bench: iterations 512
 // bench: complexity constant
 

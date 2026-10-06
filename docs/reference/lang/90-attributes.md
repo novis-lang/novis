@@ -112,7 +112,7 @@ payload, so nothing is reflected on at run time.
   value a read of that same name inlines — folded in the scope the attribute was *written* in, not
   the one it is read from. A constant whose own declaration folds to nothing is the one refusal
   left.
-- PHP's `ReflectionClass::getAttributes()` and `ReflectionAttribute::newInstance()` do not exist; a
+- There is no reflection API, so `ReflectionClass` and `ReflectionAttribute` do not exist. A
   retrieved payload is a plain shape value, read with `->`.
 
 ```nvs

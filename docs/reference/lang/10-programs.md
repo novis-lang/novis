@@ -159,7 +159,7 @@ echo Price::double(2), "\n";
 Three things are not doc comments:
 
 - **`/** … */` is an ordinary comment.** Nothing reads it. Written directly above a declaration it
-  is the PHPDoc habit, and the compiler warns (`W1011`): *this `/** … */` block documents nothing;
+  documents nothing, and the compiler warns (`W1011`): *this `/** … */` block documents nothing;
   write `///` for a doc comment*.
 - **`////` and longer runs** are ordinary comments, so a divider line of slashes documents nothing.
 - **A `///` run with a blank line under it, or one at the end of a file,** documents nothing and is
@@ -177,8 +177,8 @@ no way to suppress it:
 | class constant, enum case | constant: `SCREAMING_SNAKE_CASE`; case: `PascalCase` | `const int MAX_LINES = 10;`, `Rank::Gold` |
 | the constructor | exactly `constructor` | `public function constructor(int $n) { … }` |
 
-- No identifier may start with `_`. PHP's `__construct`, `__toString` and every other magic method
-  do not exist; the constructor is `constructor` and stringification is the `Stringable` interface
+- No identifier may start with `_`, so there are no `__construct`, `__toString` or other `__`
+  methods; the constructor is `constructor` and stringification is the `Stringable` interface
   (the classes chapter).
 - Every class member — property, method, constant — writes its visibility (`public`, `protected`,
   `private`). There is no implicit `public`.
@@ -234,7 +234,7 @@ How a written name resolves:
   namespace, and nowhere else. There is no fallback to the global namespace: inside `namespace App;`,
   an unimported `Helper` means `App\Helper`, never a `Helper` declared outside any namespace.
 - `use A\B\C;` imports one name, under its own short name `C`. There is no renaming: `use A\B\C as D;`
-  is refused, and so is PHP's group form `use A\{B, C};` — write one `use` per name.
+  is refused, and so is the group form `use A\{B, C};` — write one `use` per name.
 - `Core` is a reserved namespace: `namespace Core;` is refused, so nothing a program declares lives
   under it. A global class may still be named `Str` — only the `Core\` prefix is reserved.
 - A `class`, `interface`, `enum` or `type` alias is declared at file scope, or not at all.
@@ -342,9 +342,8 @@ Core\IO::read('data/' . $name);            // throws RuntimeError: the path is r
 
 A program ends when its last top-level statement has run, with exit status 0. `exit;` ends it
 early with status 0, `exit(3);` with the status given, and `exit("message");` prints the message
-and exits with status 0 — the same three forms PHP's `exit` has. A status is one byte: the low
-eight bits are what the process reports on every platform, so `exit(300)` exits 44 and `exit(-1)`
-exits 255, as in PHP. `die` is not a second spelling — it parses, and only so the compiler can
+and exits with status 0. A status is one byte: the low eight bits are what the process reports
+on every platform, so `exit(300)` exits 44 and `exit(-1)` exits 255. `die` is not a second spelling — it parses, and only so the compiler can
 point at `exit` (`E0228`, `rule:statements/exit-is-the-only-termination-keyword`). An uncaught
 throw ends the program with status 1 and a backtrace on standard error (the errors chapter).
 

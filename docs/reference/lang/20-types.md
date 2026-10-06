@@ -420,9 +420,9 @@ leading-zero form `017` is decimal seventeen, not octal. `true`, `false`, `null`
 **Strings.** A single-quoted string interpolates nothing and has exactly two escapes, `\\` and
 `\'` — every other backslash stands for itself. A double-quoted string interpolates `$x`, `$a[k]`,
 `$a[0]` — the bare form reaches one level, no further — and in braces any expression whose first
-token is a variable: `{$o->p}`, `{$a["k"]["j"]}`, `{$o->m()}`, `{$a + $b}` (PHP stops at
-variable-rooted chains here; Novis takes the whole expression grammar). A `{` not followed by `$`
-is plain text, and PHP's deprecated `${name}` form does not exist. Its escapes are
+token is a variable: `{$o->p}`, `{$a["k"]["j"]}`, `{$o->m()}`, `{$a + $b}` — the braces take
+the whole expression grammar, not only a chain of members. A `{` not followed by `$` is plain
+text, and there is no `${name}` form. Its escapes are
 `\\ \" \$ \n \t \r \v \f \e`, an octal `\0` through `\777`, `\xHH` and
 `\u{HHHH}`; an unrecognized one such as `\q` keeps its backslash. An interpolated value takes the
 same rule as `echo`: scalars and `null` render, `bytes`, arrays, enum cases and objects without
@@ -938,7 +938,7 @@ may be `null`, so `->` cannot reach a member of it
 # Truthiness
 
 A condition — `if`, `while`, `for`'s middle clause, the ternary `?:` and its short form, and the
-operands of `&&`, `||` and `!` — is the one place a value is tested without `as`, and it uses PHP's
+operands of `&&`, `||` and `!` — is the one place a value is tested without `as`, and it uses this
 table: `false`, `0`, `0.0`, `""`, `"0"`, `[]`, an empty `bytes` and `null` are falsy; every other
 value, including `"0.0"`, `" "`, every object and every enum case whatever integer backs it, is
 truthy. `x as bool` answers the same table. A `mixed` is tested on its runtime tag. `empty($x)` is
@@ -1166,18 +1166,19 @@ cannot be passed to `Core\Json::encode`
 
 # What does not exist
 
-| PHP | Novis |
-|---|---|
-| `(int)$x`, `(string)$x`, `(float)$x`, `(bool)$x`, `(array)$x` | `$x as int`, … — the cast syntax is refused naming `as` |
-| `intval`, `strval`, `floatval`, `boolval` | `as int`, `as string`, `as float`, `as bool` |
-| `settype($x, "string")` | refused: a binding's type never changes — convert into a new binding |
-| `gettype`, `is_int`, `is_string`, `is_array`, `is_null`, `is_numeric` | no free function exists; test a `mixed` with `is` for a class, `($m as ?int) != null` for a scalar, `== null` for null |
-| `resource` | no such type; a handle is a `Core` object |
-| a callable string `"Foo::bar"`, `[$obj, "m"]` | refused; a `callable` comes from an anonymous function `fn (…) => …` or a method reference such as `Foo::bar(...)` |
-| `$s[0]` on a string | `Core\Str::at`, `Core\Str::slice` |
-| `"3" * 2`, `"3" == 3`, `"a" < "b"` | refused; convert with `as`, order with `Core\Str::compare` |
-| `list($a, $b) = …` | `[int $a, int $b] = $pair;` — every leaf typed |
-| a `float` silently truncated by `(int)` | `3.9 as int` throws; `as ?int` answers `null` |
+- A cast in parentheses — `(int)$x`, `(string)$x`, `(float)$x`, `(bool)$x`, `(array)$x` — is a
+  compile error, and the diagnostic names `as`. Write `$x as int`.
+- No free function converts a value or tests its type. A variable's type never changes, so a
+  conversion goes into a new variable. A `mixed` is tested with `is` for a class,
+  `($m as ?int) != null` for a scalar and `== null` for `null`.
+- There is no `resource` type. A handle is a `Core` object.
+- A string or an array is never a `callable`. A `callable` comes from an anonymous function
+  `fn (…) => …` or a method reference such as `Foo::bar(...)`.
+- `$s[0]` on a string is a compile error. Write `Core\Str::at` or `Core\Str::slice`.
+- Arithmetic and comparison never convert a string: `"3" * 2`, `"3" == 3` and `"a" < "b"` are
+  compile errors. Convert with `as`, and order strings with `Core\Str::compare`.
+- `list($a, $b) = …` does not parse. Write `[int $a, int $b] = $pair;`, with every part typed.
+- A conversion never cuts off a fraction. `3.9 as int` throws, and `3.9 as ?int` is `null`.
 
 ```nvs error
 <?nvs

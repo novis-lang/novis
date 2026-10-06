@@ -68,7 +68,7 @@ otherwise; a skipped test is not a failure.
 
 Each test runs in a fresh isolate over the same compiled program: a new instance of its class is
 constructed for it, and a `static` one test wrote reads its declared initial value in the next.
-The class's constructor is therefore PHPUnit's `setUp`, and it must take no arguments — a
+The class's constructor is therefore the setup that runs before each test, and it must take no arguments — a
 constructor with parameters is reported as that test failing.
 
 ```nvs test
@@ -237,7 +237,7 @@ final class RepoTest {
 
 `#[TestWith(param: value, …)]` supplies one row of arguments, matched to the method's parameters
 by name and by type; repeat it for each row. Each row is its own reported case, `method#0`,
-`method#1`, … in written order. It replaces PHPUnit's `@dataProvider`.
+`method#1`, … in written order.
 
 ```nvs test exit=1
 <?nvs
@@ -288,7 +288,7 @@ every failed assertion of a test is reported, not only the first.
 
 | Member | Holds when |
 |---|---|
-| `assertSame($a, $e)` | identical — scalars and arrays by value, two objects only when they are the same object (PHPUnit's `assertSame`) |
+| `assertSame($a, $e)` | identical — scalars and arrays by value, two objects only when they are the same object |
 | `assertEquals($a, $e)` | as `assertSame`, except two objects compare through `Comparable::compareTo`; an object without one throws a `RuntimeError` |
 | `assertEqualsDeep($a, $e)` | structurally equal — arrays entry by entry, objects property by property — and the failure names the path of the first difference (`$actual->rows["1"]`); a `secret` property is compared but shown redacted |
 | `assertTrue($a)` | the `bool` is `true`; the argument is a declared `bool`, not anything truthy |

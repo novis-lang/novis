@@ -919,7 +919,7 @@
     "benches/members/lang/enums/declaring-an-enum.nvs": 2053,
     "benches/members/lang/enums/from-an-integer-back-to-a-case.nvs": 4101,
     "benches/members/lang/enums/match-and-switch-over-an-enum.nvs": 3591,
-    "benches/members/lang/enums/what-replaces-php-s-enum-members.nvs": 2565,
+    "benches/members/lang/enums/what-an-enum-does-not-have.nvs": 2565,
     "benches/members/lang/errors/assertion-failures.nvs": 1286,
     "benches/members/lang/errors/capability-denials-are-catchable.nvs": 1286,
     "benches/members/lang/errors/constructing-and-subclassing.nvs": 1286,

@@ -409,8 +409,7 @@ a=1;b=2;
 # Materialising a sequence: `Core\Arr::from`
 
 `Core\Arr::from` takes whatever `foreach` takes — an array, an `Iterable<T>`, an `Iterator<T>` or a
-`Core` collection — and answers an `array<T>` with keys `0…n-1`, which is what PHP's
-`iterator_to_array` does without preserved keys. Its `limit` option stops a generator early. A
+`Core` collection — and answers an `array<T>` with keys `0…n-1`. Its `limit` option stops a generator early. A
 collection is drained exactly as `foreach` walks it, so a `Core\ObjectMap` gives its keys.
 
 ```nvs

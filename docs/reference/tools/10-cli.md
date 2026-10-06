@@ -252,8 +252,8 @@ skipped: not written yet
   ran. `--filter` selects the same tests it would select in a run, and `--format junit`, `--update`
   and a `.nvst` tree are each refused beside it.
 - `--coverage-lcov <file>` writes the run's coverage to the file in the lcov format.
-  `--coverage-clover <file>` writes the same coverage as Clover XML, the format PHPUnit's
-  `--coverage-clover` writes. `--coverage-cobertura <file>` writes the same coverage as Cobertura
+  `--coverage-clover <file>` writes the same coverage as Clover XML, a format many CI
+  services read. `--coverage-cobertura <file>` writes the same coverage as Cobertura
   XML, the format GitLab and Azure DevOps read. You can give all three in one run. Each line where
   a statement starts is listed with the number of times it ran. A line that no test reached has the
   count `0`. Each branch is listed too. A branch is a condition, such as the one in an `if`, a

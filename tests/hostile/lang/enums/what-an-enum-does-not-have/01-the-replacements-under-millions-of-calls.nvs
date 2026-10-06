@@ -1,9 +1,9 @@
 <?nvs
-// Attack: a program calls the functions that replace PHP's enum methods millions
-// of times. It gets case names, builds the list of all cases and looks up long
-// strings. It also runs a workflow that never ends. Each result should be
-// correct, and the runtime should keep running.
-// covers: lang:enums/what-replaces-php-s-enum-members
+// Attack: a program calls the functions an enum needs in place of methods,
+// millions of times. It gets case names, builds the list of all cases and looks
+// up long strings. It also runs a workflow that never ends. Each result should
+// be correct, and the runtime should keep running.
+// covers: lang:enums/what-an-enum-does-not-have
 // hostile: timeout-ms 20000
 
 enum Level { Debug, Info, Warn, Error }

@@ -514,8 +514,8 @@ enum Command {
         /// Write the run's coverage to this file as Clover XML.
         ///
         /// The same lines, branches, functions and counts as
-        /// `--coverage-lcov`, in the format PHPUnit's `--coverage-clover`
-        /// writes.
+        /// `--coverage-lcov`, in the Clover format that many CI services
+        /// read.
         #[arg(long, value_name = "FILE", conflicts_with = "list")]
         coverage_clover: Option<PathBuf>,
         /// Write the run's coverage to this file as Cobertura XML.

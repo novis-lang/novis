@@ -1,6 +1,6 @@
 <?nvs
-// Shows the two methods that replace PHP's `+` on two arrays and `$s[0]` on a
-// string, in the job they come up in most: reading settings and an order code.
+// Shows how to combine two arrays with `Core\Arr::underlay` and read one
+// character with `Core\Str::at`. The program reads settings and an order code.
 
 // What this user saved, and the defaults for everything else.
 array<string> $saved = ["theme" => "dark", "pageSize" => "50"];

@@ -1,7 +1,7 @@
 ---
 id: enums
 title: Enums
-summary: `enum` declares a closed set of named integers — how cases get their values, how a case converts to and from its integer, and what stands in for PHP's enum methods
+summary: `enum` declares a closed set of named integers — how cases get their values, how a case converts to and from its integer, and what an enum does not have
 keywords: enum, case, backed enum, BackedEnum, UnitEnum, int enum, uint enum, string enum, ->name, ->value, cases(), from(), tryFrom(), as int, as E, enum match, enum switch, enum case type, closed set, Core\Order
 ---
 
@@ -280,20 +280,19 @@ echo Open::file(Mode::Exec), "\n";
 expected `Mode::Read|Mode::Write`, found `Mode`
 ```
 
-# What replaces PHP's enum members
+# What an enum does not have
 
-A case has no members and an enum has no methods, so every PHP spelling below is a compile
-error. What stands in for each:
+A case has no properties and an enum has no methods. So `E::A->value`, `E::A->name`,
+`E::from($n)`, `E::tryFrom($n)` and `E::cases()` are compile errors. An enum body has only
+cases: a method, a constant or an `implements` clause does not compile. There is no `BackedEnum`
+or `UnitEnum`, because every enum is backed by an integer. Write these instead:
 
-| PHP | Novis |
-|---|---|
-| `E::A->value` | `E::A as int` (or `as uint`) |
-| `E::from($n)` | `$n as E` — throws `RuntimeError` when no case matches |
-| `E::tryFrom($n)` | `$n as ?E` — `null` when no case matches |
-| `E::A->name` | a `match` on a class of your own |
-| `E::cases()` | a `static` method returning `array<E>` |
-| methods, constants, `implements` on the enum | a class that takes the enum |
-| `BackedEnum`, `UnitEnum` | nothing — every enum is integer-backed |
+- The integer of a case is `E::A as int`, or `E::A as uint`.
+- `$n as E` gives the case for an integer, and throws `RuntimeError` when no case matches.
+  `$n as ?E` gives `null` when no case matches.
+- The name of a case is a `match` in a class of your own.
+- The list of every case is a `static` method that returns `array<E>`.
+- Behaviour that belongs to an enum goes in a class that takes the enum.
 
 ```nvs
 <?nvs

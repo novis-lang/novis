@@ -12,7 +12,7 @@ class, not an interface: a user class extends it directly. The tree is fixed and
 
 <!-- generated: exceptions -->
 
-- PHP's `Exception` and `Error` do not exist. `class E extends Exception`, `catch (Exception $e)`
+- There is no `Exception` and no `Error` class. `class E extends Exception`, `catch (Exception $e)`
   and `new Exception("…")` are each refused as an undeclared name; write `Throwable`,
   `LogicError` or `RuntimeError`.
 - `LogicError` is a bug in the program: a `match` with no matching arm, a `Core` member called

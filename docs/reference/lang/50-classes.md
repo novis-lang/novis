@@ -8,8 +8,8 @@ keywords: class, constructor, __construct, new, public, protected, private, stat
 # Declaring a class
 
 A class is declared at file scope with `class`, and every member — property, method, constant —
-writes its visibility. The constructor is a method named `constructor`; PHP's `__construct` is
-refused with a diagnostic naming it. Instances are made with `new`, members are reached with `->`.
+writes its visibility. The constructor is a method named `constructor`; `__construct` is
+refused with a diagnostic naming `constructor`. Instances are made with `new`, members are reached with `->`.
 
 ```nvs
 <?nvs

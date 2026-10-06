@@ -941,6 +941,7 @@ marked `~`: it is the machine, not the code.
 | `lang:enums/declaring-an-enum` | 4.00 | 0.00 | 0.00 | 0.0 |  | +0.008 | complexity constant, calls 0, allocations 0 | 12bd24661f00 |
 | `lang:enums/from-an-integer-back-to-a-case` | 4.00 | 0.00 | 0.00 | 0.0 |  | +0.004 | complexity constant, calls 0, allocations 0 | 12bd24661f00 |
 | `lang:enums/match-and-switch-over-an-enum` | 7.00 | 0.00 | 0.00 | 0.0 |  | +0.007 | complexity constant, calls 0, allocations 0 | 12bd24661f00 |
+| `lang:enums/what-an-enum-does-not-have` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | f2860c5711a4 |
 | `lang:enums/what-replaces-php-s-enum-members` | 5.00 | 1.00 | 0.00 | 0.0 |  | +0.008 | complexity constant | 12bd24661f00 |
 | `lang:errors/assertion-failures` | 5.00 | 0.00 | 21.02 | 1859.0 | +0.016 | +549.145 | complexity constant | 12bd24661f00 |
 | `lang:errors/capability-denials-are-catchable` | 5.00 | 0.00 | 16.00 | 2220.0 |  | +671.993 | complexity constant | 12bd24661f00 |
@@ -995,13 +996,13 @@ marked `~`: it is the machine, not the code.
 | `lang:statements/throw` | 7.00 | 2.00 | 14.00 | 1458.0 | -2.000 | +559.999 | complexity constant, calls 2 | 12bd24661f00 |
 | `lang:statements/try-catch-finally` | 8.50 | 1.25 | 3.50 | 410.8 | -0.500 | +164.015 | complexity constant | 12bd24661f00 |
 | `lang:statements/while-and-do-while` | 8.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0, allocations 0 | 12bd24661f00 |
-| `lang:testing/a-test-is-a-method-marked-test` | 4.00 | 1.00 | 0.00 | 0.0 |  | +0.004 | complexity constant, calls 1, allocations 0 | 12bd24661f00 |
-| `lang:testing/assertions` | 4.00 | 0.00 | 0.02 | 80.0 | +0.016 | -59.779 | complexity constant, calls 0, allocations 0 | 12bd24661f00 |
-| `lang:testing/core-test-fixture-built-once-injected-by-type` | 4.00 | 1.00 | 0.00 | 0.0 |  | +0.004 | complexity constant, calls 1, allocations 0 | 12bd24661f00 |
-| `lang:testing/core-test-testwith-data-rows` | 4.00 | 1.00 | 0.00 | 0.0 |  | +0.003 | complexity constant, calls 1, allocations 0 | 12bd24661f00 |
-| `lang:testing/every-test-is-its-own-isolate-and-the-constructor-is-setup` | 5.00 | 1.00 | 4.00 | 288.0 |  | +0.030 | complexity constant, calls 1 | 12bd24661f00 |
-| `lang:testing/running-tests-nvs-test` | 7.00 | 2.00 | 1.02 | 128.0 | +0.016 | -24.826 | complexity constant | 12bd24661f00 |
-| `lang:testing/test-options` | 4.00 | 1.00 | 0.00 | 0.0 |  | +0.004 | complexity constant, calls 1, allocations 0 | 12bd24661f00 |
+| `lang:testing/a-test-is-a-method-marked-test` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | f3a4368ba49e |
+| `lang:testing/assertions` | 4.00 | 0.00 | 0.02 | 80.0 |  |  | complexity constant, calls 0, allocations 0 | f3a4368ba49e |
+| `lang:testing/core-test-fixture-built-once-injected-by-type` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | f3a4368ba49e |
+| `lang:testing/core-test-testwith-data-rows` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | f3a4368ba49e |
+| `lang:testing/every-test-is-its-own-isolate-and-the-constructor-is-setup` | 5.00 | 1.00 | 4.00 | 288.0 |  |  | complexity constant, calls 1 | f3a4368ba49e |
+| `lang:testing/running-tests-nvs-test` | 7.00 | 2.00 | 1.02 | 128.0 |  |  | complexity constant | f3a4368ba49e |
+| `lang:testing/test-options` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | f3a4368ba49e |
 | `lang:types/array-t` | 5.00 | 0.00 | 0.00 | 0.0 |  | -0.001 | complexity constant, allocations 0 | 12bd24661f00 |
 | `lang:types/callable-classes-object-shapes` | 3.00 | 0.00 | 1.00 | 32.0 |  |  | complexity constant, allocations 1 | 12bd24661f00 |
 | `lang:types/every-binding-has-a-type` | 10.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 12bd24661f00 |
@@ -1250,6 +1251,7 @@ a person with a profiler looks first; it is not a verdict.
 | `lang:enums/declaring-an-enum` | lang:enums | 1684.2 units against a `constant` ceiling of 100 |
 | `lang:enums/from-an-integer-back-to-a-case` | lang:enums | 375.7 units against a `constant` ceiling of 100 |
 | `lang:enums/match-and-switch-over-an-enum` | lang:enums | 777.6 units against a `constant` ceiling of 100 |
+| `lang:enums/what-an-enum-does-not-have` | lang:enums | 234.7 units against a `constant` ceiling of 100 |
 | `lang:enums/what-replaces-php-s-enum-members` | lang:enums | 1055.2 units against a `constant` ceiling of 100 |
 | `lang:errors/assertion-failures` | lang:errors | 1637.2 units against a `constant` ceiling of 100 |
 | `lang:errors/capability-denials-are-catchable` | lang:errors | 2583.6 units against a `constant` ceiling of 100 |
@@ -1283,12 +1285,12 @@ a person with a profiler looks first; it is not a verdict.
 | `lang:statements/throw` | lang:statements | 30844.2 units against a `constant` ceiling of 100 |
 | `lang:statements/try-catch-finally` | lang:statements | 20594.2 units against a `constant` ceiling of 100 |
 | `lang:statements/while-and-do-while` | lang:statements | 9004.8 units against a `constant` ceiling of 100 |
-| `lang:testing/a-test-is-a-method-marked-test` | lang:testing | 1794.3 units against a `constant` ceiling of 100 |
-| `lang:testing/core-test-fixture-built-once-injected-by-type` | lang:testing | 3012.0 units against a `constant` ceiling of 100 |
-| `lang:testing/core-test-testwith-data-rows` | lang:testing | 2945.4 units against a `constant` ceiling of 100 |
-| `lang:testing/every-test-is-its-own-isolate-and-the-constructor-is-setup` | lang:testing | 8.6x its group's median of 2945.4 units — 25463.8 units against a `constant` ceiling of 100 |
-| `lang:testing/running-tests-nvs-test` | lang:testing | 13086.9 units against a `constant` ceiling of 100 |
-| `lang:testing/test-options` | lang:testing | 1552.2 units against a `constant` ceiling of 100 |
+| `lang:testing/a-test-is-a-method-marked-test` | lang:testing | 128.4 units against a `constant` ceiling of 100 |
+| `lang:testing/assertions` | lang:testing | 1406.3 units against a `constant` ceiling of 100 |
+| `lang:testing/core-test-fixture-built-once-injected-by-type` | lang:testing | 350.7 units against a `constant` ceiling of 100 |
+| `lang:testing/core-test-testwith-data-rows` | lang:testing | 145.2 units against a `constant` ceiling of 100 |
+| `lang:testing/every-test-is-its-own-isolate-and-the-constructor-is-setup` | lang:testing | 1479.8 units against a `constant` ceiling of 100 |
+| `lang:testing/running-tests-nvs-test` | lang:testing | 618.6 units against a `constant` ceiling of 100 |
 | `lang:types/array-t` | lang:types | 2883.4 units against a `constant` ceiling of 100 |
 | `lang:types/callable-classes-object-shapes` | lang:types | 20289.5 units against a `constant` ceiling of 100 |
 | `lang:types/every-binding-has-a-type` | lang:types | 10027.9 units against a `constant` ceiling of 100 |
@@ -2229,6 +2231,7 @@ a person with a profiler looks first; it is not a verdict.
 | `lang:enums/declaring-an-enum` | 5780.1 | 7129.9 | 1684.196 | +99299.4% | flat | 12bd24661f00 | 6b505d96a70599d0b2c542765e99dbc7 |
 | `lang:enums/from-an-integer-back-to-a-case` | 1289.4 | 2956.8 | 375.692 | +240900.9% | flat | 12bd24661f00 | 6b505d96a70599d0b2c542765e99dbc7 |
 | `lang:enums/match-and-switch-over-an-enum` | 2668.8 | 4156.4 | 777.619 | +26396.7% | flat | 12bd24661f00 | 6b505d96a70599d0b2c542765e99dbc7 |
+| `lang:enums/what-an-enum-does-not-have` | 920.9 | 3559.0 | 234.672 |  | flat | f2860c5711a4 | 31900e95c4f35ebf54c16fcc1f403fde |
 | `lang:enums/what-replaces-php-s-enum-members` | 3621.5 | 5015.2 | 1055.226 | +20270.6% | flat | 12bd24661f00 | 6b505d96a70599d0b2c542765e99dbc7 |
 | `lang:errors/assertion-failures` | 5618.8 | 14429.7 | 1637.189 | +1129.7% | flat | 12bd24661f00 | 6115b4413c1248ac20ebd1cf92390fbe |
 | `lang:errors/capability-denials-are-catchable` | 8866.8 | 12435.2 | 2583.603 | +2344.1% | flat | 12bd24661f00 | 6115b4413c1248ac20ebd1cf92390fbe |
@@ -2283,13 +2286,13 @@ a person with a profiler looks first; it is not a verdict.
 | `lang:statements/throw` | 105855.9 | 196029.3 | 30844.231 | +26548.6% | flat | 12bd24661f00 | 17e144b8d6ab2e0a9d1fc6b59e9d1517 |
 | `lang:statements/try-catch-finally` | 70678.1 | 201977.7 | 20594.159 | +22594.8% | flat | 12bd24661f00 | 17e144b8d6ab2e0a9d1fc6b59e9d1517 |
 | `lang:statements/while-and-do-while` | 30903.9 | 56213.7 | 9004.766 | +33679.6% | flat | 12bd24661f00 | 17e144b8d6ab2e0a9d1fc6b59e9d1517 |
-| `lang:testing/a-test-is-a-method-marked-test` | 6157.8 | 9678.2 | 1794.261 | +124627.8% | flat | 12bd24661f00 | 315e65730dd676a38425fe6fd8140cb7 |
-| `lang:testing/assertions` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 12bd24661f00 | 315e65730dd676a38425fe6fd8140cb7 |
-| `lang:testing/core-test-fixture-built-once-injected-by-type` | 10337.1 | 12201.2 | 3012.008 | +286801.5% | flat | 12bd24661f00 | 315e65730dd676a38425fe6fd8140cb7 |
-| `lang:testing/core-test-testwith-data-rows` | 10108.3 | 12373.3 | 2945.352 | +44377.1% | flat | 12bd24661f00 | 315e65730dd676a38425fe6fd8140cb7 |
-| `lang:testing/every-test-is-its-own-isolate-and-the-constructor-is-setup` | 87390.6 | 182896.1 | 25463.840 | +113359.0% | flat | 12bd24661f00 | 315e65730dd676a38425fe6fd8140cb7 |
-| `lang:testing/running-tests-nvs-test` | 44913.7 | 81382.0 | 13086.925 | +113741.0% | flat | 12bd24661f00 | 315e65730dd676a38425fe6fd8140cb7 |
-| `lang:testing/test-options` | 5327.2 | 5727.2 | 1552.236 | +494992.7% | flat | 12bd24661f00 | 315e65730dd676a38425fe6fd8140cb7 |
+| `lang:testing/a-test-is-a-method-marked-test` | 501.6 | 1389.4 | 128.412 | -91.9% ~ | flat | f3a4368ba49e | b72723caba1746df413e7676a209d0d6 |
+| `lang:testing/assertions` | 5493.4 | 32661.7 | 1406.300 |  | flat | f3a4368ba49e | b72723caba1746df413e7676a209d0d6 |
+| `lang:testing/core-test-fixture-built-once-injected-by-type` | 1369.8 | 2450.9 | 350.662 | -86.7% | flat | f3a4368ba49e | b72723caba1746df413e7676a209d0d6 |
+| `lang:testing/core-test-testwith-data-rows` | 567.3 | 1423.8 | 145.225 | -94.4% ~ | flat | f3a4368ba49e | b72723caba1746df413e7676a209d0d6 |
+| `lang:testing/every-test-is-its-own-isolate-and-the-constructor-is-setup` | 5780.5 | 17094.1 | 1479.800 | -93.4% ~ | flat | f3a4368ba49e | b72723caba1746df413e7676a209d0d6 |
+| `lang:testing/running-tests-nvs-test` | 2416.4 | 6509.0 | 618.600 | -94.6% ~ | flat | f3a4368ba49e | b72723caba1746df413e7676a209d0d6 |
+| `lang:testing/test-options` | 0.0 | 954.1 | 0.000 | -100.0% | flat | f3a4368ba49e | b72723caba1746df413e7676a209d0d6 |
 | `lang:types/array-t` | 9895.8 | 11733.4 | 2883.420 | +38191.8% | flat | 12bd24661f00 | 1b6c5628e9acbd2d2df426129b3fcf54 |
 | `lang:types/callable-classes-object-shapes` | 69632.4 | 95753.5 | 20289.463 | +161314.1% | flat | 12bd24661f00 | 1b6c5628e9acbd2d2df426129b3fcf54 |
 | `lang:types/every-binding-has-a-type` | 34415.2 | 39310.5 | 10027.895 | +121771.3% | flat | 12bd24661f00 | 1b6c5628e9acbd2d2df426129b3fcf54 |

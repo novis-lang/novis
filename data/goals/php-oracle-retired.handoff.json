@@ -1,25 +1,26 @@
 {
-  "state": "**Goal `php-oracle-retired`: Stages 6, 7 and 8 are on disk; Stage 9 file sets 1 to 4 are closed.** ADR 0274 (`docs/decisions/0274.md`) is the goal's record.\n\n`docs/reference/tools/30-php-differences.md` is one concept page with three sections: *The short list* (with *What Novis can do that PHP cannot* under it), *Porting a program* (new, carrying the cart program `tests/conformance/lang/the-php-differences-two-spellings-side-by-side-program-runs-as-written.nvst` pins) and *The tools you do not install*. Its examples and attacks keep only those three folders; the old side-by-side folder moved to `porting-a-program/`. Every `covers:` marker that named a deleted section names `the-short-list` or `porting-a-program`, and the cases stay. The primer no longer lifts anything from the chapter: `PRIMER_FIRST` in `crates/nvs-cli/src/agent.rs` is three chapters, and `rule:tooling/a-primer-claim-is-executed` no longer fixes a refusal table. All four Stage 9 checks are green on disk.\n\n`bun nv proofs --gate` is red only on stale perf: 63 `Core\\Math` and `Core\\Str` members whose module changed when Stage 9 rewrote their cards. That is Stage 10's check.",
+  "state": "**Goal `php-oracle-retired`: Stages 6, 7 and 8 are on disk; Stage 9 file sets 1 to 4 are closed, and file set 5 is half done.** ADR 0274 (`docs/decisions/0274.md`) is the goal's record.\n\nThe lang chapters under `docs/reference/lang/` name PHP nowhere: their four PHP-to-Novis tables are plain lists of what does not compile and what to write, and the passing mentions are gone. Two sections were renamed, and their proofs moved with them: `lang:expressions/operators-that-do-not-parse` and `lang:enums/what-an-enum-does-not-have` (examples, attacks, the enum bench with a fresh perf record, `covers:` markers, `data/proofs/policy.json`, `docs/perf/bench-budget.json`, the two website pages' `covers`). The `--coverage-clover` help in `crates/nvs-cli/src/main.rs` and `docs/reference/tools/10-cli.md` no longer names PHPUnit.\n\n`bun nv proofs --gate` is red only on stale perf: the `Core\\Math` and `Core\\Str` members whose module changed when Stage 9 rewrote their cards. That is Stage 10's check.",
   "next": {
     "stage": 9,
     "title": "the rest of the reference and the binary",
     "files": [],
-    "note": "one file set: the lang chapters under `docs/reference/lang/`, `README.md` and the four PHP comments in `benches/members/` (goal prose § *Stage 9* item 5).",
+    "note": "one file set: `README.md`, `benches/members/` comments and the tools chapters under `docs/reference/tools/` (goal prose § *Stage 9* item 5).",
     "items": [
       {
         "done": false,
-        "text": "**The lang chapters lose their PHP comparison tables and passing mentions** — `rule:programs/no-compatibility-promise`; `docs/reference/lang/40-statements.md:4` (its summary still says \"the PHP statement forms that do not parse\"), `docs/reference/lang/40-statements.md:246`. `git grep -n PHP -- docs/reference/lang` lists the rest; the diagnostics for a PHP habit stay (goal § *Standing decisions*, *Origins stay honest*)."
+        "text": "**The root README's lines 24 to 30 become one line that links the concept page, and the `benches/members/` comments lose PHP** — `rule:programs/no-compatibility-promise`; `benches/members/lang/statements/statement-forms-that-do-not-parse.nvs:2`; `git grep -n PHP -- benches/members` lists them (the README's \"no PHP column\" line stays)."
       },
       {
         "done": false,
-        "text": "**The root README's lines 24 to 30 become one line that links the concept page, and the `benches/members/` comments lose PHP** — `benches/members/lang/statements/statement-forms-that-do-not-parse.nvs:2`; `git grep -n PHP -- benches/members` lists them (the README's \"no PHP column\" line stays)."
+        "text": "**The tools chapters other than php-differences lose their passing PHP mentions** — `rule:programs/no-compatibility-promise`; `docs/reference/tools/10-cli.md:35`, `docs/reference/tools/20-config.md:153`, `docs/reference/tools/25-server.md:122`, `docs/reference/tools/40-editor.md:248`, `docs/reference/tools/50-agents.md:263`. `docs/reference/tools/10-cli.md:51`'s \"Novis does not run PHP\" is the permitted statement and stays."
       }
     ]
   },
   "backlog": [
-    "Stage 10: `bun nv proofs --gate` owes 63 stale perf figures (`Core\\Math`, `Core\\Str`); re-measure them, then render every generated file again (goal prose § *Stage 10*).",
-    "The class summaries in `docs/spec/01-core-library.md` still list the PHP functions a class replaces, and `website/src/data/core.json`'s `surface`/`summary` fields render them; no check covers it yet (goal prose § *Standing decisions*, second set).",
+    "Stage 10: `bun nv proofs --gate` owes the stale `Core\\Math` and `Core\\Str` perf figures; re-measure them, then render every generated file again (goal prose § *Stage 10*).",
+    "`website/src/content/docs/syntax/start-here.mdx:19` still has an *If you know PHP* section, and its description names PHP (goal § *Standing decisions*, *Origins stay honest*).",
+    "The class summaries in `docs/spec/01-core-library.md` still list the PHP functions a class replaces, and `website/src/data/core.json`'s `surface`/`summary` fields render them; no check covers it yet.",
     "About 85 card fields compare with a PHP function without the word PHP (\"as `json_validate` does\"); `git grep -n \"\\` does\\\"\" -- crates/nvs-stdlib/src` lists them.",
-    "`tools/nv/cmd/reference.ts:626`'s message still calls an undeclared code \"stated as a refusal\"; the check itself is right."
+    "`data/reference/lang/*.json` still carries the old chapter summaries (written once by `nv import --write`, read by nothing this goal checks); `tools/nv/cmd/reference.ts:626`'s message still says \"stated as a refusal\"."
   ]
 }

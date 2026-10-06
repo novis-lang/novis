@@ -56,7 +56,7 @@
     "lang:errors/fatal-errors-limits-no-catch-sees": {
       "perf": "A `FATAL` stops the program where it stands, so there is nothing to iterate; the allocation accounting that reaches the ceiling is measured by every allocating member's own figure."
     },
-    "lang:expressions/operators-php-has-that-do-not-parse": {
+    "lang:expressions/operators-that-do-not-parse": {
       "perf": "Every operator here is a compile error, so there is no program to iterate; the replacements carry their own figures."
     },
     "lang:expressions/refused-in-expression-position": {

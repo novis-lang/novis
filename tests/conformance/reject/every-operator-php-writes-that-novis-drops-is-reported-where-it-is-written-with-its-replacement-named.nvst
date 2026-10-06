@@ -2,7 +2,7 @@
 Each operator PHP has and Novis does not — `and`, `or`, `xor`, `===`, `!==`, `<>`, `+` over two arrays, a subscript on a `string` and `++` on one — is reported at the operator itself and its help names the replacement, `rule:expressions/one-equality-operator`, `rule:types/arithmetic`
 --FILE--
 <?nvs
-// covers: lang:expressions/operators-php-has-that-do-not-parse
+// covers: lang:expressions/operators-that-do-not-parse
 // Every row of the chapter's table that is an operator proper. Each one is
 // reported where it is written, with the help naming what to write instead,
 // and the expectation below carries one diagnostic per row.

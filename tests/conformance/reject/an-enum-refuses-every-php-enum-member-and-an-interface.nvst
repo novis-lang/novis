@@ -2,7 +2,7 @@
 PHP's enum members are refused where they are written: `->name`, `->value`, `cases`, `from`, `tryFrom`, a method in the body and an `implements` clause — `rule:enums/no-class-machinery`
 --FILE--
 <?nvs
-// covers: lang:enums/what-replaces-php-s-enum-members
+// covers: lang:enums/what-an-enum-does-not-have
 enum Level { Debug, Info }
 
 // `rule:enums/no-class-machinery`: an enum is a closed set of integers rather

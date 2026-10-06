@@ -1,6 +1,6 @@
 <?nvs
-// Shows the one equality operator. `==` never converts its operands, so PHP's
-// `===`, `!==` and `<>` have no work left to do and none of them compiles.
+// Shows the one equality operator. `==` never converts its operands.
+// `===`, `!==` and `<>` do not exist, and none of them compiles.
 
 // A quantity that arrived as text, and the quantity already stored.
 string $typed = "7";

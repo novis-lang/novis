@@ -39,10 +39,10 @@ Conventions the whole file uses:
 
 - A.1 [Programs, files and names](#lang-programs) — what a `.nvs` file is, how it runs, how names are spelled and resolved, and how one file reaches another *(<?nvs, <?=, ?>, inline HTML, shebang, nvs run, echo, print, comments, doc comment, ///, docblock, PHPDoc, @see, @example, exit, namespace, use, require, autoload, discover, class name, casing, constructor, visibility, top-level statements, main)*
 - A.2 [Types, declarations and conversions](#lang-types) — every type, how a binding declares one, every value written in the code, the `as` conversion and its table, implicit widening, narrowing, truthiness, and the `tainted`/`secret` qualifiers *(bool, int, uint, float, decimal, string, bytes, array<T>, callable, class<T>, class reference, mixed, object, nullable, ?T, union, single-value type, enum, shape, anonymous object, type alias, void, never, self, static, iterable, intersection, var, declaration, inout, variadic, default parameter, constant, string literal, numeric literal, heredoc, nowdoc, interpolation, duration, html, markup, template, html template, page, escape, xss, as, conversion, cast, (int), (string), (float), (bool), (array), intval, strval, floatval, boolval, settype, gettype, is_int, is_string, is_array, is_null, is_numeric, widening, narrowing, is, truthy, falsy, tainted, secret, resource)*
-- A.3 [Expressions and operators](#lang-expressions) — every operator with its precedence and what it accepts, calls, anonymous functions and method references, `match`, arrays and anonymous objects in expression position, and the PHP spellings that do not parse *(operators, precedence, associativity, arithmetic, +, -, *, /, %, **, pow, concatenation, ., .=, ==, !=, ===, !==, <>, <=>, spaceship, comparison, <, <=, >, >=, &&, ||, !, and, or, xor, ??, ??=, ??+=, ??-=, ??.=, defaulting assignment, ?:, elvis, ternary, ?->, nullsafe, match, is, new, clone, throw expression, print, isset, empty, unset, anonymous function, fn, function, use, callable, method reference, named arguments, spread, ..., variadic, inout, array literal, subscript, append, [], destructuring, list(), anonymous object, shape, ++, --, increment, bitwise, &, |, ^, ~, <<, >>, shift, overflow, ArithmeticError, division by zero, @, backticks, eval, extract, compact, settype, variable variables, $$, =&, reference, |>, pipeline, pipe, $_, hole, substitution)*
-- A.4 [Statements and control flow](#lang-statements) — expression statements, blocks and local declarations, `if`, the four loops, `switch`, `break`/`continue` with levels, `return`, `try`/`catch`/`finally`, `throw`, `echo`, `unset`, and the PHP statement forms that do not parse *(statement, block, scope, definite assignment, if, elseif, else if, else, endif, alternative syntax, while, endwhile, do while, for, foreach, endforeach, as, key, value, inout, by reference, Iterator, Iterable, switch, case, default, fallthrough, break, continue, break 2, continue 2, levels, return, try, catch, finally, multi-catch, throw, echo, print, unset, exit, yield, goto, label, declare, strict_types, global, static variable)*
+- A.3 [Expressions and operators](#lang-expressions) — every operator with its precedence and what it accepts, calls, anonymous functions and method references, `match`, arrays and anonymous objects in expression position, and the operators and forms that do not parse *(operators, precedence, associativity, arithmetic, +, -, *, /, %, **, pow, concatenation, ., .=, ==, !=, ===, !==, <>, <=>, spaceship, comparison, <, <=, >, >=, &&, ||, !, and, or, xor, ??, ??=, ??+=, ??-=, ??.=, defaulting assignment, ?:, elvis, ternary, ?->, nullsafe, match, is, new, clone, throw expression, print, isset, empty, unset, anonymous function, fn, function, use, callable, method reference, named arguments, spread, ..., variadic, inout, array literal, subscript, append, [], destructuring, list(), anonymous object, shape, ++, --, increment, bitwise, &, |, ^, ~, <<, >>, shift, overflow, ArithmeticError, division by zero, @, backticks, eval, extract, compact, settype, variable variables, $$, =&, reference, |>, pipeline, pipe, $_, hole, substitution)*
+- A.4 [Statements and control flow](#lang-statements) — expression statements, blocks and local declarations, `if`, the four loops, `switch`, `break`/`continue` with levels, `return`, `try`/`catch`/`finally`, `throw`, `echo`, `unset`, and the statement forms that do not parse *(statement, block, scope, definite assignment, if, elseif, else if, else, endif, alternative syntax, while, endwhile, do while, for, foreach, endforeach, as, key, value, inout, by reference, Iterator, Iterable, switch, case, default, fallthrough, break, continue, break 2, continue 2, levels, return, try, catch, finally, multi-catch, throw, echo, print, unset, exit, yield, goto, label, declare, strict_types, global, static variable)*
 - A.5 [Classes, interfaces and objects](#lang-classes) — declaring a class, its properties, methods and constants; inheritance; interfaces, default methods and `by` delegation; hooks, observers, `Stringable`, `Comparable`; what an object is and what `clone` copies *(class, constructor, __construct, new, public, protected, private, static, self, parent, $this, abstract, final, extends, implements, interface, trait, delegation, by, readonly, lateinit, property hooks, get, set, PropertyObserver, Stringable, __toString, Comparable, compareTo, clone, __clone, is, object, ?->, nullsafe, __get, __set, __call, __callStatic, __invoke, __destruct, anonymous class, const, ::class, class<T>, class reference, new $cls, late static binding)*
-- A.6 [Enums](#lang-enums) — `enum` declares a closed set of named integers — how cases get their values, how a case converts to and from its integer, and what stands in for PHP's enum methods *(enum, case, backed enum, BackedEnum, UnitEnum, int enum, uint enum, string enum, ->name, ->value, cases(), from(), tryFrom(), as int, as E, enum match, enum switch, enum case type, closed set, Core\Order)*
+- A.6 [Enums](#lang-enums) — `enum` declares a closed set of named integers — how cases get their values, how a case converts to and from its integer, and what an enum does not have *(enum, case, backed enum, BackedEnum, UnitEnum, int enum, uint enum, string enum, ->name, ->value, cases(), from(), tryFrom(), as int, as E, enum match, enum switch, enum case type, closed set, Core\Order)*
 - A.7 [Iteration and generators](#lang-iteration) — what `foreach` accepts — arrays, `Iterable<T>`, `Iterator<T>` — how a class becomes iterable, and how a method with `yield` is a lazy `Iterator<T>` *(foreach, Iterable, Iterator, iterate, advance, current, yield, generator, Generator, yield from, IteratorAggregate, Traversable, ArrayAccess, Countable, iterator_to_array, Core\Arr::from, lazy, finally, ObjectMap, ObjectSet, Heap, Channel)*
 - A.8 [Errors, exceptions and limits](#lang-errors) — the throwable tree, `throw`/`try`/`catch`/`finally`, what an uncaught throw does, and the fatal limits no `catch` sees *(Throwable, Exception, Error, LogicError, RuntimeError, IOError, ParseError, TimeoutError, RecursionError, ArithmeticError, throw, try, catch, finally, rethrow, previous, backtrace, location, message, getMessage, getPrevious, getTrace, getCode, set_error_handler, set_exception_handler, trigger_error, error_reporting, fatal, FATAL, memory limit, onLimit, capability, fs.read, script.spawn, Core\Fatal, Core\Debug, var_dump, print_r, assert, Core\Test\Failure)*
 - A.9 [Tasks, channels and isolates](#lang-concurrency) — structured concurrency with `Core\Task`, bounded channels, and `spawn script` isolates that share nothing *(Core\Task, all, map, limit, deadline, TimeoutError, sleep, usleep, Core\Task\Channel, send, close, spawn script, await, Core\Script\Handle, isolate, ScriptResult, script.spawn, args, output, capture, inherit, async, await, Fiber, pcntl, pcntl_fork, pthreads, parallel, curl_multi, threads, workers, shared state)*
@@ -386,7 +386,7 @@ echo Price::double(2), "\n";
 Three things are not doc comments:
 
 - **`/** … */` is an ordinary comment.** Nothing reads it. Written directly above a declaration it
-  is the PHPDoc habit, and the compiler warns (`W1011`): *this `/** … */` block documents nothing;
+  documents nothing, and the compiler warns (`W1011`): *this `/** … */` block documents nothing;
   write `///` for a doc comment*.
 - **`////` and longer runs** are ordinary comments, so a divider line of slashes documents nothing.
 - **A `///` run with a blank line under it, or one at the end of a file,** documents nothing and is
@@ -404,8 +404,8 @@ no way to suppress it:
 | class constant, enum case | constant: `SCREAMING_SNAKE_CASE`; case: `PascalCase` | `const int MAX_LINES = 10;`, `Rank::Gold` |
 | the constructor | exactly `constructor` | `public function constructor(int $n) { … }` |
 
-- No identifier may start with `_`. PHP's `__construct`, `__toString` and every other magic method
-  do not exist; the constructor is `constructor` and stringification is the `Stringable` interface
+- No identifier may start with `_`, so there are no `__construct`, `__toString` or other `__`
+  methods; the constructor is `constructor` and stringification is the `Stringable` interface
   (the classes chapter).
 - Every class member — property, method, constant — writes its visibility (`public`, `protected`,
   `private`). There is no implicit `public`.
@@ -461,7 +461,7 @@ How a written name resolves:
   namespace, and nowhere else. There is no fallback to the global namespace: inside `namespace App;`,
   an unimported `Helper` means `App\Helper`, never a `Helper` declared outside any namespace.
 - `use A\B\C;` imports one name, under its own short name `C`. There is no renaming: `use A\B\C as D;`
-  is refused, and so is PHP's group form `use A\{B, C};` — write one `use` per name.
+  is refused, and so is the group form `use A\{B, C};` — write one `use` per name.
 - `Core` is a reserved namespace: `namespace Core;` is refused, so nothing a program declares lives
   under it. A global class may still be named `Str` — only the `Core\` prefix is reserved.
 - A `class`, `interface`, `enum` or `type` alias is declared at file scope, or not at all.
@@ -569,9 +569,8 @@ Core\IO::read('data/' . $name);            // throws RuntimeError: the path is r
 
 A program ends when its last top-level statement has run, with exit status 0. `exit;` ends it
 early with status 0, `exit(3);` with the status given, and `exit("message");` prints the message
-and exits with status 0 — the same three forms PHP's `exit` has. A status is one byte: the low
-eight bits are what the process reports on every platform, so `exit(300)` exits 44 and `exit(-1)`
-exits 255, as in PHP. `die` is not a second spelling — it parses, and only so the compiler can
+and exits with status 0. A status is one byte: the low eight bits are what the process reports
+on every platform, so `exit(300)` exits 44 and `exit(-1)` exits 255. `die` is not a second spelling — it parses, and only so the compiler can
 point at `exit` (`E0228`, `rule:statements/exit-is-the-only-termination-keyword`). An uncaught
 throw ends the program with status 1 and a backtrace on standard error (the errors chapter).
 
@@ -1005,9 +1004,9 @@ leading-zero form `017` is decimal seventeen, not octal. `true`, `false`, `null`
 **Strings.** A single-quoted string interpolates nothing and has exactly two escapes, `\\` and
 `\'` — every other backslash stands for itself. A double-quoted string interpolates `$x`, `$a[k]`,
 `$a[0]` — the bare form reaches one level, no further — and in braces any expression whose first
-token is a variable: `{$o->p}`, `{$a["k"]["j"]}`, `{$o->m()}`, `{$a + $b}` (PHP stops at
-variable-rooted chains here; Novis takes the whole expression grammar). A `{` not followed by `$`
-is plain text, and PHP's deprecated `${name}` form does not exist. Its escapes are
+token is a variable: `{$o->p}`, `{$a["k"]["j"]}`, `{$o->m()}`, `{$a + $b}` — the braces take
+the whole expression grammar, not only a chain of members. A `{` not followed by `$` is plain
+text, and there is no `${name}` form. Its escapes are
 `\\ \" \$ \n \t \r \v \f \e`, an octal `\0` through `\777`, `\xHH` and
 `\u{HHHH}`; an unrecognized one such as `\q` keeps its backslash. An interpolated value takes the
 same rule as `echo`: scalars and `null` render, `bytes`, arrays, enum cases and objects without
@@ -1523,7 +1522,7 @@ may be `null`, so `->` cannot reach a member of it
 ### Truthiness
 
 A condition — `if`, `while`, `for`'s middle clause, the ternary `?:` and its short form, and the
-operands of `&&`, `||` and `!` — is the one place a value is tested without `as`, and it uses PHP's
+operands of `&&`, `||` and `!` — is the one place a value is tested without `as`, and it uses this
 table: `false`, `0`, `0.0`, `""`, `"0"`, `[]`, an empty `bytes` and `null` are falsy; every other
 value, including `"0.0"`, `" "`, every object and every enum case whatever integer backs it, is
 truthy. `x as bool` answers the same table. A `mixed` is tested on its runtime tag. `empty($x)` is
@@ -1751,18 +1750,19 @@ cannot be passed to `Core\Json::encode`
 
 ### What does not exist
 
-| PHP | Novis |
-|---|---|
-| `(int)$x`, `(string)$x`, `(float)$x`, `(bool)$x`, `(array)$x` | `$x as int`, … — the cast syntax is refused naming `as` |
-| `intval`, `strval`, `floatval`, `boolval` | `as int`, `as string`, `as float`, `as bool` |
-| `settype($x, "string")` | refused: a binding's type never changes — convert into a new binding |
-| `gettype`, `is_int`, `is_string`, `is_array`, `is_null`, `is_numeric` | no free function exists; test a `mixed` with `is` for a class, `($m as ?int) != null` for a scalar, `== null` for null |
-| `resource` | no such type; a handle is a `Core` object |
-| a callable string `"Foo::bar"`, `[$obj, "m"]` | refused; a `callable` comes from an anonymous function `fn (…) => …` or a method reference such as `Foo::bar(...)` |
-| `$s[0]` on a string | `Core\Str::at`, `Core\Str::slice` |
-| `"3" * 2`, `"3" == 3`, `"a" < "b"` | refused; convert with `as`, order with `Core\Str::compare` |
-| `list($a, $b) = …` | `[int $a, int $b] = $pair;` — every leaf typed |
-| a `float` silently truncated by `(int)` | `3.9 as int` throws; `as ?int` answers `null` |
+- A cast in parentheses — `(int)$x`, `(string)$x`, `(float)$x`, `(bool)$x`, `(array)$x` — is a
+  compile error, and the diagnostic names `as`. Write `$x as int`.
+- No free function converts a value or tests its type. A variable's type never changes, so a
+  conversion goes into a new variable. A `mixed` is tested with `is` for a class,
+  `($m as ?int) != null` for a scalar and `== null` for `null`.
+- There is no `resource` type. A handle is a `Core` object.
+- A string or an array is never a `callable`. A `callable` comes from an anonymous function
+  `fn (…) => …` or a method reference such as `Foo::bar(...)`.
+- `$s[0]` on a string is a compile error. Write `Core\Str::at` or `Core\Str::slice`.
+- Arithmetic and comparison never convert a string: `"3" * 2`, `"3" == 3` and `"a" < "b"` are
+  compile errors. Convert with `as`, and order strings with `Core\Str::compare`.
+- `list($a, $b) = …` does not parse. Write `[int $a, int $b] = $pair;`, with every part typed.
+- A conversion never cuts off a fraction. `3.9 as int` throws, and `3.9 as ?int` is `null`.
 
 ```nvs error
 <?nvs
@@ -1840,24 +1840,24 @@ sum:3 4x
 -3 9 6
 ```
 
-### Operators PHP has that do not parse
+### Operators that do not parse
 
-| PHP | Novis |
-|---|---|
-| `and`, `or`, `xor` | `&&`, `\|\|`; `xor` is `$a != $b` on two `bool`s |
-| `===`, `!==` | `==`, `!=` — the one equality never converts, so there is nothing for a third `=` to add |
-| `(int)$x`, `(string)$x`, … | `$x as int`; the types chapter |
-| `@expr` | nothing to suppress: a failure is a `Throwable` |
-| `` `cmd` `` | `Core\Process` |
-| `$a = &$b`, `&$x` | no references: `inout` parameters, or an object to share |
-| `$$name`, `${expr}` | an `array<T>`, whose keys are the names |
-| `$a + $b` on arrays | `Core\Arr::underlay($a, $b)` |
-| `$s[0]` on a string | `Core\Str::at`, `Core\Str::slice` |
-| `$s++` on a string | no string increment; a binding never changes type |
+Each of these is a compile error:
+
+- `and`, `or` and `xor`. Write `&&` and `||`. On two `bool`s, `xor` is `$a != $b`.
+- `===` and `!==`. Write `==` and `!=`: equality never converts, so a third `=` has nothing to add.
+- `(int)$x`, `(string)$x` and the other casts in parentheses. Write `$x as int` (the types chapter).
+- `@expr`. There is nothing to suppress, because a failure is a `Throwable`.
+- `` `cmd` ``. Run a process with `Core\Process`.
+- `$a = &$b` and `&$x`. There are no references: use an `inout` parameter, or share an object.
+- `$$name` and `${expr}`. Use an `array<T>` whose keys are the names.
+- `$a + $b` on two arrays. Write `Core\Arr::underlay($a, $b)`.
+- `$s[0]` on a string. Write `Core\Str::at` or `Core\Str::slice`.
+- `$s++` on a string. A variable never changes its type, so a string has no increment.
 
 `<>` is `E0241` at the two characters, for the reason `===` is `E0232`: `!=` is the one spelling of inequality. Both are lexed as the operator they meant, so the rest of the file reports its own errors in the same run.
 
-PHP 8.5's `|>` is the one row that is a difference rather than a drop: `|>` is Novis's pipeline operator, and it substitutes a hole instead of applying a callable — *The pipeline operator* below.
+`|>` does parse: it is the pipeline operator, and it substitutes a hole into its right side — *The pipeline operator* below.
 
 ```nvs error
 <?nvs
@@ -2046,7 +2046,7 @@ echo ($a == $b) as string, "|", ($a == $same) as string, "|", ($a < $b) as strin
 
 ### Logical operators and truth
 
-`&&` and `||` short-circuit and answer a `bool`; `!` negates. Their operands are read as conditions: `0`, `0.0`, `""`, `"0"`, `[]`, `null` and `false` are false and everything else is true, PHP's table — the one place a value is tested without `as bool`. `and`, `or` and `xor` do not parse. `&&` narrows its right operand as the `if` block of its left would, and `||` as the `else` block, so `$u != null && $u->active` compiles over a `?User` local; nothing proven holds after the expression. The block of `if (A && B)` sees what both tests prove, and so does the code after `if (A || B) { return; }`.
+`&&` and `||` short-circuit and answer a `bool`; `!` negates. Their operands are read as conditions: `0`, `0.0`, `""`, `"0"`, `[]`, `null` and `false` are false and everything else is true — the one place a value is tested without `as bool`. `and`, `or` and `xor` do not parse. `&&` narrows its right operand as the `if` block of its left would, and `||` as the `else` block, so `$u != null && $u->active` compiles over a `?User` local; nothing proven holds after the expression. The block of `if (A && B)` sees what both tests prove, and so does the code after `if (A || B) { return; }`.
 
 ```nvs
 <?nvs
@@ -2287,7 +2287,7 @@ Hi, Ada! Yo, Bob?
 - `$_` appears **exactly once** on a right side. A right side with none is `E0129`, a second `$_` on one right side is `E0130`, and a `$_` written anywhere outside a right side is `E0131`.
 - `|>` is left-associative: `$a |> f($_) |> g($_)` is `g(f($a))`.
 - It binds tighter than every binary operator and looser than unary, so `$a |> Core\Str::length($_) > 5` compares the length and `$x = $a |> Core\Str::trim($_)` assigns the trimmed string.
-- This is not PHP 8.5's `|>`, which applies a callable resolved at run time. A method reference or an anonymous function on the right side is `E0129`, and the diagnostic says which of the two operators you wrote.
+- The right side is never a callable to apply. A method reference or an anonymous function on the right side is `E0129`, and the diagnostic says to write `$_` where the value goes.
 
 ```nvs
 <?nvs
@@ -2461,9 +2461,9 @@ ambiguous with a block
 
 ### Refused in expression position
 
-Each of these is parsed only so the diagnostic can name the replacement: `eval` (use `require` or `spawn script`), `extract` (destructure or index), `settype` (`as` into a new binding), `compact` and every other PHP free function (a `Core` member — `Core\Str::length($s)`), `$$name` and `${expr}`, `list(…)`, `(int)` casts, `@`, `=&`, `die` (`exit`), `include`/`require_once` (`require`), `yield` used as a value, and `self`/`static`/`parent` outside a class — the last of those at each of the four sites that resolve a class side, a constant, a static property, a static call and `new`.
+Each of these is parsed only so the diagnostic can name the replacement: `eval` (use `require` or `spawn script`), `extract` (destructure or index), `settype` (`as` into a new binding), `compact` and every other free function no program declares (a `Core` member — `Core\Str::length($s)`), `$$name` and `${expr}`, `list(…)`, `(int)` casts, `@`, `=&`, `die` (`exit`), `include`/`require_once` (`require`), `yield` used as a value, and `self`/`static`/`parent` outside a class — the last of those at each of the four sites that resolve a class side, a constant, a static property, a static call and `new`.
 
-PHP's backticks are the one entry not parsed at all. There is no shell-execution form for a diagnostic to name a replacement for — `Core\Process::run` takes a path and an argv array, never a command line — and the character itself is the delimiter of ``html`…` ``, so a backtick with no prefix in front of it is `E0001` from the lexer. The html template itself is the types chapter's `Markup: the html template`.
+A backtick command is the one entry not parsed at all. There is no shell-execution form for a diagnostic to name a replacement for — `Core\Process::run` takes a path and an argv array, never a command line — and the character itself is the delimiter of ``html`…` ``, so a backtick with no prefix in front of it is `E0001` from the lexer. The html template itself is the types chapter's `Markup: the html template`.
 
 ```nvs error
 <?nvs
@@ -2517,7 +2517,7 @@ read before any assignment
 
 ### `if`, `elseif`, `else`
 
-The condition is any expression, read as a condition (the truth table in the expressions chapter); it is not converted to `bool` and need not be one. `elseif` and `else if` are the same thing. A body is one statement, so braces are optional around a single one. PHP's alternative syntax — `if (…): … endif;`, and `endwhile`, `endfor`, `endforeach`, `endswitch` — does not parse.
+The condition is any expression, read as a condition (the truth table in the expressions chapter); it is not converted to `bool` and need not be one. `elseif` and `else if` are the same thing. A body is one statement, so braces are optional around a single one. The colon form `if (…): … endif;` does not parse, and neither do `endwhile`, `endfor`, `endforeach` and `endswitch`.
 
 ```nvs
 <?nvs
@@ -2718,7 +2718,7 @@ stopping
 
 ### `break` and `continue`
 
-`break` leaves the innermost loop or `switch`; `continue` starts the next iteration of the innermost loop. `break N` and `continue N` count enclosing loops **and `switch`es** outward from 1, PHP's way, so `continue 2` inside a `switch` inside a loop is that loop's next iteration — and so is a plain `continue` there, because a `switch` has nothing to continue. `N` is an integer literal, and a level with no matching statement — `break` outside any loop, `break 3` under one loop, `continue` under only a `switch` — is a compile error.
+`break` leaves the innermost loop or `switch`; `continue` starts the next iteration of the innermost loop. `break N` and `continue N` count enclosing loops **and `switch`es** outward from 1, so `continue 2` inside a `switch` inside a loop is that loop's next iteration — and so is a plain `continue` there, because a `switch` has nothing to continue. `N` is an integer literal, and a level with no matching statement — `break` outside any loop, `break 3` under one loop, `continue` under only a `switch` — is a compile error.
 
 ```nvs
 <?nvs
@@ -2968,16 +2968,17 @@ takes an array element of a named holder
 
 ### Statement forms that do not parse
 
-| PHP | Novis |
-|---|---|
-| `goto label;`, `label:` | restructure with a loop, an early `return` or a flag |
-| `declare(strict_types=1);`, `declare(ticks=…)` | nothing to declare: every file is strict, and the line is a syntax error |
-| `if (…): … endif;` and the other `end…` forms | braces |
-| `global $x;` | pass a parameter, or a `static` property |
-| `static $n = 0;` inside a method | a `private static` property |
-| `list($a, $b) = …` | `[int $a, int $b] = …` |
-| `include`, `require_once` | `require` |
-| `class`, `interface`, `enum`, `type`, `namespace`, `use`, `autoload` inside a body | file scope only |
+Each of these is a compile error:
+
+- `goto label;` and `label:`. Write a loop, an early `return` or a flag.
+- `declare(…)`, with any setting. Every file is already strict, so there is nothing to declare.
+- `if (…): … endif;` and the other `end…` forms. Write braces.
+- `global $x;`. Pass a parameter, or use a `static` property.
+- `static $n = 0;` inside a method. Use a `private static` property.
+- `list($a, $b) = …`. Write `[int $a, int $b] = …`.
+- `include` and `require_once`. Write `require`.
+- `class`, `interface`, `enum`, `type`, `namespace`, `use` or `autoload` inside a body. These are
+  allowed at file scope only.
 
 ```nvs error
 <?nvs
@@ -2999,8 +3000,8 @@ Keywords: class, constructor, __construct, new, public, protected, private, stat
 ### Declaring a class
 
 A class is declared at file scope with `class`, and every member — property, method, constant —
-writes its visibility. The constructor is a method named `constructor`; PHP's `__construct` is
-refused with a diagnostic naming it. Instances are made with `new`, members are reached with `->`.
+writes its visibility. The constructor is a method named `constructor`; `__construct` is
+refused with a diagnostic naming `constructor`. Instances are made with `new`, members are reached with `->`.
 
 ```nvs
 <?nvs
@@ -4594,20 +4595,19 @@ echo Open::file(Mode::Exec), "\n";
 expected `Mode::Read|Mode::Write`, found `Mode`
 ```
 
-### What replaces PHP's enum members
+### What an enum does not have
 
-A case has no members and an enum has no methods, so every PHP spelling below is a compile
-error. What stands in for each:
+A case has no properties and an enum has no methods. So `E::A->value`, `E::A->name`,
+`E::from($n)`, `E::tryFrom($n)` and `E::cases()` are compile errors. An enum body has only
+cases: a method, a constant or an `implements` clause does not compile. There is no `BackedEnum`
+or `UnitEnum`, because every enum is backed by an integer. Write these instead:
 
-| PHP | Novis |
-|---|---|
-| `E::A->value` | `E::A as int` (or `as uint`) |
-| `E::from($n)` | `$n as E` — throws `RuntimeError` when no case matches |
-| `E::tryFrom($n)` | `$n as ?E` — `null` when no case matches |
-| `E::A->name` | a `match` on a class of your own |
-| `E::cases()` | a `static` method returning `array<E>` |
-| methods, constants, `implements` on the enum | a class that takes the enum |
-| `BackedEnum`, `UnitEnum` | nothing — every enum is integer-backed |
+- The integer of a case is `E::A as int`, or `E::A as uint`.
+- `$n as E` gives the case for an integer, and throws `RuntimeError` when no case matches.
+  `$n as ?E` gives `null` when no case matches.
+- The name of a case is a `match` in a class of your own.
+- The list of every case is a `static` method that returns `array<E>`.
+- Behaviour that belongs to an enum goes in a class that takes the enum.
 
 ```nvs
 <?nvs
@@ -5086,8 +5086,7 @@ a=1;b=2;
 ### Materialising a sequence: `Core\Arr::from`
 
 `Core\Arr::from` takes whatever `foreach` takes — an array, an `Iterable<T>`, an `Iterator<T>` or a
-`Core` collection — and answers an `array<T>` with keys `0…n-1`, which is what PHP's
-`iterator_to_array` does without preserved keys. Its `limit` option stops a generator early. A
+`Core` collection — and answers an `array<T>` with keys `0…n-1`. Its `limit` option stops a generator early. A
 collection is drained exactly as `foreach` walks it, so a `Core\ObjectMap` gives its keys.
 
 ```nvs
@@ -5172,7 +5171,7 @@ class, not an interface: a user class extends it directly. The tree is fixed and
 | `Core\Db\RolledBack` | `RuntimeError` | `$reason` |
 | `Core\Script\Finished` | — (the root) | — |
 
-- PHP's `Exception` and `Error` do not exist. `class E extends Exception`, `catch (Exception $e)`
+- There is no `Exception` and no `Error` class. `class E extends Exception`, `catch (Exception $e)`
   and `new Exception("…")` are each refused as an undeclared name; write `Throwable`,
   `LogicError` or `RuntimeError`.
 - `LogicError` is a bug in the program: a `match` with no matching arm, a `Core` member called
@@ -6240,7 +6239,7 @@ payload, so nothing is reflected on at run time.
   value a read of that same name inlines — folded in the scope the attribute was *written* in, not
   the one it is read from. A constant whose own declaration folds to nothing is the one refusal
   left.
-- PHP's `ReflectionClass::getAttributes()` and `ReflectionAttribute::newInstance()` do not exist; a
+- There is no reflection API, so `ReflectionClass` and `ReflectionAttribute` do not exist. A
   retrieved payload is a plain shape value, read with `->`.
 
 ```nvs
@@ -6947,7 +6946,7 @@ otherwise; a skipped test is not a failure.
 
 Each test runs in a fresh isolate over the same compiled program: a new instance of its class is
 constructed for it, and a `static` one test wrote reads its declared initial value in the next.
-The class's constructor is therefore PHPUnit's `setUp`, and it must take no arguments — a
+The class's constructor is therefore the setup that runs before each test, and it must take no arguments — a
 constructor with parameters is reported as that test failing.
 
 ```nvs test
@@ -7116,7 +7115,7 @@ final class RepoTest {
 
 `#[TestWith(param: value, …)]` supplies one row of arguments, matched to the method's parameters
 by name and by type; repeat it for each row. Each row is its own reported case, `method#0`,
-`method#1`, … in written order. It replaces PHPUnit's `@dataProvider`.
+`method#1`, … in written order.
 
 ```nvs test exit=1
 <?nvs
@@ -7167,7 +7166,7 @@ every failed assertion of a test is reported, not only the first.
 
 | Member | Holds when |
 |---|---|
-| `assertSame($a, $e)` | identical — scalars and arrays by value, two objects only when they are the same object (PHPUnit's `assertSame`) |
+| `assertSame($a, $e)` | identical — scalars and arrays by value, two objects only when they are the same object |
 | `assertEquals($a, $e)` | as `assertSame`, except two objects compare through `Comparable::compareTo`; an object without one throws a `RuntimeError` |
 | `assertEqualsDeep($a, $e)` | structurally equal — arrays entry by entry, objects property by property — and the failure names the path of the first difference (`$actual->rows["1"]`); a `secret` property is compared but shown redacted |
 | `assertTrue($a)` | the `bool` is `true`; the argument is a declared `bool`, not anything truthy |
@@ -26942,8 +26941,8 @@ skipped: not written yet
   ran. `--filter` selects the same tests it would select in a run, and `--format junit`, `--update`
   and a `.nvst` tree are each refused beside it.
 - `--coverage-lcov <file>` writes the run's coverage to the file in the lcov format.
-  `--coverage-clover <file>` writes the same coverage as Clover XML, the format PHPUnit's
-  `--coverage-clover` writes. `--coverage-cobertura <file>` writes the same coverage as Cobertura
+  `--coverage-clover <file>` writes the same coverage as Clover XML, a format many CI
+  services read. `--coverage-cobertura <file>` writes the same coverage as Cobertura
   XML, the format GitLab and Azure DevOps read. You can give all three in one run. Each line where
   a statement starts is listed with the number of times it ran. A line that no test reached has the
   count `0`. Each branch is listed too. A branch is a condition, such as the one in an `if`, a

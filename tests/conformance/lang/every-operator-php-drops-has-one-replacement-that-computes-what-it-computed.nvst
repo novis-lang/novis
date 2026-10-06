@@ -2,7 +2,7 @@
 The replacement for each dropped PHP operator computes what the operator computed — `!=` over the whole `xor` truth table, `!=` as the exact negation of `==` over every pair, `Core\Arr::underlay` as `$a + $b` over two arrays, and `Core\Str::at` as a one-character slice at every position — each counted over its whole sweep, `rule:expressions/one-equality-operator`, `rule:types/array-combination`
 --FILE--
 <?nvs
-// covers: lang:expressions/operators-php-has-that-do-not-parse
+// covers: lang:expressions/operators-that-do-not-parse
 // Each operator the chapter drops has one replacement, and the replacement
 // computes what the PHP operator computed. Every claim is counted over a
 // whole sweep, so a replacement that agrees on one row and not on the next is

@@ -1,7 +1,7 @@
 ---
 id: expressions
 title: Expressions and operators
-summary: every operator with its precedence and what it accepts, calls, anonymous functions and method references, `match`, arrays and anonymous objects in expression position, and the PHP spellings that do not parse
+summary: every operator with its precedence and what it accepts, calls, anonymous functions and method references, `match`, arrays and anonymous objects in expression position, and the operators and forms that do not parse
 keywords: operators, precedence, associativity, arithmetic, +, -, *, /, %, **, pow, concatenation, ., .=, ==, !=, ===, !==, <>, <=>, spaceship, comparison, <, <=, >, >=, &&, ||, !, and, or, xor, ??, ??=, ??+=, ??-=, ??.=, defaulting assignment, ?:, elvis, ternary, ?->, nullsafe, match, is, new, clone, throw expression, print, isset, empty, unset, anonymous function, fn, function, use, callable, method reference, named arguments, spread, ..., variadic, inout, array literal, subscript, append, [], destructuring, list(), anonymous object, shape, ++, --, increment, bitwise, &, |, ^, ~, <<, >>, shift, overflow, ArithmeticError, division by zero, @, backticks, eval, extract, compact, settype, variable variables, $$, =&, reference, |>, pipeline, pipe, $_, hole, substitution
 ---
 
@@ -58,24 +58,24 @@ sum:3 4x
 -3 9 6
 ```
 
-# Operators PHP has that do not parse
+# Operators that do not parse
 
-| PHP | Novis |
-|---|---|
-| `and`, `or`, `xor` | `&&`, `\|\|`; `xor` is `$a != $b` on two `bool`s |
-| `===`, `!==` | `==`, `!=` — the one equality never converts, so there is nothing for a third `=` to add |
-| `(int)$x`, `(string)$x`, … | `$x as int`; the types chapter |
-| `@expr` | nothing to suppress: a failure is a `Throwable` |
-| `` `cmd` `` | `Core\Process` |
-| `$a = &$b`, `&$x` | no references: `inout` parameters, or an object to share |
-| `$$name`, `${expr}` | an `array<T>`, whose keys are the names |
-| `$a + $b` on arrays | `Core\Arr::underlay($a, $b)` |
-| `$s[0]` on a string | `Core\Str::at`, `Core\Str::slice` |
-| `$s++` on a string | no string increment; a binding never changes type |
+Each of these is a compile error:
+
+- `and`, `or` and `xor`. Write `&&` and `||`. On two `bool`s, `xor` is `$a != $b`.
+- `===` and `!==`. Write `==` and `!=`: equality never converts, so a third `=` has nothing to add.
+- `(int)$x`, `(string)$x` and the other casts in parentheses. Write `$x as int` (the types chapter).
+- `@expr`. There is nothing to suppress, because a failure is a `Throwable`.
+- `` `cmd` ``. Run a process with `Core\Process`.
+- `$a = &$b` and `&$x`. There are no references: use an `inout` parameter, or share an object.
+- `$$name` and `${expr}`. Use an `array<T>` whose keys are the names.
+- `$a + $b` on two arrays. Write `Core\Arr::underlay($a, $b)`.
+- `$s[0]` on a string. Write `Core\Str::at` or `Core\Str::slice`.
+- `$s++` on a string. A variable never changes its type, so a string has no increment.
 
 `<>` is `E0241` at the two characters, for the reason `===` is `E0232`: `!=` is the one spelling of inequality. Both are lexed as the operator they meant, so the rest of the file reports its own errors in the same run.
 
-PHP 8.5's `|>` is the one row that is a difference rather than a drop: `|>` is Novis's pipeline operator, and it substitutes a hole instead of applying a callable — *The pipeline operator* below.
+`|>` does parse: it is the pipeline operator, and it substitutes a hole into its right side — *The pipeline operator* below.
 
 ```nvs error
 <?nvs
@@ -264,7 +264,7 @@ echo ($a == $b) as string, "|", ($a == $same) as string, "|", ($a < $b) as strin
 
 # Logical operators and truth
 
-`&&` and `||` short-circuit and answer a `bool`; `!` negates. Their operands are read as conditions: `0`, `0.0`, `""`, `"0"`, `[]`, `null` and `false` are false and everything else is true, PHP's table — the one place a value is tested without `as bool`. `and`, `or` and `xor` do not parse. `&&` narrows its right operand as the `if` block of its left would, and `||` as the `else` block, so `$u != null && $u->active` compiles over a `?User` local; nothing proven holds after the expression. The block of `if (A && B)` sees what both tests prove, and so does the code after `if (A || B) { return; }`.
+`&&` and `||` short-circuit and answer a `bool`; `!` negates. Their operands are read as conditions: `0`, `0.0`, `""`, `"0"`, `[]`, `null` and `false` are false and everything else is true — the one place a value is tested without `as bool`. `and`, `or` and `xor` do not parse. `&&` narrows its right operand as the `if` block of its left would, and `||` as the `else` block, so `$u != null && $u->active` compiles over a `?User` local; nothing proven holds after the expression. The block of `if (A && B)` sees what both tests prove, and so does the code after `if (A || B) { return; }`.
 
 ```nvs
 <?nvs
@@ -505,7 +505,7 @@ Hi, Ada! Yo, Bob?
 - `$_` appears **exactly once** on a right side. A right side with none is `E0129`, a second `$_` on one right side is `E0130`, and a `$_` written anywhere outside a right side is `E0131`.
 - `|>` is left-associative: `$a |> f($_) |> g($_)` is `g(f($a))`.
 - It binds tighter than every binary operator and looser than unary, so `$a |> Core\Str::length($_) > 5` compares the length and `$x = $a |> Core\Str::trim($_)` assigns the trimmed string.
-- This is not PHP 8.5's `|>`, which applies a callable resolved at run time. A method reference or an anonymous function on the right side is `E0129`, and the diagnostic says which of the two operators you wrote.
+- The right side is never a callable to apply. A method reference or an anonymous function on the right side is `E0129`, and the diagnostic says to write `$_` where the value goes.
 
 ```nvs
 <?nvs
@@ -679,9 +679,9 @@ ambiguous with a block
 
 # Refused in expression position
 
-Each of these is parsed only so the diagnostic can name the replacement: `eval` (use `require` or `spawn script`), `extract` (destructure or index), `settype` (`as` into a new binding), `compact` and every other PHP free function (a `Core` member — `Core\Str::length($s)`), `$$name` and `${expr}`, `list(…)`, `(int)` casts, `@`, `=&`, `die` (`exit`), `include`/`require_once` (`require`), `yield` used as a value, and `self`/`static`/`parent` outside a class — the last of those at each of the four sites that resolve a class side, a constant, a static property, a static call and `new`.
+Each of these is parsed only so the diagnostic can name the replacement: `eval` (use `require` or `spawn script`), `extract` (destructure or index), `settype` (`as` into a new binding), `compact` and every other free function no program declares (a `Core` member — `Core\Str::length($s)`), `$$name` and `${expr}`, `list(…)`, `(int)` casts, `@`, `=&`, `die` (`exit`), `include`/`require_once` (`require`), `yield` used as a value, and `self`/`static`/`parent` outside a class — the last of those at each of the four sites that resolve a class side, a constant, a static property, a static call and `new`.
 
-PHP's backticks are the one entry not parsed at all. There is no shell-execution form for a diagnostic to name a replacement for — `Core\Process::run` takes a path and an argv array, never a command line (`rule:core-classes/process-is-argv-only`) — and the character itself is the delimiter of ``html`…` `` (`rule:core-classes/html-template`), so a backtick with no prefix in front of it is `E0001` from the lexer. The html template itself is the types chapter's `Markup: the html template`.
+A backtick command is the one entry not parsed at all. There is no shell-execution form for a diagnostic to name a replacement for — `Core\Process::run` takes a path and an argv array, never a command line (`rule:core-classes/process-is-argv-only`) — and the character itself is the delimiter of ``html`…` `` (`rule:core-classes/html-template`), so a backtick with no prefix in front of it is `E0001` from the lexer. The html template itself is the types chapter's `Markup: the html template`.
 
 ```nvs error
 <?nvs

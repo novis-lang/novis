@@ -1,5 +1,5 @@
 <?nvs
-// Attack: write every operator PHP has and Novis does not, in chains far
+// Attack: write every operator that does not exist in Novis, in chains far
 // longer than a person would type and nested inside each other. The compiler
 // should print one error per operator and stop. It must not crash, hang, or
 // run a single line of this file.
@@ -13,7 +13,7 @@ bool $a = $n === $n === $n === $n === $n === $n === $n === $n === $n === $n === 
 bool $b = $n !== $n !== $n !== $n !== $n !== $n !== $n !== $n !== $n !== $n !== $n !== $n;
 bool $c = $n === $n != $n !== $n == $n === $n != $n !== $n == $n === $n != $n;
 
-// 2. PHP's inequality written with angle brackets, next to the comparisons
+// 2. Inequality written with angle brackets, next to the comparisons
 // that use the same two characters.
 bool $d = $n <> $n;
 bool $e = $n < $n <> $n > $n;
@@ -25,7 +25,7 @@ array<> $empty = [];
 array<array<int>>> $deep = [[1]];
 array<int><> $twice = [1];
 
-// 4. The logical operators PHP spells as words, nested as deep as the parser
+// 4. The logical operators written as words, nested as deep as the parser
 // will follow.
 bool $g = true;
 bool $h = false;

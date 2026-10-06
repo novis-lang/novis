@@ -2,7 +2,7 @@
 Every PHP enum member is written outside the enum instead: a `match` for the case name, a static method for the case list, and the two conversions for `from` and `tryFrom` — `rule:enums/no-class-machinery`
 --FILE--
 <?nvs
-// covers: lang:enums/what-replaces-php-s-enum-members
+// covers: lang:enums/what-an-enum-does-not-have
 enum Level { Debug = 10, Info = 20, Warn = 30 }
 
 class Levels {
