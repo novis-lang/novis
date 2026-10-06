@@ -3397,8 +3397,8 @@ nvs_runtime::nvs_helper! {
     /// returns a *fresh* array whose counter is derived from the entries
     /// copied into it — one past the largest integer key actually present. So
     /// after `unset($a["9"])` the statement lands on 10 and the member on 6.
-    /// `tests/differential/core/arr-append-derives-the-next-free-key-where-php-remembers-it.nvst`
-    /// pins both halves against PHP, including `array_pop` *lowering* the
+    /// `tests/conformance/core/arr-append-derives-the-next-free-key-from-the-entries-it-copies.nvst`
+    /// pins both halves. PHP also has `array_pop` *lowering* the
     /// counter to the key it removed, which nothing here reproduces. That is
     /// not a
     /// key-type-dependent rule of the kind
@@ -5817,7 +5817,7 @@ nvs_runtime::nvs_helper! {
     /// them bytewise, exactly as [`nvs_core_arr_sort`] does. The spec's § 2 has
     /// no comparator option on either member; a caller who wants one writes
     /// `first(sort($a, {by: ...}))`. Both halves are pinned in
-    /// `tests/differential/core/arr-min-and-max-*`.
+    /// `tests/conformance/core/arr-min-and-max-*`.
     ///
     /// PHP's variadic `min(1, 2, 3)` has no member at all: that is what `<`
     /// and a ternary are for (`rule:core-api/shape-rules` R17), and the array form is the one

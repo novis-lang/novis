@@ -828,9 +828,9 @@ impl<'a> Lowering<'a> {
     /// The method-reference sentinel makes no call at all.
     /// `rule:types/callable-values` gives `callable` exactly one
     /// inhabitant, a callable object, so `$f(...)` already names the value a reference
-    /// to `$f` would have to produce and the answer is that callable itself —
-    /// which is also PHP's, pinned by
-    /// `tests/differential/lang/a-method-reference-of-a-callable-matches-phps.nvst`.
+    /// to `$f` would have to produce and the answer is that callable itself,
+    /// pinned by
+    /// `tests/conformance/lang/a-method-reference-of-a-callable-is-that-callable.nvst`.
     /// It is handed on as a fresh owner: one retain where the callee borrowed a
     /// slot this frame does not own, and none where the callee already produced
     /// one, which is [`Self::aliasing_read`]'s judgment everywhere else in this

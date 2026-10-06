@@ -244,8 +244,8 @@
 //!
 //! Two guards pin it, because a hand-written case list is what every one of
 //! those four CVEs got past: a property test that `parse` → serialize →
-//! `parse` is stable, and a differential corpus against the PHP 8.5 oracle
-//! this repository already keeps for correctness. A `fuzz/fuzz_targets` entry
+//! `parse` is stable, and the `uri-*` conformance cases under
+//! `tests/conformance/core/`. A `fuzz/fuzz_targets` entry
 //! sits beside `lex.rs` and `parse.rs` for the same reason.
 //!
 //! # What `parse` takes, and what it does not ask

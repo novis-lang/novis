@@ -1853,9 +1853,8 @@ nvs_runtime::nvs_helper! {
     /// and captured nothing" — the first two are exactly what
     /// [`nvs_core_regex_match_group`]'s throw-versus-`null` split is built on,
     /// so the flagged reading is the only one that can carry it.
-    /// `tests/differential/core/regex-match-groups-is-preg_match-s-matches-under-unmatched-as-null.nvst`
-    /// counts the difference: over twelve rows the two readings part on six of
-    /// them, six entries short in total.
+    /// `tests/conformance/core/regex-match-groups-is-every-declared-group-counted.nvst`
+    /// pins one entry per declared group, an unmatched one included.
     fn nvs_core_regex_match_groups(_ctx, args: [1]) {
         let receiver = crate::instance::receiver(args[0], &MATCH, "groups")?;
         let groups = crate::instance::slot(receiver, GROUPS_SLOT);
@@ -2237,8 +2236,8 @@ nvs_runtime::nvs_helper! {
     /// handed in. What the two do agree on is the property both are for — the
     /// result matches its own text, matches it inside a larger subject, and
     /// matches nothing else — which
-    /// `tests/differential/core/regex-quote-and-preg_quote-escape-different-sets-and-match-the-same-literals.nvst`
-    /// counts over the whole ASCII table rather than comparing row by row.
+    /// `tests/conformance/core/regex-quote-makes-a-literal-match-itself-exactly-once-and-no-other-subject.nvst`
+    /// pins wherever a metacharacter sits in the literal.
     fn nvs_core_regex_quote(_ctx, args: [1]) {
         let unescaped = text(&args[0], "quote", "the text")?;
         produced(&regex::escape(unescaped))
