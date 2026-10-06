@@ -6,7 +6,7 @@
 // | table | holds |
 // |---|---|
 // | `meta` | `schema`, the tree the store last recorded (`base:<platform>`), the `covws` build, each generated file's digest, and the `covers:` and `calls:` keys each overlay path's text named, with the perf ledger's digest of each feature's rows (`markers:<platform>`) |
-// | `atoms` | one row per atom and platform: its kind, its definition's digest, its last verdict and run, its own key list, and how long its last judged and recording runs took |
+// | `atoms` | one row per atom and platform: its kind, its definition's digest, its last verdict and run, its own key list, the changed keys it is owed for, and how long its last judged and recording runs took |
 // | `keys` | every key any footprint holds, numbered, with the digest it had when last recorded |
 // | `footprint` | `(key, atom)`: the reverse index a selection reads, keyed on the key |
 // | `items` | each Rust file's items as `nv-scan --items` read them at the base tree, per platform |
@@ -63,6 +63,9 @@ export interface AtomRow {
   kind: AtomKind;
   def: string;
   verdict: Verdict;
+  /** For an `owed` atom, the changed keys it executes, gathered over every change that owed it: what a
+   * bench is skipped by when they are proven. Null when any change owed it for a reason no key gives. */
+  owedItems: string[] | null;
   /** Milliseconds since the epoch of the last recorded run, 0 for none. */
   lastRun: number;
   /** How many keys its footprint holds, 0 for an atom never recorded. */
@@ -93,6 +96,7 @@ const DDL = `
     keys BLOB,
     judged_ms INTEGER NOT NULL DEFAULT 0,
     recorded_ms INTEGER NOT NULL DEFAULT 0,
+    owed_items TEXT NOT NULL DEFAULT '',
     UNIQUE (id, platform)
   );
   CREATE TABLE IF NOT EXISTS keys (n INTEGER PRIMARY KEY, key TEXT NOT NULL UNIQUE, digest TEXT NOT NULL DEFAULT '');
@@ -140,10 +144,10 @@ export class SelectStore {
    * that exists by the time this one adds it is the same column. */
   private addColumns(): void {
     const have = new Set((this.db.query("PRAGMA table_info(atoms)").all() as { name: string }[]).map((c) => c.name));
-    for (const col of ["judged_ms", "recorded_ms"]) {
+    for (const [col, type] of [["judged_ms", "INTEGER NOT NULL DEFAULT 0"], ["recorded_ms", "INTEGER NOT NULL DEFAULT 0"], ["owed_items", "TEXT NOT NULL DEFAULT ''"]] as const) {
       if (have.has(col)) continue;
       try {
-        this.db.exec(`ALTER TABLE atoms ADD COLUMN ${col} INTEGER NOT NULL DEFAULT 0`);
+        this.db.exec(`ALTER TABLE atoms ADD COLUMN ${col} ${type}`);
       } catch (e) {
         if (!/duplicate column/i.test((e as Error).message)) throw e;
       }
@@ -275,20 +279,21 @@ export class SelectStore {
 
   // ---- atoms ---------------------------------------------------------------------------------------
 
-  private row(r: { id: string; kind: string; def: string; verdict: string; last_run: number; nkeys: number }): AtomRow {
-    return { id: r.id, kind: r.kind as AtomKind, def: r.def, verdict: r.verdict as Verdict, lastRun: r.last_run, keys: r.nkeys };
+  private row(r: { id: string; kind: string; def: string; verdict: string; last_run: number; nkeys: number; owed_items: string }): AtomRow {
+    const owedItems = r.verdict === "owed" && r.owed_items !== "" ? (JSON.parse(r.owed_items) as string[]) : null;
+    return { id: r.id, kind: r.kind as AtomKind, def: r.def, verdict: r.verdict as Verdict, owedItems, lastRun: r.last_run, keys: r.nkeys };
   }
 
   atom(id: string): AtomRow | null {
-    const r = this.stmt("SELECT id, kind, def, verdict, last_run, nkeys FROM atoms WHERE id = ? AND platform = ?").get(id, this.platform) as any;
+    const r = this.stmt("SELECT id, kind, def, verdict, last_run, nkeys, owed_items FROM atoms WHERE id = ? AND platform = ?").get(id, this.platform) as any;
     return r ? this.row(r) : null;
   }
 
   atoms(kind?: AtomKind): AtomRow[] {
     const rows = (
       kind
-        ? this.stmt("SELECT id, kind, def, verdict, last_run, nkeys FROM atoms WHERE platform = ? AND kind = ? ORDER BY id").all(this.platform, kind)
-        : this.stmt("SELECT id, kind, def, verdict, last_run, nkeys FROM atoms WHERE platform = ? ORDER BY id").all(this.platform)
+        ? this.stmt("SELECT id, kind, def, verdict, last_run, nkeys, owed_items FROM atoms WHERE platform = ? AND kind = ? ORDER BY id").all(this.platform, kind)
+        : this.stmt("SELECT id, kind, def, verdict, last_run, nkeys, owed_items FROM atoms WHERE platform = ? ORDER BY id").all(this.platform)
     ) as any[];
     return rows.map((r) => this.row(r));
   }
@@ -355,7 +360,7 @@ export class SelectStore {
       for (const k of ids) if (fresh || !oldSet.has(k)) ins.run(k, n);
       const sorted = [...ids].sort((a, b) => a - b);
       this.db
-        .query("UPDATE atoms SET def = ?, verdict = ?, last_run = ?, nkeys = ?, keys = ? WHERE n = ?")
+        .query("UPDATE atoms SET def = ?, verdict = ?, last_run = ?, nkeys = ?, keys = ?, owed_items = '' WHERE n = ?")
         .run(run.def, run.verdict, run.at ?? Date.now(), sorted.length, pack(sorted), n);
     });
   }
@@ -384,16 +389,26 @@ export class SelectStore {
 
   /** Sets an atom's verdict without touching its footprint. */
   setVerdict(id: string, verdict: Verdict): void {
-    this.stmt("UPDATE atoms SET verdict = ?, last_run = ? WHERE id = ? AND platform = ?").run(verdict, Date.now(), id, this.platform);
+    this.stmt("UPDATE atoms SET verdict = ?, last_run = ?, owed_items = '' WHERE id = ? AND platform = ?").run(verdict, Date.now(), id, this.platform);
   }
 
   /** Marks each known atom of `ids` owed, keeping a red one red; returns how many it marked. An atom
-   * the store does not know has no footprint, and is selected as new without a mark. */
-  owe(ids: Iterable<string>): number {
+   * the store does not know has no footprint, and is selected as new without a mark. `itemsOf` names
+   * the changed keys an atom is owed for, or null for none: an atom already owed adds them to the ones
+   * it holds, and one null on either side leaves it with none. */
+  owe(ids: Iterable<string>, itemsOf: (id: string) => string[] | null = () => null): number {
     let n = 0;
-    const q = this.stmt("UPDATE atoms SET verdict = 'owed' WHERE id = ? AND platform = ? AND verdict != 'red'");
+    const was = this.stmt("SELECT verdict, owed_items FROM atoms WHERE id = ? AND platform = ?");
+    const q = this.stmt("UPDATE atoms SET verdict = 'owed', owed_items = ? WHERE id = ? AND platform = ? AND verdict != 'red'");
     this.transaction(() => {
-      for (const id of ids) n += q.run(id, this.platform).changes;
+      for (const id of ids) {
+        const r = was.get(id, this.platform) as { verdict: string; owed_items: string } | null;
+        if (r === null) continue;
+        const held = r.verdict !== "owed" ? [] : r.owed_items === "" ? null : (JSON.parse(r.owed_items) as string[]);
+        const items = itemsOf(id);
+        const merged = held === null || items === null ? "" : JSON.stringify([...new Set([...held, ...items])].sort());
+        n += q.run(merged, id, this.platform).changes;
+      }
     });
     return n;
   }

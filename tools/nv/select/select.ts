@@ -448,8 +448,20 @@ export interface Selected {
   id: string;
   kind: AtomKind;
   why: Why;
-  /** For `key`: each changed key the footprint holds, with where it came from. */
+  /** For `key`, and for `owed` with `owed` set: each changed key the footprint holds, with where it came
+   * from. */
   keys: { key: string; origin: Origin }[];
+  /** For `owed`: the changed keys the atom was owed for, null or absent when it was owed for another
+   * reason. */
+  owed?: string[] | null;
+}
+
+/** The changed keys a selected atom executes, or null when it runs for a reason no key gives: what a
+ * bench is skipped by when all of them are proven, and what an atom owed by this run keeps. */
+export function changedItems(s: Selected): string[] | null {
+  if (s.why === "key") return [...new Set(s.keys.map((k) => k.key))];
+  if (s.why === "owed" && s.owed) return [...new Set([...s.owed, ...s.keys.map((k) => k.key)])];
+  return null;
 }
 
 export interface Selection {
@@ -482,7 +494,7 @@ export function query(store: SelectStore, change: ChangeSet, opts: QueryOptions 
   const add = (id: string, why: Why, key?: { key: string; origin: Origin }) => {
     const was = selected.get(id);
     if (was) {
-      if (key && was.why === "key") was.keys.push(key);
+      if (key && (was.why === "key" || (was.why === "owed" && was.owed))) was.keys.push(key);
       return;
     }
     selected.set(id, { id, kind: kindOfAtom(id), why, keys: key ? [key] : [] });
@@ -514,7 +526,10 @@ export function query(store: SelectStore, change: ChangeSet, opts: QueryOptions 
     if (change.global) add(a.id, "global", { key: WILD, origin: change.moved.get(WILD)! });
     else if (a.keys === 0) add(a.id, "new");
     else if (a.verdict === "red") add(a.id, "red");
-    else if (a.verdict === "owed") add(a.id, "owed");
+    else if (a.verdict === "owed") {
+      add(a.id, "owed");
+      selected.get(a.id)!.owed = a.owedItems;
+    }
     else if (opts.defs?.has(a.id)) {
       if (opts.defs.get(a.id) !== a.def) add(a.id, "def");
     } else if (defTouched.has(a.id) || ((a.kind === "proof" || a.kind === "bench") && tomlDirs.has(dirname(a.id.slice(a.id.indexOf(":") + 1))))) {

@@ -5,7 +5,7 @@ import { failedLabels, seedable } from "../select/seed.ts";
 import { proofFiles } from "../select/atoms.ts";
 import { advance } from "../select/record.ts";
 import { type FileItems, scanItems } from "../keys/scan.ts";
-import { type ChangeSet, computeChange, counts, discover, explain, isGlobal, query } from "../select/select.ts";
+import { type ChangeSet, changedItems, computeChange, counts, discover, explain, isGlobal, query } from "../select/select.ts";
 import { SelectStore } from "../select/store.ts";
 import { join } from "node:path";
 import { scratch } from "./scratch.ts";
@@ -93,6 +93,34 @@ describe("the reverse-index query", () => {
     expect(sel.selected.get("test:proc lib proc")?.why).toBe("owed");
     s.recordRun("test:proc lib proc", { def: "", verdict: "green", keys: new Map() });
     expect(query(s, change([])).selected.has("test:proc lib proc")).toBe(false);
+  });
+
+  test("an atom owed for changed keys keeps them, a key that moves while it is owed joins them, and one owed for no key keeps none", () => {
+    const s = store();
+    const gcd = "fn:crates/s/src/math.rs#gcd";
+    s.owe(["test:math lib math", "test:proc lib proc"], (id) => (id === "test:math lib math" ? [gcd] : null));
+    const sel = query(s, change([["class:core\\math", "crates/s/src/math.rs"]]));
+    const math = sel.selected.get("test:math lib math")!;
+    expect(math.why).toBe("owed");
+    expect(changedItems(math)).toEqual([gcd, "class:core\\math"]);
+    expect(changedItems(sel.selected.get("test:proc lib proc")!)).toBeNull();
+    s.owe(["test:math lib math"], () => ["class:core\\math"]);
+    expect(s.atom("test:math lib math")!.owedItems).toEqual(["class:core\\math", gcd]);
+    s.owe(["test:math lib math"]);
+    expect(s.atom("test:math lib math")!.owedItems).toBeNull();
+    s.owe(["test:math lib math"], () => [gcd]);
+    expect(s.atom("test:math lib math")!.owedItems).toBeNull();
+    s.recordRun("test:math lib math", { def: "", verdict: "green", keys: new Map([[gcd, ""]]) });
+    s.owe(["test:math lib math"], () => [gcd]);
+    expect(s.atom("test:math lib math")!.owedItems).toEqual([gcd]);
+  });
+
+  test("the run that moves the tree owes each atom it did not run for the changed keys that selected it", () => {
+    const s = store();
+    const c = { ...change([["class:core\\math", "crates/s/src/math.rs"]]), tree: { commit: "c1", overlay: {} } };
+    advance(s, c, query(s, c), new Set(), null);
+    expect(s.atom("test:math lib math")!.owedItems).toEqual(["class:core\\math"]);
+    expect(s.atom("test:meta bin meta")!.owedItems).toEqual(["class:*"]);
   });
 
   test("an atom discovered on disk and unknown to the store is new", () => {

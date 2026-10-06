@@ -60,7 +60,7 @@ async function load() {
     import("../select/select.ts"),
   ]);
   const { advance, fullChange, pool, Recorder } = record;
-  return { metadata: graph.metadata, benchDef: atoms.benchDef, benchFiles: atoms.benchFiles, benchId: atoms.benchId, proofDef: atoms.proofDef, proofId: atoms.proofId, recordedIn: extract.recordedIn, advance, fullChange, pool, Recorder, computeChange: select.computeChange, query: select.query };
+  return { metadata: graph.metadata, benchDef: atoms.benchDef, benchFiles: atoms.benchFiles, benchId: atoms.benchId, proofDef: atoms.proofDef, proofId: atoms.proofId, recordedIn: extract.recordedIn, advance, fullChange, pool, Recorder, changedItems: select.changedItems, computeChange: select.computeChange, query: select.query };
 }
 
 let loaded: ReturnType<typeof load> | undefined;
@@ -152,8 +152,9 @@ export interface RedBench {
 
 /**
  * A bench a change reaches, and the changed items it executes: the changed keys its recorded footprint
- * holds. `items` is null for a bench that runs whatever is proven: one never recorded, last red or owed,
- * whose own files changed, or reached by a change to the whole tree.
+ * holds, or that an earlier run owed it for. `items` is null for a bench that runs whatever is proven:
+ * one never recorded, last red, owed for a reason no key gives, whose own files changed, or reached by a
+ * change to the whole tree.
  */
 export interface Reach {
   path: string;
@@ -229,7 +230,7 @@ export async function planBenches(reach: Reach[], judge: (path: string) => Promi
  * failed.
  */
 export async function runBenches(say: (line: string) => void = () => {}): Promise<{ reached: number; ran: number; skipped: Map<string, string[]>; red: RedBench[] } | string> {
-  const { advance, benchFiles, benchId, computeChange, fullChange, metadata, query, Recorder } = await engine();
+  const { advance, benchFiles, benchId, changedItems, computeChange, fullChange, metadata, query, Recorder } = await engine();
   const { DEFAULT_WSL_NVS, growthOf } = await import("../cmd/scaling.ts");
   const { knownGap } = await import("./collect.ts");
   const { releaseBinary } = await import("./run.ts");
@@ -255,7 +256,7 @@ export async function runBenches(say: (line: string) => void = () => {}): Promis
       const verdicts = new Map<string, Verdict>();
       const reach: Reach[] = chosen.map((path) => {
         const s = sel.selected.get(benchId(path))!;
-        return { path, items: s.why === "key" ? [...new Set(s.keys.map((k) => k.key))] : null };
+        return { path, items: changedItems(s) };
       });
       const plan = await planBenches(reach, async (path) => {
         say(`benches: ${verdicts.size + 1}/${chosen.length} judging ${path}`);
@@ -266,8 +267,10 @@ export async function runBenches(say: (line: string) => void = () => {}): Promis
         return !green;
       });
       const { nvs } = await buildCovws({ onLine: cargoLines("benches: building the covws debug nvs") });
-      // A skipped bench keeps its recorded footprint and verdict, so the tree moves past it too.
+      // A skipped bench keeps its recorded footprint, so the tree moves past it too. Only a green bench
+      // is skipped, and one an earlier run owed is green again.
       const ran = new Set([...plan.skipped.keys()].map(benchId));
+      for (const id of ran) store.setVerdict(id, "green");
       for (const [i, path] of plan.ran.entries()) {
         say(`benches: ${i + 1}/${plan.ran.length} recording ${path}`);
         await recordBench(rec, nvs, join(rec.dir, "bench"), path, verdicts.get(path)!);
