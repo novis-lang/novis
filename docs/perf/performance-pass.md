@@ -326,6 +326,46 @@ more than the agreement test allows, because the Karatsuba levels below Toom-3 s
 so the tool reports it unclear and does not judge it. The size cannot go higher: one `Core\BigInt`
 result is at most 1,048,576 bits.
 
+## The growth proof
+
+Every feature's perf proof now checks how its bench grows. `bun nv scaling` runs the bench at
+batches that double from 16. The four counts per operation must stay the same at every batch.
+If the bench's work depends on the size of its input, a `.scale.nvs` sibling grows the input too.
+Its cost must then grow no faster than the bench's `// bench: complexity` line says. The counts
+decide. The clock is printed and never fails a bench. Callgrind runs only when the counts show no
+clear pattern.
+
+**The bench tree does about a tenth of the work it did.** Each bench's `// bench: iterations` is
+now about twice the batch at which its ramp shows a clear pattern. `bun nv scaling --budget`
+counts the statements every bench runs at its own count:
+
+| | Benches | Statements |
+|---|---|---|
+| Before | 997 | 1,180,279,719 |
+| After | 997 | 111,779,166 |
+
+`docs/perf/bench-budget.json` stores the after figure. It may only go down.
+
+**A change reruns only the benches it reaches.** `bun nv affected --run` records which code each
+bench runs. A later change reruns only the benches that run the changed code. It also skips a bench
+when two other benches already ran the same changed code with no change in their growth. If one of
+them shows a change in growth, every bench that runs that code runs again.
+
+One real change, a one-line edit to `value_identical` in
+[`crates/nvs-runtime/src/identity.rs`](../../crates/nvs-runtime/src/identity.rs), reached 27 of the
+998 benches. 2 ran and 25 were skipped, all proven by `core/Arr/contains` and `core/Arr/diff`.
+The first `--run` on a machine has no record yet, so it runs all 998 benches once.
+
+**These benches needed callgrind, and it did not give a clear pattern either.** Their statements
+stay flat, so none of them grows. They keep their iteration count and are not judged:
+
+- `core/Http-TlsInfo/cipher`, `verified`, `version`, ramped to 1024, 512 and 512
+- `core/IO/isFile`, `core/IO/read`, ramped to 128
+- `core/IO-File/seek`, `core/IO-File/write`, ramped to 128
+- `core/IO-Metadata/isDir`, ramped to 128
+
+No bench reached the ramp's ceiling of 4096 without a clear pattern.
+
 ## What we checked and found fine
 
 The 953 benches `bun nv scaling --iterations` judged flat, `.scale.nvs` and `.twin.nvs` siblings

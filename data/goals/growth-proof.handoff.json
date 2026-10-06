@@ -1,28 +1,23 @@
 {
-  "state": "**Goal `growth-proof`. Stage 5's check should pass on the driver's next sweep. Stage 3 should too.** No floor is carried.\n\nA whole `--iterations --sized` run on this tree found one oversized bench, `core/IO-Metadata/isDir`: both ramps settled at 128. Re-run alone, its ramp was `unclear`, so `--lower` left it, and it was lowered to 256 by hand. A lower N cannot fail the check. Every whole run so far has named a different borderline bench. If the next sweep names another, lower it the same way.\n\n`planBenches` (`tools/nv/proofs/select.ts`) orders the benches a change reaches, runs each one that `benchOrder` puts first and cannot skip, and skips a bench whose changed items are all proven by `PROVEN_BY` (2) benches with no degradation. A degradation unproves the items of the bench that showed it, so every bench sharing one runs, including one passed over before. An item is a changed key in the bench's `Selected.keys`. A bench selected for any other reason (new, red, owed, def, global, diverged) has `items: null` and always runs. `runBenches` judges through it, records only what ran, and passes the skipped ones to `advance` as ran, so each keeps its footprint and verdict. `nv affected --run` prints each skipped bench with its provers and the reached / ran / skipped / red counts. `tools/nv/test/bench-skip.test.ts` holds the four names the Stage 5 check wants. They print only when `CLAUDECODE` is unset, which is how the driver runs it.\n\nDegradation is the growth verdict alone: a rise in the per-operation counts is not compared yet. The provers are printed, not stored in any ledger.\n\n`core/Process-Handle/writeStdin` is a known gap owned by M10. The `unclear` benches do not fail Stage 3's check.",
+  "state": "**Goal `growth-proof`: every check should pass on the driver's next sweep, and the session reports `DONE`.**\n\nA whole `bun nv scaling --iterations --sized` run on this tree passed: 943 flat, 0 grow, 8 unclear, 440 skipped, and no bench runs more iterations than its ramp needs. Earlier whole runs each named a different borderline bench. If the sweep names another, lower its `// bench: iterations` to twice the batch its ramps settled at, as was done for `core/IO-Metadata/isDir`. A lower N cannot fail the check.\n\n`bun nv scaling --budget` passes: 997 benches run 111,779,166 statements. The same benches at the commit before Stage 3 lowered them ran 1,180,279,719. `bun nv proofs --gate` owes nothing.\n\n`nv affected --run` now skips benches in practice. Verify runs first and owes each bench it reached and did not run, and an owed atom used to lose the changed keys that reached it, so every bench ran. `SelectStore.owe` now keeps those keys in the `owed_items` column, and `changedItems` (`tools/nv/select/select.ts`) gives them back. A revert of a one-line `identity.rs` edit reached 27 benches: 2 ran and 25 were skipped.\n\n`docs/perf/performance-pass.md` § *The growth proof* holds the figures and the 8 unclear benches.",
   "next": {
     "stage": 6,
     "title": "what the user reads",
     "files": [
       "docs/perf/performance-pass.md",
-      "tools/nv/cmd/proofs.ts"
+      "tools/nv/cmd/scaling.ts"
     ],
     "items": [
       {
         "done": false,
-        "text": "**Write `## The growth proof` in `docs/perf/performance-pass.md`**: what the proof checks, the bench tree's work before and after Stage 3 (`bun nv scaling --budget`), the reran and skipped counts of one real change's `nv affected --run`, and each bench that needed callgrind or ended unclear, as the goal's `## Stage 6` says. The first `--run` on a machine pays for every bench. Spec: `rule:testing/feature-proofs`, anchor `docs/perf/performance-pass.md:1`."
-      },
-      {
-        "done": false,
-        "text": "**`bun nv proofs --gate` owes nothing, growth included**: run it and close what it names. Anchor `tools/nv/cmd/proofs.ts:1`."
+        "text": "**Only if the driver's sweep is red on Stage 3:** lower the bench it names to twice the batch its ramps settled at, and add it to the unclear list in `docs/perf/performance-pass.md` if its ramp was unclear. Spec: `rule:testing/feature-proofs`, anchor `tools/nv/cmd/scaling.ts:158`."
       }
     ]
   },
   "backlog": [
-    "A degradation also counts a rise in a bench's per-operation counts, beside its growth: `runBenches` at `tools/nv/proofs/select.ts` judges growth only (the goal's `## Stage 5`).",
-    "The ledger names the benches that proved a skipped bench (the goal's `## Stage 5`): today only `nv affected --run` prints them.",
-    "The driver's sweep runs the benches a change reaches: no check holds a bench atom yet.",
-    "Stage 4's decision record on when a perf figure counts as current (the goal's `## Stage 4`).",
-    "The `writeStdin` gap, which M10 owns (`data/gaps/`)."
+    "Degradation is the growth verdict alone: a rise in the per-operation counts is not compared yet (`tools/nv/proofs/select.ts`).",
+    "The provers of a skipped bench are printed, not stored in any ledger (`tools/nv/proofs/select.ts`).",
+    "`core/Process-Handle/writeStdin` is a known gap owned by M10.",
+    "Whole `--iterations --sized` runs disagree on which borderline bench is oversized; the second-ramp rule in `tools/nv/cmd/scaling.ts` narrows it but does not close it."
   ]
 }
