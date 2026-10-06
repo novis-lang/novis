@@ -315,6 +315,7 @@ use x25519_dalek::{PublicKey as X25519PublicKey, StaticSecret};
 
 use nvs_runtime::{Fault, NvsStr, ThrownClass, Value};
 
+use crate::ext_record::Part;
 use crate::registry::{
     CaseDoc, ClassDoc, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc, MethodDoc,
     ParamDoc, Qual,
@@ -3468,6 +3469,41 @@ nvs_runtime::nvs_helper! {
         let key = PublicKey::read(encoded, kind, format).map_err(|refusal| key_refused(&refusal))?;
         public_key_instance(&key, "Core\\Crypto\\PublicKey::read")
     }
+}
+
+/// The `public-key` record's field of the `Core\Crypto\PublicKey` `value`, its
+/// SubjectPublicKeyInfo, for `crate::ext_record`.
+///
+/// # Errors
+///
+/// [`key_of`]'s.
+pub(crate) fn ext_parts(value: Value) -> Result<Vec<Part>, Fault> {
+    let key = key_of(&[value], 0, "ext_parts")?;
+    // Unreachable from source: `public_key_instance` wrote this key's SubjectPublicKeyInfo once
+    // already, and writing it again cannot fail where the first write did not.
+    let spki = key
+        .write(KeyFormat::Spki)
+        .map_err(|_| Fault::fatal("Core\\Crypto\\PublicKey could not write its own key"))?;
+    Ok(vec![Part::Bytes(spki)])
+}
+
+/// A `Core\Crypto\PublicKey` from a guest's `public-key` record, of the first kind that reads
+/// its SubjectPublicKeyInfo.
+pub(crate) fn ext_built(parts: &[Part]) -> Option<Value> {
+    let [Part::Bytes(spki)] = parts else {
+        return None;
+    };
+    let kinds = [
+        KeyKind::P256,
+        KeyKind::X25519,
+        KeyKind::Ed25519,
+        KeyKind::RsaPkcs1,
+        KeyKind::RsaPss,
+    ];
+    let key = kinds
+        .into_iter()
+        .find_map(|kind| PublicKey::read(spki, kind, KeyFormat::Spki).ok())?;
+    public_key_instance(&key, "Core\\Crypto\\PublicKey").ok()
 }
 
 /// A `Core\Crypto\PublicKey` over `key`, which is the one place [`PUBLIC_KEY`]'s

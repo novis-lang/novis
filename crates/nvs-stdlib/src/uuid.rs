@@ -123,6 +123,8 @@ use uuid::{Builder, Uuid};
 
 use nvs_runtime::{Fault, NvsStr, Value};
 
+use crate::ext_record::Part;
+
 use crate::registry::{
     ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
@@ -375,6 +377,24 @@ fn built(value: Uuid) -> Value {
 /// the max, and this module's own docs say which of them `parse` accepts.
 pub(crate) fn of_octets(octets: [u8; 16]) -> Value {
     built(Uuid::from_bytes(octets))
+}
+
+/// The `uuid` record's fields of the `Core\Uuid` `value`, for `crate::ext_record`.
+///
+/// # Errors
+///
+/// [`uuid_of`]'s.
+pub(crate) fn ext_parts(value: Value) -> Result<Vec<Part>, Fault> {
+    let (high, low) = uuid_of(&[value], 0, "ext_parts")?.as_u64_pair();
+    Ok(vec![Part::Uint(high), Part::Uint(low)])
+}
+
+/// A `Core\Uuid` from a guest's `uuid` record. Every pair of halves is one.
+pub(crate) fn ext_built(parts: &[Part]) -> Option<Value> {
+    match parts {
+        [Part::Uint(high), Part::Uint(low)] => Some(built(Uuid::from_u64_pair(*high, *low))),
+        _ => None,
+    }
 }
 
 /// The buffer [`canonical`] renders into, zeroed. A caller copies it, so the

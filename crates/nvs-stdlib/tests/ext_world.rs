@@ -817,3 +817,38 @@ fn every_image_builder_member_maps_to_an_export_a_plan_step_or_novis_source() {
     }
     assert!(problems.is_empty(), "\n{}", problems.join("\n"));
 }
+
+/// `nvs_stdlib::ext_record` reads and builds exactly the classes the host crosses, and a record
+/// whose fields make no value of its class is refused before an instance is made.
+#[test]
+fn ext_record_crosses_the_hosts_classes_and_refuses_a_record_no_member_could_make() {
+    use nvs_stdlib::ext_record::{self, Part};
+
+    let host: Vec<&str> = CORE_CLASSES.iter().map(|record| record.class).collect();
+    assert_eq!(ext_record::CLASSES, host.as_slice());
+
+    let refused = [
+        (
+            "Core\\Time\\Date",
+            vec![Part::Int(2024), Part::Int(2), Part::Int(30)],
+        ),
+        (
+            "Core\\Time\\Zone",
+            vec![Part::String("Shop/Nowhere".to_owned())],
+        ),
+        (
+            "Core\\Time\\Instant",
+            vec![Part::Int(0), Part::Int(1_000_000_000)],
+        ),
+        ("Core\\Uri", vec![Part::String("a b".to_owned())]),
+        ("Core\\Crypto\\PublicKey", vec![Part::Bytes(vec![1, 2, 3])]),
+        ("Core\\Uuid", vec![Part::Int(1), Part::Int(2)]),
+        ("Core\\Decimal", vec![Part::String("1.5".to_owned())]),
+    ];
+    for (class, parts) in refused {
+        assert!(
+            ext_record::built(class, parts).is_err(),
+            "{class} was built"
+        );
+    }
+}

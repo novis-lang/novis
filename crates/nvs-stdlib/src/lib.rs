@@ -166,6 +166,7 @@ mod debug;
 mod decimal;
 mod encoding;
 mod env;
+pub mod ext_record;
 mod fatal;
 pub mod format;
 pub mod granularity;

@@ -28,9 +28,10 @@
 //! (`nvs_runtime::Value::shape_fields`). A returned record is converted by the manifest's declared
 //! return type, and a shape in it is built as an instance of the class the compiled unit declared
 //! for its label (`nvs_runtime::Ctx::new_shape`), which the lowering records for every shape in
-//! an extension method's return type. A value with no row in the table — an enum case, a `Core`
-//! value class, a resource — is refused as `ExtensionError` before the guest runs, and one
-//! returned is refused as `ExtensionError` after it.
+//! an extension method's return type. A `Core` value class crosses as its record's fields, which
+//! `nvs_stdlib::ext_record` reads from the instance and builds a fresh instance from, with the
+//! checks the class's own constructor makes. An enum case and a resource do not cross yet: one
+//! passed in is refused as `ExtensionError` before the guest runs, and one returned after it.
 //!
 //! **A compiled component is kept in the artifact cache a program's units are kept in**
 //! (`rule:packaging/a-wasm-module-cache-reuses-the-artifact-cache`). [`Modules`] is
@@ -61,8 +62,9 @@ use nvs_diagnostics::{Diagnostic, SourceMap};
 use nvs_ext::call::{Host, Meter, Outcome, Request};
 use nvs_ext::convert::{Key, Value as Crossed, fits};
 use nvs_ext::load::{CacheKey, Entry, Loader, ModuleCache, Set};
-use nvs_ext::types::{Field, NovisType};
+use nvs_ext::types::{CORE_CLASSES, CoreRecord, Field, NovisType};
 use nvs_runtime::{Ctx, Fault, HelperResult, NvsArray, NvsStr, SlotKey, Tag, ThrownClass, Value};
+use nvs_stdlib::ext_record::Part;
 
 use crate::cache::Cache;
 
@@ -321,14 +323,27 @@ fn crossed(value: Value) -> Result<Crossed, String> {
             }
             Crossed::Array(entries)
         }
-        Some(Tag::Object) => match value.shape_fields() {
-            Some(fields) => Crossed::Array(
+        Some(Tag::Object) => match (value.shape_fields(), nvs_stdlib::ext_record::parts(value)) {
+            (Some(fields), _) => Crossed::Array(
                 fields
                     .into_iter()
                     .map(|(name, field)| Ok((Key::String(name), crossed(field)?)))
                     .collect::<Result<_, String>>()?,
             ),
-            None => Crossed::Object(value.class_name().unwrap_or_default()),
+            (None, Some(read)) => {
+                let (class, parts) = read?;
+                let fields = core_record(class)?
+                    .fields
+                    .iter()
+                    .zip(parts)
+                    .map(|((name, _), part)| ((*name).to_owned(), crossed_part(part)))
+                    .collect();
+                Crossed::Core {
+                    class: class.to_owned(),
+                    fields,
+                }
+            }
+            (None, None) => Crossed::Object(value.class_name().unwrap_or_default()),
         },
         Some(tag) => {
             return Err(format!(
@@ -390,13 +405,56 @@ fn runtime(ctx: &Ctx, ty: &NovisType, value: Crossed) -> Result<Value, String> {
         Crossed::Case(name) => {
             return Err(format!("the enum case `{name}` does not cross back yet"));
         }
-        Crossed::Core { class, .. } => {
-            return Err(format!("a `{class}` does not cross back yet"));
+        Crossed::Core { class, mut fields } => {
+            let record = core_record(&class)?;
+            let parts = record
+                .fields
+                .iter()
+                .map(|(name, _)| {
+                    let at = fields
+                        .iter()
+                        .position(|(field, _)| field == name)
+                        .ok_or_else(|| format!("a `{class}` with no `{name}`"))?;
+                    part(fields.swap_remove(at).1)
+                })
+                .collect::<Result<_, _>>()?;
+            return nvs_stdlib::ext_record::built(&class, parts);
         }
         Crossed::Object(class) => return Err(format!("a `{class}` object does not cross back")),
         Crossed::Resource { name, .. } => {
             return Err(format!("the resource `{name}` does not cross back yet"));
         }
+    })
+}
+
+/// The record the `Core` value class `class` crosses as.
+fn core_record(class: &str) -> Result<&'static CoreRecord, String> {
+    CORE_CLASSES
+        .iter()
+        .find(|record| record.class == class)
+        .ok_or_else(|| format!("a `{class}` does not cross"))
+}
+
+/// One field of a `Core` value class's record, as it crosses into a guest.
+fn crossed_part(part: Part) -> Crossed {
+    match part {
+        Part::Bool(flag) => Crossed::Bool(flag),
+        Part::Int(number) => Crossed::Int(number),
+        Part::Uint(number) => Crossed::Uint(number),
+        Part::String(text) => Crossed::String(text),
+        Part::Bytes(octets) => Crossed::Bytes(octets),
+    }
+}
+
+/// One field of a `Core` value class's record, as a guest returned it.
+fn part(value: Crossed) -> Result<Part, String> {
+    Ok(match value {
+        Crossed::Bool(flag) => Part::Bool(flag),
+        Crossed::Int(number) => Part::Int(number),
+        Crossed::Uint(number) => Part::Uint(number),
+        Crossed::String(text) => Part::String(text),
+        Crossed::Bytes(octets) => Part::Bytes(octets),
+        other => return Err(format!("a record field of no record type: {other:?}")),
     })
 }
 

@@ -149,6 +149,8 @@ use nvs_runtime::host::Woken;
 use nvs_runtime::{Ctx, Fault, NvsStr, ThrownClass, Value};
 use nvs_syntax::duration;
 
+use crate::ext_record::Part;
+
 use crate::registry::{
     CaseDoc, ClassDoc, Const, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreOption, CoreTy,
     EnumDoc, ErrorDoc, MethodDoc, ParamDoc, Qual,
@@ -3274,6 +3276,110 @@ pub(crate) fn instant_from_iso(text: &str) -> Option<Value> {
 /// [`Option`]: the caller is an encoder and has no member to name in a fault.
 pub(crate) fn instant_iso(value: Value) -> Option<String> {
     Some(instant_of(&[value], 0, "toIso").ok()?.to_string())
+}
+
+/// The fields of the record `class` crosses as, read from the instance `value`, for
+/// `crate::ext_record`.
+///
+/// # Errors
+///
+/// The reader's own, where a slot holds what this module never writes.
+pub(crate) fn ext_parts(class: &str, value: Value) -> Result<Vec<Part>, Fault> {
+    let args = [value];
+    let member = "ext_parts";
+    Ok(match class {
+        "Core\\Time\\Instant" => {
+            let at = instant_of(&args, 0, member)?;
+            vec![
+                Part::Int(at.as_second()),
+                Part::Int(i64::from(at.subsec_nanosecond())),
+            ]
+        }
+        "Core\\Time\\DateTime" => {
+            let at = zoned_of(&args, 0, member)?;
+            let zone = match at.time_zone().iana_name() {
+                Some(name) => name.to_owned(),
+                None => render_offset(at.offset().seconds()),
+            };
+            vec![
+                Part::Int(at.timestamp().as_second()),
+                Part::Int(i64::from(at.timestamp().subsec_nanosecond())),
+                Part::String(zone),
+            ]
+        }
+        "Core\\Time\\Date" => {
+            let at = date_of(&args, 0, member)?;
+            vec![
+                Part::Int(i64::from(at.year())),
+                Part::Int(i64::from(at.month())),
+                Part::Int(i64::from(at.day())),
+            ]
+        }
+        "Core\\Time\\TimeOfDay" => {
+            let at = clock_of(&args, 0, member)?;
+            vec![
+                Part::Int(i64::from(at.hour())),
+                Part::Int(i64::from(at.minute())),
+                Part::Int(i64::from(at.second())),
+                Part::Int(i64::from(at.subsec_nanosecond())),
+            ]
+        }
+        "Core\\Time\\Duration" => vec![Part::Int(nanos_of(&args, 0, member)?)],
+        "Core\\Time\\Zone" => {
+            let object = crate::instance::receiver(value, &ZONE, member)?;
+            let held = crate::instance::slot(object, ZONE_ID_SLOT);
+            // Unreachable from source: `zone_built` is the only writer of this slot, and it
+            // writes a string.
+            let id = held
+                .as_text()
+                .ok_or_else(|| Fault::fatal("Core\\Time\\Zone found a non-`string` `id` slot"))?;
+            vec![Part::String(id.to_owned())]
+        }
+        _ => {
+            return Err(Fault::fatal(format!(
+                "`{class}` is not a `Core\\Time` class"
+            )));
+        }
+    })
+}
+
+/// A fresh instance of `class` from a guest's record fields, or `None` where they make no
+/// value of it: the same checks a program's arguments meet.
+pub(crate) fn ext_built(class: &str, parts: &[Part]) -> Option<Value> {
+    let small = |value: i64| u8::try_from(value).ok();
+    match (class, parts) {
+        ("Core\\Time\\Instant", [Part::Int(seconds), Part::Int(nanos)]) => {
+            let at = Timestamp::new(*seconds, i32::try_from(*nanos).ok()?).ok()?;
+            Some(instant_built(at))
+        }
+        ("Core\\Time\\DateTime", [Part::Int(seconds), Part::Int(nanos), Part::String(zone)]) => {
+            let at = Timestamp::new(*seconds, i32::try_from(*nanos).ok()?).ok()?;
+            Some(datetime_built(&Zoned::new(at, resolve_zone(zone)?)))
+        }
+        ("Core\\Time\\Date", [Part::Int(year), Part::Int(month), Part::Int(day)]) => {
+            date_at(i32::try_from(*year).ok()?, small(*month)?, small(*day)?)
+        }
+        (
+            "Core\\Time\\TimeOfDay",
+            [
+                Part::Int(hour),
+                Part::Int(minute),
+                Part::Int(second),
+                Part::Int(nanos),
+            ],
+        ) => time_of_day_at(
+            small(*hour)?,
+            small(*minute)?,
+            small(*second)?,
+            u32::try_from(*nanos).ok()?,
+        ),
+        ("Core\\Time\\Duration", [Part::Int(nanos)]) => Some(duration_of(*nanos)),
+        ("Core\\Time\\Zone", [Part::String(id)]) => {
+            resolve_zone(id)?;
+            Some(zone_built(id))
+        }
+        _ => None,
+    }
 }
 
 /// The `Instant` in argument slot `at` — slot 0 for a receiver, any other slot

@@ -380,6 +380,7 @@ use fluent_uri::resolve::ResolveError;
 use fluent_uri::{ParseErrorKind, Uri, UriRef};
 use nvs_runtime::{Fault, HelperResult, NvsArray, NvsStr, Tag, Value};
 
+use crate::ext_record::Part;
 use crate::registry::{
     ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc,
     Qual, ShapeKeyDoc,
@@ -1523,6 +1524,29 @@ fn built(reference: &UriRef<&str>, member: &str) -> HelperResult {
             text(reference.fragment().map(EStr::as_str)),
         ],
     ))
+}
+
+/// The `uri` record's field of the `Core\Uri` `value`, its text, for `crate::ext_record`.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] where the text slot is not a string, which only this module writes.
+pub(crate) fn ext_parts(value: Value) -> Result<Vec<Part>, Fault> {
+    let receiver = crate::instance::receiver(value, &CLASS, "ext_parts")?;
+    let held = crate::instance::slot(receiver, TEXT_SLOT);
+    // Unreachable from source: `built` is the only writer of this slot, and it writes a string.
+    let text = held
+        .as_text()
+        .ok_or_else(|| Fault::fatal("Core\\Uri found a non-`string` text slot"))?;
+    Ok(vec![Part::String(text.to_owned())])
+}
+
+/// A `Core\Uri` from a guest's `uri` record: its text parsed again, as `Core\Uri::parse` does.
+pub(crate) fn ext_built(parts: &[Part]) -> Option<Value> {
+    match parts {
+        [Part::String(text)] => built(&read(text, "ext_built").ok()?, "ext_built").ok(),
+        _ => None,
+    }
 }
 
 /// One of the receiver's slots, handed back with a reference of its own.

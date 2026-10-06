@@ -75,6 +75,8 @@ use num_bigint::{BigInt, Sign};
 use num_integer::Integer;
 use nvs_runtime::{Decimal, Fault, NvsStr, ThrownClass, Value};
 
+use crate::ext_record::Part;
+
 use crate::registry::{
     ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
@@ -809,6 +811,31 @@ fn operand(args: &[Value], at: usize, member: &str) -> Result<BigInt, Fault> {
         },
         bytes,
     ))
+}
+
+/// The `big-int` record's fields of the `Core\BigInt` `value`, for `crate::ext_record`: the
+/// magnitude big-endian with no leading zero byte, and zero an empty one that is not negative.
+///
+/// # Errors
+///
+/// [`operand`]'s.
+pub(crate) fn ext_parts(value: Value) -> Result<Vec<Part>, Fault> {
+    let (sign, magnitude) = operand(&[value], 0, "ext_parts")?.to_bytes_be();
+    Ok(match sign {
+        Sign::NoSign => vec![Part::Bool(false), Part::Bytes(Vec::new())],
+        sign => vec![Part::Bool(sign == Sign::Minus), Part::Bytes(magnitude)],
+    })
+}
+
+/// A `Core\BigInt` from a guest's `big-int` record. A zero magnitude is zero, whatever its sign.
+pub(crate) fn ext_built(parts: &[Part]) -> Option<Value> {
+    match parts {
+        [Part::Bool(negative), Part::Bytes(magnitude)] => {
+            let sign = if *negative { Sign::Minus } else { Sign::Plus };
+            built(&BigInt::from_bytes_be(sign, magnitude)).ok()
+        }
+        _ => None,
+    }
 }
 
 /// The `uint` in argument slot `at`, for a shift width or an exponent.
