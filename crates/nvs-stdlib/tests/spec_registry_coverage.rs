@@ -1886,9 +1886,8 @@ fn classes_spelled(name: &str) -> Vec<&'static registry::CoreClass> {
 /// [docs/spec/02-php-migration.md](/docs/spec/02-php-migration.md) name, and
 /// how many rows produced them.
 ///
-/// **Every spelling in the cell, not the cell.** That file's *How to read a
-/// row* says a cell holding exactly one member is the rename `nvs convert`
-/// applies while a cell naming two is prose the converter may not act on — but
+/// **Every spelling in the cell, not the cell.** A cell holding exactly one
+/// member is a rename and a cell naming two is prose, but
 /// `rule:php-migration/every-php-builtin-is-a-completion-candidate`
 /// makes the second one *completion items* in an editor, one per member, so
 /// both shapes reach a person and both have to resolve. A cell that names a

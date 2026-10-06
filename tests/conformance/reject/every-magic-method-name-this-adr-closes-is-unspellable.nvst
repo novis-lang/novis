@@ -10,8 +10,8 @@ each of the six magic method names `rule:classes/no-magic-methods` closes is ref
 class Legacy {
     public string $name = "boxy";
 
-    // § 1: `Stringable::toString` is the replacement, and the rename the
-    // diagnostic suggests is the one `nvs convert` makes at M11.
+    // § 1: `Stringable::toString` is the replacement, and the diagnostic
+    // suggests the rename.
     public function __toString(): string {
         return $this->name;
     }

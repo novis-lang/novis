@@ -37,12 +37,11 @@
 //! nothing now and is what keeps a later fix — one that adds a line above the
 //! one under the cursor — reachable from the place it is about.
 //!
-//! # Decision: `safe` gates the converter, not the light bulb
+//! # Decision: `safe` does not gate the light bulb
 //!
 //! [`nvs_diagnostics::Suggestion::safe`] says whether applying an edit is known
 //! to preserve behaviour, and the legacy cast's is not: `(int)$x` truncates
-//! where `$x as int` throws. `nvs convert` reads that field to choose between
-//! rewriting silently and leaving a `TODO`; an editor does not, because a code
+//! where `$x as int` throws. An editor offers the edit anyway, because a code
 //! action is applied by a person who was shown the title first
 //! (`rule:ide/a-quick-fix-is-a-diagnostics-own-suggestion`). Suppressing the
 //! offer would leave the one spelling Novis refuses with no way to reach the

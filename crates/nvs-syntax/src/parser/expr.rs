@@ -811,10 +811,9 @@ impl<'src, 'd> Parser<'src, 'd> {
             ));
             // The rewrite the help line describes, computed once here rather
             // than by whoever reads it: an editor offers it as a code action
-            // (`rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`)
-            // and `nvs convert` writes it with a `TODO` beside it. Unsafe
-            // because it is exactly the behaviour change the help line names —
-            // the cast truncated where `as` throws — so a converter must not
+            // (`rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`).
+            // Unsafe because it is exactly the behaviour change the help line
+            // names — the cast truncated where `as` throws — so no tool may
             // apply it silently. An operand that did not parse gets no fix: its
             // text is whatever the recovery consumed rather than an expression.
             if !matches!(operand.kind, ExprKind::Error(_))

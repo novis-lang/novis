@@ -109,8 +109,8 @@ pub struct Label {
 
 /// A machine-applicable edit.
 ///
-/// Consumed by the LSP as a code action, by `nvs convert` when rewriting PHP,
-/// and printed as a suggestion on the terminal.
+/// Consumed by the LSP as a code action, and printed as a suggestion on the
+/// terminal.
 #[derive(Clone, Debug)]
 pub struct Suggestion {
     /// The range to replace.
@@ -121,8 +121,7 @@ pub struct Suggestion {
     pub message: String,
     /// Whether applying this is known to preserve behaviour.
     ///
-    /// `false` means a human must review it — `nvs convert` uses this to decide
-    /// between rewriting silently and leaving a `TODO`.
+    /// `false` means a human must review it before it is applied.
     pub safe: bool,
     /// Whether this is one of several edits a person chooses between.
     ///

@@ -1360,9 +1360,9 @@ fn binary_operator_spelling(op: BinaryOp) -> &'static str {
 }
 
 /// `rule:types/array-combination`: binary `+` and `+=` with an array operand are a compile error naming
-/// `Core\Arr::underlay`. PHP's array union operator is *removed*, not migrated,
-/// so there is no silent behaviour change to fall into — the operator simply
-/// stops compiling, and `nvs convert` rewrites `$a + $b` to the member.
+/// `Core\Arr::underlay`. The array union operator does not exist, so there is
+/// no silent behaviour change to fall into — the operator simply stops
+/// compiling, and the diagnostic names the member.
 ///
 /// Returns `Some` once diagnosed, `None` for every other operand pair so
 /// [`arithmetic_result`]'s own table runs unchanged. The recovery type is the
