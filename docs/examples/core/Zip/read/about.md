@@ -1,5 +1,4 @@
-Reads one file out of a zip archive and returns its content as bytes, already decompressed. It
-replaces PHP's `ZipArchive::getFromName` and `zip_entry_read`.
+Reads one file out of a zip archive and returns its content as bytes, already decompressed.
 
 You name the file exactly as `Core\Zip::entries` lists it. A name that
 is not in the archive throws a `ParseError`. The whole archive is checked first, so an archive with

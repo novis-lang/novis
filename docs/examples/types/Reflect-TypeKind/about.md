@@ -6,7 +6,6 @@ The ten are `Null`, `Bool`, `Int`, `Uint`, `Float`, `Decimal`, `Text`, `Bytes`, 
 Every value is in exactly one of them and never in two, so a `match` covering all ten needs no
 fallback arm and no answer can be argued with.
 
-**Good to know:** this is the single question PHP asked with fourteen — the whole `is_*` family plus
-`gettype`. It also draws lines that family could not: a whole number that cannot be negative is
-`Uint` and not `Int`, an exact `Decimal` is never a `Float`, and a run of octets is `Bytes` rather
-than text that happens to hold them. A callable is an object, so it has no kind of its own.
+**Good to know:** a whole number that cannot be negative is `Uint` and not `Int`, an exact `Decimal`
+is never a `Float`, and a run of octets is `Bytes` rather than text that happens to hold them. A
+callable is an object, so it has no kind of its own.

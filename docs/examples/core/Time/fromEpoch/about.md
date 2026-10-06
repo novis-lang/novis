@@ -1,5 +1,5 @@
 Builds an `Instant` from a Unix timestamp. A Unix timestamp is the number of seconds since
-1 January 1970 at midnight in UTC. It replaces PHP's `DateTime::setTimestamp`.
+1 January 1970 at midnight in UTC.
 
 A negative number of seconds is a time before 1970. The `nanos` option adds nanoseconds after the
 second. So `-1` with `{nanos: 500000000}` is half a second after `-1`, not before it.

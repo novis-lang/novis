@@ -1,6 +1,4 @@
-Waits for a `Duration`, such as `500ms` or `2s`, and then continues. It replaces PHP's `sleep`,
-`usleep`, `time_nanosleep` and `time_sleep_until`, because the `Duration` already says which unit
-you mean.
+Waits for a `Duration`, such as `500ms` or `2s`, and then continues.
 
 A wait of zero or less returns at once and does not throw an error. This is useful when you compute
 the time that is left until a deadline, and the deadline has already passed. While one program

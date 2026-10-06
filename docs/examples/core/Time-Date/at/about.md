@@ -7,5 +7,4 @@ right type for a birthday, a due date or a holiday.
 that year. When the numbers are not a date in the calendar, such as 30 February, `at` throws a
 `RuntimeError`. You can catch that error to check a date that a person typed into a form.
 
-**Good to know:** the year must be between -9999 and 9999. If you come from PHP, this check
-replaces `checkdate`.
+**Good to know:** the year must be between -9999 and 9999.

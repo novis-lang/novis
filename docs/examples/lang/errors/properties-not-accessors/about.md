@@ -1,7 +1,7 @@
 A caught error gives you what it knows as properties, and there are no accessor methods.
 
-Coming from PHP: `getMessage()`, `getPrevious()`, `getTrace()`, `getFile()`, `getLine()` and
-`getCode()` do not exist. Write `$e->message` instead.
+`getMessage()`, `getPrevious()`, `getTrace()`, `getFile()`, `getLine()` and `getCode()` do not
+exist. Write `$e->message` instead.
 
 Every error has the same four properties. `message` is the text it was created with. `previous` is
 the error that caused it, or `null`. `backtrace` is one line per function the throw came out of,

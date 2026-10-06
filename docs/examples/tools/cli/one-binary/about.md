@@ -8,5 +8,5 @@ the binary, and `nvs --version` prints the version. `nvs --help` lists every com
 
 Every command takes `--config <PATH>` and `--help`.
 
-**Good to know:** `nvs` has none of PHP's short options. `-i`, `-a`, `-r` and `-f` do not exist.
-Each of these operations is a command.
+**Good to know:** the short options `-i`, `-a`, `-r` and `-f` do not exist. Each of these
+operations is a command.

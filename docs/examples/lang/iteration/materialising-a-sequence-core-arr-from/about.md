@@ -1,4 +1,4 @@
-`Core\Arr::from` turns a sequence into a plain array. It replaces PHP's `iterator_to_array`.
+`Core\Arr::from` turns a sequence into a plain array.
 
 It takes whatever a `foreach` loop takes: an array, a generator, an object you can walk, or a `Core`
 collection. The result is an `array<T>` numbered from `0`, holding the values in the order the

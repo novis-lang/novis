@@ -6,5 +6,4 @@ path of the executable. The **Licensing** part has the license of `nvs`, which i
 third-party component with its version and its license. `--licenses` adds the full text of every
 license.
 
-**Good to know:** this is the information that `php -i` prints for PHP. `nvs -i` does not exist,
-and it ends with exit status `2`.
+**Good to know:** `nvs -i` does not exist, and it ends with exit status `2`.

@@ -9,5 +9,4 @@ away from zero, `Down` toward it.
 
 **Good to know:** all six work at any precision, so they can settle the second decimal, not only the
 whole number. They are about distance from zero rather than about the number line, so `Up` on a
-negative value moves it further below zero. They replace PHP's four `PHP_ROUND_HALF_*` constants and
-reach further than those do.
+negative value moves it further below zero.

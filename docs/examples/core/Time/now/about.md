@@ -1,5 +1,5 @@
 Reads the current time from the system clock and returns it as an `Instant`. An `Instant` is one
-moment, the same everywhere in the world. It replaces PHP's `time`, `microtime` and `date_create`.
+moment, the same everywhere in the world.
 
 An `Instant` has no time zone. To get a date and a time of day, call `->in($zone)` with the zone
 you want. You can store the moment with `toIso` or `toEpochSeconds` and read it back later. To

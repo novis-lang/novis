@@ -1,5 +1,4 @@
-An object becomes text through the interface `Stringable`, whose one method is `toString`. It
-replaces PHP's `__toString`.
+An object becomes text through the interface `Stringable`, whose one method is `toString`.
 
 A class that implements it can be written out in four places: `echo`, the `.` operator that joins two
 texts, a value inside a string like `"{$price}"`, and the cast `as string`. Novis calls `toString` at

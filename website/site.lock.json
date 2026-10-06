@@ -32,7 +32,7 @@
   "syntax/basics/files-and-statements.mdx": {
     "lang:programs/a-program-is-a-file-of-top-level-statements": "f51c46ee225c7f7a",
     "lang:programs/code-mode-and-html-mode": "2886116d78f17597",
-    "lang:programs/names-and-casing": "a65bd70500311de2"
+    "lang:programs/names-and-casing": "a0598dc42be3ced8"
   },
   "syntax/basics/variables.mdx": {
     "lang:types/every-binding-has-a-type": "dd36d2fa193703ff"
@@ -65,13 +65,13 @@
   "syntax/classes/property-hooks.mdx": {
     "lang:classes/property-hooks": "8c5217027713ba4e",
     "lang:classes/propertyobserver": "4e8f9bfde3c2b73b",
-    "PropertyObserver": "87615bf94d657464"
+    "PropertyObserver": "fc09c9224ac182ba"
   },
   "syntax/classes/standard-interfaces.mdx": {
     "Comparable": "391e6f137abae931",
     "lang:classes/comparable": "9d838bf89caea2d5",
     "lang:classes/parses": "2c15005ea53bab37",
-    "lang:classes/stringable": "bf20b8f76c264fe3",
+    "lang:classes/stringable": "e8c292a790bcece8",
     "Parses": "76732b35d3fe313a",
     "Stringable": "2a07d08fab1b1475"
   },
@@ -99,16 +99,16 @@
   },
   "syntax/control-flow/foreach.mdx": {
     "lang:iteration/core-collections-are-iterable": "08f8f188a02fd1a8",
-    "lang:iteration/materialising-a-sequence-core-arr-from": "203059a10ea31651",
+    "lang:iteration/materialising-a-sequence-core-arr-from": "e7de2a77d17594f5",
     "lang:iteration/what-foreach-walks": "ca10e817647a6dea",
-    "lang:statements/foreach": "cefe6ab334771322"
+    "lang:statements/foreach": "b0ca328d6f788037"
   },
   "syntax/control-flow/if.mdx": {
     "lang:statements/expression-statements-blocks-and-declarations": "71a1c5759975c3b3",
     "lang:statements/if-elseif-else": "946ee20be0f204c7"
   },
   "syntax/control-flow/iterators.mdx": {
-    "Iterable": "53d3557d152aeade",
+    "Iterable": "00f00c8752d0a6b8",
     "Iterator": "c3226424f53707ac",
     "lang:iteration/generators": "1ccd38934acd8957",
     "lang:iteration/the-two-interfaces": "1885960b8b9f3b50",
@@ -137,15 +137,15 @@
     "lang:statements/catch-as-an-expression": "afbf4d44ec9c0788"
   },
   "syntax/errors/error-types.mdx": {
-    "ArithmeticError": "00307a366b7e0370",
+    "ArithmeticError": "fc4903c59062fa25",
     "Core\\Cli\\NotInteractive": "0a53529b7f05636f",
     "Core\\Db\\DbError": "563bb55ceeee5be9",
     "Core\\Db\\RolledBack": "e253aa9c8bdbe69f",
     "Core\\Script\\Finished": "d67e0a8d12713160",
     "IOError": "dcea56a0ab16c5c1",
     "lang:errors/constructing-and-subclassing": "728544e799ad3a70",
-    "lang:errors/properties-not-accessors": "62cd42bca2285c3c",
-    "lang:errors/the-throwable-tree": "6d219b3203bfa153",
+    "lang:errors/properties-not-accessors": "6c7355f56135af3a",
+    "lang:errors/the-throwable-tree": "3be6dd2d91fe730a",
     "LogicError": "cd5f4e4f9909071d",
     "ParseError": "745c7b0b84cecbaf",
     "RecursionError": "3cb3c356b0494e81",
@@ -186,13 +186,13 @@
   },
   "syntax/operators/comparison.mdx": {
     "lang:expressions/comparison-and-equality": "d9461e5271186485",
-    "lang:expressions/logical-operators-and-truth": "76e639b7f85e12a8"
+    "lang:expressions/logical-operators-and-truth": "0663b1a35e760b91"
   },
   "syntax/operators/null-coalescing.mdx": {
     "lang:expressions/and-the-ternary": "d082efd61d67d36b"
   },
   "syntax/operators/pipeline.mdx": {
-    "lang:expressions/the-pipeline-operator": "581f6b4c82db1363"
+    "lang:expressions/the-pipeline-operator": "9d763af1cbb9a1f6"
   },
   "syntax/operators/precedence.mdx": {
     "lang:expressions/operators-php-has-that-do-not-parse": "3e99546919aed506",
@@ -237,7 +237,7 @@
     "lang:types/widening-without-as": "e529d28265d3af00"
   },
   "syntax/values/bool-and-null.mdx": {
-    "lang:types/truthiness": "ba0f72220bb24482"
+    "lang:types/truthiness": "35fe22ad06ff5d67"
   },
   "syntax/values/enums.mdx": {
     "Core\\Audience": "690d2a6edc2eb591",
@@ -246,7 +246,7 @@
     "Core\\Cli\\ColorDepth": "afd592785674a6b0",
     "Core\\Cli\\Shell": "cc3f0d4acf8c5b60",
     "Core\\Cli\\Stream": "741da5e23b34666b",
-    "Core\\Codec": "84e6b51dafee9a9e",
+    "Core\\Codec": "ceca58eb0f5310eb",
     "Core\\Crypto\\Cipher": "5a9e86551fcbb7a7",
     "Core\\Crypto\\KeyFormat": "0ecfd18820d46c78",
     "Core\\Crypto\\KeyKind": "96a638ba9f6235f7",
@@ -259,18 +259,18 @@
     "Core\\Digest": "7f189cdefeebb30e",
     "Core\\Env\\Mode": "211dbe615cc04807",
     "Core\\Http\\Method": "d25e4847da784935",
-    "Core\\IO\\FileMode": "89e2d0c9a8dc996c",
+    "Core\\IO\\FileMode": "d714c8fae0ec8d3d",
     "Core\\Log\\Level": "d8db2f410fc2697e",
     "Core\\Mime\\Type": "119a652662bc378b",
     "Core\\NormalForm": "2a7f4d239a0330f1",
-    "Core\\Order": "b889d7c1a9a80c8f",
+    "Core\\Order": "4595f4191bdb28f9",
     "Core\\Queue\\State": "1e124e915d5e5234",
-    "Core\\Reflect\\TypeKind": "99bd81bfd50e460b",
+    "Core\\Reflect\\TypeKind": "08634109206ba0db",
     "Core\\Response\\Redirect": "20235b5b589d8229",
     "Core\\Response\\SameSite": "36c681ae41db640d",
-    "Core\\RoundMode": "d481cd918ab6f7a6",
+    "Core\\RoundMode": "f96986b86889a57a",
     "Core\\Script\\ExitReason": "76691588cdc22e1b",
-    "Core\\SetOn": "e8686a61e64d960b",
+    "Core\\SetOn": "a200841d5048a9d5",
     "Core\\Unit": "325e36d708bf2e5a",
     "Core\\Weekday": "2f056b0af834e8c0",
     "Core\\Xml\\NodeKind": "432da8b0356a5c5c",

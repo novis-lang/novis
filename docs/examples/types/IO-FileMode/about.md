@@ -1,5 +1,4 @@
-What an open file is allowed to do, and what opening it does to whatever is already in the file. It
-replaces the mode string PHP's `fopen` takes.
+What an open file is allowed to do, and what opening it does to whatever is already in the file.
 
 There are four. `Read` only reads, from a file that must already exist. `Write` only writes, and
 empties the file the moment you open it, creating it if it is not there. `Append` only writes, always

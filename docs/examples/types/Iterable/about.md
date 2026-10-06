@@ -9,5 +9,4 @@ Each loop asks for a fresh stepper, so the same object can be walked more than o
 over it can nest. A loop over an `Iterable` binds the value alone: there is no key.
 
 **Good to know:** a class is walkable only because it declares this interface. Nothing else gets a
-`foreach` in — not a property walk, and not a count turned into a method call. It replaces
-PHP's `IteratorAggregate`.
+`foreach` in — not a property walk, and not a count turned into a method call.

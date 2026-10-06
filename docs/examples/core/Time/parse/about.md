@@ -1,5 +1,5 @@
 Reads a date and time from text, using a pattern that says how the text is written, and returns a
-`DateTime` in the time zone you give. It replaces PHP's `DateTime::createFromFormat` and `strptime`.
+`DateTime` in the time zone you give.
 
 The pattern uses letters for each part: `yyyy` is the year, `MM` the month, `dd` the day, `HH` the
 hour and `mm` the minute. Other characters, such as `-` or `.`, must appear in the text exactly as

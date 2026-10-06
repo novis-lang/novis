@@ -9,5 +9,3 @@ can be in a different time zone.
 
 **Good to know:** a day is not always 24 hours. In Berlin the clocks move forward on 31 March 2024.
 From 12:00 on 30 March to 12:00 on 31 March is 1 day, and it is 23 hours.
-
-If you come from PHP, `difference` replaces `date_diff`.

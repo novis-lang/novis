@@ -1,6 +1,5 @@
 Reads a date and time written as text, such as `2024-06-01T09:30:00+02:00`, and returns an
 `Instant`. The text must follow ISO 8601, the international standard way to write a date and time.
-It replaces PHP's `strtotime` and `new DateTime` for this kind of text.
 
 The text needs a date, a time and an offset from UTC. The offset is `Z` for UTC, or a value such as
 `+02:00`. Part of a second, such as `.25`, is kept. A text without an offset throws a `ParseError`.

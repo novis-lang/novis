@@ -8,8 +8,7 @@ Without `|>` you write one call inside another, and you read the steps from the 
 outside. Both forms do the same work, and `|>` adds no cost when the program runs.
 
 **Good to know:** each step needs exactly one `$_`. A step with none, or with two, does not
-compile. In PHP 8.5 the right side of `|>` is a function. Here it is the call itself, with `$_` in
-it.
+compile. The right side of `|>` is the call itself, with `$_` in it.
 
 **The examples below** clean up a form field in two steps, then build a URL slug in five steps,
 then tidy a list of tags.

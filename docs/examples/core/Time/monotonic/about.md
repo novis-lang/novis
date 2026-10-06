@@ -1,6 +1,5 @@
 Reads a clock that only moves forward and returns a `Duration`. Use it to measure how long
-something takes: read it before and after, and subtract the first reading from the second. It
-replaces PHP's `hrtime`.
+something takes: read it before and after, and subtract the first reading from the second.
 
 The value alone has no meaning. It counts from a fixed starting point in the running program, not
 from a date. A later reading is never smaller than an earlier one, even when somebody changes the

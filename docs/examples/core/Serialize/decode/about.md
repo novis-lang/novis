@@ -1,5 +1,5 @@
-`Core\Serialize::decode()` builds a value again from the `bytes` that `Core\Serialize::encode()`
-returned. It replaces PHP's `unserialize()`.
+`Core\Serialize::decode()` builds a value again from the `bytes` that
+`Core\Serialize::encode()` returned.
 
 An object in the result is a new object of the class with the same name in your program. Its
 constructor does not run. The bytes must come from `encode()`. If they are cut short, have extra bytes

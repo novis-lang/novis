@@ -10,5 +10,4 @@ The result shows the value in its own time zone. To print the same moment for an
 convert the value to that time zone first.
 
 **Good to know:** a pattern with a mistake does not compile when you write it directly in the call.
-A pattern that your program builds while it runs throws a `LogicError`. If you come from PHP,
-`format` replaces `date` and `strftime`.
+A pattern that your program builds while it runs throws a `LogicError`.

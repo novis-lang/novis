@@ -1,28 +1,28 @@
 {
-  "state": "**Goal `php-oracle-retired`: Stages 6, 7 and 8 are on disk; Stage 9 is next.** ADR 0274 (`docs/decisions/0274.md`) is the goal's record.\n\nStage 8 is closed: `git grep -c -w -i php -- 'docs/rules/*/*.md'` lists only the rules kept on purpose. Those are the open-tag and `<?php`/E0229 lines (`statements/nvs-is-the-only-open-tag`, `ide/highlighting-is-two-layers`, `ide/a-string-converts-to-an-html-template`), the superglobals table (`statements/no-host-populated-variables`), the `.php` editor-coexistence rules (`ide/nvs-is-its-own-file-type`, `ide/the-extension-claims-nvs-only`, `ide/phpstorm-bridges-to-the-same-server`), `packaging/help-text-speaks-to-its-reader`, the benchmark rules (`tooling/bench-engine-list-is-data`, `testing/userland-benchmarks`, `testing/perf-*`), the PHP-habit diagnostics (`core-api/legacy-property-shapes-name-the-visibility`, `core-api/removals`, `types/callable-is-the-only-function-type`), `programs/three-claims` (the claim about comparison pages) and `programs/no-compatibility-promise`.\n\nThe four Stage 9 checks the driver reports red are the work of the next group onwards.",
+  "state": "**Goal `php-oracle-retired`: Stages 6, 7 and 8 are on disk; Stage 9 is under way.** ADR 0274 (`docs/decisions/0274.md`) is the goal's record.\n\nStage 9 file set 1 is closed: no `about.md` under `docs/examples/` outside `tools/php-differences` says what it replaces in PHP, so `no-about-md-says-what-it-replaces-in-php` is green. Every `about.md` under `docs/examples/core/` and `docs/examples/types/` names PHP nowhere. Under `lang/` and `tools/`, PHP is named only where the page is about a PHP habit: the `what-does-not-exist`, `*-that-do-not-parse` and `refused-in-expression-position` pages, the `<?php`/E0229 lines, `enums/what-replaces-php-s-enum-members` and the two `tools/agents` pages. `docs/examples/README.md` § *The description* no longer invites the hint.\n\nThe other three Stage 9 checks are red and are the next group onwards: the registry text, the website components and the concept page.",
   "next": {
     "stage": 9,
-    "title": "the reader's text steps back",
+    "title": "the registry text",
     "files": [],
-    "note": "one file set: `about.md` files under `docs/examples/core/`, `lang/` and `types/` (goal prose § *Stage 9*, file set 1). 245 files carry the sentence; 242 are under `core/` (Arr 45, Math 37, Str 29, IO 23, then many small classes). The sentence often wraps across lines, so each file is edited by hand, not by a regex.",
+    "note": "one file set: the reference cards and helper doc comments under `crates/nvs-stdlib/src/` (goal prose § *Stage 9* item 2).",
     "items": [
       {
         "done": false,
-        "text": "**Delete \"It replaces PHP's `x`.\" from the `Arr`, `Math` and `Str` about.md files** — goal prose § *Stage 9* item 1; `docs/examples/core/Arr/all/about.md:1`, listed by `git grep -l -i \"replaces PHP\" -- 'docs/examples/core/Arr/*about.md' 'docs/examples/core/Math/*about.md' 'docs/examples/core/Str/*about.md'`. Where the sentence opened the file, the file opens with what the feature does; follow `AGENTS.md` § *Text an end user reads*. Split across subagents by class (`AGENTS.md` rule 12), one commit per class."
+        "text": "**Delete what a member replaces in PHP from every card's `short`, `ret` and `desc`** — `rule:core-api/reference-card`; `crates/nvs-stdlib/src/math.rs:1`, `crates/nvs-stdlib/src/str.rs:1`, `crates/nvs-stdlib/src/arr.rs:1`, listed by `git grep -n -i -e \"as PHP\" -e \"PHP's\" -- crates/nvs-stdlib/src`. The card states what the member does, in the voice of `AGENTS.md` § *Text an end user reads*."
       },
       {
         "done": false,
-        "text": "**The same for every other class under `docs/examples/core/`, and the three under `lang/` and `types/`** — `docs/examples/core/IO/read/about.md:1`; then `docs/examples/README.md:55` stops inviting the hint. That turns `no-about-md-says-what-it-replaces-in-php` green."
+        "text": "**Add the test `no_member_text_says_what_it_replaces_in_php`** — the check `nvs-stdlib-no-member-text-says-what-it-replaces-in-php`; beside `every_registry_row_carries_a_reference_card` in `crates/nvs-stdlib/src/registry.rs:1`. It walks every card's text and fails on a PHP replacement phrase."
       },
       {
         "done": false,
-        "text": "**The registry text** — goal prose § *Stage 9* item 2; `crates/nvs-stdlib/src/math.rs:1`, `crates/nvs-stdlib/src/str.rs:1`; the check `no_member_text_says_what_it_replaces_in_php` in `nvs-stdlib` has to be written too."
+        "text": "**The website components** — the check `the-website-shows-no-php-replacement-fact`; `website/src/components/MethodSignature.astro:9` still lists a PHP fact, and `website/src/data/core.json:27072` carries a card's \"replacement for PHP's\" text, which the registry item above regenerates away. A different file set, so take it only with room to spare."
       }
     ]
   },
   "backlog": [
-    "Stage 9 items 3–5 (website, the concept page `docs/reference/tools/30-php-differences.md`, the lang chapters, `README.md:24-30`, `benches/members/` comments) — goal prose § *Stage 9*.",
-    "`full run: 1 selection miss` on `tools/nv/test/html-later-polyfill.test.ts` is red in the driver's sweep and not touched by this goal's work; check whether it is a flake or a real regression before closing the goal.",
-    "`proofs --gate` is red — read `bun nv proofs --gate` once Stage 9 lands, since it pins Stage 10."
+    "The example programs beside the pages still name PHP in their comments and file names (`docs/examples/core/Password/verify/02-a-hash-that-php-made.nvs:2`); file names stay (goal § *Standing decisions*), and the comments are for the Stage 9 example pass if the goal prose names one.",
+    "The concept page check `the-concept-page-has-no-translation-tables` — goal prose § *Stage 9*, `docs/examples/tools/php-differences/`.",
+    "`bun nv proofs --gate` (Stage 10) — run once the Stage 9 checks are green."
   ]
 }

@@ -1,9 +1,8 @@
 The error a calculation raises when it has no right answer.
 
-Dividing by zero is the usual way to meet it. So is a remainder by zero, and a total too large for the
-whole-number type it was going to be kept in. PHP answers infinity for the first and quietly turns the
-second into a rounded floating-point number; Novis stops the calculation instead, so a wrong figure
-never reaches a page, a database row or an invoice.
+Dividing by zero is the usual way to meet it. So is a remainder by zero, and a total too large for
+the whole-number type it was going to be kept in. The calculation stops, so a wrong figure never
+reaches a page, a database row or an invoice.
 
 Catching it by name handles the one case a program expects — an empty basket, a missing baseline — and
 leaves every other kind of failure alone. The message it carries names the operation that gave up.

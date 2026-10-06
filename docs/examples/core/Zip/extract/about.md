@@ -1,10 +1,9 @@
-Writes every file of a zip archive into a folder and returns the number of files it wrote. It
-replaces PHP's `ZipArchive::extractTo`. The folder is created if it does not exist, and so is every
-folder the archive names inside it. The program needs the `fs.read` and `fs.write` capabilities for
-the folder.
+Writes every file of a zip archive into a folder and returns the number of files it wrote. The
+folder is created if it does not exist, and so is every folder the archive names inside it. The
+program needs the `fs.read` and `fs.write` capabilities for the folder.
 
 The whole archive is checked before anything is written. An archive with one unsafe name, such as
-`../config.php` or a file inside more than 64 folders, throws a `ParseError` and writes no file at
+`../config.ini` or a file inside more than 64 folders, throws a `ParseError` and writes no file at
 all. `extract` never replaces a file:
 a name that already exists throws an `IOError`.
 

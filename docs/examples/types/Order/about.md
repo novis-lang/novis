@@ -1,8 +1,7 @@
 The direction a sort puts things in: `Asc` for smallest first, `Desc` for largest first.
 
 `Core\Arr::sort` and `Core\Arr::sortByKey` both take it as an option, and both put the smallest
-first when you say nothing. One option covers what PHP spreads over `sort`, `rsort`, `arsort` and
-`krsort`, so the direction is something you set rather than a function name you have to remember.
+first when you say nothing.
 
 Smallest first means whatever smaller means for what you are sorting: lower numbers first, and
 earlier letters first for text.

@@ -1,9 +1,8 @@
 `Core\Config` reads the configuration from a program and changes some settings for the current
 request.
 
-The methods `get`, `set`, `restore` and `all` replace PHP's `ini_get`, `ini_set`, `ini_restore`
-and `ini_get_all`. A setting's name is its path in the file with dots, such as
-`limits.hard.memory` or `log.level`. A limit also has a short name: `memory` is `limits.memory`.
+A setting's name is its path in the file with dots, such as `limits.hard.memory` or `log.level`.
+A limit also has a short name: `memory` is `limits.memory`.
 
 `get` returns the value as a string, written the way the file has it. It returns `null` when
 nothing set the name, and when the name is a table or a list.

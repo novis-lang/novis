@@ -7,8 +7,9 @@ with `var $key => var $value`. The key is always a `string`. You can write the t
 not compile.
 
 The value variable is a copy. With `inout`, as in `foreach ($rows as inout var $row)`, each element
-goes back into the array when the body ends. PHP's `&$value` does not compile. A plain loop walks a
-copy of the array, so adding or removing elements in the body does not change what it visits.
+goes back into the array when the body ends. The syntax `&$value` does not compile. A plain
+loop walks a copy of the array, so adding or removing elements in the body does not change what
+it visits.
 
 **The examples below** show values, then keys with values, then `inout`, each with `var` first and
 a written type after. The last one loops over what a function returns.

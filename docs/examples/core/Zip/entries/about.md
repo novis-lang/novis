@@ -1,5 +1,4 @@
 Lists the names of the files and folders in a zip archive, in the order the archive stores them.
-It replaces PHP's `ZipArchive::statIndex` and `zip_entry_name`.
 
 The archive is checked before any name is returned. If one name is unsafe, the whole call throws a
 `ParseError` and you get no list at all. A name is unsafe when it starts at the root, such as

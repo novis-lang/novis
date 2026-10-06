@@ -3,8 +3,7 @@ them has.
 
 `Core\Arr::diff` and `Core\Arr::intersect` compare the values by default. `Values` compares values
 alone, `Keys` compares names alone, and `Both` counts an entry as matching only when the name and the
-value both match. That one option covers what PHP spreads over twelve separate `array_diff` and
-`array_intersect` functions.
+value both match.
 
 The answer always keeps the first array's names and its order, so the result reads like the list you
 started with, minus or plus whatever the question asked about.
