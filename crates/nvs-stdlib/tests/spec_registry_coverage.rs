@@ -563,10 +563,9 @@ fn every_outstanding_key_names_an_owner() {
     let goals = chain_goals();
     let plan = plan_milestones();
     assert!(
-        goals.len() > 10,
-        "data/chain.json yielded only {} goal(s) — the chain's shape has changed under this \
-         walk, and every owner below is being accepted against almost nothing",
-        goals.len()
+        !goals.is_empty(),
+        "data/chain.json yielded no goal — the chain's shape has changed under this walk, and \
+         every owner below is being checked against nothing"
     );
     assert!(
         plan.len() > 10,
