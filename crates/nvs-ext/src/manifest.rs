@@ -138,6 +138,11 @@ fn void() -> String {
     "void".to_string()
 }
 
+/// A key that is present, whatever its value: serde reads a `null` into an `Option` as `None`.
+fn present<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Option<Value>, D::Error> {
+    Value::deserialize(deserializer).map(Some)
+}
+
 impl Method {
     /// The name of the WIT function this method calls: its name in kebab-case, so `distanceKm` is
     /// `distance-km`.
@@ -155,8 +160,9 @@ pub struct Param {
     /// Its Novis type.
     #[serde(rename = "type")]
     pub ty: String,
-    /// The value it has when the caller leaves it out.
-    #[serde(default)]
+    /// The value it has when the caller leaves it out. `"default": null` is a default of `null`,
+    /// and only a missing key is no default.
+    #[serde(default, deserialize_with = "present")]
     pub default: Option<Value>,
     /// A `tainted` argument is refused here: the extension is a sink for it.
     #[serde(default)]
