@@ -91,6 +91,7 @@
     "security/needs-rehash-answers-weaker",
     "security/bcrypt-cost-ceiling",
     "security/bcrypt-truncation",
-    "security/an-unreadable-stored-hash-throws"
+    "security/an-unreadable-stored-hash-throws",
+    "security/a-session-id-the-store-did-not-issue-is-rejected"
   ]
 }

@@ -865,7 +865,7 @@ diagnostic, not a runtime check.
 inhabit. It is **strict** — nothing is coerced on the way to the answer — and it is **total**: it
 always compiles, and a result the checker can settle by itself folds to a constant rather than
 becoming a diagnostic. It is Novis's only type test: there is no second operator for the class case
-([`php-migration/one-type-test`](php-migration.md#php-migration-one-type-test)).
+([`types/one-type-test`](types.md#types-one-type-test)).
 
 The right-hand side is a **type**, parsed by the same production `as` uses
 ([`types/conversion`](types.md#types-conversion)), not an expression — with the single exception of § *The value arm* below,
@@ -958,9 +958,9 @@ migration spelling. `string` and `bytes` are separate the same way
 ([`types/string-is-utf8`](types.md#types-string-is-utf8), [`types/bytes`](types.md#types-bytes)), so binary data answers `is bytes` where PHP's
 `is_string()` is true. Both are consequences of a finer type system rather than of this operator, and
 `is` is simply the first spelling that makes them reachable from a mechanical rewrite of PHP source.
-What that rewrite does with PHP's own class-test operator is [`php-migration/one-type-test`](php-migration.md#php-migration-one-type-test)'s.
+What that rewrite does with PHP's own class-test operator is [`types/one-type-test`](types.md#types-one-type-test)'s.
 
-<sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/single-value-types`](types.md#types-single-value-types), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`php-migration/one-type-test`](php-migration.md#php-migration-one-type-test). Decided in [0150](../decisions/0150.md), [0192](../decisions/0192.md), [0261](../decisions/0261.md).</sub>
+<sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/single-value-types`](types.md#types-single-value-types), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`types/one-type-test`](types.md#types-one-type-test). Decided in [0150](../decisions/0150.md), [0192](../decisions/0192.md), [0261](../decisions/0261.md).</sub>
 
 <a id="types-narrowing"></a>
 
@@ -1728,12 +1728,12 @@ through a class reference is nobody's problem.
 `$x is $cls` is the dynamic class test, and it narrows its subject to `T` on the true edge
 ([`types/narrowing`](types.md#types-narrowing)) — the value it tests holds `T` or an implementor, so the narrowing is what
 the reference already promised. PHP spells this site with the operator Novis refuses
-([`php-migration/one-type-test`](php-migration.md#php-migration-one-type-test)).
+([`types/one-type-test`](types.md#types-one-type-test)).
 
 `$obj->$name` is untouched by any of this: a class reference answers "which class", never "which
 member" ([`types/property-key-access`](types.md#types-property-key-access)).
 
-<sub>See also [`types/class-reference`](types.md#types-class-reference), [`types/property-key-access`](types.md#types-property-key-access), [`types/type-test`](types.md#types-type-test), [`php-migration/one-type-test`](php-migration.md#php-migration-one-type-test). Decided in [0125](../decisions/0125.md), [0007](../decisions/0007.md), [0126](../decisions/0126.md), [0192](../decisions/0192.md).</sub>
+<sub>See also [`types/class-reference`](types.md#types-class-reference), [`types/property-key-access`](types.md#types-property-key-access), [`types/type-test`](types.md#types-type-test), [`types/one-type-test`](types.md#types-one-type-test). Decided in [0125](../decisions/0125.md), [0007](../decisions/0007.md), [0126](../decisions/0126.md), [0192](../decisions/0192.md).</sub>
 
 <a id="types-class-constant"></a>
 
@@ -1772,3 +1772,101 @@ Per evaluation the run-time form spends one load, one call and one string alloca
 charged to the isolate that asked.
 
 <sub>See also [`types/class-reference`](types.md#types-class-reference), [`types/conversion`](types.md#types-conversion), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0144](../decisions/0144.md), [0125](../decisions/0125.md), [0007](../decisions/0007.md).</sub>
+
+<a id="types-absent-storage-is-never-a-zero-value"></a>
+
+## Absent storage never reads as a zero value: an unassigned variable and `[]` in a read position are refused, and an absent key throws
+
+`rule:types/absent-storage-is-never-a-zero-value`
+
+Absent storage never reads as a zero value: a hole is answered before the program runs or thrown at.
+Reading a variable that is not definitely assigned is an error at check time; `$a[]` anywhere but as
+an assignment target is refused (`E0481`), so `$a[] .= "x"`, which would have to read an element that
+is not there yet, does not compile; and reading an absent array key **throws**, because there is no
+`null` to put in an `array<string>`, so the rule holds at run time too. A stored `null` in an
+`array<?T>` is not an absent key and reads back unchanged.
+
+`$a["k"] ?? $d` is the one exception: `??` means "absent or `null`", so the guarded read yields `$d`
+rather than throwing — refusing there would refuse the one spelling written for exactly this case,
+and the throw is what makes it worth writing. The guard covers every level of the chain under it, so
+`$a["k"]["j"] ?? $d` yields `$d` for an absent key at either depth, and a `null` base needs no
+`!= null` test in that one position. `isset` and `empty` are the same guarded read and answer rather
+than throw, and so is the read `$a["k"]["j"] ??= $d` makes of its own target: an absent key at either
+depth takes `$d`, and the write that follows is the plain `$a["k"]["j"] = $d`, which builds the row.
+Only the read is guarded, so a nullable row under a `??=` target is refused where it is written, as it
+is under `=`.
+
+<sub>See also [`types/arrays`](types.md#types-arrays), [`types/declaration`](types.md#types-declaration), [`types/mixed-subscript`](types.md#types-mixed-subscript), [`classes/no-undefined-value`](classes.md#classes-no-undefined-value), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws). Decided in [0007](../decisions/0007.md), [0254](../decisions/0254.md).</sub>
+
+<a id="types-an-element-write-needs-storage-to-write-back-into"></a>
+
+## An element write through a temporary is refused, because the separated copy has nowhere to be written back
+
+`rule:types/an-element-write-needs-storage-to-write-back-into`
+
+An element write through a temporary is refused, because copy-on-write separates the array before
+the element is written and the separated copy has to land back in whatever held the array. A
+temporary — a call's result, an array literal, a conditional — holds it nowhere, so `f()[0] = 2` is
+refused where it is written (`E0700`). The write could not have been observed by anything, so the
+refusal costs no program that did something.
+
+Every root that *is* storage is unaffected: a local, a property, a static property — and the receiver
+under a property is evaluated exactly once, however deep the chain and whichever spelling writes it.
+A temporary receiver's property is storage too: `(new Box())->rows[0] = 2` and `make()->rows[0] = 2`
+are both accepted, the field being a slot in a heap object either way. Parentheses are transparent —
+`($a)[0] = 2` writes `$a[0]`.
+
+<sub>See also [`types/arrays`](types.md#types-arrays). Decided in [0007](../decisions/0007.md).</sub>
+
+<a id="types-a-declared-type-answers-before-the-program-runs"></a>
+
+## `->` on a receiver that can hold no object is refused where it is written
+
+`rule:types/a-declared-type-answers-before-the-program-runs`
+
+`->` on a receiver whose declared type can hold no object is refused where it is written: `$i->name`
+where `$i` is declared `int` is `E0495`. A union naming no single class takes the same code, having no
+one property set to resolve against. The receiver's declaration has ruled the question out, so the
+access is dead code that reads as a live one — the same call
+[`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused) makes for `==` over two statically disjoint types.
+
+**What is refused is a receiver that can hold no object at all, not an access whose outcome is
+knowable.** The type test is the other way round and refuses nothing: `$x is T` is applicable to every
+subject, and an answer its declaration settles folds to a constant rather than reporting
+([`types/type-test`](types.md#types-type-test)).
+
+`mixed` is the exception and is answered at run time: it is the one unchecked position, so `$m->name`
+defers to [`types/erased-member-access`](types.md#types-erased-member-access)'s name-keyed fetch, which throws for a receiver that turns
+out not to be an object and for a name its class does not carry.
+
+<sub>See also [`types/erased-member-access`](types.md#types-erased-member-access), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/type-test`](types.md#types-type-test), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused). Decided in [0007](../decisions/0007.md), [0150](../decisions/0150.md), [0192](../decisions/0192.md).</sub>
+
+<a id="types-one-type-test"></a>
+
+## `instanceof` is refused where it is written, and `is` is the one type test
+
+`rule:types/one-type-test`
+
+Novis has one type test, `$x is T`, and `instanceof` is refused where it is written (`E0253`): the
+diagnostic names the rewrite — *write `$x is Request`; a class reference on the right is `$x is
+$cls`*. `is` asks every question a second class-test operator would, so a language with both would be
+carrying a keyword for a special case of its own operator. The refused word does not compile, so a
+program never changes meaning silently over it.
+
+[`types/type-test`](types.md#types-type-test) is the operator and owns its table. This rule owns the refusal and the value
+arm.
+
+| Written | Answer | Why |
+|---|---|---|
+| `$x instanceof C` | `E0253`, help *`$x is C`* | one type test |
+| `$x is $name` where `$name` is a `string` | `E0496`, help *`as class<T>`* | a class reference is checked where it is made, not at the test ([`types/class-reference-sites`](types.md#types-class-reference-sites)) |
+
+**`$x is $cls`** tests the class a value holds against the descriptor a `class<T>` carries, and
+narrows its subject to `T` on the true edge ([`types/narrowing`](types.md#types-narrowing)). The value arm starts with `$`;
+every other token after `is` starts a type.
+
+The shapes a pattern grammar would need — object and array patterns, comparison patterns, pinning,
+`match ($x) is {…}` — keep refusing as syntax Novis does not have. Any future pattern syntax is a
+Novis design question, opened by its own record and decided on Novis's priorities.
+
+<sub>See also [`types/type-test`](types.md#types-type-test), [`types/narrowing`](types.md#types-narrowing), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`statements/let-and-is-are-reserved`](statements.md#statements-let-and-is-are-reserved). Decided in [0192](../decisions/0192.md).</sub>

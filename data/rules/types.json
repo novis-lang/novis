@@ -49,6 +49,10 @@
     "types/class-reference",
     "types/class-reference-variance",
     "types/class-reference-sites",
-    "types/class-constant"
+    "types/class-constant",
+    "types/absent-storage-is-never-a-zero-value",
+    "types/an-element-write-needs-storage-to-write-back-into",
+    "types/a-declared-type-answers-before-the-program-runs",
+    "types/one-type-test"
   ]
 }

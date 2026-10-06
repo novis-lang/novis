@@ -6,7 +6,7 @@
   ],
   "divergesFromPhp": "PHP has none of the three operators; its `$a[$k]++` and `$a[$k] .= $s` on an absent key read it as `null` with a warning",
   "seeAlso": [
-    "php-migration/absent-storage-is-never-a-zero-value",
+    "types/absent-storage-is-never-a-zero-value",
     "types/arithmetic",
     "types/narrowing"
   ],

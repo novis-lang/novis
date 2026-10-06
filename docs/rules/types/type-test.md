@@ -2,7 +2,7 @@
 inhabit. It is **strict** — nothing is coerced on the way to the answer — and it is **total**: it
 always compiles, and a result the checker can settle by itself folds to a constant rather than
 becoming a diagnostic. It is Novis's only type test: there is no second operator for the class case
-(`rule:php-migration/one-type-test`).
+(`rule:types/one-type-test`).
 
 The right-hand side is a **type**, parsed by the same production `as` uses
 (`rule:types/conversion`), not an expression — with the single exception of § *The value arm* below,
@@ -95,4 +95,4 @@ migration spelling. `string` and `bytes` are separate the same way
 (`rule:types/string-is-utf8`, `rule:types/bytes`), so binary data answers `is bytes` where PHP's
 `is_string()` is true. Both are consequences of a finer type system rather than of this operator, and
 `is` is simply the first spelling that makes them reachable from a mechanical rewrite of PHP source.
-What that rewrite does with PHP's own class-test operator is `rule:php-migration/one-type-test`'s.
+What that rewrite does with PHP's own class-test operator is `rule:types/one-type-test`'s.

@@ -1,5 +1,5 @@
 {
-  "title": "`instanceof` is refused where it is written, `is` is the one type test, and neither keyword is compared with PHP again",
+  "title": "`instanceof` is refused where it is written, and `is` is the one type test",
   "status": "shipped",
   "because": [
     "0192"
@@ -9,8 +9,7 @@
     "types/type-test",
     "types/narrowing",
     "types/class-reference-sites",
-    "php-migration/let-and-is-are-reserved",
-    "php-migration/every-divergence-is-deliberate-and-listed"
+    "statements/let-and-is-are-reserved"
   ],
   "guardedBy": [
     "tests/conformance/reject/instanceof-is-spelled-is.nvst"

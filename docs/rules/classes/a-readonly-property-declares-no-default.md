@@ -6,5 +6,4 @@ names it, and names dropping `readonly` as the other fix. Letting the default st
 assignment would make a property spell what `const` spells — two names for one thing, the pattern
 `rule:statements/nothing-gets-a-second-name` refuses.
 
-PHP 8.6 allows the combination, chiefly for hooks in interfaces. The fix is to move the default into
-the constructor, or make it a `const`.
+The fix is to move the default into the constructor, or make it a `const`.

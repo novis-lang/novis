@@ -3,7 +3,7 @@
 
 # Expressions
 
-*4 of 30 rules below are **designed** rather than shipped, and are marked where they appear.*
+*4 of 31 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="expressions-truthy-positions"></a>
 
@@ -385,7 +385,7 @@ There are exactly three, and no syntax writes another default: `($a ?? 100) -= 1
 `$a = ($a ?? 100) - 1` is that program. `$a ??-1` is a `??` and a `-1`, because each operator ends in
 `=`.
 
-<sub>See also [`php-migration/absent-storage-is-never-a-zero-value`](php-migration.md#php-migration-absent-storage-is-never-a-zero-value), [`types/arithmetic`](types.md#types-arithmetic), [`types/narrowing`](types.md#types-narrowing). Decided in [0254](../decisions/0254.md).</sub>
+<sub>See also [`types/absent-storage-is-never-a-zero-value`](types.md#types-absent-storage-is-never-a-zero-value), [`types/arithmetic`](types.md#types-arithmetic), [`types/narrowing`](types.md#types-narrowing). Decided in [0254](../decisions/0254.md).</sub>
 
 <a id="expressions-nullable-conversion"></a>
 
@@ -773,3 +773,21 @@ the value's creation site rather than from the static type, so it holds whether 
 filled declares one.
 
 <sub>See also [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution), [`expressions/nullable-conversion-availability`](expressions.md#expressions-nullable-conversion-availability). Decided in [0027](../decisions/0027.md), [0015](../decisions/0015.md), [0031](../decisions/0031.md), [0136](../decisions/0136.md), [0007](../decisions/0007.md).</sub>
+
+<a id="expressions-no-partial-application"></a>
+
+## Partial function application is not adopted; an anonymous function already spells it
+
+`rule:expressions/no-partial-application`
+
+`f(?, $x)` and every application-with-holes shape do not parse. The value it would produce is
+exactly what the callable machinery reduced to one shape ([`types/callable-values`](types.md#types-callable-values)), and
+an anonymous function already spells every partial application: `fn($a) => f($a, $x)`
+([`types/anonymous-function`](types.md#types-anonymous-function)). A second callable-producing spelling, for no capability `fn` lacks,
+is what was rejected. Each `?` placeholder is written as a fresh parameter of that wrapper, in order.
+
+The pipeline operator is unaffected: its `$_` is a parse-time substitution, not an application
+([`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution)), and the hole diagnostic
+([`expressions/pipeline-hole-once`](expressions.md#expressions-pipeline-hole-once)) already teaches the difference.
+
+<sub>See also [`types/anonymous-function`](types.md#types-anonymous-function), [`types/callable-values`](types.md#types-callable-values), [`expressions/method-reference`](expressions.md#expressions-method-reference), [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution), [`expressions/pipeline-hole-once`](expressions.md#expressions-pipeline-hole-once). Decided in [0124](../decisions/0124.md), [0027](../decisions/0027.md), [0031](../decisions/0031.md).</sub>

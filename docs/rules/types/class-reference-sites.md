@@ -22,7 +22,7 @@ through a class reference is nobody's problem.
 `$x is $cls` is the dynamic class test, and it narrows its subject to `T` on the true edge
 (`rule:types/narrowing`) — the value it tests holds `T` or an implementor, so the narrowing is what
 the reference already promised. PHP spells this site with the operator Novis refuses
-(`rule:php-migration/one-type-test`).
+(`rule:types/one-type-test`).
 
 `$obj->$name` is untouched by any of this: a class reference answers "which class", never "which
 member" (`rule:types/property-key-access`).

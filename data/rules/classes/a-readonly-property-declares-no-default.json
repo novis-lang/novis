@@ -9,8 +9,7 @@
     "types/class-constant",
     "classes/lateinit",
     "classes/promotion-is-constructor-only",
-    "statements/nothing-gets-a-second-name",
-    "php-migration/a-deprecation-is-a-refusal"
+    "statements/nothing-gets-a-second-name"
   ],
   "guardedBy": []
 }

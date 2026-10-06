@@ -8,8 +8,7 @@
   "divergesFromPhp": "`return $value;` in a constructor does not compile (deprecated in 8.6)",
   "seeAlso": [
     "classes/constructor-is-a-method-named-constructor",
-    "classes/definite-property-initialization",
-    "php-migration/a-deprecation-is-a-refusal"
+    "classes/definite-property-initialization"
   ],
   "guardedBy": []
 }

@@ -14,8 +14,7 @@
     "expressions/nullable-conversion",
     "classes/reserved-spellings-are-lower-case",
     "security/no-eval",
-    "php-migration/a-deprecation-is-a-refusal",
-    "php-migration/one-type-test"
+    "types/one-type-test"
   ],
   "guardedBy": []
 }

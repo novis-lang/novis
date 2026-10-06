@@ -3,7 +3,7 @@
 
 # Security and isolation
 
-*17 of 90 rules below are **designed** rather than shipped, and are marked where they appear.*
+*18 of 91 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="security-isolate-shares-nothing"></a>
 
@@ -2252,3 +2252,22 @@ The roster having two entries instead of one does not change that property; it m
 boundary sits, and this rule is the boundary's home.
 
 <sub>See also [`security/bcrypt-read-roster`](security.md#security-bcrypt-read-roster), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0129](../decisions/0129.md), [0033](../decisions/0033.md).</sub>
+
+<a id="security-a-session-id-the-store-did-not-issue-is-rejected"></a>
+
+## A session id the store did not issue is rejected, always, with no toggle  *(designed — not yet in the compiler)*
+
+`rule:security/a-session-id-the-store-did-not-issue-is-rejected`
+
+`Core\Session::start()` accepts a presented id only if its own store issued it and it is still
+live. An unknown, expired or attacker-minted id is discarded and a fresh id is issued in its place.
+There is no toggle, no ini, no option, on the security priority: an off switch for fixation
+resistance is a security default traded for nothing. Session fixation resistance is therefore a
+property of the language, not of a deployment's configuration.
+
+It follows that the session store must be able to answer "did I issue this id". A store that holds
+nothing, such as a signed cookie carrying the record itself, cannot answer it and so cannot be the
+session store ([`core-api/session-roster`](core-api.md#core-api-session-roster)). The acceptance test presents a fabricated id and
+asserts that a fresh one comes back.
+
+<sub>See also [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly), [`core-api/session-roster`](core-api.md#core-api-session-roster). Decided in [0124](../decisions/0124.md), [0139](../decisions/0139.md), [0012](../decisions/0012.md).</sub>

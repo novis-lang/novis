@@ -12,8 +12,7 @@
     "types/callable-values",
     "expressions/method-reference",
     "expressions/pipeline-substitution",
-    "expressions/pipeline-hole-once",
-    "php-migration/a-deprecation-is-a-refusal"
+    "expressions/pipeline-hole-once"
   ],
   "guardedBy": []
 }

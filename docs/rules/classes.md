@@ -3,7 +3,7 @@
 
 # Classes
 
-*1 of 40 rules below are **designed** rather than shipped, and are marked where they appear.*
+*3 of 42 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="classes-no-free-functions-or-constants"></a>
 
@@ -964,3 +964,34 @@ already pay when they decline to alias: two libraries choosing one short name me
 fully-qualified one at the call site.
 
 <sub>See also [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`types/type-alias`](types.md#types-type-alias), [`types/alias-is-never-a-bare-class`](types.md#types-alias-is-never-a-bare-class). Decided in [0015](../decisions/0015.md), [0011](../decisions/0011.md).</sub>
+
+<a id="classes-a-constructor-return-carries-no-value"></a>
+
+## A constructor's `return` carries no value; a bare `return;` may still leave early  *(designed — not yet in the compiler)*
+
+`rule:classes/a-constructor-return-carries-no-value`
+
+`return $value;` inside a `constructor` does not compile: the object under construction is the
+result, and nothing else can be. A bare `return;` remains legal as an early exit, provided every
+property is definitely assigned on that path — [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization) keeps
+checking it, unchanged. The fix is to drop the value.
+
+<sub>See also [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization). Decided in [0124](../decisions/0124.md), [0022](../decisions/0022.md).</sub>
+
+<a id="classes-a-readonly-property-declares-no-default"></a>
+
+## A `readonly` property declares no default; a value known at the declaration is a `const`  *(designed — not yet in the compiler)*
+
+`rule:classes/a-readonly-property-declares-no-default`
+
+`readonly` with an initializer is refused where it is written. `readonly`'s contract is one
+assignment, during construction, in the declaring class's own `constructor` — a property whose
+single assignment is its own declaration-site default is a per-instance constant, and a value known
+at the declaration already has a spelling: `const` ([`types/class-constant`](types.md#types-class-constant)). The diagnostic
+names it, and names dropping `readonly` as the other fix. Letting the default stand as the one
+assignment would make a property spell what `const` spells — two names for one thing, the pattern
+[`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name) refuses.
+
+The fix is to move the default into the constructor, or make it a `const`.
+
+<sub>See also [`types/class-constant`](types.md#types-class-constant), [`classes/lateinit`](classes.md#classes-lateinit), [`classes/promotion-is-constructor-only`](classes.md#classes-promotion-is-constructor-only), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name). Decided in [0124](../decisions/0124.md).</sub>

@@ -13,7 +13,7 @@
     "types/unions-and-mixed",
     "types/single-value-types",
     "types/class-reference-sites",
-    "php-migration/one-type-test"
+    "types/one-type-test"
   ],
   "guardedBy": [
     "tests/conformance/class/an-is-test-through-an-erased-subject-answers-every-tag.nvst",

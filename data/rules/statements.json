@@ -24,6 +24,9 @@
     "statements/an-inout-argument-is-a-local",
     "statements/there-is-no-out-mode",
     "statements/ampersand-is-not-a-by-reference-marker",
-    "statements/exit-is-the-only-termination-keyword"
+    "statements/exit-is-the-only-termination-keyword",
+    "statements/a-body-never-falls-off-its-end",
+    "statements/no-return-leaves-a-finally",
+    "statements/let-and-is-are-reserved"
   ]
 }

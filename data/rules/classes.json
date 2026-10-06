@@ -41,6 +41,8 @@
     "classes/graph-copy",
     "classes/serialize-is-a-closed-format",
     "classes/an-encoder-ends-a-cycle-by-identity",
-    "classes/no-class-alias"
+    "classes/no-class-alias",
+    "classes/a-constructor-return-carries-no-value",
+    "classes/a-readonly-property-declares-no-default"
   ]
 }

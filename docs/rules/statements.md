@@ -3,6 +3,8 @@
 
 # Statements
 
+*2 of 26 rules below are **designed** rather than shipped, and are marked where they appear.*
+
 <a id="statements-nvs-is-the-only-open-tag"></a>
 
 ## `<?nvs` is the only code-mode open tag; `<?php` is refused
@@ -574,3 +576,80 @@ keeps at most one plain spelling of it; where a second primitive exists it is a 
 behaviour — skips cleanup, cannot be caught, crashes instead of exiting — never a bare synonym.
 
 <sub>See also [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag). Decided in [0049](../decisions/0049.md), [0015](../decisions/0015.md).</sub>
+
+<a id="statements-a-body-never-falls-off-its-end"></a>
+
+## A non-`void` body hands back a value at every exit; nothing returns `null` for a declaration it did not make
+
+`rule:statements/a-body-never-falls-off-its-end`
+
+A body checked against a declared non-`void` return type never reaches its own end: that path writes
+no value at all, and there is no implicit conversion by which `null` becomes the declared type, so
+accepting it would change what a binding holds behind its declaration — the one thing the type system
+never does. The body is refused where it is written (`E0739`).
+
+A written `return;` is the same promise broken at the other exit, and is refused the same way
+(`E0822`). Both are read over every block body checked against a declared type — a method's, a `get`
+hook's and a block-bodied `fn`'s alike.
+
+`void`, and a declaration that writes no return type at all (a constructor), promise nothing and are
+untouched; so is a generator, whose body [`iteration/generators`](iteration.md#iteration-generators) leaves no return value to
+produce. The analysis is asymmetric on purpose, and `nvs_types::returns` owns it: a `while (true)`
+with no `break`, a `switch` with a `default`, a `try` every path of which exits, and a body that
+always throws are all exits, and every shape it cannot prove reaches the end is treated as one — so
+the refusal costs no program that ran. A call to a `never` function, or to a `never` method no
+subclass overrides, is an exit too. An overridden one is not, because an override's return type is
+not yet checked against the method it replaces. Whether a written `return;` is legal asks none of
+that: the declared type is the whole answer.
+
+A `never` body is asked about the falling-off path like any other, and refused (`E0739`) when one
+reaches its end. That refusal is also what makes counting a `never` call as an exit sound.
+
+<sub>See also [`types/declaration`](types.md#types-declaration), [`iteration/generators`](iteration.md#iteration-generators), [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor). Decided in [0007](../decisions/0007.md).</sub>
+
+<a id="statements-no-return-leaves-a-finally"></a>
+
+## A `return` never leaves a `finally` block, and neither does a `break` or `continue` whose target lies outside it  *(designed — not yet in the compiler)*
+
+`rule:statements/no-return-leaves-a-finally`
+
+`return` inside `finally` does not compile. It would replace whatever the region was leaving with —
+including a throw in flight, which would be discarded with no `catch` anywhere in the program, the
+one way an exception could vanish without a handler. The diagnostic names the two rewrites: change
+the result in a `catch`, or after the region.
+
+`break` and `continue` whose target lies outside the `finally` are refused on the same grounds; a
+loop wholly inside the block keeps both.
+
+Whether an override was a bug (usually) or intent is the author's call, so the diagnostic names both
+rewrites and picks neither.
+
+<sub>See also [`statements/a-body-never-falls-off-its-end`](statements.md#statements-a-body-never-falls-off-its-end). Decided in [0124](../decisions/0124.md).</sub>
+
+<a id="statements-let-and-is-are-reserved"></a>
+
+## `let` and `is` cannot name anything; `var` declares, `as` converts, and `is` is the type test  *(designed — not yet in the compiler)*
+
+`rule:statements/let-and-is-are-reserved`
+
+Neither `let` nor `is` may name a class, interface, trait, enum, constant, function or parameter.
+Reserving a word costs nothing while no program uses it, and taking one back later is a breaking
+rename, so both are reserved now.
+
+**The two are reserved for unrelated reasons, and only one of them still has no construct.**
+
+- **`let` is the empty kind** — the family of `eval`, `goto` and `list`, where the spelling is held
+  and nothing is behind it, so nothing a user wrote has to be renamed out from under a future
+  decision.
+- **`is` is not.** It is the type test, `$x is T` ([`types/type-test`](types.md#types-type-test)), and the only one there is.
+- **`instanceof` is neither**, and is the third spelling this rule's diagnostics have to know about:
+  it is a word Novis refuses where it is written, naming `is` as the rewrite
+  ([`types/one-type-test`](types.md#types-one-type-test)). It was never a name, so nothing is reserved by refusing it — the token
+  exists only so the refusal can spell it.
+
+The diagnostics name the living spellings: `var` declares an inferred local
+([`types/var-inference`](types.md#types-var-inference)), `is` tests ([`types/narrowing`](types.md#types-narrowing)) and `as` converts
+([`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion)). Like every reserved word, both match in lower case only
+([`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case)).
+
+<sub>See also [`types/var-inference`](types.md#types-var-inference), [`types/narrowing`](types.md#types-narrowing), [`types/type-test`](types.md#types-type-test), [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case), [`security/no-eval`](security.md#security-no-eval), [`types/one-type-test`](types.md#types-one-type-test). Decided in [0124](../decisions/0124.md), [0150](../decisions/0150.md), [0192](../decisions/0192.md).</sub>

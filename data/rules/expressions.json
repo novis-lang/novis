@@ -31,6 +31,7 @@
     "expressions/catch-result-type",
     "expressions/bare-throwable-arm-warns",
     "expressions/catch-lowers-to-block-form",
-    "expressions/method-reference"
+    "expressions/method-reference",
+    "expressions/no-partial-application"
   ]
 }

@@ -11,7 +11,7 @@
     "types/class-reference",
     "types/property-key-access",
     "types/type-test",
-    "php-migration/one-type-test"
+    "types/one-type-test"
   ],
   "guardedBy": [
     "tests/conformance/class/a-class-reference-carries-a-static-call-and-a-type-test.nvst",
