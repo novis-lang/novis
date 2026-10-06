@@ -15,7 +15,7 @@ repository.workspace = true
 doctest = false
 
 [features]
-default = ["engine"]
+default = ["engine", "pack"]
 # The wasmtime host. The checker and the language server read manifests and
 # never instantiate, so they take this crate with `default-features = false`
 # and do not link wasmtime. `component-model` for a component guest, `async`
@@ -28,6 +28,9 @@ engine = [
     "wasmtime/async",
     "wasmtime/pooling-allocator",
 ]
+# The packer behind `nvs ext build`, which componentizes a core module with
+# `wit-component`. A loader that never packs leaves it off.
+pack = ["dep:wit-component", "dep:wit-parser"]
 
 [dependencies]
 serde.workspace = true
@@ -35,13 +38,19 @@ serde_json.workspace = true
 sha2.workspace = true
 wasmparser.workspace = true
 wasmtime = { workspace = true, optional = true }
+wit-component = { workspace = true, optional = true }
+wit-parser = { workspace = true, optional = true }
 
 [dev-dependencies]
 wat.workspace = true
 
 [[test]]
 name = "load"
-required-features = ["engine"]
+required-features = ["engine", "pack"]
+
+[[test]]
+name = "pack"
+required-features = ["engine", "pack"]
 
 [lints]
 workspace = true

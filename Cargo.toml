@@ -329,6 +329,12 @@ wasmparser = { version = "0.254", default-features = false, features = ["std", "
 # Component text compiled at test time, so a test guest needs no wasm
 # toolchain. Already in the lock file under wasmtime's own `wat` feature.
 wat = "1"
+# Turns an extension author's core module into a component against the
+# `nvs:ext` world, at the version wasmtime 48's own bindgen already pulls, so
+# it adds no crate the lock file did not hold. The defaults are off: the
+# `dummy-module`, `wat` and `semver-check` features serve tools, not the packer.
+# `crates/nvs-ext/src/pack.rs` is the one caller.
+wit-component = { version = "0.254", default-features = false }
 
 # --- the language server's wire and its vocabulary (ADR 0099 §§ 1-5) ---
 # `rule:ide/the-server-is-synchronous` is "a reader thread, a writer thread, one

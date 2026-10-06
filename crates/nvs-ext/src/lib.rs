@@ -10,6 +10,8 @@
 //! - `load`, behind the `engine` feature, reads a `.nvsx` from its `[[extension]]` entry and
 //!   refuses it, naming the entry, unless its pin, its component, its manifest and its imports all
 //!   check. Its module doc owns the order and which Novis types the export check reads.
+//! - `pack`, behind the `pack` feature, makes a `.nvsx` from a component or a core module, a
+//!   manifest and source files, the same bytes each time.
 //!
 //! **The manifest model never links wasmtime.** The three modules above use `serde_json` and
 //! `wasmparser` and nothing of the engine, because the checker and the language server read
@@ -37,13 +39,15 @@
 #[cfg(feature = "engine")]
 pub mod load;
 pub mod manifest;
+#[cfg(feature = "pack")]
+pub mod pack;
 pub mod section;
 pub mod source;
 
 use std::fmt;
 
-/// Why a `.nvsx`'s sections or their payloads do not read. The message names the part that is
-/// wrong, and the loader adds which entry it came from.
+/// Why a `.nvsx`'s sections or their payloads do not read, or why the packer cannot make one. The
+/// message names the part that is wrong, and the loader adds which entry it came from.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Malformed(pub String);
 

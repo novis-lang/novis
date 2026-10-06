@@ -8,7 +8,7 @@
 
 use std::collections::HashSet;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{Malformed, malformed};
@@ -28,7 +28,7 @@ pub struct Source {
 }
 
 /// One source file.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct SourceFile {
     /// The file's path, relative to the extension's source root.

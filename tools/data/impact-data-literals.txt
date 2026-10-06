@@ -47,3 +47,5 @@ crates/nvs-stdlib/src/zip.rs  r"notes\..\..\etc\passwd"  --  an entry name in an
 crates/nvs-test/src/case.rs  "../x.nvs"  --  a case file's auxiliary path the parser is expected to refuse
 crates/nvs-stdlib/src/time.rs  "../../etc/passwd"  --  a time-zone name looked up in the zone database, expected to be refused
 crates/nvs-ext/tests/manifest.rs  "../Units.nvs"  --  a source path in an extension's source section, expected to be refused
+crates/nvs-ext/tests/pack.rs  "../Secret.nvs"  --  a source path handed to the packer in memory, expected to be refused, never opened
+crates/nvs-ext/tests/pack.rs  "Geo/../../Secret.nvs"  --  a source path handed to the packer in memory, expected to be refused, never opened
