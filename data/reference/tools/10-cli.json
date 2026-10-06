@@ -21,7 +21,6 @@
     "--dump-asm",
     "--filter",
     "--format",
-    "--php",
     "exit status",
     "exit code",
     ".nvs",

@@ -2,7 +2,7 @@
 id: cli
 title: The nvs command
 summary: every subcommand of the `nvs` binary — run, check, test, build, api, config, info, meta, ast — with its flags, its exit status and what it prints
-keywords: nvs, nvs run, nvs check, nvs test, nvs build, --compile, --openapi, nvs api diff, nvs config check, nvs config dump, nvs info, nvs meta --json, nvs ast, --config, --dump-ir, --dump-asm, --filter, --format, --php, exit status, exit code, .nvs, .php, shebang, cache, single-file executable, bundle, php -l, php -i, php -r, phpunit, composer, phpdbg
+keywords: nvs, nvs run, nvs check, nvs test, nvs build, --compile, --openapi, nvs api diff, nvs config check, nvs config dump, nvs info, nvs meta --json, nvs ast, --config, --dump-ir, --dump-asm, --filter, --format, exit status, exit code, .nvs, .php, shebang, cache, single-file executable, bundle, php -l, php -i, php -r, phpunit, composer, phpdbg
 ---
 
 # One binary
@@ -191,7 +191,7 @@ E0401
 
 # nvs test
 
-    nvs test <paths>... [--filter <text>] [--format human|json|junit] [--php <path>] [--update]
+    nvs test <paths>... [--filter <text>] [--format human|json|junit] [--update]
                         [--coverage-lcov <file>] [--coverage-clover <file>]
                         [--coverage-cobertura <file>]
 
@@ -254,8 +254,6 @@ skipped: not written yet
   array holds one `{class, method, file, line, column}` per test and no summary, because nothing
   ran. `--filter` selects the same tests it would select in a run, and `--format junit`, `--update`
   and a `.nvst` tree are each refused beside it.
-- `--php <path>` names the PHP binary a case with an `--ORACLE--` section is compared against
-  (default `php`).
 - `--coverage-lcov <file>` writes the run's coverage to the file in the lcov format.
   `--coverage-clover <file>` writes the same coverage as Clover XML, the format PHPUnit's
   `--coverage-clover` writes. `--coverage-cobertura <file>` writes the same coverage as Cobertura

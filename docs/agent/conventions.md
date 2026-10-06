@@ -115,12 +115,8 @@ the exact stdout, byte for byte
 
 - `--EXPECT--` is exact. `--EXPECTF-ERROR--` instead when the case must *fail* to compile, and it has to
   reproduce the diagnostic's own indentation, which widens with the line number.
-- **Never `--ORACLE--` in `tests/conformance/`** — CI runs that suite on three hosted runners and none
-  of them has PHP, so an oracle section makes the runner skip the whole case and subtract from the very
-  count Stage 4 measures. Oracle cases go in `tests/differential/`, where the expectation is PHP's own
-  output and nothing has to be frozen by hand. The playbook bullet owns the rest, including how to check
-  against PHP while authoring; PHP is on `PATH` under Windows and inside the WSL distro alike, so the
-  local legs run an oracle case rather than skipping it.
+- The expectation is what the rules say Novis prints, never what another language prints. A section
+  the runner does not know is an error, and that includes PHP comparison sections.
 - A new file under `tests/conformance/` is picked up with no registration.
 
 **The four shapes a depth case takes.** Every section of Part I has had a pass, so a new case reaches

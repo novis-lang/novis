@@ -390,7 +390,7 @@ case trees, so the file follows the registry on every green run and a chapter ex
 longer agrees with fails the run. [docs/reference/README.md](../reference/README.md) is the format
 and the rules.
 
-## Trying a snippet against PHP
+## Trying a snippet
 
 ```sh
 bun nv try .agent-tmp/promo.nvst .agent-tmp/div.nvst .agent-tmp/shift.nvst
@@ -398,25 +398,18 @@ bun nv try .agent-tmp/*.nvst          # the whole scratch pad, one call
 bun nv try --keep .agent-tmp/promo.nvst
 ```
 
-Each file is in the `.nvst` shape — `--TEST--`, `--FILE--`, `--ORACLE--` — or, with no markers at all, a
-bare `<?nvs` snippet. `bun nv try` runs the Novis, runs the `--ORACLE--` through PHP, prints both and says
-whether they agree and where they first do not. Write the files with the Write tool, as many as you have
-questions, and run them in one call.
+Each file is in the `.nvst` shape — `--TEST--` and `--FILE--` — or, with no markers at all, a bare
+`<?nvs` snippet. `bun nv try` runs each one, several at a time, and prints its exit status and its
+output in the order they were asked for. Write the files with the Write tool, as many as you have
+questions, and run them in one call — never a heredoc into `.agent-tmp` per question.
 
-**Two things this replaces, and the second is the important one.** Measured over a 33-session run,
-sessions made **370 snippet-running calls, 335 of them distinct** — 9.6 a session — each one a heredoc
-into `.agent-tmp` followed by a hand-written `php -r` beside it. The turns are the cheap half. The
-expensive half is that a hand-written twin is a *translation*, made under time pressure by the same agent
-that wrote the Novis, at the moment it most wants the answer to be yes — and a twin that quietly differs
-from what it is checking reads exactly like proof.
-**An experiment that comes out right is already the case.** Give the file its `--TEST--` sentence, move it
-under `tests/differential/`, and `nvs test` runs the same two programs the same way — there is no second
-translation step, which is the step the drift used to happen in. [conventions.md](conventions.md) § *A
-`.nvst` test case* owns the format.
+**An experiment that comes out the way the rules say is already the case.** Give the file its
+`--TEST--` sentence and an `--EXPECT--` holding what it printed, move it under `tests/conformance/`,
+and `nvs test` runs it. [conventions.md](conventions.md) § *A `.nvst` test case* owns the format.
 
 `bun nv try` runs the pipeline's `covws` build of `nvs`, or the binary `NVS_BIN` names; `nv verify`
-builds it, so a snippet run after a green verification needs nothing. It judges nothing and exits 0 even when a twin disagrees — that is the
-finding, not an error.
+builds it, so a snippet run after a green verification needs nothing. It judges nothing and exits 0
+even when a snippet fails to compile — what it printed is the finding, not an error.
 
 ## Finishing a session: steps 4 and 5 in one call
 

@@ -397,11 +397,8 @@ Write `#[Test]` methods to test your own code. Every other section of this chapt
 | What it checks | any value, with the `Core\Test` assertions | the text the program prints |
 | What it reports | one line per test, or `--format json` and `--format junit` | one line with the counts |
 
-Write a `.nvst` case only when the printed output of a whole program is the thing to check:
-
-- a command-line script whose output must match an expected text exactly;
-- a program moved from PHP. The case holds the PHP version under `--ORACLE--`, and both versions
-  must print the same text.
+Write a `.nvst` case only when the printed output of a whole program is the thing to check. An
+example is a command-line script whose output must match an expected text exactly.
 
 A `.nvst` case cannot check a return value, and `--format`, `--list` and `--update` do not work
 with one. If you are not sure, write a `#[Test]` method. The `nvs test` section of

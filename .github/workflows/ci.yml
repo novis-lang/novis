@@ -177,10 +177,7 @@ jobs:
 
       # The `.nvst` conformance suite, on every platform for the reason the
       # cost guards below are: each case runs generated machine code, and code
-      # generation is what differs per target. The *differential* suite is
-      # deliberately not here — it needs PHP 8.5 on `PATH`, which a developer
-      # machine is required to have (docs/setup.md) and a hosted runner image
-      # does not.
+      # generation is what differs per target.
       - name: Conformance suite
         run: cargo run --quiet -p nvs-cli -- test tests/conformance/
 
