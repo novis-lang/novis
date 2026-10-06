@@ -12,7 +12,6 @@ follows the code without anyone remembering to.
 | `lang/*.md` | hand-written, this directory | Part A — one chapter per language topic, in filename order |
 | `tools/*.md` | hand-written, this directory | Part C — one chapter per tool |
 | `core/<Class>.md` | hand-written, this directory | the introduction and one worked example at the top of a class's Part B section. Optional: a class without one gets its member cards alone |
-| `docs/spec/02-php-migration.md` | the spec | Part D — the PHP crosswalk, filtered to rows the registry can honour |
 
 ## Who reads this, and what that means for the prose
 

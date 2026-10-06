@@ -18,7 +18,7 @@ import { playbookBullet, playbookSection } from "./playbook.ts";
 import { helpBacklog, proofPolicy } from "./proofs.ts";
 import { referenceChapter } from "./reference.ts";
 import { rule } from "./rule.ts";
-import { specCoreMembers, specPhpMigration } from "./spec.ts";
+import { specCoreMembers } from "./spec.ts";
 import { topic } from "./topic.ts";
 
 export const RECORDS: RecordType<any>[] = [
@@ -37,7 +37,6 @@ export const RECORDS: RecordType<any>[] = [
   playbookBullet,
   referenceChapter,
   specCoreMembers,
-  specPhpMigration,
   proofPolicy,
   helpBacklog,
 ];

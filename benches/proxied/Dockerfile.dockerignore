@@ -41,11 +41,10 @@ benches/proxied/.bin/
 !benches/proxied/.bin/nvs
 
 # Documentation, except the pages the build compiles in: `crates/nvs-stdlib/build.rs` reads the
-# migration table and the `docs/reference/core/` intros, and `crates/nvs-cli/src/agent.rs`
+# `docs/reference/core/` intros, and `crates/nvs-cli/src/agent.rs`
 # `include_str!`s the reference chapters. An edit to any other doc must not invalidate the context
 # layer and cost a rebuild of everything after it. Last match wins, so the negations stay below.
 docs/
 *.md
 !README.md
 !docs/reference/**
-!docs/spec/02-php-migration.md

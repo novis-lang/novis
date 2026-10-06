@@ -31,7 +31,7 @@
 
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { availableParallelism } from "node:os";
-import { basename, dirname, join, relative, sep } from "node:path";
+import { basename, dirname, join, sep } from "node:path";
 import { covwsNvs } from "../lib/covws.ts";
 import { ROOT, rel } from "../lib/paths.ts";
 import { run as runProc } from "../lib/proc.ts";
@@ -42,7 +42,6 @@ export const summary = "generate docs/novis.md and prove its examples: nv refere
 
 const OUT = join(ROOT, "docs", "novis.md");
 const SOURCES = join(ROOT, "docs", "reference");
-const MIGRATION = join(ROOT, "docs", "spec", "02-php-migration.md");
 /** The whole diagnostic registry: a code declared anywhere else does not exist. */
 const DIAGNOSTICS = join(ROOT, "crates", "nvs-diagnostics", "src", "lib.rs");
 const TMP = join(ROOT, ".agent-tmp", "reference-examples");
@@ -73,10 +72,6 @@ const SRC_RE = /^<!-- src:.*?-->[ \t]*\n?/gm;
 const PRIMER_RE = /^<!-- primer -->[ \t]*\n?/gm;
 /** A markdown heading, for demotion. */
 const HEADING_RE = /^(#{1,6}) (.*)$/gm;
-/** One row of the migration table. */
-const ROW_RE = /^\| `([^`]+)` \| (member|language|dropped|open) \| (.*) \|$/;
-/** A markdown link whose target is a path rather than a URL or an in-page anchor. */
-const REL_LINK_RE = /(?<=\]\()(?![\p{L}\p{N}_]+:|[#/])([^)]+)(?=\))/gu;
 /** One declared diagnostic code, in the registry. */
 const CODE_DECL_RE = /Code::new\("(E\d{4})"\)/g;
 /** One diagnostic code cited in prose or in a table cell. */
@@ -208,32 +203,6 @@ async function registry(): Promise<Json> {
   return JSON.parse(p.stdout);
 }
 
-/**
- * `text`'s relative links rewritten from `source`'s directory to `OUT`'s. A cell copied out of
- * `docs/spec/` keeps the links it was written with, which resolve from there and not from `docs/`.
- */
-function rerootLinks(text: string, source: string): string {
-  return text.replace(REL_LINK_RE, (link: string) => {
-    const hash = link.indexOf("#");
-    const target = hash >= 0 ? link.slice(0, hash) : link;
-    const anchor = hash >= 0 ? link.slice(hash + 1) : "";
-    if (!target) return link;
-    const moved = relative(dirname(OUT), join(dirname(source), target)).split(sep).join("/") || ".";
-    return moved + (anchor ? `#${anchor}` : "");
-  });
-}
-
-/** [section, php, outcome, novis] for every row of docs/spec/02-php-migration.md. */
-function migrationRows(): [string, string, string, string][] {
-  const rows: [string, string, string, string][] = [];
-  let section = "";
-  for (const line of splitlines(readText(MIGRATION))) {
-    if (line.startsWith("## ")) section = strip(line.slice(3));
-    const m = ROW_RE.exec(line);
-    if (m) rows.push([section, m[1]!, m[2]!, m[3]!]);
-  }
-  return rows;
-}
 
 // ------------------------------------------------------------------ rendering helpers
 
@@ -394,22 +363,6 @@ const TABLES: Record<string, (reg: Json) => string> = {
     }
     return lines.join("\n");
   },
-  "php-migration": (reg) => {
-    const known = new Set<string>();
-    for (const c of reg.classes) {
-      for (const m of c.members) known.add(`${c.name}::${m.name}`).add(`${c.name}->${m.name}`);
-    }
-    const lines = ["| PHP | Outcome | Novis |", "|---|---|---|"];
-    for (const [, php, outcome, novis] of migrationRows()) {
-      if (outcome === "open") continue;
-      if (outcome === "member") {
-        const names = [...novis.matchAll(/`(Core\\[A-Za-z\\]+(?:::|->)[a-zA-Z]+)`/g)].map((m) => m[1]!);
-        if (names.length === 0 || !names.every((n) => known.has(n))) continue;
-      }
-      lines.push(`| \`${php}\` | ${outcome} | ${rerootLinks(novis, MIGRATION)} |`);
-    }
-    return lines.join("\n");
-  },
 };
 
 // ------------------------------------------------------------------ the document
@@ -431,7 +384,6 @@ bottom.** Find what you need through the index below, then read one section:
   worked example, then a member index, then **one card per member** with its signature, parameters,
   return value and what it throws. Every member exists in the shipped binary; nothing planned is here.
 - **Part C is the toolchain**: the \`nvs\` command, \`nvs.toml\`, and testing.
-- **Part D is the PHP crosswalk**: for someone who knows PHP, what each built-in became.
 
 Conventions the whole file uses:
 
@@ -472,7 +424,7 @@ function build(reg: Json): string {
   lines.push("| [`Core` enums](#core-enums) | every enum a member takes, with its cases |", "");
   lines.push("### Part C — The toolchain", "");
   tools.forEach((ch, i) => lines.push(indexLine("C", i + 1, ch)));
-  lines.push("", "### Part D — Coming from PHP", "", "- D.1 [PHP built-ins and what each became](#php-migration)", "");
+  lines.push("");
 
   const used = new Set<string>();
   const expand = (body: string): string => {
@@ -502,20 +454,6 @@ function build(reg: Json): string {
   );
   lines.push("# Part C — The toolchain", "");
   chapters("C", tools);
-  lines.push(
-    "# Part D — Coming from PHP",
-    "",
-    anchor("php-migration"),
-    "## D.1 PHP built-ins and what each became",
-    "",
-    "Keywords: PHP, migration, replaces, equivalent, what happened to",
-    "",
-    "One row per PHP built-in. *member*: a `Core` member in Part B does the job. *language*: an operator or keyword does it. *dropped*: nothing does, and the cell says why and what to write instead — a `Core\\Name` in a *dropped* row's text that has no section in Part B is a description of the rewrite, not a member that exists today. Built-ins still undecided are not listed.",
-    "",
-    TABLES["php-migration"]!(reg),
-    "",
-  );
-  used.add("php-migration");
   // A roster no chapter placed is appended, so nothing the binary declares is lost.
   for (const [name, table] of Object.entries(TABLES)) {
     if (!used.has(name)) lines.push(anchor(anchorId("roster", name)), `## ${name}`, "", table(reg), "");

@@ -15,7 +15,7 @@
 //
 // `--check` judges no content. It prints the counts the plan's prose should agree with, each status
 // field's size against its ceiling, the handoff's shape, the dead links this session made, the
-// rulebook, record and migration gates for a session that edited those trees, and what is
+// rulebook and record gates for a session that edited those trees, and what is
 // uncommitted. It fails on a stale count or a link this session broke. A link that was already dead
 // where the session opened is printed and refuses nothing: it is CI's to report.
 
@@ -507,14 +507,6 @@ const RECORD_GATES: Gate[] = [
     why:
       "a decision record's field set, heading order, cross-links or derived counters are wrong -- most often " +
       "a `changes:` block with no `modifies:` list. `nv verify` does not run this one either.",
-  },
-];
-const MIGRATION_GATES: Gate[] = [
-  {
-    args: ["migration"],
-    why:
-      "the migration table has a structural error -- a row for a name PHP does not have, an outcome outside " +
-      "the vocabulary, or a duplicate. The tool's own output is the whole message.",
   },
 ];
 
@@ -1059,7 +1051,6 @@ export async function validate(sections: Section[]): Promise<string[]> {
   errors.push(
     ...(await treeGate("docs/rules", RULEBOOK_GATES)),
     ...(await treeGate("docs/decisions", RECORD_GATES)),
-    ...(await treeGate("docs/spec", MIGRATION_GATES)),
     ...(await siteGate()),
     ...manifestProblems(manifestCopies()),
   );
@@ -1125,7 +1116,6 @@ async function check(): Promise<number> {
   const gates: [string, string, string, Gate[], string][] = [
     ["RULEBOOK", "bun nv rules -- the same job, and only when you edited docs/rules/", "docs/rules", RULEBOOK_GATES, "every rule loads, every citation resolves, and the rendered pages are current"],
     ["RECORDS", "bun nv records -- CI's `docs` job, and only when you edited them", "docs/decisions", RECORD_GATES, "every record's field set, heading order and derived counters are right"],
-    ["MIGRATION", "bun nv migration -- only when you edited docs/spec/", "docs/spec", MIGRATION_GATES, "every row of the migration table is well formed"],
   ];
   for (const [title, about, tree, list, clean] of gates) {
     say();

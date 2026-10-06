@@ -117,11 +117,9 @@
           "crates/nvs-stdlib/src/php_names.rs",
           "crates/nvs-lsp/src/completion.rs",
           "crates/nvs-hir/src/members.rs",
-          "tools/nv/cmd/migration.ts",
           "tools/nv/renderers/website-core.ts"
         ],
         "rules": [
-          "php-migration/every-php-builtin-is-a-completion-candidate",
           "core-api/removals"
         ],
         "adrs": [

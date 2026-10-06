@@ -645,26 +645,6 @@ jobs:
       - name: Every C dependency of the default binary is recorded
         run: bun nv gen-attribution --check-c-deps
 
-  # ---------------------------------------------------------------------------
-  # Every PHP built-in has exactly one recorded outcome, and every Core member a
-  # row names still exists. Catches the case a review cannot: a member renamed
-  # in docs/spec/01-core-library.md while the migration table still points at
-  # the old name. Coverage is reported, not enforced, until the table's header
-  # says Complete: yes. See ADR 0063 § 3.
-  # ---------------------------------------------------------------------------
-  migration-table:
-    name: php migration table
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
-        with:
-          bun-version-file: package.json
-      - name: Install tool dependencies
-        run: bun install --frozen-lockfile
-      - name: Every PHP name is accounted for
-        run: bun nv migration
 
   # ---------------------------------------------------------------------------
   # docs/novis.md is generated from the binary's own registry (`nvs meta

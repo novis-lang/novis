@@ -49,7 +49,6 @@ const COMMANDS: Record<string, () => Promise<Command>> = {
   loop: () => import("./cmd/loop.ts"),
   "loop-stats": () => import("./cmd/loop-stats.ts"),
   machine: () => import("./cmd/machine.ts"),
-  migration: () => import("./cmd/migration.ts"),
   orient: () => import("./cmd/orient.ts"),
   origin: () => import("./cmd/origin.ts"),
   owners: () => import("./cmd/owners.ts"),

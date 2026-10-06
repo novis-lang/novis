@@ -6,7 +6,7 @@ import { chainGoals, liveGoal } from "../lib/chain.ts";
 import { ROOT } from "../lib/paths.ts";
 import { GOAL_PLAN, renderGoalPlan } from "../renderers/goal-plan.ts";
 import { apply, fill, lf, markdown, MARKER, orphans, removeOrphans, type Output } from "../lib/render.ts";
-import { coreMembers, phpMigration, specTables } from "../renderers/spec-tables.ts";
+import { coreMembers, specTables } from "../renderers/spec-tables.ts";
 import { recordFiles, SCHEMA_DIR } from "../lib/store.ts";
 import { recordSchemas, renderRecordSchemas } from "../renderers/record-schemas.ts";
 import { RECORDS } from "../schema/index.ts";
@@ -115,7 +115,7 @@ describe("render", () => {
     expect(() => apply([{ path: "x", text: "" }, { path: "x", text: "" }], { check: true })).toThrow("two renderers");
   });
 
-  test("a core table keeps its heading path and escaped cells, and a migration row is read only from its own table", () => {
+  test("a core table keeps its heading path and escaped cells, and a fenced table is not read", () => {
     tmp = scratch();
     tmp.put(
       "docs/spec/01-core-library.md",
@@ -140,39 +140,19 @@ describe("render", () => {
         "```",
       ].join("\n"),
     );
-    tmp.put(
-      "docs/spec/02-php-migration.md",
-      [
-        "## How to read a row",
-        "",
-        "| Outcome | Meaning |",
-        "|---|---|",
-        "| `member` | a member does it |",
-        "",
-        "## Strings",
-        "### Case",
-        "",
-        "| PHP | Outcome | Novis |",
-        "|---|---|---|",
-        "| `strlen` | member | `Core\\Str::length` |",
-      ].join("\n"),
-    );
     expect(coreMembers(tmp.root)).toEqual({
       tables: [
         { section: ["Spec"], columns: ["Mark", "Meaning"], rows: [["Q", "quick"]] },
         { section: ["Part I", "1. `Core\\Str`", "Inspection"], columns: ["Member", "Signature"], rows: [["`length`", "`(string $s): int\\|null`"]] },
       ],
     });
-    expect(phpMigration(tmp.root)).toEqual({ rows: [{ section: "Case", php: "strlen", outcome: "member", novis: "`Core\\Str::length`" }] });
     const outputs = specTables.render(tmp.root) as Output[];
-    expect(outputs.map((o) => o.path)).toEqual(["data/spec/core-members.json", "data/spec/php-migration.json"]);
+    expect(outputs.map((o) => o.path)).toEqual(["data/spec/core-members.json"]);
   });
 
-  test("a spec row with the wrong cell count, or a migration line that is no row, fails the render naming the line", () => {
+  test("a spec row with the wrong cell count fails the render naming the line", () => {
     tmp = scratch();
     tmp.put("docs/spec/01-core-library.md", "| A | B |\n|---|---|\n| `at` | `(a)` | extra |\n");
-    tmp.put("docs/spec/02-php-migration.md", "| PHP | Outcome | Novis |\n|---|---|---|\n| strtoupper | member | no backticks |\n");
     expect(() => coreMembers(tmp.root)).toThrow("docs/spec/01-core-library.md:3 has 3 cell(s) under 2 column(s)");
-    expect(() => phpMigration(tmp.root)).toThrow("docs/spec/02-php-migration.md:3 is no");
   });
 });
