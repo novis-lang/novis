@@ -195,11 +195,6 @@ mod os;
 mod out;
 mod password;
 pub mod path;
-// `pub` because the whole module is for a reader outside this crate:
-// `rule:php-migration/every-php-builtin-is-a-completion-candidate` is an editor
-// feature, and `nvs-lsp` is the one that offers the candidates. Nothing here is
-// a `Core` member, so it takes no row in [`registry`] and no address below.
-pub mod php_names;
 mod process;
 mod program;
 // `pub` for [`queue::schema`] and the statements beside it: `rule:core-classes/queue-storage-is-a-table`'s schema is written
