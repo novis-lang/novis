@@ -1,0 +1,60 @@
+--TEST--
+Core\Time::fromIso throws a `ParseError` on a text with no offset, a relative expression, a text that is not a date and a day that does not exist
+--FILE--
+<?nvs
+final class Iso {
+    // Returns the seconds since the epoch, or the class of the error thrown.
+    public static function of(string $text): string {
+        try {
+            return Core\Time::fromIso($text)->toEpochSeconds() as string;
+        } catch (ParseError $e) {
+            return "ParseError";
+        } catch (Throwable $other) {
+            return "other";
+        }
+    }
+}
+
+var $utc = Core\Time\Zone::UTC;
+uint $refused = 0;
+
+// A date or a time with no offset throws an error.
+// To read a time in a known zone, use `Core\Time::parse` with that zone.
+echo "date-only|", Iso::of("2024-02-29"), "\n";
+echo "no-offset|", Iso::of("2024-02-29T13:45:07"), "\n";
+echo Core\Time::parse("2024-02-29 13:45:07", "yyyy-MM-dd HH:mm:ss", $utc)->toInstant()->toEpochSeconds(), "\n";
+
+// A relative expression throws an error.
+// To move a time, use `plus` or `next` on a time you already have.
+echo "relative-day|", Iso::of("+1 day"), "\n";
+echo "now|", Iso::of("now"), "\n";
+echo "weekday|", Iso::of("next Thursday"), "\n";
+echo Core\Time::fromIso("2024-02-29T13:45:07Z")->in($utc)->plus(1, Core\Unit::Day)->toInstant()->toEpochSeconds(), "\n";
+echo Core\Time::fromIso("2024-02-29T13:45:07Z")->in($utc)->next(Core\Weekday::Thursday)->format("yyyy-MM-dd"), "\n";
+
+// A text that is not a date throws an error. So does the empty string.
+echo "garbage|", Iso::of("not a date"), "\n";
+echo "empty|", Iso::of(""), "\n";
+
+// February 2024 has no day 30, so this throws an error.
+echo "rolled-over|", Iso::of("2024-02-30T00:00:00Z"), "\n";
+
+// All eight texts above throw a `ParseError`.
+array<string> $guesses = ["2024-02-29", "2024-02-29T13:45:07", "+1 day", "now", "next Thursday", "not a date", "", "2024-02-30T00:00:00Z"];
+foreach ($guesses as string $text) {
+    if (Iso::of($text) == "ParseError") { $refused = $refused + 1; }
+}
+echo "refused=", $refused, "/8\n";
+--EXPECT--
+date-only|ParseError
+no-offset|ParseError
+1709214307
+relative-day|ParseError
+now|ParseError
+weekday|ParseError
+1709300707
+2024-03-07
+garbage|ParseError
+empty|ParseError
+rolled-over|ParseError
+refused=8/8

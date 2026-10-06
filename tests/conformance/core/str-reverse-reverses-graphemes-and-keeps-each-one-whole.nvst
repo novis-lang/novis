@@ -1,0 +1,75 @@
+--TEST--
+Core\Str::reverse reverses the order of graphemes and keeps the bytes of each one in order, so the result is the same characters backwards
+--FILE--
+<?nvs
+final class Show {
+    // Returns the bytes of the text in hex.
+    public static function bytes(string $text): string {
+        return Core\Encoding::toHex($text as bytes);
+    }
+}
+
+// The first text has characters of 1, 2, 3 and 4 bytes. The second has an
+// emoji with a skin tone, and the third has an `e` with a combining accent.
+// Each of those is one grapheme (what a person counts as one character).
+string $mixed = "aé中👍";
+string $tone = "a👍🏽b";
+string $combining = "cafe\u{0301}";
+
+// Each line prints the number of graphemes, then the bytes in hex.
+echo Core\Str::length($mixed), " ", Show::bytes($mixed), "\n";
+echo Core\Str::length($tone), " ", Show::bytes($tone), "\n";
+echo Core\Str::length($combining), " ", Show::bytes($combining), "\n";
+
+// The reversed texts, as text and in hex. Each grapheme keeps its own bytes in order.
+echo "[", Core\Str::reverse($mixed), "=", Show::bytes(Core\Str::reverse($mixed)), "]\n";
+echo "[", Core\Str::reverse($tone), "=", Show::bytes(Core\Str::reverse($tone)), "]\n";
+// This one is printed in hex only, because an accented `e` can be written in
+// two ways that look the same.
+echo "[", Show::bytes(Core\Str::reverse($combining)), "]\n";
+
+// For each text and each position, the first count checks that the grapheme
+// at that position of the result is the one at the same position from the
+// end of the text. The second checks that it is exactly one grapheme.
+// The text `a👍🏽b` has only 3 graphemes, so position 3 fails both checks.
+array<string> $subjects = ["aé中👍", "a👍🏽b", "cafe\u{0301}"];
+array<int> $indices = [0, 1, 2, 3];
+int $mirrored = 0;
+int $whole = 0;
+int $cells = 0;
+foreach ($subjects as string $subject) {
+    foreach ($indices as int $index) {
+        $cells = $cells + 1;
+        if (Core\Str::slice(Core\Str::reverse($subject), $index, 1) == Core\Str::slice($subject, -$index - 1, 1)) {
+            $mirrored = $mirrored + 1;
+        }
+        if (Core\Str::length(Core\Str::slice(Core\Str::reverse($subject), $index, 1)) == 1) {
+            $whole = $whole + 1;
+        }
+    }
+}
+echo $mirrored, " ", $whole, " of ", $cells, "\n";
+
+// Reversing twice gives back the text, and the result has as many graphemes as the text.
+int $back = 0;
+int $wide = 0;
+int $seen = 0;
+foreach ($subjects as string $one) {
+    $seen = $seen + 1;
+    if (Core\Str::reverse(Core\Str::reverse($one)) == $one) {
+        $back = $back + 1;
+    }
+    if (Core\Str::length(Core\Str::reverse($one)) == Core\Str::length($one)) {
+        $wide = $wide + 1;
+    }
+}
+echo $back, " ", $wide, " of ", $seen, "\n";
+--EXPECT--
+4 61c3a9e4b8adf09f918d
+3 61f09f918df09f8fbd62
+4 63616665cc81
+[👍中éa=f09f918de4b8adc3a961]
+[b👍🏽a=62f09f918df09f8fbd61]
+[65cc81666163]
+11 11 of 12
+3 3 of 3

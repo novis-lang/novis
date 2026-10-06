@@ -1,0 +1,57 @@
+--TEST--
+Core\Time::parse sets a field the pattern does not name to the start of its range, throws a `ParseError` on a text that does not match and a `LogicError` on a pattern it does not support
+--FILE--
+<?nvs
+final class Read {
+    // Returns the seconds since the epoch, or the class of the error thrown.
+    public static function of(string $text, string $pattern): string {
+        try {
+            return Core\Time::parse($text, $pattern, Core\Time\Zone::UTC)->toInstant()->toEpochSeconds() as string;
+        } catch (ParseError $bad) {
+            return "ParseError";
+        } catch (LogicError $mine) {
+            return "LogicError";
+        } catch (Throwable $other) {
+            return "other";
+        }
+    }
+}
+
+// A pattern with no time of day gives midnight.
+echo Read::of("2024-02-29", "yyyy-MM-dd"), "\n";
+echo Read::of("2024-02-29 00:00:00", "yyyy-MM-dd HH:mm:ss"), "\n";
+echo (Read::of("2024-02-29", "yyyy-MM-dd") == Read::of("2024-02-29 00:00:00", "yyyy-MM-dd HH:mm:ss")) as string, "\n";
+
+// A pattern with hours and minutes and no seconds gives zero seconds.
+echo Read::of("2024-02-29 13:45", "yyyy-MM-dd HH:mm"), "\n";
+echo (Read::of("2024-02-29 13:45", "yyyy-MM-dd HH:mm") == Read::of("2024-02-29 13:45:00", "yyyy-MM-dd HH:mm:ss")) as string, "\n";
+
+// A text that is too short, has extra text at the end or names a day that
+// does not exist throws a `ParseError`.
+echo "short|", Read::of("2024-02-29 13:45", "yyyy-MM-dd HH:mm:ss"), "\n";
+echo "trailing|", Read::of("2024-02-29 13:45:07 and more", "yyyy-MM-dd HH:mm:ss"), "\n";
+echo "rolled-over|", Read::of("2024-02-30", "yyyy-MM-dd"), "\n";
+
+// A pattern with an unknown letter, an offset or a zone name throws a `LogicError`.
+echo "unknown-letter|", Read::of("2024-02-29", "yyyy-MM-j"), "\n";
+echo "offset|", Read::of("2024-02-29 13:45:07+02:00", "yyyy-MM-dd HH:mm:ssXXX"), "\n";
+echo "zone-id|", Read::of("2024-02-29 13:45:07 Europe/Berlin", "yyyy-MM-dd HH:mm:ss VV"), "\n";
+
+// The zone is the third argument of `parse`. A time read in a zone and the
+// same time written with its offset give the same instant.
+echo Core\Time::parse("2024-02-29 13:45:07", "yyyy-MM-dd HH:mm:ss", Core\Time\Zone::of("Europe/Berlin"))->toInstant()->toEpochSeconds(), "\n";
+echo Core\Time::fromIso("2024-02-29T13:45:07+01:00")->toEpochSeconds(), "\n";
+--EXPECT--
+1709164800
+1709164800
+1
+1709214300
+1
+short|ParseError
+trailing|ParseError
+rolled-over|ParseError
+unknown-letter|LogicError
+offset|LogicError
+zone-id|LogicError
+1709210707
+1709210707
