@@ -26720,9 +26720,8 @@ usually one file:
 | `nvs agent <verb>` | the same registry for a coding agent: a primer, an index, a search, one card — and the pointers `init` installs |
 | `nvs ast [--json] <file>` | parse one file and print its syntax tree |
 
-Every subcommand also takes `--config <PATH>` (see `nvs run`) and `-h`/`--help`. `nvs` declares no
-short flag of PHP's: there is no `-i`, `-a`, `-r`, `-f` or lowercase `-v`, and every operation is
-spelled as a subcommand.
+Every subcommand also takes `--config <PATH>` (see `nvs run`) and `-h`/`--help`. Every operation is
+a subcommand: there is no `-i`, `-a`, `-r`, `-f` or lowercase `-v`.
 
 **In other chapters:** `nvs serve`, `nvs ctl` and `nvs service` are in
 [the server chapter](#tools-server); `nvs lsp` and `nvs lsp-test` are in
@@ -27559,9 +27558,7 @@ before the cap
 **`cpu_time` and `wall_time` answer different questions.** `wall_time` bounds how long a client
 waits; `cpu_time` bounds how much of the machine one request burns, so a runaway loop is stopped
 while a request parked on a slow query is not. A request cannot compute for longer than it runs, so
-`cpu_time` only ever fires when it is set below `wall_time` — set equal, it never does. PHP's one
-`max_execution_time` counts CPU time on Linux and elapsed time on Windows: the first is `cpu_time`
-here, and PHP-FPM's `request_terminate_timeout` is `wall_time`. A request that needs more — a large
+`cpu_time` only ever fires when it is set below `wall_time` — set equal, it never does. A request that needs more — a large
 report — raises its own limit with `Core\Config::set("cpu_time", "40s")`, up to `[limits.hard]`,
 rather than the starting value being raised for every request. The CPU clock is sampled about twice
 a second, so a request may overrun `cpu_time` by up to that much. Linux, macOS and Windows have a
@@ -28144,8 +28141,7 @@ entry  = "Shop/public/index.nvs"
 
 In production — `dispatch = "entry"`, `static = false` — steps 3 and 4 do not run: match, strip,
 entry. With `dispatch = "path"` and `static = true`, which is what development gives when neither
-key is written, the sequence is `try_files $uri /index.nvs`, the shape a PHP application already
-deploys under. A prefix is matched exactly, and in steps 3 and 4 the URL has to write the name of
+key is written, the sequence is `try_files $uri /index.nvs`. A prefix is matched exactly, and in steps 3 and 4 the URL has to write the name of
 the file exactly as the disk has it. A name in another case, a name with a dot or a space added at
 its end and a Windows short name such as `REPORT~1.NVS` are each a file that is not there, on every
 platform. A trailing slash is never added or removed: `/users` and `/users/` are two URLs. `HEAD`
@@ -29014,9 +29010,7 @@ one first.
 #### What it claims
 
 `.nvs`, and nothing else. It starts when you open a Novis document, or when the workspace has a
-file named `nvs.toml`. In any other window it does not start. It does not claim `.php`, though the
-compiler reads that dialect: the file type belongs to whichever PHP extension a person already has, and
-losing a quiet fight over it looks like Novis being broken rather than like two extensions disagreeing.
+file named `nvs.toml`. In any other window it does not start.
 
 A file named `nvs.toml` gets completion and nothing else. After a `[`, you get the block headers. On an
 empty line under a header, you get the keys of that block, with the default and the comment from the
@@ -29462,7 +29456,7 @@ added hook to .cursor/hooks.json
 ### A worked session
 
 An agent that holds nothing but this binary, asked to print how long a name is. It reads the primer
-once, then looks for the member by the PHP name it already knows:
+once, then looks for the member by a name it knows from another language:
 
 ```text
 $ nvs agent find strlen
@@ -29518,7 +29512,7 @@ echo Core\Str::length($name), "\n";
 3
 ```
 
-Asked next whether classes load themselves, it looks for the PHP word, which is a keyword here and
+Asked next whether classes load themselves, it looks for the word it already knows, which is a keyword here and
 no member's name. Two lines come back: a heading, and a flag of `nvs check` that has the word in
 its name. The heading is the one it wants, and the same `show` prints the section:
 

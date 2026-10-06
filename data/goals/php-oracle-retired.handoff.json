@@ -1,26 +1,26 @@
 {
-  "state": "**Goal `php-oracle-retired`: Stages 6, 7 and 8 are on disk; Stage 9 file sets 1 to 4 are closed, and file set 5 is half done.** ADR 0274 (`docs/decisions/0274.md`) is the goal's record.\n\nThe lang chapters under `docs/reference/lang/` name PHP nowhere: their four PHP-to-Novis tables are plain lists of what does not compile and what to write, and the passing mentions are gone. Two sections were renamed, and their proofs moved with them: `lang:expressions/operators-that-do-not-parse` and `lang:enums/what-an-enum-does-not-have` (examples, attacks, the enum bench with a fresh perf record, `covers:` markers, `data/proofs/policy.json`, `docs/perf/bench-budget.json`, the two website pages' `covers`). The `--coverage-clover` help in `crates/nvs-cli/src/main.rs` and `docs/reference/tools/10-cli.md` no longer names PHPUnit.\n\n`bun nv proofs --gate` is red only on stale perf: the `Core\\Math` and `Core\\Str` members whose module changed when Stage 9 rewrote their cards. That is Stage 10's check.",
+  "state": "**Goal `php-oracle-retired`: Stages 6 to 9 are on disk; only Stage 10, rendered and proven, is left.** ADR 0274 (`docs/decisions/0274.md`) is the goal's record.\n\nStage 9 file set 5 closed: `README.md` names PHP only on line 6 (the origins line) and in one line under *What it is trying to be* that links `docs/reference/tools/30-php-differences.md`; the two `benches/members/` comments that named PHP are rewritten; the tools chapters other than php-differences name PHP only in `docs/reference/tools/10-cli.md`'s \"Novis does not run PHP\" bullet, kept because it is the `E0229` habit and `rule:programs/no-compatibility-promise`'s disclaimer.\n\n`bun nv proofs --gate` is red only on stale perf: 148 features, all `perf: stale` — the `Core\\Math`, `Core\\Str` and `Core\\Env` members whose module changed in Stage 9, and every `lang:` section whose chapter under `docs/reference/lang/` changed. That is the Stage 10 check `dossier-the-whole-roster-owes-nothing-without-php`.",
   "next": {
-    "stage": 9,
-    "title": "the rest of the reference and the binary",
+    "stage": 10,
+    "title": "rendered and proven",
     "files": [],
-    "note": "one file set: `README.md`, `benches/members/` comments and the tools chapters under `docs/reference/tools/` (goal prose § *Stage 9* item 5).",
+    "note": "one file set: the perf records the proofs gate reads and the generated docs (`docs/novis.md`, ground rules, decision index, website data).",
     "items": [
       {
         "done": false,
-        "text": "**The root README's lines 24 to 30 become one line that links the concept page, and the `benches/members/` comments lose PHP** — `rule:programs/no-compatibility-promise`; `benches/members/lang/statements/statement-forms-that-do-not-parse.nvs:2`; `git grep -n PHP -- benches/members` lists them (the README's \"no PHP column\" line stays)."
+        "text": "**Re-measure every stale perf record** (`bun nv proofs --record-perf`, narrowed with `--group` or `--only`; `bun nv proofs --owed --limit 0` is the list) — `rule:testing/feature-proofs`; `tools/nv/cmd/proofs.ts:1`, `crates/nvs-stdlib/src/math.rs:1`"
       },
       {
         "done": false,
-        "text": "**The tools chapters other than php-differences lose their passing PHP mentions** — `rule:programs/no-compatibility-promise`; `docs/reference/tools/10-cli.md:35`, `docs/reference/tools/20-config.md:153`, `docs/reference/tools/25-server.md:122`, `docs/reference/tools/40-editor.md:248`, `docs/reference/tools/50-agents.md:263`. `docs/reference/tools/10-cli.md:51`'s \"Novis does not run PHP\" is the permitted statement and stays."
+        "text": "**Render the generated files again** — `bun nv reference` writes `docs/novis.md`, then the rules, ground rules, decision index and website data (goal prose § *Stage 10*) — `rule:testing/feature-proofs`; `docs/novis.md:1`"
+      },
+      {
+        "done": false,
+        "text": "**Run `bun nv verify --doc` and `bun nv owners --closes php-oracle-retired`**, move any decision only the goal prose holds to its rule, and write `DONE` — `rule:tooling/the-chain-names-its-live-goal`; `docs/agent/goals/php-oracle-retired.md:326`"
       }
     ]
   },
   "backlog": [
-    "Stage 10: `bun nv proofs --gate` owes the stale `Core\\Math` and `Core\\Str` perf figures; re-measure them, then render every generated file again (goal prose § *Stage 10*).",
-    "`website/src/content/docs/syntax/start-here.mdx:19` still has an *If you know PHP* section, and its description names PHP (goal § *Standing decisions*, *Origins stay honest*).",
-    "The class summaries in `docs/spec/01-core-library.md` still list the PHP functions a class replaces, and `website/src/data/core.json`'s `surface`/`summary` fields render them; no check covers it yet.",
-    "About 85 card fields compare with a PHP function without the word PHP (\"as `json_validate` does\"); `git grep -n \"\\` does\\\"\" -- crates/nvs-stdlib/src` lists them.",
-    "`data/reference/lang/*.json` still carries the old chapter summaries (written once by `nv import --write`, read by nothing this goal checks); `tools/nv/cmd/reference.ts:626`'s message still says \"stated as a refusal\"."
+    "Nothing outside Stage 10 is open for this goal."
   ]
 }
