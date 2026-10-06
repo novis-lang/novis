@@ -1,7 +1,6 @@
 {
-  "live": "growth-proof",
+  "live": "coverage-depth",
   "goals": [
-    "growth-proof",
     "coverage-depth",
     "php-oracle-retired",
     "deprecated-and-todo",
