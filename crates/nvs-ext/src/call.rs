@@ -57,9 +57,10 @@
 //! as [`Error::Invalid`], because no later instance gives it out again.
 //!
 //! **The budget is a trait.** [`Budget`] is what the store needs of its request — its CPU
-//! deadline, its memory accounting and its log — so this crate does not link the runtime. The
-//! host that wires a call into a request implements it over the request's own; [`Meter`] is a
-//! standalone budget for a test and for a run with no request around it, and keeps no log.
+//! deadline, its memory accounting, its log, its clocks and its random generator — so this crate
+//! does not link the runtime. The host that wires a call into a request implements it over the
+//! request's own; [`Meter`] is a standalone budget for a test and for a run with no request around
+//! it, keeps no log, and reads the process's clocks and generator.
 //!
 //! What it spends: one instance per extension a request calls, its linear memory charged to that
 //! request and freed with it, so O(in-flight). The pooling allocator reserves address space for
@@ -69,9 +70,10 @@ use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, AtomicUsize, Ordering}
 use std::sync::{Arc, Mutex, PoisonError};
 use std::task::{Poll, Waker};
 use std::thread::JoinHandle;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use std::{fmt, future};
 
+use rand::Rng;
 use wasmtime::component::{ComponentExportIndex, Instance, Linker, ResourceAny, Val};
 use wasmtime::{
     AsContextMut, Config, Engine, InstanceAllocationStrategy, PoolingAllocationConfig,
@@ -99,6 +101,15 @@ pub trait Budget: Send + Sync {
 
     /// Writes `message` to the request's log at `level`, with `channel` as its channel.
     fn log(&self, level: Level, channel: &str, message: &str);
+
+    /// The request's wall clock: the time since the Unix epoch, which a fixed clock fixes.
+    fn wall_clock(&self) -> Duration;
+
+    /// The request's monotonic clock, in nanoseconds since an origin the request chooses.
+    fn monotonic_clock(&self) -> u64;
+
+    /// Fills `out` from the request's random generator, which a declared seed fixes.
+    fn random(&self, out: &mut [u8]);
 }
 
 /// The levels of a request's log, as `nvs:ext/log` and `Core\Log` name them.
@@ -117,9 +128,12 @@ pub enum Level {
 }
 
 /// A budget of its own: a CPU deadline and an optional memory limit, with what is charged counted
-/// here.
+/// here. Its clocks are the process's, its monotonic clock counting from the meter's creation,
+/// and its random bytes come from `rand::rng()`, the thread's ChaCha12 generator `Core\Random`
+/// draws from.
 #[derive(Debug)]
 pub struct Meter {
+    started: Instant,
     deadline: Instant,
     memory: Option<u64>,
     charged: AtomicI64,
@@ -129,8 +143,10 @@ impl Meter {
     /// A budget of `cpu` from now and at most `memory` bytes, or no memory limit for `None`.
     #[must_use]
     pub fn new(cpu: Duration, memory: Option<u64>) -> Self {
+        let started = Instant::now();
         Self {
-            deadline: Instant::now() + cpu,
+            started,
+            deadline: started + cpu,
             memory,
             charged: AtomicI64::new(0),
         }
@@ -163,6 +179,20 @@ impl Budget for Meter {
 
     /// A meter has no request log, so it keeps nothing a guest writes.
     fn log(&self, _level: Level, _channel: &str, _message: &str) {}
+
+    fn wall_clock(&self) -> Duration {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+    }
+
+    fn monotonic_clock(&self) -> u64 {
+        u64::try_from(self.started.elapsed().as_nanos()).unwrap_or(u64::MAX)
+    }
+
+    fn random(&self, out: &mut [u8]) {
+        rand::rng().fill_bytes(out);
+    }
 }
 
 /// The request limit a call reached.
@@ -400,9 +430,19 @@ impl fmt::Debug for Host {
     }
 }
 
+/// The core instances one guest may hold: its own module, and the shim and fixup modules
+/// `wit-component` adds beside it to lower an import through the guest's memory, which every
+/// toolchain's libc does.
+const CORE_INSTANCES: u32 = 3;
+
+/// The tables one guest may hold: its own module's function table and the shim's.
+const TABLES: u32 = 2;
+
 impl Host {
     /// A host with room for `slots` instances at once, its linker filled by `imports`, and its
-    /// ticker started.
+    /// ticker started. Each slot reserves the pool's address space for one memory,
+    /// [`CORE_INSTANCES`] core instances and [`TABLES`] tables, so that a componentized guest
+    /// fits in one slot.
     ///
     /// # Errors
     ///
@@ -413,9 +453,9 @@ impl Host {
     ) -> wasmtime::Result<Self> {
         let mut pool = PoolingAllocationConfig::default();
         pool.total_component_instances(slots);
-        pool.total_core_instances(slots);
+        pool.total_core_instances(slots.saturating_mul(CORE_INSTANCES));
         pool.total_memories(slots);
-        pool.total_tables(slots);
+        pool.total_tables(slots.saturating_mul(TABLES));
         pool.total_stacks(slots);
         let mut config = Config::new();
         config.epoch_interruption(true);

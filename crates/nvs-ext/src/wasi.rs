@@ -11,10 +11,13 @@
 //!
 //! - `wasi:cli` — no environment, no arguments and no working directory. `stdin` is closed.
 //!   `stdout` and `stderr` write each line to the calling request's log at `debug`, with the
-//!   extension's class as the channel, through [`Budget::log`]. `exit` traps.
-//! - `wasi:clocks` — the process's own clocks, and a subscription that is ready at once.
-//! - `wasi:random` — `rand::rng()`, the thread's ChaCha12 generator `Core\Random` draws from,
-//!   for all three interfaces.
+//!   extension's class as the channel, through [`Budget::log`]. `exit` traps, so the call throws
+//!   `ExtensionError` and the next call gets a fresh instance.
+//! - `wasi:clocks` — the calling request's clocks, [`Budget::wall_clock`] and
+//!   [`Budget::monotonic_clock`], so a fixed clock reaches the guest. A subscription is ready at
+//!   once.
+//! - `wasi:random` — the calling request's generator, [`Budget::random`], for all three
+//!   interfaces, so a declared seed reaches the guest.
 //! - `wasi:filesystem` — no preopened directory, so a guest never holds a descriptor. Every
 //!   descriptor call answers `access`.
 //!
@@ -25,10 +28,8 @@
 //! and a line of at most twice [`PERMIT`] per output stream a guest asks for, all freed with the
 //! instance.
 
-use std::sync::{Arc, OnceLock};
-use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use std::sync::Arc;
 
-use rand::Rng;
 use wasmtime::component::{HasData, Linker, Resource, ResourceTable};
 use wasmtime_wasi_io::bytes::Bytes;
 use wasmtime_wasi_io::poll::{DynPollable, Pollable, subscribe};
@@ -308,15 +309,9 @@ impl Pollable for Ready {
     async fn ready(&mut self) {}
 }
 
-/// The instant the monotonic clock counts from: the first time a guest reads it.
-fn origin() -> Instant {
-    static ORIGIN: OnceLock<Instant> = OnceLock::new();
-    *ORIGIN.get_or_init(Instant::now)
-}
-
 impl monotonic_clock::Host for Context {
     fn now(&mut self) -> wasmtime::Result<u64> {
-        Ok(u64::try_from(origin().elapsed().as_nanos()).unwrap_or(u64::MAX))
+        Ok(self.budget.monotonic_clock())
     }
 
     fn resolution(&mut self) -> wasmtime::Result<u64> {
@@ -336,9 +331,7 @@ impl monotonic_clock::Host for Context {
 
 impl wall_clock::Host for Context {
     fn now(&mut self) -> wasmtime::Result<wall_clock::Datetime> {
-        let since = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default();
+        let since = self.budget.wall_clock();
         Ok(wall_clock::Datetime {
             seconds: since.as_secs(),
             nanoseconds: since.subsec_nanos(),
@@ -353,42 +346,52 @@ impl wall_clock::Host for Context {
     }
 }
 
-/// `len` random bytes, refused past the instance's memory: a guest cannot ask the host to
-/// allocate more than a wasm32 guest could hold.
-fn bytes(len: u64) -> wasmtime::Result<Vec<u8>> {
-    let len = usize::try_from(len)
-        .ok()
-        .filter(|len| u32::try_from(*len).is_ok())
-        .ok_or_else(|| wasmtime::Error::msg("the guest asked for more random bytes than fit"))?;
-    let mut out = vec![0; len];
-    rand::rng().fill_bytes(&mut out);
-    Ok(out)
+impl Context {
+    /// `len` bytes from the request's generator, refused past the instance's memory: a guest
+    /// cannot ask the host to allocate more than a wasm32 guest could hold.
+    fn bytes(&self, len: u64) -> wasmtime::Result<Vec<u8>> {
+        let len = usize::try_from(len)
+            .ok()
+            .filter(|len| u32::try_from(*len).is_ok())
+            .ok_or_else(|| {
+                wasmtime::Error::msg("the guest asked for more random bytes than fit")
+            })?;
+        let mut out = vec![0; len];
+        self.budget.random(&mut out);
+        Ok(out)
+    }
+
+    /// A `u64` from the request's generator, its bytes read little-endian.
+    fn u64(&self) -> u64 {
+        let mut out = [0; 8];
+        self.budget.random(&mut out);
+        u64::from_le_bytes(out)
+    }
 }
 
 impl random::Host for Context {
     fn get_random_bytes(&mut self, len: u64) -> wasmtime::Result<Vec<u8>> {
-        bytes(len)
+        self.bytes(len)
     }
 
     fn get_random_u64(&mut self) -> wasmtime::Result<u64> {
-        Ok(rand::rng().next_u64())
+        Ok(self.u64())
     }
 }
 
 impl insecure::Host for Context {
     fn get_insecure_random_bytes(&mut self, len: u64) -> wasmtime::Result<Vec<u8>> {
-        bytes(len)
+        self.bytes(len)
     }
 
     fn get_insecure_random_u64(&mut self) -> wasmtime::Result<u64> {
-        Ok(rand::rng().next_u64())
+        Ok(self.u64())
     }
 }
 
 impl insecure_seed::Host for Context {
     fn insecure_seed(&mut self) -> wasmtime::Result<(u64, u64)> {
-        let mut rng = rand::rng();
-        Ok((rng.next_u64(), rng.next_u64()))
+        Ok((self.u64(), self.u64()))
     }
 }
 

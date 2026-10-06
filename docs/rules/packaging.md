@@ -1847,9 +1847,11 @@ sink of its own, it can declare what it consumes and produces but cannot launder
 links the world's WASI interfaces but `wasi:http`, and the loader admits a WASI import only from the
 ones it links (`crates/nvs-ext/tests/wasi.rs`). Every guest holds no preopen, no environment, no
 arguments and an empty stdin, and its stdout and stderr write each line to the log of the request
-`nvs_ext::call::Budget` names. `nvs run` and `nvs serve` hand it a `Meter`, which keeps no log, so
-no line reaches a real request yet. Its clocks are the process's and its random bytes are not
-seeded from the request. No grant reaches a guest, and `wasi:http` is not linked.
+`nvs_ext::call::Budget` names, and its clocks and random bytes are that budget's, so a fixed clock
+and a seed reach it. A libc-shaped guest fits one pool slot, and its `exit` throws `ExtensionError`.
+`nvs run` and `nvs serve` hand it a `Meter`, which keeps no log and reads the process's clocks and
+generator, so neither a line nor a test clock reaches a real request yet. No grant reaches a guest,
+and `wasi:http` is not linked.
 
 <sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/extension-cannot-launder`](security.md#security-extension-cannot-launder). Decided in [0003](../decisions/0003.md), [0246](../decisions/0246.md).</sub>
 
