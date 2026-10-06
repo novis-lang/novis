@@ -86,6 +86,8 @@ pub struct Entry {
     pub path: PathBuf,
     /// The entry's `sha256`, 64 hexadecimal digits in either case.
     pub sha256: String,
+    /// The entry's optional `memory` ceiling, in bytes.
+    pub memory: Option<u64>,
 }
 
 /// Why an entry does not load. `entry` is the entry's path, and the caller that knows the
@@ -117,6 +119,9 @@ pub struct Extension {
     pub path: PathBuf,
     /// The file's SHA-256, lower-case hexadecimal.
     pub sha256: String,
+    /// The entry's `memory` ceiling, in bytes. A guest's linear memory stays under it and under
+    /// the manifest's `memory`.
+    pub memory: Option<u64>,
     /// The compiled component, shared by every core.
     pub component: Component,
     /// The class it declares and that class's signatures.
@@ -308,6 +313,7 @@ impl Loader {
         Ok(Extension {
             path: entry.path.clone(),
             sha256,
+            memory: entry.memory,
             component,
             manifest,
             source,
@@ -343,7 +349,7 @@ fn refused(path: &Path, reason: String) -> Refused {
 }
 
 /// Whether the export `name` is the interface `interface`, at any version.
-fn export_names(name: &str, interface: &str) -> bool {
+pub(crate) fn export_names(name: &str, interface: &str) -> bool {
     name.split_once('@').map_or(name, |(bare, _)| bare) == interface
 }
 

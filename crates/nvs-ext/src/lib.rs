@@ -10,6 +10,9 @@
 //! - `load`, behind the `engine` feature, reads a `.nvsx` from its `[[extension]]` entry and
 //!   refuses it, naming the entry, unless its pin, its component, its manifest and its imports all
 //!   check. Its module doc owns the order and which Novis types the export check reads.
+//! - `call`, behind the `engine` feature, runs a loaded extension: one instance per extension per
+//!   request, a call the request's coroutine polls, and the request's CPU time and memory as its
+//!   limits. Its module doc owns how a call waits, yields and fails.
 //! - `pack`, behind the `pack` feature, makes a `.nvsx` from a component or a core module, a
 //!   manifest and source files, the same bytes each time.
 //!
@@ -36,6 +39,8 @@
 //! - **Every key is closed.** Both sections refuse a key they do not know, so a manifest written for
 //!   a newer host fails on its format number or on the key, never by being half-read.
 
+#[cfg(feature = "engine")]
+pub mod call;
 #[cfg(feature = "engine")]
 pub mod load;
 pub mod manifest;

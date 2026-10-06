@@ -63,6 +63,7 @@ fn entry(name: &str, bytes: &[u8]) -> Entry {
     Entry {
         path: PathBuf::from(name),
         sha256: pin(bytes),
+        memory: None,
     }
 }
 
@@ -95,6 +96,7 @@ fn a_pinned_component_with_a_matching_manifest_loads() {
     let loaded = loader().load(&Entry {
         path: path.clone(),
         sha256: pin(&bytes).to_uppercase(),
+        memory: None,
     });
     std::fs::remove_file(&path).expect("the file is removed");
     let extension = loaded.expect("the extension loads");

@@ -45,6 +45,10 @@ wit-parser = { workspace = true, optional = true }
 wat.workspace = true
 
 [[test]]
+name = "call"
+required-features = ["engine"]
+
+[[test]]
 name = "load"
 required-features = ["engine", "pack"]
 
