@@ -28,6 +28,17 @@
 //! of the three. Reaching any of them is the same limit, because the store has one: the request
 //! ends, whichever of the three was smallest.
 //!
+//! **Failures** (`rule:packaging/a-guest-crash-throws`). Every export the loader accepts returns
+//! `result<T, error>`, and [`Request::call`] returns the `ok` side's value or a [`Failure`]:
+//! [`Failure::Error`] for an `err`, which keeps the instance, and [`Failure::Trap`] or
+//! [`Failure::Limit`], which drop it. [`Failure::outcome`] is what the program sees of each: a
+//! [`Outcome::Throw`] of the class the world maps an `err` to, or of `ExtensionError` for a trap,
+//! or an [`Outcome::Fatal`] for a limit. The class and the limit are named in the spellings
+//! `nvs_runtime::ThrownClass::name` and `nvs_runtime::Limit::name` use, which
+//! `crates/nvs-ext/tests/failure.rs` pins, so the host that wires a call into a request raises the
+//! throw with `Ctx::set_pending_as`, or runs `Ctx::run_limit_handler` and records the `FATAL`,
+//! without this crate linking the runtime.
+//!
 //! **The budget is a trait.** [`Budget`] is the two questions the store asks of its request, so
 //! this crate does not link the runtime. The host that wires a call into a request implements it
 //! over the request's own deadline and memory accounting; [`Meter`] is a standalone budget for a
@@ -121,13 +132,48 @@ pub enum Limit {
     Memory,
 }
 
+impl Limit {
+    /// The `[limits]` directive this limit is, as `nvs_runtime::Limit::name` spells it.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Cpu => "cpu_time",
+            Self::Memory => "memory",
+        }
+    }
+}
+
+/// An export's `err`: `nvs:ext/types`'s `error` variant, with its message.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Error {
+    /// `invalid(m)`: the caller passed a value the extension does not accept.
+    Invalid(String),
+    /// `parse(m)`: an input the extension reads is malformed.
+    Parse(String),
+    /// `runtime(m)`: the extension failed for a reason of its own.
+    Runtime(String),
+}
+
+/// A guest that trapped, or did not instantiate, in a call to one export.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Crash {
+    /// The extension's class.
+    pub extension: String,
+    /// The export the call was for.
+    pub export: String,
+    /// What the guest did.
+    pub reason: String,
+}
+
 /// Why a call did not return a value.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Failure {
     /// The guest reached a request limit. The request ends.
     Limit(Limit),
-    /// The guest trapped, or did not instantiate.
-    Trap(String),
+    /// The export returned `err`. The instance is kept.
+    Error(Error),
+    /// The guest trapped, or did not instantiate. The instance is dropped.
+    Trap(Crash),
     /// The manifest declares no such method, or the component does not export it.
     NoMethod(String),
 }
@@ -141,13 +187,73 @@ impl fmt::Display for Failure {
             Self::Limit(Limit::Memory) => {
                 f.write_str("the extension used all of the memory it may use")
             }
-            Self::Trap(reason) => write!(f, "the extension crashed: {reason}"),
+            Self::Error(
+                Error::Invalid(message) | Error::Parse(message) | Error::Runtime(message),
+            ) => f.write_str(message),
+            Self::Trap(crash) => write!(
+                f,
+                "the extension `{}` crashed in `{}`: {}",
+                crash.extension, crash.export, crash.reason
+            ),
             Self::NoMethod(name) => write!(f, "the extension has no method `{name}`"),
         }
     }
 }
 
 impl std::error::Error for Failure {}
+
+/// The class a failure throws, as `nvs_hir::errors::TREE` names it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Class {
+    /// `LogicError`, for `err(invalid(m))`.
+    Logic,
+    /// `ParseError`, for `err(parse(m))`.
+    Parse,
+    /// `RuntimeError`, for `err(runtime(m))`.
+    Runtime,
+    /// `ExtensionError`, for a trap.
+    Extension,
+}
+
+impl Class {
+    /// The class's name, as `nvs_runtime::ThrownClass::name` spells it.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Logic => "LogicError",
+            Self::Parse => "ParseError",
+            Self::Runtime => "RuntimeError",
+            Self::Extension => "ExtensionError",
+        }
+    }
+}
+
+/// What the program sees of a failed call.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Outcome {
+    /// A throw of the class, with the message. A `catch` sees it, and the request goes on.
+    Throw(Class, String),
+    /// A resource-limit `FATAL`, with the message. It reaches `Core\Fatal::onLimit` with the
+    /// limit's name, no `catch` sees it, and the request ends.
+    Fatal(Limit, String),
+}
+
+impl Failure {
+    /// What the program sees of this failure.
+    #[must_use]
+    pub fn outcome(&self) -> Outcome {
+        let class = match self {
+            Self::Limit(limit) => return Outcome::Fatal(*limit, self.to_string()),
+            Self::Error(Error::Invalid(_)) => Class::Logic,
+            Self::Error(Error::Parse(_)) => Class::Parse,
+            Self::Error(Error::Runtime(_)) => Class::Runtime,
+            // The loader refuses a manifest that does not match the exports, so a missing method
+            // is a component the loader did not check, and that is the extension's fault.
+            Self::Trap(_) | Self::NoMethod(_) => Class::Extension,
+        };
+        Outcome::Throw(class, self.to_string())
+    }
+}
 
 /// What one instance's store carries: its request's budget, and what it charged.
 pub struct Guest {
@@ -355,11 +461,13 @@ impl Request {
         self.lock().len()
     }
 
-    /// Calls `method` of `extension` with `args`, and returns its results.
+    /// Calls `method` of `extension` with `args`, and returns its results: the `ok` side's value
+    /// where the export returns a `result`, and every result as it is where it does not.
     ///
     /// # Errors
     ///
-    /// A [`Failure`]: a limit the guest reached, a trap, or a method the extension does not have.
+    /// A [`Failure`]: a limit the guest reached, the export's `err`, a trap, or a method the
+    /// extension does not have.
     pub async fn call(
         &self,
         extension: &Extension,
@@ -373,15 +481,22 @@ impl Request {
             .find(|declared| declared.name.eq_ignore_ascii_case(method))
             .ok_or_else(|| Failure::NoMethod(method.to_owned()))?;
         let export = declared.export_name();
+        let at = At {
+            extension: &extension.manifest.class,
+            export: &export,
+        };
         let mut held = self.acquire(&extension.manifest.class).await;
         if held.live.is_none() {
-            held.live = Some(Box::new(self.instantiate(extension).await?));
+            held.live = Some(Box::new(self.instantiate(extension, at).await?));
         }
         let Some(live) = held.live.as_mut() else {
             unreachable!("the instance was made above");
         };
-        let outcome = live.call(&export, method, args).await;
-        if outcome.is_err() {
+        let outcome = live.call(at, method, args).await;
+        if outcome
+            .as_ref()
+            .is_err_and(|failure| !matches!(failure, Failure::Error(_)))
+        {
             held.live = None;
         }
         outcome
@@ -421,7 +536,7 @@ impl Request {
     }
 
     /// A fresh instance of `extension`, in a store charged to this request.
-    async fn instantiate(&self, extension: &Extension) -> Result<Live, Failure> {
+    async fn instantiate(&self, extension: &Extension, at: At<'_>) -> Result<Live, Failure> {
         let ceiling = match (extension.memory, extension.manifest.memory) {
             (Some(entry), Some(manifest)) => Some(entry.min(manifest)),
             (entry, manifest) => entry.or(manifest),
@@ -455,7 +570,7 @@ impl Request {
             .await
         {
             Ok(instance) => instance,
-            Err(err) => return Err(failure(&store, &err)),
+            Err(err) => return Err(failure(&store, &err, at)),
         };
         let interface = extension
             .component
@@ -474,34 +589,61 @@ impl Request {
 }
 
 impl Live {
-    async fn call(
-        &mut self,
-        export: &str,
-        method: &str,
-        args: &[Val],
-    ) -> Result<Vec<Val>, Failure> {
+    async fn call(&mut self, at: At<'_>, method: &str, args: &[Val]) -> Result<Vec<Val>, Failure> {
         let func = self
             .instance
-            .get_export_index(&mut self.store, Some(&self.interface), export)
+            .get_export_index(&mut self.store, Some(&self.interface), at.export)
             .and_then(|index| self.instance.get_func(&mut self.store, index))
             .ok_or_else(|| Failure::NoMethod(method.to_owned()))?;
         let mut results = vec![Val::Bool(false); func.ty(&self.store).results().len()];
         func.call_async(&mut self.store, args, &mut results)
             .await
-            .map_err(|err| failure(&self.store, &err))?;
-        Ok(results)
+            .map_err(|err| failure(&self.store, &err, at))?;
+        match <[Val; 1]>::try_from(results) {
+            Ok([Val::Result(Ok(value))]) => Ok(value.map(|value| vec![*value]).unwrap_or_default()),
+            Ok([Val::Result(Err(err))]) => Err(match err.as_deref() {
+                Some(Val::Variant(case, Some(message))) => match (case.as_str(), &**message) {
+                    ("invalid", Val::String(m)) => Failure::Error(Error::Invalid(m.clone())),
+                    ("parse", Val::String(m)) => Failure::Error(Error::Parse(m.clone())),
+                    ("runtime", Val::String(m)) => Failure::Error(Error::Runtime(m.clone())),
+                    _ => at.crash("its error is not the world's `error` variant"),
+                },
+                _ => at.crash("its error is not the world's `error` variant"),
+            }),
+            Ok(result) => Ok(result.into()),
+            Err(results) => Ok(results),
+        }
+    }
+}
+
+/// The extension and the export a call is for, which a trap names.
+#[derive(Clone, Copy)]
+struct At<'a> {
+    extension: &'a str,
+    export: &'a str,
+}
+
+impl At<'_> {
+    fn crash(self, reason: impl Into<String>) -> Failure {
+        Failure::Trap(Crash {
+            extension: self.extension.to_owned(),
+            export: self.export.to_owned(),
+            reason: reason.into(),
+        })
     }
 }
 
 /// The failure `err` is, in a store that may have reached a limit.
-fn failure(store: &Store<Guest>, err: &wasmtime::Error) -> Failure {
+fn failure(store: &Store<Guest>, err: &wasmtime::Error, at: At<'_>) -> Failure {
     if let Some(limit) = store.data().reached {
         return Failure::Limit(limit);
     }
-    if err.downcast_ref::<Trap>() == Some(&Trap::Interrupt) {
-        return Failure::Limit(Limit::Cpu);
+    match err.downcast_ref::<Trap>() {
+        Some(Trap::Interrupt) => Failure::Limit(Limit::Cpu),
+        // The trap alone: the error's context is a backtrace of offsets into the guest.
+        Some(trap) => at.crash(trap.to_string()),
+        None => at.crash(err.to_string()),
     }
-    Failure::Trap(format!("{err:#}"))
 }
 
 /// A slot one task's call holds. Dropping it puts the instance back, or removes the slot when the

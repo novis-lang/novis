@@ -19,5 +19,6 @@ ends — O(in-flight). The pooling allocator reserves address space per slot, no
 
 **Not on disk.** `nvs_ext::call` charges every growth to a `Budget` and traps a guest past its CPU
 deadline or the least of the three memory limits (`crates/nvs-ext/tests/call.rs`), but nothing
-implements that budget over a request's own deadline and memory accounting yet, and a limit is a
-`Failure` the caller has not yet turned into a `FATAL`.
+implements that budget over a request's own deadline and memory accounting yet. A limit's outcome
+is a `FATAL` naming the limit as `onLimit` receives it (`crates/nvs-ext/tests/failure.rs`), and no
+host raises it on a request yet.

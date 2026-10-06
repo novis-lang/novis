@@ -42,10 +42,17 @@ wit-component = { workspace = true, optional = true }
 wit-parser = { workspace = true, optional = true }
 
 [dev-dependencies]
+# The failure tests pin the class and limit names this crate hands the host to
+# the runtime's own spellings. A dev-dependency only: the library never links it.
+nvs-runtime.workspace = true
 wat.workspace = true
 
 [[test]]
 name = "call"
+required-features = ["engine"]
+
+[[test]]
+name = "failure"
 required-features = ["engine"]
 
 [[test]]

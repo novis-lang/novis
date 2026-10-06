@@ -1734,8 +1734,9 @@ ends — O(in-flight). The pooling allocator reserves address space per slot, no
 
 **Not on disk.** `nvs_ext::call` charges every growth to a `Budget` and traps a guest past its CPU
 deadline or the least of the three memory limits (`crates/nvs-ext/tests/call.rs`), but nothing
-implements that budget over a request's own deadline and memory accounting yet, and a limit is a
-`Failure` the caller has not yet turned into a `FATAL`.
+implements that budget over a request's own deadline and memory accounting yet. A limit's outcome
+is a `FATAL` naming the limit as `onLimit` receives it (`crates/nvs-ext/tests/failure.rs`), and no
+host raises it on a request yet.
 
 <sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`packaging/a-fresh-instance-per-request`](packaging.md#packaging-a-fresh-instance-per-request). Decided in [0003](../decisions/0003.md), [0020](../decisions/0020.md), [0246](../decisions/0246.md).</sub>
 
@@ -1763,8 +1764,10 @@ A limit stays a `FATAL` because the request, not the extension, asked for too mu
 limit is not a `Throwable` ([`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy)).
 
 **Not on disk.** `ExtensionError` is in the compiler's exception tree under `RuntimeError` with no
-property of its own (`nvs_hir::errors::TREE`) and in the runtime's thrown-class roster, but nothing
-turns a guest's `err` or trap into a throw yet.
+property of its own (`nvs_hir::errors::TREE`) and in the runtime's thrown-class roster, and
+`nvs_ext::call` turns every failure into the table's outcome — the class or the limit named as the
+runtime spells it, a trapped instance dropped and an `err`'s kept (`crates/nvs-ext/tests/failure.rs`)
+— but no host raises that outcome on a request yet.
 
 <sub>See also [`packaging/a-guest-runs-under-the-requests-budget`](packaging.md#packaging-a-guest-runs-under-the-requests-budget), [`errors/on-limit`](errors.md#errors-on-limit), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy). Decided in [0246](../decisions/0246.md).</sub>
 

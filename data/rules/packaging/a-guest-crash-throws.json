@@ -10,6 +10,7 @@
     "errors/throwable-hierarchy"
   ],
   "guardedBy": [
-    "crates/nvs-hir/src/errors.rs"
+    "crates/nvs-hir/src/errors.rs",
+    "crates/nvs-ext/tests/failure.rs"
   ]
 }

@@ -16,5 +16,7 @@ A limit stays a `FATAL` because the request, not the extension, asked for too mu
 limit is not a `Throwable` (`rule:errors/throwable-hierarchy`).
 
 **Not on disk.** `ExtensionError` is in the compiler's exception tree under `RuntimeError` with no
-property of its own (`nvs_hir::errors::TREE`) and in the runtime's thrown-class roster, but nothing
-turns a guest's `err` or trap into a throw yet.
+property of its own (`nvs_hir::errors::TREE`) and in the runtime's thrown-class roster, and
+`nvs_ext::call` turns every failure into the table's outcome — the class or the limit named as the
+runtime spells it, a trapped instance dropped and an `err`'s kept (`crates/nvs-ext/tests/failure.rs`)
+— but no host raises that outcome on a request yet.
