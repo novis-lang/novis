@@ -1,24 +1,26 @@
 {
-  "state": "**Goal `php-oracle-retired`: Stages 6 and 7 are on disk; Stage 8 is in progress.** ADR 0274 (`docs/decisions/0274.md`) is the goal's record.\n\nStage 7 landed before this session (the three fixes and their tests are in `crates/nvs-stdlib/src/str.rs`, `arr.rs`, `bigint.rs`; the gap records are gone).\n\nStage 8's first file set is done: the `php-migration/` topic is dissolved. Eleven rules moved and were rewritten without PHP — `types/` (absent-storage-is-never-a-zero-value, an-element-write-needs-storage-to-write-back-into, a-declared-type-answers-before-the-program-runs, one-type-test), `statements/` (a-body-never-falls-off-its-end, no-return-leaves-a-finally, let-and-is-are-reserved), `classes/` (a-constructor-return-carries-no-value, a-readonly-property-declares-no-default), `expressions/no-partial-application`, `security/a-session-id-the-store-did-not-issue-is-rejected`. `every-divergence-is-deliberate-and-listed` and `a-deprecation-is-a-refusal` are deleted, with every live citation re-pointed and frozen ones stripped of `rule:`. The moved records still carry `divergesFromPhp`; the next group deletes the field everywhere.",
+  "state": "**Goal `php-oracle-retired`: Stages 6 and 7 are on disk; Stage 8 is in progress.** ADR 0274 (`docs/decisions/0274.md`) is the goal's record.\n\nStage 8 on disk: the `php-migration/` topic is dissolved; `divergesFromPhp` is gone from the schema, `tools/nv/cmd/rules.ts` and all 588 rule records; `docs/divergences.md` and its generator are deleted, with every live link rewritten and the playbook bullet that named it retired. The website pieces the goal prose names (`website-rules.ts`, `RuleBookIndex.astro`) no longer carried the field. The ten normative lines the goal prose lists now state the behaviour without PHP. All four Stage 8 checks should now pass.\n\nStage 8 prose still owes three sweeps (goal prose § *Stage 8*, `docs/agent/goals/php-oracle-retired.md:282`): the four testing rules lose the oracle, incidental PHP mentions in fragments are cut, and `php`-tagged fences holding Novis code are retagged `nvs`. No check pins these, so they are judgment work.",
   "next": {
     "stage": 8,
     "title": "the rules state the behaviour",
     "files": [],
-    "note": "one file set: the rule tooling and its renderers. Goal prose § *Stage 8* (`docs/agent/goals/php-oracle-retired.md:272`).",
+    "note": "one file set: rule fragments under `docs/rules/`, then `bun nv rules --render` and `bun nv reference`.",
     "items": [
       {
         "done": false,
-        "text": "**`divergesFromPhp` is deleted, with `docs/divergences.md` and its generator** — goal prose § *Stage 8*; the field is `tools/nv/schema/rule.ts:17`, read at `tools/nv/cmd/rules.ts:160`, rendered at `tools/nv/cmd/rules.ts:283` and `tools/nv/cmd/rules.ts:301`, plus `tools/nv/renderers/website-rules.ts:184` and `website/src/components/RuleBookIndex.astro:48`. The ~590 records lose the field through one script under `.agent-tmp/`, deleted after; every link to `docs/divergences.md` is rewritten."
+        "text": "**The four testing rules lose the oracle** — goal prose § *Stage 8*; `docs/rules/testing/nvst-is-separate.md:1`, `docs/rules/testing/probes-on-is-a-tested-configuration.md:9`, `docs/rules/packaging/the-sweep-is-fired-by-a-human.md:13`, `docs/rules/ide/case-files-have-their-own-grammar.md:1`."
       },
       {
         "done": false,
-        "text": "**Normative lines say the behaviour** — goal prose § *Stage 8* lists them: `docs/rules/types/arithmetic.md:5`, `docs/rules/types/arrays.md:10`, `docs/rules/types/declaration.md:18`, `docs/rules/types/string-is-utf8.md:18`, `docs/rules/types/integer-literals.md:12`; the check `no-rule-makes-php-the-reference` names the rest."
+        "text": "**`php`-tagged fences holding Novis code are retagged `nvs`** — goal prose § *Stage 8*; `git grep -n '```php' -- 'docs/rules/*/*.md'` lists 49, starting at `docs/rules/types/arrays.md:1`. A fence holding real PHP goes with the comparison it served."
+      },
+      {
+        "done": false,
+        "text": "**Incidental PHP mentions are cut** — goal prose § *Stage 8*; e.g. `docs/rules/classes/two-copy-depths.md:11`, `docs/rules/packaging/extension-calls-are-statically-typed.md:8`. Keep the diagnostics for a PHP habit (E0229, W1004, superglobals) and the PHP benchmark rules, per the goal's standing decisions."
       }
     ]
   },
   "backlog": [
-    "Stage 8: the testing rules lose the oracle, incidental PHP mentions are cut, `php`-tagged fences holding Novis code are retagged (goal prose § *Stage 8*).",
-    "Stage 9: `about.md` and the registry text lose \"This replaces PHP's `x`.\" (goal prose § *Stage 9*).",
-    "Stage 10: the proofs gate owes nothing with PHP stepped back."
+    "Stage 9 (the reader's text steps back) and Stage 10 (proofs gate) — goal prose `docs/agent/goals/php-oracle-retired.md:291`."
   ]
 }
