@@ -21,14 +21,13 @@ For web servers and the command line. Familiar syntax (Hello PHP).
 - **One process, many requests.** A single server process handles unlimited concurrent requests, each
   fully isolated, all sharing one in-memory compiled-code cache.
 - **Isolation you can reach from the language.** `spawn script 'job.nvs'` runs another file with its own
-  heap, its own globals and its own slice of the caller's budget — the isolation PHP can only get by
-  starting another interpreter, at microseconds instead of tens of milliseconds
+  heap, its own globals and its own slice of the caller's budget, and starts in microseconds
   ([ADR 0006](docs/decisions/0006.md)).
 - **Typed on purpose.** Every parameter, property and variable declares its type, and no value changes
   type behind your back: conversions are explicit and throw rather than quietly yielding `0`. Unions and
-  `mixed` are there for the cases that genuinely are dynamic. `uint` gives you the whole 64-bit range PHP
-  cannot represent, and arrays keep PHP's ordered hash while gaining declarable, nestable element types —
-  `array<array<uint>>` ([ADR 0007](docs/decisions/0007.md)).
+  `mixed` are there for the cases that genuinely are dynamic. `uint` gives you the whole unsigned 64-bit
+  range, and arrays are ordered hashes with declarable, nestable element types — `array<array<uint>>`
+  ([ADR 0007](docs/decisions/0007.md)).
 - **Memory-safe and contained.** Written in Rust with `unsafe` confined to three audited modules. A
   runtime bug or a resource-limit breach kills one request, never the process.
 - **Fast and simple first; memory is what pays for that.** Novis targets server-class hardware, so where a
@@ -38,6 +37,8 @@ For web servers and the command line. Familiar syntax (Hello PHP).
 - **Extensible without giving up any of that.** Extensions are sandboxed WebAssembly components: one
   precompiled binary runs on every platform, written in whatever language you like, and a crashing or
   hostile extension harms one request rather than the process.
+
+Coming from PHP? [How Novis is different, and how to port a program](docs/reference/tools/30-php-differences.md).
 
 ## Roadmap
 

@@ -1,7 +1,6 @@
 <?nvs
-// Runs the loop with a `break` and a flag that replaces PHP's `goto`. A
-// program meets this shape whenever it searches a list and stops at the first
-// match.
+// Measures a loop that searches a list, keeps the first match and stops with
+// `break`. Novis has no `goto`, so a program writes a search this way.
 // bench: iterations 2048
 // bench: calls 0
 // bench: allocations 0

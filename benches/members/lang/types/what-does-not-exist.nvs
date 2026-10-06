@@ -1,7 +1,7 @@
 <?nvs
-// Measures where a program brought over from PHP now spends its time. It
-// converts a field, reads one character, and puts two pieces of text in order.
-// Each of those was a cast, a bracket or a `<` before.
+// Measures three common steps: convert a text field to a number with `as`,
+// read one character with `Core\Str::at`, and compare two texts with
+// `Core\Str::compare`. A program does these when it reads form or file input.
 // bench: iterations 256
 // bench: complexity linear
 
