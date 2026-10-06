@@ -35,8 +35,10 @@
 //! side of every result is the world's `error` variant, read by its three cases.
 //!
 //! **A WASI import matches by interface and `0.2`**, any patch: wasmtime's linker resolves a `0.2.x`
-//! import to the `0.2` release the host defines. An `nvs:ext` import matches by interface, under
-//! the version rule the manifest's own `world` is held to.
+//! import to the `0.2` release the host defines. Of the world's WASI interfaces, only those
+//! [`crate::wasi::LINKED`] names load, because an interface the host does not define would fail
+//! at instantiation instead. An `nvs:ext` import matches by interface, under the version rule the
+//! manifest's own `world` is held to.
 //!
 //! **The compiled form is cached behind a seam.** A loader given a [`ModuleCache`] looks the
 //! component up under a [`CacheKey`] — the file's pin and [`Loader::environment`], a SHA-256 of
@@ -68,6 +70,7 @@ use crate::manifest::{Manifest, Method, WorldVersion};
 use crate::section;
 use crate::source::Source;
 use crate::types::{Field, NovisType};
+use crate::wasi;
 
 /// The `nvs:ext` world this host implements.
 pub const WORLD: WorldVersion = WorldVersion {
@@ -463,6 +466,9 @@ impl Loader {
             return false;
         }
         if interface.starts_with("wasi:") {
+            if !wasi::LINKED.contains(&interface) {
+                return false;
+            }
             return version.strip_prefix("0.2.").is_some_and(|patch| {
                 !patch.is_empty() && patch.bytes().all(|b| b.is_ascii_digit())
             });

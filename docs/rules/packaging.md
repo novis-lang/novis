@@ -1843,8 +1843,11 @@ sink of its own, it can declare what it consumes and produces but cannot launder
 ([`security/extension-cannot-launder`](security.md#security-extension-cannot-launder)).
 
 **Not on disk.** The import list is written as the `extension` world in `wit/nvs-ext/world.wit`, and
-`crates/nvs-stdlib/tests/ext_world.rs` checks it imports exactly the allowed interfaces. Nothing links
-WASI or any other import for a guest.
+`crates/nvs-stdlib/tests/ext_world.rs` checks it imports exactly the allowed interfaces. `nvs_ext::wasi`
+links the world's WASI interfaces but `wasi:http`, and the loader admits a WASI import only from the
+ones it links (`crates/nvs-ext/tests/wasi.rs`). Every guest holds no preopen, no environment and no
+arguments, but its stdout and stderr are discarded, its clocks are the process's and its random bytes
+are not seeded from the request. No grant reaches a guest, and `wasi:http` is not linked.
 
 <sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/extension-cannot-launder`](security.md#security-extension-cannot-launder). Decided in [0003](../decisions/0003.md), [0246](../decisions/0246.md).</sub>
 

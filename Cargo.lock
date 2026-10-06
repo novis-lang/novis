@@ -2296,11 +2296,13 @@ version = "0.0.1"
 dependencies = [
  "nvs-repo",
  "nvs-runtime",
+ "rand",
  "serde",
  "serde_json",
  "sha2 0.10.9",
  "wasmparser 0.254.2",
  "wasmtime",
+ "wasmtime-wasi-io",
  "wat",
  "wit-component",
  "wit-parser",
@@ -3717,6 +3719,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d56353a2a665ad0f41a421187180aab746c8c325620617ad883a99a1cbe66d2"
 
 [[package]]
+name = "tracing"
+version = "0.1.44"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "63e71662fa4b2a2c3a26f570f037eb95bb1f85397f3cd8076caed2f026a6d100"
+dependencies = [
+ "pin-project-lite",
+ "tracing-core",
+]
+
+[[package]]
+name = "tracing-core"
+version = "0.1.36"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "db97caf9d906fbde555dd62fa95ddba9eecfd14cb388e4f491a66d74cd5fb79a"
+dependencies = [
+ "once_cell",
+]
+
+[[package]]
 name = "try-lock"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4224,6 +4245,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasmtime-wasi-io"
+version = "48.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1af4069fb7fc9cdc72410be96fb7f83b772e500cf4d0758d7fe6b55cefb303b8"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "futures",
+ "tracing",
+ "wasmtime",
+]
+
+[[package]]
 name = "wast"
 version = "261.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4432,6 +4466,7 @@ dependencies = [
  "wasm-encoder 0.254.2",
  "wasm-metadata",
  "wasmparser 0.254.2",
+ "wat",
  "wit-parser",
 ]
 

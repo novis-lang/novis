@@ -11,6 +11,7 @@
     "security/extension-cannot-launder"
   ],
   "guardedBy": [
-    "crates/nvs-stdlib/tests/ext_world.rs"
+    "crates/nvs-stdlib/tests/ext_world.rs",
+    "crates/nvs-ext/tests/wasi.rs"
   ]
 }

@@ -337,6 +337,13 @@ wat = "1"
 # `dummy-module`, `wat` and `semver-check` features serve tools, not the packer.
 # `crates/nvs-ext/src/pack.rs` is the one caller.
 wit-component = { version = "0.254", default-features = false }
+# `wasi:io`'s host half — the `pollable`, `input-stream` and `output-stream`
+# resources every other WASI interface is written in — at wasmtime's own
+# version. Not `wasmtime-wasi`: that crate's host runs on `tokio`'s `rt`, which
+# `rule:concurrency/one-scheduler` refuses, and this one is `no_std` with no
+# executor. It adds `tracing`, with no subscriber and no `log` bridge.
+# `crates/nvs-ext/src/wasi.rs` is the one caller.
+wasmtime-wasi-io = "48"
 
 # --- the language server's wire and its vocabulary (ADR 0099 §§ 1-5) ---
 # `rule:ide/the-server-is-synchronous` is "a reader thread, a writer thread, one

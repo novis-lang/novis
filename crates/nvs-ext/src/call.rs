@@ -82,6 +82,7 @@ use crate::convert::{self, Crossing, Value};
 use crate::handle::{self, Handles};
 use crate::load::Extension;
 use crate::manifest::Method;
+use crate::wasi;
 
 /// How often the ticker advances the engine's epoch, which is how often a running guest checks
 /// its request's CPU deadline and yields to the other tasks on its core.
@@ -284,6 +285,7 @@ pub struct Guest {
     live: Arc<AtomicUsize>,
     pub(crate) handles: Handles,
     kept: Vec<Kept>,
+    pub(crate) wasi: wasi::Context,
 }
 
 /// A resource the request keeps: its number, its type's short name, and the resource.
@@ -402,6 +404,7 @@ impl Host {
         let engine = Engine::new(&config)?;
         let mut linker = Linker::new(&engine);
         handle::link(&mut linker)?;
+        wasi::link(&mut linker)?;
         imports(&mut linker)?;
         let stop = Arc::new(AtomicBool::new(false));
         let ticker = {
@@ -703,6 +706,7 @@ impl Request {
                 live: Arc::clone(&self.host.shared.live),
                 handles: Handles::default(),
                 kept: Vec::new(),
+                wasi: wasi::Context::default(),
             },
         );
         store.limiter(|guest| guest);

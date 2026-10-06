@@ -5,6 +5,7 @@
 
 use std::path::PathBuf;
 
+use nvs_ext::call::Host;
 use nvs_ext::load::{Entry, Loader, Refused, Set, WORLD_IMPORTS, pin};
 use nvs_ext::manifest::WorldVersion;
 use nvs_ext::pack::append_section;
@@ -251,6 +252,7 @@ fn a_manifest_naming_an_unknown_qualifier_is_refused() {
 fn an_import_outside_the_world_is_refused_naming_the_import() {
     for import in [
         "wasi:sockets/tcp@0.2.12",
+        "wasi:http/types@0.2.12",
         "shop:other/api",
         "wasi:cli/stdout@0.3.0",
     ] {
@@ -266,6 +268,23 @@ fn an_import_outside_the_world_is_refused_naming_the_import() {
     loader()
         .load_bytes(&entry("geo.nvsx", &bytes), &bytes)
         .expect("an older WASI 0.2 import is in the world");
+}
+
+#[test]
+fn a_component_importing_a_linked_wasi_interface_loads() {
+    let import = r#"(import "wasi:cli/environment@0.2.12" (instance
+    (export "get-arguments" (func (result (list string))))))"#;
+    let bytes = nvsx(guest(import), &manifest("Shop\\Geo", "1.0.0", METHOD));
+    Host::new(1, |linker| {
+        let extension = Loader::new(linker.engine())
+            .load_bytes(&entry("geo.nvsx", &bytes), &bytes)
+            .expect("a WASI interface the host links loads");
+        linker
+            .instantiate_pre(&extension.component)
+            .expect("the host's linker defines what the component imports");
+        Ok(())
+    })
+    .expect("the host starts");
 }
 
 #[test]

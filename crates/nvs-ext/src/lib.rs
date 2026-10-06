@@ -18,6 +18,8 @@
 //!   type crosses as, and back. Its module doc owns the value model and what it refuses.
 //! - `handle`, behind the `engine` feature, is the per-call table a `mixed` argument is lent
 //!   through, and the `value` accessors a guest reads it with.
+//! - `wasi`, behind the `engine` feature, is the WASI every guest links, with an empty context.
+//!   Its module doc owns what each interface gives a guest, and which interfaces are linked.
 //! - `pack`, behind the `pack` feature, makes a `.nvsx` from a component or a core module, a
 //!   manifest and source files, the same bytes each time.
 //!
@@ -58,6 +60,8 @@ pub mod pack;
 pub mod section;
 pub mod source;
 pub mod types;
+#[cfg(feature = "engine")]
+pub mod wasi;
 
 use std::fmt;
 
