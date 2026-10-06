@@ -45,7 +45,7 @@
 //!
 //! # Decision: the queue is bounded, and an overflow is refused rather than waited on
 //!
-//! § 4's priority-1 rule is that a publisher is never blocked and no queue
+//! § 4's security rule is that a publisher is never blocked and no queue
 //! grows without bound. A mailbox therefore holds [`MAILBOX_CAP`] envelopes and
 //! refuses the next one, and a refused envelope's subscribers are **not**
 //! counted — so a publish answers what it actually queued. A core cannot reach

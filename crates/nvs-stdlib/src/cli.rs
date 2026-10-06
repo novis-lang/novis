@@ -1215,7 +1215,8 @@ nvs_runtime::nvs_helper! {
     /// buffer is sized for the byte that ends the line before it is filled. A
     /// second write to reach the same stream would be a second trip through the
     /// sink for one byte, and this member is bounded by the terminal it writes
-    /// to rather than by the copy (`rule:programs/memory-priority`'s ordering: priority 3 over 5). A
+    /// to rather than by the copy (`rule:programs/memory-priority`'s ordering: latency over
+    /// memory footprint). A
     /// `Core\Cli\Text` costs its runs' own rendering on top of that, and one
     /// more allocation when a newline grows the buffer that rendering sized.
     fn nvs_core_cli_write(ctx, args: [3]) {

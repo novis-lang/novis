@@ -132,8 +132,8 @@
 //! § 4's constant memory at the best case the protocol has.
 //!
 //! A chunk size could only turn that one `Execute` into one per chunk, each
-//! resuming a suspended portal — **latency spent (AGENTS.md's priority 3) to
-//! buy nothing**, since the memory the option exists to bound is already one
+//! resuming a suspended portal — **latency spent to buy nothing**, since the
+//! memory the option exists to bound is already one
 //! row. An option that parsed and did nothing would be worse than its absence,
 //! which the compiler can at least report. What would reopen this is a driver
 //! whose protocol delivers a result set eagerly rather than as a readable

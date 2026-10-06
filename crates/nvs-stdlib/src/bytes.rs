@@ -135,11 +135,10 @@
 //!   names, and the property given up — `$fields["length"]` — is bought back
 //!   as `unpack(pack($f, ...$v), $f) == $v`, exactly, with one format string
 //!   meaning one thing in both directions.
-//! - **Octets left over throw.** PHP ignores a tail the format did not
-//!   describe; a binary parser that silently ignores what it was not told
-//!   about is the failure AGENTS.md's priority 1 exists to refuse. A header
-//!   read off a longer buffer is `Core\Bytes::slice` and then `unpack`, or a
-//!   trailing `a*`.
+//! - **Octets left over throw.** A binary parser that silently ignores what
+//!   it was not told about is a security failure, so a tail the format did
+//!   not describe is an error. A header read off a longer buffer is
+//!   `Core\Bytes::slice` and then `unpack`, or a trailing `a*`.
 //!
 //! Ten of PHP's codes are refused, each throwing with the replacement named:
 //! `s`/`S`/`i`/`I`/`l`/`L`/`q`/`Q` and `f`/`d` take the machine's width or
@@ -1694,11 +1693,11 @@ nvs_runtime::nvs_helper! {
     /// worth having: `unpack(pack($f, …$v), $f)` is `$v`, field for field,
     /// with nothing to check about how the two format strings were spelled.
     ///
-    /// **Octets left over throw**, rather than being ignored the way PHP
-    /// ignores them: a format is a description of the buffer, and a
-    /// description that stops short of the data is exactly the bug a binary
-    /// parser must not swallow (AGENTS.md's priority 1). A header read off a
-    /// longer buffer is `Core\Bytes::slice` and then this, or a trailing `a*`.
+    /// **Octets left over throw.** A format is a description of the buffer,
+    /// and a description that stops short of the data is exactly the bug a
+    /// binary parser must not swallow, for security's sake. A header read off
+    /// a longer buffer is `Core\Bytes::slice` and then this, or a trailing
+    /// `a*`.
     ///
     /// The format is an `rule:expressions/intrinsic-constant-arguments` intrinsic and a sink for the same reasons
     /// [`nvs_core_bytes_pack`]'s is, and both classifications are owed there.

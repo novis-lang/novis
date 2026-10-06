@@ -32,8 +32,8 @@
 //!
 //! What it costs is one encode per `put` and one decode per `get`, both
 //! O(graph) exactly as the live copy is, on a path that is already a copy by
-//! § 2's own decision. That is priority 3 spent on priority 1, which is the
-//! direction AGENTS.md's ordering allows.
+//! § 2's own decision. That is latency spent on security, which is the
+//! direction `rule:programs/memory-priority`'s ordering allows.
 //!
 //! # Decision: the local tier needs no grant, and § 1's open question is closed
 //!
@@ -1341,7 +1341,7 @@ fn wait_of(ctx: &Ctx, args: &[Value], at: usize, member: &str) -> Result<Duratio
 /// reason, and both end the day a wake can cross cores.
 ///
 /// **What it spends:** one wakeup per waiting caller per tick, for as long as a
-/// fill is in flight, and nothing at all on a hit. The number trades priority 3
+/// fill is in flight, and nothing at all on a hit. The number trades latency
 /// against itself — a shorter tick buys the waiters' latency with wakeups —
 /// against a fetch that is an outbound request and so is measured in tens of
 /// milliseconds at best.

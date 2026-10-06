@@ -16,8 +16,8 @@
 //! * **It can be driven without its own `Value` tree.** [`Decode`] is a
 //!   `serde::de::Visitor`, so a document becomes [`nvs_runtime::NvsArray`]s and
 //!   [`Value`]s *directly* — nothing is ever materialized twice. That is what
-//!   keeps [``rule:programs/memory-priority``](/docs/decisions/0004.md)'s
-//!   priority 3 honest on a member every request path uses.
+//!   keeps latency, in [``rule:programs/memory-priority``](/docs/decisions/0004.md)'s
+//!   ordering, honest on a member every request path uses.
 //! * **Every byte of the document is the crate's.** Novis writes no JSON
 //!   grammar of its own at all: one scalar at a time goes through the crate's
 //!   serializer for its escaping and its number formatting, and the structure
@@ -533,8 +533,8 @@ pub const DEFAULT_MAX_DEPTH: u64 = 512;
 /// The largest `maxDepth` a call may ask for.
 ///
 /// The parse recurses — one Rust frame per JSON nesting level — so `maxDepth`
-/// is a bound on *stack*, and a `uint` option is user input
-/// ([AGENTS.md](/AGENTS.md)'s priority 1). A request past this
+/// is a bound on *stack*, and a `uint` option is user input, so the bound is a
+/// security one. A request past this
 /// throws rather than being silently clamped, because a clamp would make a
 /// document's acceptance depend on a number the call site never sees.
 ///

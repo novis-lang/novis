@@ -575,7 +575,7 @@ fn text<'a>(value: &'a Value, subject: &str) -> Result<&'a str, Fault> {
 /// whether or not it is tainted. So the input with nothing to escape is not an
 /// edge case, it is most of a page — and handing that path's bytes straight on
 /// keeps it at one scan and no *string* allocation, which is what makes a rule
-/// that cannot be switched off affordable (AGENTS.md's priority 3).
+/// that cannot be switched off affordable in latency.
 /// [`nvs_render::text::substitute`] answers a borrow for the same reason one
 /// sink over.
 fn escaped_text(value: Value, subject: &str) -> Result<Value, Fault> {
@@ -1334,7 +1334,7 @@ fn taken(node: &mut Node) -> Parsed {
 /// load-bearing rather than tidy.** `rule:core-classes/html-parsing` gives this
 /// parse no way to fail, so `<div>` written ten thousand times is a document
 /// that must produce a tree; a walk that recursed over it would exhaust the
-/// native stack, and a crash is not something AGENTS.md's priority 1 trades for
+/// native stack, and security and request isolation are not traded for
 /// fidelity. `Core\Xml` holds the same ceiling from the other side by refusing
 /// a document past it, which it is allowed to do and this is not.
 ///

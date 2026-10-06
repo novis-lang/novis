@@ -1266,8 +1266,8 @@ const PUBLIC_KEY_KIND_DOC: MethodDoc = MethodDoc {
 /// the parse back on a server that signs many tokens under one key, and it
 /// costs a table of private key material keyed by that material, living past
 /// the request that read it — O(keys seen) rather than O(in-flight), and a
-/// second place a secret exists. That is priority 1 spent to buy priority 3,
-/// which is the one direction [AGENTS.md](/AGENTS.md)'s ordering does not go.
+/// second place a secret exists. That is security spent to buy latency, which
+/// is the one direction `rule:programs/memory-priority`'s ordering does not go.
 ///
 /// **What it spends:** two slots per pair, the wider of them the key's DER — a
 /// little over a kilobyte for RSA at [`MAX_RSA_BITS`] and under a hundred
@@ -3004,7 +3004,7 @@ pub(crate) fn sign(key: &SigningKey, message: &[u8]) -> Option<Vec<u8>> {
 /// The two variants are different sizes — a round-key schedule against a
 /// 32-octet key — and boxing the larger would buy an allocation on the request
 /// path to save a few hundred bytes of stack that live for one call, which is
-/// priority 3 spent on priority 5.
+/// latency spent on memory footprint.
 #[allow(clippy::large_enum_variant)]
 enum Keyed {
     /// [`CIPHER`]'s `XChaCha20Poly1305`, through [`cipher`].

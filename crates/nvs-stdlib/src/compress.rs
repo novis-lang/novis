@@ -90,8 +90,8 @@
 //! concatenation of all of them, which is the input a second time. So a program
 //! that streams to keep its footprint flat does not get that here: the cost is
 //! the total fed, charged to the request's `[limits] memory` and released at
-//! `finish` or with the request. That is AGENTS.md's priority 5 spent to buy
-//! priority 4, and it is observably `deflate_add`/`inflate_add` either way,
+//! `finish` or with the request. That is memory footprint spent to buy
+//! simplicity, and it is observably `deflate_add`/`inflate_add` either way,
 //! which is what keeps the choice cheap to reverse — when a runtime tag owns a
 //! native object with a release hook, these slots become that object and no
 //! written program changes.
@@ -789,8 +789,8 @@ pub(crate) fn compress_to(codec: Codec, data: &[u8]) -> Result<Vec<u8>, Fault> {
         Codec::Brotli => {
             // Quality 5 and a 22-bit window: the default quality 11 is roughly
             // an order of magnitude slower to encode for a few percent of size,
-            // which is AGENTS.md's priority 3 against its priority 5 and not a
-            // close call on a request path.
+            // which is latency against memory footprint and not a close call
+            // on a request path.
             brotli::CompressorReader::new(data, 4096, 5, 22).read_to_end(&mut out)
         }
         Codec::Zstd => {

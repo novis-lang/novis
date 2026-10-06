@@ -3170,9 +3170,9 @@ nvs_runtime::nvs_helper! {
     ///
     /// **A name that is not there is not writable, even where creating it
     /// would succeed.** The question is about the path as it is, not about
-    /// what `write` would do with it — `is_writable` answers the same way, and
-    /// matching it is priority 2. A program asking "can I create this file"
-    /// is asking about the *directory*, and that is the path to hand over.
+    /// what `write` would do with it. A program asking "can I create this
+    /// file" is asking about the *directory*, and that is the path to hand
+    /// over.
     fn nvs_core_io_is_writable(ctx, args: [1]) {
         let path = Path::new(text(&args[0], "isWritable", "path")?);
         let allowed =

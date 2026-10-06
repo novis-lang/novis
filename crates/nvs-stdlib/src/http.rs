@@ -297,8 +297,8 @@ pub(crate) const IDENTITY_FINGERPRINT_SLOT: usize = 2;
 /// **The chain and the key are what the slots hold, not the session state.**
 /// [`nvs_host::tls::NvsIdentity`] is the built `ClientConfig`, and it is built
 /// where a connection is opened rather than kept in a table here: a
-/// process-lifetime map keyed by private key material is priority 1 spent to
-/// buy priority 3, which is the trade
+/// process-lifetime map keyed by private key material is security spent to
+/// buy latency, which is the trade
 /// [`crate::crypto::KEY_PAIR`]'s own doc already turned down for the same
 /// material. The pool is what makes that cheap — a reused connection has its
 /// identity in its key and handshakes not at all.
@@ -3529,7 +3529,7 @@ fn multipart(ctx: &Ctx, args: &[Value], member: &str) -> Result<transport::Body,
 
 /// `text` refused where it could end a multipart part's own header early.
 ///
-/// [`transport::field`]'s refusal one level down, and a priority-1 one for the
+/// [`transport::field`]'s refusal one level down, and a security one for the
 /// same reason: a quote closes the `name="…"` a segment is identified by, and a
 /// control byte ends the line, so either is a second part the caller did not
 /// write. There is no escaping that makes one safe here either — RFC 7578 gives

@@ -69,7 +69,7 @@
 //! certificate that does not verify is a statement about the other end that a
 //! second attempt will not change, so it leaves as a `Fault` and never sleeps
 //! first, while a timeout or a reset mid-handshake is transport weather and is
-//! retried. There is no plaintext fallback, which is a priority-1 failure
+//! retried. There is no plaintext fallback, which would be a security failure
 //! wearing a feature's name. What a call may relax it says in a
 //! [`nvs_host::tls::CallPolicy`] on the [`Call`], built where a grant for it
 //! was proved and handed to the one door with the identity
@@ -2350,7 +2350,7 @@ fn reusable(head: &[u8], headers: &[(String, String)], frame: Frame) -> bool {
 /// # Errors
 ///
 /// A thrown `RuntimeError` for a header name or value carrying a control byte.
-/// That is header injection and it is a priority-1 refusal: a value holding
+/// That is header injection and it is refused for security: a value holding
 /// `\r\n` is a second request the caller did not write, and there is no
 /// escaping that makes one safe, only a rejection that makes it visible.
 fn compose(call: &Call<'_>, parts: &Parts) -> Result<String, Fault> {

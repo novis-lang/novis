@@ -28,8 +28,8 @@
 //! **What it spends:** one object per `foreach`, plus one row's columns for as
 //! long as the loop body holds them. That is O(1) in the rows the statement
 //! answered, which is the whole difference from `query` and the reason
-//! [AGENTS.md](/AGENTS.md)'s ordering admits the member at all — it buys
-//! priority 5 back at no cost to any of the four above it.
+//! `rule:programs/memory-priority`'s ordering admits the member at all — it
+//! buys memory footprint back at no cost to anything ranked above it.
 //!
 //! # The connection is busy for the walk's whole length
 //!

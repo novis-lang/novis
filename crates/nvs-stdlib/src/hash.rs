@@ -29,8 +29,8 @@
 //! copy, since a retained `NvsStr` is the caller's own buffer, but a program
 //! that streams a file to keep its memory flat does not get that here: the
 //! footprint is the total fed, charged to the request, and released at `finish`
-//! or when the stream itself is. That is AGENTS.md's priority 5 spent to buy
-//! priority 4, and it is *observably* `hash_init`/`update`/`final` either way —
+//! or when the stream itself is. That is memory footprint spent to buy
+//! simplicity, and it is *observably* `hash_init`/`update`/`final` either way —
 //! which is what keeps the choice cheap to reverse. When a runtime tag owns a
 //! native object with a release hook, this class's three slots become that
 //! object and no written program changes.
@@ -107,7 +107,7 @@
 //! one `bytes` allocation of the digest's own width (4 to 64 octets), charged
 //! to the request that asked for it. Nothing is held between calls. Binary
 //! size is the other side of the roster: each algorithm carries its own round
-//! constants and tables, which is AGENTS.md's priority 5 spent on priority 2.
+//! constants and tables, so the binary grows by each digest a protocol may name.
 
 use nvs_runtime::{Fault, NvsArray, NvsStr, ObjHeader, Value};
 use sha2::Digest as _;
@@ -265,8 +265,8 @@ const DIGEST_DOC: EnumDoc = EnumDoc {
 /// judgement as excluding `Md5` or `Crc32`, and it does shut out OAuth 1.0a
 /// and other legacy signature schemes that name it. It is excluded anyway
 /// because the alternative is a type called `StrongDigest` whose cases a
-/// reader has to already know the cryptanalysis of, and because AGENTS.md's
-/// priority 1 is not traded for reach. If a real integration needs it, the fix
+/// reader has to already know the cryptanalysis of, and because security is
+/// not traded for reach. If a real integration needs it, the fix
 /// is to add the case here: **widening a union is backward compatible**, so
 /// this is the direction that can be undone, and the other one is not.
 ///
