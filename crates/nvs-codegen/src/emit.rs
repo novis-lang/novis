@@ -301,6 +301,7 @@ fn is_leaf(f: &Function) -> bool {
                 | InstKind::NewDynamic { .. }
                 | InstKind::HelperCall { .. }
                 | InstKind::CoreCall { .. }
+                | InstKind::ExtensionCall { .. }
         )
     })
 }
@@ -4246,6 +4247,7 @@ fn describe(kind: &InstKind) -> String {
         InstKind::FieldSet { .. } => "a property write",
         InstKind::ClassTest { .. } => "`is`",
         InstKind::Concat { .. } => "`.` string concatenation",
+        InstKind::ExtensionCall { .. } => "a call into an extension",
         _ => "this instruction",
     };
     what.to_owned()

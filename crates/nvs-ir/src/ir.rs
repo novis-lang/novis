@@ -1968,6 +1968,30 @@ pub enum InstKind {
         /// The already-lowered arguments, positional.
         args: Vec<ValueId>,
     },
+    /// A static call to a method of a loaded extension — `Shop\Ledger::echoInt($n)`
+    /// (`rule:packaging/extension-calls-are-statically-typed`).
+    ///
+    /// Resolved like any static call, through a `ResolvedCall` whose `extension` is set, and
+    /// lowered to this rather than to an [`InstKind::Call`] because no compiled Novis function has
+    /// the label: the callee is the export's **trampoline**, one per `class` and `method`, which
+    /// converts each argument by `rule:packaging/a-value-crosses-as-its-wit-type`'s table and runs
+    /// the guest call (`nvs_ext::call::Request::call_values`). It is a direct call, never a
+    /// dispatch: the loaded set is part of every compiled unit's key
+    /// (`rule:config/the-extension-set-is-in-every-unit-key`), so the trampoline a unit names is
+    /// the one the set it was compiled against has.
+    ///
+    /// **Arguments are borrowed**, as [`InstKind::CoreCall`]'s are: the trampoline copies each
+    /// value into the guest and keeps no reference to it, so the caller keeps owning every
+    /// reference it passed. A refcounted result is a fresh reference this frame owns. There is
+    /// no receiver: every extension method is `static`.
+    ExtensionCall {
+        /// The extension's class, as its manifest names it.
+        class: String,
+        /// The method, as its manifest names it.
+        method: String,
+        /// The already-lowered arguments, positional, one per declared parameter.
+        args: Vec<ValueId>,
+    },
 }
 
 /// Which class an [`InstKind::ClassTest`] tests against.

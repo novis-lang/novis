@@ -1290,7 +1290,9 @@ pub(crate) fn resolved_call(
     signatures: &SignatureTable,
 ) -> ResolvedCall {
     let overridden = signatures.is_overridden(&qname, &name);
+    let extension = signatures.is_extension(&qname);
     ResolvedCall {
+        extension,
         class: qname,
         method: name,
         overridden,

@@ -357,6 +357,14 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
             let parts: Vec<String> = args.iter().map(|a| format!("v{}", a.index())).collect();
             format!("core.call {symbol}({})", parts.join(", "))
         }
+        InstKind::ExtensionCall {
+            class,
+            method,
+            args,
+        } => {
+            let parts: Vec<String> = args.iter().map(|a| format!("v{}", a.index())).collect();
+            format!("ext.call {class}::{method}({})", parts.join(", "))
+        }
         InstKind::TakeThrown => "take.thrown".to_owned(),
         InstKind::RefSlot { init } => format!("ref.slot v{}", init.index()),
         InstKind::RefLoad { slot } => format!("ref.load v{}", slot.index()),

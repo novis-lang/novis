@@ -4345,6 +4345,30 @@ impl<'a> Lowering<'a> {
             self.release_temporaries_since(mark, *cur);
             return result;
         }
+        // A loaded extension's method is its export's trampoline, which borrows its arguments
+        // as a `Core` member does. See `InstKind::ExtensionCall`.
+        if call.extension {
+            let sig = ArgSig::of(call);
+            let (class, method) = (call.class.to_string(), call.method.clone());
+            let return_ty = erase_checked_ty(call.return_ty, self.checked_types);
+            let checked_types = self.checked_types;
+            let mark = self.temporaries_mark();
+            let args = self
+                .lower_call_args(args, &sig, checked_types, ArgOwnership::Borrowed, env, cur)
+                .values;
+            let result = self.emit_fallible(
+                *cur,
+                return_ty,
+                InstKind::ExtensionCall {
+                    class,
+                    method,
+                    args,
+                },
+                env,
+            );
+            self.release_temporaries_since(mark, *cur);
+            return result;
+        }
         let target_label = format!("{}::{}", call.class, call.method);
         let method = call.method.clone();
         let sig = ArgSig::of(call);

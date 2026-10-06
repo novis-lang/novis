@@ -220,6 +220,11 @@ pub struct ResolvedCall {
     /// of the receiver. `None` for every member off that roster, and for a call
     /// whose type argument `E0841` refused.
     pub written_enum: Option<QName>,
+    /// Whether [`Self::class`] is a loaded extension's — [`crate::signatures::ClassSignature::extension`].
+    /// `nvs-ir` lowers such a call to a direct call of the export's trampoline, because no
+    /// compiled Novis function has the label `Self::class::Self::method`
+    /// (`rule:packaging/extension-calls-are-statically-typed`).
+    pub extension: bool,
     /// Whether some subtype of [`Self::class`] redeclares [`Self::method`],
     /// so a receiver's runtime class can answer it with different code than
     /// the label [`Self::class`] names —

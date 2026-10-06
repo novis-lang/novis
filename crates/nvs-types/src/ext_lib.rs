@@ -93,7 +93,8 @@ pub(crate) fn seed(
                 )
             })
             .collect();
-        table.seed_constants(qname, constants);
+        table.seed_constants(qname.clone(), constants);
+        table.seed_extension(qname);
     }
 }
 

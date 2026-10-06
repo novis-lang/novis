@@ -4781,3 +4781,87 @@ fn erase_checked_ty_answers_every_checked_type_a_value_can_have() {
          `Lowering::lower_fixed_arg` flattens it a slot at a time before this is reached"
     );
 }
+
+/// `rule:packaging/extension-calls-are-statically-typed`: a static call into a loaded extension
+/// is one `InstKind::ExtensionCall` naming the export, with its arguments lowered against the
+/// manifest's types, and never an `InstKind::Call` of a label no compiled function has. The set
+/// is the conformance fixture `Shop\Ledger`'s, the one the `.nvst` cases load.
+#[test]
+fn an_extension_static_call_lowers_to_a_direct_call_of_its_export_trampoline() {
+    let path = nvs_repo::path("tests/conformance/ext/fixtures/ledger/manifest.json");
+    let bytes = std::fs::read(&path).unwrap_or_else(|err| panic!("{}: {err}", path.display()));
+    let set = [nvs_ext::manifest::Manifest::parse(&bytes).expect("the fixture's manifest reads")];
+    let src = "<?nvs\n\
+               var $n = Shop\\Ledger::echoInt(40 + 2);\n\
+               echo Shop\\Ledger::echoString(\"x\"), \"\\n\";\n\
+               var $maybe = Shop\\Ledger::echoOptional();\n";
+    let mut map = SourceMap::new();
+    let file = map.add("t.nvs", src);
+    let mut diags = Diagnostics::new();
+    let stmts = parse_file(map.file(file), &mut diags);
+    let classes = nvs_types::ext_lib::hir_classes(&set);
+    let module =
+        nvs_hir::resolve_file_with_extensions(&stmts, map.file(file), &classes, &mut diags);
+    let mut checked_types = TypeInterner::new();
+    let mut exprs = ExprTypeTable::new();
+    let files = [nvs_types::ProgramFile {
+        src: map.file(file),
+        stmts: &stmts,
+    }];
+    let enums = nvs_types::check::check_program_loaded(
+        &files,
+        &module,
+        None,
+        &set,
+        &mut checked_types,
+        &mut exprs,
+        &mut diags,
+    );
+    assert!(!diags.has_errors(), "fixture failed to check: {diags:?}");
+    let f = lower_script(
+        "<script>",
+        &stmts,
+        map.file(file),
+        &exprs,
+        &checked_types,
+        &enums,
+        ScriptRole::Entry,
+    )
+    .function;
+
+    let insts: Vec<&crate::ir::Inst> = f.blocks.iter().flat_map(|b| &b.insts).collect();
+    let calls: Vec<(&str, &str, usize, Option<Ty>)> = insts
+        .iter()
+        .filter_map(|inst| match &inst.kind {
+            InstKind::ExtensionCall {
+                class,
+                method,
+                args,
+            } => Some((class.as_str(), method.as_str(), args.len(), inst.ty)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        calls,
+        vec![
+            ("Shop\\Ledger", "echoInt", 1, Some(Ty::Int)),
+            ("Shop\\Ledger", "echoString", 1, Some(Ty::Str)),
+            // An omitted parameter is filled from the manifest's default, as for any call.
+            ("Shop\\Ledger", "echoOptional", 1, Some(Ty::Tagged)),
+        ],
+        "one trampoline call per extension call, in source order"
+    );
+    assert!(
+        insts
+            .iter()
+            .all(|inst| !matches!(inst.kind, InstKind::Call { .. })),
+        "no extension call is an ordinary call of a compiled function"
+    );
+    assert!(
+        insts
+            .iter()
+            .all(|inst| !matches!(inst.kind, InstKind::ExtensionCall { .. })
+                || inst.on_error.is_some()),
+        "a trampoline call can throw, so it has an error edge"
+    );
+}

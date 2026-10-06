@@ -559,6 +559,10 @@ pub struct ClassSignature {
     /// read is emitted as. Own declarations only, exactly like every other map
     /// here; [`resolve_const`] walks the ancestors.
     pub constants: FxHashMap<String, ConstSig>,
+    /// Whether this class is a loaded extension's, seeded by [`crate::ext_lib`] from its manifest.
+    /// A call to one of its methods is a call of the export's trampoline, not of a compiled
+    /// Novis function ([`crate::expr_table::ResolvedCall::extension`]).
+    pub extension: bool,
 }
 
 /// One class constant, as a **read** of it sees it: the type
@@ -750,6 +754,17 @@ impl SignatureTable {
     /// ([`crate::core_lib::constant`]), and an extension's has no row to read.
     pub(crate) fn seed_constants(&mut self, qname: QName, constants: FxHashMap<String, ConstSig>) {
         self.entry(qname).constants = constants;
+    }
+
+    /// Records that `qname` is a loaded extension's class. Only [`crate::ext_lib`] calls it.
+    pub(crate) fn seed_extension(&mut self, qname: QName) {
+        self.entry(qname).extension = true;
+    }
+
+    /// Whether `qname` is a loaded extension's class — [`ClassSignature::extension`].
+    #[must_use]
+    pub fn is_extension(&self, qname: &QName) -> bool {
+        self.get(qname).is_some_and(|sig| sig.extension)
     }
 }
 

@@ -2361,6 +2361,7 @@ version = "0.0.1"
 dependencies = [
  "insta",
  "nvs-diagnostics",
+ "nvs-ext",
  "nvs-hir",
  "nvs-render",
  "nvs-repo",

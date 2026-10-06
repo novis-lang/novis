@@ -28,6 +28,8 @@ rustc-hash.workspace = true
 
 [dev-dependencies]
 insta.workspace = true
+# The conformance fixture's manifest, which an extension call's test loads.
+nvs-ext.workspace = true
 nvs-hir.workspace = true
 # How this crate's tests reach files outside the package.
 nvs-repo.workspace = true
