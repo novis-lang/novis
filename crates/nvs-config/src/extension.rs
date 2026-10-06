@@ -11,7 +11,7 @@
 //! **What it does not check is the file.** Whether the digest matches, whether the component
 //! validates and what its manifest says are the loader's (`nvs-ext`), which reads the bytes. This
 //! pass reads only the configuration, so `nvs check` and a reload's dry pass refuse an unpinned
-//! entry without touching the disk. [`file`] is an entry's `path` made absolute against the file
+//! entry without touching the disk. [`file()`] is an entry's `path` made absolute against the file
 //! that wrote it, and [`not_loaded`] is the refusal `nvs serve` raises, at the entry's line, when the
 //! loader refuses its file.
 //!

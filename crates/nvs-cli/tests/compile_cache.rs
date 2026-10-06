@@ -213,3 +213,52 @@ fn file_cache_false_stores_nothing() {
 
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// One program run under two configurations that differ only in their
+/// `[[extension]]` array: each writes its own artifact, and a run under either
+/// one again writes nothing. A unit compiled under one set of extensions is
+/// never loaded under another (`rule:config/the-extension-set-is-in-every-unit-key`).
+/// `nvs run` does not load extensions, so the entry's file is never read.
+// covers: tools:cli/the-compile-cache
+#[test]
+fn a_unit_compiled_under_one_extension_set_is_never_reused_under_another() {
+    let dir = private_scratch("extension-set");
+    let cache = dir.join("artifacts");
+    std::fs::create_dir(&cache).expect("the cache directory");
+    let opcache = format!("[opcache]\nfile_cache_dir = '{}'\n", cache.display());
+    let plain = dir.join("plain.toml");
+    std::fs::write(&plain, &opcache).expect("the configuration is written");
+    let shop = dir.join("shop.toml");
+    std::fs::write(
+        &shop,
+        format!(
+            "{opcache}\n[[extension]]\npath = 'shop.nvsx'\nsha256 = \"{}\"\n",
+            "5".repeat(64)
+        ),
+    )
+    .expect("the configuration is written");
+    let program = dir.join("main.nvs");
+    std::fs::write(&program, "<?nvs\necho 'ran', \"\\n\";\n").expect("the program is written");
+
+    assert_eq!(run(&plain, &program).0, "ran\n");
+    let first = artifacts(&cache);
+    assert_eq!(first.len(), 1, "the first run stored its program");
+
+    assert_eq!(run(&shop, &program).0, "ran\n");
+    let both = artifacts(&cache);
+    assert_eq!(
+        both.len(),
+        2,
+        "the run with an extension compiled the program again"
+    );
+
+    run(&plain, &program);
+    run(&shop, &program);
+    assert_eq!(
+        artifacts(&cache),
+        both,
+        "each configuration loaded its own artifact and wrote no other"
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
