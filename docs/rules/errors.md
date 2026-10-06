@@ -131,7 +131,7 @@ take down the worker and every other request on it.
 
 So recursion is bounded twice. A catchable `RecursionError` throws at a **soft** depth, so a
 recursive-descent parser or a walk over untrusted-depth data can degrade instead of dying; this is
-safe here in a way it is not in PHP, because [`errors/propagation`](errors.md#errors-propagation) pops frames as it unwinds,
+safe because [`errors/propagation`](errors.md#errors-propagation) pops frames as it unwinds,
 so the handler runs with a shallow stack again. A non-catchable `FATAL` at the true limit is the
 floor beneath it and reaches [`errors/on-limit`](errors.md#errors-on-limit) like any other resource limit.
 
@@ -440,8 +440,8 @@ envelope's existing rule that an absent field is omitted rather than rendered em
 ([`observability/a-log-record-carries-trace-ids-when-a-trace-is-active`](observability.md#observability-a-log-record-carries-trace-ids-when-a-trace-is-active)) and the trace already
 records call entry and exit at every call site, so *how execution arrived* is reconstructable for
 exactly the sessions that asked for a trace. Where one is not, the file, line and member are the
-answer, and they are enough to open an editor in the right place. Matching PHP's snapshot-the-whole-
-stack behaviour would need a walk of Novis's own frame chain and is not bought here.
+answer, and they are enough to open an editor in the right place. Snapshotting the whole stack on
+every record would need a walk of Novis's own frame chain and is not bought here.
 
 The cost stays where [`errors/propagation`](errors.md#errors-propagation) put it. A `source` is read at the call that produces a
 record, never maintained as running state, so no path that produces no record pays anything for it.
@@ -567,9 +567,9 @@ production counterpart.
 `[debug] inline` can only be tightened at run time: a request may turn its own inline output off and
 can never turn it on, so the run mode's default is the only thing that can enable it.
 
-**This is the security half of the rule.** The most-exploited information disclosure in PHP is not a
-bug in `var_dump`; it is that `var_dump` writes to output, so a forgotten call and a production
-deployment are enough. Here the forgotten call writes a log line, and the spelling that would put it
+**This is the security half of the rule.** The most-exploited information disclosure from a debug
+dump is not a bug in the dump; it is that the dump writes to output, so a forgotten call and a
+production deployment are enough. Here the forgotten call writes a log line, and the spelling that would put it
 in a response does not exist outside a mode whose ceiling is closed by default.
 
 <sub>See also [`errors/renderings`](errors.md#errors-renderings), [`errors/record-transformations`](errors.md#errors-record-transformations), [`errors/no-render-hook`](errors.md#errors-no-render-hook). Decided in [0092](../decisions/0092.md), [0091](../decisions/0091.md), [0085](../decisions/0085.md).</sub>
@@ -754,8 +754,8 @@ The runtime enforces the prefixes rather than documenting them:
 A non-conforming cookie carrying either prefix is **not visible** to the program on read, and is
 refused on write.
 
-A prefix whose meaning depends on every read site checking it is the arrangement that produced two
-consecutive CVEs in PHP — the second being the incomplete fix for the first, where cookie-name
+A prefix whose meaning depends on every read site checking it is the arrangement that has produced
+consecutive CVEs — the second being the incomplete fix for the first, where cookie-name
 mangling let a plain cookie be read as a `__Host-` one. Enforcing it once, in the one place that
 parses the header, is the whole fix.
 
@@ -771,9 +771,8 @@ parses the header, is the whole fix.
 per-part size.  Exceeding any of them is a `413` naming both the limit and the directive.
 
 The body-size cap is not this. The cost of a part is bookkeeping and a temp file, not bytes, so a
-body well inside every size cap can still exhaust inodes — which is exactly what happened to PHP,
-and 1000 is its own post-fix number, so a ported application meets this limit where it already met
-one.
+body well inside every size cap can still exhaust inodes, a known denial-of-service shape in
+multipart parsers, and 1000 is the number that shape's best-known fix chose.
 
 This also widens the attribution rule in the only direction it was missing: **temp files, file
 descriptors and disk bytes are charged to a request the same way memory is.**

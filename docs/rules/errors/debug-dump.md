@@ -30,7 +30,7 @@ production counterpart.
 `[debug] inline` can only be tightened at run time: a request may turn its own inline output off and
 can never turn it on, so the run mode's default is the only thing that can enable it.
 
-**This is the security half of the rule.** The most-exploited information disclosure in PHP is not a
-bug in `var_dump`; it is that `var_dump` writes to output, so a forgotten call and a production
-deployment are enough. Here the forgotten call writes a log line, and the spelling that would put it
+**This is the security half of the rule.** The most-exploited information disclosure from a debug
+dump is not a bug in the dump; it is that the dump writes to output, so a forgotten call and a
+production deployment are enough. Here the forgotten call writes a log line, and the spelling that would put it
 in a response does not exist outside a mode whose ceiling is closed by default.

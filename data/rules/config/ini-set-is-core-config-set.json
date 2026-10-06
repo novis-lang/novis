@@ -1,5 +1,5 @@
 {
-  "title": "`ini_set` is `Core\\Config::set`, and the whole family crosses as strings",
+  "title": "`Core\\Config` reads and writes directives at run time, and the whole family crosses as strings",
   "status": "shipped",
   "because": [
     "0064",

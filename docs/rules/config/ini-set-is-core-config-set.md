@@ -1,12 +1,12 @@
-`rule:classes/no-free-functions-or-constants` removes `ini_set`, `ini_get`, `ini_restore` and
-`ini_get_all` independently of the format; the names go with the file:
+`Core\Config` is the run-time API over the configuration, four static methods and no free function
+(`rule:classes/no-free-functions-or-constants`):
 
-| PHP | Novis |
+| Method | What it does |
 |---|---|
-| `ini_set($k, $v)` | `Core\Config::set(string $name, string $value): bool` |
-| `ini_get($k)` | `Core\Config::get(string $name): ?string` |
-| `ini_restore($k)` | `Core\Config::restore(string $name): void` |
-| `ini_get_all()` | `Core\Config::all(): array<string, string>` |
+| `Core\Config::set(string $name, string $value): bool` | changes a directive for this request |
+| `Core\Config::get(string $name): ?string` | reads the value in force |
+| `Core\Config::restore(string $name): void` | drops this request's change and reads the configured value again |
+| `Core\Config::all(): array<string, string>` | reads every directive |
 
 The semantics are the changeability model's, unchanged: a set the class or a ceiling refuses returns
 `false` and leaves the value in force untouched, and every accepted change is request-local on the

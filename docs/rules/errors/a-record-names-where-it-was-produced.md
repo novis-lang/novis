@@ -11,8 +11,8 @@ envelope's existing rule that an absent field is omitted rather than rendered em
 (`rule:observability/a-log-record-carries-trace-ids-when-a-trace-is-active`) and the trace already
 records call entry and exit at every call site, so *how execution arrived* is reconstructable for
 exactly the sessions that asked for a trace. Where one is not, the file, line and member are the
-answer, and they are enough to open an editor in the right place. Matching PHP's snapshot-the-whole-
-stack behaviour would need a walk of Novis's own frame chain and is not bought here.
+answer, and they are enough to open an editor in the right place. Snapshotting the whole stack on
+every record would need a walk of Novis's own frame chain and is not bought here.
 
 The cost stays where `rule:errors/propagation` put it. A `source` is read at the call that produces a
 record, never maintained as running state, so no path that produces no record pays anything for it.

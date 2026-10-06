@@ -1,5 +1,5 @@
 {
-  "state": "**Goal `php-oracle-retired`: Stages 6 and 7 are on disk; Stage 8 is in progress.** ADR 0274 (`docs/decisions/0274.md`) is the goal's record.\n\nStage 8 on disk: the `php-migration/` topic is dissolved, `divergesFromPhp` and `docs/divergences.md` are gone, and the ten normative lines state the behaviour. The testing rules no longer name the oracle. Every `php`-tagged fence under `docs/rules/` is `nvs`. The `classes`, `core-api` and `types` topics state behaviour: the PHP mentions left there are diagnostics for a PHP habit (`core-api/removals`, `core-api/legacy-property-shapes-name-the-visibility`, `types/callable-is-the-only-function-type`'s `Closure` line). `types/array-combination` lost its \"PHP equivalent\" column, and the converter sentences in `core-api/written-visibility` and `core-api/identifier-casing` are gone.\n\nStage 8 still owes the incidental-mention sweep in the other topics (goal prose § *Stage 8*, `docs/agent/goals/php-oracle-retired.md:284`). A mention stays where the rule is a diagnostic for a PHP habit (E0229, `<?php`, the superglobals), the benchmarks, or `programs/no-compatibility-promise`; everywhere else the sentence is rewritten to state the behaviour, and any sentence about a converter or a mechanical rewrite goes. No check pins this, so it is judgment work. A topic's whole list fits one `bun nv splice --patch`; two topics fit one session easily.\n\nThe Stage 9 checks the driver reports red are not written yet; they follow Stage 8.",
+  "state": "**Goal `php-oracle-retired`: Stages 6 and 7 are on disk; Stage 8 is nearly done.** ADR 0274 (`docs/decisions/0274.md`) is the goal's record.\n\nStage 8 on disk: the `php-migration/` topic is dissolved, `divergesFromPhp` and `docs/divergences.md` are gone, every `php`-tagged fence under `docs/rules/` is `nvs`, and the testing rules no longer name the oracle. The incidental-mention sweep is done in `classes`, `core-api`, `types`, `core-classes`, `ide`, `tooling`, `packaging`, `statements`, `expressions`, `config`, `enums`, `errors` and `iteration`. Two PHP-to-Novis tables went with it: `config/ini-set-is-core-config-set` now lists the four `Core\\Config` methods (its title changed, its id stays), and `enums/no-class-machinery` lists jobs, not PHP spellings.\n\nMentions kept on purpose, so a later pass does not re-open them: the open-tag and `<?php`/E0229 lines (`statements/nvs-is-the-only-open-tag`, `ide/highlighting-is-two-layers`, `ide/a-string-converts-to-an-html-template`), the superglobals table (`statements/no-host-populated-variables`), the `.php` editor-coexistence rules (`ide/nvs-is-its-own-file-type`, `ide/the-extension-claims-nvs-only`, `ide/phpstorm-bridges-to-the-same-server`), `packaging/help-text-speaks-to-its-reader`, the benchmark rules (`tooling/bench-engine-list-is-data`, `testing/userland-benchmarks`, `testing/perf-*`), the PHP-habit diagnostics in `core-api` and `types`, and `programs/no-compatibility-promise`.\n\nThe Stage 9 checks the driver reports red are not written yet; they follow Stage 8.",
   "next": {
     "stage": 8,
     "title": "the rules state the behaviour",
@@ -8,20 +8,20 @@
     "items": [
       {
         "done": false,
-        "text": "**Incidental PHP mentions leave `core-classes`, `ide`, `tooling` and `packaging`** — goal prose § *Stage 8*; `docs/rules/packaging/extension-calls-are-statically-typed.md:8`, listed by `git grep -n -w -i php -- 'docs/rules/core-classes/' 'docs/rules/ide/' 'docs/rules/tooling/' 'docs/rules/packaging/'` (skip the generated `<topic>.md` files)."
+        "text": "**Incidental PHP mentions leave `http-server`, `observability` and `security`** — goal prose § *Stage 8*; `docs/rules/http-server/a-request-resolves-in-five-steps.md:1`, listed by `git grep -n -w -i php -- 'docs/rules/http-server/*/*.md' 'docs/rules/observability/*/*.md' 'docs/rules/security/*/*.md'`. Rewrite each sentence to state the behaviour, and drop any converter or mechanical-rewrite sentence."
       },
       {
         "done": false,
-        "text": "**The same for `statements` and `expressions`** — `docs/rules/statements/nothing-gets-a-second-name.md:1`, `git grep -n -w -i php -- 'docs/rules/statements/' 'docs/rules/expressions/'`."
+        "text": "**The same for `programs`, except `no-compatibility-promise`** — `docs/rules/programs/three-claims.md:1`, `docs/rules/programs/audience.md:1`, `docs/rules/programs/compile-target.md:1`, `docs/rules/programs/framework-refusals.md:1`. A sentence naming where Novis came from may stay if it is the origin line the standing decisions allow; a comparison claim belongs on the claims pages."
       },
       {
         "done": false,
-        "text": "**The same for every topic still listed** — `docs/rules/programs/no-compatibility-promise.md:1` is the one that keeps its mentions; `git grep -c -w -i php -- 'docs/rules/*/*.md'` lists what is left."
+        "text": "**Close Stage 8** — `git grep -c -w -i php -- 'docs/rules/*/*.md'` should list only the kept rules named in `## State`; then begin Stage 9 per the goal prose (`docs/agent/goals/php-oracle-retired.md:284` onward)."
       }
     ]
   },
   "backlog": [
-    "Stage 9: the about.md \"replaces PHP\" sentences, the registry test `no_member_text_says_what_it_replaces_in_php`, the website's \"Replaces in PHP\" fact and the concept page's crosswalk — goal prose § *Stage 9*.",
-    "Stage 10: `bun nv proofs --gate` owes nothing with PHP stepped back — goal prose § *Stage 10*."
+    "Stage 9: the `about.md` \"replaces PHP\" sentences, the registry text test `no_member_text_says_what_it_replaces_in_php`, the website \"Replaces in PHP\" fact, and the concept page's crosswalk — goal prose § *Stage 9*.",
+    "`crates/nvs-stdlib/src/config.rs:218` still says \"replacing `ini_restore`\" in a doc comment; it is Stage 9's registry-text work, not Stage 8's."
   ]
 }

@@ -4,7 +4,7 @@ take down the worker and every other request on it.
 
 So recursion is bounded twice. A catchable `RecursionError` throws at a **soft** depth, so a
 recursive-descent parser or a walk over untrusted-depth data can degrade instead of dying; this is
-safe here in a way it is not in PHP, because `rule:errors/propagation` pops frames as it unwinds,
+safe because `rule:errors/propagation` pops frames as it unwinds,
 so the handler runs with a shallow stack again. A non-catchable `FATAL` at the true limit is the
 floor beneath it and reaches `rule:errors/on-limit` like any other resource limit.
 

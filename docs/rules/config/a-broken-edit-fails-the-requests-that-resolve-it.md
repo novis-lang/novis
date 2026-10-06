@@ -8,7 +8,7 @@ one per request.
 Requests already running are unaffected (`rule:config/a-request-keeps-the-unit-it-resolved`); only
 requests that newly resolve the broken file fail, and they fail loudly. Silently continuing to serve
 the last good version after an edit — especially a security fix — is the worse failure mode, and it
-would diverge from PHP's own `validate_timestamps` behaviour to buy availability nothing needs.
+would buy availability nothing needs.
 
 The same policy covers an extension removed while source still references it: nothing proves that at
 reload time, and the units that call it fail when a request next resolves them, and only those.

@@ -2,7 +2,7 @@ There is no `case` keyword in an enum body. `case Hearts = 1;` is refused with *
 on the `case` keyword itself and naming the comma-list spelling that works
 (`rule:enums/declaration`).
 
-The case is *kept*: only the keyword and its `;` are consumed, so an enum written PHP's way still
+The case is *kept*: only the keyword and its `;` are consumed, so an enum written with `case` still
 declares every member the rest of the program goes on to name, and one diagnostic per case is the
 whole answer rather than a cascade of unresolved names behind it.
 

@@ -1,7 +1,6 @@
 A `Core\Config::set` that the changeability class or a ceiling refuses **returns `false` and leaves
 the value in force untouched**. It is never clamped to the ceiling: silently running with a different
-number than the one requested is harder to diagnose than a false return, and `false` is already what
-PHP answers for a set it will not perform.
+number than the one requested is harder to diagnose than a false return.
 
 Every refusal answers the same way — a `System` directive whatever the value, a `RuntimeTighten`
 widening, a `Runtime` value above `[limits.hard]`, a value that does not spell the unit its

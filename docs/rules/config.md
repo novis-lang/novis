@@ -16,7 +16,7 @@ The server configuration is a TOML file named `nvs.toml`, read into the directiv
 replacement before publishing it and leaves the running configuration untouched if any part fails.
 Pure Rust, no C, and no new dependency class: Cargo's own manifests are TOML.
 
-INI was inherited from PHP and does not survive an argument. It has no specification — every parser
+INI does not survive an argument. It has no specification — every parser
 disagrees on comment markers, quoting, nesting and what a duplicate key means — and it has one value
 type, string, which is the defect the language itself rejects. TOML has a boolean, an integer, an
 array and an array of tables, and an editor already validates it.
@@ -640,12 +640,11 @@ Every directive carries one of three changeability classes in the registry:
 
 `Runtime` is the class for anything changeable. `RuntimeTighten` is argued per directive, never as a
 policy: it exists for capability grants, where a script may drop a right it holds and never add one it
-does not, and for the directives where PHP itself behaves that way (`open_basedir`). The class answers
+does not, and for directives that only ever narrow, such as `open_basedir`. The class answers
 one question only — *who may set it*. What applying a change requires is a second field on the same
 entry ([`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field)).
 
-This is what makes the most common `ini_set` in the PHP corpus — raising `memory_limit` for one
-import — work at conversion time rather than fail at runtime, while
+This is what lets the most common run-time set — raising `memory_limit` for one import — work, while
 [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives) keeps one request from becoming every co-resident
 request's outage.
 
@@ -824,8 +823,7 @@ overlay each request owns is not shared.
 
 A `Core\Config::set` that the changeability class or a ceiling refuses **returns `false` and leaves
 the value in force untouched**. It is never clamped to the ceiling: silently running with a different
-number than the one requested is harder to diagnose than a false return, and `false` is already what
-PHP answers for a set it will not perform.
+number than the one requested is harder to diagnose than a false return.
 
 Every refusal answers the same way — a `System` directive whatever the value, a `RuntimeTighten`
 widening, a `Runtime` value above `[limits.hard]`, a value that does not spell the unit its
@@ -841,19 +839,19 @@ that request ([`errors/on-limit`](errors.md#errors-on-limit)).
 
 <a id="config-ini-set-is-core-config-set"></a>
 
-## `ini_set` is `Core\Config::set`, and the whole family crosses as strings
+## `Core\Config` reads and writes directives at run time, and the whole family crosses as strings
 
 `rule:config/ini-set-is-core-config-set`
 
-[`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants) removes `ini_set`, `ini_get`, `ini_restore` and
-`ini_get_all` independently of the format; the names go with the file:
+`Core\Config` is the run-time API over the configuration, four static methods and no free function
+([`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants)):
 
-| PHP | Novis |
+| Method | What it does |
 |---|---|
-| `ini_set($k, $v)` | `Core\Config::set(string $name, string $value): bool` |
-| `ini_get($k)` | `Core\Config::get(string $name): ?string` |
-| `ini_restore($k)` | `Core\Config::restore(string $name): void` |
-| `ini_get_all()` | `Core\Config::all(): array<string, string>` |
+| `Core\Config::set(string $name, string $value): bool` | changes a directive for this request |
+| `Core\Config::get(string $name): ?string` | reads the value in force |
+| `Core\Config::restore(string $name): void` | drops this request's change and reads the configured value again |
+| `Core\Config::all(): array<string, string>` | reads every directive |
 
 The semantics are the changeability model's, unchanged: a set the class or a ceiling refuses returns
 `false` and leaves the value in force untouched, and every accepted change is request-local on the
@@ -961,7 +959,7 @@ one per request.
 Requests already running are unaffected ([`config/a-request-keeps-the-unit-it-resolved`](config.md#config-a-request-keeps-the-unit-it-resolved)); only
 requests that newly resolve the broken file fail, and they fail loudly. Silently continuing to serve
 the last good version after an edit — especially a security fix — is the worse failure mode, and it
-would diverge from PHP's own `validate_timestamps` behaviour to buy availability nothing needs.
+would buy availability nothing needs.
 
 The same policy covers an extension removed while source still references it: nothing proves that at
 reload time, and the units that call it fail when a request next resolves them, and only those.

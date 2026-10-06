@@ -12,11 +12,10 @@ Every directive carries one of three changeability classes in the registry:
 
 `Runtime` is the class for anything changeable. `RuntimeTighten` is argued per directive, never as a
 policy: it exists for capability grants, where a script may drop a right it holds and never add one it
-does not, and for the directives where PHP itself behaves that way (`open_basedir`). The class answers
+does not, and for directives that only ever narrow, such as `open_basedir`. The class answers
 one question only — *who may set it*. What applying a change requires is a second field on the same
 entry (`rule:config/reloadability-is-its-own-field`).
 
-This is what makes the most common `ini_set` in the PHP corpus — raising `memory_limit` for one
-import — work at conversion time rather than fail at runtime, while
+This is what lets the most common run-time set — raising `memory_limit` for one import — work, while
 `rule:config/ceilings-are-their-own-directives` keeps one request from becoming every co-resident
 request's outage.

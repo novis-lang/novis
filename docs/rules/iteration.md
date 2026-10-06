@@ -236,7 +236,7 @@ coroutines already and they are not spelled `yield`.
 yield into it, and neither can an anonymous function written inside one — an anonymous function has its own body, so a
 `yield` there does not make the enclosing method a generator; it is refused.
 
-Where PHP would delegate to a helper, Novis writes the loop out:
+To yield another iterable's values, a generator writes the loop out:
 
 ```
 foreach ($inner as $v) { yield $v; }

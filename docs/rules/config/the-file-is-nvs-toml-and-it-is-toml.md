@@ -3,7 +3,7 @@ The server configuration is a TOML file named `nvs.toml`, read into the directiv
 replacement before publishing it and leaves the running configuration untouched if any part fails.
 Pure Rust, no C, and no new dependency class: Cargo's own manifests are TOML.
 
-INI was inherited from PHP and does not survive an argument. It has no specification — every parser
+INI does not survive an argument. It has no specification — every parser
 disagrees on comment markers, quoting, nesting and what a duplicate key means — and it has one value
 type, string, which is the defect the language itself rejects. TOML has a boolean, an integer, an
 array and an array of tables, and an editor already validates it.
