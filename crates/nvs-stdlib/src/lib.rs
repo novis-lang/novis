@@ -294,6 +294,7 @@ pub use topic::publish_text;
 
 /// A guest's log line as a record of its request, which `nvs_cli`'s extension host is the one
 /// caller of. Re-exported rather than made public with its module, for [`publish_text`]'s reason.
+pub use http::{ExtensionReply, extension_send};
 pub use log::extension_line;
 
 use registry::CoreClass;

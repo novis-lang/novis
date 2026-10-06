@@ -3882,8 +3882,122 @@ fn exchanged(
     // given.
     let body = body_of(ctx, args, &named)?;
 
-    let call = transport::Call {
-        member: &named,
+    let mut call = call_of(ctx, args, &named, verb, url, addresses, resolve)?;
+    call.headers = headers_of(args, HEADERS, &named)?;
+    call.body = body;
+
+    // The one difference between the two members, and it is which bounds the
+    // body runs under rather than a second reading of it: a buffered call is
+    // one deadline over the whole exchange under `REPLY_CEILING`, and a
+    // streamed one stops at the head and leaves the body on the socket under
+    // `idle` and `maxDuration`
+    // (`rule:http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`).
+    if streamed {
+        let answer = transport::send_streamed(&call, &mut |hop, downgrade| {
+            repinned(ctx, args, hop, downgrade, &named)
+        })?;
+        let headers = header_map(&answer.headers);
+        let body = filed(ctx, answer.body);
+        traced(ctx, &call);
+        return Ok((answer.status, body, headers, answer.tls));
+    }
+    let reply = transport::send(&call, &mut |hop, downgrade| {
+        repinned(ctx, args, hop, downgrade, &named)
+    })?;
+    let headers = header_map(&reply.headers);
+    traced(ctx, &call);
+    Ok((
+        reply.status,
+        Value::bytes(NvsStr::new(&reply.body)),
+        headers,
+        reply.tls,
+    ))
+}
+
+/// A response an extension's outbound request came back with, whole.
+#[derive(Debug)]
+pub struct ExtensionReply {
+    /// The status line's code.
+    pub status: i64,
+    /// Every header, names lower-cased, in arrival order.
+    pub headers: Vec<(String, String)>,
+    /// The body, with its transfer and content codings undone.
+    pub body: Vec<u8>,
+}
+
+/// One outbound request an extension's guest sends, over the transport a `Core\Http\Client`
+/// call takes (`rule:packaging/a-guest-has-no-ambient-authority`).
+///
+/// `net.connect` and the address policy are asked of `ctx` for the URL's host and again at
+/// every redirect hop, and `[http.client]`'s bounds, TLS trust and proxy apply as they do to a
+/// call with no options: TLS is verified strictly, a hop into plaintext is refused, the
+/// redirects followed are `[http.client] max_redirects`, and the request is sent once. A
+/// refusal names the `Core\Http\Client` member of the method, so a `GET` is `get`'s. The
+/// transport writes `Content-Length` and `Host` itself. A test's answer table does not answer
+/// it, because the table matches a call's options and this call has none.
+///
+/// # Errors
+///
+/// A `LogicError` for a method that is not an upper-case token and for a body on a `GET` or a
+/// `HEAD`, then [`pin`]'s refusals, [`call_of`]'s, and whatever [`transport::send`] raised.
+pub fn extension_send(
+    ctx: &mut Ctx,
+    verb: &str,
+    url: &str,
+    headers: Vec<(String, String)>,
+    body: Option<Vec<u8>>,
+) -> Result<ExtensionReply, Fault> {
+    let named = format!("{CLIENT_NAME}::{}", verb.to_ascii_lowercase());
+    if verb.is_empty() || !verb.bytes().all(|byte| byte.is_ascii_uppercase()) {
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!("{named}: `{verb}` is not a method this client sends"),
+        ));
+    }
+    if body.is_some() && matches!(verb, "GET" | "HEAD") {
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!("{named}: a `{verb}` sends no body"),
+        ));
+    }
+    // Every option slot null, which is a call that wrote no option: each bound
+    // falls to `[http.client]`, and a downgrade is refused for want of the call's word.
+    let args = [Value::null(); REQUEST_ARITY];
+    let began = Instant::now();
+    let addresses = pin(ctx, url, &named, Roster::Request)?;
+    let resolve = began.elapsed();
+    let mut call = call_of(ctx, &args, &named, verb, url.to_owned(), addresses, resolve)?;
+    call.headers = headers;
+    call.body = body.map(|octets| held(None, octets));
+    let reply = transport::send(&call, &mut |hop, downgrade| {
+        repinned(ctx, &args, hop, downgrade, &named)
+    })?;
+    traced(ctx, &call);
+    Ok(ExtensionReply {
+        status: reply.status,
+        headers: reply.headers,
+        body: reply.body,
+    })
+}
+
+/// The [`transport::Call`] to `url` at `addresses`, with no headers and no body yet, and every
+/// bound, the identity and the TLS policy read from `args`, or from `[http.client]` where a slot
+/// is null. Its deadline starts now.
+///
+/// # Errors
+///
+/// [`bound_of`]'s, [`identity_option`]'s and [`policy_of`]'s.
+fn call_of<'a>(
+    ctx: &Ctx,
+    args: &[Value],
+    named: &'a str,
+    verb: &'a str,
+    url: String,
+    addresses: Vec<IpAddr>,
+    resolve: Duration,
+) -> Result<transport::Call<'a>, Fault> {
+    Ok(transport::Call {
+        member: named,
         verb,
         url,
         addresses,
@@ -3913,7 +4027,7 @@ fn exchanged(
             "http.client.max_duration",
             DEFAULT_MAX_DURATION,
         )?,
-        headers: headers_of(args, HEADERS, &named)?,
+        headers: Vec::new(),
         redirects: redirects_of(ctx, args),
         attempts: args[RETRY_ATTEMPTS]
             .as_uint()
@@ -3929,42 +4043,15 @@ fn exchanged(
             DEFAULT_BACKOFF,
         )?,
         idempotency_key: args[RETRY_KEY].as_text().map(str::to_owned),
-        body,
+        body: None,
         pool: pool_of(ctx),
         compress: crate::compress::Bound::ceiling(ctx),
-        identity: identity_option(args, &named, REQUEST_BAG)?,
-        policy: policy_of(args, &named, REQUEST_BAG)?,
+        identity: identity_option(args, named, REQUEST_BAG)?,
+        policy: policy_of(args, named, REQUEST_BAG)?,
         traceparent: traceparent_of(ctx),
         span: std::cell::RefCell::new(span::HttpSpan::opened(verb, resolve)),
         proxy: proxy_of(ctx),
-    };
-
-    // The one difference between the two members, and it is which bounds the
-    // body runs under rather than a second reading of it: a buffered call is
-    // one deadline over the whole exchange under `REPLY_CEILING`, and a
-    // streamed one stops at the head and leaves the body on the socket under
-    // `idle` and `maxDuration`
-    // (`rule:http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`).
-    if streamed {
-        let answer = transport::send_streamed(&call, &mut |hop, downgrade| {
-            repinned(ctx, args, hop, downgrade, &named)
-        })?;
-        let headers = header_map(&answer.headers);
-        let body = filed(ctx, answer.body);
-        traced(ctx, &call);
-        return Ok((answer.status, body, headers, answer.tls));
-    }
-    let reply = transport::send(&call, &mut |hop, downgrade| {
-        repinned(ctx, args, hop, downgrade, &named)
-    })?;
-    let headers = header_map(&reply.headers);
-    traced(ctx, &call);
-    Ok((
-        reply.status,
-        Value::bytes(NvsStr::new(&reply.body)),
-        headers,
-        reply.tls,
-    ))
+    })
 }
 
 /// Files this call's `http` trace event, now that there is an answer to file —

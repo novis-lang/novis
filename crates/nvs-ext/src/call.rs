@@ -58,8 +58,10 @@
 //!
 //! **The budget is a trait.** [`Budget`] is what the store needs of its request — its CPU
 //! deadline, its memory accounting, its log, its clocks, its random generator, its extension
-//! settings and its caller's authority, which narrows each instance's preopens — so this crate
-//! does not link the runtime. The host that wires a call into a request implements it over the
+//! settings, its caller's authority, which narrows each instance's preopens, and its outbound
+//! HTTP — so this crate does not link the runtime. [`Budget::send`] returns an [`Outbound`] the
+//! guest waits on, and the host fills its [`Answer`] where it holds the request's context, so the
+//! guest's call is pending while the response is on its way. The host that wires a call into a request implements it over the
 //! request's own; [`Meter`] is a standalone budget for a test and for a run with no request around
 //! it, keeps no log, and reads the process's clocks and generator.
 //!
@@ -124,6 +126,132 @@ pub trait Budget: Send + Sync {
     /// (`rule:security/extension-grants-are-an-intersection`). The default holds nothing.
     fn caller(&self) -> Caller<'_> {
         Caller::default()
+    }
+
+    /// Sends one outbound HTTP request for the guest, and returns the response it waits on.
+    ///
+    /// The host sends it through `Core\Http\Client`'s transport, under the caller's own
+    /// `net.connect` grant, the address policy, TLS trust and the proxy. The guest's own grant
+    /// is checked before this is asked (`rule:security/extension-grants-are-an-intersection`).
+    /// The default sends nothing and returns [`Unsent::Refused`].
+    fn send(&self, _request: Outgoing) -> Outbound {
+        Outbound::ready(Err(Unsent::Refused(
+            "this request has no outbound HTTP".to_owned(),
+        )))
+    }
+}
+
+/// One outbound HTTP request a guest sends.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Outgoing {
+    /// The method, upper-case: `GET`, `POST`.
+    pub method: String,
+    /// The absolute `http` or `https` URL.
+    pub url: String,
+    /// The guest's headers, in the order it wrote them.
+    pub headers: Vec<(String, String)>,
+    /// The body, or `None` for a request that carries none.
+    pub body: Option<Vec<u8>>,
+}
+
+/// The response to an [`Outgoing`] request, whole.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Incoming {
+    /// The status code.
+    pub status: u16,
+    /// Every header, names lower-case, in arrival order.
+    pub headers: Vec<(String, String)>,
+    /// The body, with its transfer and content codings undone.
+    pub body: Vec<u8>,
+}
+
+/// Why an [`Outgoing`] request has no response, with the message `Core\Http\Client` gave.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Unsent {
+    /// The deadline passed: a `TimeoutError`.
+    Timeout(String),
+    /// The connection failed: an `IOError`.
+    Connection(String),
+    /// Anything else: a grant, the address policy, a TLS check, or a response too large.
+    Refused(String),
+}
+
+/// What [`Budget::send`] returns: a future the guest's call waits on until the [`Answer`] made
+/// with it is given the response.
+#[derive(Debug)]
+pub struct Outbound(Arc<Mutex<Awaited>>);
+
+/// The half of an [`Outbound`] that the host gives the response to. Dropped without one, it
+/// gives the guest [`Unsent::Refused`], so a guest never waits on a request nobody sends.
+#[derive(Debug)]
+pub struct Answer(Option<Arc<Mutex<Awaited>>>);
+
+/// The response an [`Outbound`] waits on, and the waker of the call that waits.
+#[derive(Debug, Default)]
+struct Awaited {
+    result: Option<Result<Incoming, Unsent>>,
+    waker: Option<Waker>,
+}
+
+impl Outbound {
+    /// A pending response and the [`Answer`] that fills it.
+    #[must_use]
+    pub fn pair() -> (Self, Answer) {
+        let slot = Arc::new(Mutex::new(Awaited::default()));
+        (Self(Arc::clone(&slot)), Answer(Some(slot)))
+    }
+
+    /// A response that is already there.
+    #[must_use]
+    pub fn ready(result: Result<Incoming, Unsent>) -> Self {
+        Self(Arc::new(Mutex::new(Awaited {
+            result: Some(result),
+            waker: None,
+        })))
+    }
+}
+
+impl Future for Outbound {
+    type Output = Result<Incoming, Unsent>;
+
+    fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+        let mut slot = self.0.lock().unwrap_or_else(PoisonError::into_inner);
+        match slot.result.take() {
+            Some(result) => Poll::Ready(result),
+            None => {
+                slot.waker = Some(cx.waker().clone());
+                Poll::Pending
+            }
+        }
+    }
+}
+
+impl Answer {
+    /// Gives the waiting call its response, and wakes it.
+    pub fn fill(mut self, result: Result<Incoming, Unsent>) {
+        self.filled(result);
+    }
+
+    fn filled(&mut self, result: Result<Incoming, Unsent>) {
+        let Some(slot) = self.0.take() else {
+            return;
+        };
+        let waker = {
+            let mut slot = slot.lock().unwrap_or_else(PoisonError::into_inner);
+            slot.result = Some(result);
+            slot.waker.take()
+        };
+        if let Some(waker) = waker {
+            waker.wake();
+        }
+    }
+}
+
+impl Drop for Answer {
+    fn drop(&mut self) {
+        self.filled(Err(Unsent::Refused(
+            "the request ended before this response arrived".to_owned(),
+        )));
     }
 }
 

@@ -76,7 +76,10 @@ use nvs_config::resolve::Origin;
 use nvs_config::tree::{Config, Extension};
 use nvs_config::value::{Quantity, Unit};
 use nvs_diagnostics::{Diagnostic, SourceMap};
-use nvs_ext::call::{Budget, Host, Level, Limit, Meter, Outcome, Request};
+use nvs_ext::call::{
+    Answer, Budget, Host, Incoming, Level, Limit, Meter, Outbound, Outcome, Outgoing, Request,
+    Unsent,
+};
 use nvs_ext::convert::{Key, Value as Crossed, fits};
 use nvs_ext::grants::Caller;
 use nvs_ext::load::{CacheKey, Entry, Loader, ModuleCache, Set};
@@ -312,6 +315,7 @@ impl Calls {
                 clock: Mutex::new(None),
                 seed: Mutex::new(None),
                 lines: Mutex::new(Vec::new()),
+                outbound: Mutex::new(Vec::new()),
             });
             (host.request(spent.clone()), spent)
         }))
@@ -321,7 +325,7 @@ impl Calls {
 impl Drop for Calls {
     fn drop(&mut self) {
         if let Some((request, _)) = self.request.take() {
-            drop(drive(request.end()));
+            drop(drive(request.end(), || false));
         }
     }
 }
@@ -336,8 +340,14 @@ impl Drop for Calls {
 /// seed fixes the draws `Core\Random` and a guest make together. Lines a guest writes while its
 /// resources are dropped at the request's end have no context left to write to, and are dropped.
 ///
+/// A guest's outbound HTTP request waits in [`Spent`] until the call that runs the guest polls
+/// it, and [`Spent::sends`] sends it from there with the calling task's context, through
+/// `nvs_stdlib::extension_send`. The task parks on the socket as a `Core\Http\Client` call does,
+/// so the other tasks on its core run while the guest waits.
+///
 /// What it spends: one `Arc` of the request's snapshot, the `grants:` list of the isolate that
-/// made the request, and each logged line until the call that wrote it returns.
+/// made the request, each logged line until the call that wrote it returns, and each outbound
+/// request until it is sent.
 pub(crate) struct Spent {
     meter: Meter,
     snapshot: Option<Arc<nvs_config::Snapshot>>,
@@ -345,6 +355,7 @@ pub(crate) struct Spent {
     clock: Mutex<Option<i128>>,
     seed: Mutex<Option<u64>>,
     lines: Mutex<Vec<(Level, String, String)>>,
+    outbound: Mutex<Vec<(Outgoing, Answer)>>,
 }
 
 impl Spent {
@@ -374,6 +385,49 @@ impl Spent {
             };
             drop(nvs_stdlib::extension_line(ctx, level, &channel, &message));
         }
+    }
+
+    /// Sends every outbound request a guest has made since the last poll, with `ctx`, and gives
+    /// each its response. Returns whether there was one, so the call is polled again at once.
+    fn sends(&self, ctx: &mut Ctx) -> bool {
+        let queued =
+            std::mem::take(&mut *self.outbound.lock().unwrap_or_else(PoisonError::into_inner));
+        let any = !queued.is_empty();
+        for (request, answer) in queued {
+            answer.fill(sent(ctx, request));
+        }
+        any
+    }
+}
+
+/// `request` sent through `Core\Http\Client`'s transport, under `ctx`'s grants.
+fn sent(ctx: &mut Ctx, request: Outgoing) -> Result<Incoming, Unsent> {
+    let Outgoing {
+        method,
+        url,
+        headers,
+        body,
+    } = request;
+    match nvs_stdlib::extension_send(ctx, &method, &url, headers, body) {
+        Ok(reply) => Ok(Incoming {
+            status: u16::try_from(reply.status).unwrap_or(u16::MAX),
+            headers: reply.headers,
+            body: reply.body,
+        }),
+        Err(
+            Fault::Thrown(ThrownClass::Timeout, message)
+            | Fault::ThrownWithSlots(ThrownClass::Timeout, message, _),
+        ) => Err(Unsent::Timeout(message.into_owned())),
+        Err(
+            Fault::Thrown(ThrownClass::Io, message)
+            | Fault::ThrownWithSlots(ThrownClass::Io, message, _),
+        ) => Err(Unsent::Connection(message.into_owned())),
+        Err(
+            Fault::Thrown(_, message)
+            | Fault::ThrownWithSlots(_, message, _)
+            | Fault::Fatal(message),
+        ) => Err(Unsent::Refused(message.into_owned())),
+        Err(_) => Err(Unsent::Refused(format!("`{method} {url}` was not sent"))),
     }
 }
 
@@ -411,6 +465,16 @@ impl Budget for Spent {
             Some(state) => nvs_stdlib::random::fill_seeded(state, out),
             None => self.meter.random(out),
         }
+    }
+
+    /// Queued for [`Spent::sends`], which the call that runs the guest reaches at its next poll.
+    fn send(&self, request: Outgoing) -> Outbound {
+        let (outbound, answer) = Outbound::pair();
+        self.outbound
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push((request, answer));
+        outbound
     }
 
     /// The value at `ext.<block>.<key>` in the request's snapshot, as JSON.
@@ -459,7 +523,9 @@ impl nvs_runtime::extension::Extensions for Calls {
             .map_err(refused)?;
         let (request, spent) = self.request(ctx)?;
         spent.enter(ctx);
-        let called = drive(request.call_values(extension, method, args));
+        let called = drive(request.call_values(extension, method, args), || {
+            spent.sends(ctx)
+        });
         spent.leave(ctx);
         match called {
             Ok(None) => Ok(Value::null()),
@@ -496,14 +562,18 @@ impl nvs_runtime::extension::Extensions for Calls {
     }
 }
 
-/// Runs `call` to the end on the calling task, parking it for up to a tick between polls.
-fn drive<T>(call: impl Future<Output = T>) -> T {
+/// Runs `call` to the end on the calling task. Between two polls it runs `between`, and polls
+/// again at once when that did some work, or parks the task for up to a tick.
+fn drive<T>(call: impl Future<Output = T>, mut between: impl FnMut() -> bool) -> T {
     let waker = Waker::from(Arc::new(Unpark(std::thread::current())));
     let mut cx = Context::from_waker(&waker);
     let mut call = std::pin::pin!(call);
     loop {
         if let Poll::Ready(out) = call.as_mut().poll(&mut cx) {
             return out;
+        }
+        if between() {
+            continue;
         }
         let deadline = Instant::now() + nvs_ext::call::TICK;
         if nvs_runtime::host::with_current(|host| host.park(Some(deadline))).is_none() {
@@ -843,6 +913,7 @@ mod tests {
             clock: Mutex::new(None),
             seed: Mutex::new(None),
             lines: Mutex::new(Vec::new()),
+            outbound: Mutex::new(Vec::new()),
         };
 
         spent.enter(&ctx);
@@ -864,5 +935,35 @@ mod tests {
             .expect("a log line is text");
         assert!(output.contains("tile loaded"), "{output}");
         assert!(output.contains("geo"), "{output}");
+    }
+
+    /// A guest's outbound request waits until the call polls it, and is then sent under the
+    /// calling context's grants: a context with no `net.connect` grant gets no response.
+    #[test]
+    fn a_guest_request_is_sent_at_the_next_poll_under_the_contexts_grants() {
+        let mut ctx = Ctx::buffered();
+        let spent = Spent {
+            meter: Meter::new(UNCAPPED, None),
+            snapshot: None,
+            narrowed: None,
+            clock: Mutex::new(None),
+            seed: Mutex::new(None),
+            lines: Mutex::new(Vec::new()),
+            outbound: Mutex::new(Vec::new()),
+        };
+        let outbound = spent.send(Outgoing {
+            method: "GET".to_owned(),
+            url: "http://example.com/".to_owned(),
+            headers: Vec::new(),
+            body: None,
+        });
+
+        assert!(spent.sends(&mut ctx));
+        assert!(!spent.sends(&mut ctx));
+        let answer = drive(outbound, || false);
+        assert!(
+            matches!(&answer, Err(Unsent::Refused(message)) if message.contains("example.com")),
+            "{answer:?}"
+        );
     }
 }
