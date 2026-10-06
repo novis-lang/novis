@@ -1,25 +1,27 @@
 {
-  "state": "**Goal `php-oracle-retired`, Stage 2 under way.** ADR 0274 is on disk (`docs/decisions/0274.md`, `data/decisions/0274.json`): the whole goal's record, the user's calls, the tradeoffs, the old-to-new ordering table (§ 2) and the rules this goal removes (§ 4). Priority 2 is gone from `AGENTS.md`, `rule:programs/memory-priority`, the website's `how-we-decide.mdx`, every `docs/rules/` fragment and every `docs/agent/` file.\n\nEvery crate but `nvs-stdlib` now cites a priority by its name: `git grep -n -i -E \"priority[ -][1-5]\\b|priorities [1-5]\" -- crates` lists only `crates/nvs-stdlib/src/` (51 hits in 32 files). Note the hyphenated `priority-1` form, which the old grep missed. Old numbering: 1 security, 2 correctness (deleted), 3 latency, 4 simplicity, 5 memory footprint. A comment that leans on \"priority 2\" is rewritten to state the behaviour or the rule it protects, and a \"PHP does this\" sentence in the same comment goes with it; a scheduler or task priority stays. Whether a Stage 2 check greps `crates/` for these is *not checked*.",
+  "state": "**Goal `php-oracle-retired`, Stage 2 complete; Stage 3 is next.** ADR 0274 is on disk (`docs/decisions/0274.md`, `data/decisions/0274.json`): the whole goal's record, the user's calls, the tradeoffs, the old-to-new ordering table (§ 2) and the rules this goal removes (§ 4). Priority 2 is gone from `AGENTS.md`, `rule:programs/memory-priority`, the website's `how-we-decide.mdx`, every `docs/rules/` fragment and every `docs/agent/` file.\n\nEvery crate now cites a priority by its name: `git grep -n -i -E \"priority[ -][1-5]\\b|priorities [1-5]\" -- crates` prints nothing. `docs/agent/commands.md` and `docs/agent/user-report.md` no longer measure a bug against PHP, and the playbook bullet keyed on the old `AGENTS.md` text is gone. Whether a Stage 2 check greps `crates/` is *not checked*; the driver's sweep lists no Stage 2 check as red.\n\nThe driver's earliest red check is Stage 3's `nvs-stdlib-the-error-corpus-is-conformance-alone`: the test `the_error_corpus_is_the_conformance_tree_alone` does not exist yet.",
   "next": {
-    "stage": 2,
-    "title": "a priority is cited by its name, the `nvs-stdlib` comments",
-    "files": [
-      "crates/nvs-stdlib/src/"
-    ],
+    "stage": 3,
+    "title": "every error message has a conformance case",
+    "files": [],
+    "note": "one file set: `crates/nvs-stdlib/tests/conformance_coverage.rs`, `tools/nv/cmd/gaps.ts`, new cases under `tests/conformance/`.",
     "items": [
       {
         "done": false,
-        "text": "**The stdlib comments, `bus` to `json`** — `rule:programs/memory-priority` (cite by name): `crates/nvs-stdlib/src/bus.rs:48`, `crates/nvs-stdlib/src/bytes.rs:140`, `crates/nvs-stdlib/src/bytes.rs:1700`, `crates/nvs-stdlib/src/cache.rs:35`, `crates/nvs-stdlib/src/cache.rs:1344`, `crates/nvs-stdlib/src/cli.rs:1218`, `crates/nvs-stdlib/src/compress.rs:93`, `crates/nvs-stdlib/src/compress.rs:792`, `crates/nvs-stdlib/src/crypto.rs:1269`, `crates/nvs-stdlib/src/crypto.rs:3007`, `crates/nvs-stdlib/src/db/mod.rs:135`, `crates/nvs-stdlib/src/db/stream.rs:32`, `crates/nvs-stdlib/src/hash.rs:32`, `crates/nvs-stdlib/src/hash.rs:110`, `crates/nvs-stdlib/src/hash.rs:269`, `crates/nvs-stdlib/src/html.rs:578`, `crates/nvs-stdlib/src/html.rs:1337`, `crates/nvs-stdlib/src/http.rs:300`, `crates/nvs-stdlib/src/http.rs:3532`, `crates/nvs-stdlib/src/http/transport.rs:72`, `crates/nvs-stdlib/src/http/transport.rs:2353`, `crates/nvs-stdlib/src/io.rs:3174`, `crates/nvs-stdlib/src/json.rs:20`, `crates/nvs-stdlib/src/json.rs:537`."
+        "text": "**The error corpus reads `tests/conformance/` alone** — goal prose § *Stage 3*: `crates/nvs-stdlib/tests/conformance_coverage.rs:280` (`error_corpus` reads both trees today) and `tools/nv/cmd/gaps.ts:343` (`bun nv gaps --errors` reads the same corpus). Change both in one slice, and add the named test `the_error_corpus_is_the_conformance_tree_alone` beside `every_error_path_is_asserted_or_declared_unreachable`."
       },
       {
         "done": false,
-        "text": "**The stdlib comments, `jwt` to `validate`** — same rule: `crates/nvs-stdlib/src/jwt.rs:120`, `crates/nvs-stdlib/src/jwt.rs:991`, `crates/nvs-stdlib/src/mail.rs:680`, `crates/nvs-stdlib/src/math.rs:24`, `crates/nvs-stdlib/src/math.rs:1663`, `crates/nvs-stdlib/src/path.rs:1006`, `crates/nvs-stdlib/src/queue.rs:309`, `crates/nvs-stdlib/src/queue.rs:746`, `crates/nvs-stdlib/src/random.rs:29`, `crates/nvs-stdlib/src/random.rs:41`, `crates/nvs-stdlib/src/regex.rs:2051`, `crates/nvs-stdlib/src/request.rs:1205`, `crates/nvs-stdlib/src/router.rs:575`, `crates/nvs-stdlib/src/router.rs:588`, `crates/nvs-stdlib/src/sse.rs:746`, `crates/nvs-stdlib/src/task.rs:320`, `crates/nvs-stdlib/src/topic.rs:171`, `crates/nvs-stdlib/src/topic.rs:1305`, `crates/nvs-stdlib/src/uri.rs:41`, `crates/nvs-stdlib/src/uuid.rs:55`, `crates/nvs-stdlib/src/validate.rs:82`."
+        "text": "**A conformance case for every message that goes unasserted** — `crates/nvs-stdlib/tests/conformance_coverage.rs:280`: run the coverage test after the slice above, and for each message it names write a case under `tests/conformance/` whose `--EXPECT--`/`--EXPECTF-ERROR--` is what Novis prints today, never the PHP twin. A `--ORACLE-DIVERGES--` behaviour no conformance case pins gets a case too."
+      },
+      {
+        "done": false,
+        "text": "**Repoint the `guardedBy`/`validatedBy` that name a differential case** — `data/rules/classes/clone-is-shallow.json:19`, `data/rules/expressions/switch-match-equality.json:17`, `data/rules/statements/static-is-a-member-modifier.json:19`, `data/decisions/0144.json:10`, `data/decisions/0211.json:9`, the cases they name starting at `tests/differential/class/clone-is-shallow-like-phps.nvst:1`: each points at the conformance case that now pins the same behaviour (goal prose § *Standing decisions* on frozen records)."
       }
-    ],
-    "after": "Both items fit one session: read every hit with one `git grep -n -C2` and write them as one `bun nv splice --patch`."
+    ]
   },
   "backlog": [
-    "After the stdlib sweep, re-run the grep over `crates/`, `tools/` and `website/` and check which Stage 2 checks in `data/goals/php-oracle-retired.json` are still red — goal prose `docs/agent/goals/php-oracle-retired.md`.",
-    "Stage 3 onward (the error corpus is the conformance tree alone) is the driver's earliest red check; it is not open until Stage 2 is closed — same goal prose."
+    "Stage 4: delete `tests/differential/`, the oracle sections, `nvs test --php`, `--INI--` and `bun nv try`'s oracle half (`docs/agent/commands.md` § *Trying a snippet against PHP*) — goal prose § *Stage 4*.",
+    "`crates/nvs-stdlib/src/` doc comments still open with \"replacing PHP's `x`\" (e.g. `crates/nvs-stdlib/src/io.rs:3165`); the registry-text half is Stage 9's `no_member_text_says_what_it_replaces_in_php`."
   ]
 }
