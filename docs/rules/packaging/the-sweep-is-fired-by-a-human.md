@@ -10,7 +10,7 @@ green CI does not decide a change's classification.
 | Monthly | Semver-incompatible crate bumps, CI action majors, the developer toolchain, and every hold whose date has passed |
 | Within one release cycle of a Rust stable release | The pinned toolchain, in its own commit, green on all three platforms |
 | Immediately, ahead of any other work | A RUSTSEC advisory or a yanked crate in the tree — the one item that may interrupt a milestone |
-| At each release | The whole battery, the attribution file, the callgrind figures, and the PHP oracle version the conformance suite was compared against |
+| At each release | The whole battery, the attribution file and the callgrind figures |
 | At a major only | The Rust edition, and any hold that turned out to be permanent |
 
 **A dependency more than one minor behind for over 30 days without a hold record is stale, and stale

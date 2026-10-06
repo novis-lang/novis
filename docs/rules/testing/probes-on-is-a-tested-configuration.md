@@ -6,6 +6,7 @@ instrumentation crossed with compiled code, which is where other JIT-compiled en
 dereferenced stale caches and produced wrong results under optimisation. There is no interpreter
 here to fall back to.
 
-The differential oracle cannot find these. It checks that Novis agrees with **PHP**, not that Novis
-agrees with **itself** under different codegen, and a probe-attached run and an optimised run are
-both Novis. The cost is CI wall-clock proportional to the added axes, and nothing at all at run time.
+A suite run under one configuration cannot find these. Each case checks that Novis prints what the
+rules say under that one codegen, and this bug class lives only where a probe-attached or optimised
+build of the same program prints something else. The cost is CI wall-clock proportional to the added
+axes, and nothing at all at run time.
