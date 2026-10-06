@@ -1,24 +1,35 @@
 {
-  "state": "**Goal `ext-compiler`, Stage 2 (registration) is on disk; Stage 3 (the call) has not started.** The design is ADR 0246 § 8 and the goal file's § *Standing decisions*. This goal has no record slot.\n\n`nvs_types::ext_lib` seeds a set's manifests into the signature table, and its module doc owns the qualifier mapping. `nvs_hir::resolve_program_linted` takes the set's `ExtensionClass` list and declares it ahead of the walk. `nvs check` reads the set beside its grants (`crates/nvs-cli/src/config.rs`'s `grants`), and `nvs run` reads it before the compile (`config::extension_set`, which treats a tree that does not resolve as no set and leaves the refusal to the run's own read). Both read manifests with `nvs_ext::load::read_manifests`: pin, sections, reserved namespace and a unique class, and no engine. An entry that does not read is `E0652` at its line. The two reject cases under `tests/conformance/reject/an-extension-*` pass.\n\nNot reading the set yet: `nvs serve`'s `script::Compiler` (`front_end_looking`), `nvs test` and the language server (Stage 6). A program that calls an extension correctly now type-checks and then reaches `nvs-ir`, which has no lowering for the call (Stage 3).\n\nFixture gaps, both Stage 3's: the named rows of 0246 § 1 are absent (`crates/nvs-ext/src/load.rs:26`), and `kindOf` (`mixed`) is never called.",
+  "state": "**Goal `ext-compiler`, Stage 3 (the call) is under way.** Stages 1 and 2 are on disk. The design is ADR 0246 § 8 and the goal file's § *Standing decisions*. This goal has no record slot.\n\n`nvs_ext::convert` (behind `engine`) turns a `Value` — the host's view of a Novis value, an array as ordered key and value pairs — into the `wasmtime::component::Val` its `NovisType` crosses as, and back. Its module doc owns the value model and what it refuses. It covers the structural rows: `bool`, `int`, `uint`, `float`, `string`, `bytes`, `array<T>`, `array<K, V>`, `?T` and a shape. `crates/nvs-ext/tests/convert.rs` round-trips each through a WAT guest; 4 of the check's 9 tests exist and pass.\n\nNot converting yet: an enum, a closed union of shapes, a `Core` value class, a `resource` and `mixed`. The first four are not `NovisType` rows at all — `crates/nvs-ext/src/types.rs` parses no named type, and the loader refuses one (`crates/nvs-ext/src/load.rs` module doc) — because the manifest carries nothing a name could resolve to. `mixed` needs the call's handle table (`rule:packaging/values-cross-as-handles`).\n\nNot reading the set yet: `nvs serve`'s `script::Compiler`, `nvs test` and the language server (Stage 6). A program calling an extension type-checks and then reaches `nvs-ir`, which has no lowering for the call.\n\nFixture gaps, Stage 3's: the named rows of 0246 § 1 are absent from the fixture (`crates/nvs-ext/src/load.rs:26`), and `kindOf` (`mixed`) is never called.",
   "next": {
     "stage": 3,
     "title": "the call",
-    "files": [],
-    "note": "one file set: a new `crates/nvs-ext/src/convert.rs` and `crates/nvs-ext/tests/convert.rs`, beside `crates/nvs-ext/src/types.rs`.",
+    "files": [
+      "crates/nvs-ext/src/types.rs",
+      "crates/nvs-ext/src/manifest.rs",
+      "crates/nvs-ext/src/load.rs",
+      "crates/nvs-ext/src/convert.rs",
+      "crates/nvs-ext/tests/convert.rs"
+    ],
     "items": [
       {
         "done": false,
-        "text": "**The value conversion**: every row of 0246 § 1's table converts a Novis value to its WIT `wasmtime::component::Val` and back, keyed by the `NovisType` that `crates/nvs-ext/src/types.rs:42` parses. The check `nvs-ext-every-row-converts` runs `cargo test -p nvs-ext --test convert`, so the test target is `crates/nvs-ext/tests/convert.rs`. `rule:packaging/a-value-crosses-as-its-wit-type`."
+        "text": "**The named rows**: the manifest declares its enums and shape unions by name, `NovisType` parses a name it declares and a `Core` value class the world's `types` interface has a record for, the loader checks each against the export's `enum`, `variant` and `record`, and `convert` turns each both ways. Tests `an_enum_case_crosses_in_kebab_case`, `a_closed_union_of_shapes_crosses_as_a_variant` and `a_core_value_class_crosses_as_its_types_record`, and a sample of each in `every_row_of_the_value_table_round_trips_through_a_guest`. Anchors `crates/nvs-ext/src/types.rs:40`, `crates/nvs-ext/src/manifest.rs:49`, `crates/nvs-ext/src/load.rs:594`, `crates/nvs-ext/src/convert.rs:68`. `rule:packaging/a-value-crosses-as-its-wit-type`."
       },
       {
         "done": false,
-        "text": "**The trampoline call in `nvs-ir`**: a static call whose target is an extension class lowers to a direct call of its export's trampoline; the lowering of a static call is `lower_static_call` at `crates/nvs-ir/src/lower/expr.rs:4236`, dispatched from `crates/nvs-ir/src/lower/expr.rs:311`. `rule:packaging/extension-calls-are-statically-typed`."
+        "text": "**`mixed` and `resource`**: a `mixed` argument as a `borrow<value>` into a per-call handle table read through the accessor imports, and an extension `resource` kept by the request and dropped at its end. Tests `a_mixed_argument_crosses_as_a_value_handle_read_through_accessors` and `an_extension_resource_is_dropped_when_its_request_ends`. Anchors `crates/nvs-ext/src/convert.rs:122`, `crates/nvs-ext/src/call.rs:471`. `rule:packaging/values-cross-as-handles`."
+      },
+      {
+        "done": false,
+        "text": "**The trampoline call in `nvs-ir`**: a static call whose target is an extension class lowers to a direct call of its export's trampoline. Test `an_extension_static_call_lowers_to_a_direct_call_of_its_export_trampoline` under `cargo test -p nvs-ir`. Anchor `crates/nvs-ir/src/lower/expr.rs:1`. `rule:packaging/extension-calls-are-statically-typed`."
       }
     ]
   },
   "backlog": [
-    "`nvs serve` compiles through `front_end_looking` with no extension set; it should read the live set's manifests (`crates/nvs-cli/src/extensions.rs`).",
-    "The fixture's named rows of 0246 § 1 and a `kindOf` call (`crates/nvs-ext/src/load.rs:26`).",
-    "Stage 6: `nvs test` and the language server read the configured set (`rule:packaging/extension-calls-are-statically-typed`)."
+    "The two end-to-end cases under `tests/conformance/ext/` (an `--EXTENSION--` section loading the fixture): goal file, Stage 3.",
+    "Stage 4's qualifier checks and the `secret`-return refusal: goal file, Stage 4.",
+    "Stage 5's source section through `autoload`: goal file, Stage 5.",
+    "Stage 6: `nvs serve`'s `script::Compiler`, `nvs test` and the language server read the set: `rule:packaging/extension-calls-are-statically-typed`.",
+    "`bytes` crosses as one `Val::U8` per byte until the trampoline lowers through a typed function: `nvs_ext::convert`'s module doc."
   ]
 }
