@@ -1,28 +1,27 @@
 {
-  "state": "**Goal `ext-compiler`. Stages 1 to 4 are done; Stage 5 (the source section) has two of its three checks green.** The design is ADR 0246 § 3 and § 8 and the goal file's § *Standing decisions*. This goal has no record slot.\n\n`nvs-ext`'s loader refuses a source file whose `namespace` is not under the class's own namespace (the class minus its last segment), naming the file: `Source::outside` in `crates/nvs-ext/src/source.rs`, called after the reserved-namespace check in `Loader::load_bytes`. It reads only the file's head, so `nvs-ext` takes no parser.\n\n`nvs_hir::ExtensionClass` has a `source` field (`ExtensionFile { path, text }`), set on the manifest's class alone. The graph walk in `crates/nvs-hir/src/requires.rs` (`carried_source`) resolves a wanted name under that namespace to the carried file before it probes any `autoload` root. It loads the file with `SourceMap::add`, so the file has no path, and holds it to `check_file_shape`. **Nothing fills the field yet:** `nvs_types::ext_lib::hir_classes` sets it to empty, because the CLI threads manifests only (`Vec<Manifest>`).\n\nThe ledger fixture's `source/Ledger/Receipt.nvs.src` now opens with `<?nvs` and writes `Shop\\Ledger::` with no leading `\\`. `ledger.nvsx` and `ledger.sha256` were rebuilt with `NVS_WRITE_FIXTURES=1`.",
+  "state": "**Goal `ext-compiler`. Stages 1 to 5 are done; Stage 6 (the tools) has two of its three checks green.** The design is ADR 0246 § 3 and § 8 and the goal file's § *Standing decisions*. This goal has no record slot.\n\n`nvs_ext::manifest::Manifest` has a `source` field (`#[serde(skip)]`, the `nvs.source` section's files). `nvs_ext::load::read_manifests` fills it and refuses a file outside the class's namespace, through the same `outside` helper `Loader::load_bytes` uses. `nvs_types::ext_lib::hir_classes` copies it into `ExtensionClass::source`, so every command that reads the set's manifests resolves the extension's source with no `autoload` line.\n\n`nvs check` reads the tree's set (`crates/nvs-cli/tests/check_command.rs`, an empty component carrying the ledger manifest, so nothing could be instantiated). `nvs test <program>` now types the suite against `config::extension_set` and installs `config::extension_calls` around `runner::run`, one request for the whole suite (`crates/nvs-cli/src/main.rs`, `run_test`). A `.nvst` tree run by `nvs test` is unchanged: each case is its own `nvs run`.\n\nThe language server still types a document with no extension set.",
   "next": {
-    "stage": 5,
-    "title": "the source section",
+    "stage": 6,
+    "title": "the tools",
     "files": [
-      "crates/nvs-ext/src/load.rs",
-      "crates/nvs-cli/src/extensions.rs",
-      "crates/nvs-types/src/ext_lib.rs",
-      "crates/nvs-cli/src/main.rs",
-      "tests/conformance/ext/"
+      "crates/nvs-lsp/src/document.rs",
+      "crates/nvs-lsp/src/completion.rs",
+      "crates/nvs-lsp/src/hover.rs",
+      "crates/nvs-lsp/tests/completion.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**A class in a fixture extension's source section resolves and runs with no `autoload` line**: carry each extension's `Source` beside its `Manifest` from `read_manifests` (`crates/nvs-ext/src/load.rs:492`) through `crates/nvs-cli/src/extensions.rs:164` into `hir_classes` (`crates/nvs-types/src/ext_lib.rs:68`), which fills `ExtensionClass::source` on the manifest's class; `crates/nvs-cli/src/main.rs:2184` is where `nvs run` and `nvs check` build the classes. Then write `tests/conformance/ext/an-extension-source-class-resolves-with-no-autoload-line.nvst`, which loads `ledger` and calls `Shop\\Ledger\\Receipt::line`. Watch that IR and codegen accept a loaded file with no path. `rule:packaging/an-extension-package-carries-two-payloads`."
+        "text": "**An extension class's methods complete and hover from its manifest, and the server never instantiates it**: check `nvs-lsp` test `completion_after_an_extension_class_offers_its_manifest_methods`. The document's resolve is `resolve_program_borrowing` at `crates/nvs-lsp/src/document.rs:682` and its check `nvs_types::check_program` at `crates/nvs-lsp/src/document.rs:726`; both take no extension set yet. Read the set with `nvs_ext::load::read_manifests` from the tree the document's configuration resolves, never `Loader::load`, and pass its classes and manifests the way `crates/nvs-cli/src/main.rs:2184` does. `rule:packaging/extension-calls-are-statically-typed`."
       },
       {
         "done": false,
-        "text": "**`nvs check` types an extension call from the configured set** (Stage 6): check `nvs-cli` test `nvs_check_types_an_extension_call_from_the_configured_set` (`crates/nvs-cli/src/main.rs:2184`). `rule:packaging/extension-calls-are-statically-typed`."
+        "text": "**Hover on an extension method shows the manifest's help text**: the same file set. Hover is `at` at `crates/nvs-lsp/src/hover.rs:132`, and a call's documentation is read by `documentation` at `crates/nvs-lsp/src/hover.rs:272`, which only knows the `Core` registry (`registry_row`, `crates/nvs-lsp/src/hover.rs:296`). `rule:packaging/extension-calls-are-statically-typed`."
       }
     ]
   },
   "backlog": [
-    "`nvs test` and the language server do not read the set yet (Stage 6, `rule:packaging/extension-calls-are-statically-typed` § *Not on disk*).",
-    "An `autoload` or `require` line inside a carried source file is ignored rather than refused, because the file has no directory (`crates/nvs-hir/src/requires.rs`, the `base_dir` branch of `walk`)."
+    "The rule fragment `rule:packaging/extension-calls-are-statically-typed` still says the language server does not read the set; rewrite its *Not on disk* paragraph when the check above is green.",
+    "`nvs test --list` loads the extension components it never calls; move `extension_calls` below the listing if that cost shows up (`crates/nvs-cli/src/main.rs`, `run_test`)."
   ]
 }

@@ -23,8 +23,9 @@ signature table and `nvs_hir::resolve_file_with_extensions` declares their class
 (`crates/nvs-types/tests/extensions.rs`). `nvs check` and `nvs run` read the configuration's set with
 `nvs_ext::load::read_manifests` and type a program against it
 (`tests/conformance/reject/an-extension-call-with-a-wrong-argument-type-does-not-compile.nvst`),
-and `nvs serve` types its programs against the set it loaded; `nvs test` and the language server
-do not yet. `nvs_ir` lowers a call into an
+`nvs serve` types its programs against the set it loaded, and `nvs test` types a suite against
+the set and hosts it while the suite runs (`crates/nvs-cli/tests/test_command.rs`); the language
+server does not yet. `nvs_ir` lowers a call into an
 extension to one `InstKind::ExtensionCall` naming the export (`crates/nvs-ir/src/lower/tests.rs`).
 Codegen emits it as a direct call of one runtime helper with the export named in its first slot
 (`nvs_runtime::extension`), and `nvs run` hosts it

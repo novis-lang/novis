@@ -2110,14 +2110,18 @@ impl Looked {
 ///
 /// `path` is where the entry would sit, so every `require` in `text` resolves
 /// against that directory exactly as a written entry's would.
-fn front_end_synthesized(path: &std::path::Path, text: &str) -> Result<Checked, ExitCode> {
+fn front_end_synthesized(
+    path: &std::path::Path,
+    text: &str,
+    extensions: Vec<nvs_ext::manifest::Manifest>,
+) -> Result<Checked, ExitCode> {
     let mut map = SourceMap::new();
     map.overlay(path, text);
     front_end_in(
         map,
         path,
         None,
-        Vec::new(),
+        extensions,
         false,
         Sink::Text,
         config::Init::Never,
@@ -3583,12 +3587,33 @@ fn run_test(
             render_diagnostics(&mut diags, &config_sources);
             return ExitCode::FAILURE;
         }
+        // The suite is typed against the tree's extension set, as `nvs run` types a program, and
+        // a call into one reaches the loaded set through `nvs_runtime::extension` while the
+        // suite runs. The whole suite is one request to the set: its tests share the instances.
+        let extensions = match config::extension_set(config, path) {
+            Ok(extensions) => extensions,
+            Err(code) => return code,
+        };
+        let checked = match program.front_end(extensions) {
+            Ok(checked) => checked,
+            Err(code) => return code,
+        };
+        let calls = match config::extension_calls(config, path) {
+            Ok(calls) => calls.map(std::rc::Rc::new),
+            Err(code) => return code,
+        };
+        let calling = calls.clone().map(|calls| {
+            nvs_runtime::extension::install(
+                calls as std::rc::Rc<dyn nvs_runtime::extension::Extensions>,
+            )
+        });
         // `--filter` reaches both suites, and means the same thing in each:
         // `runner::selected` owns the rule and why it is the `.nvst` tree's.
-        return match program.front_end() {
-            Ok(checked) => runner::run(checked, &snapshot, format, filter, flags, coverage),
-            Err(code) => code,
-        };
+        let code = runner::run(checked, &snapshot, format, filter, flags, coverage);
+        drop(calling);
+        // The last reference, so this ends the suite's request and drops its resources.
+        drop(calls);
+        return code;
     }
     if list {
         // A `.nvst` tree is discovered by walking directories, which is what
@@ -3745,10 +3770,10 @@ impl Program {
         }
     }
 
-    /// The checked program.
-    fn front_end(&self) -> Result<Checked, ExitCode> {
+    /// The checked program, typed against the extension set `extensions`.
+    fn front_end(&self, extensions: Vec<nvs_ext::manifest::Manifest>) -> Result<Checked, ExitCode> {
         match self {
-            Self::File(path) => front_end(path),
+            Self::File(path) => front_end_extended(path, extensions),
             Self::Directory { dir, files } => {
                 // A name no file under the directory carries, so the overlay
                 // never stands in front of a real file's bytes.
@@ -3759,7 +3784,7 @@ impl Program {
                 {
                     name.insert(0, '#');
                 }
-                front_end_synthesized(&dir.join(name), &directory_entry(dir, files))
+                front_end_synthesized(&dir.join(name), &directory_entry(dir, files), extensions)
             }
         }
     }

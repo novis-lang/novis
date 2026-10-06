@@ -127,6 +127,54 @@ fn nvs_test_runs_each_test_method_and_fails_on_any_failure() {
     assert!(stdout.contains("0 failed, 1 passed, 1 skipped"), "{stdout}");
 }
 
+/// A `#[Test]` method calls an extension of the tree's `[[extension]]` set, and the call runs: the
+/// suite is typed against the set's manifests and the run hosts the loaded components. The
+/// extension is the conformance fixture `ledger`, under its real pin; one test calls its class and
+/// one calls a class from its source section
+/// (`rule:packaging/extension-calls-are-statically-typed`).
+#[test]
+fn nvs_test_runs_a_test_that_calls_a_configured_extension() {
+    let dir = scratch("extension");
+    let fixtures = nvs_repo::path("tests/conformance/ext/fixtures");
+    fs::copy(fixtures.join("ledger.nvsx"), dir.join("shop.nvsx")).expect("the fixture is copied");
+    let pin = fs::read_to_string(fixtures.join("ledger.sha256")).expect("the fixture's pin");
+    fs::write(
+        dir.join("nvs.toml"),
+        format!(
+            "[[extension]]\npath = 'shop.nvsx'\nsha256 = \"{}\"\n",
+            pin.trim()
+        ),
+    )
+    .unwrap();
+    fs::write(
+        dir.join("ledger_test.nvs"),
+        "<?nvs
+use Core\\Test;
+use Shop\\Ledger;
+use Shop\\Ledger\\Receipt;
+
+final class LedgerTest {
+    #[Test]
+    public function echoesAnInt(): void {
+        Test::assertSame(Ledger::echoInt(7), 7);
+    }
+
+    #[Test]
+    public function writesAReceiptLine(): void {
+        Test::assertSame(Receipt::line(\"Tea\", 250), \"Tea: 250 EUR\");
+    }
+}
+",
+    )
+    .unwrap();
+
+    let out = test_in(&dir, &["ledger_test.nvs"]);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(out.status.code(), Some(0), "{stdout}{stderr}");
+    assert!(stdout.contains("0 failed, 2 passed"), "{stdout}{stderr}");
+}
+
 /// `nvs test` has no `--php` flag: no case is compared against another
 /// language, so the flag is refused like any other it does not know, and no
 /// case runs.

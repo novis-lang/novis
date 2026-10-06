@@ -1511,7 +1511,9 @@ whose whole premise is that state does not outlive a request.
 **Not on disk.** `nvs_ext::source` reads the section, and the loader refuses a file whose
 `namespace` is not under the class's own (`crates/nvs-ext/tests/load.rs`). The graph walk resolves
 a name under that namespace to the carried file with no `autoload` line
-(`nvs_hir::ExtensionClass::source`), but no command fills that field from a loaded set yet.
+(`nvs_hir::ExtensionClass::source`), and `nvs run`, `nvs check` and `nvs test` fill that field
+from the set's manifests
+(`tests/conformance/ext/an-extension-source-class-resolves-with-no-autoload-line.nvst`).
 
 <sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io), [`packaging/an-nvsx-is-one-file-carrying-its-manifest`](packaging.md#packaging-an-nvsx-is-one-file-carrying-its-manifest), [`packaging/extension-loading-is-root-controlled`](packaging.md#packaging-extension-loading-is-root-controlled), [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0120](../decisions/0120.md), [0081](../decisions/0081.md), [0123](../decisions/0123.md), [0246](../decisions/0246.md).</sub>
 
@@ -1595,8 +1597,9 @@ signature table and `nvs_hir::resolve_file_with_extensions` declares their class
 (`crates/nvs-types/tests/extensions.rs`). `nvs check` and `nvs run` read the configuration's set with
 `nvs_ext::load::read_manifests` and type a program against it
 (`tests/conformance/reject/an-extension-call-with-a-wrong-argument-type-does-not-compile.nvst`),
-and `nvs serve` types its programs against the set it loaded; `nvs test` and the language server
-do not yet. `nvs_ir` lowers a call into an
+`nvs serve` types its programs against the set it loaded, and `nvs test` types a suite against
+the set and hosts it while the suite runs (`crates/nvs-cli/tests/test_command.rs`); the language
+server does not yet. `nvs_ir` lowers a call into an
 extension to one `InstKind::ExtensionCall` naming the export (`crates/nvs-ir/src/lower/tests.rs`).
 Codegen emits it as a direct call of one runtime helper with the export named in its first slot
 (`nvs_runtime::extension`), and `nvs run` hosts it
