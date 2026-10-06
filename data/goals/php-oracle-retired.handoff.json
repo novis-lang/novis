@@ -1,28 +1,32 @@
 {
-  "state": "**Goal `php-oracle-retired`: Stage 5 (no mechanical migration is planned) is complete on disk; Stage 6 (no list maps PHP to Novis) is next.** ADR 0274 (`docs/decisions/0274.md`) is the goal's record.\n\nOn disk: M11's plan file and record, the eight `tooling/convert-*` rules and the two converter `php-migration/` rules are deleted. No live rule fragment, page, spec, reference chapter or Rust/`.nvst` comment names `nvs convert` or M11: `rule:programs/no-compatibility-promise` now says a program is ported by rethinking it, by hand or with an agent and `nvs agent` (its `because` gains 0274). ADR 0089 is `retired` (YAML block and `data/decisions/0089.json`, summary dropped) per 0274 § 4, so `docs/decisions.md` no longer describes the converter. `docs/novis.md` is regenerated. 0111 stays `accepted` until Stage 6 removes its last rule.\n\n`docs/spec/02-php-migration.md` and `data/spec/php-migration.json` only lost their converter sentences; Stage 6 deletes both.",
+  "state": "**Goal `php-oracle-retired`: Stage 6 (no list maps PHP to Novis), file set 1 is on disk; file sets 2 and 3 are next.** ADR 0274 (`docs/decisions/0274.md`) is the goal's record.\n\nOn disk: `nvs_stdlib::php_names`, its test file and the build-time join are gone; `crates/nvs-stdlib/build.rs` now builds only the reference intros. `nvs_hir::PhpFunctions` and its argument are gone, so `E0320` always gives its general help (`an_undefined_free_function_gets_the_general_help`), and `E0319`'s help no longer names the migration table. The LSP has no PHP-name completion layer, no `PhpNames` setting, and `nvs.completion.phpNames` left `editors/vscode/package.json`, its test, the editor chapter and `rule:ide/contributions-are-frozen-and-only-ever-added` (which now says a setting leaves only with its feature). Four conformance cases, the `.lspt` case and `docs/reference/tools/50-agents.md` print the general help.\n\n`tools/data/php-builtins.txt` is NOT deleted yet: `tools/nv/cmd/migration.ts` and the CI job `migration-table` still read it, so it goes with them in file set 2.",
   "next": {
     "stage": 6,
-    "title": "no list maps PHP to Novis, file set 1 (the compiler and the editor)",
+    "title": "no list maps PHP to Novis, file set 2 (the data, the tools and the gates)",
     "files": [],
-    "note": "one file set: the PHP-name table, its build join, E0320's PHP clause and the LSP's PHP-name completion layer. Goal prose § *Stage 6*, item 1.",
+    "note": "one file set: the migration spec and its data, the tools that read them, the `Replaces` column and the gates. Goal prose § *Stage 6*, item 2.",
     "items": [
       {
         "done": false,
-        "text": "**The PHP-name table and its build join are deleted** — `crates/nvs-stdlib/src/php_names.rs:1`, its join in `crates/nvs-stdlib/build.rs:12`, and `tools/data/php-builtins.txt` (`rule:php-migration/the-php-name-layer-is-joined-at-build-time`, deleted in file set 3)."
+        "text": "**The migration list and its inventory are deleted** — `docs/spec/02-php-migration.md:1`, `data/spec/php-migration.json`, `phpMigration` in `tools/nv/renderers/spec-tables.ts:1`, `tools/nv/schema/spec.ts:1`, `tools/data/php-builtins.txt:1`, `tools/dump-php-builtins.php:1`, `tools/nv/cmd/migration.ts:31`, the reference topic at `tools/nv/cmd/reference.ts:507` (Part D), `tools/nv/proofs/roster.ts:1` and `tools/nv/test/render.test.ts:1`; the playbook bullet `tooling/a-plain-php-tools-dump-php-builtins-php-writes-a-smaller` goes with the generator."
       },
       {
         "done": false,
-        "text": "**E0320 always gives its general help** — `nvs_hir::PhpFunctions` at `crates/nvs-hir/src/members.rs:192` and its argument leave `resolve_program_linted` and the two callers `crates/nvs-cli/src/main.rs:1948` and `crates/nvs-lsp/src/document.rs:681`; the acceptance test `an_undefined_free_function_gets_the_general_help` in nvs-hir is written. A frozen case that prints the PHP clause is rewritten in the same commit, named in its message."
+        "text": "**The `Replaces` column and its readers leave** — `docs/spec/01-core-library.md:1`, `data/spec/core-members.json`, `tools/nv/renderers/website-core.ts:1` (`replaces`, `replacesPhrase`), `website/src/components/MethodSignature.astro:201`."
       },
       {
         "done": false,
-        "text": "**The PHP-name completion layer leaves the LSP** — `crates/nvs-lsp/src/completion.rs:176` (`php_builtins`, `php_item`, module doc), `PhpNames` in `crates/nvs-lsp/src/settings.rs`, the server's two reads, `nvs.completion.phpNames` in `editors/vscode/package.json` and its test, and the PHP-name tests in `crates/nvs-lsp/tests/completion.rs` (`rule:php-migration/every-php-builtin-is-a-completion-candidate`)."
+        "text": "**The gates over the list are deleted** — `crates/nvs-stdlib/tests/spec_registry_coverage.rs:1` (`every_migration_member_row_has_a_conformance_case`, `every_migration_member_row_names_a_registered_member`, `crates/nvs-stdlib/tests/migration-members-outstanding.txt`), the CI job at `.github/workflows/ci.yml:515`, `MIGRATION_GATES` at `tools/nv/cmd/session.ts:512`, and `guardedBy` in `data/rules/core-api/removals.json`."
+      },
+      {
+        "done": false,
+        "text": "**Comments that cite the migration table are rewritten whole** — `crates/nvs-db/src/pg.rs:1`, `crates/nvs-repo/src/lib.rs:1`, `crates/nvs-runtime/src/environment.rs:1`, `crates/nvs-stdlib/src/compress.rs:1`, `crates/nvs-stdlib/src/env.rs:1`, `docs/reference/README.md:1` (each has one `02-php-migration` hit; `git grep -n 02-php-migration -- crates docs/reference` finds the line)."
       }
     ]
   },
   "backlog": [
-    "Stage 6 file set 2: the list's data, `tools/nv/cmd/migration.ts`, the `Replaces` column and its readers, the tests and gates that hold the list — goal prose § *Stage 6* item 2.",
-    "Stage 6 file set 3: the five PHP-name rules, `website/src/content/claims/php-migration-is-accounted.md`, the list's playbook entries; ADR 0111 turns `retired` in that commit (0274 § 4).",
-    "Stages 7–10 per the goal prose."
+    "File set 3: the five PHP-name rules (`php-migration/completion-php-names-setting`, `every-php-builtin-is-a-completion-candidate`, `the-php-name-layer-is-joined-at-build-time`, `an-item-inserts-only-a-registered-member`, `ide/three-of-four-item-shapes-insert-nothing`) and ADR 0111's retirement — goal prose § *Stage 6* item 3.",
+    "`docs/novis.md` is regenerated with `bun nv reference` after the pipeline `nvs` is rebuilt; a stale binary fails the two `50-agents.md` examples.",
+    "Stages 8–10 (rules state the behaviour, the reader's text steps back, rendered and proven) — goal prose."
   ]
 }
