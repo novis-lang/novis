@@ -91,14 +91,6 @@ const CASE_ALLOWED = [
   "constant.character.escape.nvst",
 ];
 
-// The three names the case grammar borrows from PHP's, to open `--ORACLE--` with. A twin is PHP, so
-// it carries what PHP carries everywhere else in the editor; the names are `text.html.php`'s own.
-const CASE_BORROWED = [
-  "meta.embedded.block.php",
-  "punctuation.section.embedded.begin.php",
-  "punctuation.section.embedded.end.php",
-];
-
 describe("the grammars the manifest contributes", () => {
   it("points VS Code at these two files, under these scope names", () => {
     const manifest = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")) as {
@@ -112,8 +104,7 @@ describe("the grammars the manifest contributes", () => {
       },
       {
         // The embedded mapping is what gives a `--FILE--` body Novis's own comment toggling and
-        // bracket behaviour; the oracle's gets none, since naming php here would claim the file
-        // type `rule:ide/the-extension-claims-nvs-only` refuses.
+        // bracket behaviour.
         language: "nvst",
         scopeName: "source.nvst",
         path: "./syntaxes/nvst.tmLanguage.json",
@@ -125,7 +116,7 @@ describe("the grammars the manifest contributes", () => {
 
 describe("the scopes the grammar is allowed to emit", () => {
   it("names only roots the standard vocabulary has", () => {
-    for (const scope of [...ALLOWED, ...CASE_ALLOWED, ...CASE_BORROWED]) {
+    for (const scope of [...ALLOWED, ...CASE_ALLOWED]) {
       const root = scope.split(".")[0];
       assert.ok(STANDARD_ROOTS.includes(root),
                 `${scope} begins with ${root}, which no theme styles`);
@@ -141,12 +132,6 @@ describe("the scopes the grammar is allowed to emit", () => {
   it("suffixes the case grammar's own names .nvst", () => {
     for (const scope of CASE_ALLOWED) {
       assert.ok(scope.endsWith(".nvst"), `${scope} carries no .nvst suffix`);
-    }
-  });
-
-  it("suffixes the names it borrows for an oracle .php", () => {
-    for (const scope of CASE_BORROWED) {
-      assert.ok(scope.endsWith(".php"), `${scope} is not a name PHP already carries`);
     }
   });
 });
@@ -201,17 +186,15 @@ describe("the scopes the case grammar emits", () => {
     }
   });
 
-  it("emits its own names, and otherwise the Novis grammar's or PHP's", () => {
+  it("emits its own names, and otherwise the Novis grammar's", () => {
     for (const scope of [...emitted].sort()) {
-      // What PHP's own grammar emits inside an oracle is PHP's business and is on no list of ours;
-      // the three names below that carry `.php` are the ones this grammar writes itself.
-      assert.ok(CASE_ALLOWED.includes(scope) || ALLOWED.includes(scope) || scope.endsWith(".php"),
+      assert.ok(CASE_ALLOWED.includes(scope) || ALLOWED.includes(scope),
                 `the case grammar emits ${scope}, which is on no allowlist and in no theme`);
     }
   });
 
   it("emits every name its own allowlist carries", () => {
-    for (const scope of [...CASE_ALLOWED, ...CASE_BORROWED]) {
+    for (const scope of CASE_ALLOWED) {
       assert.ok(emitted.has(scope), `no fixture under test/grammar/fixtures produces ${scope}`);
     }
   });

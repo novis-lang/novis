@@ -19,10 +19,6 @@ NOVIS_X=1
 41
 --EXPECTF--
 took %f ms, 100%% of it in %s
---ORACLE--
-<?php
-echo 41;
-?>
 --CLEAN--
 <?nvs
 echo 'done';

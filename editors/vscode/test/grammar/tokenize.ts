@@ -35,15 +35,6 @@ const HTML_STUB = {
   patterns: [{ name: "string.quoted.double.html", begin: "\"", end: "\"" }],
 };
 
-// PHP is an editor's grammar too, and `source.nvst` hands it every `--ORACLE--`. This stub is not
-// optional the way the HTML one is: vscode-textmate drops a begin/end rule whose every pattern was an
-// include it could not resolve, and the drop cascades to the rule that included *it*, so a registry
-// with no `source.php` at all does not merely leave an oracle uncoloured — it loses the section.
-const PHP_STUB = {
-  scopeName: "source.php",
-  patterns: [{ name: "keyword.other.php", match: "\\becho\\b" }],
-};
-
 let wasm: Promise<void> | undefined;
 
 function oniguruma(): Promise<void> {
@@ -71,9 +62,6 @@ async function load(scopeName: string, html: boolean): Promise<IGrammar> {
       }
       if (name === "source.nvst") {
         return parseRawGrammar(readFileSync(CASE_GRAMMAR, "utf8"), CASE_GRAMMAR);
-      }
-      if (name === "source.php") {
-        return parseRawGrammar(JSON.stringify(PHP_STUB), "source.php.json");
       }
       if (name === "text.html.basic" && html) {
         return parseRawGrammar(JSON.stringify(HTML_STUB), "text.html.basic.json");

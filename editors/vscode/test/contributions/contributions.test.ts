@@ -331,9 +331,7 @@ describe("the file types the extension claims", () => {
     // fight silently looks like Novis being broken. What is refused is the claim — a language id,
     // a file extension, an activation event, an embedded language — and not the three letters:
     // `nvs.completion.phpNames` is on the roster above and names PHP because the setting is about
-    // PHP's names. `--ORACLE--`'s body is PHP and the case grammar includes `source.php` to colour
-    // it, which is a reference to a grammar and not a claim on a file type — it stays in
-    // `syntaxes/`, and no `embeddedLanguages` entry names php either.
+    // PHP's names.
     for (const language of manifest.contributes.languages) {
       assert.ok(["nvs", "nvst"].includes(language.id),
                 `${language.id} is not one of Novis's own file types`);

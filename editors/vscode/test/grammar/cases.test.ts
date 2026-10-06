@@ -4,7 +4,7 @@
 // section headers are coloured, the four sections that hold a program are Novis, and every other
 // section is literal bytes with only its delimiter coloured — and the one thing that is easy to get
 // wrong is where a program stops. A case almost never closes with `?>`, so a code-mode rule that
-// ended only there would colour the expectation, the oracle and every section after them as code;
+// ended only there would colour the expectation and every section after it as code;
 // the fixture is written with an unclosed `--FILE--` on purpose, so that failure would show up here
 // rather than in an editor.
 
@@ -21,9 +21,6 @@ const ESCAPE = "constant.character.escape.nvst";
 const EMBEDDED = "meta.embedded.block.nvs";
 const OPEN = "punctuation.section.embedded.begin.nvs";
 const CLOSE = "punctuation.section.embedded.end.nvs";
-const PHP = "meta.embedded.block.php";
-const PHP_OPEN = "punctuation.section.embedded.begin.php";
-const PHP_CLOSE = "punctuation.section.embedded.end.php";
 
 let spans: Span[] = [];
 
@@ -56,14 +53,13 @@ describe("the sections a case is made of", () => {
       "ENV",
       "EXPECT",
       "EXPECTF",
-      "ORACLE",
       "CLEAN",
     ]);
   });
 
   it("colours the delimiter of each and nothing else on its line", () => {
     const delimiters = carrying(PUNCTUATION);
-    assert.equal(delimiters.length, 20, "ten headers, opened and closed");
+    assert.equal(delimiters.length, 18, "nine headers, opened and closed");
     for (const text of delimiters) {
       assert.equal(text, "--");
     }
@@ -110,7 +106,7 @@ describe("the four sections that hold a program", () => {
     // compared byte for byte, and colouring part of one would say the runner reads it as something.
     const outside = new Set<string>();
     for (const found of spans) {
-      if (!found.scopes.includes(EMBEDDED) && !found.scopes.includes(PHP)) {
+      if (!found.scopes.includes(EMBEDDED)) {
         for (const scope of found.scopes) {
           outside.add(scope);
         }
@@ -125,24 +121,6 @@ describe("the two sections that are neither a program nor literal bytes", () => 
     // `crates/nvs-test/src/expect.rs` is the roster: twelve spellings, `%%` among them, and nothing
     // else in the section means anything.
     assert.deepEqual(carrying(ESCAPE), ["%f", "%%", "%s"]);
-  });
-
-  it("reads an --ORACLE-- as PHP, opened and closed by PHP's own names", () => {
-    assert.deepEqual(carrying(PHP_OPEN), ["<?php"]);
-    assert.deepEqual(carrying(PHP_CLOSE), ["?>"]);
-    // And the body reaches `source.php` itself. The registry here holds a stub of it — one keyword —
-    // because a rule whose every pattern is an include nothing resolves is dropped along with the
-    // rule that included it, which would take the whole section rather than just its colour.
-    const echo = spans.filter((s) => s.text === "echo" && s.scopes.includes(PHP));
-    assert.equal(echo.length, 1);
-    assert.ok(echo[0].scopes.includes("keyword.other.php"), echo[0].scopes.join(" "));
-  });
-
-  it("keeps the oracle's tag out of the Novis openers", () => {
-    for (const found of spans) {
-      assert.ok(!(found.scopes.includes(PHP) && found.scopes.includes(EMBEDDED)),
-                `${found.text} is inside both grammars at once`);
-    }
   });
 });
 

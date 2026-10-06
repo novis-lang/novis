@@ -1,5 +1,5 @@
 {
-  "title": "`.nvst` and `.lspt` get a grammar of their own, with Novis embedded in `--FILE--` and PHP in `--ORACLE--`",
+  "title": "`.nvst` and `.lspt` get a grammar of their own, with Novis embedded in the sections that hold a program",
   "status": "designed",
   "because": [
     "0099",

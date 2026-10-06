@@ -6,7 +6,6 @@
   "patterns": [
     { "include": "#file-at-path" },
     { "include": "#program-section" },
-    { "include": "#oracle-section" },
     { "include": "#format-section" },
     { "include": "#text-section" }
   ],
@@ -34,29 +33,6 @@
       "end": "(?=^--[A-Z])",
       "patterns": [{ "include": "#case-code" }]
     },
-    "oracle-section": {
-      "comment": "`--ORACLE--` is the PHP twin whose output the case's must equal, so its body is PHP and is coloured by PHP's own grammar. `source.php` is the code-only scope VS Code's built-in PHP extension contributes — the opener is `text.html.php`'s, not that grammar's, which is why the tag is matched here and only what follows it is included. In a registry that has no PHP, the include resolves to nothing and the twin stays plain text, exactly as `source.nvs`'s `#inline-html` does without an HTML grammar. The names are PHP's own, so an oracle looks like PHP looks everywhere else in the editor.",
-      "begin": "^(--)(ORACLE)(--)$",
-      "beginCaptures": {
-        "1": { "name": "punctuation.definition.section.nvst" },
-        "2": { "name": "entity.name.section.nvst" },
-        "3": { "name": "punctuation.definition.section.nvst" }
-      },
-      "end": "(?=^--[A-Z])",
-      "patterns": [{ "include": "#oracle-code" }]
-    },
-    "oracle-code": {
-      "name": "meta.embedded.block.php",
-      "begin": "((?i:<\\?php)(?=[\\s?]|$)|<\\?=)",
-      "beginCaptures": {
-        "1": { "name": "punctuation.section.embedded.begin.php" }
-      },
-      "end": "(\\?>)|(?=^--[A-Z])",
-      "endCaptures": {
-        "1": { "name": "punctuation.section.embedded.end.php" }
-      },
-      "patterns": [{ "include": "source.php" }]
-    },
     "format-section": {
       "comment": "The two sections `crates/nvs-test/src/expect.rs` compares with escapes rather than byte for byte. Everything else in them is still literal: what is coloured is the twelve escapes that table names and nothing else, so a `%` standing for itself is left as the byte it is rather than being marked as an escape that does not exist.",
       "begin": "^(--)(EXPECTF-ERROR|EXPECTF)(--)$",
@@ -75,7 +51,7 @@
     },
     "text-section": {
       "comment": "Every other section either format names. The body is literal — an expectation is compared byte for byte and colouring part of it would suggest the runner reads it as something. Only the delimiter is coloured, which is what tells a reader where one section ends. The longer spellings come first in the alternation so `EXPECT-ERROR` is read whole rather than as `EXPECT` followed by bytes that are not `--`.",
-      "begin": "^(--)(TEST|EXPECT-ERROR|EXPECT|ORACLE-DIVERGES|ARGS|ENV|RUN|REQUEST)(--)$",
+      "begin": "^(--)(TEST|EXPECT-ERROR|EXPECT|ARGS|ENV|RUN|REQUEST)(--)$",
       "beginCaptures": {
         "1": { "name": "punctuation.definition.section.nvst" },
         "2": { "name": "entity.name.section.nvst" },

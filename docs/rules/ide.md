@@ -1491,13 +1491,14 @@ the second off, format-on-save is `nvs fmt` and nothing else.
 
 <a id="ide-case-files-have-their-own-grammar"></a>
 
-## `.nvst` and `.lspt` get a grammar of their own, with Novis embedded in `--FILE--` and PHP in `--ORACLE--`  *(designed — not yet in the compiler)*
+## `.nvst` and `.lspt` get a grammar of their own, with Novis embedded in the sections that hold a program  *(designed — not yet in the compiler)*
 
 `rule:ide/case-files-have-their-own-grammar`
 
 `.nvst` and `.lspt` get a second grammar: the section headers, with the Novis grammar embedded inside
-`--FILE--` and PHP's inside `--ORACLE--`. It is a thin wrapper whose bodies `include` the grammar M4B
-builds anyway.
+the sections that hold a program — `--FILE--`, `--FILE <path>--`, `--SKIPIF--` and `--CLEAN--`. Every
+other section is literal bytes with only its delimiter coloured. It is a thin wrapper whose bodies
+`include` the grammar M4B builds anyway.
 
 It ranks above the "nice later" pile because of who reads those files. This repository's own loop writes
 hundreds of them and every session reads them as flat grey text, so the grammar that helps most per byte
