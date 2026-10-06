@@ -1,6 +1,6 @@
 {
   "title": "`[errors] deprecated` makes a use of deprecated code write a log record or throw while it runs, and is `\"ignore\"` by default in every mode",
-  "status": "designed",
+  "status": "shipped",
   "because": [
     "0275"
   ],
@@ -10,5 +10,9 @@
     "errors/throwable-hierarchy",
     "errors/log-write"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "tests/conformance/lang/a-deprecated-use-throws-only-when-the-setting-says-so.nvst",
+    "crates/nvs-codegen/tests/deprecations.rs",
+    "crates/nvs-config/tests/request.rs"
+  ]
 }

@@ -1,0 +1,69 @@
+--TEST--
+A use of deprecated code runs unchanged under `ignore`, throws `Core\DeprecatedError` naming the replacement under `throw`, and a request's setting does not reach the next one — `rule:errors/a-use-of-deprecated-code-may-log-or-throw`
+--FILE nvs.toml--
+# Nothing sets `[errors] deprecated`, so every request starts at `ignore`. The
+# `script.spawn` grant lets this case run a second request.
+[capabilities.script]
+spawn = true
+--FILE setter.nvs--
+<?nvs
+// The request that sets `throw` for itself.
+class Api {
+    #[Core\Deprecated(since: "2.0", replace: '$this->find($id)')]
+    public function findById(int $id): int { return $id; }
+
+    public function find(int $id): int { return $id; }
+
+    #[Core\Deprecated(since: "2.0")]
+    public const int LIMIT = 10;
+}
+
+Api $api = new Api();
+echo "ignore: ", $api->findById(1), " ", Api::LIMIT, "\n";
+
+Core\Config::set('errors.deprecated', 'throw');
+echo "setting: ", Core\Config::get('errors.deprecated'), "\n";
+try {
+    echo $api->findById(2), "\n";
+} catch (Core\DeprecatedError $method) {
+    echo "method: ", $method->message, "\n";
+}
+try {
+    echo Api::LIMIT, "\n";
+} catch (LogicError $constant) {
+    echo "constant: ", $constant->message, "\n";
+}
+// `find` is not deprecated, so it runs.
+echo "find: ", $api->find(3), "\n";
+
+Core\Config::restore('errors.deprecated');
+echo "restored: ", $api->findById(4), "\n";
+--FILE reader.nvs--
+<?nvs
+// The next request. It starts at `ignore` again, so the deprecated method runs.
+class Api {
+    #[Core\Deprecated(since: "2.0", replace: '$this->find($id)')]
+    public function findById(int $id): int { return $id; }
+
+    public function find(int $id): int { return $id; }
+}
+
+echo "next request: ", (new Api())->findById(5), "\n";
+--FILE--
+<?nvs
+// covers: tools:config/reading-and-changing-it-from-a-program-core-config
+// The two requests run one after the other: the second `await` returns only
+// after the first child has finished.
+var $setter = spawn script "setter.nvs" with(output: "capture");
+echo (await $setter)->output;
+
+var $reader = spawn script "reader.nvs" with(output: "capture");
+echo (await $reader)->output;
+--EXPECT--
+ignore: 1 10
+setting: throw
+method: `Api::findById()` is deprecated since 2.0. Use `$this->find($id)` instead.
+constant: `Api::LIMIT` is deprecated since 2.0.
+find: 3
+restored: 4
+next request: 5
