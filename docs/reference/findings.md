@@ -389,7 +389,7 @@ rows whose owner is an item number, 31 to 35. An item's owner is the row it sits
       and adding a member is a spec question rather than a finding.
 - [ ] **M6** `Core\Command::run`/`help`/`completions` (`rule:tooling/commands-are-compiled`) do not exist; the command table
       is built and checked, and `Core\Program::implementing` is the only reader.
-- [ ] **M7** `nvs serve`, `nvs fmt`, `nvs convert`, `nvs lsp`, `nvs ctl` are unrecognized subcommands.
+- [ ] **M7** `nvs serve`, `nvs fmt`, `nvs lsp`, `nvs ctl` are unrecognized subcommands.
 - [x] **M8** `Core\Secret`, `Core\Taint`, `Core\Log`, `Core\Env`, `Core\Cli`, `Core\Request`,
       `Core\Server`, `Core\IO`, `Core\Html` resolve as names in diagnostics or the crosswalk but have
       no registry rows. Part D's *dropped* rows still cite `Core\Html::escape` and `Core\IO::within`.

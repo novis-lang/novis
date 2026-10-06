@@ -44,8 +44,8 @@ still refused at its `<?php` tag:
   | `<?=` `expr` | `?>` | short-echo: exactly `<?nvs echo expr; ?>`, one expression, `;` optional before `?>` |
 
   `<?php` is diagnosed rather than accepted: `rule:statements/nvs-is-the-only-open-tag`
-  withdraws its earlier acceptance as a second spelling of `<?nvs`, now that a PHP file needs `nvs convert`
-  regardless and a plain tag rename costs that tool nothing extra.
+  withdraws its earlier acceptance as a second spelling of `<?nvs`, because a PHP file does not run
+  unported whatever its tag says.
 
   A `?>` immediately followed by a single newline consumes that newline (PHP's rule, kept so a template line
   ending in `?>` does not emit a blank line). There is no closing-tag omission rule beyond that: an unclosed

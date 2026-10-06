@@ -1355,15 +1355,6 @@ say — a summary, an error response, a security scheme — comes from an `#[Api
 comment, and an `#[Api]` that contradicts the code stops the build. `nvs api diff` fails the build
 on a breaking change.
 
-**PHP conversion is one rule table with two modes, and every line is graded**
-
-`nvs convert` translates PHP with one table of graded rules: proven to behave identically,
-mechanically translatable but possibly different, or no mechanical translation at all. The default
-mode emits only proven rules and comments out everything else with the idiomatic Novis replacement
-beside it — a worklist that will not run. The runnable mode also emits the possibly-different rules,
-each marked with a `TODO` naming how it may differ. A rule is "proven" only when a test against real
-PHP backs it, so the correctness number is measured, never asserted.
-
 **Two run modes, production by default, and a mode is only a list of defaults**
 
 A server runs in `development` or `production`, nothing else, and with nothing configured it runs in

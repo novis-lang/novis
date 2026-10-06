@@ -25,16 +25,12 @@ because prose was carrying the argument.
 | `dropped` | nothing does this job. The Novis cell says why, and gives the rewrite where one exists |
 | `open` | not yet decided. Absence of a row means the same thing, and the checker counts both |
 
-A `dropped` row is a promise: `nvs convert` (M11) emits its cell as the diagnostic, so a migrating program
-is told what happened rather than left with an unresolved call. The editor keeps the same promise a keystroke
-earlier — `rule:php-migration/every-php-builtin-is-a-completion-candidate` offers every name in
+A `dropped` row is a promise: `rule:php-migration/every-php-builtin-is-a-completion-candidate` offers every name in
 the inventory as a completion candidate, and shows this cell to whoever reaches for the dropped built-in.
 
 **This table is read by a machine, so the Novis cell has one shape that is mechanical and one that is not.**
-A cell that is exactly one `Core` member spelling is the rename `nvs convert` applies; anything else — a
-cell naming two members, a rewrite, or a reason — is prose the converter may not guess at, and must carry
-that rule's id from `tooling/convert-three-tables`. Neither the
-name table nor the rule table is copied into the other.
+A cell that is exactly one `Core` member spelling is a rename; anything else — a cell naming two members,
+a rewrite, or a reason — is prose.
 
 **Two machines read these rows, and one row may mean different things to them.** `nvs-lsp` reads the same
 cells (`rule:php-migration/every-php-builtin-is-a-completion-candidate`) with a person in the
@@ -372,8 +368,7 @@ either are gone.
 PHP's ~40 `date_*` procedural aliases of `DateTime` collapse onto the object members they were aliases of
 (`rule:core-api/shape-rules` R17, R20). Two rules decide most of the rows below. A
 zone is an argument at every instant↔calendar conversion, which is why nothing installs, reads back or
-guesses one. And a pattern is **CLDR**, not `date()`'s letters — both grammars are closed, so `nvs convert`
-rewrites one into the other mechanically.
+guesses one. And a pattern is **CLDR**, not `date()`'s letters.
 
 There is no relative-expression string in either half: everything `strtotime` accepts is a typed call, and
 [01 § 4](01-core-library.md) tabulates the common expressions one by one. PHP's `calendar` extension is
@@ -943,7 +938,7 @@ identify.
 | `class_implements` | member | `Core\Reflect::forClass` ([01 § 13](01-core-library.md)). The plugin-registry use — *which* classes implement an interface — is `Core\Program`'s compile-time `implementing<T>()` query instead, which does not require them to have been loaded first (`rule:programs/no-runtime-autoload`) |
 | `class_parents` | member | `Core\Reflect::forClass`'s description; as with `get_parent_class`, the test it feeds is `$x is T` |
 | `class_uses` | dropped | there is no `trait` (`rule:classes/no-traits`) |
-| `class_alias` | dropped | a second name minted at run time is invisible to every compile-time answer this file rests on — the type checker, `Core\Program`'s discovery, and `nvs convert`. Renaming is `use X as Y`, which is per-file and resolved while compiling |
+| `class_alias` | dropped | a second name minted at run time is invisible to every compile-time answer this file rests on — the type checker and `Core\Program`'s discovery. Renaming is `use X as Y`, which is per-file and resolved while compiling |
 | `get_declared_classes` | member | `Core\Program`'s `implementing<T>()` (`rule:programs/no-runtime-autoload`), which answers what every honest caller was asking — which classes implement this — and answers it while compiling. A list of every class in the process is a list whose contents depend on which files happened to run |
 | `get_declared_interfaces` | member | the same query, from the other end |
 | `get_declared_traits` | dropped | there is no `trait` (`rule:classes/no-traits`) |

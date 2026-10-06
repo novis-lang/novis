@@ -3988,7 +3988,7 @@
       "section": "Reflection and the class API",
       "php": "class_alias",
       "outcome": "dropped",
-      "novis": "a second name minted at run time is invisible to every compile-time answer this file rests on — the type checker, `Core\\Program`'s discovery, and `nvs convert`. Renaming is `use X as Y`, which is per-file and resolved while compiling"
+      "novis": "a second name minted at run time is invisible to every compile-time answer this file rests on — the type checker and `Core\\Program`'s discovery. Renaming is `use X as Y`, which is per-file and resolved while compiling"
     },
     {
       "section": "Reflection and the class API",

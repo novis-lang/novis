@@ -28,8 +28,8 @@ below written `readonly x: T` means the reader `->x(): T`, and the same rule is 
 other roster and do have properties, which is what the entry at that section says.
 
 The **Replaces** column names the PHP built-ins an entry subsumes. It is one of the two inputs to
-[02-php-migration.md](02-php-migration.md), which is the complete PHP-name → outcome table `nvs convert`
-(M11) is generated from and the only place that can answer "did we drop something real": this file states
+[02-php-migration.md](02-php-migration.md), which is the complete PHP-name → outcome table and the only
+place that can answer "did we drop something real": this file states
 what Novis *has*, and that one accounts for every PHP name Novis does not.
 
 **Qualifier** is the `rule:security/tainted-qualifier`/[0033](../decisions/0033.md)
@@ -298,8 +298,8 @@ actually wants are `fillKeys`.
 ### Combining and set operations
 
 Three members combine arrays, and **each treats every key the same way** — there is no member named
-`merge`, and `array + array` does not compile. The rules, the key order each produces and `nvs convert`'s
-rewrite table are `rule:types/array-combination`.
+`merge`, and `array + array` does not compile. The rules and the key order each produces are
+`rule:types/array-combination`.
 
 | Member | Signature | Replaces | Q |
 |---|---|---|---|
@@ -466,9 +466,7 @@ string is validated and its plan prepared at compile time. **A CLDR pattern is a
 one is taken — `Time::parse`'s `$format` and every `format(string $pattern)` below — because it is one of
 R11's four grammars, per `Core\Str::format`'s note in § 1; the `$text` being parsed is data and stays
 contagious. **Patterns are CLDR** (`yyyy-MM-dd HH:mm:ss`,
-`EEEE, d MMMM yyyy`), not PHP's `date()` letters: both grammars are closed and the argument is almost
-always a literal, so `nvs convert` rewrites one into the other mechanically, and the intl extension needs
-CLDR anyway. The same patterns serve `DateTime::format`. The **subset** of CLDR field letters implemented,
+`EEEE, d MMMM yyyy`), not PHP's `date()` letters, because the intl extension needs CLDR anyway. The same patterns serve `DateTime::format`. The **subset** of CLDR field letters implemented,
 and the fact that a name renders in CLDR's root locale because there is no `setlocale`
 (`rule:core-api/tier-placement`), are `crates/nvs-stdlib/src/cldr.rs`'s own docs; a
 letter outside the subset is a diagnostic naming itself, never a silent literal.

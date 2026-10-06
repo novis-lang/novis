@@ -35,9 +35,6 @@ Every subcommand also takes `--config <PATH>` (see `nvs run`) and `-h`/`--help`.
 short flag of PHP's: there is no `-i`, `-a`, `-r`, `-f` or lowercase `-v`, and every operation is
 spelled as a subcommand.
 
-**Not in this build:** `nvs convert` is an unrecognized subcommand. There is no PHP converter in
-this binary.
-
 **In other chapters:** `nvs serve`, `nvs ctl` and `nvs service` are in
 [the server chapter](#tools-server); `nvs lsp` and `nvs lsp-test` are in
 [the editor chapter](#tools-editor).

@@ -26730,9 +26730,6 @@ Every subcommand also takes `--config <PATH>` (see `nvs run`) and `-h`/`--help`.
 short flag of PHP's: there is no `-i`, `-a`, `-r`, `-f` or lowercase `-v`, and every operation is
 spelled as a subcommand.
 
-**Not in this build:** `nvs convert` is an unrecognized subcommand. There is no PHP converter in
-this binary.
-
 **In other chapters:** `nvs serve`, `nvs ctl` and `nvs service` are in
 [the server chapter](#tools-server); `nvs lsp` and `nvs lsp-test` are in
 [the editor chapter](#tools-editor).
@@ -30375,7 +30372,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `class_implements` | member | `Core\Reflect::forClass` ([01 § 13](spec/01-core-library.md)). The plugin-registry use — *which* classes implement an interface — is `Core\Program`'s compile-time `implementing<T>()` query instead, which does not require them to have been loaded first |
 | `class_parents` | member | `Core\Reflect::forClass`'s description; as with `get_parent_class`, the test it feeds is `$x is T` |
 | `class_uses` | dropped | there is no `trait` |
-| `class_alias` | dropped | a second name minted at run time is invisible to every compile-time answer this file rests on — the type checker, `Core\Program`'s discovery, and `nvs convert`. Renaming is `use X as Y`, which is per-file and resolved while compiling |
+| `class_alias` | dropped | a second name minted at run time is invisible to every compile-time answer this file rests on — the type checker and `Core\Program`'s discovery. Renaming is `use X as Y`, which is per-file and resolved while compiling |
 | `get_declared_traits` | dropped | there is no `trait` |
 | `spl_classes` | dropped | SPL's data structures are `Core\Arr`, `Core\Heap`, `Core\ObjectMap` and `Core\ObjectSet`; a list of the classes one extension registered describes a build, not a program |
 | `spl_object_hash` | dropped | the same id in hex, with the same reuse hazard and a string's cost on top |
