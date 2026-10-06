@@ -6,7 +6,7 @@ end, the result is an empty string. So you can always tell "not found" apart fro
 nothing after it". With the option `{last: true}`, it cuts at the last place the separator appears.
 
 The search is case-sensitive: `"Name"` does not find `"name"`. `Core\Str::before` does the same for
-the part on the left. Together they replace PHP's `strstr` and `strrchr`.
+the part on the left.
 
 **The examples below** read a value out of a line, take a file's extension with `{last: true}`, and
 read the value out of an HTTP header.

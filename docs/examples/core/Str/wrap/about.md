@@ -9,6 +9,3 @@ already contains the break, a new line starts there.
 
 A word that is longer than the width stays whole on a line of its own. With `cutLongWords: true`,
 the word is cut into pieces of the width instead.
-
-**Good to know:** this replaces `wordwrap` from PHP. PHP counts bytes, so it gives shorter lines for
-text with accents.

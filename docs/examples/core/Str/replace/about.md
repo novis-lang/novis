@@ -12,5 +12,3 @@ each other, so `"Draft"` also finds `"DRAFT"`. `limit` sets the most matches to 
 from the left. `limit: 0` replaces nothing.
 
 To replace several different texts in one call, use `Core\Str::replaceAll`.
-
-**Good to know:** this replaces PHP's `str_replace` and `str_ireplace`.

@@ -11,6 +11,4 @@ no error is thrown.
 Positions count characters as a person sees them, not bytes. "é" and a flag like 🇩🇪 are one
 character each, so a slice never cuts one in half.
 
-**Good to know:** this replaces PHP's `substr` and `mb_substr`.
-
 related: Core\Str::at, Core\Str::before, Core\Str::after, Core\Bytes::slice

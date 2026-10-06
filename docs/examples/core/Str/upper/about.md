@@ -12,5 +12,4 @@ gives `"STRASSE"`.
 `Core\Str::lower` does the opposite. `Core\Str::upperFirst` changes only the first letter. To
 check if two texts are equal while ignoring case, use `Core\Str::fold`.
 
-**Good to know:** this replaces both `strtoupper` and `mb_strtoupper` from PHP. There is no
-version that works on single bytes.
+**Good to know:** there is no version of this method that works on single bytes.

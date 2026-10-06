@@ -10,5 +10,3 @@ becomes `"SS"`.
 
 `Core\Str::lowerFirst` does the opposite. `Core\Str::upper` changes every letter, not only the
 first one.
-
-**Good to know:** this replaces PHP's `ucfirst`, which works only on English letters.

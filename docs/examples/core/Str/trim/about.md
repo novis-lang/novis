@@ -8,8 +8,8 @@ The `characters` option gives your own list of characters to remove. It replaces
 so `{characters: "-"}` removes only `-`. Each character in the list counts on its own, and the order
 does not matter. `"a..z"` is the three characters `a`, `.` and `z`. It is not a range of letters.
 
-`Core\Str::trimStart` removes characters from the start only, and `Core\Str::trimEnd` from the end
-only. This replaces PHP's `trim`.
+`Core\Str::trimStart` removes characters from the start only, and
+`Core\Str::trimEnd` from the end only.
 
 **The examples below** clean up text that somebody typed, remove quotes and dashes, and read the
 settings from a configuration file.

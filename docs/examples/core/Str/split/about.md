@@ -11,5 +11,3 @@ the end. A limit of `0` gives the whole string as one part.
 
 The examples split a list of tags, remove the extension from a file name with a negative limit,
 and read the fields of one line of a log file with a positive limit.
-
-**Good to know:** this replaces PHP's `explode`, and the limit works the same way.

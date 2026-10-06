@@ -12,5 +12,3 @@ result. An empty key is ignored.
 `caseInsensitive: true` lets upper-case and lower-case letters match each other.
 
 To replace one text, use `Core\Str::replace`.
-
-**Good to know:** this replaces PHP's `strtr` and `str_replace` with arrays.

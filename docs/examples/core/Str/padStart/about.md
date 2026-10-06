@@ -11,5 +11,3 @@ string already has the length or more, it is returned unchanged. It is never cut
 An empty padding throws a `RuntimeError` when the string is too short.
 
 `Core\Str::padEnd` adds the padding after the string instead.
-
-**Good to know:** this replaces PHP's `str_pad` with `STR_PAD_LEFT`.

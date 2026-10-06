@@ -11,9 +11,6 @@ Two options change the search. `from` starts the search at a later position. A n
 counts back from the end of the string. `caseInsensitive: true` treats upper-case and lower-case
 letters as the same.
 
-This replaces PHP's `strpos`, `stripos`, `mb_strpos` and `mb_stripos`. They return `false` when
-nothing is found, and `false` is easy to mix up with position `0`.
-
 **Good to know:** to check only whether the text is in the string, use `Core\Str::contains`. To get
 the text before or after a match, use `Core\Str::before` or `Core\Str::after`.
 

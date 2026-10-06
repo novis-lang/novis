@@ -11,7 +11,5 @@ Two options change the search. `before` searches only the characters in front of
 a match must end there or earlier. A negative `before` counts back from the end of the string.
 `caseInsensitive: true` treats upper-case and lower-case letters as the same.
 
-This replaces PHP's `strrpos`, `strripos` and `mb_strrpos`.
-
 **The examples below** find the last match in a file path, use both options, and shorten a long
 text at the last space.

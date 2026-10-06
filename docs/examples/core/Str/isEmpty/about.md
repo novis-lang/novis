@@ -7,5 +7,4 @@ example in a form field, call `Core\Str::trim` first and check its result.
 The check takes the same short time for a long string and a short one, because it does not count
 the characters.
 
-**Good to know:** PHP's `empty("0")` returns `true`. `Core\Str::isEmpty("0")` returns `false`,
-because `"0"` has one character.
+**Good to know:** `Core\Str::isEmpty("0")` returns `false`, because `"0"` has one character.

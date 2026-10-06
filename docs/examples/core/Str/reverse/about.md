@@ -8,6 +8,3 @@ skin tone, and a flag are each one character, so they stay whole and in the righ
 For example, "café" becomes "éfac", not a broken string. The empty string gives the empty string.
 
 Reversing a string twice gives the original string back.
-
-**Good to know:** this replaces PHP's `strrev`, which reverses bytes and breaks any character that
-is not plain English text.

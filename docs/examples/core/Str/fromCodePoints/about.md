@@ -11,7 +11,5 @@ Every number must be a code point. If one number is larger than `0x10FFFF` or in
 `0xD800` to `0xDFFF`, the method throws a `RuntimeError`. It does not return the part of the string
 that was valid.
 
-This replaces PHP's `mb_chr` called on each number and joined with `implode`.
-
 **The examples below** build a word from its numbers, catch the error for a list with one bad
 number, and remove invisible characters from a pasted user name.

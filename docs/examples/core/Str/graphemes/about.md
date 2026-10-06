@@ -8,8 +8,7 @@ mark after its letter, a flag is two code points, and a family emoji can be seve
 stays one piece. Unicode calls such a character a grapheme. `Core\Str::length` counts the same
 pieces, so the array always has `Core\Str::length($s)` elements.
 
-This replaces PHP's `mb_str_split` and `grapheme_str_split`. To get the numbers of the code points
-instead, use `Core\Str::codePoints`.
+To get the numbers of the code points instead, use `Core\Str::codePoints`.
 
 **The examples below** divide a word into its letters, show that a flag and an accent stay whole,
 and reverse a name without breaking its accents.

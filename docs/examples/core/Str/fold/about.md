@@ -11,8 +11,7 @@ show text in lower case, use `Core\Str::lower`, which keeps `"ß"` as it is.
 and match no matter how each name was typed.
 
 **Good to know:** `Core\Str::compare` with `{caseInsensitive: true}` does not treat `"ß"` and `"SS"`
-as equal. Fold both strings first when that matters. This replaces PHP's `mb_convert_case` with
-`MB_CASE_FOLD`.
+as equal. Fold both strings first when that matters.
 
 **The examples below** compare two words without case, show how folding differs from `lower`, and
 find a customer by email address however it was typed.

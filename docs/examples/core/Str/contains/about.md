@@ -8,8 +8,7 @@ change both strings to lower case with `Core\Str::lower` first. An empty search 
 every string, so the result is `true`.
 
 `Core\Str::contains` only tells you whether the text is there. To find where it is, use
-`Core\Str::indexOf`. To count how many times it appears, use `Core\Str::countOf`. This replaces
-PHP's `str_contains`.
+`Core\Str::indexOf`. To count how many times it appears, use `Core\Str::countOf`.
 
 **The examples below** search a short string, search without caring about upper and lower case,
 and keep only the lines of a log that report an error.

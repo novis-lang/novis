@@ -16,6 +16,4 @@ from a user is not allowed.
 `%f` always writes a `.` before the decimals. For a separator between thousands, use
 `Core\Math::format`.
 
-This replaces PHP's `sprintf`.
-
 related: Core\Math::format, Core\Str::padStart

@@ -9,7 +9,6 @@ so `{characters: "/"}` removes only `/`. Each character in the list counts on it
 does not matter. When every character of the string is in the list, the result is the empty string.
 
 `Core\Str::trim` removes characters from both ends, and `Core\Str::trimStart` from the start only.
-This replaces PHP's `rtrim` and `chop`.
 
 **The examples below** remove the line break at the end of a line, remove the slashes at the end of
 a web address, and show a price without the zeros it does not need.

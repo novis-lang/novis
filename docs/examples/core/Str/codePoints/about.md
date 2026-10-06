@@ -9,8 +9,7 @@ letter, and a flag is two code points. So `"é"` can give one number or two, dep
 was written. To count or divide text the way a person sees it, use `Core\Str::length` or
 `Core\Str::graphemes`.
 
-This replaces PHP's `mb_str_split` followed by `mb_ord`. `Core\Str::fromCodePoints` does the
-opposite and builds a string from the numbers.
+`Core\Str::fromCodePoints` does the opposite and builds a string from the numbers.
 
 **The examples below** list the numbers of a short word, show one accented letter written in two
 ways, and find an invisible character in a pasted user name.

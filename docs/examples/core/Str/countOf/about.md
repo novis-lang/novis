@@ -8,8 +8,7 @@ The search is case-sensitive, so `"error"` does not count `"Error"`. To ignore u
 change both strings to lower case with `Core\Str::lower` first. The text to count must not be
 empty. An empty text throws a `RuntimeError`.
 
-To check only whether the text appears, use `Core\Str::contains`. This replaces PHP's
-`substr_count`.
+To check only whether the text appears, use `Core\Str::contains`.
 
 **The examples below** count the commas in a line, show that matches do not overlap, and check that
 each placeholder appears exactly once in an email template.

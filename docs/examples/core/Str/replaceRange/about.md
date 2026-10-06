@@ -10,5 +10,3 @@ inserted at the offset. Positions count characters as a person sees them, not by
 character.
 
 To replace a text wherever it appears, use `Core\Str::replace`.
-
-**Good to know:** this replaces PHP's `substr_replace`.

@@ -9,6 +9,3 @@ lines. An empty line in the middle is kept: `"a\n\nb"` gives three lines, and th
 `""`. An empty string gives an empty array.
 
 `Core\Str::join` with `"\n"` does the opposite: it puts a list of lines back into one text.
-
-**Good to know:** this replaces PHP's `explode(PHP_EOL, $s)`. `PHP_EOL` depends on the system, and
-`Core\Str::lines` does not.

@@ -9,7 +9,5 @@ With `{caseInsensitive: true}`, upper and lower case letters are equal. With `{n
 digits inside the strings are compared as numbers, so `"file2"` comes before `"file10"`. You can
 use both options together.
 
-This replaces PHP's `strcmp`, `strcasecmp`, `strnatcmp` and `strnatcasecmp`.
-
 **The examples below** compare two words, sort file names with numbers in them, and sort a list of
 customer names without caring about upper and lower case.

@@ -8,5 +8,3 @@ than the program may use. Then the program stops at its memory limit with an err
 larger than any process can hold throws a `RuntimeError` instead.
 
 Programs use it to draw lines and bars in a terminal, and to indent text by a depth.
-
-**Good to know:** this replaces PHP's `str_repeat`.

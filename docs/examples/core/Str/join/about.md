@@ -11,5 +11,4 @@ gives `"a,,b"`.
 
 `Core\Str::split` does the opposite: it cuts one string into a list at a separator.
 
-**Good to know:** this replaces PHP's `implode`. The array always comes first, and the separator
-second.
+**Good to know:** the array always comes first, and the separator second.

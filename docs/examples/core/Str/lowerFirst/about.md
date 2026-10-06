@@ -9,5 +9,3 @@ empty string gives `""`.
 
 `Core\Str::upperFirst` does the opposite. `Core\Str::lower` changes every letter, not only the
 first one.
-
-**Good to know:** this replaces PHP's `lcfirst`, which works only on English letters.
