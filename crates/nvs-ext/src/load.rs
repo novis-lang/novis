@@ -60,6 +60,7 @@ use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use nvs_config::extension::Granted;
 use sha2::{Digest, Sha256};
 use wasmtime::Engine;
 use wasmtime::component::ResourceType;
@@ -113,6 +114,8 @@ pub struct Entry {
     pub sha256: String,
     /// The entry's optional `memory` ceiling, in bytes.
     pub memory: Option<u64>,
+    /// The entry's `grants`, every root absolute. Empty grants nothing.
+    pub grants: Granted,
 }
 
 /// Why an entry does not load. `entry` is the entry's path, and the caller that knows the
@@ -147,6 +150,9 @@ pub struct Extension {
     /// The entry's `memory` ceiling, in bytes. A guest's linear memory stays under it and under
     /// the manifest's `memory`.
     pub memory: Option<u64>,
+    /// The entry's `grants`: the operator's part of what the guest may reach
+    /// (`rule:security/extension-grants-are-an-intersection`).
+    pub grants: Granted,
     /// The compiled component, shared by every core.
     pub component: Component,
     /// The class it declares and that class's signatures.
@@ -447,6 +453,7 @@ impl Loader {
             path: entry.path.clone(),
             sha256,
             memory: entry.memory,
+            grants: entry.grants.clone(),
             component,
             manifest,
             source,

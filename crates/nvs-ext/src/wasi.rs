@@ -18,15 +18,19 @@
 //!   once.
 //! - `wasi:random` — the calling request's generator, [`Budget::random`], for all three
 //!   interfaces, so a declared seed reaches the guest.
-//! - `wasi:filesystem` — no preopened directory, so a guest never holds a descriptor. Every
-//!   descriptor call answers `access`.
+//! - `wasi:filesystem` — one preopened directory per root of the instance's effective set
+//!   ([`crate::grants::effective`]), named by its canonical absolute path, opened read-only for a
+//!   `read` root and read-write for a `write` root. With no grant there is none, and a guest never
+//!   holds a descriptor. [`files`] owns how a path under a root is resolved.
 //!
 //! `wasi:http` is in the world and not linked yet, so [`crate::load::Loader`] refuses a
 //! component that imports it: a WASI import loads only when [`LINKED`] names it.
 //!
 //! Cost: one `ResourceTable` per instance, empty until a guest asks for a stream or a pollable,
-//! and a line of at most twice [`PERMIT`] per output stream a guest asks for, all freed with the
-//! instance.
+//! a line of at most twice [`PERMIT`] per output stream a guest asks for, and one path per
+//! granted root, all freed with the instance.
+
+mod files;
 
 use std::sync::Arc;
 
@@ -39,6 +43,7 @@ use wasmtime_wasi_io::streams::{
 use wasmtime_wasi_io::{IoView, async_trait};
 
 use crate::call::{Budget, Guest, Level};
+use crate::grants::Effective;
 
 /// The host traits `bindgen!` writes for the interfaces [`LINKED`] names, `wasi:io` aside.
 #[allow(
@@ -75,6 +80,8 @@ mod bindings {
         "wasi:io/poll": wasmtime_wasi_io::bindings::wasi::io::poll,
         "wasi:io/streams": wasmtime_wasi_io::bindings::wasi::io::streams,
         "wasi:io/error": wasmtime_wasi_io::bindings::wasi::io::error,
+        "wasi:filesystem/types.descriptor": crate::wasi::files::Descriptor,
+        "wasi:filesystem/types.directory-entry-stream": crate::wasi::files::Entries,
     },
     });
 }
@@ -105,21 +112,24 @@ pub const LINKED: &[&str] = &[
     "wasi:io/streams",
 ];
 
-/// One instance's WASI state: the resources its streams and pollables live in, and the request
-/// and channel its output is logged to.
+/// One instance's WASI state: the resources its streams, pollables and descriptors live in, the
+/// request and channel its output is logged to, and the roots it may open.
 pub(crate) struct Context {
     table: ResourceTable,
     budget: Arc<dyn Budget>,
     channel: Arc<str>,
+    preopens: Vec<Arc<files::Root>>,
 }
 
 impl Context {
-    /// An empty context whose output goes to `budget`'s log under `channel`.
-    pub(crate) fn new(budget: Arc<dyn Budget>, channel: &str) -> Self {
+    /// A context whose output goes to `budget`'s log under `channel`, and whose preopens are
+    /// `reach`'s roots.
+    pub(crate) fn new(budget: Arc<dyn Budget>, channel: &str, reach: &Effective) -> Self {
         Self {
             table: ResourceTable::new(),
             budget,
             channel: Arc::from(channel),
+            preopens: files::roots(reach),
         }
     }
 
@@ -397,223 +407,5 @@ impl insecure::Host for Context {
 impl insecure_seed::Host for Context {
     fn insecure_seed(&mut self) -> wasmtime::Result<(u64, u64)> {
         Ok((self.u64(), self.u64()))
-    }
-}
-
-impl preopens::Host for Context {
-    fn get_directories(&mut self) -> wasmtime::Result<Vec<(Resource<types::Descriptor>, String)>> {
-        Ok(Vec::new())
-    }
-}
-
-/// What every descriptor call answers: no guest holds a descriptor.
-type Denied<T> = wasmtime::Result<Result<T, types::ErrorCode>>;
-
-const fn denied<T>() -> Denied<T> {
-    Ok(Err(types::ErrorCode::Access))
-}
-
-impl types::Host for Context {
-    fn filesystem_error_code(
-        &mut self,
-        _err: Resource<wasmtime_wasi_io::streams::Error>,
-    ) -> wasmtime::Result<Option<types::ErrorCode>> {
-        Ok(None)
-    }
-}
-
-impl types::HostDescriptor for Context {
-    fn read_via_stream(
-        &mut self,
-        _: Resource<types::Descriptor>,
-        _: u64,
-    ) -> Denied<Resource<DynInputStream>> {
-        denied()
-    }
-
-    fn write_via_stream(
-        &mut self,
-        _: Resource<types::Descriptor>,
-        _: u64,
-    ) -> Denied<Resource<DynOutputStream>> {
-        denied()
-    }
-
-    fn append_via_stream(
-        &mut self,
-        _: Resource<types::Descriptor>,
-    ) -> Denied<Resource<DynOutputStream>> {
-        denied()
-    }
-
-    fn advise(
-        &mut self,
-        _: Resource<types::Descriptor>,
-        _: u64,
-        _: u64,
-        _: types::Advice,
-    ) -> Denied<()> {
-        denied()
-    }
-
-    fn sync_data(&mut self, _: Resource<types::Descriptor>) -> Denied<()> {
-        denied()
-    }
-
-    fn get_flags(&mut self, _: Resource<types::Descriptor>) -> Denied<types::DescriptorFlags> {
-        denied()
-    }
-
-    fn get_type(&mut self, _: Resource<types::Descriptor>) -> Denied<types::DescriptorType> {
-        denied()
-    }
-
-    fn set_size(&mut self, _: Resource<types::Descriptor>, _: u64) -> Denied<()> {
-        denied()
-    }
-
-    fn set_times(
-        &mut self,
-        _: Resource<types::Descriptor>,
-        _: types::NewTimestamp,
-        _: types::NewTimestamp,
-    ) -> Denied<()> {
-        denied()
-    }
-
-    fn read(&mut self, _: Resource<types::Descriptor>, _: u64, _: u64) -> Denied<(Vec<u8>, bool)> {
-        denied()
-    }
-
-    fn write(&mut self, _: Resource<types::Descriptor>, _: Vec<u8>, _: u64) -> Denied<u64> {
-        denied()
-    }
-
-    fn read_directory(
-        &mut self,
-        _: Resource<types::Descriptor>,
-    ) -> Denied<Resource<types::DirectoryEntryStream>> {
-        denied()
-    }
-
-    fn sync(&mut self, _: Resource<types::Descriptor>) -> Denied<()> {
-        denied()
-    }
-
-    fn create_directory_at(&mut self, _: Resource<types::Descriptor>, _: String) -> Denied<()> {
-        denied()
-    }
-
-    fn stat(&mut self, _: Resource<types::Descriptor>) -> Denied<types::DescriptorStat> {
-        denied()
-    }
-
-    fn stat_at(
-        &mut self,
-        _: Resource<types::Descriptor>,
-        _: types::PathFlags,
-        _: String,
-    ) -> Denied<types::DescriptorStat> {
-        denied()
-    }
-
-    fn set_times_at(
-        &mut self,
-        _: Resource<types::Descriptor>,
-        _: types::PathFlags,
-        _: String,
-        _: types::NewTimestamp,
-        _: types::NewTimestamp,
-    ) -> Denied<()> {
-        denied()
-    }
-
-    fn link_at(
-        &mut self,
-        _: Resource<types::Descriptor>,
-        _: types::PathFlags,
-        _: String,
-        _: Resource<types::Descriptor>,
-        _: String,
-    ) -> Denied<()> {
-        denied()
-    }
-
-    fn open_at(
-        &mut self,
-        _: Resource<types::Descriptor>,
-        _: types::PathFlags,
-        _: String,
-        _: types::OpenFlags,
-        _: types::DescriptorFlags,
-    ) -> Denied<Resource<types::Descriptor>> {
-        denied()
-    }
-
-    fn readlink_at(&mut self, _: Resource<types::Descriptor>, _: String) -> Denied<String> {
-        denied()
-    }
-
-    fn remove_directory_at(&mut self, _: Resource<types::Descriptor>, _: String) -> Denied<()> {
-        denied()
-    }
-
-    fn rename_at(
-        &mut self,
-        _: Resource<types::Descriptor>,
-        _: String,
-        _: Resource<types::Descriptor>,
-        _: String,
-    ) -> Denied<()> {
-        denied()
-    }
-
-    fn symlink_at(&mut self, _: Resource<types::Descriptor>, _: String, _: String) -> Denied<()> {
-        denied()
-    }
-
-    fn unlink_file_at(&mut self, _: Resource<types::Descriptor>, _: String) -> Denied<()> {
-        denied()
-    }
-
-    fn is_same_object(
-        &mut self,
-        _: Resource<types::Descriptor>,
-        _: Resource<types::Descriptor>,
-    ) -> wasmtime::Result<bool> {
-        Ok(false)
-    }
-
-    fn metadata_hash(
-        &mut self,
-        _: Resource<types::Descriptor>,
-    ) -> Denied<types::MetadataHashValue> {
-        denied()
-    }
-
-    fn metadata_hash_at(
-        &mut self,
-        _: Resource<types::Descriptor>,
-        _: types::PathFlags,
-        _: String,
-    ) -> Denied<types::MetadataHashValue> {
-        denied()
-    }
-
-    fn drop(&mut self, _: Resource<types::Descriptor>) -> wasmtime::Result<()> {
-        Ok(())
-    }
-}
-
-impl types::HostDirectoryEntryStream for Context {
-    fn read_directory_entry(
-        &mut self,
-        _: Resource<types::DirectoryEntryStream>,
-    ) -> Denied<Option<types::DirectoryEntry>> {
-        denied()
-    }
-
-    fn drop(&mut self, _: Resource<types::DirectoryEntryStream>) -> wasmtime::Result<()> {
-        Ok(())
     }
 }

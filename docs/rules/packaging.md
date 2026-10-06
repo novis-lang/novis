@@ -1845,7 +1845,8 @@ sink of its own, it can declare what it consumes and produces but cannot launder
 **Not on disk.** The import list is written as the `extension` world in `wit/nvs-ext/world.wit`, and
 `crates/nvs-stdlib/tests/ext_world.rs` checks it imports exactly the allowed interfaces. `nvs_ext::wasi`
 links the world's WASI interfaces but `wasi:http`, and the loader admits a WASI import only from the
-ones it links (`crates/nvs-ext/tests/wasi.rs`). Every guest holds no preopen, no environment, no
+ones it links (`crates/nvs-ext/tests/wasi.rs`). A guest holds a preopen for each root of its
+effective set and no other (`crates/nvs-ext/tests/files.rs`), no environment, no
 arguments and an empty stdin, and its stdout and stderr write each line to the log of the request
 `nvs_ext::call::Budget` names, and its clocks and random bytes are that budget's, so a fixed clock
 and a seed reach it. A libc-shaped guest fits one pool slot, and its `exit` throws `ExtensionError`.
@@ -1853,7 +1854,7 @@ and a seed reach it. A libc-shaped guest fits one pool slot, and its `exit` thro
 logs is a record of the request with the extension as its channel, and a test's fixed clock and seed
 reach it. `nvs:ext/settings` reads the `[ext.<name>]` block of the request's snapshot, a
 `System`/`Reload` block `nvs.toml` accepts and boot and reload check against the loaded manifests
-(`nvs_cli::extensions::loaded`). No grant reaches a guest, and `wasi:http` is not linked.
+(`nvs_cli::extensions::loaded`). `wasi:http` is not linked, so a `connect` grant reaches nothing.
 
 <sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/extension-cannot-launder`](security.md#security-extension-cannot-launder). Decided in [0003](../decisions/0003.md), [0246](../decisions/0246.md).</sub>
 

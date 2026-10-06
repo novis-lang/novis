@@ -79,6 +79,7 @@ fn load(loader: &Loader, bytes: &[u8]) {
         path: PathBuf::from("geo.nvsx"),
         sha256: pin(bytes),
         memory: None,
+        grants: nvs_config::extension::Granted::default(),
     };
     let extension = loader
         .load_bytes(&entry, bytes)

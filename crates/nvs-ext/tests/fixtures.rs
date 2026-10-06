@@ -163,6 +163,7 @@ fn load(engine: &Engine, name: &str, bytes: &[u8]) -> Extension {
                 path: PathBuf::from(format!("{name}.nvsx")),
                 sha256: pin(bytes),
                 memory: None,
+                grants: nvs_config::extension::Granted::default(),
             },
             bytes,
         )
@@ -219,6 +220,7 @@ fn a_fixture_with_a_refusal_does_not_load_and_gives_it() {
                 path: PathBuf::from(format!("{name}.nvsx")),
                 sha256: pin(&bytes),
                 memory: None,
+                grants: nvs_config::extension::Granted::default(),
             },
             &bytes,
         );

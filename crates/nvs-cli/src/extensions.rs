@@ -78,6 +78,7 @@ use nvs_config::value::{Quantity, Unit};
 use nvs_diagnostics::{Diagnostic, SourceMap};
 use nvs_ext::call::{Budget, Host, Level, Limit, Meter, Outcome, Request};
 use nvs_ext::convert::{Key, Value as Crossed, fits};
+use nvs_ext::grants::Caller;
 use nvs_ext::load::{CacheKey, Entry, Loader, ModuleCache, Set};
 use nvs_ext::manifest::Manifest;
 use nvs_ext::types::{CORE_CLASSES, CoreRecord, Field, NovisType};
@@ -307,6 +308,7 @@ impl Calls {
             let spent = Arc::new(Spent {
                 meter: Meter::new(cpu, memory),
                 snapshot: ctx.config().map(|config| Arc::clone(config.snapshot())),
+                narrowed: ctx.grant_filter().map(<[_]>::to_vec),
                 clock: Mutex::new(None),
                 seed: Mutex::new(None),
                 lines: Mutex::new(Vec::new()),
@@ -334,11 +336,12 @@ impl Drop for Calls {
 /// seed fixes the draws `Core\Random` and a guest make together. Lines a guest writes while its
 /// resources are dropped at the request's end have no context left to write to, and are dropped.
 ///
-/// What it spends: one `Arc` of the request's snapshot, and each logged line until the call that
-/// wrote it returns.
+/// What it spends: one `Arc` of the request's snapshot, the `grants:` list of the isolate that
+/// made the request, and each logged line until the call that wrote it returns.
 pub(crate) struct Spent {
     meter: Meter,
     snapshot: Option<Arc<nvs_config::Snapshot>>,
+    narrowed: Option<Vec<nvs_config::capability::Cap>>,
     clock: Mutex<Option<i128>>,
     seed: Mutex<Option<u64>>,
     lines: Mutex<Vec<(Level, String, String)>>,
@@ -420,6 +423,18 @@ impl Budget for Spent {
             .get(block)?
             .get(key)?;
         serde_json::to_value(value).ok()
+    }
+
+    /// The `[capabilities]` of the request's snapshot, narrowed by the `grants:` list of the
+    /// isolate whose context made the request.
+    fn caller(&self) -> Caller<'_> {
+        Caller {
+            capabilities: self
+                .snapshot
+                .as_ref()
+                .and_then(|snapshot| snapshot.config.capabilities.as_ref()),
+            narrowed: self.narrowed.as_deref(),
+        }
     }
 }
 
@@ -763,6 +778,7 @@ fn entry(index: usize, written: &Extension, origins: &BTreeMap<String, Origin>) 
         ),
         sha256: written.sha256.clone().unwrap_or_default(),
         memory,
+        grants: nvs_config::extension::grants(index, &written.grants, origins),
     }
 }
 
@@ -823,6 +839,7 @@ mod tests {
         let spent = Spent {
             meter: Meter::new(UNCAPPED, None),
             snapshot: ctx.config().map(|config| Arc::clone(config.snapshot())),
+            narrowed: None,
             clock: Mutex::new(None),
             seed: Mutex::new(None),
             lines: Mutex::new(Vec::new()),

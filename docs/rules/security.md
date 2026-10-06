@@ -1603,7 +1603,12 @@ the caller must hold both `fs.write` and `fs.read` over it.
 **Not on disk.** `nvs_config::tree::Grants` reads the entry's `grants`, refusing an unknown key,
 and `nvs_config::extension::grants` makes its roots absolute against the file that wrote each list;
 `env_hash` does not read it. `nvs_ext::grants::effective` computes the intersection
-(`crates/nvs-ext/tests/grants.rs`), and nothing calls it yet, so no guest holds a preopen or a host.
+(`crates/nvs-ext/tests/grants.rs`) when an instance is made, from the entry's grants, the manifest
+and the caller `nvs_ext::call::Budget::caller` names, which `nvs run` and `nvs serve` take from the
+request's snapshot and its isolate's `grants:` list. Each root of it is a preopen, and
+`nvs_ext::wasi`'s filesystem resolves a guest's path under it one name at a time
+(`crates/nvs-ext/tests/files.rs`). The `connect` hosts reach nothing yet, because `wasi:http` is not
+linked.
 
 <sub>See also [`packaging/a-guest-has-no-ambient-authority`](packaging.md#packaging-a-guest-has-no-ambient-authority), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time). Decided in [0246](../decisions/0246.md).</sub>
 

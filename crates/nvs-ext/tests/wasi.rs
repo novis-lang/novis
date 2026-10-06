@@ -273,6 +273,7 @@ fn declaring(host: &Host, bytes: &[u8], manifest: &str) -> Extension {
         path: PathBuf::from("probe.nvsx"),
         sha256: pin_of(bytes),
         memory: None,
+        grants: nvs_config::extension::Granted::default(),
         component: Component::new(host.engine(), bytes).expect("the guest compiles"),
         manifest: Manifest::parse(manifest.as_bytes()).expect("the manifest reads"),
         source: Source {

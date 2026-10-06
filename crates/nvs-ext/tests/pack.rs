@@ -85,6 +85,7 @@ fn load(bytes: &[u8]) -> Extension {
                 path: PathBuf::from("geo.nvsx"),
                 sha256: pin(bytes),
                 memory: None,
+                grants: nvs_config::extension::Granted::default(),
             },
             bytes,
         )

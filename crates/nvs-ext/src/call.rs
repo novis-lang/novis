@@ -57,8 +57,8 @@
 //! as [`Error::Invalid`], because no later instance gives it out again.
 //!
 //! **The budget is a trait.** [`Budget`] is what the store needs of its request — its CPU
-//! deadline, its memory accounting, its log, its clocks, its random generator and its extension
-//! settings — so this crate
+//! deadline, its memory accounting, its log, its clocks, its random generator, its extension
+//! settings and its caller's authority, which narrows each instance's preopens — so this crate
 //! does not link the runtime. The host that wires a call into a request implements it over the
 //! request's own; [`Meter`] is a standalone budget for a test and for a run with no request around
 //! it, keeps no log, and reads the process's clocks and generator.
@@ -81,7 +81,10 @@ use wasmtime::{
     ResourceLimiter, Store, Trap, UpdateDeadline,
 };
 
+use nvs_config::resolve::Disk;
+
 use crate::convert::{self, Crossing, Value};
+use crate::grants::{self, Caller};
 use crate::handle::{self, Handles};
 use crate::load::Extension;
 use crate::manifest::{Method, Settings};
@@ -115,6 +118,13 @@ pub trait Budget: Send + Sync {
     /// The value `key` has in the `[ext.<block>]` settings block of the request's configuration
     /// snapshot, or `None` when the block does not set it.
     fn setting(&self, block: &str, key: &str) -> Option<serde_json::Value>;
+
+    /// The calling code's own authority: the `[capabilities]` of the request's snapshot and the
+    /// `grants:` list of the isolate that runs it. It narrows what each instance may reach
+    /// (`rule:security/extension-grants-are-an-intersection`). The default holds nothing.
+    fn caller(&self) -> Caller<'_> {
+        Caller::default()
+    }
 }
 
 /// The levels of a request's log, as `nvs:ext/log` and `Core\Log` name them.
@@ -780,6 +790,12 @@ impl Request {
             (Some(entry), Some(manifest)) => Some(entry.min(manifest)),
             (entry, manifest) => entry.or(manifest),
         };
+        let reach = grants::effective(
+            &extension.grants,
+            &extension.manifest.requests,
+            self.budget.caller(),
+            &Disk,
+        );
         self.host.shared.live.fetch_add(1, Ordering::AcqRel);
         let mut store = Store::new(
             &self.host.shared.engine,
@@ -792,7 +808,11 @@ impl Request {
                 live: Arc::clone(&self.host.shared.live),
                 handles: Handles::default(),
                 kept: Vec::new(),
-                wasi: wasi::Context::new(Arc::clone(&self.budget), &extension.manifest.class),
+                wasi: wasi::Context::new(
+                    Arc::clone(&self.budget),
+                    &extension.manifest.class,
+                    &reach,
+                ),
             },
         );
         store.limiter(|guest| guest);

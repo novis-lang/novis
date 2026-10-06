@@ -104,6 +104,7 @@ fn fixture() -> (Host, Extension) {
         path: PathBuf::from("orders.nvsx"),
         sha256: pin(&bytes),
         memory: None,
+        grants: nvs_config::extension::Granted::default(),
         component: Component::new(host.engine(), &bytes).expect("the component compiles"),
         manifest: Manifest::parse(MANIFEST.as_bytes()).expect("the manifest reads"),
         source: Source {

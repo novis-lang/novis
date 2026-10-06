@@ -159,6 +159,7 @@ fn extension(host: &Host, entry: Option<u64>, manifest: Option<u64>) -> Extensio
         path: PathBuf::from("counter.nvsx"),
         sha256: pin(&bytes),
         memory: entry,
+        grants: nvs_config::extension::Granted::default(),
         component: Component::new(host.engine(), &bytes).expect("the component compiles"),
         manifest: Manifest::parse(manifest.as_bytes()).expect("the manifest reads"),
         source: Source {

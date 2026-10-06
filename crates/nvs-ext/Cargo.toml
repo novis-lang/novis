@@ -81,6 +81,10 @@ name = "fixtures"
 required-features = ["engine", "pack"]
 
 [[test]]
+name = "files"
+required-features = ["engine"]
+
+[[test]]
 name = "grants"
 required-features = ["engine"]
 

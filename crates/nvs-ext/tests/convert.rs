@@ -195,6 +195,7 @@ fn load(host: &Host, manifest: &str) -> Result<Extension, Refused> {
         path: PathBuf::from("shapes.nvsx"),
         sha256: pin(&bytes),
         memory: None,
+        grants: nvs_config::extension::Granted::default(),
     };
     Loader::new(host.engine()).load_bytes(&entry, &bytes)
 }
@@ -709,6 +710,7 @@ fn a_mixed_argument_crosses_as_a_value_handle_read_through_accessors() {
         path: PathBuf::from("values.nvsx"),
         sha256: pin(&bytes),
         memory: None,
+        grants: nvs_config::extension::Granted::default(),
     };
     let extension = Loader::new(host.engine())
         .load_bytes(&entry, &bytes)
@@ -908,6 +910,7 @@ fn an_extension_resource_is_dropped_when_its_request_ends() {
             path: PathBuf::from("tallies.nvsx"),
             sha256: pin(&bytes),
             memory: None,
+            grants: nvs_config::extension::Granted::default(),
         };
         Loader::new(host.engine()).load_bytes(&entry, &bytes)
     };

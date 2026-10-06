@@ -813,6 +813,7 @@ fn extension_set(path: &Path) -> Vec<nvs_ext::manifest::Manifest> {
             ),
             sha256: written.sha256.clone().unwrap_or_default(),
             memory: None,
+            grants: nvs_config::extension::Granted::default(),
         })
         .collect();
     nvs_ext::load::read_manifests(&entries).unwrap_or_default()
