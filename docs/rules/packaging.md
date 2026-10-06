@@ -1803,7 +1803,9 @@ property of its own (`nvs_hir::errors::TREE`) and in the runtime's thrown-class 
 runtime spells it, a trapped instance dropped and an `err`'s kept (`crates/nvs-ext/tests/failure.rs`)
 — and `nvs run` raises it on the program
 (`tests/conformance/ext/an-extension-error-throws-its-class-and-a-trap-throws-extension-error.nvst`).
-`nvs serve` does not yet, and a limit is a plain `FATAL` that runs no limit handler.
+A limit runs the request's limit handler before its `FATAL`
+(`tests/conformance/ext/an-extension-that-reaches-the-memory-limit-runs-the-limit-handler.nvst`).
+`nvs serve` does none of this yet.
 
 <sub>See also [`packaging/a-guest-runs-under-the-requests-budget`](packaging.md#packaging-a-guest-runs-under-the-requests-budget), [`errors/on-limit`](errors.md#errors-on-limit), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy). Decided in [0246](../decisions/0246.md).</sub>
 

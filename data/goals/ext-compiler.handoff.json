@@ -1,26 +1,26 @@
 {
-  "state": "**Goal `ext-compiler`, Stage 3 (the call) is under way.** Stages 1 and 2 are on disk. The design is ADR 0246 § 8 and the goal file's § *Standing decisions*. This goal has no record slot.\n\n`nvs run` calls an extension end to end. Codegen emits `InstKind::ExtensionCall` as a variadic call of `nvs_runtime::extension::nvs_extension_call` (`crates/nvs-runtime/src/extension.rs` module doc), and `nvs-cli`'s `extensions::Calls` hosts it over one `nvs_ext::call::Request` (`crates/nvs-cli/src/extensions.rs` module doc).\n\nEvery row of `rule:packaging/a-value-crosses-as-its-wit-type`'s table crosses both ways. A resource `Route` of `Shop\\Ledger` is the member-less class `Shop\\Route`, and at run time an object of a class `nvs_stdlib::ext_record::resource` makes for that name, holding the request's number for it (`crates/nvs-types/src/ext_lib.rs` module doc). The ledger fixture exports `openRoute` and `routeStop`, and `tests/conformance/ext/an-extension-resource-is-held-by-the-program-and-passed-back.nvst` covers it.\n\n**Still open in Stage 3:** a limit is a plain `FATAL` with no limit handler, and `nvs serve` installs no `Calls`. Stage 4 (qualifiers) is the driver's earliest red check and has nothing written yet.",
+  "state": "**Goal `ext-compiler`, Stage 3 (the call) is under way.** Stages 1 and 2 are on disk. The design is ADR 0246 § 8 and the goal file's § *Standing decisions*. This goal has no record slot.\n\n`nvs run` calls an extension end to end. Codegen emits `InstKind::ExtensionCall` as a variadic call of `nvs_runtime::extension::nvs_extension_call` (`crates/nvs-runtime/src/extension.rs` module doc), and `nvs-cli`'s `extensions::Calls` hosts it over one `nvs_ext::call::Request` (`crates/nvs-cli/src/extensions.rs` module doc).\n\nEvery row of `rule:packaging/a-value-crosses-as-its-wit-type`'s table crosses both ways, resources included (`crates/nvs-types/src/ext_lib.rs` module doc). A guest that reaches a CPU or memory limit runs the request's `Core\\Fatal::onLimit` handler, then is a `FATAL` (`tests/conformance/ext/an-extension-that-reaches-the-memory-limit-runs-the-limit-handler.nvst`).\n\n**Still open in Stage 3:** `nvs serve` installs no `Calls`. Stage 4 (qualifiers) is the driver's earliest red check and has nothing written yet.",
   "next": {
     "stage": 3,
     "title": "the call",
     "files": [
       "crates/nvs-cli/src/extensions.rs",
-      "crates/nvs-cli/src/main.rs",
+      "crates/nvs-server/src/serve.rs",
       "tests/conformance/ext/"
     ],
     "items": [
       {
         "done": false,
-        "text": "**A limit runs the limit handler**: map `Outcome::Fatal` to `nvs_runtime::Limit` and run `Ctx::run_limit_handler` before the `FATAL` (`crates/nvs-cli/src/extensions.rs:270`). `rule:packaging/a-guest-crash-throws`, `rule:errors/on-limit`."
+        "text": "**`nvs serve` hosts extension calls**: install a `Calls` per request from the live set (`crates/nvs-cli/src/extensions.rs:165`), and run `Calls::end` when the request's tasks finish, so a resource is dropped at the request's end. `rule:packaging/extension-calls-are-statically-typed`, `rule:packaging/a-guest-crash-throws`."
       },
       {
         "done": false,
-        "text": "**`nvs serve` hosts extension calls**: install a `Calls` per request from the live set (`crates/nvs-cli/src/extensions.rs:161`), ended when the request ends. `rule:packaging/extension-calls-are-statically-typed`."
+        "text": "**Then Stage 4, qualifiers**: a manifest's `tainted`/`secret` declarations reach the `MethodSig` fields a `Core` member's carry (`crates/nvs-types/src/ext_lib.rs:1`), so `crates/nvs-types/src/expr/quals.rs:1` refuses them with no extension branch. `rule:security/extension-manifest-only-tightens`."
       }
     ]
   },
   "backlog": [
-    "Stage 4, qualifiers: the `nvs-types` sink and `secret` tests, the `nvs-ext` `load` tests and the four `.nvst` cases the goal record names (`data/goals/ext-compiler.json`).",
-    "Stage 5, the source section; Stage 6, the tools (`nvs check`, `nvs test`, the language server) — `data/goals/ext-compiler.json`."
+    "`nvs test`, `nvs check` with the set, and the language server (Stage 6) — `rule:packaging/extension-calls-are-statically-typed`.",
+    "The source section and autoload (Stage 5) — ADR 0246 § 8."
   ]
 }
