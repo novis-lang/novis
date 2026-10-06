@@ -1003,8 +1003,7 @@ nvs_runtime::nvs_helper! {
     /// Their rule — an absolute segment wins — is exactly what turns
     /// `Path::join($root, $fromTheRequest)` into an escape from `$root`, and
     /// it buys nothing a call could not write by passing the absolute path as
-    /// the base instead. AGENTS.md's priority 1 settles which way that trade
-    /// goes.
+    /// the base instead. Security settles which way that trade goes.
     ///
     /// That is *not* a claim to be a launderer: a segment of `..` still walks
     /// up, and [`nvs_core_path_normalize`]'s own docs say why removing one is

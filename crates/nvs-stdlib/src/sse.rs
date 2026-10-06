@@ -743,7 +743,7 @@ nvs_runtime::nvs_helper! {
 ///
 /// **What it spends:** one wakeup per idle stream per tick, and nothing on a
 /// stream whose topics are busy on its own core. It is the one number here that
-/// trades priority 3 against itself — a shorter tick buys cross-core latency
+/// trades latency against itself — a shorter tick buys cross-core latency
 /// with wakeups — and the trade goes away rather than being tuned the day the
 /// bus wakes the core it hands a value to.
 const CROSS_CORE_TICK: std::time::Duration = std::time::Duration::from_millis(50);

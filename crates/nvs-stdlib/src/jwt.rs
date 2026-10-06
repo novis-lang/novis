@@ -117,7 +117,7 @@
 //! **What that spends** is interoperability with issuers whose tokens carry
 //! structured claims — a directory server's role table is the usual one. It
 //! buys a surface on which a claim cannot reach a sink unlaundered, which is
-//! the priority-1 half of the trade and so the one that wins here. The
+//! the security half of the trade and so the one that wins here. The
 //! widening is a qualifier that survives a shape: a decoder carrying `tainted`
 //! through into a declared shape lets a member answer that shape and keep
 //! `rule:security/verification-does-not-launder`, which is the ground
@@ -988,8 +988,8 @@ fn header_of(alg: &str, jwk: Option<&str>, kid: Option<&str>, typ: &str) -> Stri
 ///
 /// The two variants are different sizes — an RSA pair against a borrowed slice
 /// — and boxing the larger would buy an allocation on the request path to save
-/// a few hundred bytes of stack that live for one call, which is priority 3
-/// spent on priority 5. [`crate::crypto`]'s own `Keyed` turns the same trade
+/// a few hundred bytes of stack that live for one call, which is latency
+/// spent on memory footprint. [`crate::crypto`]'s own `Keyed` turns the same trade
 /// down for the same reason.
 #[allow(clippy::large_enum_variant)]
 enum Signer<'a> {

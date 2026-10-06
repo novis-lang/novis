@@ -677,7 +677,7 @@ struct Session {
 /// for, spent deliberately: there is one `Wire` per in-flight `send`, so the
 /// cost is O(in-flight) rather than O(messages sent), and boxing it would buy an
 /// allocation and an indirection on every record read to save a kilobyte
-/// priority 5 says not to chase.
+/// of memory footprint, which the ordering says not to chase.
 #[allow(clippy::large_enum_variant)]
 enum Wire {
     /// Before `STARTTLS`, and for the whole of a session with no credential.

@@ -572,7 +572,7 @@ const CAPTURE: &CoreTy = &CoreTy::Union(&[
 /// capture is a segment of the path the request arrived with, so its text arm
 /// is `tainted` — [`CAPTURE`] owns that reasoning. A program that mixed the two
 /// up would be laundering the request through the route table, which is the one
-/// direction `AGENTS.md`'s priority 1 does not trade.
+/// direction security does not trade.
 ///
 /// A capture's text is percent-decoded once, by [`match_value`], as the match
 /// crosses into the program, so `Core\Router::match` and
@@ -585,7 +585,7 @@ const CAPTURE: &CoreTy = &CoreTy::Union(&[
 /// [`MATCH_NAME_DOC`]'s name. Read off the match, the decision is checked once
 /// above that `switch` and covers every arm; read off the method's attributes
 /// it is checked once per arm, and an arm that forgets it serves an unguarded
-/// route with nothing to say so. That is a priority-1 difference, so
+/// route with nothing to say so. That is a security difference, so
 /// [`MATCH_ACCESS_DOC`]'s member is here. The row carries the resolved *name*,
 /// which `access()` answers as text. [`MATCH_ACCESS_AS_DOC`]'s `accessAs<E>()`
 /// answers the same decision as a case of the enum `E` the call site wrote, or

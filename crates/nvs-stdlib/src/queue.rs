@@ -306,7 +306,7 @@ const KEY_WIDTH: u32 = 255;
 ///
 /// **What it spends:** two indexed [`KEY_WIDTH`]-wide columns per job row, plus the two documents
 /// `grants` and `limits` hold. `dedupe_pending` is what a partial index costs nothing for —
-/// priority 5 spent to buy one spelling everywhere the queue runs instead of two spellings on two
+/// memory footprint spent to buy one spelling everywhere the queue runs instead of two spellings on two
 /// backends — and `tag` is one more, written once by `push` and read by no statement a request or a
 /// worker runs. The narrowing pair is bounded by the capability roster and the `[limits]` keys
 /// rather than by anything a caller writes, and both are written once and released with the row.
@@ -743,7 +743,7 @@ pub const DEAD_LETTER_POSTGRES: &str = "with moved as (\
 /// commit before the second could arrive and the row it found would be free in between. PostgreSQL
 /// reaches that with a data-modifying CTE and pays one round trip; a backend that has no such
 /// construct reaches the *same* property with an explicit transaction around these two and pays
-/// four. So the difference between the dialects is latency and nothing else — priority 3 spent
+/// four. So the difference between the dialects is latency and nothing else — latency spent
 /// where the construct is not available, rather than a weaker guarantee sold as a dialect.
 ///
 /// A caller that ran [`Self::first`] and committed without [`Self::then`] has published half a

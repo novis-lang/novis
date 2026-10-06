@@ -317,7 +317,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 /// admits no child, so the group could never reach § 4's "every child
 /// returned" and the call would wait for a completion nothing can produce.
 /// Refusing it where it is written is the only answer that is not a wedge
-/// (`AGENTS.md`'s priority 1), and a program can write it, so `rule:errors/propagation` makes it
+/// (security and request isolation), and a program can write it, so `rule:errors/propagation` makes it
 /// a throw rather than a fault.
 fn bounds(args: &[Value], at: usize, member: &str) -> Result<Bounds, Fault> {
     let limit = match args[at].as_uint() {

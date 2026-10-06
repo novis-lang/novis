@@ -2048,8 +2048,7 @@ nvs_runtime::nvs_helper! {
     /// own iterator and running user code between steps would hold a live
     /// borrow of an engine across a call that can reach `Core\Regex` again;
     /// collecting first spends one [`Captured`] per match for the length of
-    /// the call, which is AGENTS.md's ordering buying priority 4 with
-    /// priority 5.
+    /// the call, which is memory footprint spent to buy simplicity.
     fn nvs_core_regex_replace_with(ctx, args: [4]) {
         let subject = text(&args[0], "replaceWith", "the subject")?;
         let given = pattern_of(&args[1], "replaceWith")?;

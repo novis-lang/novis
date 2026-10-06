@@ -168,7 +168,7 @@
 //!
 //! # Decision: a subscriber that has stopped reading is skipped, not waited for
 //!
-//! § 4's priority-1 rule, in the fan-out: the walk asks each queue whether it
+//! § 4's security rule, in the fan-out: the walk asks each queue whether it
 //! has room *before* it makes that subscriber's copy, and a full one is marked
 //! and stepped over. So a connection that stopped reading costs a publish one
 //! comparison — not an allocation, not a wait, and not the other nine thousand
@@ -1302,7 +1302,7 @@ mod tests {
         assert_eq!(subscriber_count("room:door-one"), 1);
     }
 
-    /// `rule:core-classes/topic`'s priority-1 rule, on both halves at once: a subscriber
+    /// `rule:core-classes/topic`'s security rule, on both halves at once: a subscriber
     /// that never reads is **closed**, and the publisher fanning out to it is
     /// unaffected — not blocked, not failed, and still reaching everybody else.
     ///

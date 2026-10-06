@@ -52,7 +52,7 @@
 //! question.
 //!
 //! What it costs is one allocation per `toString()` rather than one per
-//! construction, which is AGENTS.md's priority 5 spent to buy priority 3 at
+//! construction, which is memory footprint spent to buy latency at
 //! the commoner of the two sites. A single `bytes` slot is the natural third
 //! answer and waits on nothing — `nvs_runtime::Tag::Bytes` is a live tag — but
 //! it is refcounted where a `uint` slot is immediate, so the two halves are

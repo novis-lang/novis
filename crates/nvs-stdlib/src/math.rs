@@ -19,11 +19,11 @@
 //!   the *argument* rather than the arithmetic — a base outside 2..=36, an
 //!   empty range for `clamp`, a `NaN` for `sign` — stays a `RuntimeError`.
 //! * **A domain error is IEEE's answer, not a throw.** `sqrt(-1.0)`,
-//!   `log(0.0)`, `asin(2.0)` and the rest produce `NaN` or an infinity exactly
-//!   as PHP's do, and [`nvs_core_math_is_nan`]/[`nvs_core_math_is_finite`] are
-//!   the members that ask. This is priority 2 — PHP-compatible observable
-//!   behaviour — and it is the reason those two members exist at all; a
-//!   library that threw instead would leave them with nothing to answer about.
+//!   `log(0.0)`, `asin(2.0)` and the rest produce `NaN` or an infinity, IEEE
+//!   754's own answers, and [`nvs_core_math_is_nan`]/[`nvs_core_math_is_finite`]
+//!   are the members that ask. That is the reason those two members exist at
+//!   all; a library that threw instead would leave them with nothing to answer
+//!   about.
 //!   A *division* is not a domain error, which is what keeps the two rules
 //!   from meeting — and [`nvs_core_math_fdiv`] does not blur them either, being
 //!   a member whose whole name is the IEEE answer rather than a division that
@@ -1658,15 +1658,12 @@ unary_float! {
     /// which multiplies by the correctly rounded constant `PI / 180.0`. The
     /// two part by at most one ulp, and the std form is the more accurate of
     /// them — over the 3,600 tenths of a degree in a turn it is closer to the
-    /// true value 851 times against 118 — but this is PHP's own expression,
-    /// and matching it is what makes the round trip below agree. AGENTS.md's
-    /// priority 2 is PHP-compatible *observable* behaviour, and the ulp is
-    /// observable: `==` over `float` is exact ([ADR
-    /// 0090](/docs/decisions/0090.md)),
-    /// so `toDegrees(toRadians(30.0)) == 30.0` answers `true` under PHP's
-    /// spelling and `false` under the std one. Nothing here promises an
-    /// accuracy the twin does not have; the round trip a ported program
-    /// already wrote is the thing worth keeping.
+    /// true value 851 times against 118 — but this form is what makes the
+    /// round trip agree, and the ulp is observable: `==` over `float` is exact
+    /// ([ADR 0090](/docs/decisions/0090.md)), so
+    /// `toDegrees(toRadians(30.0)) == 30.0` answers `true` with this pair and
+    /// `false` with the std one. The round trip is the property kept, and
+    /// nothing here promises an accuracy beyond it.
     nvs_core_math_to_radians, "toRadians", |degrees| (degrees / 180.0) * std::f64::consts::PI
 }
 
@@ -1674,7 +1671,7 @@ unary_float! {
     /// `Core\Math::toDegrees(float $radians): float` — replacing PHP's
     /// `rad2deg`.
     ///
-    /// `($radians / PI) * 180.0`, PHP's expression, for the reason
+    /// `($radians / PI) * 180.0`, for the reason
     /// `toRadians` above states in full. This is the half of the pair the
     /// difference is visible through: `f64::to_degrees` and this form part
     /// over a whole-degree angle's radians, which is exactly what a round

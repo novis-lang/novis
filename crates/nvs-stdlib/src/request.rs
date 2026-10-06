@@ -1202,7 +1202,7 @@ const PART_ORDINAL: usize = 3;
 /// rule is over untrusted *input* rather than over a list of fields. Leaving it
 /// plain would have made the part's own name the one launderer on the class —
 /// reachable by using it as a path or an identifier — which is the direction
-/// `AGENTS.md`'s priority 1 does not trade.
+/// security does not trade.
 ///
 /// # There is no `size`, and there is no `filename` that is a path
 ///

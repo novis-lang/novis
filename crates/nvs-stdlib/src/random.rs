@@ -26,7 +26,7 @@
 //!
 //! * **It is a userspace generator.** `Core\Random::float()` in a loop is a
 //!   ChaCha block every 64 draws rather than a syscall every one, which is
-//!   AGENTS.md's priority 3 and the reason a *secure* generator can be the
+//!   latency and the reason a *secure* generator can be the
 //!   only generator without a program paying for the choice.
 //! * **Bounded sampling and shuffling are already written and analysed there.**
 //!   Drawing an integer in `[$min, $max]` without bias is the part of this
@@ -37,9 +37,11 @@
 //!   second reader.
 //!
 //! `getrandom` alone was the alternative: fewer crates, but a syscall per draw
-//! *and* the rejection-sampling and Fisher-Yates code moved in here, which
-//! trades priority 3 and priority 2 to buy priority 4. `rule:packaging/a-c-dependency-answers-two-questions` does not
-//! ask a question that distinguishes them, so AGENTS.md's ordering does.
+//! *and* the rejection-sampling and Fisher-Yates code moved in here with no
+//! second reader, which trades latency and security to buy simplicity.
+//! `rule:packaging/a-c-dependency-answers-two-questions` does not ask a
+//! question that distinguishes them, so `rule:programs/memory-priority`'s
+//! ordering does.
 //!
 //! # What it spends
 //!

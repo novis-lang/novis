@@ -37,12 +37,11 @@
 //! `encodeFormValue` and not by `encodeComponent`. It is not a typo and it is
 //! not simplification worth taking: RFC 3986 § 2.3 added `~` to the unreserved
 //! set, `application/x-www-form-urlencoded` is still defined against RFC 1738's
-//! older set, and PHP's two functions each follow their own specification.
-//! AGENTS.md ranks PHP-compatible observable behaviour (priority 2) above
-//! simplicity of the implementation (priority 4), and the cost of collapsing
-//! the two sets is paid by whoever compares a signature Novis computed against
-//! one PHP computed — an HMAC over a form body differs by one byte and nothing
-//! says why. Both spellings decode identically, so nothing is lost by matching.
+//! older set, and each encoder follows its own specification. Collapsing the
+//! two sets would be paid for by whoever compares a signature Novis computed
+//! against one another implementation computed — an HMAC over a form body
+//! differs by one byte and nothing says why. Both spellings decode
+//! identically, so nothing is lost by keeping both.
 //!
 //! Hex digits are emitted **upper case**, which is PHP's choice and RFC 3986
 //! § 2.1's recommendation. Both cases are read on the way back in.

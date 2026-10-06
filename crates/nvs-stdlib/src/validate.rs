@@ -79,7 +79,7 @@
 //!
 //! Nothing here consults DNS, and nothing ever will: a validator that made a
 //! network call would put an attacker-controlled string on the request path's
-//! latency budget, which is priority 3 traded away for nothing.
+//! latency budget, which is latency traded away for nothing.
 //!
 //! # `isIp(string $s, {version?: 4|6})`
 //!
