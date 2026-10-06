@@ -38,8 +38,8 @@ The estimates were written for humans, and what slows a human is not what slows 
 and the multiplier each gets:
 
 - **Spec-driven and self-verifiable — 20–25×.** A written spec, a machine-checkable gate, no external
-  system. M4, M4S, M6, and above all M11, whose PHP oracle is already wired: a rule table plus a
-  differential oracle is the best case this loop has.
+  system. M4, M4S and M6: a written rule plus a conformance case that pins it is the best case this
+  loop has.
 - **Integration-bound — 15–18×.** Real servers, real wire protocols, a dependency that has to be stood
   up before it can be debugged. M7, M8's drivers, M9.
 - **Human-in-the-loop — 12–15×.** Anything whose acceptance is a person looking at it: M4B's extension,

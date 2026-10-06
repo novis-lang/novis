@@ -11,8 +11,7 @@ docs/adr/tooling-parity.md carries the tool-by-tool context.
 
 
 ## nvs fix — the reopen trigger for Novis-to-Novis rewrites
-`rule:tooling/fmt-is-never-a-diagnostic` declined an `nvs fix` batch-rewrite verb ("no user has asked for one yet"), and
-`nvs convert` only covers PHP to Novis. Decision: the door stays closed before 1.0, but
+`rule:tooling/fmt-is-never-a-diagnostic` declined an `nvs fix` batch-rewrite verb ("no user has asked for one yet"). Decision: the door stays closed before 1.0, but
 the first breaking change to the language surface after 1.0 must ship with an automated migration
 rewrite — reopening `rule:tooling/fmt-is-one-canonical-style`'s declination is part of that change's cost, so it is written down
 here where a human planning that change will look.

@@ -13,8 +13,7 @@ milestone implements **§§ 1–12** of that file — `Core\Str`, `Arr`, `Math`,
 `Uri`, `Validate`, `Csv`, `Out`. Every one is pure: no capability, no reactor, no driver, no open handle, so
 none of it is blocked on M5–M7. § 13's compiler-facing surfaces are pure too but each waits on something
 outside `Core`; that file's own *Milestones* section says which, and is the one home for it. It is placed here rather than at M8 so that everything after it — the LSP's
-completion data, M5's concurrency tests, M9's extension conformance fixtures, M11's converter mapping
-table — is written against a real standard library instead of against fixtures that will need rewriting.
+completion data, M5's concurrency tests, M9's extension conformance fixtures — is written against a real standard library instead of against fixtures that will need rewriting.
 Part II of the spec file (anything capability-bearing) stays at M8 and merely conforms to the same
 contract. `crates/nvs-stdlib` starts here — the Tier 0 crate
 `rule:packaging/three-tiers` already names, and the workspace manifest already

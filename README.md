@@ -38,10 +38,6 @@ For web servers and the command line. Familiar syntax (Hello PHP).
 - **Extensible without giving up any of that.** Extensions are sandboxed WebAssembly components: one
   precompiled binary runs on every platform, written in whatever language you like, and a crashing or
   hostile extension harms one request rather than the process.
-- **A migration target for PHP.** `nvs convert` transpiles existing PHP projects, including their `.phpt`
-  test suites. Note the direction of travel: Novis takes PHP's *syntax*, not its type discipline, so PHP
-  files are converted rather than dropped in — the converter infers the types PHP has no syntax for and
-  writes them into the output for you to review.
 
 ## Roadmap
 
@@ -61,7 +57,6 @@ behind each design decision — is [docs/implementation-plan.md](docs/implementa
 | M8 | Stdlib, database drivers, the `nvs:ext` WIT world | |
 | M9 | Extension system: `.nvsx` loading, sandboxing, `nvs ext` tooling | |
 | M10 | LSP, formatter, debugger, profiler, package manager | |
-| M11 | PHP → Novis transpiler | |
 | M12 | Optimising JIT tier | |
 | M13 | Optional FastCGI transport | if a deployment target needs it |
 
