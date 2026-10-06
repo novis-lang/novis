@@ -344,7 +344,8 @@ export async function run(args: string[]): Promise<number> {
       return 1;
     }
     for (const r of got.red) console.log(`affected: RED bench ${r.path}\n${r.findings.map((f) => `    ${f}`).join("\n")}`);
-    console.log(`affected: ${got.ran} bench(es) judged and recorded, ${got.red.length} red`);
+    for (const [path, by] of got.skipped) console.log(`affected: skipped bench ${path}, proven by ${by.join(", ")}`);
+    console.log(`affected: the change reached ${got.reached} bench(es): ${got.ran} judged and recorded, ${got.skipped.size} skipped, ${got.red.length} red`);
     if (got.red.length > 0) return 1;
   }
   console.log("");

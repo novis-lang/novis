@@ -151,14 +151,84 @@ export interface RedBench {
 }
 
 /**
+ * A bench a change reaches, and the changed items it executes: the changed keys its recorded footprint
+ * holds. `items` is null for a bench that runs whatever is proven: one never recorded, last red or owed,
+ * whose own files changed, or reached by a change to the whole tree.
+ */
+export interface Reach {
+  path: string;
+  items: string[] | null;
+}
+
+/** How many benches that execute a changed item must show no degradation before the item is proven. */
+export const PROVEN_BY = 2;
+
+/**
+ * `reach` in the order its benches run: each bench `items` cannot skip first, then the ones that execute
+ * the most changed items, ties by path, so the same change always picks the same benches.
+ */
+export function benchOrder(reach: Reach[]): Reach[] {
+  const weight = (r: Reach) => (r.items === null ? Infinity : r.items.length);
+  return [...reach].sort((a, b) => weight(b) - weight(a) || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+}
+
+/** What `planBenches` ran and skipped. */
+export interface BenchPlan {
+  /** The benches that ran, in the order they ran. */
+  ran: string[];
+  /** Each skipped bench, with the benches that proved its changed items. */
+  skipped: Map<string, string[]>;
+  /** The benches whose run showed a degradation. */
+  degraded: string[];
+}
+
+/**
+ * Runs the benches of `reach` in `benchOrder`, `judge` saying of each whether it showed a degradation,
+ * and skips each bench whose changed items are all proven: executed by `PROVEN_BY` benches that showed
+ * none. A degradation unproves every item of the bench that showed it, so every bench that executes one
+ * of them runs, a bench passed over before it included.
+ */
+export async function planBenches(reach: Reach[], judge: (path: string) => Promise<boolean>): Promise<BenchPlan> {
+  const order = benchOrder(reach);
+  const provers = new Map<string, string[]>();
+  const degradedItems = new Set<string>();
+  const ran: string[] = [];
+  const done = new Set<string>();
+  const degraded: string[] = [];
+  const proven = (item: string) => !degradedItems.has(item) && (provers.get(item)?.length ?? 0) >= PROVEN_BY;
+  const skips = (r: Reach) => r.items !== null && r.items.length > 0 && r.items.every(proven);
+  for (;;) {
+    const next = order.find((r) => !done.has(r.path) && !skips(r));
+    if (next === undefined) break;
+    done.add(next.path);
+    ran.push(next.path);
+    const bad = await judge(next.path);
+    if (bad) degraded.push(next.path);
+    for (const item of next.items ?? []) {
+      if (bad) degradedItems.add(item);
+      else provers.set(item, [...(provers.get(item) ?? []), next.path]);
+    }
+  }
+  const skipped = new Map<string, string[]>();
+  for (const r of order) {
+    if (done.has(r.path)) continue;
+    skipped.set(r.path, [...new Set(r.items!.flatMap((item) => provers.get(item)!.slice(0, PROVEN_BY)))]);
+  }
+  return { ran, skipped, degraded };
+}
+
+/**
  * Runs every bench the change since the store's tree selects: its perf proof's growth (`growthOf`) on the
  * release `nvs`, as `bun nv scaling --growth` judges it, and then its recording run (`recordBench`) on the
  * covws debug `nvs`, with green when the growth found nothing or only what the bench's `// proof: gap`
- * marker records. Every bench is judged before any is recorded, so no ramp shares the machine with a
- * debug run. The tree then moves past the change. With no bench selected, the store is not touched.
- * Returns the benches that ran and the red ones, or why the release build failed.
+ * marker records. The benches are judged in `planBenches`'s order, which skips a bench whose changed
+ * items are already proven, and every bench is judged before any is recorded, so no ramp shares the
+ * machine with a debug run. A skipped bench keeps its figure, and the tree then moves past the change.
+ * With no bench selected, the store is not touched. Returns how many benches the change reached and
+ * ran, each skipped one with the benches that proved it, and the red ones, or why the release build
+ * failed.
  */
-export async function runBenches(say: (line: string) => void = () => {}): Promise<{ ran: number; red: RedBench[] } | string> {
+export async function runBenches(say: (line: string) => void = () => {}): Promise<{ reached: number; ran: number; skipped: Map<string, string[]>; red: RedBench[] } | string> {
   const { advance, benchFiles, benchId, computeChange, fullChange, metadata, query, Recorder } = await engine();
   const { DEFAULT_WSL_NVS, growthOf } = await import("../cmd/scaling.ts");
   const { knownGap } = await import("./collect.ts");
@@ -175,7 +245,7 @@ export async function runBenches(say: (line: string) => void = () => {}): Promis
     const all = benchFiles();
     const sel = query(store, change, { discovered: all.map(benchId) });
     const chosen = all.filter((p) => sel.selected.has(benchId(p)));
-    if (chosen.length === 0) return { ran: 0, red: [] };
+    if (chosen.length === 0) return { reached: 0, ran: 0, skipped: new Map(), red: [] };
     const built = await releaseBinary();
     if (typeof built === "string") return built;
     const rec = await Recorder.open(store, change.view, graph, "benches");
@@ -183,25 +253,31 @@ export async function runBenches(say: (line: string) => void = () => {}): Promis
     const red: RedBench[] = [];
     try {
       const verdicts = new Map<string, Verdict>();
-      for (const [i, path] of chosen.entries()) {
-        say(`benches: ${i + 1}/${chosen.length} judging ${path}`);
+      const reach: Reach[] = chosen.map((path) => {
+        const s = sel.selected.get(benchId(path))!;
+        return { path, items: s.why === "key" ? [...new Set(s.keys.map((k) => k.key))] : null };
+      });
+      const plan = await planBenches(reach, async (path) => {
+        say(`benches: ${verdicts.size + 1}/${chosen.length} judging ${path}`);
         const g = await growthOf(path, opts, true);
         const green = g.findings.length === 0 || knownGap(read(path)) !== null;
         verdicts.set(path, green ? "green" : "red");
         if (!green) red.push({ path, findings: g.findings });
-      }
+        return !green;
+      });
       const { nvs } = await buildCovws({ onLine: cargoLines("benches: building the covws debug nvs") });
-      const ran = new Set<string>();
-      for (const [i, path] of chosen.entries()) {
-        say(`benches: ${i + 1}/${chosen.length} recording ${path}`);
+      // A skipped bench keeps its recorded footprint and verdict, so the tree moves past it too.
+      const ran = new Set([...plan.skipped.keys()].map(benchId));
+      for (const [i, path] of plan.ran.entries()) {
+        say(`benches: ${i + 1}/${plan.ran.length} recording ${path}`);
         await recordBench(rec, nvs, join(rec.dir, "bench"), path, verdicts.get(path)!);
         ran.add(benchId(path));
       }
       advance(store, change, sel, ran, graph);
+      return { reached: chosen.length, ran: plan.ran.length, skipped: plan.skipped, red };
     } finally {
       rec.close();
     }
-    return { ran: chosen.length, red };
   } finally {
     store.close();
   }
