@@ -18,7 +18,7 @@ to install. It justifies no new milestone and no reordering; where a slice would
 of a web application's, it loses.
 
 **The safety properties are how Novis is built, not who it is built for.** They are also why this does
-not end where a typed, incompatible PHP dialect ended before: that one's value depended on a package
+not end where a typed, incompatible dialect of an existing language ended before: that one's value depended on a package
 compatibility it could not hold, and Novis depends on that compatibility at no point, ships the
 framework rather than waiting for an ecosystem to appear, and differentiates on properties an
 incumbent cannot acquire in a minor release.

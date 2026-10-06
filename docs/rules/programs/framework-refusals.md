@@ -9,8 +9,8 @@
   mechanism behind facades, and nothing it would need still exists.
 - **No plugin auto-discovery beyond what exists.** `rule:programs/implementing`'s scan is the only
   discovery; there is no scan of a vendor directory for service providers.
-- **No configuration cache, no route cache, no autoload dump.** Every one of those exists in PHP
-  frameworks to move compile-time work off the request path, and every one of them is work Novis
+- **No configuration cache, no route cache, no autoload dump.** Every one of those exists in an
+  interpreted framework to move compile-time work off the request path, and every one of them is work Novis
   already does while compiling.
 - **No second way to do anything the language does.** The framework ships no collections of its own, no
   date type, no string helpers and no error hierarchy.

@@ -31,7 +31,7 @@ to install. It justifies no new milestone and no reordering; where a slice would
 of a web application's, it loses.
 
 **The safety properties are how Novis is built, not who it is built for.** They are also why this does
-not end where a typed, incompatible PHP dialect ended before: that one's value depended on a package
+not end where a typed, incompatible dialect of an existing language ended before: that one's value depended on a package
 compatibility it could not hold, and Novis depends on that compatibility at no point, ships the
 framework rather than waiting for an ecosystem to appear, and differentiates on properties an
 incumbent cannot acquire in a minor release.
@@ -255,7 +255,7 @@ enumeration members do.
 `rule:programs/compile-target`
 
 Every compile target shares one front end, one resolver, one type checker and one IR. A target is a
-*host context* plus a codegen backend, never a dialect: the type system, taint tracking, PHP-compat
+*host context* plus a codegen backend, never a dialect: the type system, taint tracking, evaluation
 semantics, name resolution, definite initialization and the checked-return ABI are identical wherever
 a program is compiled.
 
@@ -622,8 +622,8 @@ would be a second spelling of one job. `Web\Response::view` renders a `.nvs` fil
   mechanism behind facades, and nothing it would need still exists.
 - **No plugin auto-discovery beyond what exists.** [`programs/implementing`](programs.md#programs-implementing)'s scan is the only
   discovery; there is no scan of a vendor directory for service providers.
-- **No configuration cache, no route cache, no autoload dump.** Every one of those exists in PHP
-  frameworks to move compile-time work off the request path, and every one of them is work Novis
+- **No configuration cache, no route cache, no autoload dump.** Every one of those exists in an
+  interpreted framework to move compile-time work off the request path, and every one of them is work Novis
   already does while compiling.
 - **No second way to do anything the language does.** The framework ships no collections of its own, no
   date type, no string helpers and no error hierarchy.

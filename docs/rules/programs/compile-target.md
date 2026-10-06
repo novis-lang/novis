@@ -1,5 +1,5 @@
 Every compile target shares one front end, one resolver, one type checker and one IR. A target is a
-*host context* plus a codegen backend, never a dialect: the type system, taint tracking, PHP-compat
+*host context* plus a codegen backend, never a dialect: the type system, taint tracking, evaluation
 semantics, name resolution, definite initialization and the checked-return ABI are identical wherever
 a program is compiled.
 

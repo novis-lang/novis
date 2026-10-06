@@ -1,27 +1,28 @@
 {
-  "state": "**Goal `php-oracle-retired`: Stages 6 and 7 are on disk; Stage 8 is nearly done.** ADR 0274 (`docs/decisions/0274.md`) is the goal's record.\n\nStage 8 on disk: the `php-migration/` topic is dissolved, `divergesFromPhp` and `docs/divergences.md` are gone, every `php`-tagged fence under `docs/rules/` is `nvs`, and the testing rules no longer name the oracle. The incidental-mention sweep is done in `classes`, `core-api`, `types`, `core-classes`, `ide`, `tooling`, `packaging`, `statements`, `expressions`, `config`, `enums`, `errors` and `iteration`. Two PHP-to-Novis tables went with it: `config/ini-set-is-core-config-set` now lists the four `Core\\Config` methods (its title changed, its id stays), and `enums/no-class-machinery` lists jobs, not PHP spellings.\n\nMentions kept on purpose, so a later pass does not re-open them: the open-tag and `<?php`/E0229 lines (`statements/nvs-is-the-only-open-tag`, `ide/highlighting-is-two-layers`, `ide/a-string-converts-to-an-html-template`), the superglobals table (`statements/no-host-populated-variables`), the `.php` editor-coexistence rules (`ide/nvs-is-its-own-file-type`, `ide/the-extension-claims-nvs-only`, `ide/phpstorm-bridges-to-the-same-server`), `packaging/help-text-speaks-to-its-reader`, the benchmark rules (`tooling/bench-engine-list-is-data`, `testing/userland-benchmarks`, `testing/perf-*`), the PHP-habit diagnostics in `core-api` and `types`, and `programs/no-compatibility-promise`.\n\nThe Stage 9 checks the driver reports red are not written yet; they follow Stage 8.",
+  "state": "**Goal `php-oracle-retired`: Stages 6, 7 and 8 are on disk; Stage 9 is next.** ADR 0274 (`docs/decisions/0274.md`) is the goal's record.\n\nStage 8 is closed: `git grep -c -w -i php -- 'docs/rules/*/*.md'` lists only the rules kept on purpose. Those are the open-tag and `<?php`/E0229 lines (`statements/nvs-is-the-only-open-tag`, `ide/highlighting-is-two-layers`, `ide/a-string-converts-to-an-html-template`), the superglobals table (`statements/no-host-populated-variables`), the `.php` editor-coexistence rules (`ide/nvs-is-its-own-file-type`, `ide/the-extension-claims-nvs-only`, `ide/phpstorm-bridges-to-the-same-server`), `packaging/help-text-speaks-to-its-reader`, the benchmark rules (`tooling/bench-engine-list-is-data`, `testing/userland-benchmarks`, `testing/perf-*`), the PHP-habit diagnostics (`core-api/legacy-property-shapes-name-the-visibility`, `core-api/removals`, `types/callable-is-the-only-function-type`), `programs/three-claims` (the claim about comparison pages) and `programs/no-compatibility-promise`.\n\nThe four Stage 9 checks the driver reports red are the work of the next group onwards.",
   "next": {
-    "stage": 8,
-    "title": "the rules state the behaviour",
+    "stage": 9,
+    "title": "the reader's text steps back",
     "files": [],
-    "note": "one file set: rule fragments under `docs/rules/`, then `bun nv rules --render` and `bun nv reference`.",
+    "note": "one file set: `about.md` files under `docs/examples/core/`, `lang/` and `types/` (goal prose § *Stage 9*, file set 1). 245 files carry the sentence; 242 are under `core/` (Arr 45, Math 37, Str 29, IO 23, then many small classes). The sentence often wraps across lines, so each file is edited by hand, not by a regex.",
     "items": [
       {
         "done": false,
-        "text": "**Incidental PHP mentions leave `http-server`, `observability` and `security`** — goal prose § *Stage 8*; `docs/rules/http-server/a-request-resolves-in-five-steps.md:1`, listed by `git grep -n -w -i php -- 'docs/rules/http-server/*/*.md' 'docs/rules/observability/*/*.md' 'docs/rules/security/*/*.md'`. Rewrite each sentence to state the behaviour, and drop any converter or mechanical-rewrite sentence."
+        "text": "**Delete \"It replaces PHP's `x`.\" from the `Arr`, `Math` and `Str` about.md files** — goal prose § *Stage 9* item 1; `docs/examples/core/Arr/all/about.md:1`, listed by `git grep -l -i \"replaces PHP\" -- 'docs/examples/core/Arr/*about.md' 'docs/examples/core/Math/*about.md' 'docs/examples/core/Str/*about.md'`. Where the sentence opened the file, the file opens with what the feature does; follow `AGENTS.md` § *Text an end user reads*. Split across subagents by class (`AGENTS.md` rule 12), one commit per class."
       },
       {
         "done": false,
-        "text": "**The same for `programs`, except `no-compatibility-promise`** — `docs/rules/programs/three-claims.md:1`, `docs/rules/programs/audience.md:1`, `docs/rules/programs/compile-target.md:1`, `docs/rules/programs/framework-refusals.md:1`. A sentence naming where Novis came from may stay if it is the origin line the standing decisions allow; a comparison claim belongs on the claims pages."
+        "text": "**The same for every other class under `docs/examples/core/`, and the three under `lang/` and `types/`** — `docs/examples/core/IO/read/about.md:1`; then `docs/examples/README.md:55` stops inviting the hint. That turns `no-about-md-says-what-it-replaces-in-php` green."
       },
       {
         "done": false,
-        "text": "**Close Stage 8** — `git grep -c -w -i php -- 'docs/rules/*/*.md'` should list only the kept rules named in `## State`; then begin Stage 9 per the goal prose (`docs/agent/goals/php-oracle-retired.md:284` onward)."
+        "text": "**The registry text** — goal prose § *Stage 9* item 2; `crates/nvs-stdlib/src/math.rs:1`, `crates/nvs-stdlib/src/str.rs:1`; the check `no_member_text_says_what_it_replaces_in_php` in `nvs-stdlib` has to be written too."
       }
     ]
   },
   "backlog": [
-    "Stage 9: the `about.md` \"replaces PHP\" sentences, the registry text test `no_member_text_says_what_it_replaces_in_php`, the website \"Replaces in PHP\" fact, and the concept page's crosswalk — goal prose § *Stage 9*.",
-    "`crates/nvs-stdlib/src/config.rs:218` still says \"replacing `ini_restore`\" in a doc comment; it is Stage 9's registry-text work, not Stage 8's."
+    "Stage 9 items 3–5 (website, the concept page `docs/reference/tools/30-php-differences.md`, the lang chapters, `README.md:24-30`, `benches/members/` comments) — goal prose § *Stage 9*.",
+    "`full run: 1 selection miss` on `tools/nv/test/html-later-polyfill.test.ts` is red in the driver's sweep and not touched by this goal's work; check whether it is a flake or a real regression before closing the goal.",
+    "`proofs --gate` is red — read `bun nv proofs --gate` once Stage 9 lands, since it pins Stage 10."
   ]
 }
