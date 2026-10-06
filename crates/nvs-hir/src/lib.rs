@@ -83,4 +83,4 @@ pub use members::{ClassMembers, MemberResolver, MemberTable};
 pub use qname::QName;
 pub use requires::{Loaded, resolve_program, resolve_program_borrowing, resolve_program_linted};
 pub use resolve::{Import, Module, Resolver, resolve_file, resolve_file_with_extensions};
-pub use symbol::{ExtensionClass, Symbol, SymbolKind, SymbolTable};
+pub use symbol::{ExtensionClass, ExtensionFile, Symbol, SymbolKind, SymbolTable};

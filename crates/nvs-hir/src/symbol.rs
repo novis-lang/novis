@@ -54,6 +54,21 @@ pub struct ExtensionClass {
     pub methods: Vec<String>,
     /// Its `const` members.
     pub consts: Vec<String>,
+    /// The Novis source the extension carries, on the manifest's class alone:
+    /// each file's path under the extension's namespace, the class's name
+    /// minus its last segment, and its text. The graph walk resolves a name
+    /// under that namespace to the file its path gives it before it probes
+    /// any `autoload` root (`rule:packaging/an-extension-package-carries-two-payloads`).
+    pub source: Vec<ExtensionFile>,
+}
+
+/// One source file an extension carries.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExtensionFile {
+    /// The path under the extension's namespace, `/`-separated, ending in `.nvs`.
+    pub path: String,
+    /// The file's contents.
+    pub text: String,
 }
 
 /// One declared class, interface, trait, enum or `type` alias.

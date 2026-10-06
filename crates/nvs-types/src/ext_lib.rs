@@ -76,16 +76,19 @@ pub fn hir_classes(manifests: &[Manifest]) -> Vec<ExtensionClass> {
             consts: consts(manifest)
                 .map(|(constant, ..)| constant.name.clone())
                 .collect(),
+            source: Vec::new(),
         });
         classes.extend(manifest.enums.iter().map(|declared| ExtensionClass {
             name: declared_name(manifest, &declared.name),
             methods: Vec::new(),
             consts: declared.cases.clone(),
+            source: Vec::new(),
         }));
         classes.extend(manifest.resources.iter().map(|declared| ExtensionClass {
             name: declared_name(manifest, &declared.name),
             methods: Vec::new(),
             consts: Vec::new(),
+            source: Vec::new(),
         }));
     }
     classes

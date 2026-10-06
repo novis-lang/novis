@@ -360,8 +360,9 @@ fn walk(
     let mut scan: Option<Span> = None;
     let mut probed: FxHashSet<QName> = FxHashSet::default();
     let mut autoload_map: Option<AutoloadMap> = None;
+    let mut carried = carried_source(extensions);
 
-    loop {
+    'walk: loop {
         while let Some((id, stmts, depth, path)) = work.pop() {
             debug_assert!(depth <= chain.len(), "a file is popped below its parent");
             for left in chain.drain(depth..).flatten() {
@@ -505,7 +506,7 @@ fn walk(
         // complete and this is the first moment it can be consulted.
         let built = autoload_map
             .get_or_insert_with(|| AutoloadMap::build_borrowing(&sites, borrowed, diags));
-        if built.is_empty() {
+        if built.is_empty() && carried.is_empty() {
             break;
         }
 
@@ -550,6 +551,16 @@ fn walk(
             // resolved invalidates it. Resolving through `resolve_recording`
             // rather than `resolve` is what keeps that trace: it rides back out
             // inside the `AutoloadMap`, which is where the key reads it from.
+            // A loaded extension's source answers ahead of every root: it is
+            // pinned with the component, so no line a program writes moves it.
+            if let Some((display, text)) = carried.remove(&name) {
+                let new_id = map.add(display, text);
+                let new_stmts = parse_file(map.file(new_id), diags);
+                check_declarations(&new_stmts, map.file(new_id), diags);
+                autoload::check_file_shape(&new_stmts, map.file(new_id), &name, span, diags);
+                work.push((new_id, new_stmts, 0, None));
+                continue 'walk;
+            }
             if let Some(path) = built.resolve_recording(&name).hit {
                 next = Some((name, span, path));
                 break;
@@ -594,6 +605,30 @@ fn walk(
     module.aliases = aliases.resolve(diags);
 
     (module, loaded, autoload_map.unwrap_or_default())
+}
+
+/// The source files `extensions` carry, keyed by the name each declares: the
+/// extension's namespace, then the path's directories, then its file name
+/// without `.nvs`. The value is the name a diagnostic prints, the class and
+/// the path, and the text.
+fn carried_source(extensions: &[ExtensionClass]) -> FxHashMap<QName, (String, String)> {
+    let mut carried = FxHashMap::default();
+    for class in extensions {
+        let segments = class.name.segments();
+        let namespace = &segments[..segments.len().saturating_sub(1)];
+        for file in &class.source {
+            let Some(stem) = file.path.strip_suffix(".nvs") else {
+                continue;
+            };
+            let mut name = namespace.to_vec();
+            name.extend(stem.split('/').map(str::to_owned));
+            carried.insert(
+                QName::from_segments(name),
+                (format!("{}:{}", class.name, file.path), file.text.clone()),
+            );
+        }
+    }
+    carried
 }
 
 fn canonical_path(src: &SourceFile) -> Option<PathBuf> {
@@ -2280,6 +2315,63 @@ class Unreached {}
         let (_module, _loaded, _autoload) =
             resolve_program(id, stmts, &mut map, CoreRoster::Trusted, &mut diags);
         assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    /// `rule:packaging/an-extension-package-carries-two-payloads`: the class
+    /// `Shop\Ledger` carries `Ledger/Receipt.nvs`, so `Shop\Ledger\Receipt`
+    /// resolves with no `autoload` line, and only once the program names it.
+    #[test]
+    fn an_extension_namespace_resolves_through_autoload_with_no_line_written() {
+        let ledger = |text: &str| ExtensionClass {
+            name: QName::parse("Shop\\Ledger"),
+            methods: vec!["echoString".to_owned()],
+            consts: Vec::new(),
+            source: vec![crate::symbol::ExtensionFile {
+                path: "Ledger/Receipt.nvs".to_owned(),
+                text: text.to_owned(),
+            }],
+        };
+        let resolve = |entry: &str, class: ExtensionClass| {
+            let mut map = SourceMap::new();
+            let id = map.add("main.nvs", entry);
+            let mut diags = Diagnostics::new();
+            let stmts = parse_file(map.file(id), &mut diags);
+            let (module, loaded, _) = resolve_program_linted(
+                id,
+                stmts,
+                &mut map,
+                CoreRoster::Trusted,
+                &mut diags,
+                false,
+                &[],
+                &[class],
+            );
+            (module, loaded.len(), diags)
+        };
+        let receipt = "<?nvs\nnamespace Shop\\Ledger;\n\nclass Receipt {\n    public static function line(): string {\n        return \"\";\n    }\n}\n";
+        let receipt_name = QName::parse("Shop\\Ledger\\Receipt");
+
+        let (module, files, diags) = resolve(
+            "<?nvs\necho Shop\\Ledger\\Receipt::line();\n",
+            ledger(receipt),
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+        assert!(module.symbols.contains(&receipt_name));
+        assert_eq!(files, 2);
+
+        let (module, files, diags) = resolve("<?nvs\necho 1;\n", ledger(receipt));
+        assert!(!diags.has_errors(), "{diags:?}");
+        assert!(!module.symbols.contains(&receipt_name));
+        assert_eq!(files, 1, "a file nothing names is never read");
+
+        let (_, _, diags) = resolve(
+            "<?nvs\necho Shop\\Ledger\\Receipt::line();\n",
+            ledger("<?nvs\nnamespace Shop\\Ledger;\n\nclass Note {}\n"),
+        );
+        assert!(
+            diags.has_errors(),
+            "a carried file is held to the name its path gives it"
+        );
     }
 
     // --- `rule:programs/no-runtime-autoload`: the autoload map ----------------------------------------

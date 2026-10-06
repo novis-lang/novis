@@ -19,4 +19,7 @@ would spend a boundary crossing per method to append to an array
 (`rule:packaging/the-boundary-is-the-cost`), and would hold plan state across calls in an instance
 whose whole premise is that state does not outlive a request.
 
-**Not on disk.** There is no source section and no loader to read one.
+**Not on disk.** `nvs_ext::source` reads the section, and the loader refuses a file whose
+`namespace` is not under the class's own (`crates/nvs-ext/tests/load.rs`). The graph walk resolves
+a name under that namespace to the carried file with no `autoload` line
+(`nvs_hir::ExtensionClass::source`), but no command fills that field from a loaded set yet.

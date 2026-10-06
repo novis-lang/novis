@@ -1508,7 +1508,10 @@ would spend a boundary crossing per method to append to an array
 ([`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost)), and would hold plan state across calls in an instance
 whose whole premise is that state does not outlive a request.
 
-**Not on disk.** There is no source section and no loader to read one.
+**Not on disk.** `nvs_ext::source` reads the section, and the loader refuses a file whose
+`namespace` is not under the class's own (`crates/nvs-ext/tests/load.rs`). The graph walk resolves
+a name under that namespace to the carried file with no `autoload` line
+(`nvs_hir::ExtensionClass::source`), but no command fills that field from a loaded set yet.
 
 <sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io), [`packaging/an-nvsx-is-one-file-carrying-its-manifest`](packaging.md#packaging-an-nvsx-is-one-file-carrying-its-manifest), [`packaging/extension-loading-is-root-controlled`](packaging.md#packaging-extension-loading-is-root-controlled), [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0120](../decisions/0120.md), [0081](../decisions/0081.md), [0123](../decisions/0123.md), [0246](../decisions/0246.md).</sub>
 
