@@ -8,7 +8,10 @@ The rule is that the cache is one mechanism with one trust story. An extension's
 subject to the same ownership check on the directory and the same checksum on the file as a program's,
 and a wrong-environment module is a miss at the path rather than a file that is opened and rejected.
 
-**Not on disk.** `nvs_ext::load::Loader` stores a compiled component behind a `ModuleCache` seam,
+**On disk.** `nvs_ext::load::Loader` stores a compiled component behind a `ModuleCache` seam,
 keyed by the file's pin and a digest of wasmtime's compatibility hash, and a checksum mismatch or an
 entry wasmtime does not accept is a miss that is compiled and stored again
-(`crates/nvs-ext/tests/cache.rs`). Nothing implements the seam over `nvs-cli`'s artifact store yet.
+(`crates/nvs-ext/tests/cache.rs`). `nvs serve` fills the seam with its artifact cache
+(`crates/nvs-cli/src/extensions.rs`), under `env_hash` taken over an empty `[[extension]]` array:
+wasmtime's hash is in the key beside the compiler build rather than replacing it, so a rebuilt
+`nvs` compiles its components again, and a changed set compiles none.

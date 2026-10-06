@@ -35,6 +35,6 @@ its file and line (`E0651`), and the pins fold into `env_hash`. `nvs_ext::load` 
 runs every load refusal above, each naming the entry's path (`crates/nvs-ext/tests/load.rs`).
 `nvs serve` runs it over every entry at boot and at every reload, and one entry that does not load
 stops the boot or refuses the whole reload with the previous set live, naming its file and line
-(`E0652`, `crates/nvs-cli/tests/live_config.rs`). Its components are not yet compiled into the
-artifact cache, no named type (an enum, a `Core` value class, a union, a `resource`) passes its
+(`E0652`, `crates/nvs-cli/tests/live_config.rs`), and stores each compiled component in the
+artifact cache. No named type (an enum, a `Core` value class, a union, a `resource`) passes its
 export check, and `nvs ext pin` does not exist.

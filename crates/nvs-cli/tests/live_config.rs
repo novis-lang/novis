@@ -1947,9 +1947,10 @@ fn artifacts(dir: &Path) -> usize {
 }
 
 /// `[[extension]]` reloads into both caches of compiled programs. A reload
-/// that adds an extension compiles the program again, and the file cache gets
-/// a second program, written for the new set of extensions. The case writes a
-/// file into `cache/`, so the directory exists inside the private one.
+/// that adds an extension writes the compiled extension to the file cache,
+/// then compiles the program again, and the file cache gets a second program,
+/// written for the new set of extensions: three entries in all. The case
+/// writes a file into `cache/`, so the directory exists inside the private one.
 #[test]
 fn a_changed_extension_set_compiles_every_program_again() {
     let shelf = Shelf::new("extension");
@@ -1974,7 +1975,7 @@ fn a_changed_extension_set_compiles_every_program_again() {
         "the reload did not name `extension` as applied: {report}"
     );
     server.awaits("/", "an answer after the reload", |answer| {
-        answer.body == "ok" && artifacts(&cache) == 2
+        answer.body == "ok" && artifacts(&cache) == 3
     });
 }
 

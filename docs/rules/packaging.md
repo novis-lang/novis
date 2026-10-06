@@ -318,10 +318,13 @@ The rule is that the cache is one mechanism with one trust story. An extension's
 subject to the same ownership check on the directory and the same checksum on the file as a program's,
 and a wrong-environment module is a miss at the path rather than a file that is opened and rejected.
 
-**Not on disk.** `nvs_ext::load::Loader` stores a compiled component behind a `ModuleCache` seam,
+**On disk.** `nvs_ext::load::Loader` stores a compiled component behind a `ModuleCache` seam,
 keyed by the file's pin and a digest of wasmtime's compatibility hash, and a checksum mismatch or an
 entry wasmtime does not accept is a miss that is compiled and stored again
-(`crates/nvs-ext/tests/cache.rs`). Nothing implements the seam over `nvs-cli`'s artifact store yet.
+(`crates/nvs-ext/tests/cache.rs`). `nvs serve` fills the seam with its artifact cache
+(`crates/nvs-cli/src/extensions.rs`), under `env_hash` taken over an empty `[[extension]]` array:
+wasmtime's hash is in the key beside the compiler build rather than replacing it, so a rebuilt
+`nvs` compiles its components again, and a changed set compiles none.
 
 <sub>See also [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file), [`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component). Decided in [0042](../decisions/0042.md).</sub>
 
@@ -1552,8 +1555,8 @@ its file and line (`E0651`), and the pins fold into `env_hash`. `nvs_ext::load` 
 runs every load refusal above, each naming the entry's path (`crates/nvs-ext/tests/load.rs`).
 `nvs serve` runs it over every entry at boot and at every reload, and one entry that does not load
 stops the boot or refuses the whole reload with the previous set live, naming its file and line
-(`E0652`, `crates/nvs-cli/tests/live_config.rs`). Its components are not yet compiled into the
-artifact cache, no named type (an enum, a `Core` value class, a union, a `resource`) passes its
+(`E0652`, `crates/nvs-cli/tests/live_config.rs`), and stores each compiled component in the
+artifact cache. No named type (an enum, a `Core` value class, a union, a `resource`) passes its
 export check, and `nvs ext pin` does not exist.
 
 <sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`](config.md#config-lists-are-arrays-and-repeated-records-are-arrays-of-tables), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-extension-package-carries-two-payloads`](packaging.md#packaging-an-extension-package-carries-two-payloads), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0003](../decisions/0003.md), [0064](../decisions/0064.md), [0078](../decisions/0078.md), [0246](../decisions/0246.md).</sub>
