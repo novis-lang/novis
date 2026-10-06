@@ -3,5 +3,5 @@ result, and nothing else can be. A bare `return;` remains legal as an early exit
 property is definitely assigned on that path — `rule:classes/definite-property-initialization` keeps
 checking it, unchanged.
 
-PHP 8.6 deprecates the value-returning form on the same "never made sense" argument. The rewrite is
-mechanical — drop the value — and `nvs convert` applies it.
+PHP 8.6 deprecates the value-returning form on the same "never made sense" argument. The fix is to
+drop the value.

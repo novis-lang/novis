@@ -71,7 +71,7 @@ may exist; it is not the front door.
 The PHP-shaped syntax is an on-ramp. What may be said about it is bounded.
 
 **Permitted:** that Novis is familiar to a PHP developer, that `<?nvs` and inline HTML work the way
-they expect, and that `nvs convert` mechanically rewrites much of an application's own code.
+they expect, and that a PHP developer can port an application's own code by hand.
 
 **Forbidden in any document, error message or landing page:** "PHP compatible", "drop-in", "runs your
 PHP", "migrate your Laravel app", or any phrasing a reader could reasonably take as a promise that
@@ -84,14 +84,12 @@ content and never its extension, so a `.php` in a `--help` line or a manual's sy
 whatever the file is called. [`packaging/help-text-speaks-to-its-reader`](packaging.md#packaging-help-text-speaks-to-its-reader) is the same rule at the
 one surface every user meets first.
 
-`nvs convert` is a porting aid for an application's own code, never a migration guarantee, and its
-documentation leads with what it cannot do: it cannot turn a facade into a declared method, a trait
-into interface delegation, or an active-record model into a definitely-initialized class. Its default
-mode emits only rewrites a differential case proves identical and comments out the rest, its runnable
-mode annotates every unproven rewrite at its own site, and `--check` publishes the share — a measured
-number standing where a claim would otherwise be.
+There is no mechanical migration from PHP, shipped or planned, and no table that maps a PHP function
+or construct to a Novis one. A program is ported by rethinking it — by hand, or with an AI agent and
+`nvs agent` — because a facade, a trait or an active-record model has no Novis form a rewriter could
+pick for its author.
 
-<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/three-claims`](programs.md#programs-three-claims), [`packaging/help-text-speaks-to-its-reader`](packaging.md#packaging-help-text-speaks-to-its-reader). Decided in [0080](../decisions/0080.md), [0089](../decisions/0089.md), [0152](../decisions/0152.md).</sub>
+<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/three-claims`](programs.md#programs-three-claims), [`packaging/help-text-speaks-to-its-reader`](packaging.md#packaging-help-text-speaks-to-its-reader). Decided in [0080](../decisions/0080.md), [0089](../decisions/0089.md), [0152](../decisions/0152.md), [0274](../decisions/0274.md).</sub>
 
 <a id="programs-slice-ranking"></a>
 

@@ -16,6 +16,4 @@ name is accounted for individually rather than by category:
 
 The reason is not the record. A prose reason cannot be audited — "about 120 functions follow from declared
 types" leaves no way to notice the twelfth one nobody thought about — so every PHP name gets a row naming
-its outcome, and a CI check asserts the vendored built-in list has no name without one. That file is also
-where `nvs convert` gets its diagnostic, so a removed name produces a message naming the replacement rather
-than an unresolved call.
+its outcome, and a CI check asserts the vendored built-in list has no name without one.

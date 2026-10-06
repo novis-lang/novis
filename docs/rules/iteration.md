@@ -158,9 +158,6 @@ is a second cost with no offsetting capability. Iteration is the one place a cap
 streaming a cursor without materialising it — and it has its own interfaces
 ([`iteration/two-interfaces`](iteration.md#iteration-two-interfaces)).
 
-`nvs convert` has no mechanical path for either interface: each becomes a diagnostic naming the
-member that replaces it.
-
 <sub>See also [`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects), [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces). Decided in [0053](../decisions/0053.md), [0028](../decisions/0028.md), [0014](../decisions/0014.md), [0011](../decisions/0011.md).</sub>
 
 <a id="iteration-cursor-out-of-range"></a>

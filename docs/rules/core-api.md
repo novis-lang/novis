@@ -204,8 +204,7 @@ same rule stated for the two places PHP violates it most visibly.
 
 A rule with no exceptions is learnable in one sentence, and the alternative is what PHP has: `array_map`
 takes the callback first and `array_filter` takes the array first, so every call site is a lookup. The cost
-is that a converted program's argument order changes at nearly every built-in call, which `nvs convert`
-rewrites by pattern rather than by table.
+is that a ported program's argument order changes at nearly every built-in call.
 
 <sub>See also [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`core-api/one-name-one-signature`](core-api.md#core-api-one-name-one-signature). Decided in [0063](../decisions/0063.md).</sub>
 
@@ -1320,8 +1319,6 @@ name is accounted for individually rather than by category:
 
 The reason is not the record. A prose reason cannot be audited — "about 120 functions follow from declared
 types" leaves no way to notice the twelfth one nobody thought about — so every PHP name gets a row naming
-its outcome, and a CI check asserts the vendored built-in list has no name without one. That file is also
-where `nvs convert` gets its diagnostic, so a removed name produces a message naming the replacement rather
-than an unresolved call.
+its outcome, and a CI check asserts the vendored built-in list has no name without one.
 
 <sub>See also [`core-api/no-ambient-state`](core-api.md#core-api-no-ambient-state), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/array-combination`](types.md#types-array-combination). Decided in [0063](../decisions/0063.md), [0051](../decisions/0051.md).</sub>

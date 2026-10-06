@@ -13,8 +13,8 @@ compile errors; and any **measured** figure from the userland suite
 
 **Forbidden in any document, error message, `--help` text or landing page:** "faster than Python",
 "replaces Python", "Python without the GIL", "a typed Python", or any phrasing implying a Python
-program, script or package runs, converts or ports. There is no `nvs convert` for Python and none is
-planned — the rule table is a PHP table and gains no second language. The rule and its reason are
+program, script or package runs, converts or ports. No tool converts Python and none is planned. The
+rule and its reason are
 `rule:programs/three-claims`'s: a claim a reader can test and find false costs more than the
 adoption it buys.
 

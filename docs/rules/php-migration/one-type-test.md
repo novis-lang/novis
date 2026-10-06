@@ -11,15 +11,14 @@ keyword and PHP**, and it is the only place any of it is written.
 
 | PHP | Novis | why |
 |---|---|---|
-| `$x instanceof C` | `$x is C` | the converter rewrites it; the two answer identically for a class name |
+| `$x instanceof C` | `$x is C` | the two answer identically for a class name |
 | `$x instanceof $cls` where `$cls` is a `string` | `E0496`, help *`as class<T>`* | a class reference is checked where it is made, not at the test (`rule:types/class-reference-sites`) |
 | `$x instanceof $obj` | `E0496`, the same report | an object is not a class reference; `$obj::class as class<T>` is the spelling |
 | `$x is C` used as an identifier | renamed | `rule:php-migration/let-and-is-are-reserved` |
 
-The converter is M11's, over `php-rs-parser`, and rewrites only the first row. The other two are left
-to `E0496` on purpose: a string or an object on the right of `instanceof` is a place where PHP resolves
-a name at run time, and the fix is a conversion the author picks the type for, not one a rewriter can
-guess.
+The second and third rows are `E0496` on purpose: a string or an object on the right of `instanceof`
+is a place where PHP resolves a name at run time, and the fix is a conversion the author picks the
+type for.
 
 ## What `$x is $cls` means here, and why it is not PHP's
 

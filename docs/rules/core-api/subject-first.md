@@ -5,5 +5,4 @@ same rule stated for the two places PHP violates it most visibly.
 
 A rule with no exceptions is learnable in one sentence, and the alternative is what PHP has: `array_map`
 takes the callback first and `array_filter` takes the array first, so every call site is a lookup. The cost
-is that a converted program's argument order changes at nearly every built-in call, which `nvs convert`
-rewrites by pattern rather than by table.
+is that a ported program's argument order changes at nearly every built-in call.

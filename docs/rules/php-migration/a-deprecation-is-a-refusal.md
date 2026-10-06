@@ -18,5 +18,4 @@ switch (`rule:php-migration/a-session-id-the-store-did-not-issue-is-rejected`). 
 nothing: `clamp` is `Core\Math::clamp`, `Time\Duration` is `Core\Time\Duration`, written
 like `1h30m` (`rule:types/duration`), `Io\Poll` has no landing spot because readiness is
 runtime-internal and user code gets structured concurrency, and nearly every other deprecation names
-surface Novis never shipped. Three of the four refusals rewrite mechanically under `nvs convert`;
-`return` in `finally` is the one it can only point at.
+surface Novis never shipped.

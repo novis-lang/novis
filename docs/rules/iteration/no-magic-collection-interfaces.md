@@ -7,6 +7,3 @@ dispatch already rejected for `$obj->prop`; and reading as an array while none o
 is a second cost with no offsetting capability. Iteration is the one place a capability is bought —
 streaming a cursor without materialising it — and it has its own interfaces
 (`rule:iteration/two-interfaces`).
-
-`nvs convert` has no mechanical path for either interface: each becomes a diagnostic naming the
-member that replaces it.

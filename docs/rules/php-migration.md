@@ -161,8 +161,8 @@ change the result in a `catch`, or after the region.
 `break` and `continue` whose target lies outside the `finally` are refused on the same grounds; a
 loop wholly inside the block keeps both.
 
-This is the one PHP 8.6 refusal with no mechanical rewrite. Whether the override was a bug (usually)
-or intent is a human's call, so `nvs convert` points at the line and rewrites nothing.
+Whether an override was a bug (usually) or intent is the author's call, so the diagnostic names both
+rewrites and picks neither.
 
 <sub>See also [`php-migration/a-deprecation-is-a-refusal`](php-migration.md#php-migration-a-deprecation-is-a-refusal), [`php-migration/a-body-never-falls-off-its-end`](php-migration.md#php-migration-a-body-never-falls-off-its-end). Decided in [0124](../decisions/0124.md).</sub>
 
@@ -177,8 +177,8 @@ result, and nothing else can be. A bare `return;` remains legal as an early exit
 property is definitely assigned on that path — [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization) keeps
 checking it, unchanged.
 
-PHP 8.6 deprecates the value-returning form on the same "never made sense" argument. The rewrite is
-mechanical — drop the value — and `nvs convert` applies it.
+PHP 8.6 deprecates the value-returning form on the same "never made sense" argument. The fix is to
+drop the value.
 
 <sub>See also [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`php-migration/a-deprecation-is-a-refusal`](php-migration.md#php-migration-a-deprecation-is-a-refusal). Decided in [0124](../decisions/0124.md), [0022](../decisions/0022.md).</sub>
 
@@ -196,10 +196,8 @@ names it, and names dropping `readonly` as the other fix. Letting the default st
 assignment would make a property spell what `const` spells — two names for one thing, the pattern
 [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name) refuses.
 
-PHP 8.6 allows the combination, chiefly for hooks in interfaces. This reopens only if that form
-becomes idiomatic in the corpora `nvs convert` targets — the trigger is conversion pressure, not the
-RFC landing. Until then the rewrite is mechanical: move the default into the constructor, or make it
-a `const`.
+PHP 8.6 allows the combination, chiefly for hooks in interfaces. The fix is to move the default into
+the constructor, or make it a `const`.
 
 <sub>See also [`types/class-constant`](types.md#types-class-constant), [`classes/lateinit`](classes.md#classes-lateinit), [`classes/promotion-is-constructor-only`](classes.md#classes-promotion-is-constructor-only), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`php-migration/a-deprecation-is-a-refusal`](php-migration.md#php-migration-a-deprecation-is-a-refusal). Decided in [0124](../decisions/0124.md).</sub>
 
@@ -215,13 +213,10 @@ an anonymous function already spells every partial application: `fn($a) => f($a,
 ([`types/anonymous-function`](types.md#types-anonymous-function)). A second callable-producing spelling, for no capability `fn` lacks,
 is what was rejected.
 
-`nvs convert` rewrites a PHP 8.6 `?` placeholder into that wrapper mechanically — each `?` becomes a
-fresh parameter, in order. The pipeline operator is unaffected: its `$_` is a parse-time
-substitution, not an application ([`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution)), and the hole
-diagnostic ([`expressions/pipeline-hole-once`](expressions.md#expressions-pipeline-hole-once)) already teaches the difference.
-
-This reopens only on conversion pressure — widespread `?` placeholders in real conversion targets —
-at which point the wrapper either suffices or measurably bloats output.
+A PHP 8.6 `?` placeholder is written as that wrapper, each `?` a fresh parameter, in order. The
+pipeline operator is unaffected: its `$_` is a parse-time substitution, not an application
+([`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution)), and the hole diagnostic
+([`expressions/pipeline-hole-once`](expressions.md#expressions-pipeline-hole-once)) already teaches the difference.
 
 <sub>See also [`types/anonymous-function`](types.md#types-anonymous-function), [`types/callable-values`](types.md#types-callable-values), [`expressions/method-reference`](expressions.md#expressions-method-reference), [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution), [`expressions/pipeline-hole-once`](expressions.md#expressions-pipeline-hole-once), [`php-migration/a-deprecation-is-a-refusal`](php-migration.md#php-migration-a-deprecation-is-a-refusal). Decided in [0124](../decisions/0124.md), [0027](../decisions/0027.md), [0031](../decisions/0031.md).</sub>
 
@@ -274,15 +269,14 @@ keyword and PHP**, and it is the only place any of it is written.
 
 | PHP | Novis | why |
 |---|---|---|
-| `$x instanceof C` | `$x is C` | the converter rewrites it; the two answer identically for a class name |
+| `$x instanceof C` | `$x is C` | the two answer identically for a class name |
 | `$x instanceof $cls` where `$cls` is a `string` | `E0496`, help *`as class<T>`* | a class reference is checked where it is made, not at the test ([`types/class-reference-sites`](types.md#types-class-reference-sites)) |
 | `$x instanceof $obj` | `E0496`, the same report | an object is not a class reference; `$obj::class as class<T>` is the spelling |
 | `$x is C` used as an identifier | renamed | [`php-migration/let-and-is-are-reserved`](php-migration.md#php-migration-let-and-is-are-reserved) |
 
-The converter is M11's, over `php-rs-parser`, and rewrites only the first row. The other two are left
-to `E0496` on purpose: a string or an object on the right of `instanceof` is a place where PHP resolves
-a name at run time, and the fix is a conversion the author picks the type for, not one a rewriter can
-guess.
+The second and third rows are `E0496` on purpose: a string or an object on the right of `instanceof`
+is a place where PHP resolves a name at run time, and the fix is a conversion the author picks the
+type for.
 
 ## What `$x is $cls` means here, and why it is not PHP's
 
@@ -332,8 +326,7 @@ switch ([`php-migration/a-session-id-the-store-did-not-issue-is-rejected`](php-m
 nothing: `clamp` is `Core\Math::clamp`, `Time\Duration` is `Core\Time\Duration`, written
 like `1h30m` ([`types/duration`](types.md#types-duration)), `Io\Poll` has no landing spot because readiness is
 runtime-internal and user code gets structured concurrency, and nearly every other deprecation names
-surface Novis never shipped. Three of the four refusals rewrite mechanically under `nvs convert`;
-`return` in `finally` is the one it can only point at.
+surface Novis never shipped.
 
 <sub>See also [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`expressions/no-keyword-logical-operators`](expressions.md#expressions-no-keyword-logical-operators), [`expressions/bracket-destructuring`](expressions.md#expressions-bracket-destructuring), [`php-migration/no-return-leaves-a-finally`](php-migration.md#php-migration-no-return-leaves-a-finally), [`php-migration/a-constructor-return-carries-no-value`](php-migration.md#php-migration-a-constructor-return-carries-no-value), [`php-migration/let-and-is-are-reserved`](php-migration.md#php-migration-let-and-is-are-reserved), [`php-migration/a-readonly-property-declares-no-default`](php-migration.md#php-migration-a-readonly-property-declares-no-default), [`php-migration/no-partial-application`](php-migration.md#php-migration-no-partial-application), [`php-migration/a-session-id-the-store-did-not-issue-is-rejected`](php-migration.md#php-migration-a-session-id-the-store-did-not-issue-is-rejected), [`types/duration`](types.md#types-duration). Decided in [0124](../decisions/0124.md).</sub>
 
