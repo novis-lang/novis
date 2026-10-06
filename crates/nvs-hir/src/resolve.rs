@@ -10,7 +10,7 @@ use nvs_syntax::ast::{
 use rustc_hash::FxHashMap;
 
 use crate::qname::QName;
-use crate::symbol::{Symbol, SymbolKind, SymbolTable};
+use crate::symbol::{ExtensionClass, Symbol, SymbolKind, SymbolTable};
 
 /// One `use Path\To\Name;` import, checked against the declarations collected
 /// from every file [`Resolver::collect_declarations`] has seen so far.
@@ -76,6 +76,15 @@ impl Resolver {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Declares the classes of the loaded extension set. Called before the
+    /// first [`Self::collect_declarations`], so a source file declaring one
+    /// of these names is the declaration refused.
+    pub fn declare_extensions(&mut self, classes: &[ExtensionClass]) {
+        for class in classes {
+            self.module.symbols.declare_extension(&class.name);
+        }
     }
 
     /// Walks `stmts`' declarations into the symbol table and records its
@@ -185,6 +194,16 @@ impl Resolver {
                 Diagnostic::error(
                     code::E_DUPLICATE_DECLARATION,
                     format!("`{qname}` is already declared by the compiler"),
+                )
+                .with_primary(name.span, "duplicate declaration"),
+            );
+            return;
+        }
+        if self.module.symbols.is_extension(&qname) {
+            diags.report(
+                Diagnostic::error(
+                    code::E_DUPLICATE_DECLARATION,
+                    format!("`{qname}` is already declared by a loaded extension"),
                 )
                 .with_primary(name.span, "duplicate declaration"),
             );
@@ -311,7 +330,21 @@ pub(crate) fn qname_segments(src: &SourceFile, name: &Name) -> Vec<String> {
 /// so the one that refuses a `Core` name nothing declares.
 #[must_use]
 pub fn resolve_file(stmts: &[Stmt], src: &SourceFile, diags: &mut Diagnostics) -> Module {
+    resolve_file_with_extensions(stmts, src, &[], diags)
+}
+
+/// [`resolve_file`] with the classes of a loaded extension set declared ahead
+/// of the file, so a reference to one resolves like a reference to a class
+/// the file declares.
+#[must_use]
+pub fn resolve_file_with_extensions(
+    stmts: &[Stmt],
+    src: &SourceFile,
+    extensions: &[ExtensionClass],
+    diags: &mut Diagnostics,
+) -> Module {
     let mut resolver = Resolver::new();
+    resolver.declare_extensions(extensions);
     resolver.collect_declarations(stmts, src, diags);
     resolver.resolve_imports(diags);
     let mut hierarchy =
@@ -322,6 +355,9 @@ pub fn resolve_file(stmts: &[Stmt], src: &SourceFile, diags: &mut Diagnostics) -
     module.graph = graph;
 
     let mut members = crate::members::MemberResolver::new();
+    for class in extensions {
+        members.declare_extension(class);
+    }
     members.collect_members(stmts, src);
     members.check(stmts, src, &module.symbols, &module.graph, false, diags);
     module.members = members.into_table();

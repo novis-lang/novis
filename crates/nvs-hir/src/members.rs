@@ -233,6 +233,14 @@ impl<'a> MemberResolver<'a> {
         }
     }
 
+    /// Records the members of a class a loaded extension declares, which has
+    /// no source for [`Self::collect_members`] to walk.
+    pub fn declare_extension(&mut self, class: &crate::symbol::ExtensionClass) {
+        let entry = self.table.entry(class.name.clone());
+        entry.methods.extend(class.methods.iter().cloned());
+        entry.consts.extend(class.consts.iter().cloned());
+    }
+
     /// Consumes the resolver, returning the [`MemberTable`] it collected.
     #[must_use]
     pub fn into_table(self) -> MemberTable {

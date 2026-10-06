@@ -1,10 +1,18 @@
 //! The symbol table: one entry per declared class/interface/enum/type alias,
 //! keyed by its fully-qualified [`QName`].
+//!
+//! A class a loaded extension declares has no source text, so it has no
+//! [`Symbol`] and no span: [`SymbolTable::declare_extension`] records its name
+//! apart, and [`SymbolTable::contains`] answers for both. Every resolver that
+//! asks "is this name declared" then reads an extension class as declared,
+//! with no extension branch of its own, and every reader that needs a span —
+//! a duplicate's secondary label, the editor's go-to-definition — finds none
+//! to misuse.
 
 use std::collections::hash_map::Entry;
 
 use nvs_diagnostics::Span;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::qname::QName;
 
@@ -35,6 +43,19 @@ impl SymbolKind {
     }
 }
 
+/// A class a loaded extension declares, as name resolution sees it: its name
+/// and the names of its members. `nvs_types::ext_lib` builds one from each
+/// manifest of the loaded set, and its types are that module's business.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExtensionClass {
+    /// The class's fully-qualified name.
+    pub name: QName,
+    /// Its `static` methods.
+    pub methods: Vec<String>,
+    /// Its `const` members.
+    pub consts: Vec<String>,
+}
+
 /// One declared class, interface, trait, enum or `type` alias.
 #[derive(Clone, Debug)]
 pub struct Symbol {
@@ -56,6 +77,8 @@ pub struct Symbol {
 #[derive(Debug, Default)]
 pub struct SymbolTable {
     by_name: FxHashMap<String, Symbol>,
+    /// The classes the loaded extension set declares, which have no source.
+    extensions: FxHashSet<String>,
 }
 
 impl SymbolTable {
@@ -86,10 +109,25 @@ impl SymbolTable {
         self.by_name.get(&qname.to_string())
     }
 
-    /// Whether a declaration exists under this fully-qualified name.
+    /// Records a class a loaded extension declares. Declared before any source
+    /// file is collected, so a source declaration of the same name is the one
+    /// refused ([`Self::is_extension`]).
+    pub fn declare_extension(&mut self, qname: &QName) {
+        self.extensions.insert(qname.to_string());
+    }
+
+    /// Whether a loaded extension declares `qname`.
+    #[must_use]
+    pub fn is_extension(&self, qname: &QName) -> bool {
+        self.extensions.contains(&qname.to_string())
+    }
+
+    /// Whether a declaration exists under this fully-qualified name, in source
+    /// or in a loaded extension.
     #[must_use]
     pub fn contains(&self, qname: &QName) -> bool {
-        self.by_name.contains_key(&qname.to_string())
+        let name = qname.to_string();
+        self.by_name.contains_key(&name) || self.extensions.contains(&name)
     }
 
     /// Every declared symbol, in no particular order.
