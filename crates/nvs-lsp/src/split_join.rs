@@ -39,5 +39,6 @@ pub fn at(analysed: &Analysed, start: BytePos, encoding: PositionEncoding) -> Op
         kind: KIND.to_owned(),
         range: range_at(file, span, encoding),
         replacement: edit.replacement,
+        also: Vec::new(),
     })
 }

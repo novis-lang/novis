@@ -122,6 +122,7 @@ pub fn at(
         kind: KIND.to_owned(),
         range: range_at(file, node.span, encoding),
         replacement,
+        also: Vec::new(),
     })
 }
 

@@ -115,14 +115,17 @@ pub struct Region {
     pub language: String,
 }
 
-/// One fix an editor may offer, with the edit it would apply.
+/// One fix an editor may offer, with the edits it would apply.
 ///
-/// **One edit and not a list.** Every fix this server offers is a translation
-/// of one [`nvs_diagnostics::Suggestion`]
+/// **One edit, and the ones its diagnostic ties to it.** Every fix this server
+/// offers is a translation of the [`nvs_diagnostics::Suggestion`]s a
+/// diagnostic carries
 /// (`rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`), and
-/// a suggestion is one span and the text to put there. A fix wanting two edits
-/// is one the checker would have to compute, which is the far side of the
-/// boundary that rule draws. The html-template refactor replaces one span too.
+/// a suggestion is one span and the text to put there. Nearly every fix is one
+/// suggestion, so `also` is empty. A `W1003` rewrite that writes a name its file
+/// does not import is the exception: its `use` line is a second suggestion,
+/// and it lands in `also` because applying the rewrite alone leaves a name that
+/// does not resolve. The html-template refactor replaces one span.
 ///
 /// The kind is a string for [`Redaction`]'s reason turned around: LSP's own
 /// kinds are an open hierarchy ([`crate::CODE_ACTION_KINDS`]). A fix's kind is
@@ -137,6 +140,17 @@ pub struct Action {
     /// The kind it is filed under, which is what decides whether
     /// `editor.codeActionsOnSave` runs it.
     pub kind: String,
+    /// The bytes it replaces.
+    pub range: Range,
+    /// What it puts there. Empty means a deletion.
+    pub replacement: String,
+    /// The edits applied with it, in the order the diagnostic carried them.
+    pub also: Vec<Edit>,
+}
+
+/// One edit an [`Action`] applies beside its first.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Edit {
     /// The bytes it replaces.
     pub range: Range,
     /// What it puts there. Empty means a deletion.
@@ -588,13 +602,25 @@ fn lens(item: &CodeLens) -> ((u32, u32, u32, u32), String) {
 /// otherwise freeze as a line an editor's whitespace trim silently corrects.
 /// Both it and the title write their line breaks escaped, on [`diagnostic`]'s
 /// terms — one entry is one line, and a fix spanning lines is not two actions.
+/// Each edit in `also` follows on the same line as ` + L:C-L:C -> "text"`.
 fn action(item: &Action) -> ((u32, u32, u32, u32), String) {
     let title = item.title.replace('\n', "\\n");
     let replacement = item.replacement.replace('\n', "\\n");
+    let also: String = item
+        .also
+        .iter()
+        .map(|edit| {
+            format!(
+                " + {} -> \"{}\"",
+                range(edit.range),
+                edit.replacement.replace('\n', "\\n")
+            )
+        })
+        .collect();
     (
         span_key(item.range),
         format!(
-            "{} {} {title} -> \"{replacement}\"",
+            "{} {} {title} -> \"{replacement}\"{also}",
             range(item.range),
             item.kind
         ),
@@ -733,6 +759,7 @@ mod tests {
                 kind: "quickfix".to_owned(),
                 range: span(1, 6, 18),
                 replacement: "UserAccount".to_owned(),
+                also: Vec::new(),
             }]),
             Response::CodeLens(vec![CodeLens {
                 range: span(1, 6, 10),
@@ -976,16 +1003,21 @@ mod tests {
                     kind: "quickfix".to_owned(),
                     range: span(2, 4, 9),
                     replacement: String::new(),
+                    also: Vec::new(),
                 },
                 Action {
                     title: "rename to `UserAccount`".to_owned(),
                     kind: "quickfix".to_owned(),
                     range: span(1, 6, 18),
                     replacement: "UserAccount".to_owned(),
+                    also: vec![Edit {
+                        range: span(0, 0, 0),
+                        replacement: "use Shop\\Money;\n".to_owned(),
+                    }],
                 },
             ])
             .render(),
-            "2:7-2:19 quickfix rename to `UserAccount` -> \"UserAccount\"\n\
+            "2:7-2:19 quickfix rename to `UserAccount` -> \"UserAccount\" + 1:1-1:1 -> \"use Shop\\Money;\\n\"\n\
              3:5-3:10 quickfix drop it -> \"\"\n"
         );
 

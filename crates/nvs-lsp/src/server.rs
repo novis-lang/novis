@@ -1667,9 +1667,10 @@ fn document_link(
 /// action carries its own kind, since the refactor's is never the one asked
 /// for.
 ///
-/// The edit crosses as a [`WorkspaceEdit`] naming this document alone: one
-/// action is one span in one file, and the file is the one the client asked
-/// about. `diagnostics` is left unset — the client is holding the
+/// The edits cross as a [`WorkspaceEdit`] naming this document alone: an
+/// action edits one file, and the file is the one the client asked about. Its
+/// first edit and then its `also` are one list, so the client applies a rewrite
+/// and its `use` line together. `diagnostics` is left unset — the client is holding the
 /// published diagnostic already, and re-deriving the wire value here would be a
 /// second place the same range is computed.
 ///
@@ -1691,20 +1692,23 @@ fn code_actions(
     actions::at(&analysed, completion_files, start, end, kind, encoding)
         .into_iter()
         .map(|action| {
+            let edits = std::iter::once(TextEdit {
+                range: action.range,
+                new_text: action.replacement,
+            })
+            .chain(action.also.into_iter().map(|edit| TextEdit {
+                range: edit.range,
+                new_text: edit.replacement,
+            }))
+            .collect();
             CodeActionOrCommand::CodeAction(CodeAction {
                 title: action.title,
                 kind: Some(CodeActionKind::from(action.kind)),
                 edit: Some(WorkspaceEdit {
                     changes: Some(
-                        [(
-                            params.text_document.uri.clone(),
-                            vec![TextEdit {
-                                range: action.range,
-                                new_text: action.replacement,
-                            }],
-                        )]
-                        .into_iter()
-                        .collect(),
+                        [(params.text_document.uri.clone(), edits)]
+                            .into_iter()
+                            .collect(),
                     ),
                     ..WorkspaceEdit::default()
                 }),

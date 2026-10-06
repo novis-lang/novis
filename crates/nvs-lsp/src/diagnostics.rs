@@ -395,7 +395,8 @@ const fn severity(severity: Severity) -> DiagnosticSeverity {
 /// needs the `Uri` of a file that is not necessarily this one, and a
 /// [`nvs_diagnostics::Suggestion`] is a code action, which is
 /// `textDocument/codeAction`'s. The one tag set here is `Deprecated`, on
-/// `W1021`, the hint [`from_completion_files`] gives a deprecated value. The
+/// `W1003`, a use of deprecated code, and on `W1021`, the hint
+/// [`from_completion_files`] gives a deprecated value. The
 /// `Unnecessary` tag is not set here: no compiler diagnostic carries it, and
 /// [`dimming`] is where the index produces one instead.
 #[must_use]
@@ -425,7 +426,11 @@ pub fn to_wire(
         source: Some(SOURCE.to_owned()),
         message: diagnostic.message.clone(),
         related_information: None,
-        tags: (diagnostic.code == Some(code::W_COMPLETION_VALUE_DEPRECATED))
+        tags: diagnostic
+            .code
+            .is_some_and(|found| {
+                found == code::W_DEPRECATED || found == code::W_COMPLETION_VALUE_DEPRECATED
+            })
             .then(|| vec![DiagnosticTag::DEPRECATED]),
         data: None,
     }

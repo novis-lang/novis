@@ -1,13 +1,16 @@
 //! What may be fixed at the cursor, and which diagnostic each fix came from.
 //!
 //! `textDocument/codeAction` is a translation and not an analysis. Every fix
-//! this server offers is one [`nvs_diagnostics::Suggestion`] a diagnostic is
-//! already carrying — the casing rename (`rule:core-api/identifier-casing`) and
-//! the legacy cast's `expr as T` (`rule:types/no-legacy-cast`) are the two that
-//! exist in the compiler, and a deprecated completion-file value's
-//! `replacement` is the one the server adds — so this module reads the
-//! diagnostics `publishDiagnostics` sends anyway and rewrites what it finds
-//! into [`crate::render::Action`]. That is
+//! this server offers is made of [`nvs_diagnostics::Suggestion`]s a diagnostic
+//! is already carrying — the casing rename (`rule:core-api/identifier-casing`),
+//! the legacy cast's `expr as T` (`rule:types/no-legacy-cast`), an undeclared
+//! name's import, and a deprecated use's rewrite with the `use` line it needs
+//! (`rule:attributes/a-deprecation-names-its-replacement-as-code`) come from the
+//! compiler, and a deprecated completion-file value's `replacement` is the one
+//! the server adds — so this module reads the diagnostics `publishDiagnostics`
+//! sends anyway and rewrites what it finds into [`crate::render::Action`]. A
+//! `W1003`'s suggestions are one action; every other suggestion is an action of
+//! its own. That is
 //! `rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows` in
 //! full: a fix the checker would have to compute has no `Suggestion` behind it,
 //! so there is nothing here for it to be translated *from*, and it is offered
@@ -32,10 +35,16 @@
 //!
 //! An action is offered when the *diagnostic's* primary span meets the range
 //! the client asked over, and the edit it carries may be anywhere: that is
-//! what a person means by clicking on the squiggle. The two fixes that ship
-//! today edit inside their own diagnostic's span, so the distinction costs
-//! nothing now and is what keeps a later fix — one that adds a line above the
-//! one under the cursor — reachable from the place it is about.
+//! what a person means by clicking on the squiggle. An import edits the `use`
+//! lines at the top of the file, and it is reached from the name it is for.
+//!
+//! # Decision: a fix-all writes one `use` line once
+//!
+//! Two deprecated uses that need the same import each carry the same `use`
+//! edit. Under [`Kind::FixAll`] an `also` edit an earlier action carries is
+//! dropped from every later one, because an editor applies all of them on save.
+//! A light bulb applies one action, so under [`Kind::QuickFix`] each keeps its
+//! own.
 //!
 //! # Decision: `safe` does not gate the light bulb
 //!
@@ -58,18 +67,20 @@
 //! # What it spends
 //!
 //! One pass over the diagnostics the analysis already holds, and one
-//! [`Action`] per suggestion that survives — both O(diagnostics in the entry
-//! document) and both dropped with the answer. No tree is walked and nothing is
+//! [`Action`] per fix that survives — both O(diagnostics in the entry
+//! document) and both dropped with the answer. A fix-all also compares each
+//! `also` edit with the ones before it, which is quadratic in the imports one
+//! save writes. No tree is walked and nothing is
 //! parsed a second time.
 
 use lsp_types::CodeActionKind;
-use nvs_diagnostics::{BytePos, Diagnostic, PositionEncoding, SourceId};
+use nvs_diagnostics::{BytePos, Diagnostic, PositionEncoding, SourceId, Suggestion, code};
 
 use crate::completion_files::CompletionFiles;
 use crate::diagnostics::{from_completion_files, phase_gated};
 use crate::document::Analysed;
 use crate::position::range_at;
-use crate::render::Action;
+use crate::render::{Action, Edit};
 
 /// Which kind the actions of one answer carry.
 ///
@@ -150,14 +161,24 @@ pub fn at(
         .into_iter()
         .chain(&listed)
         .filter(|diagnostic| touches(diagnostic, analysed.entry, start, end))
-        .flat_map(|diagnostic| diagnostic.suggestions.iter())
-        .filter(|suggestion| suggestion.span.file == analysed.entry)
-        .filter(|suggestion| kind == Kind::QuickFix || !suggestion.alternative)
-        .map(|suggestion| Action {
-            title: suggestion.message.clone(),
+        .flat_map(fixes)
+        .filter(|fix| {
+            fix.iter()
+                .all(|suggestion| suggestion.span.file == analysed.entry)
+        })
+        .filter(|fix| kind == Kind::QuickFix || !fix[0].alternative)
+        .map(|fix| Action {
+            title: fix[0].message.clone(),
             kind: kind.name().to_owned(),
-            range: range_at(file, suggestion.span, encoding),
-            replacement: suggestion.replacement.clone(),
+            range: range_at(file, fix[0].span, encoding),
+            replacement: fix[0].replacement.clone(),
+            also: fix[1..]
+                .iter()
+                .map(|suggestion| Edit {
+                    range: range_at(file, suggestion.span, encoding),
+                    replacement: suggestion.replacement.clone(),
+                })
+                .collect(),
         })
         .collect();
     if kind == Kind::QuickFix {
@@ -165,7 +186,41 @@ pub fn at(
         offered.extend(crate::split_join::at(analysed, start, encoding));
     }
     offered.sort_by(|left, right| order(left).cmp(&order(right)));
+    if kind == Kind::FixAll {
+        once_each(&mut offered);
+    }
     offered
+}
+
+/// The fixes `diagnostic` offers, each as the suggestions one action applies.
+///
+/// A `W1003` is one fix. Its first suggestion is the rewrite, and the one after
+/// it is the `use` line the rewrite needs, so applying either alone leaves code
+/// that does not compile. Every other diagnostic offers each suggestion as a
+/// fix of its own, which is how `W1022`'s two groupings stay a choice.
+fn fixes(diagnostic: &Diagnostic) -> Vec<&[Suggestion]> {
+    if diagnostic.code == Some(code::W_DEPRECATED) {
+        return (!diagnostic.suggestions.is_empty())
+            .then_some(diagnostic.suggestions.as_slice())
+            .into_iter()
+            .collect();
+    }
+    diagnostic.suggestions.chunks(1).collect()
+}
+
+/// Drops from each action of a fix-all an `also` edit an earlier action already
+/// carries.
+///
+/// Two uses in one file that need the same import each carry the same `use`
+/// line, at the same place. An editor applies every action of a fix-all, so
+/// keeping both would write the line twice. The first action keeps it, and a
+/// light bulb, which applies one action, keeps it on every one.
+fn once_each(offered: &mut [Action]) {
+    let mut seen: Vec<Edit> = Vec::new();
+    for action in offered {
+        action.also.retain(|edit| !seen.contains(edit));
+        seen.extend(action.also.iter().cloned());
+    }
 }
 
 /// What one action sorts by: where its edit lands, then what it is called.
