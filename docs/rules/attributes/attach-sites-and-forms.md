@@ -1,6 +1,6 @@
-An attribute attaches to four things: a class or interface declaration, a method declaration, a
-property declaration, and a parameter. It is written directly above the declaration, or directly
-before the parameter.
+An attribute attaches to a declaration: a class, an interface or an enum, a method, a property or one
+of its hooks, a class constant, an enum case, and a method's parameter. It is written directly above
+the declaration, or directly before the parameter or the enum case.
 
 ```nvs
 #[Route(path: "/users/:id", method: "GET")]
@@ -36,4 +36,8 @@ group's own `]`, so the declaration after it still parses and nothing else is re
 
 The one exemption is the closed, `Core`-owned roster of compiler-recognized attributes, matched by name
 and naming no shape at all. Each is a plain name, so `Owner::Name` never matches one. Every userland
-name is an alias or a mistake.
+name is an alias or a mistake. A recognized attribute takes only the sites where it means something,
+and the rule that owns it names them: `#[Core\Path]` is written before a `string` parameter
+(`rule:programs/relative-paths-resolve-from-their-file`), and `#[Core\Deprecated]` above any of these
+sites but a property hook and that hook's parameter
+(`rule:attributes/a-deprecation-names-its-replacement-as-code`).

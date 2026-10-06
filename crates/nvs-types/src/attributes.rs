@@ -43,8 +43,10 @@ use crate::{Ctx, Env, span_text};
 /// Every attribute attached anywhere under one class/interface/enum body:
 /// the declaration's own groups, each member's, each method parameter's and
 /// each property hook's. One entry point per declaration kind would be a copy
-/// of this walk each, so the caller hands over the lists it has.
+/// of this walk each, so the caller hands over the lists it has, and says
+/// which of the three declarations they came from.
 pub(crate) fn check_declaration(
+    decl: crate::deprecated::Decl,
     groups: &[AttributeGroup],
     members: &[ClassMember],
     cases: &[EnumCase],
@@ -52,9 +54,11 @@ pub(crate) fn check_declaration(
     env: &mut Env<'_>,
 ) {
     check_groups(groups, ctx, env);
-    // `#[Core\Path]`'s attach rule asks the same question of every site this
-    // walk visits, so it walks the same lists once, beside it.
+    // `#[Core\Path]`'s and `#[Core\Deprecated]`'s attach rules ask the same
+    // question of every site this walk visits, so each walks the same lists
+    // once, beside it.
     crate::paths::check_marker_sites(groups, members, cases, ctx, env);
+    crate::deprecated::check_sites(decl, groups, members, cases, ctx, env);
     for member in members {
         match &member.kind {
             ClassMemberKind::Property(p) => {
@@ -225,6 +229,17 @@ fn check_recognized(
             // declares — so they are asked by the per-class walk that
             // holds those, exactly as `#[Route]`'s own path checks are.
             check_roster("Api", crate::routes::API_OPTIONS, &attr.fields, ctx, env);
+        } else if recognized(crate::derive::DEPRECATED) {
+            // The roster admits `construct` everywhere, because it cannot see
+            // the declaration; `crate::deprecated::check_sites` refuses it on
+            // everything but a class.
+            check_roster(
+                r"Core\Deprecated",
+                crate::deprecated::OPTIONS,
+                &attr.fields,
+                ctx,
+                env,
+            );
         } else if payload.clean {
             // A recognized name with no roster — `#[Json\Field]`,
             // `#[TestWith]` — has its payload read by its own pass, which

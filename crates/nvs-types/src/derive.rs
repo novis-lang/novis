@@ -64,10 +64,11 @@ use crate::{Ctx, Env, span_text, strip_sigil};
 /// recognizing pass's own question: `#[Json\Derive]`/`#[Json\Field]` are this
 /// module's, `#[Test]` is [`crate::testing`]'s, `#[Command]`/`#[Option]` are
 /// [`crate::commands`]', `#[Route]`/`#[Query]`/`#[Access]` are
-/// [`crate::routes`]', and `#[Core\Path]` is [`crate::paths`]'.
+/// [`crate::routes`]', `#[Core\Path]` is [`crate::paths`]' and
+/// `#[Core\Deprecated]` is [`crate::deprecated`]'s.
 pub const ATTRIBUTES: &[&str] = [
     DERIVE, FIELD, DB_DERIVE, DB_FIELD, TEST, FIXTURE, TEST_WITH, COMMAND, OPTION, ROUTE, QUERY,
-    ACCESS, API, PATH,
+    ACCESS, API, PATH, DEPRECATED,
 ]
 .as_slice();
 
@@ -402,6 +403,35 @@ pub const ATTRIBUTE_DOCS: &[AttributeDoc] = &[
                 in a call is joined to the folder of the file that contains the call.",
         site: "a `string` parameter",
     },
+    AttributeDoc {
+        name: DEPRECATED,
+        fields: &[
+            AttributeField {
+                name: "since",
+                ty: "string",
+                required: false,
+            },
+            AttributeField {
+                name: "note",
+                ty: "string",
+                required: false,
+            },
+            AttributeField {
+                name: "replace",
+                ty: "string",
+                required: false,
+            },
+            AttributeField {
+                name: "construct",
+                ty: "string",
+                required: false,
+            },
+        ],
+        short: "Says that this code is deprecated. It still works, but every use of it gives a \
+                warning. `replace` is the code to write instead, and the editor can write it for \
+                you.",
+        site: "a class, interface, enum, enum case, method, property, constant or parameter",
+    },
 ];
 
 /// `#[Json\Derive]` — `rule:core-classes/derive-attribute`'s opt-in, on a class.
@@ -515,6 +545,12 @@ pub const API: &str = r"Core\Api";
 /// Core\Path;` that reaches `Path::join` also places the attribute.
 /// [`crate::paths`] owns what it means and where it may be written.
 pub const PATH: &str = r"Core\Path";
+
+/// `#[Core\Deprecated(since?:, note?:, replace?:, construct?:)]` —
+/// `rule:attributes/a-deprecation-names-its-replacement-as-code`'s retirement
+/// of a declaration. [`crate::deprecated`] owns its payload and the nine
+/// declarations it may be written above.
+pub const DEPRECATED: &str = r"Core\Deprecated";
 
 /// One of `rule:core-classes/derive-attribute`'s two derived formats — the only thing this pass
 /// branches on.

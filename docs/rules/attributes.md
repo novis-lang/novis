@@ -28,13 +28,13 @@ attribute table in the compiled unit for `Core\Reflect` or anything else to walk
 
 <a id="attributes-attach-sites-and-forms"></a>
 
-## An attribute attaches at four declaration sites, and a named one's name is a shape-typed `type` alias
+## An attribute attaches to a declaration or a parameter, and a named one's name is a shape-typed `type` alias
 
 `rule:attributes/attach-sites-and-forms`
 
-An attribute attaches to four things: a class or interface declaration, a method declaration, a
-property declaration, and a parameter. It is written directly above the declaration, or directly
-before the parameter.
+An attribute attaches to a declaration: a class, an interface or an enum, a method, a property or one
+of its hooks, a class constant, an enum case, and a method's parameter. It is written directly above
+the declaration, or directly before the parameter or the enum case.
 
 ```nvs
 #[Route(path: "/users/:id", method: "GET")]
@@ -70,7 +70,11 @@ group's own `]`, so the declaration after it still parses and nothing else is re
 
 The one exemption is the closed, `Core`-owned roster of compiler-recognized attributes, matched by name
 and naming no shape at all. Each is a plain name, so `Owner::Name` never matches one. Every userland
-name is an alias or a mistake.
+name is an alias or a mistake. A recognized attribute takes only the sites where it means something,
+and the rule that owns it names them: `#[Core\Path]` is written before a `string` parameter
+([`programs/relative-paths-resolve-from-their-file`](programs.md#programs-relative-paths-resolve-from-their-file)), and `#[Core\Deprecated]` above any of these
+sites but a property hook and that hook's parameter
+([`attributes/a-deprecation-names-its-replacement-as-code`](attributes.md#attributes-a-deprecation-names-its-replacement-as-code)).
 
 <sub>See also [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/repeatable`](attributes.md#attributes-repeatable), [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute). Decided in [0046](../decisions/0046.md), [0036](../decisions/0036.md), [0015](../decisions/0015.md), [0071](../decisions/0071.md), [0232](../decisions/0232.md), [0275](../decisions/0275.md).</sub>
 

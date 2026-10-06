@@ -5359,6 +5359,14 @@ pub mod code {
         "A `readonly` property cannot have a `get` or `set` hook. Remove `readonly`, or remove \
          the hooks and set the value in the constructor.",
     );
+    /// `#[Core\Deprecated]` written somewhere
+    /// `rule:attributes/a-deprecation-names-its-replacement-as-code` does not
+    /// attach it: a property hook, or a hook's parameter. A use reaches the
+    /// property and never one of its hooks, so nothing could warn there.
+    pub const E_DEPRECATED_ON_A_PROPERTY_HOOK: Code = Code::new("E0844").card(
+        "`#[Core\\Deprecated]` cannot be written on a property hook or its parameter. Write it \
+         above the property instead.",
+    );
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.

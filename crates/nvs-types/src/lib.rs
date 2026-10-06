@@ -172,6 +172,7 @@ pub mod consts;
 pub mod core_lib;
 pub mod ctor_init;
 pub mod defaults;
+pub(crate) mod deprecated;
 pub mod derive;
 pub mod enums;
 pub mod error_lib;

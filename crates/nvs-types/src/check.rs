@@ -366,6 +366,7 @@ pub(crate) fn check_stmts(
                 };
                 check_members(&decl.members, &ctx, env);
                 crate::attributes::check_declaration(
+                    crate::deprecated::Decl::Class,
                     &decl.attributes,
                     &decl.members,
                     &[],
@@ -400,6 +401,7 @@ pub(crate) fn check_stmts(
                 };
                 check_members(&decl.members, &ctx, env);
                 crate::attributes::check_declaration(
+                    crate::deprecated::Decl::Interface,
                     &decl.attributes,
                     &decl.members,
                     &[],
@@ -420,6 +422,7 @@ pub(crate) fn check_stmts(
                 };
                 check_members(&decl.members, &ctx, env);
                 crate::attributes::check_declaration(
+                    crate::deprecated::Decl::Enum,
                     &decl.attributes,
                     &decl.members,
                     &decl.cases,

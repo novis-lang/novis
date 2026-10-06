@@ -1,5 +1,5 @@
 {
-  "title": "An attribute attaches at four declaration sites, and a named one's name is a shape-typed `type` alias",
+  "title": "An attribute attaches to a declaration or a parameter, and a named one's name is a shape-typed `type` alias",
   "status": "shipped",
   "because": [
     "0046",
