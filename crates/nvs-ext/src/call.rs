@@ -56,10 +56,10 @@
 //! request dropped without [`Request::end`]; a number kept by an instance that is gone is refused
 //! as [`Error::Invalid`], because no later instance gives it out again.
 //!
-//! **The budget is a trait.** [`Budget`] is the two questions the store asks of its request, so
-//! this crate does not link the runtime. The host that wires a call into a request implements it
-//! over the request's own deadline and memory accounting; [`Meter`] is a standalone budget for a
-//! test and for a run with no request around it.
+//! **The budget is a trait.** [`Budget`] is what the store needs of its request — its CPU
+//! deadline, its memory accounting and its log — so this crate does not link the runtime. The
+//! host that wires a call into a request implements it over the request's own; [`Meter`] is a
+//! standalone budget for a test and for a run with no request around it, and keeps no log.
 //!
 //! What it spends: one instance per extension a request calls, its linear memory charged to that
 //! request and freed with it, so O(in-flight). The pooling allocator reserves address space for
@@ -88,7 +88,7 @@ use crate::wasi;
 /// its request's CPU deadline and yields to the other tasks on its core.
 pub const TICK: Duration = Duration::from_millis(1);
 
-/// The questions a guest's store asks of the request it runs for.
+/// What a guest's store needs of the request it runs for.
 pub trait Budget: Send + Sync {
     /// Whether the request has used all of its CPU time.
     fn cpu_spent(&self) -> bool;
@@ -96,6 +96,24 @@ pub trait Budget: Send + Sync {
     /// Charges `bytes` of guest linear memory to the request, or gives them back when negative.
     /// Returns `false`, and charges nothing, when the request cannot afford them.
     fn charge(&self, bytes: i64) -> bool;
+
+    /// Writes `message` to the request's log at `level`, with `channel` as its channel.
+    fn log(&self, level: Level, channel: &str, message: &str);
+}
+
+/// The levels of a request's log, as `nvs:ext/log` and `Core\Log` name them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Level {
+    /// `debug`.
+    Debug,
+    /// `info`.
+    Info,
+    /// `warn`.
+    Warn,
+    /// `error`.
+    Error,
+    /// `critical`.
+    Critical,
 }
 
 /// A budget of its own: a CPU deadline and an optional memory limit, with what is charged counted
@@ -142,6 +160,9 @@ impl Budget for Meter {
             })
             .is_ok()
     }
+
+    /// A meter has no request log, so it keeps nothing a guest writes.
+    fn log(&self, _level: Level, _channel: &str, _message: &str) {}
 }
 
 /// The request limit a call reached.
@@ -706,7 +727,7 @@ impl Request {
                 live: Arc::clone(&self.host.shared.live),
                 handles: Handles::default(),
                 kept: Vec::new(),
-                wasi: wasi::Context::default(),
+                wasi: wasi::Context::new(Arc::clone(&self.budget), &extension.manifest.class),
             },
         );
         store.limiter(|guest| guest);

@@ -9,8 +9,9 @@
 //!
 //! What a guest holds, interface by interface:
 //!
-//! - `wasi:cli` — no environment, no arguments and no working directory. `stdin` is closed,
-//!   `stdout` and `stderr` accept every byte and keep none. `exit` traps.
+//! - `wasi:cli` — no environment, no arguments and no working directory. `stdin` is closed.
+//!   `stdout` and `stderr` write each line to the calling request's log at `debug`, with the
+//!   extension's class as the channel, through [`Budget::log`]. `exit` traps.
 //! - `wasi:clocks` — the process's own clocks, and a subscription that is ready at once.
 //! - `wasi:random` — `rand::rng()`, the thread's ChaCha12 generator `Core\Random` draws from,
 //!   for all three interfaces.
@@ -21,9 +22,10 @@
 //! component that imports it: a WASI import loads only when [`LINKED`] names it.
 //!
 //! Cost: one `ResourceTable` per instance, empty until a guest asks for a stream or a pollable,
-//! and freed with the instance.
+//! and a line of at most twice [`PERMIT`] per output stream a guest asks for, all freed with the
+//! instance.
 
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use rand::Rng;
@@ -35,7 +37,7 @@ use wasmtime_wasi_io::streams::{
 };
 use wasmtime_wasi_io::{IoView, async_trait};
 
-use crate::call::Guest;
+use crate::call::{Budget, Guest, Level};
 
 /// The host traits `bindgen!` writes for the interfaces [`LINKED`] names, `wasi:io` aside.
 #[allow(
@@ -102,10 +104,33 @@ pub const LINKED: &[&str] = &[
     "wasi:io/streams",
 ];
 
-/// One instance's WASI state: the resources its streams and pollables live in.
-#[derive(Default)]
+/// One instance's WASI state: the resources its streams and pollables live in, and the request
+/// and channel its output is logged to.
 pub(crate) struct Context {
     table: ResourceTable,
+    budget: Arc<dyn Budget>,
+    channel: Arc<str>,
+}
+
+impl Context {
+    /// An empty context whose output goes to `budget`'s log under `channel`.
+    pub(crate) fn new(budget: Arc<dyn Budget>, channel: &str) -> Self {
+        Self {
+            table: ResourceTable::new(),
+            budget,
+            channel: Arc::from(channel),
+        }
+    }
+
+    /// A stream writing to the request's log.
+    fn log(&mut self) -> wasmtime::Result<Resource<DynOutputStream>> {
+        let stream: DynOutputStream = Box::new(Log {
+            budget: Arc::clone(&self.budget),
+            channel: Arc::clone(&self.channel),
+            line: Vec::new(),
+        });
+        Ok(self.table.push(stream)?)
+    }
 }
 
 impl std::fmt::Debug for Context {
@@ -190,15 +215,13 @@ impl stdin::Host for Context {
 
 impl stdout::Host for Context {
     fn get_stdout(&mut self) -> wasmtime::Result<Resource<DynOutputStream>> {
-        let stream: DynOutputStream = Box::new(Discard);
-        Ok(self.table.push(stream)?)
+        self.log()
     }
 }
 
 impl stderr::Host for Context {
     fn get_stderr(&mut self) -> wasmtime::Result<Resource<DynOutputStream>> {
-        let stream: DynOutputStream = Box::new(Discard);
-        Ok(self.table.push(stream)?)
+        self.log()
     }
 }
 
@@ -216,28 +239,64 @@ impl InputStream for Closed {
     }
 }
 
-/// `stdout` and `stderr`: every write is accepted and nothing is kept.
-struct Discard;
+/// `stdout` and `stderr`: each line is one record in the request's log at `debug`. A line ends
+/// at `\n`, at a flush, when the stream is dropped, and when it reaches [`PERMIT`] bytes. An
+/// empty line writes no record, and bytes that are not UTF-8 are replaced with `U+FFFD`.
+struct Log {
+    budget: Arc<dyn Budget>,
+    channel: Arc<str>,
+    line: Vec<u8>,
+}
 
-/// The most a guest may write to a [`Discard`] at once.
-const DISCARD_PERMIT: usize = 64 * 1024;
+/// The most a guest may write to a [`Log`] at once, and the longest line it keeps before it
+/// writes the line out.
+const PERMIT: usize = 64 * 1024;
+
+impl Log {
+    /// Writes the line kept so far as one record, unless it is empty.
+    fn emit(&mut self) {
+        let line = self.line.strip_suffix(b"\r").unwrap_or(&self.line);
+        if !line.is_empty() {
+            let message = String::from_utf8_lossy(line);
+            self.budget.log(Level::Debug, &self.channel, &message);
+        }
+        self.line.clear();
+    }
+}
+
+impl Drop for Log {
+    fn drop(&mut self) {
+        self.emit();
+    }
+}
 
 #[async_trait]
-impl Pollable for Discard {
+impl Pollable for Log {
     async fn ready(&mut self) {}
 }
 
-impl OutputStream for Discard {
-    fn write(&mut self, _bytes: Bytes) -> StreamResult<()> {
+impl OutputStream for Log {
+    fn write(&mut self, bytes: Bytes) -> StreamResult<()> {
+        let mut rest = &bytes[..];
+        while let Some(end) = rest.iter().position(|&byte| byte == b'\n') {
+            self.line.extend_from_slice(&rest[..end]);
+            self.emit();
+            rest = &rest[end + 1..];
+        }
+        self.line.extend_from_slice(rest);
+        if self.line.len() >= PERMIT {
+            self.emit();
+        }
         Ok(())
     }
 
     fn flush(&mut self) -> StreamResult<()> {
+        self.emit();
         Ok(())
     }
 
     fn check_write(&mut self) -> StreamResult<usize> {
-        Ok(DISCARD_PERMIT)
+        Ok(PERMIT)
     }
 }
 
