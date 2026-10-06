@@ -57,7 +57,8 @@
 //! as [`Error::Invalid`], because no later instance gives it out again.
 //!
 //! **The budget is a trait.** [`Budget`] is what the store needs of its request — its CPU
-//! deadline, its memory accounting, its log, its clocks and its random generator — so this crate
+//! deadline, its memory accounting, its log, its clocks, its random generator and its extension
+//! settings — so this crate
 //! does not link the runtime. The host that wires a call into a request implements it over the
 //! request's own; [`Meter`] is a standalone budget for a test and for a run with no request around
 //! it, keeps no log, and reads the process's clocks and generator.
@@ -83,8 +84,8 @@ use wasmtime::{
 use crate::convert::{self, Crossing, Value};
 use crate::handle::{self, Handles};
 use crate::load::Extension;
-use crate::manifest::Method;
-use crate::wasi;
+use crate::manifest::{Method, Settings};
+use crate::{wasi, world};
 
 /// How often the ticker advances the engine's epoch, which is how often a running guest checks
 /// its request's CPU deadline and yields to the other tasks on its core.
@@ -110,6 +111,10 @@ pub trait Budget: Send + Sync {
 
     /// Fills `out` from the request's random generator, which a declared seed fixes.
     fn random(&self, out: &mut [u8]);
+
+    /// The value `key` has in the `[ext.<block>]` settings block of the request's configuration
+    /// snapshot, or `None` when the block does not set it.
+    fn setting(&self, block: &str, key: &str) -> Option<serde_json::Value>;
 }
 
 /// The levels of a request's log, as `nvs:ext/log` and `Core\Log` name them.
@@ -130,7 +135,7 @@ pub enum Level {
 /// A budget of its own: a CPU deadline and an optional memory limit, with what is charged counted
 /// here. Its clocks are the process's, its monotonic clock counting from the meter's creation,
 /// and its random bytes come from `rand::rng()`, the thread's ChaCha12 generator `Core\Random`
-/// draws from.
+/// draws from. It has no configuration, so every setting reads as its default.
 #[derive(Debug)]
 pub struct Meter {
     started: Instant,
@@ -192,6 +197,10 @@ impl Budget for Meter {
 
     fn random(&self, out: &mut [u8]) {
         rand::rng().fill_bytes(out);
+    }
+
+    fn setting(&self, _block: &str, _key: &str) -> Option<serde_json::Value> {
+        None
     }
 }
 
@@ -327,9 +336,11 @@ impl Failure {
     }
 }
 
-/// What one instance's store carries: its request's budget, and what it charged.
+/// What one instance's store carries: its request's budget, what it charged, and the settings
+/// block its manifest declares.
 pub struct Guest {
     budget: Arc<dyn Budget>,
+    settings: Option<Settings>,
     ceiling: Option<u64>,
     charged: u64,
     reached: Option<Limit>,
@@ -344,6 +355,18 @@ struct Kept {
     id: u64,
     name: String,
     resource: ResourceAny,
+}
+
+impl Guest {
+    /// The request's budget.
+    pub(crate) const fn budget(&self) -> &Arc<dyn Budget> {
+        &self.budget
+    }
+
+    /// The settings block the extension's manifest declares, if any.
+    pub(crate) const fn settings(&self) -> Option<&Settings> {
+        self.settings.as_ref()
+    }
 }
 
 impl fmt::Debug for Guest {
@@ -465,6 +488,7 @@ impl Host {
         let engine = Engine::new(&config)?;
         let mut linker = Linker::new(&engine);
         handle::link(&mut linker)?;
+        world::link(&mut linker)?;
         wasi::link(&mut linker)?;
         imports(&mut linker)?;
         let stop = Arc::new(AtomicBool::new(false));
@@ -761,6 +785,7 @@ impl Request {
             &self.host.shared.engine,
             Guest {
                 budget: Arc::clone(&self.budget),
+                settings: extension.manifest.settings.clone(),
                 ceiling,
                 charged: 0,
                 reached: None,

@@ -1,23 +1,26 @@
 {
-  "state": "**Goal `ext-grants` — a guest reaches only the files and hosts all three parties grant — Stage 2 is one item from done.** M9. No floor is carried: the suites, the `.nvst` trees and `nv verify` are the safety net, and goals `ext-host` and `ext-compiler`'s tests stay green as tests of the tree.\n\nThe design is ADR 0246 § 7 and the user's, and the goal file's § *Standing decisions* answers every call a session meets. No record slot: a question the record leaves is settled under AGENTS.md's priority ordering and written in the module doc of the file that answers it.\n\n**On disk:** `nvs_ext::wasi` links the world's WASI but `wasi:http` (`LINKED`). A guest has no environment, no arguments, no cwd, no preopen and a closed stdin. Its stdout and stderr write each line through `Budget::log` at `debug`. `Budget` also gives the request's `wall_clock`, `monotonic_clock` and `random`, and the WASI clocks and all three random interfaces read only those. `exit` traps, the call throws `ExtensionError` and the next call is fresh. `Host::new`'s pool gives each slot three core instances and two tables (`CORE_INSTANCES`, `TABLES` in `call.rs`), so a componentized libc-shaped guest fits one slot. `crates/nvs-ext/tests/wasi.rs` has the context guest and a libc-shaped guest, each built from core WAT plus a WIT world through `wit-component`, with a `Recorder` budget (fixed clock, SplitMix seed). Check `nvs-ext-a-guest-links-an-empty-wasi` passes locally: all nine tests.\n\n**Still a placeholder:** the CLI hands every request a `Meter` (`crates/nvs-cli/src/extensions.rs:280`), which keeps no log and reads the process's clocks and `rand::rng()`. Monotonic subscriptions are `Ready` at once.",
+  "state": "**Goal `ext-grants` — a guest reaches only the files and hosts all three parties grant — Stage 2's two checks pass locally.** M9. No floor is carried: the suites, the `.nvst` trees and `nv verify` are the safety net, and goals `ext-host` and `ext-compiler`'s tests stay green as tests of the tree.\n\nThe design is ADR 0246 § 7 and the user's, and the goal file's § *Standing decisions* answers every call a session meets. No record slot: a question the record leaves is settled under AGENTS.md's priority ordering and written in the module doc of the file that answers it.\n\n**On disk:** `nvs_ext::wasi` links the world's WASI but `wasi:http` (`LINKED`), with an empty context; stdout and stderr go to `Budget::log` at `debug`, and the clocks and random bytes are the `Budget`'s. `nvs_ext::world` (`crates/nvs-ext/src/world.rs`) links `nvs:ext/log` (`Budget::log`, channel the class) and `nvs:ext/settings` (`Budget::setting(block, key)`, else the manifest's default, `none` for an undeclared key). `manifest::Settings::check` refuses an unknown key or a wrongly typed value in an `[ext.<name>]` block — the check boot must run. `crates/nvs-ext/tests/wasi.rs` covers both checks of stage 2.\n\n**Still a placeholder:** the CLI hands every request a `Meter` (`crates/nvs-cli/src/extensions.rs:280`): no log, the process's clocks and `rand::rng()`, and no settings. `nvs.toml` has no `[ext.<name>]` block yet (`crates/nvs-config/src/tree.rs`, not checked whether an `ext` table is refused today), so nothing calls `Settings::check` at boot. Monotonic subscriptions are `Ready` at once.",
   "next": {
     "stage": 2,
     "title": "the empty WASI",
-    "files": [],
-    "note": "one file set: `crates/nvs-ext/src/call.rs`, a new `crates/nvs-ext/src/imports.rs` (or beside `crates/nvs-ext/src/handle.rs`), `crates/nvs-ext/tests/wasi.rs`.",
+    "files": [
+      "crates/nvs-cli/src/extensions.rs",
+      "crates/nvs-config/src/tree.rs",
+      "crates/nvs-ext/src/call.rs"
+    ],
     "items": [
       {
         "done": false,
-        "text": "**`nvs:ext/log` and `nvs:ext/settings`** — the stage's second check, `nvs-ext-the-nvs-ext-imports-are-linked`. Link them beside `handle::link` at `crates/nvs-ext/src/call.rs:467`. `log` writes through `Budget::log` with the WIT level mapped to `call::Level`, channel the extension's class. `settings` reads the extension's `[ext.<name>]` block from the request snapshot, so `Budget` (or the request) needs a settings lookup; an unknown key in that block is refused at boot. ADR 0246 § 2 and § 9. Tests in the check's record; the guest pattern is `guest_bytes(wit, core)` and `extension(...)` in `crates/nvs-ext/tests/wasi.rs`."
+        "text": "**A real request budget in the CLI** — replace `Meter` at `crates/nvs-cli/src/extensions.rs:280` with a `Budget` over the request's own log, fixed clock and seeded generator, and its `setting` reading the snapshot's `[ext.<name>]` block. `rule:packaging/a-guest-has-no-ambient-authority`; the trait is at `crates/nvs-ext/src/call.rs:94`."
       },
       {
         "done": false,
-        "text": "**A real request budget in the CLI** — replace `Meter` at `crates/nvs-cli/src/extensions.rs:280` with a `Budget` over the request's own log, fixed clock and generator, so a guest's lines and a test clock reach a real request. `rule:packaging/a-guest-has-no-ambient-authority`'s *Not on disk*."
+        "text": "**`[ext.<name>]` in `nvs.toml`, checked at boot** — a `System`/`Reload` table of blocks in the config tree at `crates/nvs-config/src/tree.rs:87`, handed to each loaded extension's `manifest::Settings::check` at boot and reload, a refusal naming the entry. ADR 0246 § 9."
       }
     ]
   },
   "backlog": [
-    "Whether a real `wasm32-wasip2` libc (wasi-sdk, Rust std) imports `wasi:cli/terminal-*` or `wasi:sockets/*` even when unused is not checked. If it does, the goal's standing decision links them as refusing stubs. Owner: this goal, Stage 6 or the templates in goal `ext-host` (`rule:packaging/a-guest-has-no-ambient-authority`).",
-    "Stage 3, the grant: `[[extension]] grants` in `crates/nvs-config/src/tree.rs`, and the intersection in `nvs_ext` (`rule:security/extension-grants-are-an-intersection`)."
+    "Stage 3, the grant: `[[extension]] grants` and the three-way intersection (`rule:security/extension-grants-are-an-intersection`).",
+    "Monotonic `subscribe-*` is ready at once (`crates/nvs-ext/src/wasi.rs` module doc)."
   ]
 }

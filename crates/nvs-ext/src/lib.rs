@@ -62,6 +62,8 @@ pub mod source;
 pub mod types;
 #[cfg(feature = "engine")]
 pub mod wasi;
+#[cfg(feature = "engine")]
+mod world;
 
 use std::fmt;
 

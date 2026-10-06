@@ -2,12 +2,15 @@
 //! linker defines are exactly `nvs_ext::wasi::LINKED`, proved by instantiating one probe component
 //! per WASI interface the world's WIT holds. The context half: a guest calling those interfaces
 //! finds them empty, its output reaches its request's log, and its clock and random bytes are its
-//! request's. A guest shaped like a toolchain's libc fits one slot, and its `exit` throws.
+//! request's. A guest shaped like a toolchain's libc fits one slot, and its `exit` throws. The
+//! world half: `nvs:ext/log` writes to the request's log under the extension's class, and
+//! `nvs:ext/settings` reads the extension's block from the request's configuration, which boot
+//! checks against the manifest's keys.
 //!
 //! Each guest is a core module written against the canonical ABI, made a component by
 //! `wit-component` from its world, so no wasm toolchain is needed.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::future::Future;
 use std::path::PathBuf;
 use std::pin::pin;
@@ -255,9 +258,17 @@ fn guest(host: &Host) -> Extension {
 /// The component `bytes` as an extension of `host`, declaring `class` over `interface`'s
 /// `methods`. `class` is written as it reads inside a JSON string.
 fn extension(host: &Host, bytes: &[u8], class: &str, interface: &str, methods: &str) -> Extension {
-    let manifest = format!(
-        r#"{{"manifest": 1, "world": "1.0.0", "class": "{class}", "interface": "{interface}", "methods": {methods}}}"#
-    );
+    declaring(
+        host,
+        bytes,
+        &format!(
+            r#"{{"manifest": 1, "world": "1.0.0", "class": "{class}", "interface": "{interface}", "methods": {methods}}}"#
+        ),
+    )
+}
+
+/// The component `bytes` as an extension of `host`, declared by the manifest `manifest`.
+fn declaring(host: &Host, bytes: &[u8], manifest: &str) -> Extension {
     Extension {
         path: PathBuf::from("probe.nvsx"),
         sha256: pin_of(bytes),
@@ -288,21 +299,22 @@ impl Seeded {
     }
 }
 
-/// A request budget with no limits, a fixed wall clock and a seeded generator, which keeps every
-/// record written to its log.
+/// A request budget with no limits, a fixed wall clock, a seeded generator and the settings
+/// blocks of its configuration, which keeps every record written to its log.
 #[derive(Debug, Default)]
 struct Recorder {
     records: Mutex<Vec<Record>>,
     clock: Duration,
     generator: Mutex<Seeded>,
+    settings: BTreeMap<String, serde_json::Map<String, serde_json::Value>>,
 }
 
 impl Recorder {
     fn fixed(clock: Duration, seed: u64) -> Self {
         Self {
-            records: Mutex::default(),
             clock,
             generator: Mutex::new(Seeded(seed)),
+            ..Self::default()
         }
     }
 
@@ -347,6 +359,13 @@ impl Budget for Recorder {
             let bytes = generator.next().to_le_bytes();
             chunk.copy_from_slice(&bytes[..chunk.len()]);
         }
+    }
+
+    fn setting(&self, block: &str, key: &str) -> Option<serde_json::Value> {
+        self.settings
+            .get(block)
+            .and_then(|values| values.get(key))
+            .cloned()
     }
 }
 
@@ -550,6 +569,151 @@ fn a_libc_shaped_guest_loads_and_runs_with_no_authority() {
         recorder.records(),
         [(Level::Debug, "Shop\\Libc".to_owned(), "ready".to_owned())]
     );
+}
+
+/// The world guest's world: `nvs:ext/log` and `nvs:ext/settings`, and one export per question.
+const WORLD_WIT: &str = "package shop:geo;
+
+interface api {
+    note: func();
+    precision: func() -> s64;
+    zoom: func() -> s64;
+    colour: func() -> s64;
+}
+
+world guest {
+    import nvs:ext/log@1.0.0;
+    import nvs:ext/settings@1.0.0;
+    export api;
+}
+";
+
+/// The world guest's core module. `note` writes `ready` at `info` and `lost` at `critical`.
+/// `precision`, `zoom` and `colour` read the setting of that name: its value when it is an `int`,
+/// `-1` for `none` and `-2` for another case. `get` writes its `option<setting>` at 32: the
+/// option's case at 32, the setting's case at 40, and its payload at 48.
+const WORLD_CORE: &str = r#"(module
+  (import "nvs:ext/log@1.0.0" "write" (func $write (param i32 i32 i32)))
+  (import "nvs:ext/settings@1.0.0" "get" (func $get (param i32 i32 i32)))
+  (memory (export "memory") 1)
+  (global $heap (mut i32) (i32.const 4096))
+  (data (i32.const 64) "ready")
+  (data (i32.const 80) "lost")
+  (data (i32.const 96) "precision")
+  (data (i32.const 112) "zoom")
+  (data (i32.const 128) "colour")
+  (func (export "cabi_realloc") (param i32 i32 i32 i32) (result i32) (local $at i32)
+    (local.set $at
+      (i32.and
+        (i32.add (global.get $heap) (i32.sub (local.get 2) (i32.const 1)))
+        (i32.sub (i32.const 0) (local.get 2))))
+    (global.set $heap (i32.add (local.get $at) (local.get 3)))
+    (local.get $at))
+  (func $setting (param $key i32) (param $len i32) (result i64)
+    (call $get (local.get $key) (local.get $len) (i32.const 32))
+    (if (result i64) (i32.eqz (i32.load8_u (i32.const 32)))
+      (then (i64.const -1))
+      (else
+        (if (result i64) (i32.eq (i32.load8_u (i32.const 40)) (i32.const 1))
+          (then (i64.load (i32.const 48)))
+          (else (i64.const -2))))))
+  (func (export "shop:geo/api#note")
+    (call $write (i32.const 1) (i32.const 64) (i32.const 5))
+    (call $write (i32.const 4) (i32.const 80) (i32.const 4)))
+  (func (export "shop:geo/api#precision") (result i64)
+    (call $setting (i32.const 96) (i32.const 9)))
+  (func (export "shop:geo/api#zoom") (result i64)
+    (call $setting (i32.const 112) (i32.const 4)))
+  (func (export "shop:geo/api#colour") (result i64)
+    (call $setting (i32.const 128) (i32.const 6))))"#;
+
+/// The world guest's manifest: `Shop\Geo`, reading the `[ext.geo]` block's `precision` and
+/// `zoom`, two `int`s whose defaults are `6` and `3`.
+const WORLD_MANIFEST: &str = r#"{"manifest": 1, "world": "1.0.0", "class": "Shop\\Geo",
+  "interface": "shop:geo/api",
+  "methods": [
+    {"name": "note", "params": [], "returns": "void"},
+    {"name": "precision", "params": [], "returns": "int"},
+    {"name": "zoom", "params": [], "returns": "int"},
+    {"name": "colour", "params": [], "returns": "int"}
+  ],
+  "settings": {"name": "geo", "keys": [
+    {"name": "precision", "type": "int", "default": 6},
+    {"name": "zoom", "type": "int", "default": 3}
+  ]}}"#;
+
+/// The settings block `json`, as a configuration snapshot hands it to a budget.
+fn block(json: &str) -> serde_json::Map<String, serde_json::Value> {
+    serde_json::from_str(json).expect("the block reads")
+}
+
+/// A host with one slot, a request on it whose budget is `recorder`, and the world guest.
+fn world(recorder: Recorder) -> (Request, Extension, Arc<Recorder>) {
+    let host = Host::new(1, |_| Ok(())).expect("the host starts");
+    let extension = declaring(&host, &guest_bytes(WORLD_WIT, WORLD_CORE), WORLD_MANIFEST);
+    let recorder = Arc::new(recorder);
+    let request = host.request(Arc::clone(&recorder) as Arc<dyn Budget>);
+    (request, extension, recorder)
+}
+
+#[test]
+fn a_guest_writing_to_nvs_ext_log_reaches_the_request_log_under_its_name() {
+    let (request, extension, recorder) = world(Recorder::default());
+    ask(&request, &extension, "note").expect("the call returns");
+    assert_eq!(
+        recorder.records(),
+        [
+            (Level::Info, "Shop\\Geo".to_owned(), "ready".to_owned()),
+            (Level::Critical, "Shop\\Geo".to_owned(), "lost".to_owned()),
+        ]
+    );
+}
+
+#[test]
+fn a_guest_reads_its_settings_block_from_the_request_snapshot() {
+    let mut recorder = Recorder::default();
+    recorder
+        .settings
+        .insert("geo".to_owned(), block(r#"{"precision": 9}"#));
+    let (request, extension, _) = world(recorder);
+    let read = |method: &str| ask(&request, &extension, method).expect("the call returns");
+    assert_eq!(read("precision"), [Val::S64(9)], "the request's value");
+    assert_eq!(read("zoom"), [Val::S64(3)], "a key the block does not set");
+    assert_eq!(
+        read("colour"),
+        [Val::S64(-1)],
+        "a key the manifest does not declare"
+    );
+
+    let (request, extension, _) = world(Recorder::default());
+    let out = ask(&request, &extension, "precision").expect("the call returns");
+    assert_eq!(
+        out,
+        [Val::S64(6)],
+        "a request with no block reads the default"
+    );
+}
+
+#[test]
+fn an_unknown_key_in_an_extension_settings_block_is_refused_at_boot() {
+    let manifest = Manifest::parse(WORLD_MANIFEST.as_bytes()).expect("the manifest reads");
+    let settings = manifest.settings.expect("the manifest declares a block");
+    assert_eq!(
+        settings.check(&block(r#"{"precision": 9, "zoom": 1}"#)),
+        Ok(())
+    );
+
+    let refused = settings
+        .check(&block(r#"{"precision": 9, "colour": "red"}"#))
+        .expect_err("an unknown key is refused");
+    assert!(refused.contains("`[ext.geo]`"), "{refused}");
+    assert!(refused.contains("`colour`"), "{refused}");
+
+    let refused = settings
+        .check(&block(r#"{"zoom": "far"}"#))
+        .expect_err("a value of another type is refused");
+    assert!(refused.contains("`zoom`"), "{refused}");
+    assert!(refused.contains("`int`"), "{refused}");
 }
 
 #[test]

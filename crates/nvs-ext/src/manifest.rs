@@ -267,6 +267,41 @@ pub struct Settings {
     pub keys: Vec<SettingKey>,
 }
 
+impl Settings {
+    /// Checks the `[ext.<name>]` block a configuration writes against the keys declared here,
+    /// as boot does before a request runs (ADR 0246 § 9).
+    ///
+    /// # Errors
+    ///
+    /// The refusal's message, naming the block and the key, for a key the manifest does not
+    /// declare and for a value that is not of its key's type.
+    pub fn check(&self, block: &serde_json::Map<String, Value>) -> Result<(), String> {
+        for (key, value) in block {
+            let Some(declared) = self.keys.iter().find(|k| &k.name == key) else {
+                let known: Vec<String> =
+                    self.keys.iter().map(|k| format!("`{}`", k.name)).collect();
+                let known = if known.is_empty() {
+                    "no keys".to_owned()
+                } else {
+                    known.join(", ")
+                };
+                return Err(format!(
+                    "`[ext.{}]` has an unknown key `{key}`: the extension declares {known}",
+                    self.name
+                ));
+            };
+            if !declared.ty.admits(value) {
+                return Err(format!(
+                    "`[ext.{}]` sets `{key}` to {value}, which is not of its type `{}`",
+                    self.name,
+                    declared.ty.name()
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
 /// One key of the settings block.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -304,6 +339,19 @@ pub enum SettingType {
 }
 
 impl SettingType {
+    /// The type as a manifest writes it.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Bool => "bool",
+            Self::Int => "int",
+            Self::Uint => "uint",
+            Self::Float => "float",
+            Self::String => "string",
+            Self::Strings => "array<string>",
+        }
+    }
+
     /// Whether `value` is of this type.
     fn admits(self, value: &Value) -> bool {
         match self {

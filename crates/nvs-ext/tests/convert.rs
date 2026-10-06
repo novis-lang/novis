@@ -14,7 +14,7 @@ use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll, Wake, Waker};
 use std::time::Duration;
 
-use nvs_ext::call::{Failure, Host, Meter, Request};
+use nvs_ext::call::{Budget, Failure, Host, Level, Meter, Request};
 use nvs_ext::convert::{Key, Value, from_wit, to_wit};
 use nvs_ext::load::{Entry, Extension, Loader, Refused, pin};
 use nvs_ext::manifest::Manifest;
@@ -858,22 +858,49 @@ fn tallies_manifest(resources: &str) -> String {
     )
 }
 
+/// A [`Meter`] that keeps every message written to its log.
+#[derive(Debug)]
+struct Logged {
+    meter: Meter,
+    log: Mutex<Vec<String>>,
+}
+
+impl Budget for Logged {
+    fn cpu_spent(&self) -> bool {
+        self.meter.cpu_spent()
+    }
+
+    fn charge(&self, bytes: i64) -> bool {
+        self.meter.charge(bytes)
+    }
+
+    fn log(&self, _level: Level, _channel: &str, message: &str) {
+        self.log
+            .lock()
+            .expect("the log locks")
+            .push(message.to_owned());
+    }
+
+    fn wall_clock(&self) -> Duration {
+        self.meter.wall_clock()
+    }
+
+    fn monotonic_clock(&self) -> u64 {
+        self.meter.monotonic_clock()
+    }
+
+    fn random(&self, out: &mut [u8]) {
+        self.meter.random(out);
+    }
+
+    fn setting(&self, block: &str, key: &str) -> Option<serde_json::Value> {
+        self.meter.setting(block, key)
+    }
+}
+
 #[test]
 fn an_extension_resource_is_dropped_when_its_request_ends() {
-    let log = Arc::new(Mutex::new(Vec::<String>::new()));
-    let written = Arc::clone(&log);
-    let host = Host::new(8, move |linker| {
-        linker
-            .instance("nvs:ext/log@1.0.0")?
-            .func_new("write", move |_, _, params, _| {
-                if let [_, Val::String(message)] = params {
-                    written.lock().expect("the log locks").push(message.clone());
-                }
-                Ok(())
-            })?;
-        Ok(())
-    })
-    .expect("the host starts");
+    let host = Host::new(8, |_| Ok(())).expect("the host starts");
     let component = wat::parse_str(TALLIES).expect("the test component compiles");
     let load = |manifest: String| {
         let bytes = append_section(component.clone(), MANIFEST, manifest.as_bytes());
@@ -889,7 +916,12 @@ fn an_extension_resource_is_dropped_when_its_request_ends() {
     assert!(refused.reason.contains("`open`"), "{refused}");
     let extension = load(tallies_manifest(r#"{"name": "Tally"}"#)).expect("the guest loads");
 
-    let request = request(&host);
+    let budget = Arc::new(Logged {
+        meter: Meter::new(Duration::from_secs(30), None),
+        log: Mutex::default(),
+    });
+    let log = &budget.log;
+    let request = host.request(Arc::clone(&budget) as Arc<dyn Budget>);
     let call =
         |method: &str, args: Vec<Value>| block_on(request.call_values(&extension, method, args));
     let three = call("open", vec![Value::Int(3)])

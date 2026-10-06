@@ -123,6 +123,11 @@ impl Context {
         }
     }
 
+    /// The channel the instance's log records are written under: the extension's class.
+    pub(crate) fn channel(&self) -> &str {
+        &self.channel
+    }
+
     /// A stream writing to the request's log.
     fn log(&mut self) -> wasmtime::Result<Resource<DynOutputStream>> {
         let stream: DynOutputStream = Box::new(Log {
