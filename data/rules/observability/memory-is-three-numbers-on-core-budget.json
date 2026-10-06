@@ -14,7 +14,6 @@
     "errors/on-limit"
   ],
   "guardedBy": [
-    "crates/nvs-stdlib/tests/migration-members-outstanding.txt",
     "crates/nvs-stdlib/src/budget.rs",
     "tests/conformance/core/budget-held-never-exceeds-the-peak-at-any-point-in-a-request.nvst",
     "tests/conformance/core/budget-the-limit-is-a-ceiling-and-not-a-third-reading.nvst"

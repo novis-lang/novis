@@ -1,5 +1,4 @@
-A PHP built-in that has no successor here is absent for one of four standing reasons, and every removed
-name is accounted for individually rather than by category:
+A PHP built-in that has no successor here is absent for one of four standing reasons:
 
 1. **A pure alias** — `sizeof`, `join`, `chop`, `key_exists`, `pos`, `fputs`, `is_integer`, `doubleval`.
 2. **Dead or dying in PHP itself** — `ereg*`, `mysql_*`, `mcrypt`, `create_function`, `each`,
@@ -14,6 +13,5 @@ name is accounted for individually rather than by category:
    with one key type (`rule:types/array-combination`); the half-escapers, whose false confidence taint
    tracking exists to prevent; and `settype`/`gettype`/`strval` (`rule:types/no-legacy-cast`).
 
-The reason is not the record. A prose reason cannot be audited — "about 120 functions follow from declared
-types" leaves no way to notice the twelfth one nobody thought about — so every PHP name gets a row naming
-its outcome, and a CI check asserts the vendored built-in list has no name without one.
+No list maps a PHP name to its outcome (`rule:programs/no-compatibility-promise`): the four reasons are
+how a request for a missing built-in is judged, and the `Core` library states what Novis has.

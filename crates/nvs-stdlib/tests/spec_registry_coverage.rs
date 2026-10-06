@@ -25,26 +25,6 @@
 //! specified without being registered, and cannot be registered without being
 //! run.
 //!
-//! # The third walk reads the other spec file
-//!
-//! [docs/spec/02-php-migration.md](/docs/spec/02-php-migration.md) accounts for
-//! every PHP name rather than for every Novis one, and its own header states
-//! the rule this file enforces: *"Every `member` spelling in this file is
-//! checked against `nvs-stdlib`'s registry … so a spelling this file gets wrong
-//! fails a build instead of reaching anyone."*
-//! [`every_migration_member_row_names_a_registered_member`] is that build
-//! failure and [`every_migration_member_row_has_a_conformance_case`] asks the
-//! corpus the same question one step later, so a row promising a migrating
-//! program a member cannot be promising it a name that does not resolve or a
-//! member nothing ever ran. The two are the parity program's stop condition
-//! stated as a test: when
-//! [`tests/migration-members-outstanding.txt`](migration-members-outstanding.txt)
-//! is empty, every member 1,167 PHP functions were pointed at exists.
-//!
-//! They are here rather than in `conformance_coverage.rs` because the walk is a
-//! spec walk — the table is the enumerable set and the registry is what it is
-//! held against, which is this file's direction and not that one's.
-//!
 //! # The outstanding list is a file, and it only shrinks
 //!
 //! A section the registry does not yet hold whole is the ordinary state of a
@@ -345,16 +325,15 @@ fn registered(candidates: &[&'static registry::CoreClass], name: &str) -> bool {
 /// Every ratchet file this module owns, named once so a gate written over all of
 /// them cannot quietly miss one.
 ///
-/// There is one per walk — §§ 1-12's, § 13's, §§ 14-19's, §§ 16-17's classes
-/// and the migration table's — because the halves are finished by different
-/// loops and a single file would make a Part I regression indistinguishable
-/// from a Part II member nobody has reached yet.
-const RATCHETS: [&str; 5] = [
+/// There is one per walk — §§ 1-12's, § 13's, §§ 14-19's and §§ 16-17's
+/// classes — because the halves are finished by different loops and a single
+/// file would make a Part I regression indistinguishable from a Part II member
+/// nobody has reached yet.
+const RATCHETS: [&str; 4] = [
     "spec-members-outstanding.txt",
     "spec-members-compiler-facing-outstanding.txt",
     "spec-members-part-two-outstanding.txt",
     "spec-classes-part-two-outstanding.txt",
-    "migration-members-outstanding.txt",
 ];
 
 /// One ratchet file, read.
@@ -594,7 +573,7 @@ fn every_outstanding_key_names_an_owner() {
         wrong.len(),
         wrong.join("\n  ")
     );
-    // **Every key is struck**: §§ 1-19 and the migration table are walked, and all four files
+    // **Every key is struck**: §§ 1-19 are walked, and all four files
     // hold their header and nothing else. That is the state a ratchet is built to arrive at, so
     // reaching it is not a failure and the loop above having nothing to check is not one either
     // — what `owner_problem`'s own cases below assert is the arithmetic, and they feed it owners
@@ -1833,215 +1812,6 @@ fn every_part_two_member_has_a_conformance_case() {
     assert!(
         uncovered.is_empty(),
         "{} spec member(s) in §§ 14-19 are registered and no conformance case calls them: {}\n\
-         Write one under tests/conformance/ — never with an `--ORACLE--` section, which makes \
-         the Linux leg skip the case entirely. A case reaching the member through a value it \
-         was handed counts; one that only names the class does not.",
-        uncovered.len(),
-        uncovered
-            .iter()
-            .map(String::as_str)
-            .collect::<Vec<_>>()
-            .join(", ")
-    );
-}
-
-/// The registered classes a migration cell's `Core\X` may be answered by.
-///
-/// The class of that exact name, and nothing else — except for one shape.
-/// **A nested name nothing registers is resolved against its own namespace**:
-/// `Core\Db\Queryable` is the *interface* § 11 declares, and the spec's own
-/// sentence says `Core\Db\Connection` implements it and `Core\Db\Transaction`
-/// implements it by delegation, so its members are registered on those two and
-/// there is no row of its own for them to be on. Widening to the namespace
-/// answers that without this file learning to read which spec headings are
-/// interfaces, and it is the same trade [`scoped`] and
-/// `conformance_coverage.rs`'s `->text(` already make: looser than a checker,
-/// which is what a coverage gate is.
-///
-/// **A top-level `Core\X` gets no widening**, because its namespace is the
-/// whole library — `Core\Process::spawn` would be answered by any class that
-/// happens to declare a `spawn`, which is not a resolution but a coincidence.
-fn classes_spelled(name: &str) -> Vec<&'static registry::CoreClass> {
-    let exact: Vec<_> = registry::CLASSES
-        .iter()
-        .filter(|class| class.name == name)
-        .collect();
-    if !exact.is_empty() {
-        return exact;
-    }
-    let Some((namespace, _)) = name.rsplit_once('\\') else {
-        return Vec::new();
-    };
-    if !namespace.contains('\\') {
-        return Vec::new();
-    }
-    let inner = format!(r"{namespace}\");
-    registry::CLASSES
-        .iter()
-        .filter(|class| class.name.starts_with(&inner))
-        .collect()
-}
-
-/// Every `Core\X::member` spelling the `member` rows of
-/// [docs/spec/02-php-migration.md](/docs/spec/02-php-migration.md) name, and
-/// how many rows produced them.
-///
-/// **Every spelling in the cell, not the cell.** A cell holding exactly one
-/// member is a rename and a cell naming two is prose, but
-/// `rule:php-migration/every-php-builtin-is-a-completion-candidate`
-/// makes the second one *completion items* in an editor, one per member, so
-/// both shapes reach a person and both have to resolve. A cell that names a
-/// member in passing to say what it is *not* (`array_map`'s zip has no member —
-/// a `foreach` over `Core\Arr::keys`) is held to the same rule for the same
-/// reason: the name is shown either way.
-///
-/// The row count comes back with them because the walk is over a document
-/// nothing else in this crate parses: a table whose shape drifts would read as
-/// zero rows and pass every assertion below vacuously.
-fn migration_member_refs() -> (usize, BTreeSet<(String, String)>) {
-    let table = nvs_repo::path("docs/spec/02-php-migration.md");
-    let text =
-        fs::read_to_string(&table).unwrap_or_else(|err| panic!("{}: {err}", table.display()));
-    // `tools/nv/cmd/migration.ts`'s own `ROW`, transcribed: a backticked
-    // PHP name, a bare outcome word, and the rest of the line up to the closing
-    // pipe. Deliberately not [`cells`], which reads a `\` as an escape and so
-    // doubles every one in `Core\Str::trim` — that function serves
-    // 01-core-library.md's union types, where the escape is real, and this
-    // table's Novis cell is the one place a backslash means itself.
-    let row = Regex::new(r"^\|\s*`([^`]+)`\s*\|\s*([a-z]+)\s*\|(.*)\|\s*$")
-        .expect("the migration table's row");
-    // The class half is one or more `\`-joined segments, so `Core\Db\Queryable`
-    // is captured whole rather than as `Core\Db` with a stray tail.
-    let spelling = Regex::new(r"(Core(?:\\[A-Za-z][A-Za-z0-9]*)+)::([A-Za-z][A-Za-z0-9]*)")
-        .expect("the migration table's member spelling");
-
-    let mut rows = 0usize;
-    let mut refs = BTreeSet::new();
-    for line in text.lines() {
-        let Some(found) = row.captures(line.trim_end()) else {
-            continue;
-        };
-        if &found[2] != "member" {
-            continue;
-        }
-        rows += 1;
-        for named in spelling.captures_iter(found.get(3).expect("the Novis cell").as_str()) {
-            refs.insert((named[1].to_owned(), named[2].to_owned()));
-        }
-    }
-    (rows, refs)
-}
-
-/// The count below which the walk has stopped reading the table rather than
-/// found it clean — the file carried 520 `member` rows when this landed, and
-/// half of that is a shape change nobody meant.
-const MIGRATION_ROW_FLOOR: usize = 260;
-
-#[test]
-fn every_migration_member_row_names_a_registered_member() {
-    let (rows, refs) = migration_member_refs();
-    assert!(
-        rows > MIGRATION_ROW_FLOOR,
-        "docs/spec/02-php-migration.md produced {rows} `member` row(s), under the floor of \
-         {MIGRATION_ROW_FLOOR} — the table's shape has changed under `cells`, and every \
-         assertion here is passing vacuously rather than passing"
-    );
-
-    let outstanding: BTreeSet<String> = refs
-        .iter()
-        .filter(|(class, member)| !registered(&classes_spelled(class), member))
-        .map(|(class, member)| format!("{class}::{member}"))
-        .collect();
-
-    let Ratchet {
-        path, keys: listed, ..
-    } = outstanding_file("migration-members-outstanding.txt");
-    let unlisted: Vec<&String> = outstanding.difference(&listed).collect();
-    assert!(
-        unlisted.is_empty(),
-        "{} member spelling(s) in docs/spec/02-php-migration.md name nothing \
-         `registry::CLASSES` holds and are not listed in {}: {}\n\
-         Register the member (five things — see docs/agent/conventions.md), correct the cell, \
-         or add the spelling to that file if the member is genuinely still owed.",
-        unlisted.len(),
-        path.display(),
-        unlisted
-            .iter()
-            .map(|key| key.as_str())
-            .collect::<Vec<_>>()
-            .join(", ")
-    );
-
-    let stale: Vec<&String> = listed.difference(&outstanding).collect();
-    assert!(
-        stale.is_empty(),
-        "{} line(s) in {} name a member that is registered now, or a spelling no `member` row \
-         produces: {}\n\
-         Delete those lines — the list only shrinks, and striking a line is part of the slice \
-         that registers the member.",
-        stale.len(),
-        path.display(),
-        stale
-            .iter()
-            .map(|key| key.as_str())
-            .collect::<Vec<_>>()
-            .join(", ")
-    );
-}
-
-#[test]
-fn every_migration_member_row_has_a_conformance_case() {
-    let (_, refs) = migration_member_refs();
-    let texts = sources();
-    let rules = Attribution::new();
-    let index: Vec<BTreeMap<&'static str, BTreeSet<&str>>> =
-        texts.iter().map(|text| rules.asked(text)).collect();
-
-    let mut uncovered = BTreeSet::new();
-    let mut checked = 0usize;
-    for (name, member) in &refs {
-        // A spelling nothing registers is the test above's business, and
-        // listing it here as well would report one gap twice and make its
-        // ratchet the only file that can be wrong about it.
-        let candidates = classes_spelled(name);
-        if !registered(&candidates, member) {
-            continue;
-        }
-        checked += 1;
-        let covered = candidates.iter().any(|class| {
-            if class.constant(member).is_some() {
-                // A constant has no call spelling, so the whole written name
-                // with its right boundary is the check — `Core\Math::E` is not
-                // covered by a case writing `Core\Math::EPSILON`.
-                let write = format!("{}::{}", class.name, member);
-                texts.iter().any(|text| mentions(text, &write))
-            } else if class.members().any(|m| m.name == member.as_str()) {
-                index.iter().any(|case| {
-                    case.get(class.name)
-                        .is_some_and(|named| named.contains(member.as_str()))
-                })
-            } else {
-                false
-            }
-        });
-        if !covered {
-            uncovered.insert(format!("{name}::{member}"));
-        }
-    }
-
-    assert!(
-        checked > 150,
-        "only {checked} of the migration table's member spellings resolve to a registered \
-         member, and the ratchet lists {} — the walk or `classes_spelled` has regressed, since \
-         that list only ever shrinks",
-        outstanding_file("migration-members-outstanding.txt")
-            .keys
-            .len()
-    );
-    assert!(
-        uncovered.is_empty(),
-        "{} member(s) docs/spec/02-php-migration.md promises a migrating program are registered \
-         and no conformance case calls them: {}\n\
          Write one under tests/conformance/ — never with an `--ORACLE--` section, which makes \
          the Linux leg skip the case entirely. A case reaching the member through a value it \
          was handed counts; one that only names the class does not.",

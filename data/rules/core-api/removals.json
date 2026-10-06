@@ -1,5 +1,5 @@
 {
-  "title": "A PHP built-in is absent for one of four standing reasons, and every removed name is accounted for by name",
+  "title": "A PHP built-in is absent for one of four standing reasons",
   "status": "shipped",
   "because": [
     "0063",
@@ -12,8 +12,5 @@
     "types/no-legacy-cast",
     "types/array-combination"
   ],
-  "guardedBy": [
-    "docs/spec/02-php-migration.md",
-    "tools/nv/cmd/migration.ts"
-  ]
+  "guardedBy": []
 }
