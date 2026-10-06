@@ -3,8 +3,13 @@
 //! The payload is JSON, `{"source": 1, "files": [{"path": "Geo/Units.nvs", "text": "…"}]}`. A path
 //! is relative to the extension's own source root: `/`-separated, with no empty, `.` or `..`
 //! segment, no `\` and no `:`, and it names a `.nvs` file. Two files with one path are refused.
-//! Whether each file declares a namespace under the extension's own is the compiler's check, which
-//! reads the text.
+//!
+//! The extension's namespace is its class's minus the last segment: `Shop\Ledger` owns `Shop\`, as
+//! `Novis\Image\Codec` owns `Novis\Image\`. [`Source::outside`] finds a file whose first
+//! declaration is not `namespace` with a name under it, and the loader refuses the load naming that
+//! file. It reads only the file's head — `<?nvs`, whitespace and comments, then `namespace Name;` —
+//! so the loader needs no parser. Whether the rest of the file compiles, and whether its path
+//! agrees with its names, is the compiler's check.
 
 use std::collections::HashSet;
 
@@ -79,6 +84,59 @@ impl Source {
         }
         Ok(source)
     }
+}
+
+impl Source {
+    /// The first file that does not declare `namespace` or a namespace under it, and the
+    /// namespace it declares, or `None` when it declares none. Segments compare in any case, as
+    /// a class name does.
+    pub fn outside(&self, namespace: &str) -> Option<(&SourceFile, Option<&str>)> {
+        let own: Vec<&str> = namespace.split('\\').filter(|s| !s.is_empty()).collect();
+        self.files.iter().find_map(|file| {
+            let declared = declared_namespace(&file.text);
+            let under = declared.is_some_and(|declared| {
+                let segments: Vec<&str> = declared.split('\\').collect();
+                segments.len() >= own.len()
+                    && own
+                        .iter()
+                        .zip(&segments)
+                        .all(|(own, seg)| own.eq_ignore_ascii_case(seg))
+            });
+            (!under).then_some((file, declared))
+        })
+    }
+}
+
+/// The namespace the file `text` declares: its first token past `<?nvs` and the comments must be
+/// `namespace`, followed by a qualified name and `;`.
+pub fn declared_namespace(text: &str) -> Option<&str> {
+    let mut rest = text.strip_prefix('\u{feff}').unwrap_or(text);
+    loop {
+        rest = rest.trim_start();
+        if let Some(after) = rest.strip_prefix("<?nvs") {
+            rest = after;
+        } else if rest.starts_with("//") || (rest.starts_with('#') && !rest.starts_with("#[")) {
+            rest = rest.find('\n').map_or("", |end| &rest[end..]);
+        } else if let Some(after) = rest.strip_prefix("/*") {
+            rest = &after[after.find("*/")? + 2..];
+        } else {
+            break;
+        }
+    }
+    let after = rest.strip_prefix("namespace")?;
+    if !after.starts_with(char::is_whitespace) {
+        return None;
+    }
+    let name = after[..after.find(';')?].trim();
+    name.split('\\')
+        .all(|segment| {
+            segment
+                .chars()
+                .next()
+                .is_some_and(|c| c.is_alphabetic() || c == '_')
+                && segment.chars().all(|c| c.is_alphanumeric() || c == '_')
+        })
+        .then_some(name)
 }
 
 /// Whether `path` stays inside the source root and names a `.nvs` file.

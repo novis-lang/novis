@@ -1,6 +1,7 @@
 //! `rule:packaging/extension-loading-is-root-controlled`'s load refusals, each naming the entry: the
 //! pin, the component, the manifest against the component's exports, the imports against the world,
-//! the reserved namespaces, a class two entries declare, and the world's version.
+//! the reserved namespaces, a source file outside the extension's namespace, a class two entries
+//! declare, and the world's version.
 
 use std::path::PathBuf;
 
@@ -294,6 +295,43 @@ fn a_class_under_core_or_novis_is_refused() {
             &refusal(&loader(), &bytes),
             &[&format!("the class `{class}`")],
         );
+    }
+}
+
+#[test]
+fn a_source_file_outside_the_extension_namespace_is_refused_naming_the_file() {
+    let with_source = |text: &str| {
+        let files = serde_json::json!({"source": 1, "files": [
+            {"path": "Geo/Units.nvs", "text": "namespace Shop\\Geo;\n"},
+            {"path": "Geo/Map.nvs", "text": text},
+        ]});
+        let bytes = append_section(
+            guest(""),
+            MANIFEST,
+            manifest("Shop\\Geo", "1.0.0", METHOD).as_bytes(),
+        );
+        append_section(bytes, SOURCE, files.to_string().as_bytes())
+    };
+    for (text, says) in [
+        ("namespace Blog\\Geo;\n", "declares `namespace Blog\\Geo`"),
+        ("namespace Shopping;\n", "declares `namespace Shopping`"),
+        ("class Map {}\n", "declares no namespace"),
+        ("namespace Shop\\Geo {}\n", "declares no namespace"),
+    ] {
+        assert_says(
+            &refusal(&loader(), &with_source(text)),
+            &["the source file `Geo/Map.nvs`", says, "`Shop`"],
+        );
+    }
+    for text in [
+        "namespace Shop;\n",
+        "namespace shop\\Geo\\Map;\n",
+        "<?nvs\n// A map.\n# More.\n/* Still a comment. */\nnamespace Shop\\Geo;\nclass Map {}\n",
+    ] {
+        let bytes = with_source(text);
+        loader()
+            .load_bytes(&entry("geo.nvsx", &bytes), &bytes)
+            .unwrap_or_else(|err| panic!("`{text}` loads: {err}"));
     }
 }
 

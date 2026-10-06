@@ -12,7 +12,8 @@
 //!    checked before the imports, so a newer component is refused by its version and not by the
 //!    first import this host lacks;
 //! 5. an import outside the world `wit/nvs-ext/world.wit` names ([`WORLD_IMPORTS`]), naming it;
-//! 6. a class under `Core\` or `Novis\`, whatever the case of the first segment;
+//! 6. a class under `Core\` or `Novis\`, whatever the case of the first segment, and then a source
+//!    file whose `namespace` is not under the class's own, naming the file ([`Source::outside`]);
 //! 7. a method whose export is missing from the manifest's interface, or whose parameters or result
 //!    are not the WIT types `rule:packaging/a-value-crosses-as-its-wit-type`'s table gives its
 //!    Novis types, and a Novis type the table does not hold.
@@ -400,6 +401,17 @@ impl Loader {
         }
         if let Some(reason) = reserved(&manifest) {
             return Err(refuse(reason));
+        }
+        let namespace = manifest.class.rsplit_once('\\').map_or("", |(ns, _)| ns);
+        if let Some((file, declared)) = source.outside(namespace) {
+            let declares = declared.map_or_else(
+                || "declares no namespace".to_owned(),
+                |declared| format!("declares `namespace {declared}`"),
+            );
+            return Err(refuse(format!(
+                "the source file `{}` {declares}, which is not under the extension's namespace `{namespace}`",
+                file.path
+            )));
         }
         let interface = ty
             .exports(&self.engine)
