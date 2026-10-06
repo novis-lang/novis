@@ -314,6 +314,21 @@ enum Command {
         /// time grows.
         #[arg(long)]
         count: bool,
+        /// Also print every `// TODO:` comment in the program, one per line,
+        /// as `path:line: text`. With `--json`, the document has them in its
+        /// `todos` array.
+        #[arg(long)]
+        todos: bool,
+        /// Exit with an error when the program has this kind of finding in a
+        /// file that is not in a `vendor` directory. The kinds are
+        /// `deprecated` and `todo`. You can give this option more than once.
+        #[arg(long, value_enum)]
+        deny: Vec<Deny>,
+        /// Apply every safe fix the diagnostics suggest, then check the
+        /// program again, until no fix is left. Files in a `vendor` directory
+        /// are not changed.
+        #[arg(long, conflicts_with = "json")]
+        fix: bool,
     },
     /// Check a Novis file, then compile and run it.
     Run {
@@ -1512,6 +1527,16 @@ impl From<FaultSiteArg> for nvs_runtime::FaultSite {
     }
 }
 
+/// The closed set of kinds `nvs check --deny` takes
+/// (`rule:tooling/a-todo-is-a-comment-the-tools-list`).
+#[derive(Clone, Copy, PartialEq, Eq, Debug, clap::ValueEnum)]
+enum Deny {
+    /// A use of deprecated code: a `W1003` warning.
+    Deprecated,
+    /// A `// TODO:` comment.
+    Todo,
+}
+
 fn main() -> ExitCode {
     // Before the footer read below, because a bundled application serves
     // requests too and the hook is what puts a panic under one of them into
@@ -1565,13 +1590,21 @@ fn main() -> ExitCode {
             autoload_map,
             strict_docs,
             count,
+            todos,
+            deny,
+            fix,
         } => run_check(
             &cli.config,
             &file,
-            json,
-            autoload_map,
-            strict_docs,
-            count,
+            &CheckFlags {
+                json,
+                autoload_map,
+                strict_docs,
+                count,
+                todos,
+                deny,
+                fix,
+            },
             init,
         ),
         Command::Run {
@@ -2258,35 +2291,112 @@ fn names_an_undeclared_type(diagnostic: &nvs_diagnostics::Diagnostic) -> bool {
 /// errors" says. What does *not* produce a document is a failure to read the
 /// entry file or to resolve the configuration: neither is a diagnostic, both
 /// say so on standard error, and `nvs ast --json` answers them the same way.
+///
+/// `--todos`, `--deny` and `--fix` are `rule:tooling/a-todo-is-a-comment-the-tools-list`'s.
+/// The todos are listed after the diagnostics, on standard output, in path and
+/// line order ([`check::todos`]). `--deny` changes the exit status and nothing
+/// that is printed. `--fix` runs the front end silently ([`Sink::Fix`]) and
+/// writes each pass's safe edits ([`check::safe_edits`]) until a pass has none
+/// or [`FIX_PASSES`] have run, says how many it made, and then checks the
+/// program once more the ordinary way, so what it prints is what is left.
 fn run_check(
     config: &[std::path::PathBuf],
     path: &std::path::Path,
-    json: bool,
-    autoload_map: bool,
-    strict_docs: bool,
-    count: bool,
+    flags: &CheckFlags,
     init: config::Init,
 ) -> ExitCode {
-    let sink = if json { Sink::Json } else { Sink::Text };
     let survey = survey_root(config);
-    match front_end_granted(path, Some(config), strict_docs, sink, init, Some(&survey)) {
+    if flags.fix {
+        let (mut made, mut files) = (0, std::collections::BTreeSet::new());
+        for _ in 0..FIX_PASSES {
+            let _ = front_end_granted(
+                path,
+                Some(config),
+                flags.strict_docs,
+                Sink::Fix,
+                init,
+                Some(&survey),
+            );
+            let mut wrote = 0;
+            for file in check::take().edits {
+                match check::apply(&file) {
+                    Ok(0) => {}
+                    Ok(n) => {
+                        wrote += n;
+                        files.insert(file.path);
+                    }
+                    Err(err) => {
+                        eprintln!("error: could not write {}: {err}", file.path.display());
+                        return ExitCode::FAILURE;
+                    }
+                }
+            }
+            if wrote == 0 {
+                break;
+            }
+            made += wrote;
+        }
+        println!(
+            "made {made} {} in {} {}",
+            if made == 1 { "edit" } else { "edits" },
+            files.len(),
+            if files.len() == 1 { "file" } else { "files" },
+        );
+    }
+    let sink = Sink::Check {
+        json: flags.json,
+        list_todos: flags.todos,
+        read_todos: flags.deny.contains(&Deny::Todo),
+    };
+    match front_end_granted(
+        path,
+        Some(config),
+        flags.strict_docs,
+        sink,
+        init,
+        Some(&survey),
+    ) {
         Ok(checked) => {
-            if count {
+            if flags.count {
                 eprintln!("{}", checked.count_line(None));
             }
-            if autoload_map {
+            if flags.autoload_map {
                 let base = match path.parent() {
                     Some(dir) if !dir.as_os_str().is_empty() => dir,
                     _ => std::path::Path::new("."),
                 };
                 print!("{}", checked.autoload.render(base));
-            } else if !json {
+            } else if !flags.json {
                 println!("no errors");
             }
-            ExitCode::SUCCESS
+            let found = check::take();
+            let denied = flags.deny.iter().any(|kind| match kind {
+                Deny::Deprecated => found.deprecated,
+                Deny::Todo => found.todo,
+            });
+            if denied {
+                ExitCode::FAILURE
+            } else {
+                ExitCode::SUCCESS
+            }
         }
         Err(code) => code,
     }
+}
+
+/// How many times `nvs check --fix` checks and writes before it stops. A fix
+/// whose result carries the same fix again would otherwise never stop.
+const FIX_PASSES: usize = 16;
+
+/// What `nvs check` was asked for besides the file.
+struct CheckFlags {
+    json: bool,
+    autoload_map: bool,
+    strict_docs: bool,
+    count: bool,
+    todos: bool,
+    deny: Vec<Deny>,
+    fix: bool,
 }
 
 /// The tree `nvs check` searches for a program that lends the checked file its
@@ -3655,8 +3765,18 @@ fn directory_entry(dir: &std::path::Path, files: &[PathBuf]) -> String {
 enum Sink {
     /// The terminal rendering, on standard error. Every command's default.
     Text,
-    /// `nvs check --json`'s document, on standard output.
-    Json,
+    /// `nvs check`'s: the terminal rendering, or with `json` the document on
+    /// standard output, and what `--deny` reads kept in [`check::keep`].
+    /// `list_todos` prints every todo; `read_todos` reads them for `--deny
+    /// todo` without printing them.
+    Check {
+        json: bool,
+        list_todos: bool,
+        read_todos: bool,
+    },
+    /// One pass of `nvs check --fix`: nothing printed, and the safe edits kept
+    /// in [`check::keep`].
+    Fix,
     /// `nvs agent hook`'s report: the errors alone, kept for the hook to give
     /// back to the agent in its tool's JSON ([`agent::keep_errors`]).
     Hook,
@@ -3670,9 +3790,38 @@ enum Sink {
 fn emit_diagnostics(diags: &mut Diagnostics, map: &SourceMap, sink: Sink) {
     match sink {
         Sink::Text => render_diagnostics(diags, map),
-        Sink::Json => {
+        Sink::Check {
+            json,
+            list_todos,
+            read_todos,
+        } => {
+            let todos = if list_todos || read_todos {
+                check::todos(map)
+            } else {
+                Vec::new()
+            };
+            let listed = if list_todos { &todos[..] } else { &[] };
+            if json {
+                diags.sort_by_position();
+                println!("{}", check::document(diags.iter(), map, listed));
+            } else {
+                render_diagnostics(diags, map);
+                for todo in listed {
+                    println!("{}", todo.line());
+                }
+            }
+            check::keep(check::Found {
+                deprecated: check::uses_deprecated(diags.iter(), map),
+                todo: todos.iter().any(|todo| !todo.vendored),
+                edits: Vec::new(),
+            });
+        }
+        Sink::Fix => {
             diags.sort_by_position();
-            println!("{}", check::document(diags.iter(), map));
+            check::keep(check::Found {
+                edits: check::safe_edits(diags.iter(), map),
+                ..check::Found::default()
+            });
         }
         Sink::Hook => agent::keep_errors(diags, map),
     }

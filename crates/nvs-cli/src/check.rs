@@ -33,12 +33,21 @@
 //!
 //! Every field is always present. An absent code is `null` and an empty list
 //! is `[]`, so nothing downstream has to tell "no suggestions" from "this
-//! version did not emit suggestions".
+//! version did not emit suggestions". `todos` is the one list a flag fills:
+//! it is `--todos`' list, and `[]` without it.
+//!
+//! The rest of the module is `rule:tooling/a-todo-is-a-comment-the-tools-list`'s
+//! half of `nvs check`: the todo list ([`todos`]), what `--deny` reads after a
+//! run ([`Found`]), and the edits `--fix` writes ([`safe_edits`], [`apply`]).
+//! A file in a directory named `vendor` is listed but never denied or written
+//! ([`vendored`]).
 
 use nvs_diagnostics::{
     BytePos, Diagnostic, Label, LabelStyle, SourceFile, SourceMap, Span, Suggestion,
 };
 use serde_json::{Map, Value, json};
+use std::cell::RefCell;
+use std::path::PathBuf;
 
 /// The shape below, frozen. It goes up when a field is removed or its meaning
 /// changes; a field added beside the others does not move it, because a
@@ -55,19 +64,228 @@ const HELP_PREFIX: &str = "help: ";
 /// opposite reason: an AST document is thousands of nodes nobody reads by eye,
 /// while this one is the handful of things wrong with a file and is read in a
 /// CI log as often as it is parsed.
+///
+/// `todos` is `--todos`' list, and empty without the flag, so the key is
+/// present in every document like every other field.
 pub(crate) fn document<'a>(
     diagnostics: impl Iterator<Item = &'a Diagnostic>,
     map: &SourceMap,
+    todos: &[Listed],
 ) -> String {
     let document = json!({
         "schemaVersion": SCHEMA_VERSION,
         "diagnostics": diagnostics
             .map(|diagnostic| diagnostic_json(diagnostic, map))
             .collect::<Vec<_>>(),
+        "todos": todos
+            .iter()
+            .map(|todo| json!({ "file": todo.file, "line": todo.line, "text": todo.text }))
+            .collect::<Vec<_>>(),
     });
     // It cannot fail: the document holds strings, bools and integers, and
     // `serde_json` only errors on a non-string map key or a non-finite float.
     serde_json::to_string_pretty(&document).expect("the document holds no unserializable value")
+}
+
+/// One `// TODO:` comment of the checked program
+/// (`rule:tooling/a-todo-is-a-comment-the-tools-list`), as `--todos` prints it.
+#[derive(Debug)]
+pub(crate) struct Listed {
+    /// The file's name as a diagnostic's `-->` header shows it.
+    pub(crate) file: String,
+    /// One-based.
+    pub(crate) line: usize,
+    pub(crate) text: String,
+    /// Whether the file is under a `vendor` directory, which `--deny todo`
+    /// does not look at.
+    pub(crate) vendored: bool,
+}
+
+impl Listed {
+    /// `path:line: text`, the line `--todos` prints.
+    pub(crate) fn line(&self) -> String {
+        format!("{}:{}: {}", self.file, self.line, self.text)
+    }
+}
+
+/// Every todo in every file `map` holds, in path and line order.
+///
+/// Each file is lexed once more for its trivia, which only a caller that
+/// lists todos pays for.
+pub(crate) fn todos(map: &SourceMap) -> Vec<Listed> {
+    let mut out: Vec<Listed> = map
+        .files()
+        .flat_map(|file| {
+            let vendored = file.path().is_some_and(vendored);
+            nvs_syntax::todos(file).into_iter().map(move |todo| Listed {
+                file: file.name().to_string(),
+                line: file.line_col(todo.span.start).0 + 1,
+                text: todo.text,
+                vendored,
+            })
+        })
+        .collect();
+    // Stable, so two todos on one line keep their source order.
+    out.sort_by(|a, b| a.file.cmp(&b.file).then(a.line.cmp(&b.line)));
+    out
+}
+
+/// Whether `path` has a directory named `vendor` in it: code a project pulls
+/// in rather than writes, which `--deny` and `--fix` leave alone.
+pub(crate) fn vendored(path: &std::path::Path) -> bool {
+    path.parent()
+        .is_some_and(|dir| dir.components().any(|part| part.as_os_str() == "vendor"))
+}
+
+/// What one front-end run of `nvs check` found that the command reads once the
+/// run is over: `--deny`'s two questions and `--fix`'s edits.
+///
+/// It is kept beside the run rather than returned from it because a run that
+/// fails returns no program, and a fix is wanted most in a program that fails.
+#[derive(Debug, Default)]
+pub(crate) struct Found {
+    /// Whether a `W1003` was reported in a file outside `vendor`.
+    pub(crate) deprecated: bool,
+    /// Whether a todo was read in a file outside `vendor`.
+    pub(crate) todo: bool,
+    /// The safe edits `--fix` applies, per file, none overlapping another.
+    pub(crate) edits: Vec<FileEdits>,
+}
+
+/// The edits one `--fix` pass makes to one file.
+#[derive(Debug)]
+pub(crate) struct FileEdits {
+    pub(crate) path: PathBuf,
+    /// Byte range and replacement, in the order they were taken.
+    pub(crate) edits: Vec<(u32, u32, String)>,
+}
+
+thread_local! {
+    /// The last run's [`Found`]. One `nvs check` runs one front end at a time,
+    /// on the main thread.
+    static FOUND: RefCell<Found> = RefCell::new(Found::default());
+}
+
+/// Replaces what the last run found.
+pub(crate) fn keep(found: Found) {
+    FOUND.with(|slot| *slot.borrow_mut() = found);
+}
+
+/// What the last run found, leaving nothing behind.
+pub(crate) fn take() -> Found {
+    FOUND.with(|slot| std::mem::take(&mut *slot.borrow_mut()))
+}
+
+/// Whether a `W1003` in `diagnostics` points into a file outside `vendor`.
+pub(crate) fn uses_deprecated<'a>(
+    mut diagnostics: impl Iterator<Item = &'a Diagnostic>,
+    map: &SourceMap,
+) -> bool {
+    diagnostics.any(|diagnostic| {
+        diagnostic.code == Some(nvs_diagnostics::code::W_DEPRECATED)
+            && diagnostic
+                .primary_span()
+                .and_then(|span| map.get(span.file))
+                .is_some_and(|file| !file.path().is_some_and(vendored))
+    })
+}
+
+/// Every `safe` suggestion in `diagnostics` that `--fix` applies, per file.
+///
+/// A diagnostic's suggestions are one fix, such as a rewrite and the `use` line
+/// it needs, so they are taken together or not at all. A fix that overlaps
+/// one taken before it waits for the next pass, which checks the program
+/// again. An edit equal to one already taken is the same change made once:
+/// two uses of one deprecated member each carry the same `use` line. A choice
+/// between alternatives is never taken, and nothing is taken in a file with no
+/// path or in a `vendor` directory.
+pub(crate) fn safe_edits<'a>(
+    diagnostics: impl Iterator<Item = &'a Diagnostic>,
+    map: &SourceMap,
+) -> Vec<FileEdits> {
+    let mut out: Vec<FileEdits> = Vec::new();
+    for diagnostic in diagnostics {
+        let fix: Vec<&Suggestion> = diagnostic
+            .suggestions
+            .iter()
+            .filter(|suggestion| suggestion.safe && !suggestion.alternative)
+            .collect();
+        let writable = |suggestion: &&Suggestion| {
+            map.get(suggestion.span.file)
+                .and_then(SourceFile::path)
+                .is_some_and(|path| !vendored(path))
+        };
+        if fix.is_empty() || !fix.iter().all(writable) {
+            continue;
+        }
+        let overlaps = fix.iter().any(|suggestion| {
+            let (start, end) = (suggestion.span.start, suggestion.span.end);
+            let path = map.get(suggestion.span.file).and_then(SourceFile::path);
+            out.iter()
+                .filter(|file| Some(file.path.as_path()) == path)
+                .flat_map(|file| &file.edits)
+                .any(|(s, e, text)| {
+                    let same = *s == start && *e == end && *text == suggestion.replacement;
+                    // Two ranges that share a byte, or two edits at one
+                    // offset where either inserts: the order would decide
+                    // the text.
+                    let shared = start < *e && *s < end;
+                    let one_point = start == *s && (start == end || s == e);
+                    (shared || one_point) && !same
+                })
+        });
+        if overlaps {
+            continue;
+        }
+        for suggestion in fix {
+            let path = map
+                .get(suggestion.span.file)
+                .and_then(SourceFile::path)
+                .expect("checked writable above");
+            let edit = (
+                suggestion.span.start,
+                suggestion.span.end,
+                suggestion.replacement.clone(),
+            );
+            match out.iter_mut().find(|file| file.path == path) {
+                Some(file) if file.edits.contains(&edit) => {}
+                Some(file) => file.edits.push(edit),
+                None => out.push(FileEdits {
+                    path: path.to_path_buf(),
+                    edits: vec![edit],
+                }),
+            }
+        }
+    }
+    out
+}
+
+/// Writes `file`'s edits into it, and returns how many it made.
+///
+/// The text is read again rather than taken from the run, so the offsets are
+/// applied to the bytes they were computed from only if nothing changed the
+/// file in between: a file whose length no longer covers an edit is left as
+/// it is.
+pub(crate) fn apply(file: &FileEdits) -> std::io::Result<usize> {
+    let mut text = std::fs::read_to_string(&file.path)?;
+    let mut edits: Vec<&(u32, u32, String)> = file.edits.iter().collect();
+    // From the end, so an edit never moves the offsets of one still to come.
+    edits.sort_by(|a, b| b.0.cmp(&a.0).then(b.1.cmp(&a.1)));
+    let fits = edits.iter().all(|(start, end, _)| {
+        let (start, end) = (*start as usize, *end as usize);
+        start <= end
+            && end <= text.len()
+            && text.is_char_boundary(start)
+            && text.is_char_boundary(end)
+    });
+    if !fits {
+        return Ok(0);
+    }
+    for (start, end, replacement) in &edits {
+        text.replace_range(*start as usize..*end as usize, replacement);
+    }
+    std::fs::write(&file.path, text)?;
+    Ok(edits.len())
 }
 
 /// One record: what the terminal renderer prints as one block.
