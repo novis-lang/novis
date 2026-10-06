@@ -51,7 +51,9 @@
 //! statements whose count grew ([`grew`]) are that test's: every attempt a
 //! retry made and every request a `server: true` test sent. [`Sites::reached`]
 //! turns them into lines. A fixture is built before its class's first test,
-//! so its lines are in no test's list.
+//! so its lines are in no test's list. A runner that runs tests in parallel
+//! cannot read one shared table this way: it gives each test a table of its
+//! own and adds them into the run's.
 //!
 //! # How a file is named
 //!

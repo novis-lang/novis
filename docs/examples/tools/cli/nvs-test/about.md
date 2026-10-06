@@ -8,6 +8,9 @@ directory of such files. A case is one program with its expected output.
 `--format junit` print a report for a build server. `--list` prints the tests and runs none. The
 exit status is not zero when a test failed. A skipped test is not a failure.
 
+`--coverage-lcov <file>`, `--coverage-clover <file>` and `--coverage-cobertura <file>` write which
+lines, functions and branches the tests ran. Most build servers and editors can read these files.
+
 **Good to know:** one call runs one kind of test. `--update` writes the new text into each failed
 `Core\Test::assertMatchesInline` snapshot in your source file. Those tests are still reported as
 failed, so run the tests again.
