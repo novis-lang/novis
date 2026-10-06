@@ -1,6 +1,7 @@
-//! The fixture extensions under `tests/conformance/ext/fixtures/`, which conformance cases load:
-//! each committed `<name>.nvsx` is exactly what the packer builds from the directory `<name>/`
-//! beside it, so a fixture never goes stale against its text.
+//! The fixture extensions under `tests/conformance/ext/fixtures/`, which conformance cases load,
+//! and those under `docs/examples/` and `tests/hostile/`, which example and attack programs load
+//! through their own `nvs.toml`: each committed `<name>.nvsx` is exactly what the packer builds
+//! from the directory `<name>/` beside it, so a fixture never goes stale against its text.
 //!
 //! A fixture directory holds `module.wat`, a core module whose exports follow the canonical ABI's
 //! names; `api.wit`, the author's WIT package; `manifest.json`; and `source/`, the Novis files of
@@ -93,16 +94,21 @@ fn source_files(root: &Path, dir: &Path, out: &mut Vec<SourceFile>) {
     out.sort_by(|a, b| a.path.cmp(&b.path));
 }
 
-/// The `.nvsx` the packer builds from the fixture `name`'s text.
+/// The `.nvsx` the packer builds from the conformance fixture `name`'s text.
 fn build(name: &str) -> Vec<u8> {
-    let dir = fixtures().join(name);
+    build_at(&fixtures().join(name))
+}
+
+/// The `.nvsx` the packer builds from the fixture directory `dir`'s text.
+fn build_at(dir: &Path) -> Vec<u8> {
+    let name = dir.display();
     let module = wat::parse_str(read(&dir.join("module.wat")))
         .unwrap_or_else(|err| panic!("{name}'s module.wat does not compile: {err}"));
     let wit = read(&dir.join("api.wit"));
     let manifest = read(&dir.join("manifest.json"));
     let mut files = Vec::new();
     source_files(&dir.join("source"), &dir.join("source"), &mut files);
-    if refused(name).is_none() {
+    if refused_at(dir).is_none() {
         return pack(&Inputs {
             wasm: &module,
             wit: &[("api.wit", &wit)],
@@ -111,7 +117,7 @@ fn build(name: &str) -> Vec<u8> {
         })
         .unwrap_or_else(|err| panic!("{name} does not pack: {err}"));
     }
-    let stand_in = stand_in(name, &manifest);
+    let stand_in = stand_in(&name.to_string(), &manifest);
     let packed = pack(&Inputs {
         wasm: &module,
         wit: &[("api.wit", &wit)],
@@ -132,7 +138,12 @@ fn build(name: &str) -> Vec<u8> {
 
 /// The load refusal the fixture `name` exists to give, when its directory has a `refused.txt`.
 fn refused(name: &str) -> Option<String> {
-    let path = fixtures().join(name).join("refused.txt");
+    refused_at(&fixtures().join(name))
+}
+
+/// The load refusal the fixture directory `dir` exists to give, when it has a `refused.txt`.
+fn refused_at(dir: &Path) -> Option<String> {
+    let path = dir.join("refused.txt");
     path.is_file().then(|| read(&path).trim_end().to_owned())
 }
 
@@ -170,42 +181,85 @@ fn load(engine: &Engine, name: &str, bytes: &[u8]) -> Extension {
         .unwrap_or_else(|err| panic!("{name} does not load: {err}"))
 }
 
+/// Asserts that `<dir>.nvsx` beside the fixture directory `dir` is what the packer builds from it,
+/// and that `<dir>.sha256` is its pin. Under `NVS_WRITE_FIXTURES` it writes both instead.
+fn assert_packed(dir: &Path) {
+    let built = build_at(dir);
+    let path = dir.with_extension("nvsx");
+    let pin_path = dir.with_extension("sha256");
+    let pinned = format!("{}\n", pin(&built));
+    if std::env::var_os("NVS_WRITE_FIXTURES").is_some() {
+        std::fs::write(&path, &built)
+            .unwrap_or_else(|err| panic!("{} does not write: {err}", path.display()));
+        std::fs::write(&pin_path, &pinned)
+            .unwrap_or_else(|err| panic!("{} does not write: {err}", pin_path.display()));
+        return;
+    }
+    assert_eq!(
+        read(&pin_path),
+        pinned,
+        "{} is not the pin of what the packer builds from `{}`; \
+         `NVS_WRITE_FIXTURES=1 cargo test --test fixtures` writes it again",
+        pin_path.display(),
+        dir.display()
+    );
+    let committed = std::fs::read(&path).unwrap_or_else(|err| {
+        panic!(
+            "{} does not read ({err}); `NVS_WRITE_FIXTURES=1 cargo test --test fixtures` writes it",
+            path.display()
+        )
+    });
+    assert!(
+        committed == built,
+        "{} differs from what the packer builds from `{}`; \
+         `NVS_WRITE_FIXTURES=1 cargo test --test fixtures` writes it again",
+        path.display(),
+        dir.display()
+    );
+}
+
 #[test]
 fn every_committed_conformance_fixture_is_what_the_packer_builds_from_its_text() {
     let names = names();
     assert!(names.iter().any(|name| name == "ledger"), "{names:?}");
-    let write = std::env::var_os("NVS_WRITE_FIXTURES").is_some();
     for name in names {
-        let built = build(&name);
-        let path = fixtures().join(format!("{name}.nvsx"));
-        let pin_path = fixtures().join(format!("{name}.sha256"));
-        let pinned = format!("{}\n", pin(&built));
-        if write {
-            std::fs::write(&path, &built)
-                .unwrap_or_else(|err| panic!("{} does not write: {err}", path.display()));
-            std::fs::write(&pin_path, &pinned)
-                .unwrap_or_else(|err| panic!("{} does not write: {err}", pin_path.display()));
+        assert_packed(&fixtures().join(name));
+    }
+}
+
+/// Every fixture directory under `dir`: one holding a `module.wat` and a `manifest.json`.
+fn proof_fixtures(dir: &Path, out: &mut Vec<PathBuf>) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries {
+        let path = entry.expect("the proof tree reads").path();
+        if !path.is_dir() {
             continue;
         }
-        assert_eq!(
-            read(&pin_path),
-            pinned,
-            "{} is not the pin of what the packer builds from `{name}/`; \
-             `NVS_WRITE_FIXTURES=1 cargo test --test fixtures` writes it again",
-            pin_path.display()
-        );
-        let committed = std::fs::read(&path).unwrap_or_else(|err| {
-            panic!(
-                "{} does not read ({err}); `NVS_WRITE_FIXTURES=1 cargo test --test fixtures` writes it",
-                path.display()
-            )
-        });
-        assert!(
-            committed == built,
-            "{} differs from what the packer builds from `{name}/`; \
-             `NVS_WRITE_FIXTURES=1 cargo test --test fixtures` writes it again",
-            path.display()
-        );
+        if path.join("module.wat").is_file() && path.join("manifest.json").is_file() {
+            out.push(path);
+        } else {
+            proof_fixtures(&path, out);
+        }
+    }
+}
+
+/// The extensions the example and attack programs load are packed from their text the same way,
+/// each `<name>/` directory beside the `<name>.nvsx` and `<name>.sha256` its `nvs.toml` names.
+#[test]
+fn every_committed_proof_fixture_is_what_the_packer_builds_from_its_text() {
+    let mut dirs = Vec::new();
+    for tree in ["docs/examples", "tests/hostile"] {
+        proof_fixtures(&nvs_repo::path(tree), &mut dirs);
+    }
+    dirs.sort();
+    assert!(
+        dirs.iter().any(|dir| dir.ends_with("atlas")),
+        "no proof fixture named `atlas` under the example and attack trees: {dirs:?}"
+    );
+    for dir in dirs {
+        assert_packed(&dir);
     }
 }
 

@@ -1,0 +1,15 @@
+{
+  "manifest": 1,
+  "world": "1.0.0",
+  "class": "Geo\\Atlas",
+  "interface": "geo:atlas/api",
+  "methods": [
+    {"name": "read", "params": [{"name": "path", "type": "string"}], "returns": "string",
+     "help": "Returns the text of the file at `path`. It looks for the file in each folder the extension may read. If no folder has it, the call throws a `RuntimeError`."},
+    {"name": "write", "params": [{"name": "path", "type": "string"}, {"name": "text", "type": "string"}],
+     "help": "Writes `text` to the file at `path`. If the extension may not write there, the call throws a `RuntimeError`."},
+    {"name": "status", "params": [{"name": "host", "type": "string"}], "returns": "int",
+     "help": "Sends a `GET` request to `host` over HTTP and returns the status code. If the extension may not connect to `host`, the call throws a `RuntimeError`."}
+  ],
+  "requests": {"read": ["data/"], "connect": ["tiles.example.com", "routes.example.com"]}
+}
