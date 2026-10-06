@@ -33,7 +33,9 @@ unions of shapes and resources by name, the loader holds each against the export
 `variant`, record or resource, and `nvs_ext::convert` converts every row to its WIT value and back,
 `mixed` by lending it as a handle and a resource as a number the request keeps, which
 `nvs_ext::call::Request::end` drops (`crates/nvs-ext/tests/convert.rs`). `nvs run` crosses every
-scalar, `bytes`, a list, a keyed array, `?T` and a shape both ways
-(`tests/conformance/ext/an-extension-call-crosses-every-row-of-the-value-table.nvst`). The checker
-does not type a method that names an extension's enum or resource, and a returned enum, `Core`
-value class or resource does not cross back yet.
+scalar, `bytes`, a list, a keyed array, `?T`, a shape, a closed union of shapes, a `Core` value
+class and `mixed`
+(`tests/conformance/ext/an-extension-call-crosses-every-row-of-the-value-table.nvst`); a `Core`
+value class is read and rebuilt by `nvs_stdlib::ext_record`, with its constructor's checks. The
+checker does not type a method that names an extension's enum or resource, so neither crosses
+from a program yet.

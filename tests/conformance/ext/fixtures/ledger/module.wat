@@ -7,6 +7,7 @@
 ;; one.
 (module
   (import "nvs:ext/types@1.0.0" "[method]value.kind" (func $kind (param i32) (result i32)))
+  (import "nvs:ext/types@1.0.0" "[resource-drop]value" (func $drop (param i32)))
 
   (memory (export "memory") 1)
   ;; `fetch`'s answer.
@@ -95,9 +96,30 @@
     (i64.store offset=16 (global.get $ret) (local.get $number))
     (call $ok))
 
+  ;; `area` is its case at 0 and the case's fields, each an `f64`, from 8: so at 8, 16 and 24 of
+  ;; the result. A `circle` has only the first field.
+  (func (export "shop:ledger/api#echo-area")
+    (param $case i32) (param $first f64) (param $second f64) (result i32)
+    (i32.store8 offset=8 (global.get $ret) (local.get $case))
+    (f64.store offset=16 (global.get $ret) (local.get $first))
+    (f64.store offset=24 (global.get $ret) (local.get $second))
+    (call $ok))
+
+  ;; `instant` is `seconds` at 0 and `nanos` at 8, so at 8 and 16 of the result.
+  (func (export "shop:ledger/api#echo-instant") (param $seconds i64) (param $nanos i64) (result i32)
+    (i64.store offset=8 (global.get $ret) (local.get $seconds))
+    (i64.store offset=16 (global.get $ret) (local.get $nanos))
+    (call $ok))
+
+  ;; `uri` is its text alone, so it is returned as a string is.
+  (func (export "shop:ledger/api#echo-uri") (param $ptr i32) (param $len i32) (result i32)
+    (call $ok_pair (local.get $ptr) (local.get $len)))
+
+  ;; A borrowed handle is dropped before the export returns, as the canonical ABI requires.
   (func (export "shop:ledger/api#kind-of") (param $handle i32) (result i32)
     (i64.store offset=8 (global.get $ret)
       (i64.extend_i32_u (call $kind (local.get $handle))))
+    (call $drop (local.get $handle))
     (call $ok))
 
   (func (export "shop:ledger/api#write-line") (param $ptr i32) (param $len i32) (result i32)

@@ -27,6 +27,13 @@
     {"name": "echoOptional", "params": [{"name": "maybe", "type": "?int", "default": null}],
      "returns": "?int",
      "help": "Returns `maybe` unchanged. Without an argument, it returns `null`."},
+    {"name": "echoArea", "params": [{"name": "shape", "type": "Area"}], "returns": "Area",
+     "help": "Returns `shape` unchanged."},
+    {"name": "echoInstant", "params": [{"name": "at", "type": "Core\\Time\\Instant"}],
+     "returns": "Core\\Time\\Instant",
+     "help": "Returns `at` unchanged."},
+    {"name": "echoUri", "params": [{"name": "address", "type": "Core\\Uri"}], "returns": "Core\\Uri",
+     "help": "Returns `address` unchanged."},
     {"name": "kindOf", "params": [{"name": "anything", "type": "mixed"}], "returns": "int",
      "help": "Returns a number for the kind of `anything`: 0 for `null`, 1 for a `bool`, and so on."},
     {"name": "writeLine", "params": [{"name": "line", "type": "string", "sink": true}],
@@ -38,5 +45,8 @@
     {"name": "crash",
      "help": "Stops with an `ExtensionError`."}
   ],
-  "consts": [{"name": "CURRENCY", "type": "string", "value": "EUR"}]
+  "consts": [{"name": "CURRENCY", "type": "string", "value": "EUR"}],
+  "unions": [{"name": "Area", "cases": [
+    {"name": "Circle", "shape": "{radius: float}"},
+    {"name": "Rect", "shape": "{width: float, height: float}"}]}]
 }

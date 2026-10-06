@@ -30,6 +30,19 @@ echo Ledger::echoOptional() ?? "null", "\n";
 echo Json::encode(Ledger::echoItem({name: "pen", note: "blue"})), "\n";
 echo Json::encode(Ledger::echoItem({name: "cup"})), "\n";
 echo Ledger::echoItem({name: "lamp", note: "red"})->note, "\n";
+
+// `Area` is a closed union of two shapes. Each value comes back as the same shape.
+echo Json::encode(Ledger::echoArea({radius: 1.5})), "\n";
+echo Json::encode(Ledger::echoArea({width: 2.0, height: 3.0})), "\n";
+
+// A `Core` value, such as an `Instant` or a `Uri`, comes back equal to the one passed in.
+echo Ledger::echoInstant(Core\Time::fromIso("2024-01-02T03:04:05.5Z"))->toIso(), "\n";
+var $address = Ledger::echoUri(Core\Uri::parse("https://example.com/shop?page=2"));
+echo $address->host(), " ", $address->toString(), "\n";
+
+// `kindOf` takes any value. The number it returns says what kind of value it is.
+echo Ledger::kindOf(null), " ", Ledger::kindOf(7), " ", Ledger::kindOf("pen"), "\n";
+echo Ledger::kindOf([1, 2]), " ", Ledger::kindOf($address), "\n";
 --EXPECT--
 true
 -42
@@ -44,3 +57,9 @@ null
 {"name":"pen","note":"blue"}
 {"name":"cup"}
 red
+{"radius":1.5}
+{"height":3.0,"width":2.0}
+2024-01-02T03:04:05.5Z
+example.com https://example.com/shop?page=2
+0 2 5
+7 8

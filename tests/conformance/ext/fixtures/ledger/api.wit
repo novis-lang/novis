@@ -3,11 +3,25 @@ package shop:ledger;
 /// The fixture extension `Shop\Ledger`. Each `echo-*` export returns its
 /// argument unchanged, one per row of the Novis-to-WIT table the loader reads.
 interface api {
-    use nvs:ext/types@1.0.0.{error, value};
+    use nvs:ext/types@1.0.0.{error, value, instant, uri};
 
     record item {
         name: string,
         note: option<string>,
+    }
+
+    record circle {
+        radius: f64,
+    }
+
+    record rect {
+        width: f64,
+        height: f64,
+    }
+
+    variant area {
+        circle(circle),
+        rect(rect),
     }
 
     echo-bool: func(flag: bool) -> result<bool, error>;
@@ -20,6 +34,9 @@ interface api {
     echo-map: func(totals: list<tuple<string, s64>>) -> result<list<tuple<string, s64>>, error>;
     echo-item: func(row: item) -> result<item, error>;
     echo-optional: func(maybe: option<s64>) -> result<option<s64>, error>;
+    echo-area: func(shape: area) -> result<area, error>;
+    echo-instant: func(at: instant) -> result<instant, error>;
+    echo-uri: func(address: uri) -> result<uri, error>;
 
     /// The `kind` discriminant of a `mixed` argument, read through the
     /// world's accessor import.

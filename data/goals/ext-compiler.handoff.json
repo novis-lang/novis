@@ -1,17 +1,17 @@
 {
-  "state": "**Goal `ext-compiler`, Stage 3 (the call) is under way.** Stages 1 and 2 are on disk. The design is ADR 0246 § 8 and the goal file's § *Standing decisions*. This goal has no record slot.\n\n`nvs run` calls an extension end to end. Codegen emits `InstKind::ExtensionCall` as a variadic call of `nvs_runtime::extension::nvs_extension_call` (`crates/nvs-runtime/src/extension.rs` module doc), and `nvs-cli`'s `extensions::Calls` hosts it over one `nvs_ext::call::Request` (`crates/nvs-cli/src/extensions.rs` module doc).\n\nA shape now crosses both ways. An argument is read with `Value::shape_fields`. A returned value is converted by the manifest's declared return type, and each shape in it is built with `Ctx::new_shape` from the class the lowering records for every shape in an extension method's return type (`Lowering::record_extension_result_shapes`). A closed union picks its case with `nvs_ext::convert::fits`. The row-table case `tests/conformance/ext/an-extension-call-crosses-every-row-of-the-value-table.nvst` covers every row but the named ones.\n\n**Not yet crossing back:** an enum case, a `Core` value class and a resource throw `ExtensionError`. A limit is a plain `FATAL` (no limit handler), and `nvs serve` installs no `Calls`.",
+  "state": "**Goal `ext-compiler`, Stage 3 (the call) is under way.** Stages 1 and 2 are on disk. The design is ADR 0246 § 8 and the goal file's § *Standing decisions*. This goal has no record slot.\n\n`nvs run` calls an extension end to end. Codegen emits `InstKind::ExtensionCall` as a variadic call of `nvs_runtime::extension::nvs_extension_call` (`crates/nvs-runtime/src/extension.rs` module doc), and `nvs-cli`'s `extensions::Calls` hosts it over one `nvs_ext::call::Request` (`crates/nvs-cli/src/extensions.rs` module doc).\n\nEvery scalar, `bytes`, a list, a keyed array, `?T`, a shape, a closed union of shapes, a `Core` value class and `mixed` cross both ways, and the row-table case `tests/conformance/ext/an-extension-call-crosses-every-row-of-the-value-table.nvst` covers each one. A `Core` value class is read and rebuilt through `nvs_stdlib::ext_record`: each class's half sits beside its layout in its own module, and a rebuilt instance goes through the checks its constructor makes. The ledger fixture now exports `echoArea` (the union `Area`), `echoInstant` and `echoUri`, and its `kind-of` drops its borrowed handle.\n\n**Not yet crossing:** an enum case and a resource. The checker leaves out any method that names an extension enum or resource (`lowers` in `crates/nvs-types/src/ext_lib.rs`), so no program can call one. A limit is a plain `FATAL` with no limit handler, and `nvs serve` installs no `Calls`.",
   "next": {
     "stage": 3,
     "title": "the call",
     "files": [
+      "crates/nvs-types/src/ext_lib.rs",
       "crates/nvs-cli/src/extensions.rs",
-      "tests/conformance/ext/fixtures/ledger/",
-      "tests/conformance/ext/"
+      "tests/conformance/ext/fixtures/ledger/"
     ],
     "items": [
       {
         "done": false,
-        "text": "**The fixture's named rows**: add an enum, a closed union, a `Core` value class and a resource export to `tests/conformance/ext/fixtures/ledger/` (rebuilt and pinned by `crates/nvs-ext/tests/fixtures.rs:1`), call `kindOf` with a `mixed`, and cross each one back in `runtime` (`crates/nvs-cli/src/extensions.rs:355`): an enum case by the program's enum (`Ctx::enum_desc`), a `Core` value class by its `Core` constructor. `rule:packaging/a-value-crosses-as-its-wit-type`, `rule:packaging/values-cross-as-handles`."
+        "text": "**An extension enum and resource type in the checker and cross back**: decide what Novis class an extension's enum `Unit` and resource `Route` are (a class under the extension's namespace, which `nvs_hir::resolve_file_with_extensions` declares, is the obvious one), and record that decision in the `ext_lib` module doc. Then lower them in `lower` (`crates/nvs-types/src/ext_lib.rs:253`), drop the `lowers` exclusion (`crates/nvs-types/src/ext_lib.rs:143`), and cross them in `crossed` and `runtime` (`crates/nvs-cli/src/extensions.rs:299`): an enum case through `Ctx::enum_desc`, a resource as `Crossed::Resource`. Add an enum and a resource export to the ledger fixture, rebuilt with `NVS_WRITE_FIXTURES=1 cargo test --test fixtures`. `rule:packaging/a-value-crosses-as-its-wit-type`."
       },
       {
         "done": false,
@@ -20,9 +20,8 @@
     ]
   },
   "backlog": [
-    "Stage 4 (qualifiers), 5 (the source section), 6 (the tools): every check in `data/goals/ext-compiler.json` under those stages.",
-    "`nvs serve` installs no `extensions::Calls` per request: `crates/nvs-cli/src/extensions.rs` module doc.",
-    "The guest is linked with no WASI interface (standing decision 2): `crates/nvs-cli/src/extensions.rs` `host`.",
-    "The trampoline looks the export up by name on every call: `crates/nvs-runtime/src/extension.rs` module doc."
+    "Stage 4 (qualifiers): the driver's earliest red check is `nvs-types-an-extension-sink-refuses-with-the-core-code` (`data/goals/ext-compiler.json`).",
+    "`nvs serve` installs no `Calls`, so a request cannot call an extension yet (`crates/nvs-cli/src/extensions.rs` module doc).",
+    "A `Core\\Crypto\\PublicKey` returned by a guest gets the first kind that reads its SubjectPublicKeyInfo, so an RSA key comes back as `RsaPkcs1` (`crates/nvs-stdlib/src/ext_record.rs` module doc)."
   ]
 }
