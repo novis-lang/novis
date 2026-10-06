@@ -408,9 +408,7 @@ sessions made **370 snippet-running calls, 335 of them distinct** — 9.6 a sess
 into `.agent-tmp` followed by a hand-written `php -r` beside it. The turns are the cheap half. The
 expensive half is that a hand-written twin is a *translation*, made under time pressure by the same agent
 that wrote the Novis, at the moment it most wants the answer to be yes — and a twin that quietly differs
-from what it is checking reads exactly like proof. Priority 2 is PHP-compatible observable behaviour;
-that is not a place to accept a translation nobody ran.
-
+from what it is checking reads exactly like proof.
 **An experiment that comes out right is already the case.** Give the file its `--TEST--` sentence, move it
 under `tests/differential/`, and `nvs test` runs the same two programs the same way — there is no second
 translation step, which is the step the drift used to happen in. [conventions.md](conventions.md) § *A

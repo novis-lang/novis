@@ -1,20 +1,22 @@
 ---
 title: How we decide
 covers: []
-description: The five priorities Novis uses to choose between two designs, in order.
+description: The four priorities Novis uses to choose between two designs, in order.
 ---
 
 import { decisionRecord } from '@config/site.mjs'
 
-Most design questions have two good answers. Novis chooses with five priorities. They are always
+Most design questions have two good answers. Novis chooses with four priorities. They are always
 used in the same order. Novis gives up a lower priority to get a higher one. It never gives up a higher priority to get
 a lower one.
 
 1. **Security, and requests that cannot affect each other.** Novis never gives this up for any other priority.
-2. **Correct behaviour.** A program does what its code says, every time.
-3. **Speed of each request.** A request starts fast and finishes fast.
-4. **Simplicity.** The language you write must be simple. After that, the code of Novis itself.
-5. **Low memory use.** This comes last.
+2. **Speed of each request.** A request starts fast and finishes fast.
+3. **Simplicity.** The language you write must be simple. After that, the code of Novis itself.
+4. **Low memory use.** This comes last.
+
+What a program does is not one of the priorities. The language rules say what it does, and tests
+check every rule.
 
 ## What the order means for you
 

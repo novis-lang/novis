@@ -51,7 +51,7 @@ Also write the report's own proper nouns — names, namespaces, paths, hosts, fi
 | Class | What it is | Where it goes |
 |---|---|---|
 | **security** | Defeats a claim in [SECURITY.md](../../SECURITY.md) § *What counts as a vulnerability* | § *A security item* below, and nothing else from this file |
-| **bug** | Novis does something a rule, the reference or PHP-compatible behaviour says it should not, or crashes | Reproduced on `main` first, then steps 3 to 7 |
+| **bug** | Novis does something a rule or the reference says it should not, or crashes | Reproduced on `main` first, then steps 3 to 7 |
 | **friction** | It works as designed, and the reporter could not find, understand or diagnose it | Usually a diagnostic, a hint, a reference heading or an example, not a behaviour change |
 | **feature** | Something Novis does not do | Steps 3 and 4 |
 | **declined by a rule** | A rule already says no | Name the rule. Only the user reopens it |

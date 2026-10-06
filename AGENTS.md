@@ -48,10 +48,12 @@ Highest first. A lower item is spent to buy a higher one, never the reverse. Rea
 [ADR 0004](docs/decisions/0004.md).
 
 1. **Security and request isolation** — not traded for anything.
-2. **Correctness of language semantics** — PHP-compatible observable behaviour.
-3. **Latency and throughput on the request path.**
-4. **Simplicity** — of the language surface first, then of the implementation.
-5. **Memory footprint** — last, and spent deliberately to buy any of the above.
+2. **Latency and throughput on the request path.**
+3. **Simplicity** — of the language surface first, then of the implementation.
+4. **Memory footprint** — last, and spent deliberately to buy any of the above.
+
+Cite a priority by its name, never its number. What a program observably does is not in the ordering:
+the rules state it and the conformance cases pin it.
 
 When choosing between designs:
 
@@ -61,8 +63,8 @@ When choosing between designs:
   decision record that records it.
 - Memory must stay attributable to a request and under an enforceable cap, and must be O(in-flight) rather
   than O(requests served). Growth with total traffic is a leak, not a trade-off.
-- Bytes *moved* are not cheap. An allocation or extra cache miss on a hot path is a latency question
-  (priority 3), not a footprint one.
+- Bytes *moved* are not cheap. An allocation or extra cache miss on a hot path is a latency question,
+  not a footprint one.
 - Saving memory at the cost of an invariant every future contributor must remember is the wrong direction —
   that is the account the unsafe modules are already drawing on.
 

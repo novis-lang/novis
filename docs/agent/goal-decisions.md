@@ -37,7 +37,7 @@ goal promised and did not build is not here: it is a gap record under `data/gaps
   carries no `about` skip, although `tools/nv/proofs/collect.ts` would honour one. From
   `the-description-is-owed`.
 - **A limit handler that cannot run without weakening the bound does not run.** Stopping the request is
-  priority 1 and its report is not, so the bound is left alone and the finding recorded. Applies at
+  security and its report is not, so the bound is left alone and the finding recorded. Applies at
   `Ctx::run_limit_handler` in `crates/nvs-runtime/src/ctx/hooks.rs` and `rule:errors/on-limit`'s
   reserves. From `limit-handler-reach`.
 - **`data/proofs/help-backlog.json` only shrinks.** Nothing is added to it: a feature that lands owes
