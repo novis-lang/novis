@@ -28,4 +28,4 @@ extension to one `InstKind::ExtensionCall` naming the export (`crates/nvs-ir/src
 Codegen emits it as a direct call of one runtime helper with the export named in its first slot
 (`nvs_runtime::extension`), and `nvs run` hosts it
 (`tests/conformance/ext/an-extension-call-crosses-every-row-of-the-value-table.nvst`); `nvs serve`
-does not yet, and a returned enum or resource does not cross back yet.
+does not yet, and a resource does not cross back yet.
