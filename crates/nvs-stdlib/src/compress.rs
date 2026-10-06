@@ -10,11 +10,10 @@
 //!
 //! **One API, five codec cases, no name-as-string.** `Core\Codec` is a closed
 //! enum for the reason `Core\Crypto` has no cipher-name-as-string: a misspelled
-//! algorithm is a compile error rather than a run-time answer of `false`. The
-//! five cases are what [02-php-migration.md](/docs/spec/02-php-migration.md)
-//! § *Compression* names — `gzencode`, `gzcompress` and `gzdeflate` differ only
-//! in which header wraps one deflate stream, and a class that offered four
-//! would leave `gzdeflate` with no spelling at all.
+//! algorithm is a compile error rather than a run-time answer of `false`. Raw
+//! deflate, zlib and gzip differ only in which header wraps one deflate stream,
+//! and each is a case of its own, so a class that merged two of them would
+//! leave one format with no way to be written.
 //!
 //! **Whole buffer, and two streams beside it.** This is `Core\Xml`'s precedent
 //! applied deliberately rather than by omission: a materialising member and a

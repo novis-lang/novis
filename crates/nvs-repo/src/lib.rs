@@ -83,7 +83,7 @@ fn record(rel: &str) {
 }
 
 /// The path of `rel`, which is written relative to the repository root with `/` between its
-/// segments -- `"tests/conformance"`, `"docs/spec/02-php-migration.md"` -- and the record that
+/// segments -- `"tests/conformance"`, `"docs/spec/01-core-library.md"` -- and the record that
 /// this binary reads it. A directory stands for everything beneath it.
 ///
 /// # Panics

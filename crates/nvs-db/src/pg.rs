@@ -2808,9 +2808,8 @@ impl<S: Read + Write> PgRows<'_, S> {
     /// of a table declared the ordinary way. The id is therefore whatever a
     /// `RETURNING` clause handed back, and reading it here is also what makes it
     /// belong to the write that produced it rather than to the connection:
-    /// there is no connection-level state for `mysqli_insert_id`'s
-    /// stale-after-an-unrelated-statement hazard to live in, which is the
-    /// refusal `docs/spec/02-php-migration.md` records against that function.
+    /// there is no connection-level state for an id to go stale in after an
+    /// unrelated statement runs.
     ///
     /// `None`, then, for a statement with no `RETURNING` clause — it returned no
     /// rows — for one whose first returned column is not an integer, and while

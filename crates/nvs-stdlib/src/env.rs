@@ -38,11 +38,11 @@
 //!
 //! # Read-only, so there is nothing process-global to synchronise
 //!
-//! There is no `putenv` — `docs/spec/02-php-migration.md` drops it because a
-//! process-global mutation is unsound across cores. That is what makes an
-//! unsynchronised read safe from a core thread: nothing in this runtime writes
-//! the environment after start, so two requests on two cores read the same
-//! bytes and neither can tear the other's read.
+//! There is no way to set a variable, because a process-global mutation is
+//! unsound across cores. That is what makes an unsynchronised read safe from a
+//! core thread: nothing in this runtime writes the environment after start, so
+//! two requests on two cores read the same bytes and neither can tear the
+//! other's read.
 //!
 //! The read itself is [`nvs_runtime::environment`] and not this crate's own
 //! spelling, because `nvs_stdlib_reaches_the_os_only_through_the_gate` forbids

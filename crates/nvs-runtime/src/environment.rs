@@ -33,9 +33,8 @@
 //!
 //! # Read-only
 //!
-//! There is no `set`, and there will not be one: `putenv` has no Novis
-//! equivalent because a process-global mutation is unsound across cores
-//! (`docs/spec/02-php-migration.md`). Nothing in this runtime writes the
+//! There is no `set`, and there will not be one, because a process-global
+//! mutation is unsound across cores. Nothing in this runtime writes the
 //! environment after start, which is what makes an unsynchronised read from a
 //! core thread sound.
 
