@@ -127,6 +127,66 @@ fn an_extension_call_with_a_wrong_argument_type_does_not_compile() {
 }
 
 #[test]
+fn a_tainted_argument_to_an_extension_sink_is_refused_with_the_code_a_core_sink_gives() {
+    let sink = check(
+        "tainted string $t = \"a\";\nShop\\Ledger::writeLine($t);",
+        &[ledger()],
+    );
+    assert!(sink.has_errors(), "a tainted argument reaches a sink");
+    let core = check("tainted string $t = \"a\";\nCore\\IO::remove($t);", &[]);
+    assert_eq!(
+        codes(&sink),
+        codes(&core),
+        "the extension sink gives the code a `Core` sink gives"
+    );
+    let source = check(
+        "Shop\\Ledger::writeLine(Shop\\Ledger::fetch());",
+        &[ledger()],
+    );
+    assert_eq!(codes(&source), codes(&core), "a source's result is tainted");
+    let carried = check(
+        "tainted string $t = \"a\";\nShop\\Ledger::writeLine(Shop\\Ledger::echoString($t));",
+        &[ledger()],
+    );
+    assert_eq!(
+        codes(&carried),
+        codes(&core),
+        "a result is tainted when its argument was"
+    );
+    let plain = check(
+        "Shop\\Ledger::writeLine(Shop\\Ledger::echoString(\"a\"));",
+        &[ledger()],
+    );
+    assert!(
+        !plain.has_errors(),
+        "a plain argument stays plain: {plain:?}"
+    );
+}
+
+#[test]
+fn a_secret_argument_to_an_extension_is_refused_with_the_code_a_core_boundary_gives() {
+    let core = check(
+        "secret string $s = \"a\";\nuint $n = Core\\Str::length($s);",
+        &[],
+    );
+    assert!(
+        core.has_errors(),
+        "a secret argument reaches `Core\\Str::length`"
+    );
+    for call in [
+        "string $r = Shop\\Ledger::echoString($s);",
+        "Shop\\Ledger::writeLine($s);",
+    ] {
+        let diags = check(&format!("secret string $s = \"a\";\n{call}"), &[ledger()]);
+        assert_eq!(
+            codes(&diags),
+            codes(&core),
+            "`{call}` gives the code a `Core` boundary gives"
+        );
+    }
+}
+
+#[test]
 fn an_extension_class_constant_has_its_manifest_type() {
     let (table, mut interner) = table(&[ledger()]);
     let class = table.get(&QName::parse("Shop\\Ledger")).expect("loaded");

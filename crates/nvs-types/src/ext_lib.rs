@@ -20,7 +20,11 @@
 //!   argument is accepted, and the result is `tainted`.
 //! - A method with `"source": true` returns its type made `tainted`, so its result is `tainted`
 //!   whatever its arguments are.
-//! - A type outside `rule:packaging/a-value-crosses-as-its-wit-type`'s table, or a constant whose
+//! - A `secret` argument is refused at every parameter, sink or not, because neither mark is
+//!   [`Qual::Reveal`] (`rule:security/secret-does-not-cross-an-extension`). The code is the one a
+//!   `Core` parameter that refuses `secret` gives.
+//! - A method declared `secret`, a type outside `rule:packaging/a-value-crosses-as-its-wit-type`'s
+//!   table, or a constant whose
 //!   value is not of its type, leaves the method or the constant out. The loader has already
 //!   refused such a manifest; a reader that meets one anyway makes the member unknown, which only
 //!   rejects calls. [`hir_classes`] reads the same filter, so name resolution and the signature
@@ -174,6 +178,9 @@ struct Types {
 /// Every method of `manifest` whose types are all in the table, with those types.
 fn methods(manifest: &Manifest) -> impl Iterator<Item = (&Method, Types)> {
     manifest.methods.iter().filter_map(|method| {
+        if method.secret {
+            return None;
+        }
         let params = method
             .params
             .iter()
