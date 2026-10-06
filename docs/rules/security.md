@@ -1607,8 +1607,9 @@ and `nvs_config::extension::grants` makes its roots absolute against the file th
 and the caller `nvs_ext::call::Budget::caller` names, which `nvs run` and `nvs serve` take from the
 request's snapshot and its isolate's `grants:` list. Each root of it is a preopen, and
 `nvs_ext::wasi`'s filesystem resolves a guest's path under it one name at a time
-(`crates/nvs-ext/tests/files.rs`). The `connect` hosts reach nothing yet, because `wasi:http` is not
-linked.
+(`crates/nvs-ext/tests/files.rs`). `nvs_ext::wasi`'s outgoing handler refuses a host outside the
+`connect` set before anything is sent, and the caller's `net.connect` is asked again by the client
+that sends it; no test drives a guest's request through it yet.
 
 <sub>See also [`packaging/a-guest-has-no-ambient-authority`](packaging.md#packaging-a-guest-has-no-ambient-authority), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time). Decided in [0246](../decisions/0246.md).</sub>
 
