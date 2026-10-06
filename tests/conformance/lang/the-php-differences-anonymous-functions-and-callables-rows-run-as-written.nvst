@@ -2,7 +2,7 @@
 Every Novis spelling in the anonymous-functions-and-callables table of the PHP-differences chapter compiles and runs — `rule:types/callable-values`
 --FILE--
 <?nvs
-// covers: tools:php-differences/anonymous-functions-and-callables
+// covers: tools:php-differences/the-short-list
 // The rows that compile to an error are pinned under `tests/conformance/reject/`;
 // this case runs the replacement column of every row.
 class Price {

@@ -2,7 +2,7 @@
 A PHP anonymous function `function (…) use (…) { … }` and an `fn` parameter with no type and no parameter to take one from are refused, each with its own code — `rule:types/callable-values`
 --FILE--
 <?nvs
-// covers: tools:php-differences/anonymous-functions-and-callables
+// covers: tools:php-differences/the-short-list
 int $k = 3;
 function (int $x) use ($k) { return $x + $k; };
 fn($x) => $x;

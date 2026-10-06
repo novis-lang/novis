@@ -2,7 +2,7 @@
 Every Novis spelling in the classes table of the PHP-differences chapter, and every construct the paragraph under it lists, compiles and runs — `rule:classes/delegation-by-field`, `rule:classes/property-observer-pipeline`
 --FILE--
 <?nvs
-// covers: tools:php-differences/classes
+// covers: tools:php-differences/the-short-list
 // The rows that compile to an error are pinned under `tests/conformance/reject/`;
 // this case runs the replacement column of every other row.
 

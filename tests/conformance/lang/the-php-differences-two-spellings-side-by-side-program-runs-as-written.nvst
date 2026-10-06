@@ -1,10 +1,10 @@
 --TEST--
-The Novis program the side-by-side section of the PHP-differences chapter shows compiles and prints what the section says — `rule:classes/no-free-functions-or-constants`, `rule:statements/no-host-populated-variables`
+The cart program the porting section of the PHP-differences chapter shows compiles and prints what the section says — `rule:classes/no-free-functions-or-constants`, `rule:statements/no-host-populated-variables`
 --FILE--
 <?nvs
-// covers: tools:php-differences/two-spellings-side-by-side
+// covers: tools:php-differences/porting-a-program
 // The program is the section's own block, line for line. The PHP spellings
-// beside it are pinned under `tests/conformance/reject/`.
+// it does not use are pinned under `tests/conformance/reject/`.
 class Cart {
     public const int FREE_SHIPPING = 50;
 

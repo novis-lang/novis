@@ -2,7 +2,7 @@
 Every Novis spelling in the control flow table of the PHP-differences chapter compiles and runs — `rule:statements/inout-is-the-by-reference-spelling`, `rule:types/declaration`
 --FILE--
 <?nvs
-// covers: tools:php-differences/control-flow
+// covers: tools:php-differences/the-short-list
 // The PHP column of every row is pinned under `tests/conformance/reject/`;
 // this case runs the replacement column.
 class NotFound extends RuntimeError {}

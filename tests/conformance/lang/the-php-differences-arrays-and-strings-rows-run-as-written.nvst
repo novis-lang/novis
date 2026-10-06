@@ -2,7 +2,7 @@
 Every Novis spelling in the arrays-and-strings table of the PHP-differences chapter compiles and runs —`rule:types/grammar`.3, `rule:expressions/bracket-destructuring`
 --FILE--
 <?nvs
-// covers: tools:php-differences/arrays-and-strings
+// covers: tools:php-differences/the-short-list
 // The rows that compile to an error are pinned under `tests/conformance/reject/`;
 // this case runs the replacement column of every other row.
 class Point {

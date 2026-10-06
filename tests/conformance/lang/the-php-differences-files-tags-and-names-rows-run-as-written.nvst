@@ -3,7 +3,7 @@ Every Novis spelling in the files, tags and names table of the PHP-differences c
 --FILE--
 Report <? not code ?> end
 <?nvs
-// covers: tools:php-differences/files-tags-and-names
+// covers: tools:php-differences/the-short-list
 // The PHP column of every row is pinned under `tests/conformance/reject/`;
 // this case runs the replacement column. The text above is HTML mode, and the
 // `<?` short tag in it is copied to the output.

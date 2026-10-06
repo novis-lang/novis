@@ -2,7 +2,7 @@
 A `require` whose written path has no file behind it is `E0311`, and `<` on two objects whose class does not implement `Comparable` is `E0411` — `rule:statements/require-is-the-only-inclusion-construct`
 --FILE--
 <?nvs
-// covers: tools:php-differences/what-parses-but-behaves-differently
+// covers: tools:php-differences/the-short-list
 // The two rows of the PHP-differences chapter's "What parses but behaves
 // differently" tables that end in a compile error.
 class Box {

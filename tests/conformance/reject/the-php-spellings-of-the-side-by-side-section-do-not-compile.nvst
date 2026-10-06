@@ -2,7 +2,7 @@
 The three PHP programs the side-by-side section of the PHP-differences chapter shows do not compile, and `$_GET` is refused by naming the `Core` member that replaces it — `rule:classes/no-free-functions-or-constants`, `rule:statements/no-host-populated-variables`
 --FILE--
 <?nvs
-// covers: tools:php-differences/two-spellings-side-by-side
+// covers: tools:php-differences/porting-a-program
 // The section shows three programs, one per code it names. This case holds
 // them in one file, in the section's order, so one compile reports all three.
 function total(array $xs) {

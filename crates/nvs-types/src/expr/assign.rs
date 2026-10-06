@@ -1256,9 +1256,8 @@ fn reject_readonly_write_through_key(root: &Expr, env: &mut Env<'_>) -> bool {
 /// **This refuses one shape PHP 8.4 accepts.** PHP splits hooked properties
 /// into backed and virtual and lets an outside write through to a *backed*
 /// one's slot; Novis has no virtual property to tell it from, so the
-/// scope-shaped rule above answers instead —
-/// `docs/reference/tools/30-php-differences.md` carries the row, and the fix
-/// in either language is a `set` hook naming what the write commits.
+/// scope-shaped rule above answers instead, and the fix in either language
+/// is a `set` hook naming what the write commits.
 fn reject_get_only_hook_write(root: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     let Some(ExprInfo::HookedProperty {
         class,

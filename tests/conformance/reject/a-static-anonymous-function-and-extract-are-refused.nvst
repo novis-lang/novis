@@ -2,7 +2,7 @@
 `static fn` and `extract` are the two rows of the functions, constants and scope table no other case refuses — `rule:statements/no-function-static-and-no-global`
 --FILE--
 <?nvs
-// covers: tools:php-differences/functions-constants-and-scope
+// covers: tools:php-differences/the-short-list
 // An anonymous function captures `$this` only if it uses it, so `static` in front of one
 // is `E0210`. `extract` makes variables whose names are only known at run
 // time, so it is `E0205`.

@@ -329,7 +329,7 @@ rows whose owner is an item number, 31 to 35. An item's owner is the row it sits
       constant … not a constant of the declared type") — `null` is exactly such a constant. *probes2
       `nullable_default_int`, `nullable_default_class`*
 - [x] **D26** `continue` (level 1) inside a `switch` inside a loop continues the enclosing loop — the
-      documented Novis choice, but PHP acts as `break`; noted so the crosswalk row stays deliberate.
+      documented Novis choice, where PHP acts as `break`; the statements chapter states it.
 - [x] **D27** A shebang `#!` first line opens code mode, per `rule:tooling/shebang-opens-code-mode`, and is trivia rather than
       output. `nvs_syntax::lexer`'s `Lexer::new` owns why it is lexed as the `#` comment it already is
       instead of skipped before lexing, and `E0009` names an `<?nvs` in such a file. *php-diff probes*
@@ -391,11 +391,9 @@ rows whose owner is an item number, 31 to 35. An item's owner is the row it sits
       is built and checked, and `Core\Program::implementing` is the only reader.
 - [ ] **M7** `nvs serve`, `nvs fmt`, `nvs lsp`, `nvs ctl` are unrecognized subcommands.
 - [x] **M8** `Core\Secret`, `Core\Taint`, `Core\Log`, `Core\Env`, `Core\Cli`, `Core\Request`,
-      `Core\Server`, `Core\IO`, `Core\Html` resolve as names in diagnostics or the crosswalk but have
-      no registry rows. Part D's *dropped* rows still cite `Core\Html::escape` and `Core\IO::within`.
+      `Core\Server`, `Core\IO`, `Core\Html` resolved as names in diagnostics but had no registry rows.
       The name still resolves — nothing under `Core\` needs a declaration — but every member of one is
-      E0405, so a reader is told at the reference rather than at a panic. The crosswalk's own rows are
-      item 35's.
+      E0405, so a reader is told at the reference rather than at a panic.
 - [x] **M9** `Core\Env::mode()`, `$_ARGS`/`Core\Script::args()` are named by diagnostic help texts
       and do not exist. E0211's table now cites `rule:statements/no-host-populated-variables`'s map rather than restating a row of it,
       and E0319 names `Core\Math::PI`, which ships.

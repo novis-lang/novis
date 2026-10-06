@@ -1,5 +1,5 @@
 <?nvs
-// Shows a small invoice script from PHP written in Novis, with the Novis syntax for each part.
+// Shows a small invoice program from PHP, written again in Novis.
 
 // The constructor is named `constructor`. `public` on a parameter also declares a property.
 class Line {

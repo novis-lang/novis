@@ -2,7 +2,7 @@
 Every Novis spelling in the functions, constants and scope table of the PHP-differences chapter compiles and runs — `rule:classes/no-free-functions-or-constants`, `rule:statements/no-function-static-and-no-global`
 --FILE--
 <?nvs
-// covers: tools:php-differences/functions-constants-and-scope
+// covers: tools:php-differences/the-short-list
 // The PHP column of every row is pinned under `tests/conformance/reject/`;
 // this case runs the replacement column.
 class Counter {

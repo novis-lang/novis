@@ -35,7 +35,7 @@ fn a_core_member_call_with_the_wrong_arity_is_diagnosed() {
 /// writes is a row of the registry, so the help never sends its reader to a
 /// second compile error. The parser owns the text and cannot reach the
 /// registry; this is the crate that sees both.
-// covers: tools:php-differences/two-spellings-side-by-side
+// covers: tools:php-differences/the-short-list
 #[test]
 fn every_core_member_a_refused_superglobal_names_is_registered() {
     for name in [

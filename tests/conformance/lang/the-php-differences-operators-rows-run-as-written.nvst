@@ -2,7 +2,7 @@
 Every Novis spelling in the operators table of the PHP-differences chapter compiles and runs — `rule:expressions/one-equality-operator`, `rule:types/array-combination`, `rule:statements/inout-is-the-by-reference-spelling`
 --FILE--
 <?nvs
-// covers: tools:php-differences/operators
+// covers: tools:php-differences/the-short-list
 // The PHP column of every row is pinned under `tests/conformance/reject/` and
 // `tests/conformance/lang/`; this case runs the replacement column.
 class Ops {

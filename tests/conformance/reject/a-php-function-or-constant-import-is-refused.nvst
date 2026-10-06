@@ -2,7 +2,7 @@
 `use function` and `use const` import a kind of name Novis does not have — `rule:classes/no-free-functions-or-constants`
 --FILE--
 <?nvs
-// covers: tools:php-differences/files-tags-and-names
+// covers: tools:php-differences/the-short-list
 namespace Shop;
 
 // A function is a method and a constant is a class constant, so there is no

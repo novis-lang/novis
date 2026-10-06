@@ -2,7 +2,7 @@
 Every row of the two tables under "What parses but behaves differently" in the PHP-differences chapter behaves as its Novis column says — `rule:types/integer-literals`, `rule:types/decimal`, `rule:statements/require-is-the-only-inclusion-construct`, `rule:core-classes/regex-two-tiers`, `rule:security/needs-rehash-answers-weaker`
 --FILE--
 <?nvs
-// covers: tools:php-differences/what-parses-but-behaves-differently
+// covers: tools:php-differences/the-short-list
 // The two rows that end in a compile error are pinned in
 // `tests/conformance/reject/a-missing-require-target-and-an-ordering-of-plain-objects-do-not-compile.nvst`;
 // this case runs every other row.
