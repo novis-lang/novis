@@ -59,7 +59,7 @@ required-features = ["engine"]
 
 [[test]]
 name = "convert"
-required-features = ["engine"]
+required-features = ["engine", "pack"]
 
 [[test]]
 name = "failure"

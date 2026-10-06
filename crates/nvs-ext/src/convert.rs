@@ -10,6 +10,14 @@
 //! guest's order, and a shape with only the fields the guest returned, so a `None` optional field is
 //! absent.
 //!
+//! **The named rows.** An enum case is [`Value::Case`], its Novis name, and crosses as the same
+//! name in kebab-case. A value of a closed union of shapes is an array like any shape, and crosses
+//! as the one case whose fields hold all its keys and whose required fields it has; the manifest has
+//! already refused a union where two cases could both fit (`crate::manifest`). A `Core` value class
+//! is [`Value::Core`], the class's name and its record's fields by their WIT names, so what reads an
+//! instant's seconds out of the runtime's object is the host's, and this module only checks the
+//! class and walks the fields.
+//!
 //! **A key is an `int` or a `string`**, the two a Novis array has. A key the runtime stored as an
 //! `int` crosses as its decimal text where the manifest's key type is `string`, because the runtime
 //! stores a decimal string key as an `int`; a `string` key from a guest comes back as it is, and the
@@ -28,7 +36,7 @@
 
 use wasmtime::component::Val;
 
-use crate::types::NovisType;
+use crate::types::{Field, NovisType};
 
 /// A Novis value as it crosses an extension call.
 #[derive(Debug, Clone, PartialEq)]
@@ -49,6 +57,16 @@ pub enum Value {
     Bytes(Vec<u8>),
     /// An array: a list, a keyed array or a shape, its pairs in order.
     Array(Vec<(Key, Value)>),
+    /// A case of an enum, by its Novis name.
+    Case(String),
+    /// An instance of a `Core` value class: the class's full name, and the fields of its record in
+    /// `nvs:ext/types` by their WIT names.
+    Core {
+        /// The class, as `Core\Time\Instant`.
+        class: String,
+        /// Each field's name and value.
+        fields: Vec<(String, Value)>,
+    },
 }
 
 /// The key of one array entry.
@@ -89,29 +107,74 @@ pub fn to_wit(ty: &NovisType, value: Value) -> Result<Val, String> {
                 .map(|(k, v)| Ok(Val::Tuple(vec![key_to_wit(key, k)?, to_wit(value, v)?])))
                 .collect::<Result<_, String>>()?,
         ),
-        (NovisType::Shape(fields), Value::Array(mut entries)) => {
-            let mut record = Vec::with_capacity(fields.len());
-            for (name, optional, ty) in fields {
-                let found = entries
-                    .iter()
-                    .position(|(key, _)| matches!(key, Key::String(k) if k == name))
-                    .map(|at| entries.swap_remove(at).1);
-                let val = match (found, optional) {
-                    (Some(value), false) => to_wit(ty, value)?,
-                    (Some(value), true) => Val::Option(Some(Box::new(to_wit(ty, value)?))),
-                    (None, true) => Val::Option(None),
-                    (None, false) => {
-                        return Err(format!(
-                            "the shape has no field `{name}`, which is required"
-                        ));
-                    }
+        (NovisType::Shape(fields), Value::Array(entries)) => shape_to_wit(fields, entries)?,
+        (NovisType::Enum { name, cases }, Value::Case(case)) => {
+            if !cases.contains(&case) {
+                return Err(format!("`{case}` is not a case of the enum `{name}`"));
+            }
+            Val::Enum(crate::kebab(&case))
+        }
+        (NovisType::Union { name, cases }, Value::Array(entries)) => {
+            let Some((case, fields)) = cases.iter().find(|(_, fields)| fits(fields, &entries))
+            else {
+                return Err(format!("the array is a value of no case of `{name}`"));
+            };
+            Val::Variant(
+                crate::kebab(case),
+                Some(Box::new(shape_to_wit(fields, entries)?)),
+            )
+        }
+        (NovisType::Core(core), Value::Core { class, mut fields }) if class == core.class => {
+            let mut record = Vec::with_capacity(core.fields.len());
+            for (name, ty) in core.fields {
+                let Some(at) = fields.iter().position(|(n, _)| n == name) else {
+                    return Err(format!("the `{class}` has no field `{name}`"));
                 };
-                record.push((crate::kebab(name), val));
+                record.push(((*name).to_owned(), to_wit(ty, fields.swap_remove(at).1)?));
             }
             Val::Record(record)
         }
         (ty, value) => return Err(mismatch(ty, &value)),
     })
+}
+
+/// The WIT record of the shape `fields`, where `entries` are the array's.
+fn shape_to_wit(fields: &[Field], mut entries: Vec<(Key, Value)>) -> Result<Val, String> {
+    let mut record = Vec::with_capacity(fields.len());
+    for (name, optional, ty) in fields {
+        let found = entries
+            .iter()
+            .position(|(key, _)| matches!(key, Key::String(k) if k == name))
+            .map(|at| entries.swap_remove(at).1);
+        let val = match (found, optional) {
+            (Some(value), false) => to_wit(ty, value)?,
+            (Some(value), true) => Val::Option(Some(Box::new(to_wit(ty, value)?))),
+            (None, true) => Val::Option(None),
+            (None, false) => {
+                return Err(format!(
+                    "the shape has no field `{name}`, which is required"
+                ));
+            }
+        };
+        record.push((crate::kebab(name), val));
+    }
+    Ok(Val::Record(record))
+}
+
+/// Whether the array of `entries` is a value of the shape `fields`: every key is one of its
+/// fields, and every required field is a key.
+fn fits(fields: &[Field], entries: &[(Key, Value)]) -> bool {
+    let has = |name: &str| {
+        entries
+            .iter()
+            .any(|(key, _)| matches!(key, Key::String(k) if k == name))
+    };
+    entries
+        .iter()
+        .all(|(key, _)| matches!(key, Key::String(k) if fields.iter().any(|(name, ..)| name == k)))
+        && fields
+            .iter()
+            .all(|(name, optional, _)| *optional || has(name))
 }
 
 /// The Novis value the WIT value `val` a guest returned is, where the manifest's type is `ty`.
@@ -155,21 +218,52 @@ pub fn from_wit(ty: &NovisType, val: Val) -> Result<Value, String> {
                 })
                 .collect::<Result<_, String>>()?,
         ),
-        (NovisType::Shape(fields), Val::Record(record)) if record.len() == fields.len() => {
-            let mut entries = Vec::with_capacity(fields.len());
-            for ((name, optional, ty), (_, val)) in fields.iter().zip(record) {
-                let value = match (optional, val) {
-                    (true, Val::Option(None)) => continue,
-                    (true, Val::Option(Some(val))) => from_wit(ty, *val)?,
-                    (true, other) => return Err(wit_mismatch(ty, &other)),
-                    (false, val) => from_wit(ty, val)?,
-                };
-                entries.push((Key::String(name.clone()), value));
+        (NovisType::Shape(fields), val) => shape_from_wit(ty, fields, val)?,
+        (NovisType::Enum { cases, .. }, Val::Enum(wit)) => {
+            match cases.iter().find(|case| crate::kebab(case) == wit) {
+                Some(case) => Value::Case(case.clone()),
+                None => return Err(wit_mismatch(ty, &Val::Enum(wit))),
             }
-            Value::Array(entries)
+        }
+        (NovisType::Union { cases, .. }, Val::Variant(wit, Some(payload))) => {
+            match cases.iter().find(|(case, _)| crate::kebab(case) == wit) {
+                Some((_, fields)) => shape_from_wit(ty, fields, *payload)?,
+                None => return Err(wit_mismatch(ty, &Val::Variant(wit, Some(payload)))),
+            }
+        }
+        (NovisType::Core(core), Val::Record(record)) if record.len() == core.fields.len() => {
+            Value::Core {
+                class: core.class.to_owned(),
+                fields: core
+                    .fields
+                    .iter()
+                    .zip(record)
+                    .map(|((name, ty), (_, val))| Ok(((*name).to_owned(), from_wit(ty, val)?)))
+                    .collect::<Result<_, String>>()?,
+            }
         }
         (ty, val) => return Err(wit_mismatch(ty, &val)),
     })
+}
+
+/// The array the WIT record `val` is, where its shape is `fields` and `ty` is the type the
+/// manifest wrote.
+fn shape_from_wit(ty: &NovisType, fields: &[Field], val: Val) -> Result<Value, String> {
+    let record = match val {
+        Val::Record(record) if record.len() == fields.len() => record,
+        other => return Err(wit_mismatch(ty, &other)),
+    };
+    let mut entries = Vec::with_capacity(fields.len());
+    for ((name, optional, ty), (_, val)) in fields.iter().zip(record) {
+        let value = match (optional, val) {
+            (true, Val::Option(None)) => continue,
+            (true, Val::Option(Some(val))) => from_wit(ty, *val)?,
+            (true, other) => return Err(wit_mismatch(ty, &other)),
+            (false, val) => from_wit(ty, val)?,
+        };
+        entries.push((Key::String(name.clone()), value));
+    }
+    Ok(Value::Array(entries))
 }
 
 /// The WIT value of the key `key`, where the manifest's key type is `ty`.

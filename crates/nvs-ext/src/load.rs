@@ -23,10 +23,13 @@
 //! **Which Novis types the check reads.** The structural ones: `bool`, `int`, `uint`, `float`,
 //! `string`, `bytes`, `array<T>`, `array<K, V>`, `?T`, a shape `{a: T, b?: U}` (its keys in
 //! kebab-case, an optional key an `option`), `mixed` as a `borrow` of a resource, and `void` as a
-//! return. A named type — an enum, a `Core` value class, a union of shapes, a `resource` — is
-//! refused as outside the table until the manifest carries what it names, which is the compiler
-//! goal's to add. The `err` side of every result is the world's `error` variant, read by its three
-//! cases.
+//! return. Then the named ones the manifest resolves (`Manifest::novis_type`): an enum as an
+//! `enum` of its cases in kebab-case and in order, a closed union of shapes as a `variant` whose
+//! cases are its cases in kebab-case, each carrying its shape's record, and a `Core` value class as
+//! a record with exactly its fields from `crate::types::CORE_CLASSES`. The record is matched by
+//! its structure, because the conversion reads nothing else, so a guest that declares an equal
+//! record of its own loads too. A `resource` is still refused as outside the table. The `err` side
+//! of every result is the world's `error` variant, read by its three cases.
 //!
 //! **A WASI import matches by interface and `0.2`**, any patch: wasmtime's linker resolves a `0.2.x`
 //! import to the `0.2` release the host defines. An `nvs:ext` import matches by interface, under
@@ -54,13 +57,13 @@ use std::sync::Arc;
 
 use sha2::{Digest, Sha256};
 use wasmtime::Engine;
-use wasmtime::component::types::{ComponentFunc, ComponentItem};
+use wasmtime::component::types::{ComponentFunc, ComponentItem, Record};
 use wasmtime::component::{Component, types::Type};
 
 use crate::manifest::{Manifest, Method, WorldVersion};
 use crate::section;
 use crate::source::Source;
-use crate::types::NovisType;
+use crate::types::{Field, NovisType};
 
 /// The `nvs:ext` world this host implements.
 pub const WORLD: WorldVersion = WorldVersion {
@@ -416,7 +419,7 @@ impl Loader {
                     method.name, manifest.interface
                 )));
             };
-            check_signature(method, &func).map_err(|reason| {
+            check_signature(&manifest, method, &func).map_err(|reason| {
                 refuse(format!(
                     "the method `{}` does not match `{}#{export}`: {reason}",
                     method.name, manifest.interface
@@ -526,8 +529,13 @@ pub(crate) fn export_names(name: &str, interface: &str) -> bool {
     name.split_once('@').map_or(name, |(bare, _)| bare) == interface
 }
 
-/// Whether `func` is the WIT function `method`'s Novis signature gives.
-fn check_signature(method: &Method, func: &ComponentFunc) -> Result<(), String> {
+/// Whether `func` is the WIT function `method`'s Novis signature gives, the named types resolved
+/// against `manifest`.
+fn check_signature(
+    manifest: &Manifest,
+    method: &Method,
+    func: &ComponentFunc,
+) -> Result<(), String> {
     let params: Vec<(&str, Type)> = func.params().collect();
     if params.len() != method.params.len() {
         return Err(format!(
@@ -544,7 +552,7 @@ fn check_signature(method: &Method, func: &ComponentFunc) -> Result<(), String> 
                 param.name
             ));
         }
-        let ty = NovisType::parse(&param.ty)?;
+        let ty = manifest.novis_type(&param.ty)?;
         if !crosses_as(&ty, wit) {
             return Err(format!(
                 "the parameter `{}` is `{}`, which does not cross as the export's type",
@@ -557,7 +565,7 @@ fn check_signature(method: &Method, func: &ComponentFunc) -> Result<(), String> 
         return Err("the export does not return `result<T, error>`".to_owned());
     };
     let returns = (method.returns != "void")
-        .then(|| NovisType::parse(&method.returns))
+        .then(|| manifest.novis_type(&method.returns))
         .transpose()?;
     let ok = match (&returns, result.ok()) {
         (None, None) => true,
@@ -609,18 +617,50 @@ fn crosses_as(ty: &NovisType, wit: &Type) -> bool {
             _ => false,
         },
         (NovisType::Optional(inner), Type::Option(option)) => crosses_as(inner, &option.ty()),
-        (NovisType::Shape(fields), Type::Record(record)) => {
-            let wit: Vec<_> = record.fields().collect();
-            wit.len() == fields.len()
-                && fields.iter().zip(&wit).all(|((name, optional, ty), field)| {
-                    field.name == crate::kebab(name)
-                        && if *optional {
-                            matches!(&field.ty, Type::Option(option) if crosses_as(ty, &option.ty()))
-                        } else {
-                            crosses_as(ty, &field.ty)
-                        }
+        (NovisType::Shape(fields), Type::Record(record)) => shape_crosses_as(fields, record),
+        (NovisType::Enum { cases, .. }, Type::Enum(wit)) => {
+            let wit: Vec<&str> = wit.names().collect();
+            wit.len() == cases.len()
+                && cases
+                    .iter()
+                    .zip(&wit)
+                    .all(|(case, name)| crate::kebab(case) == *name)
+        }
+        (NovisType::Union { cases, .. }, Type::Variant(variant)) => {
+            let wit: Vec<_> = variant.cases().collect();
+            wit.len() == cases.len()
+                && cases.iter().zip(&wit).all(|((name, fields), case)| {
+                    case.name == crate::kebab(name)
+                        && matches!(&case.ty, Some(Type::Record(record)) if shape_crosses_as(fields, record))
                 })
+        }
+        (NovisType::Core(core), Type::Record(record)) => {
+            let wit: Vec<_> = record.fields().collect();
+            wit.len() == core.fields.len()
+                && core
+                    .fields
+                    .iter()
+                    .zip(&wit)
+                    .all(|((name, ty), field)| field.name == *name && crosses_as(ty, &field.ty))
         }
         _ => false,
     }
+}
+
+/// Whether a shape of `fields` crosses as `record`: its keys in kebab-case, in order, and an
+/// optional one an `option`.
+fn shape_crosses_as(fields: &[Field], record: &Record) -> bool {
+    let wit: Vec<_> = record.fields().collect();
+    wit.len() == fields.len()
+        && fields
+            .iter()
+            .zip(&wit)
+            .all(|((name, optional, ty), field)| {
+                field.name == crate::kebab(name)
+                    && if *optional {
+                        matches!(&field.ty, Type::Option(option) if crosses_as(ty, &option.ty()))
+                    } else {
+                        crosses_as(ty, &field.ty)
+                    }
+            })
 }

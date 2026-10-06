@@ -18,6 +18,10 @@
 //!     "help": "The distance between two places, in kilometres."
 //!   }],
 //!   "consts": [{"name": "EARTH_RADIUS_KM", "type": "float", "value": 6371.0}],
+//!   "enums": [{"name": "Unit", "cases": ["Metres", "NauticalMiles"]}],
+//!   "unions": [{"name": "Area", "cases": [
+//!     {"name": "Circle", "shape": "{radius: float}"},
+//!     {"name": "Box", "shape": "{width: float, height: float}"}]}],
 //!   "settings": {"name": "geo", "keys": [{"name": "precision", "type": "int", "default": 6}]},
 //!   "requests": {"read": ["data/geo/"], "connect": ["tiles.example.com"]},
 //!   "memory": 67108864
@@ -31,6 +35,14 @@
 //! twice, and a setting whose default is not of its type. `sink` and `source` are the only
 //! qualifier declarations (`rule:security/extension-declares-sink-or-source`), and both only
 //! tighten.
+//!
+//! **`enums` and `unions` declare the named types** a signature writes by their short name, and
+//! [`Manifest::novis_type`] resolves them. A declared name is not a built-in type's, and an enum's
+//! cases are distinct in kebab-case, which is how they cross. A union's case is a shape that may
+//! name an enum or a `Core` value class, never another union, and its cases must be told apart by
+//! their keys alone: no array is a value of two of them, which holds exactly when, for every two
+//! cases, some required field of one is not a field of the other. A value of the union is then the
+//! one case whose fields hold all its keys and whose required fields it has.
 
 use std::collections::HashSet;
 use std::fmt;
@@ -38,6 +50,7 @@ use std::fmt;
 use serde::Deserialize;
 use serde_json::Value;
 
+use crate::types::{Field, NovisType};
 use crate::{Malformed, is_identifier, malformed};
 
 /// The manifest format this host reads.
@@ -61,6 +74,12 @@ pub struct Manifest {
     /// The class's `const` members.
     #[serde(default)]
     pub consts: Vec<Const>,
+    /// The enums the signatures name.
+    #[serde(default)]
+    pub enums: Vec<Enum>,
+    /// The closed unions of shapes the signatures name.
+    #[serde(default)]
+    pub unions: Vec<Union>,
     /// The `[ext.<name>]` settings block the extension reads, if any.
     #[serde(default)]
     pub settings: Option<Settings>,
@@ -182,6 +201,36 @@ pub struct Const {
     pub value: Value,
 }
 
+/// An enum a signature names.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Enum {
+    /// The enum's short name.
+    pub name: String,
+    /// Its cases, in order.
+    pub cases: Vec<String>,
+}
+
+/// A closed union of shapes a signature names.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Union {
+    /// The union's short name.
+    pub name: String,
+    /// Its cases, in order.
+    pub cases: Vec<UnionCase>,
+}
+
+/// One case of a [`Union`].
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UnionCase {
+    /// The case's name, which is its WIT case in kebab-case.
+    pub name: String,
+    /// The case's shape, as Novis text.
+    pub shape: String,
+}
+
 /// The `[ext.<name>]` block the extension reads through `nvs:ext/settings`.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -287,6 +336,49 @@ impl Manifest {
         Ok(manifest)
     }
 
+    /// The type `text` writes, resolving the enums and unions this manifest declares, or why it is
+    /// outside the table.
+    pub fn novis_type(&self, text: &str) -> Result<NovisType, String> {
+        NovisType::parse_with(text, &|name| self.named(name, true))
+    }
+
+    /// The declared type `name`, where `unions` says whether a union may be named here: a union's
+    /// own shapes may not name one.
+    fn named(&self, name: &str, unions: bool) -> Option<NovisType> {
+        if let Some(decl) = self.enums.iter().find(|decl| decl.name == name) {
+            return Some(NovisType::Enum {
+                name: decl.name.clone(),
+                cases: decl.cases.clone(),
+            });
+        }
+        let decl = self
+            .unions
+            .iter()
+            .find(|decl| unions && decl.name == name)?;
+        let cases = self.union_cases(decl).ok()?;
+        Some(NovisType::Union {
+            name: decl.name.clone(),
+            cases,
+        })
+    }
+
+    /// Each case of `decl` with the fields of its shape.
+    fn union_cases(&self, decl: &Union) -> Result<Vec<(String, Vec<Field>)>, Malformed> {
+        decl.cases
+            .iter()
+            .map(|case| {
+                NovisType::parse_shape(&case.shape, &|name| self.named(name, false))
+                    .map(|fields| (case.name.clone(), fields))
+                    .map_err(|err| {
+                        malformed(format!(
+                            "the case `{}` of `{}` does not read: {err}",
+                            case.name, decl.name
+                        ))
+                    })
+            })
+            .collect()
+    }
+
     /// The checks a well-typed manifest still owes: names, and settings defaults.
     fn check(&self) -> Result<(), Malformed> {
         if !self.class.split('\\').all(is_identifier) {
@@ -309,6 +401,31 @@ impl Manifest {
             )?;
         }
         unique("constant", self.consts.iter().map(|c| c.name.as_str()))?;
+        let names = self.enums.iter().map(|decl| decl.name.as_str());
+        let names = names.chain(self.unions.iter().map(|decl| decl.name.as_str()));
+        unique("type", names.clone())?;
+        if let Some(name) = names.into_iter().find(|name| BUILT_IN.contains(name)) {
+            return Err(malformed(format!(
+                "the type `{name}` has the name of a built-in type"
+            )));
+        }
+        for decl in &self.enums {
+            distinct_cases(&decl.name, decl.cases.iter().map(String::as_str))?;
+        }
+        for decl in &self.unions {
+            distinct_cases(&decl.name, decl.cases.iter().map(|case| case.name.as_str()))?;
+            let cases = self.union_cases(decl)?;
+            for (at, (first, a)) in cases.iter().enumerate() {
+                for (second, b) in &cases[at + 1..] {
+                    if !apart(a, b) {
+                        return Err(malformed(format!(
+                            "the cases `{first}` and `{second}` of `{}` cannot be told apart by their keys",
+                            decl.name
+                        )));
+                    }
+                }
+            }
+        }
         if let Some(settings) = &self.settings {
             if !is_identifier(&settings.name) {
                 return Err(malformed(format!(
@@ -342,6 +459,41 @@ fn unique<'a>(what: &str, names: impl Iterator<Item = &'a str>) -> Result<(), Ma
         }
     }
     Ok(())
+}
+
+/// The names a declared type may not have.
+const BUILT_IN: &[&str] = &[
+    "bool", "int", "uint", "float", "string", "bytes", "mixed", "array", "void",
+];
+
+/// Refuses an enum or union `of` with no case, or with two cases of one name in kebab-case.
+fn distinct_cases<'a>(
+    of: &str,
+    names: impl Iterator<Item = &'a str> + Clone,
+) -> Result<(), Malformed> {
+    unique(&format!("case of `{of}`"), names.clone())?;
+    let mut seen = HashSet::new();
+    for name in names {
+        if !seen.insert(crate::kebab(name)) {
+            return Err(malformed(format!(
+                "the case `{name}` of `{of}` is another case's name in kebab-case"
+            )));
+        }
+    }
+    if seen.is_empty() {
+        return Err(malformed(format!("the type `{of}` has no case")));
+    }
+    Ok(())
+}
+
+/// Whether no array is a value of both the shape `a` and the shape `b`: some required field of
+/// one is not a field of the other.
+fn apart(a: &[Field], b: &[Field]) -> bool {
+    let missing = |from: &[Field], into: &[Field]| {
+        from.iter()
+            .any(|(name, optional, _)| !optional && !into.iter().any(|(n, ..)| n == name))
+    };
+    missing(a, b) || missing(b, a)
 }
 
 /// Whether `name` is `namespace:package/interface`, each part a WIT identifier: lower-case words

@@ -163,6 +163,9 @@ rustls.workspace = true
 # records against this crate's own `Core` roster, which is why the case lives
 # here. The root manifest's row says what the crate pulls.
 wit-parser.workspace = true
+# The same case holds the extension host's list of the `Core` classes that
+# cross, and each one's fields, to those records, so the list has one home.
+nvs-ext.workspace = true
 
 # ---------------------------------------------------------------------------
 # This crate cannot inherit the workspace lint policy, for exactly

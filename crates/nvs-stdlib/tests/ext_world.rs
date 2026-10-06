@@ -5,8 +5,9 @@
 //! `rule:core-classes/image-pipeline`.
 //!
 //! Three rosters meet here. A `Core` value class is a [`CoreClass`] with
-//! `slots`; each one either has its record in `nvs:ext/types` ([`CROSSES`])
-//! or is in [`REFUSED`] with the one sentence that says why it cannot cross.
+//! `slots`; each one either has its record in `nvs:ext/types` (the extension
+//! host's [`CORE_CLASSES`], whose fields are held to the record's) or is in
+//! [`REFUSED`] with the one sentence that says why it cannot cross.
 //! A class added to the registry fails the walk until it is placed in one of
 //! the two. The world's imports are the second roster, written once in
 //! [`ALLOWED_IMPORTS`]: the resolved world, with every interface its imports
@@ -20,26 +21,28 @@
 
 use std::collections::BTreeSet;
 
+use nvs_ext::types::{CORE_CLASSES, NovisType};
 use nvs_stdlib::registry::{CLASSES, CoreClass};
 use wit_parser::{
     Function, FunctionKind, InterfaceId, PackageId, Resolve, Type, TypeDefKind, TypeId, WorldId,
     WorldItem, WorldKey,
 };
 
-/// The `Core` value classes that cross, each with its record in
-/// `nvs:ext/types`.
-const CROSSES: &[(&str, &str)] = &[
-    ("Core\\BigInt", "big-int"),
-    ("Core\\Uuid", "uuid"),
-    ("Core\\Uri", "uri"),
-    ("Core\\Crypto\\PublicKey", "public-key"),
-    ("Core\\Time\\Instant", "instant"),
-    ("Core\\Time\\DateTime", "date-time"),
-    ("Core\\Time\\Date", "date"),
-    ("Core\\Time\\TimeOfDay", "time-of-day"),
-    ("Core\\Time\\Duration", "duration"),
-    ("Core\\Time\\Zone", "zone"),
-];
+/// Whether the record field `wit` is the WIT type the Novis type `ty` of a
+/// `Core` record's field crosses as.
+fn field_crosses_as(resolve: &Resolve, ty: &NovisType, wit: Type) -> bool {
+    match (ty, wit) {
+        (NovisType::Bool, Type::Bool)
+        | (NovisType::Int, Type::S64)
+        | (NovisType::Uint, Type::U64)
+        | (NovisType::Float, Type::F64)
+        | (NovisType::String, Type::String) => true,
+        (NovisType::Bytes, Type::Id(id)) => {
+            matches!(resolve.types[id].kind, TypeDefKind::List(Type::U8))
+        }
+        _ => false,
+    }
+}
 
 const HANDLE: &str = "It is a handle to a host resource, which a guest has no authority to use.";
 const READER: &str =
@@ -443,21 +446,23 @@ fn every_core_value_class_crosses_as_a_types_record_or_is_named_as_refused() {
     let mut problems = Vec::new();
 
     for class in &classes {
-        let crosses = CROSSES.iter().any(|(name, _)| *name == class.name);
+        let crosses = CORE_CLASSES.iter().any(|core| core.class == class.name);
         let refused = REFUSED.iter().any(|(name, _)| *name == class.name);
         match (crosses, refused) {
             (false, false) => problems.push(format!(
                 "`{}` is a value class with no record in `nvs:ext/types` and no entry in REFUSED",
                 class.name
             )),
-            (true, true) => {
-                problems.push(format!("`{}` is in both CROSSES and REFUSED", class.name))
-            }
+            (true, true) => problems.push(format!(
+                "`{}` is in both CORE_CLASSES and REFUSED",
+                class.name
+            )),
             _ => {}
         }
     }
-    for (name, _) in CROSSES.iter().chain(REFUSED) {
-        if !classes.iter().any(|class| class.name == *name) {
+    let crossing = CORE_CLASSES.iter().map(|core| core.class);
+    for name in crossing.chain(REFUSED.iter().map(|(name, _)| *name)) {
+        if !classes.iter().any(|class| class.name == name) {
             problems.push(format!(
                 "`{name}` is listed here but is not a `Core` value class"
             ));
@@ -471,21 +476,37 @@ fn every_core_value_class_crosses_as_a_types_record_or_is_named_as_refused() {
     }
 
     let mut records = BTreeSet::new();
-    for (class, record) in CROSSES {
+    for core in CORE_CLASSES {
+        let (class, record) = (core.class, core.record);
         let id = named_type(&resolve, types, record);
-        if !matches!(resolve.types[id].kind, TypeDefKind::Record(_)) {
-            problems.push(format!("`{record}`, `{class}`'s type, is not a record"));
+        match &resolve.types[id].kind {
+            TypeDefKind::Record(wit) => {
+                let same = wit.fields.len() == core.fields.len()
+                    && wit
+                        .fields
+                        .iter()
+                        .zip(core.fields)
+                        .all(|(field, (name, ty))| {
+                            field.name == *name && field_crosses_as(&resolve, ty, field.ty)
+                        });
+                if !same {
+                    problems.push(format!(
+                        "`{record}`'s fields are not the ones `{class}` crosses with"
+                    ));
+                }
+            }
+            _ => problems.push(format!("`{record}`, `{class}`'s type, is not a record")),
         }
         if let Err(err) = check_crossable(&resolve, Type::Id(id), record) {
             problems.push(format!("`{class}`: {err}"));
         }
-        records.insert(*record);
+        records.insert(record);
     }
     for (name, id) in &resolve.interfaces[types].types {
         let is_record = matches!(resolve.types[*id].kind, TypeDefKind::Record(_));
         if is_record && !records.contains(name.as_str()) {
             problems.push(format!(
-                "the record `{name}` is the type of no `Core` class in CROSSES"
+                "the record `{name}` is the type of no `Core` class in CORE_CLASSES"
             ));
         }
     }

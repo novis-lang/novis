@@ -28,7 +28,8 @@ and `mixed` keeps the pull-only path for the case that needs it.
 
 **Not on disk.** The world is written: `wit/nvs-ext/types.wit` holds the `error` variant, the `value`
 resource and one record per `Core` value class that crosses, and `crates/nvs-stdlib/tests/ext_world.rs`
-names every other value class with the reason it cannot. `nvs_ext::convert` converts the structural
-rows — `bool` to a shape, `?T` included — to their WIT values and back
-(`crates/nvs-ext/tests/convert.rs`). An enum, a closed union, a `Core` value class, a `resource` and
-`mixed` do not convert yet, and there is no trampoline.
+names every other value class with the reason it cannot. A manifest declares its enums and closed
+unions of shapes by name, the loader holds each against the export's `enum`, `variant` or record,
+and `nvs_ext::convert` converts every row but `resource` and `mixed` to its WIT value and back
+(`crates/nvs-ext/tests/convert.rs`). A `resource` and `mixed` do not convert yet, the checker does
+not type a method that names an extension's enum, and there is no trampoline.

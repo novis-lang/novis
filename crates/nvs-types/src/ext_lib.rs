@@ -27,9 +27,12 @@
 //!   table agree on which members exist.
 //! - `array<K, V>` is interned as `array<V>`: a Novis `array` is already keyed, and `K` is only
 //!   what the WIT list of pairs carries.
+//! - A closed union of shapes is the union of its shapes, and a `Core` value class is that class.
+//!   An enum the manifest declares has no class in the program yet, so a method or a constant
+//!   whose type names one is left out, the same as a type outside the table.
 
 use nvs_ext::manifest::{Const, Manifest, Method};
-use nvs_ext::types::NovisType;
+use nvs_ext::types::{Field, NovisType};
 use nvs_hir::{ExtensionClass, QName};
 use nvs_stdlib::registry::{ParamText, Qual};
 use rustc_hash::FxHashMap;
@@ -106,11 +109,11 @@ fn methods(manifest: &Manifest) -> impl Iterator<Item = (&Method, Types)> {
         let params = method
             .params
             .iter()
-            .map(|param| NovisType::parse(&param.ty).ok())
+            .map(|param| typed(manifest, &param.ty))
             .collect::<Option<Vec<_>>>()?;
         let returns = match method.returns.as_str() {
             "void" => None,
-            text => Some(NovisType::parse(text).ok()?),
+            text => Some(typed(manifest, text)?),
         };
         Some((method, Types { params, returns }))
     })
@@ -120,10 +123,30 @@ fn methods(manifest: &Manifest) -> impl Iterator<Item = (&Method, Types)> {
 /// the type and the value.
 fn consts(manifest: &Manifest) -> impl Iterator<Item = (&Const, NovisType, ConstArg)> {
     manifest.consts.iter().filter_map(|constant| {
-        let ty = NovisType::parse(&constant.ty).ok()?;
+        let ty = typed(manifest, &constant.ty)?;
         let value = const_value(&ty, &constant.value)?;
         Some((constant, ty, value))
     })
+}
+
+/// The type `text` writes in `manifest`, or `None` when it is outside the table or names an enum.
+fn typed(manifest: &Manifest, text: &str) -> Option<NovisType> {
+    let ty = manifest.novis_type(text).ok()?;
+    lowers(&ty).then_some(ty)
+}
+
+/// Whether [`lower`] has a type for `ty`: every type but one that names an enum.
+fn lowers(ty: &NovisType) -> bool {
+    match ty {
+        NovisType::Enum { .. } => false,
+        NovisType::List(inner) | NovisType::Optional(inner) => lowers(inner),
+        NovisType::Keyed(key, value) => lowers(key) && lowers(value),
+        NovisType::Shape(fields) => fields.iter().all(|(_, _, ty)| lowers(ty)),
+        NovisType::Union { cases, .. } => cases
+            .iter()
+            .all(|(_, fields)| fields.iter().all(|(_, _, ty)| lowers(ty))),
+        _ => true,
+    }
 }
 
 /// `value` as a constant of the type `ty`, or `None` when it is not one or has no constant form.
@@ -216,16 +239,28 @@ fn lower(ty: &NovisType, interner: &mut TypeInterner) -> TypeId {
             let null = interner.null();
             interner.make_union([inner, null])
         }
-        NovisType::Shape(fields) => {
-            let fields = fields
+        NovisType::Shape(fields) => lower_shape(fields, interner),
+        NovisType::Union { cases, .. } => {
+            let shapes: Vec<TypeId> = cases
                 .iter()
-                .map(|(name, optional, ty)| ShapeField {
-                    name: name.clone(),
-                    ty: lower(ty, interner),
-                    required: !optional,
-                })
+                .map(|(_, fields)| lower_shape(fields, interner))
                 .collect();
-            interner.shape(fields)
+            interner.make_union(shapes)
         }
+        NovisType::Core(core) => interner.class(QName::parse(core.class)),
+        NovisType::Enum { .. } => unreachable!("`typed` leaves out a type that names an enum"),
     }
+}
+
+/// The shape of `fields`.
+fn lower_shape(fields: &[Field], interner: &mut TypeInterner) -> TypeId {
+    let fields = fields
+        .iter()
+        .map(|(name, optional, ty)| ShapeField {
+            name: name.clone(),
+            ty: lower(ty, interner),
+            required: !optional,
+        })
+        .collect();
+    interner.shape(fields)
 }

@@ -1,10 +1,12 @@
 //! `rule:packaging/a-value-crosses-as-its-wit-type`: every row of the table converts a Novis value to
 //! its WIT value, crosses into a guest and comes back as the same value.
 //!
-//! The guest echoes its argument from one export per row. Every export returns
+//! The guest echoes its argument from one export per row, and it is loaded by the loader, so its
+//! manifest is checked against every export's WIT types first. Every export returns
 //! `result<T, error>` through memory at 16: its case at 16, then the `T` at 20 when `T` aligns to 4
 //! or less, and at 24 when it aligns to 8. A string or a list is a pointer and a length. `realloc` is
-//! a bump allocator from 1024, which is where the host writes a string or a list it passes in.
+//! a bump allocator from 1024, which is where the host writes a string or a list it passes in. The
+//! guest's own types are exported by the component, the way a built extension names them.
 
 use std::future::Future;
 use std::path::PathBuf;
@@ -14,21 +16,31 @@ use std::time::Duration;
 
 use nvs_ext::call::{Failure, Host, Meter, Request};
 use nvs_ext::convert::{Key, Value, from_wit, to_wit};
-use nvs_ext::load::{Extension, pin};
+use nvs_ext::load::{Entry, Extension, Loader, Refused, pin};
 use nvs_ext::manifest::Manifest;
-use nvs_ext::source::{FORMAT, Source};
-use nvs_ext::types::NovisType;
-use wasmtime::component::{Component, Val};
+use nvs_ext::pack::append_section;
+use nvs_ext::section::MANIFEST;
+use nvs_ext::types::{CORE_CLASSES, NovisType};
+use wasmtime::component::Val;
 
 const GUEST: &str = r#"(component
   (import "nvs:ext/types@1.0.0" (instance $types
     (type $e (variant (case "invalid" string) (case "parse" string) (case "runtime" string)))
-    (export "error" (type (eq $e)))))
+    (export "error" (type (eq $e)))
+    (type $i (record (field "seconds" s64) (field "nanos" s64)))
+    (export "instant" (type (eq $i)))))
   (alias export $types "error" (type $error))
-  (import "shop:shapes/types" (instance $shapes
-    (type $item (record (field "item-name" string) (field "count" (option s64))))
-    (export "item" (type (eq $item)))))
-  (alias export $shapes "item" (type $item))
+  (alias export $types "instant" (type $instant))
+  (type $item-def (record (field "item-name" string) (field "count" (option s64))))
+  (export $item "item" (type $item-def))
+  (type $unit-def (enum "metres" "nautical-miles"))
+  (export $unit "unit" (type $unit-def))
+  (type $circle-def (record (field "radius" f64)))
+  (export $circle "circle" (type $circle-def))
+  (type $box-def (record (field "width" f64) (field "height" f64)))
+  (export $box "box" (type $box-def))
+  (type $area-def (variant (case "circle" $circle) (case "box" $box)))
+  (export $area "area" (type $area-def))
   (core module $m
     (memory (export "memory") 1)
     (global $bump (mut i32) (i32.const 1024))
@@ -68,6 +80,17 @@ const GUEST: &str = r#"(component
       (i32.store (i32.const 28) (local.get 1))
       (i32.store8 (i32.const 32) (local.get 2))
       (i64.store (i32.const 40) (local.get 3))
+      (i32.const 16))
+    (func (export "echo-variant") (param i32 f64 f64) (result i32)
+      (i32.store8 (i32.const 16) (i32.const 0))
+      (i32.store8 (i32.const 24) (local.get 0))
+      (f64.store (i32.const 32) (local.get 1))
+      (f64.store (i32.const 40) (local.get 2))
+      (i32.const 16))
+    (func (export "echo-pair") (param i64 i64) (result i32)
+      (i32.store8 (i32.const 16) (i32.const 0))
+      (i64.store (i32.const 24) (local.get 0))
+      (i64.store (i32.const 32) (local.get 1))
       (i32.const 16)))
   (core instance $i (instantiate $m))
   (alias core export $i "memory" (core memory $mem))
@@ -93,6 +116,12 @@ const GUEST: &str = r#"(component
     (canon lift (core func $i "echo-option") (memory $mem) (realloc $realloc)))
   (func $shape (param "value" $item) (result (result $item (error $error)))
     (canon lift (core func $i "echo-record") (memory $mem) (realloc $realloc)))
+  (func $enum (param "value" $unit) (result (result $unit (error $error)))
+    (canon lift (core func $i "echo-bool") (memory $mem) (realloc $realloc)))
+  (func $union (param "value" $area) (result (result $area (error $error)))
+    (canon lift (core func $i "echo-variant") (memory $mem) (realloc $realloc)))
+  (func $core (param "value" $instant) (result (result $instant (error $error)))
+    (canon lift (core func $i "echo-pair") (memory $mem) (realloc $realloc)))
   (instance $api
     (export "echo-bool" (func $bool))
     (export "echo-int" (func $int))
@@ -103,11 +132,14 @@ const GUEST: &str = r#"(component
     (export "echo-list" (func $list))
     (export "echo-keyed" (func $keyed))
     (export "echo-optional" (func $optional))
-    (export "echo-shape" (func $shape)))
+    (export "echo-shape" (func $shape))
+    (export "echo-unit" (func $enum))
+    (export "echo-area" (func $union))
+    (export "echo-instant" (func $core)))
   (export "shop:shapes/api" (instance $api)))"#;
 
 /// Each export's method, and the Novis type of its one parameter and its return.
-const ROWS: [(&str, &str); 10] = [
+const ROWS: [(&str, &str); 13] = [
     ("echoBool", "bool"),
     ("echoInt", "int"),
     ("echoUint", "uint"),
@@ -118,41 +150,59 @@ const ROWS: [(&str, &str); 10] = [
     ("echoKeyed", "array<string, int>"),
     ("echoOptional", "?string"),
     ("echoShape", "{itemName: string, count?: int}"),
+    ("echoUnit", "Unit"),
+    ("echoArea", "Area"),
+    ("echoInstant", "Core\\Time\\Instant"),
 ];
 
-/// A host linking the two type instances the guest imports, which offer types and no function, and
-/// the guest under it.
-fn fixture() -> (Host, Extension) {
-    let host = Host::new(8, |linker| {
-        linker.instance("nvs:ext/types@1.0.0")?;
-        linker.instance("shop:shapes/types")?;
-        Ok(())
-    })
-    .expect("the host starts");
+/// The enum the manifest declares.
+const UNIT: &str = r#"{"name": "Unit", "cases": ["Metres", "NauticalMiles"]}"#;
+
+/// The union of shapes the manifest declares.
+const AREA: &str = r#"{"name": "Area", "cases": [{"name": "Circle", "shape": "{radius: float}"}, {"name": "Box", "shape": "{width: float, height: float}"}]}"#;
+
+/// The manifest of the guest, with `enums` and `unions` as its declared types.
+fn manifest(enums: &str, unions: &str) -> String {
     let methods: Vec<String> = ROWS
         .iter()
         .map(|(name, ty)| {
+            let ty = ty.replace('\\', "\\\\");
             format!(
                 r#"{{"name": "{name}", "params": [{{"name": "value", "type": "{ty}"}}], "returns": "{ty}"}}"#
             )
         })
         .collect();
-    let manifest = format!(
-        r#"{{"manifest": 1, "world": "1.0.0", "class": "Shop\\Shapes", "interface": "shop:shapes/api", "methods": [{}]}}"#,
+    format!(
+        r#"{{"manifest": 1, "world": "1.0.0", "class": "Shop\\Shapes", "interface": "shop:shapes/api", "enums": [{enums}], "unions": [{unions}], "methods": [{}]}}"#,
         methods.join(", ")
-    );
-    let bytes = wat::parse_str(GUEST).expect("the test component compiles");
-    let extension = Extension {
+    )
+}
+
+/// A host linking the type instance the guest imports, which offers types and no function.
+fn host() -> Host {
+    Host::new(8, |linker| {
+        linker.instance("nvs:ext/types@1.0.0")?;
+        Ok(())
+    })
+    .expect("the host starts")
+}
+
+/// The guest under `manifest`, as the loader loads it or refuses it.
+fn load(host: &Host, manifest: &str) -> Result<Extension, Refused> {
+    let component = wat::parse_str(GUEST).expect("the test component compiles");
+    let bytes = append_section(component, MANIFEST, manifest.as_bytes());
+    let entry = Entry {
         path: PathBuf::from("shapes.nvsx"),
         sha256: pin(&bytes),
         memory: None,
-        component: Component::new(host.engine(), &bytes).expect("the component compiles"),
-        manifest: Manifest::parse(manifest.as_bytes()).expect("the manifest reads"),
-        source: Source {
-            source: FORMAT,
-            files: Vec::new(),
-        },
     };
+    Loader::new(host.engine()).load_bytes(&entry, &bytes)
+}
+
+/// A host and the guest under it, loaded with its own manifest.
+fn fixture() -> (Host, Extension) {
+    let host = host();
+    let extension = load(&host, &manifest(UNIT, AREA)).expect("the guest loads");
     (host, extension)
 }
 
@@ -193,7 +243,10 @@ fn echo(
     text: &str,
     value: &Value,
 ) -> Value {
-    let ty = ty(text);
+    let ty = extension
+        .manifest
+        .novis_type(text)
+        .expect("the type resolves");
     let arg = to_wit(&ty, value.clone()).expect("the value converts");
     let out: Result<Vec<Val>, Failure> = block_on(request.call(extension, method, &[arg]));
     match <[Val; 1]>::try_from(out.expect("the call succeeds")) {
@@ -212,6 +265,38 @@ fn k(text: &str) -> Key {
 
 fn list(values: Vec<Value>) -> Value {
     Value::Array((0..).map(Key::Int).zip(values).collect())
+}
+
+fn case(name: &str) -> Value {
+    Value::Case(name.to_owned())
+}
+
+fn instant(seconds: i64, nanos: i64) -> Value {
+    Value::Core {
+        class: "Core\\Time\\Instant".to_owned(),
+        fields: vec![
+            ("seconds".to_owned(), Value::Int(seconds)),
+            ("nanos".to_owned(), Value::Int(nanos)),
+        ],
+    }
+}
+
+fn floats(fields: &[(&str, f64)]) -> Value {
+    Value::Array(
+        fields
+            .iter()
+            .map(|(name, x)| (k(name), Value::Float(*x)))
+            .collect(),
+    )
+}
+
+fn wit_floats(fields: &[(&str, f64)]) -> Val {
+    Val::Record(
+        fields
+            .iter()
+            .map(|(name, x)| ((*name).to_owned(), Val::Float64(*x)))
+            .collect(),
+    )
 }
 
 /// The value of each row, `?T` and a shape twice: with the optional part and without it.
@@ -248,6 +333,11 @@ fn samples() -> Vec<(&'static str, &'static str, Value)> {
         ]),
     );
     add("echoShape", Value::Array(vec![(k("itemName"), s("lamp"))]));
+    add("echoUnit", case("Metres"));
+    add("echoUnit", case("NauticalMiles"));
+    add("echoArea", floats(&[("radius", 1.5)]));
+    add("echoArea", floats(&[("width", 2.0), ("height", 3.0)]));
+    add("echoInstant", instant(1_700_000_000, 5));
     out
 }
 
@@ -319,6 +409,132 @@ fn an_optional_shape_field_crosses_as_an_option() {
     assert!(
         to_wit(&shape, missing).is_err(),
         "a required field that is absent does not convert"
+    );
+}
+
+#[test]
+fn an_enum_case_crosses_in_kebab_case() {
+    let (host, extension) = fixture();
+    let unit = extension
+        .manifest
+        .novis_type("Unit")
+        .expect("the enum resolves");
+    let nautical = Val::Enum("nautical-miles".to_owned());
+    assert_eq!(
+        to_wit(&unit, case("NauticalMiles")).expect("the case converts"),
+        nautical
+    );
+    assert_eq!(
+        from_wit(&unit, nautical).expect("the case converts back"),
+        case("NauticalMiles")
+    );
+    assert!(
+        to_wit(&unit, case("Miles")).is_err(),
+        "a case the enum does not declare does not convert"
+    );
+    assert!(
+        from_wit(&unit, Val::Enum("miles".to_owned())).is_err(),
+        "a case the guest returns that the enum does not declare does not convert"
+    );
+    let request = request(&host);
+    let value = case("NauticalMiles");
+    assert_eq!(
+        echo(&request, &extension, "echoUnit", "Unit", &value),
+        value
+    );
+
+    let other = r#"{"name": "Unit", "cases": ["Metres", "Miles"]}"#;
+    let err = load(&host, &manifest(other, AREA)).expect_err("the cases differ from the export's");
+    assert!(err.reason.contains("echoUnit"), "{err}");
+    let twice = r#"{"name": "Unit", "cases": ["NauticalMiles", "Nautical_Miles"]}"#;
+    let err = load(&host, &manifest(twice, AREA)).expect_err("two cases are one WIT case");
+    assert!(err.reason.contains("kebab-case"), "{err}");
+}
+
+#[test]
+fn a_closed_union_of_shapes_crosses_as_a_variant() {
+    let (host, extension) = fixture();
+    let area = extension
+        .manifest
+        .novis_type("Area")
+        .expect("the union resolves");
+    let rect = [("width", 2.0), ("height", 3.0)];
+    let variant = Val::Variant("box".to_owned(), Some(Box::new(wit_floats(&rect))));
+    assert_eq!(
+        to_wit(&area, floats(&[("height", 3.0), ("width", 2.0)])).expect("the shape converts"),
+        variant,
+        "the case is the one whose fields the keys are, in any order"
+    );
+    assert_eq!(
+        from_wit(&area, variant).expect("the variant converts back"),
+        floats(&rect)
+    );
+    assert!(
+        to_wit(&area, floats(&[("radius", 1.0), ("width", 2.0)])).is_err(),
+        "an array that is a value of no case does not convert"
+    );
+    let request = request(&host);
+    let circle = floats(&[("radius", 0.5)]);
+    assert_eq!(
+        echo(&request, &extension, "echoArea", "Area", &circle),
+        circle
+    );
+
+    let swapped = r#"{"name": "Area", "cases": [{"name": "Box", "shape": "{width: float, height: float}"}, {"name": "Circle", "shape": "{radius: float}"}]}"#;
+    let err = load(&host, &manifest(UNIT, swapped)).expect_err("the cases are out of order");
+    assert!(err.reason.contains("echoArea"), "{err}");
+    let overlapping = r#"{"name": "Area", "cases": [{"name": "Circle", "shape": "{radius: float}"}, {"name": "Box", "shape": "{radius: float, width?: float}"}]}"#;
+    let err = Manifest::parse(manifest(UNIT, overlapping).as_bytes())
+        .expect_err("an array with only `radius` is a value of both cases");
+    assert!(err.to_string().contains("cannot be told apart"), "{err}");
+}
+
+#[test]
+fn a_core_value_class_crosses_as_its_types_record() {
+    for core in CORE_CLASSES {
+        assert_eq!(
+            NovisType::parse(core.class),
+            Ok(NovisType::Core(core)),
+            "`{}` is not read as its record",
+            core.class
+        );
+    }
+    let ty = ty("Core\\Time\\Instant");
+    let record = Val::Record(vec![
+        ("seconds".to_owned(), Val::S64(-1)),
+        ("nanos".to_owned(), Val::S64(999_999_999)),
+    ]);
+    assert_eq!(
+        to_wit(&ty, instant(-1, 999_999_999)).expect("the instant converts"),
+        record
+    );
+    assert_eq!(
+        from_wit(&ty, record).expect("the record converts back"),
+        instant(-1, 999_999_999)
+    );
+    let uuid = Value::Core {
+        class: "Core\\Uuid".to_owned(),
+        fields: vec![
+            ("high".to_owned(), Value::Uint(1)),
+            ("low".to_owned(), Value::Uint(2)),
+        ],
+    };
+    assert!(
+        to_wit(&ty, uuid).is_err(),
+        "an instance of another class does not convert"
+    );
+    let (host, extension) = fixture();
+    let request = request(&host);
+    let value = instant(0, 1);
+    assert_eq!(
+        echo(
+            &request,
+            &extension,
+            "echoInstant",
+            "Core\\Time\\Instant",
+            &value
+        ),
+        value
     );
 }
 
