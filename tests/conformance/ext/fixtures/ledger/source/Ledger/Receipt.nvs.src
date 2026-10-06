@@ -1,0 +1,8 @@
+namespace Shop\Ledger;
+
+// `Receipt::line` returns one line of a receipt: the item, then the amount in cents.
+class Receipt {
+    public static function line(string $item, int $cents): string {
+        return $item . ": " . \Shop\Ledger::echoString("{$cents}") . " " . \Shop\Ledger::CURRENCY;
+    }
+}

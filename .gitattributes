@@ -41,3 +41,4 @@ docs/ground-rules.md                      linguist-generated
 *.jpg     binary
 *.ico     binary
 *.nvso    binary
+*.nvsx    binary
