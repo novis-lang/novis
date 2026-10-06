@@ -23,4 +23,7 @@ request's own configuration snapshot (`rule:security/capability-question-is-gran
 path is canonicalised and prefix-checked as every `Core\IO` door does
 (`rule:security/path-scope-canonicalise-then-prefix`).
 
-**Not on disk.** The entry has no `grants` field, and no guest exists to hold one.
+**Not on disk.** `nvs_config::tree::Grants` reads the entry's `grants`, refusing an unknown key,
+and `nvs_config::extension::grants` makes its roots absolute against the file that wrote each list;
+`env_hash` does not read it. Nothing intersects it with a manifest or a caller, and no guest holds a
+preopen or a host.

@@ -149,12 +149,13 @@ fn header_of(line: &'static str) -> Option<Header> {
         .then_some(Header { name, array })
 }
 
-/// `#key = value  # note`, as its three parts.
+/// `#key = value  # note`, as its three parts. The key may be dotted, as `grants.read` is under
+/// `[[extension]]`.
 fn setting_of(line: &'static str) -> Option<(&'static str, &'static str, &'static str)> {
     let rest = line.strip_prefix('#')?;
     let (key, rest) = rest.split_once('=')?;
     let key = key.trim_end();
-    if key.is_empty() || !key.chars().all(key_char) {
+    if key.is_empty() || !key.chars().all(|c| key_char(c) || c == '.') {
         return None;
     }
     let at = ["# default", "# example"]

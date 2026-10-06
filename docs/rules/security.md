@@ -1595,7 +1595,10 @@ request's own configuration snapshot ([`security/capability-question-is-grant-an
 path is canonicalised and prefix-checked as every `Core\IO` door does
 ([`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix)).
 
-**Not on disk.** The entry has no `grants` field, and no guest exists to hold one.
+**Not on disk.** `nvs_config::tree::Grants` reads the entry's `grants`, refusing an unknown key,
+and `nvs_config::extension::grants` makes its roots absolute against the file that wrote each list;
+`env_hash` does not read it. Nothing intersects it with a manifest or a caller, and no guest holds a
+preopen or a host.
 
 <sub>See also [`packaging/a-guest-has-no-ambient-authority`](packaging.md#packaging-a-guest-has-no-ambient-authority), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time). Decided in [0246](../decisions/0246.md).</sub>
 

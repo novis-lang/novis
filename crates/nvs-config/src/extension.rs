@@ -20,6 +20,10 @@
 //! ceiling is read as a size, `[limits] memory`'s unit, so a value that is not one is the same
 //! `E0601` it is there.
 //!
+//! An entry's `grants` (`rule:security/extension-grants-are-an-intersection`) are not checked
+//! here: the tree refuses an unknown key in them as `E0601`, and [`grants()`] makes their roots
+//! absolute. Whether a root exists is the loader's question, when it opens it.
+//!
 //! Cost: one pass over the `[[extension]]` array at boot and at reload, and a scan of one file's
 //! text on the refusal path only. Nothing here runs on a request path.
 
@@ -29,7 +33,7 @@ use std::path::{Path, PathBuf};
 use nvs_diagnostics::{Diagnostic, SourceMap, Span, code};
 
 use crate::resolve::{Origin, origin_note};
-use crate::tree::{Config, Extension};
+use crate::tree::{Config, Extension, Grants};
 use crate::value::{Quantity, Unit};
 
 /// Every `[[extension]]` entry in the merged tree is complete, or the first that is not is refused.
@@ -62,6 +66,39 @@ pub fn validate(
 pub fn file(index: usize, written: &str, origins: &BTreeMap<String, Origin>) -> PathBuf {
     let base = crate::db::written_in(origins, &format!("extension.{index}.path"));
     crate::resolve::absolute(base, Path::new(written))
+}
+
+/// Entry `index`'s `grants`, its `read` and `write` roots made absolute against the file that wrote
+/// each list, as [`file()`] does its `path`.
+///
+/// Lexical only: canonicalising a root is the effective set's, which the loader builds per
+/// instance from the request's snapshot (`rule:security/path-scope-canonicalise-then-prefix`).
+/// `connect` names hosts and passes through as written.
+#[must_use]
+pub fn grants(index: usize, grants: &Grants, origins: &BTreeMap<String, Origin>) -> Granted {
+    let roots = |key: &str, written: &[String]| -> Vec<PathBuf> {
+        let base = crate::db::written_in(origins, &format!("extension.{index}.grants.{key}"));
+        written
+            .iter()
+            .map(|root| crate::resolve::absolute(base, Path::new(root)))
+            .collect()
+    };
+    Granted {
+        read: roots("read", &grants.read),
+        write: roots("write", &grants.write),
+        connect: grants.connect.clone(),
+    }
+}
+
+/// An entry's grants with every root absolute: what [`grants()`] returns.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Granted {
+    /// Roots the guest may read under.
+    pub read: Vec<PathBuf>,
+    /// Roots the guest may read and write under.
+    pub write: Vec<PathBuf>,
+    /// Hosts the guest's outbound HTTP may reach.
+    pub connect: Vec<String>,
 }
 
 /// Entry `index`'s load refusal, `E0652`, pointing at its `[[extension]]` header line. `path` is

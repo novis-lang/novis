@@ -1281,7 +1281,7 @@ fn an_extension_entry_carries_its_pin_and_no_part_of_it_is_a_programs() {
     let keys = keys_listed("[[extension]]\nnvs_no_such_key = true\n");
     assert_eq!(
         keys.iter().map(String::as_str).collect::<Vec<_>>(),
-        ["path", "sha256", "memory"],
+        ["path", "sha256", "memory", "grants"],
         "a key added to `[[extension]]` joins this census in the commit that adds it, and the pin \
          sitting beside the path as a field of the same entry is what the shape buys",
     );

@@ -1048,3 +1048,11 @@
 # The most linear memory this extension may use. Optional. Its request's own memory limit
 # still applies.
 #memory = "64M"                       # example
+# The folders and hosts this extension may use. Without these keys it can use none.
+# The extension can only use what its own file also asks for.
+# A relative folder is relative to the folder of this file.
+# `read` lists folders it may read. `write` lists folders it may read and write.
+# `connect` lists hosts it may send HTTP requests to.
+#grants.read = ["data/geo/"]         # example
+#grants.write = ["data/cache/"]      # example
+#grants.connect = ["tiles.example.com"]  # example

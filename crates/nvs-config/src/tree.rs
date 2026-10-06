@@ -455,6 +455,24 @@ pub struct Extension {
     /// guest's limit is the least of what its request has left, this and the manifest's declared
     /// maximum (`rule:packaging/a-guest-runs-under-the-requests-budget`).
     pub memory: Option<Setting>,
+    /// The files and hosts the operator lets this extension reach, as `grants = { read, write,
+    /// connect }` (`rule:security/extension-grants-are-an-intersection`). Absent, and the entry
+    /// holds no I/O whatever its manifest requests. The roots are written relative to this file,
+    /// and [`crate::extension::grants`] makes them absolute.
+    pub grants: Grants,
+}
+
+/// An `[[extension]]` entry's `grants`: the operator's third of a guest's effective set. An unknown
+/// key is refused, so a misspelt `conect` cannot read as a grant of nothing.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq)]
+#[serde(default, deny_unknown_fields)]
+pub struct Grants {
+    /// Directories the guest may read under, preopened read-only.
+    pub read: Vec<String>,
+    /// Directories the guest may read and write under, preopened read-write.
+    pub write: Vec<String>,
+    /// Hosts the guest's outbound HTTP may reach.
+    pub connect: Vec<String>,
 }
 
 /// `[debug]` — `rule:testing/debug-mode-directive`, where `nvs.toml` states the default and the ceiling in one value.

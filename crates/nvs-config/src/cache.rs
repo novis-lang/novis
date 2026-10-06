@@ -161,6 +161,9 @@ impl fmt::Display for ProgramId {
 /// directive is read by a running request rather than baked into a compiled unit, so a reload that
 /// changes one must *not* invalidate the caches.
 ///
+/// Of each entry only its pin is read. An entry's `grants` decide what a guest may reach at a
+/// call, never what a unit compiles to, so narrowing a grant on reload recompiles nothing.
+///
 pub fn env_hash(config: &Config) -> EnvHash {
     env_hash_of(config, build_stamp())
 }
