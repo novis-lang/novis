@@ -1,24 +1,24 @@
 {
-  "state": "**Goal `ext-host` is through Stage 3.** The stage-2 checks and the packer check `nvs-ext-the-packer-writes-a-nvsx-that-loads` (`crates/nvs-ext/tests/pack.rs`) are green. The design is ADR 0246 §§ 3–6 and the goal file's § *Standing decisions*; a question is decided in `crates/nvs-ext`'s module docs.\n\nOn disk: `crates/nvs-ext/src/load.rs` (behind `engine`) is `Loader::load`/`load_bytes`/`load_set` and `Set::insert`; its module doc owns the refusal order and the export check. `crates/nvs-ext/src/pack.rs` (behind the new `pack` feature, on by default) is `pack::pack(&Inputs)` and `pack::append_section`: a component is taken as it is, a core module is componentized with `wit-component` against a world the packer writes (`include nvs:ext/extension` plus `export <manifest interface>`), the `nvs:ext` and WASI WIT compiled in from `wit/nvs-ext/`; the module doc owns the rest. `tests/load.rs` builds its deliberately malformed files with `append_section`, since `pack` refuses them. Nothing calls the loader or the packer from `nvs-cli` yet (`nvs ext` is goal `ext-tooling`'s; boot and reload are Stage 6).",
+  "state": "**Goal `ext-host` is through Stage 4.** The check `nvs-ext-a-guest-call-runs-per-request-under-its-budget` (`crates/nvs-ext/tests/call.rs`, 12 tests) passes on its own. Stages 2 and 3 were already green. The design is ADR 0246 §§ 3–6 and the goal file's § *Standing decisions*. A question is decided in `crates/nvs-ext`'s module docs.\n\nOn disk: `crates/nvs-ext/src/call.rs` (behind `engine`) has `Host`, `Request`, `Budget`, `Meter`, `Failure` and `Limit`. `Host` is the engine (epoch interruption, pooling, `concurrency_support(false)`), a linker the caller fills, and a 1 ms epoch ticker thread. `Request::call` is a future: one instance per extension per request, a second task waits for it, and a failed call drops its instance. Its module doc owns the memory rule: every growth goes through `Budget::charge`, and the cap is the least of the request's remainder, `Extension::memory` (new, from `Entry::memory`) and the manifest's `memory`. The budget is a trait so `nvs-ext` does not link `nvs-runtime`. Nothing implements it over a request's `Ctx` yet, and a `Failure` is not yet turned into a throw or a `FATAL`. That is Stage 5. Nothing in `nvs-cli` calls the loader or the host yet. Boot and reload are Stage 6.",
   "next": {
-    "stage": 4,
-    "title": "instances, the call bridge and the budget",
+    "stage": 5,
+    "title": "failures",
     "files": [],
-    "note": "one file set: a new `crates/nvs-ext/src/call.rs`, a new `crates/nvs-ext/tests/call.rs`, `crates/nvs-ext/src/load.rs`, `crates/nvs-ext/Cargo.toml`.",
+    "note": "one file set: `crates/nvs-hir/src/errors.rs`, `crates/nvs-ext/src/call.rs`, a new `crates/nvs-ext/tests/failure.rs`, `crates/nvs-ext/Cargo.toml`.",
     "items": [
       {
         "done": false,
-        "text": "**One instance per extension per request, a call that parks or yields on its core, CPU and memory charged to the request** — `rule:packaging/a-guest-runs-under-the-requests-budget`, `rule:packaging/an-extension-is-a-sandboxed-wasm-component`. Instantiate the `Component` held by `crates/nvs-ext/src/load.rs:115`'s `Extension` in a per-request store with epoch interruption and a `ResourceLimiter` reading the request's budget (`crates/nvs-runtime/src/budget.rs`); a second task of the same request waits for the instance. Test names are the check `nvs-ext (one instance per extension per request …)`'s (`bun nv loop --list --stage 4`); test guests stay component WAT, packed with `crates/nvs-ext/src/pack.rs` where a manifest is needed."
+        "text": "**`ExtensionError` is a global class under `RuntimeError` with no property of its own** — `rule:packaging/a-guest-crash-throws`. Add it to the closed tree at `crates/nvs-hir/src/errors.rs:106`. The test name is the check's: `extension_error_is_a_runtime_error_with_no_property_of_its_own` under `cargo test -p nvs-hir` (run it as `cargo test --test <name>` or a filter, never `-p`)."
       },
       {
         "done": false,
-        "text": "**Read the stage's tests from the check before writing them** — `bun nv loop --list --stage 4 --name call` prints the names; the loaded guest comes from `crates/nvs-ext/tests/pack.rs:20`'s `component()` shape."
+        "text": "**An `err` throws its mapped class, a trap throws `ExtensionError` and the next call is fresh, a limit is a resource-limit `FATAL` that reaches `onLimit`** — `rule:packaging/a-guest-crash-throws`, `rule:packaging/a-guest-runs-under-the-requests-budget`. `Failure` is at `crates/nvs-ext/src/call.rs:126` and the trap/limit split at `crates/nvs-ext/src/call.rs:497`. The `error` variant maps `invalid|parse|runtime` to `LogicError|ParseError|RuntimeError` (standing decision). `bun nv loop --list --stage 5 --name failure` prints the test names. Add `[[test]] name = \"failure\"` to `crates/nvs-ext/Cargo.toml`. A trap already drops the instance (`call.rs`'s `Request::call`), so \"the next call is fresh\" mostly needs its test."
       }
     ]
   },
   "backlog": [
-    "No named type (enum, `Core` value class, union, `resource`) passes the export check until the manifest carries them — `crates/nvs-ext/src/load.rs` module doc.",
-    "`nvs ext pin` and `nvs ext build` over `load::pin` and `pack::pack` — goal `ext-tooling`, `rule:packaging/nvs-ext-is-the-authoring-tool`.",
-    "A core module importing WASI preview 1 needs an adapter; the packer takes none — `crates/nvs-ext/src/pack.rs` module doc, goal `ext-tooling`."
+    "A `Budget` over `nvs_runtime::Ctx` (its deadline and `budget::affords`/`carry`) is owed where a call is wired into a request — goal `ext-compiler`, or Stage 5 if the `FATAL` test needs it. Owner: `crates/nvs-ext/src/call.rs` module doc.",
+    "`nvs-host`'s scheduler does not poll `Request::call` yet. `tests/call.rs` uses its own one-thread run queue (`rule:packaging/a-guest-call-yields-on-its-core` § *Not on disk*).",
+    "Stage 6: boot and reload call `Loader::load_set`, and the module cache — `nvs-ext` checks `cache`, and the `nvs-cli` reload checks."
   ]
 }

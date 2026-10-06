@@ -17,4 +17,7 @@ in flight.
 What it spends: the guest's linear memory, charged to the calling request and freed when the request
 ends — O(in-flight). The pooling allocator reserves address space per slot, not committed memory.
 
-**Not on disk.** Neither the watchdog nor the memory accounting sees a guest.
+**Not on disk.** `nvs_ext::call` charges every growth to a `Budget` and traps a guest past its CPU
+deadline or the least of the three memory limits (`crates/nvs-ext/tests/call.rs`), but nothing
+implements that budget over a request's own deadline and memory accounting yet, and a limit is a
+`Failure` the caller has not yet turned into a `FATAL`.

@@ -11,6 +11,7 @@
     "packaging/a-fresh-instance-per-request"
   ],
   "guardedBy": [
-    "benches/abi-probe/tests/wasm_sandbox.rs"
+    "benches/abi-probe/tests/wasm_sandbox.rs",
+    "crates/nvs-ext/tests/call.rs"
   ]
 }

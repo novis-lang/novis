@@ -15,7 +15,9 @@ A request has one instance per extension it calls (`rule:packaging/a-fresh-insta
 component cannot be re-entered, so a second task of the same request calling the same extension waits
 until the first call returns.
 
-**Not on disk.** No shipped crate makes a guest call. `benches/abi-probe` proves the bridge with a
+**Not on disk.** `nvs_ext::call::Request::call` is the call, a future that parks on a pending import
+and yields at every tick, and a second task of the request waits for the instance
+(`crates/nvs-ext/tests/call.rs`, whose core is a one-thread run queue). `benches/abi-probe` proves the bridge with a
 component guest under its `wasm-probe` feature: a `corosensei` coroutine polls `call_async`, a pending
 host import parks it, a second coroutine runs a whole guest call on the thread while the first is
 parked inside wasm, an epoch tick yields a long call to a sibling, and the CPU deadline traps a call

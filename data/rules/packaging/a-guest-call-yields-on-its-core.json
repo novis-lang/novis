@@ -9,6 +9,7 @@
     "packaging/a-fresh-instance-per-request"
   ],
   "guardedBy": [
-    "benches/abi-probe/tests/wasm_async.rs"
+    "benches/abi-probe/tests/wasm_async.rs",
+    "crates/nvs-ext/tests/call.rs"
   ]
 }

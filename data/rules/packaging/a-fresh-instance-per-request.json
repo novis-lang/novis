@@ -10,6 +10,7 @@
     "packaging/a-guest-runs-under-the-requests-budget"
   ],
   "guardedBy": [
-    "benches/abi-probe/tests/wasm_sandbox.rs"
+    "benches/abi-probe/tests/wasm_sandbox.rs",
+    "crates/nvs-ext/tests/call.rs"
   ]
 }

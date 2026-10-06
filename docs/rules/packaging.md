@@ -1696,7 +1696,9 @@ A request has one instance per extension it calls ([`packaging/a-fresh-instance-
 component cannot be re-entered, so a second task of the same request calling the same extension waits
 until the first call returns.
 
-**Not on disk.** No shipped crate makes a guest call. `benches/abi-probe` proves the bridge with a
+**Not on disk.** `nvs_ext::call::Request::call` is the call, a future that parks on a pending import
+and yields at every tick, and a second task of the request waits for the instance
+(`crates/nvs-ext/tests/call.rs`, whose core is a one-thread run queue). `benches/abi-probe` proves the bridge with a
 component guest under its `wasm-probe` feature: a `corosensei` coroutine polls `call_async`, a pending
 host import parks it, a second coroutine runs a whole guest call on the thread while the first is
 parked inside wasm, an epoch tick yields a long call to a sibling, and the CPU deadline traps a call
@@ -1730,7 +1732,10 @@ in flight.
 What it spends: the guest's linear memory, charged to the calling request and freed when the request
 ends — O(in-flight). The pooling allocator reserves address space per slot, not committed memory.
 
-**Not on disk.** Neither the watchdog nor the memory accounting sees a guest.
+**Not on disk.** `nvs_ext::call` charges every growth to a `Budget` and traps a guest past its CPU
+deadline or the least of the three memory limits (`crates/nvs-ext/tests/call.rs`), but nothing
+implements that budget over a request's own deadline and memory accounting yet, and a limit is a
+`Failure` the caller has not yet turned into a `FATAL`.
 
 <sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`packaging/a-fresh-instance-per-request`](packaging.md#packaging-a-fresh-instance-per-request). Decided in [0003](../decisions/0003.md), [0020](../decisions/0020.md), [0246](../decisions/0246.md).</sub>
 
