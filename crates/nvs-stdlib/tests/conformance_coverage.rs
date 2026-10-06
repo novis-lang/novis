@@ -271,31 +271,37 @@ fn stdlib_sources() -> Vec<(String, String)> {
     out
 }
 
-/// The whole text of every case under `tests/conformance/` and
-/// `tests/differential/`, concatenated.
+/// The one tree whose cases assert an error path: [`ERROR_CORPUS_ROOT`] is
+/// `tests/conformance/`, and nothing outside it counts.
+const ERROR_CORPUS_ROOT: &str = "tests/conformance";
+
+/// Every case [`error_corpus`] reads, which is every `.nvst` file under
+/// [`ERROR_CORPUS_ROOT`].
+fn error_corpus_paths() -> Vec<std::path::PathBuf> {
+    let mut paths = Vec::new();
+    cases(&nvs_repo::path(ERROR_CORPUS_ROOT), &mut paths);
+    assert!(
+        paths.len() > 100,
+        "`{ERROR_CORPUS_ROOT}` holds {} cases, which is too few to be the corpus — a check \
+         over it would pass vacuously",
+        paths.len()
+    );
+    paths
+}
+
+/// The whole text of every case under `tests/conformance/`, concatenated.
 ///
 /// Whole text rather than the `--FILE--` section [`case_sources`] reads: what
-/// asserts an error path is the *output* a case froze — an `--EXPECT--` line,
-/// an `--EXPECTF-ERROR--` block, or the frozen half of a divergence — and
-/// enumerating those sections is how one of them gets missed. Both suites,
-/// because a message reached through a PHP-comparable member is asserted in
-/// `tests/differential/` and nowhere else.
+/// asserts an error path is the *output* a case froze — an `--EXPECT--` line
+/// or an `--EXPECTF-ERROR--` block — and enumerating those sections is how one
+/// of them gets missed.
 ///
 /// This is the corpus `bun nv gaps --errors` reads, deliberately the
 /// same one: that tool is the worklist [`OWED_A_CASE`] freezes, and a gate
 /// computing a different set could not be cross-checked against it.
+/// [`the_error_corpus_is_the_conformance_tree_alone`] holds both to it.
 fn error_corpus() -> String {
-    let mut paths = Vec::new();
-    for suite in ["tests/conformance", "tests/differential"] {
-        cases(&nvs_repo::path(suite), &mut paths);
-    }
-    assert!(
-        paths.len() > 100,
-        "`tests/conformance` and `tests/differential` hold {} cases between them, which is \
-         too few to be the corpus — a check over it would pass vacuously",
-        paths.len()
-    );
-    paths
+    error_corpus_paths()
         .iter()
         .map(|path| {
             fs::read_to_string(path).unwrap_or_else(|err| panic!("{}: {err}", path.display()))
@@ -597,4 +603,56 @@ fn every_error_path_is_asserted_or_declared_unreachable() {
              delete that line, because the list only shrinks"
         );
     }
+}
+
+/// The error corpus is `tests/conformance/` and nothing else, here and in
+/// `bun nv gaps --errors`.
+///
+/// Every case [`error_corpus`] reads lies under [`ERROR_CORPUS_ROOT`], and
+/// `tools/nv/cmd/gaps.ts`'s `errorGaps` builds its corpus from that tree
+/// alone. The second half reads the tool's source because the two must
+/// compute the same set: a gate and a worklist over different corpora could
+/// not be cross-checked against each other.
+#[test]
+fn the_error_corpus_is_the_conformance_tree_alone() {
+    let root = nvs_repo::path(ERROR_CORPUS_ROOT);
+    let outside: Vec<String> = error_corpus_paths()
+        .iter()
+        .filter(|path| !path.starts_with(&root))
+        .map(|path| path.display().to_string())
+        .collect();
+    assert!(
+        outside.is_empty(),
+        "the error corpus reads {} case(s) outside `{ERROR_CORPUS_ROOT}`:\n{}",
+        outside.len(),
+        outside.join("\n")
+    );
+
+    let gaps_path = nvs_repo::path("tools/nv/cmd/gaps.ts");
+    let gaps = fs::read_to_string(&gaps_path)
+        .unwrap_or_else(|err| panic!("{}: {err}", gaps_path.display()));
+    let body = gaps
+        .split_once("function errorGaps(")
+        .and_then(|(_, rest)| rest.split_once("\n}\n"))
+        .map(|(body, _)| body)
+        .unwrap_or_else(|| panic!("{} defines no `errorGaps` function", gaps_path.display()));
+    let reads: Vec<&str> = body
+        .match_indices("corpus(")
+        .map(|(at, _)| {
+            let rest = &body[at + "corpus(".len()..];
+            &rest[..rest.find(')').unwrap_or(rest.len())]
+        })
+        .collect();
+    assert_eq!(
+        reads,
+        ["CONFORMANCE"],
+        "`errorGaps` in {} must build its corpus from `corpus(CONFORMANCE)` once and from \
+         nothing else, so `bun nv gaps --errors` reads the corpus this gate reads",
+        gaps_path.display()
+    );
+    assert!(
+        gaps.contains(&format!("const CONFORMANCE = \"{ERROR_CORPUS_ROOT}\";")),
+        "{} no longer defines `CONFORMANCE` as `{ERROR_CORPUS_ROOT}`",
+        gaps_path.display()
+    );
 }

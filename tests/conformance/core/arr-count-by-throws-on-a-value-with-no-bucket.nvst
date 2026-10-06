@@ -1,0 +1,32 @@
+--TEST--
+Core\Arr::countBy throws on a value that is neither an `int` nor a `string` when no `by` names its bucket, and counts the same values once `by` names one
+--FILE--
+<?nvs
+final class Render {
+    public static function counts(array<uint> $a): string {
+        var $out = "";
+        foreach ($a as string $k => uint $v) {
+            $out = $out . $k . "=" . $v . ";";
+        }
+        return $out;
+    }
+}
+
+// Strings are their own bucket, so this call works.
+array<string> $words = ["red", "blue", "red"];
+echo Render::counts(Core\Arr::countBy($words)), "\n";
+
+// A float is not a bucket. The `by` callback turns each float into a string,
+// so these values are counted.
+array<float> $prices = [1.5, 2.5, 1.5];
+echo Render::counts(Core\Arr::countBy($prices, {by: fn (float $p): string => $p as string})), "\n";
+
+// The same floats with no `by`. The call throws an error and the next line
+// does not run.
+echo Render::counts(Core\Arr::countBy($prices)), "\n";
+echo "unreached\n";
+--EXPECT--
+red=2;blue=1;
+1.5=2;2.5=1;
+--EXPECT-ERROR--
+FATAL: Core\Arr::countBy expected an `int|string` key, got tag 4

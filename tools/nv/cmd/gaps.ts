@@ -22,7 +22,8 @@
 //   class attributes the case to that class too, and `->member(` on a class the case already holds
 //   does the same, to a fixed point.
 // - **An unasserted error path.** Every `Fault::` site in `nvs-stdlib` is a boundary. A case that pins
-//   one echoes the message, so a message stem that appears in no case is a boundary nothing asks about.
+//   one echoes the message, so a message stem that appears in no case under `tests/conformance/` is a
+//   boundary nothing asks about.
 //
 // An entry is a candidate, not a plan: a `Fault::fatal` may be an invariant no program reaches, and a
 // member whose PHP twin diverges by decision wants `--ORACLE-DIVERGES--` instead. The member table is
@@ -357,9 +358,13 @@ function differentialGaps(): Diff[] {
   return out;
 }
 
-/** `Fault::` sites in `nvs-stdlib` whose message stem appears in no case of either suite. */
+/**
+ * `Fault::` sites in `nvs-stdlib` whose message stem appears in no case under `tests/conformance/`. That tree
+ * alone is the corpus, the one `conformance_coverage.rs`'s `error_corpus` reads, and its
+ * `the_error_corpus_is_the_conformance_tree_alone` reads this function's body to hold the two together.
+ */
 function errorGaps(): Err[] {
-  const seen = `${corpus(CONFORMANCE)}\n${corpus(DIFFERENTIAL)}`;
+  const seen = corpus(CONFORMANCE);
   const out: Err[] = [];
   for (const path of filesUnder(STDLIB, ".rs")) {
     const text = read(path);
