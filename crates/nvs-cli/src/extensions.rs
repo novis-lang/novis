@@ -1,6 +1,7 @@
 //! `rule:packaging/extension-loading-is-root-controlled` in `nvs serve`: every `[[extension]]`
 //! entry loaded at boot and again at every reload, and the set that loaded kept as the live one.
-//! And [`Calls`], the host a compiled call into an extension reaches in `nvs run`.
+//! And [`Calls`], the host a compiled call into an extension reaches in `nvs run`, and
+//! [`Served`], which keeps one [`Calls`] per request in `nvs serve`.
 //!
 //! **One entry that does not load refuses the whole set.** A boot stops with that entry's
 //! refusal, `E0652` at its line. A reload returns it before anything is swapped, so the running
@@ -21,7 +22,18 @@
 //! run (`rule:packaging/a-guest-call-yields-on-its-core`). A failure throws the class
 //! `Failure::outcome` names (`rule:packaging/a-guest-crash-throws`). A limit runs the request's
 //! limit handler, then is a `FATAL` (`rule:errors/on-limit`).
-//! [`Calls::end`] runs `Request::end` once the run's tasks are finished.
+//! Dropping a [`Calls`] runs `Request::end`, which `nvs run` does once the run's tasks are
+//! finished.
+//!
+//! **In `nvs serve` a request's calls live in its request tree.** Every worker installs
+//! [`Served`], which at a request's first call puts a [`Calls`] over the live set into
+//! `nvs_runtime::TreeState::extensions`. Every task of the request reaches the same one, and
+//! it is dropped with the tree: when the request and its after-response work have finished,
+//! even where a connection gave up on the request first. A request that started before a
+//! reload and makes its first call after it calls into the new set. Its unit was typed
+//! against the old one, so a class the reload removed throws `ExtensionError`. The tree is
+//! normally dropped on the request's core. A tree whose last task finished on another core is
+//! dropped there, and its resources' destructors run on that core.
 //!
 //! The request's budget is an `nvs_ext::call::Meter` made at the first call from the request's
 //! `[limits]`: its CPU time from then on, and its memory as a second allowance beside the one the
@@ -52,7 +64,6 @@
 //! core, and during a reload the old set and the new one together until the swap. On disk, one
 //! entry per component file per build, under the cache's own size cap.
 
-use std::cell::OnceCell;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::task::{Context, Poll, Wake, Waker};
@@ -185,26 +196,68 @@ fn host() -> Result<&'static Host, String> {
     Ok(HOST.get_or_init(|| host))
 }
 
-/// The extensions a run loaded, and the request their calls run in.
+/// The set the configuration now serving loaded, or `None` before the first boot.
+fn live() -> Option<Arc<Set>> {
+    LIVE.lock().unwrap_or_else(PoisonError::into_inner).clone()
+}
+
+/// The manifests of the live set, which `nvs serve` types a program against
+/// (`rule:packaging/extension-calls-are-statically-typed`). Empty before the first boot and for
+/// a configuration with no `[[extension]]`.
+pub(crate) fn live_manifests() -> Vec<Manifest> {
+    live().map_or_else(Vec::new, |set| {
+        set.extensions()
+            .iter()
+            .map(|extension| extension.manifest.clone())
+            .collect()
+    })
+}
+
+/// The host `nvs serve` installs on every worker: each request's calls run in a [`Calls`] kept
+/// in that request's tree (`nvs_runtime::TreeState::extensions`), so the request's resources
+/// are dropped when the tree is.
+pub(crate) struct Served;
+
+impl nvs_runtime::extension::Extensions for Served {
+    fn call(&self, ctx: &mut Ctx, class: &str, method: &str, args: &[Value]) -> HelperResult {
+        let tree = ctx.tree_handle();
+        let slot = tree.extensions();
+        if slot.get().is_none() {
+            let set = live().ok_or_else(|| {
+                Fault::thrown_as(
+                    ThrownClass::Extension,
+                    format!("`{class}::{method}`: the extension is not loaded"),
+                )
+            })?;
+            drop(slot.set(Box::new(Calls::serving(set))));
+        }
+        let calls = slot
+            .get()
+            .and_then(|calls| calls.downcast_ref::<Calls>())
+            .expect("only this host sets a tree's extensions, and it set them above");
+        nvs_runtime::extension::Extensions::call(calls, ctx, class, method, args)
+    }
+}
+
+/// The extensions a run loaded, and the request their calls run in. Dropping it ends the
+/// request: every resource a guest returned is dropped in its guest. A failure of a destructor
+/// is the extension's, and the request has already finished, so it is not reported.
 pub(crate) struct Calls {
-    set: Set,
-    request: OnceCell<Request>,
+    set: Arc<Set>,
+    request: OnceLock<Request>,
 }
 
 impl Calls {
     /// The host of calls into `set`.
     pub(crate) fn new(set: Set) -> Self {
-        Self {
-            set,
-            request: OnceCell::new(),
-        }
+        Self::serving(Arc::new(set))
     }
 
-    /// Ends the request: every resource a guest returned is dropped in its guest. A failure of a
-    /// destructor is the extension's, and the run has already finished, so it is not reported.
-    pub(crate) fn end(self) {
-        if let Some(request) = self.request.into_inner() {
-            drop(drive(request.end()));
+    /// The host of one request's calls into `set`, which other requests share.
+    fn serving(set: Arc<Set>) -> Self {
+        Self {
+            set,
+            request: OnceLock::new(),
         }
     }
 
@@ -225,6 +278,14 @@ impl Calls {
         Ok(self
             .request
             .get_or_init(|| host.request(Arc::new(Meter::new(cpu, memory)))))
+    }
+}
+
+impl Drop for Calls {
+    fn drop(&mut self) {
+        if let Some(request) = self.request.take() {
+            drop(drive(request.end()));
+        }
     }
 }
 

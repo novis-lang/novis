@@ -1979,6 +1979,26 @@ fn a_changed_extension_set_compiles_every_program_again() {
     });
 }
 
+/// `nvs serve` hosts a call into an extension the configuration loads. Each
+/// request opens a resource and passes it back, so a request whose instance or
+/// resources outlived it, or were shared with the next one, would answer
+/// differently. The ledger fixture is the one the conformance cases load.
+#[test]
+fn a_served_request_calls_a_configured_extension() {
+    let shelf = Shelf::new("serve-calls");
+    let ledger = std::fs::read(nvs_repo::path("tests/conformance/ext/fixtures/ledger.nvsx"))
+        .expect("the ledger fixture reads");
+    let program = "<?nvs\nuse Shop\\Ledger;\n\nvar $route = Ledger::openRoute(Ledger::echoInt(7));\necho Ledger::routeStop($route), \" \", Ledger::echoString(\"ok\");\n";
+    let server = Server::start(
+        "serve-calls",
+        &shelf.put("ledger.nvsx", &ledger, &ledger),
+        &[("app.nvs", program)],
+    );
+    for request in ["the first request", "the second request"] {
+        server.awaits("/", request, |answer| answer.body == "7 ok");
+    }
+}
+
 /// An `[opcache]` block that writes compiled programs to `dir`.
 fn cache_dir(dir: &str) -> String {
     format!("[opcache]\nrevalidate_freq = \"100ms\"\nsettle = \"0s\"\nfile_cache_dir = \"{dir}\"\n")

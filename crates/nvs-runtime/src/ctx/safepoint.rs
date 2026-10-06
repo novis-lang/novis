@@ -528,8 +528,8 @@ impl SafepointView {
 /// safepoint word alone already cost — and a few words more inside it: the CPU
 /// ceiling and the `wall_time`, written when the request's move; the two
 /// off-core counters, which stay zero and unwritten for a tree that places
-/// nothing off its core; and the `wall_time`'s watch, an empty lock for a
-/// request whose client stays.
+/// nothing off its core; the `wall_time`'s watch, an empty lock for a
+/// request whose client stays; and an empty cell for the extension host.
 #[derive(Debug, Default)]
 pub struct TreeState {
     /// The safepoint word itself, named by [`Ctx::safepoint`] and polled by
@@ -563,6 +563,21 @@ pub struct TreeState {
     /// takes it back after. Empty for every request whose client stays, so
     /// nothing locks it on the request path.
     pub(super) wall_time_watch: WallTimeWatch,
+    /// What [`crate::extension`]'s host keeps for this request — the
+    /// extension instances its calls made, and the resources they returned —
+    /// set at its first call into an extension and dropped with the tree,
+    /// which is the request's end, after-response work included. Empty for
+    /// every request that calls no extension.
+    pub(super) extensions: std::sync::OnceLock<Box<dyn std::any::Any + Send + Sync>>,
+}
+
+impl TreeState {
+    /// [`Self::extensions`]: the host's per-request state, which only the host
+    /// that set it can read back.
+    #[must_use]
+    pub fn extensions(&self) -> &std::sync::OnceLock<Box<dyn std::any::Any + Send + Sync>> {
+        &self.extensions
+    }
 }
 
 /// The one wake [`TreeState::wall_time_watch`] holds, fired at most once.

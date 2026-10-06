@@ -1330,7 +1330,11 @@ impl Compiler {
         // not older than this may have changed after it was read ([`vouching`]).
         let started = SystemTime::now();
         let mut looked = crate::Looked::default();
-        let checked = crate::front_end_looking(&real, &mut looked);
+        // Typed against the live extension set. A reload installs a new set
+        // before it moves [`Self::env`], so a unit compiled from then on reads
+        // the set its key will name.
+        let checked =
+            crate::front_end_looking(&real, crate::extensions::live_manifests(), &mut looked);
         let answers: Vec<(PathBuf, bool)> = looked
             .probed
             .iter()

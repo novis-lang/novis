@@ -2045,13 +2045,18 @@ fn front_end_granted(
 ///
 /// `crate::script::Compiler` is the caller. It keeps a compiled program and has
 /// to notice when any file behind it changes, and after a failed compile the
-/// only list of those files is the one this run leaves behind.
-fn front_end_looking(path: &std::path::Path, looked: &mut Looked) -> Result<Checked, ExitCode> {
+/// only list of those files is the one this run leaves behind. `extensions` is
+/// the live set's manifests, which the program is typed against.
+fn front_end_looking(
+    path: &std::path::Path,
+    extensions: Vec<nvs_ext::manifest::Manifest>,
+    looked: &mut Looked,
+) -> Result<Checked, ExitCode> {
     front_end_in(
         SourceMap::new(),
         path,
         None,
-        Vec::new(),
+        extensions,
         false,
         Sink::Text,
         config::Init::Never,
@@ -3408,9 +3413,8 @@ fn run_run(
     drop(watchdog);
     drop(installed);
     drop(calling);
-    if let Some(calls) = calls.and_then(std::rc::Rc::into_inner) {
-        calls.end();
-    }
+    // The last reference, so this ends the request and drops its resources.
+    drop(calls);
     if let Err(error) = ran {
         eprintln!("error: the scheduler stopped: {error}");
         return ExitCode::FAILURE;

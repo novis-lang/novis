@@ -922,6 +922,11 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
         }
     };
     let installed = nvs_host::reactor::install(reactor);
+    // The host a compiled call into an extension reaches on this core. It is
+    // installed even while no extension is loaded, because a reload may load
+    // the first one, and a program that calls none never reaches it.
+    // `crate::extensions` owns where each request's instances are kept.
+    let calling = nvs_runtime::extension::install(Rc::new(crate::extensions::Served));
     // `rule:http-server/a-wedged-core-is-detected-by-its-deadline`'s registration,
     // made here because this is the line that produces the `DeadlineView` and
     // this is the thread whose turning it describes. On that half the watchdog
@@ -1390,6 +1395,7 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             }
         }
     });
+    drop(calling);
     drop(installed);
     if let Err(error) = ran {
         eprintln!("error: the scheduler stopped: {error}");
