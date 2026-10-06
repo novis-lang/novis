@@ -1,32 +1,29 @@
 {
-  "state": "**Goal `ext-host` is in Stage 6.** Stages 2 to 5 are green. The design is ADR 0246 §§ 3–6 and the goal file's § *Standing decisions*. A question is decided in `crates/nvs-ext`'s module docs.\n\nOn disk: `crates/nvs-ext/src/load.rs`'s `Loader::with_cache` takes a `ModuleCache` (`get`/`put` over a `CacheKey { pin, environment }`). `Loader::environment` is a SHA-256 of wasmtime's `precompile_compatibility_hash`. A hit is deserialized, and a stored entry is a SHA-256 of the serialized component followed by the component, so a bad checksum or an entry wasmtime refuses is a miss that is compiled and stored again (`crates/nvs-ext/tests/cache.rs`, green). `nvs-ext` is now on `bun nv lints`' `UNSAFE_CRATES` roster for that one `Component::deserialize`. `crates/nvs-ext/src/call.rs` runs a guest per request under a `Budget`, and `Failure::outcome` is what the program sees. Nothing implements `Budget` over a request's `Ctx`, nothing implements `ModuleCache` over `nvs-cli`'s artifact store, and nothing in `nvs-cli` calls the loader. A real host's linker must define an empty `nvs:ext/types@1.0.0` instance.",
+  "state": "**Goal `ext-host` is in Stage 6.** Stages 2 to 5 are green. The design is ADR 0246 §§ 3–6 and the goal file's § *Standing decisions*. A question is decided in `crates/nvs-ext`'s module docs.\n\nOn disk: `nvs serve` loads every `[[extension]]` entry at boot (`crates/nvs-cli/src/serve.rs`, before the TLS client) and again in every reload's `Process::published` before anything moves (`crates/nvs-cli/src/control.rs`), through `crates/nvs-cli/src/extensions.rs`. One entry that does not load stops the boot or refuses the reload whole, as `E0652` at the entry's line (`nvs_config::extension::not_loaded`); a relative `path` resolves against the file that wrote it (`nvs_config::extension::file`), and the table keeps the written path. The live set sits in a process static that nothing reads yet. The loader's engine is made on the first entry and is a plain one with the call path's settings: a component runs only in the engine that compiled it, so the host that links the world's imports must hand the loader its own engine. The `nvs-cli-a-reload-verifies-every-extension-before-the-swap` check's four tests pass, and `a_changed_extension_set_compiles_every_program_again` now loads a real component. Nothing implements `ModuleCache` over `nvs-cli`'s artifact store, and nothing implements `Budget` over a request's `Ctx`.",
   "next": {
     "stage": 6,
     "title": "reload and the module cache",
     "files": [
       "crates/nvs-cli/src/cache.rs",
-      "crates/nvs-cli/src/control.rs",
-      "crates/nvs-cli/tests/live_config.rs",
-      "crates/nvs-cli/tests/compile_cache.rs"
+      "crates/nvs-cli/src/extensions.rs",
+      "crates/nvs-cli/tests/compile_cache.rs",
+      "crates/nvs-cli/src/script.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**Boot and reload load every `[[extension]]` entry and refuse the whole set on one failure, keeping the previous set live** — `rule:packaging/extension-loading-is-root-controlled`. Reload is `crates/nvs-cli/src/control.rs:668`; call `nvs_ext::load::Loader::load_set` there and at boot, naming the entry's file and line. Tests: `a_boot_with_an_extension_entry_that_does_not_load_refuses_to_start` and the rest of the `nvs-cli-a-reload-verifies-every-extension-before-the-swap` check in `data/goals/ext-host.json`."
+        "text": "**`nvs-cli`'s artifact store implements `nvs_ext::load::ModuleCache`** — `rule:packaging/a-wasm-module-cache-reuses-the-artifact-cache`. `Cache::load` and the publish path in `crates/nvs-cli/src/cache.rs:1`; hand it to the loader in `crates/nvs-cli/src/extensions.rs:78` with `Loader::with_cache`, under `[opcache] file_cache_dir`. Same header, checksum and ownership check as a unit."
       },
       {
         "done": false,
-        "text": "**`nvs-cli`'s artifact store implements `nvs_ext::load::ModuleCache`** — `rule:packaging/a-wasm-module-cache-reuses-the-artifact-cache`. `Cache::load` and `Cache::store` are at `crates/nvs-cli/src/cache.rs:1309` and `crates/nvs-cli/src/cache.rs:1358`; derive the store's `Digest` from `CacheKey`'s pin and environment, and hand the loader the impl at boot."
-      },
-      {
-        "done": false,
-        "text": "**A unit compiled under one extension set is never reused under another** — `rule:config/the-extension-set-is-in-every-unit-key`. The unit key is built at `crates/nvs-cli/src/script.rs:981`. Test `a_unit_compiled_under_one_extension_set_is_never_reused_under_another` in `crates/nvs-cli/tests/compile_cache.rs`."
+        "text": "**A unit compiled under one extension set is never reused under another** — `rule:config/the-extension-set-is-in-every-unit-key`. Test `a_unit_compiled_under_one_extension_set_is_never_reused_under_another` in `crates/nvs-cli/tests/compile_cache.rs:1` (check `nvs-cli-a-unit-is-never-reused-under-another-extension-set`). Extension files must now really load wherever `nvs serve` boots: build them as `live_config.rs`'s `extension` and `Shelf` helpers do."
       }
     ]
   },
   "backlog": [
-    "`Budget` over a request's `Ctx` and a host raising `Failure::outcome` on a request: goal `ext-grants` (`crates/nvs-ext/src/call.rs` module doc).",
-    "`nvs ext pin` does not exist: `rule:packaging/extension-loading-is-root-controlled`.",
-    "A named type (enum, `Core` value class, union, `resource`) passing the export check: the compiler goal (`crates/nvs-ext/src/load.rs` module doc)."
+    "Give the loader the call host's engine once a host links the world's imports — `crates/nvs-cli/src/extensions.rs` module doc.",
+    "`nvs ext pin` — `rule:packaging/extension-loading-is-root-controlled`.",
+    "A named type passing the export check — `crates/nvs-ext/src/load.rs`.",
+    "`Budget` over a request's `Ctx` — `rule:packaging/a-guest-runs-under-the-requests-budget`."
   ]
 }
