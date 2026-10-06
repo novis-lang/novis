@@ -220,6 +220,7 @@ pub mod deferred;
 pub mod dispatch;
 pub mod drain;
 pub mod environment;
+pub mod extension;
 pub mod floor;
 mod fmt;
 pub mod graph;
@@ -282,10 +283,10 @@ pub use abi::{
 };
 pub use arith::nvs_float_pow;
 pub use array::{
-    ARRAY_REFCOUNT_OFFSET, ArrayHeader, NvsArray, SlotKey, nvs_array_append, nvs_array_count,
-    nvs_array_get, nvs_array_get_index, nvs_array_has_key, nvs_array_key_at, nvs_array_new,
-    nvs_array_next_slot, nvs_array_release, nvs_array_retain, nvs_array_set, nvs_array_set_index,
-    nvs_array_unset, nvs_array_value_at, prime_empty_array,
+    ARRAY_REFCOUNT_OFFSET, ArrayHeader, ArrayRef, NvsArray, SlotKey, nvs_array_append,
+    nvs_array_count, nvs_array_get, nvs_array_get_index, nvs_array_has_key, nvs_array_key_at,
+    nvs_array_new, nvs_array_next_slot, nvs_array_release, nvs_array_retain, nvs_array_set,
+    nvs_array_set_index, nvs_array_unset, nvs_array_value_at, prime_empty_array,
 };
 pub use callable::{
     CALLABLE_ARITY_SLOT, CALLABLE_INVOKE, CALLABLE_PARAM_NAMES, CALLABLE_PARAM_NAMES_SLOT,

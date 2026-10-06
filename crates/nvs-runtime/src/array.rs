@@ -1353,6 +1353,56 @@ impl fmt::Debug for NvsArray {
     }
 }
 
+/// An array a [`Value`] holds, borrowed for as long as the value is: what
+/// [`Value::as_array`] returns.
+///
+/// Read-only by construction, because it derefs to `&NvsArray` and never to
+/// `&mut`: the reference belongs to whoever owns the value, so a borrower that
+/// could write would change an array it does not own. Cloning the [`NvsArray`]
+/// it derefs to takes a reference of the borrower's own.
+pub struct ArrayRef<'a> {
+    array: std::mem::ManuallyDrop<NvsArray>,
+    value: std::marker::PhantomData<&'a Value>,
+}
+
+impl<'a> ArrayRef<'a> {
+    /// The array `ptr` names, borrowed for `'a`.
+    ///
+    /// # Safety
+    ///
+    /// `ptr` must be the payload of a value that owns a reference to it and
+    /// lives for `'a`.
+    #[expect(
+        unsafe_code,
+        reason = "the liveness of the borrowed reference is the caller's obligation to state"
+    )]
+    pub(crate) unsafe fn borrowed(ptr: *mut ArrayHeader) -> Self {
+        #[expect(
+            unsafe_code,
+            reason = "the caller's value owns this reference for `'a`, and the handle is never dropped"
+        )]
+        let array = unsafe { NvsArray::from_raw(ptr) };
+        Self {
+            array: std::mem::ManuallyDrop::new(array),
+            value: std::marker::PhantomData,
+        }
+    }
+}
+
+impl std::ops::Deref for ArrayRef<'_> {
+    type Target = NvsArray;
+
+    fn deref(&self) -> &NvsArray {
+        &self.array
+    }
+}
+
+impl fmt::Debug for ArrayRef<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(&*self.array, f)
+    }
+}
+
 /// Adds one reference to the array at `ptr`.
 ///
 /// Not itself `unsafe` to *call* from this module because every caller here

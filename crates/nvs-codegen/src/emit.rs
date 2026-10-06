@@ -644,6 +644,13 @@ impl Emitter<'_, '_> {
             InstKind::CoreCall { symbol, args } => {
                 return self.emit_helper(cur, inst, symbol, args, RuntimeSig::Helper);
             }
+            InstKind::ExtensionCall {
+                class,
+                method,
+                args,
+            } => {
+                return self.emit_extension_call(inst, class, method, args);
+            }
             InstKind::Call {
                 target,
                 receiver,
@@ -2360,6 +2367,54 @@ impl Emitter<'_, '_> {
             self.define(inst, value)?;
         }
         let _ = cur;
+        Ok(cont)
+    }
+
+    /// A call into an extension: [`Self::emit_helper`]'s variadic call of
+    /// `nvs_runtime::extension::nvs_extension_call`, with the export named in
+    /// slot 0 as the immortal string `class::method` and the arguments after
+    /// it. `nvs_runtime::extension`'s module doc owns why one helper with the
+    /// export named is the trampoline.
+    fn emit_extension_call(
+        &mut self,
+        inst: &Inst,
+        class: &str,
+        method: &str,
+        args: &[ValueId],
+    ) -> Result<Block, CodegenError> {
+        let count = i32::try_from(args.len() + 1)
+            .map_err(|_| internal("an extension call past i32 args"))?;
+        let slot = self.b.create_sized_stack_slot(StackSlotData::new(
+            StackSlotKind::ExplicitSlot,
+            (count * VALUE_SIZE).cast_unsigned(),
+            VALUE_ALIGN_SHIFT,
+        ));
+        let base = self.b.ins().stack_addr(types::I64, slot, 0);
+        let export = self.emit_immortal_str(format!("{class}::{method}").as_bytes())?;
+        self.store_value(base, 0, export, Ty::Str)?;
+        for (index, arg) in args.iter().enumerate() {
+            let (value, ty) = self.value(*arg)?;
+            let offset = i32::try_from(index + 1)
+                .map_err(|_| internal("an extension call past i32 args"))?
+                * VALUE_SIZE;
+            self.store_value(base, offset, value, ty)?;
+        }
+
+        let out_slot = self.b.create_sized_stack_slot(StackSlotData::new(
+            StackSlotKind::ExplicitSlot,
+            VALUE_SIZE.cast_unsigned(),
+            VALUE_ALIGN_SHIFT,
+        ));
+        let out_p = self.b.ins().stack_addr(types::I64, out_slot, 0);
+        let callee = self.runtime_ref("nvs_extension_call", RuntimeSig::HelperVariadic)?;
+        let argc = self.b.ins().iconst(types::I64, i64::from(count));
+        let call = self.b.ins().call(callee, &[self.ctx_p, base, argc, out_p]);
+        let status = self.b.inst_results(call)[0];
+        let cont = self.emit_status_check(status, inst.on_error)?;
+        if let Some(ty) = inst.ty.filter(|ty| !matches!(ty, Ty::Void)) {
+            let value = self.load_value(out_p, 0, ty)?;
+            self.define(inst, value)?;
+        }
         Ok(cont)
     }
 
@@ -4247,7 +4302,6 @@ fn describe(kind: &InstKind) -> String {
         InstKind::FieldSet { .. } => "a property write",
         InstKind::ClassTest { .. } => "`is`",
         InstKind::Concat { .. } => "`.` string concatenation",
-        InstKind::ExtensionCall { .. } => "a call into an extension",
         _ => "this instruction",
     };
     what.to_owned()

@@ -3160,6 +3160,10 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
             (crate::callable::nvs_call_callable_array as *const ()).cast::<u8>(),
         ),
         (
+            "nvs_extension_call",
+            (crate::extension::nvs_extension_call as *const ()).cast::<u8>(),
+        ),
+        (
             "nvs_callable_bind",
             (crate::callable::nvs_callable_bind as *const ()).cast::<u8>(),
         ),

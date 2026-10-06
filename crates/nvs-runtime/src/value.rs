@@ -579,6 +579,38 @@ impl Value {
         }
     }
 
+    /// The array, if this value is one, borrowed for as long as this value is.
+    ///
+    /// The safe reader a caller outside this crate walks an array with, as
+    /// [`Self::as_text`] is for a string: the reference this value owns is
+    /// what keeps the array alive, so [`crate::ArrayRef`] reads it and never
+    /// releases it.
+    #[must_use]
+    pub fn as_array(&self) -> Option<crate::array::ArrayRef<'_>> {
+        let ptr = self.array_ptr()?;
+        #[expect(
+            unsafe_code,
+            reason = "a Tag::Array value owns a reference to a live allocation \
+                      (see this type's Ownership section), so it is live for \
+                      at least this borrow"
+        )]
+        Some(unsafe { crate::array::ArrayRef::borrowed(ptr) })
+    }
+
+    /// The full name of the class this value is an instance of, if it is an
+    /// object.
+    #[must_use]
+    pub fn class_name(&self) -> Option<String> {
+        let ptr = self.obj_ptr()?;
+        #[expect(
+            unsafe_code,
+            reason = "a Tag::Object value owns a reference to a live allocation, \
+                      and the handle is never dropped"
+        )]
+        let object = std::mem::ManuallyDrop::new(unsafe { NvsObj::from_raw(ptr) });
+        Some(object.class_name().to_owned())
+    }
+
     /// A slot carrying `desc`, for the receiver position of a `static` method:
     /// the encoding side of [`Self::as_class_desc`], and its whole convention
     /// — the descriptor rides in the payload half of an otherwise-`null` slot,
