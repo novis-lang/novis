@@ -138,7 +138,7 @@ pub enum Phases {
 /// it, what survives is narrowed to the entry file, and that crosses to the
 /// wire. The second is the one that is easy to miss. The diagnostics of
 /// [`from_completion_files`], which read `files` and no compiler phase, join
-/// them.
+/// them, and after them the entry's todos at `Information` level.
 ///
 /// **The entry file only.** One analysis reads a whole `require` graph and
 /// reports over all of it, but a `publishDiagnostics` notification is about one
@@ -169,6 +169,34 @@ pub fn for_document(
         .filter(|diagnostic| file_of(diagnostic).is_none_or(|file| file == analysed.entry))
         .chain(&listed)
         .map(|diagnostic| to_wire(diagnostic, entry, encoding))
+        .chain(todos(entry, encoding))
+        .collect()
+}
+
+/// Every `// TODO:` comment in `file`, as the entries an editor lists
+/// (`rule:tooling/a-todo-is-a-comment-the-tools-list`).
+///
+/// A todo is not a diagnostic, so it has no code and its source is
+/// [`TODO_SOURCE`]. It is never phase-gated: a comment says the same thing
+/// whether or not the code around it parses. An empty todo's message is `TODO`,
+/// because an editor shows an entry with an empty message as a blank line.
+fn todos(file: &SourceFile, encoding: PositionEncoding) -> Vec<lsp_types::Diagnostic> {
+    nvs_syntax::todos(file)
+        .into_iter()
+        .map(|todo| lsp_types::Diagnostic {
+            range: Range {
+                start: position_at(file, todo.span.start, encoding),
+                end: position_at(file, todo.span.end, encoding),
+            },
+            severity: Some(DiagnosticSeverity::INFORMATION),
+            source: Some(TODO_SOURCE.to_owned()),
+            message: if todo.text.is_empty() {
+                "TODO".to_owned()
+            } else {
+                todo.text
+            },
+            ..lsp_types::Diagnostic::default()
+        })
         .collect()
 }
 
@@ -362,6 +390,9 @@ pub fn dimming(
 /// `nvs check`. Deliberately not [`crate::SERVER_NAME`], which names the
 /// process an operator has to start.
 pub const SOURCE: &str = "nvs";
+
+/// The `source` of a todo's entry, which is a comment's and not the compiler's.
+pub const TODO_SOURCE: &str = "todo";
 
 /// `severity` as the wire spells it.
 ///

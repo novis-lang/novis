@@ -134,7 +134,7 @@ pub use capabilities::{
     server_info, server_version,
 };
 pub use case::{AuxFile, CURSOR, Case, MAIN_PATH, ParseError, Request, RequestArgs};
-pub use diagnostics::{Phases, SOURCE, for_document, phase_gated, to_wire};
+pub use diagnostics::{Phases, SOURCE, TODO_SOURCE, for_document, phase_gated, to_wire};
 pub use document::{
     Analysed, Document, Documents, analyse, analyse_current, analyse_file, path_of, uri_of,
 };
