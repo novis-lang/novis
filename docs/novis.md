@@ -6305,6 +6305,7 @@ class Home {
 - `#[Core\Access]`
 - `#[Core\Api]`
 - `#[Core\Path]`
+- `#[Core\Deprecated]`
 
 `#[Core\Test]`, `#[Core\Test\Fixture]` and `#[Core\Test\TestWith]` belong to [testing](#lang-testing).
 The rest are below.

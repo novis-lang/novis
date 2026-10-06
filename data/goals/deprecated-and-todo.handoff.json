@@ -1,12 +1,11 @@
 {
-  "state": "**Goal `deprecated-and-todo` — Stage 2 has its decision record and nothing else.** Goal `php-oracle-retired`'s whole list is this goal's Stage 1 floor.\n\nADR 0275 is accepted, and its three rules are on disk as `designed`: `rule:attributes/a-deprecation-names-its-replacement-as-code` (attribute, template, warning, fix), `rule:tooling/a-todo-is-a-comment-the-tools-list` (the todo and `nvs check --deny`/`--fix`/`--todos`) and `rule:errors/a-use-of-deprecated-code-may-log-or-throw` (the setting). The four Stage 0 rules carry 0275 in their `because`; the two `designed` ones are already rewritten (the code-action rule names the fourth fix, the doc-tag rule cites the new rule). The two `shipped` ones are not rewritten yet, on purpose: `rule:attributes/attach-sites-and-forms` (\"four things\", the roster) is rewritten by the roster slice below, and `rule:config/every-block-is-argued-where-it-is-added`'s table gains `[errors]` in Stage 6.\n\nNothing raises `W1003` (`crates/nvs-diagnostics/src/lib.rs:5376`), and no attribute named `Deprecated` is recognized yet.",
+  "state": "**Goal `deprecated-and-todo` — Stage 2 has its record and the roster; the template check and `W1003` are open.** Goal `php-oracle-retired`'s whole list is this goal's Stage 1 floor.\n\nADR 0275 is accepted and its three rules are on disk as `designed`. `Core\\Deprecated` is on the roster (`crates/nvs-types/src/derive.rs`'s `DEPRECATED`, with its card), its payload is checked against `crates/nvs-types/src/deprecated.rs`'s `OPTIONS`, and that module's `check_sites` refuses `construct` off a class (`E0454`) and the attribute on a property hook or a hook's parameter (`E0844`, `E_DEPRECATED_ON_A_PROPERTY_HOOK`). `crates/nvs-types/tests/deprecated.rs` holds the first two of Stage 2's tests. `rule:attributes/attach-sites-and-forms` is rewritten for the roster; `rule:config/every-block-is-argued-where-it-is-added`'s table gains `[errors]` in Stage 6.\n\n**One deviation for the user to confirm:** ADR 0275 § Diagnostics and the goal's standing decisions say no code but the template refusals is added, yet the goal also asks that a site the attribute does not take be refused, and no existing code says that. `E0844` is that code. If it should go, `E0454` could carry the hook case instead, with a worse message.\n\n`replace` is not checked yet: any string is accepted. Nothing raises `W1003` (`crates/nvs-diagnostics/src/lib.rs`, `W_DEPRECATED`).",
   "next": {
     "stage": 2,
     "title": "the attribute and the warning",
     "files": [
-      "crates/nvs-types/src/derive.rs",
-      "crates/nvs-types/src/attributes.rs",
       "crates/nvs-types/src/deprecated.rs",
+      "crates/nvs-types/src/attributes.rs",
       "crates/nvs-types/src/expr/calls.rs",
       "crates/nvs-types/src/expr/members.rs",
       "crates/nvs-diagnostics/src/lib.rs"
@@ -17,24 +16,25 @@
         "text": "**The decision record** — ADR 0275, its three new rules, and 0275 on the four Stage 0 rules' `because`."
       },
       {
-        "done": false,
-        "text": "**The roster** — `rule:attributes/a-deprecation-names-its-replacement-as-code`: `Core\\Deprecated` in `crates/nvs-types/src/derive.rs:68` (`ATTRIBUTES`) and `crates/nvs-types/src/derive.rs:170` (`ATTRIBUTE_DOCS`); its payload (`since`, `note`, `replace`, and `construct` on a class only) checked in `crates/nvs-types/src/attributes.rs:176` (`check_recognized`); its nine attach sites by a check shaped like `crates/nvs-types/src/paths.rs:433` (`check_marker_sites`). Rewrite `docs/rules/attributes/attach-sites-and-forms.md` whole in the same slice."
+        "done": true,
+        "text": "**The roster** — `Core\\Deprecated` in `ATTRIBUTES` and `ATTRIBUTE_DOCS`, its payload and its attach sites, `rule:attributes/attach-sites-and-forms` rewritten."
       },
       {
         "done": false,
-        "text": "**The template check** — same rule: `crates/nvs-types/src/deprecated.rs` (new), called beside `crates/nvs-types/src/attributes.rs:176`: parses, compiles in the declaration's scope, fits the member's type, names nothing less visible and nothing deprecated; each refusal a new `E08xx` code read from `bun nv orient` right before it is declared."
+        "text": "**The template check** — `rule:attributes/a-deprecation-names-its-replacement-as-code`: in `crates/nvs-types/src/deprecated.rs:52` (`check_sites` already visits every site and knows the declaration kind, so the template check hangs off the same walk): parses as one expression (a type name on a class, interface or enum), compiles in the declaration's scope with its parameters and `$this` bound, fits the member's type, names nothing less visible and nothing deprecated, and a class's replacement declares every public member; each refusal a new `E08xx` code read from `bun nv orient` right before it is declared. Tests: the five remaining names in the goal record's `nvs-types-a-deprecation-template-is-checked-where-it-is-declared`, beside `crates/nvs-types/tests/deprecated.rs:1`, and `tests/conformance/reject/a-deprecation-template-that-does-not-fit-does-not-compile.nvst`."
       },
       {
         "done": false,
-        "text": "**`W1003` at every use** — same rule: from `crates/nvs-types/src/expr/calls.rs:@resolved_call` and `:@infer_new`, `crates/nvs-types/src/expr/members.rs:@check_property_access` and `:@infer_class_const`, the static-property arm of `crates/nvs-types/src/expr/mod.rs`, and `crates/nvs-types/src/expr/assign.rs:@check_write_target`; quiet inside a deprecated declaration; `W_DEPRECATED`'s card at `crates/nvs-diagnostics/src/lib.rs:5376` rewritten to say what the message carries. Then the Stage 2 tests and `tests/conformance/reject/a-deprecation-template-that-does-not-fit-does-not-compile.nvst`."
+        "text": "**`W1003` at every use** — same rule: from `crates/nvs-types/src/expr/calls.rs:@resolved_call` and `:@infer_new`, `crates/nvs-types/src/expr/members.rs:@check_property_access` and `:@infer_class_const`, the static-property arm of `crates/nvs-types/src/expr/mod.rs`, and `crates/nvs-types/src/expr/assign.rs:@check_write_target`; quiet inside a deprecated declaration; `W_DEPRECATED`'s card at `crates/nvs-diagnostics/src/lib.rs:5385` rewritten to say what the message carries. Then the goal record's `nvs-types-every-use-of-a-deprecated-member-warns` tests."
       }
     ]
   },
   "backlog": [
+    "**The user's call on `E0844`** — see § State; ADR 0275 § Diagnostics.",
+    "**An attribute on an anonymous function's parameter is never checked** — `crates/nvs-types/src/attributes.rs:@check_params` is reached only from a method, so `#[Core\\Deprecated]` there is silently accepted. Owner: this goal's Stage 2, or a gap record if it is out of scope.",
     "**Stage 3: the rewrite** — `crates/nvs-types/src/deprecated.rs` fills the template in and adds `var` lines for impure arguments; `crates/nvs-lsp/src/diagnostics.rs` sets `DiagnosticTag::DEPRECATED`; hover and completion tags.",
     "**Stage 4: the todo comment** — `crates/nvs-syntax/src/todo.rs` (new) over the lexer's trivia; published at `Information` level by `crates/nvs-lsp/src/diagnostics.rs`.",
     "**Stage 5: `nvs check`** — `--deny`, `--fix`, `--todos` in `crates/nvs-cli/src/main.rs`'s `Command::Check` and `run_check`.",
-    "**Stage 6: the setting** — `[errors] deprecated` in `crates/nvs-config/src/directive.rs`, `Core\\DeprecatedError` in `crates/nvs-hir/src/errors.rs:@TREE` and `crates/nvs-runtime/src/throwable.rs:@ThrownClass`, the check in `crates/nvs-codegen/src/emit.rs` shaped like `@emit_stmt_probe`; the `[errors]` row in `rule:config/every-block-is-argued-where-it-is-added`.",
-    "**Stage 7: the feature proofs and the reference.**"
+    "**Stage 6: the setting** — `[errors] deprecated` in `crates/nvs-config/src/directive.rs`, `Core\\DeprecatedError` in `crates/nvs-hir/src/errors.rs:@TREE` and `crates/nvs-runtime/src/throwable.rs:@ThrownClass`, the check in `crates/nvs-codegen/src/emit.rs`; the `[errors]` row in `rule:config/every-block-is-argued-where-it-is-added`. Stage 7 is the feature proofs."
   ]
 }
