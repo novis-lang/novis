@@ -62,10 +62,6 @@ const ALIAS_CONST_RE = /const\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*&str\s*=\s*(?:[A-
 /** `return_ty: CoreTy::Instance(DATETIME_NAME)` or `CoreTy::InstanceAt(ROWS_NAME, &[...])`: the class a member returns an instance of. */
 const RETURNS_RE = /return_ty:\s*CoreTy::Instance(?:At)?\(\s*(?:r"([^"]+)"|([A-Za-z_][A-Za-z0-9_]*))\s*[,)]/u;
 const IMPL_FN_RE = /\bfn\s+(nvs_core_[a-z0-9_]+)\s*\(/gu;
-/** A backticked PHP function name in the **Replaces** column: `strpos` yes, `$s == ""` no. */
-const PHP_NAME_RE = /`([a-z_][a-z0-9_]*)`/gu;
-/** A heading may name more than one class, which is why the registry decides which one owns a row. */
-const SPEC_CLASS_RE = /`(Core(?:\\[A-Za-z]+)*)`/gu;
 const FAULT_RE = /Fault::(thrown_as|thrown|fatal)\s*\(/gu;
 /** A message literal, read to its first unescaped quote, so a message quoting its operand as `\"` is read whole. */
 const QUOTED_RE = /"((?:[^"\\]|\\[\s\S]){10,400})"/u;
@@ -294,28 +290,6 @@ function anchorOf(reg: Map<string, Pos>, syms: Map<string, [string, number]>, ke
   const [path, line, sym] = reg.get(key)!;
   const impl = syms.get(sym);
   return impl ? `${impl[0]}:${impl[1]}` : `${path}:${line}`;
-}
-
-// ----------------------------------------------------------------------------- the spec
-
-/** `[classes named by the enclosing heading, member, signature, replaces]`, one per member row. */
-export function specRows(): [string[], string, string, string][] {
-  const rows: [string[], string, string, string][] = [];
-  let heading: string[] = [];
-  for (const line of read(SPEC).split(/[\n\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029]/)) {
-    if (line.startsWith("## ")) heading = [...line.matchAll(SPEC_CLASS_RE)].map((m) => m[1]!);
-    if (!line.startsWith("|") || line.split("|").length - 1 < 4) continue;
-    const cells = line.replace(/^\|+|\|+$/g, "").split("|").map((c) => c.trim());
-    if (cells.length < 3 || !cells[0]!.startsWith("`") || !cells[1]!.includes("(")) continue;
-    rows.push([heading, cells[0]!.replace(/^`+|`+$/g, ""), cells[1]!, cells[2]!]);
-  }
-  return rows;
-}
-
-/** The PHP built-ins a **Replaces** cell names, or nothing when it names none. */
-export function phpTwins(cell: string): string[] {
-  if (cell.toLowerCase().includes("nothing")) return [];
-  return [...cell.matchAll(PHP_NAME_RE)].map((m) => m[1]!);
 }
 
 // -------------------------------------------------------------------------- the gaps

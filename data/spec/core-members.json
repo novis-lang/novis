@@ -80,68 +80,57 @@
       "columns": [
         "Member",
         "Signature",
-        "Replaces",
         "Q"
       ],
       "rows": [
         [
           "`length`",
           "`length(string $s): uint`",
-          "`strlen`, `mb_strlen`",
           "neutral"
         ],
         [
           "`isEmpty`",
           "`isEmpty(string $s): bool`",
-          "`$s == \"\"`",
           "neutral"
         ],
         [
           "`at`",
           "`at(string $s, int $index): string`",
-          "`$s[$i]`, `mb_substr($s,$i,1)`",
           ""
         ],
         [
           "`contains`",
           "`contains(string $haystack, string $needle): bool`",
-          "`str_contains`, `strstr` as a predicate",
           "neutral"
         ],
         [
           "`startsWith`",
           "`startsWith(string $s, string $prefix): bool`",
-          "`str_starts_with`",
           "neutral"
         ],
         [
           "`endsWith`",
           "`endsWith(string $s, string $suffix): bool`",
-          "`str_ends_with`",
           "neutral"
         ],
         [
           "`indexOf`",
           "`indexOf(string $haystack, string $needle, {from?: int, caseInsensitive?: bool}): ?uint`",
-          "`strpos`, `stripos`, `mb_strpos`, `mb_stripos`",
           "neutral"
         ],
         [
           "`lastIndexOf`",
           "`lastIndexOf(string $haystack, string $needle, {before?: int, caseInsensitive?: bool}): ?uint`",
-          "`strrpos`, `strripos`, `mb_strrpos`",
           "neutral"
         ],
         [
           "`countOf`",
           "`countOf(string $haystack, string $needle): uint`",
-          "`substr_count`",
           "neutral"
         ],
         [
           "`compare`",
           "`compare(string $a, string $b, {caseInsensitive?: bool, natural?: bool}): int`",
-          "`strcmp`, `strcasecmp`, `strnatcmp`, `strnatcasecmp`, and the comparator behind `natsort`/`natcasesort`",
           "neutral"
         ]
       ]
@@ -155,56 +144,47 @@
       "columns": [
         "Member",
         "Signature",
-        "Replaces",
         "Q"
       ],
       "rows": [
         [
           "`slice`",
           "`slice(string $s, int $offset, ?int $length = null): string`",
-          "`substr`, `mb_substr`",
           ""
         ],
         [
           "`before`",
           "`before(string $s, string $needle, {last?: bool}): ?string`",
-          "`strstr($h,$n,true)`, `strrchr` as a prefix",
           ""
         ],
         [
           "`after`",
           "`after(string $s, string $needle, {last?: bool}): ?string`",
-          "`strstr`, `stristr`, `strrchr`",
           ""
         ],
         [
           "`split`",
           "`split(string $s, string $separator, {limit?: int}): array<string>`",
-          "`explode`",
           ""
         ],
         [
           "`chunk`",
           "`chunk(string $s, uint $size): array<string>`",
-          "`str_split`, `mb_str_split`, `chunk_split`",
           ""
         ],
         [
           "`lines`",
           "`lines(string $s): array<string>`",
-          "`explode(PHP_EOL, …)`, `file()`'s split half",
           ""
         ],
         [
           "`graphemes`",
           "`graphemes(string $s): array<string>`",
-          "`grapheme_*` (intl, for the split case)",
           ""
         ],
         [
           "`codePoints`",
           "`codePoints(string $s): array<uint>`",
-          "`mb_str_split` + `mb_ord`, `unpack(\"N*\", …)`",
           "neutral"
         ]
       ]
@@ -218,134 +198,112 @@
       "columns": [
         "Member",
         "Signature",
-        "Replaces",
         "Q"
       ],
       "rows": [
         [
           "`join`",
           "`join(array<string> $parts, string $separator = \"\"): string`",
-          "`implode`, `join`",
           ""
         ],
         [
           "`replace`",
           "`replace(string $s, string $search, string $replacement, {caseInsensitive?: bool, limit?: uint}): string`",
-          "`str_replace`, `str_ireplace`",
           ""
         ],
         [
           "`replaceAll`",
           "`replaceAll(string $s, array<string> $pairs, {caseInsensitive?: bool}): string`",
-          "`str_replace` with array arguments, `strtr`",
           ""
         ],
         [
           "`replaceRange`",
           "`replaceRange(string $s, int $offset, ?int $length, string $replacement): string`",
-          "`substr_replace`",
           ""
         ],
         [
           "`trim`",
           "`trim(string $s, {characters?: string}): string`",
-          "`trim`",
           ""
         ],
         [
           "`trimStart`",
           "`trimStart(string $s, {characters?: string}): string`",
-          "`ltrim`",
           ""
         ],
         [
           "`trimEnd`",
           "`trimEnd(string $s, {characters?: string}): string`",
-          "`rtrim`, `chop`",
           ""
         ],
         [
           "`padStart`",
           "`padStart(string $s, uint $length, string $padding = \" \"): string`",
-          "`str_pad` + `STR_PAD_LEFT`",
           ""
         ],
         [
           "`padEnd`",
           "`padEnd(string $s, uint $length, string $padding = \" \"): string`",
-          "`str_pad` + `STR_PAD_RIGHT`",
           ""
         ],
         [
           "`repeat`",
           "`repeat(string $s, uint $times): string`",
-          "`str_repeat`",
           ""
         ],
         [
           "`reverse`",
           "`reverse(string $s): string`",
-          "`strrev` (grapheme-aware here, unlike PHP's byte reversal)",
           ""
         ],
         [
           "`wrap`",
           "`wrap(string $s, uint $width, {breakWith?: string, cutLongWords?: bool}): string`",
-          "`wordwrap`",
           ""
         ],
         [
           "`lower`",
           "`lower(string $s): string`",
-          "`strtolower`, `mb_strtolower`",
           ""
         ],
         [
           "`upper`",
           "`upper(string $s): string`",
-          "`strtoupper`, `mb_strtoupper`",
           ""
         ],
         [
           "`upperFirst`",
           "`upperFirst(string $s): string`",
-          "`ucfirst`",
           ""
         ],
         [
           "`lowerFirst`",
           "`lowerFirst(string $s): string`",
-          "`lcfirst`",
           ""
         ],
         [
           "`fold`",
           "`fold(string $s): string`",
-          "`mb_convert_case(…, MB_CASE_FOLD)` — for caseless comparison",
           ""
         ],
         [
           "`normalize`",
           "`normalize(string $s, NormalForm $form): string`",
-          "`Normalizer::normalize`",
           ""
         ],
         [
           "`fromCodePoint`",
           "`fromCodePoint(uint $codePoint): string`",
-          "`chr`, `mb_chr`",
           "neutral"
         ],
         [
           "`fromCodePoints`",
           "`fromCodePoints(array<uint> $codePoints): string`",
-          "`implode(array_map(\"mb_chr\", …))`",
           "neutral"
         ],
         [
           "`format`",
           "`format(string $template, mixed ...$arguments): string`",
-          "`sprintf`, `vsprintf`, `printf`, `vprintf`, `fprintf`, `vfprintf`",
           "**sink** (template)"
         ]
       ]
@@ -359,80 +317,67 @@
       "columns": [
         "Member",
         "Signature",
-        "Replaces",
         "Q"
       ],
       "rows": [
         [
           "`count`",
           "`count(array<T> $a): uint`",
-          "`count`, `sizeof`",
           "neutral"
         ],
         [
           "`isEmpty`",
           "`isEmpty(array<T> $a): bool`",
-          "`empty($a)`, `count($a) == 0`",
           "neutral"
         ],
         [
           "`isList`",
           "`isList(array<T> $a): bool`",
-          "`array_is_list`",
           "neutral"
         ],
         [
           "`hasKey`",
           "`hasKey(array<T> $a, int\\|string $key): bool`",
-          "`array_key_exists`, `isset`",
           "neutral"
         ],
         [
           "`contains`",
           "`contains(array<T> $haystack, T $needle): bool`",
-          "`in_array` (always strict)",
           "neutral"
         ],
         [
           "`keyOf`",
           "`keyOf(array<T> $haystack, T $needle): ?string`",
-          "`array_search`",
           "neutral"
         ],
         [
           "`keys`",
           "`keys(array<T> $a): array<string>`",
-          "`array_keys`",
           ""
         ],
         [
           "`values`",
           "`values(array<T> $a): array<T>`",
-          "`array_values`",
           ""
         ],
         [
           "`first`",
           "`first(array<T> $a): ?T`",
-          "`reset`, `current`, `$a[array_key_first($a)]`",
           ""
         ],
         [
           "`last`",
           "`last(array<T> $a): ?T`",
-          "`end`, `$a[array_key_last($a)]`",
           ""
         ],
         [
           "`firstKey`",
           "`firstKey(array<T> $a): ?string`",
-          "`array_key_first`, `key`",
           "neutral"
         ],
         [
           "`lastKey`",
           "`lastKey(array<T> $a): ?string`",
-          "`array_key_last`",
           "neutral"
         ]
       ]
@@ -446,122 +391,102 @@
       "columns": [
         "Member",
         "Signature",
-        "Replaces",
         "Q"
       ],
       "rows": [
         [
           "`slice`",
           "`slice(array<T> $a, int $offset, ?int $length = null, {preserveKeys?: bool}): array<T>`",
-          "`array_slice`",
           ""
         ],
         [
           "`replaceRange`",
           "`replaceRange(array<T> $a, int $offset, ?int $length, array<T> $replacement = []): array<T>`",
-          "`array_splice` (returning, not by-reference)",
           ""
         ],
         [
           "`chunk`",
           "`chunk(array<T> $a, uint $size, {preserveKeys?: bool}): array<array<T>>`",
-          "`array_chunk`",
           ""
         ],
         [
           "`append`",
           "`append(array<T> $a, T ...$values): array<T>`",
-          "`array_push`, `$a[] = $v` in expression position",
           ""
         ],
         [
           "`prepend`",
           "`prepend(array<T> $a, T ...$values): array<T>`",
-          "`array_unshift`",
           ""
         ],
         [
           "`withoutFirst`",
           "`withoutFirst(array<T> $a): array<T>`",
-          "`array_shift`'s remainder (`first` gets the element)",
           ""
         ],
         [
           "`withoutLast`",
           "`withoutLast(array<T> $a): array<T>`",
-          "`array_pop`'s remainder (`last` gets the element)",
           ""
         ],
         [
           "`padStart`",
           "`padStart(array<T> $a, uint $size, T $value): array<T>`",
-          "`array_pad` with a negative size",
           ""
         ],
         [
           "`padEnd`",
           "`padEnd(array<T> $a, uint $size, T $value): array<T>`",
-          "`array_pad`",
           ""
         ],
         [
           "`reverse`",
           "`reverse(array<T> $a, {preserveKeys?: bool}): array<T>`",
-          "`array_reverse`",
           ""
         ],
         [
           "`flip`",
           "`flip(array<int\\|string> $a): array<string>`",
-          "`array_flip`",
           ""
         ],
         [
           "`flatten`",
           "`flatten(array<array<T>> $a): array<T>`",
-          "one level of a hand-written recursive walk",
           ""
         ],
         [
           "`flattenDeep`",
           "`flattenDeep(array<mixed> $a): array<mixed>`",
-          "`iterator_to_array` on a recursive iterator, a hand-written recursive walk",
           ""
         ],
         [
           "`fill`",
           "`fill(uint $count, T $value): array<T>`",
-          "`array_fill`",
           ""
         ],
         [
           "`fillKeys`",
           "`fillKeys(array<int\\|string> $keys, T $value): array<T>`",
-          "`array_fill_keys`",
           ""
         ],
         [
           "`range`",
           "`range(int $start, int $end, {step?: int}): array<int>`",
-          "`range`",
           "neutral"
         ],
         [
           "`fromKeysAndValues`",
           "`fromKeysAndValues(array<int\\|string> $keys, array<T> $values): array<T>`",
-          "`array_combine`",
           ""
         ],
         [
           "`from`",
           "`from(Iterable<T>\\|Iterator<T>\\|array<T> $items, {limit?: uint}): array<T>`",
-          "`iterator_to_array`, `iterator_count`'s materialising half",
           ""
         ],
         [
           "`column`",
           "`column(array<array<T>> $a, int\\|string $column, {indexBy?: int\\|string}): array<T>`",
-          "`array_column`",
           ""
         ]
       ]
@@ -575,56 +500,47 @@
       "columns": [
         "Member",
         "Signature",
-        "Replaces",
         "Q"
       ],
       "rows": [
         [
           "`overlay`",
           "`overlay(array<T> $base, array<U> ...$layers): array<T\\|U>`",
-          "`array_replace`, `array_merge` over maps",
           ""
         ],
         [
           "`overlayDeep`",
           "`overlayDeep(array<T> $base, array<U> ...$layers): array<T\\|U>`",
-          "`array_replace_recursive`",
           ""
         ],
         [
           "`underlay`",
           "`underlay(array<T> $base, array<U> ...$layers): array<T\\|U>`",
-          "the `+` operator",
           ""
         ],
         [
           "`appendAll`",
           "`appendAll(array<T> $a, array<U> ...$others): array<T\\|U>`",
-          "`array_merge` over lists, `array_merge(...$arrays)`",
           ""
         ],
         [
           "`diff`",
           "`diff(array<T> $a, array<T> $b, {on?: SetOn, by?: callable, comparator?: callable}): array<T>`",
-          "`array_diff`, `array_udiff`, `array_diff_key`, `array_diff_assoc`, `array_diff_ukey`, `array_udiff_assoc`",
           ""
         ],
         [
           "`intersect`",
           "`intersect(array<T> $a, array<T> $b, {on?: SetOn, by?: callable, comparator?: callable}): array<T>`",
-          "`array_intersect` and its five variants",
           ""
         ],
         [
           "`unique`",
           "`unique(array<T> $a, {by?: callable}): array<T>`",
-          "`array_unique`",
           ""
         ],
         [
           "`countBy`",
           "`countBy(array<T> $a, {by?: callable}): array<uint>`",
-          "`array_count_values`, the userland group-and-count",
           "neutral"
         ]
       ]
@@ -638,92 +554,77 @@
       "columns": [
         "Member",
         "Signature",
-        "Replaces",
         "Q"
       ],
       "rows": [
         [
           "`map`",
           "`map(array<T> $a, callable(T, string): U $fn): array<U>`",
-          "`array_map`",
           ""
         ],
         [
           "`mapKeys`",
           "`mapKeys(array<T> $a, callable(T, string): int\\|string $fn): array<T>`",
-          "`array_combine(array_map(...), …)`, the `keyBy` idiom",
           ""
         ],
         [
           "`filter`",
           "`filter(array<T> $a, callable(T, string): bool $predicate): array<T>`",
-          "`array_filter` and its two flags",
           ""
         ],
         [
           "`reduce`",
           "`reduce(array<T> $a, callable(U, T, string): U $fn, U $initial): U`",
-          "`array_reduce`",
           ""
         ],
         [
           "`find`",
           "`find(array<T> $a, callable(T, string): bool $predicate): ?T`",
-          "`array_find`",
           ""
         ],
         [
           "`findKey`",
           "`findKey(array<T> $a, callable(T, string): bool $predicate): ?string`",
-          "`array_find_key`",
           "neutral"
         ],
         [
           "`any`",
           "`any(array<T> $a, callable(T, string): bool $predicate): bool`",
-          "`array_any`",
           "neutral"
         ],
         [
           "`all`",
           "`all(array<T> $a, callable(T, string): bool $predicate): bool`",
-          "`array_all`",
           "neutral"
         ],
         [
           "`groupBy`",
           "`groupBy(array<T> $a, callable(T, string): int\\|string $key): array<array<T>>`",
-          "nothing — the most-written PHP userland helper",
           ""
         ],
         [
           "`sum`",
           "`sum(array<int\\|float\\|decimal> $a): int\\|float\\|decimal`",
-          "`array_sum`",
           "neutral"
         ],
         [
           "`product`",
           "`product(array<int\\|float\\|decimal> $a): int\\|float\\|decimal`",
-          "`array_product`",
           "neutral"
         ],
         [
           "`average`",
           "`average(array<int\\|float\\|decimal> $a): ?(float\\|decimal)`",
-          "`array_sum($a)/count($a)`, with the empty case answered",
           "neutral"
         ],
         [
           "`min`",
           "`min(array<T> $a): ?T`",
-          "`min` with an array argument",
           ""
         ],
         [
           "`max`",
           "`max(array<T> $a): ?T`",
-          "`max` with an array argument",
           ""
         ]
       ]
@@ -737,20 +638,17 @@
       "columns": [
         "Member",
         "Signature",
-        "Replaces",
         "Q"
       ],
       "rows": [
         [
           "`sort`",
           "`sort(array<T> $a, {by?: callable, order?: Order, comparator?: callable, preserveKeys?: bool}): array<T>`",
-          "`sort`, `rsort`, `asort`, `arsort`, `usort`, `uasort`, `natsort`, `natcasesort`, `array_multisort`",
           ""
         ],
         [
           "`sortByKey`",
           "`sortByKey(array<T> $a, {order?: Order, comparator?: callable}): array<T>`",
-          "`ksort`, `krsort`, `uksort`",
           ""
         ]
       ]
@@ -763,188 +661,157 @@
       "columns": [
         "Member",
         "Signature",
-        "Replaces",
         "Q"
       ],
       "rows": [
         [
           "`abs`",
           "`abs(T $n): T`, with `T` one of `int\\|float\\|decimal`",
-          "`abs`",
           "neutral"
         ],
         [
           "`sign`",
           "`sign(int\\|float\\|decimal $n): int`",
-          "`$n <=> 0`",
           "neutral"
         ],
         [
           "`min`",
           "`min(T $a, T $b): T`",
-          "`min` with scalar arguments",
           "neutral"
         ],
         [
           "`max`",
           "`max(T $a, T $b): T`",
-          "`max` with scalar arguments",
           "neutral"
         ],
         [
           "`clamp`",
           "`clamp(T $n, T $low, T $high): T`",
-          "`min(max(…))`",
           "neutral"
         ],
         [
           "`ceil`",
           "`ceil(float\\|decimal $n): float\\|decimal`",
-          "`ceil`",
           "neutral"
         ],
         [
           "`floor`",
           "`floor(float\\|decimal $n): float\\|decimal`",
-          "`floor`",
           "neutral"
         ],
         [
           "`truncate`",
           "`truncate(float\\|decimal $n): float\\|decimal`",
-          "`(int)` truncation",
           "neutral"
         ],
         [
           "`round`",
           "`round(float\\|decimal $n, {precision?: int, mode?: RoundMode}): float\\|decimal`",
-          "`round` and its four `PHP_ROUND_*` constants",
           "neutral"
         ],
         [
           "`intDiv`",
           "`intDiv(int $a, int $b): int`",
-          "`intdiv`",
           "neutral"
         ],
         [
           "`mod`",
           "`mod(float $a, float $b): float`",
-          "`fmod` (integer `%` is the operator)",
           "neutral"
         ],
         [
           "`fdiv`",
           "`fdiv(float $a, float $b): float`",
-          "`fdiv`",
           "neutral"
         ],
         [
           "`gcd`",
           "`gcd(int $a, int $b): int`",
-          "`gmp_gcd`",
           "neutral"
         ],
         [
           "`lcm`",
           "`lcm(int $a, int $b): int`",
-          "`gmp_lcm`",
           "neutral"
         ],
         [
           "`sqrt`",
           "`sqrt(float $n): float`",
-          "`sqrt`",
           "neutral"
         ],
         [
           "`cbrt`",
           "`cbrt(float $n): float`",
-          "`pow($n, 1/3)`",
           "neutral"
         ],
         [
           "`hypot`",
           "`hypot(float $a, float $b): float`",
-          "`hypot`",
           "neutral"
         ],
         [
           "`exp`",
           "`exp(float $n): float`",
-          "`exp`",
           "neutral"
         ],
         [
           "`log`",
           "`log(float $n, {base?: float}): float`",
-          "`log`, `log10`, `log2`",
           "neutral"
         ],
         [
           "`sin` `cos` `tan`",
           "`sin(float $radians): float` (and the rest)",
-          "`sin`, `cos`, `tan`",
           "neutral"
         ],
         [
           "`asin` `acos` `atan`",
           "`asin(float $n): float` (and the rest)",
-          "`asin`, `acos`, `atan`",
           "neutral"
         ],
         [
           "`atan2`",
           "`atan2(float $y, float $x): float`",
-          "`atan2`",
           "neutral"
         ],
         [
           "`sinh` `cosh` `tanh`",
           "hyperbolic, same shape",
-          "`sinh`, `cosh`, `tanh`, `asinh`, `acosh`, `atanh`",
           "neutral"
         ],
         [
           "`toRadians`",
           "`toRadians(float $degrees): float`",
-          "`deg2rad`",
           "neutral"
         ],
         [
           "`toDegrees`",
           "`toDegrees(float $radians): float`",
-          "`rad2deg`",
           "neutral"
         ],
         [
           "`isNan`",
           "`isNan(float $n): bool`",
-          "`is_nan`",
           "neutral"
         ],
         [
           "`isFinite`",
           "`isFinite(float $n): bool`",
-          "`is_finite`, `is_infinite`",
           "neutral"
         ],
         [
           "`toBase`",
           "`toBase(int $n, uint $base): string`",
-          "`decbin`, `dechex`, `decoct`, `base_convert`",
           "neutral"
         ],
         [
           "`fromBase`",
           "`fromBase(string $s, uint $base): int`",
-          "`bindec`, `hexdec`, `octdec`, `base_convert`",
           "neutral"
         ],
         [
           "`format`",
           "`format(int\\|float\\|decimal $n, {decimals?: uint, decimalSeparator?: string, groupSeparator?: string}): string`",
-          "`number_format`",
           ""
         ]
       ]
@@ -958,50 +825,42 @@
       "columns": [
         "Member",
         "Signature",
-        "Replaces",
         "Q"
       ],
       "rows": [
         [
           "`now`",
           "`now(): Instant`",
-          "`time`, `microtime`, `date_create`",
           "neutral"
         ],
         [
           "`monotonic`",
           "`monotonic(): Duration`",
-          "`hrtime` — for measuring, never for wall-clock",
           "neutral"
         ],
         [
           "`sleep`",
           "`sleep(Duration $d): void`",
-          "`sleep`, `usleep`, `time_nanosleep`, `time_sleep_until`",
           "neutral"
         ],
         [
           "`fromEpoch`",
           "`fromEpoch(int $seconds, {nanos?: uint}): Instant`",
-          "`DateTime::setTimestamp`",
           "neutral"
         ],
         [
           "`fromIso`",
           "`fromIso(string $text): Instant`",
-          "`strtotime` on an ISO-8601 string, `DateTime::__construct`",
           ""
         ],
         [
           "`parse`",
           "`parse(string $text, string $format, Zone $zone): DateTime`",
-          "`DateTime::createFromFormat`, `strptime`",
           ""
         ],
         [
           "`at`",
           "`at(int $year, uint $month, uint $day, Zone $zone, {hour?, minute?, second?, nanos?}): DateTime`",
-          "`mktime`, `gmmktime`, `DateTime::setDate`",
           "neutral"
         ]
       ]
@@ -1241,56 +1100,47 @@
       "columns": [
         "Member",
         "Signature",
-        "Replaces",
         "Q"
       ],
       "rows": [
         [
           "`compile`",
           "`compile(string $pattern, {caseInsensitive?, multiline?, dotAll?, ungreedy?}): Pattern`",
-          "the `/…/imsx` delimiter-and-modifier syntax",
           "**sink** (pattern)"
         ],
         [
           "`matches`",
           "`matches(string $subject, Pattern\\|string $pattern): bool`",
-          "`preg_match` as a predicate",
           "neutral"
         ],
         [
           "`match`",
           "`match(string $subject, Pattern\\|string $pattern, {from?: int}): ?Match`",
-          "`preg_match` + `$matches` + `PREG_OFFSET_CAPTURE`",
           "**sink** (pattern)"
         ],
         [
           "`matchAll`",
           "`matchAll(string $subject, Pattern\\|string $pattern): array<Match>`",
-          "`preg_match_all` + `PREG_PATTERN_ORDER`/`PREG_SET_ORDER`",
           "**sink** (pattern)"
         ],
         [
           "`replace`",
           "`replace(string $subject, Pattern\\|string $pattern, string $replacement, {limit?: uint}): string`",
-          "`preg_replace`",
           "**sink** (pattern)"
         ],
         [
           "`replaceWith`",
           "`replaceWith(string $subject, Pattern\\|string $pattern, callable(Match): string $fn, {limit?: uint}): string`",
-          "`preg_replace_callback`, `preg_replace_callback_array`",
           "**sink** (pattern)"
         ],
         [
           "`split`",
           "`split(string $subject, Pattern\\|string $pattern, {limit?: int, keepEmpty?: bool}): array<string>`",
-          "`preg_split` and its four flags",
           "**sink** (pattern)"
         ],
         [
           "`quote`",
           "`quote(string $text): string`",
-          "`preg_quote`",
           "**launder** (for the pattern sink)"
         ]
       ]
@@ -1336,32 +1186,27 @@
       "columns": [
         "Member",
         "Signature",
-        "Replaces",
         "Q"
       ],
       "rows": [
         [
           "`encode`",
           "`encode(mixed $value, {pretty?: bool, escapeUnicode?: bool}): string`",
-          "`json_encode` and its 15 `JSON_*` flags",
           ""
         ],
         [
           "`decode`",
           "`decode(string $json, {maxDepth?: uint}): mixed`",
-          "`json_decode`, `json_last_error`, `json_last_error_msg`, `$depth`",
           ""
         ],
         [
           "`decodeAs`",
           "`decodeAs<T>(string $json, {maxDepth?: uint}): T`",
-          "hand-written hydration",
           ""
         ],
         [
           "`isValid`",
           "`isValid(string $json): bool`",
-          "`json_validate`",
           "neutral"
         ]
       ]
@@ -1397,50 +1242,42 @@
       "columns": [
         "Member",
         "Signature",
-        "Replaces",
         "Q"
       ],
       "rows": [
         [
           "`decodeText`",
           "`decodeText(bytes $b, Charset $charset): string`",
-          "`iconv`, `mb_convert_encoding`, `utf8_decode`",
           ""
         ],
         [
           "`encodeText`",
           "`encodeText(string $s, Charset $charset): bytes`",
-          "`iconv`, `mb_convert_encoding`, `utf8_encode`",
           ""
         ],
         [
           "`isValidText`",
           "`isValidText(bytes $b, Charset $charset): bool`",
-          "`mb_check_encoding`",
           "neutral"
         ],
         [
           "`toBase64` / `fromBase64`",
           "`toBase64(bytes $b): string` / `fromBase64(string $s): bytes`",
-          "`base64_encode`, `base64_decode`",
           ""
         ],
         [
           "`toBase64Url` / `fromBase64Url`",
           "`toBase64Url(bytes $b): string` / `fromBase64Url(string $s): bytes`",
-          "`strtr(base64_encode(…))` idiom",
           ""
         ],
         [
           "`toHex` / `fromHex`",
           "`toHex(bytes $b): string` / `fromHex(string $s): bytes`",
-          "`bin2hex`, `hex2bin`, `unpack(\"H*\")`",
           ""
         ],
         [
           "`toBase32` / `fromBase32`",
           "`toBase32(bytes $b): string` / `fromBase32(string $s): bytes`",
-          "nothing — needed by TOTP (`rule:security/protocol-roster`)",
           ""
         ]
       ]
@@ -1453,68 +1290,57 @@
       "columns": [
         "Member",
         "Signature",
-        "Replaces",
         "Q"
       ],
       "rows": [
         [
           "`basename`",
           "`basename(string $path, {withoutExtension?: bool}): string`",
-          "`basename`, `pathinfo(…, PATHINFO_BASENAME)`",
           ""
         ],
         [
           "`dirname`",
           "`dirname(string $path, {levels?: uint}): string`",
-          "`dirname`",
           ""
         ],
         [
           "`extension`",
           "`extension(string $path): ?string`",
-          "`pathinfo(…, PATHINFO_EXTENSION)`",
           ""
         ],
         [
           "`withExtension`",
           "`withExtension(string $path, ?string $extension): string`",
-          "manual string surgery",
           ""
         ],
         [
           "`join`",
           "`join(string $base, string ...$segments): string`",
-          "`$a . \"/\" . $b`",
           ""
         ],
         [
           "`split`",
           "`split(string $path): array<string>`",
-          "`explode(DIRECTORY_SEPARATOR, …)`",
           ""
         ],
         [
           "`normalize`",
           "`normalize(string $path): string`",
-          "the lexical half of `realpath` — resolves `.`/`..` **without** touching the disk",
           ""
         ],
         [
           "`isAbsolute`",
           "`isAbsolute(string $path): bool`",
-          "manual checks",
           "neutral"
         ],
         [
           "`relativeTo`",
           "`relativeTo(string $path, string $base): ?string`",
-          "nothing",
           ""
         ],
         [
           "`fromCwd`",
           "`fromCwd(string $path): string`",
-          "`getcwd() . '/' . $path`",
           ""
         ]
       ]
@@ -1526,24 +1352,20 @@
       ],
       "columns": [
         "Type",
-        "Members",
-        "Replaces"
+        "Members"
       ],
       "rows": [
         [
           "`ObjectMap<K, V>`",
-          "`set`, `get`, `has`, `remove`, `count`, `isEmpty`, `keys`, `values`, `clear`; `Iterable`",
-          "`SplObjectStorage` used as a map, `spl_object_id` side tables"
+          "`set`, `get`, `has`, `remove`, `count`, `isEmpty`, `keys`, `values`, `clear`; `Iterable`"
         ],
         [
           "`ObjectSet<T>`",
-          "`add`, `has`, `remove`, `count`, `isEmpty`, `union`, `intersect`, `diff`, `clear`; `Iterable`",
-          "`SplObjectStorage` used as a set"
+          "`add`, `has`, `remove`, `count`, `isEmpty`, `union`, `intersect`, `diff`, `clear`; `Iterable`"
         ],
         [
           "`Heap<T>`",
-          "`push`, `peek`, `pop`, `count`, `isEmpty`; `Iterable`",
-          "`SplPriorityQueue`, `SplMinHeap`, `SplMaxHeap`"
+          "`push`, `peek`, `pop`, `count`, `isEmpty`; `Iterable`"
         ]
       ]
     },
@@ -1555,50 +1377,42 @@
       "columns": [
         "Member",
         "Signature",
-        "Replaces",
         "Q"
       ],
       "rows": [
         [
           "`Random::int`",
           "`int(int $min, int $max): int`",
-          "`rand`, `mt_rand`, `random_int`",
           "neutral"
         ],
         [
           "`Random::float`",
           "`float(): float`",
-          "`lcg_value`, `mt_rand()/mt_getrandmax()` — uniform in `[0, 1)`",
           "neutral"
         ],
         [
           "`Random::bytes`",
           "`bytes(uint $count): bytes`",
-          "`random_bytes`, `openssl_random_pseudo_bytes`",
           "neutral"
         ],
         [
           "`Random::token`",
           "`token(uint $bytes = 32): string`",
-          "`bin2hex(random_bytes(…))` idiom",
           "neutral"
         ],
         [
           "`Random::pick`",
           "`pick(array<T> $a): ?T`",
-          "`array_rand`",
           ""
         ],
         [
           "`Random::sample`",
           "`sample(array<T> $a, uint $count): array<T>`",
-          "`array_rand` with a count",
           ""
         ],
         [
           "`Random::shuffle`",
           "`shuffle(array<T> $a): array<T>`",
-          "`shuffle`, `str_shuffle`",
           ""
         ]
       ]
@@ -1611,86 +1425,72 @@
       "columns": [
         "Member",
         "Signature",
-        "Replaces",
         "Q"
       ],
       "rows": [
         [
           "`Uuid::v4`",
           "`v4(): Uuid`",
-          "`uniqid`, `com_create_guid`, userland UUID libraries",
           "neutral"
         ],
         [
           "`Uuid::v7`",
           "`v7(): Uuid`",
-          "nothing — time-ordered, for database keys",
           "neutral"
         ],
         [
           "`Uuid::parse`",
           "`parse(string $s): Uuid`",
-          "manual validation",
           ""
         ],
         [
           "`Uuid::tryParse`",
           "`tryParse(string $s): ?Uuid`",
-          "`uuid_is_valid`, userland `isValid` helpers",
           ""
         ],
         [
           "`Uuid::fromBytes`",
           "`fromBytes(bytes $b): Uuid`",
-          "userland `fromBytes`, the `hex2bin` round trip",
           ""
         ],
         [
           "`$uuid->toString`",
           "`$uuid->toString(): string`",
-          "`(string)` on a userland UUID object",
           "neutral"
         ],
         [
           "`$uuid->toBytes`",
           "`$uuid->toBytes(): bytes`",
-          "userland `getBytes`, `hex2bin(str_replace(\"-\", \"\", …))`",
           "neutral"
         ],
         [
           "`Hash::of`",
           "`of(bytes\\|string $data, Digest $digest): bytes`",
-          "`hash`, `md5`, `sha1`, `crc32`, `openssl_digest`",
           "neutral"
         ],
         [
           "`Hash::hmac`",
           "`hmac(bytes\\|string $data, secret bytes $key, StrongDigest $digest): bytes`",
-          "`hash_hmac`",
           "neutral"
         ],
         [
           "`Hash::equals`",
           "`equals(bytes $a, bytes $b): bool`",
-          "`hash_equals` — constant-time",
           "neutral"
         ],
         [
           "`Hash::stream`",
           "`stream(Digest $digest): Hash\\Stream`",
-          "`hash_init`, `HashContext`",
           ""
         ],
         [
           "`$stream->update`",
           "`$stream->update(bytes\\|string $data): void`",
-          "`hash_update`",
           ""
         ],
         [
           "`$stream->finish`",
           "`$stream->finish(): bytes`",
-          "`hash_final`",
           ""
         ]
       ]
@@ -1807,98 +1607,82 @@
       "columns": [
         "Member",
         "Signature",
-        "Replaces",
         "Q"
       ],
       "rows": [
         [
           "`Uri::parse`",
           "`parse(string $uri): Uri`",
-          "`parse_url`",
           ""
         ],
         [
           "`Uri::tryParse`",
           "`tryParse(string $uri): ?Uri`",
-          "`filter_var(…, FILTER_VALIDATE_URL)`",
           ""
         ],
         [
           "`Uri::encodeComponent` / `decodeComponent`",
           "`encodeComponent(string $s): string`, `decodeComponent(string $s): bytes`",
-          "`rawurlencode`, `rawurldecode`",
           ""
         ],
         [
           "`Uri::encodeFormValue` / `decodeFormValue`",
           "`encodeFormValue(string $s): string`, `decodeFormValue(string $s): bytes`",
-          "`urlencode`, `urldecode` (the `+`-for-space variant)",
           ""
         ],
         [
           "`Uri::parseQuery`",
           "`parseQuery(string $query): array<mixed>`",
-          "`parse_str` — returns, never populates variables",
           ""
         ],
         [
           "`Uri::buildQuery`",
           "`buildQuery(array<mixed> $parameters): string`",
-          "`http_build_query`",
           ""
         ],
         [
           "`$uri->scheme` / `$uri->userInfo` / `$uri->host` / `$uri->port`",
           "`$uri->scheme(): ?string`, `$uri->userInfo(): ?string`, `$uri->host(): ?string`, `$uri->port(): ?int`",
-          "`parse_url`'s array keys",
           "neutral"
         ],
         [
           "`$uri->path` / `$uri->query` / `$uri->fragment` / `$uri->toString`",
           "`$uri->path(): string`, `$uri->query(): ?string`, `$uri->fragment(): ?string`, `$uri->toString(): string`",
-          "`parse_url`'s array keys, and reassembly by hand",
           "neutral"
         ],
         [
           "`$uri->with`",
           "`$uri->with({scheme?, host?, port?, path?, query?, fragment?}): Uri`",
-          "manual reassembly",
           ""
         ],
         [
           "`$uri->queryParameter`",
           "`$uri->queryParameter(string $name): mixed`",
-          "`parse_str` over `parse_url`'s `query` key, then an array read",
           "neutral"
         ],
         [
           "`$uri->withQueryParameter`",
           "`$uri->withQueryParameter(string $name, mixed $value): Uri`",
-          "`parse_str`, an array edit and `http_build_query` written out at every call site",
           ""
         ],
         [
           "`$uri->resolve`",
           "`$uri->resolve(string $reference): Uri`",
-          "nothing",
           ""
         ],
         [
           "`$uri->compareTo`",
           "`$uri->compareTo(Uri $other): int`",
-          "nothing — PHP compares `parse_url` arrays by hand",
           ""
         ],
         [
           "`$uri->sign`",
           "`$uri->sign({keys: array<secret bytes>, until: ?Time\\Instant} $settings): Uri`",
-          "nothing — Laravel's `URL::signedRoute`, Symfony's `UriSigner`",
           ""
         ],
         [
           "`$uri->verifySignature`",
           "`$uri->verifySignature(array<secret bytes> $keys): void`",
-          "nothing",
           "neutral"
         ]
       ]
@@ -1911,32 +1695,27 @@
       "columns": [
         "Member",
         "Signature",
-        "Replaces",
         "Q"
       ],
       "rows": [
         [
           "`Csv::parse`",
           "`parse(string $text, {separator?, quote?, escape?, header?: bool}): array<array<string>>`",
-          "`str_getcsv`, the parsing half of `fgetcsv`",
           ""
         ],
         [
           "`Csv::format`",
           "`format(array<array<string>> $rows, {separator?, quote?, header?: array<string>}): string`",
-          "`fputcsv`'s formatting half",
           ""
         ],
         [
           "`Csv::rows`",
           "`rows(Core\\IO\\File $file, {separator?, quote?, escape?, header?: bool}): Core\\Csv\\Rows`",
-          "the `while (fgetcsv($handle))` loop",
           ""
         ],
         [
           "`Out::capture`",
           "`capture(callable(): mixed $fn, {through?: callable}): Sink`",
-          "`ob_start`/`ob_get_clean`, `ob_start($callback)`",
           ""
         ]
       ]
@@ -2169,32 +1948,27 @@
       "columns": [
         "Member",
         "Signature",
-        "Replaces",
         "Q"
       ],
       "rows": [
         [
           "`connect`",
           "`connect(string $name, {shared?: bool, timeout?: Duration}): Db\\Connection`",
-          "`new PDO`, `mysqli_connect`, `pg_connect`, `new SQLite3`",
           "**sink** (name)"
         ],
         [
           "`open`",
           "`open(Db\\Settings $settings, {shared?: bool}): Db\\Connection`",
-          "a runtime-built DSN",
           "**sink** (host)"
         ],
         [
           "`inList`",
           "`inList(array<mixed> $values): Db\\InList`",
-          "`implode(\",\", array_fill(0, n, \"?\"))`",
           ""
         ],
         [
           "`quoteIdentifier`",
           "`quoteIdentifier(tainted string $name): string`",
-          "`mysqli_real_escape_string` on a table/column name",
           "**launder** (identifier)"
         ]
       ]
@@ -2208,50 +1982,42 @@
       "columns": [
         "Member",
         "Signature",
-        "Replaces",
         "Q"
       ],
       "rows": [
         [
           "`query`",
           "`$q->query(string $sql, array<mixed> $params, {timeout?: Duration}): Db\\Rows<Row>`",
-          "`PDO::query`/`prepare`+`execute`, `mysqli_query`",
           "**sink** (sql)"
         ],
         [
           "`queryAs`",
           "`$q->queryAs<T>(string $sql, array<mixed> $params, {timeout?}): Db\\Rows<T>`",
-          "`PDO::FETCH_CLASS`, hand-written hydration",
           "**sink** (sql)"
         ],
         [
           "`execute`",
           "`$q->execute(string $sql, array<mixed> $params, {timeout?}): Db\\Write`",
-          "`PDO::exec`, `PDOStatement::execute`, `lastInsertId`",
           "**sink** (sql)"
         ],
         [
           "`executeMany`",
           "`$q->executeMany(string $sql, array<array<mixed>> $sets, {timeout?}): uint`",
-          "a loop around `PDOStatement::execute`",
           "**sink** (sql)"
         ],
         [
           "`stream`",
           "`$q->stream(string $sql, array<mixed> $params, {timeout?, chunk?: uint}): Iterable<Db\\Row>`",
-          "`MYSQLI_USE_RESULT`, `PDO::CURSOR_*`, `pg_query` + `pg_fetch_row`",
           "**sink** (sql)"
         ],
         [
           "`streamAs`",
           "`$q->streamAs<T>(string $sql, array<mixed> $params, {timeout?, chunk?: uint}): Iterable<T>`",
-          "—",
           "**sink** (sql)"
         ],
         [
           "`transaction`",
           "`$q->transaction(callable(Transaction): T $fn, {isolation?: Isolation, readOnly?: bool, retries?: uint}): T`",
-          "`beginTransaction`/`commit`/`rollBack`, `SAVEPOINT`",
           ""
         ]
       ]
@@ -2285,34 +2051,28 @@
       ],
       "columns": [
         "Type",
-        "Members",
-        "Replaces"
+        "Members"
       ],
       "rows": [
         [
           "`Rows<T>`",
-          "`->all(): array<T>`, `->first(): ?T`, `->value(): mixed`, `->column(int\\|string $key): array<mixed>`, `->count(): uint`, `->columns(): array<Column>`; `Iterable<T>`",
-          "`fetchAll`, `fetch`, `fetchColumn`, `rowCount` on a select, `getColumnMeta`, `FETCH_CLASS`, `fetchObject`"
+          "`->all(): array<T>`, `->first(): ?T`, `->value(): mixed`, `->column(int\\|string $key): array<mixed>`, `->count(): uint`, `->columns(): array<Column>`; `Iterable<T>`"
         ],
         [
           "`Row`",
-          "`->has(string $name): bool` *(neutral)*, `->get(string $name): mixed`, `->toArray(): array<string, mixed>`, and the typed readers below",
-          "`FETCH_ASSOC`, `FETCH_NUM`, `FETCH_OBJ`"
+          "`->has(string $name): bool` *(neutral)*, `->get(string $name): mixed`, `->toArray(): array<string, mixed>`, and the typed readers below"
         ],
         [
           "`Write`",
-          "`->affected(): uint`, `->changed(): ?uint`, `->lastId(): ?uint`",
-          "`rowCount` on a write, `lastInsertId`, `mysqli_info`"
+          "`->affected(): uint`, `->changed(): ?uint`, `->lastId(): ?uint`"
         ],
         [
           "`Column`",
-          "`->name(): string`, `->type(): ColumnType`, `->nullable(): bool`",
-          "`getColumnMeta`, `mysqli_fetch_field`"
+          "`->name(): string`, `->type(): ColumnType`, `->nullable(): bool`"
         ],
         [
           "`InList`",
-          "opaque; produced by `Db::inList`, accepted only as a bound parameter",
-          "—"
+          "opaque; produced by `Db::inList`, accepted only as a bound parameter"
         ]
       ]
     },
@@ -2324,26 +2084,22 @@
       "columns": [
         "Member",
         "Signature",
-        "Replaces",
         "Q"
       ],
       "rows": [
         [
           "`all`",
           "`all({name: callable, …} $tasks, {limit?: uint, deadline?: Duration}): {name: T, …}`",
-          "—",
           ""
         ],
         [
           "`map`",
           "`map(array<T> $items, callable(T, string): U $fn, {limit?: uint, deadline?: Duration}): array<U>`",
-          "`curl_multi_*`",
           ""
         ],
         [
           "`afterResponse`",
           "`afterResponse(callable(): mixed $fn, {deadline?: Duration}): void`",
-          "`fastcgi_finish_request`",
           ""
         ]
       ]

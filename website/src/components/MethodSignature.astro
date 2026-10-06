@@ -183,8 +183,6 @@ const qualifierText: Record<string, string> = {
   neutral: 'Qualifier-neutral: the result never carries a qualifier from the arguments.',
   contagious: 'Qualifier-contagious: a tainted or secret argument yields a tainted or secret result.',
 }
-
-const replaces = member.replaces && !/^nothing\b/i.test(member.replaces.trim()) ? member.replaces : ''
 ---
 
 <div class="method-signature not-content">
@@ -197,14 +195,6 @@ const replaces = member.replaces && !/^nothing\b/i.test(member.replaces.trim()) 
       <dt>Taint &amp; secret</dt>
       <dd class:list={['method-qualifier', `method-qualifier-${qualifierKind}`]}>{qualifierText[qualifierKind]}</dd>
     </div>
-    {
-      replaces && (
-        <div>
-          <dt>Replaces in PHP</dt>
-          <dd set:html={ticks(replaces)} />
-        </div>
-      )
-    }
     {
       member.notes && (
         <div>

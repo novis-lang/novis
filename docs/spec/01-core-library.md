@@ -27,10 +27,6 @@ below written `readonly x: T` means the reader `->x(): T`, and the same rule is 
 `Decision` and `Core\Script`'s `ExitReport` answer through members. The exception classes of § 10 are the
 other roster and do have properties, which is what the entry at that section says.
 
-The **Replaces** column names the PHP built-ins an entry subsumes. It is one of the two inputs to
-[02-php-migration.md](02-php-migration.md), which is the complete PHP-name → outcome table and the only
-place that can answer "did we drop something real": this file states
-what Novis *has*, and that one accounts for every PHP name Novis does not.
 
 **Qualifier** is the `rule:security/tainted-qualifier`/[0033](../decisions/0033.md)
 classification, and every member has one:
@@ -110,18 +106,18 @@ that ADR's own *Revisiting* ever re-opens it.
 
 ### Inspection
 
-| Member | Signature | Replaces | Q |
-|---|---|---|---|
-| `length` | `length(string $s): uint` | `strlen`, `mb_strlen` | neutral |
-| `isEmpty` | `isEmpty(string $s): bool` | `$s == ""` | neutral |
-| `at` | `at(string $s, int $index): string` | `$s[$i]`, `mb_substr($s,$i,1)` | |
-| `contains` | `contains(string $haystack, string $needle): bool` | `str_contains`, `strstr` as a predicate | neutral |
-| `startsWith` | `startsWith(string $s, string $prefix): bool` | `str_starts_with` | neutral |
-| `endsWith` | `endsWith(string $s, string $suffix): bool` | `str_ends_with` | neutral |
-| `indexOf` | `indexOf(string $haystack, string $needle, {from?: int, caseInsensitive?: bool}): ?uint` | `strpos`, `stripos`, `mb_strpos`, `mb_stripos` | neutral |
-| `lastIndexOf` | `lastIndexOf(string $haystack, string $needle, {before?: int, caseInsensitive?: bool}): ?uint` | `strrpos`, `strripos`, `mb_strrpos` | neutral |
-| `countOf` | `countOf(string $haystack, string $needle): uint` | `substr_count` | neutral |
-| `compare` | `compare(string $a, string $b, {caseInsensitive?: bool, natural?: bool}): int` | `strcmp`, `strcasecmp`, `strnatcmp`, `strnatcasecmp`, and the comparator behind `natsort`/`natcasesort` | neutral |
+| Member | Signature | Q |
+|---|---|---|
+| `length` | `length(string $s): uint` | neutral |
+| `isEmpty` | `isEmpty(string $s): bool` | neutral |
+| `at` | `at(string $s, int $index): string` | |
+| `contains` | `contains(string $haystack, string $needle): bool` | neutral |
+| `startsWith` | `startsWith(string $s, string $prefix): bool` | neutral |
+| `endsWith` | `endsWith(string $s, string $suffix): bool` | neutral |
+| `indexOf` | `indexOf(string $haystack, string $needle, {from?: int, caseInsensitive?: bool}): ?uint` | neutral |
+| `lastIndexOf` | `lastIndexOf(string $haystack, string $needle, {before?: int, caseInsensitive?: bool}): ?uint` | neutral |
+| `countOf` | `countOf(string $haystack, string $needle): uint` | neutral |
+| `compare` | `compare(string $a, string $b, {caseInsensitive?: bool, natural?: bool}): int` | neutral |
 
 Case-insensitivity is an option here exactly as it is on `indexOf`, `replace` and the rest, rather than a
 second member name. `{natural: true}` selects a **different ordering**, not a variant of the same one —
@@ -135,16 +131,16 @@ batch-shaped API.
 
 ### Extraction
 
-| Member | Signature | Replaces | Q |
-|---|---|---|---|
-| `slice` | `slice(string $s, int $offset, ?int $length = null): string` | `substr`, `mb_substr` | |
-| `before` | `before(string $s, string $needle, {last?: bool}): ?string` | `strstr($h,$n,true)`, `strrchr` as a prefix | |
-| `after` | `after(string $s, string $needle, {last?: bool}): ?string` | `strstr`, `stristr`, `strrchr` | |
-| `split` | `split(string $s, string $separator, {limit?: int}): array<string>` | `explode` | |
-| `chunk` | `chunk(string $s, uint $size): array<string>` | `str_split`, `mb_str_split`, `chunk_split` | |
-| `lines` | `lines(string $s): array<string>` | `explode(PHP_EOL, …)`, `file()`'s split half | |
-| `graphemes` | `graphemes(string $s): array<string>` | `grapheme_*` (intl, for the split case) | |
-| `codePoints` | `codePoints(string $s): array<uint>` | `mb_str_split` + `mb_ord`, `unpack("N*", …)` | neutral |
+| Member | Signature | Q |
+|---|---|---|
+| `slice` | `slice(string $s, int $offset, ?int $length = null): string` | |
+| `before` | `before(string $s, string $needle, {last?: bool}): ?string` | |
+| `after` | `after(string $s, string $needle, {last?: bool}): ?string` | |
+| `split` | `split(string $s, string $separator, {limit?: int}): array<string>` | |
+| `chunk` | `chunk(string $s, uint $size): array<string>` | |
+| `lines` | `lines(string $s): array<string>` | |
+| `graphemes` | `graphemes(string $s): array<string>` | |
+| `codePoints` | `codePoints(string $s): array<uint>` | neutral |
 
 `before` and `after` both **exclude the needle**, which is where `after` parts company with `strstr`: PHP
 returns the needle and everything past it, and the port of a program that wanted that is
@@ -158,29 +154,29 @@ equivalent to pass it.
 
 ### Transformation
 
-| Member | Signature | Replaces | Q |
-|---|---|---|---|
-| `join` | `join(array<string> $parts, string $separator = ""): string` | `implode`, `join` | |
-| `replace` | `replace(string $s, string $search, string $replacement, {caseInsensitive?: bool, limit?: uint}): string` | `str_replace`, `str_ireplace` | |
-| `replaceAll` | `replaceAll(string $s, array<string> $pairs, {caseInsensitive?: bool}): string` | `str_replace` with array arguments, `strtr` | |
-| `replaceRange` | `replaceRange(string $s, int $offset, ?int $length, string $replacement): string` | `substr_replace` | |
-| `trim` | `trim(string $s, {characters?: string}): string` | `trim` | |
-| `trimStart` | `trimStart(string $s, {characters?: string}): string` | `ltrim` | |
-| `trimEnd` | `trimEnd(string $s, {characters?: string}): string` | `rtrim`, `chop` | |
-| `padStart` | `padStart(string $s, uint $length, string $padding = " "): string` | `str_pad` + `STR_PAD_LEFT` | |
-| `padEnd` | `padEnd(string $s, uint $length, string $padding = " "): string` | `str_pad` + `STR_PAD_RIGHT` | |
-| `repeat` | `repeat(string $s, uint $times): string` | `str_repeat` | |
-| `reverse` | `reverse(string $s): string` | `strrev` (grapheme-aware here, unlike PHP's byte reversal) | |
-| `wrap` | `wrap(string $s, uint $width, {breakWith?: string, cutLongWords?: bool}): string` | `wordwrap` | |
-| `lower` | `lower(string $s): string` | `strtolower`, `mb_strtolower` | |
-| `upper` | `upper(string $s): string` | `strtoupper`, `mb_strtoupper` | |
-| `upperFirst` | `upperFirst(string $s): string` | `ucfirst` | |
-| `lowerFirst` | `lowerFirst(string $s): string` | `lcfirst` | |
-| `fold` | `fold(string $s): string` | `mb_convert_case(…, MB_CASE_FOLD)` — for caseless comparison | |
-| `normalize` | `normalize(string $s, NormalForm $form): string` | `Normalizer::normalize` | |
-| `fromCodePoint` | `fromCodePoint(uint $codePoint): string` | `chr`, `mb_chr` | neutral |
-| `fromCodePoints` | `fromCodePoints(array<uint> $codePoints): string` | `implode(array_map("mb_chr", …))` | neutral |
-| `format` | `format(string $template, mixed ...$arguments): string` | `sprintf`, `vsprintf`, `printf`, `vprintf`, `fprintf`, `vfprintf` | **sink** (template) |
+| Member | Signature | Q |
+|---|---|---|
+| `join` | `join(array<string> $parts, string $separator = ""): string` | |
+| `replace` | `replace(string $s, string $search, string $replacement, {caseInsensitive?: bool, limit?: uint}): string` | |
+| `replaceAll` | `replaceAll(string $s, array<string> $pairs, {caseInsensitive?: bool}): string` | |
+| `replaceRange` | `replaceRange(string $s, int $offset, ?int $length, string $replacement): string` | |
+| `trim` | `trim(string $s, {characters?: string}): string` | |
+| `trimStart` | `trimStart(string $s, {characters?: string}): string` | |
+| `trimEnd` | `trimEnd(string $s, {characters?: string}): string` | |
+| `padStart` | `padStart(string $s, uint $length, string $padding = " "): string` | |
+| `padEnd` | `padEnd(string $s, uint $length, string $padding = " "): string` | |
+| `repeat` | `repeat(string $s, uint $times): string` | |
+| `reverse` | `reverse(string $s): string` | |
+| `wrap` | `wrap(string $s, uint $width, {breakWith?: string, cutLongWords?: bool}): string` | |
+| `lower` | `lower(string $s): string` | |
+| `upper` | `upper(string $s): string` | |
+| `upperFirst` | `upperFirst(string $s): string` | |
+| `lowerFirst` | `lowerFirst(string $s): string` | |
+| `fold` | `fold(string $s): string` | |
+| `normalize` | `normalize(string $s, NormalForm $form): string` | |
+| `fromCodePoint` | `fromCodePoint(uint $codePoint): string` | neutral |
+| `fromCodePoints` | `fromCodePoints(array<uint> $codePoints): string` | neutral |
+| `format` | `format(string $template, mixed ...$arguments): string` | **sink** (template) |
 
 `format` is an `rule:expressions/intrinsic-constant-arguments` intrinsic: a literal template has its
 placeholder count and types checked against the argument list at compile time, which turns PHP's
@@ -222,20 +218,20 @@ member is named `merge`, is `rule:types/array-combination`.
 
 ### Inspection
 
-| Member | Signature | Replaces | Q |
-|---|---|---|---|
-| `count` | `count(array<T> $a): uint` | `count`, `sizeof` | neutral |
-| `isEmpty` | `isEmpty(array<T> $a): bool` | `empty($a)`, `count($a) == 0` | neutral |
-| `isList` | `isList(array<T> $a): bool` | `array_is_list` | neutral |
-| `hasKey` | `hasKey(array<T> $a, int\|string $key): bool` | `array_key_exists`, `isset` | neutral |
-| `contains` | `contains(array<T> $haystack, T $needle): bool` | `in_array` (always strict) | neutral |
-| `keyOf` | `keyOf(array<T> $haystack, T $needle): ?string` | `array_search` | neutral |
-| `keys` | `keys(array<T> $a): array<string>` | `array_keys` | |
-| `values` | `values(array<T> $a): array<T>` | `array_values` | |
-| `first` | `first(array<T> $a): ?T` | `reset`, `current`, `$a[array_key_first($a)]` | |
-| `last` | `last(array<T> $a): ?T` | `end`, `$a[array_key_last($a)]` | |
-| `firstKey` | `firstKey(array<T> $a): ?string` | `array_key_first`, `key` | neutral |
-| `lastKey` | `lastKey(array<T> $a): ?string` | `array_key_last` | neutral |
+| Member | Signature | Q |
+|---|---|---|
+| `count` | `count(array<T> $a): uint` | neutral |
+| `isEmpty` | `isEmpty(array<T> $a): bool` | neutral |
+| `isList` | `isList(array<T> $a): bool` | neutral |
+| `hasKey` | `hasKey(array<T> $a, int\|string $key): bool` | neutral |
+| `contains` | `contains(array<T> $haystack, T $needle): bool` | neutral |
+| `keyOf` | `keyOf(array<T> $haystack, T $needle): ?string` | neutral |
+| `keys` | `keys(array<T> $a): array<string>` | |
+| `values` | `values(array<T> $a): array<T>` | |
+| `first` | `first(array<T> $a): ?T` | |
+| `last` | `last(array<T> $a): ?T` | |
+| `firstKey` | `firstKey(array<T> $a): ?string` | neutral |
+| `lastKey` | `lastKey(array<T> $a): ?string` | neutral |
 
 PHP's internal array pointer (`current`/`key`/`next`/`prev`/`reset`/`end`/`each`) has no equivalent: a
 mutable cursor inside a copy-on-write *value* is incoherent, since copying the array would copy its
@@ -248,27 +244,27 @@ call site to serve a case a program rarely has.
 
 ### Structure
 
-| Member | Signature | Replaces | Q |
-|---|---|---|---|
-| `slice` | `slice(array<T> $a, int $offset, ?int $length = null, {preserveKeys?: bool}): array<T>` | `array_slice` | |
-| `replaceRange` | `replaceRange(array<T> $a, int $offset, ?int $length, array<T> $replacement = []): array<T>` | `array_splice` (returning, not by-reference) | |
-| `chunk` | `chunk(array<T> $a, uint $size, {preserveKeys?: bool}): array<array<T>>` | `array_chunk` | |
-| `append` | `append(array<T> $a, T ...$values): array<T>` | `array_push`, `$a[] = $v` in expression position | |
-| `prepend` | `prepend(array<T> $a, T ...$values): array<T>` | `array_unshift` | |
-| `withoutFirst` | `withoutFirst(array<T> $a): array<T>` | `array_shift`'s remainder (`first` gets the element) | |
-| `withoutLast` | `withoutLast(array<T> $a): array<T>` | `array_pop`'s remainder (`last` gets the element) | |
-| `padStart` | `padStart(array<T> $a, uint $size, T $value): array<T>` | `array_pad` with a negative size | |
-| `padEnd` | `padEnd(array<T> $a, uint $size, T $value): array<T>` | `array_pad` | |
-| `reverse` | `reverse(array<T> $a, {preserveKeys?: bool}): array<T>` | `array_reverse` | |
-| `flip` | `flip(array<int\|string> $a): array<string>` | `array_flip` | |
-| `flatten` | `flatten(array<array<T>> $a): array<T>` | one level of a hand-written recursive walk | |
-| `flattenDeep` | `flattenDeep(array<mixed> $a): array<mixed>` | `iterator_to_array` on a recursive iterator, a hand-written recursive walk | |
-| `fill` | `fill(uint $count, T $value): array<T>` | `array_fill` | |
-| `fillKeys` | `fillKeys(array<int\|string> $keys, T $value): array<T>` | `array_fill_keys` | |
-| `range` | `range(int $start, int $end, {step?: int}): array<int>` | `range` | neutral |
-| `fromKeysAndValues` | `fromKeysAndValues(array<int\|string> $keys, array<T> $values): array<T>` | `array_combine` | |
-| `from` | `from(Iterable<T>\|Iterator<T>\|array<T> $items, {limit?: uint}): array<T>` | `iterator_to_array`, `iterator_count`'s materialising half | |
-| `column` | `column(array<array<T>> $a, int\|string $column, {indexBy?: int\|string}): array<T>` | `array_column` | |
+| Member | Signature | Q |
+|---|---|---|
+| `slice` | `slice(array<T> $a, int $offset, ?int $length = null, {preserveKeys?: bool}): array<T>` | |
+| `replaceRange` | `replaceRange(array<T> $a, int $offset, ?int $length, array<T> $replacement = []): array<T>` | |
+| `chunk` | `chunk(array<T> $a, uint $size, {preserveKeys?: bool}): array<array<T>>` | |
+| `append` | `append(array<T> $a, T ...$values): array<T>` | |
+| `prepend` | `prepend(array<T> $a, T ...$values): array<T>` | |
+| `withoutFirst` | `withoutFirst(array<T> $a): array<T>` | |
+| `withoutLast` | `withoutLast(array<T> $a): array<T>` | |
+| `padStart` | `padStart(array<T> $a, uint $size, T $value): array<T>` | |
+| `padEnd` | `padEnd(array<T> $a, uint $size, T $value): array<T>` | |
+| `reverse` | `reverse(array<T> $a, {preserveKeys?: bool}): array<T>` | |
+| `flip` | `flip(array<int\|string> $a): array<string>` | |
+| `flatten` | `flatten(array<array<T>> $a): array<T>` | |
+| `flattenDeep` | `flattenDeep(array<mixed> $a): array<mixed>` | |
+| `fill` | `fill(uint $count, T $value): array<T>` | |
+| `fillKeys` | `fillKeys(array<int\|string> $keys, T $value): array<T>` | |
+| `range` | `range(int $start, int $end, {step?: int}): array<int>` | neutral |
+| `fromKeysAndValues` | `fromKeysAndValues(array<int\|string> $keys, array<T> $values): array<T>` | |
+| `from` | `from(Iterable<T>\|Iterator<T>\|array<T> $items, {limit?: uint}): array<T>` | |
+| `column` | `column(array<array<T>> $a, int\|string $column, {indexBy?: int\|string}): array<T>` | |
 
 `fromKeysAndValues` throws when the two arrays differ in length (R4). `flip` collapses duplicate values,
 the last occurrence winning. `from` takes all three of the shapes
@@ -301,16 +297,16 @@ Three members combine arrays, and **each treats every key the same way** — the
 `merge`, and `array + array` does not compile. The rules and the key order each produces are
 `rule:types/array-combination`.
 
-| Member | Signature | Replaces | Q |
-|---|---|---|---|
-| `overlay` | `overlay(array<T> $base, array<U> ...$layers): array<T\|U>` | `array_replace`, `array_merge` over maps | |
-| `overlayDeep` | `overlayDeep(array<T> $base, array<U> ...$layers): array<T\|U>` | `array_replace_recursive` | |
-| `underlay` | `underlay(array<T> $base, array<U> ...$layers): array<T\|U>` | the `+` operator | |
-| `appendAll` | `appendAll(array<T> $a, array<U> ...$others): array<T\|U>` | `array_merge` over lists, `array_merge(...$arrays)` | |
-| `diff` | `diff(array<T> $a, array<T> $b, {on?: SetOn, by?: callable, comparator?: callable}): array<T>` | `array_diff`, `array_udiff`, `array_diff_key`, `array_diff_assoc`, `array_diff_ukey`, `array_udiff_assoc` | |
-| `intersect` | `intersect(array<T> $a, array<T> $b, {on?: SetOn, by?: callable, comparator?: callable}): array<T>` | `array_intersect` and its five variants | |
-| `unique` | `unique(array<T> $a, {by?: callable}): array<T>` | `array_unique` | |
-| `countBy` | `countBy(array<T> $a, {by?: callable}): array<uint>` | `array_count_values`, the userland group-and-count | neutral |
+| Member | Signature | Q |
+|---|---|---|
+| `overlay` | `overlay(array<T> $base, array<U> ...$layers): array<T\|U>` | |
+| `overlayDeep` | `overlayDeep(array<T> $base, array<U> ...$layers): array<T\|U>` | |
+| `underlay` | `underlay(array<T> $base, array<U> ...$layers): array<T\|U>` | |
+| `appendAll` | `appendAll(array<T> $a, array<U> ...$others): array<T\|U>` | |
+| `diff` | `diff(array<T> $a, array<T> $b, {on?: SetOn, by?: callable, comparator?: callable}): array<T>` | |
+| `intersect` | `intersect(array<T> $a, array<T> $b, {on?: SetOn, by?: callable, comparator?: callable}): array<T>` | |
+| `unique` | `unique(array<T> $a, {by?: callable}): array<T>` | |
+| `countBy` | `countBy(array<T> $a, {by?: callable}): array<uint>` | neutral |
 
 `overlay` keeps the right-hand value, `underlay` the left-hand one, and both keep an existing key in its
 existing position; `appendAll` discards keys and always returns a list. `overlayDeep` recurses only where
@@ -333,22 +329,22 @@ pair with the accumulator — `($carry, $value, $key)` — since a fold has nowh
 `reduce`'s `U` is bound by `$initial`, so the fold's type is the seed's: a fold building a string starts
 from `""`, and an empty array is that seed returned unchanged with no call made.
 
-| Member | Signature | Replaces | Q |
-|---|---|---|---|
-| `map` | `map(array<T> $a, callable(T, string): U $fn): array<U>` | `array_map` | |
-| `mapKeys` | `mapKeys(array<T> $a, callable(T, string): int\|string $fn): array<T>` | `array_combine(array_map(...), …)`, the `keyBy` idiom | |
-| `filter` | `filter(array<T> $a, callable(T, string): bool $predicate): array<T>` | `array_filter` and its two flags | |
-| `reduce` | `reduce(array<T> $a, callable(U, T, string): U $fn, U $initial): U` | `array_reduce` | |
-| `find` | `find(array<T> $a, callable(T, string): bool $predicate): ?T` | `array_find` | |
-| `findKey` | `findKey(array<T> $a, callable(T, string): bool $predicate): ?string` | `array_find_key` | neutral |
-| `any` | `any(array<T> $a, callable(T, string): bool $predicate): bool` | `array_any` | neutral |
-| `all` | `all(array<T> $a, callable(T, string): bool $predicate): bool` | `array_all` | neutral |
-| `groupBy` | `groupBy(array<T> $a, callable(T, string): int\|string $key): array<array<T>>` | nothing — the most-written PHP userland helper | |
-| `sum` | `sum(array<int\|float\|decimal> $a): int\|float\|decimal` | `array_sum` | neutral |
-| `product` | `product(array<int\|float\|decimal> $a): int\|float\|decimal` | `array_product` | neutral |
-| `average` | `average(array<int\|float\|decimal> $a): ?(float\|decimal)` | `array_sum($a)/count($a)`, with the empty case answered | neutral |
-| `min` | `min(array<T> $a): ?T` | `min` with an array argument | |
-| `max` | `max(array<T> $a): ?T` | `max` with an array argument | |
+| Member | Signature | Q |
+|---|---|---|
+| `map` | `map(array<T> $a, callable(T, string): U $fn): array<U>` | |
+| `mapKeys` | `mapKeys(array<T> $a, callable(T, string): int\|string $fn): array<T>` | |
+| `filter` | `filter(array<T> $a, callable(T, string): bool $predicate): array<T>` | |
+| `reduce` | `reduce(array<T> $a, callable(U, T, string): U $fn, U $initial): U` | |
+| `find` | `find(array<T> $a, callable(T, string): bool $predicate): ?T` | |
+| `findKey` | `findKey(array<T> $a, callable(T, string): bool $predicate): ?string` | neutral |
+| `any` | `any(array<T> $a, callable(T, string): bool $predicate): bool` | neutral |
+| `all` | `all(array<T> $a, callable(T, string): bool $predicate): bool` | neutral |
+| `groupBy` | `groupBy(array<T> $a, callable(T, string): int\|string $key): array<array<T>>` | |
+| `sum` | `sum(array<int\|float\|decimal> $a): int\|float\|decimal` | neutral |
+| `product` | `product(array<int\|float\|decimal> $a): int\|float\|decimal` | neutral |
+| `average` | `average(array<int\|float\|decimal> $a): ?(float\|decimal)` | neutral |
+| `min` | `min(array<T> $a): ?T` | |
+| `max` | `max(array<T> $a): ?T` | |
 
 **`map`, `filter` and `groupBy` preserve every key**; `mapKeys` is the only member that changes one, and
 `values` renumbers. A `groupBy` bucket therefore keeps each entry's own key: a partition cannot collide
@@ -363,10 +359,10 @@ removes the by-reference mutation that was their only reason to exist
 
 ### Ordering
 
-| Member | Signature | Replaces | Q |
-|---|---|---|---|
-| `sort` | `sort(array<T> $a, {by?: callable, order?: Order, comparator?: callable, preserveKeys?: bool}): array<T>` | `sort`, `rsort`, `asort`, `arsort`, `usort`, `uasort`, `natsort`, `natcasesort`, `array_multisort` | |
-| `sortByKey` | `sortByKey(array<T> $a, {order?: Order, comparator?: callable}): array<T>` | `ksort`, `krsort`, `uksort` | |
+| Member | Signature | Q |
+|---|---|---|
+| `sort` | `sort(array<T> $a, {by?: callable, order?: Order, comparator?: callable, preserveKeys?: bool}): array<T>` | |
+| `sortByKey` | `sortByKey(array<T> $a, {order?: Order, comparator?: callable}): array<T>` | |
 
 Eleven sort functions plus `array_multisort` become two members. Descending is `{order: Order::Desc}`,
 key-preservation is an option rather than a letter in the name, and `by` — a key-extractor callable — is
@@ -388,38 +384,38 @@ is exactly why `fdiv` *is* a member here: it is the one spelling left for IEEE's
 the same reason. Overflow throws rather than becoming a `float`
 (`rule:types/arithmetic`).
 
-| Member | Signature | Replaces | Q |
-|---|---|---|---|
-| `abs` | `abs(T $n): T`, with `T` one of `int\|float\|decimal` | `abs` | neutral |
-| `sign` | `sign(int\|float\|decimal $n): int` | `$n <=> 0` | neutral |
-| `min` | `min(T $a, T $b): T` | `min` with scalar arguments | neutral |
-| `max` | `max(T $a, T $b): T` | `max` with scalar arguments | neutral |
-| `clamp` | `clamp(T $n, T $low, T $high): T` | `min(max(…))` | neutral |
-| `ceil` | `ceil(float\|decimal $n): float\|decimal` | `ceil` | neutral |
-| `floor` | `floor(float\|decimal $n): float\|decimal` | `floor` | neutral |
-| `truncate` | `truncate(float\|decimal $n): float\|decimal` | `(int)` truncation | neutral |
-| `round` | `round(float\|decimal $n, {precision?: int, mode?: RoundMode}): float\|decimal` | `round` and its four `PHP_ROUND_*` constants | neutral |
-| `intDiv` | `intDiv(int $a, int $b): int` | `intdiv` | neutral |
-| `mod` | `mod(float $a, float $b): float` | `fmod` (integer `%` is the operator) | neutral |
-| `fdiv` | `fdiv(float $a, float $b): float` | `fdiv` | neutral |
-| `gcd` | `gcd(int $a, int $b): int` | `gmp_gcd` | neutral |
-| `lcm` | `lcm(int $a, int $b): int` | `gmp_lcm` | neutral |
-| `sqrt` | `sqrt(float $n): float` | `sqrt` | neutral |
-| `cbrt` | `cbrt(float $n): float` | `pow($n, 1/3)` | neutral |
-| `hypot` | `hypot(float $a, float $b): float` | `hypot` | neutral |
-| `exp` | `exp(float $n): float` | `exp` | neutral |
-| `log` | `log(float $n, {base?: float}): float` | `log`, `log10`, `log2` | neutral |
-| `sin` `cos` `tan` | `sin(float $radians): float` (and the rest) | `sin`, `cos`, `tan` | neutral |
-| `asin` `acos` `atan` | `asin(float $n): float` (and the rest) | `asin`, `acos`, `atan` | neutral |
-| `atan2` | `atan2(float $y, float $x): float` | `atan2` | neutral |
-| `sinh` `cosh` `tanh` | hyperbolic, same shape | `sinh`, `cosh`, `tanh`, `asinh`, `acosh`, `atanh` | neutral |
-| `toRadians` | `toRadians(float $degrees): float` | `deg2rad` | neutral |
-| `toDegrees` | `toDegrees(float $radians): float` | `rad2deg` | neutral |
-| `isNan` | `isNan(float $n): bool` | `is_nan` | neutral |
-| `isFinite` | `isFinite(float $n): bool` | `is_finite`, `is_infinite` | neutral |
-| `toBase` | `toBase(int $n, uint $base): string` | `decbin`, `dechex`, `decoct`, `base_convert` | neutral |
-| `fromBase` | `fromBase(string $s, uint $base): int` | `bindec`, `hexdec`, `octdec`, `base_convert` | neutral |
-| `format` | `format(int\|float\|decimal $n, {decimals?: uint, decimalSeparator?: string, groupSeparator?: string}): string` | `number_format` | |
+| Member | Signature | Q |
+|---|---|---|
+| `abs` | `abs(T $n): T`, with `T` one of `int\|float\|decimal` | neutral |
+| `sign` | `sign(int\|float\|decimal $n): int` | neutral |
+| `min` | `min(T $a, T $b): T` | neutral |
+| `max` | `max(T $a, T $b): T` | neutral |
+| `clamp` | `clamp(T $n, T $low, T $high): T` | neutral |
+| `ceil` | `ceil(float\|decimal $n): float\|decimal` | neutral |
+| `floor` | `floor(float\|decimal $n): float\|decimal` | neutral |
+| `truncate` | `truncate(float\|decimal $n): float\|decimal` | neutral |
+| `round` | `round(float\|decimal $n, {precision?: int, mode?: RoundMode}): float\|decimal` | neutral |
+| `intDiv` | `intDiv(int $a, int $b): int` | neutral |
+| `mod` | `mod(float $a, float $b): float` | neutral |
+| `fdiv` | `fdiv(float $a, float $b): float` | neutral |
+| `gcd` | `gcd(int $a, int $b): int` | neutral |
+| `lcm` | `lcm(int $a, int $b): int` | neutral |
+| `sqrt` | `sqrt(float $n): float` | neutral |
+| `cbrt` | `cbrt(float $n): float` | neutral |
+| `hypot` | `hypot(float $a, float $b): float` | neutral |
+| `exp` | `exp(float $n): float` | neutral |
+| `log` | `log(float $n, {base?: float}): float` | neutral |
+| `sin` `cos` `tan` | `sin(float $radians): float` (and the rest) | neutral |
+| `asin` `acos` `atan` | `asin(float $n): float` (and the rest) | neutral |
+| `atan2` | `atan2(float $y, float $x): float` | neutral |
+| `sinh` `cosh` `tanh` | hyperbolic, same shape | neutral |
+| `toRadians` | `toRadians(float $degrees): float` | neutral |
+| `toDegrees` | `toDegrees(float $radians): float` | neutral |
+| `isNan` | `isNan(float $n): bool` | neutral |
+| `isFinite` | `isFinite(float $n): bool` | neutral |
+| `toBase` | `toBase(int $n, uint $base): string` | neutral |
+| `fromBase` | `fromBase(string $s, uint $base): int` | neutral |
+| `format` | `format(int\|float\|decimal $n, {decimals?: uint, decimalSeparator?: string, groupSeparator?: string}): string` | |
 
 Constants: `PI`, `TAU`, `E`, `EPSILON`, `INT_MAX`, `INT_MIN`, `UINT_MAX`, `FLOAT_MAX`, `FLOAT_MIN`, `NAN`,
 `INFINITY` — replacing `M_PI`, `M_E`, `PHP_INT_MAX`, `PHP_FLOAT_EPSILON` and the rest of PHP's global
@@ -451,15 +447,15 @@ short.
 
 ### Entry points on `Core\Time`
 
-| Member | Signature | Replaces | Q |
-|---|---|---|---|
-| `now` | `now(): Instant` | `time`, `microtime`, `date_create` | neutral |
-| `monotonic` | `monotonic(): Duration` | `hrtime` — for measuring, never for wall-clock | neutral |
-| `sleep` | `sleep(Duration $d): void` | `sleep`, `usleep`, `time_nanosleep`, `time_sleep_until` | neutral |
-| `fromEpoch` | `fromEpoch(int $seconds, {nanos?: uint}): Instant` | `DateTime::setTimestamp` | neutral |
-| `fromIso` | `fromIso(string $text): Instant` | `strtotime` on an ISO-8601 string, `DateTime::__construct` | |
-| `parse` | `parse(string $text, string $format, Zone $zone): DateTime` | `DateTime::createFromFormat`, `strptime` | |
-| `at` | `at(int $year, uint $month, uint $day, Zone $zone, {hour?, minute?, second?, nanos?}): DateTime` | `mktime`, `gmmktime`, `DateTime::setDate` | neutral |
+| Member | Signature | Q |
+|---|---|---|
+| `now` | `now(): Instant` | neutral |
+| `monotonic` | `monotonic(): Duration` | neutral |
+| `sleep` | `sleep(Duration $d): void` | neutral |
+| `fromEpoch` | `fromEpoch(int $seconds, {nanos?: uint}): Instant` | neutral |
+| `fromIso` | `fromIso(string $text): Instant` | |
+| `parse` | `parse(string $text, string $format, Zone $zone): DateTime` | |
+| `at` | `at(int $year, uint $month, uint $day, Zone $zone, {hour?, minute?, second?, nanos?}): DateTime` | neutral |
 
 `Core\Time::parse` is an `rule:expressions/intrinsic-constant-arguments` intrinsic — a literal format
 string is validated and its plan prepared at compile time. **A CLDR pattern is a `tainted` sink** wherever
@@ -556,16 +552,16 @@ Semantics — the two-tier engine, the step budget, why the *pattern* is a sink 
 are `rule:core-classes/regex-two-tiers`. `preg_match`'s `$matches` out-parameter is a returned
 `?Match` (R3), and there are no `PREG_*` flag constants (R11).
 
-| Member | Signature | Replaces | Q |
-|---|---|---|---|
-| `compile` | `compile(string $pattern, {caseInsensitive?, multiline?, dotAll?, ungreedy?}): Pattern` | the `/…/imsx` delimiter-and-modifier syntax | **sink** (pattern) |
-| `matches` | `matches(string $subject, Pattern\|string $pattern): bool` | `preg_match` as a predicate | neutral |
-| `match` | `match(string $subject, Pattern\|string $pattern, {from?: int}): ?Match` | `preg_match` + `$matches` + `PREG_OFFSET_CAPTURE` | **sink** (pattern) |
-| `matchAll` | `matchAll(string $subject, Pattern\|string $pattern): array<Match>` | `preg_match_all` + `PREG_PATTERN_ORDER`/`PREG_SET_ORDER` | **sink** (pattern) |
-| `replace` | `replace(string $subject, Pattern\|string $pattern, string $replacement, {limit?: uint}): string` | `preg_replace` | **sink** (pattern) |
-| `replaceWith` | `replaceWith(string $subject, Pattern\|string $pattern, callable(Match): string $fn, {limit?: uint}): string` | `preg_replace_callback`, `preg_replace_callback_array` | **sink** (pattern) |
-| `split` | `split(string $subject, Pattern\|string $pattern, {limit?: int, keepEmpty?: bool}): array<string>` | `preg_split` and its four flags | **sink** (pattern) |
-| `quote` | `quote(string $text): string` | `preg_quote` | **launder** (for the pattern sink) |
+| Member | Signature | Q |
+|---|---|---|
+| `compile` | `compile(string $pattern, {caseInsensitive?, multiline?, dotAll?, ungreedy?}): Pattern` | **sink** (pattern) |
+| `matches` | `matches(string $subject, Pattern\|string $pattern): bool` | neutral |
+| `match` | `match(string $subject, Pattern\|string $pattern, {from?: int}): ?Match` | **sink** (pattern) |
+| `matchAll` | `matchAll(string $subject, Pattern\|string $pattern): array<Match>` | **sink** (pattern) |
+| `replace` | `replace(string $subject, Pattern\|string $pattern, string $replacement, {limit?: uint}): string` | **sink** (pattern) |
+| `replaceWith` | `replaceWith(string $subject, Pattern\|string $pattern, callable(Match): string $fn, {limit?: uint}): string` | **sink** (pattern) |
+| `split` | `split(string $subject, Pattern\|string $pattern, {limit?: int, keepEmpty?: bool}): array<string>` | **sink** (pattern) |
+| `quote` | `quote(string $text): string` | **launder** (for the pattern sink) |
 
 `Match` replaces the positional-array shape with four members:
 
@@ -587,12 +583,12 @@ because a match is one value with named parts rather than a pair. `preg_grep` ha
 
 ## 6. `Core\Json`
 
-| Member | Signature | Replaces | Q |
-|---|---|---|---|
-| `encode` | `encode(mixed $value, {pretty?: bool, escapeUnicode?: bool}): string` | `json_encode` and its 15 `JSON_*` flags | |
-| `decode` | `decode(string $json, {maxDepth?: uint}): mixed` | `json_decode`, `json_last_error`, `json_last_error_msg`, `$depth` | |
-| `decodeAs` | `decodeAs<T>(string $json, {maxDepth?: uint}): T` | hand-written hydration | |
-| `isValid` | `isValid(string $json): bool` | `json_validate` | neutral |
+| Member | Signature | Q |
+|---|---|---|
+| `encode` | `encode(mixed $value, {pretty?: bool, escapeUnicode?: bool}): string` | |
+| `decode` | `decode(string $json, {maxDepth?: uint}): mixed` | |
+| `decodeAs` | `decodeAs<T>(string $json, {maxDepth?: uint}): T` | |
+| `isValid` | `isValid(string $json): bool` | neutral |
 
 `decode` throws `ParseError` on malformed input — there is no flag to choose between throwing and
 returning `null`, and no error-code accessor (R4). **`maxDepth` defaults to 512 and exceeding it throws**:
@@ -627,15 +623,15 @@ unqualified, naming the field.
 `Core\Encoding` sits exactly at the `bytes`↔`string` boundary, which is the one place a conversion can
 honestly fail (`rule:types/bytes`).
 
-| Member | Signature | Replaces | Q |
-|---|---|---|---|
-| `decodeText` | `decodeText(bytes $b, Charset $charset): string` | `iconv`, `mb_convert_encoding`, `utf8_decode` | |
-| `encodeText` | `encodeText(string $s, Charset $charset): bytes` | `iconv`, `mb_convert_encoding`, `utf8_encode` | |
-| `isValidText` | `isValidText(bytes $b, Charset $charset): bool` | `mb_check_encoding` | neutral |
-| `toBase64` / `fromBase64` | `toBase64(bytes $b): string` / `fromBase64(string $s): bytes` | `base64_encode`, `base64_decode` | |
-| `toBase64Url` / `fromBase64Url` | `toBase64Url(bytes $b): string` / `fromBase64Url(string $s): bytes` | `strtr(base64_encode(…))` idiom | |
-| `toHex` / `fromHex` | `toHex(bytes $b): string` / `fromHex(string $s): bytes` | `bin2hex`, `hex2bin`, `unpack("H*")` | |
-| `toBase32` / `fromBase32` | `toBase32(bytes $b): string` / `fromBase32(string $s): bytes` | nothing — needed by TOTP (`rule:security/protocol-roster`) | |
+| Member | Signature | Q |
+|---|---|---|
+| `decodeText` | `decodeText(bytes $b, Charset $charset): string` | |
+| `encodeText` | `encodeText(string $s, Charset $charset): bytes` | |
+| `isValidText` | `isValidText(bytes $b, Charset $charset): bool` | neutral |
+| `toBase64` / `fromBase64` | `toBase64(bytes $b): string` / `fromBase64(string $s): bytes` | |
+| `toBase64Url` / `fromBase64Url` | `toBase64Url(bytes $b): string` / `fromBase64Url(string $s): bytes` | |
+| `toHex` / `fromHex` | `toHex(bytes $b): string` / `fromHex(string $s): bytes` | |
+| `toBase32` / `fromBase32` | `toBase32(bytes $b): string` / `fromBase32(string $s): bytes` | |
 
 `quoted_printable_encode`/`_decode` and `convert_uuencode`/`_decode` are dropped; quoted-printable survives
 only inside `Core\Mail`, which is the one thing that ever needed it.
@@ -676,18 +672,18 @@ but `fromCwd` is constant-foldable. Everything that reads or writes is `Core\IO`
 point. `fromCwd` reads the process's working directory, and throws while a request is being answered
 (`rule:programs/relative-paths-resolve-from-their-file`).
 
-| Member | Signature | Replaces | Q |
-|---|---|---|---|
-| `basename` | `basename(string $path, {withoutExtension?: bool}): string` | `basename`, `pathinfo(…, PATHINFO_BASENAME)` | |
-| `dirname` | `dirname(string $path, {levels?: uint}): string` | `dirname` | |
-| `extension` | `extension(string $path): ?string` | `pathinfo(…, PATHINFO_EXTENSION)` | |
-| `withExtension` | `withExtension(string $path, ?string $extension): string` | manual string surgery | |
-| `join` | `join(string $base, string ...$segments): string` | `$a . "/" . $b` | |
-| `split` | `split(string $path): array<string>` | `explode(DIRECTORY_SEPARATOR, …)` | |
-| `normalize` | `normalize(string $path): string` | the lexical half of `realpath` — resolves `.`/`..` **without** touching the disk | |
-| `isAbsolute` | `isAbsolute(string $path): bool` | manual checks | neutral |
-| `relativeTo` | `relativeTo(string $path, string $base): ?string` | nothing | |
-| `fromCwd` | `fromCwd(string $path): string` | `getcwd() . '/' . $path` | |
+| Member | Signature | Q |
+|---|---|---|
+| `basename` | `basename(string $path, {withoutExtension?: bool}): string` | |
+| `dirname` | `dirname(string $path, {levels?: uint}): string` | |
+| `extension` | `extension(string $path): ?string` | |
+| `withExtension` | `withExtension(string $path, ?string $extension): string` | |
+| `join` | `join(string $base, string ...$segments): string` | |
+| `split` | `split(string $path): array<string>` | |
+| `normalize` | `normalize(string $path): string` | |
+| `isAbsolute` | `isAbsolute(string $path): bool` | neutral |
+| `relativeTo` | `relativeTo(string $path, string $base): ?string` | |
+| `fromCwd` | `fromCwd(string $path): string` | |
 
 Every member accepts `/` and `\` alike as a separator on every platform and emits `Path::SEPARATOR`, so a
 path written with forward slashes in source is correct on Windows — the reverse of PHP, where
@@ -704,11 +700,11 @@ launderer is `Core\IO::within`, in § 14, which is where the base is known.
 because an insertion-ordered `string`-keyed hash cannot express them
 (`rule:types/arrays`).
 
-| Type | Members | Replaces |
-|---|---|---|
-| `ObjectMap<K, V>` | `set`, `get`, `has`, `remove`, `count`, `isEmpty`, `keys`, `values`, `clear`; `Iterable` | `SplObjectStorage` used as a map, `spl_object_id` side tables |
-| `ObjectSet<T>` | `add`, `has`, `remove`, `count`, `isEmpty`, `union`, `intersect`, `diff`, `clear`; `Iterable` | `SplObjectStorage` used as a set |
-| `Heap<T>` | `push`, `peek`, `pop`, `count`, `isEmpty`; `Iterable` | `SplPriorityQueue`, `SplMinHeap`, `SplMaxHeap` |
+| Type | Members |
+|---|---|
+| `ObjectMap<K, V>` | `set`, `get`, `has`, `remove`, `count`, `isEmpty`, `keys`, `values`, `clear`; `Iterable` |
+| `ObjectSet<T>` | `add`, `has`, `remove`, `count`, `isEmpty`, `union`, `intersect`, `diff`, `clear`; `Iterable` |
+| `Heap<T>` | `push`, `peek`, `pop`, `count`, `isEmpty`; `Iterable` |
 
 **`ObjectMap::get` returns `?V`**, not a throwing read: these types have no subscript
 (`rule:iteration/two-interfaces` rejects `ArrayAccess`), so they cannot offer the
@@ -772,36 +768,36 @@ user-defined home.
 newer `Random\Randomizer` OOP twin all collapse into it, and none of the insecure generators survives
 under any name.
 
-| Member | Signature | Replaces | Q |
-|---|---|---|---|
-| `Random::int` | `int(int $min, int $max): int` | `rand`, `mt_rand`, `random_int` | neutral |
-| `Random::float` | `float(): float` | `lcg_value`, `mt_rand()/mt_getrandmax()` — uniform in `[0, 1)` | neutral |
-| `Random::bytes` | `bytes(uint $count): bytes` | `random_bytes`, `openssl_random_pseudo_bytes` | neutral |
-| `Random::token` | `token(uint $bytes = 32): string` | `bin2hex(random_bytes(…))` idiom | neutral |
-| `Random::pick` | `pick(array<T> $a): ?T` | `array_rand` | |
-| `Random::sample` | `sample(array<T> $a, uint $count): array<T>` | `array_rand` with a count | |
-| `Random::shuffle` | `shuffle(array<T> $a): array<T>` | `shuffle`, `str_shuffle` | |
+| Member | Signature | Q |
+|---|---|---|
+| `Random::int` | `int(int $min, int $max): int` | neutral |
+| `Random::float` | `float(): float` | neutral |
+| `Random::bytes` | `bytes(uint $count): bytes` | neutral |
+| `Random::token` | `token(uint $bytes = 32): string` | neutral |
+| `Random::pick` | `pick(array<T> $a): ?T` | |
+| `Random::sample` | `sample(array<T> $a, uint $count): array<T>` | |
+| `Random::shuffle` | `shuffle(array<T> $a): array<T>` | |
 
 `Core\Random\Seeded` is a separate object with the same members, constructed from an explicit seed. It is
 not a second spelling of the above: its guarantee is reproducibility, not unpredictability, and making the
 distinction a *type* is what stops a test helper being reached for in production code. `srand`/`mt_srand`
 have no equivalent, because seeding the global generator is exactly what that separation removes.
 
-| Member | Signature | Replaces | Q |
-|---|---|---|---|
-| `Uuid::v4` | `v4(): Uuid` | `uniqid`, `com_create_guid`, userland UUID libraries | neutral |
-| `Uuid::v7` | `v7(): Uuid` | nothing — time-ordered, for database keys | neutral |
-| `Uuid::parse` | `parse(string $s): Uuid` | manual validation | |
-| `Uuid::tryParse` | `tryParse(string $s): ?Uuid` | `uuid_is_valid`, userland `isValid` helpers | |
-| `Uuid::fromBytes` | `fromBytes(bytes $b): Uuid` | userland `fromBytes`, the `hex2bin` round trip | |
-| `$uuid->toString` | `$uuid->toString(): string` | `(string)` on a userland UUID object | neutral |
-| `$uuid->toBytes` | `$uuid->toBytes(): bytes` | userland `getBytes`, `hex2bin(str_replace("-", "", …))` | neutral |
-| `Hash::of` | `of(bytes\|string $data, Digest $digest): bytes` | `hash`, `md5`, `sha1`, `crc32`, `openssl_digest` | neutral |
-| `Hash::hmac` | `hmac(bytes\|string $data, secret bytes $key, StrongDigest $digest): bytes` | `hash_hmac` | neutral |
-| `Hash::equals` | `equals(bytes $a, bytes $b): bool` | `hash_equals` — constant-time | neutral |
-| `Hash::stream` | `stream(Digest $digest): Hash\Stream` | `hash_init`, `HashContext` | |
-| `$stream->update` | `$stream->update(bytes\|string $data): void` | `hash_update` | |
-| `$stream->finish` | `$stream->finish(): bytes` | `hash_final` | |
+| Member | Signature | Q |
+|---|---|---|
+| `Uuid::v4` | `v4(): Uuid` | neutral |
+| `Uuid::v7` | `v7(): Uuid` | neutral |
+| `Uuid::parse` | `parse(string $s): Uuid` | |
+| `Uuid::tryParse` | `tryParse(string $s): ?Uuid` | |
+| `Uuid::fromBytes` | `fromBytes(bytes $b): Uuid` | |
+| `$uuid->toString` | `$uuid->toString(): string` | neutral |
+| `$uuid->toBytes` | `$uuid->toBytes(): bytes` | neutral |
+| `Hash::of` | `of(bytes\|string $data, Digest $digest): bytes` | neutral |
+| `Hash::hmac` | `hmac(bytes\|string $data, secret bytes $key, StrongDigest $digest): bytes` | neutral |
+| `Hash::equals` | `equals(bytes $a, bytes $b): bool` | neutral |
+| `Hash::stream` | `stream(Digest $digest): Hash\Stream` | |
+| `$stream->update` | `$stream->update(bytes\|string $data): void` | |
+| `$stream->finish` | `$stream->finish(): bytes` | |
 
 A `Core\Uuid` is an opaque 128-bit **value**, not a string that has been checked once: `toString` renders
 RFC 9562's canonical lower-case `8-4-4-4-12` form and is the only way text comes back out, which is what
@@ -861,23 +857,23 @@ input opens two streams.
 
 ## 12. `Core\Uri`, `Core\Validate`, `Core\Csv`, `Core\Out`
 
-| Member | Signature | Replaces | Q |
-|---|---|---|---|
-| `Uri::parse` | `parse(string $uri): Uri` | `parse_url` | |
-| `Uri::tryParse` | `tryParse(string $uri): ?Uri` | `filter_var(…, FILTER_VALIDATE_URL)` | |
-| `Uri::encodeComponent` / `decodeComponent` | `encodeComponent(string $s): string`, `decodeComponent(string $s): bytes` | `rawurlencode`, `rawurldecode` | |
-| `Uri::encodeFormValue` / `decodeFormValue` | `encodeFormValue(string $s): string`, `decodeFormValue(string $s): bytes` | `urlencode`, `urldecode` (the `+`-for-space variant) | |
-| `Uri::parseQuery` | `parseQuery(string $query): array<mixed>` | `parse_str` — returns, never populates variables | |
-| `Uri::buildQuery` | `buildQuery(array<mixed> $parameters): string` | `http_build_query` | |
-| `$uri->scheme` / `$uri->userInfo` / `$uri->host` / `$uri->port` | `$uri->scheme(): ?string`, `$uri->userInfo(): ?string`, `$uri->host(): ?string`, `$uri->port(): ?int` | `parse_url`'s array keys | neutral |
-| `$uri->path` / `$uri->query` / `$uri->fragment` / `$uri->toString` | `$uri->path(): string`, `$uri->query(): ?string`, `$uri->fragment(): ?string`, `$uri->toString(): string` | `parse_url`'s array keys, and reassembly by hand | neutral |
-| `$uri->with` | `$uri->with({scheme?, host?, port?, path?, query?, fragment?}): Uri` | manual reassembly | |
-| `$uri->queryParameter` | `$uri->queryParameter(string $name): mixed` | `parse_str` over `parse_url`'s `query` key, then an array read | neutral |
-| `$uri->withQueryParameter` | `$uri->withQueryParameter(string $name, mixed $value): Uri` | `parse_str`, an array edit and `http_build_query` written out at every call site | |
-| `$uri->resolve` | `$uri->resolve(string $reference): Uri` | nothing | |
-| `$uri->compareTo` | `$uri->compareTo(Uri $other): int` | nothing — PHP compares `parse_url` arrays by hand | |
-| `$uri->sign` | `$uri->sign({keys: array<secret bytes>, until: ?Time\Instant} $settings): Uri` | nothing — Laravel's `URL::signedRoute`, Symfony's `UriSigner` | |
-| `$uri->verifySignature` | `$uri->verifySignature(array<secret bytes> $keys): void` | nothing | neutral |
+| Member | Signature | Q |
+|---|---|---|
+| `Uri::parse` | `parse(string $uri): Uri` | |
+| `Uri::tryParse` | `tryParse(string $uri): ?Uri` | |
+| `Uri::encodeComponent` / `decodeComponent` | `encodeComponent(string $s): string`, `decodeComponent(string $s): bytes` | |
+| `Uri::encodeFormValue` / `decodeFormValue` | `encodeFormValue(string $s): string`, `decodeFormValue(string $s): bytes` | |
+| `Uri::parseQuery` | `parseQuery(string $query): array<mixed>` | |
+| `Uri::buildQuery` | `buildQuery(array<mixed> $parameters): string` | |
+| `$uri->scheme` / `$uri->userInfo` / `$uri->host` / `$uri->port` | `$uri->scheme(): ?string`, `$uri->userInfo(): ?string`, `$uri->host(): ?string`, `$uri->port(): ?int` | neutral |
+| `$uri->path` / `$uri->query` / `$uri->fragment` / `$uri->toString` | `$uri->path(): string`, `$uri->query(): ?string`, `$uri->fragment(): ?string`, `$uri->toString(): string` | neutral |
+| `$uri->with` | `$uri->with({scheme?, host?, port?, path?, query?, fragment?}): Uri` | |
+| `$uri->queryParameter` | `$uri->queryParameter(string $name): mixed` | neutral |
+| `$uri->withQueryParameter` | `$uri->withQueryParameter(string $name, mixed $value): Uri` | |
+| `$uri->resolve` | `$uri->resolve(string $reference): Uri` | |
+| `$uri->compareTo` | `$uri->compareTo(Uri $other): int` | |
+| `$uri->sign` | `$uri->sign({keys: array<secret bytes>, until: ?Time\Instant} $settings): Uri` | |
+| `$uri->verifySignature` | `$uri->verifySignature(array<secret bytes> $keys): void` | neutral |
 
 `Uri::parse` is an `rule:expressions/intrinsic-constant-arguments` intrinsic. Note what is **not** here: `Core\Uri` never decides whether a URL
 may be *fetched* — that is `Core\Http::allowUrl` in § 16, the SSRF launderer
@@ -967,12 +963,12 @@ a closed literal set (`rule:types/single-value-types`) rather than two more name
 member that remains names a *format*; only a *type* has an `as`, which is why the roster looks uneven and
 is not.
 
-| Member | Signature | Replaces | Q |
-|---|---|---|---|
-| `Csv::parse` | `parse(string $text, {separator?, quote?, escape?, header?: bool}): array<array<string>>` | `str_getcsv`, the parsing half of `fgetcsv` | |
-| `Csv::format` | `format(array<array<string>> $rows, {separator?, quote?, header?: array<string>}): string` | `fputcsv`'s formatting half | |
-| `Csv::rows` | `rows(Core\IO\File $file, {separator?, quote?, escape?, header?: bool}): Core\Csv\Rows` | the `while (fgetcsv($handle))` loop | |
-| `Out::capture` | `capture(callable(): mixed $fn, {through?: callable}): Sink` | `ob_start`/`ob_get_clean`, `ob_start($callback)` | |
+| Member | Signature | Q |
+|---|---|---|
+| `Csv::parse` | `parse(string $text, {separator?, quote?, escape?, header?: bool}): array<array<string>>` | |
+| `Csv::format` | `format(array<array<string>> $rows, {separator?, quote?, header?: array<string>}): string` | |
+| `Csv::rows` | `rows(Core\IO\File $file, {separator?, quote?, escape?, header?: bool}): Core\Csv\Rows` | |
+| `Out::capture` | `capture(callable(): mixed $fn, {through?: callable}): Sink` | |
 
 `Core\Out` has exactly this one member. A buffer is scoped to a callable and nests by call nesting, so
 PHP's global `ob_*` stack — start in one function, end in another, ten functions to inspect the stack — has
@@ -1242,27 +1238,27 @@ in a root-owned `[db.<name>]` block (`rule:config/the-file-is-nvs-toml-and-it-is
 
 ### Entry points on `Core\Db`
 
-| Member | Signature | Replaces | Q |
-|---|---|---|---|
-| `connect` | `connect(string $name, {shared?: bool, timeout?: Duration}): Db\Connection` | `new PDO`, `mysqli_connect`, `pg_connect`, `new SQLite3` | **sink** (name) |
-| `open` | `open(Db\Settings $settings, {shared?: bool}): Db\Connection` | a runtime-built DSN | **sink** (host) |
-| `inList` | `inList(array<mixed> $values): Db\InList` | `implode(",", array_fill(0, n, "?"))` | |
-| `quoteIdentifier` | `quoteIdentifier(tainted string $name): string` | `mysqli_real_escape_string` on a table/column name | **launder** (identifier) |
+| Member | Signature | Q |
+|---|---|---|
+| `connect` | `connect(string $name, {shared?: bool, timeout?: Duration}): Db\Connection` | **sink** (name) |
+| `open` | `open(Db\Settings $settings, {shared?: bool}): Db\Connection` | **sink** (host) |
+| `inList` | `inList(array<mixed> $values): Db\InList` | |
+| `quoteIdentifier` | `quoteIdentifier(tainted string $name): string` | **launder** (identifier) |
 
 `PDO::quote`, `mysqli_real_escape_string` and `pg_escape_string` have **no equivalent**: binding is the
 mechanism (`rule:security/sink-predicate`).
 
 ### `Core\Db\Queryable` — the interface both a connection and a transaction satisfy
 
-| Member | Signature | Replaces | Q |
-|---|---|---|---|
-| `query` | `$q->query(string $sql, array<mixed> $params, {timeout?: Duration}): Db\Rows<Row>` | `PDO::query`/`prepare`+`execute`, `mysqli_query` | **sink** (sql) |
-| `queryAs` | `$q->queryAs<T>(string $sql, array<mixed> $params, {timeout?}): Db\Rows<T>` | `PDO::FETCH_CLASS`, hand-written hydration | **sink** (sql) |
-| `execute` | `$q->execute(string $sql, array<mixed> $params, {timeout?}): Db\Write` | `PDO::exec`, `PDOStatement::execute`, `lastInsertId` | **sink** (sql) |
-| `executeMany` | `$q->executeMany(string $sql, array<array<mixed>> $sets, {timeout?}): uint` | a loop around `PDOStatement::execute` | **sink** (sql) |
-| `stream` | `$q->stream(string $sql, array<mixed> $params, {timeout?, chunk?: uint}): Iterable<Db\Row>` | `MYSQLI_USE_RESULT`, `PDO::CURSOR_*`, `pg_query` + `pg_fetch_row` | **sink** (sql) |
-| `streamAs` | `$q->streamAs<T>(string $sql, array<mixed> $params, {timeout?, chunk?: uint}): Iterable<T>` | — | **sink** (sql) |
-| `transaction` | `$q->transaction(callable(Transaction): T $fn, {isolation?: Isolation, readOnly?: bool, retries?: uint}): T` | `beginTransaction`/`commit`/`rollBack`, `SAVEPOINT` | |
+| Member | Signature | Q |
+|---|---|---|
+| `query` | `$q->query(string $sql, array<mixed> $params, {timeout?: Duration}): Db\Rows<Row>` | **sink** (sql) |
+| `queryAs` | `$q->queryAs<T>(string $sql, array<mixed> $params, {timeout?}): Db\Rows<T>` | **sink** (sql) |
+| `execute` | `$q->execute(string $sql, array<mixed> $params, {timeout?}): Db\Write` | **sink** (sql) |
+| `executeMany` | `$q->executeMany(string $sql, array<array<mixed>> $sets, {timeout?}): uint` | **sink** (sql) |
+| `stream` | `$q->stream(string $sql, array<mixed> $params, {timeout?, chunk?: uint}): Iterable<Db\Row>` | **sink** (sql) |
+| `streamAs` | `$q->streamAs<T>(string $sql, array<mixed> $params, {timeout?, chunk?: uint}): Iterable<T>` | **sink** (sql) |
+| `transaction` | `$q->transaction(callable(Transaction): T $fn, {isolation?: Isolation, readOnly?: bool, retries?: uint}): T` | |
 
 `Core\Db\Connection` implements it; `Core\Db\Transaction implements Queryable by $connection`
 (`rule:classes/no-traits`), so the surface is
@@ -1288,13 +1284,13 @@ the call site naming the field.
 
 ### Results
 
-| Type | Members | Replaces |
-|---|---|---|
-| `Rows<T>` | `->all(): array<T>`, `->first(): ?T`, `->value(): mixed`, `->column(int\|string $key): array<mixed>`, `->count(): uint`, `->columns(): array<Column>`; `Iterable<T>` | `fetchAll`, `fetch`, `fetchColumn`, `rowCount` on a select, `getColumnMeta`, `FETCH_CLASS`, `fetchObject` |
-| `Row` | `->has(string $name): bool` *(neutral)*, `->get(string $name): mixed`, `->toArray(): array<string, mixed>`, and the typed readers below | `FETCH_ASSOC`, `FETCH_NUM`, `FETCH_OBJ` |
-| `Write` | `->affected(): uint`, `->changed(): ?uint`, `->lastId(): ?uint` | `rowCount` on a write, `lastInsertId`, `mysqli_info` |
-| `Column` | `->name(): string`, `->type(): ColumnType`, `->nullable(): bool` | `getColumnMeta`, `mysqli_fetch_field` |
-| `InList` | opaque; produced by `Db::inList`, accepted only as a bound parameter | — |
+| Type | Members |
+|---|---|
+| `Rows<T>` | `->all(): array<T>`, `->first(): ?T`, `->value(): mixed`, `->column(int\|string $key): array<mixed>`, `->count(): uint`, `->columns(): array<Column>`; `Iterable<T>` |
+| `Row` | `->has(string $name): bool` *(neutral)*, `->get(string $name): mixed`, `->toArray(): array<string, mixed>`, and the typed readers below |
+| `Write` | `->affected(): uint`, `->changed(): ?uint`, `->lastId(): ?uint` |
+| `Column` | `->name(): string`, `->type(): ColumnType`, `->nullable(): bool` |
+| `InList` | opaque; produced by `Db::inList`, accepted only as a bound parameter |
 
 `Rows` is one generic class and not two: `query` answers `Rows<Row>`, `queryAs<T>` the same class at the
 `T` its call site wrote, and a program that declares the type writes the argument like every other `Core`
@@ -1347,11 +1343,11 @@ not run, why control never leaves a call with work still running, and the `[defe
 owns the signatures only. Nothing here needs a capability; it needs the M5 scheduler, which is why it sits
 in Part II and lands at **M5** rather than M8.
 
-| Member | Signature | Replaces | Q |
-|---|---|---|---|
-| `all` | `all({name: callable, …} $tasks, {limit?: uint, deadline?: Duration}): {name: T, …}` | — | |
-| `map` | `map(array<T> $items, callable(T, string): U $fn, {limit?: uint, deadline?: Duration}): array<U>` | `curl_multi_*` | |
-| `afterResponse` | `afterResponse(callable(): mixed $fn, {deadline?: Duration}): void` | `fastcgi_finish_request` | |
+| Member | Signature | Q |
+|---|---|---|
+| `all` | `all({name: callable, …} $tasks, {limit?: uint, deadline?: Duration}): {name: T, …}` | |
+| `map` | `map(array<T> $items, callable(T, string): U $fn, {limit?: uint, deadline?: Duration}): array<U>` | |
+| `afterResponse` | `afterResponse(callable(): mixed $fn, {deadline?: Duration}): void` | |
 
 `all` takes an anonymous object of zero-argument callables and returns a shape with the same field names, each
 carrying **that callable's own declared return type**. Every field must be an anonymous function written in place — a

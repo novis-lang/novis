@@ -68,15 +68,15 @@ export const overrides = {
    */
   members: [
     // ---- § 3 Core\Math hyperbolics — signatures from crates/nvs-stdlib/src/math.rs doc comments.
-    { class: 'Core\\Math', signature: 'sinh(float $n): float', replaces: '`sinh`', qualifier: 'neutral' },
-    { class: 'Core\\Math', signature: 'cosh(float $n): float', replaces: '`cosh`', qualifier: 'neutral' },
-    { class: 'Core\\Math', signature: 'tanh(float $n): float', replaces: '`tanh`', qualifier: 'neutral' },
-    { class: 'Core\\Math', signature: 'asinh(float $n): float', replaces: '`asinh`', qualifier: 'neutral' },
-    { class: 'Core\\Math', signature: 'acosh(float $n): float', replaces: '`acosh`', qualifier: 'neutral' },
-    { class: 'Core\\Math', signature: 'atanh(float $n): float', replaces: '`atanh`', qualifier: 'neutral' },
+    { class: 'Core\\Math', signature: 'sinh(float $n): float', qualifier: 'neutral' },
+    { class: 'Core\\Math', signature: 'cosh(float $n): float', qualifier: 'neutral' },
+    { class: 'Core\\Math', signature: 'tanh(float $n): float', qualifier: 'neutral' },
+    { class: 'Core\\Math', signature: 'asinh(float $n): float', qualifier: 'neutral' },
+    { class: 'Core\\Math', signature: 'acosh(float $n): float', qualifier: 'neutral' },
+    { class: 'Core\\Math', signature: 'atanh(float $n): float', qualifier: 'neutral' },
 
     // ---- § 4 Core\Time\Instant — "plus toEpochMicros" from the toEpochMillis row's note.
-    { class: 'Core\\Time\\Instant', signature: '$i->toEpochMicros(): int', replaces: "`microtime(true)`'s two halves" },
+    { class: 'Core\\Time\\Instant', signature: '$i->toEpochMicros(): int' },
 
     // ---- § 4 Core\Time\DateTime — the two readers the `date / timeOfDay / zone` row implies.
     { class: 'Core\\Time\\DateTime', signature: '$d->timeOfDay(): TimeOfDay', notes: 'component view' },
@@ -101,19 +101,19 @@ export const overrides = {
 
 
     // ---- § 7 Core\Bytes — the roster is prose in the spec; signatures from crates/nvs-stdlib/src/bytes.rs.
-    { class: 'Core\\Bytes', signature: 'length(bytes $b): uint', replaces: '`strlen` over binary strings', qualifier: 'neutral' },
+    { class: 'Core\\Bytes', signature: 'length(bytes $b): uint', qualifier: 'neutral' },
     { class: 'Core\\Bytes', signature: 'at(bytes $b, int $index): uint', notes: 'answers the octet as a `uint`, not a one-byte buffer' },
-    { class: 'Core\\Bytes', signature: 'slice(bytes $b, int $offset, ?int $length = null): bytes', replaces: '`substr` over binary strings' },
+    { class: 'Core\\Bytes', signature: 'slice(bytes $b, int $offset, ?int $length = null): bytes' },
     { class: 'Core\\Bytes', signature: 'indexOf(bytes $haystack, bytes $needle, {from?: int}): ?uint', notes: 'no `caseInsensitive` option — case is a text concept', qualifier: 'neutral' },
     { class: 'Core\\Bytes', signature: 'compare(bytes $a, bytes $b): int', notes: 'lexicographic octet order', qualifier: 'neutral' },
     { class: 'Core\\Bytes', signature: 'contains(bytes $haystack, bytes $needle): bool', qualifier: 'neutral' },
     { class: 'Core\\Bytes', signature: 'startsWith(bytes $b, bytes $prefix): bool', qualifier: 'neutral' },
     { class: 'Core\\Bytes', signature: 'endsWith(bytes $b, bytes $suffix): bool', qualifier: 'neutral' },
-    { class: 'Core\\Bytes', signature: 'join(array<bytes> $parts, bytes $separator = ""): bytes', replaces: '`implode` over binary strings' },
+    { class: 'Core\\Bytes', signature: 'join(array<bytes> $parts, bytes $separator = ""): bytes' },
     { class: 'Core\\Bytes', signature: 'fill(uint $length, uint $byte): bytes', notes: 'a `$byte` above 255 throws' },
-    { class: 'Core\\Bytes', signature: 'repeat(bytes $b, uint $times): bytes', replaces: '`str_repeat` over binary strings' },
-    { class: 'Core\\Bytes', signature: 'pack(string $format, mixed ...$values): bytes', replaces: '`pack`', qualifier: 'sink (format)' },
-    { class: 'Core\\Bytes', signature: 'unpack(bytes $b, string $format): array<mixed>', replaces: '`unpack`', qualifier: 'sink (format)' },
+    { class: 'Core\\Bytes', signature: 'repeat(bytes $b, uint $times): bytes' },
+    { class: 'Core\\Bytes', signature: 'pack(string $format, mixed ...$values): bytes', qualifier: 'sink (format)' },
+    { class: 'Core\\Bytes', signature: 'unpack(bytes $b, string $format): array<mixed>', qualifier: 'sink (format)' },
 
     // ---- § 12 Core\Uri — the reader rows, from that section's own prose.
     { class: 'Core\\Uri', signature: '$uri->scheme(): ?string', qualifier: 'neutral' },
@@ -123,17 +123,17 @@ export const overrides = {
     { class: 'Core\\Uri', signature: '$uri->path(): string', qualifier: 'neutral' },
     { class: 'Core\\Uri', signature: '$uri->query(): ?string', qualifier: 'neutral' },
     { class: 'Core\\Uri', signature: '$uri->fragment(): ?string', qualifier: 'neutral' },
-    { class: 'Core\\Uri', signature: '$uri->toString(): string', qualifier: 'neutral', replaces: 'reassembly by hand' },
-    { class: 'Core\\Uri', signature: 'decodeComponent(string $s): string', replaces: '`rawurldecode`' },
-    { class: 'Core\\Uri', signature: 'decodeFormValue(string $s): string', replaces: '`urldecode`' },
+    { class: 'Core\\Uri', signature: '$uri->toString(): string', qualifier: 'neutral' },
+    { class: 'Core\\Uri', signature: 'decodeComponent(string $s): string' },
+    { class: 'Core\\Uri', signature: 'decodeFormValue(string $s): string' },
 
     // ---- § 12 Core\Validate — the roster is one prose line: all `(subject, …): bool`, all neutral.
-    { class: 'Core\\Validate', signature: 'isEmail(string $s): bool', replaces: '`filter_var(…, FILTER_VALIDATE_EMAIL)`', qualifier: 'neutral' },
-    { class: 'Core\\Validate', signature: 'isIp(string $s, {version?: 4\\|6}): bool', replaces: '`filter_var(…, FILTER_VALIDATE_IP)` and its flags', qualifier: 'neutral' },
-    { class: 'Core\\Validate', signature: 'isMac(string $s): bool', replaces: '`filter_var(…, FILTER_VALIDATE_MAC)`', qualifier: 'neutral' },
-    { class: 'Core\\Validate', signature: 'isDomain(string $s): bool', replaces: '`filter_var(…, FILTER_VALIDATE_DOMAIN)`', qualifier: 'neutral' },
-    { class: 'Core\\Validate', signature: 'isAscii(string $s): bool', replaces: "`ctype_*`'s ASCII-range half", qualifier: 'neutral' },
-    { class: 'Core\\Validate', signature: 'isPrintable(string $s): bool', replaces: "`ctype_print`", qualifier: 'neutral' },
+    { class: 'Core\\Validate', signature: 'isEmail(string $s): bool', qualifier: 'neutral' },
+    { class: 'Core\\Validate', signature: 'isIp(string $s, {version?: 4\\|6}): bool', qualifier: 'neutral' },
+    { class: 'Core\\Validate', signature: 'isMac(string $s): bool', qualifier: 'neutral' },
+    { class: 'Core\\Validate', signature: 'isDomain(string $s): bool', qualifier: 'neutral' },
+    { class: 'Core\\Validate', signature: 'isAscii(string $s): bool', qualifier: 'neutral' },
+    { class: 'Core\\Validate', signature: 'isPrintable(string $s): bool', qualifier: 'neutral' },
   ],
 
   /** Enum name → owning class, where the spec's `Enums:` line sits in a

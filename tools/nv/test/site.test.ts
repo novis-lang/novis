@@ -3,7 +3,7 @@ import { builtUrls, DOCS, GUIDE_SECTIONS, guidesProblems, IN_DEPTH_SECTIONS, inD
 import type { Entry } from "../proofs/roster.ts";
 import { scratch, type Scratch } from "./scratch.ts";
 
-const entry = (id: string, kind: Entry["kind"], path: string, anchor = "", group = ""): Entry => ({ id, kind, group, path, anchor, twin: [], summary: "", help: "" });
+const entry = (id: string, kind: Entry["kind"], path: string, anchor = "", group = ""): Entry => ({ id, kind, group, path, anchor, summary: "", help: "" });
 
 const LENGTH = entry("Core\\Str::length", "member", "core/Str/length", "", "Core\\Str");
 const MATCH = entry("lang:statements/match", "lang", "lang/statements/match", "docs/reference/lang/statements.md:1");

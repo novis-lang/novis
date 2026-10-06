@@ -303,7 +303,7 @@ export function parseSignature(raw: string): Signature | null {
 interface Overrides {
   receivers?: Record<string, string>;
   rows?: Record<string, { skip?: boolean; silent?: boolean; class?: string; cloneAlso?: string[] }>;
-  members?: { class: string; signature: string; static?: boolean; replaces?: string; notes?: string; qualifier?: string; section?: string }[];
+  members?: { class: string; signature: string; static?: boolean; notes?: string; qualifier?: string; section?: string }[];
   enumOwners?: Record<string, string>;
   classes?: Record<string, { summary?: string; hide?: boolean; constants?: string[]; enums?: SpecEnum[] }>;
 }
@@ -326,7 +326,6 @@ interface Member {
   params: Param[];
   options: Option[];
   returnType: string;
-  replaces: string;
   notes: string;
   qualifier: string;
   section: string;
@@ -509,14 +508,13 @@ export function parseSpec(text: string, tables: SpecTable[], overrides: Override
     }
     if (kind0 !== "member") return;
 
-    // Columns: Member | Signature | (Replaces|Notes|Answers) | Q?
+    // Columns: Member | Signature | (Notes|Answers)? | Q?
     const col2 = (header[2] ?? "").toLowerCase();
     for (const row of rows) {
       const memberCellRaw = row[0] ?? "";
       const sigCell = row[1] ?? "";
-      const replaces = col2 === "replaces" ? unescapeCell(row[2] ?? "") : "";
-      const notes = col2 !== "replaces" ? unescapeCell(row[2] ?? "") : "";
-      const qualifier = unescapeCell(row[3] ?? (col2 === "q" ? row[2]! : "") ?? "").replace(/\*/g, "");
+      const notes = col2 !== "q" ? unescapeCell(row[2] ?? "") : "";
+      const qualifier = unescapeCell((col2 === "q" ? row[2] : row[3]) ?? "").replace(/\*/g, "");
 
       const key = memberCellRaw.replace(/`/g, "").trim();
       const rowOv = rowOverrides[key];
@@ -562,7 +560,6 @@ export function parseSpec(text: string, tables: SpecTable[], overrides: Override
           params: sig.params,
           options: sig.options,
           returnType: sig.returnType,
-          replaces,
           notes,
           qualifier,
           section: currentSection,
@@ -605,7 +602,6 @@ export function parseSpec(text: string, tables: SpecTable[], overrides: Override
       params: parsed.params,
       options: parsed.options,
       returnType: parsed.returnType,
-      replaces: om.replaces ?? "",
       notes: om.notes ?? "",
       qualifier: om.qualifier ?? "",
       section: om.section ?? owner.section,
@@ -662,7 +658,6 @@ export function addRegistryMembers(classes: Class[], reg: Pick<Registry, "classe
         params: sig.params,
         options: sig.options,
         returnType: sig.returnType,
-        replaces: "",
         notes: "",
         qualifier: "",
         section: cls.section,

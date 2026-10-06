@@ -8,7 +8,7 @@
 // keys the perf ledger's currency, and a feature with no anchor is still on the roster.
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { classConsts, filesUnder, nameConstsSignature, phpTwins, registry, registryNames, specRows } from "../cmd/gaps.ts";
+import { classConsts, filesUnder, nameConstsSignature, registry, registryNames } from "../cmd/gaps.ts";
 import { noteKey, unrecorded } from "../lib/reads.ts";
 import { ALL_CARDS, ALL_CLASSES, cardKey, classKey } from "../select/keys.ts";
 import { anchorKey } from "./markers.ts";
@@ -36,8 +36,6 @@ export interface Entry {
   path: string;
   /** `crates/…/file.rs:NN`, when the roster knows one. */
   anchor: string;
-  /** The PHP built-ins it replaces, when the spec's **Replaces** column names them. */
-  twin: string[];
   summary: string;
   /** What the binary's own help is missing, or "" when nothing. */
   help: string;
@@ -143,15 +141,6 @@ export function anchorScan(path: string, text: string): { keys: string[]; consts
   return { keys: [...keys], consts: nameConstsSignature(text) };
 }
 
-/** `Class::member` -> the PHP built-ins the spec's **Replaces** column names for it. */
-function twins(): Map<string, string[]> {
-  const out = new Map<string, string[]>();
-  for (const [owners, member, , replaces] of specRows()) {
-    const names = phpTwins(replaces);
-    if (names.length > 0) for (const owner of owners) out.set(`${owner}::${member}`, names);
-  }
-  return out;
-}
 
 /**
  * Every `#` heading in a reference chapter is one feature of that chapter's topic. The front matter's
@@ -201,7 +190,6 @@ function chapterFeatures(directory: string, area: "lang" | "tools"): Entry[] {
           group: `${area}:${chapter}`,
           path: `${area}/${chapter}/${slug}`,
           anchor: `${path}:${lineNo}`,
-          twin: [],
           summary: title,
           help: "",
         };
@@ -267,7 +255,6 @@ export async function roster(nvs: string, doc?: Meta): Promise<Entry[]> {
   doc ??= await metaJson(nvs);
   const anchors = unrecorded(() => new Map([...registry()].map(([k, v]) => [k, `${v[0]}:${v[1]}`])));
   const tables = tableAnchors();
-  const phpNames = twins();
   const out: Entry[] = [];
 
   for (const klass of doc.classes ?? []) {
@@ -287,7 +274,6 @@ export async function roster(nvs: string, doc?: Meta): Promise<Entry[]> {
         group: cname,
         path: `core/${tail}/${mname}`,
         anchor: anchors.get(key) ?? "",
-        twin: phpNames.get(key) ?? [],
         summary: member.doc?.short || member.signature || "",
         help: member.doc?.short ? classHelp : `\`${key}\` has no card, so \`nvs agent show\` prints nothing for it`,
       });
@@ -304,7 +290,6 @@ export async function roster(nvs: string, doc?: Meta): Promise<Entry[]> {
         group: `types:${kind}`,
         path: `types/${classTail(name)}`,
         anchor: tables[kind]!.get(name) ?? "",
-        twin: [],
         summary: short,
         help: short ? "" : `\`${name}\` has no card, so \`nvs agent show\` prints nothing for it`,
       });
@@ -319,7 +304,6 @@ export async function roster(nvs: string, doc?: Meta): Promise<Entry[]> {
       group: "config:directives",
       path: `config/${key.replaceAll(".", "-")}`,
       anchor: tables.directive!.get(key) ?? "",
-      twin: [],
       summary: isObject(d) ? `${pyStr(d.class)} directive, applied at ${pyStr(d.apply)}` : "",
       help: "",
     });

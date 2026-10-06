@@ -51,7 +51,6 @@ export interface CoreMember {
   params: CoreParam[]
   options: CoreOption[]
   returnType: string
-  replaces: string
   notes: string
   qualifier: string
   section: string

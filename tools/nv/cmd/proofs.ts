@@ -189,7 +189,6 @@ function printEntry(out: string[], fid: string, entries: Entry[], proofs: Map<st
   out.push(`== ${match.id}   [${match.kind}]`);
   if (match.summary) out.push(`   ${[...match.summary].slice(0, 100).join("")}`);
   if (match.anchor) out.push(`   implemented at ${match.anchor}`);
-  if (match.twin.length) out.push(`   replaces PHP: ${match.twin.join(", ")}`);
   out.push("");
   out.push(`   about     ${p.about || "none at " + aboutFile(match)}`);
   out.push(`   tests     ${p.nvst.length} case(s), ${p.rust.length} Rust`);

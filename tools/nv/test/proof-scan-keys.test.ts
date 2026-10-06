@@ -29,7 +29,7 @@ describe("the keys a proof scan reads a file by", () => {
 describe("the keys a verdict reads of `nvs meta --json`", () => {
   const LOG = join(CACHE, `roster-keys-${process.pid}.ndjson`);
   afterAll(() => rmSync(LOG, { force: true }));
-  const entry = (id: string, kind: Kind, group: string): Entry => ({ id, kind, group, path: "", anchor: "", twin: [], summary: "", help: "" });
+  const entry = (id: string, kind: Kind, group: string): Entry => ({ id, kind, group, path: "", anchor: "", summary: "", help: "" });
 
   /** The keys `noteRoster(scope, whole)` notes in a recorded process of its own. */
   async function noted(scope: Entry[], whole: boolean): Promise<string[]> {
