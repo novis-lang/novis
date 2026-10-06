@@ -244,7 +244,8 @@ skipped: not written yet
   it runs, then `N failed, N passed, N skipped, N flaky in N ms`), `json` (one versioned document
   on standard output at the end: `schemaVersion` is `2`, then `summary`, and one `tests[]` entry per
   test with `class`, `method`, `file`, `line`, `column`, `verdict`, `durationMs`, and
-  `reason`/`failures`/`attempts` where they apply),
+  `reason`/`failures`/`attempts` where they apply; with a coverage flag `schemaVersion` is `3` and
+  each test also has `coverage`, each file name mapped to the sorted lines that test reached),
   or `junit` (JUnit XML). In the machine formats, what the tests themselves `echo` goes to standard
   error so that standard output is the document alone. Naming a machine format beside a `.nvst`
   tree is refused.

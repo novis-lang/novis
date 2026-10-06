@@ -17,7 +17,9 @@ says where its test is written — `file`, `line` and `column`, one-based, the s
 `nvs check --json` carries for a diagnostic — because a `class` and a `method` are enough to print a
 line and not enough to open a file, and nothing below the compiler can recover the rest. The JUnit and
 plaintext renderings are unchanged: JUnit has no version to raise, and a path on every line is noise for
-the reader the plaintext one is written for.
+the reader the plaintext one is written for. Under a coverage flag (`rule:testing/coverage-report`) the
+document is `schemaVersion: 3`, and every record also carries `coverage`: each file name mapped to the
+sorted lines that test reached in any attempt. A run without one writes version 2 unchanged.
 
 **`--list` is the same run's table, without the run.** It answers from the `#[Test]` table the compile
 already built, so a program whose tests fail, hang or `exit` lists exactly as a passing one does, and its

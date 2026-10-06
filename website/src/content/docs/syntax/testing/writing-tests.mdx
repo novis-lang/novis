@@ -89,6 +89,9 @@ The report for this file:
 - `--list` prints every test and where it is written, without running them.
 - `--format json` prints one JSON document. `--format junit` prints JUnit XML for a CI server. The
   output of `echo` then goes to standard error.
+- `--coverage-lcov FILE`, `--coverage-clover FILE` and `--coverage-cobertura FILE` write which
+  lines and branches your tests ran. With one of these flags, the JSON document also lists the
+  lines each test ran, under `coverage`.
 - A `.nvst` file is a different kind of test. It runs a whole program and compares what it prints
   with an expected text. A folder cannot contain both `.nvs` and `.nvst` files.
 
