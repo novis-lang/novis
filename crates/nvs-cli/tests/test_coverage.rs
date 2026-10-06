@@ -94,6 +94,7 @@ fn the_lcov_file_lists_every_statement_line_with_its_count() {
          FN:24,PriceTest::doubles\nFN:30,PriceTest::labelsAFreeItem\n\
          FNDA:2,Price::double\nFNDA:1,Price::label\nFNDA:0,Price::neverCalled\n\
          FNDA:1,PriceTest::doubles\nFNDA:1,PriceTest::labelsAFreeItem\nFNF:5\nFNH:4\n\
+         BRDA:10,0,0,1\nBRDA:10,0,1,0\nBRF:2\nBRH:1\n\
          DA:6,2\nDA:10,1\nDA:11,1\nDA:13,0\nDA:17,0\nDA:24,1\nDA:25,1\nDA:30,1\n\
          LF:8\nLH:6\nend_of_record\n"
     );
@@ -184,7 +185,7 @@ fn the_clover_file_counts_methods_and_covered_methods() {
         "{document}"
     );
     assert!(
-        document.contains("elements=\"13\" coveredelements=\"10\""),
+        document.contains("elements=\"15\" coveredelements=\"11\""),
         "{document}"
     );
 }
@@ -206,20 +207,21 @@ fn the_cobertura_file_carries_the_lines_and_the_line_rate() {
         document.starts_with(
             "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE coverage SYSTEM \
              \"http://cobertura.sourceforge.net/xml/coverage-04.dtd\">\n\
-             <coverage line-rate=\"0.75\" branch-rate=\"0\" lines-covered=\"6\" lines-valid=\"8\" "
+             <coverage line-rate=\"0.75\" branch-rate=\"0.5\" lines-covered=\"6\" lines-valid=\"8\" "
         ),
         "{document}"
     );
     assert!(
         document.contains(
-            "<package name=\"src\" line-rate=\"0.75\" branch-rate=\"0\" complexity=\"0\">\n      <classes>\n        \
+            "<package name=\"src\" line-rate=\"0.75\" branch-rate=\"0.5\" complexity=\"0\">\n      <classes>\n        \
              <class name=\"src/price.nvs\" filename=\"src/price.nvs\" line-rate=\"0.75\" "
         ),
         "{document}"
     );
     assert!(
         document.contains(
-            "<line number=\"6\" hits=\"2\"/>\n            <line number=\"10\" hits=\"1\"/>\n            \
+            "<line number=\"6\" hits=\"2\"/>\n            \
+             <line number=\"10\" hits=\"1\" branch=\"true\" condition-coverage=\"50% (1/2)\"/>\n            \
              <line number=\"11\" hits=\"1\"/>\n            <line number=\"13\" hits=\"0\"/>\n            \
              <line number=\"17\" hits=\"0\"/>\n"
         ),
@@ -229,6 +231,109 @@ fn the_cobertura_file_carries_the_lines_and_the_line_rate() {
         text(&out.stdout).ends_with("  6 of 8 lines run (75.0%)\n"),
         "{}",
         text(&out.stdout)
+    );
+}
+
+/// A branch the tests take both sides of, and one in a method no test calls.
+/// The line numbers in the assertions below are this text's.
+const STOCK: &str = "<?nvs
+use Core\\Test;
+
+final class Stock {
+    public static function label(int $count): string {
+        if ($count > 0) {
+            return \"in stock\";
+        }
+        return \"sold out\";
+    }
+
+    public static function neverCalled(int $count): int {
+        if ($count > 9) {
+            return 9;
+        }
+        return $count;
+    }
+}
+
+final class StockTest {
+    #[Test]
+    public function labelsBothCases(): void {
+        Test::assertSame(Stock::label(3), \"in stock\");
+        Test::assertSame(Stock::label(0), \"sold out\");
+        Test::assertSame(Stock::label(5), \"in stock\");
+    }
+}
+";
+
+#[test]
+fn the_lcov_file_lists_each_branch_and_each_side_taken() {
+    let dir = scratch("lcov-branches");
+    fs::write(dir.join("stock.nvs"), STOCK).expect("the program is written");
+    let out = test_in(&dir, &["stock.nvs", "--coverage-lcov", "coverage.lcov"]);
+    assert!(out.status.success(), "{}", text(&out.stderr));
+
+    // Line 6 is true twice and false once. Line 13 never ran, so both of its
+    // sides read `-`.
+    let lcov = fs::read_to_string(dir.join("coverage.lcov")).expect("the lcov file was written");
+    assert!(
+        lcov.contains("BRDA:6,0,0,2\nBRDA:6,0,1,1\nBRDA:13,0,0,-\nBRDA:13,0,1,-\nBRF:4\nBRH:2\n"),
+        "{lcov}"
+    );
+}
+
+#[test]
+fn the_clover_file_counts_conditionals_and_covered_conditionals() {
+    let dir = scratch("clover-branches");
+    fs::write(dir.join("stock.nvs"), STOCK).expect("the program is written");
+    let out = test_in(&dir, &["stock.nvs", "--coverage-clover", "clover.xml"]);
+    assert!(out.status.success(), "{}", text(&out.stderr));
+
+    let document = fs::read_to_string(dir.join("clover.xml")).expect("the Clover file was written");
+    assert!(
+        document.contains(
+            "<line num=\"6\" type=\"stmt\" count=\"3\"/>\n      \
+             <line num=\"6\" type=\"cond\" truecount=\"2\" falsecount=\"1\"/>"
+        ),
+        "{document}"
+    );
+    assert!(
+        document.contains("<line num=\"13\" type=\"cond\" truecount=\"0\" falsecount=\"0\"/>"),
+        "{document}"
+    );
+    assert!(
+        document.contains("conditionals=\"4\" coveredconditionals=\"2\""),
+        "{document}"
+    );
+}
+
+#[test]
+fn the_cobertura_file_carries_the_branch_rate() {
+    let dir = scratch("cobertura-branches");
+    fs::write(dir.join("stock.nvs"), STOCK).expect("the program is written");
+    let out = test_in(
+        &dir,
+        &["stock.nvs", "--coverage-cobertura", "cobertura.xml"],
+    );
+    assert!(out.status.success(), "{}", text(&out.stderr));
+
+    let document =
+        fs::read_to_string(dir.join("cobertura.xml")).expect("the Cobertura file was written");
+    assert!(
+        document.contains("branch-rate=\"0.5\" lines-covered=")
+            && document.contains("branches-covered=\"2\" branches-valid=\"4\""),
+        "{document}"
+    );
+    assert!(
+        document.contains(
+            "<line number=\"6\" hits=\"3\" branch=\"true\" condition-coverage=\"100% (2/2)\"/>"
+        ),
+        "{document}"
+    );
+    assert!(
+        document.contains(
+            "<line number=\"13\" hits=\"0\" branch=\"true\" condition-coverage=\"0% (0/2)\"/>"
+        ),
+        "{document}"
     );
 }
 

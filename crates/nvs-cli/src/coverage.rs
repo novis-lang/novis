@@ -33,6 +33,16 @@
 //! call. A function with no statement has no probe, so it is not listed.
 //! lcov and Clover carry functions. Cobertura carries lines only.
 //!
+//! # Branches
+//!
+//! A branch is one `Terminator::Branch`, and its two edges are its true and
+//! its false side. The runner also turns `DebugFlags::BRANCH` on, and the
+//! edge probe counts each side into the table's edge half. A branch is
+//! written on the line where the earlier of its two edges' spans starts, which
+//! is its condition's. A `Terminator::Switch` numbers its edges too but has no
+//! probe, so [`Probes::of`] picks only the branches' edges and a switch is in
+//! no report.
+//!
 //! # How a file is named
 //!
 //! Relative to the directory `nvs test` runs in when the file is under it,
@@ -44,8 +54,9 @@
 //! # What it spends
 //!
 //! Nothing for a run that does not ask: no table is made and no span is read.
-//! A run that asks holds one `u64` per statement in the program, plus one file
-//! and line pair per statement and one name per function for the report.
+//! A run that asks holds one `u64` per statement and per edge in the program,
+//! plus one file and line pair per statement and per branch and one name per
+//! function for the report.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -77,21 +88,45 @@ pub(crate) struct Probes {
     /// first statement, from the same walk over `Program::functions` that
     /// gives each function its base.
     functions: Vec<(String, usize)>,
+    /// `nvs_ir::Program::edge_spans`: where each edge number is written.
+    edges: Vec<nvs_diagnostics::Span>,
+    /// Each `Terminator::Branch`: the program-wide numbers of its true and its
+    /// false edge. A `Terminator::Switch` has edge numbers too, but no probe,
+    /// so it is not here.
+    branches: Vec<(usize, usize)>,
 }
 
 impl Probes {
     pub(crate) fn of(program: &nvs_ir::Program) -> Self {
         let mut functions = Vec::new();
+        let mut branches = Vec::new();
         let mut base = 0;
+        let mut edge_base = 0;
         for function in &program.functions {
             if !function.stmt_spans.is_empty() {
                 functions.push((function.name.clone(), base));
             }
+            for block in &function.blocks {
+                if let nvs_ir::ir::Terminator::Branch {
+                    then_edge,
+                    else_edge,
+                    ..
+                } = &block.term
+                {
+                    branches.push((
+                        edge_base + then_edge.index() as usize,
+                        edge_base + else_edge.index() as usize,
+                    ));
+                }
+            }
             base += function.stmt_spans.len();
+            edge_base += function.edge_spans.len();
         }
         Self {
             stmts: program.stmt_spans(),
             functions,
+            edges: program.edge_spans(),
+            branches,
         }
     }
 }
@@ -106,6 +141,11 @@ pub(crate) struct Sites {
     at: Vec<Option<(usize, usize)>>,
     /// [`Probes::functions`], unchanged.
     functions: Vec<(String, usize)>,
+    /// How many edge numbers there are.
+    edges: usize,
+    /// One entry per [`Probes::branches`] in a file the report keeps: the
+    /// index into `files`, the line, and the true and false edge numbers.
+    branches: Vec<(usize, usize, usize, usize)>,
 }
 
 impl Sites {
@@ -114,13 +154,15 @@ impl Sites {
         let Probes {
             stmts: spans,
             functions,
+            edges,
+            branches,
         } = probes;
         let here = std::env::current_dir().ok().map(|dir| plain(&dir));
         // Each file once: its name in the report, or `None` for a file that is
         // not on disk.
         let mut named: BTreeMap<nvs_diagnostics::SourceId, Option<String>> = BTreeMap::new();
         let mut sizes: BTreeMap<String, usize> = BTreeMap::new();
-        for span in &spans {
+        for span in spans.iter().chain(&edges) {
             named.entry(span.file).or_insert_with(|| {
                 let file = map.get(span.file)?;
                 let path = file.path().filter(|path| path.is_file())?;
@@ -130,31 +172,50 @@ impl Sites {
             });
         }
         let files: Vec<(String, usize)> = sizes.into_iter().collect();
-        let at = spans
+        let locate = |span: &nvs_diagnostics::Span| {
+            let name = named.get(&span.file)?.as_ref()?;
+            let index = files.binary_search_by(|(known, _)| known.cmp(name)).ok()?;
+            let line = map.get(span.file)?.line_col(span.start).0 + 1;
+            Some((index, line))
+        };
+        let at = spans.iter().map(locate).collect();
+        // A branch is written where its earlier edge's span starts. One edge
+        // is the condition's and the other the body's or the rest's, and the
+        // condition always comes first in the source.
+        let branches = branches
             .iter()
-            .map(|span| {
-                let name = named.get(&span.file)?.as_ref()?;
-                let index = files.binary_search_by(|(known, _)| known.cmp(name)).ok()?;
-                let line = map.get(span.file)?.line_col(span.start).0 + 1;
-                Some((index, line))
+            .filter_map(|&(then, otherwise)| {
+                let span = [edges.get(then)?, edges.get(otherwise)?]
+                    .into_iter()
+                    .min_by_key(|span| span.start)?;
+                let (file, line) = locate(span)?;
+                Some((file, line, then, otherwise))
             })
             .collect();
         Self {
             files,
             at,
             functions,
+            edges: edges.len(),
+            branches,
         }
     }
 
-    /// How many probe numbers there are, which is the size the run's
-    /// `StmtHits` table needs.
+    /// How many statement numbers there are, which is the size of the run's
+    /// `StmtHits` statement table.
     pub(crate) fn len(&self) -> usize {
         self.at.len()
     }
 
-    /// Each file that has a statement, with its lines, its functions and
-    /// their counts.
-    fn lines(&self, counts: &[u64]) -> Vec<FileLines<'_>> {
+    /// How many edge numbers there are, which is the size of the run's
+    /// `StmtHits` edge table.
+    pub(crate) fn edges(&self) -> usize {
+        self.edges
+    }
+
+    /// Each file that has a statement, with its lines, its functions, its
+    /// branches and their counts. `edges` is the run's `StmtHits::edge_counts`.
+    fn lines(&self, counts: &[u64], edges: &[u64]) -> Vec<FileLines<'_>> {
         let mut per_file: Vec<BTreeMap<usize, u64>> = vec![BTreeMap::new(); self.files.len()];
         for (site, &count) in self.at.iter().zip(counts) {
             if let Some((file, line)) = *site {
@@ -175,17 +236,33 @@ impl Sites {
         for list in &mut functions {
             list.sort_by(|a, b| (a.line, a.name).cmp(&(b.line, b.name)));
         }
+        let mut branches: Vec<Vec<Branch>> = vec![Vec::new(); self.files.len()];
+        for &(file, line, then, otherwise) in &self.branches {
+            let count = |edge: usize| edges.get(edge).copied().unwrap_or(0);
+            branches[file].push(Branch {
+                line,
+                taken: [count(then), count(otherwise)],
+            });
+        }
+        for list in &mut branches {
+            // A stable sort keeps the program's order among branches on one line.
+            list.sort_by_key(|branch| branch.line);
+        }
         self.files
             .iter()
             .zip(per_file)
             .zip(functions)
-            .filter(|((_, lines), _)| !lines.is_empty())
-            .map(|(((name, line_count), lines), functions)| FileLines {
-                name,
-                line_count: *line_count,
-                lines,
-                functions,
-            })
+            .zip(branches)
+            .filter(|(((_, lines), _), _)| !lines.is_empty())
+            .map(
+                |((((name, line_count), lines), functions), branches)| FileLines {
+                    name,
+                    line_count: *line_count,
+                    lines,
+                    functions,
+                    branches,
+                },
+            )
             .collect()
     }
 }
@@ -218,6 +295,8 @@ struct FileLines<'a> {
     lines: BTreeMap<usize, u64>,
     /// The functions whose first statement is in this file, by line.
     functions: Vec<Function<'a>>,
+    /// The branches in this file, by line.
+    branches: Vec<Branch>,
 }
 
 impl FileLines<'_> {
@@ -230,6 +309,30 @@ impl FileLines<'_> {
             .iter()
             .filter(|function| function.count > 0)
             .count()
+    }
+
+    /// How many sides the file's branches have: two each.
+    fn sides(&self) -> usize {
+        self.branches.len() * 2
+    }
+
+    /// How many of those sides ran at least once.
+    fn sides_hit(&self) -> usize {
+        self.branches.iter().map(Branch::sides_hit).sum()
+    }
+}
+
+/// One `Terminator::Branch` in a report: the line it is written on, and how
+/// often its true side and its false side ran.
+#[derive(Clone, Copy)]
+struct Branch {
+    line: usize,
+    taken: [u64; 2],
+}
+
+impl Branch {
+    fn sides_hit(&self) -> usize {
+        self.taken.iter().filter(|&&count| count > 0).count()
     }
 }
 
@@ -248,8 +351,9 @@ pub(crate) struct Summary {
     pub(crate) hit: usize,
 }
 
-/// Writes every file `requested` names from `counts`, the run's
-/// `StmtHits::counts`, and returns what the report covers.
+/// Writes every file `requested` names from `counts` and `edges`, the run's
+/// `StmtHits::counts` and `StmtHits::edge_counts`, and returns what the
+/// report covers.
 ///
 /// # Errors
 ///
@@ -258,8 +362,9 @@ pub(crate) fn write(
     requested: &Requested,
     sites: &Sites,
     counts: &[u64],
+    edges: &[u64],
 ) -> Result<Summary, String> {
-    let files = sites.lines(counts);
+    let files = sites.lines(counts, edges);
     if let Some(path) = &requested.lcov {
         std::fs::write(path, lcov(&files))
             .map_err(|error| format!("could not write {}: {error}", path.display()))?;
@@ -282,8 +387,13 @@ pub(crate) fn write(
 }
 
 /// The lcov tracefile: one `SF` record per file, with an `FN` and an `FNDA`
-/// line per function and the `FNF`/`FNH` totals, then a `DA` line per line a
+/// line per function and the `FNF`/`FNH` totals, a `BRDA` line per side of
+/// each branch and the `BRF`/`BRH` totals, then a `DA` line per line a
 /// statement starts on and the `LF`/`LH` totals.
+///
+/// A `BRDA` line is `<line>,<block>,<side>,<count>`. The block numbers the
+/// branches on one line from `0`, and the side is `0` for true and `1` for
+/// false. The count is `-` for both sides of a branch that never ran.
 fn lcov(files: &[FileLines<'_>]) -> String {
     let mut out = String::from("TN:\n");
     for file in files {
@@ -299,6 +409,26 @@ fn lcov(files: &[FileLines<'_>]) -> String {
             file.functions.len(),
             file.functions_hit()
         ));
+        let mut block = 0;
+        let mut previous = None;
+        for branch in &file.branches {
+            block = if previous == Some(branch.line) {
+                block + 1
+            } else {
+                0
+            };
+            previous = Some(branch.line);
+            let ran = branch.taken.iter().any(|&count| count > 0);
+            for (side, count) in branch.taken.iter().enumerate() {
+                let count = if ran {
+                    count.to_string()
+                } else {
+                    "-".to_owned()
+                };
+                out.push_str(&format!("BRDA:{},{block},{side},{count}\n", branch.line));
+            }
+        }
+        out.push_str(&format!("BRF:{}\nBRH:{}\n", file.sides(), file.sides_hit()));
         for (line, count) in &file.lines {
             out.push_str(&format!("DA:{line},{count}\n"));
         }
@@ -312,9 +442,10 @@ fn lcov(files: &[FileLines<'_>]) -> String {
 }
 
 /// The Clover XML document: one `<file>` per file with a `<line type="method">`
-/// per function and a `<line type="stmt">` per line, in line order, and its
-/// `<metrics>`, then the project's `<metrics>`. `now` is the Unix time the
-/// `generated` and `timestamp` attributes carry.
+/// per function, a `<line type="stmt">` per line and a `<line type="cond">`
+/// per branch, in line order, and its `<metrics>`, then the project's
+/// `<metrics>`. On one line a method comes first and a branch last. `now` is
+/// the Unix time the `generated` and `timestamp` attributes carry.
 fn clover(files: &[FileLines<'_>], now: u64) -> String {
     let mut out = format!(
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<coverage generated=\"{now}\">\n  <project timestamp=\"{now}\">\n"
@@ -324,19 +455,38 @@ fn clover(files: &[FileLines<'_>], now: u64) -> String {
         out.push_str("    <file name=\"");
         crate::runner::xml_text(file.name, &mut out);
         out.push_str("\">\n");
-        let mut functions = file.functions.iter().peekable();
+        let mut rows: Vec<(usize, u8, String)> = Vec::new();
+        for function in &file.functions {
+            let mut row = format!(
+                "      <line num=\"{}\" type=\"method\" name=\"",
+                function.line
+            );
+            crate::runner::xml_text(function.name, &mut row);
+            row.push_str(&format!("\" count=\"{}\"/>\n", function.count));
+            rows.push((function.line, 0, row));
+        }
         for (&line, count) in &file.lines {
-            while let Some(function) = functions.next_if(|function| function.line <= line) {
-                out.push_str(&format!(
-                    "      <line num=\"{}\" type=\"method\" name=\"",
-                    function.line
-                ));
-                crate::runner::xml_text(function.name, &mut out);
-                out.push_str(&format!("\" count=\"{}\"/>\n", function.count));
-            }
-            out.push_str(&format!(
-                "      <line num=\"{line}\" type=\"stmt\" count=\"{count}\"/>\n"
+            rows.push((
+                line,
+                1,
+                format!("      <line num=\"{line}\" type=\"stmt\" count=\"{count}\"/>\n"),
             ));
+        }
+        for branch in &file.branches {
+            let [truecount, falsecount] = branch.taken;
+            rows.push((
+                branch.line,
+                2,
+                format!(
+                    "      <line num=\"{}\" type=\"cond\" truecount=\"{truecount}\" falsecount=\"{falsecount}\"/>\n",
+                    branch.line
+                ),
+            ));
+        }
+        // A stable sort keeps each kind's own order on one line.
+        rows.sort_by_key(|&(line, kind, _)| (line, kind));
+        for (_, _, row) in rows {
+            out.push_str(&row);
         }
         let own = Metrics {
             loc: file.line_count,
@@ -344,6 +494,8 @@ fn clover(files: &[FileLines<'_>], now: u64) -> String {
             covered: file.hit(),
             methods: file.functions.len(),
             covered_methods: file.functions_hit(),
+            conditionals: file.sides(),
+            covered_conditionals: file.sides_hit(),
         };
         out.push_str("      ");
         own.write(&mut out, None);
@@ -364,6 +516,9 @@ struct Metrics {
     covered: usize,
     methods: usize,
     covered_methods: usize,
+    /// Branch sides, two per branch.
+    conditionals: usize,
+    covered_conditionals: usize,
 }
 
 impl Metrics {
@@ -373,11 +528,13 @@ impl Metrics {
         self.covered += other.covered;
         self.methods += other.methods;
         self.covered_methods += other.covered_methods;
+        self.conditionals += other.conditionals;
+        self.covered_conditionals += other.covered_conditionals;
     }
 
-    /// Writes the element, with a `files` count for the project's. Classes and
-    /// conditionals are `0`, because the report counts neither. A method is an
-    /// element as a statement is.
+    /// Writes the element, with a `files` count for the project's. Classes are
+    /// `0`, because the report does not count them. A method and a branch side
+    /// are each an element, as a statement is.
     fn write(&self, out: &mut String, files: Option<usize>) {
         let files = files.map_or(String::new(), |count| format!("files=\"{count}\" "));
         let Self {
@@ -386,12 +543,15 @@ impl Metrics {
             covered,
             methods,
             covered_methods,
+            conditionals,
+            covered_conditionals,
         } = self;
-        let elements = statements + methods;
-        let covered_elements = covered + covered_methods;
+        let elements = statements + methods + conditionals;
+        let covered_elements = covered + covered_methods + covered_conditionals;
         out.push_str(&format!(
             "<metrics {files}loc=\"{loc}\" ncloc=\"{loc}\" classes=\"0\" methods=\"{methods}\" \
-             coveredmethods=\"{covered_methods}\" conditionals=\"0\" coveredconditionals=\"0\" \
+             coveredmethods=\"{covered_methods}\" conditionals=\"{conditionals}\" \
+             coveredconditionals=\"{covered_conditionals}\" \
              statements=\"{statements}\" coveredstatements=\"{covered}\" elements=\"{elements}\" \
              coveredelements=\"{covered_elements}\"/>\n"
         ));
@@ -400,8 +560,12 @@ impl Metrics {
 
 /// The Cobertura XML document: one `<package>` per directory and one `<class>`
 /// per file in it, each with a `<line number hits>` per line and its
-/// `line-rate`. A file at the top of the run's directory is in the package
-/// `.`. `now` is the Unix time, which Cobertura writes in milliseconds.
+/// `line-rate` and `branch-rate`. A line with a branch on it also has
+/// `branch="true"` and a `condition-coverage` of the sides that ran. A branch
+/// on a line no statement starts on is listed with the number of times its
+/// condition ran as `hits`, and is not counted in `line-rate`. A file at the
+/// top of the run's directory is in the package `.`. `now` is the Unix time,
+/// which Cobertura writes in milliseconds.
 fn cobertura(files: &[FileLines<'_>], now: u64) -> String {
     let mut packages: BTreeMap<&str, Vec<&FileLines<'_>>> = BTreeMap::new();
     for file in files {
@@ -412,23 +576,29 @@ fn cobertura(files: &[FileLines<'_>], now: u64) -> String {
     }
     let lines: usize = files.iter().map(|file| file.lines.len()).sum();
     let hit: usize = files.iter().map(FileLines::hit).sum();
+    let sides: usize = files.iter().map(FileLines::sides).sum();
+    let sides_hit: usize = files.iter().map(FileLines::sides_hit).sum();
     let mut out = format!(
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
          <!DOCTYPE coverage SYSTEM \"http://cobertura.sourceforge.net/xml/coverage-04.dtd\">\n\
-         <coverage line-rate=\"{}\" branch-rate=\"0\" lines-covered=\"{hit}\" lines-valid=\"{lines}\" \
-         branches-covered=\"0\" branches-valid=\"0\" complexity=\"0\" version=\"0\" timestamp=\"{}\">\n\
+         <coverage line-rate=\"{}\" branch-rate=\"{}\" lines-covered=\"{hit}\" lines-valid=\"{lines}\" \
+         branches-covered=\"{sides_hit}\" branches-valid=\"{sides}\" complexity=\"0\" version=\"0\" timestamp=\"{}\">\n\
          \x20 <sources>\n    <source>.</source>\n  </sources>\n  <packages>\n",
         rate(hit, lines),
+        rate(sides_hit, sides),
         now.saturating_mul(1000)
     );
     for (directory, members) in packages {
         let lines: usize = members.iter().map(|file| file.lines.len()).sum();
         let hit: usize = members.iter().map(|file| file.hit()).sum();
+        let sides: usize = members.iter().map(|file| file.sides()).sum();
+        let sides_hit: usize = members.iter().map(|file| file.sides_hit()).sum();
         out.push_str("    <package name=\"");
         crate::runner::xml_text(directory, &mut out);
         out.push_str(&format!(
-            "\" line-rate=\"{}\" branch-rate=\"0\" complexity=\"0\">\n      <classes>\n",
-            rate(hit, lines)
+            "\" line-rate=\"{}\" branch-rate=\"{}\" complexity=\"0\">\n      <classes>\n",
+            rate(hit, lines),
+            rate(sides_hit, sides)
         ));
         for file in members {
             out.push_str("        <class name=\"");
@@ -436,13 +606,35 @@ fn cobertura(files: &[FileLines<'_>], now: u64) -> String {
             out.push_str("\" filename=\"");
             crate::runner::xml_text(file.name, &mut out);
             out.push_str(&format!(
-                "\" line-rate=\"{}\" branch-rate=\"0\" complexity=\"0\">\n          <methods/>\n          <lines>\n",
-                rate(file.hit(), file.lines.len())
+                "\" line-rate=\"{}\" branch-rate=\"{}\" complexity=\"0\">\n          <methods/>\n          <lines>\n",
+                rate(file.hit(), file.lines.len()),
+                rate(file.sides_hit(), file.sides())
             ));
-            for (line, count) in &file.lines {
+            // Each line: its count, or `None` for a line only a branch is on,
+            // and its branch sides and how many of them ran.
+            let mut rows: BTreeMap<usize, (Option<u64>, usize, usize)> = file
+                .lines
+                .iter()
+                .map(|(&line, &count)| (line, (Some(count), 0, 0)))
+                .collect();
+            let mut evaluated: BTreeMap<usize, u64> = BTreeMap::new();
+            for branch in &file.branches {
+                let row = rows.entry(branch.line).or_insert((None, 0, 0));
+                row.1 += 2;
+                row.2 += branch.sides_hit();
+                *evaluated.entry(branch.line).or_insert(0) += branch.taken[0] + branch.taken[1];
+            }
+            for (line, (count, sides, sides_hit)) in rows {
+                let count = count.unwrap_or_else(|| evaluated.get(&line).copied().unwrap_or(0));
                 out.push_str(&format!(
-                    "            <line number=\"{line}\" hits=\"{count}\"/>\n"
+                    "            <line number=\"{line}\" hits=\"{count}\""
                 ));
+                if let Some(percent) = (sides_hit * 100).checked_div(sides) {
+                    out.push_str(&format!(
+                        " branch=\"true\" condition-coverage=\"{percent}% ({sides_hit}/{sides})\""
+                    ));
+                }
+                out.push_str("/>\n");
             }
             out.push_str("          </lines>\n        </class>\n");
         }
@@ -457,7 +649,7 @@ fn cobertura(files: &[FileLines<'_>], now: u64) -> String {
 fn rate(hit: usize, of: usize) -> f64 {
     #[expect(
         clippy::cast_precision_loss,
-        reason = "a line count is far below 2^52, and the rate is written to four places"
+        reason = "a line or side count is far below 2^52, and the rate is written to four places"
     )]
     match of {
         0 => 1.0,
@@ -481,19 +673,26 @@ mod tests {
                 ("A::early".to_owned(), 1),
                 ("Gone::f".to_owned(), 4),
             ],
+            edges: 6,
+            // Two branches on line 3 and one on line 5 that never ran, out of
+            // line order.
+            branches: vec![(0, 5, 4, 5), (0, 3, 0, 1), (0, 3, 2, 3)],
         };
         (sites, vec![1, 1, 2, 0, 7])
     }
 
+    const SAMPLE_EDGES: [u64; 6] = [2, 0, 1, 1, 0, 0];
+
     #[test]
     fn a_line_counts_its_busiest_statement_and_a_line_that_never_ran_reads_zero() {
         let (sites, counts) = sample();
-        let files = sites.lines(&counts);
+        let files = sites.lines(&counts, &SAMPLE_EDGES);
         assert_eq!(
             lcov(&files),
             "TN:\nSF:a.nvs\nFN:3,A::early\nFN:5,A::late\nFNDA:1,A::early\nFNDA:0,A::late\nFNF:2\nFNH:1\n\
+             BRDA:3,0,0,2\nBRDA:3,0,1,0\nBRDA:3,1,0,1\nBRDA:3,1,1,1\nBRDA:5,0,0,-\nBRDA:5,0,1,-\nBRF:6\nBRH:3\n\
              DA:3,2\nDA:5,0\nLF:2\nLH:1\nend_of_record\n\
-             SF:b.nvs\nFN:2,B::only\nFNDA:1,B::only\nFNF:1\nFNH:1\nDA:2,1\nLF:1\nLH:1\nend_of_record\n"
+             SF:b.nvs\nFN:2,B::only\nFNDA:1,B::only\nFNF:1\nFNH:1\nBRF:0\nBRH:0\nDA:2,1\nLF:1\nLH:1\nend_of_record\n"
         );
     }
 
@@ -507,22 +706,30 @@ mod tests {
             ],
             at: vec![Some((0, 2)), Some((0, 4)), Some((1, 1)), Some((2, 1))],
             functions: Vec::new(),
+            edges: 4,
+            // One branch on a statement's line, and one on line 3, which no
+            // statement starts on.
+            branches: vec![(0, 2, 0, 1), (0, 3, 2, 3)],
         };
-        let document = cobertura(&sites.lines(&[3, 0, 0, 1]), 1_700_000_000);
+        let document = cobertura(&sites.lines(&[3, 0, 0, 1], &[3, 0, 0, 0]), 1_700_000_000);
         assert!(document.contains(
-            "<coverage line-rate=\"0.5\" branch-rate=\"0\" lines-covered=\"2\" lines-valid=\"4\" "
+            "<coverage line-rate=\"0.5\" branch-rate=\"0.25\" lines-covered=\"2\" lines-valid=\"4\" \
+             branches-covered=\"1\" branches-valid=\"4\" "
         ));
         assert!(document.contains("timestamp=\"1700000000000\""));
         assert!(
             document.contains(
-                "<package name=\".\" line-rate=\"1\" branch-rate=\"0\" complexity=\"0\">"
+                "<package name=\".\" line-rate=\"1\" branch-rate=\"1\" complexity=\"0\">"
             )
         );
         assert!(document.contains(
-            "<package name=\"src\" line-rate=\"0.3333\" branch-rate=\"0\" complexity=\"0\">"
+            "<package name=\"src\" line-rate=\"0.3333\" branch-rate=\"0.25\" complexity=\"0\">"
         ));
         assert!(document.contains(
-            "<class name=\"src/Cart.nvs\" filename=\"src/Cart.nvs\" line-rate=\"0.5\" branch-rate=\"0\" complexity=\"0\">\n          <methods/>\n          <lines>\n            <line number=\"2\" hits=\"3\"/>\n            <line number=\"4\" hits=\"0\"/>\n          </lines>\n"
+            "<class name=\"src/Cart.nvs\" filename=\"src/Cart.nvs\" line-rate=\"0.5\" branch-rate=\"0.25\" complexity=\"0\">\n          <methods/>\n          <lines>\n            \
+             <line number=\"2\" hits=\"3\" branch=\"true\" condition-coverage=\"50% (1/2)\"/>\n            \
+             <line number=\"3\" hits=\"0\" branch=\"true\" condition-coverage=\"0% (0/2)\"/>\n            \
+             <line number=\"4\" hits=\"0\"/>\n          </lines>\n"
         ));
         // Packages are sorted by name, so `.` comes before `src`.
         assert!(document.find("name=\".\"") < document.find("name=\"src\""));
@@ -531,20 +738,24 @@ mod tests {
     #[test]
     fn the_clover_document_carries_a_line_per_statement_line_and_the_totals() {
         let (sites, counts) = sample();
-        let files = sites.lines(&counts);
+        let files = sites.lines(&counts, &SAMPLE_EDGES);
         let document = clover(&files, 1_700_000_000);
         assert!(document.starts_with(
             "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<coverage generated=\"1700000000\">\n"
         ));
         assert!(document.contains(
             "<file name=\"a.nvs\">\n      <line num=\"3\" type=\"method\" name=\"A::early\" count=\"1\"/>\n      \
-             <line num=\"3\" type=\"stmt\" count=\"2\"/>\n      <line num=\"5\" type=\"method\" name=\"A::late\" count=\"0\"/>\n      \
-             <line num=\"5\" type=\"stmt\" count=\"0\"/>\n"
+             <line num=\"3\" type=\"stmt\" count=\"2\"/>\n      \
+             <line num=\"3\" type=\"cond\" truecount=\"2\" falsecount=\"0\"/>\n      \
+             <line num=\"3\" type=\"cond\" truecount=\"1\" falsecount=\"1\"/>\n      \
+             <line num=\"5\" type=\"method\" name=\"A::late\" count=\"0\"/>\n      \
+             <line num=\"5\" type=\"stmt\" count=\"0\"/>\n      \
+             <line num=\"5\" type=\"cond\" truecount=\"0\" falsecount=\"0\"/>\n"
         ));
         assert!(document.contains(
             "<metrics files=\"2\" loc=\"14\" ncloc=\"14\" classes=\"0\" methods=\"3\" coveredmethods=\"2\" \
-             conditionals=\"0\" coveredconditionals=\"0\" statements=\"3\" coveredstatements=\"2\" \
-             elements=\"6\" coveredelements=\"4\"/>"
+             conditionals=\"6\" coveredconditionals=\"3\" statements=\"3\" coveredstatements=\"2\" \
+             elements=\"12\" coveredelements=\"7\"/>"
         ));
     }
 
@@ -590,7 +801,9 @@ mod tests {
             files: vec![("a&b.nvs".to_owned(), 1)],
             at: vec![Some((0, 1))],
             functions: Vec::new(),
+            edges: 0,
+            branches: Vec::new(),
         };
-        assert!(clover(&sites.lines(&[1]), 0).contains("<file name=\"a&amp;b.nvs\">"));
+        assert!(clover(&sites.lines(&[1], &[]), 0).contains("<file name=\"a&amp;b.nvs\">"));
     }
 }

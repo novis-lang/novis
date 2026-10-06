@@ -367,9 +367,14 @@ pub(crate) fn run(
     // Every context the suite makes from this one copies the flag and shares
     // the table, so the table holds the whole run when the suite returns.
     let hits = coverage.any().then(|| {
-        let hits = std::sync::Arc::new(nvs_runtime::StmtHits::new(sites.len()));
+        let hits = std::sync::Arc::new(nvs_runtime::StmtHits::with_edges(
+            sites.len(),
+            sites.edges(),
+        ));
         ctx.set_stmt_hits(Some(std::sync::Arc::clone(&hits)));
-        ctx.set_debug_flags(ctx.debug_flags() | nvs_runtime::DebugFlags::COVERAGE);
+        ctx.set_debug_flags(
+            ctx.debug_flags() | nvs_runtime::DebugFlags::COVERAGE | nvs_runtime::DebugFlags::BRANCH,
+        );
         hits
     });
     // The tree's snapshot goes on the suite's context before anything runs, as
@@ -435,7 +440,7 @@ pub(crate) fn run(
         Format::Junit => print!("{}", junit_document(&cases, counts, started.elapsed())),
     }
     if let Some(hits) = hits {
-        match crate::coverage::write(coverage, &sites, &hits.counts()) {
+        match crate::coverage::write(coverage, &sites, &hits.counts(), &hits.edge_counts()) {
             // The summary line is the human format's. A machine format's
             // stdout is its document, and the files say the same thing.
             Ok(summary) if format == Format::Human => println!(
@@ -1619,7 +1624,11 @@ fn answer_on_the_wire(
             }
             if let Some(hits) = hits {
                 ctx.set_stmt_hits(Some(hits));
-                ctx.set_debug_flags(ctx.debug_flags() | nvs_runtime::DebugFlags::COVERAGE);
+                ctx.set_debug_flags(
+                    ctx.debug_flags()
+                        | nvs_runtime::DebugFlags::COVERAGE
+                        | nvs_runtime::DebugFlags::BRANCH,
+                );
             }
             let Some(entry) = unit.script() else {
                 ctx.set_pending("the program under test has no script frame");
