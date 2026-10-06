@@ -89,6 +89,40 @@ pub fn not_loaded(
     diagnostic
 }
 
+/// The refusal of an `[ext.<name>]` block that no loaded extension declares, `E0601` like any
+/// other unknown block, naming the file that wrote it. `declared` is every block name the loaded
+/// manifests declare.
+#[must_use]
+pub fn undeclared_settings(
+    name: &str,
+    declared: &[&str],
+    origins: &BTreeMap<String, Origin>,
+) -> Diagnostic {
+    let prefix = format!("ext.{name}.");
+    let written_in = origins
+        .range(prefix.clone()..)
+        .take_while(|(key, _)| key.starts_with(&prefix))
+        .map(|(_, origin)| origin)
+        .next();
+    let known = if declared.is_empty() {
+        "no loaded extension declares a settings block".to_owned()
+    } else {
+        let names: Vec<String> = declared
+            .iter()
+            .map(|name| format!("`[ext.{name}]`"))
+            .collect();
+        format!("the loaded extensions declare {}", names.join(", "))
+    };
+    Diagnostic::error(
+        code::E_BAD_DIRECTIVE,
+        format!("The settings block `[ext.{name}]` belongs to no loaded extension"),
+    )
+    .with_note(format!("{known}{}", origin_note(written_in)))
+    .with_help(
+        "write the block under the name the extension's manifest declares, or remove it".to_owned(),
+    )
+}
+
 /// Whether `pin` is a SHA-256 digest as text: exactly 64 hexadecimal digits, either case.
 #[must_use]
 pub fn is_pin(pin: &str) -> bool {

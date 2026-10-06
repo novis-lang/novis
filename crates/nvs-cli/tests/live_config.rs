@@ -2638,9 +2638,14 @@ fn guest() -> Vec<u8> {
 
 /// A `.nvsx` declaring `class` over [`guest`], with its manifest and no source.
 fn extension(class: &str) -> Vec<u8> {
+    extension_with(class, "")
+}
+
+/// [`extension`], with `extra` written into its manifest after `methods`.
+fn extension_with(class: &str, extra: &str) -> Vec<u8> {
     let class = class.replace('\\', "\\\\");
     let manifest = format!(
-        r#"{{"manifest": 1, "world": "1.0.0", "class": "{class}", "interface": "shop:geo/api", "methods": [{{"name": "distanceKm", "params": [{{"name": "from", "type": "string"}}, {{"name": "round", "type": "bool"}}], "returns": "float"}}]}}"#
+        r#"{{"manifest": 1, "world": "1.0.0", "class": "{class}", "interface": "shop:geo/api", "methods": [{{"name": "distanceKm", "params": [{{"name": "from", "type": "string"}}, {{"name": "round", "type": "bool"}}], "returns": "float"}}]{extra}}}"#
     );
     nvs_ext::pack::append_section(guest(), nvs_ext::section::MANIFEST, manifest.as_bytes())
 }
@@ -2820,6 +2825,57 @@ fn a_reload_whose_extension_pin_does_not_match_is_refused_whole_and_the_previous
     assert!(
         running_policy(&server).contains("\"same-origin\""),
         "the reload over the restored file was not published"
+    );
+}
+
+/// An `[ext.<name>]` block is checked against the loaded manifest at every
+/// reload (ADR 0246 § 9): a key the manifest does not declare refuses the
+/// whole reload and keeps the running configuration, and a block the
+/// manifest admits is published with the rest of the file.
+#[test]
+fn a_reload_whose_extension_settings_block_has_an_unknown_key_is_refused_whole() {
+    let shelf = Shelf::new("settings-refused");
+    let geo = extension_with(
+        "Shop\\Geo",
+        r#", "settings": {"name": "geo", "keys": [{"name": "unit", "type": "string", "default": "km"}]}"#,
+    );
+    let entry = shelf.put("geo.nvsx", &geo, &geo);
+    let settings = |block: &str| format!("[ext.geo]\n{block}\n");
+    let server = Server::start(
+        "settings-refused",
+        &format!(
+            "{}\n{entry}\n{}",
+            policy("no-referrer"),
+            settings("unit = \"km\"")
+        ),
+        &[("app.nvs", PLAIN)],
+    );
+    server.awaits("/", "the boot's answer", |answer| answer.status == 200);
+
+    server.save(&format!(
+        "{}\n{entry}\n{}",
+        policy("same-origin"),
+        settings("colour = \"red\"")
+    ));
+    let said = refused_reload(&server);
+    assert!(
+        said.contains("E0652") && said.contains("unknown key `colour`"),
+        "the refusal does not name the code and the key: {said}"
+    );
+    assert!(
+        running_policy(&server).contains("\"no-referrer\""),
+        "a refused reload changed the running configuration"
+    );
+
+    server.save(&format!(
+        "{}\n{entry}\n{}",
+        policy("same-origin"),
+        settings("unit = \"mi\"")
+    ));
+    server.ctl("reload");
+    assert!(
+        running_policy(&server).contains("\"same-origin\""),
+        "the reload with an admitted block was not published"
     );
 }
 

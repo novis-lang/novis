@@ -1,0 +1,15 @@
+--TEST--
+An `[ext.<name>]` key the extension's manifest does not declare stops the boot, naming the entry — ADR 0246 § 9
+--EXTENSION--
+ledger
+--FILE nvs.toml--
+[ext.ledger]
+colour = "red"
+--FILE--
+<?nvs
+// `Shop\Ledger` declares only the setting `currency`.
+// The block above sets `colour`, so this program never runs.
+echo "unreachable\n";
+--EXPECTF-ERROR--
+error[E0652]: The extension `%sledger.nvsx` does not load: `[ext.ledger]` has an unknown key `colour`: the extension declares `currency`
+%A

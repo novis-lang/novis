@@ -1851,8 +1851,9 @@ arguments and an empty stdin, and its stdout and stderr write each line to the l
 and a seed reach it. A libc-shaped guest fits one pool slot, and its `exit` throws `ExtensionError`.
 `nvs run` and `nvs serve` hand it the request's own budget (`nvs_cli::extensions::Spent`): a line it
 logs is a record of the request with the extension as its channel, and a test's fixed clock and seed
-reach it. `nvs:ext/settings` reads the `[ext.<name>]` block of the request's snapshot, but
-`nvs.toml` does not accept that block yet. No grant reaches a guest, and `wasi:http` is not linked.
+reach it. `nvs:ext/settings` reads the `[ext.<name>]` block of the request's snapshot, a
+`System`/`Reload` block `nvs.toml` accepts and boot and reload check against the loaded manifests
+(`nvs_cli::extensions::loaded`). No grant reaches a guest, and `wasi:http` is not linked.
 
 <sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/extension-cannot-launder`](security.md#security-extension-cannot-launder). Decided in [0003](../decisions/0003.md), [0246](../decisions/0246.md).</sub>
 

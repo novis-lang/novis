@@ -86,6 +86,9 @@ const REGISTRIES = new Set(["crates/nvs-config/src/directive.rs", "crates/nvs-co
 /** Types that end the walk. `Vec<String>` is a leaf too, unwrapped where the parameter is read. */
 const SCALARS = new Set(["String", "bool", "u8", "u16", "u32", "u64", "i32", "i64", "f32", "f64", "usize"]);
 
+/** A map block's value type whose keys are declared outside `tree.rs`, so the walk lists none of them. */
+const OPAQUE = new Set(["toml::Table"]);
+
 /** The segment a map block's key carries in place of the name an operator picks: `[db.<name>]`. */
 const NAME = "<name>";
 
@@ -355,6 +358,9 @@ function expand(
   const mapped = /^BTreeMap<String, (.+)>$/.exec(ty);
 
   if (SCALARS.has(ty) || (listed && SCALARS.has(listed[1]!))) return [newKey(dotted, owner, field, receivers)];
+  // `[ext.<name>]`: a block whose keys an extension's manifest declares, not this tree, and which the
+  // loader checks against that manifest. The tree accepts no key of its own there, so the roster has none.
+  if (mapped && OPAQUE.has(mapped[1]!)) return [];
   // `[[include]]`, `[[app]]`, `[[server.mount]]`: an array of tables, spelled under the same segment.
   if (listed && structs.has(listed[1]!)) return walk(structs, enums, listed[1]!, segments, [...chain, owner], true);
   if (mapped && structs.has(mapped[1]!)) return walk(structs, enums, mapped[1]!, [...segments, NAME], [...chain, owner], true);

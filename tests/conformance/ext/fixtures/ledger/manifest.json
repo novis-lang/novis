@@ -56,5 +56,6 @@
   "resources": [{"name": "Route"}],
   "unions": [{"name": "Area", "cases": [
     {"name": "Circle", "shape": "{radius: float}"},
-    {"name": "Rect", "shape": "{width: float, height: float}"}]}]
+    {"name": "Rect", "shape": "{width: float, height: float}"}]}],
+  "settings": {"name": "ledger", "keys": [{"name": "currency", "type": "string", "default": "EUR"}]}
 }

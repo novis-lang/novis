@@ -61,6 +61,7 @@ accepts — anything else is `E0601`:
 | `[server]`, `[[server.mount]]` | the web server's listen addresses, timeouts and mounts |
 | `[debug]`, `[metrics]`, `[trace]`, `[control]`, `[opcache]`, `[deferred]` | their named directives |
 | `[[extension]]`, `[[schedule]]` | extension paths; scheduled scripts |
+| `[ext.<name>]` | the settings of one extension. The extension's manifest lists the keys and their types. A key it does not list, or a block no loaded extension uses, stops the server from starting |
 
 Every accepted key is stored, reported by `nvs config dump`, and readable from a program with
 `Core\Config::get`.

@@ -443,6 +443,11 @@ const APPLY_PROOFS: &[(&str, &str, &str)] = &[
         LIVE,
         "a_changed_extension_set_compiles_every_program_again",
     ),
+    (
+        "ext",
+        LIVE,
+        "a_reload_whose_extension_settings_block_has_an_unknown_key_is_refused_whole",
+    ),
 ];
 
 /// Whether the file at `path`, relative to the repository root, declares the test `name`.

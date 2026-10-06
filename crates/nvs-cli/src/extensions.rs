@@ -108,8 +108,10 @@ static LIVE: Mutex<Option<Arc<Set>>> = Mutex::new(None);
 ///
 /// # Errors
 ///
-/// `E0652` for the first entry whose file does not load or whose class an earlier entry
-/// declares, and for an engine that cannot be made. Nothing is installed.
+/// `E0652` for the first entry whose file does not load, whose class an earlier entry
+/// declares, or whose `[ext.<name>]` block its manifest's settings refuse, and for an engine
+/// that cannot be made. `E0601` for an `[ext.<name>]` block no loaded extension declares.
+/// Nothing is installed.
 pub(crate) fn loaded(
     config: &Config,
     origins: &BTreeMap<String, Origin>,
@@ -139,8 +141,32 @@ pub(crate) fn loaded(
         let extension = loader
             .load(&entry)
             .map_err(|refused| refuse(&refused.reason))?;
+        if let Some(settings) = &extension.manifest.settings
+            && let Some(block) = config.ext.get(&settings.name)
+        {
+            let block = match serde_json::to_value(block) {
+                Ok(serde_json::Value::Object(block)) => block,
+                _ => return Err(refuse(&format!("`[ext.{}]` is not a table", settings.name))),
+            };
+            settings.check(&block).map_err(|reason| refuse(&reason))?;
+        }
         set.insert(extension)
             .map_err(|refused| refuse(&refused.reason))?;
+    }
+    let declared: Vec<&str> = set
+        .extensions()
+        .iter()
+        .filter_map(|extension| extension.manifest.settings.as_ref())
+        .map(|settings| settings.name.as_str())
+        .collect();
+    if let Some(name) = config
+        .ext
+        .keys()
+        .find(|name| !declared.contains(&name.as_str()))
+    {
+        return Err(nvs_config::extension::undeclared_settings(
+            name, &declared, origins,
+        ));
     }
     Ok(set)
 }

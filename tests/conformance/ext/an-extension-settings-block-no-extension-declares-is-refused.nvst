@@ -1,0 +1,15 @@
+--TEST--
+An `[ext.<name>]` block that no loaded extension declares stops the boot — ADR 0246 § 9
+--EXTENSION--
+ledger
+--FILE nvs.toml--
+[ext.maps]
+zoom = 3
+--FILE--
+<?nvs
+// No loaded extension declares a block named `maps`.
+// The block above is refused, so this program never runs.
+echo "unreachable\n";
+--EXPECTF-ERROR--
+error[E0601]: The settings block `[ext.maps]` belongs to no loaded extension
+%A
