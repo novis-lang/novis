@@ -1,7 +1,6 @@
 {
-  "live": "deprecated-and-todo",
+  "live": "ext-design",
   "goals": [
-    "deprecated-and-todo",
     "ext-design",
     "ext-host",
     "ext-compiler",
