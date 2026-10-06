@@ -1464,7 +1464,9 @@ The world is WIT and versioned by semver. A host implementing `1.y` loads a comp
 newer minor or another major is refused, naming both versions. An `.nvsx` compiled against
 `nvs:ext@1.0.0` is not recompiled for a minor engine release.
 
-**Not on disk.** There is no world file, manifest reader or component loader in the tree.
+**Not on disk.** The world `nvs:ext@1.0.0` is written under `wit/nvs-ext/`, with the WASI 0.2 WIT it
+imports vendored under `deps/`, and `crates/nvs-stdlib/tests/ext_world.rs` parses it. There is no
+manifest reader or component loader, and nothing builds a component against the world.
 
 <sub>See also [`packaging/extension-calls-are-statically-typed`](packaging.md#packaging-extension-calls-are-statically-typed), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key). Decided in [0003](../decisions/0003.md), [0055](../decisions/0055.md), [0246](../decisions/0246.md).</sub>
 
@@ -1606,7 +1608,10 @@ What it costs is the copy: a guest that needs one field of a large array still r
 at about 12 ns per KiB. Coarse APIs are the rule already ([`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost)),
 and `mixed` keeps the pull-only path for the case that needs it.
 
-**Not on disk.** There is no world file and no trampoline.
+**Not on disk.** The world is written: `wit/nvs-ext/types.wit` holds the `error` variant, the `value`
+resource and one record per `Core` value class that crosses, and `crates/nvs-stdlib/tests/ext_world.rs`
+names every other value class with the reason it cannot. Nothing loads a component or calls through
+the world yet, and there is no trampoline.
 
 <sub>See also [`packaging/values-cross-as-handles`](packaging.md#packaging-values-cross-as-handles), [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), [`packaging/extension-calls-are-statically-typed`](packaging.md#packaging-extension-calls-are-statically-typed). Decided in [0246](../decisions/0246.md).</sub>
 
@@ -1773,7 +1778,9 @@ The same absence is what keeps an extension honest about qualifiers: with no amb
 sink of its own, it can declare what it consumes and produces but cannot launder
 ([`security/extension-cannot-launder`](security.md#security-extension-cannot-launder)).
 
-**Not on disk.** Nothing links WASI or any other import for a guest.
+**Not on disk.** The import list is written as the `extension` world in `wit/nvs-ext/world.wit`, and
+`crates/nvs-stdlib/tests/ext_world.rs` checks it imports exactly the allowed interfaces. Nothing links
+WASI or any other import for a guest.
 
 <sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/extension-cannot-launder`](security.md#security-extension-cannot-launder). Decided in [0003](../decisions/0003.md), [0246](../decisions/0246.md).</sub>
 

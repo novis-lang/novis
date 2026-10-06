@@ -1,0 +1,16 @@
+package nvs:ext@1.0.0;
+
+/// Writes into the calling request's log, with the extension's name as the
+/// channel.
+interface log {
+    /// The levels of `Core\Log`.
+    enum level {
+        debug,
+        info,
+        warn,
+        error,
+        critical,
+    }
+
+    write: func(level: level, message: string);
+}

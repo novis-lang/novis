@@ -10,5 +10,7 @@
     "security/capability-question-is-grant-and-scope",
     "security/extension-cannot-launder"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-stdlib/tests/ext_world.rs"
+  ]
 }

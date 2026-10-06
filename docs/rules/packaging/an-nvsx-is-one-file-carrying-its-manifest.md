@@ -23,4 +23,6 @@ The world is WIT and versioned by semver. A host implementing `1.y` loads a comp
 newer minor or another major is refused, naming both versions. An `.nvsx` compiled against
 `nvs:ext@1.0.0` is not recompiled for a minor engine release.
 
-**Not on disk.** There is no world file, manifest reader or component loader in the tree.
+**Not on disk.** The world `nvs:ext@1.0.0` is written under `wit/nvs-ext/`, with the WASI 0.2 WIT it
+imports vendored under `deps/`, and `crates/nvs-stdlib/tests/ext_world.rs` parses it. There is no
+manifest reader or component loader, and nothing builds a component against the world.

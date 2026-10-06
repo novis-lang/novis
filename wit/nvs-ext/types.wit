@@ -1,0 +1,128 @@
+package nvs:ext@1.0.0;
+
+/// The types every extension shares: the error an export returns, the
+/// `value` handle a `mixed` parameter crosses as, and one record per `Core`
+/// value class that may cross.
+///
+/// Every field is a type the Novis-to-WIT table gives (`bool`, `s64`, `u64`,
+/// `f64`, `string`, `list<u8>`, `list`, `option`, `record`, `enum`,
+/// `variant`), so a record is exactly what its Novis value copies to.
+/// `crates/nvs-stdlib/tests/ext_world.rs` holds the `Core` classes that have
+/// no record here, each with the reason it cannot cross.
+interface types {
+    /// What an export's `err` carries. The host throws `LogicError` for
+    /// `invalid`, `ParseError` for `parse` and `RuntimeError` for `runtime`,
+    /// with the string as the message.
+    variant error {
+        invalid(string),
+        parse(string),
+        runtime(string),
+    }
+
+    /// What a `value` handle holds. An `array` is a list or a keyed array:
+    /// Novis has one array type.
+    enum kind {
+        null,
+        %bool,
+        int,
+        uint,
+        float,
+        %string,
+        bytes,
+        array,
+        object,
+    }
+
+    /// A `mixed` argument, held by the host. The guest reads only what it
+    /// asks for, and every read returns `none` when the kind does not match.
+    /// A handle is valid until the call that received it returns.
+    resource value {
+        kind: func() -> kind;
+
+        as-bool: func() -> option<bool>;
+        as-int: func() -> option<s64>;
+        as-uint: func() -> option<u64>;
+        as-float: func() -> option<f64>;
+
+        /// The whole string or byte string, copied into the guest's memory
+        /// in one call.
+        as-string: func() -> option<string>;
+        as-bytes: func() -> option<list<u8>>;
+
+        /// The number of entries of an `array`.
+        length: func() -> option<u64>;
+        /// The key and the value of an `array`'s entry at a position, in
+        /// the array's own order. `none` past the end.
+        key: func(index: u64) -> option<value>;
+        element: func(index: u64) -> option<value>;
+        /// The entry under a string key, as a shape field is read.
+        field: func(name: string) -> option<value>;
+
+        /// The class of an `object`. The guest cannot read its properties.
+        class-name: func() -> option<string>;
+    }
+
+    /// `Core\BigInt`. `magnitude` is big-endian with no leading zero byte,
+    /// and zero is an empty list with `negative` false.
+    record big-int {
+        negative: bool,
+        magnitude: list<u8>,
+    }
+
+    /// `Core\Uuid`, as its two 64-bit halves, most significant first.
+    record uuid {
+        high: u64,
+        low: u64,
+    }
+
+    /// `Core\Uri`, as its text. The host parses the text again when a guest
+    /// returns one, so a guest cannot return parts that disagree with it.
+    record uri {
+        text: string,
+    }
+
+    /// `Core\Crypto\PublicKey`, as its DER SubjectPublicKeyInfo. The host
+    /// reads the key type from it again on return.
+    record public-key {
+        spki: list<u8>,
+    }
+
+    /// `Core\Time\Instant`: seconds since the Unix epoch, plus
+    /// `0 <= nanos < 1_000_000_000`.
+    record instant {
+        seconds: s64,
+        nanos: s64,
+    }
+
+    /// `Core\Time\DateTime`: an instant and the IANA name of its zone.
+    record date-time {
+        seconds: s64,
+        nanos: s64,
+        zone: string,
+    }
+
+    /// `Core\Time\Date`: a calendar date, `month` and `day` from 1.
+    record date {
+        year: s64,
+        month: s64,
+        day: s64,
+    }
+
+    /// `Core\Time\TimeOfDay`.
+    record time-of-day {
+        hour: s64,
+        minute: s64,
+        second: s64,
+        nanos: s64,
+    }
+
+    /// `Core\Time\Duration`, in nanoseconds.
+    record duration {
+        nanos: s64,
+    }
+
+    /// `Core\Time\Zone`, as its IANA name.
+    record zone {
+        id: string,
+    }
+}

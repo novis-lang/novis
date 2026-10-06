@@ -16,4 +16,6 @@ The same absence is what keeps an extension honest about qualifiers: with no amb
 sink of its own, it can declare what it consumes and produces but cannot launder
 (`rule:security/extension-cannot-launder`).
 
-**Not on disk.** Nothing links WASI or any other import for a guest.
+**Not on disk.** The import list is written as the `extension` world in `wit/nvs-ext/world.wit`, and
+`crates/nvs-stdlib/tests/ext_world.rs` checks it imports exactly the allowed interfaces. Nothing links
+WASI or any other import for a guest.
