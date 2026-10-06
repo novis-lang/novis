@@ -9,6 +9,10 @@
 //! core module and not component text: `wit-component` writes the component's types, which are
 //! the part a hand-written component gets wrong.
 //!
+//! Beside each `<name>.nvsx` is `<name>.sha256`, its pin as one line of hex. `nvs-test` reads it
+//! to write the `[[extension]]` entry a case's `--EXTENSION--` section asks for, because that
+//! crate is std-only and has no hash of its own; this test holds the pin to the bytes too.
+//!
 //! A change to a fixture's text, or to the packer, the world or `wit-component`, changes the bytes.
 //! `NVS_WRITE_FIXTURES=1 cargo test --test fixtures` writes them again, and the diff is reviewed
 //! like any other.
@@ -114,18 +118,29 @@ fn load(engine: &Engine, name: &str, bytes: &[u8]) -> Extension {
 }
 
 #[test]
-fn every_committed_fixture_is_what_the_packer_builds_from_its_text() {
+fn every_committed_conformance_fixture_is_what_the_packer_builds_from_its_text() {
     let names = names();
     assert!(names.iter().any(|name| name == "ledger"), "{names:?}");
     let write = std::env::var_os("NVS_WRITE_FIXTURES").is_some();
     for name in names {
         let built = build(&name);
         let path = fixtures().join(format!("{name}.nvsx"));
+        let pin_path = fixtures().join(format!("{name}.sha256"));
+        let pinned = format!("{}\n", pin(&built));
         if write {
             std::fs::write(&path, &built)
                 .unwrap_or_else(|err| panic!("{} does not write: {err}", path.display()));
+            std::fs::write(&pin_path, &pinned)
+                .unwrap_or_else(|err| panic!("{} does not write: {err}", pin_path.display()));
             continue;
         }
+        assert_eq!(
+            read(&pin_path),
+            pinned,
+            "{} is not the pin of what the packer builds from `{name}/`; \
+             `NVS_WRITE_FIXTURES=1 cargo test --test fixtures` writes it again",
+            pin_path.display()
+        );
         let committed = std::fs::read(&path).unwrap_or_else(|err| {
             panic!(
                 "{} does not read ({err}); `NVS_WRITE_FIXTURES=1 cargo test --test fixtures` writes it",
