@@ -1,25 +1,26 @@
 {
-  "state": "**Goal `ext-grants`: a guest reaches only the files and hosts that all three parties grant. Stage 4 (files) is written. Stage 5 (outbound HTTP) has `wasi:http` linked, with no acceptance test yet.** M9. No floor is carried: the suites, the `.nvst` trees and `nv verify` are the safety net, and the tests of goals `ext-host` and `ext-compiler` stay green as tests of the tree.\n\nThe design is ADR 0246 § 7 plus the user's own calls, and the goal file's § *Standing decisions* answers every call a session meets. There is no record slot: a question the record leaves open is settled under AGENTS.md's priority ordering and written in the module doc of the file that answers it.\n\n**On disk:** `crates/nvs-ext/src/wasi/http.rs` implements `wasi:http/types` and `outgoing-handler`, which are linked in `crates/nvs-ext/src/wasi.rs` and listed in `LINKED`. `handle` refuses a host outside `Context.connect` (the instance's `Effective.connect`) with `HTTP-request-denied`. Otherwise it sends through `Budget::send` once the body is finished, and maps `Unsent` to `error-code`, logging the message at `warn`. Its module doc records the decisions it made: whole bodies, a strict authority, framing headers dropped, `request-options` refused, every kept byte charged through `Budget::charge`. The host half (`nvs_cli::extensions::Spent`, `nvs_stdlib::extension_send`) is as before. **No test drives a guest's request yet.** Only `crates/nvs-ext/tests/wasi.rs`'s linker probe covers the new interfaces.",
+  "state": "**Goal `ext-grants`: a guest reaches only the files and hosts that all three parties grant. Stages 4 (files) and 5 (outbound HTTP) are written and tested; Stage 6 (the adversarial suite and the feature proofs) is next.** M9. No floor is carried: the suites, the `.nvst` trees and `nv verify` are the safety net, and the tests of goals `ext-host` and `ext-compiler` stay green as tests of the tree.\n\nThe design is ADR 0246 § 7 plus the user's own calls, and the goal file's § *Standing decisions* answers every call a session meets. A question the record leaves open is settled under AGENTS.md's priority ordering and written in the module doc of the file that answers it.\n\n**On disk:** `crates/nvs-ext/tests/http.rs` drives a guest's `wasi:http` request end to end: a budget that queues like `nvs_cli::extensions::Spent`, sent between polls through `nvs_stdlib::extension_send` under a `Ctx` built from `nvs.toml` text, against loopback origins, a `CONNECT` proxy and a self-signed `https` origin. All eight tests of check `nvs-ext-a-guest-calls-out-through-the-client` pass. A transport refusal (address policy, untrusted certificate) reaches the guest as `HTTP-request-denied`, its message in the request's log at `warn`. The rules' *Not on disk* sentences name the test. **Stage 6 has nothing on disk**: no feature `tools:config/extension-grants-what-a-component-may-reach` exists yet (`bun nv proofs --id` says \"no feature\").",
   "next": {
-    "stage": 5,
-    "title": "outbound HTTP",
+    "stage": 6,
+    "title": "the adversarial suite and the feature proofs",
     "files": [],
-    "note": ". One file set: a new `crates/nvs-ext/tests/http.rs`, `crates/nvs-ext/Cargo.toml`, `crates/nvs-ext/src/wasi/http.rs`.",
+    "note": "one file set: the new feature's `about.md`, its attacks and examples under `tests/hostile/` and `docs/examples/`, their `.nvsx` fixtures, and `crates/nvs-ext/tests/fixtures.rs`.",
     "items": [
       {
         "done": false,
-        "text": "**The eight acceptance tests**: a new `crates/nvs-ext/tests/http.rs`, with a core module made a component by `wit-component`, as `crates/nvs-ext/tests/files.rs:1` does. It needs a budget that queues like `Spent` and sends with a real `Ctx` through `nvs_stdlib::extension_send` (`crates/nvs-stdlib/src/http.rs:3943`). nvs-ext would dev-depend on nvs-stdlib, which only dev-depends on nvs-ext in return. Add a loopback server for the success, proxy and untrusted-TLS cases. The address-policy case gets no exception for loopback. Register the `[[test]]` in `crates/nvs-ext/Cargo.toml:84`. The guest's call sequence is `fields` constructor, `outgoing-request` constructor, `set-authority`/`set-scheme`/`set-path-with-query`, `handle`, `future-incoming-response.subscribe` + `wasi:io/poll.poll`, `get`, `incoming-response.status`. Any bug the tests find goes in `crates/nvs-ext/src/wasi/http.rs:1`. The check is `nvs-ext-a-guest-calls-out-through-the-client`. `rule:security/extension-grants-are-an-intersection`."
+        "text": "**Create the feature `tools:config/extension-grants-what-a-component-may-reach`** and its proofs, until `bun nv proofs --verify --only tools:config/extension-grants-what-a-component-may-reach` passes: `about.md`, three examples, one attack per grant party, a bench and its help, each comment held to AGENTS.md § *Text an end user reads*. `rule:testing/feature-proofs`, `rule:security/extension-grants-are-an-intersection`. Read `tests/hostile/README.md:1` for the attack shape."
       },
       {
         "done": false,
-        "text": "**The rules' *Not on disk* sentences**: once the tests pass, replace \"no test drives a guest's request through it yet\" with the test path in `docs/rules/packaging/a-guest-has-no-ambient-authority.md:31` and `docs/rules/security/extension-grants-are-an-intersection.md:38`, then run `bun nv rules --render`. Also fix the stale \"granted no WASI interface yet\" in `crates/nvs-cli/src/extensions.rs:15`."
+        "text": "**The proof fixtures' pin check**: add `every_committed_proof_fixture_is_what_the_packer_builds_from_its_text` beside the conformance one at `crates/nvs-ext/tests/fixtures.rs:174`, walking the attack and example trees' `.nvsx` fixtures. Check `nvs-ext` stage 6 in `data/goals/ext-grants.json`."
+      },
+      {
+        "done": false,
+        "text": "**The reload test through a running server**: `an_extension_added_by_a_reload_is_callable_from_the_next_request` and its siblings in the nvs-cli check of stage 6 (`data/goals/ext-grants.json`), built on `crates/nvs-cli/tests/live_config.rs:2194`'s `Server::start` harness. `rule:config/the-extension-set-is-in-every-unit-key`."
       }
     ]
   },
   "backlog": [
-    "A test's armed answer table does not answer a guest's call, and `nvs_stdlib::extension_send`'s doc says so. Decide whether it should (`rule:testing/an-outbound-call-is-answered-from-a-table`).",
-    "Stage 6: the attacks and examples under `tools:config/extension-grants-what-a-component-may-reach`, and the reload test in `crates/nvs-cli/tests/` (`an_extension_added_by_a_reload_is_callable_from_the_next_request`).",
-    "The proof fixture check `every_committed_proof_fixture_is_what_the_packer_builds_from_its_text` (nvs-ext) is not written.",
-    "Monotonic-clock subscriptions are `Ready` at once (`crates/nvs-ext/src/wasi.rs`)."
+    "The `[context]` manifest's stage 6 overlay has not been read by any session yet; widen it with `bun nv goal context --add` for the hostile and examples trees when the next session finds a gap."
   ]
 }
