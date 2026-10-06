@@ -1,5 +1,5 @@
 --TEST--
-`isset(...)` is `!= null` over a local, a `mixed`, a property, an element and a chain, and a list of operands is a short-circuiting conjunction — `rule:classes/unset-is-refused-on-a-property`, `rule:php-migration/every-divergence-is-deliberate-and-listed` row 11
+`isset(...)` is `!= null` over a local, a `mixed`, a property, an element and a chain, and a list of operands is a short-circuiting conjunction — `rule:classes/unset-is-refused-on-a-property`, `rule:types/absent-storage-is-never-a-zero-value`
 --FILE--
 <?nvs
 // covers: lang:expressions/is-new-clone-throw-print-exit-isset-empty
@@ -34,7 +34,7 @@ echo isset($c->tag) ? "y" : "n", isset($c->name) ? "y" : "n";
 $c->tag = "here";
 echo isset($c->tag) ? "y" : "n", "\n";
 
-// `rule:php-migration/every-divergence-is-deliberate-and-listed` row 11's throw is off under an `isset`, the same way it is
+// `rule:types/absent-storage-is-never-a-zero-value`'s throw is off under an `isset`, the same way it is
 // under a `??` — an absent key is exactly what this construct asks about, so
 // reporting it by throwing would refuse the question.
 array<string> $arr = ["k" => "v"];

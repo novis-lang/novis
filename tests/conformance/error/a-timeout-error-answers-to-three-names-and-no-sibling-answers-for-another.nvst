@@ -1,5 +1,5 @@
 --TEST--
-Every class on the `RuntimeError` branch answers to exactly three of the tree's names — itself, `RuntimeError` and `Throwable` — so no sibling arm ever takes another sibling's throw — `rule:errors/throwable-hierarchy` and `rule:php-migration/one-type-test`
+Every class on the `RuntimeError` branch answers to exactly three of the tree's names — itself, `RuntimeError` and `Throwable` — so no sibling arm ever takes another sibling's throw — `rule:errors/throwable-hierarchy` and `rule:types/one-type-test`
 --FILE--
 <?nvs
 // covers: TimeoutError

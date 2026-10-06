@@ -1,8 +1,8 @@
 --TEST--
-A `return` never leaves a `finally` block, and neither does a `break` whose target lies outside it (`rule:php-migration/no-return-leaves-a-finally`)
+A `return` never leaves a `finally` block, and neither does a `break` whose target lies outside it (`rule:statements/no-return-leaves-a-finally`)
 --FILE--
 <?nvs
-// `rule:php-migration/no-return-leaves-a-finally`: the `return` below would
+// `rule:statements/no-return-leaves-a-finally`: the `return` below would
 // replace whatever the region was leaving with — including a throw in flight,
 // which no `catch` anywhere in the program would then see. Whether that was
 // the intent is a human's call, so the spelling is refused where it is written

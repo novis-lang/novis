@@ -1,8 +1,8 @@
 --TEST--
-A constructor's `return` carries no value, while a bare `return;` still leaves it early (`rule:php-migration/a-constructor-return-carries-no-value`)
+A constructor's `return` carries no value, while a bare `return;` still leaves it early (`rule:classes/a-constructor-return-carries-no-value`)
 --FILE--
 <?nvs
-// `rule:php-migration/a-constructor-return-carries-no-value`: the object under
+// `rule:classes/a-constructor-return-carries-no-value`: the object under
 // construction is the result, so a value here has nowhere to go. The early
 // exit is untouched — the bare `return;` above the refused line is not
 // reported, and `rule:classes/definite-property-initialization` goes on

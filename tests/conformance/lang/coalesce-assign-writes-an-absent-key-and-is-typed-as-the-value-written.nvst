@@ -1,5 +1,5 @@
 --TEST--
-`??=` writes its right side where the key is absent at any level of the target or the stored value is `null`, leaves a present value alone without running the right side, and its value is the one written, typed without `null` when the right side has none — `rule:expressions/defaulting-assignment`, `rule:php-migration/absent-storage-is-never-a-zero-value`
+`??=` writes its right side where the key is absent at any level of the target or the stored value is `null`, leaves a present value alone without running the right side, and its value is the one written, typed without `null` when the right side has none — `rule:expressions/defaulting-assignment`, `rule:types/absent-storage-is-never-a-zero-value`
 --FILE--
 <?nvs
 class Post {

@@ -341,7 +341,7 @@ fn break_and_continue_with_level() {
     assert!(matches!(s.kind, StmtKind::Continue(Some(_))));
 }
 
-/// `rule:php-migration/no-return-leaves-a-finally`: the `return` would replace
+/// `rule:statements/no-return-leaves-a-finally`: the `return` would replace
 /// whatever the region was leaving with, so it is refused wherever it belongs
 /// to the `finally` itself — and left alone in a nested body, which it leaves
 /// instead of the block.
@@ -373,7 +373,7 @@ fn a_return_never_leaves_a_finally() {
     }
 }
 
-/// `rule:php-migration/no-return-leaves-a-finally`: a `break` or `continue` is
+/// `rule:statements/no-return-leaves-a-finally`: a `break` or `continue` is
 /// refused only where its target lies outside the `finally`, so the level is
 /// read against the loops and `switch`es the block itself opened rather than
 /// against the ones around the `try`.

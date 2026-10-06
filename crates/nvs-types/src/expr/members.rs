@@ -30,8 +30,8 @@
 //! for `rule:types/conversion`'s reason rather than § 4's: it is the one unchecked
 //! position, so even "is this an object at all" is deferred to that throw.
 //! Every *other* receiver — a scalar, an `array<T>`, a union naming no single
-//! class — is `E_RECEIVER_HAS_NO_PROPERTIES` where it is written (`rule:php-migration/every-divergence-is-deliberate-and-listed`
-//! row 13). `unset()`'s operand is narrowed to one shape by
+//! class — is `E_RECEIVER_HAS_NO_PROPERTIES` where it is written
+//! (`rule:types/a-declared-type-answers-before-the-program-runs`). `unset()`'s operand is narrowed to one shape by
 //! [`check_unset_target`], which is that rule's only home: a declared
 //! property, static or instance, is refused regardless of nullability
 //! (`rule:classes/unset-is-refused-on-a-property`), and so is every operand that is not an array element of a
@@ -1544,7 +1544,7 @@ pub(crate) fn check_property_member(
         // Every receiver that neither names a class nor erases to one of the
         // three shapes above: a scalar, an `array<T>`, an enum, a `callable`,
         // or a union naming no single class. PHP warns and yields `null` for
-        // the first family and this refuses it instead — `rule:php-migration/every-divergence-is-deliberate-and-listed` row 13,
+        // the first family and this refuses it instead — `rule:types/a-declared-type-answers-before-the-program-runs`,
         // which is row 8's rule ("nothing makes an absent thing read as a
         // zero value") at the one storage kind a *declared* type already
         // answers before the program runs. `mixed` is not here: it took the

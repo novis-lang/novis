@@ -553,7 +553,7 @@ impl<'src, 'd> Parser<'src, 'd> {
 
     /// `is` — the one type test (`rule:types/type-test`), and the level where
     /// `instanceof` is refused, because that is where a reader of PHP writes
-    /// it (`rule:php-migration/one-type-test`).
+    /// it (`rule:types/one-type-test`).
     ///
     /// **One token after the keyword decides which arm the right side is**, and
     /// [`Self::parse_test_operand`] is where that is written down: a
@@ -606,7 +606,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         lhs
     }
 
-    /// `rule:php-migration/one-type-test`: `instanceof` names nothing in Novis
+    /// `rule:types/one-type-test`: `instanceof` names nothing in Novis
     /// but its own refusal.
     ///
     /// The keyword stays a keyword so the spelling can be named here — read as
@@ -1495,7 +1495,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             }
             TokenKind::Keyword(Keyword::Isset) => self.parse_isset(),
             TokenKind::Keyword(Keyword::Empty) => self.parse_empty(),
-            // `rule:php-migration/let-and-is-are-reserved`: either spelling
+            // `rule:statements/let-and-is-are-reserved`: either spelling
             // where an expression begins is a name, and the error node keeps
             // the word from reaching a pass that has no meaning for it.
             TokenKind::Keyword(word @ (Keyword::Let | Keyword::Is)) => {

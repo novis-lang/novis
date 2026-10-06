@@ -861,7 +861,7 @@ pub mod code {
          `public const int LIMIT = 9;`.",
     );
     /// `let` or `is` written as a name, which PHP 8.6 deprecates and Novis
-    /// refuses outright (`rule:php-migration/let-and-is-are-reserved`). Both
+    /// refuses outright (`rule:statements/let-and-is-are-reserved`). Both
     /// are reserved for a construct that does not exist — the family `eval`,
     /// `goto` and `list` are already in — so the spelling stays available and
     /// the help names the living one: `var` declares an inferred local, `is`
@@ -871,7 +871,7 @@ pub mod code {
          a variable without writing its type, use `var`.",
     );
     /// `$x instanceof Foo` — PHP's type test, written where a Novis operator
-    /// may stand (`rule:php-migration/one-type-test`).
+    /// may stand (`rule:types/one-type-test`).
     ///
     /// Novis has one type test and it is `is`, so the word is a keyword only
     /// to be refused here: read as an ordinary identifier it would arrive at
@@ -883,11 +883,9 @@ pub mod code {
     /// The rewrite is mechanical and the help carries both halves of it: a
     /// written class becomes `$x is Request`, and a class held in a binding
     /// becomes `$x is $cls`, which is the same site `rule:types/type-test`
-    /// § *The value arm* gives. This is the one divergence from PHP that no
-    /// untyped binding makes reachable
-    /// (`rule:php-migration/every-divergence-is-deliberate-and-listed`), and a
-    /// converted program never changes meaning silently over it, because the
-    /// refused word does not compile.
+    /// § *The value arm* gives (`rule:types/one-type-test`). A program never
+    /// changes meaning silently over it, because the refused word does not
+    /// compile.
     pub const E_INSTANCEOF_IS_NOT_AN_OPERATOR: Code = Code::new("E0253").card(
         "`instanceof` is not an operator in Novis. The type test is `is`. Write \
          `$x is Request`, or `$x is $cls` when the class is in a variable.",
@@ -904,7 +902,7 @@ pub mod code {
          overrides.",
     );
     /// `return $value;` inside a `constructor`, which PHP 8.6 deprecates and
-    /// this refuses (`rule:php-migration/a-constructor-return-carries-no-value`).
+    /// this refuses (`rule:classes/a-constructor-return-carries-no-value`).
     /// The object under construction is the result and nothing else can be. A
     /// bare `return;` still leaves early and
     /// `rule:classes/definite-property-initialization` goes on checking that
@@ -914,7 +912,7 @@ pub mod code {
          result. Write `return;` to leave early, or remove the `return`.",
     );
     /// `public readonly int $n = 1;`, which PHP 8.6 allows and this refuses
-    /// (`rule:php-migration/a-readonly-property-declares-no-default`).
+    /// (`rule:classes/a-readonly-property-declares-no-default`).
     /// `readonly` is one assignment during construction, so a property whose
     /// single assignment is its own declaration-site default is a per-instance
     /// constant — and `const` already spells one (`rule:types/class-constant`).
@@ -927,7 +925,7 @@ pub mod code {
     );
     /// A `return` written inside a `finally` block, which PHP 8.6 deprecates
     /// for removal and this refuses
-    /// (`rule:php-migration/no-return-leaves-a-finally`). It replaces whatever
+    /// (`rule:statements/no-return-leaves-a-finally`). It replaces whatever
     /// the region was leaving with, including a throw in flight — the one
     /// construct where an unhandled exception vanishes with no handler
     /// anywhere. The help names the two rewrites the rule leaves: change the
@@ -939,7 +937,7 @@ pub mod code {
     );
     /// A `break` or `continue` inside a `finally` block whose level reaches
     /// past the loops and `switch`es the block itself opened
-    /// (`rule:php-migration/no-return-leaves-a-finally`). Leaving the block
+    /// (`rule:statements/no-return-leaves-a-finally`). Leaving the block
     /// discards what the region was leaving with, which is
     /// [`E_RETURN_LEAVES_A_FINALLY`]'s objection; a loop written wholly inside
     /// the block keeps both spellings, so only the reaching level is named.
@@ -1950,7 +1948,7 @@ pub mod code {
     /// target (`$a[][0] = 1`) is a target and stays legal.
     ///
     /// `$a[] .= "x"` is the one spelling PHP accepts and this refuses, and
-    /// it is `rule:php-migration/every-divergence-is-deliberate-and-listed` row 10: PHP appends because the element that is
+    /// it is `rule:types/absent-storage-is-never-a-zero-value`: PHP appends because the element that is
     /// not there yet reads as `""`, and no rule in Novis makes an absent
     /// element read as a zero value — which is § 7 row 8 one storage kind
     /// along, not a new judgement.
@@ -2119,7 +2117,7 @@ pub mod code {
     /// `int $i = 5; echo $i->name;` — or on one that names no single class,
     /// such as a union of two.
     ///
-    /// PHP warns and yields `null` here; `rule:php-migration/every-divergence-is-deliberate-and-listed` row 13 makes it a
+    /// PHP warns and yields `null` here; `rule:types/a-declared-type-answers-before-the-program-runs` makes it a
     /// check-time error instead, for row 8's reason: a declared type is what
     /// makes the answer knowable before the program runs, and nothing in Novis
     /// makes an absent thing read as a zero value. `mixed` is the one receiver
@@ -2997,7 +2995,7 @@ pub mod code {
     /// would land in a value dropped at the end of the statement. PHP 8.5
     /// accepts the spelling and discards the write with no diagnostic at all
     /// (checked with `php -r`, not assumed), which makes this a deliberate
-    /// divergence (`rule:php-migration/an-element-write-needs-storage-to-write-back-into`)
+    /// divergence (`rule:types/an-element-write-needs-storage-to-write-back-into`)
     /// rather than a PHP-compatible refusal like `E0478` beside it.
     ///
     /// Parentheses are **not** a temporary: `($a)["0"] = "y"` writes `$a["0"]`
@@ -5401,9 +5399,8 @@ pub mod code {
     /// (`rule:expressions/bare-throwable-arm-warns`). In the block form a `catch (Throwable)` has a body with room to
     /// log or re-raise; in the expression form the body *is* the value, so an
     /// unbound arm over the root is by construction "discard every failure,
-    /// including the ones this site never anticipated" — PHP's `@` operator,
-    /// which `rule:php-migration/every-divergence-is-deliberate-and-listed`
-    /// removed, regrown as a one-liner. The two honest spellings are naming
+    /// including the ones this site never anticipated" — the suppression
+    /// operator Novis does not have, regrown as a one-liner. The two honest spellings are naming
     /// the class the site expects and binding `$e` to carry the value. A
     /// warning rather than an error because the hazard is a habit and not a
     /// type error, the reason

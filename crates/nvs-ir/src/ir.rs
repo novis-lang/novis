@@ -1712,7 +1712,7 @@ pub enum InstKind {
     /// every helper call gets by `nvs-codegen`, against the runtime entry
     /// point `nvs_array_required_get` — which is why the two representations
     /// above are told apart there, by the key's own tag, rather than by
-    /// picking a symbol here. PHP warns and yields `null`; `rule:php-migration/every-divergence-is-deliberate-and-listed` row 11
+    /// picking a symbol here. PHP warns and yields `null`; `rule:types/absent-storage-is-never-a-zero-value`
     /// records the divergence, and that helper's doc comment says why yielding
     /// `null` there would be a null dereference rather than a value. A stored `null` is
     /// *not* an absent key and reads back unchanged. Under
@@ -2037,7 +2037,7 @@ pub const fn prepared_code(fact: Option<Prepared>) -> i64 {
 /// name it is keyed on names nothing.
 ///
 /// Two answers rather than one because PHP has two: a bare `$a["k"]` warns
-/// and yields `null` (Novis throws instead — `rule:php-migration/every-divergence-is-deliberate-and-listed` row 11), while
+/// and yields `null` (Novis throws instead — `rule:types/absent-storage-is-never-a-zero-value`), while
 /// `$a["k"] ?? "d"` is defined as *"absent or `null`, without the warning"*
 /// and must produce the default. `rule:types/shape-type`'s optional field asks
 /// the identical question of an object: `{a?: string}` proves the type and not
@@ -2171,7 +2171,7 @@ pub enum Helper {
     ///
     /// It exists because a write asks the absent-key question and gets the
     /// opposite answer to a read's: [`InstKind::ArrayGet`] *throws* there
-    /// (`rule:php-migration/every-divergence-is-deliberate-and-listed` row 11), while `$g[9][0] = 1` must build the row PHP
+    /// (`rule:types/absent-storage-is-never-a-zero-value`), while `$g[9][0] = 1` must build the row PHP
     /// would have built. It also *borrows*, where a descent needs a reference
     /// of its own to hand the [`InstKind::ArraySet`] on the way back up.
     /// Folding the two into

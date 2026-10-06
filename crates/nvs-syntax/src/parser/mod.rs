@@ -138,14 +138,14 @@ pub struct Parser<'src, 'd> {
     pipe_rhs_depth: u32,
     /// Set while the cursor is inside the body of a method named
     /// `constructor`, which is what
-    /// `rule:php-migration/a-constructor-return-carries-no-value` refuses a
+    /// `rule:classes/a-constructor-return-carries-no-value` refuses a
     /// returned value in. Every nested body parks it — see
     /// [`Self::in_callable_body`] — because a `return` written in an anonymous function,
     /// a property hook or a method declared inside a constructor leaves that
     /// body and not the constructor.
     in_constructor: bool,
     /// Set while the cursor is inside a `finally` block, which
-    /// `rule:php-migration/no-return-leaves-a-finally` refuses a `return` in.
+    /// `rule:statements/no-return-leaves-a-finally` refuses a `return` in.
     /// [`Self::in_callable_body`] parks it exactly as it parks
     /// [`Self::in_constructor`], because a `return` written in an anonymous function or a
     /// method declared inside the block leaves that body and not the `finally`.
@@ -153,7 +153,7 @@ pub struct Parser<'src, 'd> {
     /// How many loops and `switch`es have been opened since the innermost
     /// enclosing `finally` block began. A `break`/`continue` level above this
     /// names a target outside the block, which is what
-    /// `rule:php-migration/no-return-leaves-a-finally` refuses; the count means
+    /// `rule:statements/no-return-leaves-a-finally` refuses; the count means
     /// nothing unless [`Self::in_finally`] is set.
     finally_breakables: u32,
     /// Every modifier list parsed so far, in source order and each in the
@@ -772,7 +772,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         parsed
     }
 
-    /// `rule:php-migration/let-and-is-are-reserved`: neither word may name
+    /// `rule:statements/let-and-is-are-reserved`: neither word may name
     /// anything, and the two are refused for different reasons. `let` holds a
     /// spelling with no construct behind it; `is` is the type-test operator
     /// (`rule:types/type-test`), which is a construct that simply cannot stand

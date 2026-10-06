@@ -25,7 +25,7 @@
 //! throw, and `rule:types/shape-type`'s optional field asks the same question
 //! of a shape — so every `Index` **and** `PropertyAccess` level of an operand
 //! is marked in [`Env::coalesce_guarded`] by [`mark_guarded_places`], which is
-//! also the walk `??` fills that same set with. `rule:php-migration/every-divergence-is-deliberate-and-listed` row 11's
+//! also the walk `??` fills that same set with. `rule:types/absent-storage-is-never-a-zero-value`'s
 //! throw is what the marking turns off; without it these two would report
 //! absence by raising the very error they exist to avoid.
 //!
@@ -83,7 +83,7 @@ pub(crate) fn check_empty_operand(
 /// Marks every level of `operand` that can be absent — a subscript, and a
 /// property whose receiver may be a shape with an optional field — as a guarded
 /// read, so absence answers `null` there instead of taking
-/// `rule:php-migration/every-divergence-is-deliberate-and-listed` row 11's throw.
+/// `rule:types/absent-storage-is-never-a-zero-value`'s throw.
 ///
 /// This is the whole walk behind [`Env::coalesce_guarded`], shared with `??`'s
 /// own left operand ([`super::check_expr`]'s `BinaryOp::Coalesce` arm) so that

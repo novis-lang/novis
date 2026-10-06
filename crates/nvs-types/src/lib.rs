@@ -154,7 +154,7 @@
 //!   [`check`]'s `check_body_exits` refuses a written `return;` under anything
 //!   but `void` (`E0822`), over every block body a declared type is checked
 //!   against: a method's, a `get` hook's and a block-bodied `fn`'s.
-//!   `rule:php-migration/a-body-never-falls-off-its-end` owns the pair.
+//!   `rule:statements/a-body-never-falls-off-its-end` owns the pair.
 //!   Definite assignment is likewise not conservative around the block
 //!   statements: a `switch` and a `try`/`catch` intersect their arms' live sets
 //!   the way an `if` does.

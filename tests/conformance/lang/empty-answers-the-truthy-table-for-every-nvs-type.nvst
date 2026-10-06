@@ -36,7 +36,7 @@ echo "mixed ", Show::of(empty($m0)), Show::of(empty($m1)), Show::of(empty($m2)),
 echo "shape ", Show::of(empty({x: 1})), "\n";
 
 // A narrowed `?array<T>` reads through the guard, and an absent key under an
-// `empty` still answers rather than taking `rule:php-migration/every-divergence-is-deliberate-and-listed` row 11's throw.
+// `empty` still answers rather than taking `rule:types/absent-storage-is-never-a-zero-value`'s throw.
 ?array<string> $q = ["k" => "v"];
 if ($q != null) {
     echo "narrow ", Show::of(empty($q)), Show::of(empty($q["k"])),

@@ -1764,7 +1764,7 @@ impl<'a> Lowering<'a> {
         }
         // Down the chain, borrowing each row. A level is an ordinary element
         // *read* — [`AbsentKey::Throws`], so `unset($g["nope"]["1"])` throws
-        // exactly as `$g["nope"]["1"]` would (`rule:php-migration/every-divergence-is-deliberate-and-listed` row 11, PHP being
+        // exactly as `$g["nope"]["1"]` would (`rule:types/absent-storage-is-never-a-zero-value`, PHP being
         // silent there instead). Deliberately **not**
         // [`Helper::ArrayRowForWrite`], whose absent-key answer is to
         // vivify: a removal that first creates the row it is removing from
@@ -1828,7 +1828,7 @@ impl<'a> Lowering<'a> {
     /// Every leaf is the subscript it is spelled out of: `$pair[0]`,
     /// `$pair[1]`, or `$pair[k]` where the element writes a `k =>`. So a
     /// missing key **throws** exactly as that subscript would
-    /// ([`AbsentKey::Throws`], `rule:php-migration/every-divergence-is-deliberate-and-listed` row 11's divergence — PHP warns
+    /// ([`AbsentKey::Throws`], `rule:types/absent-storage-is-never-a-zero-value`'s divergence — PHP warns
     /// and binds `null`), a leaf binds exactly as
     /// [`StmtKind::LocalDecl`]'s own arm binds an initializer, and the
     /// element read is at the *element's* representation rather than the

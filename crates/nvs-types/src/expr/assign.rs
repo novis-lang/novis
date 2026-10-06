@@ -981,7 +981,7 @@ pub(crate) fn mark_write_target_levels(target: &Expr, plain: bool, env: &mut Env
 /// the set of roots `nvs_ir::lower::Lowering::write_back_array` can re-point.
 /// This is the one of the four PHP does *not* refuse — 8.5 lowers the write
 /// into the temporary and discards it, silently — so it is a deliberate
-/// divergence, `rule:php-migration/every-divergence-is-deliberate-and-listed` row 15, taken because the only statement it costs
+/// divergence, `rule:types/an-element-write-needs-storage-to-write-back-into`, taken because the only statement it costs
 /// is one that could never have done anything.
 ///
 /// Called *after* the target is checked, because the hooked half reads the
@@ -1316,8 +1316,8 @@ fn reject_get_only_hook_write(root: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>) {
 /// handle afterwards. That is the one place this rule is *wider* than PHP's —
 /// 8.5.9 refuses a `new` in a write context outright (*"Cannot use temporary
 /// expression in write context"*), while accepting the same write through a
-/// call-returning receiver (`make()->rows["a"] = "y"`) — and `rule:php-migration/every-divergence-is-deliberate-and-listed` row
-/// 15 records it: accepting where PHP refuses loses no program that ran, and
+/// call-returning receiver (`make()->rows["a"] = "y"`) — and
+/// `rule:types/an-element-write-needs-storage-to-write-back-into` states it: accepting where PHP refuses loses no program that ran, and
 /// the storage the separated array goes back into is real either way.
 ///
 /// `ExprKind::Error` is here so a parse error takes one diagnostic rather than

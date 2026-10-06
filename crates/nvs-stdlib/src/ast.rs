@@ -679,7 +679,7 @@ mod tests {
         }
     }
 
-    /// `rule:php-migration/one-type-test` read off the roster: one production
+    /// `rule:types/one-type-test` read off the roster: one production
     /// answers for a type test, and there is no second node beside it for the
     /// class case.
     ///

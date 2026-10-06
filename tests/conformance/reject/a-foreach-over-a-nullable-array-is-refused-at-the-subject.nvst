@@ -1,5 +1,5 @@
 --TEST--
-An un-narrowed `?array<T>` is refused at the `foreach` subject rather than iterated when it happens to hold an array, and narrowing it is what makes the same loop compile — `rule:iteration/foreach-subjects`, `rule:php-migration/absent-storage-is-never-a-zero-value`
+An un-narrowed `?array<T>` is refused at the `foreach` subject rather than iterated when it happens to hold an array, and narrowing it is what makes the same loop compile — `rule:iteration/foreach-subjects`, `rule:types/absent-storage-is-never-a-zero-value`
 --FILE--
 <?nvs
 // `rule:iteration/foreach-subjects`'s list names an `array<T>`, and

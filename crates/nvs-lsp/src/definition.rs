@@ -1636,7 +1636,7 @@ mod tests {
 
     /// The type after `is` is a written name like any other, so a cursor on it
     /// opens the declaration the test is against: one type test
-    /// (`rule:php-migration/one-type-test`) is also one navigation, and the
+    /// (`rule:types/one-type-test`) is also one navigation, and the
     /// interface is what a test against an interface names.
     #[test]
     fn definition_on_the_type_after_is_answers_the_interface_it_tests_against() {

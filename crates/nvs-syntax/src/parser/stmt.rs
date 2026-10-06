@@ -265,7 +265,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 };
                 self.expect(TokenKind::Semicolon, "`;`");
                 let span = start.to(self.last_span);
-                // `rule:php-migration/a-constructor-return-carries-no-value`:
+                // `rule:classes/a-constructor-return-carries-no-value`:
                 // the object under construction is the result, so a value here
                 // has nowhere to go. A bare `return;` is untouched — it still
                 // leaves early — and the node keeps the value it was written
@@ -284,7 +284,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                         ),
                     );
                 }
-                // `rule:php-migration/no-return-leaves-a-finally`: this would
+                // `rule:statements/no-return-leaves-a-finally`: this would
                 // replace whatever the region was leaving with, including a
                 // throw in flight — the one construct where an unhandled
                 // exception vanishes with no handler anywhere in the program.
@@ -807,7 +807,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         };
         self.expect(TokenKind::Semicolon, "`;`");
         let span = start.to(self.last_span);
-        // `rule:php-migration/no-return-leaves-a-finally`: a level reaching
+        // `rule:statements/no-return-leaves-a-finally`: a level reaching
         // past the loops and `switch`es the `finally` opened itself names a
         // target outside the block, and taking it discards what the region was
         // leaving with — the objection the `return` refusal makes. A loop

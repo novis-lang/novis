@@ -113,7 +113,7 @@ class that has no constructor.
 A `return` inside a constructor carries no value: a bare `return;` may leave early once every
 property is assigned on that path, and `return $value;` does not compile — the object under
 construction is the result and nothing else can be.
-<!-- src: `rule:php-migration/a-deprecation-is-a-refusal` -->
+<!-- src: `rule:classes/a-constructor-return-carries-no-value` -->
 
 ```nvs error
 <?nvs
@@ -222,7 +222,7 @@ only allowed on a class- or interface-typed property
 declaring class's own `constructor` is the one place that assignment may happen — a promoted
 parameter carries the modifier the same way a declaration does. A `readonly` property therefore
 declares no default: a value already known at the declaration is a `const`, not a property.
-<!-- src: `rule:php-migration/a-deprecation-is-a-refusal` -->
+<!-- src: `rule:classes/a-readonly-property-declares-no-default` -->
 
 ```nvs
 <?nvs

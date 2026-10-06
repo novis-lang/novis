@@ -184,7 +184,7 @@ pub(crate) fn accept_shape_conversion(
 /// settled test folds, and costs no diagnostic: `is` refuses no left-hand side
 /// (ADR 0150 § 6), and the run-time walk would answer `false` at every
 /// execution anyway. That is the one place this arm reads differently from the
-/// PHP spelling it replaces (`rule:php-migration/one-type-test`), which
+/// PHP spelling it replaces (`rule:types/one-type-test`), which
 /// refused the same subject outright.
 ///
 /// The base is recorded rather than the operand's whole type because `T` is

@@ -5,7 +5,7 @@ a subscript whose base has already answered that it holds no array is refused wh
 // `rule:types/arrays` checks an element read and write against the array's *declared*
 // element type, so a base that declares none has nothing to name and nothing
 // to check the read against. PHP answers `null` with a warning for most of
-// these — `rule:php-migration/every-divergence-is-deliberate-and-listed` row 8's family — and Novis refuses at check time instead.
+// these — `rule:types/a-declared-type-answers-before-the-program-runs`'s family — and Novis refuses at check time instead.
 // A `string` is not an exception: `rule:types/string-is-utf8` indexes one by extended
 // grapheme cluster through `Core\Str`, deliberately not through a subscript.
 // The `?array<string>` is the sharpest: a nullable array has an element type

@@ -274,8 +274,9 @@ comment and the setting.
   works in production and only a developer turns this on. `"log"` is the third value.
 - **A deprecation is never an error** at compile time. `W1003` stays a warning, and only `--deny` or the
   setting turns it into a failure.
-- **`rule:php-migration/a-deprecation-is-a-refusal` is untouched.** It is about what PHP removes, and this
-  goal is about what a Novis program's author retires.
+- **A refused construct stays refused.** The constructs the compiler rejects outright, such as
+  `rule:statements/no-return-leaves-a-finally`, are not deprecations, and this goal is about what a
+  Novis program's author retires.
 - **The placeholders are the parameters.** No `{0}`, no `$1`, no other template syntax: a template is a
   Novis expression with the declaration's own variables in it.
 - **One step.** A template that names something deprecated is refused, so no fix produces code with a

@@ -11,7 +11,7 @@ A test the declared type already answers compiles and answers it — in both dir
 // `is` is applicable everywhere, every value having a representation, so a
 // knowable answer here is not a meaningless question. That is where it most
 // visibly replaced the class-only operator, which refused a subject of this
-// shape where it was written (`rule:php-migration/one-type-test`).
+// shape where it was written (`rule:types/one-type-test`).
 
 enum Mode: int {
     Read = 1,

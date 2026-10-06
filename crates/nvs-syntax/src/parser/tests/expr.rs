@@ -1475,7 +1475,7 @@ fn the_php_callable_shape_is_named_in_the_help_of_the_no_hole_refusal() {
     );
 }
 
-/// `rule:php-migration/let-and-is-are-reserved`: `let` is a reserved word with
+/// `rule:statements/let-and-is-are-reserved`: `let` is a reserved word with
 /// no construct behind it, so it is refused wherever a program could have used
 /// it as a name, and the help names `var` — the spelling that declares an
 /// inferred local.
@@ -1501,7 +1501,7 @@ fn let_is_a_reserved_spelling() {
 /// `rule:types/type-test`: `is` is the type test, so the refusal it carried
 /// while it was a held spelling is gone from the operator position. `let` has
 /// no construct behind it and keeps its half of
-/// `rule:php-migration/let-and-is-are-reserved` untouched — as does `is` in
+/// `rule:statements/let-and-is-are-reserved` untouched — as does `is` in
 /// the one position where it is a *name* and not an operator, where the help
 /// now names the operator it became.
 #[test]
@@ -1641,7 +1641,7 @@ fn is_over_a_union_and_a_nullable_parses_as_one_type_and_not_as_a_comparison_cha
     assert!(matches!(ty.kind, TypeKind::Nullable(_)), "{ty:?}");
 }
 
-/// `rule:php-migration/one-type-test`: the word stays a keyword so the refusal
+/// `rule:types/one-type-test`: the word stays a keyword so the refusal
 /// can name it, and the parser consumes the operand it was written with, so
 /// the site costs exactly one diagnostic rather than a second about a token
 /// nothing expected.

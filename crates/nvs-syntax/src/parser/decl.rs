@@ -1242,7 +1242,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         } else {
             None
         };
-        // `rule:php-migration/a-constructor-return-carries-no-value` is asked
+        // `rule:classes/a-constructor-return-carries-no-value` is asked
         // of the body, and the name it was declared with is the whole of what
         // decides it. A method that is not the constructor parks the flag by
         // passing `false` through the same call, so a method declared inside a
@@ -1314,7 +1314,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 return;
             }
             let default = self.eat(TokenKind::Equals).map(|_| self.parse_expr());
-            // `rule:php-migration/a-readonly-property-declares-no-default`:
+            // `rule:classes/a-readonly-property-declares-no-default`:
             // `readonly` is one assignment, during construction, in the
             // declaring class's own constructor, so a declaration-site default
             // *is* that assignment and the property is a per-instance constant

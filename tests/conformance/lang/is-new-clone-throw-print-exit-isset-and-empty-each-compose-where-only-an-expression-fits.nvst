@@ -1,5 +1,5 @@
 --TEST--
-Each of `is`, `new`, `clone`, `throw`, `print`, `exit`, `isset` and `empty` fills a position only an expression can fill — an operand of `&&` or `+`, a call argument, the right of `??`, a ternary arm — and the eleven of them are counted rather than read off one line, `rule:expressions/truthy-table`, `rule:php-migration/absent-storage-is-never-a-zero-value`
+Each of `is`, `new`, `clone`, `throw`, `print`, `exit`, `isset` and `empty` fills a position only an expression can fill — an operand of `&&` or `+`, a call argument, the right of `??`, a ternary arm — and the eleven of them are counted rather than read off one line, `rule:expressions/truthy-table`, `rule:types/absent-storage-is-never-a-zero-value`
 --FILE--
 <?nvs
 // covers: lang:expressions/is-new-clone-throw-print-exit-isset-empty

@@ -284,7 +284,7 @@ fn a_switch_without_a_default_leaves_a_path_uncovered() {
     assert!(refuses(&diags), "{diags:?}");
 }
 
-/// A `finally` covers no path of its own: `rule:php-migration/no-return-leaves-a-finally`
+/// A `finally` covers no path of its own: `rule:statements/no-return-leaves-a-finally`
 /// refuses the `return` that would have made it the exit of the whole `try`
 /// (`E0250`, in the parser), so coverage reads the body and the `catch`es alone.
 #[test]

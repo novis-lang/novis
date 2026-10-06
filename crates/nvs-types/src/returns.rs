@@ -14,7 +14,7 @@
 //! asks nothing of the walk below: the declared type is the whole of whether
 //! one is legal. `crate::check`'s `check_body_exits` reads both, over every
 //! block body a declared type is checked against —
-//! `rule:php-migration/a-body-never-falls-off-its-end` is the pair's home.
+//! `rule:statements/a-body-never-falls-off-its-end` is the pair's home.
 //!
 //! **The analysis is asymmetric on purpose, and the opposite way round from
 //! [`crate::locals`]'s `terminates`.** That one answers "may I drop this branch's
@@ -29,7 +29,7 @@
 //! - a `switch` exits only with a `default` arm, no `break` of its own, and a
 //!   last arm that exits — every earlier arm may fall through into it;
 //! - a `try` exits through a `finally` that exits, or through a body *and* every
-//!   `catch` exiting — once `rule:php-migration/no-return-leaves-a-finally` lands (goal `surface`) a
+//!   `catch` exiting — once `rule:statements/no-return-leaves-a-finally` lands (goal `surface`) a
 //!   `finally` can leave only by throwing, and this arm and `escapes_block`'s narrow to that;
 //! - a `foreach`, and a `while` over anything but a literal `true`, may run zero
 //!   times, so neither can be the reason a body exits.

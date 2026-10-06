@@ -1,8 +1,8 @@
 --TEST--
-`??` guards every subscript level under it, not only the outermost one, so an absent key at any depth yields the default (`rule:php-migration/every-divergence-is-deliberate-and-listed` row 11)
+`??` guards every subscript level under it, not only the outermost one, so an absent key at any depth yields the default (`rule:types/absent-storage-is-never-a-zero-value`)
 --FILE--
 <?nvs
-// `rule:php-migration/every-divergence-is-deliberate-and-listed` row 11: reading an absent key throws, and `??` is the one
+// `rule:types/absent-storage-is-never-a-zero-value`: reading an absent key throws, and `??` is the one
 // carve-out — "absent or `null`, without the warning". PHP reads the whole
 // chain that way, so every level below a `??` takes the guarded read.
 array<array<string>> $a = ["k" => ["j" => "deep"]];

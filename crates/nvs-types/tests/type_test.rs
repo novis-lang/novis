@@ -180,7 +180,7 @@ fn a_value_that_is_not_a_class_reference_on_the_right_of_is_is_refused_as_a_dyna
 /// A subject that can hold no object settles the class test before the program
 /// runs, so it folds to `false` like every other settled test — and costs no
 /// diagnostic, which is where this arm parts company with the PHP spelling it
-/// replaces (`rule:php-migration/one-type-test`).
+/// replaces (`rule:types/one-type-test`).
 #[test]
 fn a_class_test_over_a_subject_that_holds_no_object_folds_to_false_without_a_diagnostic() {
     let diags = check_src(&format!(

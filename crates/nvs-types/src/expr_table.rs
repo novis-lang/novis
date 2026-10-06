@@ -760,7 +760,7 @@ pub enum ExprInfo {
         /// answer an absent key with `null` rather than throwing.
         ///
         /// PHP's `??` is exactly *"absent or `null`, without the warning"*, so
-        /// the guarded read is the one place `rule:php-migration/every-divergence-is-deliberate-and-listed` row 11's divergence
+        /// the guarded read is the one place `rule:types/absent-storage-is-never-a-zero-value`'s divergence
         /// is carved back out — a `$a["k"] ?? "d"` that threw would refuse the
         /// very spelling PHP offers for the safe read. Recorded here because
         /// the question is about the *expression tree*, which only this crate

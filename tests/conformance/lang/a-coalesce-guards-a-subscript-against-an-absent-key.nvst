@@ -1,5 +1,5 @@
 --TEST--
-`$a["k"] ?? $d` yields the default for an absent key instead of throwing — `rule:types/conversion` and `rule:php-migration/every-divergence-is-deliberate-and-listed` row 11
+`$a["k"] ?? $d` yields the default for an absent key instead of throwing — `rule:types/conversion` and `rule:types/absent-storage-is-never-a-zero-value`
 --FILE--
 <?nvs
 // § 7 row 11 makes a bare `$a["nope"]` throw where PHP warns. `??` is the

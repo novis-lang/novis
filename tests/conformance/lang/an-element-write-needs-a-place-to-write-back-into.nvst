@@ -7,7 +7,7 @@ An array-element write whose root is only a temporary is refused, whichever writ
 // back into whatever held it — a local, a property, or a static property. A
 // root that is none of those holds it nowhere, so the write would be
 // discarded: PHP 8.5 accepts every line below and drops it silently, which is
-// `rule:php-migration/every-divergence-is-deliberate-and-listed` row 15's divergence and `E0700` here. What this pins is that
+// `rule:types/an-element-write-needs-storage-to-write-back-into`'s divergence and `E0700` here. What this pins is that
 // the four write spellings *agree* — `=`, `⊕=`, `$x++` and `--$x` all reach
 // the rule through `nvs_types::expr::assign`'s one `check_write_target` — and
 // that the root's own shape does not matter, only that it is not a place.

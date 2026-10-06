@@ -39,7 +39,7 @@ class Pair {
 echo $t0, "|", $t1, "\n";
 
 // A leaf whose key names no entry throws, exactly as the subscript it is
-// spelled out of would — `rule:php-migration/every-divergence-is-deliberate-and-listed` row 11's divergence from PHP, which
+// spelled out of would — `rule:types/absent-storage-is-never-a-zero-value`'s divergence from PHP, which
 // warns and binds `null`. The leaves before it have already bound.
 try {
     [string $p, string $q, string $r] = $words;

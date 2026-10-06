@@ -1,5 +1,5 @@
 --TEST--
-An `inout` argument names storage the callee can write back through, so an array element, a static property, a call's result and a literal are each refused at the argument — `rule:types/arrays`, `rule:php-migration/an-element-write-needs-storage-to-write-back-into`
+An `inout` argument names storage the callee can write back through, so an array element, a static property, a call's result and a literal are each refused at the argument — `rule:types/arrays`, `rule:types/an-element-write-needs-storage-to-write-back-into`
 --FILE--
 <?nvs
 // The callee writes back through the reference after it returns, so an

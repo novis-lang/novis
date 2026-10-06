@@ -1,12 +1,12 @@
 --TEST--
-`instanceof` is not a Novis operator: `E0253` refuses it where it is written and names `is` — `rule:php-migration/one-type-test`, `rule:types/type-test`
+`instanceof` is not a Novis operator: `E0253` refuses it where it is written and names `is` — `rule:types/one-type-test`, `rule:types/type-test`
 --FILE--
 <?nvs
-// The one divergence from PHP that no untyped binding makes reachable
-// (`rule:php-migration/every-divergence-is-deliberate-and-listed`): it is a
-// choice of spelling, taken because one operator answers what PHP splits
-// across two. The refused word does not compile, so a converted program pays a
-// mechanical rewrite and never a silent change of meaning.
+// `is` is the one type test (`rule:types/one-type-test`). A written class
+// becomes `$x is Animal`, and a class held in a variable becomes `$x is $cls`.
+// The refused word does not compile, so a program never changes meaning
+// silently over it. The error names the rewrite, and this case pins where it
+// points.
 class Animal {}
 
 mixed $pet = new Animal();

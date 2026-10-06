@@ -374,7 +374,7 @@ pub(crate) fn infer(
         }
         ExprKind::Binary { op, lhs, rhs } => {
             // PHP's `??` is "absent or `null`, without the warning", so no read
-            // under one takes `rule:php-migration/every-divergence-is-deliberate-and-listed` row 11's throw — and that
+            // under one takes `rule:types/absent-storage-is-never-a-zero-value`'s throw — and that
             // is the whole chain, not only the outermost level: PHP reads
             // `$a["k"]["j"] ?? "d"` as "`"d"` unless every level is there".
             // `presence::mark_guarded_places` is the walk, shared with `isset`
@@ -1127,9 +1127,8 @@ fn regroup_bitwise_over_comparison(
 /// can do something with it; over a `throw`, the failure leaves; and naming a
 /// class below the root is a site saying which failure it anticipated. Only
 /// the three together spell *discard every failure, including the ones this
-/// site never anticipated* — which is PHP's `@`, removed by
-/// `rule:php-migration/every-divergence-is-deliberate-and-listed` and regrown
-/// as a one-liner. `nvs_diagnostics::code::W_CATCH_ARM_DISCARDS_EVERY_FAILURE`
+/// site never anticipated* — the suppression operator Novis does not have,
+/// regrown as a one-liner. `nvs_diagnostics::code::W_CATCH_ARM_DISCARDS_EVERY_FAILURE`
 /// says why it is a warning and not a refusal.
 fn warn_discarding_throwable_arm(arm: &CatchArm, ty: TypeId, env: &mut Env<'_>) {
     if matches!(arm.body.kind, ExprKind::Throw(_)) {

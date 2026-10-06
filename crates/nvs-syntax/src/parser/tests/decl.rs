@@ -1170,7 +1170,7 @@ fn a_malformed_attribute_group_is_one_error() {
     }
 }
 
-/// `rule:php-migration/a-constructor-return-carries-no-value`: the object
+/// `rule:classes/a-constructor-return-carries-no-value`: the object
 /// under construction is the result, so only the *value* is refused — a bare
 /// `return;` still leaves early, and a `return` that belongs to a body nested
 /// inside the constructor leaves that body instead.
@@ -1213,7 +1213,7 @@ fn a_readonly_property_has_no_hook() {
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
-/// `rule:php-migration/a-readonly-property-declares-no-default`: a property
+/// `rule:classes/a-readonly-property-declares-no-default`: a property
 /// whose single assignment is its own default is a per-instance constant, and
 /// `const` already spells one. The refusal lands on the value, and a property
 /// that is not `readonly` keeps its default.

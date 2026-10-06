@@ -1,5 +1,5 @@
 --TEST--
-Integer `+`, `-`, `*` and unary `-` answer one step inside their type's bound and throw `ArithmeticError` at it, on the `int` arm and the `uint` arm alike — `rule:types/arithmetic` and `rule:php-migration/every-divergence-is-deliberate-and-listed`
+Integer `+`, `-`, `*` and unary `-` answer one step inside their type's bound and throw `ArithmeticError` at it, on the `int` arm and the `uint` arm alike — `rule:types/arithmetic`
 --FILE--
 <?nvs
 // covers: lang:types/numbers-bool-int-uint-float-decimal

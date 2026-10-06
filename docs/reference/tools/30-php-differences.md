@@ -143,7 +143,7 @@ populates.
 | `$b = &$a`, `int $b = &$a;` | none; no two variables share one value, so assign a copy or pass an object | `E0701` |
 | `f(...$args)` into fixed parameters | only into a `...$rest` variadic; otherwise write the arguments out | `E0489` |
 | `$a <> $b` | `!=` — the same comparison, and inequality has one spelling (`rule:expressions/one-equality-operator`) | `E0241` |
-| PHP's class-test operator, on every subject | `$x is A`, and `$x is $cls` for a class reference held in a binding — one type test for every type a value can inhabit, which answers rather than refuses when the declaration already settles it (`rule:php-migration/one-type-test`, `rule:types/type-test`) | `E0253` |
+| PHP's class-test operator, on every subject | `$x is A`, and `$x is $cls` for a class reference held in a binding — one type test for every type a value can inhabit, which answers rather than refuses when the declaration already settles it (`rule:types/one-type-test`, `rule:types/type-test`) | `E0253` |
 
 `<=>`, `**`, `??`, `??=`, `?:`, `?->` and `.=` all work as in PHP, and `??=` also writes a key absent
 at any level of its target. Novis adds `??+=`, `??-=` and `??.=`, which PHP does not have:

@@ -1,5 +1,5 @@
 --TEST--
-`??`, `??=`, `?:`, `?->` and the ternary each run only the side they end up using, counted over a whole table rather than read off a line — `rule:php-migration/absent-storage-is-never-a-zero-value`, `rule:expressions/truthy-table`
+`??`, `??=`, `?:`, `?->` and the ternary each run only the side they end up using, counted over a whole table rather than read off a line — `rule:types/absent-storage-is-never-a-zero-value`, `rule:expressions/truthy-table`
 --FILE--
 <?nvs
 // covers: lang:expressions/and-the-ternary
@@ -92,7 +92,7 @@ Count::$calls = 0;
 ?Chain $endOfHead = $head?->step()?->step();
 echo "nullsafe-head ", ($endOfHead == null) as string, " ", Count::$calls, "\n";
 
-// `rule:php-migration/absent-storage-is-never-a-zero-value` makes the guard
+// `rule:types/absent-storage-is-never-a-zero-value` makes the guard
 // cover every level of the chain under it, so an absent key at either depth
 // yields the right side instead of throwing.
 array<array<string>> $nested = ["a" => ["b" => "deep"]];

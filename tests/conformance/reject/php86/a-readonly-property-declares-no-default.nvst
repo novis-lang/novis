@@ -1,8 +1,8 @@
 --TEST--
-A `readonly` property declares no default, while a property that is not `readonly` keeps one (`rule:php-migration/a-readonly-property-declares-no-default`)
+A `readonly` property declares no default, while a property that is not `readonly` keeps one (`rule:classes/a-readonly-property-declares-no-default`)
 --FILE--
 <?nvs
-// `rule:php-migration/a-readonly-property-declares-no-default`: `readonly` is
+// `rule:classes/a-readonly-property-declares-no-default`: `readonly` is
 // one assignment during construction, so a property whose single assignment is
 // its own declaration-site default is a per-instance constant — and `const`
 // already spells one. The plain property below keeps its default, so the

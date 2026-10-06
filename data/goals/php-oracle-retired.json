@@ -10,8 +10,7 @@
     ],
     "rules": [
       "programs/memory-priority",
-      "programs/no-compatibility-promise",
-      "php-migration/every-divergence-is-deliberate-and-listed"
+      "programs/no-compatibility-promise"
     ],
     "adrs": [
       "0004",
@@ -161,8 +160,7 @@
           "tools/nv/renderers/website-rules.ts"
         ],
         "rules": [
-          "php-migration/every-divergence-is-deliberate-and-listed",
-          "php-migration/absent-storage-is-never-a-zero-value",
+          "types/absent-storage-is-never-a-zero-value",
           "packaging/the-sweep-is-fired-by-a-human",
           "testing/probes-on-is-a-tested-configuration"
         ],

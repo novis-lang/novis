@@ -1,5 +1,5 @@
 --TEST--
-`is` against a `Core` namespace class — a name for static members that no value is ever one of — answers `false` wherever it is written, whole or inside a union, an intersection or an array element, and never refuses — `rule:types/type-test`, `rule:php-migration/one-type-test`
+`is` against a `Core` namespace class — a name for static members that no value is ever one of — answers `false` wherever it is written, whole or inside a union, an intersection or an array element, and never refuses — `rule:types/type-test`, `rule:types/one-type-test`
 --FILE--
 <?nvs
 final class Ask {

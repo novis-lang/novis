@@ -1,28 +1,24 @@
 {
-  "state": "**Goal `php-oracle-retired`: Stage 6 (no list maps PHP to Novis) is on disk; Stage 7 is next.** ADR 0274 (`docs/decisions/0274.md`) is the goal's record.\n\nStage 6 is complete. The spec list, its data, its inventory, `bun nv migration`, Part D of `docs/novis.md`, the CI job, the wrap gate, the migration tests, the `Replaces` column, the PHP-name rules and every playbook bullet that named the list are gone. `docs/agent/commands.md` now says the wrap runs five gate families. The claims page `website/src/content/claims/php-migration-is-accounted.md` the old item named was never in the tree.\n\nThe three gap records Stage 7 names (`data/gaps/nvs-stdlib/a-match-inside-a-character-reports-the-wrong-position.json`, `callback-that-reshapes-the-subject-reshapes.json`, `powmod-and-pow-followed-by-mod.json`) are not on disk either: read the goal record's Stage 7 checks for what still has to be true, and do the code work they pin.\n\nThe driver's red checks are Stage 8 and later; they wait for Stage 7.",
+  "state": "**Goal `php-oracle-retired`: Stages 6 and 7 are on disk; Stage 8 is in progress.** ADR 0274 (`docs/decisions/0274.md`) is the goal's record.\n\nStage 7 landed before this session (the three fixes and their tests are in `crates/nvs-stdlib/src/str.rs`, `arr.rs`, `bigint.rs`; the gap records are gone).\n\nStage 8's first file set is done: the `php-migration/` topic is dissolved. Eleven rules moved and were rewritten without PHP — `types/` (absent-storage-is-never-a-zero-value, an-element-write-needs-storage-to-write-back-into, a-declared-type-answers-before-the-program-runs, one-type-test), `statements/` (a-body-never-falls-off-its-end, no-return-leaves-a-finally, let-and-is-are-reserved), `classes/` (a-constructor-return-carries-no-value, a-readonly-property-declares-no-default), `expressions/no-partial-application`, `security/a-session-id-the-store-did-not-issue-is-rejected`. `every-divergence-is-deliberate-and-listed` and `a-deprecation-is-a-refusal` are deleted, with every live citation re-pointed and frozen ones stripped of `rule:`. The moved records still carry `divergesFromPhp`; the next group deletes the field everywhere.",
   "next": {
-    "stage": 7,
-    "title": "the decisions M11 was holding are Novis's own",
+    "stage": 8,
+    "title": "the rules state the behaviour",
     "files": [],
-    "note": "one file set per item; take the first, and a second only if it fits. Goal prose § *Stage 7* (`docs/agent/goals/php-oracle-retired.md:226`).",
+    "note": "one file set: the rule tooling and its renderers. Goal prose § *Stage 8* (`docs/agent/goals/php-oracle-retired.md:272`).",
     "items": [
       {
         "done": false,
-        "text": "**A `Core\\Str` search matches only on grapheme boundaries** — `rule:types/string-is-utf8`; the search core is `crates/nvs-stdlib/src/str.rs:2463` (`find_from`) and `crates/nvs-stdlib/src/str.rs:2941` (`find_at`). Whole family: `indexOf`, `lastIndexOf`, `contains`, `countOf`, `before`, `after`, `split`, `replace`, each pinned by a conformance case."
+        "text": "**`divergesFromPhp` is deleted, with `docs/divergences.md` and its generator** — goal prose § *Stage 8*; the field is `tools/nv/schema/rule.ts:17`, read at `tools/nv/cmd/rules.ts:160`, rendered at `tools/nv/cmd/rules.ts:283` and `tools/nv/cmd/rules.ts:301`, plus `tools/nv/renderers/website-rules.ts:184` and `website/src/components/RuleBookIndex.astro:48`. The ~590 records lose the field through one script under `.agent-tmp/`, deleted after; every link to `docs/divergences.md` is rewritten."
       },
       {
         "done": false,
-        "text": "**`powMod` returns the least non-negative residue** — `crates/nvs-stdlib/src/bigint.rs:512` (`POW_MOD_DOC`), plus a conformance case pinning `Core\\BigInt::of(-3)->powMod(3, 7)` as `1`."
-      },
-      {
-        "done": false,
-        "text": "**A callback-taking `Core\\Arr` member holds its subject for the whole walk** — `crates/nvs-stdlib/src/arr.rs:1`, and the attack `tests/hostile/core/Arr/filter/01-predicates-written-to-break-the-walk.nvs:1` step 4, whose comment is rewritten under `AGENTS.md` § *Text an end user reads*."
+        "text": "**Normative lines say the behaviour** — goal prose § *Stage 8* lists them: `docs/rules/types/arithmetic.md:5`, `docs/rules/types/arrays.md:10`, `docs/rules/types/declaration.md:18`, `docs/rules/types/string-is-utf8.md:18`, `docs/rules/types/integer-literals.md:12`; the check `no-rule-makes-php-the-reference` names the rest."
       }
     ]
   },
   "backlog": [
-    "Stage 8: dissolve `php-migration/`, delete `divergesFromPhp` and `docs/divergences.md` (goal prose § *Stage 8*).",
-    "`crates/nvs-stdlib/src/compress.rs:22` and `:121` still cite \"the migration table\" in Rust comments; rewrite them only if a slice edits that file (standing decision *Rust comments are not swept*).",
-    "`docs/rules/core-classes/net-a-socket-does-not-outlive-its-request.md:5` says \"migration table\"; Stage 8's `core-classes/` group owns it."
+    "Stage 8: the testing rules lose the oracle, incidental PHP mentions are cut, `php`-tagged fences holding Novis code are retagged (goal prose § *Stage 8*).",
+    "Stage 9: `about.md` and the registry text lose \"This replaces PHP's `x`.\" (goal prose § *Stage 9*).",
+    "Stage 10: the proofs gate owes nothing with PHP stepped back."
   ]
 }

@@ -116,10 +116,7 @@ impl<'a> Lowering<'a> {
     /// checker's own answer, and `reject_unthrowable` has already refused
     /// every named one outside the tree.
     ///
-    /// **The wording is PHP's, word for word.**
-    /// `rule:php-migration/every-divergence-is-deliberate-and-listed` lists no
-    /// divergence here, so a program that catches one of these reads what it
-    /// reads in PHP. The class carrying it is [`LOGIC_ERROR`] — spec § 10's
+    /// **The wording is PHP's, word for word.** The class carrying it is [`LOGIC_ERROR`] — spec § 10's
     /// "a bug in the program", the entry [`Lowering::lower_match`]'s unmatched
     /// subject already raises — because the closed tree has no `Error` of
     /// PHP's own. A callable takes the second message rather than the first:

@@ -1,5 +1,5 @@
 --TEST--
-`is` through a subject whose tag nothing proved — a `mixed`, a plain `object`, a `?Class` tested and untested — walks the concrete class, and every non-object tag answers `false` rather than throwing — `rule:types/conversion`, `rule:php-migration/every-divergence-is-deliberate-and-listed` row 14
+`is` through a subject whose tag nothing proved — a `mixed`, a plain `object`, a `?Class` tested and untested — walks the concrete class, and every non-object tag answers `false` rather than throwing — `rule:types/conversion`, `rule:types/type-test`
 --FILE--
 <?nvs
 final class Ask {

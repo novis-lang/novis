@@ -1004,7 +1004,7 @@ pub enum ExprKind {
         legacy: bool,
     },
     /// `expr is Type` and `expr is $cls` — the one type test
-    /// (`rule:php-migration/one-type-test`). Which of the two the right side
+    /// (`rule:types/one-type-test`). Which of the two the right side
     /// is, is [`TestOperand`]'s question.
     TypeTest {
         /// The value being tested.

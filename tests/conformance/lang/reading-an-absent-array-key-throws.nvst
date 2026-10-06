@@ -1,5 +1,5 @@
 --TEST--
-Reading an array element whose key is absent throws, where PHP warns and yields null — `rule:types/conversion` and `rule:php-migration/every-divergence-is-deliberate-and-listed` row 11
+Reading an array element whose key is absent throws, where PHP warns and yields null — `rule:types/conversion` and `rule:types/absent-storage-is-never-a-zero-value`
 --FILE--
 <?nvs
 // `rule:types/conversion`: nothing converts by itself, and there is no `null` to put in

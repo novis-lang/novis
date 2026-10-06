@@ -26,8 +26,7 @@
       "ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows",
       "ide/a-code-action-writes-only-what-is-already-determined",
       "tooling/doc-comment-tags-are-see-and-example",
-      "packaging/a-forced-break-is-announced-before-it-lands",
-      "php-migration/a-deprecation-is-a-refusal"
+      "packaging/a-forced-break-is-announced-before-it-lands"
     ],
     "adrs": [
       "0046"

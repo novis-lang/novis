@@ -1,12 +1,12 @@
 --TEST--
-`$a[]` is refused everywhere but as an assignment target, PHP's "Cannot use [] for reading" taken at compile time — `rule:php-migration/every-divergence-is-deliberate-and-listed` row 10, `rule:types/arrays`
+`$a[]` is refused everywhere but as an assignment target, PHP's "Cannot use [] for reading" taken at compile time — `rule:types/absent-storage-is-never-a-zero-value`, `rule:types/arrays`
 --FILE--
 <?nvs
 // `[]` names the key one past the highest integer key, which is an answer only
 // where a value is being put there. PHP refuses `echo $a[];` and `unset($a[])`
 // at compile time for exactly that reason. `$a[] .= "x"` is the one spelling
 // PHP accepts — it appends, because the element that is not there yet reads as
-// `""` — and `rule:php-migration/every-divergence-is-deliberate-and-listed` row 10 declines that coercion, so Novis refuses it
+// `""` — and `rule:types/absent-storage-is-never-a-zero-value` declines that coercion, so Novis refuses it
 // alongside the other two rather than inventing a zero value for an absent
 // element. An append written *inside* a subscript is a read of the inner one
 // and not a second target, so the walk that legitimizes a target chain never

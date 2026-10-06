@@ -1,11 +1,11 @@
 --TEST--
-`->` on a receiver whose declared type can never hold an object is `E0495` where it is written, and a union naming no single class takes the same code — `rule:php-migration/every-divergence-is-deliberate-and-listed` row 13
+`->` on a receiver whose declared type can never hold an object is `E0495` where it is written, and a union naming no single class takes the same code — `rule:types/a-declared-type-answers-before-the-program-runs`
 --FILE--
 <?nvs
 // PHP warns and yields `null` for every receiver below. A declared type
 // makes the answer knowable before the program runs, so this is row 8's
 // rule ("nothing makes an absent thing read as a zero value") at the one
-// storage kind a *type* already answers — `rule:php-migration/every-divergence-is-deliberate-and-listed` row 13.
+// storage kind a *type* already answers — `rule:types/a-declared-type-answers-before-the-program-runs`.
 final class Box { public string $name = "boxed"; public function constructor() { } }
 final class Circle { public string $name = "round"; public function constructor() { } }
 

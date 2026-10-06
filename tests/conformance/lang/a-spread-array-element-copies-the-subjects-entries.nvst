@@ -1,5 +1,5 @@
 --TEST--
-`[...$a]` copies every entry of its subject, and the copy is an independent array — `rule:types/arrays` and `rule:php-migration/every-divergence-is-deliberate-and-listed`
+`[...$a]` copies every entry of its subject, and the copy is an independent array — `rule:types/arrays`
 --FILE--
 <?nvs
 // Agreement, over a whole table rather than one line: for a subject whose
