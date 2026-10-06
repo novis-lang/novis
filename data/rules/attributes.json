@@ -11,6 +11,7 @@
     "attributes/retrieval-folds-while-checking",
     "attributes/api-adds-and-cannot-contradict",
     "attributes/access-is-a-required-sibling",
-    "attributes/access-payload"
+    "attributes/access-payload",
+    "attributes/a-deprecation-names-its-replacement-as-code"
   ]
 }

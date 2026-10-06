@@ -25,7 +25,7 @@ There is no `@param`, `@return`, `@throws`, `@var`, `@deprecated`, `@since` or `
 nothing PHPDoc carried survives as prose. Parameter and return types are the signature, which cannot drift
 from itself; a callable carries its own (`rule:types/callable-signature`); what a `Core` member throws is
 its registry card (`rule:core-api/reference-card`) and for user code is a sentence; every binding is
-annotated, so `@var` has nothing to say; deprecation is an attribute (`rule:attributes/inert-metadata`);
+annotated, so `@var` has nothing to say; deprecation is an attribute (`rule:attributes/a-deprecation-names-its-replacement-as-code`);
 "this touches the filesystem" is a declared capability (`rule:security/capability-check-at-the-door`). A
 parameter that needs explaining is named in a sentence — "the timeout is in **milliseconds**" — and the
 diagnostic says so: *`@param` is not a documentation tag; name the parameter in a sentence instead — its

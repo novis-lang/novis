@@ -42,6 +42,7 @@
     "tooling/doc-comment-attaches-to-the-next-declaration",
     "tooling/doc-comment-tags-are-see-and-example",
     "tooling/strict-docs",
+    "tooling/a-todo-is-a-comment-the-tools-list",
     "tooling/nvs-doc-renders-and-decides-nothing",
     "tooling/one-json-several-renderers",
     "tooling/meta-json",

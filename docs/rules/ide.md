@@ -576,6 +576,11 @@ The third fix admitted under the same boundary is the import an undeclared name'
 where it raises `E0303`, so the provider's translation is what it was, and the server still resolves
 nothing of its own.
 
+The fourth is the rewrite a use of deprecated code carries
+([`attributes/a-deprecation-names-its-replacement-as-code`](attributes.md#attributes-a-deprecation-names-its-replacement-as-code)): the checker fills the declaration's
+template in where it raises `W1003`, side effects and imports included, and the provider translates it
+like the other three.
+
 Two code actions are not fixes and have no diagnostic behind them. One is the rewrite of a string or a
 `.` chain as an html template ([`ide/a-string-converts-to-an-html-template`](ide.md#ide-a-string-converts-to-an-html-template)), filed under its own
 `refactor.rewrite.htmlTemplate` kind because applying it changes what the line prints. The other is
@@ -585,7 +590,7 @@ them, and the server computes each from the expression under the cursor alone, w
 question. Neither is ever under `source.fixAll.nvs` or `quickfix`. Any further action the server
 computes for itself is still M10's.
 
-<sub>See also [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/a-string-converts-to-an-html-template`](ide.md#ide-a-string-converts-to-an-html-template), [`ide/a-list-splits-onto-lines-and-joins-onto-one`](ide.md#ide-a-list-splits-onto-lines-and-joins-onto-one). Decided in [0099](../decisions/0099.md), [0040](../decisions/0040.md), [0201](../decisions/0201.md), [0259](../decisions/0259.md), [0267](../decisions/0267.md).</sub>
+<sub>See also [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/a-string-converts-to-an-html-template`](ide.md#ide-a-string-converts-to-an-html-template), [`ide/a-list-splits-onto-lines-and-joins-onto-one`](ide.md#ide-a-list-splits-onto-lines-and-joins-onto-one). Decided in [0099](../decisions/0099.md), [0040](../decisions/0040.md), [0201](../decisions/0201.md), [0259](../decisions/0259.md), [0267](../decisions/0267.md), [0275](../decisions/0275.md).</sub>
 
 <a id="ide-a-quick-fix-is-a-diagnostics-own-suggestion"></a>
 

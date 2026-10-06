@@ -14,6 +14,11 @@ The third fix admitted under the same boundary is the import an undeclared name'
 where it raises `E0303`, so the provider's translation is what it was, and the server still resolves
 nothing of its own.
 
+The fourth is the rewrite a use of deprecated code carries
+(`rule:attributes/a-deprecation-names-its-replacement-as-code`): the checker fills the declaration's
+template in where it raises `W1003`, side effects and imports included, and the provider translates it
+like the other three.
+
 Two code actions are not fixes and have no diagnostic behind them. One is the rewrite of a string or a
 `.` chain as an html template (`rule:ide/a-string-converts-to-an-html-template`), filed under its own
 `refactor.rewrite.htmlTemplate` kind because applying it changes what the line prints. The other is

@@ -2,7 +2,8 @@
   "title": "A doc comment is Markdown plus `@see` and `@example`, each of which must resolve, and any other `@tag` is a diagnostic",
   "status": "designed",
   "because": [
-    "0137"
+    "0137",
+    "0275"
   ],
   "seeAlso": [
     "tooling/doc-comment-is-three-slashes",

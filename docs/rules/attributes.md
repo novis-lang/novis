@@ -3,6 +3,8 @@
 
 # Attributes
 
+*1 of 11 rules below are **designed** rather than shipped, and are marked where they appear.*
+
 <a id="attributes-inert-metadata"></a>
 
 ## An attribute is an anonymous object on a declaration, and nothing is ever declared or instantiated for it
@@ -70,7 +72,7 @@ The one exemption is the closed, `Core`-owned roster of compiler-recognized attr
 and naming no shape at all. Each is a plain name, so `Owner::Name` never matches one. Every userland
 name is an alias or a mistake.
 
-<sub>See also [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/repeatable`](attributes.md#attributes-repeatable), [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute). Decided in [0046](../decisions/0046.md), [0036](../decisions/0036.md), [0015](../decisions/0015.md), [0071](../decisions/0071.md), [0232](../decisions/0232.md).</sub>
+<sub>See also [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/repeatable`](attributes.md#attributes-repeatable), [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute). Decided in [0046](../decisions/0046.md), [0036](../decisions/0036.md), [0015](../decisions/0015.md), [0071](../decisions/0071.md), [0232](../decisions/0232.md), [0275](../decisions/0275.md).</sub>
 
 <a id="attributes-payload-is-a-compile-time-constant"></a>
 
@@ -287,3 +289,66 @@ prevents. A method carrying several `#[Route]` attributes still carries one `#[A
 of them.
 
 <sub>See also [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/repeatable`](attributes.md#attributes-repeatable). Decided in [0096](../decisions/0096.md), [0046](../decisions/0046.md), [0007](../decisions/0007.md), [0110](../decisions/0110.md).</sub>
+
+<a id="attributes-a-deprecation-names-its-replacement-as-code"></a>
+
+## `#[Core\Deprecated]` names its replacement as a Novis expression checked where it is declared, and every use is warning `W1003` carrying that replacement as its fix  *(designed — not yet in the compiler)*
+
+`rule:attributes/a-deprecation-names-its-replacement-as-code`
+
+`#[Core\Deprecated(since:, note:, replace:)]` marks a declaration as retired, and its `replace` is one
+Novis expression whose placeholders are the declaration's own parameters and `$this`.
+
+```nvs
+class Api {
+    #[Core\Deprecated(since: "2.0", note: "`find` also takes a limit.", replace: "$this->find($id, limit: $limit)")]
+    public function findById(int $id, int $limit = 10): ?User { return $this->find($id, limit: $limit); }
+
+    public function find(int $id, int $limit): ?User { … }
+}
+
+// W1003, with a fix that writes: $user = $api->find($request->id(), limit: 10);
+$user = $api->findById($request->id());
+```
+
+**The attribute.** It is on the closed `Core` roster of [`attributes/attach-sites-and-forms`](attributes.md#attributes-attach-sites-and-forms). Its
+fields are `since`, `note` and `replace`, each a string and each optional, and `construct`, a string
+allowed on a class only; any other field is refused. It attaches to a class, an interface, an enum, an
+enum case, a method, a constructor, a property, a class constant and a parameter.
+
+**The template is checked where it is declared.** `replace` is one expression, or one type name on a
+class, an interface or an enum, compiled in the declaration's scope with its parameters and, on an
+instance member, `$this` bound. There is no `{0}`, no `$1` and no other template syntax. It is refused
+where it is written, each with its own `E08xx` code, when it does not parse, does not compile, has a type
+not assignable to the member's (a parameter's template is a named argument that fits the parameter),
+names anything less visible than the member, or names anything deprecated — so no fix ever produces a
+second warning. A class's replacement declares every public member the class declares with an
+assignable signature, and `construct` is a template over the constructor's parameters for a `new`.
+
+**Every use is `W1003`, never an error.** A call, a `new`, a property read or write, a class constant,
+an enum case, a passed deprecated parameter and a type position naming a deprecated class each warn. An
+override or implementation of a deprecated member warns at the override, with no fix. Nothing warns
+inside a deprecated declaration or inside a member of a deprecated class. The message names the member,
+then `since` when written, then `note`, then the replacement as written at that use. Only `nvs check
+--deny deprecated` ([`tooling/a-todo-is-a-comment-the-tools-list`](tooling.md#tooling-a-todo-is-a-comment-the-tools-list)) makes one fail a build.
+
+**The fix fills the template in.** A parameter becomes its argument's source text, matched by position
+or name; one left out becomes its default as written at the declaration; `$this` becomes the receiver as
+written; a static member's class becomes the class as the use wrote it. A substitution is parenthesized
+only where its precedence is lower than its place. A name is resolved at the declaration and written as
+the shortest name that resolves to it at the use, with an import added as `E0303`'s fix adds one, and
+never an alias ([`ide/no-refactoring-introduces-an-alias`](ide.md#ide-no-refactoring-introduces-an-alias)).
+
+**Side effects keep their order and count.** An argument or receiver is pure when it holds no call,
+`new`, assignment, increment or decrement. A pure one is copied wherever the template uses it, and so is
+an impure one used exactly once and in the order the use wrote it. Every other impure one moves to a
+`var` line in front of the statement, in evaluation order, under a fresh name made from its parameter's.
+Where that line would change when the code runs — the right of `&&`, `||`, `??` or `?:`, a loop's
+condition or step, an arrow function, a `match` arm, a default value, a property initializer — and for
+a `...$args` spread into a template parameter, there is no fix, and the warning's help shows the
+template. Every fix that is offered is `safe`.
+
+A construct the compiler refuses outright is not a deprecation and stays refused. A type alias
+carries no attributes and cannot be deprecated.
+
+<sub>See also [`attributes/attach-sites-and-forms`](attributes.md#attributes-attach-sites-and-forms), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/no-refactoring-introduces-an-alias`](ide.md#ide-no-refactoring-introduces-an-alias), [`packaging/a-forced-break-is-announced-before-it-lands`](packaging.md#packaging-a-forced-break-is-announced-before-it-lands), [`errors/a-use-of-deprecated-code-may-log-or-throw`](errors.md#errors-a-use-of-deprecated-code-may-log-or-throw). Decided in [0275](../decisions/0275.md).</sub>

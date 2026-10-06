@@ -148,7 +148,7 @@ that adds the block, so a reader of `nvs.toml` has one place to start:
 `[[schedule]]`, like `[[extension]]`, is an array of tables because it is a repeated record with
 several fields.
 
-<sub>See also [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one). Decided in [0064](../decisions/0064.md), [0103](../decisions/0103.md), [0104](../decisions/0104.md).</sub>
+<sub>See also [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one). Decided in [0064](../decisions/0064.md), [0103](../decisions/0103.md), [0104](../decisions/0104.md), [0275](../decisions/0275.md).</sub>
 
 <a id="config-nvs-toml-is-not-a-project-manifest"></a>
 

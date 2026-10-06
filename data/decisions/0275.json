@@ -1,0 +1,14 @@
+{
+  "title": "A deprecated declaration names its replacement as a checked Novis expression, every use warns with that rewrite as its fix, and a `// TODO:` comment is a list the tools print",
+  "status": "accepted",
+  "scope": "the compiler-recognized `#[Core\\Deprecated]` attribute, its attach sites, its `replace` template and\nthe checks the template meets where it is declared; `W1003` at every use and the rewrite it carries as\na `safe` suggestion; the `// TODO:` comment form; `nvs check --deny`, `--fix` and `--todos`; and the\n`[errors] deprecated` setting with `Core\\DeprecatedError`. The spelling of each new diagnostic, and\nthe exact text of `W1003`'s message, are left to the stages that write them.",
+  "dependsOn": [
+    "0046",
+    "0068",
+    "0099",
+    "0137",
+    "0064"
+  ],
+  "dependsOnText": "[0046](0046.md) (attributes, which left `#[Deprecated]` to its own record), [0068](0068.md)\n(a forced break is announced by a warning naming its replacement), [0099](0099.md) (a quick fix is a\ndiagnostic's suggestion), [0137](0137.md) (no `@deprecated` tag), [0064](0064.md) (the block roster).",
+  "validatedBy": "`tests/conformance/reject/a-deprecation-template-that-does-not-fit-does-not-compile.nvst`, and the\ngoal `deprecated-and-todo`'s acceptance checks: every fixture the rewrite tests fix is checked again\nwith no `W1003` and no error, and a program that uses nothing deprecated compiles to the same code."
+}

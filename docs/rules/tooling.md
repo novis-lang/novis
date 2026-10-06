@@ -3,7 +3,7 @@
 
 # Tooling
 
-*14 of 62 rules below are **designed** rather than shipped, and are marked where they appear.*
+*15 of 63 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="tooling-shebang-opens-code-mode"></a>
 
@@ -1109,7 +1109,7 @@ There is no `@param`, `@return`, `@throws`, `@var`, `@deprecated`, `@since` or `
 nothing PHPDoc carried survives as prose. Parameter and return types are the signature, which cannot drift
 from itself; a callable carries its own ([`types/callable-signature`](types.md#types-callable-signature)); what a `Core` member throws is
 its registry card ([`core-api/reference-card`](core-api.md#core-api-reference-card)) and for user code is a sentence; every binding is
-annotated, so `@var` has nothing to say; deprecation is an attribute ([`attributes/inert-metadata`](attributes.md#attributes-inert-metadata));
+annotated, so `@var` has nothing to say; deprecation is an attribute ([`attributes/a-deprecation-names-its-replacement-as-code`](attributes.md#attributes-a-deprecation-names-its-replacement-as-code));
 "this touches the filesystem" is a declared capability ([`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door)). A
 parameter that needs explaining is named in a sentence — "the timeout is in **milliseconds**" — and the
 diagnostic says so: *`@param` is not a documentation tag; name the parameter in a sentence instead — its
@@ -1118,7 +1118,7 @@ type is in the signature*, and likewise for `@throws` and `@returns`.
 The two tags survive because each buys a *check* — a cross-reference that must resolve, an example that
 must still compile — and a third has to meet the same standard, never merely improve a rendering.
 
-<sub>See also [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`types/callable-signature`](types.md#types-callable-signature), [`core-api/reference-card`](core-api.md#core-api-reference-card). Decided in [0137](../decisions/0137.md).</sub>
+<sub>See also [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`types/callable-signature`](types.md#types-callable-signature), [`core-api/reference-card`](core-api.md#core-api-reference-card). Decided in [0137](../decisions/0137.md), [0275](../decisions/0275.md).</sub>
 
 <a id="tooling-strict-docs"></a>
 
@@ -1152,6 +1152,44 @@ publishing turns out to want more than "a public member has a comment" — a min
 sentence — that is a lint's design and belongs with the publisher.
 
 <sub>See also [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`tooling/doc-comment-attaches-to-the-next-declaration`](tooling.md#tooling-doc-comment-attaches-to-the-next-declaration), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0137](../decisions/0137.md), [0234](../decisions/0234.md).</sub>
+
+<a id="tooling-a-todo-is-a-comment-the-tools-list"></a>
+
+## A `// TODO:` comment is a list the editor and `nvs check --todos` print, never a diagnostic, and `nvs check` gains `--deny` and `--fix`  *(designed — not yet in the compiler)*
+
+`rule:tooling/a-todo-is-a-comment-the-tools-list`
+
+A `//` line comment whose text, after the slashes and spaces, starts with `TODO:` in capitals is a todo,
+and the rest of the line is its text.
+
+```nvs
+// TODO: page through the results once `find` takes an offset.
+```
+
+A `///` doc comment is never one, and neither is `todo:`, `TODO` without the colon, or a `/* */`
+comment. Todos are read from the trivia the lexer already keeps, so the parser does not change. A todo is
+a comment and only a comment: there is no todo attribute and no statement attribute, because either
+would say the same thing a second way.
+
+**It is a list, not a diagnostic.** `Severity` has no todo level. The language server shows each todo
+as an `Information` entry with source `todo` and no code, never phase-gated, and `nvs check --todos`
+prints `path:line: text` for every one, in path and line order; under `--json` the document gains a
+`todos` array ([`ide/check-json-is-the-diagnostic-record-as-a-document`](ide.md#ide-check-json-is-the-diagnostic-record-as-a-document)). `nvs check` without
+`--todos` prints none.
+
+**`nvs check` gains two more flags with it.**
+
+- `--deny <kind>`, repeatable, over the closed list `deprecated` and `todo`. The command prints
+  everything it would have printed, then exits with failure when one of those kinds is found in a file
+  outside `vendor/`.
+- `--fix` applies every suggestion marked `safe`, from every diagnostic, in every file of the checked
+  program outside `vendor/`. Overlapping edits apply first-come; the program is checked again and the
+  next pass applies what is left, until a pass applies nothing. It prints how many edits it made in how
+  many files. It never writes under `vendor/`.
+
+`TODO(owner):`, `FIXME:` and any `--deny` kind beyond the two are not part of the form.
+
+<sub>See also [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes), [`attributes/a-deprecation-names-its-replacement-as-code`](attributes.md#attributes-a-deprecation-names-its-replacement-as-code), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows). Decided in [0275](../decisions/0275.md).</sub>
 
 <a id="tooling-nvs-doc-renders-and-decides-nothing"></a>
 

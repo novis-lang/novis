@@ -26,6 +26,7 @@
     "errors/log-level",
     "errors/log-fields",
     "errors/a-repeat-is-bounded-at-the-sink-that-suffers",
+    "errors/a-use-of-deprecated-code-may-log-or-throw",
     "errors/ambiguous-input-refused",
     "errors/http-message-defects",
     "errors/cookie-name-bytes",
