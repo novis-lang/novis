@@ -1609,7 +1609,7 @@ request's snapshot and its isolate's `grants:` list. Each root of it is a preope
 `nvs_ext::wasi`'s filesystem resolves a guest's path under it one name at a time
 (`crates/nvs-ext/tests/files.rs`). `nvs_ext::wasi`'s outgoing handler refuses a host outside the
 `connect` set before anything is sent, and the caller's `net.connect` is asked again by the client
-that sends it; no test drives a guest's request through it yet.
+that sends it, so the address policy, TLS trust and the proxy apply (`crates/nvs-ext/tests/http.rs`).
 
 <sub>See also [`packaging/a-guest-has-no-ambient-authority`](packaging.md#packaging-a-guest-has-no-ambient-authority), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time). Decided in [0246](../decisions/0246.md).</sub>
 

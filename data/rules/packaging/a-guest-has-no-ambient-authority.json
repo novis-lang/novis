@@ -12,6 +12,7 @@
   ],
   "guardedBy": [
     "crates/nvs-stdlib/tests/ext_world.rs",
-    "crates/nvs-ext/tests/wasi.rs"
+    "crates/nvs-ext/tests/wasi.rs",
+    "crates/nvs-ext/tests/http.rs"
   ]
 }

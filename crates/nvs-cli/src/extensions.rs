@@ -11,8 +11,8 @@
 //! **The engine is made for the first entry.** A configuration with no `[[extension]]` creates no
 //! engine, and its boot and reload pay one empty loop. The engine is the process's one
 //! `nvs_ext::call::Host`'s, because a component runs only in the engine that compiled it. The host
-//! has room for [`SLOTS`] instances at once and links only the world's own imports; a guest is
-//! granted no WASI interface yet.
+//! has room for [`SLOTS`] instances at once and links only the world's own imports. A guest holds
+//! the files and hosts its effective grant names, and no other authority.
 //!
 //! **A call** (`rule:packaging/extension-calls-are-statically-typed`). [`Calls`] implements
 //! `nvs_runtime::extension::Extensions` over one `nvs_ext::call::Request`, made at the run's first

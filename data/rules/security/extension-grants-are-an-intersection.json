@@ -9,5 +9,9 @@
     "security/capability-question-is-grant-and-scope",
     "security/package-authority-is-granted-one-line-at-a-time"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-ext/tests/grants.rs",
+    "crates/nvs-ext/tests/files.rs",
+    "crates/nvs-ext/tests/http.rs"
+  ]
 }

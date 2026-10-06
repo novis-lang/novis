@@ -30,4 +30,4 @@ reach it. `nvs:ext/settings` reads the `[ext.<name>]` block of the request's sna
 `System`/`Reload` block `nvs.toml` accepts and boot and reload check against the loaded manifests
 (`nvs_cli::extensions::loaded`). `wasi:http`'s outgoing handler sends through
 `nvs_ext::call::Budget::send`, which `nvs serve` and `nvs run` answer with `Core\Http\Client`'s
-transport under the request's own context; no test drives a guest's request through it yet.
+transport under the request's own context (`crates/nvs-ext/tests/http.rs`).
