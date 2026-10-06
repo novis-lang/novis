@@ -22,7 +22,7 @@ const graph: Graph = new Map([
 
 const ctx: PlanContext = {
   graph,
-  cases: ["tests/conformance/a.nvst", "tests/conformance/sub/b.nvst", "tests/differential/c.nvst"],
+  cases: ["tests/conformance/a.nvst", "tests/conformance/sub/b.nvst", "tests/other/c.nvst"],
   nvTests: ["tools/nv/test/bg.test.ts", "tools/nv/test/guard.test.ts"],
   groupDirs: new Map([["Core\\Str", ["docs/examples/core/Str/length", "tests/hostile/core/Str/length"]]]),
   proofs: ["docs/examples/core/Str/length/01-basics.nvs", "tests/hostile/core/Str/length/01-x.nvs", "docs/examples/core/Arr/map/01-a.nvs"],

@@ -254,7 +254,7 @@ function print(p: Plan, asked: string[] | undefined): void {
   const cases = (tree: string) => v.cases.filter((x) => x.id.startsWith(`case:tests/${tree}/`));
   for (const s of v.steps) {
     const n = s === "test" ? v.tests.length : cases(s).length;
-    const what = s === "test" ? ` ${n} binar${n === 1 ? "y" : "ies"}` : s === "conformance" || s === "differential" ? ` ${n} case(s)` : "";
+    const what = s === "test" ? ` ${n} binar${n === 1 ? "y" : "ies"}` : s === "conformance" ?` ${n} case(s)` : "";
     console.log(`  ${s.padEnd(12)}${what}`);
     const atoms = s === "test" ? v.tests : cases(s);
     for (const a of atoms.slice(0, 8)) console.log(`      ${a.id.slice(a.id.indexOf(":") + 1)}  <- ${a.why}`);

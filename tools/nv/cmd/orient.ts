@@ -1439,8 +1439,8 @@ async function runClosing(): Promise<void> {
   emit("  a re: target prints the matching line ALONE -- `re:pat:3`, or --context 3 for the");
   emit("  whole call, is how a heading or a `//!` line comes back with the block under it");
   emit(`  ${tool("gaps").padEnd(34)}the next group, ranked: cases per member per class,`);
-  emit("                                    the PHP twins with no oracle case, the unasserted");
-  emit("                                    error paths -- never an `ls tests/` plus a `grep`");
+  emit("                                    the unasserted error paths -- never an `ls tests/`");
+  emit("                                    plus a `grep`");
   emit();
   emit("THE PIPELINE'S `nvs` IS ALREADY BUILT at the commit this session starts from, at");
   emit("`target/covws/<host triple>/debug/nvs`: `bun nv try` runs it. Do not `ls` it first,");

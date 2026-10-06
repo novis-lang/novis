@@ -2,7 +2,7 @@
 //
 //     bun nv session --template        a wrap file skeleton, with this tree's counts already in it
 //     bun nv session --check           what steps 4 and 5 still owe, read off the tree
-//     bun nv session --counts          conformance, differential and decision record counts
+//     bun nv session --counts          conformance case and decision record counts
 //     bun nv session --scrub           a commit message on stdin, written trailer-free on stdout
 //     bun nv session --wrap F [--dry-run]   apply a wrap file: the whole session tail
 //
@@ -220,11 +220,10 @@ function countFiles(dir: string, ext: string): number {
 }
 
 /** The counts the plan's prose should agree with, keyed the way `--template` names them. */
-export function counts(): Record<"conformance" | "differential" | "adrs" | "highest_adr", number> {
+export function counts(): Record<"conformance" | "adrs" | "highest_adr", number> {
   const adrs = readdirSync(join(ROOT, "docs", "decisions")).filter((f) => /^\d{4}\.md$/.test(f)).sort();
   return {
     conformance: countFiles(join(ROOT, "tests", "conformance"), ".nvst"),
-    differential: countFiles(join(ROOT, "tests", "differential"), ".nvst"),
     adrs: adrs.length,
     highest_adr: adrs.length ? Number(adrs[adrs.length - 1]!.slice(0, 4)) : 0,
   };
@@ -254,7 +253,7 @@ export function staleEdits(): [string, string, string][] {
   const c = counts();
   const out: [string, string, string][] = [];
   for (const [name, body] of planFields()) {
-    for (const [label, value] of [["conformance", c.conformance], ["differential", c.differential]] as const) {
+    for (const [label, value] of [["conformance", c.conformance]] as const) {
       for (const m of body.matchAll(new RegExp(`${label}\\D{0,12}(\\d{2,4})`, "gid"))) {
         if (Number(m[1]) === value) continue;
         const start = m.index!;
@@ -1074,7 +1073,6 @@ async function check(): Promise<number> {
   const c = counts();
   say("== COUNTS  (what the plan's prose should agree with)");
   say(`  conformance cases   ${c.conformance}`);
-  say(`  differential cases  ${c.differential}`);
   say(`  ADRs on disk        ${c.adrs}, highest ${String(c.highest_adr).padStart(4, "0")}, next free ${String(c.highest_adr + 1).padStart(4, "0")}`);
 
   say();

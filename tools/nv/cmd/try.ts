@@ -1,30 +1,24 @@
-// `bun nv try`: runs Novis snippets against PHP, several at a time, in the shape a `.nvst` case
-// already has.
+// `bun nv try`: runs Novis snippets, several at a time, in the shape a `.nvst` case already has.
 //
 //     bun nv try .agent-tmp/promo.nvst .agent-tmp/div.nvst     one call, as many as you have questions
-//     bun nv try --keep .agent-tmp/promo.nvst                  leave the generated .nvs/.php behind
+//     bun nv try --keep .agent-tmp/promo.nvst                  leave the generated .nvs behind
 //     bun nv try --bundle examples/hello.nvs --expect "Hello, World!"
 //
-// Each argument is a file in the `.nvst` shape -- `--TEST--`, `--FILE--`, and optionally `--ORACLE--`
-// -- or, when it holds no markers at all, a bare `<?nvs` snippet. For each one this runs the Novis
-// binary; where there is an `--ORACLE--` it runs PHP over that too and says whether the two agree, with
-// the first line they differ on. `conventions.md` § *A `.nvst` test case* is the format's home.
+// Each argument is a file in the `.nvst` shape -- `--TEST--` and `--FILE--` -- or, when it holds no
+// markers at all, a bare `<?nvs` snippet. For each one this runs the Novis binary and prints its exit
+// status and everything it printed. `conventions.md` § *A `.nvst` test case* is the format's home, so
+// an experiment whose output is what the rules say is one `--EXPECT--` away from a conformance case.
+// The snippets run several at a time, as wide as `tools/nv/lib/machine.ts` says this box may go unless
+// `NVS_TRY_JOBS` or `NVS_JOBS` says otherwise, and print back in the order they were asked for.
 //
-// A hand-written `php -r` twin is a translation, made by the agent that wrote the Novis at the moment
-// it most wants the answer to be yes. Here the twin is a section of the same file, so an experiment
-// that comes out right is already a differential case: give it a `--TEST--` line and move it under
-// `tests/differential/`. The snippets run several at a time, as wide as `tools/nv/lib/machine.ts` says
-// this box may go unless `NVS_TRY_JOBS` or `NVS_JOBS` says otherwise, and print back in the order they
-// were asked for.
+// Nothing here judges a snippet. One that fails to compile prints its diagnostic, and the exit status
+// is 0, because what it printed is the finding.
 //
-// Nothing here judges. A snippet that fails to compile prints its diagnostic, a twin that diverges
-// prints both outputs, and the exit status is 0, because "Novis and PHP disagree" is the finding.
-//
-// `--bundle` swaps the twin: each argument is a `.nvs` entry point, built with `nvs build --compile`,
-// and the executable is run beside `nvs run` over the same source. That pair is
+// `--bundle` is the one mode that judges: each argument is a `.nvs` entry point, built with `nvs build
+// --compile`, and the executable is run beside `nvs run` over the same source. That pair is
 // `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`'s own verification --
-// a bundled executable runs identically to `nvs run`. `--expect LINE` is the one place this command
-// judges, because an acceptance check needs a verdict: every `LINE` must appear in the bundle's
+// a bundled executable runs identically to `nvs run`. `--expect LINE` is there because an acceptance
+// check needs a verdict: every `LINE` must appear in the bundle's
 // output, and the exit status is 1 when one does not or when the bundle and `nvs run` differ.
 
 
@@ -36,9 +30,9 @@ import { jobs as machineJobs } from "../lib/machine.ts";
 import { ROOT } from "../lib/paths.ts";
 import { ArgError, parseArgs, pyRepr } from "../lib/py.ts";
 
-export const summary = "run .nvst snippets beside their PHP twin, or a bundle beside nvs run: nv try [--bundle] FILE...";
+export const summary = "run .nvst snippets several at a time, or a bundle beside nvs run: nv try [--bundle] FILE...";
 
-const USAGE = "usage: nv try [-h] [--keep] [--php PHP] [--bundle] [--expect LINE]\n              FILE [FILE ...]";
+const USAGE = "usage: nv try [-h] [--keep] [--bundle] [--expect LINE]\n              FILE [FILE ...]";
 
 const TMP = join(ROOT, ".agent-tmp");
 let binary = "";
@@ -49,7 +43,7 @@ function nvsBinary(): string {
 }
 
 // A `--SECTION--` line in a `.nvst` file. `crates/nvs-test/src/case.rs` owns the full roster; only
-// `TEST`, `FILE`, `ORACLE` and `ORACLE-DIVERGES` mean anything here, and an unknown one is ignored.
+// `TEST` and `FILE` mean anything here, and any other is ignored.
 const SECTION = /^--([A-Z][A-Z0-9-]*)--\s*$/gm;
 
 // How long one program may run. A hung snippet is reported beside the others, never waited on.
@@ -59,15 +53,14 @@ function help(): string {
   return [
     USAGE,
     "",
-    "Run Novis snippets against PHP, several at a time, in the shape a `.nvst` case already has.",
+    "Run Novis snippets, several at a time, in the shape a `.nvst` case already has.",
     "",
     "positional arguments:",
     "  FILE           `.nvst`-shaped snippets, or bare `<?nvs` ones; as many as you have questions",
     "",
     "options:",
     "  -h, --help     show this help message and exit",
-    "  --keep         leave the generated .nvs/.php under .agent-tmp/ instead of removing them",
-    "  --php PHP      the PHP executable (default `php`)",
+    "  --keep         leave the generated .nvs under .agent-tmp/ instead of removing it",
     "  --bundle       treat each FILE as a `.nvs` entry point: build it with `nvs build --compile` and",
     "                 run the result beside `nvs run`",
     "  --expect LINE  with --bundle: a line the bundle's output must contain; a miss is a non-zero",
@@ -125,7 +118,7 @@ async function exec(argv: string[]): Promise<[string, number]> {
 const gutter = (text: string) => text.replace(/\n+$/, "").split("\n").map((line) => `    | ${line}`);
 
 /** The first line two outputs disagree on, labelled `left` and `right`. */
-function firstDifference(a: string, b: string, left = "nvs", right = "php"): string {
+function firstDifference(a: string, b: string, left: string, right: string): string {
   const la = a.split("\n");
   const lb = b.split("\n");
   for (let n = 0; n < Math.min(la.length, lb.length); n++) {
@@ -152,13 +145,13 @@ function remove(path: string): void {
   }
 }
 
-/** One snippet: true when Novis and its twin agree, or when there is no twin to disagree with. */
-async function one(path: string, keep: boolean, php: string, stem: string): Promise<[boolean, string[]]> {
+/** One snippet, run through `nvs run`: its exit status and everything it printed. */
+async function one(path: string, keep: boolean, stem: string): Promise<string[]> {
   let text: string;
   try {
     text = readFileSync(path, "utf8");
   } catch (e) {
-    return [true, [`===== ${normalize(path)}  -- cannot read: ${(e as Error).message}`]];
+    return [`===== ${normalize(path)}  -- cannot read: ${(e as Error).message}`];
   }
   const parts = sections(text);
   const title = (parts.get("TEST") ?? "").trim().split("\n")[0]!;
@@ -167,40 +160,16 @@ async function one(path: string, keep: boolean, php: string, stem: string): Prom
   const body = parts.get("FILE");
   if (body === undefined || !body.trim()) {
     out.push("  no `--FILE--` section and no bare snippet -- nothing to run");
-    return [true, out];
+    return out;
   }
 
   mkdirSync(TMP, { recursive: true });
   const nvsFile = join(TMP, `try-${stem}.nvs`);
   writeFileSync(nvsFile, body.replace(/^\n+/, ""));
-  const [nvsOut, nvsCode] = await exec([nvsBinary(),"run", nvsFile]);
+  const [nvsOut, nvsCode] = await exec([nvsBinary(), "run", nvsFile]);
   out.push(`  nvs  exit ${nvsCode}`, ...gutter(nvsOut));
-
-  const diverges = parts.get("ORACLE-DIVERGES");
-  if (diverges !== undefined) {
-    out.push(`  oracle: deliberately diverges -- ${head(diverges.trim().split("\n")[0]!, 90)}`);
-    return [true, out];
-  }
-  const twin = parts.get("ORACLE");
-  if (twin === undefined) {
-    out.push("  no `--ORACLE--`: this ran Novis only. A twin here is what makes the answer");
-    out.push("  evidence rather than an opinion -- and makes the file a differential case.");
-    return [true, out];
-  }
-
-  const phpFile = join(TMP, `try-${stem}.php`);
-  writeFileSync(phpFile, twin.replace(/^\n+/, ""));
-  const [phpOut, phpCode] = await exec([php, phpFile]);
-  out.push(`  php  exit ${phpCode}`, ...gutter(phpOut));
-  if (!keep) {
-    remove(nvsFile);
-    remove(phpFile);
-  }
-
-  const agree = nvsOut === phpOut;
-  out.push(agree ? "  MATCH" : "  DIFFER");
-  if (!agree) out.push(firstDifference(nvsOut, phpOut));
-  return [agree, out];
+  if (!keep) remove(nvsFile);
+  return out;
 }
 
 /**
@@ -246,9 +215,9 @@ export async function run(args: string[]): Promise<number> {
   try {
     parsed = parseArgs(args, {
       flags: ["--keep", "--bundle"],
-      valued: ["--php"],
+      valued: [],
       repeated: ["--expect"],
-      order: ["--keep", "--php", "--bundle", "--expect"],
+      order: ["--keep", "--bundle", "--expect"],
       positionals: true,
     });
     if (parsed.flags.has("--help")) {
@@ -263,7 +232,6 @@ export async function run(args: string[]): Promise<number> {
   }
   const keep = parsed.flags.has("--keep");
   const bundle = parsed.flags.has("--bundle");
-  const php = parsed.values.get("--php") ?? "php";
   const expect = parsed.lists.get("--expect") ?? [];
   if (expect.length > 0 && !bundle) {
     console.error(`${USAGE}\nnv try: error: --expect is only meaningful with --bundle`);
@@ -287,9 +255,10 @@ export async function run(args: string[]): Promise<number> {
     seen.add(stems[stems.length - 1]!);
   });
 
-  // A snippet is a process pair with nothing shared, so the width is the machine's to decide.
+  // A snippet shares nothing with the others, so the width is the machine's to decide.
   const jobs = machineJobs("local", { ceiling: paths.length, envs: ["NVS_TRY_JOBS"] });
-  const work = (i: number) => (bundle ? bundled(paths[i]!, keep, expect, stems[i]!) : one(paths[i]!, keep, php, stems[i]!));
+  const work = async (i: number): Promise<[boolean, string[]]> =>
+    bundle ? bundled(paths[i]!, keep, expect, stems[i]!) : [true, await one(paths[i]!, keep, stems[i]!)];
   const results: Promise<[boolean, string[]]>[] = new Array(paths.length);
   let next = 0;
   const workers = Array.from({ length: jobs }, async () => {
@@ -309,12 +278,12 @@ export async function run(args: string[]): Promise<number> {
     if (agree) agreed++;
   }
   console.log();
-  const twins = paths.length - agreed;
+  const failed = paths.length - agreed;
   const noun = bundle ? "entry point" : "snippet";
   console.log(
     `-- try: ${paths.length} ${noun}(s) in one call` +
       (jobs > 1 ? `, ${jobs} at a time` : "") +
-      (twins ? `, ${twins} disagreeing with its twin` : ""),
+      (failed ? `, ${failed} failing` : ""),
   );
-  return bundle && twins ? 1 : 0;
+  return failed ? 1 : 0;
 }

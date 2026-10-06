@@ -129,7 +129,7 @@ const TAIL_LINES = 60;
 const STEP_TIMEOUT_MS = 60 * 60 * 1000;
 
 /** The steps that use what `build` leaves on disk. */
-const NEEDS_BINARY = new Set(["nvs-fmt", "test", "conformance", "differential", "reference", "extension"]);
+const NEEDS_BINARY = new Set(["nvs-fmt", "test", "conformance", "reference", "extension"]);
 /** Whether step `name`, listed after `build`, uses what it leaves on disk: a script step is listed there
  * only when it does and the binary is not built yet (`stepsFor`). */
 const usesBinary = (name: string) => NEEDS_BINARY.has(name) || BESIDE_BUILD.has(name);
@@ -142,7 +142,7 @@ const NVS_FMT_SKIPS = "tests/fmt/input/";
 const EXTENSION = join(ROOT, "editors", "vscode");
 const FUZZ = join(ROOT, "fuzz");
 /** The `.nvst` trees verify runs. */
-const CASE_TREES = ["conformance", "differential"];
+const CASE_TREES = ["conformance"];
 const EXE = process.platform === "win32" ? ".exe" : "";
 /** The doc-tests, one atom: rustdoc builds and runs each in a directory it deletes. */
 const DOC_TESTS = "step:doc-tests";

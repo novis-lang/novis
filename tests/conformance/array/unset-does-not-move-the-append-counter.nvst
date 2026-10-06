@@ -19,9 +19,6 @@ The append counter only ever counts up: a removal never lowers it, in either rep
 // followed by an append is a known crash rather than a refusal, and the plan's
 // `Open now` owns it. PHP throws there.
 //
-// Every row below was checked against PHP 8.5.9, which answers all twelve
-// identically; the case carries no --ORACLE-- because CI's runners have no PHP.
-//
 // That the two shapes agree about everything else is
 // tests/conformance/core/arr-readers-agree-across-both-array-shapes.nvst;
 // the thin version of the removal claim is

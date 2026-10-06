@@ -2,20 +2,16 @@
 // and the known gaps one module owes.
 //
 //     bun nv gaps --module crates/nvs-ir/src/lib.rs   the gap records naming that file, or every file under a directory
-//     bun nv gaps                          all three lists, counts and a sample
+//     bun nv gaps                          both lists, counts and a sample
 //     bun nv gaps --coverage               cases per member, per class, thinnest first
-//     bun nv gaps --differential           every member with a PHP twin and no oracle case
-//     bun nv gaps --errors                 every Fault site no case asserts
+//     bun nv gaps --errors                every Fault site no case asserts
 //     bun nv gaps --member 'Core\Arr::chunk'   what the corpus already asks of one member
 //     bun nv gaps --limit 0                no truncation
 //     bun nv gaps --json                   one JSON object instead
 //
 // Every registered member has a case, so the question a session asks is which claim to pin next, and
-// the tree already answers it three ways:
+// the tree already answers it two ways:
 //
-// - **A differential gap.** `docs/spec/01-core-library.md`'s **Replaces** column names the PHP
-//   built-ins a member subsumes, which is the twin a `--ORACLE--` case needs. A member with a named twin
-//   that no case in `tests/differential/` calls is a case whose expected output PHP computes.
 // - **A thin class.** Depth is the median number of cases per member, and floor is the worst member,
 //   so a big class is not thin merely for being big. A case belongs to a class when it names it, or
 //   when it holds one of its values: a written `Owner::member(` that returns an instance of another
@@ -25,8 +21,7 @@
 //   one echoes the message, so a message stem that appears in no case under `tests/conformance/` is a
 //   boundary nothing asks about.
 //
-// An entry is a candidate, not a plan: a `Fault::fatal` may be an invariant no program reaches, and a
-// member whose PHP twin diverges by decision wants `--ORACLE-DIVERGES--` instead. The member table is
+// An entry is a candidate, not a plan: a `Fault::fatal` may be an invariant no program reaches. The member table is
 // read positionally out of the `CoreClass` literals: a member belongs to the class whose literal most
 // recently opened above it, and a class whose name does not resolve still opens a run, so its members
 // are skipped rather than credited to the class above it. `crates/nvs-stdlib/tests/corpus/mod.rs`'s
@@ -47,12 +42,11 @@ import { load } from "../lib/store.ts";
 import { gap as gapType } from "../schema/gap.ts";
 import { collect as collectGaps, type Gap } from "./owners.ts";
 
-export const summary = "what the corpus does not ask yet, and what a module owes: nv gaps [--coverage | --differential | --errors | --member NAME | --module PATH] [--limit N] [--json]";
+export const summary = "what the corpus does not ask yet, and what a module owes: nv gaps [--coverage | --errors | --member NAME | --module PATH] [--limit N] [--json]";
 
 const SPEC = "docs/spec/01-core-library.md";
 const STDLIB = "crates/nvs-stdlib/src";
 const CONFORMANCE = "tests/conformance";
-const DIFFERENTIAL = "tests/differential";
 /** Where the tree-wide name-const map is read from: the stdlib, and the runtime crate a stdlib file forwards a carrier's name out of. */
 const CONST_ROOTS = [STDLIB, "crates/nvs-runtime/src"];
 
@@ -82,12 +76,6 @@ type Pos = [string, number, string];
 /** A median that is a whole list element prints as an int, and one that averages two prints as a float, as Python's does. */
 class Median {
   constructor(readonly value: number, readonly float: boolean) {}
-}
-
-interface Diff {
-  member: string;
-  php: string[];
-  anchor: string;
 }
 
 interface Err {
@@ -332,32 +320,6 @@ export function phpTwins(cell: string): string[] {
 
 // -------------------------------------------------------------------------- the gaps
 
-/** Every `Core\X::member` and `->member(` the given corpus text calls. */
-function calledMembers(text: string): Set<string> {
-  const out = new Set<string>();
-  for (const m of text.matchAll(/(Core(?:\\[A-Za-z]+)+)::([A-Za-z][A-Za-z0-9]*)/gu)) out.add(`${m[1]}::${m[2]}`);
-  for (const m of text.matchAll(ARROW_RE)) out.add(`->${m[1]}`);
-  return out;
-}
-
-/** Members whose spec entry names a PHP built-in and whose name no differential case calls. */
-function differentialGaps(): Diff[] {
-  const reg = registry();
-  const syms = symbolLines();
-  const called = calledMembers(corpus(DIFFERENTIAL));
-  const out: Diff[] = [];
-  for (const [classes, member, , replaces] of specRows()) {
-    const twins = phpTwins(replaces);
-    if (twins.length === 0) continue;
-    // A member the spec names and the registry does not is the registry ratchet's gap, not this one.
-    const owner = classes.find((c) => reg.has(`${c}::${member}`)) ?? "";
-    if (!owner) continue;
-    if (called.has(`${owner}::${member}`) || called.has(`->${member}`)) continue;
-    out.push({ member: `${owner}::${member}`, php: twins, anchor: anchorOf(reg, syms, `${owner}::${member}`) });
-  }
-  return out;
-}
-
 /**
  * `Fault::` sites in `nvs-stdlib` whose message stem appears in no case under `tests/conformance/`. That tree
  * alone is the corpus, the one `conformance_coverage.rs`'s `error_corpus` reads, and its
@@ -475,16 +437,14 @@ function coverage(): Coverage[] {
 /** Which cases already call one member, so a session can see what is asked before adding. */
 function memberReport(name: string): string[] {
   const lines: string[] = [];
-  for (const [label, root] of [["conformance", CONFORMANCE], ["differential", DIFFERENTIAL]] as const) {
-    for (const path of cases(root)) {
-      const text = read(path);
-      if (!text.includes(name)) continue;
-      const all = text.split("\n");
-      const at = all.findIndex((ln) => ln.trim() === "--TEST--");
-      const title = at !== -1 && at + 1 < all.length ? all[at + 1]!.trim() : "";
-      lines.push(`  ${pad(label, 12)} ${path}`);
-      if (title) lines.push(`               ${head(title, 110)}`);
-    }
+  for (const path of cases(CONFORMANCE)) {
+    const text = read(path);
+    if (!text.includes(name)) continue;
+    const all = text.split("\n");
+    const at = all.findIndex((ln) => ln.trim() === "--TEST--");
+    const title = at !== -1 && at + 1 < all.length ? all[at + 1]!.trim() : "";
+    lines.push(`  ${pad("conformance", 12)} ${path}`);
+    if (title) lines.push(`               ${head(title, 110)}`);
   }
   return lines;
 }
@@ -505,7 +465,7 @@ function show<T>(rows: T[], limit: number, render: (row: T) => string): void {
   if (shown.length < rows.length) console.log(`  ... and ${rows.length - shown.length} more (--limit 0 for all)`);
 }
 
-const USAGE = "usage: bun nv gaps [--differential] [--errors] [--coverage] [--member MEMBER] [--module PATH] [--limit LIMIT] [--json]";
+const USAGE = "usage: bun nv gaps [--errors] [--coverage] [--member MEMBER] [--module PATH] [--limit LIMIT] [--json]";
 
 /** A path as a record's `module` spells it: repo-rooted, `/`-separated, no leading `./` and no trailing `/`. */
 function modulePath(p: string): string {
@@ -563,7 +523,7 @@ export async function run(args: string[]): Promise<number> {
         console.error(`${USAGE}\nnv gaps: --limit takes a number, not ${JSON.stringify(value)}`);
         return 2;
       }
-    } else if (["--differential", "--errors", "--coverage", "--json"].includes(a)) flags.add(a);
+    } else if (["--errors", "--coverage", "--json"].includes(a)) flags.add(a);
     else {
       console.error(USAGE);
       return 2;
@@ -584,13 +544,12 @@ export async function run(args: string[]): Promise<number> {
     return 0;
   }
 
-  const both = !(flags.has("--differential") || flags.has("--errors") || flags.has("--coverage"));
-  const diff = both || flags.has("--differential") ? differentialGaps() : [];
+  const both = !(flags.has("--errors") || flags.has("--coverage"));
   const errs = both || flags.has("--errors") ? errorGaps() : [];
   const cov = both || flags.has("--coverage") ? coverage() : [];
 
   if (flags.has("--json")) {
-    console.log(pythonJson({ differential: diff, errors: errs, coverage: cov }));
+    console.log(pythonJson({ errors: errs, coverage: cov }));
     return 0;
   }
 
@@ -607,15 +566,6 @@ export async function run(args: string[]): Promise<number> {
         ? ` no case calls ${r.uncalled.slice(0, 3).map((u) => `${u.member} ${u.anchor}`).join(", ")}`
         : ` ${r.thin.map((t) => `${t.member} ${t.cases}`).join(", ")}`));
     console.log("     ^depth ^floor ^cases ^members  ^thinnest members, and their case counts");
-    console.log();
-  }
-
-  if (both || flags.has("--differential")) {
-    const have = cases(DIFFERENTIAL).length;
-    console.log(`== DIFFERENTIAL GAP  (${diff.length} members with a PHP twin and no oracle case; the suite holds ${have})`);
-    console.log("-- the twin is the spec's Replaces column; PHP computes the expectation, so a case");
-    console.log("-- here needs no frozen output. Never in tests/conformance/ (conventions.md).");
-    show(diff, limit, (r) => `  ${pad(r.member, 34)} <- ${pad(head(r.php.join(", "), 44), 46)} ${r.anchor}`);
     console.log();
   }
 

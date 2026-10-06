@@ -3,10 +3,10 @@
 
 /** Each tree whose files are scanned for markers, with the file ending scanned there. The example,
  * attack and bench trees are attributed by path, so a marker in one is never read. */
-export const MARKER_ROOTS: readonly [string, string][] = [["tests/conformance", ".nvst"], ["tests/differential", ".nvst"], ["crates", ".rs"]];
+export const MARKER_ROOTS: readonly [string, string][] = [["tests/conformance", ".nvst"], ["crates", ".rs"]];
 
 /** Each tree whose cases are scanned for calls. */
-export const CALL_ROOTS: readonly string[] = ["tests/conformance", "tests/differential"];
+export const CALL_ROOTS: readonly string[] = ["tests/conformance"];
 
 /** `// covers: A, B`, in a `.nvst`, a `.nvs` or above a Rust `#[test]`. `#` lets it sit in TOML too. */
 const COVERS_RE = /(?:\/\/|#)\s*covers:\s*(.+)/g;

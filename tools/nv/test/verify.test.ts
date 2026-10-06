@@ -104,10 +104,10 @@ describe("the test build", () => {
 
 describe("the steps", () => {
   test("an unnarrowed run walks every step in its order, and each is still one atom", () => {
-    expect(stepNames()).toEqual(["fmt", "lints", "directives", "template", "owners", "nv", "fuzz-lock", "build", "nvs-fmt", "test", "conformance", "differential", "reference", "clippy", "extension"]);
+    expect(stepNames()).toEqual(["fmt", "lints", "directives", "template", "owners", "nv", "fuzz-lock", "build", "nvs-fmt", "test", "conformance", "reference", "clippy", "extension"]);
   });
 
   test("in a tree with no `nvs` built yet, the bun tests wait for the build", () => {
-    expect(stepNames(false)).toEqual(["fmt", "lints", "directives", "template", "owners", "fuzz-lock", "build", "nv", "nvs-fmt", "test", "conformance", "differential", "reference", "clippy", "extension"]);
+    expect(stepNames(false)).toEqual(["fmt", "lints", "directives", "template", "owners", "fuzz-lock", "build", "nv", "nvs-fmt", "test", "conformance", "reference", "clippy", "extension"]);
   });
 });
