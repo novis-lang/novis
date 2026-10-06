@@ -1,27 +1,28 @@
 {
-  "state": "**Goal `deprecated-and-todo`. Stages 2 to 5 are on disk.** A `W1003` names its template filled in at the use and carries it as a safe fix (`nvs-types`), the editor shows it with its tag, quick fix, completion tag and hover, and `nvs check` lists todos, denies and fixes. The whole list of goal `php-oracle-retired` is the floor of Stage 1.\n\nADR 0275 is accepted and its rules are on disk as `designed`. The template check is `crates/nvs-types/src/deprecated/template.rs` (`E0845` to `E0850`), `W1003` is raised by `crates/nvs-types/src/deprecated.rs`, and the fix is `crates/nvs-types/src/deprecated/fix.rs`. LSP tests: `crates/nvs-lsp/tests/deprecated.rs`.\n\nTodos: `nvs_syntax::todos(file)` (`crates/nvs-syntax/src/todo.rs`). The language server publishes them at `Information`, source `todo`. `nvs check --todos`, `--deny deprecated|todo` and `--fix` are in `crates/nvs-cli/src/main.rs` (`run_check`, `Sink::Check`, `Sink::Fix`) and `crates/nvs-cli/src/check.rs` (`todos`, `Found`, `safe_edits`, `apply`, `vendored`); tests `crates/nvs-cli/tests/check_flags.rs`. A file is vendored when a directory named `vendor` is in its path. `--fix` stops after 16 passes (`FIX_PASSES`).\n\n**Known gaps, not yet owned by a test:** a use inside a property initializer, a constant's value or a parameter default does not warn; a static call reached through a subclass names the declaring class; a passed deprecated parameter gets no fix (help only); a template with a closure, an interpolated string, a function call by name or a `static` gets no fix; completion tags a deprecated member but not a deprecated class name.\n\n**One deviation for the user to confirm:** ADR 0275 § Diagnostics adds no code except the template refusals. The goal also asks that an attach site the attribute does not take be refused, and no existing code says that. `E0844` is that code. If it should go, `E0454` could carry the hook case instead, with a worse message.",
+  "state": "**Goal `deprecated-and-todo`. Stages 2 to 5 are on disk, and Stage 6's setting is.** A `W1003` names its template filled in at the use and carries it as a safe fix (`nvs-types`), the editor shows it with its tag, quick fix, completion tag and hover, and `nvs check` lists todos, denies and fixes. The whole list of goal `php-oracle-retired` is the floor of Stage 1.\n\nADR 0275 is accepted and its rules are on disk as `designed`. The template check is `crates/nvs-types/src/deprecated/template.rs` (`E0845` to `E0850`), `W1003` is raised by `crates/nvs-types/src/deprecated.rs`, and the fix is `crates/nvs-types/src/deprecated/fix.rs`. LSP tests: `crates/nvs-lsp/tests/deprecated.rs`. Todos and the `nvs check` flags: `crates/nvs-syntax/src/todo.rs`, `crates/nvs-cli/src/check.rs`, tests `crates/nvs-cli/tests/check_flags.rs`.\n\n`[errors] deprecated` is `crates/nvs-config/src/errors.rs`: `Deprecated::{Ignore, Log, Throw}`, `Deprecated::in_force(&Request)`, `KEY`, and `validate` (`E0601`) called from `resolve.rs`. `Request::set` refuses a fourth value in `stays_meaningful`. The directive row is `errors.deprecated`, `Runtime`/`Reload`, and it is in `REQUEST_READ` of `crates/nvs-cli/tests/live_config.rs`. Tests: the three `errors_deprecated_*` cases in `crates/nvs-config/tests/request.rs`. Nothing in the runtime reads the setting yet.\n\n**Known gaps, not yet owned by a test:** a use inside a property initializer, a constant's value or a parameter default does not warn; a static call reached through a subclass names the declaring class; a passed deprecated parameter gets no fix (help only); a template with a closure, an interpolated string, a function call by name or a `static` gets no fix; completion tags a deprecated member but not a deprecated class name.\n\n**One deviation for the user to confirm:** ADR 0275 § Diagnostics adds no code except the template refusals. The goal also asks that an attach site the attribute does not take be refused, and no existing code says that. `E0844` is that code. If it should go, `E0454` could carry the hook case instead, with a worse message.",
   "next": {
     "stage": 6,
     "title": "the setting",
-    "files": [],
-    "note": "one file set: `crates/nvs-config/src/directive.rs`, `crates/nvs-config/src/default.toml`, then `crates/nvs-codegen/src/emit.rs` and `crates/nvs-runtime/src/ctx/mod.rs`.",
+    "files": [
+      "crates/nvs-runtime/src/ctx/mod.rs",
+      "crates/nvs-runtime/src/throwable.rs",
+      "crates/nvs-hir/src/errors.rs",
+      "crates/nvs-codegen/src/emit.rs",
+      "crates/nvs-ir/src/lower/"
+    ],
     "items": [
       {
         "done": false,
-        "text": "**`[errors] deprecated` takes `ignore`, `log` or `throw`, defaults to `ignore` in every mode, and is `Runtime`-class** — `rule:attributes/a-deprecation-names-its-replacement-as-code`: add the directive row beside the other `Runtime` rows at `crates/nvs-config/src/directive.rs:163` and the default in `crates/nvs-config/src/default.toml`. Test: the goal record's stage-6 `nvs-config` check (`errors_deprecated_defaults_to_ignore_in_every_mode`)."
+        "text": "**A deprecated method checks the setting on entry, any other deprecated declaration at its use, and a program with no deprecated use emits no check** — `rule:errors/a-use-of-deprecated-code-may-log-or-throw`: one context word beside `DebugFlags` at `crates/nvs-runtime/src/ctx/mod.rs:278`, set per request from `nvs_config::errors::Deprecated::in_force` and again on `Core\\Config::set`; the load and cold branch as the `DEBUG_FLAGS_OFFSET` load at `crates/nvs-codegen/src/emit.rs:1163`; `Core\\DeprecatedError`, a `LogicError`, in `crates/nvs-hir/src/errors.rs:96` and `crates/nvs-runtime/src/throwable.rs:318`. Test: the goal record's stage-6 `nvs-codegen` check (`a_deprecated_method_checks_the_setting_on_entry` and its two siblings)."
       },
       {
         "done": false,
-        "text": "**A deprecated method checks the setting on entry, any other deprecated declaration at its use, and a program with no deprecated use emits no check** — same rule: `crates/nvs-codegen/src/emit.rs:146`, the request's setting read from `crates/nvs-runtime/src/ctx/mod.rs:297`; the `\"log\"` site set is per request. Test: stage-6 `nvs-codegen` check."
-      },
-      {
-        "done": false,
-        "text": "**The conformance case** `tests/conformance/lang/a-deprecated-use-throws-only-when-the-setting-says-so.nvst` — `Core\\DeprecatedError` naming the replacement under `throw`, and a request's setting does not reach the next one. The use's check is raised beside `W1003` at `crates/nvs-types/src/deprecated.rs:353`."
+        "text": "**The conformance case** `tests/conformance/lang/a-deprecated-use-throws-only-when-the-setting-says-so.nvst` — `rule:errors/a-use-of-deprecated-code-may-log-or-throw`: `ignore` runs unchanged, `throw` throws `Core\\DeprecatedError` naming the replacement, and a request's set does not reach the next one. Anchor `crates/nvs-runtime/src/throwable.rs:318`."
       }
     ]
   },
   "backlog": [
-    "The known gaps in `## State` above, owned by `crates/nvs-types/src/deprecated.rs`.",
-    "`nvs check --todos` beside `--autoload-map` prints both on standard output; nothing refuses the pair (`crates/nvs-cli/src/main.rs`)."
+    "The `\"log\"` value's per-request site set and its `warning` record — `rule:errors/a-use-of-deprecated-code-may-log-or-throw`; no check in the goal record pins it yet.",
+    "The known gaps under `## State` — `rule:attributes/a-deprecation-names-its-replacement-as-code`."
   ]
 }

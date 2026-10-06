@@ -1757,6 +1757,7 @@ const REQUEST_READ: &[(&str, &str, &str)] = &[
     ("log.handler", "\"jobs/one.nvs\"", "\"jobs/two.nvs\""),
     ("log.target", "\"stderr\"", "\"file:app.log\""),
     ("debug.inline", "false", "true"),
+    ("errors.deprecated", "\"ignore\"", "\"throw\""),
     (
         "http.client.proxy.url",
         "\"http://127.0.0.1:3128\"",

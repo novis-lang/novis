@@ -250,8 +250,11 @@ impl Request {
     /// — § 2 states both halves and [`http`](crate::http) is the one place the condition is
     /// written, so this reads those values off the snapshot, folds this request's overlay and
     /// then the proposed assignment over them, and asks. A key under neither block returns before
-    /// any of that.
+    /// any of that, `[errors] deprecated` with whether [`crate::errors::Deprecated::of`] names it.
     fn stays_meaningful(&self, key: &str, value: &str) -> bool {
+        if key == crate::errors::KEY {
+            return crate::errors::Deprecated::of(value).is_some();
+        }
         if !key.starts_with("http.cors.") && !key.starts_with("http.cookies.") {
             return true;
         }

@@ -44,6 +44,7 @@ const BLOCKS: &[(&str, &str)] = &[
     ("[[extension]]", "[[extension]]\npath = \"image.nvsx\"\nsha256 = \"abc\"\n"),
     ("[debug]", "[debug]\nmode = [\"coverage\", \"branch\"]\n"),
     ("[log]", "[log]\nhandler = \"handler.nvs\"\nhandler_reserve_memory = \"8M\"\nhandler_reserve_time = \"2s\"\ntarget = \"stderr\"\nformat = \"json\"\nlevel = \"warning\"\n"),
+    ("[errors]", "[errors]\ndeprecated = \"throw\"\n"),
     ("[http.errors]", "[http.errors]\ndetail = \"generic\"\n"),
     ("[http.headers]", "[http.headers]\ncontent_type_options = true\nframe_ancestors = \"none\"\nreferrer_policy = \"strict-origin-when-cross-origin\"\nhsts = \"365d\"\nhsts_subdomains = false\ncontent_security_policy = \"\"\npermissions_policy = \"\"\n"),
     ("[http.cors]", "[http.cors]\norigins = []\nmethods = [\"GET\", \"HEAD\", \"POST\"]\nheaders = []\nexpose = []\ncredentials = false\nmax_age = \"10m\"\n"),
@@ -87,7 +88,7 @@ fn every_block_an_adr_writes_out_is_in_the_tree() {
     );
     assert_eq!(
         BLOCKS.len(),
-        32,
+        33,
         "a block was added to or removed from the sweep without the count moving",
     );
 }

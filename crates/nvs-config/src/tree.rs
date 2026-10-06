@@ -91,6 +91,8 @@ pub struct Config {
     pub io: Option<Io>,
     /// `[log]` — the handler ladder's rungs (`rule:errors/escalation-ladder`) and the record's shape (`rule:errors/diagnostic-record`).
     pub log: Option<Log>,
+    /// `[errors]` — what a use of deprecated code does while it runs (`rule:errors/a-use-of-deprecated-code-may-log-or-throw`).
+    pub errors: Option<Errors>,
     /// `[http.*]` — the sub-blocks ADRs 0020 § 7 and 0074 own.
     pub http: Option<Http>,
     /// `[db.<name>]` — one named connection per sub-table (`rule:core-classes/db-connection-is-named`), and the `pool = false`
@@ -485,6 +487,14 @@ pub struct Io {
     /// `Reload`, per `crate::directive`'s `io.temp_root` row: a temporary directory is made under
     /// the root in the snapshot its request cloned, and deleted by path when its script ends.
     pub temp_root: Option<String>,
+}
+
+/// `[errors]` — `rule:errors/a-use-of-deprecated-code-may-log-or-throw`'s block, read by [`crate::errors`].
+#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+#[serde(default, deny_unknown_fields)]
+pub struct Errors {
+    /// `ignore`, `log` or `throw`; `Runtime`-class, and `ignore` with nothing written in every mode.
+    pub deprecated: Option<String>,
 }
 
 /// `[log]` — the escalation ladder's configured rungs (`rule:errors/handler-script` and `rule:errors/panics-bypass-user-code`) and the record's own

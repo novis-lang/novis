@@ -560,3 +560,94 @@ fn a_mode_flip_is_bounded_derived_and_request_local() {
         "a refused flip leaves the mode in force exactly where it was",
     );
 }
+
+/// `rule:errors/a-use-of-deprecated-code-may-log-or-throw`: with nothing written, a use of
+/// deprecated code runs unchanged in production and in development alike, and the mode table
+/// has no row that could make one mode differ.
+#[test]
+fn errors_deprecated_defaults_to_ignore_in_every_mode() {
+    use nvs_config::errors::{Deprecated, KEY};
+
+    for mode in [nvs_config::mode::PRODUCTION, nvs_config::mode::DEVELOPMENT] {
+        let text = format!("[mode]\ndefault = \"{mode}\"\nceiling = \"development\"\n");
+        let request = Request::new(snapshot_of(&text));
+        assert_eq!(request.mode(), mode, "the tree did not start in `{mode}`");
+        assert_eq!(
+            Deprecated::in_force(&request),
+            Deprecated::Ignore,
+            "`{KEY}` is not `ignore` in `{mode}` with nothing written",
+        );
+    }
+    assert!(
+        nvs_config::mode::DERIVED.iter().all(|row| row.key != KEY),
+        "`{KEY}` is a row of the mode table, so a mode decides it",
+    );
+
+    let written = Request::new(snapshot_of("[errors]\ndeprecated = \"throw\"\n"));
+    assert_eq!(Deprecated::in_force(&written), Deprecated::Throw);
+}
+
+/// The three values are the whole list: a fourth is refused where the file writes it, under
+/// `E0601`, and a request's `Core\Config::set` of one is `false` with the value in force kept.
+#[test]
+fn errors_deprecated_refuses_a_value_not_in_its_list() {
+    use nvs_config::errors::{Deprecated, KEY};
+
+    for accepted in ["ignore", "log", "throw"] {
+        let text = format!("[errors]\ndeprecated = \"{accepted}\"\n");
+        let request = Request::new(snapshot_of(&text));
+        assert_eq!(Deprecated::in_force(&request).as_str(), accepted);
+    }
+
+    for refused in ["warn", "Throw", "", "error"] {
+        let files = One(format!("[errors]\ndeprecated = \"{refused}\"\n"));
+        let mut sources = SourceMap::new();
+        let err = resolve(&Roots::Files(vec![p("nvs.toml")]), &mut sources, &files)
+            .err()
+            .unwrap_or_else(|| panic!("`deprecated = \"{refused}\"` was accepted"));
+        assert_eq!(
+            err.code,
+            Some(nvs_diagnostics::code::E_BAD_DIRECTIVE),
+            "{}",
+            err.message
+        );
+        assert!(
+            err.message.contains(&format!("\"{refused}\"")),
+            "the refusal does not name the value: {}",
+            err.message,
+        );
+    }
+
+    let mut request = Request::new(snapshot_of("[errors]\ndeprecated = \"log\"\n"));
+    assert!(!request.set(KEY, "warn"));
+    assert_eq!(request.get(KEY).as_deref(), Some("log"));
+    assert!(request.set(KEY, "throw"));
+    assert_eq!(Deprecated::in_force(&request), Deprecated::Throw);
+}
+
+/// `Runtime` and `Reload`: a request turns the check on for itself, the next request on the same
+/// snapshot does not see it, and the row names the key and not the block.
+#[test]
+fn errors_deprecated_is_runtime_class() {
+    use nvs_config::directive::{Apply, lookup};
+    use nvs_config::errors::{Deprecated, KEY};
+
+    let row = lookup(KEY).unwrap_or_else(|| panic!("no directive governs `{KEY}`"));
+    assert_eq!(
+        (row.key, row.class, row.apply),
+        (KEY, Class::Runtime, Apply::Reload)
+    );
+    assert!(
+        lookup("errors").is_none() && lookup("errors.other").is_none(),
+        "a row blankets `[errors]`, so a second key there would inherit this one's class",
+    );
+
+    let published = snapshot_of("");
+    let mut first = Request::new(Arc::clone(&published));
+    let next = Request::new(Arc::clone(&published));
+    assert!(first.set(KEY, "throw"));
+    assert_eq!(Deprecated::in_force(&first), Deprecated::Throw);
+    assert_eq!(Deprecated::in_force(&next), Deprecated::Ignore);
+    first.restore(KEY);
+    assert_eq!(Deprecated::in_force(&first), Deprecated::Ignore);
+}

@@ -258,6 +258,11 @@ const APPLY_PROOFS: &[(&str, &str, &str)] = &[
         "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
     ),
     (
+        "errors.deprecated",
+        LIVE,
+        "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
+    ),
+    (
         "log.handler_reserve_memory",
         LIVE,
         "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",

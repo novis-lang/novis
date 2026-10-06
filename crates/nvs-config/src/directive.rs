@@ -161,6 +161,11 @@ pub const DIRECTIVES: &[Directive] = &[
     // `[log] format` and `level` are rows of `rule:config/a-mode-is-five-defaults`'s mode table, and no row in that table is
     // `System`-class.
     Directive { key: "log", class: Class::Runtime, apply: Apply::Reload },
+    // `rule:errors/a-use-of-deprecated-code-may-log-or-throw`: what a use of deprecated code does
+    // while it runs. A test or one request turns it on for itself, so `Runtime`; it is read per
+    // request, so a reload is in force at the next one. The row names the key and not the block,
+    // so a second key in `[errors]` is refused for want of a row.
+    Directive { key: "errors.deprecated", class: Class::Runtime, apply: Apply::Reload },
     // Its sibling that is, and a more specific row for the reason the `[cache]` rows below
     // are: `rule:errors/handler-script` makes the tier-3 handler a `System` directive on exactly the grounds
     // `limits.fatal_reserve_memory` above is one — a script naming the script that reports its own

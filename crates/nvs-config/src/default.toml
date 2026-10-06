@@ -245,6 +245,17 @@
 
 
 # ----------------------------------------------------------------------------------------------
+# [errors] — what a use of deprecated code does while it runs
+# (`rule:errors/a-use-of-deprecated-code-may-log-or-throw`).
+# ----------------------------------------------------------------------------------------------
+
+[errors]
+# `ignore` runs the deprecated code unchanged. `log` writes one warning record for each place the
+# request uses it. `throw` throws `Core\DeprecatedError`. The mode does not change this setting.
+#deprecated = "ignore"               # default
+
+
+# ----------------------------------------------------------------------------------------------
 # [io] — the one directory `Core\IO::temporaryDir` creates under
 # (`rule:core-classes/temporary-dir-sweep`).
 # ----------------------------------------------------------------------------------------------

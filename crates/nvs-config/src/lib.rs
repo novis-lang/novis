@@ -67,6 +67,7 @@ pub mod capability;
 pub mod control;
 pub mod db;
 pub mod directive;
+pub mod errors;
 pub mod export;
 pub mod file;
 pub mod http;

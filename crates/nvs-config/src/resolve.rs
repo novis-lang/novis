@@ -434,6 +434,9 @@ pub fn resolve(
     // own: the floor is the rung that reports when nothing else can, so the last place to discover
     // that its destination does not parse is the failure it was configured to report.
     crate::log::validate(&resolved.config, &origins)?;
+    // `rule:errors/a-use-of-deprecated-code-may-log-or-throw`'s three values, refused where they
+    // are written so the runtime reader never meets a fourth.
+    crate::errors::validate(&resolved.config, &origins)?;
     // `rule:config/opcache-revalidation-is-system-class`'s `validate`, which has two values: a
     // `never` read as the default would leave a host believing its code is pinned when every
     // change still reaches the next request.
