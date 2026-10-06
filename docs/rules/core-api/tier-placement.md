@@ -1,5 +1,5 @@
-A candidate for the standard library is placed by six tests, applied in order, rather than by which PHP
-extension it happened to live in:
+A candidate for the standard library is placed by six tests, applied in order, rather than by where another
+library happened to put it:
 
 1. **Does it need runtime privilege?** Direct heap access, the request lifecycle, the compiler's own
    tables, or state that outlives a request. This disqualifies every stateful client — a connection pool, a

@@ -20,6 +20,6 @@ rule has to be told to skip.
 The check needs no name resolution — every category is already its own syntax node — so it runs before
 anything is resolved and its diagnostic carries a mechanically derived rename. It is decided while the
 standard library is unwritten because renaming a member later is a breaking change with no deprecation path
-(`rule:statements/nothing-gets-a-second-name`). The cost is a structural break from PHP: `snake_case`
-source does not compile, and a converted name that collides with another after rewriting is the one case a
-converter cannot settle alone.
+(`rule:statements/nothing-gets-a-second-name`). The cost is that `snake_case` source does not compile, so a
+ported program renames every such identifier, and two names that collide after renaming are the author's
+to separate.

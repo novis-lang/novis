@@ -13,6 +13,5 @@ the author who forgot it is exactly the author who did not decide.
 An enum body has no member slot at all (`rule:enums/no-class-machinery`), so nothing here reaches one, and
 a property hook has no visibility slot either. What each level *means* at an access site is a separate
 question, enforced separately; until that lands everywhere, a written `private` is an accurate declaration,
-which is strictly better than an unwritten one. The formatter never inserts the keyword — a formatter that
-changes meaning is not a formatter — while the converter does, as a behaviour-identical rewrite, because
-PHP's omission provably means `public`.
+which is strictly better than an unwritten one. The formatter never inserts the keyword, because a formatter
+that changes meaning is not a formatter.

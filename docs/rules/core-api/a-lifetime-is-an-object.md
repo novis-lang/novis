@@ -10,8 +10,8 @@ stay members of the object, so the handle-first convention is still refused for 
 operation *on* the resource.
 
 A handle has nowhere to enforce a capability and nothing to hang an API on, so every operation on it
-becomes a free function taking the handle first — which is how PHP ended up with `fopen` beside
-`SplFileObject` beside `DirectoryIterator` (`rule:core-api/one-paradigm-per-operation`). An object has both
+becomes a free function taking the handle first, and the object API that follows later sits beside it
+rather than replacing it (`rule:core-api/one-paradigm-per-operation`). An object has both
 a place for the capability check and a place for the methods. The `resource` atom survives in the type
 grammar (`rule:types/grammar`) only for opaque handles an extension supplies, and `Core` never produces
 one.

@@ -8,5 +8,5 @@ refuses `setlocale` — process-wide C state that silently changes what a later 
 smaller version of it.
 
 The cost is stated rather than hidden: every date formatting call names a zone, which is correct and is more
-typing than PHP for the common case. What it buys is that a member's answer is a function of its arguments,
+typing than an ambient default zone for the common case. What it buys is that a member's answer is a function of its arguments,
 which is also what makes a call reviewable and a compile-time fold possible.

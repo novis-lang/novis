@@ -25,10 +25,10 @@ surface of ~450 members is only learnable if the eleventh member is predictable 
 | R19 | Scalars and `array<T>` never gain methods (`rule:core-api/no-methods-on-scalars-or-arrays`) |
 | R20 | No mutable/immutable twin types (`rule:core-api/no-mutable-immutable-twins`) |
 
-Three properties of the language are what make PHP's conventions unavailable rather than merely ugly:
+Three properties of the language make the conventions these rules exclude unavailable rather than merely ugly:
 arrays are copy-on-write values, so a by-reference mutator has no performance argument left; types are
 declared and checked, so a `false` return and an `int` flag mask throw away what the compiler already
 knows; and there is no ambient state for a member to read (`rule:core-api/no-ambient-state`).
 
-What this costs is familiarity. A PHP developer knows `sort($a)`, `strtotime` and `ob_start`, and none of
-them survives in that spelling — each is named with its replacement so a diagnostic can point at one.
+What this costs is familiarity. A developer who knows `sort($a)`, `strtotime` and `ob_start` finds none of
+them under that name, and ports each call by finding the `Core` member that does the job.

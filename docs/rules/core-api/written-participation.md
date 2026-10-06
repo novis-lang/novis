@@ -10,5 +10,5 @@ and a `secret` property is refused there rather than silently omitted from the o
 (`rule:types/object-top`) is the one value that needs neither, because it has no declaration to carry
 either — it encodes as an object keyed by its field names.
 
-The decode half is part of the same contract, which is what `JsonSerializable` lacks and why every PHP
-project hand-writes hydration.
+The decode half is part of the same contract, so a type that encodes also decodes, and no program
+hand-writes the step that turns decoded data back into an object.

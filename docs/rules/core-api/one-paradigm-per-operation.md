@@ -4,9 +4,8 @@ reachable both ways — there is no procedural twin of a class API and no class 
 and a domain class's static members never mirror an object's own methods: `Time::format($instant, $fmt)`
 may not exist beside `$instant->format($fmt)`.
 
-This is what closes PHP's second and less visible duplication axis, the one a function list cannot show:
-every `date_*` function aliasing a `DateTime` method, every `intl` class with a procedural twin, `mysqli`
-existing entirely twice. A tree API and a streaming reader over the same data are *different jobs* rather
+This closes the second and less visible kind of duplication, the one a function list cannot show: a
+procedural function beside every method of a class, so that a whole API exists twice. A tree API and a streaming reader over the same data are *different jobs* rather
 than twins, and the spec says so explicitly where that could be misread.
 
 **An operator is syntax, not a second API, and is never counted here** — `is`, `as ?T` and the

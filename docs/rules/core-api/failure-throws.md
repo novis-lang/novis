@@ -3,8 +3,8 @@ an error code, and there are no error globals — no `json_last_error`, no `erro
 means something else entirely: that the absence is an ordinary, expected outcome the caller should handle,
 not that something went wrong.
 
-`strpos()` returning `0|false` is PHP's most productive single bug source, and the union types that make it
-expressible here also make it unnecessary: the two outcomes are already two different things in the type,
+A search that returns either a position or `false` makes position `0` and failure easy to confuse, and the
+union types that make it expressible here also make it unnecessary: the two outcomes are already two different things in the type,
 so collapsing them into one return value buys nothing. A member's verb tells the caller which of the two it
 is (`rule:core-api/verb-lexicon`) before the signature is read.
 

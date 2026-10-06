@@ -33,8 +33,8 @@ diagnostic naming the class, not a silently missing symbol.
 
 `rule:core-api/tier-placement`
 
-A candidate for the standard library is placed by six tests, applied in order, rather than by which PHP
-extension it happened to live in:
+A candidate for the standard library is placed by six tests, applied in order, rather than by where another
+library happened to put it:
 
 1. **Does it need runtime privilege?** Direct heap access, the request lifecycle, the compiler's own
    tables, or state that outlives a request. This disqualifies every stateful client — a connection pool, a
@@ -181,13 +181,13 @@ surface of ~450 members is only learnable if the eleventh member is predictable 
 | R19 | Scalars and `array<T>` never gain methods ([`core-api/no-methods-on-scalars-or-arrays`](core-api.md#core-api-no-methods-on-scalars-or-arrays)) |
 | R20 | No mutable/immutable twin types ([`core-api/no-mutable-immutable-twins`](core-api.md#core-api-no-mutable-immutable-twins)) |
 
-Three properties of the language are what make PHP's conventions unavailable rather than merely ugly:
+Three properties of the language make the conventions these rules exclude unavailable rather than merely ugly:
 arrays are copy-on-write values, so a by-reference mutator has no performance argument left; types are
 declared and checked, so a `false` return and an `int` flag mask throw away what the compiler already
 knows; and there is no ambient state for a member to read ([`core-api/no-ambient-state`](core-api.md#core-api-no-ambient-state)).
 
-What this costs is familiarity. A PHP developer knows `sort($a)`, `strtotime` and `ob_start`, and none of
-them survives in that spelling — each is named with its replacement so a diagnostic can point at one.
+What this costs is familiarity. A developer who knows `sort($a)`, `strtotime` and `ob_start` finds none of
+them under that name, and ports each call by finding the `Core` member that does the job.
 
 <sub>See also [`core-api/subject-first`](core-api.md#core-api-subject-first), [`core-api/options-bag`](core-api.md#core-api-options-bag), [`core-api/nothing-mutates`](core-api.md#core-api-nothing-mutates), [`core-api/failure-throws`](core-api.md#core-api-failure-throws), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation). Decided in [0063](../decisions/0063.md), [0011](../decisions/0011.md), [0051](../decisions/0051.md), [0135](../decisions/0135.md), [0147](../decisions/0147.md).</sub>
 
@@ -200,10 +200,10 @@ them survives in that spelling — each is named with its replacement so a diagn
 The thing a member operates on is its first parameter, including where the member also takes a callback or
 a needle: `Arr::map($array, $fn)`, `Str::replace($subject, $search, $replacement)`,
 `Arr::contains($haystack, $needle)`. Haystack comes before needle and subject before pattern, which is the
-same rule stated for the two places PHP violates it most visibly.
+same rule stated for the two places a library most often breaks it.
 
-A rule with no exceptions is learnable in one sentence, and the alternative is what PHP has: `array_map`
-takes the callback first and `array_filter` takes the array first, so every call site is a lookup. The cost
+A rule with no exceptions is learnable in one sentence. The alternative is a library where one function
+takes the callback first and its neighbour takes the array first, so every call site is a lookup. The cost
 is that a ported program's argument order changes at nearly every built-in call.
 
 <sub>See also [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`core-api/one-name-one-signature`](core-api.md#core-api-one-name-one-signature). Decided in [0063](../decisions/0063.md).</sub>
@@ -244,7 +244,7 @@ A symmetric operation gets a symmetric name: `encode`/`decode`, `split`/`join`, 
 
 Which *pair* to reach for is also a rule: `encode`/`decode` when the other side is a machine format —
 JSON, serialization, base64 — and `parse`/`format` when a human writes or reads it, as with time, CSV and
-URIs. That removes the per-member judgement call PHP made differently every time, and it means a reader who
+URIs. That removes a per-member judgement call that would otherwise go differently every time, and it means a reader who
 has found one half knows the other's name without looking.
 
 <sub>See also [`core-api/verb-lexicon`](core-api.md#core-api-verb-lexicon), [`core-api/members-are-full-words`](core-api.md#core-api-members-are-full-words). Decided in [0063](../decisions/0063.md).</sub>
@@ -260,8 +260,8 @@ member's parameter list may have. Two behaviours therefore need two names, and w
 verb lexicon ([`core-api/verb-lexicon`](core-api.md#core-api-verb-lexicon)) and the symmetric-name rule
 ([`core-api/symmetric-names`](core-api.md#core-api-symmetric-names)) rather than by whoever writes the second one.
 
-This is the rule that keeps a family from regrowing. PHP has eleven sort functions and twelve `strpos`
-variants because each new behaviour could be a new name in the same shape; here it has to be a name that
+This is the rule that keeps a family from regrowing. Where each new behaviour can be a new name in the same
+shape, a library ends up with a dozen sort functions and a dozen substring searches; here it has to be a name that
 predicts its own return type, or an enum-typed option on the member that already exists
 ([`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings)). Where two members genuinely take different things and answer different
 things, that is not a second spelling ([`core-api/each-door-takes-a-different-thing`](core-api.md#core-api-each-door-takes-a-different-thing)).
@@ -278,8 +278,8 @@ A member name is a full word. Class names may abbreviate, but only from a closed
 `Io`, `Uri`, `Db`, `Id` — and members may not, except the conventional mathematical spellings `abs`, `min`,
 `max` and `sqrt`. So `Core\Str::length`, never `Core\Str::len`.
 
-Abbreviation is where a naming convention stops being mechanical: PHP resolved it separately for every
-function and produced `strlen` beside `str_word_count`. A closed list at the class level and no discretion
+Abbreviation is where a naming convention stops being mechanical: decided one member at a time, it
+produces `len` beside `wordCount` in the same class. A closed list at the class level and no discretion
 at the member level removes the judgement call entirely, at the cost of a few extra characters at every
 call site.
 
@@ -313,9 +313,9 @@ rule has to be told to skip.
 The check needs no name resolution — every category is already its own syntax node — so it runs before
 anything is resolved and its diagnostic carries a mechanically derived rename. It is decided while the
 standard library is unwritten because renaming a member later is a breaking change with no deprecation path
-([`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name)). The cost is a structural break from PHP: `snake_case`
-source does not compile, and a converted name that collides with another after rewriting is the one case a
-converter cannot settle alone.
+([`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name)). The cost is that `snake_case` source does not compile, so a
+ported program renames every such identifier, and two names that collide after renaming are the author's
+to separate.
 
 <sub>See also [`core-api/casing-checks-the-leading-character`](core-api.md#core-api-casing-checks-the-leading-character), [`core-api/casing-has-no-suppression`](core-api.md#core-api-casing-has-no-suppression), [`core-api/members-are-full-words`](core-api.md#core-api-members-are-full-words), [`classes/no-leading-underscore-identifiers`](classes.md#classes-no-leading-underscore-identifiers), [`classes/names-resolve-case-sensitively`](classes.md#classes-names-resolve-case-sensitively), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name). Decided in [0029](../decisions/0029.md), [0030](../decisions/0030.md), [0011](../decisions/0011.md).</sub>
 
@@ -381,9 +381,8 @@ the author who forgot it is exactly the author who did not decide.
 An enum body has no member slot at all ([`enums/no-class-machinery`](enums.md#enums-no-class-machinery)), so nothing here reaches one, and
 a property hook has no visibility slot either. What each level *means* at an access site is a separate
 question, enforced separately; until that lands everywhere, a written `private` is an accurate declaration,
-which is strictly better than an unwritten one. The formatter never inserts the keyword — a formatter that
-changes meaning is not a formatter — while the converter does, as a behaviour-identical rewrite, because
-PHP's omission provably means `public`.
+which is strictly better than an unwritten one. The formatter never inserts the keyword, because a formatter
+that changes meaning is not a formatter.
 
 <sub>See also [`core-api/a-parameter-is-not-a-member`](core-api.md#core-api-a-parameter-is-not-a-member), [`core-api/asymmetric-visibility-is-a-pair`](core-api.md#core-api-asymmetric-visibility-is-a-pair), [`core-api/legacy-property-shapes-name-the-visibility`](core-api.md#core-api-legacy-property-shapes-name-the-visibility), [`classes/interface-private-methods`](classes.md#classes-interface-private-methods), [`classes/property-hooks`](classes.md#classes-property-hooks), [`types/declaration`](types.md#types-declaration). Decided in [0094](../decisions/0094.md), [0043](../decisions/0043.md), [0029](../decisions/0029.md).</sub>
 
@@ -397,13 +396,12 @@ An asymmetric property writes both halves: `public private(set) string $name;`. 
 its read side left to inference does not compile, and reports the same missing-visibility error, whose
 message names the pair rather than a single keyword.
 
-PHP 8.4 lets the bare form stand and infers a `public` read side, which is the same implicit `public` this
-language removes wearing a different spelling. Leaving it would preserve exactly one slot where a member's
-read visibility is a rule you have to know instead of a word you can see.
+Inferring a `public` read side from the bare form would be the same implicit `public` this language
+removes, wearing a different spelling. Accepting it would preserve exactly one slot where a member's read
+visibility is a rule you have to know instead of a word you can see.
 
-This is the one place the grammar is *stricter* than PHP's rather than merely less permissive, and it is
-deliberate. The plain keyword written alongside a `(set)` half is always the read half, so a reader and the
-checker take it from the same place.
+The plain keyword written alongside a `(set)` half is always the read half, so a reader and the checker
+take it from the same place.
 
 <sub>See also [`core-api/written-visibility`](core-api.md#core-api-written-visibility). Decided in [0094](../decisions/0094.md).</sub>
 
@@ -463,8 +461,8 @@ and a `secret` property is refused there rather than silently omitted from the o
 ([`types/object-top`](types.md#types-object-top)) is the one value that needs neither, because it has no declaration to carry
 either — it encodes as an object keyed by its field names.
 
-The decode half is part of the same contract, which is what `JsonSerializable` lacks and why every PHP
-project hand-writes hydration.
+The decode half is part of the same contract, so a type that encodes also decodes, and no program
+hand-writes the step that turns decoded data back into an object.
 
 <sub>See also [`core-api/required-optional-and-nullable`](core-api.md#core-api-required-optional-and-nullable), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`classes/serialize-is-a-closed-format`](classes.md#classes-serialize-is-a-closed-format), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`types/object-top`](types.md#types-object-top). Decided in [0063](../decisions/0063.md), [0071](../decisions/0071.md), [0028](../decisions/0028.md), [0033](../decisions/0033.md).</sub>
 
@@ -500,7 +498,7 @@ No `Core` member mutates an argument and none takes a reference. There is no `in
 out-parameter and no in-place variant of anything; the result is the return value.
 
 Copy-on-write makes this free rather than expensive: an argument whose refcount is 1 is mutated in place by
-the implementation, which is exactly what PHP's own `sort()` does after its own copy-on-write check. What a
+the implementation, so the copy is paid only when another holder can still see the original. What a
 second, by-reference spelling would buy is the aliasing rules this removes, and it would cost a second name
 for one operation ([`core-api/one-name-one-signature`](core-api.md#core-api-one-name-one-signature)).
 
@@ -520,8 +518,8 @@ uses.
 Every `Core` value type is immutable, so there is no mutable twin to choose between. There is no
 `DateTime`/`DateTimeImmutable` pair, and no member returns a mutable view of a value type.
 
-PHP's pair exists because its original type was mutable and the fix could not remove it; a language writing
-its library once does not inherit that. Immutability also removes the question [`core-api/nothing-mutates`](core-api.md#core-api-nothing-mutates)
+A pair like that exists only where a library's original type was mutable and could not be removed; a
+library written once has no such type to keep. Immutability also removes the question [`core-api/nothing-mutates`](core-api.md#core-api-nothing-mutates)
 would otherwise have to answer twice — a value type with no mutator has no in-place variant to argue about
 — and it means a value handed to another request-scoped object cannot be changed underneath it.
 
@@ -546,7 +544,7 @@ refuses `setlocale` — process-wide C state that silently changes what a later 
 smaller version of it.
 
 The cost is stated rather than hidden: every date formatting call names a zone, which is correct and is more
-typing than PHP for the common case. What it buys is that a member's answer is a function of its arguments,
+typing than an ambient default zone for the common case. What it buys is that a member's answer is a function of its arguments,
 which is also what makes a call reviewable and a compile-time fold possible.
 
 <sub>See also [`core-api/removals`](core-api.md#core-api-removals), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global). Decided in [0063](../decisions/0063.md), [0051](../decisions/0051.md).</sub>
@@ -562,8 +560,8 @@ an error code, and there are no error globals — no `json_last_error`, no `erro
 means something else entirely: that the absence is an ordinary, expected outcome the caller should handle,
 not that something went wrong.
 
-`strpos()` returning `0|false` is PHP's most productive single bug source, and the union types that make it
-expressible here also make it unnecessary: the two outcomes are already two different things in the type,
+A search that returns either a position or `false` makes position `0` and failure easy to confuse, and the
+union types that make it expressible here also make it unnecessary: the two outcomes are already two different things in the type,
 so collapsing them into one return value buys nothing. A member's verb tells the caller which of the two it
 is ([`core-api/verb-lexicon`](core-api.md#core-api-verb-lexicon)) before the signature is read.
 
@@ -585,9 +583,8 @@ reachable both ways — there is no procedural twin of a class API and no class 
 and a domain class's static members never mirror an object's own methods: `Time::format($instant, $fmt)`
 may not exist beside `$instant->format($fmt)`.
 
-This is what closes PHP's second and less visible duplication axis, the one a function list cannot show:
-every `date_*` function aliasing a `DateTime` method, every `intl` class with a procedural twin, `mysqli`
-existing entirely twice. A tree API and a streaming reader over the same data are *different jobs* rather
+This closes the second and less visible kind of duplication, the one a function list cannot show: a
+procedural function beside every method of a class, so that a whole API exists twice. A tree API and a streaming reader over the same data are *different jobs* rather
 than twins, and the spec says so explicitly where that could be misread.
 
 **An operator is syntax, not a second API, and is never counted here** — `is`, `as ?T` and the
@@ -645,7 +642,7 @@ one enum declaration per mode family, which is also what makes them documentable
 A quantity carrying a unit is a type, not a number with a convention attached. A duration is a `Duration`,
 never "seconds here and microseconds there"; a byte size is a `uint` count of bytes and says so.
 
-PHP's `sleep`/`usleep`/`time_nanosleep` split is a units bug waiting for a refactor to find it, and a
+A `sleep`/`usleep` pair split by unit is a units bug waiting for a refactor to find it, and a
 signature that takes an `int` cannot tell a caller which scale it wanted. A `Duration` takes the question
 out of the call site: it is constructed from the unit it is written in (`Duration::seconds`), it parses
 from a written grammar ([`types/duration`](types.md#types-duration)), and every member taking a timeout takes exactly
@@ -664,8 +661,8 @@ No member taking a `string` takes an encoding argument. UTF-8 is the type's guar
 
 All conversion happens at the `bytes`↔`string` boundary, in `Core\Encoding`, where it can fail honestly:
 decoding arbitrary bytes into a `string` is the operation that can go wrong, and it is the one that says
-so. This is what removes PHP's entire `mb_*` twin set — every function that exists twice because the
-single-byte version cannot be trusted — rather than reproducing it under new names.
+so. No member therefore exists twice, once for bytes and once for characters, because the byte version
+cannot be trusted with text.
 
 The cost lands on programs that genuinely handle non-UTF-8 text: they hold `bytes`
 ([`types/bytes`](types.md#types-bytes)) until they have decided what the encoding is, and the decision is written where it is
@@ -700,9 +697,8 @@ A callback a `Core` member invokes always receives `($value, $key)`, in that ord
 declare fewer parameters than the call site passes ([`types/callable-arity`](types.md#types-callable-arity)). A callable wanting only
 the value writes one parameter and never sees the key.
 
-This kills the whole `ARRAY_FILTER_USE_KEY`/`ARRAY_FILTER_USE_BOTH` flag family, which exists in PHP only
-because its callbacks have a fixed arity, and it removes the need for `map`/`mapWithKey` pairs that would
-otherwise violate [`core-api/one-name-one-signature`](core-api.md#core-api-one-name-one-signature). The order is value-first because that is the
+No member takes a flag saying whether its callback wants the value, the key or both, and no member needs
+a `map`/`mapWithKey` pair that would otherwise violate [`core-api/one-name-one-signature`](core-api.md#core-api-one-name-one-signature). The order is value-first because that is the
 argument almost every callback uses, so the common callback is `fn($v)` with nothing to skip.
 
 <sub>See also [`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings), [`types/callable-arity`](types.md#types-callable-arity), [`types/callable-values`](types.md#types-callable-values). Decided in [0063](../decisions/0063.md).</sub>
@@ -1078,8 +1074,8 @@ stay members of the object, so the handle-first convention is still refused for 
 operation *on* the resource.
 
 A handle has nowhere to enforce a capability and nothing to hang an API on, so every operation on it
-becomes a free function taking the handle first — which is how PHP ended up with `fopen` beside
-`SplFileObject` beside `DirectoryIterator` ([`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation)). An object has both
+becomes a free function taking the handle first, and the object API that follows later sits beside it
+rather than replacing it ([`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation)). An object has both
 a place for the capability check and a place for the methods. The `resource` atom survives in the type
 grammar ([`types/grammar`](types.md#types-grammar)) only for opaque handles an extension supplies, and `Core` never produces
 one.
@@ -1249,8 +1245,8 @@ rather than each growing a refusal of its own — the sealed pair answers it bef
 — and the throw is catchable at the root, so a program that cannot use sessions can say so.
 
 `regenerate` issues a new identifier, moves the record to it and destroys the old entry, in that order, and
-takes no argument: PHP's delete-old-session flag chose between a fixation window and a lost session, and
-only one of those is correct.
+takes no argument: a flag to keep the old entry would choose between a fixation window and a lost session,
+and only one of those is correct.
 
 <sub>See also [`core-api/failure-throws`](core-api.md#core-api-failure-throws), [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables). Decided in [0139](../decisions/0139.md), [0012](../decisions/0012.md), [0124](../decisions/0124.md).</sub>
 

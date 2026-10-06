@@ -2,7 +2,7 @@ No `Core` member mutates an argument and none takes a reference. There is no `in
 out-parameter and no in-place variant of anything; the result is the return value.
 
 Copy-on-write makes this free rather than expensive: an argument whose refcount is 1 is mutated in place by
-the implementation, which is exactly what PHP's own `sort()` does after its own copy-on-write check. What a
+the implementation, so the copy is paid only when another holder can still see the original. What a
 second, by-reference spelling would buy is the aliasing rules this removes, and it would cost a second name
 for one operation (`rule:core-api/one-name-one-signature`).
 

@@ -10,5 +10,5 @@ rather than each growing a refusal of its own — the sealed pair answers it bef
 — and the throw is catchable at the root, so a program that cannot use sessions can say so.
 
 `regenerate` issues a new identifier, moves the record to it and destroys the old entry, in that order, and
-takes no argument: PHP's delete-old-session flag chose between a fixation window and a lost session, and
-only one of those is correct.
+takes no argument: a flag to keep the old entry would choose between a fixation window and a lost session,
+and only one of those is correct.
