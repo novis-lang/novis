@@ -956,6 +956,9 @@ fn resolve_name_type(
             let backing = env.enums.backing_of(&qname);
             env.interner.enum_(qname, backing)
         }
+        // A loaded extension's class and its resources: declared by no source file, and in the
+        // symbol table only as names (`nvs_types::ext_lib`).
+        None if env.symbols.is_extension(&qname) => env.interner.class(qname),
         None if qname.is_core()
             || qname.is_reserved_global_class()
             || qname.is_reserved_global_interface() =>

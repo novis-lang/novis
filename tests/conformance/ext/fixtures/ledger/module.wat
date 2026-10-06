@@ -8,6 +8,8 @@
 (module
   (import "nvs:ext/types@1.0.0" "[method]value.kind" (func $kind (param i32) (result i32)))
   (import "nvs:ext/types@1.0.0" "[resource-drop]value" (func $drop (param i32)))
+  (import "[export]shop:ledger/api" "[resource-new]route" (func $route_new (param i32) (result i32)))
+  (import "[export]shop:ledger/api" "[resource-rep]route" (func $route_rep (param i32) (result i32)))
 
   (memory (export "memory") 1)
   ;; `fetch`'s answer.
@@ -114,6 +116,17 @@
   ;; `unit` is its case's index, one byte, stored where a `bool` is.
   (func (export "shop:ledger/api#echo-unit") (param $case i32) (result i32)
     (i32.store8 offset=4 (global.get $ret) (local.get $case))
+    (call $ok))
+
+  ;; A `route`'s representation is its stop, and the handle `[resource-new]` gives is the payload.
+  (func (export "shop:ledger/api#open-route") (param $stop i64) (result i32)
+    (i32.store offset=4 (global.get $ret) (call $route_new (i32.wrap_i64 (local.get $stop))))
+    (call $ok))
+
+  ;; A borrow of the guest's own resource arrives as its representation, so there is no handle to
+  ;; read through `[resource-rep]` and none to drop.
+  (func (export "shop:ledger/api#route-stop") (param $rep i32) (result i32)
+    (i64.store offset=8 (global.get $ret) (i64.extend_i32_u (local.get $rep)))
     (call $ok))
 
   ;; `uri` is its text alone, so it is returned as a string is.

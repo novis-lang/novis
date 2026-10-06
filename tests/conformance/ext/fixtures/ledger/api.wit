@@ -30,6 +30,9 @@ interface api {
         metric-ton,
     }
 
+    /// A delivery route. Its representation is the stop it was opened at.
+    resource route;
+
     echo-bool: func(flag: bool) -> result<bool, error>;
     echo-int: func(number: s64) -> result<s64, error>;
     echo-uint: func(count: u64) -> result<u64, error>;
@@ -44,6 +47,11 @@ interface api {
     echo-instant: func(at: instant) -> result<instant, error>;
     echo-uri: func(address: uri) -> result<uri, error>;
     echo-unit: func(unit: unit) -> result<unit, error>;
+
+    /// Opens a route at `stop`, which the request keeps until it ends.
+    open-route: func(stop: s64) -> result<route, error>;
+    /// The stop `route` was opened at.
+    route-stop: func(route: borrow<route>) -> result<s64, error>;
 
     /// The `kind` discriminant of a `mixed` argument, read through the
     /// world's accessor import.

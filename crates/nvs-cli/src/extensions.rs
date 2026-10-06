@@ -31,8 +31,10 @@
 //! an extension method's return type. A `Core` value class crosses as its record's fields, which
 //! `nvs_stdlib::ext_record` reads from the instance and builds a fresh instance from, with the
 //! checks the class's own constructor makes. An enum case is its number, which crosses as an
-//! `int` and comes back by `nvs_ext::convert::case_number`. A resource does not cross yet: one
-//! returned is refused as `ExtensionError` after the guest runs.
+//! `int` and comes back by `nvs_ext::convert::case_number`. A resource comes back as an object of
+//! its class holding the request's number for it, and crosses again as that number
+//! (`nvs_types::ext_lib`'s module doc). Only the resource's short name crosses, and the request
+//! refuses a number it does not keep for that name in the called extension's instance.
 //!
 //! **A compiled component is kept in the artifact cache a program's units are kept in**
 //! (`rule:packaging/a-wasm-module-cache-reuses-the-artifact-cache`). [`Modules`] is
@@ -63,6 +65,7 @@ use nvs_diagnostics::{Diagnostic, SourceMap};
 use nvs_ext::call::{Host, Meter, Outcome, Request};
 use nvs_ext::convert::{Key, Value as Crossed, fits};
 use nvs_ext::load::{CacheKey, Entry, Loader, ModuleCache, Set};
+use nvs_ext::manifest::Manifest;
 use nvs_ext::types::{CORE_CLASSES, CoreRecord, Field, NovisType};
 use nvs_runtime::{Ctx, Fault, HelperResult, NvsArray, NvsStr, SlotKey, Tag, ThrownClass, Value};
 use nvs_stdlib::ext_record::Part;
@@ -256,7 +259,7 @@ impl nvs_runtime::extension::Extensions for Calls {
                         manifest.novis_type(&declared.returns)
                     })
                     .map_err(&refused)?;
-                runtime(ctx, &ty, result).map_err(refused)
+                runtime(ctx, manifest, &ty, result).map_err(refused)
             }
             Err(failure) => Err(match failure.outcome() {
                 Outcome::Throw(class, message) => {
@@ -324,6 +327,12 @@ fn crossed(value: Value) -> Result<Crossed, String> {
             }
             Crossed::Array(entries)
         }
+        Some(Tag::Object) if let Some((class, id)) = nvs_stdlib::ext_record::resource_of(value) => {
+            Crossed::Resource {
+                name: class.rsplit('\\').next().unwrap_or_default().to_owned(),
+                id,
+            }
+        }
         Some(Tag::Object) => match (value.shape_fields(), nvs_stdlib::ext_record::parts(value)) {
             (Some(fields), _) => Crossed::Array(
                 fields
@@ -365,10 +374,16 @@ fn key_of(bytes: &[u8]) -> Result<Key, String> {
     })
 }
 
-/// `value`, returned by a guest where the manifest declares `ty`, as a runtime value the caller
+/// `value`, returned by a guest where `manifest` declares `ty`, as a runtime value the caller
 /// owns. A shape is an instance of the class the compiled unit declared for it, which `ctx` finds
-/// by its label; every other array is an array.
-fn runtime(ctx: &Ctx, ty: &NovisType, value: Crossed) -> Result<Value, String> {
+/// by its label; every other array is an array. A resource is an instance of its class in the
+/// namespace of `manifest`'s class (`nvs_stdlib::ext_record::resource`).
+fn runtime(
+    ctx: &Ctx,
+    manifest: &Manifest,
+    ty: &NovisType,
+    value: Crossed,
+) -> Result<Value, String> {
     Ok(match value {
         Crossed::Null => Value::null(),
         Crossed::Bool(flag) => Value::bool(flag),
@@ -378,14 +393,16 @@ fn runtime(ctx: &Ctx, ty: &NovisType, value: Crossed) -> Result<Value, String> {
         Crossed::String(text) => Value::str(NvsStr::new(text.as_bytes())),
         Crossed::Bytes(octets) => Value::bytes(NvsStr::new(&octets)),
         Crossed::Array(entries) => match ty {
-            NovisType::Optional(inner) => return runtime(ctx, inner, Crossed::Array(entries)),
-            NovisType::Shape(fields) => return shape(ctx, fields, entries),
+            NovisType::Optional(inner) => {
+                return runtime(ctx, manifest, inner, Crossed::Array(entries));
+            }
+            NovisType::Shape(fields) => return shape(ctx, manifest, fields, entries),
             NovisType::Union { name, cases } => {
                 let (_, fields) = cases
                     .iter()
                     .find(|(_, fields)| fits(fields, &entries))
                     .ok_or_else(|| format!("the guest returned no case of `{name}`"))?;
-                return shape(ctx, fields, entries);
+                return shape(ctx, manifest, fields, entries);
             }
             _ => {
                 let element = match ty {
@@ -394,7 +411,7 @@ fn runtime(ctx: &Ctx, ty: &NovisType, value: Crossed) -> Result<Value, String> {
                 };
                 let mut array = NvsArray::new();
                 for (key, entry) in entries {
-                    let entry = runtime(ctx, element, entry)?;
+                    let entry = runtime(ctx, manifest, element, entry)?;
                     match key {
                         Key::Int(index) => array.set_index(index, entry),
                         Key::String(key) => array.set(NvsStr::new(key.as_bytes()), entry),
@@ -420,9 +437,10 @@ fn runtime(ctx: &Ctx, ty: &NovisType, value: Crossed) -> Result<Value, String> {
             return nvs_stdlib::ext_record::built(&class, parts);
         }
         Crossed::Object(class) => return Err(format!("a `{class}` object does not cross back")),
-        Crossed::Resource { name, .. } => {
-            return Err(format!("the resource `{name}` does not cross back yet"));
-        }
+        Crossed::Resource { name, id } => nvs_stdlib::ext_record::resource(
+            &nvs_types::ext_lib::declared_name(manifest, &name).to_string(),
+            id,
+        ),
     })
 }
 
@@ -458,7 +476,12 @@ fn part(value: Crossed) -> Result<Part, String> {
 }
 
 /// The anonymous object of the shape `fields` whose fields a guest returned as `entries`.
-fn shape(ctx: &Ctx, fields: &[Field], entries: Vec<(Key, Crossed)>) -> Result<Value, String> {
+fn shape(
+    ctx: &Ctx,
+    manifest: &Manifest,
+    fields: &[Field],
+    entries: Vec<(Key, Crossed)>,
+) -> Result<Value, String> {
     let mut names: Vec<String> = fields.iter().map(|(name, ..)| name.clone()).collect();
     names.sort_unstable();
     let label = nvs_types::derive::shape_class_label(&names);
@@ -469,7 +492,7 @@ fn shape(ctx: &Ctx, fields: &[Field], entries: Vec<(Key, Crossed)>) -> Result<Va
             Key::Int(_) => None,
         };
         let converted = match declared {
-            Some((_, _, ty)) => runtime(ctx, ty, entry),
+            Some((_, _, ty)) => runtime(ctx, manifest, ty, entry),
             None => Err(format!("the shape `{label}` has no field {key:?}")),
         };
         match (key, converted) {

@@ -36,6 +36,10 @@
      "help": "Returns `address` unchanged."},
     {"name": "echoUnit", "params": [{"name": "unit", "type": "Unit"}], "returns": "Unit",
      "help": "Returns `unit` unchanged."},
+    {"name": "openRoute", "params": [{"name": "stop", "type": "int"}], "returns": "Route",
+     "help": "Opens a new route at `stop`. You can use the route until the request ends."},
+    {"name": "routeStop", "params": [{"name": "route", "type": "Route"}], "returns": "int",
+     "help": "Returns the stop that `route` was opened at."},
     {"name": "kindOf", "params": [{"name": "anything", "type": "mixed"}], "returns": "int",
      "help": "Returns a number for the kind of `anything`: 0 for `null`, 1 for a `bool`, and so on."},
     {"name": "writeLine", "params": [{"name": "line", "type": "string", "sink": true}],
@@ -49,6 +53,7 @@
   ],
   "consts": [{"name": "CURRENCY", "type": "string", "value": "EUR"}],
   "enums": [{"name": "Unit", "cases": ["Gram", "Kilogram", "MetricTon"]}],
+  "resources": [{"name": "Route"}],
   "unions": [{"name": "Area", "cases": [
     {"name": "Circle", "shape": "{radius: float}"},
     {"name": "Rect", "shape": "{width: float, height: float}"}]}]

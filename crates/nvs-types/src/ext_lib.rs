@@ -34,8 +34,18 @@
 //!   the host crosses a case by its position in the manifest's list (`nvs_ext::convert`).
 //!   [`seed_enums`] puts it in the enum table a declared enum is in, so a case, a `match` and
 //!   `cases()` read it with no extension branch, and [`hir_classes`] declares it with its cases.
-//! - A resource the manifest declares has no class in the program yet, so a method or a constant
-//!   whose type names one is left out, the same as a type outside the table.
+//! - **A resource the manifest declares is a class** named in the extension class's namespace, as
+//!   an enum is: `Route` in the manifest of `Shop\Ledger` is `Shop\Route`. It has no members, so a
+//!   program can hold one, pass it and test it, and do nothing else with it; [`hir_classes`]
+//!   declares it, and `new` on it does not compile because nothing gives it a constructor.
+//!
+//!   **At run time a resource is an object of a class the runtime makes for its name**
+//!   (`nvs_stdlib::ext_record::resource`): one slot, the number the request kept it under, which
+//!   no program can read because the class declares no property. It crosses back as that number,
+//!   and the request refuses one it does not keep for that type. The object is an ordinary
+//!   instance, so its refcount and its release are every object's. What it spends: one descriptor
+//!   per resource class name for the life of the process, and one two-slot object per resource a
+//!   request holds.
 
 use nvs_ext::manifest::{Const, Manifest, Method};
 use nvs_ext::types::{Field, NovisType};
@@ -68,6 +78,11 @@ pub fn hir_classes(manifests: &[Manifest]) -> Vec<ExtensionClass> {
             methods: Vec::new(),
             consts: declared.cases.clone(),
         }));
+        classes.extend(manifest.resources.iter().map(|declared| ExtensionClass {
+            name: declared_name(manifest, &declared.name),
+            methods: Vec::new(),
+            consts: Vec::new(),
+        }));
     }
     classes
 }
@@ -96,7 +111,8 @@ pub(crate) fn seed_enums(table: &mut EnumTable, manifests: &[Manifest]) {
 
 /// The full name of the type `short` that `manifest` declares: `short` in the namespace of the
 /// manifest's class.
-fn declared_name(manifest: &Manifest, short: &str) -> QName {
+#[must_use]
+pub fn declared_name(manifest: &Manifest, short: &str) -> QName {
     let class = QName::parse(&manifest.class);
     let segments = class.segments();
     QName::join(&segments[..segments.len().saturating_sub(1)], short)
@@ -141,6 +157,11 @@ pub(crate) fn seed(
             .collect();
         table.seed_constants(qname.clone(), constants);
         table.seed_extension(qname);
+        for declared in &manifest.resources {
+            let qname = declared_name(manifest, &declared.name);
+            table.seed_class(qname.clone(), FxHashMap::default(), FxHashMap::default());
+            table.seed_extension(qname);
+        }
     }
 }
 
@@ -176,25 +197,9 @@ fn consts(manifest: &Manifest) -> impl Iterator<Item = (&Const, NovisType, Const
     })
 }
 
-/// The type `text` writes in `manifest`, or `None` when it is outside the table or names a
-/// resource.
+/// The type `text` writes in `manifest`, or `None` when it is outside the table.
 fn typed(manifest: &Manifest, text: &str) -> Option<NovisType> {
-    let ty = manifest.novis_type(text).ok()?;
-    lowers(&ty).then_some(ty)
-}
-
-/// Whether [`lower`] has a type for `ty`: every type but one that names a resource.
-fn lowers(ty: &NovisType) -> bool {
-    match ty {
-        NovisType::Resource(_) => false,
-        NovisType::List(inner) | NovisType::Optional(inner) => lowers(inner),
-        NovisType::Keyed(key, value) => lowers(key) && lowers(value),
-        NovisType::Shape(fields) => fields.iter().all(|(_, _, ty)| lowers(ty)),
-        NovisType::Union { cases, .. } => cases
-            .iter()
-            .all(|(_, fields)| fields.iter().all(|(_, _, ty)| lowers(ty))),
-        _ => true,
-    }
+    manifest.novis_type(text).ok()
 }
 
 /// `value` as a constant of the type `ty`, or `None` when it is not one or has no constant form.
@@ -308,9 +313,7 @@ fn lower(manifest: &Manifest, ty: &NovisType, interner: &mut TypeInterner) -> Ty
         NovisType::Enum { name, .. } => {
             interner.enum_(declared_name(manifest, name), EnumBacking::Int)
         }
-        NovisType::Resource(_) => {
-            unreachable!("`typed` leaves out a type that names a resource")
-        }
+        NovisType::Resource(name) => interner.class(declared_name(manifest, name)),
     }
 }
 

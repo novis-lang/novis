@@ -168,6 +168,30 @@ fn an_extension_enum_is_an_enum_in_the_extension_namespace() {
 }
 
 #[test]
+fn an_extension_resource_is_a_class_in_the_extension_namespace() {
+    let (table, interner) = table(&[ledger()]);
+    let class = table.get(&QName::parse("Shop\\Ledger")).expect("loaded");
+    let open = &class.methods["openRoute"];
+    assert!(
+        matches!(interner.get(open.return_ty), Ty::Class(name, _) if name.to_string() == "Shop\\Route"),
+        "`Route` is the class `Shop\\Route`: {:?}",
+        interner.get(open.return_ty)
+    );
+    let passed = check(
+        "Shop\\Route $r = Shop\\Ledger::openRoute(3);\nint $n = Shop\\Ledger::routeStop($r);",
+        &[ledger()],
+    );
+    assert!(
+        !passed.has_errors(),
+        "a resource written in type position is not declared: {passed:?}"
+    );
+    let number = check("int $n = Shop\\Ledger::routeStop(3);", &[ledger()]);
+    assert!(number.has_errors(), "an `int` passes as a `Shop\\Route`");
+    let made = check("Shop\\Route $r = new Shop\\Route();", &[ledger()]);
+    assert!(made.has_errors(), "a program makes a resource with `new`");
+}
+
+#[test]
 fn an_extension_class_is_unknown_when_the_set_does_not_load_it() {
     let diags = check("int $n = Shop\\Ledger::echoInt(7);", &[]);
     assert!(
