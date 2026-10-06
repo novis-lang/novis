@@ -1,28 +1,30 @@
 {
-  "state": "**Goal `deprecated-and-todo`, Stage 2 is on disk: the roster, the template check and `W1003` at every use.** The whole list of goal `php-oracle-retired` is the floor of Stage 1.\n\nADR 0275 is accepted and its three rules are on disk as `designed`. The template check is `crates/nvs-types/src/deprecated/template.rs` (`E0845` to `E0850`). `W1003` is raised by `crates/nvs-types/src/deprecated.rs`, whose module doc says where: every method and property hook body, every top-level statement and every class header is checked inside `deprecated::window`, which is closed in a deprecated declaration or a member of a deprecated class. When the body is done, its expression table entries (`ExprTypeTable::since_at`, which now keeps a span per entry) are mapped by `template::resolved` and each deprecated declaration warns once per span. A type position warns as `lower::resolve_name_type` lowers it, and an override warns at the method through `deprecated::warn_override`, with no replacement. `Deprecations` now keeps `since`, `note`, `replace` and `construct` per declaration, and the message is the member, `since`, `note`, then `Use \\`<template>\\` instead.` with the template as declared. All 13 tests in `crates/nvs-types/tests/deprecated.rs` pass.\n\n**Known gaps, not yet owned by a test:** a use inside a property initializer, a constant's value or a parameter default does not warn, because those are checked outside any body window; a static call reached through a subclass names the declaring class, not the written one.\n\n**One deviation for the user to confirm:** ADR 0275 § Diagnostics adds no code except the template refusals. The goal also asks that an attach site the attribute does not take be refused, and no existing code says that. `E0844` is that code. If it should go, `E0454` could carry the hook case instead, with a worse message.\n\n`tools/nv/test/html-later-polyfill.test.ts` was a driver selection miss after session 0061; it passes when run alone (8 of 8), so it reads as flaky rather than broken.",
+  "state": "**Goal `deprecated-and-todo`. Stage 2 is on disk, and the `nvs-types` half of Stage 3 is too: every `W1003` names its template filled in at the use and carries it as a safe fix.** The whole list of goal `php-oracle-retired` is the floor of Stage 1.\n\nADR 0275 is accepted and its three rules are on disk as `designed`. The template check is `crates/nvs-types/src/deprecated/template.rs` (`E0845` to `E0850`), `W1003` is raised by `crates/nvs-types/src/deprecated.rs`, and the fix is `crates/nvs-types/src/deprecated/fix.rs`, whose module doc says what it reads and where it offers no fix. A fix that needs an import carries it as a second `Suggestion` at `nvs_hir::import_site`, so the rewrite and the `use` line are two edits of one diagnostic. All 11 tests in `crates/nvs-types/tests/deprecated_fix.rs` pass, and the 13 in `crates/nvs-types/tests/deprecated.rs` still do.\n\n**Known gaps, not yet owned by a test:** a use inside a property initializer, a constant's value or a parameter default does not warn; a static call reached through a subclass names the declaring class; a passed deprecated parameter gets no fix (help only); a template with a closure, an interpolated string, a function call by name or a `static` gets no fix; two uses in one file that need the same import each carry the same `use` edit, so a batch must apply it once.\n\n**One deviation for the user to confirm:** ADR 0275 § Diagnostics adds no code except the template refusals. The goal also asks that an attach site the attribute does not take be refused, and no existing code says that. `E0844` is that code. If it should go, `E0454` could carry the hook case instead, with a worse message.",
   "next": {
     "stage": 3,
     "title": "the rewrite",
     "files": [
-      "crates/nvs-types/src/deprecated.rs",
-      "crates/nvs-types/src/expr/calls.rs",
       "crates/nvs-lsp/src/diagnostics.rs",
-      "crates/nvs-lsp/src/actions.rs"
+      "crates/nvs-lsp/src/actions.rs",
+      "crates/nvs-lsp/src/completion.rs",
+      "crates/nvs-lsp/src/hover.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**Fill the template in at the use** — `rule:attributes/a-deprecation-names-its-replacement-as-code` § *The fix fills the template in* and § *Side effects keep their order and count*: `crates/nvs-types/src/deprecated.rs:211` (`report`) gains the use's call node so it can substitute arguments by position and name, defaults as written, `$this` as the receiver and the class as written; the message's replacement at `crates/nvs-types/src/deprecated.rs:234` becomes the filled-in text, and the result is `W1003`'s `Suggestion`. The arguments are written at `crates/nvs-types/src/expr/calls.rs:212`. Tests: the goal record's stage-3 `nvs-types` check, beside `crates/nvs-types/tests/deprecated.rs:1`."
+        "text": "**The editor tag and the quick fix** — `rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows` (the fourth fix): `crates/nvs-lsp/src/diagnostics.rs:155` sets `DiagnosticTag::DEPRECATED` on `W1003`; `crates/nvs-lsp/src/actions.rs:139` (`at`) turns each suggestion into its own action today, so a `W1003` whose fix carries an import must become one action with two edits, under `quickfix` and `source.fixAll.nvs`, and fix-all must apply an identical import edit once. Tests: the goal record's stage-3 `nvs-lsp` check."
       },
       {
         "done": false,
-        "text": "**The editor tag** — same goal stage: `crates/nvs-lsp/src/diagnostics.rs:155` sets `DiagnosticTag::DEPRECATED` on `W1003`, and `crates/nvs-lsp/src/actions.rs:1`'s module doc names the fourth fix."
+        "text": "**A deprecated member's completion item and hover** — same rule and `rule:attributes/a-deprecation-names-its-replacement-as-code`: the completion item carries `CompletionItemTag::DEPRECATED`, and hover shows the template. `bun nv peek --locate` the completion and hover builders first; `Deprecations` is `pub(crate)` in `crates/nvs-types/src/deprecated.rs:101`, so the LSP needs a public question on the analysis."
       }
     ]
   },
   "backlog": [
-    "A use in a property initializer, a constant value or a parameter default does not warn yet (`crates/nvs-types/src/deprecated.rs` module doc).",
-    "Completion tag and hover for a deprecated member (`crates/nvs-lsp/src/completion.rs`, `crates/nvs-lsp/src/hover.rs`), Stage 3 of `docs/agent/goals/deprecated-and-todo.md`.",
-    "`E0844` versus `E0454` for a deprecation on a property hook: the user's call (ADR 0275 § Diagnostics)."
+    "Stage 4: the `// TODO:` collector in `nvs-syntax` and its `Information` publish in `nvs-lsp` — `rule:tooling/a-todo-is-a-comment-the-tools-list`.",
+    "Stage 5: `nvs check --deny deprecated`, `--fix`, `--todos` — same rule; `--fix` applies the suggestions `crates/nvs-types/src/deprecated/fix.rs` writes, deduping identical edits.",
+    "Stage 6: `[errors] deprecated` and the codegen check — `rule:attributes/a-deprecation-names-its-replacement-as-code`.",
+    "A passed deprecated parameter's fix (the template is a named argument) — `crates/nvs-types/src/deprecated/fix.rs`, `fill`'s `Member::Param` arm.",
+    "`E0844` vs `E0454` for an attribute on a hook — the user's call, above."
   ]
 }
