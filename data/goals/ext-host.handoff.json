@@ -1,24 +1,24 @@
 {
-  "state": "**Goal `ext-host` is through Stage 2.** Both stage-2 checks run green: the configuration half (`crates/nvs-config/tests/extension.rs`) and the loader (`crates/nvs-ext/tests/load.rs`, check `nvs-ext-loading-refuses-everything-0246-names`). The design is ADR 0246 §§ 3–6 and the goal file's § *Standing decisions*; this goal has no record slot, so a question is decided in `crates/nvs-ext`'s module docs.\n\nOn disk: `crates/nvs-ext/src/load.rs`, behind the `engine` feature, is `Loader::load`/`load_bytes`/`load_set` and `Set::insert`. Its module doc owns the refusal order (pin, component, sections, world version, imports, reserved namespace, exports; `Set::insert` the duplicate class), which Novis types the export check reads (structural ones only; named types are refused until the manifest carries them), and the import match (`WORLD_IMPORTS`, held equal to `wit/nvs-ext/world.wit` by a test; WASI at any `0.2.x`). `load::pin` is the digest as an entry's pin, ready for `nvs ext pin`. A refusal names the entry's path; the caller that knows the config line adds it. Test guests are hand-written component WAT (`guest()` in `tests/load.rs`), the sections added by `with_section` until the packer exists. Nothing calls the loader at boot or reload yet (Stage 6).",
+  "state": "**Goal `ext-host` is through Stage 3.** The stage-2 checks and the packer check `nvs-ext-the-packer-writes-a-nvsx-that-loads` (`crates/nvs-ext/tests/pack.rs`) are green. The design is ADR 0246 §§ 3–6 and the goal file's § *Standing decisions*; a question is decided in `crates/nvs-ext`'s module docs.\n\nOn disk: `crates/nvs-ext/src/load.rs` (behind `engine`) is `Loader::load`/`load_bytes`/`load_set` and `Set::insert`; its module doc owns the refusal order and the export check. `crates/nvs-ext/src/pack.rs` (behind the new `pack` feature, on by default) is `pack::pack(&Inputs)` and `pack::append_section`: a component is taken as it is, a core module is componentized with `wit-component` against a world the packer writes (`include nvs:ext/extension` plus `export <manifest interface>`), the `nvs:ext` and WASI WIT compiled in from `wit/nvs-ext/`; the module doc owns the rest. `tests/load.rs` builds its deliberately malformed files with `append_section`, since `pack` refuses them. Nothing calls the loader or the packer from `nvs-cli` yet (`nvs ext` is goal `ext-tooling`'s; boot and reload are Stage 6).",
   "next": {
-    "stage": 3,
-    "title": "the packer",
+    "stage": 4,
+    "title": "instances, the call bridge and the budget",
     "files": [],
-    "note": "one file set: a new `crates/nvs-ext/src/pack.rs`, a new `crates/nvs-ext/tests/pack.rs`, the root `Cargo.toml` (`wit-component` at the version `Cargo.lock` holds), `crates/nvs-ext/src/lib.rs`.",
+    "note": "one file set: a new `crates/nvs-ext/src/call.rs`, a new `crates/nvs-ext/tests/call.rs`, `crates/nvs-ext/src/load.rs`, `crates/nvs-ext/Cargo.toml`.",
     "items": [
       {
         "done": false,
-        "text": "**Pack a component or a core module, a manifest and source files into a `.nvsx` that `Loader::load_bytes` accepts, the same bytes each time** — `rule:packaging/nvs-ext-is-the-authoring-tool`. A core module is componentized with `wit-component` against `wit/nvs-ext/world.wit`'s `extension` world and the manifest's interface; the sections are appended as `crates/nvs-ext/tests/load.rs:14`'s `with_section` does; source paths checked with `crates/nvs-ext/src/source.rs:85`'s `is_relative_source_path`. Test names are the check `nvs-ext-the-packer-writes-a-nvsx-that-loads`'s; the loaded proof uses `crates/nvs-ext/src/load.rs:186`'s `Loader`."
+        "text": "**One instance per extension per request, a call that parks or yields on its core, CPU and memory charged to the request** — `rule:packaging/a-guest-runs-under-the-requests-budget`, `rule:packaging/an-extension-is-a-sandboxed-wasm-component`. Instantiate the `Component` held by `crates/nvs-ext/src/load.rs:115`'s `Extension` in a per-request store with epoch interruption and a `ResourceLimiter` reading the request's budget (`crates/nvs-runtime/src/budget.rs`); a second task of the same request waits for the instance. Test names are the check `nvs-ext (one instance per extension per request …)`'s (`bun nv loop --list --stage 4`); test guests stay component WAT, packed with `crates/nvs-ext/src/pack.rs` where a manifest is needed."
       },
       {
         "done": false,
-        "text": "**Move `crates/nvs-ext/tests/load.rs:14`'s helper onto the packer where it can** — the goal's Stage 2 note says the packer replaces the helper; keep the hand-written guest for the refusals the packer would itself refuse."
+        "text": "**Read the stage's tests from the check before writing them** — `bun nv loop --list --stage 4 --name call` prints the names; the loaded guest comes from `crates/nvs-ext/tests/pack.rs:20`'s `component()` shape."
       }
     ]
   },
   "backlog": [
-    "The export check refuses named Novis types (enum, `Core` value class, union of shapes, `resource`) until the manifest names them — goal `ext-compiler` owns that; module doc of `crates/nvs-ext/src/load.rs`.",
-    "`tests/load.rs` exercises only `string`, `bool`, `float` through the matcher; arrays, `?T`, shapes and `mixed` need a guest each — add with the packer's componentize path, which writes the core signatures.",
-    "Boot and reload call `Loader::load_set` and add the config file and line to a `Refused` — Stage 6, `rule:packaging/extension-loading-is-root-controlled`."
+    "No named type (enum, `Core` value class, union, `resource`) passes the export check until the manifest carries them — `crates/nvs-ext/src/load.rs` module doc.",
+    "`nvs ext pin` and `nvs ext build` over `load::pin` and `pack::pack` — goal `ext-tooling`, `rule:packaging/nvs-ext-is-the-authoring-tool`.",
+    "A core module importing WASI preview 1 needs an adapter; the packer takes none — `crates/nvs-ext/src/pack.rs` module doc, goal `ext-tooling`."
   ]
 }

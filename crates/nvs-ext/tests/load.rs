@@ -6,32 +6,9 @@ use std::path::PathBuf;
 
 use nvs_ext::load::{Entry, Loader, Refused, Set, WORLD_IMPORTS, pin};
 use nvs_ext::manifest::WorldVersion;
+use nvs_ext::pack::append_section;
 use nvs_ext::section::{MANIFEST, SOURCE};
 use wasmtime::Engine;
-
-/// `bytes` with a custom section `name` holding `data` appended. A custom section is valid at any
-/// point of a component's top level, so the end is as good as anywhere.
-fn with_section(mut bytes: Vec<u8>, name: &str, data: &[u8]) -> Vec<u8> {
-    fn leb(out: &mut Vec<u8>, mut n: usize) {
-        loop {
-            let byte = u8::try_from(n & 0x7f).expect("seven bits");
-            n >>= 7;
-            if n == 0 {
-                out.push(byte);
-                return;
-            }
-            out.push(byte | 0x80);
-        }
-    }
-    let mut body = Vec::new();
-    leb(&mut body, name.len());
-    body.extend_from_slice(name.as_bytes());
-    body.extend_from_slice(data);
-    bytes.push(0);
-    leb(&mut bytes, body.len());
-    bytes.extend(body);
-    bytes
-}
 
 /// A component exporting `shop:geo/api` with one function,
 /// `distance-km: func(from: string, round: bool) -> result<f64, error>`, its `error` imported from
@@ -74,8 +51,8 @@ const SOURCE_JSON: &str =
 
 /// `component` with `manifest` and the one source file added.
 fn nvsx(component: Vec<u8>, manifest: &str) -> Vec<u8> {
-    let bytes = with_section(component, MANIFEST, manifest.as_bytes());
-    with_section(bytes, SOURCE, SOURCE_JSON.as_bytes())
+    let bytes = append_section(component, MANIFEST, manifest.as_bytes());
+    append_section(bytes, SOURCE, SOURCE_JSON.as_bytes())
 }
 
 fn good(class: &str) -> Vec<u8> {
@@ -151,7 +128,7 @@ fn a_file_that_is_not_a_valid_component_is_refused() {
 
 #[test]
 fn a_component_without_a_manifest_section_is_refused() {
-    let bytes = with_section(guest(""), SOURCE, SOURCE_JSON.as_bytes());
+    let bytes = append_section(guest(""), SOURCE, SOURCE_JSON.as_bytes());
     assert_says(&refusal(&loader(), &bytes), &["no `nvs.manifest`"]);
 }
 
