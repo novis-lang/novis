@@ -1,7 +1,6 @@
 {
-  "live": "ext-host",
+  "live": "ext-compiler",
   "goals": [
-    "ext-host",
     "ext-compiler",
     "ext-grants",
     "ext-tooling",
