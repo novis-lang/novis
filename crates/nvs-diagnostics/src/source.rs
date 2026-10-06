@@ -251,6 +251,28 @@ impl SourceFile {
         }
         self.text.get(span.range())
     }
+
+    /// A copy of this file in which `text`, written at `at`, is the only code:
+    /// every byte before it is blank, after a first line of `#!` that opens
+    /// the lexer in code mode (`rule:tooling/shebang-opens-code-mode`), and
+    /// nothing follows it. The copy keeps this file's id, so a span its parse
+    /// gives names the offsets `text` has here — the same bytes in both files
+    /// wherever `text` is this file's own text at `at`.
+    ///
+    /// Built for code written inside a string literal, which is parsed on its
+    /// own and still reported where it was written
+    /// (`rule:attributes/a-deprecation-names-its-replacement-as-code`). `None`
+    /// when `at` leaves no room for the first line.
+    #[must_use]
+    pub fn code_at(&self, at: BytePos, text: &str) -> Option<Self> {
+        const LEAD: &str = "#!\n";
+        let pad = (at as usize).checked_sub(LEAD.len())?;
+        let mut copy = String::with_capacity(LEAD.len() + pad + text.len());
+        copy.push_str(LEAD);
+        copy.extend(std::iter::repeat_n(' ', pad));
+        copy.push_str(text);
+        Some(Self::new(self.id, self.name.clone(), None, copy))
+    }
 }
 
 /// Every file the compiler has read.

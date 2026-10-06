@@ -1,0 +1,19 @@
+--TEST--
+A `replace` whose type does not fit the deprecated method is refused above the method, before any use is written — `rule:attributes/a-deprecation-names-its-replacement-as-code`
+--FILE--
+<?nvs
+class Api {
+    #[Core\Deprecated(since: "2.0", replace: '$this->label()')]
+    public function size(): int { return 1; }
+
+    public function label(): string { return "ten"; }
+}
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0847]: the replacement is `string`, and the deprecated code is `int`
+  --> case.nvs:3:46
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

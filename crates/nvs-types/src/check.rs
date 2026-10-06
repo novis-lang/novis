@@ -129,6 +129,7 @@ pub fn check_program_granted(
     // declaration it asks about, so a table filled as the walk descends would
     // answer differently depending on source order.
     let attributes = crate::retrieval::build_attribute_table(files);
+    let deprecations = crate::deprecated::build_table(files);
     // Threaded across the files rather than restarted at each: an `rule:types/anonymous-function`
     // anonymous function at file scope is labelled `Script$fn<n>`, with no
     // declaring class to disambiguate it, so a counter that restarted per
@@ -170,6 +171,7 @@ pub fn check_program_granted(
             enums: &enums,
             consts: &consts,
             attributes: &attributes,
+            deprecations: &deprecations,
             grants,
             src: file.src,
             stmts: file.stmts,

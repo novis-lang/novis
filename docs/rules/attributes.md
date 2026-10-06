@@ -322,7 +322,8 @@ enum case, a method, a constructor, a property, a class constant and a parameter
 
 **The template is checked where it is declared.** `replace` is one expression, or one type name on a
 class, an interface or an enum, compiled in the declaration's scope with its parameters and, on an
-instance member, `$this` bound. There is no `{0}`, no `$1` and no other template syntax. It is refused
+instance member, `$this` bound. There is no `{0}`, no `$1` and no other template syntax, and no escape
+sequence: the text between the quotes is the code, so an error in it points into the string. It is refused
 where it is written, each with its own `E08xx` code, when it does not parse, does not compile, has a type
 not assignable to the member's (a parameter's template is a named argument that fits the parameter),
 names anything less visible than the member, or names anything deprecated — so no fix ever produces a

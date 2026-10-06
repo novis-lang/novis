@@ -1468,6 +1468,14 @@ impl ExprTypeTable {
             .map(|id| &self.entries[id.0 as usize])
     }
 
+    /// Every entry recorded after the table held `mark` of them, in the order
+    /// they were recorded — what one expression's check resolved, for a
+    /// caller that took [`Self::len`] before it
+    /// (`crate::deprecated`'s template check).
+    pub(crate) fn since(&self, mark: usize) -> &[ExprInfo] {
+        self.entries.get(mark..).unwrap_or_default()
+    }
+
     /// Records what the name of one `#[Name(...)]` resolved to, at the span
     /// the name was written.
     ///

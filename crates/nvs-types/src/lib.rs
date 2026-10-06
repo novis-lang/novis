@@ -402,6 +402,11 @@ pub(crate) struct Env<'a> {
     /// be written above the declaration it asks about; see
     /// [`crate::retrieval::AttributeTable`].
     pub attributes: &'a crate::retrieval::AttributeTable<'a>,
+    /// Every declaration that carries `#[Core\Deprecated]`
+    /// (`rule:attributes/a-deprecation-names-its-replacement-as-code`). Built
+    /// whole before any body is checked, for [`Self::attributes`]' reason: a
+    /// use may be written above the declaration it names.
+    pub deprecations: &'a crate::deprecated::Deprecations,
     /// The `[capabilities]` block of the configuration the *compiling* machine
     /// read, or `None` where nothing read one — `rule:core-classes/db-compile-time-query-checking`'s "`nvs.toml` is read at boot on the machine that compiles",
     /// which is the only thing in front of this pass that is not the program.

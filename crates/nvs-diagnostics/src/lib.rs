@@ -5367,6 +5367,48 @@ pub mod code {
         "`#[Core\\Deprecated]` cannot be written on a property hook or its parameter. Write it \
          above the property instead.",
     );
+    /// A `#[Core\Deprecated]` template that is not one expression, or not one
+    /// type name on a class, an interface or an enum
+    /// (`rule:attributes/a-deprecation-names-its-replacement-as-code`).
+    pub const E_DEPRECATION_TEMPLATE_DOES_NOT_PARSE: Code = Code::new("E0845").card(
+        "The `replace` or `construct` text of `#[Core\\Deprecated]` must be one Novis \
+         expression. On a class, an interface or an enum, `replace` is one type name. On a \
+         parameter, it is one named argument, such as `limit: $count`.",
+    );
+    /// A `#[Core\Deprecated]` template that parses and does not compile in the
+    /// scope of the declaration it is written on.
+    pub const E_DEPRECATION_TEMPLATE_DOES_NOT_COMPILE: Code = Code::new("E0846").card(
+        "The `replace` or `construct` text of `#[Core\\Deprecated]` must compile where the \
+         declaration is written. It can use the parameters of the method, and `$this` in an \
+         instance member.",
+    );
+    /// A `#[Core\Deprecated]` template whose type is not assignable to the
+    /// type of the member it replaces.
+    pub const E_DEPRECATION_TEMPLATE_DOES_NOT_FIT: Code = Code::new("E0847").card(
+        "The `replace` text of `#[Core\\Deprecated]` must have a type that fits the member it \
+         replaces. A method's replacement fits its return type, and a property's replacement \
+         fits the property's type.",
+    );
+    /// A `#[Core\Deprecated]` template that names a member less visible than
+    /// the declaration it is written on.
+    pub const E_DEPRECATION_TEMPLATE_LESS_VISIBLE: Code = Code::new("E0848").card(
+        "The `replace` text of `#[Core\\Deprecated]` replaces code that other classes write. \
+         It cannot use a method, property or constructor that is less visible than the \
+         deprecated member.",
+    );
+    /// A `#[Core\Deprecated]` template that names something which is itself
+    /// deprecated, so applying its fix would leave a second warning.
+    pub const E_DEPRECATION_TEMPLATE_NAMES_A_DEPRECATED: Code = Code::new("E0849").card(
+        "The `replace` text of `#[Core\\Deprecated]` cannot use anything that is also \
+         deprecated. Write the final replacement, so one fix is enough.",
+    );
+    /// A deprecated class whose `replace` names a class that does not declare
+    /// every public member the deprecated class declares.
+    pub const E_DEPRECATION_REPLACEMENT_MISSES_A_MEMBER: Code = Code::new("E0850").card(
+        "The class named by `replace` must declare every public method, property and \
+         constant of the deprecated class, with a type that fits. Otherwise the code that \
+         used the old class does not compile after the fix.",
+    );
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.

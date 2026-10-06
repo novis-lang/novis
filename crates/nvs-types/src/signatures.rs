@@ -806,6 +806,7 @@ pub fn build_signatures(
     // Same again: `rule:attributes/structural-retrieval`'s retrieval is an expression, and this pass
     // checks none, so the table it reads is empty here rather than built twice.
     let empty_attributes = crate::retrieval::AttributeTable::default();
+    let empty_deprecations = crate::deprecated::Deprecations::default();
     for file in files {
         let mut env = Env {
             symbols,
@@ -815,6 +816,7 @@ pub fn build_signatures(
             enums,
             consts,
             attributes: &empty_attributes,
+            deprecations: &empty_deprecations,
             // This pass checks no expression, so nothing in it can ask a
             // capability question — the placeholder tables beside it are here
             // for the same reason.
