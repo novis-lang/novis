@@ -1,7 +1,6 @@
 {
-  "live": "php-oracle-retired",
+  "live": "deprecated-and-todo",
   "goals": [
-    "php-oracle-retired",
     "deprecated-and-todo",
     "ext-design",
     "ext-host",
