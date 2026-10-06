@@ -60,6 +60,7 @@ use wasmtime::component::{Component, types::Type};
 use crate::manifest::{Manifest, Method, WorldVersion};
 use crate::section;
 use crate::source::Source;
+use crate::types::NovisType;
 
 /// The `nvs:ext` world this host implements.
 pub const WORLD: WorldVersion = WorldVersion {
@@ -491,7 +492,7 @@ fn check_signature(method: &Method, func: &ComponentFunc) -> Result<(), String> 
             ));
         }
         let ty = NovisType::parse(&param.ty)?;
-        if !ty.matches(wit) {
+        if !crosses_as(&ty, wit) {
             return Err(format!(
                 "the parameter `{}` is `{}`, which does not cross as the export's type",
                 param.name, param.ty
@@ -507,7 +508,7 @@ fn check_signature(method: &Method, func: &ComponentFunc) -> Result<(), String> 
         .transpose()?;
     let ok = match (&returns, result.ok()) {
         (None, None) => true,
-        (Some(ty), Some(wit)) => ty.matches(&wit),
+        (Some(ty), Some(wit)) => crosses_as(ty, &wit),
         _ => false,
     };
     if !ok {
@@ -536,155 +537,37 @@ fn is_error(ty: &Type) -> bool {
             .all(|(name, case)| case.name == *name && matches!(case.ty, Some(Type::String)))
 }
 
-/// A Novis type of an extension signature, parsed from the manifest's text.
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum NovisType {
-    Bool,
-    Int,
-    Uint,
-    Float,
-    String,
-    Bytes,
-    Mixed,
-    List(Box<NovisType>),
-    Keyed(Box<NovisType>, Box<NovisType>),
-    Optional(Box<NovisType>),
-    Shape(Vec<(String, bool, NovisType)>),
-}
-
-impl NovisType {
-    /// The type `text` writes, or why it is outside the table.
-    fn parse(text: &str) -> Result<Self, String> {
-        let mut parser = TypeParser { text, at: 0 };
-        let ty = parser.ty();
-        parser.skip_space();
-        match ty {
-            Some(ty) if parser.at == text.len() => Ok(ty),
-            _ => Err(format!(
-                "the type `{text}` is not one an extension signature can carry"
-            )),
-        }
-    }
-
-    /// Whether a value of this type crosses as `wit`.
-    fn matches(&self, wit: &Type) -> bool {
-        match (self, wit) {
-            (Self::Bool, Type::Bool)
-            | (Self::Int, Type::S64)
-            | (Self::Uint, Type::U64)
-            | (Self::Float, Type::Float64)
-            | (Self::String, Type::String)
-            | (Self::Mixed, Type::Borrow(_)) => true,
-            (Self::Bytes, Type::List(list)) => matches!(list.ty(), Type::U8),
-            (Self::List(item), Type::List(list)) => item.matches(&list.ty()),
-            (Self::Keyed(key, value), Type::List(list)) => match list.ty() {
-                Type::Tuple(tuple) => {
-                    let types: Vec<Type> = tuple.types().collect();
-                    matches!(types.as_slice(), [k, v] if key.matches(k) && value.matches(v))
-                }
-                _ => false,
-            },
-            (Self::Optional(inner), Type::Option(option)) => inner.matches(&option.ty()),
-            (Self::Shape(fields), Type::Record(record)) => {
-                let wit: Vec<_> = record.fields().collect();
-                wit.len() == fields.len()
-                    && fields.iter().zip(&wit).all(|((name, optional, ty), field)| {
-                        field.name == crate::kebab(name)
-                            && if *optional {
-                                matches!(&field.ty, Type::Option(option) if ty.matches(&option.ty()))
-                            } else {
-                                ty.matches(&field.ty)
-                            }
-                    })
+/// Whether a value of the Novis type `ty` crosses as `wit`.
+fn crosses_as(ty: &NovisType, wit: &Type) -> bool {
+    match (ty, wit) {
+        (NovisType::Bool, Type::Bool)
+        | (NovisType::Int, Type::S64)
+        | (NovisType::Uint, Type::U64)
+        | (NovisType::Float, Type::Float64)
+        | (NovisType::String, Type::String)
+        | (NovisType::Mixed, Type::Borrow(_)) => true,
+        (NovisType::Bytes, Type::List(list)) => matches!(list.ty(), Type::U8),
+        (NovisType::List(item), Type::List(list)) => crosses_as(item, &list.ty()),
+        (NovisType::Keyed(key, value), Type::List(list)) => match list.ty() {
+            Type::Tuple(tuple) => {
+                let types: Vec<Type> = tuple.types().collect();
+                matches!(types.as_slice(), [k, v] if crosses_as(key, k) && crosses_as(value, v))
             }
             _ => false,
+        },
+        (NovisType::Optional(inner), Type::Option(option)) => crosses_as(inner, &option.ty()),
+        (NovisType::Shape(fields), Type::Record(record)) => {
+            let wit: Vec<_> = record.fields().collect();
+            wit.len() == fields.len()
+                && fields.iter().zip(&wit).all(|((name, optional, ty), field)| {
+                    field.name == crate::kebab(name)
+                        && if *optional {
+                            matches!(&field.ty, Type::Option(option) if crosses_as(ty, &option.ty()))
+                        } else {
+                            crosses_as(ty, &field.ty)
+                        }
+                })
         }
-    }
-}
-
-/// A recursive-descent reader over a type's text.
-struct TypeParser<'a> {
-    text: &'a str,
-    at: usize,
-}
-
-impl TypeParser<'_> {
-    fn skip_space(&mut self) {
-        let rest = &self.text[self.at..];
-        self.at += rest.len() - rest.trim_start().len();
-    }
-
-    fn eat(&mut self, token: &str) -> bool {
-        self.skip_space();
-        if self.text[self.at..].starts_with(token) {
-            self.at += token.len();
-            true
-        } else {
-            false
-        }
-    }
-
-    fn word(&mut self) -> Option<&str> {
-        self.skip_space();
-        let rest = &self.text[self.at..];
-        let len = rest
-            .find(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
-            .unwrap_or(rest.len());
-        if len == 0 {
-            return None;
-        }
-        self.at += len;
-        Some(&rest[..len])
-    }
-
-    fn ty(&mut self) -> Option<NovisType> {
-        if self.eat("?") {
-            return Some(NovisType::Optional(Box::new(self.ty()?)));
-        }
-        if self.eat("{") {
-            let mut fields = Vec::new();
-            if !self.eat("}") {
-                loop {
-                    let name = self.word()?.to_owned();
-                    let optional = self.eat("?");
-                    if !self.eat(":") {
-                        return None;
-                    }
-                    fields.push((name, optional, self.ty()?));
-                    if self.eat("}") {
-                        break;
-                    }
-                    if !self.eat(",") {
-                        return None;
-                    }
-                }
-            }
-            return Some(NovisType::Shape(fields));
-        }
-        Some(match self.word()? {
-            "bool" => NovisType::Bool,
-            "int" => NovisType::Int,
-            "uint" => NovisType::Uint,
-            "float" => NovisType::Float,
-            "string" => NovisType::String,
-            "bytes" => NovisType::Bytes,
-            "mixed" => NovisType::Mixed,
-            "array" => {
-                if !self.eat("<") {
-                    return None;
-                }
-                let first = self.ty()?;
-                let ty = if self.eat(",") {
-                    NovisType::Keyed(Box::new(first), Box::new(self.ty()?))
-                } else {
-                    NovisType::List(Box::new(first))
-                };
-                if !self.eat(">") {
-                    return None;
-                }
-                ty
-            }
-            _ => return None,
-        })
+        _ => false,
     }
 }

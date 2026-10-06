@@ -7,6 +7,7 @@
 //! - [`section`] finds the two sections at a component's top level.
 //! - [`manifest`] is the manifest's Rust type and its JSON parser.
 //! - [`source`] is the `nvs.source` payload: the Novis source files the extension carries.
+//! - [`types`] parses the Novis types a manifest writes, for the loader and the checker both.
 //! - `load`, behind the `engine` feature, reads a `.nvsx` from its `[[extension]]` entry and
 //!   refuses it, naming the entry, unless its pin, its component, its manifest and its imports all
 //!   check. Its module doc owns the order and which Novis types the export check reads.
@@ -16,7 +17,7 @@
 //! - `pack`, behind the `pack` feature, makes a `.nvsx` from a component or a core module, a
 //!   manifest and source files, the same bytes each time.
 //!
-//! **The manifest model never links wasmtime.** The three modules above use `serde_json` and
+//! **The manifest model never links wasmtime.** The four modules above use `serde_json` and
 //! `wasmparser` and nothing of the engine, because the checker and the language server read
 //! manifests and never instantiate. They live here, in modules behind no feature, and wasmtime is
 //! the optional dependency the default `engine` feature turns on. A reader that must not link the
@@ -48,6 +49,7 @@ pub mod manifest;
 pub mod pack;
 pub mod section;
 pub mod source;
+pub mod types;
 
 use std::fmt;
 
