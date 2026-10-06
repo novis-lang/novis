@@ -1,23 +1,32 @@
 {
-  "state": "**Goal `ext-host` is in Stage 6.** Stages 2 to 5 are green. The design is ADR 0246 §§ 3–6 and the goal file's § *Standing decisions*. A question is decided in `crates/nvs-ext`'s module docs.\n\nOn disk: `crates/nvs-ext/src/call.rs` (behind `engine`) runs one instance per extension per request under a `Budget`, and returns the `ok` side of an export's `result`, or a `Failure`. `Failure::outcome` is what the program sees: a `Throw` of `LogicError`/`ParseError`/`RuntimeError` for an `err` (instance kept), of `ExtensionError` for a trap naming the class and the export (instance dropped), or a `Fatal` for a CPU or memory limit, named as `nvs_runtime::Limit::name` spells it. `crates/nvs-ext/tests/failure.rs` pins those names against the runtime through a dev-dependency; the library still does not link `nvs-runtime`. Nothing implements `Budget` over a request's `Ctx`, and no host raises an outcome on a request yet. Nothing in `nvs-cli` calls the loader or the host. A real host's linker must define an empty `nvs:ext/types@1.0.0` instance, because a guest imports its `error` type from it (`failure.rs`'s `fixture`).",
+  "state": "**Goal `ext-host` is in Stage 6.** Stages 2 to 5 are green. The design is ADR 0246 §§ 3–6 and the goal file's § *Standing decisions*. A question is decided in `crates/nvs-ext`'s module docs.\n\nOn disk: `crates/nvs-ext/src/load.rs`'s `Loader::with_cache` takes a `ModuleCache` (`get`/`put` over a `CacheKey { pin, environment }`). `Loader::environment` is a SHA-256 of wasmtime's `precompile_compatibility_hash`. A hit is deserialized, and a stored entry is a SHA-256 of the serialized component followed by the component, so a bad checksum or an entry wasmtime refuses is a miss that is compiled and stored again (`crates/nvs-ext/tests/cache.rs`, green). `nvs-ext` is now on `bun nv lints`' `UNSAFE_CRATES` roster for that one `Component::deserialize`. `crates/nvs-ext/src/call.rs` runs a guest per request under a `Budget`, and `Failure::outcome` is what the program sees. Nothing implements `Budget` over a request's `Ctx`, nothing implements `ModuleCache` over `nvs-cli`'s artifact store, and nothing in `nvs-cli` calls the loader. A real host's linker must define an empty `nvs:ext/types@1.0.0` instance.",
   "next": {
     "stage": 6,
     "title": "reload and the module cache",
-    "files": [],
-    "note": "one file set: `crates/nvs-ext/src/load.rs`, a new `crates/nvs-ext/tests/cache.rs`, `crates/nvs-ext/Cargo.toml`.",
+    "files": [
+      "crates/nvs-cli/src/cache.rs",
+      "crates/nvs-cli/src/control.rs",
+      "crates/nvs-cli/tests/live_config.rs",
+      "crates/nvs-cli/tests/compile_cache.rs"
+    ],
     "items": [
       {
         "done": false,
-        "text": "**A compiled component is stored under its digest and the environment, reused only under both, and a bad entry is a miss** — `rule:packaging/extension-loading-is-root-controlled` (compiled once, into the same content-addressed cache), standing decision \"the module cache is a seam `nvs-cli` fills\". `Loader` compiles at `crates/nvs-ext/src/load.rs:246` (`Component::new`); add a cache seam to `Loader` (a trait `nvs-cli` implements over `crates/nvs-cli/src/cache.rs:189`'s store) keyed by the pin and an environment digest, loading with `Component::deserialize` on a hit and treating a corrupt entry as a miss. Tests: `a_compiled_component_is_stored_under_its_digest_and_the_environment`, `a_stored_compiled_component_is_loaded_without_compiling_again`, `a_compiled_component_stored_under_another_environment_is_never_loaded`, `a_corrupt_stored_compiled_component_is_a_miss_and_is_compiled_again`. Add `[[test]] name = \"cache\"` to `crates/nvs-ext/Cargo.toml`."
+        "text": "**Boot and reload load every `[[extension]]` entry and refuse the whole set on one failure, keeping the previous set live** — `rule:packaging/extension-loading-is-root-controlled`. Reload is `crates/nvs-cli/src/control.rs:668`; call `nvs_ext::load::Loader::load_set` there and at boot, naming the entry's file and line. Tests: `a_boot_with_an_extension_entry_that_does_not_load_refuses_to_start` and the rest of the `nvs-cli-a-reload-verifies-every-extension-before-the-swap` check in `data/goals/ext-host.json`."
       },
       {
         "done": false,
-        "text": "**Boot and reload load every `[[extension]]` entry and refuse the whole set on one failure** — `rule:packaging/extension-loading-is-root-controlled`. The reload seam is `crates/nvs-cli/src/control.rs:668`; tests go in `nvs-cli`'s `live_config` (`a_boot_with_an_extension_entry_that_does_not_load_refuses_to_start`, `a_reload_whose_extension_pin_does_not_match_is_refused_whole_and_the_previous_set_stays_live`, `a_reload_with_one_bad_extension_entry_among_good_ones_is_refused_whole`, `a_reload_that_changes_the_extension_set_rekeys_the_unit_cache`) and `compile_cache` (`a_unit_compiled_under_one_extension_set_is_never_reused_under_another`). A different file set: likely its own session."
+        "text": "**`nvs-cli`'s artifact store implements `nvs_ext::load::ModuleCache`** — `rule:packaging/a-wasm-module-cache-reuses-the-artifact-cache`. `Cache::load` and `Cache::store` are at `crates/nvs-cli/src/cache.rs:1309` and `crates/nvs-cli/src/cache.rs:1358`; derive the store's `Digest` from `CacheKey`'s pin and environment, and hand the loader the impl at boot."
+      },
+      {
+        "done": false,
+        "text": "**A unit compiled under one extension set is never reused under another** — `rule:config/the-extension-set-is-in-every-unit-key`. The unit key is built at `crates/nvs-cli/src/script.rs:981`. Test `a_unit_compiled_under_one_extension_set_is_never_reused_under_another` in `crates/nvs-cli/tests/compile_cache.rs`."
       }
     ]
   },
   "backlog": [
-    "`Budget` over a request's `Ctx` (deadline and memory accounting), and the host that raises `Failure::outcome` with `Ctx::set_pending_as` or `Ctx::run_limit_handler` plus a `FATAL` — goal `ext-compiler` or `ext-grants`, whichever wires calls into compiled code (`crates/nvs-ext/src/call.rs` module doc).",
-    "`nvs ext pin` does not exist — goal `ext-tooling`."
+    "`Budget` over a request's `Ctx` and a host raising `Failure::outcome` on a request: goal `ext-grants` (`crates/nvs-ext/src/call.rs` module doc).",
+    "`nvs ext pin` does not exist: `rule:packaging/extension-loading-is-root-controlled`.",
+    "A named type (enum, `Core` value class, union, `resource`) passing the export check: the compiler goal (`crates/nvs-ext/src/load.rs` module doc)."
   ]
 }
