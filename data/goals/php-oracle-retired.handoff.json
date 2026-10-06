@@ -1,26 +1,26 @@
 {
-  "state": "**Goal `php-oracle-retired`: Stages 6 to 9 are on disk; only Stage 10, rendered and proven, is left.** ADR 0274 (`docs/decisions/0274.md`) is the goal's record.\n\nStage 9 file set 5 closed: `README.md` names PHP only on line 6 (the origins line) and in one line under *What it is trying to be* that links `docs/reference/tools/30-php-differences.md`; the two `benches/members/` comments that named PHP are rewritten; the tools chapters other than php-differences name PHP only in `docs/reference/tools/10-cli.md`'s \"Novis does not run PHP\" bullet, kept because it is the `E0229` habit and `rule:programs/no-compatibility-promise`'s disclaimer.\n\n`bun nv proofs --gate` is red only on stale perf: 148 features, all `perf: stale` — the `Core\\Math`, `Core\\Str` and `Core\\Env` members whose module changed in Stage 9, and every `lang:` section whose chapter under `docs/reference/lang/` changed. That is the Stage 10 check `dossier-the-whole-roster-owes-nothing-without-php`.",
+  "state": "**Goal `php-oracle-retired` is reached: Stages 6 to 10 are on disk.** ADR 0274 (`docs/decisions/0274.md`) is the goal's record.\n\n`bun nv proofs --gate` reads \"nothing owed in the whole roster\" (1171 features). All 148 stale perf records were measured again and `docs/perf/members.md` was rendered from the ledger again. `docs/novis.md` is current (`bun nv reference --check`, 323 of 323 examples hold). The rule chapters render clean. `bun nv site --stale` finds nothing, `bun nv verify --doc` resolves every link, and `bun nv owners --closes php-oracle-retired` names no gap.\n\nThe two standing decisions that only the goal prose stated now live in rules. Where PHP may be named is in `rule:programs/no-compatibility-promise`. That no check runs PHP to judge Novis is in `rule:testing/userland-benchmarks`.",
   "next": {
     "stage": 10,
     "title": "rendered and proven",
     "files": [],
-    "note": "one file set: the perf records the proofs gate reads and the generated docs (`docs/novis.md`, ground rules, decision index, website data).",
+    "note": "one file set: the perf ledger and the generated docs.",
     "items": [
       {
-        "done": false,
-        "text": "**Re-measure every stale perf record** (`bun nv proofs --record-perf`, narrowed with `--group` or `--only`; `bun nv proofs --owed --limit 0` is the list) — `rule:testing/feature-proofs`; `tools/nv/cmd/proofs.ts:1`, `crates/nvs-stdlib/src/math.rs:1`"
+        "done": true,
+        "text": "**Re-measure every stale perf record** — `rule:testing/feature-proofs`; `tools/nv/cmd/proofs.ts:1`"
       },
       {
-        "done": false,
-        "text": "**Render the generated files again** — `bun nv reference` writes `docs/novis.md`, then the rules, ground rules, decision index and website data (goal prose § *Stage 10*) — `rule:testing/feature-proofs`; `docs/novis.md:1`"
+        "done": true,
+        "text": "**Render the generated files again** — `rule:testing/feature-proofs`; `docs/novis.md:1`"
       },
       {
-        "done": false,
-        "text": "**Run `bun nv verify --doc` and `bun nv owners --closes php-oracle-retired`**, move any decision only the goal prose holds to its rule, and write `DONE` — `rule:tooling/the-chain-names-its-live-goal`; `docs/agent/goals/php-oracle-retired.md:326`"
+        "done": true,
+        "text": "**Run `bun nv verify --doc` and `bun nv owners --closes php-oracle-retired`**, and move each decision only the goal prose holds to its rule — `rule:tooling/the-chain-names-its-live-goal`; `docs/agent/goals/php-oracle-retired.md:326`"
       }
     ]
   },
   "backlog": [
-    "Nothing outside Stage 10 is open for this goal."
+    "A perf record taken with \"iterations lowered to what the growth check needs\" (2048 iterations) has a clock of `0.0` ns/op for the cheapest `Core\\Math` members, because the run is shorter than the start-up floor's noise. The counts are right and the gate is green, but the clock column says nothing for those members — `tools/nv/proofs/perf.ts`."
   ]
 }
