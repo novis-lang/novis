@@ -1,27 +1,23 @@
 {
-  "state": "**Goal `php-oracle-retired`, Stage 2 complete; Stage 3 is next.** ADR 0274 is on disk (`docs/decisions/0274.md`, `data/decisions/0274.json`): the whole goal's record, the user's calls, the tradeoffs, the old-to-new ordering table (§ 2) and the rules this goal removes (§ 4). Priority 2 is gone from `AGENTS.md`, `rule:programs/memory-priority`, the website's `how-we-decide.mdx`, every `docs/rules/` fragment and every `docs/agent/` file.\n\nEvery crate now cites a priority by its name: `git grep -n -i -E \"priority[ -][1-5]\\b|priorities [1-5]\" -- crates` prints nothing. `docs/agent/commands.md` and `docs/agent/user-report.md` no longer measure a bug against PHP, and the playbook bullet keyed on the old `AGENTS.md` text is gone. Whether a Stage 2 check greps `crates/` is *not checked*; the driver's sweep lists no Stage 2 check as red.\n\nThe driver's earliest red check is Stage 3's `nvs-stdlib-the-error-corpus-is-conformance-alone`: the test `the_error_corpus_is_the_conformance_tree_alone` does not exist yet.",
+  "state": "**Goal `php-oracle-retired`, Stage 3 in progress.** Stages 1 and 2 are done. ADR 0274 (`docs/decisions/0274.md`) is the goal's record.\n\nThe error corpus is `tests/conformance/` alone: `error_corpus` in `crates/nvs-stdlib/tests/conformance_coverage.rs` reads `ERROR_CORPUS_ROOT`, and `errorGaps` in `tools/nv/cmd/gaps.ts` reads `corpus(CONFORMANCE)` alone. The new test `the_error_corpus_is_the_conformance_tree_alone` holds both to it, and it reads `errorGaps`'s body to do so. After the switch, `every_error_path_is_asserted_or_declared_unreachable` lost exactly one message (`Core\\Arr::countBy expected`). `tests/conformance/core/arr-count-by-throws-on-a-value-with-no-bucket.nvst` now pins it. Both tests pass.\n\nNo rule or decision record names a differential case any more. The switch pointer now names the new `tests/conformance/lang/a-switch-continue-moves-to-the-next-loop-iteration.nvst`, because no conformance case pinned a bare `continue` inside a `switch`. The clone, `static::NAME` and `::class` pointers were dropped: a conformance case already in the same list pins the same behaviour. `docs/decisions/0144.md` and `0211.md` had their *Validated by* line edited to match, the one edit the standing decisions allow. Prose elsewhere in those records, and in `docs/decisions/0023.md:261` and `docs/adr/README.md:148`, still names a differential case. Those are frozen records, so they are left as they are, but `bun nv verify --doc` may flag them once Stage 4 deletes the tree (*not checked*).",
   "next": {
     "stage": 3,
     "title": "every error message has a conformance case",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/tests/conformance_coverage.rs`, `tools/nv/cmd/gaps.ts`, new cases under `tests/conformance/`.",
+    "note": "one file set: new cases under `tests/conformance/core/`, read beside the 44 `--ORACLE-DIVERGES--` cases under `tests/differential/`.",
     "items": [
       {
         "done": false,
-        "text": "**The error corpus reads `tests/conformance/` alone** — goal prose § *Stage 3*: `crates/nvs-stdlib/tests/conformance_coverage.rs:280` (`error_corpus` reads both trees today) and `tools/nv/cmd/gaps.ts:343` (`bun nv gaps --errors` reads the same corpus). Change both in one slice, and add the named test `the_error_corpus_is_the_conformance_tree_alone` beside `every_error_path_is_asserted_or_declared_unreachable`."
+        "text": "**A conformance case for every divergence no conformance case pins** — goal prose § *Stage 3*, second bullet. `grep -rl -- --ORACLE-DIVERGES-- tests/differential` lists 44 cases: 43 under `core/` and `tests/differential/lang/a-negative-integer-exponent-refuses-where-php-answers-a-float.nvst:1`. Start at `tests/differential/core/arr-append-derives-the-next-free-key-where-php-remembers-it.nvst:1` and go alphabetically. For each one, check whether a conformance case for the same member already prints the same frozen output (`bun nv gaps --member 'Core\\X::m'` lists them). If none does, copy the `--FILE--` into a new `tests/conformance/core/` case and freeze what `nvs test` prints. Never copy from the PHP twin. `arr-count-by-refuses-…` is done. Take the `arr-*` ones first and commit one batch at a time."
       },
       {
         "done": false,
-        "text": "**A conformance case for every message that goes unasserted** — `crates/nvs-stdlib/tests/conformance_coverage.rs:280`: run the coverage test after the slice above, and for each message it names write a case under `tests/conformance/` whose `--EXPECT--`/`--EXPECTF-ERROR--` is what Novis prints today, never the PHP twin. A `--ORACLE-DIVERGES--` behaviour no conformance case pins gets a case too."
-      },
-      {
-        "done": false,
-        "text": "**Repoint the `guardedBy`/`validatedBy` that name a differential case** — `data/rules/classes/clone-is-shallow.json:19`, `data/rules/expressions/switch-match-equality.json:17`, `data/rules/statements/static-is-a-member-modifier.json:19`, `data/decisions/0144.json:10`, `data/decisions/0211.json:9`, the cases they name starting at `tests/differential/class/clone-is-shallow-like-phps.nvst:1`: each points at the conformance case that now pins the same behaviour (goal prose § *Standing decisions* on frozen records)."
+        "text": "**The rest of the divergences, `csv-*` to `validate-*`** — the same check, from `tests/differential/core/csv-escape-consumes-the-byte-str_getcsv-only-stops-reading-at.nvst:1` onward."
       }
     ]
   },
   "backlog": [
-    "Stage 4: delete `tests/differential/`, the oracle sections, `nvs test --php`, `--INI--` and `bun nv try`'s oracle half (`docs/agent/commands.md` § *Trying a snippet against PHP*) — goal prose § *Stage 4*.",
-    "`crates/nvs-stdlib/src/` doc comments still open with \"replacing PHP's `x`\" (e.g. `crates/nvs-stdlib/src/io.rs:3165`); the registry-text half is Stage 9's `no_member_text_says_what_it_replaces_in_php`."
+    "Stage 4's runner, tree and tools — goal prose § *Stage 4*. It starts once every divergence above has its conformance case.",
+    "The frozen-record prose that names a differential case (`docs/decisions/0023.md:261`, `docs/decisions/0144.md:168`, `docs/decisions/0211.md`, `docs/adr/README.md:148`) — check it against `bun nv verify --doc` when Stage 4 deletes the tree."
   ]
 }
