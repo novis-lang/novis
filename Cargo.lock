@@ -2486,6 +2486,7 @@ dependencies = [
  "nvs-config",
  "nvs-db",
  "nvs-diagnostics",
+ "nvs-ext",
  "nvs-footprint",
  "nvs-host",
  "nvs-render",
