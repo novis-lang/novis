@@ -2979,6 +2979,18 @@ pub mod code {
         "`[http] csrf_key` is not a valid key. It must be base64 text of a 32-byte key.",
     );
 
+    /// An `[[extension]]` entry with no `path`, no `sha256`, or a `sha256`
+    /// that is not 64 hexadecimal digits —
+    /// `rule:packaging/extension-loading-is-root-controlled`'s boot and
+    /// reload refusal, raised by `nvs_config::extension::validate` and
+    /// pointing at the entry's header line. Its own code rather than `E0601`,
+    /// because a missing key is not a bad value: the entry is incomplete, and
+    /// an unpinned entry is a binary the operator never vouched for.
+    pub const E_BAD_EXTENSION_ENTRY: Code = Code::new("E0651").card(
+        "An `[[extension]]` entry is not complete. It needs a `path` to the `.nvsx` file and a \
+         `sha256`, which is the file's SHA-256 written as 64 hexadecimal digits.",
+    );
+
     // --- E07xx types, continued --------------------------------------------
     //
     // The E04xx band filled at `E0499`. Max-plus-one yields `E0500`, whose

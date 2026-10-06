@@ -353,7 +353,8 @@ pub fn roots(flags: &[PathBuf], cwd: &Path, files: &dyn Files) -> Roots {
 /// than [`MAX_INCLUDE_DEPTH`] (`E0606`), a file outside § 6's trust boundary (`E0607`), a secret
 /// file § 7 will not take a value from (`E0608`), an `[[app]]` block `rule:config/an-application-is-its-entry-file-path` cannot key
 /// (`E0609`), a `[[schedule]]` entry `rule:config/scheduled-work-is-a-config-block` cannot arm (`E0611`), an `[http]` pair `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`
-/// refuses (`E0612`), a `[log] target` `rule:errors/engine-floor` does not spell (`E0613`), or anything either
+/// refuses (`E0612`), a `[log] target` `rule:errors/engine-floor` does not spell (`E0613`), an
+/// `[[extension]]` entry with no `path` or no well-formed `sha256` (`E0651`), or anything either
 /// of `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`'s per-file
 /// refusals catches (`E0601`/`E0604`), which arrives already carrying its own file's line.
 pub fn resolve(
@@ -403,6 +404,9 @@ pub fn resolve(
     // `rule:core-classes/queue-storage-is-a-table`'s `[queue]`, immediately after the roster it names: whether `connection = "main"`
     // has a block to point at is a question only the merged `[db]` map can answer.
     crate::queue::validate(&resolved.config, &origins)?;
+    // `rule:packaging/extension-loading-is-root-controlled`'s pin, over the merged array for the
+    // same reason: an include appends entries, and only the merge knows which file wrote each one.
+    crate::extension::validate(&resolved.config, &origins, sources)?;
     // `rule:config/an-application-is-its-entry-file-path`'s keys, for the same reason: `[[app]]` blocks accumulate across the tree (§ 4),
     // so the roster only exists once the merge is done. Alone among the passes above it
     // rewrites `config` and never the table, which reaches a driver only because the roster is read

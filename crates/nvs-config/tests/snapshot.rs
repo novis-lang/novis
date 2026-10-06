@@ -793,12 +793,14 @@ fn a_malformed_file_leaves_the_previous_snapshot_serving_and_names_the_line() {
 }
 
 /// The snapshot whose `[[extension]]` array carries `pins`, over a tree that is otherwise the same
-/// one every time — so the only thing two of these differ by is the extension set.
+/// one every time — so the only thing two of these differ by is the extension set. Each pin is a
+/// two-digit stem repeated to the 64 digits a pin must be.
 fn pinned(pins: &[&str]) -> Arc<Snapshot> {
     let mut written = String::from("[limits]\nmemory = \"128M\"\n");
     for pin in pins {
+        let digest = pin.repeat(32);
         written.push_str(&format!(
-            "\n[[extension]]\npath = \"ext/{pin}.nvsx\"\nsha256 = \"{pin}\"\n"
+            "\n[[extension]]\npath = \"ext/{pin}.nvsx\"\nsha256 = \"{digest}\"\n"
         ));
     }
     let fs = Fake::with(&[("nvs.toml", &written), ("srv/www/index.nvs", "")]);

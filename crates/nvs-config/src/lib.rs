@@ -69,6 +69,7 @@ pub mod db;
 pub mod directive;
 pub mod errors;
 pub mod export;
+pub mod extension;
 pub mod file;
 pub mod http;
 pub mod log;

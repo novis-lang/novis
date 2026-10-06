@@ -498,11 +498,11 @@ fn a_value_array_replaces_where_a_table_appends() {
     let fs = Fake::with(&[
         (
             "etc/nvs.toml",
-            "[[include]]\npath = \"local.toml\"\n\n[capabilities]\nscript.spawn = [\"/srv/a\", \"/srv/b\"]\n\n[[extension]]\npath = \"one.nvsx\"\n",
+            "[[include]]\npath = \"local.toml\"\n\n[capabilities]\nscript.spawn = [\"/srv/a\", \"/srv/b\"]\n\n[[extension]]\npath = \"one.nvsx\"\nsha256 = \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"\n",
         ),
         (
             "etc/local.toml",
-            "[capabilities]\nscript.spawn = [\"/srv/c\"]\n\n[[extension]]\npath = \"two.nvsx\"\n",
+            "[capabilities]\nscript.spawn = [\"/srv/c\"]\n\n[[extension]]\npath = \"two.nvsx\"\nsha256 = \"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"\n",
         ),
     ]);
     let resolved = tree_of(&fs, "etc/nvs.toml");

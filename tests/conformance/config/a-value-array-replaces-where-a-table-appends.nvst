@@ -14,6 +14,7 @@ read = ["./data"]
 
 [[extension]]
 path = "./ext/metrics.nvsx"
+sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
 [[include]]
 path = "conf.d/local.toml"
@@ -27,8 +28,11 @@ read = ["./var/cache"]
 
 [[extension]]
 path = "./ext/tracing.nvsx"
+sha256 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 --EXPECTF--
 capabilities.fs.read = ["%sconf.d%svar%scache"] %sconf.d%elocal.toml (overrides %snvs.toml)
 extension.0.path     = "./ext/metrics.nvsx" %snvs.toml
+extension.0.sha256   = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" %snvs.toml
 extension.1.path     = "./ext/tracing.nvsx" %sconf.d%elocal.toml
+extension.1.sha256   = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" %sconf.d%elocal.toml
 include.0.path       = "conf.d/local.toml"     %snvs.toml
