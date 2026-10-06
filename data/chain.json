@@ -1,7 +1,6 @@
 {
-  "live": "ext-design",
+  "live": "ext-host",
   "goals": [
-    "ext-design",
     "ext-host",
     "ext-compiler",
     "ext-grants",
