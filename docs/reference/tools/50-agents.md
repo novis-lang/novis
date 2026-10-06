@@ -106,20 +106,16 @@ the built-ins live under the reserved `Core` namespace
 
 The one document to read before writing anything: the lookup protocol above, one complete worked
 program with every shape in it annotated, the capability model with the smallest `nvs.toml` that
-grants a file read, the refusal tables — the PHP spellings this language does not have, each with
-the code it is refused under — and a map of the chapters of this reference. It is printed on
-standard output, and like every other verb here it writes nothing and caches nothing.
+grants a file read, and a map of the chapters of this reference. It is printed on standard output,
+and like every other verb here it writes nothing and caches nothing.
 
-Each part has a heading. These are the headings, in the order the primer prints them. The `…`
-replaces the other tables of PHP syntax, which have one heading each:
+Each part has a heading. These are the headings, in the order the primer prints them:
 
 ```text
 # Novis, for a coding agent
 ## nvs agent
 ## A complete program, annotated
 ## `[capabilities]`
-## Files, tags and names
-…
 ## The chapters
 ```
 

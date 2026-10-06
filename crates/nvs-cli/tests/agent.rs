@@ -75,18 +75,16 @@ fn chapter(relative: &str) -> String {
     std::fs::read_to_string(&path).unwrap_or_else(|_| panic!("{} is readable", path.display()))
 }
 
-/// The five parts `rule:tooling/a-primer-claim-is-executed` fixes, each
-/// recognized by something only the section that carries it says.
+/// The parts `rule:tooling/a-primer-claim-is-executed` fixes, each recognized
+/// by something only the section that carries it says.
 // covers: tools:agents/nvs-agent-primer
 #[test]
-fn the_primer_carries_the_lookup_protocol_the_worked_program_and_the_refusal_table() {
+fn the_primer_carries_the_lookup_protocol_the_worked_program_and_the_chapter_map() {
     let primer = primer();
     for wanted in [
         "nvs agent find <query>",
         "So the loop is three calls and a check",
         "```nvs",
-        "| `<?php` |",
-        "| `function __construct(…)` |",
         "## The chapters",
         "- **programs** —",
         "- **php-differences** —",

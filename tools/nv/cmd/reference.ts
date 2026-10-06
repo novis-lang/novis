@@ -24,8 +24,8 @@
 // `nvs agent primer` is assembled by the binary from `<!-- primer -->`-marked sections of the same
 // chapters (`rule:tooling/an-agent-asks-the-binary`), so this command writes no part of it: `--primer`
 // proves the assembled document instead. Its examples run through the same harness, and each `E0xxx`
-// it names must be declared in the diagnostic registry, because a refusal's PHP cell is a fragment and
-// the code beside it is what can be executed about it (`rule:tooling/a-primer-claim-is-executed`).
+// it names must be declared in the diagnostic registry, because the text beside a code is often a
+// fragment and the code is what can be executed about it (`rule:tooling/a-primer-claim-is-executed`).
 // `--agent-walk` proves the surface rather than either document: each step is handed only what the
 // step before it printed, so an answer that is not an address the next command resolves fails here.
 
@@ -609,10 +609,9 @@ async function checkExamples(only: string | undefined, keep: boolean): Promise<n
 }
 
 /**
- * How many diagnostic codes the primer names, and one line per code declared nowhere. A refusal the
- * primer states is a table row whose PHP cell is a fragment, so there is no program to hand `nvs
- * check`: what is executable about the row is the code in its third column, and a refusal that cannot
- * be raised is the one lie a generated document can still tell.
+ * How many diagnostic codes the primer names, and one line per code declared nowhere. The text beside
+ * a code is often a fragment, so there is no program to hand `nvs check`: what is executable about it
+ * is the code, and a code that cannot be raised is the one lie a generated document can still tell.
  */
 function undeclaredCodes(text: string): [number, string[]] {
   const declared = new Set([...readText(DIAGNOSTICS).matchAll(CODE_DECL_RE)].map((m) => m[1]!));
