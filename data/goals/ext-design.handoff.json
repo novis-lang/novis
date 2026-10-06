@@ -1,31 +1,28 @@
 {
-  "state": "**Goal `ext-design` — Stage 2, the async bridge, has landed and its check is green; Stage 3, the world text, is next.** The goal is the first of the eight M9 goals. The design is settled by ADR 0246 and ADR 0247 and the goal file's § *Standing decisions*, which are not re-decided.\n\nStage 2 is on disk in `benches/abi-probe` behind `wasm-probe`. `AsyncProbe` in `benches/abi-probe/src/wasm.rs` is a component guest under a pooling allocator and epoch interruption, with concurrency support off, so `call_async` runs on wasmtime's own fiber, one call per store. `CoreLoop` in the same file models a core: `corosensei` coroutines on one thread, a run queue, and a waker per task. The goal let the session choose this model over `nvs-host`'s real scheduler; the real scheduler is what goal `ext-host` wires. `tests/wasm_async.rs` holds the five named tests, all green and stable over repeated runs. The bridge is sound, so record slot (b) is not used and call 4 stands. `rule:packaging/a-guest-call-yields-on-its-core`'s *Not on disk* paragraph and its `guardedBy` say so.\n\nwasmtime 48's defaults already carry `component-model`, `async` and `wat`. The workspace takes the defaults, so the feature names the three features without changing any resolved one. wasmtime 48 has its own `wasmtime::Error`, and `?` converts it into `anyhow::Error` keeping `downcast_ref::<Trap>()`. `Config::async_support` is a no-op there. `wit-parser` and `wit-component` 0.254 and `wat` 1.261 are in `Cargo.lock` but not in `[workspace.dependencies]`. There is no `wit/` folder.",
+  "state": "**Goal `ext-design`: Stage 3, the world text, has landed and its six tests are green. Stage 4, the image interface, is next.** The design is settled by ADR 0246, ADR 0247 and the goal file's § *Standing decisions*. None of it is re-decided.\n\nStage 2 is on disk in `benches/abi-probe` behind `wasm-probe` (`tests/wasm_async.rs`), and `rule:packaging/a-guest-call-yields-on-its-core` says so. Record slot (b) is not used.\n\nStage 3 is on disk. `wit/nvs-ext/` has `types.wit`, `log.wit`, `settings.wit` and `world.wit` (the `extension` world). Its `deps/` has the seven WASI 0.2.12 WIT files, copied unchanged from the `wasip2` crate in the cargo registry. `sockets.wit` is there only because `cli.wit`'s own worlds name it, and the `extension` world does not import it. `crates/nvs-stdlib/tests/ext_world.rs` holds the six named tests. `CROSSES` gives ten `Core` value classes a record: `BigInt`, `Uuid`, `Uri`, `Crypto\\PublicKey` and six `Time` classes. `REFUSED` gives each of the other value classes one sentence. `ALLOWED_IMPORTS` is the resolved world's exact import set. `wit-parser` 0.254 is a dev-dependency of `nvs-stdlib` only, with `default-features = false, features = [\"std\"]`, and the lock gained one edge and no crate. The three packaging rules' *Not on disk* paragraphs now name the world and its test.\n\nNot checked: which WASI 0.2 release wasmtime 48's own WASI crate defines. That crate is not in the lock. `world.wit`'s comment relies on wasmtime's linker resolving an older 0.2 import to a newer definition (`wasmtime-48.0.5/src/runtime/component/linker.rs:41`). Goal `ext-host` links WASI and is where a mismatch would show.\n\nThe goal file's anchors into `crates/nvs-stdlib/src/registry.rs` have drifted: `CoreClass::slots` is now `:1643` and `CLASSES` is `:1735`.",
   "next": {
-    "stage": 3,
-    "title": "the world text",
+    "stage": 4,
+    "title": "the image interface",
     "files": [],
-    "note": "one file set: a new `wit/nvs-ext/`, a new `crates/nvs-stdlib/tests/ext_world.rs`, `crates/nvs-stdlib/Cargo.toml`, the root `Cargo.toml`; read only `crates/nvs-stdlib/src/registry.rs`.",
+    "note": "one file set: a new `wit/image.wit`, `crates/nvs-stdlib/tests/ext_world.rs`; read only `docs/decisions/0120.md` §§ 2, 3 and 8.",
     "items": [
       {
         "done": false,
-        "text": "**`wit-parser` as a dev-dependency** — the root manifest's `[workspace.dependencies]` gains `wit-parser = \"0.254\"` beside `wasmtime = \"48\"`, at the lock's version, and `crates/nvs-stdlib/Cargo.toml:135`'s `[dev-dependencies]` takes it. Read `cargo tree -i wit-parser -e normal` before a comment states the graph. The goal file's *Tradeoffs*."
+        "text": "**`wit/image.wit`** — package `nvs:image@1.0.0`, interface `codec` with the eight exports of `docs/decisions/0120.md:166` (§ 3), each returning `result<T, error>` with `nvs:ext/types`' `error`, and a world `image` that includes `nvs:ext/extension` and exports `codec`. An overlay is a flat table of pipelines that a `composite` step indexes, because WIT has no recursive types. `rule:core-classes/image-one-entry-point-per-job`, `rule:core-classes/image-pipeline`."
       },
       {
         "done": false,
-        "text": "**`wit/nvs-ext/types.wit`, `log.wit`, `settings.wit` and the `extension` world** — the error variant, the `value` resource and its accessors, one record per `Core` value class that may cross (`crates/nvs-stdlib/src/registry.rs:1643`'s `slots` marks a value class), and the six setting types. WASI deps vendored under `wit/nvs-ext/deps/`. `rule:packaging/a-value-crosses-as-its-wit-type`, ADR 0246 §§ 1, 2, 6 and 9."
+        "text": "**Parse it against the world** — extend `world()` at `crates/nvs-stdlib/tests/ext_world.rs:208` or add a second loader that pushes `wit/nvs-ext` first and then `wit/image.wit`, so `use nvs:ext/types@1.0.0` resolves. `check_crossable` at `crates/nvs-stdlib/tests/ext_world.rs:233` already judges a type against the value table, so reuse it for every export's parameters and result."
       },
       {
         "done": false,
-        "text": "**The six named tests** in `crates/nvs-stdlib/tests/ext_world.rs:1` — `bun nv loop --list --stage 3` prints their names. Each walk reads the roster from the registry, never from a list copied into the test."
-      },
-      {
-        "done": false,
-        "text": "**The two *Not on disk* paragraphs** — `rule:packaging/a-value-crosses-as-its-wit-type`'s and `rule:packaging/an-nvsx-is-one-file-carrying-its-manifest`'s (\"no world file\"), rewritten whole in the same commit as the world (`docs/rules/packaging/a-value-crosses-as-its-wit-type.md:1`)."
+        "text": "**The member map test** — every member of 0120 § 2's table and § 8 (`docs/decisions/0120.md:117`, `docs/decisions/0120.md:253`), each with where it runs: an export, a plan step or Novis source. Record slot (a) is used only if `measureText` or `fromRaw` needs a new export or `source` case (goal § *Standing decisions*). `bun nv loop --list --stage 4` names the check."
       }
     ]
   },
   "backlog": [
-    "Stage 4, the image interface `wit/image.wit` and its builder-table test — the goal file's § *Stage 4*. Record slot (a) is decided there if `measureText`, `raw`/`fromRaw` or `hashDistance` moves a decided shape.",
-    "`[context] adrs` lacks 0246 §§ 1, 2, 6 and 9, which Stage 3 needs. Its stage overlay in `data/goals/ext-design.json` is the place to add them."
+    "`wasi:cli/terminal-*` is not in the world. Whether the wasip1 adapter, or a libc's `isatty`, imports it and so fails to load is not checked. Goal `ext-host` owns that decision when it links WASI (rule:packaging/a-guest-has-no-ambient-authority).",
+    "`tools/nv/test/transcript.test.ts:113` (\"a freeze stops the child where it stands\") failed once on wall-clock time (1822 ms against a floor of 2500) and passed on the re-run. That stopped `nv verify` at step 6. It is a timing flake on Windows, not checked further (tools/nv).",
+    "The goal file's `registry.rs:1569` and `:1685` anchors are stale. The prose is deleted at the goal switch, so they are not worth fixing."
   ]
 }
