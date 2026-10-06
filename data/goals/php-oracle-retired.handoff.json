@@ -1,27 +1,28 @@
 {
-  "state": "**Goal `php-oracle-retired`: Stage 6 (no list maps PHP to Novis). File sets 1 and 2 are on disk, and file set 3 is half done.** ADR 0274 (`docs/decisions/0274.md`) is the goal's record.\n\nOn disk: `docs/spec/02-php-migration.md`, `data/spec/php-migration.json` and its schema, `tools/data/php-builtins.txt`, `tools/dump-php-builtins.php`, `bun nv migration`, Part D of `docs/novis.md`, the CI job `migration-table`, the wrap's migration gate and the two migration tests in `crates/nvs-stdlib/tests/spec_registry_coverage.rs` (with their ratchet file) are all gone. The `Replaces` column left every table in `docs/spec/01-core-library.md`, `website/config/spec-overrides.mjs`, `website-core.ts`, `core.json`, `MethodSignature.astro` and the proofs roster (`Entry.twin`). The five PHP-name rules and `ide/three-of-four-item-shapes-insert-nothing` are deleted. `core-api/removals` keeps its four reasons and no longer claims a per-name list. Frozen records lost their links to the deleted files, the way commit b40ffee55 did it: each link became its text.\n\nAll five Stage 6 checks should pass at this commit (the two `git grep` checks were run by hand and found nothing).",
+  "state": "**Goal `php-oracle-retired`: Stage 6 (no list maps PHP to Novis) is on disk; Stage 7 is next.** ADR 0274 (`docs/decisions/0274.md`) is the goal's record.\n\nStage 6 is complete. The spec list, its data, its inventory, `bun nv migration`, Part D of `docs/novis.md`, the CI job, the wrap gate, the migration tests, the `Replaces` column, the PHP-name rules and every playbook bullet that named the list are gone. `docs/agent/commands.md` now says the wrap runs five gate families. The claims page `website/src/content/claims/php-migration-is-accounted.md` the old item named was never in the tree.\n\nThe three gap records Stage 7 names (`data/gaps/nvs-stdlib/a-match-inside-a-character-reports-the-wrong-position.json`, `callback-that-reshapes-the-subject-reshapes.json`, `powmod-and-pow-followed-by-mod.json`) are not on disk either: read the goal record's Stage 7 checks for what still has to be true, and do the code work they pin.\n\nThe driver's red checks are Stage 8 and later; they wait for Stage 7.",
   "next": {
-    "stage": 6,
-    "title": "no list maps PHP to Novis, file set 3 (the prose that is left)",
+    "stage": 7,
+    "title": "the decisions M11 was holding are Novis's own",
     "files": [],
-    "note": "one file set: the agent docs, the claims page and the playbook entries that still name the list. Goal prose § *Stage 6*, item 3.",
+    "note": "one file set per item; take the first, and a second only if it fits. Goal prose § *Stage 7* (`docs/agent/goals/php-oracle-retired.md:226`).",
     "items": [
       {
         "done": false,
-        "text": "**The agent docs stop naming `bun nv migration`** — `docs/agent/commands.md:298`, `docs/agent/commands.md:316`, `docs/agent/doc-cleanup.md:53`, and `docs/agent/goals/README.md:1` § *What stops the run*, whose parity-gate bullet is rewritten whole."
+        "text": "**A `Core\\Str` search matches only on grapheme boundaries** — `rule:types/string-is-utf8`; the search core is `crates/nvs-stdlib/src/str.rs:2463` (`find_from`) and `crates/nvs-stdlib/src/str.rs:2941` (`find_at`). Whole family: `indexOf`, `lastIndexOf`, `contains`, `countOf`, `before`, `after`, `split`, `replace`, each pinned by a conformance case."
       },
       {
         "done": false,
-        "text": "**The claims page and the playbook entries that name the list are deleted** — `website/src/content/claims/php-migration-is-accounted.md:1`, and under `data/playbook/` plus `docs/agent/playbook/`: `tooling/after-touching-either-spec-file-python-tools-check-migration`, `tooling/check-migration-py-validates-a-core-x-y-cell-against-01-core`, `tooling/python-tools-check-migration-py-seed-is-a-candidate-list-not`, `writing-a-test-case/a-member-row-in-docs-spec-02-php-migration-md-whose-novis`, `writing-a-test-case/a-core-x-member-spelling-does-not-survive` (`docs/agent/playbook/tooling/check-migration-py-validates-a-core-x-y-cell-against-01-core.md:1`). Read `tooling/a-loop-goal-toml-check-can-fail-on-a-file-no-session-wrote` and `tooling/a-primer-marker-goes-in-docs-reference-whatever-else-names` first: they only name the list in passing."
+        "text": "**`powMod` returns the least non-negative residue** — `crates/nvs-stdlib/src/bigint.rs:512` (`POW_MOD_DOC`), plus a conformance case pinning `Core\\BigInt::of(-3)->powMod(3, 7)` as `1`."
       },
       {
         "done": false,
-        "text": "**Stage 7 starts** once the group above is in: goal prose § *Stage 7* (`docs/agent/goals/php-oracle-retired.md:226`)."
+        "text": "**A callback-taking `Core\\Arr` member holds its subject for the whole walk** — `crates/nvs-stdlib/src/arr.rs:1`, and the attack `tests/hostile/core/Arr/filter/01-predicates-written-to-break-the-walk.nvs:1` step 4, whose comment is rewritten under `AGENTS.md` § *Text an end user reads*."
       }
     ]
   },
   "backlog": [
-    "Part II of `docs/spec/01-core-library.md` still says \"Replaces `x`\" inside some prose cells (§§ 13-19). The column is gone, but these sentences remain. They belong to Stage 9's \"the reader's text steps back\" (goal prose § *Stage 9*).",
-    "`docs/rules/core-api/removals.md` still lists PHP names per reason. Stage 8 decides whether the rule stays (`rule:core-api/removals`)."
+    "Stage 8: dissolve `php-migration/`, delete `divergesFromPhp` and `docs/divergences.md` (goal prose § *Stage 8*).",
+    "`crates/nvs-stdlib/src/compress.rs:22` and `:121` still cite \"the migration table\" in Rust comments; rewrite them only if a slice edits that file (standing decision *Rust comments are not swept*).",
+    "`docs/rules/core-classes/net-a-socket-does-not-outlive-its-request.md:5` says \"migration table\"; Stage 8's `core-classes/` group owns it."
   ]
 }
