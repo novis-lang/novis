@@ -1,8 +1,7 @@
 //! Comparing what a case printed with what it said it would print.
 //!
-//! Two spellings, both `.phpt`'s: `--EXPECT--` is literal and `--EXPECTF--`
-//! carries `%`-escapes. The escape set is PHP's, so a `.phpt` imported at M11
-//! keeps meaning what it meant:
+//! Two spellings: `--EXPECT--` is literal and `--EXPECTF--` carries
+//! `%`-escapes, the closed set below:
 //!
 //! | escape | matches |
 //! |---|---|
@@ -288,7 +287,7 @@ mod tests {
     }
 
     #[test]
-    fn the_wildcards_match_what_php_says_they_match() {
+    fn each_wildcard_matches_what_the_escape_table_says() {
         assert!(format_matches("a%sb", "axxxb"));
         assert!(!format_matches("a%sb", "ab"), "%s wants at least one");
         assert!(format_matches("a%Sb", "ab"));

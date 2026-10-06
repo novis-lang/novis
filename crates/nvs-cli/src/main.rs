@@ -473,9 +473,6 @@ enum Command {
         /// path, or a `#[Test]` method's `Class::method`.
         #[arg(long, value_name = "TEXT")]
         filter: Option<String>,
-        /// The PHP binary a `--ORACLE--` case is compared against.
-        #[arg(long, value_name = "PATH", default_value = "php")]
-        php: PathBuf,
         /// How many `.nvst` cases run at once; the default is this machine's
         /// hardware threads. A program's `#[Test]` methods are one process and
         /// are not spread.
@@ -1606,7 +1603,6 @@ fn main() -> ExitCode {
         Command::Test {
             paths,
             filter,
-            php,
             jobs,
             format,
             update,
@@ -1619,7 +1615,6 @@ fn main() -> ExitCode {
         } => run_test(
             &paths,
             filter,
-            php,
             jobs,
             format,
             runner::Flags { update, list },
@@ -3356,7 +3351,6 @@ fn run_run(
 fn run_test(
     paths: &[PathBuf],
     filter: Option<String>,
-    php: PathBuf,
     jobs: Option<std::num::NonZeroUsize>,
     format: runner::Format,
     flags: runner::Flags,
@@ -3472,7 +3466,6 @@ fn run_test(
         }
     };
     options.filter = filter;
-    options.php = php;
     if let Some(jobs) = jobs {
         options.jobs = jobs.get();
     }

@@ -26,17 +26,6 @@ pub enum Expectation {
     Format(String),
 }
 
-/// The PHP side of a differential case.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Oracle {
-    /// `--ORACLE--`: a PHP twin whose standard output the case's own standard
-    /// output must equal.
-    Php(String),
-    /// `--ORACLE-DIVERGES--`: the one-line reason Novis deliberately differs
-    /// from PHP here, which is why this case has no twin to compare against.
-    Diverges(String),
-}
-
 /// The body a case's request carries, and which section spelled it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Body {
@@ -276,8 +265,6 @@ pub struct Case {
     pub expect_error: Option<Expectation>,
     /// `--CLEAN--`, an Novis program run afterwards whose output is ignored.
     pub clean: Option<String>,
-    /// `--ORACLE--` or `--ORACLE-DIVERGES--`.
-    pub oracle: Option<Oracle>,
 }
 
 impl Case {
@@ -333,8 +320,6 @@ const KNOWN: &[&str] = &[
     "EXPECT-ERROR",
     "EXPECTF-ERROR",
     "CLEAN",
-    "ORACLE",
-    "ORACLE-DIVERGES",
     "RUN",
 ];
 
@@ -347,7 +332,6 @@ const RESERVED_NAMES: &[&str] = &[
     "case.nvs",
     "skipif.nvs",
     "clean.nvs",
-    "oracle.php",
     crate::request::FILE_NAME,
 ];
 
@@ -510,44 +494,9 @@ pub fn parse(path: &Path, text: &str) -> Result<Case, ParseError> {
         "`--EXPECT-ERROR--` and `--EXPECTF-ERROR--` are two answers to one question",
     )?;
 
-    let oracle = match (take("ORACLE"), take("ORACLE-DIVERGES")) {
-        (Some(_), Some((line, _))) => {
-            return Err(err(
-                "`--ORACLE--` and `--ORACLE-DIVERGES--` are two answers to one question",
-                Some(line),
-            ));
-        }
-        (Some((line, php)), None) => {
-            if php.trim().is_empty() {
-                return Err(err("`--ORACLE--` is empty", Some(line)));
-            }
-            Some(Oracle::Php(php))
-        }
-        (None, Some((line, reason))) => {
-            let reason = reason.trim().to_owned();
-            if reason.is_empty() {
-                return Err(err(
-                    "`--ORACLE-DIVERGES--` holds the one-line reason Novis differs from PHP here",
-                    Some(line),
-                ));
-            }
-            if reason.lines().count() > 1 {
-                return Err(err("`--ORACLE-DIVERGES--` is one line", Some(line)));
-            }
-            if expect.is_none() && expect_error.is_none() {
-                return Err(err(
-                    "a diverging case states its own `--EXPECT--`, since there is no twin to compare with",
-                    Some(line),
-                ));
-            }
-            Some(Oracle::Diverges(reason))
-        }
-        (None, None) => None,
-    };
-
-    if expect.is_none() && expect_error.is_none() && !matches!(oracle, Some(Oracle::Php(_))) {
+    if expect.is_none() && expect_error.is_none() {
         return Err(err(
-            "no expectation: a case needs `--EXPECT--`, `--EXPECTF--`, `--EXPECT-ERROR--`, `--EXPECTF-ERROR--` or `--ORACLE--`",
+            "no expectation: a case needs `--EXPECT--`, `--EXPECTF--`, `--EXPECT-ERROR--` or `--EXPECTF-ERROR--`",
             None,
         ));
     }
@@ -658,7 +607,6 @@ pub fn parse(path: &Path, text: &str) -> Result<Case, ParseError> {
         clean: take("CLEAN")
             .map(|(_, body)| body)
             .filter(|body| !body.trim().is_empty()),
-        oracle,
     })
 }
 
@@ -802,8 +750,6 @@ nothing
 --CLEAN--
 <?nvs
 echo "clean";
---ORACLE-DIVERGES--
-PHP counts this one differently
 "#;
 
     /// The other half of each mutually exclusive pair, which a case cannot
@@ -819,9 +765,6 @@ echo "hi";
 %d
 --POST_RAW--
 {"name":"ada"}
---ORACLE--
-<?php
-echo "hi";
 "#;
 
     /// The four request sections a case writes together — the fifth is
@@ -874,12 +817,6 @@ hi
             Some(Expectation::Exact("nothing\n".to_owned()))
         );
         assert_eq!(parsed.clean.as_deref(), Some("<?nvs\necho \"clean\";\n"));
-        assert_eq!(
-            parsed.oracle,
-            Some(Oracle::Diverges(
-                "PHP counts this one differently".to_owned()
-            ))
-        );
 
         let other = case(THE_OTHER_HALVES).expect("it parses");
         assert_eq!(
@@ -893,10 +830,6 @@ hi
         assert_eq!(
             other.expect_error,
             Some(Expectation::Format("%d\n".to_owned()))
-        );
-        assert_eq!(
-            other.oracle,
-            Some(Oracle::Php("<?php\necho \"hi\";\n".to_owned()))
         );
 
         let refused = |text: &str| case(text).expect_err("it is refused");
@@ -990,7 +923,6 @@ hi
         assert_eq!(parsed.title, "the title");
         assert_eq!(parsed.file, "<?nvs\necho 1;\n");
         assert_eq!(parsed.expect, Some(Expectation::Exact("1\n".to_owned())));
-        assert!(parsed.oracle.is_none());
     }
 
     #[test]
@@ -1041,40 +973,19 @@ hi
     }
 
     #[test]
-    fn an_oracle_stands_in_for_an_expectation() {
-        let parsed = case("--TEST--\nt\n--FILE--\n<?nvs\necho 1;\n--ORACLE--\n<?php\necho 1;\n")
-            .expect("an oracle is an expectation");
-        assert_eq!(
-            parsed.oracle,
-            Some(Oracle::Php("<?php\necho 1;\n".to_owned()))
-        );
+    fn an_oracle_section_is_an_unknown_section() {
+        let e = case(&format!("{MINIMAL}--ORACLE--\n<?php\necho 1;\n"))
+            .expect_err("no case is compared against another language");
+        assert_eq!(e.message, "unknown section `--ORACLE--`");
+        assert_eq!(e.line, Some(8));
     }
 
     #[test]
-    fn a_divergence_must_state_its_reason_and_its_own_expectation() {
-        let e = case(
-            "--TEST--\nt\n--FILE--\n<?nvs\n--ORACLE-DIVERGES--\n`rule:core-api/shape-rules` R7\n",
-        )
-        .expect_err("a divergence with no expectation is rejected");
-        assert!(e.message.contains("states its own"), "{e}");
-
-        let parsed = case(
-            "--TEST--\nt\n--FILE--\n<?nvs\necho 1;\n--EXPECT--\n1\n--ORACLE-DIVERGES--\n`rule:core-api/shape-rules` R7\n",
-        )
-        .expect("a divergence with an expectation parses");
-        assert_eq!(
-            parsed.oracle,
-            Some(Oracle::Diverges(
-                "`rule:core-api/shape-rules` R7".to_owned()
-            ))
-        );
-    }
-
-    #[test]
-    fn the_two_oracle_sections_are_mutually_exclusive() {
-        let e = case("--TEST--\nt\n--FILE--\n<?nvs\n--EXPECT--\n1\n--ORACLE--\n<?php\n--ORACLE-DIVERGES--\nwhy\n")
-            .expect_err("both oracle spellings at once is rejected");
-        assert!(e.message.contains("two answers"), "{e}");
+    fn an_oracle_diverges_section_is_an_unknown_section() {
+        let e = case(&format!("{MINIMAL}--ORACLE-DIVERGES--\nwhy\n"))
+            .expect_err("no case is compared against another language");
+        assert_eq!(e.message, "unknown section `--ORACLE-DIVERGES--`");
+        assert_eq!(e.line, Some(8));
     }
 
     #[test]
@@ -1197,7 +1108,7 @@ hi
     }
 
     #[test]
-    fn an_ini_section_is_refused_as_unknown() {
+    fn an_ini_section_is_an_unknown_section() {
         let e = case("--TEST--\nt\n--INI--\nx=1\n--FILE--\n<?nvs\n--EXPECT--\n\n")
             .expect_err("Novis has no ini settings");
         assert_eq!(e.message, "unknown section `--INI--`");

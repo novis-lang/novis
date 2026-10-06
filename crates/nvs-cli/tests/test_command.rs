@@ -126,3 +126,22 @@ fn nvs_test_runs_each_test_method_and_fails_on_any_failure() {
     );
     assert!(stdout.contains("0 failed, 1 passed, 1 skipped"), "{stdout}");
 }
+
+/// `nvs test` has no `--php` flag: no case is compared against another
+/// language, so the flag is refused like any other it does not know, and no
+/// case runs.
+#[test]
+fn nvs_test_refuses_the_php_flag() {
+    let dir = scratch("php-flag");
+    fs::write(dir.join("suite_test.nvs"), SUITE).unwrap();
+
+    let out = test_in(&dir, &["--php", "php", "suite_test.nvs"]);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(out.status.code(), Some(2), "{stdout}{stderr}");
+    assert!(
+        stderr.contains("unexpected argument '--php'"),
+        "the flag is named as unknown: {stderr}"
+    );
+    assert!(!stdout.contains("ZetaTest"), "no test ran: {stdout}");
+}

@@ -1,10 +1,9 @@
 //! The `.nvst` conformance-case format and the runner behind `nvs test`.
 //!
 //! A `.nvst` file is one case: a program, what it should print, and a title
-//! saying what it is for. The format is deliberately a **superset of PHP's
-//! `.phpt`**, so importing PHP's own test corpus at M11 is mechanical rather
-//! than a rewrite — `docs/implementation-plan.md` § M4 is where that decision
-//! lives.
+//! saying what it is for. The expectation is frozen in the case itself, so a
+//! case states what Novis prints and is judged against nothing else
+//! (`rule:testing/nvst-is-separate`).
 //!
 //! ```text
 //! --TEST--
@@ -18,7 +17,7 @@
 //!
 //! ## The sections
 //!
-//! These come straight from `.phpt` and mean what they mean there:
+//! The program and what it prints, and the input it runs with:
 //!
 //! | section | meaning |
 //! |---|---|
@@ -37,12 +36,10 @@
 //! | `--COOKIE--` | its cookies, one `NAME=value` per line |
 //! | `--HEADERS--` | its header fields, one `Name: value` per line |
 //!
-//! The rest are Novis's own, among them the differential pair:
+//! The error pair, the peer, the extra files and the subcommand:
 //!
 //! | section | meaning |
 //! |---|---|
-//! | `--ORACLE--` | a PHP twin whose standard output this case's must equal |
-//! | `--ORACLE-DIVERGES--` | the one-line reason there is deliberately no twin |
 //! | `--EXPECT-ERROR--` | expected standard error, compared literally |
 //! | `--EXPECTF-ERROR--` | expected standard error, with `%` escapes |
 //! | `--CLIENT_IP--` | the address the request's peer resolved to, on one line |
@@ -112,38 +109,22 @@
 //!
 //! The path is relative, `/`-separated on both legs, and may not hold a `.`
 //! or `..` segment or name one of the files the runner writes itself
-//! (`case.nvs`, `skipif.nvs`, `clean.nvs`, `oracle.php`, `request.nvsr`) — so
-//! a case cannot
-//! reach outside the temporary directory it is given, and needs no sanitiser
-//! to say so. Repeating one path is a parse error, the way repeating any
-//! other section is.
+//! (`case.nvs`, `skipif.nvs`, `clean.nvs`, `request.nvsr`) — so a case
+//! cannot reach outside the temporary directory it is given, and needs no
+//! sanitiser to say so. Repeating one path is a parse error, the way
+//! repeating any other section is.
 //!
-//! `--ORACLE--` is how the differential suite proves PHP compatibility
-//! instead of freezing a belief about it: the expectation is not a string
-//! someone typed, it is what PHP 8.5 does on the machine running the suite.
-//! `--ORACLE-DIVERGES--` is the other half — where Novis differs from PHP on
-//! purpose, the case states the reason and its own expectation, so a
-//! divergence is a named, reviewable line rather than a comparison quietly
-//! left out.
+//! ## Failing runs, and unknown sections
 //!
 //! The error pair exists because Novis writes a diagnostic and an uncaught
-//! throw to **standard error**, where PHP writes both to standard output.
-//! Without it, no case could cover a compile error at all. Their presence is
-//! also the one thing that says a case expects the run to fail; every other
-//! case must exit zero, so nothing can pass by printing the right prefix on
-//! its way to a crash.
+//! throw to **standard error**. Without it, no case could cover a compile
+//! error at all. Their presence is also the one thing that says a case
+//! expects the run to fail; every other case must exit zero, so nothing can
+//! pass by printing the right prefix on its way to a crash.
 //!
-//! A `--ORACLE--` case is **skipped**, once and with the reason named, on a
-//! machine where the PHP binary cannot be run at all — that is an absent
-//! oracle, not a failing comparison, and one identical failure per case would
-//! bury the one line that says PHP is missing. The count is what
-//! catches it: the differential suite's check in the goal records under
-//! `data/goals/` sets a `minPassing` floor on *passing* cases, so a leg that
-//! silently lost its oracle fails there.
-//! A development machine carries PHP 8.5 on `PATH` on both sides of a Windows
-//! setup — Windows and the WSL distro, at the same version — so the Linux leg
-//! runs this suite rather than skipping it
-//! ([docs/setup.md](/docs/setup.md)).
+//! A section name outside the tables above is a parse error naming the
+//! offender and its line — `--INI--` and `--ORACLE--` among them — so a case
+//! never runs with part of what it wrote silently ignored.
 //!
 //! ## Known gaps
 //!
@@ -176,8 +157,7 @@
 //!
 //! `--ENV--` **is** honoured: `Core\Env` is how a program reads back what the
 //! section set. Its pairs are added to the environment the runner already
-//! holds rather than replacing it, and both halves of a differential case get
-//! them — [`case::Case::env`] owns both rules.
+//! holds rather than replacing it — [`case::Case::env`] owns that rule.
 //!
 //! `--ARGS--` **is** honoured, since
 //! `rule:tooling/commands-are-compiled`'s
@@ -207,7 +187,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc;
 use std::thread;
 
-pub use case::{Case, Expectation, Oracle, ParseError, Subcommand};
+pub use case::{Case, Expectation, ParseError, Subcommand};
 pub use run::{Options, Outcome, record_name, recording};
 
 /// The extension a case file carries.
@@ -326,9 +306,8 @@ pub fn listed(found: Vec<PathBuf>, only: &[PathBuf]) -> io::Result<Vec<PathBuf>>
 /// [`run::CASE_TIMEOUT`]. A wedged case is one failure with a reason on it,
 /// never a suite that stops reporting.
 pub fn run(paths: &[PathBuf], opts: &Options, out: &mut dyn Write) -> io::Result<Summary> {
-    // Everything is parsed before anything runs, for two reasons: a malformed
-    // case is reported without having spawned a compiler, and the PHP probe
-    // below only happens when some case actually wants an oracle.
+    // Everything is parsed before anything runs, so a malformed case is
+    // reported without having spawned a compiler.
     let found = discover(paths)?;
     let found = match &opts.only {
         Some(only) => listed(found, only)?,
@@ -343,12 +322,6 @@ pub fn run(paths: &[PathBuf], opts: &Options, out: &mut dyn Write) -> io::Result
                 .is_none_or(|filter| label.contains(filter.as_str()))
         })
         .collect();
-
-    let wants_oracle = parsed
-        .iter()
-        .filter_map(|(_, case)| case.as_ref().ok())
-        .any(|case| matches!(case.oracle, Some(Oracle::Php(_))));
-    let php = !wants_oracle || run::php_available(opts);
 
     let root = &opts.root;
     fs::create_dir_all(root).map_err(|error| {
@@ -381,7 +354,7 @@ pub fn run(paths: &[PathBuf], opts: &Options, out: &mut dyn Write) -> io::Result
                             "could not create its working directory: {error}"
                         )]),
                         (Ok(()), Err(error)) => Outcome::Fail(vec![error.clone()]),
-                        (Ok(()), Ok(case)) => run::run_case(case, opts, &workdir, php),
+                        (Ok(()), Ok(case)) => run::run_case(case, opts, &workdir),
                     };
                     let _ = fs::remove_dir_all(&workdir);
                     // The receiver is gone only when the report itself failed to write, and

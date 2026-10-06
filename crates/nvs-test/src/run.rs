@@ -7,9 +7,7 @@
 //! buys what is worth more than that: a case that hits a contained
 //! engine failure (`rule:errors/escalation-ladder`)
 //! reports as one failure instead of taking the runner down with it; the exit
-//! status and the two output streams are the same ones a user sees; and the
-//! PHP oracle is reached exactly the same way, so the differential leg is not
-//! a second mechanism.
+//! status and the two output streams are the same ones a user sees.
 //!
 //! ## Why the program is always called `case.nvs`
 //!
@@ -32,7 +30,7 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use crate::case::{Case, Oracle, Subcommand};
+use crate::case::{Case, Subcommand};
 use crate::expect::{matches, normalize, shown};
 
 /// How long one case's process may run before the runner gives up on it.
@@ -56,13 +54,11 @@ use crate::expect::{matches, normalize, shown};
 /// that would not have finished at any deadline.
 pub const CASE_TIMEOUT: Duration = Duration::from_secs(300);
 
-/// How the runner reaches the two binaries it drives.
+/// How the runner reaches the binary it drives, and which cases it runs.
 #[derive(Debug, Clone)]
 pub struct Options {
     /// The `nvs` binary that runs each case.
     pub nvs: PathBuf,
-    /// The PHP binary a `--ORACLE--` case is compared against.
-    pub php: PathBuf,
     /// Run only cases whose path or title contains this.
     pub filter: Option<String>,
     /// How many cases are in flight at once. Every case is its own process
@@ -88,7 +84,7 @@ pub struct Options {
 }
 
 impl Options {
-    /// The defaults: this very binary, `php` from `PATH`, and as many cases
+    /// The defaults: this very binary, and as many cases
     /// at once as the machine has hardware threads, writing under `root`.
     ///
     /// # Errors
@@ -97,7 +93,6 @@ impl Options {
     pub fn from_current_exe(root: PathBuf) -> io::Result<Self> {
         Ok(Self {
             nvs: std::env::current_exe()?,
-            php: PathBuf::from("php"),
             filter: None,
             jobs: std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get),
             timeout: CASE_TIMEOUT,
@@ -183,30 +178,9 @@ pub enum Outcome {
     Fail(Vec<String>),
 }
 
-/// True when [`Options::php`] names something that can actually be run.
-///
-/// Probed once per suite rather than per case: a `--ORACLE--` case without an
-/// oracle is unrunnable, not failing, and one identical failure per case on a
-/// machine that simply has no PHP installed would drown the one line that says
-/// so.
-#[must_use]
-pub fn php_available(opts: &Options) -> bool {
-    Command::new(&opts.php).arg("--version").output().is_ok()
-}
-
 /// Runs `case` in `workdir`, which must already exist and be empty.
-///
-/// `php_available` is [`php_available`]'s answer for this suite run; a
-/// `--ORACLE--` case is skipped, with the reason, when it is false.
 #[must_use]
-pub fn run_case(case: &Case, opts: &Options, workdir: &Path, php_available: bool) -> Outcome {
-    if !php_available && matches!(case.oracle, Some(Oracle::Php(_))) {
-        return Outcome::Skip(format!(
-            "no PHP oracle: `{}` could not be run (pass --php)",
-            opts.php.display()
-        ));
-    }
-
+pub fn run_case(case: &Case, opts: &Options, workdir: &Path) -> Outcome {
     // Auxiliary files go down before anything runs, including `--SKIPIF--`:
     // they are part of the tree the case is written against, not part of one
     // program's input.
@@ -358,29 +332,6 @@ fn judge(case: &Case, opts: &Options, workdir: &Path, record: &[(String, String)
         report.push(indented("actual", &stderr));
     }
 
-    if let Some(Oracle::Php(twin)) = &case.oracle {
-        match run_php(opts, workdir, twin, &case.env) {
-            Err(error) => report.push(format!("--ORACLE--: could not run PHP: {error}")),
-            Ok(oracle) => {
-                let theirs = String::from_utf8_lossy(&oracle.stdout).into_owned();
-                if !oracle.status.success() {
-                    report.push(format!(
-                        "--ORACLE--: PHP exited {}",
-                        oracle.status.code().unwrap_or(-1)
-                    ));
-                    report.push(indented(
-                        "php stderr",
-                        &String::from_utf8_lossy(&oracle.stderr),
-                    ));
-                } else if normalize(&theirs) != normalize(&stdout) {
-                    report.push("Novis and its PHP twin printed different things".to_owned());
-                    report.push(indented("php", &theirs));
-                    report.push(indented("nvs", &stdout));
-                }
-            }
-        }
-    }
-
     if report.is_empty() {
         Outcome::Pass
     } else {
@@ -428,7 +379,7 @@ struct Invocation<'a> {
     request: Option<&'a str>,
     /// The program's own arguments, which go past the file.
     args: &'a [String],
-    /// `--ENV--`, which both halves of a differential case get.
+    /// `--ENV--`, added to the environment the runner already has.
     env: &'a [(String, String)],
     /// [`recording`]'s variables, which only the `nvs` half gets.
     record: &'a [(String, String)],
@@ -456,29 +407,6 @@ fn run_nvs(opts: &Options, workdir: &Path, run: &Invocation<'_>) -> io::Result<O
         &args,
         workdir,
         &[run.env, run.record],
-        opts.timeout,
-    )
-}
-
-/// Writes `source` into `workdir` as `oracle.php` and runs PHP on it.
-///
-/// Under the case's own `--ENV--` as well: a differential case is only a
-/// comparison if both halves were asked the same question, and `getenv` is a
-/// question about the environment.
-fn run_php(
-    opts: &Options,
-    workdir: &Path,
-    source: &str,
-    env: &[(String, String)],
-) -> io::Result<Output> {
-    fs::write(workdir.join("oracle.php"), source)?;
-    // Under the case's own deadline as well: an oracle that hangs hangs the
-    // suite exactly as a case that hangs does.
-    spawn(
-        &opts.php,
-        &["oracle.php".as_ref()],
-        workdir,
-        &[env],
         opts.timeout,
     )
 }
@@ -536,7 +464,7 @@ fn spawn(
 /// the deadline costs the conformance tree nothing measurable.
 ///
 /// End of file on both pipes means the process has let go of them, which for
-/// every process this runs — one `nvs` or one `php` — means it is on its way
+/// the `nvs` process this runs means it is on its way
 /// out, so the `wait` after them returns at once. A child that closed its own
 /// output and then kept running would be waited on past the deadline, and that
 /// is [`Command::output`]'s behaviour too; what this rules out is the case that
@@ -765,7 +693,7 @@ mod tests {
 
     #[test]
     fn a_block_indents_every_line_under_its_label() {
-        assert_eq!(indented("php", "a\nb\n"), "  php:\n    a\n    b");
+        assert_eq!(indented("actual", "a\nb\n"), "  actual:\n    a\n    b");
     }
 
     /// Neither a check nor a case: the process the test below spawns, so that
