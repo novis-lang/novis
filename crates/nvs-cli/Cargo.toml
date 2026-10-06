@@ -62,6 +62,11 @@ nvs-host.workspace = true
 # an isolate's program is `script.rs`'s compiler, which lives here because the
 # front end does. `serve.rs`'s module doc owns the rest of that direction.
 nvs-server.workspace = true
+# `rule:packaging/extension-loading-is-root-controlled`'s load, at boot and at
+# every reload (`src/extensions.rs`): the loader and the engine it compiles into.
+# The packer stays off, because nothing here builds a `.nvsx`.
+nvs-ext = { workspace = true, features = ["engine"] }
+wasmtime.workspace = true
 # `rule:config/one-local-control-socket`'s framing, on the client's half of it:
 # `nvs ctl` sends the request `nvs-server` answers, and the workspace manifest's
 # comment above the `hyper` line is where taking the `client` feature for it is
@@ -129,6 +134,10 @@ nvs-repo.workspace = true
 # are already in this binary through `nvs-host`.
 rustls.workspace = true
 rcgen.workspace = true
+# `tests/live_config.rs`'s test extensions: component text compiled by `wat`,
+# with its two custom sections added by the packer.
+nvs-ext = { workspace = true, features = ["engine", "pack"] }
+wat.workspace = true
 
 # What tells a long-running `nvs serve` that it has been asked to stop, which
 # `src/stop.rs` turns into `rule:concurrency/a-drain-closes-a-connection-cleanly`'s

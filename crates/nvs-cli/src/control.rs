@@ -474,6 +474,11 @@ impl Process {
         {
             return Err(refusal);
         }
+        // Every extension file read and verified again, before anything moves:
+        // one that does not load refuses the reload, and the set loaded with the
+        // running tree stays live.
+        let extensions = crate::extensions::loaded(&next.config, &origins, &sources)
+            .map_err(|refusal| rendered(&refusal, &sources))?;
         let moved = self
             .moving(&next)
             .map_err(|refusal| rendered(&refusal, &sources))?;
@@ -516,6 +521,7 @@ impl Process {
         // new tree and is not drained with the old one.
         self.generations
             .retire_before(self.current.load().generation);
+        crate::extensions::install(extensions);
         // The new endpoint answers before the old one stops.
         match moved {
             Move::Open(endpoint) => {

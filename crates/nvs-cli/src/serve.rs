@@ -192,6 +192,12 @@ pub(crate) fn run(
         }
         crate::render_diagnostics(&mut diags, &sources);
     }
+    // Every `[[extension]]` file, read and verified against its pin before
+    // anything listens: one that does not load stops the boot, naming its line.
+    match crate::extensions::loaded(&snapshot.config, &origins, &sources) {
+        Ok(set) => crate::extensions::install(set),
+        Err(diagnostic) => return report(diagnostic, &sources),
+    }
     // The outbound TLS client, built before a worker exists: it is the
     // process's one answer to whose certificates a handler believes
     // (`rule:security/one-tls-client`), and every core shares it.

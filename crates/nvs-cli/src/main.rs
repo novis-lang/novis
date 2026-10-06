@@ -145,6 +145,7 @@ mod ctl;
 mod dispatch;
 mod doc;
 mod events;
+mod extensions;
 mod fmt;
 mod info;
 mod meta;

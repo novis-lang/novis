@@ -17,6 +17,7 @@
   "guardedBy": [
     "crates/nvs-config/tests/tree.rs",
     "crates/nvs-config/tests/extension.rs",
-    "crates/nvs-ext/tests/load.rs"
+    "crates/nvs-ext/tests/load.rs",
+    "crates/nvs-cli/tests/live_config.rs"
   ]
 }

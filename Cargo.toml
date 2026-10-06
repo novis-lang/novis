@@ -64,6 +64,8 @@ nvs-host = { path = "crates/nvs-host", version = "0.0.1" }
 # the crate then reached with no features at all.
 nvs-server = { path = "crates/nvs-server", version = "0.0.1", default-features = false }
 nvs-config = { path = "crates/nvs-config", version = "0.0.1" }
+# The defaults are the wasmtime host and the packer; a dependent names what it takes.
+nvs-ext = { path = "crates/nvs-ext", version = "0.0.1", default-features = false }
 nvs-db = { path = "crates/nvs-db", version = "0.0.1" }
 nvs-stdlib = { path = "crates/nvs-stdlib", version = "0.0.1" }
 nvs-test = { path = "crates/nvs-test", version = "0.0.1" }

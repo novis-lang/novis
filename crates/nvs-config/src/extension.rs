@@ -11,7 +11,9 @@
 //! **What it does not check is the file.** Whether the digest matches, whether the component
 //! validates and what its manifest says are the loader's (`nvs-ext`), which reads the bytes. This
 //! pass reads only the configuration, so `nvs check` and a reload's dry pass refuse an unpinned
-//! entry without touching the disk.
+//! entry without touching the disk. [`file`] is an entry's `path` made absolute against the file
+//! that wrote it, and [`not_loaded`] is the refusal `nvs serve` raises, at the entry's line, when the
+//! loader refuses its file.
 //!
 //! A pin is accepted in either case, since `sha256sum` prints lower case and PowerShell's
 //! `Get-FileHash` upper case; the loader compares it case-insensitively. The optional `memory`
@@ -22,6 +24,7 @@
 //! text on the refusal path only. Nothing here runs on a request path.
 
 use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
 
 use nvs_diagnostics::{Diagnostic, SourceMap, Span, code};
 
@@ -48,6 +51,42 @@ pub fn validate(
         check(index, entry, origins, sources)?;
     }
     Ok(())
+}
+
+/// The file entry `index` names, `written` as its `path`, made absolute against the file that
+/// wrote it — `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`.
+///
+/// Asked by the loader rather than written back into the tree, so `nvs ctl config` and every
+/// listing show the path as it was written.
+#[must_use]
+pub fn file(index: usize, written: &str, origins: &BTreeMap<String, Origin>) -> PathBuf {
+    let base = crate::db::written_in(origins, &format!("extension.{index}.path"));
+    crate::resolve::absolute(base, Path::new(written))
+}
+
+/// Entry `index`'s load refusal, `E0652`, pointing at its `[[extension]]` header line. `path` is
+/// the file the entry names and `reason` is the loader's: everything the loader checks in the
+/// file itself, which this module never reads.
+#[must_use]
+pub fn not_loaded(
+    index: usize,
+    path: &str,
+    reason: &str,
+    origins: &BTreeMap<String, Origin>,
+    sources: &SourceMap,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        code::E_EXTENSION_NOT_LOADED,
+        format!("The extension `{path}` does not load: {reason}"),
+    )
+    .with_note(format!(
+        "one entry that does not load refuses every extension{}",
+        origin_note(written_in(index, origins))
+    ));
+    if let Some(span) = locate(index, None, origins, sources) {
+        diagnostic = diagnostic.with_primary(span, "this entry");
+    }
+    diagnostic
 }
 
 /// Whether `pin` is a SHA-256 digest as text: exactly 64 hexadecimal digits, either case.

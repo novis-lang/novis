@@ -2991,6 +2991,18 @@ pub mod code {
          `sha256`, which is the file's SHA-256 written as 64 hexadecimal digits.",
     );
 
+    /// A complete `[[extension]]` entry whose file does not load: the
+    /// digest differs from the pin, the component does not validate, the
+    /// manifest does not match it, or its class is reserved or already
+    /// declared — `rule:packaging/extension-loading-is-root-controlled`'s
+    /// load refusals, raised by `nvs serve` at boot and at reload, pointing
+    /// at the entry's header line. One entry refused is the whole set
+    /// refused.
+    pub const E_EXTENSION_NOT_LOADED: Code = Code::new("E0652").card(
+        "An `[[extension]]` file does not load. The reason is in the message. The server does \
+         not start, or a reload keeps the extensions it already has.",
+    );
+
     // --- E07xx types, continued --------------------------------------------
     //
     // The E04xx band filled at `E0499`. Max-plus-one yields `E0500`, whose

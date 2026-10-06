@@ -1549,9 +1549,12 @@ core.
 **Not on disk.** The entry's shape is enforced: `nvs_config::extension::validate` refuses an entry
 with no `path`, no `sha256` or a pin that is not 64 hexadecimal digits, at boot and at reload, naming
 its file and line (`E0651`), and the pins fold into `env_hash`. `nvs_ext::load` reads the file and
-runs every load refusal above, each naming the entry's path (`crates/nvs-ext/tests/load.rs`), but
-nothing calls it at boot or at reload yet, no named type (an enum, a `Core` value class, a union, a
-`resource`) passes its export check, and `nvs ext pin` does not exist.
+runs every load refusal above, each naming the entry's path (`crates/nvs-ext/tests/load.rs`).
+`nvs serve` runs it over every entry at boot and at every reload, and one entry that does not load
+stops the boot or refuses the whole reload with the previous set live, naming its file and line
+(`E0652`, `crates/nvs-cli/tests/live_config.rs`). Its components are not yet compiled into the
+artifact cache, no named type (an enum, a `Core` value class, a union, a `resource`) passes its
+export check, and `nvs ext pin` does not exist.
 
 <sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`](config.md#config-lists-are-arrays-and-repeated-records-are-arrays-of-tables), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-extension-package-carries-two-payloads`](packaging.md#packaging-an-extension-package-carries-two-payloads), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0003](../decisions/0003.md), [0064](../decisions/0064.md), [0078](../decisions/0078.md), [0246](../decisions/0246.md).</sub>
 

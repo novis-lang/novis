@@ -1952,6 +1952,8 @@ fn artifacts(dir: &Path) -> usize {
 /// file into `cache/`, so the directory exists inside the private one.
 #[test]
 fn a_changed_extension_set_compiles_every_program_again() {
+    let shelf = Shelf::new("extension");
+    let geo = extension("Shop\\Geo");
     let server = Server::start(
         "extension",
         &file_cache(""),
@@ -1966,10 +1968,7 @@ fn a_changed_extension_set_compiles_every_program_again() {
         server.said()
     );
 
-    let report = server.reload(&file_cache(
-        "[[extension]]\npath = \"ext/one.nvsx\"\nsha256 = \
-         \"1111111111111111111111111111111111111111111111111111111111111111\"\n",
-    ));
+    let report = server.reload(&file_cache(&shelf.put("one.nvsx", &geo, &geo)));
     assert!(
         report.contains("applied: extension\n"),
         "the reload did not name `extension` as applied: {report}"
@@ -2591,5 +2590,286 @@ fn a_changed_server_timeout_applies_to_the_next_connection() {
         "a connection accepted before the reload lost the wait it started with: {answer:?}; the \
          server wrote: {}",
         server.said()
+    );
+}
+
+/// A component exporting `shop:geo/api` with one function, `distance-km`, its
+/// `error` imported from `nvs:ext/types` — `nvs-ext`'s own load test guest.
+fn guest() -> Vec<u8> {
+    let text = r#"(component
+  (import "nvs:ext/types@1.0.0" (instance $types
+    (type $e (variant (case "invalid" string) (case "parse" string) (case "runtime" string)))
+    (export "error" (type (eq $e)))))
+  (alias export $types "error" (type $error))
+  (core module $m
+    (memory (export "memory") 1)
+    (func (export "realloc") (param i32 i32 i32 i32) (result i32) i32.const 8)
+    (func (export "distance-km") (param i32 i32 i32) (result i32) i32.const 16))
+  (core instance $i (instantiate $m))
+  (alias core export $i "memory" (core memory $mem))
+  (alias core export $i "realloc" (core func $realloc))
+  (func $f (param "from" string) (param "round" bool) (result (result f64 (error $error)))
+    (canon lift (core func $i "distance-km") (memory $mem) (realloc $realloc)))
+  (instance $api (export "distance-km" (func $f)))
+  (export "shop:geo/api" (instance $api)))"#;
+    wat::parse_str(text).expect("the test component compiles")
+}
+
+/// A `.nvsx` declaring `class` over [`guest`], with its manifest and no source.
+fn extension(class: &str) -> Vec<u8> {
+    let class = class.replace('\\', "\\\\");
+    let manifest = format!(
+        r#"{{"manifest": 1, "world": "1.0.0", "class": "{class}", "interface": "shop:geo/api", "methods": [{{"name": "distanceKm", "params": [{{"name": "from", "type": "string"}}, {{"name": "round", "type": "bool"}}], "returns": "float"}}]}}"#
+    );
+    nvs_ext::pack::append_section(guest(), nvs_ext::section::MANIFEST, manifest.as_bytes())
+}
+
+/// A directory of `.nvsx` files beside a case's own, removed when dropped.
+/// [`Server::start`] empties the case's directory, so the files a boot loads
+/// are written here first and named by their absolute paths.
+struct Shelf {
+    dir: PathBuf,
+}
+
+impl Shelf {
+    fn new(case: &str) -> Self {
+        let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
+            .join(format!("live-config-shelf-{case}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("the shelf is created");
+        Self { dir }
+    }
+
+    /// Writes `bytes` as `name` on the shelf and returns its `[[extension]]`
+    /// entry, pinned to `pinned`.
+    fn put(&self, name: &str, bytes: &[u8], pinned: &[u8]) -> String {
+        let path = self.dir.join(name);
+        std::fs::write(&path, bytes)
+            .unwrap_or_else(|error| panic!("`{}` could not be written: {error}", path.display()));
+        format!(
+            "[[extension]]\npath = '{}'\nsha256 = \"{}\"\n",
+            path.display(),
+            nvs_ext::load::pin(pinned)
+        )
+    }
+}
+
+impl Drop for Shelf {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.dir);
+    }
+}
+
+/// `[http.headers] referrer_policy`, which a case changes beside its
+/// extensions to see whether a reload published anything at all.
+fn policy(value: &str) -> String {
+    format!("[http.headers]\nreferrer_policy = \"{value}\"\n")
+}
+
+/// The referrer policy the running configuration holds, as `nvs ctl config`
+/// lists it.
+fn running_policy(server: &Server) -> String {
+    let listing = server.ctl("config");
+    listing
+        .lines()
+        .find(|line| line.starts_with("http.headers.referrer_policy"))
+        .unwrap_or_else(|| panic!("`nvs ctl config` lists no referrer policy: {listing}"))
+        .to_owned()
+}
+
+/// Runs `nvs ctl reload` and returns its standard error, asserting it failed.
+fn refused_reload(server: &Server) -> String {
+    let ran = server.ctl_output(&server.socket, "reload");
+    let said = String::from_utf8_lossy(&ran.stderr).into_owned();
+    assert!(
+        !ran.status.success() && ran.stdout.is_empty(),
+        "the reload was reported as done: {}; the server wrote: {}",
+        String::from_utf8_lossy(&ran.stdout),
+        server.said()
+    );
+    said
+}
+
+/// The `invalidated` count a reload's report gives.
+fn invalidated(report: &str) -> u64 {
+    report
+        .lines()
+        .find_map(|line| line.strip_prefix("invalidated: "))
+        .and_then(|count| count.trim().parse().ok())
+        .unwrap_or_else(|| panic!("the report gives no `invalidated` count: {report}"))
+}
+
+/// A boot whose one `[[extension]]` file differs from its pin does not start:
+/// it exits with `E0652`, naming the file and the entry's line, and never
+/// listens.
+#[test]
+fn a_boot_with_an_extension_entry_that_does_not_load_refuses_to_start() {
+    let shelf = Shelf::new("boot-refused");
+    let geo = extension("Shop\\Geo");
+    let entry = shelf.put("geo.nvsx", &geo, b"another file");
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join(format!("live-config-boot-refused-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    write_file(&dir.join("app.nvs"), PLAIN);
+    write_file(
+        &dir.join("nvs.toml"),
+        &controlled(&endpoint(&dir, "boot-refused"), &entry),
+    );
+    let mut child = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .args(["serve", "app.nvs", "--listen", "127.0.0.1:0"])
+        .current_dir(&dir)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("the `nvs` binary this test was built beside starts");
+    let started = Instant::now();
+    let status = loop {
+        if let Some(status) = child.try_wait().expect("the child can be waited on") {
+            break status;
+        }
+        if started.elapsed() > BOOT {
+            let _ = child.kill();
+            let _ = child.wait();
+            let _ = std::fs::remove_dir_all(&dir);
+            panic!("`nvs serve` with an extension that does not load kept running");
+        }
+        thread::sleep(POLL);
+    };
+    let mut said = String::new();
+    let mut out = String::new();
+    let _ = child
+        .stderr
+        .take()
+        .expect("standard error is piped")
+        .read_to_string(&mut said);
+    let _ = child
+        .stdout
+        .take()
+        .expect("standard output is piped")
+        .read_to_string(&mut out);
+    let _ = std::fs::remove_dir_all(&dir);
+    assert!(!status.success(), "the boot succeeded: {said}");
+    assert!(
+        !out.contains("listening on"),
+        "the boot listened before it refused: {out}"
+    );
+    assert!(
+        said.contains("E0652") && said.contains("geo.nvsx") && said.contains("nvs.toml:"),
+        "the refusal does not name the code, the file and the entry's line: {said}"
+    );
+}
+
+/// A file rewritten under its pin is refused at the next reload, even though
+/// its entry did not change: nothing in that reload is published, and the
+/// running server keeps its configuration. Once the file is back, the same
+/// reload goes through.
+#[test]
+fn a_reload_whose_extension_pin_does_not_match_is_refused_whole_and_the_previous_set_stays_live() {
+    let shelf = Shelf::new("pin-refused");
+    let geo = extension("Shop\\Geo");
+    let entry = shelf.put("geo.nvsx", &geo, &geo);
+    let server = Server::start(
+        "pin-refused",
+        &format!("{}\n{entry}", policy("no-referrer")),
+        &[("app.nvs", PLAIN)],
+    );
+    server.awaits("/", "the boot's answer", |answer| answer.status == 200);
+
+    shelf.put("geo.nvsx", &extension("Shop\\Blog"), &geo);
+    server.save(&format!("{}\n{entry}", policy("same-origin")));
+    let said = refused_reload(&server);
+    assert!(
+        said.contains("E0652") && said.contains("geo.nvsx") && said.contains("sha256"),
+        "the refusal does not name the code, the file and its digest: {said}"
+    );
+    assert!(
+        said.contains("note: the running configuration is unchanged"),
+        "the refusal does not say what the server runs with now: {said}"
+    );
+    assert!(
+        running_policy(&server).contains("\"no-referrer\""),
+        "a refused reload changed the running configuration"
+    );
+    let answer = server.get("/");
+    assert_eq!(answer.status, 200, "{answer:?}");
+
+    shelf.put("geo.nvsx", &geo, &geo);
+    server.ctl("reload");
+    assert!(
+        running_policy(&server).contains("\"same-origin\""),
+        "the reload over the restored file was not published"
+    );
+}
+
+/// One entry that does not load among two that do refuses the whole reload,
+/// naming that entry; the two that load are not published either.
+#[test]
+fn a_reload_with_one_bad_extension_entry_among_good_ones_is_refused_whole() {
+    let shelf = Shelf::new("one-bad");
+    let geo = extension("Shop\\Geo");
+    let blog = extension("Shop\\Blog");
+    let broken = b"not a component".to_vec();
+    let first = shelf.put("geo.nvsx", &geo, &geo);
+    let server = Server::start(
+        "one-bad",
+        &format!("{}\n{first}", policy("no-referrer")),
+        &[("app.nvs", PLAIN)],
+    );
+    server.awaits("/", "the boot's answer", |answer| answer.status == 200);
+
+    let second = shelf.put("blog.nvsx", &blog, &blog);
+    let third = shelf.put("broken.nvsx", &broken, &broken);
+    server.save(&format!(
+        "{}\n{first}\n{second}\n{third}",
+        policy("same-origin")
+    ));
+    let said = refused_reload(&server);
+    assert!(
+        said.contains("E0652") && said.contains("broken.nvsx") && said.contains("nvs.toml:"),
+        "the refusal does not name the code, the bad entry and its line: {said}"
+    );
+    assert!(
+        !said.contains("blog.nvsx"),
+        "the refusal names an entry that loads: {said}"
+    );
+    assert!(
+        running_policy(&server).contains("\"no-referrer\""),
+        "a refused reload changed the running configuration"
+    );
+    let answer = server.get("/");
+    assert_eq!(answer.status, 200, "{answer:?}");
+}
+
+/// A reload that changes the extension set rekeys every compiled unit, and
+/// one that changes something else and keeps the set rekeys none.
+#[test]
+fn a_reload_that_changes_the_extension_set_rekeys_the_unit_cache() {
+    let shelf = Shelf::new("rekey");
+    let geo = extension("Shop\\Geo");
+    let blog = extension("Shop\\Blog");
+    let first = shelf.put("geo.nvsx", &geo, &geo);
+    let server = Server::start(
+        "rekey",
+        &format!("{}\n{first}", policy("no-referrer")),
+        &[("app.nvs", PLAIN)],
+    );
+    server.awaits("/", "the boot's answer", |answer| answer.status == 200);
+
+    let second = shelf.put("blog.nvsx", &blog, &blog);
+    let report = server.reload(&format!("{}\n{first}\n{second}", policy("no-referrer")));
+    assert!(
+        invalidated(&report) > 0,
+        "a reload that added an extension kept every compiled unit: {report}"
+    );
+    server.awaits("/", "the answer after the reload", |answer| {
+        answer.status == 200
+    });
+
+    let report = server.reload(&format!("{}\n{first}\n{second}", policy("same-origin")));
+    assert_eq!(
+        invalidated(&report),
+        0,
+        "a reload that kept the extension set dropped compiled units: {report}"
     );
 }

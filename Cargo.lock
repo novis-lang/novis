@@ -2194,6 +2194,7 @@ dependencies = [
  "nvs-config",
  "nvs-db",
  "nvs-diagnostics",
+ "nvs-ext",
  "nvs-fmt",
  "nvs-footprint",
  "nvs-hir",
@@ -2216,6 +2217,8 @@ dependencies = [
  "serde",
  "serde_json",
  "toml",
+ "wasmtime",
+ "wat",
  "windows-sys 0.61.2",
 ]
 
