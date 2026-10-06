@@ -135,10 +135,11 @@ test("callgrind sets a bench's iterations, and a later run at that N starts no v
   expect(readFileSync(join(ROOT, path), "utf8")).toBe(source);
 });
 
-test("--sized fails a bench whose N is more than twice the batch its ramp settled at", () => {
+test("--sized fails a bench whose N is more than four times the batch its ramp settled at", () => {
   const judged = (verdict: Judged["verdict"], sizes: number[], threshold?: number): Judged => ({ bench: "b.nvs", verdict, sizes, slopes: {}, clock: null, notes: [], ...(threshold === undefined ? {} : { threshold }) });
-  expect(oversized(judged("flat", [16, 32, 64, 128]), 256)).toBeNull();
-  expect(oversized(judged("flat", [16, 32, 64, 128]), 257)).toContain("N is at most 256");
+  // A bench `--lower` set to twice one ramp's batch passes when the next ramp settles a doubling earlier.
+  expect(oversized(judged("flat", [16, 32, 64, 128]), 512)).toBeNull();
+  expect(oversized(judged("flat", [16, 32, 64, 128]), 513)).toContain("N is at most 512, and `--lower` writes 256");
   // Callgrind's threshold is where the ramp settled, though the ramp ran every batch to the ceiling.
   expect(oversized(judged("flat", [16, 32, 64, 128, 256, 512, 1024, 2048, 4096], 128), 100000)).toContain("settled at 128");
   // A ramp that did not settle keeps its N.

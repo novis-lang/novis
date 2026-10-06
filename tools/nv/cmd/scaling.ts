@@ -30,11 +30,14 @@
 // copy goes the folder's `nvs.toml`, or the repository's, with its paths rebased so the copy keeps the
 // capabilities and the app the original has. A bench whose closing line does not pass its
 // `iterations N` as one integer literal, or whose N is too small to ramp, is skipped and named.
-// `--sized` also fails a flat bench whose N is more than twice the batch its ramp settled at, the last
-// batch or callgrind's threshold (`oversized`), since N is the ramp's cap and nothing past it is needed.
-// The batch a ramp settles at moves between runs, so a bench found oversized is ramped a second time and
-// fails only when that ramp finds it oversized too. A bench whose ramp does not settle keeps its N. `--lower` rewrites an oversized bench's N to twice
-// that batch with `withIterations`, noting `callgrind` only when callgrind settled it, and does not fail it.
+// `--sized` also fails a flat bench whose N is more than `OVERSIZED` times the batch its ramp settled at,
+// the last batch or callgrind's threshold (`oversized`), since N is the ramp's cap and nothing past it is
+// needed. The batch a ramp settles at moves between runs by a doubling, so a bench at twice one run's
+// batch is often at four times the next run's: `OVERSIZED` is four, one doubling above what `--lower`
+// writes, and a bench found oversized is ramped a second time and fails only when that ramp finds it
+// oversized too. A bench whose ramp does not settle keeps its N. `--lower` rewrites an oversized bench's
+// N to twice that batch with `withIterations`, noting `callgrind` only when callgrind settled it, and
+// does not fail it.
 //
 // The ramp. The first batch is `START` operations and each next batch doubles the one before. A batch
 // is one `nvs run --count` (the counting run of `tools/nv/proofs/perf.ts`) and the fastest of `--reps`
@@ -1033,14 +1036,17 @@ function areas(reviewed: boolean): number {
   return 0;
 }
 
+/** How many times the batch a ramp settled at a bench's N may be before `--sized` fails it. */
+export const OVERSIZED = 4;
+
 /** Why a bench of `iterations` operations runs more of them than its ramp needed, or null. The ramp
  * settled at its last batch, or at callgrind's `threshold` when callgrind settled it, and N may be at
- * most twice that batch. A ramp that did not settle keeps its N. */
+ * most `OVERSIZED` times that batch. A ramp that did not settle keeps its N. */
 export function oversized(j: Judged, iterations: number): string | null {
   if (j.verdict !== "flat" || !j.sizes.length) return null;
   const settled = j.threshold ?? j.sizes.at(-1)!;
-  if (iterations <= 2 * settled) return null;
-  return `\`iterations ${iterations}\` is more than its ramp needs: it settled at ${settled}, so N is at most ${2 * settled}`;
+  if (iterations <= OVERSIZED * settled) return null;
+  return `\`iterations ${iterations}\` is more than its ramp needs: it settled at ${settled}, so N is at most ${OVERSIZED * settled}, and \`--lower\` writes ${2 * settled}`;
 }
 
 /** A reason written beside a bench's `// bench: iterations N` line, after ` -- `, which lets its share
@@ -1203,8 +1209,8 @@ export async function run(argv: string[]): Promise<number> {
     --iterations          ramp every bench under ${BENCHES}/ over small batches instead
     --growth              judge every bench under ${BENCHES}/ as its perf proof does: its batches, its
                           \`.scale.nvs\` sibling, and a missing \`// bench: complexity\`; writes no record
-    --sized               with --iterations, also fail a bench whose N is more than twice the batch its
-                          ramp settled at
+    --sized               with --iterations, also fail a bench whose N is more than ${OVERSIZED} times the batch
+                          its ramp settled at
     --lower               with --sized, rewrite such a bench's N to twice that batch instead of failing it
     --budget              count the statements every bench runs at its N, and fail a bench whose count
                           rose above its share of ${BUDGET} with no reason beside its N

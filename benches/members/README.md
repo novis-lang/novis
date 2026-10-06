@@ -76,8 +76,9 @@ The rules, of which the chained input and the `int` subscript are the ones that 
   and counted run then answers ([docs/examples/README.md](../../docs/examples/README.md) § *A request
   for the program*). A `Core\Request` member throws without one.
 - **The smallest count that shows the growth.** N is twice the batch at which the ramp below found a
-  clear pattern, and `bun nv scaling --iterations --sized` fails a bench whose N is larger;
-  `--sized --lower` rewrites it. The sweep runs one program per feature and there are hundreds, so
+  clear pattern, and `--sized --lower` writes that N. The batch moves by a doubling from one run to
+  the next, so `bun nv scaling --iterations --sized` fails a bench only when its N is more than four
+  times the batch. The sweep runs one program per feature and there are hundreds, so
   every operation past that batch is time spent across the whole tree for no new fact.
 - **The tree has a budget.** `bun nv scaling --budget` counts the statements every bench runs at its
   N and holds each to its share in `docs/perf/bench-budget.json`, which may only go down. A new bench
