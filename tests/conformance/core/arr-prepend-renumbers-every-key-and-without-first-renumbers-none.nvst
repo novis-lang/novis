@@ -1,0 +1,33 @@
+--TEST--
+Core\Arr::prepend renumbers every key, string keys included, and ::withoutFirst keeps every surviving key, integer keys included
+--FILE--
+<?nvs
+final class Render {
+    public static function of(array<int> $a): string {
+        var $out = "";
+        foreach ($a as string $k => int $v) {
+            $out = $out . $k . "=" . $v . ";";
+        }
+        return $out;
+    }
+}
+
+array<int> $list = [10, 20, 30];
+array<int> $map = ["x" => 1, "y" => 2];
+array<int> $mixed = ["5" => 1, "x" => 2, "9" => 3];
+
+// `prepend` returns a list, whatever keys the subject has.
+echo Render::of(Core\Arr::prepend($map, 7, 8)), "\n";
+echo Render::of(Core\Arr::prepend($mixed, 7, 8)), "\n";
+
+// `withoutFirst` keeps the keys the other entries already had. On a list,
+// the result starts at key 1.
+echo Render::of(Core\Arr::withoutFirst($list)), "\n";
+echo Render::of(Core\Arr::withoutFirst($map)), "\n";
+echo Render::of(Core\Arr::withoutFirst($mixed)), "\n";
+--EXPECT--
+0=7;1=8;2=1;3=2;
+0=7;1=8;2=1;3=2;4=3;
+1=20;2=30;
+y=2;
+x=2;9=3;

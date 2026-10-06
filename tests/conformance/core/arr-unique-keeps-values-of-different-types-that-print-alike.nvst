@@ -1,0 +1,39 @@
+--TEST--
+Core\Arr::unique compares by strict identity, so `1` and `"1"` are both kept, and `0`, `"0"`, `false`, `null` and `""` are five different values
+--FILE--
+<?nvs
+final class Render {
+    public static function pairs(array<int|string> $a): string {
+        var $out = "";
+        foreach ($a as string $k => int|string $v) {
+            $out = $out . $k . "=" . $v . ";";
+        }
+        return $out;
+    }
+
+    public static function keys(array<mixed> $a): string {
+        var $out = "";
+        foreach ($a as string $k => mixed $v) {
+            $out = $out . $k . ",";
+        }
+        return $out;
+    }
+}
+
+// `1` and `"1"` are two values, so all four entries are kept. `echo` prints
+// both as `1`, so the keys show which entries were kept.
+array<int|string> $spellings = [1, "1", 2, "2"];
+echo Render::pairs(Core\Arr::unique($spellings)), "\n";
+
+// None of these five values is identical to another, so all five are kept.
+array<int|string|bool|null> $wide = [0, "0", false, null, ""];
+var $kept = Core\Arr::unique($wide);
+echo Core\Arr::count($kept), " ", Render::keys($kept), "\n";
+
+// One type: the second `1` is removed.
+array<int> $list = [1, 2, 1];
+echo Render::pairs(Core\Arr::unique($list)), "\n";
+--EXPECT--
+0=1;1=1;2=2;3=2;
+5 0,1,2,3,4,
+0=1;1=2;

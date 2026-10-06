@@ -1,0 +1,24 @@
+--TEST--
+Core\Arr::fillKeys puts one value under any keys the caller names, consecutive or not, and ::fill has one shape: a list from key 0
+--FILE--
+<?nvs
+final class Render {
+    public static function keys(array<mixed> $a): string {
+        return Core\Str::join(Core\Arr::keys($a), ",");
+    }
+}
+
+// Keys that start at 5.
+array<int> $offset = [5, 6, 7];
+echo Render::keys(Core\Arr::fillKeys($offset, "v")), "|", Core\Arr::count(Core\Arr::fillKeys($offset, "v")), "\n";
+
+// Keys that are not consecutive, and one that is not a number.
+array<int|string> $scattered = [9, "name", 2];
+echo Render::keys(Core\Arr::fillKeys($scattered, "v")), "\n";
+
+// `fill` always returns a list with keys 0, 1, 2.
+echo Render::keys(Core\Arr::fill(3, "v")), "|", Core\Arr::isList(Core\Arr::fill(3, "v")) as string, "\n";
+--EXPECT--
+5,6,7|3
+9,name,2
+0,1,2|1

@@ -1,0 +1,40 @@
+--TEST--
+Core\Arr::reduce gives a callback that declares a third parameter each entry's own key, and gives a two-parameter callback no key, `rule:types/arrays`
+--FILE--
+<?nvs
+// A list's keys arrive as strings. The `|` marks the end of the line,
+// because the line ends in a space.
+array<int> $nums = [3, 8, 5];
+echo Core\Arr::reduce($nums, fn (string $c, int $v, string $k): string => $c . $k . ":" . $v . " ", ""), "|\n";
+
+// A map, folded over its keys and values.
+array<int> $map = ["b" => 8, "a" => 2, "c" => 9];
+echo Core\Arr::reduce($map, fn (string $c, int $v, string $k): string => $c . $k . "=" . $v . ";", ""), "\n";
+
+// The same map with a two-parameter callback. It gets no key.
+echo Core\Arr::reduce($map, fn (string $c, int $v): string => $c . $v . ";", ""), "\n";
+
+// A list with two entries removed. The key is the entry's own key, not its
+// position, so keys 1 and 3 are printed.
+array<int> $gapped = [10, 20, 30, 40];
+unset($gapped[0]);
+unset($gapped[2]);
+echo Core\Arr::reduce($gapped, fn (string $c, int $v, string $k): string => $c . $k . ":" . $v . ";", ""), "\n";
+
+// This fold uses only the key.
+echo Core\Arr::reduce($map, fn (string $c, int $v, string $k): string => $c . $k, ""), "\n";
+
+// An empty array never calls the callback, so the result is the seed.
+array<int> $empty = [];
+echo Core\Arr::reduce($empty, fn (string $c, int $v, string $k): string => $c . $k, "seed"), "\n";
+
+// A two-parameter sum.
+echo Core\Arr::reduce($nums, fn (int $c, int $v): int => $c + $v, 0), "\n";
+--EXPECT--
+0:3 1:8 2:5 |
+b=8;a=2;c=9;
+8;2;9;
+1:20;3:40;
+bac
+seed
+16

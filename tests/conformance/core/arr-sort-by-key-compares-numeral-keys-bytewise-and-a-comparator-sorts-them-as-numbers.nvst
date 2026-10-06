@@ -1,0 +1,31 @@
+--TEST--
+Core\Arr::sortByKey compares numeral keys byte by byte, so "10" comes before "9", and a comparator that converts the keys sorts them as numbers
+--FILE--
+<?nvs
+final class Render {
+    public static function keys(array<mixed> $a): string {
+        return Core\Str::join(Core\Arr::keys($a), ",");
+    }
+}
+
+// Keys are compared byte by byte. `"1"` comes before `"9"`, so "10" and
+// "100" come before "9".
+array<string> $counts = ["10" => "ten", "9" => "nine", "100" => "hundred"];
+echo Render::keys(Core\Arr::sortByKey($counts)), "\n";
+
+// The same rule for keys written with a point or an exponent.
+array<string> $numerals = ["1e2" => "a", "50" => "b", "0.5" => "c"];
+echo Render::keys(Core\Arr::sortByKey($numerals)), "\n";
+
+// Numerals and words use the same byte compare. Digits come before
+// letters, and `"A"` comes before `"b"`.
+array<int> $mixed = ["10" => 1, "9" => 2, "banana" => 3, "Apple" => 4, "2" => 5];
+echo Render::keys(Core\Arr::sortByKey($mixed)), "\n";
+
+// To sort the keys as numbers, pass a comparator that converts them.
+echo Render::keys(Core\Arr::sortByKey($counts, {comparator: fn(string $a, string $b): int => ($a as int) - ($b as int)})), "\n";
+--EXPECT--
+10,100,9
+0.5,1e2,50
+10,2,9,Apple,banana
+9,10,100

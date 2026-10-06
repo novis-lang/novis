@@ -1,0 +1,38 @@
+--TEST--
+Core\Arr::padEnd and ::padStart renumber a subject with string or mixed keys from zero, including one already longer than the size asked for
+--FILE--
+<?nvs
+final class Render {
+    public static function of(array<int> $a): string {
+        var $out = "";
+        foreach ($a as string $k => int $v) {
+            $out = $out . $k . "=" . $v . ";";
+        }
+        return $out;
+    }
+}
+
+// Only string keys. The result is a list from key 0.
+array<int> $map = ["x" => 1, "y" => 2, "z" => 3];
+echo Render::of(Core\Arr::padEnd($map, 4, 0)), "\n";
+echo Render::of(Core\Arr::padStart($map, 4, 0)), "\n";
+
+// The subject is already longer than 2. Nothing is added, and the keys are
+// still renumbered.
+echo Render::of(Core\Arr::padEnd($map, 2, 0)), "\n";
+
+// Integer and string keys together. Every key is renumbered on both sides.
+array<int> $mixed = ["5" => 1, "x" => 2, "9" => 3];
+echo Render::of(Core\Arr::padEnd($mixed, 5, 0)), "\n";
+echo Render::of(Core\Arr::padStart($mixed, 5, 0)), "\n";
+
+// A list gives the same keys.
+array<int> $list = [1, 2, 3];
+echo Render::of(Core\Arr::padEnd($list, 5, 0)), "|", Render::of(Core\Arr::padStart($list, 5, 0)), "|\n";
+--EXPECT--
+0=1;1=2;2=3;3=0;
+0=0;1=1;2=2;3=3;
+0=1;1=2;2=3;
+0=1;1=2;2=3;3=0;4=0;
+0=0;1=0;2=1;3=2;4=3;
+0=1;1=2;2=3;3=0;4=0;|0=0;1=0;2=1;3=2;4=3;|
