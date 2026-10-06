@@ -1597,7 +1597,7 @@ extension to one `InstKind::ExtensionCall` naming the export (`crates/nvs-ir/src
 Codegen emits it as a direct call of one runtime helper with the export named in its first slot
 (`nvs_runtime::extension`), and `nvs run` hosts it
 (`tests/conformance/ext/an-extension-call-crosses-every-row-of-the-value-table.nvst`); `nvs serve`
-does not yet, and a returned enum, `Core` value class or resource does not cross back yet.
+does not yet, and a returned enum or resource does not cross back yet.
 
 <sub>See also [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-nvsx-is-one-file-carrying-its-manifest`](packaging.md#packaging-an-nvsx-is-one-file-carrying-its-manifest). Decided in [0003](../decisions/0003.md), [0011](../decisions/0011.md), [0078](../decisions/0078.md), [0246](../decisions/0246.md).</sub>
 
@@ -1642,10 +1642,12 @@ unions of shapes and resources by name, the loader holds each against the export
 `variant`, record or resource, and `nvs_ext::convert` converts every row to its WIT value and back,
 `mixed` by lending it as a handle and a resource as a number the request keeps, which
 `nvs_ext::call::Request::end` drops (`crates/nvs-ext/tests/convert.rs`). `nvs run` crosses every
-scalar, `bytes`, a list, a keyed array, `?T` and a shape both ways
-(`tests/conformance/ext/an-extension-call-crosses-every-row-of-the-value-table.nvst`). The checker
-does not type a method that names an extension's enum or resource, and a returned enum, `Core`
-value class or resource does not cross back yet.
+scalar, `bytes`, a list, a keyed array, `?T`, a shape, a closed union of shapes, a `Core` value
+class and `mixed`
+(`tests/conformance/ext/an-extension-call-crosses-every-row-of-the-value-table.nvst`); a `Core`
+value class is read and rebuilt by `nvs_stdlib::ext_record`, with its constructor's checks. The
+checker does not type a method that names an extension's enum or resource, so neither crosses
+from a program yet.
 
 <sub>See also [`packaging/values-cross-as-handles`](packaging.md#packaging-values-cross-as-handles), [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), [`packaging/extension-calls-are-statically-typed`](packaging.md#packaging-extension-calls-are-statically-typed). Decided in [0246](../decisions/0246.md).</sub>
 
@@ -1675,7 +1677,9 @@ a few times rather than words many times ([`packaging/the-boundary-is-the-cost`]
 **Not on disk.** `nvs_ext::handle` is the per-call table and the `value` accessors, and
 `nvs_ext::call::Request::call_values` lends a `mixed` argument through it; a handle kept past its
 call traps when it is read (`crates/nvs-ext/tests/convert.rs`). `nvs run` calls an extension from a
-program, and no case passes it a `mixed` yet. There is no bulk byte copy beyond `as-bytes`.
+program, and the row-table case passes `mixed` values to the fixture's `kindOf`
+(`tests/conformance/ext/an-extension-call-crosses-every-row-of-the-value-table.nvst`). There is
+no bulk byte copy beyond `as-bytes`.
 
 <sub>See also [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), [`core-api/a-lifetime-is-an-object`](core-api.md#core-api-a-lifetime-is-an-object). Decided in [0003](../decisions/0003.md), [0246](../decisions/0246.md).</sub>
 
