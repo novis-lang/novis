@@ -43,6 +43,16 @@
 //! probe, so [`Probes::of`] picks only the branches' edges and a switch is in
 //! no report.
 //!
+//! # Per test
+//!
+//! Under a coverage flag, `--format json` writes `schemaVersion: 3` and each
+//! test's record lists the lines that test reached. The suite runs one test at
+//! a time, so the runner reads the table before and after each test, and the
+//! statements whose count grew ([`grew`]) are that test's: every attempt a
+//! retry made and every request a `server: true` test sent. [`Sites::reached`]
+//! turns them into lines. A fixture is built before its class's first test,
+//! so its lines are in no test's list.
+//!
 //! # How a file is named
 //!
 //! Relative to the directory `nvs test` runs in when the file is under it,
@@ -56,9 +66,10 @@
 //! Nothing for a run that does not ask: no table is made and no span is read.
 //! A run that asks holds one `u64` per statement and per edge in the program,
 //! plus one file and line pair per statement and per branch and one name per
-//! function for the report.
+//! function for the report. Per test it reads the statement table twice and
+//! keeps the numbers of the statements that test reached until the run ends.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 /// The coverage files a `nvs test` run was asked to write.
@@ -129,6 +140,18 @@ impl Probes {
             branches,
         }
     }
+}
+
+/// The statement numbers whose count is larger in `after` than in `before`:
+/// the statements that ran between two reads of the run's `StmtHits`.
+pub(crate) fn grew(before: &[u64], after: &[u64]) -> Vec<usize> {
+    before
+        .iter()
+        .zip(after)
+        .enumerate()
+        .filter(|(_, (was, is))| is > was)
+        .map(|(stmt, _)| stmt)
+        .collect()
 }
 
 /// Where each probe number is written: a file and a one-based line.
@@ -211,6 +234,23 @@ impl Sites {
     /// `StmtHits` edge table.
     pub(crate) fn edges(&self) -> usize {
         self.edges
+    }
+
+    /// The lines the statements numbered in `reached` start on, for one
+    /// test's record in the JSON report. Files are in name order, and each
+    /// file's lines are sorted and listed once. A statement in a file the
+    /// report leaves out is not listed.
+    pub(crate) fn reached(&self, reached: &[usize]) -> Vec<(&str, Vec<usize>)> {
+        let mut per_file: BTreeMap<usize, BTreeSet<usize>> = BTreeMap::new();
+        for stmt in reached {
+            if let Some(&Some((file, line))) = self.at.get(*stmt) {
+                per_file.entry(file).or_default().insert(line);
+            }
+        }
+        per_file
+            .into_iter()
+            .map(|(file, lines)| (self.files[file].0.as_str(), lines.into_iter().collect()))
+            .collect()
     }
 
     /// Each file that has a statement, with its lines, its functions, its

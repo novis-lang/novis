@@ -510,3 +510,103 @@ fn coverage_beside_list_is_refused() {
     assert!(!out.status.success());
     assert!(!dir.join("clover.xml").exists());
 }
+
+/// The JSON document `nvs test --format json` writes to stdout, parsed.
+fn json_report(dir: &Path, args: &[&str]) -> serde_json::Value {
+    let out = test_in(dir, args);
+    assert!(out.status.success(), "{}", text(&out.stderr));
+    serde_json::from_str(&text(&out.stdout)).expect("stdout is one JSON document")
+}
+
+#[test]
+fn the_json_document_lists_the_lines_each_test_reached() {
+    let dir = scratch("json-per-test");
+    fs::write(dir.join("price.nvs"), PRICE).expect("the program is written");
+    let report = json_report(
+        &dir,
+        &[
+            "price.nvs",
+            "--format",
+            "json",
+            "--coverage-lcov",
+            "coverage.lcov",
+        ],
+    );
+    assert_eq!(report["schemaVersion"], 3);
+    // `doubles` calls `Price::double`, and `labelsAFreeItem` takes the true
+    // side of the branch in `Price::label`. Neither reaches line 13 or 17.
+    assert_eq!(report["tests"][0]["method"], "doubles");
+    assert_eq!(
+        report["tests"][0]["coverage"],
+        serde_json::json!({"price.nvs": [6, 24, 25]})
+    );
+    assert_eq!(report["tests"][1]["method"], "labelsAFreeItem");
+    assert_eq!(
+        report["tests"][1]["coverage"],
+        serde_json::json!({"price.nvs": [10, 11, 30]})
+    );
+}
+
+#[test]
+fn the_json_document_without_a_coverage_flag_has_no_coverage_key() {
+    let dir = scratch("json-no-coverage");
+    fs::write(dir.join("price.nvs"), PRICE).expect("the program is written");
+    let report = json_report(&dir, &["price.nvs", "--format", "json"]);
+    assert_eq!(report["schemaVersion"], 2);
+    for record in report["tests"].as_array().expect("`tests` is an array") {
+        assert!(record.get("coverage").is_none(), "{record}");
+    }
+}
+
+/// A test that fails on its first attempt and passes on its second, and runs
+/// different lines in each. The line numbers below are this text's.
+const RETRY: &str = "<?nvs
+use Core\\Test;
+
+final class Retry {
+    public static int $attempts = 0;
+
+    public static function first(): int {
+        return 1;
+    }
+
+    public static function second(): int {
+        return 2;
+    }
+}
+
+final class RetryTest {
+    #[Test(retries: 1, because: \"a static counter makes the first attempt fail\")]
+    public function passesOnTheSecondAttempt(): void {
+        Retry::$attempts = Retry::$attempts + 1;
+        if (Retry::$attempts == 1) {
+            Test::assertSame(Retry::first(), 0);
+        }
+        Test::assertSame(Retry::second(), 2);
+    }
+}
+";
+
+#[test]
+fn a_retried_test_lists_the_lines_of_every_attempt() {
+    let dir = scratch("json-retry");
+    fs::write(dir.join("retry.nvs"), RETRY).expect("the program is written");
+    let report = json_report(
+        &dir,
+        &[
+            "retry.nvs",
+            "--format",
+            "json",
+            "--coverage-lcov",
+            "coverage.lcov",
+        ],
+    );
+    let record = &report["tests"][0];
+    assert_eq!(record["verdict"], "flaky", "{record}");
+    // Lines 8 and 21 ran only in the first attempt, and lines 12 and 23 only
+    // in the second.
+    assert_eq!(
+        record["coverage"],
+        serde_json::json!({"retry.nvs": [8, 12, 19, 20, 21, 23]})
+    );
+}

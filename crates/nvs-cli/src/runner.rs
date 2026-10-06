@@ -256,6 +256,10 @@ struct Case {
     /// runs. Always collected and never reported: what reads it is
     /// [`update_snapshots`], and only when the run was asked to.
     snapshots: Vec<nvs_runtime::SnapshotMismatch>,
+    /// The statement numbers this test reached, in any attempt, or `None`
+    /// when the run has no coverage flag. [`json_document`] turns them into
+    /// file lines.
+    reached: Option<Vec<usize>>,
 }
 
 /// Where one test is written: the file the `-->` header names, and a one-based
@@ -436,7 +440,15 @@ pub(crate) fn run(
             counts.flaky,
             started.elapsed().as_secs_f64() * 1000.0
         ),
-        Format::Json => print!("{}", json_document(&cases, counts, started.elapsed())),
+        Format::Json => print!(
+            "{}",
+            json_document(
+                &cases,
+                counts,
+                started.elapsed(),
+                hits.is_some().then_some(&sites)
+            )
+        ),
         Format::Junit => print!("{}", junit_document(&cases, counts, started.elapsed())),
     }
     if let Some(hits) = hits {
@@ -751,6 +763,11 @@ fn run_suite(
     // else. `UnderTest` builds its own for § 18's first mechanism, which is
     // installed a call above this one and holds it for the whole run.
     let routes = std::sync::Arc::new(crate::runtime_routes(&checked.exprs));
+    // The run's coverage table, or `None` when no coverage flag was given.
+    // Tests run one after another, so the counts that grew while one test ran
+    // are that test's: every attempt and every request it sent. A fixture is
+    // built before its class's first test, so it is no test's.
+    let hits = ctx.stmt_hits().cloned();
     for class in checked.exprs.test_classes() {
         let tests = checked.exprs.tests(class).unwrap_or_default();
         // The selection is made **before** the class is announced or its
@@ -778,6 +795,7 @@ fn run_suite(
         for call in calls {
             let (case, label, row) = (call.case, call.label, call.row);
             let began = Instant::now();
+            let before = hits.as_ref().map(|hits| hits.counts());
             let (outcome, snapshots) = match &unbuilt {
                 // A fixture that would not build is reported against every
                 // test that asked for one, rather than against the class: a
@@ -790,6 +808,10 @@ fn run_suite(
                 _ => run_in_isolate(unit, ctx, class, case, row, &fixtures, &routes),
             };
             let elapsed = began.elapsed();
+            let reached = hits
+                .as_ref()
+                .zip(before)
+                .map(|(hits, before)| crate::coverage::grew(&before, &hits.counts()));
             match &outcome {
                 Outcome::Passed => passed += 1,
                 Outcome::Skipped(_) => skipped += 1,
@@ -809,6 +831,7 @@ fn run_suite(
                 outcome,
                 elapsed,
                 snapshots,
+                reached,
             });
             if exited.is_some() {
                 break;
@@ -1866,8 +1889,8 @@ fn report(method: &str, outcome: &Outcome, elapsed: Duration) {
 /// The version is at the root because that section promises a *versioned*
 /// schema, and a consumer that reads it knows what the rest of the keys mean.
 /// What § 22 additionally names — a structured diff, `#[Bench]`'s counters, a
-/// shrunk property counterexample, per-data-row results and per-test coverage
-/// — is absent because nothing produces any of it yet; each arrives as a new
+/// shrunk property counterexample and per-data-row results — is absent
+/// because nothing produces any of it yet; each arrives as a new
 /// key beside these, which is the whole of what the version number buys.
 ///
 /// **Version 2 is where a record says where its test is written.** `file`,
@@ -1878,8 +1901,20 @@ fn report(method: &str, outcome: &Outcome, elapsed: Duration) {
 /// this report is read by CI as well, and one schema with a number on it is
 /// what `rule:ide/ast-json-schema-is-frozen` already settled as the shape for
 /// exactly this.
-fn json_document(cases: &[Case], counts: Counts, total: Duration) -> String {
-    let mut out = String::from("{\n  \"schemaVersion\": 2,\n  \"summary\": {");
+///
+/// **Version 3 is where a record says which lines its test reached**, and it
+/// is written only under a coverage flag: `sites` is `Some` then, and every
+/// record gains `coverage`, each file name mapped to the sorted lines the
+/// test reached in any attempt (`crate::coverage::Sites::reached`). A run
+/// without the flag writes version 2 unchanged.
+fn json_document(
+    cases: &[Case],
+    counts: Counts,
+    total: Duration,
+    sites: Option<&crate::coverage::Sites>,
+) -> String {
+    let version = if sites.is_some() { 3 } else { 2 };
+    let mut out = format!("{{\n  \"schemaVersion\": {version},\n  \"summary\": {{");
     out.push_str(&format!(
         "\"total\": {}, \"passed\": {}, \"failed\": {}, \"skipped\": {}, \"flaky\": {}, \"durationMs\": {:.3}}},\n  \"tests\": [",
         counts.total(),
@@ -1926,6 +1961,21 @@ fn json_document(cases: &[Case], counts: Counts, total: Duration) -> String {
                 out.push(']');
             }
             Outcome::Exited(code) => out.push_str(&format!(", \"exitCode\": {code}")),
+        }
+        if let Some(sites) = sites {
+            out.push_str(", \"coverage\": {");
+            let reached = sites.reached(case.reached.as_deref().unwrap_or_default());
+            for (nth, (file, lines)) in reached.iter().enumerate() {
+                if nth > 0 {
+                    out.push_str(", ");
+                }
+                json_string(file, &mut out);
+                out.push_str(": [");
+                let lines: Vec<String> = lines.iter().map(usize::to_string).collect();
+                out.push_str(&lines.join(", "));
+                out.push(']');
+            }
+            out.push('}');
         }
         out.push('}');
     }
@@ -2464,7 +2514,7 @@ mod tests {
     /// below exists to catch.
     fn json_report(name: &str) -> serde_json::Value {
         let suite = ran(name);
-        let document = json_document(&suite.cases, suite.counts, std::time::Duration::ZERO);
+        let document = json_document(&suite.cases, suite.counts, std::time::Duration::ZERO, None);
         serde_json::from_str(&document).expect("the report is a JSON document")
     }
 
@@ -2578,7 +2628,7 @@ mod tests {
     #[test]
     fn the_schema_version_is_two_and_junit_and_human_are_byte_identical() {
         let suite = ran("statics-are-fresh.nvs");
-        let json = json_document(&suite.cases, suite.counts, std::time::Duration::ZERO);
+        let json = json_document(&suite.cases, suite.counts, std::time::Duration::ZERO, None);
         assert!(
             json.contains("\"schemaVersion\": 2,"),
             "the located record is version 2 of this document: {json}"
