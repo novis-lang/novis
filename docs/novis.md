@@ -219,7 +219,7 @@ Conventions the whole file uses:
 
 ### Part C — The toolchain
 
-- C.1 [The nvs command](#tools-cli) — every subcommand of the `nvs` binary — run, check, test, build, api, config, info, meta, ast — with its flags, its exit status and what it prints *(nvs, nvs run, nvs check, nvs test, nvs build, --compile, --openapi, nvs api diff, nvs config check, nvs config dump, nvs info, nvs meta --json, nvs ast, --config, --dump-ir, --dump-asm, --filter, --format, --php, exit status, exit code, .nvs, .php, shebang, cache, single-file executable, bundle, php -l, php -i, php -r, phpunit, composer, phpdbg)*
+- C.1 [The nvs command](#tools-cli) — every subcommand of the `nvs` binary — run, check, test, build, api, config, info, meta, ast — with its flags, its exit status and what it prints *(nvs, nvs run, nvs check, nvs test, nvs build, --compile, --openapi, nvs api diff, nvs config check, nvs config dump, nvs info, nvs meta --json, nvs ast, --config, --dump-ir, --dump-asm, --filter, --format, exit status, exit code, .nvs, .php, shebang, cache, single-file executable, bundle, php -l, php -i, php -r, phpunit, composer, phpdbg)*
 - C.2 [Installing on a host: folders and permissions](#tools-install) — where to put the `nvs` binary, the configuration, the compile cache and the logs on a server; which folder permissions Novis checks and when; the commands that set them on Windows and on Linux; and what each refusal message means *(install, installation, setup, deploy, deployment, server, host, folder, directory, permissions, ACL, DACL, icacls, chmod, chown, owner, ownership, Authenticated Users, Users, Everyone, SID, S-1-5-11, S-1-5-32-545, inheritance, E0607, access denied, os error 5, nvs init, nvs serve, --config, file_cache_dir, opcache, cache, log, logs, log target, Windows, Linux, PATH, service account, elevated prompt, administrator)*
 - C.3 [Configuration: nvs.toml, limits and capabilities](#tools-config) — the `nvs.toml` file — where it is read from, every block the binary accepts, resource limits and their ceilings, capability grants, per-application blocks, includes, secrets, and reading it from a program with `Core\Config` *(nvs.toml, configuration, config, TOML, limits, memory_limit, max_execution_time, limits.hard, ceiling, capabilities, fs.read, fs.write, script.spawn, net.connect, net.listen, net.local, process.exec, cache.shared, capability, permission, sandbox, [[app]], entry, root, include, mode, development, production, ini_get, ini_set, ini_restore, ini_get_all, php.ini, .htaccess, secret, secrets, password_file, /run/secrets, SOPS, sops, age, encrypted secrets, sealed secrets, Vault, LoadCredential, mail, Core\Config)*
 - C.4 [The HTTP server](#tools-server) — `nvs serve`, the `[server]` block and its mounts, how a request finds the file that answers it, what a program reads about the door it came through, what reaches a running server, the drain, what happens when the client goes away, `nvs ctl` and `nvs service` *(nvs serve, server, HTTP, disconnect, client disconnect, client goes away, cancel_on_disconnect, disconnect_grace, ignore_user_abort, restart, restart required, deploy, hot reload, zero downtime, symlink, settle, revalidate_freq, listen, port, --listen, --port, [server], [[server.mount]], mount, prefix, host, scan, entry, origin, root, dispatch, static, static files, trusted_proxies, X-Forwarded-For, X-Forwarded-Proto, client IP, health_path, health check, max_in_flight, workers, timeout, drain, drain_timeout, graceful shutdown, reload, nvs ctl, control socket, nvs service, service, systemd, Windows service, Core\Request::mount, Core\Request\Mount, Core\Router::url, multi-tenant, subdirectory, virtual host, front controller, try_files, php -S, php-fpm, nginx, Apache, .htaccess, RewriteBase, SCRIPT_NAME, PATH_INFO, DocumentRoot)*
@@ -7281,11 +7281,8 @@ Write `#[Test]` methods to test your own code. Every other section of this chapt
 | What it checks | any value, with the `Core\Test` assertions | the text the program prints |
 | What it reports | one line per test, or `--format json` and `--format junit` | one line with the counts |
 
-Write a `.nvst` case only when the printed output of a whole program is the thing to check:
-
-- a command-line script whose output must match an expected text exactly;
-- a program moved from PHP. The case holds the PHP version under `--ORACLE--`, and both versions
-  must print the same text.
+Write a `.nvst` case only when the printed output of a whole program is the thing to check. An
+example is a command-line script whose output must match an expected text exactly.
 
 A `.nvst` case cannot check a return value, and `--format`, `--list` and `--update` do not work
 with one. If you are not sure, write a `#[Test]` method. The `nvs test` section of
@@ -26701,7 +26698,7 @@ What has become of a background job, as `Core\Queue::status` answers it. Five st
 <a id="tools-cli"></a>
 ## C.1 The nvs command
 
-Keywords: nvs, nvs run, nvs check, nvs test, nvs build, --compile, --openapi, nvs api diff, nvs config check, nvs config dump, nvs info, nvs meta --json, nvs ast, --config, --dump-ir, --dump-asm, --filter, --format, --php, exit status, exit code, .nvs, .php, shebang, cache, single-file executable, bundle, php -l, php -i, php -r, phpunit, composer, phpdbg
+Keywords: nvs, nvs run, nvs check, nvs test, nvs build, --compile, --openapi, nvs api diff, nvs config check, nvs config dump, nvs info, nvs meta --json, nvs ast, --config, --dump-ir, --dump-asm, --filter, --format, exit status, exit code, .nvs, .php, shebang, cache, single-file executable, bundle, php -l, php -i, php -r, phpunit, composer, phpdbg
 
 ### One binary
 
@@ -26889,7 +26886,7 @@ E0401
 
 ### nvs test
 
-    nvs test <paths>... [--filter <text>] [--format human|json|junit] [--php <path>] [--update]
+    nvs test <paths>... [--filter <text>] [--format human|json|junit] [--update]
                         [--coverage-lcov <file>] [--coverage-clover <file>]
                         [--coverage-cobertura <file>]
 
@@ -26952,8 +26949,6 @@ skipped: not written yet
   array holds one `{class, method, file, line, column}` per test and no summary, because nothing
   ran. `--filter` selects the same tests it would select in a run, and `--format junit`, `--update`
   and a `.nvst` tree are each refused beside it.
-- `--php <path>` names the PHP binary a case with an `--ORACLE--` section is compared against
-  (default `php`).
 - `--coverage-lcov <file>` writes the run's coverage to the file in the lcov format.
   `--coverage-clover <file>` writes the same coverage as Clover XML, the format PHPUnit's
   `--coverage-clover` writes. `--coverage-cobertura <file>` writes the same coverage as Cobertura
