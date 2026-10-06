@@ -24,8 +24,13 @@
 //!
 //! The request's budget is an `nvs_ext::call::Meter` made at the first call from the request's
 //! `[limits]`: its CPU time from then on, and its memory as a second allowance beside the one the
-//! runtime counts. A value with no row in the table — an enum case, a `Core` value class, a
-//! resource — is refused as `ExtensionError` before the guest runs.
+//! runtime counts. A shape argument crosses as its set fields by name
+//! (`nvs_runtime::Value::shape_fields`). A returned record is converted by the manifest's declared
+//! return type, and a shape in it is built as an instance of the class the compiled unit declared
+//! for its label (`nvs_runtime::Ctx::new_shape`), which the lowering records for every shape in
+//! an extension method's return type. A value with no row in the table — an enum case, a `Core`
+//! value class, a resource — is refused as `ExtensionError` before the guest runs, and one
+//! returned is refused as `ExtensionError` after it.
 //!
 //! **A compiled component is kept in the artifact cache a program's units are kept in**
 //! (`rule:packaging/a-wasm-module-cache-reuses-the-artifact-cache`). [`Modules`] is
@@ -54,8 +59,9 @@ use nvs_config::tree::{Config, Extension};
 use nvs_config::value::{Quantity, Unit};
 use nvs_diagnostics::{Diagnostic, SourceMap};
 use nvs_ext::call::{Host, Meter, Outcome, Request};
-use nvs_ext::convert::{Key, Value as Crossed};
+use nvs_ext::convert::{Key, Value as Crossed, fits};
 use nvs_ext::load::{CacheKey, Entry, Loader, ModuleCache, Set};
+use nvs_ext::types::{Field, NovisType};
 use nvs_runtime::{Ctx, Fault, HelperResult, NvsArray, NvsStr, SlotKey, Tag, ThrownClass, Value};
 
 use crate::cache::Cache;
@@ -237,7 +243,18 @@ impl nvs_runtime::extension::Extensions for Calls {
         let request = self.request(ctx)?;
         match drive(request.call_values(extension, method, args)) {
             Ok(None) => Ok(Value::null()),
-            Ok(Some(result)) => runtime(result).map_err(refused),
+            Ok(Some(result)) => {
+                let manifest = &extension.manifest;
+                let ty = manifest
+                    .methods
+                    .iter()
+                    .find(|declared| declared.name == method)
+                    .map_or(Ok(NovisType::Mixed), |declared| {
+                        manifest.novis_type(&declared.returns)
+                    })
+                    .map_err(&refused)?;
+                runtime(ctx, &ty, result).map_err(refused)
+            }
             Err(failure) => Err(match failure.outcome() {
                 Outcome::Throw(class, message) => {
                     let thrown = ThrownClass::ALL
@@ -304,7 +321,15 @@ fn crossed(value: Value) -> Result<Crossed, String> {
             }
             Crossed::Array(entries)
         }
-        Some(Tag::Object) => Crossed::Object(value.class_name().unwrap_or_default()),
+        Some(Tag::Object) => match value.shape_fields() {
+            Some(fields) => Crossed::Array(
+                fields
+                    .into_iter()
+                    .map(|(name, field)| Ok((Key::String(name), crossed(field)?)))
+                    .collect::<Result<_, String>>()?,
+            ),
+            None => Crossed::Object(value.class_name().unwrap_or_default()),
+        },
         Some(tag) => {
             return Err(format!(
                 "a `{}` does not cross into an extension",
@@ -324,8 +349,10 @@ fn key_of(bytes: &[u8]) -> Result<Key, String> {
     })
 }
 
-/// `value`, returned by a guest, as a runtime value the caller owns.
-fn runtime(value: Crossed) -> Result<Value, String> {
+/// `value`, returned by a guest where the manifest declares `ty`, as a runtime value the caller
+/// owns. A shape is an instance of the class the compiled unit declared for it, which `ctx` finds
+/// by its label; every other array is an array.
+fn runtime(ctx: &Ctx, ty: &NovisType, value: Crossed) -> Result<Value, String> {
     Ok(match value {
         Crossed::Null => Value::null(),
         Crossed::Bool(flag) => Value::bool(flag),
@@ -334,17 +361,32 @@ fn runtime(value: Crossed) -> Result<Value, String> {
         Crossed::Float(number) => Value::float(number),
         Crossed::String(text) => Value::str(NvsStr::new(text.as_bytes())),
         Crossed::Bytes(octets) => Value::bytes(NvsStr::new(&octets)),
-        Crossed::Array(entries) => {
-            let mut array = NvsArray::new();
-            for (key, element) in entries {
-                let element = runtime(element)?;
-                match key {
-                    Key::Int(index) => array.set_index(index, element),
-                    Key::String(key) => array.set(NvsStr::new(key.as_bytes()), element),
-                }
+        Crossed::Array(entries) => match ty {
+            NovisType::Optional(inner) => return runtime(ctx, inner, Crossed::Array(entries)),
+            NovisType::Shape(fields) => return shape(ctx, fields, entries),
+            NovisType::Union { name, cases } => {
+                let (_, fields) = cases
+                    .iter()
+                    .find(|(_, fields)| fits(fields, &entries))
+                    .ok_or_else(|| format!("the guest returned no case of `{name}`"))?;
+                return shape(ctx, fields, entries);
             }
-            Value::array(array)
-        }
+            _ => {
+                let element = match ty {
+                    NovisType::List(element) | NovisType::Keyed(_, element) => element,
+                    _ => &NovisType::Mixed,
+                };
+                let mut array = NvsArray::new();
+                for (key, entry) in entries {
+                    let entry = runtime(ctx, element, entry)?;
+                    match key {
+                        Key::Int(index) => array.set_index(index, entry),
+                        Key::String(key) => array.set(NvsStr::new(key.as_bytes()), entry),
+                    }
+                }
+                Value::array(array)
+            }
+        },
         Crossed::Case(name) => {
             return Err(format!("the enum case `{name}` does not cross back yet"));
         }
@@ -356,6 +398,35 @@ fn runtime(value: Crossed) -> Result<Value, String> {
             return Err(format!("the resource `{name}` does not cross back yet"));
         }
     })
+}
+
+/// The anonymous object of the shape `fields` whose fields a guest returned as `entries`.
+fn shape(ctx: &Ctx, fields: &[Field], entries: Vec<(Key, Crossed)>) -> Result<Value, String> {
+    let mut names: Vec<String> = fields.iter().map(|(name, ..)| name.clone()).collect();
+    names.sort_unstable();
+    let label = nvs_types::derive::shape_class_label(&names);
+    let mut written = Vec::with_capacity(entries.len());
+    for (key, entry) in entries {
+        let declared = match &key {
+            Key::String(name) => fields.iter().find(|(field, ..)| field == name),
+            Key::Int(_) => None,
+        };
+        let converted = match declared {
+            Some((_, _, ty)) => runtime(ctx, ty, entry),
+            None => Err(format!("the shape `{label}` has no field {key:?}")),
+        };
+        match (key, converted) {
+            (Key::String(name), Ok(value)) => written.push((name, value)),
+            (_, Err(reason)) => {
+                // A label that names no class releases what was already converted.
+                let _ = ctx.new_shape("", written);
+                return Err(reason);
+            }
+            (Key::Int(_), Ok(_)) => unreachable!("an `int` key names no field"),
+        }
+    }
+    ctx.new_shape(&label, written)
+        .ok_or_else(|| format!("the program declares no class for the shape `{label}`"))
 }
 
 /// The artifact cache, holding compiled components.

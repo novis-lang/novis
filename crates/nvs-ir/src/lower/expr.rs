@@ -4350,6 +4350,7 @@ impl<'a> Lowering<'a> {
         if call.extension {
             let sig = ArgSig::of(call);
             let (class, method) = (call.class.to_string(), call.method.clone());
+            self.record_extension_result_shapes(call.return_ty);
             let return_ty = erase_checked_ty(call.return_ty, self.checked_types);
             let checked_types = self.checked_types;
             let mark = self.temporaries_mark();

@@ -257,8 +257,10 @@ fn shape_to_wit(
 }
 
 /// Whether the array of `entries` is a value of the shape `fields`: every key is one of its
-/// fields, and every required field is a key.
-fn fits(fields: &[Field], entries: &[(Key, Value)]) -> bool {
+/// fields, and every required field is a key. It is how a value of a closed union of shapes is
+/// told to be one case.
+#[must_use]
+pub fn fits(fields: &[Field], entries: &[(Key, Value)]) -> bool {
     let has = |name: &str| {
         entries
             .iter()

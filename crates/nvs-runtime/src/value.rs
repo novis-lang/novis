@@ -611,6 +611,41 @@ impl Value {
         Some(object.class_name().to_owned())
     }
 
+    /// The fields of the anonymous object (`rule:types/anonymous-object`) this
+    /// value is, by name in slot order, or `None` for any other value.
+    ///
+    /// The safe reader a native caller copies a shape out with, as
+    /// [`Self::as_array`] is for an array: each field is borrowed, not
+    /// retained, and is live for as long as this value is. A slot never
+    /// written, an absent optional field, is left out.
+    #[must_use]
+    pub fn shape_fields(&self) -> Option<Vec<(String, Self)>> {
+        let ptr = self.obj_ptr()?;
+        #[expect(
+            unsafe_code,
+            reason = "a Tag::Object value owns a reference to a live allocation, \
+                      and the handle is never dropped"
+        )]
+        let object = std::mem::ManuallyDrop::new(unsafe { NvsObj::from_raw(ptr) });
+        #[expect(
+            unsafe_code,
+            reason = "an object's descriptor outlives it by `NvsObj::new`'s own safety contract"
+        )]
+        let desc = unsafe { &*object.class() };
+        if !desc.is_shape() {
+            return None;
+        }
+        let mut fields = Vec::with_capacity(desc.field_count());
+        for slot in 0..desc.field_count() {
+            let value = object.field(slot);
+            if value.tag() == Some(Tag::Unset) {
+                continue;
+            }
+            fields.push((desc.field_name(slot)?.to_owned(), value));
+        }
+        Some(fields)
+    }
+
     /// A slot carrying `desc`, for the receiver position of a `static` method:
     /// the encoding side of [`Self::as_class_desc`], and its whole convention
     /// — the descriptor rides in the payload half of an otherwise-`null` slot,

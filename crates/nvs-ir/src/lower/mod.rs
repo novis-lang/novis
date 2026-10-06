@@ -2196,6 +2196,32 @@ impl<'a> Lowering<'a> {
             .collect();
         self.record_shape_class(shape_class_label(&names), names, reprs);
     }
+    /// Every synthesized class a loaded extension's method returning
+    /// `return_ty` builds: each shape in it, at any depth, so the host finds
+    /// the class by its label (`nvs_runtime::Ctx::new_shape`).
+    ///
+    /// Every slot claims [`Ty::Tagged`], as [`Self::written_type_constants`]'
+    /// do and for its reason: what fills them is the host, not a lowered write.
+    pub(crate) fn record_extension_result_shapes(&mut self, return_ty: TypeId) {
+        let checked_types = self.checked_types;
+        match checked_types.get(return_ty) {
+            CheckedTy::Shape(fields) => {
+                let names: Vec<String> = fields.iter().map(|field| field.name.clone()).collect();
+                let reprs = vec![Ty::Tagged; names.len()];
+                self.record_shape_class(shape_class_label(&names), names, reprs);
+                for field in fields {
+                    self.record_extension_result_shapes(field.ty);
+                }
+            }
+            CheckedTy::Array(element) => self.record_extension_result_shapes(*element),
+            CheckedTy::Union(members) => {
+                for member in members {
+                    self.record_extension_result_shapes(*member);
+                }
+            }
+            _ => {}
+        }
+    }
     pub(crate) fn new_block(&mut self) -> BlockId {
         let id = self.ids.next_block();
         self.block_ids.push(id);

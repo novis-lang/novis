@@ -312,6 +312,57 @@ impl Ctx {
             .or_else(|| (self.core_classes?)(name))
     }
 
+    /// A new instance of the anonymous-object class `label` the running
+    /// program declares, each of `fields` written to the slot of its name and
+    /// every other slot left never written, as an absent optional field is.
+    ///
+    /// The safe builder a native caller returns a shape with, the inverse of
+    /// [`Value::shape_fields`]. `fields` is transferred: every reference is
+    /// written into the object, or released where this returns `None` — for a
+    /// label that names no shape class, and for a field it has no slot for.
+    #[must_use]
+    pub fn new_shape(&self, label: &str, fields: Vec<(String, Value)>) -> Option<Value> {
+        let release = |fields: Vec<(String, Value)>| {
+            for (_, value) in fields {
+                #[expect(
+                    unsafe_code,
+                    reason = "every value in `fields` is a reference the caller handed over"
+                )]
+                unsafe {
+                    value.release();
+                }
+            }
+            None
+        };
+        let Some(class) = self.class_desc(label) else {
+            return release(fields);
+        };
+        #[expect(
+            unsafe_code,
+            reason = "`Self::class_desc` returns a descriptor live for as long as this context"
+        )]
+        let desc = unsafe { &*class };
+        let slots: Option<Vec<usize>> = fields
+            .iter()
+            .map(|(name, _)| desc.field_slot(name, 0))
+            .collect();
+        let (true, Some(slots)) = (desc.is_shape(), slots) else {
+            return release(fields);
+        };
+        #[expect(
+            unsafe_code,
+            reason = "the same live descriptor, which outlives every instance of it"
+        )]
+        let object = unsafe { crate::NvsObj::new(class) };
+        for slot in 0..object.field_count() {
+            object.set_field(slot, Value::unset());
+        }
+        for (slot, (_, value)) in slots.into_iter().zip(fields) {
+            object.set_field(slot, value);
+        }
+        Some(Value::object(object))
+    }
+
     /// The shape of the `enum` named `name`, or `None` if the running program
     /// declares none — `rule:enums/reflection`'s one reader, reached by
     /// `Core\Reflect\EnumInfo::of`.

@@ -32,5 +32,8 @@ names every other value class with the reason it cannot. A manifest declares its
 unions of shapes and resources by name, the loader holds each against the export's `enum`,
 `variant`, record or resource, and `nvs_ext::convert` converts every row to its WIT value and back,
 `mixed` by lending it as a handle and a resource as a number the request keeps, which
-`nvs_ext::call::Request::end` drops (`crates/nvs-ext/tests/convert.rs`). The checker does not type
-a method that names an extension's enum or resource, and there is no trampoline.
+`nvs_ext::call::Request::end` drops (`crates/nvs-ext/tests/convert.rs`). `nvs run` crosses every
+scalar, `bytes`, a list, a keyed array, `?T` and a shape both ways
+(`tests/conformance/ext/an-extension-call-crosses-every-row-of-the-value-table.nvst`). The checker
+does not type a method that names an extension's enum or resource, and a returned enum, `Core`
+value class or resource does not cross back yet.

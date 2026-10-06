@@ -25,6 +25,11 @@ echo Json::encode(Ledger::echoMap(["b" => 2, "a" => 1])), "\n";
 // `?int` crosses as a number or as `null`. Without an argument, it is `null`.
 echo Ledger::echoOptional(5) ?? "null", "\n";
 echo Ledger::echoOptional() ?? "null", "\n";
+
+// A shape crosses with its fields. An optional field that is not set stays not set.
+echo Json::encode(Ledger::echoItem({name: "pen", note: "blue"})), "\n";
+echo Json::encode(Ledger::echoItem({name: "cup"})), "\n";
+echo Ledger::echoItem({name: "lamp", note: "red"})->note, "\n";
 --EXPECT--
 true
 -42
@@ -36,3 +41,6 @@ Grüße
 {"b":2,"a":1}
 5
 null
+{"name":"pen","note":"blue"}
+{"name":"cup"}
+red
