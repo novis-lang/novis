@@ -314,6 +314,12 @@ rcgen = { version = "0.14", default-features = false, features = [
 # --- two move together: wasmtime N pins cranelift 0.(N+87) exactly.
 # --- See docs/decisions/0003.md.
 wasmtime = "48"
+# The parser of the `nvs:ext@1.0.0` world's WIT text under `wit/`, at the
+# version wasmtime 48 itself parses component types with, so it adds no crate
+# the lock file did not already hold. Only `std`: the test reads text, and
+# `decoding` would pull `wasmparser` and `serde` for binary components it never
+# reads. Its one caller is `crates/nvs-stdlib/tests/ext_world.rs`.
+wit-parser = { version = "0.254", default-features = false, features = ["std"] }
 
 # --- the language server's wire and its vocabulary (ADR 0099 §§ 1-5) ---
 # `rule:ide/the-server-is-synchronous` is "a reader thread, a writer thread, one

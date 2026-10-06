@@ -159,6 +159,10 @@ rcgen.workspace = true
 # provider `nvs-host` already carries, so the two ends of the case share one
 # crypto implementation.
 rustls.workspace = true
+# `tests/ext_world.rs` parses the extension world under `wit/` and checks its
+# records against this crate's own `Core` roster, which is why the case lives
+# here. The root manifest's row says what the crate pulls.
+wit-parser.workspace = true
 
 # ---------------------------------------------------------------------------
 # This crate cannot inherit the workspace lint policy, for exactly

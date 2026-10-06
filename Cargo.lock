@@ -2495,6 +2495,7 @@ dependencies = [
  "unicode-normalization",
  "unicode-segmentation",
  "uuid",
+ "wit-parser",
  "x25519-dalek",
 ]
 
