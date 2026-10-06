@@ -1,4 +1,4 @@
-A condition resolves PHP's own truthy table, over Novis's type set:
+A condition is decided by one truthy table over Novis's type set:
 
 | type | falsy | truthy |
 |---|---|---|
@@ -13,9 +13,9 @@ A condition resolves PHP's own truthy table, over Novis's type set:
 | enum case | never | always (`rule:enums/truthiness`) |
 | `mixed`, a union | dispatched on the runtime tag, one row per tag | — |
 
-**The `bytes` row is the one PHP does not supply, and it drops the `"0"` case deliberately.** That
-exception exists because PHP reads a string as a possible number, and `bytes` is the type that never
-converts to one. A `bytes` reaching a condition through a `mixed` takes the same row, so the two
+**The `bytes` row drops the `"0"` case deliberately.** That exception belongs to text that may be read
+as a number, and `bytes` is the type that never converts to one. A `bytes` reaching a condition through
+a `mixed` takes the same row, so the two
 spellings of one buffer never disagree.
 
 Where the static type is a scalar, array, class, `callable` or enum, the compiler knows the row and

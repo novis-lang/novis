@@ -1,5 +1,5 @@
 There is **one** equality operator, `==`, and its negation `!=`. `===` and `!==` do not parse
-(`E0232`); PHP's `<>` does not parse either (`E0241`), and each diagnostic names the edit. There is no
+(`E0232`); `<>` does not parse either (`E0241`), and each diagnostic names the edit. There is no
 suppression and no dialect flag: a construct that parses in one project and not another is two
 languages.
 

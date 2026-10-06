@@ -34,7 +34,7 @@ changes here.
 
 `rule:expressions/truthy-table`
 
-A condition resolves PHP's own truthy table, over Novis's type set:
+A condition is decided by one truthy table over Novis's type set:
 
 | type | falsy | truthy |
 |---|---|---|
@@ -49,9 +49,9 @@ A condition resolves PHP's own truthy table, over Novis's type set:
 | enum case | never | always ([`enums/truthiness`](enums.md#enums-truthiness)) |
 | `mixed`, a union | dispatched on the runtime tag, one row per tag | — |
 
-**The `bytes` row is the one PHP does not supply, and it drops the `"0"` case deliberately.** That
-exception exists because PHP reads a string as a possible number, and `bytes` is the type that never
-converts to one. A `bytes` reaching a condition through a `mixed` takes the same row, so the two
+**The `bytes` row drops the `"0"` case deliberately.** That exception belongs to text that may be read
+as a number, and `bytes` is the type that never converts to one. A `bytes` reaching a condition through
+a `mixed` takes the same row, so the two
 spellings of one buffer never disagree.
 
 Where the static type is a scalar, array, class, `callable` or enum, the compiler knows the row and
@@ -123,8 +123,8 @@ Each warning carries two edits. Parentheses around what the code does now change
 taking the operand nearest it, changes what the line does, so it is an alternative a person picks from
 the light bulb and no batch applies ([`ide/a-quick-fix-is-a-diagnostics-own-suggestion`](ide.md#ide-a-quick-fix-is-a-diagnostics-own-suggestion)).
 
-Two errors name the same kind of parentheses. `E0105` on `$ok && $row = $next`, which PHP reads as
-`$ok && ($row = $next)`, offers that grouping and recovers the parse as it, so no second error follows
+Two errors name the same kind of parentheses. `E0105` on `$ok && $row = $next` offers the grouping
+`$ok && ($row = $next)` and recovers the parse as it, so no second error follows
 about a target nobody meant. `E0706` on `$flags & 4 == 4`, which is `$flags & (4 == 4)`, offers
 `($flags & 4) == 4`.
 
@@ -137,7 +137,7 @@ about a target nobody meant. `E0706` on `$flags & 4 == 4`, which is `$flags & (4
 `rule:expressions/one-equality-operator`
 
 There is **one** equality operator, `==`, and its negation `!=`. `===` and `!==` do not parse
-(`E0232`); PHP's `<>` does not parse either (`E0241`), and each diagnostic names the edit. There is no
+(`E0232`); `<>` does not parse either (`E0241`), and each diagnostic names the edit. There is no
 suppression and no dialect flag: a construct that parses in one project and not another is two
 languages.
 
@@ -161,8 +161,7 @@ says nothing about it.
 
 `rule:expressions/equality-semantics`
 
-Nothing converts. Each type has one row, and where PHP's two operators disagreed the row takes the
-strict reading:
+Nothing converts. Each type has one row, and every row is a strict comparison:
 
 | type | two values are equal when |
 |---|---|
@@ -261,8 +260,8 @@ ancestor.
 Refused: a non-nullable type against `null`; `string` against `bytes`; an enum against its underlying
 integer, where `$e as int` is the written spelling; two unrelated classes; and anything else disjoint.
 
-This turns the entire class of comparisons that silently answered `false` — or answered `true` in PHP
-7 and `false` in PHP 8 — into a diagnostic at the site that wrote it.
+This turns the entire class of comparisons that could only ever answer one constant into a diagnostic
+at the site that wrote it.
 
 <sub>See also [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics), [`expressions/mixed-equality`](expressions.md#expressions-mixed-equality), [`expressions/switch-match-equality`](expressions.md#expressions-switch-match-equality). Decided in [0090](../decisions/0090.md), [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0010](../decisions/0010.md), [0047](../decisions/0047.md), [0054](../decisions/0054.md).</sub>
 

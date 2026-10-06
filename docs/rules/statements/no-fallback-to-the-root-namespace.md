@@ -18,5 +18,5 @@ anywhere in the file is a name a reader cannot trace, and one closed roster's wo
 second resolution rule to hold alongside the first. Code at the root namespace is unaffected, because its
 enclosing namespace *is* the root.
 
-PHP's fallback existed so a function or constant call could find a built-in from inside a namespace. With
-no free functions and no free constants, nothing is left that it was for.
+A root-namespace fallback only serves a function or constant call looking for a built-in from inside a
+namespace. With no free functions and no free constants, nothing is left for one to do.

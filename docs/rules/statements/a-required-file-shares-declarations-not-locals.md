@@ -7,7 +7,7 @@ The required file's own top-level statements run where the `require` is written,
 time the site is reached — ordered against the statements around it rather than hoisted the way its
 declarations are.
 
-This is not PHP's behaviour, where an included file sees the includer's locals. A shared variable scope
+A required file never sees the includer's locals. A shared variable scope
 would need one flow-sensitive definite-assignment analysis spanning a graph whose shape a `require` inside
 an `if` decides at run time. A program that relied on it passes what it means as a constructor argument or
 a static.

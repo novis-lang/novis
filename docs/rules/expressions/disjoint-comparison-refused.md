@@ -18,5 +18,5 @@ ancestor.
 Refused: a non-nullable type against `null`; `string` against `bytes`; an enum against its underlying
 integer, where `$e as int` is the written spelling; two unrelated classes; and anything else disjoint.
 
-This turns the entire class of comparisons that silently answered `false` — or answered `true` in PHP
-7 and `false` in PHP 8 — into a diagnostic at the site that wrote it.
+This turns the entire class of comparisons that could only ever answer one constant into a diagnostic
+at the site that wrote it.

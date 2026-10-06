@@ -13,7 +13,7 @@ Each warning carries two edits. Parentheses around what the code does now change
 taking the operand nearest it, changes what the line does, so it is an alternative a person picks from
 the light bulb and no batch applies (`rule:ide/a-quick-fix-is-a-diagnostics-own-suggestion`).
 
-Two errors name the same kind of parentheses. `E0105` on `$ok && $row = $next`, which PHP reads as
-`$ok && ($row = $next)`, offers that grouping and recovers the parse as it, so no second error follows
+Two errors name the same kind of parentheses. `E0105` on `$ok && $row = $next` offers the grouping
+`$ok && ($row = $next)` and recovers the parse as it, so no second error follows
 about a target nobody meant. `E0706` on `$flags & 4 == 4`, which is `$flags & (4 == 4)`, offers
 `($flags & 4) == 4`.

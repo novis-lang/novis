@@ -1,7 +1,7 @@
 `static` is a class-member modifier and a class-relative type. Static methods, static properties,
-`static::`, `static::$prop`, `new static()` and `: static` all carry their PHP meanings unchanged: late
-static binding is load-bearing in the OO code Novis converts, and `new static()` compiled as `new self()`
-would return the wrong class rather than fail to compile. `static::class` is the called class's own name,
+`static::`, `static::$prop`, `new static()` and `: static` all bind late, to the called class, and
+`new static()` compiled as `new self()` would return the wrong class rather than fail to compile.
+`static::class` is the called class's own name,
 read at run time off the descriptor the frame already holds.
 
 `static::NAME` is late-bound the same way, and it is the one class-constant read that is not inlined:
@@ -21,16 +21,14 @@ anonymous function is written in,
 as a written class name would: a static method reached that way reads that class as `static`, whichever
 subclass the enclosing method was called on. An instance method reached that way is called on the
 anonymous function's `$this`, which the call captures, and reads `$this`'s class as `static` as it
-does everywhere. PHP keeps the enclosing method's called class in the anonymous function and forwards
-it.
+does everywhere.
 
 A site that sets the called class leaves no late binding to reach an override, so a call from one to an
 `abstract static` method is refused where it is written (`E0835`) unless the class it names, or a class
 or interface above it, declares the method with a body. That is `Page::title()` on the abstract class
 that declares `title`, and `self::title()` inside an anonymous function in `Page`'s methods. `self::`, `static::` and
 `parent::` in a method body forward the called class and are not refused, so an inherited static method
-calling `self::title()` runs the subclass's body. PHP throws at run time for every `self::` call to an
-abstract method, in a method body as well as in an anonymous function, and accepts only `static::`.
+calling `self::title()` runs the subclass's body.
 
 A `static` member declares its type like every other member — `public static int $n = 0;` — and a body
 declaring `static` as its return type may not return the declaring class, since a subclass call site is

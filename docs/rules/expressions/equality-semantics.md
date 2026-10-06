@@ -1,5 +1,4 @@
-Nothing converts. Each type has one row, and where PHP's two operators disagreed the row takes the
-strict reading:
+Nothing converts. Each type has one row, and every row is a strict comparison:
 
 | type | two values are equal when |
 |---|---|

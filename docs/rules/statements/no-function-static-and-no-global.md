@@ -12,5 +12,5 @@ A function static is the one binding whose definite assignment cannot be checked
 the first call and on no later one, so on every call after the first the binding is live while its
 initialiser is not on the executed path. It is also a third storage class for one keyword — a per-function
 slot, per isolate, with a run-once flag the JIT cannot fold away — and it hides from the signature that a
-function's result depends on how often it has been called. Nothing is lost that PHP was providing: a PHP
-function static resets per request too.
+function's result depends on how often it has been called. A function static could never outlive its
+request in any case, so nothing a program could rely on across requests is lost.

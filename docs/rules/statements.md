@@ -90,8 +90,8 @@ anywhere in the file is a name a reader cannot trace, and one closed roster's wo
 second resolution rule to hold alongside the first. Code at the root namespace is unaffected, because its
 enclosing namespace *is* the root.
 
-PHP's fallback existed so a function or constant call could find a built-in from inside a namespace. With
-no free functions and no free constants, nothing is left that it was for.
+A root-namespace fallback only serves a function or constant call looking for a built-in from inside a
+namespace. With no free functions and no free constants, nothing is left for one to do.
 
 <sub>See also [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0113](../decisions/0113.md), [0011](../decisions/0011.md).</sub>
 
@@ -101,7 +101,7 @@ no free functions and no free constants, nothing is left that it was for.
 
 `rule:statements/a-leading-separator-does-not-parse`
 
-The leading separator is refused in all three positions PHP writes one, rather than stripped:
+The leading separator is refused in all three positions a name could carry one, rather than stripped:
 
 ```nvs
 \App\Models\User::find(1);   // refused
@@ -232,7 +232,7 @@ The required file's own top-level statements run where the `require` is written,
 time the site is reached — ordered against the statements around it rather than hoisted the way its
 declarations are.
 
-This is not PHP's behaviour, where an included file sees the includer's locals. A shared variable scope
+A required file never sees the includer's locals. A shared variable scope
 would need one flow-sensitive definite-assignment analysis spanning a graph whose shape a `require` inside
 an `if` decides at run time. A program that relied on it passes what it means as a constructor argument or
 a static.
@@ -263,9 +263,9 @@ position.
 `rule:statements/static-is-a-member-modifier`
 
 `static` is a class-member modifier and a class-relative type. Static methods, static properties,
-`static::`, `static::$prop`, `new static()` and `: static` all carry their PHP meanings unchanged: late
-static binding is load-bearing in the OO code Novis converts, and `new static()` compiled as `new self()`
-would return the wrong class rather than fail to compile. `static::class` is the called class's own name,
+`static::`, `static::$prop`, `new static()` and `: static` all bind late, to the called class, and
+`new static()` compiled as `new self()` would return the wrong class rather than fail to compile.
+`static::class` is the called class's own name,
 read at run time off the descriptor the frame already holds.
 
 `static::NAME` is late-bound the same way, and it is the one class-constant read that is not inlined:
@@ -285,16 +285,14 @@ anonymous function is written in,
 as a written class name would: a static method reached that way reads that class as `static`, whichever
 subclass the enclosing method was called on. An instance method reached that way is called on the
 anonymous function's `$this`, which the call captures, and reads `$this`'s class as `static` as it
-does everywhere. PHP keeps the enclosing method's called class in the anonymous function and forwards
-it.
+does everywhere.
 
 A site that sets the called class leaves no late binding to reach an override, so a call from one to an
 `abstract static` method is refused where it is written (`E0835`) unless the class it names, or a class
 or interface above it, declares the method with a body. That is `Page::title()` on the abstract class
 that declares `title`, and `self::title()` inside an anonymous function in `Page`'s methods. `self::`, `static::` and
 `parent::` in a method body forward the called class and are not refused, so an inherited static method
-calling `self::title()` runs the subclass's body. PHP throws at run time for every `self::` call to an
-abstract method, in a method body as well as in an anonymous function, and accepts only `static::`.
+calling `self::title()` runs the subclass's body.
 
 A `static` member declares its type like every other member — `public static int $n = 0;` — and a body
 declaring `static` as its return type may not return the declaring class, since a subclass call site is
@@ -326,8 +324,8 @@ A function static is the one binding whose definite assignment cannot be checked
 the first call and on no later one, so on every call after the first the binding is live while its
 initialiser is not on the executed path. It is also a third storage class for one keyword — a per-function
 slot, per isolate, with a run-once flag the JIT cannot fold away — and it hides from the signature that a
-function's result depends on how often it has been called. Nothing is lost that PHP was providing: a PHP
-function static resets per request too.
+function's result depends on how often it has been called. A function static could never outlive its
+request in any case, so nothing a program could rely on across requests is lost.
 
 <sub>See also [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0008](../decisions/0008.md), [0007](../decisions/0007.md), [0006](../decisions/0006.md).</sub>
 
