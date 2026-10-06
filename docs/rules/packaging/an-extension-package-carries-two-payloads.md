@@ -22,4 +22,6 @@ whose whole premise is that state does not outlive a request.
 **Not on disk.** `nvs_ext::source` reads the section, and the loader refuses a file whose
 `namespace` is not under the class's own (`crates/nvs-ext/tests/load.rs`). The graph walk resolves
 a name under that namespace to the carried file with no `autoload` line
-(`nvs_hir::ExtensionClass::source`), but no command fills that field from a loaded set yet.
+(`nvs_hir::ExtensionClass::source`), and `nvs run`, `nvs check` and `nvs test` fill that field
+from the set's manifests
+(`tests/conformance/ext/an-extension-source-class-resolves-with-no-autoload-line.nvst`).

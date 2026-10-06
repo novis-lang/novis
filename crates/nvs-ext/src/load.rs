@@ -402,16 +402,8 @@ impl Loader {
         if let Some(reason) = reserved(&manifest) {
             return Err(refuse(reason));
         }
-        let namespace = manifest.class.rsplit_once('\\').map_or("", |(ns, _)| ns);
-        if let Some((file, declared)) = source.outside(namespace) {
-            let declares = declared.map_or_else(
-                || "declares no namespace".to_owned(),
-                |declared| format!("declares `namespace {declared}`"),
-            );
-            return Err(refuse(format!(
-                "the source file `{}` {declares}, which is not under the extension's namespace `{namespace}`",
-                file.path
-            )));
+        if let Some(reason) = outside(&source, &manifest) {
+            return Err(refuse(reason));
         }
         let interface = ty
             .exports(&self.engine)
@@ -483,7 +475,8 @@ impl Loader {
 ///
 /// This is what a compiler reads (`rule:packaging/extension-calls-are-statically-typed`): the
 /// checks of [`Loader::load`] the bytes answer alone — the pin, the two sections, a class outside
-/// `Core\` and `Novis\` — and [`Set::insert`]'s unique class. What only the engine answers, the
+/// `Core\` and `Novis\`, a source file under the class's namespace — and [`Set::insert`]'s unique
+/// class. Each manifest carries its source section's files in [`Manifest::source`]. What only the engine answers, the
 /// component's validity, its imports and its exports, waits for the host that calls it.
 ///
 /// # Errors
@@ -506,10 +499,21 @@ pub fn read_manifests(entries: &[Entry]) -> Result<Vec<Manifest>, (usize, Refuse
         let manifest = sections
             .manifest
             .ok_or_else(|| refuse("the component has no `nvs.manifest` section".to_owned()))?;
-        let manifest = Manifest::parse(manifest).map_err(|err| refuse(err.0))?;
+        let mut manifest = Manifest::parse(manifest).map_err(|err| refuse(err.0))?;
+        let source = match sections.source {
+            Some(source) => Source::parse(source).map_err(|err| refuse(err.0))?,
+            None => Source {
+                source: crate::source::FORMAT,
+                files: Vec::new(),
+            },
+        };
         if let Some(reason) = reserved(&manifest) {
             return Err(refuse(reason));
         }
+        if let Some(reason) = outside(&source, &manifest) {
+            return Err(refuse(reason));
+        }
+        manifest.source = source.files;
         if let Some(other) = manifests
             .iter()
             .position(|other| other.class.eq_ignore_ascii_case(&manifest.class))
@@ -537,6 +541,22 @@ fn reserved(manifest: &Manifest) -> Option<String> {
                 manifest.class
             )
         })
+}
+
+/// Why `source` may not load beside `manifest`, when one of its files declares a namespace outside
+/// the class's own, the class minus its last segment ([`Source::outside`]).
+fn outside(source: &Source, manifest: &Manifest) -> Option<String> {
+    let namespace = manifest.class.rsplit_once('\\').map_or("", |(ns, _)| ns);
+    source.outside(namespace).map(|(file, declared)| {
+        let declares = declared.map_or_else(
+            || "declares no namespace".to_owned(),
+            |declared| format!("declares `namespace {declared}`"),
+        );
+        format!(
+            "the source file `{}` {declares}, which is not under the extension's namespace `{namespace}`",
+            file.path
+        )
+    })
 }
 
 fn refused(path: &Path, reason: String) -> Refused {

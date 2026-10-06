@@ -97,6 +97,11 @@ pub struct Manifest {
     /// The largest linear memory the extension needs, in bytes.
     #[serde(default)]
     pub memory: Option<u64>,
+    /// The files of the same `.nvsx`'s `nvs.source` section. The manifest's JSON never writes
+    /// them: [`crate::load::read_manifests`] fills them, so a compiler holds each class beside the
+    /// Novis source under its namespace.
+    #[serde(skip)]
+    pub source: Vec<crate::source::SourceFile>,
 }
 
 /// A `major.minor.patch` version of the `nvs:ext` world.

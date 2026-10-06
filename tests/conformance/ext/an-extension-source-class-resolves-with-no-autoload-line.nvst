@@ -1,0 +1,12 @@
+--TEST--
+A class in a loaded extension's source section resolves with no `autoload` line, compiles like the program's own code and calls the extension's class — `rule:packaging/an-extension-package-carries-two-payloads`
+--EXTENSION--
+ledger
+--FILE--
+<?nvs
+use Shop\Ledger\Receipt;
+
+// `Receipt` comes with the `ledger` extension. The program needs no `autoload` line for it.
+echo Receipt::line("Tea", 250), "\n";
+--EXPECT--
+Tea: 250 EUR

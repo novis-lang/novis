@@ -53,7 +53,7 @@
 
 use nvs_ext::manifest::{Const, Manifest, Method};
 use nvs_ext::types::{Field, NovisType};
-use nvs_hir::{ExtensionClass, QName};
+use nvs_hir::{ExtensionClass, ExtensionFile, QName};
 use nvs_stdlib::registry::{ParamText, Qual};
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -62,8 +62,9 @@ use crate::enums::{EnumBacking, EnumInfo, EnumTable, EnumValue};
 use crate::signatures::{ConstSig, MethodSig, SignatureTable};
 use crate::ty::{ShapeField, TypeId, TypeInterner};
 
-/// The classes of `manifests` as name resolution reads them: each class's name, and the methods
-/// and constants [`seed`] gives it a signature for.
+/// The classes of `manifests` as name resolution reads them: each class's name, the methods and
+/// constants [`seed`] gives it a signature for, and on the manifest's class the source files its
+/// extension carries.
 #[must_use]
 pub fn hir_classes(manifests: &[Manifest]) -> Vec<ExtensionClass> {
     let mut classes = Vec::new();
@@ -76,7 +77,14 @@ pub fn hir_classes(manifests: &[Manifest]) -> Vec<ExtensionClass> {
             consts: consts(manifest)
                 .map(|(constant, ..)| constant.name.clone())
                 .collect(),
-            source: Vec::new(),
+            source: manifest
+                .source
+                .iter()
+                .map(|file| ExtensionFile {
+                    path: file.path.clone(),
+                    text: file.text.clone(),
+                })
+                .collect(),
         });
         classes.extend(manifest.enums.iter().map(|declared| ExtensionClass {
             name: declared_name(manifest, &declared.name),
