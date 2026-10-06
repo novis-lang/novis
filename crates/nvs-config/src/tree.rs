@@ -438,10 +438,18 @@ pub struct CapDb {
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Extension {
-    /// The `.nvsx` to load.
+    /// The `.nvsx` to load. Required: an entry without one is refused at boot and at reload,
+    /// naming its file and line. Typed optional so that refusal can name the line rather than
+    /// fail the whole file's parse.
     pub path: Option<String>,
-    /// The pin re-verified on every `nvs ctl reload`; a mismatch refuses the whole swap.
+    /// The file's SHA-256 as 64 hexadecimal digits. Required, refused like a missing `path`, and
+    /// re-verified against the file on every load and every `nvs ctl reload`; one mismatch
+    /// refuses the whole swap.
     pub sha256: Option<String>,
+    /// A ceiling on this extension's linear memory, a size like `[limits] memory`. Optional: the
+    /// guest's limit is the least of what its request has left, this and the manifest's declared
+    /// maximum (`rule:packaging/a-guest-runs-under-the-requests-budget`).
+    pub memory: Option<Setting>,
 }
 
 /// `[debug]` — `rule:testing/debug-mode-directive`, where `nvs.toml` states the default and the ceiling in one value.

@@ -41,7 +41,7 @@ const BLOCKS: &[(&str, &str)] = &[
     ("[limits.hard]", "[limits.hard]\nmemory = \"2G\"\ncpu_time = \"60s\"\nwall_time = \"300s\"\nmax_tasks = 4096\nmax_output = \"512M\"\n"),
     ("[mode]", "[mode]\ndefault = \"production\"\nceiling = \"development\"\n"),
     ("[capabilities]", "[capabilities]\nscript.spawn = [\"/srv/www/jobs\"]\nprocess.exec = true\ndebug.trace = [\"/var/log/nvs/trace\"]\nfs.read = [\"/srv\"]\nfs.write = [\"/var/tmp\"]\nnet.connect = [\"reports.internal\"]\ndb.connect = [\"main\"]\ndb.open = [\"*.tenants.internal\"]\ndb.schema = [\"main\"]\ndebug.profile = [\"/var/log/nvs/profile\"]\n"),
-    ("[[extension]]", "[[extension]]\npath = \"image.nvsx\"\nsha256 = \"abc\"\n"),
+    ("[[extension]]", "[[extension]]\npath = \"image.nvsx\"\nsha256 = \"9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08\"\nmemory = \"64M\"\n"),
     ("[debug]", "[debug]\nmode = [\"coverage\", \"branch\"]\n"),
     ("[log]", "[log]\nhandler = \"handler.nvs\"\nhandler_reserve_memory = \"8M\"\nhandler_reserve_time = \"2s\"\ntarget = \"stderr\"\nformat = \"json\"\nlevel = \"warning\"\n"),
     ("[errors]", "[errors]\ndeprecated = \"throw\"\n"),
