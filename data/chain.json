@@ -1,7 +1,6 @@
 {
-  "live": "ext-compiler",
+  "live": "ext-grants",
   "goals": [
-    "ext-compiler",
     "ext-grants",
     "ext-tooling",
     "ext-image",
