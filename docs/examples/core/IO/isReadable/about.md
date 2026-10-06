@@ -13,5 +13,3 @@ The program needs the `fs.read` capability for the path. Without it, `isReadable
 
 **Good to know:** use `isReadable` when a missing file is a normal case, such as an optional
 settings file.
-
-This replaces PHP's `is_readable`.

@@ -1,5 +1,5 @@
-Reads a buffer of bytes back into numbers and text, following the same format that
-`Core\Bytes::pack` writes. This replaces PHP's `unpack`.
+Reads a buffer of bytes back into numbers and text, following the same format
+that `Core\Bytes::pack` writes.
 
 The buffer comes first and the format second. Each letter in the format describes one field, and the
 result is a list with one entry per field, in the order the format names them. The list is

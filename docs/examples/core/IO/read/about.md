@@ -12,5 +12,3 @@ a `RuntimeError` when the file is not valid UTF-8, or when the file is larger th
 
 The program needs the `fs.read` capability for the path. Without it, `read` throws a
 `RuntimeError`.
-
-This replaces PHP's `file_get_contents`.

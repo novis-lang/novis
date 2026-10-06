@@ -8,5 +8,3 @@ The program needs two capabilities: `fs.read` for the file it reads and `fs.writ
 path. Without one of them, `copy` throws a `RuntimeError` and copies nothing. When the system cannot
 copy, for example because the first file does not exist, `copy` throws an `IOError`. A copy of a
 file onto itself also throws an `IOError`, and the file stays as it was.
-
-This replaces PHP's `copy`.

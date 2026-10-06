@@ -5,4 +5,4 @@ counted twice. A new heap has a count of `0`. The count is a `uint`, a whole num
 negative.
 
 **Good to know:** to check whether a heap is empty, `isEmpty` says it more clearly than comparing the
-count with `0`. This replaces PHP's `SplHeap::count`.
+count with `0`.

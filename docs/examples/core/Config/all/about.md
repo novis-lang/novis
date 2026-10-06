@@ -1,4 +1,4 @@
-Gives every setting in force for this request, as one array. It replaces PHP's `ini_get_all`.
+Gives every setting in force for this request, as one array.
 
 The keys are the dotted names a configuration file uses, such as `limits.memory` or `log.level`, and
 they are sorted by name. Every value is text, written the way the configuration file writes it. A

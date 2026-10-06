@@ -1,5 +1,4 @@
-Returns the number of bytes of memory your program is using right now. This replaces PHP's
-`memory_get_usage`.
+Returns the number of bytes of memory your program is using right now.
 
 The number covers the values your program has made and still uses: its strings, arrays and objects.
 It goes down again as soon as a value is no longer used, so a program that has finished with a large

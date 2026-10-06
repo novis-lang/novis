@@ -1,5 +1,4 @@
-Returns the largest amount of memory this program may use, in bytes. This replaces PHP's
-`ini_get('memory_limit')`, and you do not have to read a suffix such as `M` or `G` yourself.
+Returns the largest amount of memory this program may use, in bytes.
 
 The person who runs the server sets this limit, and your program cannot change it. A program that
 goes over the limit is stopped with an error. Read this number together with

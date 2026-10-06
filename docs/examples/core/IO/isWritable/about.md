@@ -12,5 +12,3 @@ The answer is true at the moment of the check. A `Core\IO::write` that follows c
 
 The program needs the `fs.write` capability for the path. Without it, `isWritable` throws a
 `RuntimeError`, even when the program may read the path.
-
-This replaces PHP's `is_writable`.

@@ -13,5 +13,3 @@ end of the program are closed for you.
 `Read` needs the `fs.read` capability for the path, `Write` and `Append` need `fs.write`, and
 `ReadWrite` needs both. Without it, `open` throws a `RuntimeError`. When the file cannot be opened,
 for example because it does not exist, `open` throws an `IOError`.
-
-This replaces PHP's `fopen`.

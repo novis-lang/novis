@@ -9,4 +9,4 @@ compares the other way round.
 next, whatever order the patients arrived in.
 
 **Good to know:** `pop` on an empty heap throws a `RuntimeError`. Call `isEmpty` first when the heap
-can be empty. This replaces PHP's `SplPriorityQueue::extract` and `SplHeap::extract`.
+can be empty.

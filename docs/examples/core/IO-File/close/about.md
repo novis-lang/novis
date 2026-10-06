@@ -10,5 +10,3 @@ for example inside a loop that opens many files.
 
 Every method you call on a closed handle throws a `RuntimeError`. This includes a second `close`.
 The error message names the method and the path of the file.
-
-This replaces PHP's `fclose`.

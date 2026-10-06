@@ -12,5 +12,3 @@ the operating system does not allow the program to create a folder there.
 
 The program needs the `fs.write` capability for the path. Without it, `makeDir` throws a
 `RuntimeError` and creates nothing.
-
-This replaces PHP's `mkdir` with `$recursive` set to `true`.

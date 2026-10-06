@@ -10,7 +10,7 @@ safe to trust, so Novis keeps track of that for you.
 The limit works the same way it does for `Core\Compress::decompress`, and it is fixed when you open
 the stream. `$maxBytes` is the largest result you accept and `$maxRatio` is the most bytes of result
 per byte you fed in. `finish` measures the whole stream against them, not each piece, so ten pieces
-cannot get ten times the room. This replaces PHP's `inflate_init` and `inflate_add`.
+cannot get ten times the room.
 
 **Good to know:** a stream ends once. After `finish`, both `add` and `finish` throw a
 `RuntimeError`.

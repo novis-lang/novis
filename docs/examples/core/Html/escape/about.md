@@ -10,4 +10,3 @@ it is, so the text is never escaped twice. Text from a visitor is `tainted` (it 
 program), and `escape` is how such a text goes into a page.
 
 **Good to know:** a text that already contains `&amp;` is escaped again, and becomes `&amp;amp;`.
-This replaces PHP's `htmlspecialchars`.

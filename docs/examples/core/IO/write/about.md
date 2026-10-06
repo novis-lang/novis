@@ -15,5 +15,3 @@ in the file.
 
 Writing changes a file, so the program needs the `fs.write` capability for the path. Without it,
 `write` throws a `RuntimeError` before any file is created.
-
-This replaces PHP's `file_put_contents`.

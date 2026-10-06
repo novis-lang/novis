@@ -11,5 +11,3 @@ character.
 A closed handle throws a `RuntimeError`. Bytes that are not UTF-8 text also throw a
 `RuntimeError`, and the position does not move. A handle that can only write throws an
 `IOError`.
-
-This replaces PHP's `fread`.

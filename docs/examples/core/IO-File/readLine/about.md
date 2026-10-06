@@ -12,5 +12,3 @@ the whole file, and only one line is in memory at a time. An empty line is an em
 A closed handle throws a `RuntimeError`. A line that is not UTF-8 text also throws a
 `RuntimeError`, and the position does not move. A handle that can only write throws an
 `IOError`.
-
-This replaces PHP's `fgets`.

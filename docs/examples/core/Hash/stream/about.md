@@ -6,5 +6,4 @@ digest that `Core\Hash::of` returns for all the pieces joined together. How you 
 pieces does not change the result.
 
 **Good to know:** the stream keeps every piece until `finish`, so its memory grows with the data
-you feed it. After `finish` the stream is closed. For the next digest, start a new stream. This
-replaces PHP's `hash_init`.
+you feed it. After `finish` the stream is closed. For the next digest, start a new stream.

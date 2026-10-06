@@ -14,5 +14,3 @@ each case, nothing is deleted.
 
 Deleting a folder changes the disk, so the program needs the `fs.write` capability for the path.
 Without it, `removeDir` throws a `RuntimeError`.
-
-This replaces PHP's `rmdir`.

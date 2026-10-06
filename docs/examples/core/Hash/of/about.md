@@ -9,5 +9,4 @@ text. To show it or store it as text, convert it with `Core\Encoding::toHex`.
 are the same file. You cannot rebuild the file from the fingerprint.
 
 **Good to know:** `Md5`, `Sha1` and the two `Crc32` cases are there so you can talk to older
-systems. Do not use them to protect anything. To store passwords, use `Core\Password`. This
-replaces PHP's `hash`, `md5`, `sha1` and `crc32`.
+systems. Do not use them to protect anything. To store passwords, use `Core\Password`.

@@ -10,5 +10,3 @@ file, call `seek(0)` after `truncate(0)`.
 
 A closed handle throws a `RuntimeError`. A handle opened with `Core\IO\FileMode::Read` throws
 an `IOError`, because the file cannot be changed through it.
-
-This replaces PHP's `ftruncate`.

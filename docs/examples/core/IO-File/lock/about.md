@@ -11,4 +11,4 @@ Use a lock when two programs, or two requests, must not change the same file at 
 On some systems a lock does not stop a handle without the lock from reading or writing the file.
 So every program that changes the file should call `lock` first.
 
-A closed handle throws a `RuntimeError`. This replaces PHP's `flock` with `LOCK_EX | LOCK_NB`.
+A closed handle throws a `RuntimeError`.

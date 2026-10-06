@@ -1,4 +1,4 @@
-Gives the value of one setting for this request. It replaces PHP's `ini_get`.
+Gives the value of one setting for this request.
 
 The name is the dotted name a configuration file uses, such as `log.level`. A limit also has a short
 name: `memory`, `cpu_time`, `wall_time`, `max_tasks`, `max_output` and `max_regex_steps` each name

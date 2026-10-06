@@ -1,5 +1,4 @@
-Returns the largest amount of memory your program has used at any point, in bytes. This replaces
-PHP's `memory_get_peak_usage`.
+Returns the largest amount of memory your program has used at any point, in bytes.
 
 `Core\Budget::memoryHeld` gives you the memory your program is using right now, and that number goes
 down again when a value is freed. The peak keeps the highest point instead. Work that is already

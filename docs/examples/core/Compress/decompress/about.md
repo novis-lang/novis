@@ -9,8 +9,5 @@ and `$maxRatio` is the most bytes of result per byte of input. A call that would
 throws a `ParseError` and returns nothing at all. You can ask for smaller limits than the server
 allows. You can never ask for larger ones, and there is no way to switch the limit off.
 
-This replaces PHP's `gzdecode`, `gzuncompress`, `gzinflate` and `zlib_decode`, where the length
-limit was optional and unlimited by default.
-
 **In plain words:** a tiny compressed file can unpack into a huge one and fill up a server. These
 two limits are what stop a file built to do that.

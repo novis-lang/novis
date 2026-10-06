@@ -13,5 +13,3 @@ deleted.
 
 Deleting a file changes it, so the program needs the `fs.write` capability for the path. Without
 it, `remove` throws a `RuntimeError` and the file stays.
-
-This replaces PHP's `unlink`.

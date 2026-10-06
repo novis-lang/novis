@@ -8,5 +8,3 @@ Checks if a path was a folder.
 
 The answer is from the moment `stat` was called. If the folder is later replaced by a file with
 the same name, this value still returns `true`. Call `stat` again to check the path again.
-
-This replaces PHP's `is_dir`.

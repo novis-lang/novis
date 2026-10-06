@@ -8,5 +8,4 @@ at a time. An empty value is still a value, so `null` means only one thing: the 
 **In plain words:** tainted means "not checked yet". You can compare the value or write it to a
 log. You cannot put it into a query or a command until you have checked it.
 
-**Good to know:** if the value is not valid UTF-8 text, `get` throws a `RuntimeError`. This replaces
-PHP's `getenv()` and `$_ENV`.
+**Good to know:** if the value is not valid UTF-8 text, `get` throws a `RuntimeError`.

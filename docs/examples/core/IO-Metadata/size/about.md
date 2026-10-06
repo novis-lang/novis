@@ -9,5 +9,3 @@ characters can be 8 bytes long.
 The value does not change when the file changes later. To get the new size, call `stat` again.
 The size of a folder is a number the operating system chooses, and it means different things on
 different systems.
-
-This replaces PHP's `filesize`.

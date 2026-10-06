@@ -10,5 +10,3 @@ An offset past the end of the file is allowed. A `read` there returns an empty s
 
 A closed handle throws a `RuntimeError`. A handle that has no position, such as a pipe, throws
 an `IOError`.
-
-This replaces PHP's `fseek`, which also has a `whence` argument. Novis has no `whence`.

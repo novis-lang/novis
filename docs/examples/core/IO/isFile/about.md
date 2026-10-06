@@ -11,5 +11,3 @@ The program needs the `fs.read` capability for the path. Without it, `isFile` th
 
 **Good to know:** `isFile` checks what is at the path, not the name. A folder named `report.pdf`
 is still a folder.
-
-This replaces PHP's `is_file`.

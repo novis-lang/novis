@@ -9,5 +9,3 @@ this time stays the same. Call `stat` again to get the new time.
 
 A `Core\Time\Instant` has no time zone. You can compare two of them with `compareTo`, and
 `Core\Time::now()->since(...)` returns how long ago the file was changed.
-
-This replaces PHP's `filemtime`.

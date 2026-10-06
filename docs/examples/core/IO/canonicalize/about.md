@@ -11,5 +11,3 @@ Every part of the path must exist. For a path with nothing at it, `canonicalize`
 
 **Good to know:** `canonicalize` does not check that a path stays inside a folder. To check a path
 that a user sent, use `Core\IO::within`.
-
-This replaces PHP's `realpath`.

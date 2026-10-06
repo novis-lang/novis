@@ -13,5 +13,3 @@ when the file is not valid UTF-8 text, because each line is a `string`.
 
 The program needs the `fs.read` capability for the path. Without it, `lines` throws a
 `RuntimeError`.
-
-This replaces PHP's `file` and a loop over `fgets`.

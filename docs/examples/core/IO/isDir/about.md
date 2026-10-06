@@ -11,5 +11,3 @@ The program needs the `fs.read` capability for the path. Without it, `isDir` thr
 `RuntimeError`.
 
 **Good to know:** use `isDir` before `Core\IO::list`, which throws an error for a file.
-
-This replaces PHP's `is_dir`.

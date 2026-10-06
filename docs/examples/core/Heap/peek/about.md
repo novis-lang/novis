@@ -6,4 +6,4 @@ yet. "Smallest" means the order the heap uses: its comparator function, the `com
 its objects, or the normal order of numbers and strings.
 
 **Good to know:** `peek` on an empty heap throws a `RuntimeError`. It does not return `null`. Call
-`isEmpty` first when the heap can be empty. This replaces PHP's `SplHeap::top`.
+`isEmpty` first when the heap can be empty.

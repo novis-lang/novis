@@ -10,5 +10,3 @@ to `seek` later to come back to the same place.
 
 A closed handle throws a `RuntimeError`. A handle that has no position, such as a pipe, throws
 an `IOError`.
-
-This replaces PHP's `ftell`.

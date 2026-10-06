@@ -10,4 +10,4 @@ once, because the length of a digest is never a secret.
 **In plain words:** a normal comparison is like a guard who says "wrong" as soon as the first
 letter of the password is wrong. This one always listens to the whole password first.
 
-**Good to know:** both values must be `bytes`. This replaces PHP's `hash_equals`.
+**Good to know:** both values must be `bytes`.

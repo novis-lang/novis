@@ -11,5 +11,3 @@ returns `0`.
 
 A closed handle throws a `RuntimeError`. A handle that can only read throws an `IOError`, and so
 does a write that fails, for example on a full disk.
-
-This replaces PHP's `fwrite`.

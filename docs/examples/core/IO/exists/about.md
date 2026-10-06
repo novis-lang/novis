@@ -9,5 +9,3 @@ The program needs the `fs.read` capability for the path. Without it, `exists` th
 
 **Good to know:** to find out what kind of thing is at the path, use `Core\IO::isFile` or
 `Core\IO::isDir`.
-
-This replaces PHP's `file_exists`.

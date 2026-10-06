@@ -9,5 +9,3 @@ still call `flush` after a group of writes, and your program keeps working the s
 writes can still be lost.
 
 A closed handle throws a `RuntimeError`.
-
-This replaces PHP's `fflush`.

@@ -10,5 +10,4 @@ order of numbers and strings.
 **In plain words:** a heap is like a pile of tasks where the most urgent task is always on top. You
 can add a task at any time, and it goes to its right place in the pile.
 
-**Good to know:** if two values cannot be compared, `push` throws a `RuntimeError`. This replaces
-PHP's `SplPriorityQueue::insert` and `SplMinHeap::insert`.
+**Good to know:** if two values cannot be compared, `push` throws a `RuntimeError`.

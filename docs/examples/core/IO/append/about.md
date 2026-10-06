@@ -10,5 +10,3 @@ folder does not exist, `append` throws an `IOError`.
 
 **Good to know:** the system puts every call at the end of the file at the moment it writes. Two
 programs that add lines to the same log file do not write over each other's lines.
-
-This replaces PHP's `file_put_contents` with the `FILE_APPEND` flag.

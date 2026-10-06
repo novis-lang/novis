@@ -13,5 +13,3 @@ still has the old values. Call `stat` again to get the new ones.
 
 `stat` throws an `IOError` when there is nothing at the path. The program needs the `fs.read`
 capability for the path. Without it, `stat` throws a `RuntimeError`.
-
-This replaces PHP's `stat`.

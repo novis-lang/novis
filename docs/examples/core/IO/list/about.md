@@ -14,5 +14,3 @@ system does not allow the program to read the folder.
 
 The program needs the `fs.read` capability for the path. Without it, `list` throws a
 `RuntimeError`.
-
-This replaces PHP's `scandir`.

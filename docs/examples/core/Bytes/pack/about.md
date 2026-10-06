@@ -1,5 +1,4 @@
-Writes numbers and text into a buffer of bytes, in the layout you describe. This replaces PHP's
-`pack`.
+Writes numbers and text into a buffer of bytes, in the layout you describe.
 
 The first argument is the format. Each letter in it describes one field: how wide the field is, and
 for a number, which end of it comes first. The values after the format fill those fields in order.

@@ -1,4 +1,4 @@
-Puts a setting back to the value the configuration file gives it. It replaces PHP's `ini_restore`.
+Puts a setting back to the value the configuration file gives it.
 
 `Core\Config::set` changes a setting for this request only. `restore` drops that change, so the
 setting is again what the configuration file said, and a program that changed a setting for one step

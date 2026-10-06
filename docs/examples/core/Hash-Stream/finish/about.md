@@ -5,5 +5,4 @@ that `Core\Hash::of` returns for all the pieces joined together. After `finish`,
 closed and frees the pieces it kept.
 
 **Good to know:** a stream gives its digest only once. A second `finish`, or an `update` after it,
-throws a `RuntimeError`. For the next digest, start a new stream with `Core\Hash::stream`. This
-replaces PHP's `hash_final`.
+throws a `RuntimeError`. For the next digest, start a new stream with `Core\Hash::stream`.

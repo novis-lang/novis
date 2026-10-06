@@ -1,5 +1,4 @@
-Reads Novis source code and returns a tree that describes it. It replaces PHP's `token_get_all` and
-the parsers people write on top of it.
+Reads Novis source code and returns a tree that describes it.
 
 You pass the text of a program, starting with `<?nvs` the way a file does. You get back one node for
 the whole file. Every node says what kind of part it is, such as `ClassDecl`, `Echo` or `Int`, and

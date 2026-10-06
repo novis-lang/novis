@@ -12,5 +12,3 @@ when a missing file is a normal case.
 The program needs the `fs.read` capability for the path. Without it, `size` throws a `RuntimeError`.
 
 **Good to know:** use `size` to reject a file that is too large before you read it into memory.
-
-This replaces PHP's `filesize`.

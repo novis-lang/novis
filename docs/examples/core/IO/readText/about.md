@@ -12,5 +12,3 @@ left out.
 
 `readText` throws an `IOError` when the file does not exist or cannot be read. The program needs
 the `fs.read` capability for the path. Without it, `readText` throws a `RuntimeError`.
-
-This replaces PHP's `file_get_contents` followed by `mb_convert_encoding`.

@@ -13,5 +13,3 @@ no file at the first path, or when the folder of the second path does not exist.
 
 The program needs the `fs.write` capability for both paths. Without it, `move` throws a
 `RuntimeError`.
-
-This replaces PHP's `rename`.

@@ -11,5 +11,3 @@ belongs somewhere else.
 
 The program needs the `fs.write` capability for the new folder. Without it,
 `temporaryDir` throws a `RuntimeError`. It throws an `IOError` when the folder cannot be created.
-
-This replaces PHP's `sys_get_temp_dir` and `tempnam`.

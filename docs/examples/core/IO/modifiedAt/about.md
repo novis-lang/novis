@@ -12,5 +12,3 @@ A folder has a modification time too. When there is nothing at the path, `modifi
 
 The program needs the `fs.read` capability for the path. Without it, `modifiedAt` throws a
 `RuntimeError`.
-
-This replaces PHP's `filemtime`, which returns a number of seconds.

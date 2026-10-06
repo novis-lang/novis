@@ -1,4 +1,4 @@
-Changes one setting for this request. It replaces PHP's `ini_set`.
+Changes one setting for this request.
 
 The change belongs to the request that makes it. No other request sees it, and it is gone when the
 request ends. The name is read the way `Core\Config::get` reads it, and the value is written the way

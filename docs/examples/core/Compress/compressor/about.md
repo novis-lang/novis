@@ -5,8 +5,7 @@ need, and then call `finish` once. `finish` returns the compressed bytes of ever
 in one block. It is exactly what `Core\Compress::compress` returns for the same pieces joined
 together, so how you split them up never changes the result.
 
-You choose the format when you open the stream, and it stays that format until the end. This
-replaces PHP's `deflate_init` and `deflate_add`.
+You choose the format when you open the stream, and it stays that format until the end.
 
 **Good to know:** a stream ends once. After `finish`, both `add` and `finish` throw a
 `RuntimeError`, and you open a new stream for the next frame. Reach for this when your data arrives

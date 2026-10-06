@@ -5,9 +5,7 @@ sent over a network, because every browser and every server understands it. `Zli
 `Brotli` and `Zstd` are the other four. The result is a block of `bytes`, not text, so keep it in a
 `bytes` variable. `Core\Compress::decompress` reads it back, and you pass it the same format.
 
-This replaces PHP's `gzencode`, `gzcompress`, `gzdeflate` and `zlib_encode`. Those were four
-function names for one job. Here the format is a value you pass in, and a name you spell wrong is a
-compile error instead of a surprise at run time.
+The format is a value you pass in. If you spell its name wrong, the program does not compile.
 
 **Good to know:** compressing a very short value can make it longer, because every format writes a
 small header first.

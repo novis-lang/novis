@@ -8,5 +8,3 @@ Some rare kinds of path, such as a device or a named pipe, return `false` for bo
 
 The answer is from the moment `stat` was called. If the file is later replaced by a folder with
 the same name, this value still returns `true`. Call `stat` again to check the path again.
-
-This replaces PHP's `is_file`.
