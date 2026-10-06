@@ -392,15 +392,8 @@ impl Loader {
                 )));
             }
         }
-        let namespace = manifest.class.split('\\').next().unwrap_or_default();
-        if ["Core", "Novis"]
-            .iter()
-            .any(|reserved| namespace.eq_ignore_ascii_case(reserved))
-        {
-            return Err(refuse(format!(
-                "the class `{}` is under `{namespace}\\`, which only Novis declares in",
-                manifest.class
-            )));
+        if let Some(reason) = reserved(&manifest) {
+            return Err(refuse(reason));
         }
         let interface = ty
             .exports(&self.engine)
@@ -459,6 +452,66 @@ impl Loader {
         }
         WorldVersion::try_from(version.to_owned()).is_ok_and(|version| self.admits(version))
     }
+}
+
+/// The manifests of the extensions `entries` name, read without compiling a component.
+///
+/// This is what a compiler reads (`rule:packaging/extension-calls-are-statically-typed`): the
+/// checks of [`Loader::load`] the bytes answer alone — the pin, the two sections, a class outside
+/// `Core\` and `Novis\` — and [`Set::insert`]'s unique class. What only the engine answers, the
+/// component's validity, its imports and its exports, waits for the host that calls it.
+///
+/// # Errors
+///
+/// The index of the first entry that does not read, and why.
+pub fn read_manifests(entries: &[Entry]) -> Result<Vec<Manifest>, (usize, Refused)> {
+    let mut manifests: Vec<Manifest> = Vec::with_capacity(entries.len());
+    for (index, entry) in entries.iter().enumerate() {
+        let refuse = |reason: String| (index, refused(&entry.path, reason));
+        let bytes = std::fs::read(&entry.path)
+            .map_err(|err| refuse(format!("the file does not read: {err}")))?;
+        let sha256 = pin(&bytes);
+        if !sha256.eq_ignore_ascii_case(&entry.sha256) {
+            return Err(refuse(format!(
+                "the file's sha256 is {sha256}, and the entry pins {}",
+                entry.sha256
+            )));
+        }
+        let sections = section::read(&bytes).map_err(|err| refuse(err.0))?;
+        let manifest = sections
+            .manifest
+            .ok_or_else(|| refuse("the component has no `nvs.manifest` section".to_owned()))?;
+        let manifest = Manifest::parse(manifest).map_err(|err| refuse(err.0))?;
+        if let Some(reason) = reserved(&manifest) {
+            return Err(refuse(reason));
+        }
+        if let Some(other) = manifests
+            .iter()
+            .position(|other| other.class.eq_ignore_ascii_case(&manifest.class))
+        {
+            return Err(refuse(format!(
+                "the class `{}` is already declared by the extension `{}`",
+                manifest.class,
+                entries[other].path.display()
+            )));
+        }
+        manifests.push(manifest);
+    }
+    Ok(manifests)
+}
+
+/// Why `manifest`'s class may not load, when it is under `Core\` or `Novis\` in any case.
+fn reserved(manifest: &Manifest) -> Option<String> {
+    let namespace = manifest.class.split('\\').next().unwrap_or_default();
+    ["Core", "Novis"]
+        .iter()
+        .any(|reserved| namespace.eq_ignore_ascii_case(reserved))
+        .then(|| {
+            format!(
+                "the class `{}` is under `{namespace}\\`, which only Novis declares in",
+                manifest.class
+            )
+        })
 }
 
 fn refused(path: &Path, reason: String) -> Refused {

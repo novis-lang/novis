@@ -88,6 +88,35 @@ pub(crate) fn loaded(
     Ok(set)
 }
 
+/// The manifests of `config`'s `[[extension]]` entries, read without compiling a component: what
+/// the compiler types an extension call against (`rule:packaging/extension-calls-are-statically-typed`).
+///
+/// # Errors
+///
+/// `E0652` at the first entry whose file, pin or manifest does not read, or whose class an
+/// earlier entry declares.
+pub(crate) fn manifests(
+    config: &Config,
+    origins: &BTreeMap<String, Origin>,
+    sources: &SourceMap,
+) -> Result<Vec<nvs_ext::manifest::Manifest>, Diagnostic> {
+    let entries: Vec<Entry> = config
+        .extension
+        .iter()
+        .enumerate()
+        .map(|(index, written)| entry(index, written, origins))
+        .collect();
+    nvs_ext::load::read_manifests(&entries).map_err(|(index, refused)| {
+        nvs_config::extension::not_loaded(
+            index,
+            &entries[index].path.to_string_lossy(),
+            &refused.reason,
+            origins,
+            sources,
+        )
+    })
+}
+
 /// Makes `set` the live one, replacing the set the previous configuration loaded.
 pub(crate) fn install(set: Set) {
     *LIVE.lock().unwrap_or_else(PoisonError::into_inner) = Some(Arc::new(set));

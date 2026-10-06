@@ -1964,6 +1964,26 @@ fn front_end(path: &std::path::Path) -> Result<Checked, ExitCode> {
     front_end_granted(path, None, false, Sink::Text, config::Init::Never, None)
 }
 
+/// [`front_end`] with the extension set `extensions` loaded, which `nvs run`
+/// reads from its configuration before the program compiles
+/// ([`config::extension_set`]).
+fn front_end_extended(
+    path: &std::path::Path,
+    extensions: Vec<nvs_ext::manifest::Manifest>,
+) -> Result<Checked, ExitCode> {
+    front_end_in(
+        SourceMap::new(),
+        path,
+        None,
+        extensions,
+        false,
+        Sink::Text,
+        config::Init::Never,
+        None,
+        None,
+    )
+}
+
 /// [`front_end`] with the deployment's `[capabilities]` block in front of it —
 /// `rule:core-classes/db-compile-time-query-checking`'s check-time question, asked of the `nvs.toml` this machine
 /// resolves.
@@ -2011,6 +2031,7 @@ fn front_end_granted(
         SourceMap::new(),
         path,
         config,
+        Vec::new(),
         strict_docs,
         sink,
         init,
@@ -2030,6 +2051,7 @@ fn front_end_looking(path: &std::path::Path, looked: &mut Looked) -> Result<Chec
         SourceMap::new(),
         path,
         None,
+        Vec::new(),
         false,
         Sink::Text,
         config::Init::Never,
@@ -2090,6 +2112,7 @@ fn front_end_synthesized(path: &std::path::Path, text: &str) -> Result<Checked, 
         map,
         path,
         None,
+        Vec::new(),
         false,
         Sink::Text,
         config::Init::Never,
@@ -2103,6 +2126,12 @@ fn front_end_synthesized(path: &std::path::Path, text: &str) -> Result<Checked, 
 ///
 /// `looked` is [`front_end_looking`]'s, filled at every way out after the entry
 /// file was asked for.
+///
+/// `extensions` is the extension set a caller passing no `config` read for
+/// itself ([`front_end_extended`]). A caller passing `config` gets the set that
+/// configuration loads instead, read beside its grants ([`config::grants`]).
+/// Either way the set's classes are declared before the walk and typed from
+/// their manifests (`rule:packaging/extension-calls-are-statically-typed`).
 ///
 /// **`survey` is `nvs check`'s, and lends a class file its program's
 /// `autoload` map** (`rule:ide/an-autoloaded-file-borrows-its-programs-map`).
@@ -2122,6 +2151,7 @@ fn front_end_in(
     mut map: SourceMap,
     path: &std::path::Path,
     config: Option<&[std::path::PathBuf]>,
+    extensions: Vec<nvs_ext::manifest::Manifest>,
     strict_docs: bool,
     sink: Sink,
     init: config::Init,
@@ -2142,10 +2172,11 @@ fn front_end_in(
     // Read after the entry file and before anything is parsed: a missing program
     // is still "could not read", and a broken `nvs.toml` is the configuration
     // error rather than the first thing the parser noticed.
-    let grants = match config {
+    let (grants, extensions) = match config {
         Some(config) => config::grants(config, path, init)?,
-        None => None,
+        None => (None, extensions),
     };
+    let classes = nvs_types::ext_lib::hir_classes(&extensions);
 
     let core = nvs_stdlib::registry::link_targets();
     let closed = nvs_stdlib::registry::closed_interfaces();
@@ -2155,7 +2186,7 @@ fn front_end_in(
     };
     let plain = nvs_hir::lenders::is_plain(map.file(id).text());
     let (mut diags, mut module, mut loaded, mut autoload) =
-        resolve_entry(&mut map, id, roster, strict_docs, &[]);
+        resolve_entry(&mut map, id, roster, strict_docs, &[], &classes);
     if let Some(root) = survey
         && autoload.sites().is_empty()
         && diags.iter().any(names_an_undeclared_type)
@@ -2170,7 +2201,7 @@ fn front_end_in(
             }
         };
         (diags, module, loaded, autoload) =
-            resolve_entry(&mut map, id, roster, strict_docs, lender.sites());
+            resolve_entry(&mut map, id, roster, strict_docs, lender.sites(), &classes);
     }
 
     let mut interner = nvs_types::TypeInterner::new();
@@ -2194,10 +2225,11 @@ fn front_end_in(
                 stmts: &file.stmts,
             })
             .collect();
-        let enums = nvs_types::check_program_granted(
+        let enums = nvs_types::check::check_program_loaded(
             &files,
             &module,
             grants.as_ref(),
+            &extensions,
             &mut interner,
             &mut exprs,
             &mut diags,
@@ -2228,7 +2260,8 @@ fn front_end_in(
 }
 
 /// Parses the entry `id` and walks its `require`/`autoload` graph, with
-/// `borrowed` behind the entry's own `autoload` declarations.
+/// `borrowed` behind the entry's own `autoload` declarations and the classes of
+/// the loaded extension set, `extensions`, declared ahead of it.
 ///
 /// Every other file's parse and `check_declarations` happen inside the walk,
 /// as each `require` target is discovered; only the entry point is this
@@ -2239,6 +2272,7 @@ fn resolve_entry(
     core: nvs_hir::CoreRoster<'_>,
     strict_docs: bool,
     borrowed: &[nvs_hir::autoload::Site],
+    extensions: &[nvs_hir::ExtensionClass],
 ) -> (
     Diagnostics,
     nvs_hir::Module,
@@ -2248,8 +2282,16 @@ fn resolve_entry(
     let mut diags = Diagnostics::new();
     let stmts = parse_file(map.file(id), &mut diags);
     check_declarations(&stmts, map.file(id), &mut diags);
-    let (module, loaded, autoload) =
-        nvs_hir::resolve_program_linted(id, stmts, map, core, &mut diags, strict_docs, borrowed);
+    let (module, loaded, autoload) = nvs_hir::resolve_program_linted(
+        id,
+        stmts,
+        map,
+        core,
+        &mut diags,
+        strict_docs,
+        borrowed,
+        extensions,
+    );
     (diags, module, loaded, autoload)
 }
 
@@ -2781,7 +2823,21 @@ fn run_run(
     arguments: Vec<String>,
     init: config::Init,
 ) -> ExitCode {
-    let checked = match front_end(path) {
+    // A bundled program's entry file is a synthetic path inside the payload
+    // (`rule:packaging/a-bundle-is-found-by-its-footer-before-argv-is-read`), and `trust::canonical` has no filesystem entry to
+    // examine for it. The executable itself is what an `[[app]]` block could
+    // legitimately key on, and it is also all § 1's single trust domain
+    // leaves to key on: the only principal here is whoever ran the binary.
+    let config_entry = if nvs_diagnostics::embedded::is_active() {
+        std::env::current_exe().unwrap_or_else(|_| path.to_path_buf())
+    } else {
+        path.to_path_buf()
+    };
+    let extensions = match config::extension_set(config, &config_entry) {
+        Ok(extensions) => extensions,
+        Err(code) => return code,
+    };
+    let checked = match front_end_extended(path, extensions) {
         Ok(checked) => checked,
         Err(code) => return code,
     };
@@ -2828,16 +2884,6 @@ fn run_run(
     // a refusal to start — `rule:config/later-wins-and-every-override-is-recorded`'s later-wins and § 6's boundary are only
     // worth anything if a tree that does not resolve stops the run.
     let mut config_sources = SourceMap::new();
-    // A bundled program's entry file is a synthetic path inside the payload
-    // (`rule:packaging/a-bundle-is-found-by-its-footer-before-argv-is-read`), and `trust::canonical` has no filesystem entry to
-    // examine for it. The executable itself is what an `[[app]]` block could
-    // legitimately key on, and it is also all § 1's single trust domain
-    // leaves to key on: the only principal here is whoever ran the binary.
-    let config_entry = if nvs_diagnostics::embedded::is_active() {
-        std::env::current_exe().unwrap_or_else(|_| path.to_path_buf())
-    } else {
-        path.to_path_buf()
-    };
     let snapshot = match config::boot_snapshot(config, &config_entry, &mut config_sources, init) {
         Ok(snapshot) => snapshot,
         Err(diagnostic) => {

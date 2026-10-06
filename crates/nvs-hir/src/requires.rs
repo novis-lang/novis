@@ -134,6 +134,7 @@ use crate::hierarchy::{CoreRoster, HierarchyResolver};
 use crate::members::MemberResolver;
 use crate::qname::QName;
 use crate::resolve::{Module, Resolver};
+use crate::symbol::ExtensionClass;
 
 /// One file pulled into the require graph, with the statements it parsed to.
 ///
@@ -211,7 +212,7 @@ pub fn resolve_program(
     core: CoreRoster<'_>,
     diags: &mut Diagnostics,
 ) -> (Module, Vec<Loaded>, AutoloadMap) {
-    walk(entry_id, entry_stmts, map, core, diags, false, &[])
+    walk(entry_id, entry_stmts, map, core, diags, false, &[], &[])
 }
 
 /// [`resolve_program`] with `rule:tooling/strict-docs`'s lint in front of it —
@@ -226,7 +227,16 @@ pub fn resolve_program(
 /// `borrowed` is what [`resolve_program_borrowing`] takes, and `nvs check`
 /// passes it when the file it checks is one a program autoloads or requires
 /// ([`crate::lenders`]). It is empty for a file a program starts from.
+///
+/// `extensions` is the configuration's loaded extension set, declared ahead of
+/// the entry the way [`crate::resolve_file_with_extensions`] declares it, so a
+/// reference to one of its classes resolves like a class a file declares
+/// (`rule:packaging/extension-calls-are-statically-typed`).
 #[must_use]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one parameter per question the walk's callers answer differently; a struct would be a second spelling of `walk`'s own list"
+)]
 pub fn resolve_program_linted(
     entry_id: SourceId,
     entry_stmts: Vec<Stmt>,
@@ -235,6 +245,7 @@ pub fn resolve_program_linted(
     diags: &mut Diagnostics,
     strict_docs: bool,
     borrowed: &[Site],
+    extensions: &[ExtensionClass],
 ) -> (Module, Vec<Loaded>, AutoloadMap) {
     walk(
         entry_id,
@@ -244,6 +255,7 @@ pub fn resolve_program_linted(
         diags,
         strict_docs,
         borrowed,
+        extensions,
     )
 }
 
@@ -268,10 +280,23 @@ pub fn resolve_program_borrowing(
     diags: &mut Diagnostics,
     borrowed: &[Site],
 ) -> (Module, Vec<Loaded>, AutoloadMap) {
-    walk(entry_id, entry_stmts, map, core, diags, false, borrowed)
+    walk(
+        entry_id,
+        entry_stmts,
+        map,
+        core,
+        diags,
+        false,
+        borrowed,
+        &[],
+    )
 }
 
 /// The walk behind every `resolve_program` entry point.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one parameter per question the entry points answer differently"
+)]
 fn walk(
     entry_id: SourceId,
     entry_stmts: Vec<Stmt>,
@@ -280,10 +305,15 @@ fn walk(
     diags: &mut Diagnostics,
     strict_docs: bool,
     borrowed: &[Site],
+    extensions: &[ExtensionClass],
 ) -> (Module, Vec<Loaded>, AutoloadMap) {
     let mut resolver = Resolver::new();
+    resolver.declare_extensions(extensions);
     let mut hierarchy = HierarchyResolver::new(core);
     let mut members = MemberResolver::with_core(core);
+    for class in extensions {
+        members.declare_extension(class);
+    }
     let mut aliases = AliasResolver::new();
 
     let mut loaded: Vec<Loaded> = Vec::new();

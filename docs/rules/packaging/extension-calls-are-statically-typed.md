@@ -20,5 +20,7 @@ unit's key and a changed set is an ordinary cache miss
 
 **Not on disk.** The checker layer is: `nvs_types::ext_lib` seeds a set's manifests into the
 signature table and `nvs_hir::resolve_file_with_extensions` declares their classes
-(`crates/nvs-types/tests/extensions.rs`). No compile entry hands it the configuration's set yet, and
-codegen emits no trampoline call.
+(`crates/nvs-types/tests/extensions.rs`). `nvs check` and `nvs run` read the configuration's set with
+`nvs_ext::load::read_manifests` and type a program against it
+(`tests/conformance/reject/an-extension-call-with-a-wrong-argument-type-does-not-compile.nvst`);
+`nvs serve`, `nvs test` and the language server do not yet, and codegen emits no trampoline call.

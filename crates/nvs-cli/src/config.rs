@@ -578,18 +578,29 @@ fn resolved_in(
 /// `Some(Capabilities::default())`.
 ///
 /// § 7's advisories are deliberately not printed here. They are an audit of the
-/// tree, which is `nvs config check`'s subject; this call's subject is the
-/// program, and the tree is only being asked one question.
+/// tree, which is `nvs check`'s subject; this call's subject is the
+/// program, and the tree is only being asked what it grants and loads.
+///
+/// The second half is the manifests of the tree's extension set
+/// ([`crate::extensions::manifests`]), which the program's extension calls are
+/// typed against.
 ///
 /// # Errors
 ///
-/// The exit code to return when the tree does not resolve. The diagnostic is
-/// rendered before it comes back, against the source map this call owns.
+/// The exit code to return when the tree does not resolve or an extension's
+/// manifest does not read. The diagnostic is rendered before it comes back,
+/// against the source map this call owns.
 pub(crate) fn grants(
     config: &[PathBuf],
     entry: &Path,
     init: Init,
-) -> Result<Option<nvs_config::tree::Capabilities>, ExitCode> {
+) -> Result<
+    (
+        Option<nvs_config::tree::Capabilities>,
+        Vec<nvs_ext::manifest::Manifest>,
+    ),
+    ExitCode,
+> {
     let mut sources = SourceMap::new();
     // Asked before the call below, because that call may create the very file this is asking
     // about. A working directory that cannot be read answers "no tree" here and is reported as the
@@ -598,16 +609,48 @@ pub(crate) fn grants(
         working_directory().map(|cwd| nvs_config::resolve::roots(config, &cwd, &LocalFiles)),
         Ok(nvs_config::Roots::Files(_))
     );
-    let snapshot = match boot_snapshot(config, entry, &mut sources, init) {
-        Ok(snapshot) => snapshot,
-        Err(diagnostic) => {
-            let mut diags = Diagnostics::new();
-            diags.report(diagnostic);
-            render_diagnostics(&mut diags, &sources);
-            return Err(ExitCode::FAILURE);
-        }
+    let refuse = |diagnostic: Diagnostic, sources: &SourceMap| {
+        let mut diags = Diagnostics::new();
+        diags.report(diagnostic);
+        render_diagnostics(&mut diags, sources);
+        ExitCode::FAILURE
     };
-    Ok(found_a_tree.then(|| snapshot.config.capabilities.clone().unwrap_or_default()))
+    let (snapshot, origins) = boot_origins(config, Some(entry), &mut sources, init)
+        .map_err(|diagnostic| refuse(diagnostic, &sources))?;
+    let manifests = crate::extensions::manifests(&snapshot.config, &origins, &sources)
+        .map_err(|diagnostic| refuse(diagnostic, &sources))?;
+    Ok((
+        found_a_tree.then(|| snapshot.config.capabilities.clone().unwrap_or_default()),
+        manifests,
+    ))
+}
+
+/// The manifests of the extension set the tree resolves to for `entry`, for a
+/// compile that asks the tree nothing else — `nvs run`'s, which reads the
+/// tree for itself once the program has compiled.
+///
+/// A tree that does not resolve is no set here, and the run's own read of the
+/// tree reports it.
+///
+/// # Errors
+///
+/// The exit code to return when an extension's manifest does not read. The
+/// diagnostic is rendered before it comes back.
+pub(crate) fn extension_set(
+    config: &[PathBuf],
+    entry: &Path,
+) -> Result<Vec<nvs_ext::manifest::Manifest>, ExitCode> {
+    let mut sources = SourceMap::new();
+    let Ok((snapshot, origins)) = boot_origins(config, Some(entry), &mut sources, Init::Never)
+    else {
+        return Ok(Vec::new());
+    };
+    crate::extensions::manifests(&snapshot.config, &origins, &sources).map_err(|diagnostic| {
+        let mut diags = Diagnostics::new();
+        diags.report(diagnostic);
+        render_diagnostics(&mut diags, &sources);
+        ExitCode::FAILURE
+    })
 }
 
 /// `nvs config check [<file>...]` — resolve the tree and report what it holds,

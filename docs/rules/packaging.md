@@ -1589,8 +1589,10 @@ unit's key and a changed set is an ordinary cache miss
 
 **Not on disk.** The checker layer is: `nvs_types::ext_lib` seeds a set's manifests into the
 signature table and `nvs_hir::resolve_file_with_extensions` declares their classes
-(`crates/nvs-types/tests/extensions.rs`). No compile entry hands it the configuration's set yet, and
-codegen emits no trampoline call.
+(`crates/nvs-types/tests/extensions.rs`). `nvs check` and `nvs run` read the configuration's set with
+`nvs_ext::load::read_manifests` and type a program against it
+(`tests/conformance/reject/an-extension-call-with-a-wrong-argument-type-does-not-compile.nvst`);
+`nvs serve`, `nvs test` and the language server do not yet, and codegen emits no trampoline call.
 
 <sub>See also [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-nvsx-is-one-file-carrying-its-manifest`](packaging.md#packaging-an-nvsx-is-one-file-carrying-its-manifest). Decided in [0003](../decisions/0003.md), [0011](../decisions/0011.md), [0078](../decisions/0078.md), [0246](../decisions/0246.md).</sub>
 

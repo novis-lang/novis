@@ -218,7 +218,8 @@ fn file_cache_false_stores_nothing() {
 /// `[[extension]]` array: each writes its own artifact, and a run under either
 /// one again writes nothing. A unit compiled under one set of extensions is
 /// never loaded under another (`rule:config/the-extension-set-is-in-every-unit-key`).
-/// `nvs run` does not load extensions, so the entry's file is never read.
+/// The entry is the conformance fixture `ledger`, under its real pin, because
+/// `nvs run` reads the manifest of every entry before it compiles.
 // covers: tools:cli/the-compile-cache
 #[test]
 fn a_unit_compiled_under_one_extension_set_is_never_reused_under_another() {
@@ -228,12 +229,16 @@ fn a_unit_compiled_under_one_extension_set_is_never_reused_under_another() {
     let opcache = format!("[opcache]\nfile_cache_dir = '{}'\n", cache.display());
     let plain = dir.join("plain.toml");
     std::fs::write(&plain, &opcache).expect("the configuration is written");
+    let fixtures = nvs_repo::path("tests/conformance/ext/fixtures");
+    std::fs::copy(fixtures.join("ledger.nvsx"), dir.join("shop.nvsx"))
+        .expect("the fixture is copied");
+    let pin = std::fs::read_to_string(fixtures.join("ledger.sha256")).expect("the fixture's pin");
     let shop = dir.join("shop.toml");
     std::fs::write(
         &shop,
         format!(
             "{opcache}\n[[extension]]\npath = 'shop.nvsx'\nsha256 = \"{}\"\n",
-            "5".repeat(64)
+            pin.trim()
         ),
     )
     .expect("the configuration is written");
