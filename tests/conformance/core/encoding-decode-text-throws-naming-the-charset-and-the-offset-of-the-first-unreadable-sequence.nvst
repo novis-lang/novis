@@ -1,0 +1,51 @@
+--TEST--
+Core\Encoding::decodeText throws on the first byte sequence the charset cannot read, and the message names the charset and the offset where that sequence starts
+--FILE--
+<?nvs
+final class Refusal {
+    // Checks that the message names the method, the charset and the offset.
+    public static function names(string $message, string $case, string $offset): string {
+        bool $ok = Core\Str::contains($message, "Core\\Encoding::decodeText()")
+            && Core\Str::contains($message, "Core\\Charset::" . $case)
+            && Core\Str::contains($message, "at offset " . $offset);
+        return $ok as string;
+    }
+}
+
+uint $refused = 0;
+
+// A stray `0xff` byte in UTF-8.
+try { Core\Encoding::decodeText(Core\Encoding::fromHex("61ff62"), Core\Charset::Utf8); }
+catch (Throwable $u) { $refused = $refused + 1; echo "utf8|", Refusal::names($u->message, "Utf8", "1"), "\n"; }
+
+// A byte above 127 in ASCII.
+try { Core\Encoding::decodeText(Core\Encoding::fromHex("6180"), Core\Charset::Ascii); }
+catch (Throwable $a) { $refused = $refused + 1; echo "ascii|", Refusal::names($a->message, "Ascii", "1"), "\n"; }
+
+// UTF-16 with an odd number of bytes. The offset is where the last byte starts.
+try { Core\Encoding::decodeText(Core\Encoding::fromHex("610063"), Core\Charset::Utf16Le); }
+catch (Throwable $odd) { $refused = $refused + 1; echo "utf16le-odd|", Refusal::names($odd->message, "Utf16Le", "2"), "\n"; }
+
+// A high surrogate with no low surrogate after it. The offset counts bytes.
+try { Core\Encoding::decodeText(Core\Encoding::fromHex("61003dd8"), Core\Charset::Utf16Le); }
+catch (Throwable $sur) { $refused = $refused + 1; echo "utf16le-surrogate|", Refusal::names($sur->message, "Utf16Le", "2"), "\n"; }
+
+// Shift_JIS that ends after the first byte of a two-byte character.
+try { Core\Encoding::decodeText(Core\Encoding::fromHex("82a082"), Core\Charset::ShiftJis); }
+catch (Throwable $jis) { $refused = $refused + 1; echo "shiftjis|", Refusal::names($jis->message, "ShiftJis", "2"), "\n"; }
+
+// All five calls above must throw.
+echo "refused=", $refused, "/5\n";
+
+// `isValidText` returns `false` and does not throw. `false` prints as an empty
+// string, `rule:types/conversion`.
+echo Core\Encoding::isValidText(Core\Encoding::fromHex("61ff62"), Core\Charset::Utf8) as string, "|",
+     Core\Encoding::isValidText(Core\Encoding::fromHex("616263"), Core\Charset::Utf8) as string, "\n";
+--EXPECT--
+utf8|1
+ascii|1
+utf16le-odd|1
+utf16le-surrogate|1
+shiftjis|1
+refused=5/5
+|1

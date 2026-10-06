@@ -1,0 +1,70 @@
+--TEST--
+Core\Json::decode throws on an integer above `int`'s maximum up to the `u64` maximum and on an exponent no `float` can hold, reads `-0` as a float, and Core\Json::encode keeps the point on a whole-valued float
+--FILE--
+<?nvs
+// Every row decodes a document and encodes the result again. A thrown error
+// prints `refused`.
+final class Show {
+    public static function round(string $doc): string {
+        try {
+            return Core\Json::encode(Core\Json::decode($doc));
+        } catch (Throwable $bad) {
+            return "refused";
+        }
+    }
+}
+
+// `int`'s maximum is read exactly. The next number up to the `u64` maximum
+// throws. A number above the `u64` maximum is read as a float.
+array<string> $band = [
+    "9223372036854775807",
+    "9223372036854775808",
+    "18446744073709551615",
+    "18446744073709551616",
+];
+foreach ($band as string $row) {
+    echo $row, " -> ", Show::round($row), "\n";
+}
+
+// `int`'s minimum is read exactly. One below it is read as a float.
+array<string> $negative = ["-9223372036854775808", "-9223372036854775809"];
+foreach ($negative as string $low) {
+    echo $low, " -> ", Show::round($low), "\n";
+}
+
+// `1e999` is too large for a `float`, so it throws. `1e308` fits.
+array<string> $infinite = ["1e999", "-1e999", "1e308"];
+foreach ($infinite as string $big) {
+    echo $big, " -> ", Show::round($big), "\n";
+}
+
+// `0` is an `int`. `-0` is a `float`.
+array<string> $zeros = ["0", "-0", "0.0", "-0.0"];
+foreach ($zeros as string $zero) {
+    echo $zero, " -> ", Show::round($zero), "\n";
+}
+
+// A float with a whole value is written with `.0`.
+array<string> $whole = ["1e2", "100.0", "1E+2", "0e0", "-2.5"];
+foreach ($whole as string $w) {
+    echo $w, " -> ", Show::round($w), "\n";
+}
+--EXPECT--
+9223372036854775807 -> 9223372036854775807
+9223372036854775808 -> refused
+18446744073709551615 -> refused
+18446744073709551616 -> 1.8446744073709552e+19
+-9223372036854775808 -> -9223372036854775808
+-9223372036854775809 -> -9.223372036854776e+18
+1e999 -> refused
+-1e999 -> refused
+1e308 -> 1e+308
+0 -> 0
+-0 -> -0.0
+0.0 -> 0.0
+-0.0 -> -0.0
+1e2 -> 100.0
+100.0 -> 100.0
+1E+2 -> 100.0
+0e0 -> 0.0
+-2.5 -> -2.5

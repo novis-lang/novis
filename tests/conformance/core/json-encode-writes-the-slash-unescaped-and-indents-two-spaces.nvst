@@ -1,0 +1,48 @@
+--TEST--
+Core\Json::encode writes `/` without an escape, `</` included, and `{pretty: true}` indents by two spaces at every depth, writes an empty array on one line and leaves a scalar unchanged
+--FILE--
+<?nvs
+// `/` is written as it is, in a value and in a key. HTML escaping is done when
+// the document is written into HTML, `rule:security/launderers-are-sink-named`.
+echo Core\Json::encode("https://example.com/a?b=c"), "\n";
+echo Core\Json::encode("</script>"), "\n";
+echo Core\Json::encode(["a/b" => "c/d"]), "\n";
+
+// The backslash is escaped. The slash after it is not.
+echo Core\Json::encode("a\\/b"), "\n";
+
+// Two spaces per level, for objects and lists.
+echo Core\Json::encode(["a" => 1, "b" => [1, 2]], {pretty: true}), "\n";
+echo Core\Json::encode([["x" => [true]]], {pretty: true}), "\n";
+
+// An empty array is written on one line.
+array<int> $empty = [];
+echo Core\Json::encode($empty, {pretty: true}), "\n";
+echo Core\Json::encode(["none" => $empty], {pretty: true}), "\n";
+
+// `pretty` does not change a scalar.
+echo Core\Json::encode(42, {pretty: true}), "\n";
+--EXPECT--
+"https://example.com/a?b=c"
+"</script>"
+{"a/b":"c/d"}
+"a\\/b"
+{
+  "a": 1,
+  "b": [
+    1,
+    2
+  ]
+}
+[
+  {
+    "x": [
+      true
+    ]
+  }
+]
+[]
+{
+  "none": []
+}
+42

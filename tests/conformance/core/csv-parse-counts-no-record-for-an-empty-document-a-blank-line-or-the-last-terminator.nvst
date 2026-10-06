@@ -1,0 +1,45 @@
+--TEST--
+Core\Csv::parse returns the records a document has: none for an empty document or a blank line, none added by a final line break, and one for a line with only empty fields
+--FILE--
+<?nvs
+final class Show {
+    public static function of(array<array<string>> $rows): string {
+        var $out = "";
+        foreach ($rows as array<string> $row) {
+            $out = $out . "(";
+            foreach ($row as string $field) {
+                $out = $out . "[" . $field . "]";
+            }
+            $out = $out . ")";
+        }
+        return Core\Arr::count($rows) . $out;
+    }
+}
+
+// An empty document has no records.
+echo Show::of(Core\Csv::parse("")), "\n";
+
+// A blank line is not a record, and neither are several.
+echo Show::of(Core\Csv::parse("\n")), "\n";
+echo Show::of(Core\Csv::parse("\r\n\r\n")), "\n";
+
+// A line break after the last record does not add a record. `\n` and `\r\n`
+// give the same result, and so does no line break.
+echo Show::of(Core\Csv::parse("a,b\n")), "\n";
+echo Show::of(Core\Csv::parse("a,b")), "\n";
+echo Show::of(Core\Csv::parse("a,b\r\n")), "\n";
+
+// Two records with a blank line between them.
+echo Show::of(Core\Csv::parse("a,b\n\nc,d\n")), "\n";
+
+// A line with only a comma is a record with two empty fields.
+echo Show::of(Core\Csv::parse(",\n")), "\n";
+--EXPECT--
+0
+0
+0
+1([a][b])
+1([a][b])
+1([a][b])
+2([a][b])([c][d])
+1([][])
