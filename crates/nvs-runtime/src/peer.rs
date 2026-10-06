@@ -34,7 +34,7 @@
 //!
 //! # Decision: the queue is bounded, and the overflow closes the subscriber
 //!
-//! `rule:core-classes/topic`'s priority-1 rule: each subscriber's queue is capped, the
+//! `rule:core-classes/topic`'s isolation rule: each subscriber's queue is capped, the
 //! publisher is never blocked, and an overflow closes *that* subscriber. An
 //! [`Inbox`] therefore holds [`INBOX_CAP`] deliveries and refuses the next one,
 //! and the refusal is **sticky** — [`Inbox::overflowed`] stays true once it has

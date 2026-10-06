@@ -86,8 +86,8 @@
 //!   stringify unvalidated octets, [`value_identical`] would make a digest
 //!   equal to the text that spells it although `rule:expressions/equality-semantics` makes the two
 //!   types disjoint, and `Core\Json::encode` could not tell a payload it must
-//!   refuse from one it may emit. Priority 2 over priority 5, per
-//!   [AGENTS.md](/AGENTS.md)'s ordering.
+//!   refuse from one it may emit. Each of those breaks a rule that states what
+//!   a program does, and a tag byte saved does not pay for that.
 //!
 //! **What it spends is nothing per value** — no wider `Value`, no extra
 //! allocation, no second release path ([`release`] keeps one arm for the pair,
@@ -173,9 +173,8 @@
 //!   `rule:programs/memory-priority`'s *say what
 //!   you spend*: at most **~2 MB per thread** that has touched every size
 //!   class — 16 classes of 16 bytes up to 256, 512 blocks each — held until
-//!   the process exits and never returned to the platform. That is a
-//!   priority 5 cost bought with a priority 3 gain the userland suite
-//!   measures, and it is **O(threads), never O(requests served)**: the cache
+//!   the process exits and never returned to the platform. That is memory
+//!   footprint spent on a latency gain the userland suite measures, and it is **O(threads), never O(requests served)**: the cache
 //!   is not per request, does not grow with traffic, and holds no
 //!   request-owned bytes. A debug build is left on the platform heap so
 //!   valgrind still sees every free, and the `sanitizer` feature extends that

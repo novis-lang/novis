@@ -90,7 +90,7 @@
 //!
 //! Up to `idle` connections per key per core — a socket, a TLS session and a
 //! statement cache each — held open between the requests that use them. That is
-//! the footprint § 13 spends to buy priority 3, and it is O(cores × keys)
+//! the footprint § 13 spends to buy latency, and it is O(cores × keys)
 //! rather than O(requests served): a release past `idle` closes the connection
 //! instead of queueing it, so nothing accumulates with traffic.
 //!

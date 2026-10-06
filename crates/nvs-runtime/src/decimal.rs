@@ -570,8 +570,8 @@ impl Decimal {
     ///
     /// Deliberately **not** [`Self::checked_div`] followed by a second
     /// rounding: rounding twice is how a quotient one digit past the target
-    /// carries a tie that was never there, and priority 2 does not pay for
-    /// that. `None` for a zero divisor, or where the quotient does not fit at
+    /// carries a tie that was never there, and the result is then wrong in its
+    /// last digit. `None` for a zero divisor, or where the quotient does not fit at
     /// that scale — which a wide enough `scale` always eventually forces.
     #[must_use]
     pub fn checked_div_at_scale(self, other: Self, scale: u8) -> Option<(Self, Discard)> {

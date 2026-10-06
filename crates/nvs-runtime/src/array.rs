@@ -15,8 +15,9 @@
 //! hand-rolled open-addressed table over a flexible-array-member allocation.
 //! An entry lookup already costs a hash and a probe, so the call is not on the
 //! margin the way an object field load is; buying the whole table's
-//! memory-safety for it is [AGENTS.md](/AGENTS.md)'s priority 1 and 4
-//! bought with a few instructions of priority 3, which the ordering permits.
+//! memory-safety for it spends a few instructions of latency on security, and
+//! on a simpler module besides, which [AGENTS.md](/AGENTS.md)'s ordering
+//! permits.
 //! The cost, stated as AGENTS.md requires: **three allocations per array**
 //! (the header, the entry vector, the index map) rather than one, and one call
 //! per element access. A list-shaped array pays two of the three — see the
@@ -29,7 +30,7 @@
 //! hashtable produced a real remote-DoS CVE that way, and a fast non-keyed
 //! hasher (`FxHash`, the one `nvs-codegen` uses for its compiler-internal
 //! tables) is trivially floodable. So this map keeps std's per-process-seeded
-//! SipHash: priority 1 over priority 3, the one direction the ordering allows.
+//! SipHash: security over latency, the one direction the ordering allows.
 //! It also means this module adds no dependency at all.
 //!
 //! # Decision: a list-shaped array is packed, and hashes nothing

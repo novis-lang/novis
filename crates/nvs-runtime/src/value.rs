@@ -4,10 +4,10 @@
 //! this module is its implementation. Two things about it are load-bearing and
 //! easy to mistake for accidents:
 //!
-//! * **It is not NaN-boxed.** PHP semantics need the full `i64` range, which
-//!   does not fit alongside a tag in 64 bits. Sixteen bytes instead of eight
-//!   is memory spent to buy correct semantics — priority 5 spent on priority 2
-//!   in [AGENTS.md](/AGENTS.md)'s ordering, not an oversight.
+//! * **It is not NaN-boxed.** An `int` is the full `i64` range, which does not
+//!   fit alongside a tag in 64 bits. Sixteen bytes instead of eight is memory
+//!   footprint spent so that `int` is what `rule:types/arithmetic` says it is,
+//!   not an oversight.
 //! * **`uint` is a tag, not a wider slot.** `rule:types/arithmetic`'s separate unsigned type therefore costs nothing here.
 //!
 //! # Where a `Value` actually appears

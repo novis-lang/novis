@@ -53,8 +53,8 @@
 //! `-p nvs-cli` in debug, and the playbook's "exit 127 is a double release"
 //! signal is the same instrument. A leak is unaffected either way (a value
 //! that is never released never enters the cache, so it is still *definitely
-//! lost*), but a use-after-free inside a recycled block is not, and priority 1
-//! outranks priority 3. The gain above is a release-build effect, the guard
+//! lost*), but a use-after-free inside a recycled block is not, and security
+//! outranks latency. The gain above is a release-build effect, the guard
 //! that holds it (`benches/abi-probe/tests/perf_guards.rs`) is a
 //! release-only test, and the `Pooled` type itself always pools, so this
 //! module's own tests exercise the free list in either profile. A `cfg(test)`

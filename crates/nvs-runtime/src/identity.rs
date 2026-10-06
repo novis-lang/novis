@@ -79,7 +79,7 @@
 //!
 //! The array walk uses an explicit worklist rather than recursion, so nesting
 //! depth costs heap rather than stack — an adversarially deep literal is a
-//! slow comparison, never a stack overflow (AGENTS.md's priority 1). It
+//! slow comparison, never a stack overflow, which would be a security hole. It
 //! cannot loop: an array is a copy-on-write *value*, so storing one into
 //! itself separates the copy first and no array ever reaches itself, and an
 //! object — the one shape that can form a cycle (crate docs, known gap 7) —

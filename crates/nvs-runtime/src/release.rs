@@ -7,9 +7,8 @@
 //! to whatever depth the program built. Doing that recursively would make the
 //! depth of a user's data structure — a linked list, a parse tree, `$a = [$a]`
 //! in a loop — decide whether the process survives freeing it, and a stack
-//! overflow aborts the process rather than failing one request. That is
-//! [AGENTS.md](/AGENTS.md)'s priority 1, so the worklist's allocation
-//! is not optional.
+//! overflow aborts the process rather than failing one request. That is a
+//! security failure, so the worklist's allocation is not optional.
 //!
 //! Giving each kind its own worklist would not do: a chain that alternates
 //! object, array, object, array is exactly the shape that would then recurse

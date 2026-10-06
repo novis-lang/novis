@@ -20,8 +20,8 @@
 //!
 //! One allocation, not two. A `Box<StrData>` holding a `Box<[u8]>` would be
 //! simpler to write, but it costs a second allocation and a second cache miss
-//! on every string produced, which is a latency question (priority 3 in
-//! [AGENTS.md](/AGENTS.md)) rather than a footprint one. Codegen will
+//! on every string produced, which is a latency question rather than a
+//! footprint one ([AGENTS.md](/AGENTS.md)). Codegen will
 //! eventually inline the refcount increment/decrement using
 //! [`REFCOUNT_OFFSET`]/[`LEN_OFFSET`]/[`CAP_OFFSET`]/[`PAYLOAD_OFFSET`] rather
 //! than calling [`nvs_str_retain`]/[`nvs_str_release`]; those constants exist
@@ -42,8 +42,8 @@
 //! and copy the whole accumulation into it, at a cost growing super-linearly
 //! with the number of appends. A string that is appended to holds up
 //! to **twice its payload**, which is [`grown_capacity`]'s doubling; a string
-//! that is never appended to holds exactly its payload. That is priority 5
-//! spent on priority 3, which is the direction [AGENTS.md](/AGENTS.md)
+//! that is never appended to holds exactly its payload. That is memory
+//! footprint spent on latency, which is the direction [AGENTS.md](/AGENTS.md)
 //! asks for, and it is the whole of what this word spends.
 //!
 //! # The cached grapheme count, and what it spends
@@ -58,8 +58,8 @@
 //! request builds are never asked their length at all, and scanning each one
 //! eagerly would be paying the cost this word exists to remove.
 //!
-//! What it costs is **8 more bytes per string allocation** — priority 5 spent
-//! on priority 3, the direction [AGENTS.md](/AGENTS.md) asks for.
+//! What it costs is **8 more bytes per string allocation** — memory footprint
+//! spent on latency, the direction [AGENTS.md](/AGENTS.md) asks for.
 //!
 //! A concatenation does **not** sum the two counts: a cluster can span the
 //! join — a base letter in one buffer and a combining mark in the next — so

@@ -30,8 +30,8 @@
 //! therefore costs 16 bytes rather than 8, and writing one stores a tag byte
 //! nothing reads back.
 //!
-//! That is [AGENTS.md](/AGENTS.md)'s priority 5 spent on its priorities
-//! 2 and 4, which is the direction the ordering permits:
+//! That is memory footprint spent on simplicity and on the behaviour the rules
+//! state, which is the direction [AGENTS.md](/AGENTS.md)'s ordering permits:
 //!
 //! * **Releasing an object needs no per-field type table.** The sweep in
 //!   [`release_graph`] branches on each slot's own tag. With unboxed slots it
@@ -117,8 +117,8 @@
 //! [`release_graph`] drives an explicit worklist. A recursive release would
 //! make the depth of a user's data structure — a linked list, a parse tree —
 //! decide whether the process survives freeing it, and a stack overflow aborts
-//! the process rather than failing one request. That is priority 1, so the
-//! worklist's allocation is not optional.
+//! the process rather than failing one request. That is a security failure, so
+//! the worklist's allocation is not optional.
 //!
 //! # Decision: a null payload *is* `null`
 //!
@@ -165,8 +165,8 @@
 //!   by one instruction.
 //! * A tag closes the failure that matters most: representation confusion,
 //!   where a slot's payload is loaded as the wrong machine type. That is a
-//!   priority 1 and 2 question ([AGENTS.md](/AGENTS.md)); what is left
-//!   below is a priority 2 one with no memory-safety edge to it.
+//!   security question as well as a wrong result; what is left below is a
+//!   wrong result with no memory-safety edge to it.
 //!
 //! **What a tag therefore does not catch**, and these are known gaps rather
 //! than decisions:
@@ -225,8 +225,8 @@
 //! [`relink_to_current`] is called from inside that one implementation and from
 //! no call site, because then there is no call site to get it wrong. An object
 //! left on the source list is one the source's teardown sweep may take apart
-//! while the destination still holds it, which is a use-after-free at
-//! [AGENTS.md](/AGENTS.md)'s priority 1. The destination is the context
+//! while the destination still holds it, which is a use-after-free and a
+//! security hole. The destination is the context
 //! *running* at the crossing, which is the receiving one on the way out of an
 //! isolate — `nvs_host`'s `finish` copies on the child's stack while the parent
 //! is current. On the way **in** there is no destination context yet, so an
@@ -593,7 +593,7 @@ pub struct ClassDesc {
     /// A cached copy of one [`Self::method`] row rather than a second lookup,
     /// because its reader is [`dismantle`]: every dying object would otherwise
     /// pay a binary search over its whole method table to learn that it is not
-    /// a generator, which is AGENTS.md's priority 3 spent on a question
+    /// a generator, which is latency spent on a question
     /// answered once per class at [`ClassTable::set_methods`] time. **Cost:**
     /// one pointer per class, once per process, not per instance.
     unwind: *const u8,
@@ -2973,8 +2973,7 @@ pub(crate) fn collect(list: &LiveList) -> usize {
 /// `call` answers one to its Rust caller, and a `Core` member that builds an
 /// instance answers one to the helper that asked for it. Neither has released
 /// it by the time the context goes down. Freeing those would be a
-/// use-after-free at [AGENTS.md](/AGENTS.md)'s priority 1, which is
-/// never traded, so the sweep frees only what it can *show* is unreachable and
+/// use-after-free, and security is never traded, so the sweep frees only what it can *show* is unreachable and
 /// leaves anything it cannot.
 ///
 /// # The five walks

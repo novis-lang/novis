@@ -106,7 +106,7 @@ pub enum ArgConv {
     /// Arming one earlier is the smaller half of the reason. The larger half is
     /// that an implementor's `parse` would then be application-authored code
     /// over the request path running before anything rate-limits it — the
-    /// priority-1 objection `rule:routing/a-capture-narrows-to-a-closed-set`
+    /// security objection `rule:routing/a-capture-narrows-to-a-closed-set`
     /// already makes to a regex constraint, and a `parse` body is strictly more
     /// than a regex. So the router narrows on the conversions it reads natively
     /// and a route capture converts at its binding site, where a segment the

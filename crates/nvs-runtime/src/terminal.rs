@@ -453,7 +453,7 @@ pub enum Echo {
 /// A prompt's answer is a person's, so this is three orders of magnitude past
 /// any real one; it exists because the alternative is an unbounded allocation
 /// driven by whatever is on the other end of a terminal that may not be a
-/// person at all (`AGENTS.md`'s priority 5, and the cap that makes the
+/// person at all (`rule:programs/memory-priority`, and the cap that makes the
 /// footprint attributable).
 const MAX_ANSWER: usize = 4096;
 

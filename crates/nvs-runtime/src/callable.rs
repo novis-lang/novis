@@ -304,8 +304,8 @@ pub unsafe extern "C" fn nvs_call_callable(
 /// the callable's recorded parameter tags, because `nvs_types` compared them
 /// against the *declared* ones where the call was written and `nvs-ir` inserted
 /// the conversion [`check_param_tags`] would have performed. That is what the
-/// signature is for — the check is a `rule:programs/memory-priority` priority 1
-/// guard, and a proven site discharges it at compile time rather than per
+/// signature is for — the check is a security guard under
+/// `rule:programs/memory-priority`, and a proven site discharges it at compile time rather than per
 /// argument, per call.
 ///
 /// The arity trim, the retains, the borrowed arguments and the error edge are
@@ -761,7 +761,7 @@ pub fn callable_param_names(callable: Value) -> Result<Option<Vec<String>>, Faul
 /// decision, and [`crate::dispatch::call_erased_method`] is the other caller.
 ///
 /// One shift, one mask and one byte comparison per argument, on the callback
-/// path — priority 3 spent on priority 1, which is the direction AGENTS.md's
+/// path — latency spent on security, which is the direction AGENTS.md's
 /// ordering names, and the only design available while `callable` stays
 /// unparameterized.
 ///

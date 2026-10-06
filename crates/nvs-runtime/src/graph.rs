@@ -67,7 +67,7 @@
 //! One [`HashMap`] entry per distinct object reached, for the length of one
 //! copy, plus one recursion frame per level of nesting. Both are O(the graph
 //! being copied) and are released when it ends, so nothing here grows with
-//! requests served ([AGENTS.md](/AGENTS.md)'s priority 5).
+//! requests served (`rule:programs/memory-priority`).
 //!
 //! A decoded `Core` instance is a `mixed` a program gets back by naming its
 //! class. The value is rebuilt under its own descriptor — a `Core\Time\Date`

@@ -50,8 +50,8 @@ pub(crate) fn current_live_list() -> *const crate::object::LiveList {
 /// `nvs_object_release` whose `extern "C"` signature is one pointer wide:
 /// threading a context through every release primitive would put a parameter
 /// on the hot path of every decrement in the language to serve the one release
-/// in ten thousand that frees a suspended generator, which AGENTS.md's
-/// priority 3 rules out.
+/// in ten thousand that frees a suspended generator, which would spend latency
+/// on every program for a rare case.
 ///
 /// **A release performs no other context access**, which is what makes this
 /// sound: the `&mut Ctx` frames above a release are dormant for the length of

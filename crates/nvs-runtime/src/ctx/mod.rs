@@ -139,17 +139,17 @@
 //! **What it spends:** 16 bytes per *accessed* static property per in-flight
 //! request, plus whatever a `string` or array initializer allocates — one
 //! [`crate::NvsStr`] per request per string-valued static. O(in-flight
-//! requests), never O(requests served), which is what `AGENTS.md`'s
-//! priority-5 rule asks of any per-request allocation.
+//! requests), never O(requests served), which is what
+//! `rule:programs/memory-priority` asks of any per-request allocation.
 //!
 //! # Output
 //!
 //! `Ctx` owns where `echo` writes, rather than the runtime writing to the
 //! process's stdout directly. Two reasons, in `AGENTS.md`'s priority order:
 //! under `nvs serve` a request's output is its HTTP response body, not a
-//! process-wide stream (priority 1, request isolation); and a test can assert
-//! on [`OutputSink::Buffer`] without capturing the process's real stdout
-//! (priority 4).
+//! process-wide stream (request isolation); and a test can assert on
+//! [`OutputSink::Buffer`] without capturing the process's real stdout
+//! (simplicity).
 
 use std::borrow::Cow;
 use std::io::{self, Write};
@@ -1105,7 +1105,7 @@ pub struct Ctx {
     /// three words in the [`Ctx`] and no allocation — then one buffer per
     /// nesting level, holding what that level has captured, charged to the
     /// request and freed when the level ends. The cost on the `echo` path is
-    /// one predictable not-taken branch, which is the priority-3 price of not
+    /// one predictable not-taken branch, which is the latency price of not
     /// giving [`OutputSink`] another variant that every other writer would
     /// have to match on.
     captures: Vec<Vec<u8>>,
