@@ -110,7 +110,7 @@ fn refused(files: &[(&str, &str)]) -> (Diagnostic, String, usize) {
 }
 
 #[test]
-fn a_complete_entry_resolves_with_its_ceiling() {
+fn an_extension_entry_with_a_path_a_pin_and_a_memory_ceiling_resolves() {
     let tree = resolved(&[(
         "nvs.toml",
         &format!("[[extension]]\npath = \"geo.nvsx\"\nsha256 = \"{PIN}\"\nmemory = \"64M\"\n"),
@@ -136,40 +136,46 @@ fn a_pin_is_64_hexadecimal_digits_in_either_case() {
     assert!(!is_pin(&format!("sha256:{}", &PIN[7..])), "a prefix");
 }
 
-/// The three refusals, each counted at its own line: the header for a missing key, and the
-/// `sha256` line for a pin of the wrong shape.
+/// The refusal `text` resolves to is `E0651`, says `said`, and points at `line` of `nvs.toml`.
+fn assert_refused_at(text: &str, line: usize, said: &str) {
+    let (err, file, at) = refused(&[("nvs.toml", text)]);
+    assert_eq!(err.code, Some(code::E_BAD_EXTENSION_ENTRY), "{text}");
+    assert!(
+        err.message.contains(said),
+        "{text}\n-- said: {}",
+        err.message
+    );
+    assert_eq!((file.as_str(), at), ("nvs.toml", line), "{text}");
+}
+
+/// A missing key is counted at the entry's header, here below another block.
 // covers: directive:extension
 #[test]
-fn an_incomplete_entry_is_refused_at_its_line() {
-    let cases = [
-        (
-            "[[extension]]\nsha256 = \"PIN\"\n".to_string(),
-            1,
-            "has no `path`",
-        ),
-        (
-            "[limits]\nmemory = \"128M\"\n\n[[extension]]\npath = \"geo.nvsx\"\n".to_string(),
-            4,
-            "`geo.nvsx` has no `sha256`",
-        ),
-        (
-            "[[extension]]\npath = \"geo.nvsx\"\n# the pin\nsha256 = \"abc\"\n".to_string(),
-            4,
-            "it has 3 characters",
-        ),
-    ];
+fn an_extension_entry_without_a_pin_is_refused_naming_its_file_and_line() {
+    assert_refused_at(
+        "[limits]\nmemory = \"128M\"\n\n[[extension]]\npath = \"geo.nvsx\"\n",
+        4,
+        "`geo.nvsx` has no `sha256`",
+    );
+}
 
-    for (text, line, said) in cases {
-        let text = text.replace("PIN", PIN);
-        let (err, file, at) = refused(&[("nvs.toml", &text)]);
-        assert_eq!(err.code, Some(code::E_BAD_EXTENSION_ENTRY), "{text}");
-        assert!(
-            err.message.contains(said),
-            "{text}\n-- said: {}",
-            err.message
-        );
-        assert_eq!((file.as_str(), at), ("nvs.toml", line), "{text}");
-    }
+#[test]
+fn an_extension_entry_without_a_path_is_refused_naming_its_file_and_line() {
+    assert_refused_at(
+        &format!("[[extension]]\nsha256 = \"{PIN}\"\n"),
+        1,
+        "has no `path`",
+    );
+}
+
+/// A pin of the wrong shape is counted at its own `sha256` line, not the header.
+#[test]
+fn an_extension_pin_that_is_not_64_hex_digits_is_refused_naming_its_file_and_line() {
+    assert_refused_at(
+        "[[extension]]\npath = \"geo.nvsx\"\n# the pin\nsha256 = \"abc\"\n",
+        4,
+        "it has 3 characters",
+    );
 }
 
 /// The second entry of an included file is the merged array's third, and the refusal names the
