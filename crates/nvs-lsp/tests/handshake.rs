@@ -28,7 +28,7 @@ use lsp_types::{
     ClientCapabilities, GeneralClientCapabilities, InitializeParams, InitializeResult,
     PositionEncodingKind, WorkspaceFolder,
 };
-use nvs_lsp::{CheckScope, Client, PhpNames, Settings};
+use nvs_lsp::{CheckScope, Client, Settings};
 
 /// Run one full `initialize`/`initialized`/`shutdown`/`exit` exchange against a
 /// server in this process, and hand back what it declared.
@@ -307,21 +307,12 @@ fn every_setting_is_read_off_initialization_options() {
     let settings = Settings::from_initialize(&configured(serde_json::json!({
         "check": { "scope": "workspace" },
         "codeLens": { "enable": false },
-        "completion": { "phpNames": "resolved" },
     })));
 
     assert_eq!(settings.scope, CheckScope::Workspace);
     assert!(
         !settings.code_lens,
         "`nvs.codeLens.enable` was turned off and the server did not notice"
-    );
-    assert_eq!(settings.php_names, PhpNames::Resolved);
-    assert_eq!(
-        Settings::from_initialize(&configured(serde_json::json!({
-            "completion": { "phpNames": "off" },
-        })))
-        .php_names,
-        PhpNames::Off
     );
 }
 
@@ -367,11 +358,6 @@ fn a_client_that_configured_nothing_gets_the_roster_defaults() {
         Settings::default().code_lens,
         "a lens is offered unless it was turned off"
     );
-    assert_eq!(
-        Settings::default().php_names,
-        PhpNames::All,
-        "every PHP built-in is a candidate until a developer says otherwise"
-    );
     assert_eq!(Settings::default().root, None);
 
     assert_eq!(
@@ -391,7 +377,6 @@ fn a_value_neither_setting_can_hold_leaves_it_at_its_default() {
     let nonsense = Settings::from_initialize(&configured(serde_json::json!({
         "check": { "scope": "everything" },
         "codeLens": { "enable": "yes" },
-        "completion": { "phpNames": "some" },
     })));
 
     assert_eq!(nonsense, Settings::default());

@@ -1344,7 +1344,6 @@ pub(crate) fn items_of_case(
         &index,
         &CompletionFiles::default(),
         offset,
-        settings.php_names,
         settings.client,
         PositionEncoding::Utf8,
     )
@@ -1447,7 +1446,6 @@ fn completion(
             index,
             completion_files,
             offset,
-            settings.php_names,
             settings.client,
             encoding,
         ),

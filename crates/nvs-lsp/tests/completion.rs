@@ -35,10 +35,8 @@ use lsp_types::PositionEncodingKind;
 use nvs_diagnostics::PositionEncoding;
 use nvs_lsp::completion_files::CompletionFiles;
 use nvs_lsp::{
-    Analysed, CheckScope, Client, Documents, PhpNames, Response, SymbolIndex, analyse, completion,
-    uri_of,
+    Analysed, CheckScope, Client, Documents, Response, SymbolIndex, analyse, completion, uri_of,
 };
-use nvs_stdlib::{php_names, registry};
 
 /// The class every document below resolves its receiver to.
 const CLASS: &str =
@@ -108,7 +106,6 @@ fn rendered_with(
         &index,
         files,
         at,
-        PhpNames::All,
         Client::default(),
         PositionEncoding::Utf8,
     ))
@@ -280,187 +277,6 @@ fn a_bare_name_offers_the_imports_in_force_and_the_declarations_in_the_index() {
             row.trim_end()
         );
     }
-}
-
-/// A document whose last line is `written`, at a statement position with a
-/// local already declared above it.
-fn writing(written: &str) -> String {
-    format!("<?nvs\nvar $total = 1;\n{written}")
-}
-
-/// What is offered at the end of `source`, as the items themselves.
-///
-/// The rendering is not the question here: what a PHP-name item may put in a
-/// buffer is `insert_text`, and `nvs_lsp::render` freezes a label, a kind and a
-/// detail — three fields a client shows and none it types.
-fn ending_items(source: &str, php: PhpNames) -> Vec<lsp_types::CompletionItem> {
-    let (documents, analysis) = analysed(source);
-    let index = SymbolIndex::build(&documents, CheckScope::Open, None);
-    let at = u32::try_from(source.len()).expect("a test document is short");
-    completion::at(
-        &analysis,
-        &index,
-        &CompletionFiles::default(),
-        at,
-        php,
-        Client::default(),
-        PositionEncoding::Utf8,
-    )
-}
-
-/// The prefix every PHP-name case below writes, chosen because the inventory
-/// lists a run of names under it whose migration rows are not all one shape.
-const HALF_WRITTEN: &str = "str";
-
-/// A half-written name reaches the PHP inventory, and two characters do not.
-///
-/// The candidate list is `nvs_stdlib::php_names`'s and not a copy: what is
-/// asserted is that every name the table answers for the written prefix is
-/// offered, which is
-/// `rule:php-migration/every-php-builtin-is-a-completion-candidate`'s claim that
-/// the inventory is complete from the first day whatever the migration table's
-/// coverage. The second half is the bound the module's own
-/// `PHP_PREFIX` states: a name is a candidate always and is *offered* once enough of it is
-/// written, so a two-character cursor still gets the program's own words and
-/// none of PHP's.
-#[test]
-fn a_half_written_name_reaches_the_php_inventory_and_a_shorter_one_does_not() {
-    let source = writing(HALF_WRITTEN);
-    let labels: Vec<String> = ending_items(&source, PhpNames::All)
-        .into_iter()
-        .map(|item| item.label)
-        .collect();
-    let candidates = php_names::starting_with(HALF_WRITTEN);
-    assert!(
-        !candidates.is_empty(),
-        "the oracle inventory lists no name under `{HALF_WRITTEN}`"
-    );
-    for candidate in candidates {
-        assert!(
-            labels.iter().any(|label| label == candidate.php),
-            "`{}` is a candidate under `{HALF_WRITTEN}` and was not offered",
-            candidate.php
-        );
-    }
-
-    let shorter = &HALF_WRITTEN[..2];
-    let early: Vec<String> = ending_items(&writing(shorter), PhpNames::All)
-        .into_iter()
-        .map(|item| item.label)
-        .collect();
-    for candidate in php_names::starting_with(shorter) {
-        assert!(
-            !early.iter().any(|label| label == candidate.php),
-            "`{}` is offered where only `{shorter}` has been written",
-            candidate.php
-        );
-    }
-}
-
-/// Nothing a PHP-name item types is a name the registry does not hold, and the
-/// three shapes that insert nothing leave the buffer as it was.
-///
-/// `rule:php-migration/an-item-inserts-only-a-registered-member` is the whole
-/// of this: an editor that inserts a call which then fails to resolve is worse
-/// than one that offers nothing, so the only text these items carry is a
-/// `Core` member `nvs_stdlib::registry` actually holds — the same table the
-/// checker resolves a call against. The other three shapes carry the characters
-/// the developer already typed, which is how "inserts nothing" is asserted
-/// against a client that replaces the word being completed with whatever it is
-/// given.
-#[test]
-fn a_php_item_inserts_only_a_member_the_registry_holds() {
-    let source = writing(HALF_WRITTEN);
-    let offered = ending_items(&source, PhpNames::All);
-    let mut seen = 0;
-    for candidate in php_names::starting_with(HALF_WRITTEN) {
-        let inserted: Vec<String> = offered
-            .iter()
-            .filter(|item| item.label == candidate.php)
-            .map(|item| {
-                item.insert_text.clone().unwrap_or_else(|| {
-                    panic!("`{}` says nothing about what it types", candidate.php)
-                })
-            })
-            .collect();
-        let owed: Vec<String> = candidate
-            .items()
-            .iter()
-            .map(|shape| shape.insertion().unwrap_or_else(|| HALF_WRITTEN.to_owned()))
-            .collect();
-        assert_eq!(
-            inserted, owed,
-            "`{}` is offered items that type something its row does not",
-            candidate.php
-        );
-        seen += inserted.len();
-        for text in inserted.iter().filter(|text| *text != HALF_WRITTEN) {
-            let (class, member) = text
-                .rsplit_once("::")
-                .unwrap_or_else(|| panic!("`{text}` is not a `Core` member spelling"));
-            let core = registry::class(class)
-                .unwrap_or_else(|| panic!("`{text}` names a class the registry does not hold"));
-            assert!(
-                core.members().any(|row| row.name == member) || core.constant(member).is_some(),
-                "`{text}` names a member the registry does not hold"
-            );
-        }
-    }
-    assert!(seen > 0, "no PHP name was offered under `{HALF_WRITTEN}`");
-}
-
-/// `nvs.completion.phpNames` selects among the four item shapes and touches
-/// nothing else a position is offered.
-///
-/// The three values are one lever over one arm
-/// (`rule:ide/contributions-are-frozen-and-only-ever-added` freezes the
-/// spelling): `off` is the developer who never wants PHP in this editor,
-/// `resolved` the one who wants only the names that go somewhere, and `all` —
-/// the default — the one converting a codebase, for whom the dropped and
-/// undecided rows are the audit. What no value may do is take the words that
-/// open a statement away with them.
-#[test]
-fn the_php_names_setting_selects_among_the_shapes_and_nothing_else() {
-    let source = writing(HALF_WRITTEN);
-    // A candidate under the written prefix, and not any label the inventory
-    // happens to spell: a reserved word this position offers can be a PHP
-    // built-in's name too, and that row came from the grammar.
-    let candidate = |item: &lsp_types::CompletionItem| {
-        php_names::starting_with(HALF_WRITTEN)
-            .iter()
-            .any(|row| row.php == item.label)
-    };
-    let candidates =
-        |items: &[lsp_types::CompletionItem]| items.iter().filter(|i| candidate(i)).count();
-
-    let off = ending_items(&source, PhpNames::Off);
-    assert_eq!(
-        candidates(&off),
-        0,
-        "`off` still offers a PHP name: {:?}",
-        off.iter().map(|item| &item.label).collect::<Vec<_>>()
-    );
-    assert!(
-        off.iter().any(|item| item.label == "var"),
-        "`off` took the words that open a statement with it"
-    );
-
-    let resolved = ending_items(&source, PhpNames::Resolved);
-    assert!(candidates(&resolved) > 0, "`resolved` offers no PHP name");
-    for item in &resolved {
-        if candidate(item) {
-            let inserted = item.insert_text.as_deref().unwrap_or_default();
-            assert_ne!(
-                inserted, HALF_WRITTEN,
-                "`{}` inserts nothing and is offered under `resolved`",
-                item.label
-            );
-        }
-    }
-    assert!(
-        candidates(&resolved) < candidates(&ending_items(&source, PhpNames::All)),
-        "`resolved` and `all` offer the same list, so one of them is not doing its job"
-    );
 }
 
 /// Each trigger character `initialize` declares, and the construct it is one
@@ -667,14 +483,6 @@ fn sources() -> Vec<Source> {
 /// The rows that shape an item another row produced name the item they were
 /// handed, and the one that filters a list names the index it asks.
 ///
-/// The PHP-name arm is the one row whose table is not built from the program
-/// under the cursor, and it is admitted by the same rule rather than beside it:
-/// `nvs_stdlib::php_names::CANDIDATES` is a build-time join of the differential
-/// oracle's own inventory and `docs/spec/02-php-migration.md`, both audited in
-/// this repository, and what the arm may *insert* is bounded by the registry
-/// (`rule:php-migration/an-item-inserts-only-a-registered-member`). No
-/// directory is walked and no annotation is read for it.
-///
 /// The path arm reads one directory, the one a `require` or `autoload` path
 /// literal's text reaches, through `nvs_hir::autoload::entries_of`: the
 /// listing the compiler resolves a `discover` glob with. It walks no tree and
@@ -704,7 +512,7 @@ fn sources() -> Vec<Source> {
 /// `crate::arguments` reads them off `ResolvedCall::param_tys` and the
 /// checker's type interner, the types the checker recorded on the call it
 /// resolved.
-const SOURCED: [(&str, &str); 38] = [
+const SOURCED: [(&str, &str); 36] = [
     ("named_type", "..item("),
     ("type_row", "..named_type("),
     ("method_row", "..item("),
@@ -732,8 +540,6 @@ const SOURCED: [(&str, &str); 38] = [
     ("under", "registry::CLASSES"),
     ("in_reach", "every_type(symbols)"),
     ("in_scope", ".bodies_at("),
-    ("php_builtins", "php_names::starting_with("),
-    ("php_item", "php_names::Item"),
     ("words", "CompletionItemKind::KEYWORD"),
     ("declared_members", "declared_type("),
     ("declared_member", "Modifier::Static"),

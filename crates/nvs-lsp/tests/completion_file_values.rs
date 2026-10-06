@@ -19,8 +19,8 @@ use lsp_types::{
 use nvs_diagnostics::{PositionEncoding, code};
 use nvs_lsp::completion_files::CompletionFiles;
 use nvs_lsp::{
-    Analysed, CheckScope, Client, Documents, Phases, PhpNames, SymbolIndex, actions, analyse,
-    completion, hover, uri_of,
+    Analysed, CheckScope, Client, Documents, Phases, SymbolIndex, actions, analyse, completion,
+    hover, uri_of,
 };
 
 /// A scratch workspace that deletes itself.
@@ -102,7 +102,6 @@ fn offered(
         &index,
         files,
         at,
-        PhpNames::Off,
         Client::default(),
         PositionEncoding::Utf8,
     );

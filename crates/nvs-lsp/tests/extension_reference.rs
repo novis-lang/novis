@@ -144,11 +144,8 @@ fn the_chapter_documents_every_contributed_command_and_no_other() {
 /// (`rule:ide/the-extension-claims-nvs-only`).
 ///
 /// What `rule:ide/the-extension-claims-nvs-only` refuses is the *claim* — a
-/// language id, a file extension, an activation event — and not the three
-/// letters: `nvs.completion.phpNames` is on the frozen roster of
-/// `rule:ide/contributions-are-frozen-and-only-ever-added` and names PHP
-/// because the setting is about PHP's names. So what is scanned for is the file
-/// extension and the language id, which are the two spellings that would make
+/// language id, a file extension, an activation event. So what is scanned for
+/// is the file extension and the language id, which are the two spellings that would make
 /// VS Code hand this extension a `.php` buffer and lose that fight silently
 /// against every PHP extension the user already has.
 // covers: tools:editor/the-vs-code-extension
@@ -174,8 +171,8 @@ fn the_chapter_and_the_manifest_agree_the_extension_claims_nvs_alone() {
             "the manifest contributes the language `{id}`, which is not one of Novis's own"
         );
     }
-    // A quoted token and not the three letters: `nvs.completion.phpNames` is a
-    // setting name and `".php"` is a claim on somebody's file.
+    // A quoted token and not the three letters: `".php"` is a claim on
+    // somebody's file.
     for claim in [".php\"", "\"php\"", ":php", "phtml"] {
         assert!(
             !raw.contains(claim),

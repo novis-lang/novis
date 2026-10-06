@@ -172,29 +172,6 @@
 //! and no `()` in front of a `(`. A command is sent only to a client that named
 //! it ([`Client`]), and a client without snippets gets `Name()` as plain text.
 //!
-//! # What a half-written name reaches in PHP's inventory
-//!
-//! A statement position also offers the **PHP built-ins** whose spelling starts
-//! with the name being written, from
-//! `rule:php-migration/every-php-builtin-is-a-completion-candidate`'s two
-//! audited documents joined at build time into
-//! `nvs_stdlib::php_names::CANDIDATES`. A name with no migration row is an item
-//! that says *undecided*, which reads as an audited language that owes an
-//! answer where a name that never appears reads as one that cannot do the job.
-//!
-//! **What may be typed on the developer's behalf is narrower than what is
-//! offered**, and the two are not the same question:
-//! `nvs_stdlib::php_names::Item::insertion` answers only for a destination the
-//! registry holds, and three of its four shapes insert nothing at all
-//! (`rule:ide/three-of-four-item-shapes-insert-nothing`). The PHP spelling
-//! itself never reaches a file — it is a label and a filter, and
-//! [`php_item`]'s `insert_text` is what keeps it one.
-//!
-//! **The inventory answers a name and not a cursor.** [`PHP_PREFIX`] characters
-//! are written first, because a whole language's built-ins arriving beside the
-//! keyword list on every keystroke is a list about the alphabet rather than
-//! about this program.
-//!
 //! # What markup offers
 //!
 //! Nothing, except at a half-written open tag: `<?` is not yet one of
@@ -343,7 +320,6 @@ use lsp_types::{
 };
 use nvs_diagnostics::{BytePos, Diagnostics, PositionEncoding, SourceFile, Span};
 use nvs_hir::{QName, SymbolKind};
-use nvs_stdlib::php_names::{self, Candidate, Item, Kind};
 use nvs_stdlib::registry::{
     self, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreOption, ParamText,
 };
@@ -365,7 +341,7 @@ use crate::document::Analysed;
 use crate::index::{DeclKind, Declaration, SymbolIndex};
 use crate::position::range_at;
 use crate::regions::half_written_tag;
-use crate::settings::{Client, PhpNames};
+use crate::settings::Client;
 
 /// Every access shape a member is written inside, as `nvs_syntax::walk` spells
 /// them, with the half of the class each one reaches.
@@ -402,7 +378,6 @@ pub fn at(
     symbols: &SymbolIndex,
     files: &CompletionFiles,
     offset: BytePos,
-    php: PhpNames,
     client: Client,
     encoding: PositionEncoding,
 ) -> Vec<CompletionItem> {
@@ -441,7 +416,7 @@ pub fn at(
             route_keys(&cursor, text_start, &name)
         }
         Asked::OptionKey(written, options) => option_keys(&cursor, written, options),
-        Asked::Position => position(&cursor, php),
+        Asked::Position => position(&cursor),
         Asked::Nothing => return Vec::new(),
     };
     items.sort_by(|left, right| left.label.cmp(&right.label));
@@ -1706,13 +1681,8 @@ const CASE_WORDS: &[&str] = &["case"];
 /// and the inside of an expression takes the words that open one. The tree
 /// cannot say this, because the name being written is usually what stops the
 /// statement around it from parsing.
-fn position(cursor: &Cursor<'_>, php: PhpNames) -> Vec<CompletionItem> {
-    let Cursor {
-        analysed,
-        path,
-        offset,
-        ..
-    } = *cursor;
+fn position(cursor: &Cursor<'_>) -> Vec<CompletionItem> {
+    let path = cursor.path;
     match path.innermost().map(|node| node.kind) {
         Some("ClassDecl" | "InterfaceDecl") => words(MEMBER_WORDS),
         Some("EnumDecl") => words(CASE_WORDS),
@@ -1737,7 +1707,6 @@ fn position(cursor: &Cursor<'_>, php: PhpNames) -> Vec<CompletionItem> {
                     After::of(placed),
                     in_reach(cursor, Spelled::Shortest),
                 ));
-                items.extend(php_builtins(analysed, offset, php));
                 items
             }
         },
@@ -2253,9 +2222,8 @@ fn words(offered: &[&str]) -> Vec<CompletionItem> {
 /// breaks a tie on `sortText`, so this decides the order of an empty prefix and
 /// of every tie: what this body declared, then the types this file already
 /// reaches — imported, in its own namespace, written somewhere in it — then
-/// the rest of `Core`, the rest of the workspace, the reserved words, and last
-/// the PHP names, which are an audit and not a program's own vocabulary. Every
-/// input is a table an arm below already reads. A member list has no tiers:
+/// the rest of `Core`, the rest of the workspace, and last the reserved words.
+/// Every input is a table an arm below already reads. A member list has no tiers:
 /// every row of one is as likely as the next, and its order is its labels'.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Tier {
@@ -2266,7 +2234,6 @@ enum Tier {
     Core,
     Workspace,
     Keyword,
-    Php,
 }
 
 impl Tier {
@@ -2513,138 +2480,6 @@ pub(crate) fn written_as(
         return segments[here.len()].clone();
     }
     symbol.to_owned()
-}
-
-/// How many characters of a name are written before the PHP inventory answers.
-///
-/// The inventory is every built-in the differential oracle's own PHP build
-/// lists, and a one- or two-character prefix reaches hundreds of them — a list
-/// that arrives on every keystroke and buries the words, the variables and the
-/// types this program is actually made of. Three characters is where the answer
-/// is about the name being written rather than about the alphabet, and a
-/// developer reaching for a PHP built-in is by definition writing one. No name
-/// is dropped from the inventory by this: every one of them is still a
-/// candidate, which is what
-/// `rule:php-migration/every-php-builtin-is-a-completion-candidate` requires,
-/// and the prefix is only how much of it has to be written first.
-const PHP_PREFIX: usize = 3;
-
-/// Every PHP built-in whose spelling starts with the name being written at
-/// `offset`, as the item shape the migration table's row for it takes.
-///
-/// The table is `nvs_stdlib::php_names::CANDIDATES`, joined at build time out
-/// of the oracle inventory and `docs/spec/02-php-migration.md` and sorted by
-/// PHP spelling, so what is read here is one contiguous run of it. Two audited
-/// documents and the `Core` registry, and no fourth source — the name comes
-/// from a table this repository maintains, exactly as
-/// `rule:ide/completion-offers-only-what-the-compiler-derived` admits it.
-///
-/// `nvs.completion.phpNames` is read here and not at the call site because what
-/// it selects is a *shape*: `Resolved` keeps the items that insert and drops the
-/// three that do not, which is the lever
-/// `rule:php-migration/an-item-inserts-only-a-registered-member` names for a
-/// developer who wants only the names that go somewhere.
-fn php_builtins(analysed: &Analysed, offset: BytePos, php: PhpNames) -> Vec<CompletionItem> {
-    let typed = typed_name(analysed, offset);
-    if php == PhpNames::Off || typed.len() < PHP_PREFIX || typed.contains('\\') {
-        return Vec::new();
-    }
-    let mut found = Vec::new();
-    for candidate in php_names::starting_with(typed) {
-        for shape in candidate.items() {
-            // `Resolved` is the developer who wants only the names that go
-            // somewhere: the other three shapes are the audit, and an audit is
-            // not what everyone opened the editor for.
-            if php == PhpNames::Resolved && shape.insertion().is_none() {
-                continue;
-            }
-            found.push(Tier::Php.ranks(php_item(candidate, shape, typed)));
-        }
-    }
-    found
-}
-
-/// The name being written at `offset` — the run of name characters ending
-/// there — and the empty string where the cursor is in no name or in something
-/// that is not code.
-///
-/// Read off the source for [`namespace_written`]'s reason: a half-written name
-/// is a node in some shapes and two in others, and the run of characters before
-/// the cursor is the same thing in all of them. The tree is still what says the
-/// cursor is in code at all, which is [`NOT_CODE`] — a PHP built-in offered
-/// inside a string literal would be a name completed where no name is being
-/// written.
-fn typed_name(analysed: &Analysed, offset: BytePos) -> &str {
-    let Some(before) = offset.checked_sub(1) else {
-        return "";
-    };
-    let Some(node) = analysed.index.at(before).innermost() else {
-        return "";
-    };
-    if NOT_CODE.contains(&node.kind) {
-        return "";
-    }
-    let Some(upto) = analysed
-        .map
-        .file(analysed.entry)
-        .text()
-        .get(..offset as usize)
-    else {
-        return "";
-    };
-    name_run(upto)
-}
-
-/// One PHP built-in, as the shape its row and the registry gave it.
-///
-/// **`insert_text` is the whole of what this may put in a buffer**, and it is
-/// `php_names::Item::insertion` where there is one. The three shapes that
-/// insert nothing carry the characters the developer has already typed instead:
-/// a client replaces the word being completed with this field, so leaving it
-/// unset would type the *label* — the PHP spelling — into the file, which is
-/// the second name `rule:statements/nothing-gets-a-second-name` removes and the
-/// unresolvable call `rule:php-migration/an-item-inserts-only-a-registered-member`
-/// refuses. Accepting one of them therefore leaves the buffer as it was.
-///
-/// The row's own cell is the documentation, verbatim as the migration table
-/// writes it, because that is where a `dropped` row's reason and its rewrite
-/// are and neither fits a detail column. The detail says which of the four
-/// shapes this is in one line, and only the first of them names a signature —
-/// the registry's, which is the same row [`core_member`] spells a `Core` member
-/// from.
-fn php_item(candidate: &Candidate, shape: php_names::Item, typed: &str) -> CompletionItem {
-    let detail = match shape {
-        Item::Inserts(destination) => match destination.method() {
-            Some(method) => format!("{}{}", destination.spelling(), core_signature(method)),
-            None => destination.spelling(),
-        },
-        Item::NotRegistered(Some(destination)) => {
-            format!("{} (not in Core yet)", destination.spelling())
-        }
-        Item::NotRegistered(None) => "no Core member to insert".to_owned(),
-        Item::Dropped => "dropped from Novis".to_owned(),
-        Item::Undecided => "undecided".to_owned(),
-    };
-    let kind = match (shape, candidate.kind) {
-        (Item::Inserts(_), Kind::Function) => CompletionItemKind::FUNCTION,
-        (Item::Inserts(_), Kind::Type) => CompletionItemKind::CLASS,
-        // Three shapes insert nothing, and a symbol icon beside one would say
-        // the language has a name it does not have.
-        _ => CompletionItemKind::TEXT,
-    };
-    CompletionItem {
-        label: candidate.php.to_owned(),
-        kind: Some(kind),
-        detail: Some(detail),
-        documentation: (!candidate.cell.is_empty()).then(|| {
-            Documentation::MarkupContent(MarkupContent {
-                kind: MarkupKind::Markdown,
-                value: candidate.cell.to_owned(),
-            })
-        }),
-        insert_text: Some(shape.insertion().unwrap_or_else(|| typed.to_owned())),
-        ..CompletionItem::default()
-    }
 }
 
 /// The class the value at `span` holds.
@@ -3004,17 +2839,6 @@ fn core_member(cursor: &Cursor<'_>, core: &CoreClass, method: &CoreMethod) -> Co
         method_row(core.name, method.name.to_owned(), params, Some(returns)),
         takes,
     )
-}
-
-/// A `Core` member's parameter list and return type, from its registry row.
-///
-/// Two readers: the member lists above, where the member's own name is the
-/// label, and [`php_item`], where the label is a PHP built-in and this is what
-/// says where it went. One spelling for both, so the two lists never disagree
-/// about a signature the registry states once.
-fn core_signature(method: &CoreMethod) -> String {
-    let (params, returns) = core_parts(method);
-    format!("{params}: {returns}")
 }
 
 /// A `Core` member's parameter list and its return type, spelled apart —

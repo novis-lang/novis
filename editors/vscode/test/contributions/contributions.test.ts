@@ -92,7 +92,6 @@ const SETTINGS = [
   "nvs.template.format",
   "nvs.secrets.redact",
   "nvs.taint.mark",
-  "nvs.completion.phpNames",
   "nvs.stubs.dir",
 ];
 
@@ -124,8 +123,8 @@ const CLIENT = readdirSync(join(ROOT, "src"))
   .join("\n");
 
 // The other side of the wire, which is the other place a setting is read.
-// `Settings::from_initialize` walks the `nvs` section by key path, so `nvs.completion.phpNames` is
-// read at `&["completion", "phpNames"]` there and by nothing in this package. Whitespace is
+// `Settings::from_initialize` walks the `nvs` section by key path, so `nvs.codeLens.enable` is
+// read at `&["codeLens", "enable"]` there and by nothing in this package. Whitespace is
 // collapsed because the assertion is about the path, not about where rustfmt wrapped it.
 const SERVER = readFileSync(
   join(ROOT, "..", "..", "crates", "nvs-lsp", "src", "settings.rs"),
@@ -329,9 +328,7 @@ describe("the file types the extension claims", () => {
   it("claims no php file type", () => {
     // Claiming `.php` would fight every PHP extension the user already has, and losing that
     // fight silently looks like Novis being broken. What is refused is the claim — a language id,
-    // a file extension, an activation event, an embedded language — and not the three letters:
-    // `nvs.completion.phpNames` is on the roster above and names PHP because the setting is about
-    // PHP's names.
+    // a file extension, an activation event, an embedded language.
     for (const language of manifest.contributes.languages) {
       assert.ok(["nvs", "nvst"].includes(language.id),
                 `${language.id} is not one of Novis's own file types`);
@@ -415,8 +412,6 @@ describe("the frozen identifiers", () => {
     assert.equal(properties["nvs.secrets.redact"].default, true);
     assert.equal(properties["nvs.taint.mark"].default, "off");
     assert.deepEqual(properties["nvs.taint.mark"].enum, ["off", "declaration", "sink"]);
-    assert.equal(properties["nvs.completion.phpNames"].default, "all");
-    assert.deepEqual(properties["nvs.completion.phpNames"].enum, ["all", "resolved", "off"]);
     assert.equal(properties["nvs.stubs.dir"].default, "");
   });
 });

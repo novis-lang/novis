@@ -21,8 +21,7 @@ use lsp_types::{
 use nvs_diagnostics::{PositionEncoding, SourceMap};
 use nvs_lsp::completion_files::CompletionFiles;
 use nvs_lsp::{
-    CheckScope, Client, Documents, PhpNames, SymbolIndex, analyse, card, completion, regions,
-    uri_of,
+    CheckScope, Client, Documents, SymbolIndex, analyse, card, completion, regions, uri_of,
 };
 use nvs_stdlib::registry;
 
@@ -68,7 +67,6 @@ fn offered_in(path: &std::path::Path, client: Client, source: &str) -> Vec<Compl
         &index,
         &CompletionFiles::default(),
         at,
-        PhpNames::Off,
         client,
         PositionEncoding::Utf8,
     )
@@ -172,7 +170,6 @@ fn offered_with_routes(source: &str) -> (Vec<CompletionItem>, Vec<String>) {
         &index,
         &CompletionFiles::default(),
         u32::try_from(cursor).expect("a test document is short"),
-        PhpNames::Off,
         EDITOR,
         PositionEncoding::Utf8,
     );
@@ -928,7 +925,6 @@ fn card_of(source: &str, label: &str) -> Option<String> {
             &index,
             &CompletionFiles::default(),
             at,
-            PhpNames::Off,
             Client::default(),
             PositionEncoding::Utf8,
         ),

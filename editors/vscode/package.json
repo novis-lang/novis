@@ -168,21 +168,6 @@
           "default": "off",
           "description": "Whether tainted values carry a marker glyph in addition to their token modifier."
         },
-        "nvs.completion.phpNames": {
-          "type": "string",
-          "enum": [
-            "all",
-            "resolved",
-            "off"
-          ],
-          "enumDescriptions": [
-            "Every PHP built-in, including the ones Novis dropped or has not decided yet. Only a name whose Core member exists inserts anything.",
-            "Only the built-ins whose Core member exists; the rest are not offered.",
-            "No PHP built-in is offered."
-          ],
-          "default": "all",
-          "description": "Which PHP built-ins are offered beside a half-written name."
-        },
         "nvs.stubs.dir": {
           "type": "string",
           "default": "",

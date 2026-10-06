@@ -53,9 +53,6 @@ pub struct Settings {
     /// a request per visible declaration — a large file is where it costs most
     /// and is wanted least.
     pub code_lens: bool,
-    /// `nvs.completion.phpNames`: which of the PHP inventory's names a
-    /// half-written one is offered beside.
-    pub php_names: PhpNames,
     /// `nvs.lsp.debounce`: how long an edit waits before the analysis it made
     /// stale runs.
     ///
@@ -137,31 +134,6 @@ impl Client {
     }
 }
 
-/// How much of the PHP inventory a completion offers.
-///
-/// `rule:php-migration/every-php-builtin-is-a-completion-candidate` makes every
-/// built-in a candidate and
-/// `rule:ide/three-of-four-item-shapes-insert-nothing` makes three of the four
-/// item shapes insert nothing, so the whole layer is worth exactly what the
-/// migration table's coverage is worth to the person reading it. That judgement
-/// is theirs and not this server's, which is why it is three values rather than
-/// a boolean: a developer converting a PHP codebase wants the undecided and
-/// dropped names — they are the audit — and one writing new Novis wants only
-/// the names that go somewhere, or none at all.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum PhpNames {
-    /// Every candidate the inventory lists, whatever its row says. The default,
-    /// because a name that does not appear reads as a language that cannot do
-    /// the job where one that says *undecided* reads as a language with a
-    /// schedule.
-    #[default]
-    All,
-    /// Only the items that insert — a destination the `Core` registry holds.
-    Resolved,
-    /// No PHP name at all.
-    Off,
-}
-
 impl Default for Settings {
     /// The roster's own defaults, which are what a client that configured
     /// nothing gets.
@@ -169,7 +141,6 @@ impl Default for Settings {
         Self {
             scope: CheckScope::Workspace,
             code_lens: true,
-            php_names: PhpNames::All,
             // The same 150 the manifest declares, because a client that sends
             // the section it holds sends this number anyway and the two
             // disagreeing would be a default nobody can read off either side.
@@ -196,10 +167,6 @@ impl Settings {
             code_lens: at(options, &["codeLens", "enable"])
                 .and_then(Value::as_bool)
                 .unwrap_or(defaults.code_lens),
-            php_names: at(options, &["completion", "phpNames"])
-                .and_then(Value::as_str)
-                .and_then(php_names_named)
-                .unwrap_or(defaults.php_names),
             debounce: at(options, &["lsp", "debounce"])
                 .and_then(Value::as_u64)
                 .map(Duration::from_millis)
@@ -233,17 +200,6 @@ fn scope_named(setting: &str) -> Option<CheckScope> {
     match setting {
         "open" => Some(CheckScope::Open),
         "workspace" => Some(CheckScope::Workspace),
-        _ => None,
-    }
-}
-
-/// The value `setting` spells, or `None` for a spelling that is not one of the
-/// three [`PhpNames`] names.
-fn php_names_named(setting: &str) -> Option<PhpNames> {
-    match setting {
-        "all" => Some(PhpNames::All),
-        "resolved" => Some(PhpNames::Resolved),
-        "off" => Some(PhpNames::Off),
         _ => None,
     }
 }

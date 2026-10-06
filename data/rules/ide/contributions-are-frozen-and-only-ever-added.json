@@ -5,15 +5,15 @@
     "0099",
     "0101",
     "0108",
-    "0111"
+    "0111",
+    "0274"
   ],
   "seeAlso": [
     "ide/reveal-is-explicit-and-window-local",
     "ide/tainted-has-no-default-decoration",
     "ide/the-extension-claims-nvs-only",
     "ide/dependencies-are-allowlisted",
-    "ide/check-json-is-the-diagnostic-record-as-a-document",
-    "php-migration/completion-php-names-setting"
+    "ide/check-json-is-the-diagnostic-record-as-a-document"
   ],
   "guardedBy": []
 }
