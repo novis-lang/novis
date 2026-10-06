@@ -178,6 +178,7 @@ pub mod enums;
 pub mod error_lib;
 pub mod expr;
 pub mod expr_table;
+pub mod ext_lib;
 pub(crate) mod generics;
 pub(crate) mod intrinsics;
 pub mod iter_lib;

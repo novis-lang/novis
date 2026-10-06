@@ -744,6 +744,13 @@ impl SignatureTable {
     pub(crate) fn seed_implements(&mut self, qname: QName, interface: QName, args: Vec<TypeId>) {
         self.entry(qname).implements.push((interface, args));
     }
+
+    /// Installs a seeded class's constants. Only [`crate::ext_lib`] calls it:
+    /// a `Core` constant is read from its registry row where it is written
+    /// ([`crate::core_lib::constant`]), and an extension's has no row to read.
+    pub(crate) fn seed_constants(&mut self, qname: QName, constants: FxHashMap<String, ConstSig>) {
+        self.entry(qname).constants = constants;
+    }
 }
 
 /// Builds a [`SignatureTable`] for every class/interface/enum declared in
@@ -769,6 +776,7 @@ pub fn build_signatures(
     module: &nvs_hir::Module,
     enums: &crate::enums::EnumTable,
     consts: &crate::consts::ConstTable,
+    extensions: &[nvs_ext::manifest::Manifest],
     interner: &mut crate::ty::TypeInterner,
     diags: &mut Diagnostics,
 ) -> SignatureTable {
@@ -786,6 +794,10 @@ pub fn build_signatures(
         crate::core_lib::seed_natives(&mut table, interner);
         table
     };
+    // The loaded extension set next, still ahead of every user declaration. It
+    // is the configuration's and not the binary's, so it is a layer over the
+    // frozen base rather than part of it — see `crate::ext_lib`.
+    crate::ext_lib::seed(&mut table, interner, extensions);
     let placeholder = SignatureTable::default();
     // Same placeholder idea as `signatures` above: signature collection only
     // ever lowers property/parameter/return *type annotations*, never a call
@@ -1904,7 +1916,15 @@ mod tests {
         }];
         let enums = crate::enums::build_enum_table(&files, &mut diags);
         let consts = crate::consts::build_const_table(&files);
-        let table = build_signatures(&files, &module, &enums, &consts, &mut interner, &mut diags);
+        let table = build_signatures(
+            &files,
+            &module,
+            &enums,
+            &consts,
+            &[],
+            &mut interner,
+            &mut diags,
+        );
         (table, module, interner, diags)
     }
 

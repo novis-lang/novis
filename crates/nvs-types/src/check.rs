@@ -115,6 +115,25 @@ pub fn check_program_granted(
     exprs: &mut ExprTypeTable,
     diags: &mut Diagnostics,
 ) -> crate::EnumTable {
+    check_program_loaded(files, module, grants, &[], interner, exprs, diags)
+}
+
+/// [`check_program_granted`] with the manifests of the loaded extension set,
+/// whose classes [`crate::ext_lib`] seeds into the signature table
+/// (`rule:packaging/extension-calls-are-statically-typed`).
+///
+/// `module` must have been resolved with the same set's
+/// [`crate::ext_lib::hir_classes`] declared, so a reference to an extension
+/// class resolves before this pass types it.
+pub fn check_program_loaded(
+    files: &[crate::ProgramFile<'_>],
+    module: &Module,
+    grants: Option<&nvs_config::tree::Capabilities>,
+    extensions: &[nvs_ext::manifest::Manifest],
+    interner: &mut TypeInterner,
+    exprs: &mut ExprTypeTable,
+    diags: &mut Diagnostics,
+) -> crate::EnumTable {
     // `rule:enums/one-backing-type`'s backing types first: interning an enum-typed annotation
     // needs one, and `build_signatures` interns every declared annotation in
     // the program. See `crate::enums`.
@@ -123,7 +142,7 @@ pub fn check_program_granted(
     // enum table one line above: `build_signatures` interns every declared
     // annotation, and one of them may be a `Foo::CONST` type.
     let consts = crate::consts::build_const_table(files);
-    let signatures = build_signatures(files, module, &enums, &consts, interner, diags);
+    let signatures = build_signatures(files, module, &enums, &consts, extensions, interner, diags);
     // `rule:attributes/structural-retrieval`'s retrieval reads this. Built whole, ahead of the walk, for
     // `build_const_table`'s reason: a retrieval may be written above the
     // declaration it asks about, so a table filled as the walk descends would

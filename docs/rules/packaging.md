@@ -1587,8 +1587,10 @@ holds a jump into a trampoline that another set may have moved, so the set is pa
 unit's key and a changed set is an ordinary cache miss
 ([`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key)).
 
-**Not on disk.** `Core` classes are a constant table seeded into the signature table; nothing
-registers a class a configuration names.
+**Not on disk.** The checker layer is: `nvs_types::ext_lib` seeds a set's manifests into the
+signature table and `nvs_hir::resolve_file_with_extensions` declares their classes
+(`crates/nvs-types/tests/extensions.rs`). No compile entry hands it the configuration's set yet, and
+codegen emits no trampoline call.
 
 <sub>See also [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-nvsx-is-one-file-carrying-its-manifest`](packaging.md#packaging-an-nvsx-is-one-file-carrying-its-manifest). Decided in [0003](../decisions/0003.md), [0011](../decisions/0011.md), [0078](../decisions/0078.md), [0246](../decisions/0246.md).</sub>
 

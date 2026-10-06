@@ -29,6 +29,12 @@ rustc-hash.workspace = true
 # literal `Core\Db::open` host against it through the same
 # `Capabilities::allows_host` the runtime door uses.
 nvs-config.workspace = true
+# The manifest model of the loaded extension set, which `ext_lib` seeds into the
+# signature table. The workspace entry turns the crate's default features off, so
+# this links no wasmtime: the checker reads manifests and never instantiates.
+nvs-ext.workspace = true
+# A manifest constant's value is JSON (`ext_lib`'s `const_value`).
+serde_json.workspace = true
 
 [dev-dependencies]
 # How this crate's tests reach files outside the package.

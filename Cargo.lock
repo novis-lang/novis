@@ -2541,12 +2541,14 @@ version = "0.0.1"
 dependencies = [
  "nvs-config",
  "nvs-diagnostics",
+ "nvs-ext",
  "nvs-footprint",
  "nvs-hir",
  "nvs-repo",
  "nvs-stdlib",
  "nvs-syntax",
  "rustc-hash",
+ "serde_json",
 ]
 
 [[package]]

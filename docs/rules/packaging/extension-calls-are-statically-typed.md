@@ -18,5 +18,7 @@ holds a jump into a trampoline that another set may have moved, so the set is pa
 unit's key and a changed set is an ordinary cache miss
 (`rule:config/the-extension-set-is-in-every-unit-key`).
 
-**Not on disk.** `Core` classes are a constant table seeded into the signature table; nothing
-registers a class a configuration names.
+**Not on disk.** The checker layer is: `nvs_types::ext_lib` seeds a set's manifests into the
+signature table and `nvs_hir::resolve_file_with_extensions` declares their classes
+(`crates/nvs-types/tests/extensions.rs`). No compile entry hands it the configuration's set yet, and
+codegen emits no trampoline call.
