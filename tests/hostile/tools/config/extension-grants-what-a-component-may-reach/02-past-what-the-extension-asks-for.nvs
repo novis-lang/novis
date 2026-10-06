@@ -1,0 +1,37 @@
+<?nvs
+// Attack: `nvs.toml` and the program both let the extension write and reach more hosts than
+// the extension asks for. The program tries to use that extra access. Every attempt should fail.
+
+use Geo\Atlas;
+
+// 1. Write files in `data/geo/`. The extension does not ask to write.
+array<string> $paths = ['new.txt', 'cities.txt', 'roads/new.txt', '../new.txt', '.'];
+foreach ($paths as string $path) {
+    try {
+        Atlas::write($path, "changed\n");
+        echo $path, ": written\n";
+    } catch (RuntimeError $denied) {
+        echo $path, ': ', $denied->message, "\n";
+    }
+}
+
+// 2. Connect to hosts the extension does not ask for.
+array<string> $hosts = [
+    'maps.example.com',
+    'MAPS.EXAMPLE.COM',
+    'maps.example.com:8080',
+    '127.0.0.1',
+    '[::1]',
+    'tiles.example.com.maps.example.com',
+];
+foreach ($hosts as string $host) {
+    try {
+        int $status = Atlas::status($host);
+        echo $host, ': ', $status, "\n";
+    } catch (RuntimeError $denied) {
+        echo $host, ': ', $denied->message, "\n";
+    }
+}
+
+// 3. The granted file is unchanged.
+echo Atlas::read('cities.txt');

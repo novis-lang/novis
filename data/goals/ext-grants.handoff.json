@@ -1,26 +1,23 @@
 {
-  "state": "**Goal `ext-grants`: a guest reaches only the files and hosts that all three parties grant. Stages 4 (files) and 5 (outbound HTTP) are written and tested; Stage 6 (the adversarial suite and the feature proofs) is next.** M9. No floor is carried: the suites, the `.nvst` trees and `nv verify` are the safety net, and the tests of goals `ext-host` and `ext-compiler` stay green as tests of the tree.\n\nThe design is ADR 0246 § 7 plus the user's own calls, and the goal file's § *Standing decisions* answers every call a session meets. A question the record leaves open is settled under AGENTS.md's priority ordering and written in the module doc of the file that answers it.\n\n**On disk:** `crates/nvs-ext/tests/http.rs` drives a guest's `wasi:http` request end to end: a budget that queues like `nvs_cli::extensions::Spent`, sent between polls through `nvs_stdlib::extension_send` under a `Ctx` built from `nvs.toml` text, against loopback origins, a `CONNECT` proxy and a self-signed `https` origin. All eight tests of check `nvs-ext-a-guest-calls-out-through-the-client` pass. A transport refusal (address policy, untrusted certificate) reaches the guest as `HTTP-request-denied`, its message in the request's log at `warn`. The rules' *Not on disk* sentences name the test. **Stage 6 has nothing on disk**: no feature `tools:config/extension-grants-what-a-component-may-reach` exists yet (`bun nv proofs --id` says \"no feature\").",
+  "state": "**Goal `ext-grants`: a guest reaches only the files and hosts that all three parties grant. Stages 4 (files) and 5 (outbound HTTP) are written and tested; Stage 6 has its feature proofs and its fixture pin check on disk, and the reload test through a running server is what is left.** M9. No floor is carried: the suites, the `.nvst` trees and `nv verify` are the safety net.\n\nThe design is ADR 0246 § 7 plus the user's own calls, and the goal file's § *Standing decisions* answers every call a session meets.\n\n**On disk:** the feature `tools:config/extension-grants-what-a-component-may-reach` is the section `# Extension grants: what a component may reach` in `docs/reference/tools/20-config.md`, with `about.md`, three examples and three attacks (one per grant party), all passing `bun nv proofs --verify --only` and `--comments`. Its tests are `covers:` markers on one test each in `crates/nvs-ext/tests/grants.rs`, `files.rs` and `http.rs`. The programs call the proof extension `Geo\\Atlas`, packed from `docs/examples/tools/config/extension-grants-what-a-component-may-reach/atlas/` (core WAT, `api.wit`, `manifest.json`) into `atlas.nvsx` beside it; the attack tree's `nvs.toml` names that same file by a relative path, so the fixture has one home. `crates/nvs-ext/tests/fixtures.rs`'s `every_committed_proof_fixture_is_what_the_packer_builds_from_its_text` walks both proof trees for a directory holding `module.wat` and `manifest.json` and checks its `.nvsx` and `.sha256`; `NVS_WRITE_FIXTURES=1 cargo test --test fixtures` rewrites them, and the new pin must then be copied into both `nvs.toml` files by hand.",
   "next": {
     "stage": 6,
     "title": "the adversarial suite and the feature proofs",
     "files": [],
-    "note": "one file set: the new feature's `about.md`, its attacks and examples under `tests/hostile/` and `docs/examples/`, their `.nvsx` fixtures, and `crates/nvs-ext/tests/fixtures.rs`.",
+    "note": "one file set: `crates/nvs-cli/tests/live_config.rs` and the `.nvsx` fixtures it writes.",
     "items": [
       {
         "done": false,
-        "text": "**Create the feature `tools:config/extension-grants-what-a-component-may-reach`** and its proofs, until `bun nv proofs --verify --only tools:config/extension-grants-what-a-component-may-reach` passes: `about.md`, three examples, one attack per grant party, a bench and its help, each comment held to AGENTS.md § *Text an end user reads*. `rule:testing/feature-proofs`, `rule:security/extension-grants-are-an-intersection`. Read `tests/hostile/README.md:1` for the attack shape."
+        "text": "**The reload test through a running server**: `an_extension_added_by_a_reload_is_callable_from_the_next_request` and its siblings in check `nvs-cli-an-extension-set-reloads-whole` (`data/goals/ext-grants.json`), built on `crates/nvs-cli/tests/live_config.rs:2194`'s `Server::start` harness. `rule:config/the-extension-set-is-in-every-unit-key`, `rule:config/the-config-is-an-immutable-snapshot`. The conformance fixture `tests/conformance/ext/fixtures/ledger.nvsx` and its `.sha256` are a ready extension to copy into the server's directory."
       },
       {
         "done": false,
-        "text": "**The proof fixtures' pin check**: add `every_committed_proof_fixture_is_what_the_packer_builds_from_its_text` beside the conformance one at `crates/nvs-ext/tests/fixtures.rs:174`, walking the attack and example trees' `.nvsx` fixtures. Check `nvs-ext` stage 6 in `data/goals/ext-grants.json`."
-      },
-      {
-        "done": false,
-        "text": "**The reload test through a running server**: `an_extension_added_by_a_reload_is_callable_from_the_next_request` and its siblings in the nvs-cli check of stage 6 (`data/goals/ext-grants.json`), built on `crates/nvs-cli/tests/live_config.rs:2194`'s `Server::start` harness. `rule:config/the-extension-set-is-in-every-unit-key`."
+        "text": "**Close the goal**: `bun nv verify --doc`, `bun nv owners --closes ext-grants`, then move each decision only `docs/agent/goals/ext-grants.md:1` holds to its rule or module doc, and write `DONE`."
       }
     ]
   },
   "backlog": [
-    "The `[context]` manifest's stage 6 overlay has not been read by any session yet; widen it with `bun nv goal context --add` for the hostile and examples trees when the next session finds a gap."
+    "Example 02 and the attacks show only refused HTTP calls: a granted call needs a peer the program serves while the guest waits, which no proof program does yet (`docs/examples/README.md`).",
+    "`rule:security/extension-grants-are-an-intersection` still reads *designed, not yet shipped*; its status moves when the goal closes (`docs/rules/security/`)."
   ]
 }

@@ -289,6 +289,39 @@ Both questions are about an endpoint a *program* names. A store an operator wrot
 nor the address is asked about — which is why a shared store on the loopback needs no `internal`
 exception and no `connect` entry.
 
+# Extension grants: what a component may reach
+
+An extension can read files, write files and send HTTP requests only when it is granted that.
+Three parties decide, and the extension gets only what all three allow:
+
+1. The `grants` key of the extension's `[[extension]]` entry in `nvs.toml`.
+2. The extension's manifest, which lists what the extension asks for.
+3. The capabilities of the program that calls the extension, at the moment of the call.
+
+```toml
+[[extension]]
+path   = "geo.nvsx"
+sha256 = "…"
+grants = { read = ["data/geo/"], write = ["data/out/"], connect = ["tiles.example.com"] }
+```
+
+`read` and `write` are lists of folders. A relative folder starts in the directory of the file it is
+written in. The extension sees each folder under its full path. It may read files in a `read`
+folder, and read and write files in a `write` folder. `connect` is a list of hosts that the
+extension may send HTTP requests to. `grants` has no other keys.
+
+An entry without `grants` gives the extension no files and no hosts. `nvs ext inspect` prints what a
+manifest asks for, so you can read it before you write `grants`.
+
+The program's own grants apply too. If the program may read only `data/geo/roads/`, the extension
+reads only there, even when `grants` names `data/geo/`. A `write` folder needs both `fs.read` and
+`fs.write` in the program's capabilities. A request from the extension is sent like a request from
+`Core\Http\Client`, so the address rules of `net.connect`, TLS checks and the proxy apply to it.
+
+A file outside the granted folders, or a host that is not granted, is an error in the extension.
+How the extension reports it is up to the extension. A path with `..` or a symbolic link never
+leaves a granted folder.
+
 # `[[app]]` — per-application blocks
 
 An application is an entry file path. A `[[app]]` block names either a directory (`root`: every

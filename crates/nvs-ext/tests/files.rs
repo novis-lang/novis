@@ -318,6 +318,7 @@ fn reads(scratch: &Scratch, read: &[&str]) -> Granted {
 const READS: &str = r#"{"read": ["geo/"]}"#;
 const WRITES: &str = r#"{"write": ["out/"]}"#;
 
+// covers: tools:config/extension-grants-what-a-component-may-reach
 #[test]
 fn a_guest_reads_a_file_under_a_root_all_three_grant() {
     let scratch = Scratch::new("reads");

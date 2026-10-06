@@ -1,0 +1,51 @@
+<?nvs
+// Attack: the program may read all of `data/` and connect to any host. It asks the extension
+// to reach further than `nvs.toml` allows. Every attempt should fail.
+
+use Geo\Atlas;
+
+// 1. Read files outside `data/geo/`, written in many ways.
+array<string> $paths = [
+    '../private/secret.txt',
+    './../private/secret.txt',
+    'roads/../../private/secret.txt',
+    "..\\private\\secret.txt",
+    '..',
+    '../..',
+    '/etc/passwd',
+    "C:\\Windows\\win.ini",
+    '//localhost/c$/Windows/win.ini',
+    '%2e%2e/private/secret.txt',
+    "../private/secret.txt\0.txt",
+    '',
+    '.',
+];
+foreach ($paths as string $path) {
+    try {
+        string $text = Atlas::read($path);
+        echo $path, ': ', Core\Str::length($text), " characters\n";
+    } catch (RuntimeError $denied) {
+        echo $path, ': ', $denied->message, "\n";
+    }
+}
+
+// 2. Connect to a host the extension asks for, but `nvs.toml` does not grant.
+array<string> $hosts = [
+    'routes.example.com',
+    'ROUTES.example.com',
+    'routes.example.com.',
+    'routes.example.com:80',
+    'tiles.example.com@routes.example.com',
+    'routes.example.com#tiles.example.com',
+];
+foreach ($hosts as string $host) {
+    try {
+        int $status = Atlas::status($host);
+        echo $host, ': ', $status, "\n";
+    } catch (RuntimeError $denied) {
+        echo $host, ': ', $denied->message, "\n";
+    }
+}
+
+// 3. The one granted file still reads.
+echo Atlas::read('cities.txt');

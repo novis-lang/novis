@@ -1,0 +1,28 @@
+<?nvs
+// Shows that an extension may only do what `nvs.toml`, the extension and the program all allow.
+
+use Geo\Atlas;
+
+// Each host below is missing from one of the three grants.
+// So each call throws a `RuntimeError`, and no request is sent.
+array<string> $hosts = [
+    "tiles.example.com", // This program may not connect to it.
+    "maps.example.com",  // The extension does not ask for it.
+    "example.org",       // `nvs.toml` does not grant it to the extension.
+];
+foreach ($hosts as string $host) {
+    try {
+        int $status = Atlas::status($host);
+        echo $host, ": ", $status, "\n";
+    } catch (RuntimeError $denied) {
+        echo $host, ": ", $denied->message, "\n";
+    }
+}
+
+// `nvs.toml` lets the extension write to `data/geo/`, but the extension does not ask to write.
+// So this call throws a `RuntimeError`.
+try {
+    Atlas::write("visited.txt", "Vienna\n");
+} catch (RuntimeError $denied) {
+    echo $denied->message, "\n";
+}

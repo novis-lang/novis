@@ -120,6 +120,7 @@ fn caller(caps: &Capabilities) -> Caller<'_> {
     }
 }
 
+// covers: tools:config/extension-grants-what-a-component-may-reach
 #[test]
 fn the_effective_set_is_the_intersection_of_entry_manifest_and_caller() {
     let caps = Capabilities {

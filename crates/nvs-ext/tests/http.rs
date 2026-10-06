@@ -446,6 +446,7 @@ fn granted_loopback(connect: &str) -> String {
 
 const LOOPBACK: &[&str] = &["127.0.0.1"];
 
+// covers: tools:config/extension-grants-what-a-component-may-reach
 #[test]
 fn a_guest_http_call_to_a_host_all_three_grant_succeeds() {
     let (at, accepted) = listening(origin);

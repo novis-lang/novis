@@ -1,0 +1,35 @@
+<?nvs
+// Attack: this program may only read `data/geo/roads/`. It asks the extension to read, write
+// and connect where the extension may go but the program may not. Every attempt should fail.
+
+use Geo\Atlas;
+
+// 1. Read files outside `data/geo/roads/`.
+array<string> $paths = ['../cities.txt', '..', '../../private/secret.txt', 'cities.txt'];
+foreach ($paths as string $path) {
+    try {
+        string $text = Atlas::read($path);
+        echo $path, ': ', Core\Str::length($text), " characters\n";
+    } catch (RuntimeError $denied) {
+        echo $path, ': ', $denied->message, "\n";
+    }
+}
+
+// 2. Write a file. This program may not write anywhere.
+try {
+    Atlas::write('new.txt', "changed\n");
+    echo "written\n";
+} catch (RuntimeError $denied) {
+    echo $denied->message, "\n";
+}
+
+// 3. Connect to a host that `nvs.toml` and the extension allow. This program may not connect.
+try {
+    int $status = Atlas::status('tiles.example.com');
+    echo $status, "\n";
+} catch (RuntimeError $denied) {
+    echo $denied->message, "\n";
+}
+
+// 4. The file inside `data/geo/roads/` still reads.
+echo Atlas::read('main.txt');
