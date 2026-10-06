@@ -1,28 +1,28 @@
 {
-  "state": "**Goal `deprecated-and-todo`, Stage 2: the roster and the template check are on disk. `W1003` is open.** The whole list of goal `php-oracle-retired` is the floor of Stage 1.\n\nADR 0275 is accepted and its three rules are on disk as `designed`. `Core\\Deprecated` is on the roster, its payload is checked against `OPTIONS`, and `check_sites` refuses `construct` off a class (`E0454`) and the attribute on a property hook (`E0844`). The template check is `crates/nvs-types/src/deprecated/template.rs`, and its module doc says how a template is parsed and checked. It parses in `SourceFile::code_at`'s offset-aligned copy, infers in the declaration's scope, and reads what it named from `ExprTypeTable::since(mark)`. The refusals are `E0845` (does not parse), `E0846` (does not compile), `E0847` (does not fit), `E0848` (less visible), `E0849` (names a deprecated declaration) and `E0850` (a class replacement misses a public member). `Env::deprecations` is the program's set of deprecated declarations, `crate::deprecated::Deprecations`, built before any body is checked. All seven tests in `crates/nvs-types/tests/deprecated.rs` pass, and so does `tests/conformance/reject/a-deprecation-template-that-does-not-fit-does-not-compile.nvst`.\n\n**One deviation for the user to confirm:** ADR 0275 § Diagnostics adds no code except the template refusals. The goal also asks that an attach site the attribute does not take be refused, and no existing code says that. `E0844` is that code. If it should go, `E0454` could carry the hook case instead, with a worse message.\n\nNothing raises `W1003` yet (`crates/nvs-diagnostics/src/lib.rs`, `W_DEPRECATED`).",
+  "state": "**Goal `deprecated-and-todo`, Stage 2 is on disk: the roster, the template check and `W1003` at every use.** The whole list of goal `php-oracle-retired` is the floor of Stage 1.\n\nADR 0275 is accepted and its three rules are on disk as `designed`. The template check is `crates/nvs-types/src/deprecated/template.rs` (`E0845` to `E0850`). `W1003` is raised by `crates/nvs-types/src/deprecated.rs`, whose module doc says where: every method and property hook body, every top-level statement and every class header is checked inside `deprecated::window`, which is closed in a deprecated declaration or a member of a deprecated class. When the body is done, its expression table entries (`ExprTypeTable::since_at`, which now keeps a span per entry) are mapped by `template::resolved` and each deprecated declaration warns once per span. A type position warns as `lower::resolve_name_type` lowers it, and an override warns at the method through `deprecated::warn_override`, with no replacement. `Deprecations` now keeps `since`, `note`, `replace` and `construct` per declaration, and the message is the member, `since`, `note`, then `Use \\`<template>\\` instead.` with the template as declared. All 13 tests in `crates/nvs-types/tests/deprecated.rs` pass.\n\n**Known gaps, not yet owned by a test:** a use inside a property initializer, a constant's value or a parameter default does not warn, because those are checked outside any body window; a static call reached through a subclass names the declaring class, not the written one.\n\n**One deviation for the user to confirm:** ADR 0275 § Diagnostics adds no code except the template refusals. The goal also asks that an attach site the attribute does not take be refused, and no existing code says that. `E0844` is that code. If it should go, `E0454` could carry the hook case instead, with a worse message.\n\n`tools/nv/test/html-later-polyfill.test.ts` was a driver selection miss after session 0061; it passes when run alone (8 of 8), so it reads as flaky rather than broken.",
   "next": {
-    "stage": 2,
-    "title": "the attribute and the warning",
+    "stage": 3,
+    "title": "the rewrite",
     "files": [
       "crates/nvs-types/src/deprecated.rs",
       "crates/nvs-types/src/expr/calls.rs",
-      "crates/nvs-types/src/expr/members.rs",
-      "crates/nvs-types/src/expr_table.rs",
-      "crates/nvs-diagnostics/src/lib.rs"
+      "crates/nvs-lsp/src/diagnostics.rs",
+      "crates/nvs-lsp/src/actions.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**`W1003` at every use** — `rule:attributes/a-deprecation-names-its-replacement-as-code`: every call, `new`, property read or write, class constant, enum case, passed deprecated parameter and type position naming a deprecated class warns, and nothing inside a deprecated declaration or a member of a deprecated class warns. `Deprecations` at `crates/nvs-types/src/deprecated.rs:84` is a set today: widen it to carry `since`, `note` and `replace` for the message. The resolution points are the `ExprInfo::Call` records at `crates/nvs-types/src/expr/calls.rs:212` and `crates/nvs-types/src/expr/calls.rs:586`, `new` at `crates/nvs-types/src/expr/calls.rs:834`, and the property, constant and case records in `crates/nvs-types/src/expr/members.rs`. `crate::deprecated::template::named` already maps each `ExprInfo` to its declaring owner and `Member`, so reuse it rather than writing the mapping a second time. Tests: the names in the goal record's `nvs-types-every-use-of-a-deprecated-member-warns`, beside `crates/nvs-types/tests/deprecated.rs:1`."
+        "text": "**Fill the template in at the use** — `rule:attributes/a-deprecation-names-its-replacement-as-code` § *The fix fills the template in* and § *Side effects keep their order and count*: `crates/nvs-types/src/deprecated.rs:211` (`report`) gains the use's call node so it can substitute arguments by position and name, defaults as written, `$this` as the receiver and the class as written; the message's replacement at `crates/nvs-types/src/deprecated.rs:234` becomes the filled-in text, and the result is `W1003`'s `Suggestion`. The arguments are written at `crates/nvs-types/src/expr/calls.rs:212`. Tests: the goal record's stage-3 `nvs-types` check, beside `crates/nvs-types/tests/deprecated.rs:1`."
       },
       {
         "done": false,
-        "text": "**The override warning** — same rule: an override or implementation of a deprecated member warns at the override, with no fix, from the conformance walk `crate::conformance::check_class_conformance` (`crates/nvs-types/src/check.rs:375`)."
+        "text": "**The editor tag** — same goal stage: `crates/nvs-lsp/src/diagnostics.rs:155` sets `DiagnosticTag::DEPRECATED` on `W1003`, and `crates/nvs-lsp/src/actions.rs:1`'s module doc names the fourth fix."
       }
     ]
   },
   "backlog": [
-    "A class constant's visibility is not in `ConstSig`, so the less-visible check treats every constant as public (`crates/nvs-types/src/deprecated/template.rs` module doc).",
-    "`E0844` versus `E0454` for a deprecation on a property hook: the user's call, see `## State`."
+    "A use in a property initializer, a constant value or a parameter default does not warn yet (`crates/nvs-types/src/deprecated.rs` module doc).",
+    "Completion tag and hover for a deprecated member (`crates/nvs-lsp/src/completion.rs`, `crates/nvs-lsp/src/hover.rs`), Stage 3 of `docs/agent/goals/deprecated-and-todo.md`.",
+    "`E0844` versus `E0454` for a deprecation on a property hook: the user's call (ADR 0275 § Diagnostics)."
   ]
 }
