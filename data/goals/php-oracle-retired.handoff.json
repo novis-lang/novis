@@ -1,30 +1,29 @@
 {
-  "state": "**Goal `php-oracle-retired`, Stage 2 under way.** ADR 0274 is on disk (`docs/decisions/0274.md`, `data/decisions/0274.json`): the whole goal's record, the user's calls, the tradeoffs, the old-to-new ordering table (§ 2) and the rules this goal removes (§ 4, since `changes:` has no removal key). It modifies the four rules the goal named and the eight fragments whose priority citations it renamed.\n\nPriority 2 is gone from `AGENTS.md`, `rule:programs/memory-priority` (title too) and the website's `website/src/content/docs/in-depth/how-we-decide.mdx`, the real home of the ordering on the site — the goal's `index.mdx:25` anchor was stale. Every `docs/rules/` fragment and `docs/agent/` file now names a priority instead of numbering it. `rule:php-migration/every-divergence-is-deliberate-and-listed` opens on migration help; `docs/agent/commands.md` and `docs/agent/user-report.md` no longer measure a bug against PHP.\n\n**Left in Stage 2:** the Rust comments. `git grep -n -i -E \"priority [1-5]\\b\" -- crates` lists 121 hits in 73 files. Old numbering: 1 security, 2 correctness (deleted), 3 latency, 4 simplicity, 5 memory footprint. A comment that leans on \"priority 2\" is rewritten whole to state the behaviour it protects; a scheduler or task priority stays. Whether a Stage 2 check greps `crates/` for these is *not checked*.",
+  "state": "**Goal `php-oracle-retired`, Stage 2 under way.** ADR 0274 is on disk (`docs/decisions/0274.md`, `data/decisions/0274.json`): the whole goal's record, the user's calls, the tradeoffs, the old-to-new ordering table (§ 2) and the rules this goal removes (§ 4). Priority 2 is gone from `AGENTS.md`, `rule:programs/memory-priority`, the website's `how-we-decide.mdx`, every `docs/rules/` fragment and every `docs/agent/` file.\n\n`crates/nvs-ir` cites no priority by number any more. **Left in Stage 2:** the rest of the Rust comments — `git grep -n -i -E \"priority [1-5]\\b\" -- crates` lists 110 hits in 66 files. Old numbering: 1 security, 2 correctness (deleted), 3 latency, 4 simplicity, 5 memory footprint. A comment that leans on \"priority 2\" is rewritten whole to state the behaviour it protects, and a \"PHP does this\" sentence in the same comment goes with it; a scheduler or task priority stays. Whether a Stage 2 check greps `crates/` for these is *not checked*.",
   "next": {
     "stage": 2,
     "title": "a priority is cited by its name, the Rust comments",
     "files": [
-      "crates/nvs-ir/src/"
+      "crates/nvs-host/src/",
+      "crates/nvs-db/src/"
     ],
     "items": [
       {
         "done": false,
-        "text": "**The IR comments** — `rule:programs/memory-priority` (cite by name): `crates/nvs-ir/src/ir.rs:942`, `crates/nvs-ir/src/ir.rs:2820`, `crates/nvs-ir/src/lower/generator.rs:411`, `crates/nvs-ir/src/lower/generator.rs:900`, `crates/nvs-ir/src/lower/mod.rs:4243`, `crates/nvs-ir/src/lower/stmt.rs:489`, `crates/nvs-ir/src/lower/control.rs:704`, `crates/nvs-ir/src/lower/convert.rs:860`, `crates/nvs-ir/src/ty.rs:75`, `crates/nvs-ir/src/ty.rs:202`, and the rest of `git grep -n -i -E \"priority [1-5]\\b\" -- crates/nvs-ir`."
+        "text": "**The host and database comments** — `rule:programs/memory-priority` (cite by name): `crates/nvs-host/src/net.rs:114`, `crates/nvs-host/src/tls.rs:61`, `crates/nvs-host/src/tls.rs:992`, `crates/nvs-host/src/tls.rs:1401`, `crates/nvs-host/src/tls.rs:1408`, `crates/nvs-host/src/scheduler.rs:291`, `crates/nvs-db/src/mysql.rs:2440`, `crates/nvs-db/src/mysql.rs:4718`, `crates/nvs-db/src/pg.rs:3395`, `crates/nvs-db/src/sqlite.rs:680`."
       },
       {
         "done": false,
-        "text": "**The host and database comments** — same rule: `crates/nvs-host/src/net.rs:114`, `crates/nvs-host/src/tls.rs:61`, `crates/nvs-host/src/tls.rs:992`, `crates/nvs-db/src/mysql.rs:2440`, `crates/nvs-db/src/pg.rs:3395`, `crates/nvs-db/src/sqlite.rs:680`."
+        "text": "**The runtime comments** — same rule: `crates/nvs-runtime/src/object.rs:33`, `crates/nvs-runtime/src/object.rs:168`, `crates/nvs-runtime/src/string.rs:45`, `crates/nvs-runtime/src/array.rs:18`, and the rest of `git grep -n -i -E \"priority [1-5]\\b\" -- crates/nvs-runtime` (about 40 hits)."
       },
       {
         "done": false,
-        "text": "**The rest of `crates/`** — same rule: `crates/nvs-codegen/src/emit.rs:1689`, `crates/nvs-config/src/http.rs:54`, `crates/nvs-config/src/value.rs:27`, `crates/nvs-cli/src/worker.rs:1475`, `crates/nvs-diagnostics/src/lib.rs:2180`, then whatever the grep still lists."
+        "text": "**The rest of `crates/`** — same rule: `crates/nvs-codegen/src/emit.rs:1689`, `crates/nvs-config/src/http.rs:54`, `crates/nvs-config/src/value.rs:27`, and the rest of the grep over `crates/nvs-stdlib`, `crates/nvs-types`, `crates/nvs-server`, `crates/nvs-render`, `crates/nvs-cli`, `crates/nvs-diagnostics`."
       }
     ]
   },
   "backlog": [
-    "Stage 3, every error message has a conformance case — `docs/agent/goals/php-oracle-retired.md` § Stage 3.",
-    "ADR 0089 and 0111 turn `retired` in the commits that delete their last rules (Stage 5, Stage 6) — ADR 0274 § 4.",
-    "The `testing/nvst-is-separate` and `ide/case-files-have-their-own-grammar` fragments still name the oracle; Stage 8 rewrites them once Stage 4 removes it — ADR 0274 § 7.",
-    "The goal's `[context]` has no Stage 2 overlay for `crates/nvs-ir`; widen it if the next pack lacks the module map."
+    "Stages 3 to 9 of `docs/agent/goals/php-oracle-retired.md`: the driver's red checks name them, the earliest being `nvs-stdlib-the-error-corpus-is-conformance-alone` (Stage 3).",
+    "The runtime and stdlib items are large; a session may split them by file rather than by crate."
   ]
 }
