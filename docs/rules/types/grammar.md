@@ -2,7 +2,7 @@
 type         := qualified
 qualified    := ('secret')? ('tainted')? union
 union        := intersection ('|' intersection)*
-intersection := atom ('&' atom)*  |  '(' union ')'        // DNF, as PHP 8.2
+intersection := atom ('&' atom)*  |  '(' union ')'        // DNF
 atom         := 'null' | 'bool' | 'int' | 'uint' | 'float' | 'decimal'
               | 'string' | 'bytes'
               | 'array' | 'array' '<' type '>'

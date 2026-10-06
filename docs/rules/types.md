@@ -95,7 +95,7 @@ the depth the write went through.
 type         := qualified
 qualified    := ('secret')? ('tainted')? union
 union        := intersection ('|' intersection)*
-intersection := atom ('&' atom)*  |  '(' union ')'        // DNF, as PHP 8.2
+intersection := atom ('&' atom)*  |  '(' union ')'        // DNF
 atom         := 'null' | 'bool' | 'int' | 'uint' | 'float' | 'decimal'
               | 'string' | 'bytes'
               | 'array' | 'array' '<' type '>'
@@ -203,14 +203,11 @@ whose payload is already a `u64`, so a `uint` costs **zero additional bytes per 
 `Core\Reflect::typeOf` reports it as its own kind, and `$x is uint` asks for it directly
 ([`types/type-test`](types.md#types-type-test)).
 
-Being its own tag is observable, and a migrating program is where it shows: `is_int($id)` was true for
-every integer PHP had, while `$id is int` is **false** for a value that arrived as a `uint` — a
-`BIGINT UNSIGNED` key or a snowflake id, which is what `uint` was added for. `$id is int|uint` is the
-spelling that asks PHP's question. This is the one place the split is reachable by a mechanical
-rewrite rather than by declaring a `uint` on purpose.
+Being its own tag is observable: `$id is int` is **false** for a value that arrived as a `uint` — a
+`BIGINT UNSIGNED` key or a snowflake id, which is what `uint` was added for — and `$id is int|uint`
+tests for any integer.
 
-`uint` exists because web software needs the half of the 64-bit range PHP's single signed integer
-cannot reach: `BIGINT UNSIGNED` keys, snowflake ids, nanosecond timestamps, WIT's `u32`/`u64`. An
+`uint` exists because web software needs the half of the 64-bit range a signed integer cannot reach: `BIGINT UNSIGNED` keys, snowflake ids, nanosecond timestamps, WIT's `u32`/`u64`. An
 integer literal that does not fit `int` is legal only where a `uint` is expected, and is otherwise a
 diagnostic saying exactly that.
 
@@ -288,8 +285,8 @@ such as a `?int` converts by its run-time tag. It never reaches the field of a s
 or object that already exists, because that value is shared and its field is not converted
 ([`types/shape-type`](types.md#types-shape-type)). It never reaches the elements of an array that already exists either: they
 keep the representation they were stored with, so an `array<int>` is not an `array<float>`, and
-`as array<float>` is the conversion ([`types/arrays`](types.md#types-arrays)). It is the one coercion PHP's own
-`strict_types` permits, and it throws above 2^53 rather than rounding, where `f64` stops representing
+`as array<float>` is the conversion ([`types/arrays`](types.md#types-arrays)). It throws above 2^53 rather than rounding,
+where `f64` stops representing
 every integer.
 
 Everything else is a diagnostic. `mixed` never absorbs implicitly in either direction
@@ -348,8 +345,8 @@ every key is a `string` already ([`types/arrays`](types.md#types-arrays)).
 | two objects whose static type is provably the same class implementing `Comparable` | `bool`/`int`, via `compareTo`; a throwing `compareTo` propagates as a checked status like any other call |
 | any other operands | **compile error** |
 
-There is no fallback. Everything else PHP orders, it orders by converting an operand first, and there
-is no implicit conversion for that to be. So two strings order through `Core\Str::compare`, an enum
+There is no fallback. Ordering any other pair would mean converting an operand first, and there is no
+implicit conversion for that to be. So two strings order through `Core\Str::compare`, an enum
 case orders through its backing `as int` ([`enums/closed-integer-type`](enums.md#enums-closed-integer-type)), and an `array<T>`, a
 `callable` and `null` do not order at all. Two objects with no `Comparable` between them are a
 compile error whose diagnostic names `Comparable` as the fix, however the receiver was spelled — an
@@ -654,11 +651,11 @@ The container is an insertion-ordered hash with copy-on-write value semantics.
 Three members combine arrays, and each walks its arguments left to right treating **every key the
 same way**:
 
-| Member | Rule | PHP equivalent |
-|---|---|---|
-| `overlay(array<T> $base, array<U> ...$layers)` | a key already present **replaces** in place; a new key is appended | `array_replace` exactly |
-| `underlay(array<T> $base, array<U> ...$layers)` | a key already present is **ignored**; a new key is appended | `$a + $b` exactly |
-| `appendAll(array<T> $a, array<U> ...$others)` | every **value** in order, keys discarded; the result is always a list | `array_merge`, for list arguments |
+| Member | Rule |
+|---|---|
+| `overlay(array<T> $base, array<U> ...$layers)` | a key already present **replaces** in place; a new key is appended |
+| `underlay(array<T> $base, array<U> ...$layers)` | a key already present is **ignored**; a new key is appended |
+| `appendAll(array<T> $a, array<U> ...$others)` | every **value** in order, keys discarded; the result is always a list |
 
 **Key order** is one rule for all three: an existing key keeps its position, a new key lands at the end
 in the order first met. That is what makes `overlay` and `underlay` two operations rather than one
@@ -668,16 +665,14 @@ observable.
 
 `overlayDeep` recurses where **both** sides of a key hold an array and **neither is a list**; in every
 other case the right-hand value replaces the left wholesale. A list is replaced, never merged
-element-wise, because element-wise is the surprise in `array_replace_recursive`.
+element-wise, because two lists merged by position are rarely what a caller meant.
 
-**`Core\Arr` has no member named `merge`**, in any spelling — the word names two operations in the
-language a developer is arriving from — and binary `+`/`+=` with an array operand is a **compile
-error** naming `Arr::underlay`. Nothing reproduces `array_merge`; a converter rewrites it by static
-type, and diagnoses where the type is not provably a list or a map.
+**`Core\Arr` has no member named `merge`**, in any spelling — the word is read as two different
+operations — and binary `+`/`+=` with an array operand is a **compile error** naming `Arr::underlay`.
 
-Two related behaviours are stated rather than inherited: `unique`, `diff` and `intersect` compare by
-**strict identity**, not by PHP's string cast; and `flip` collapses duplicate values, last occurrence
-winning, its result typed `array<string>`.
+Two related behaviours are stated here too: `unique`, `diff` and `intersect` compare by **strict
+identity**, never by a string cast of each value; and `flip` collapses duplicate values, last
+occurrence winning, its result typed `array<string>`.
 
 <sub>See also [`types/arrays`](types.md#types-arrays), [`types/preserve-keys`](types.md#types-preserve-keys). Decided in [0069](../decisions/0069.md), [0007](../decisions/0007.md), [0063](../decisions/0063.md).</sub>
 
@@ -690,14 +685,12 @@ winning, its result typed `array<string>`.
 Wherever the `{preserveKeys: …}` option appears — `slice`, `chunk`, `reverse`, the sorts —
 **`false` means the result is a list**, keys renumbered from `"0"`, and `true` means every key is kept.
 
-PHP renumbers integer keys and silently keeps string ones, which is the key-type-dependent rule
-[`types/array-combination`](types.md#types-array-combination) removes, arriving through an option name. Here the option has one
-meaning over every array shape.
+The option has one meaning over every array shape. Renumbering integer keys while keeping string ones
+would be the key-type-dependent rule [`types/array-combination`](types.md#types-array-combination) removes, arriving through an
+option name.
 
-`false` stays the default, matching PHP for a list argument, which is what these members are
-overwhelmingly called with. For an argument with non-numeric keys the result differs from PHP's — the
-keys are gone rather than kept — and `{preserveKeys: true}` is the faithful rewrite where that
-mattered.
+`false` is the default because these members are overwhelmingly called with a list. For an argument
+with non-numeric keys, `false` drops the keys and `{preserveKeys: true}` keeps them.
 
 <sub>See also [`types/array-combination`](types.md#types-array-combination), [`types/arrays`](types.md#types-arrays). Decided in [0069](../decisions/0069.md), [0007](../decisions/0007.md).</sub>
 
@@ -715,9 +708,8 @@ time.
 `mixed` is the one unchecked position ([`types/unions-and-mixed`](types.md#types-unions-and-mixed)), so a subscript through one
 defers not only *which* array is behind the handle but *whether there is one*. The read is answered
 from the tag, and the two answers are the element or a catchable throw carrying the same "only an
-`array<T>` has elements" wording the refusal above uses — never PHP's warning and a `null`. Under a
-`??` both failures answer `null` instead, which is what PHP's own null-coalescing read does for any
-subject.
+`array<T>` has elements" wording the refusal above uses — never a `null`. Under a `??` both failures
+answer `null` instead, as a `??` read does for any subject.
 
 The **write** side is not deferred. An element write separates a copy-on-write buffer and needs a
 holder to write the separated one back through, which a value that is only a tag does not name, so
@@ -834,7 +826,7 @@ or `as ?T`, which yields `null`. `as` converts and so accepts what can be conver
 
 `mixed` is **not checked at all** — that is its entire job. It holds anything, every operation on it
 is allowed, and every operation on it is resolved dynamically at runtime through the generic helper
-path. That is PHP's semantics, exactly, at PHP's cost, which is the right pressure: the fast path is
+path. That is dynamic typing at dynamic typing's cost, which is the right pressure: the fast path is
 the typed one. `Core\Reflect::typeOf` is the one type-introspection member, and it is meaningful only
 on a `mixed`, because the checker already knows every other case.
 
@@ -947,15 +939,13 @@ a compile error.
 [`types/narrowing`](types.md#types-narrowing) — which owns every other property of narrowing, including that it changes what
 is known about a binding and never its declared type.
 
-## Where it answers differently from PHP
+## Where the tags are finer than they look
 
 `int` and `uint` are separate tags ([`types/uint`](types.md#types-uint)), so a value from a `BIGINT UNSIGNED` column
-answers `is uint` and **not** `is int`, where PHP's `is_int()` is true for both; `is int|uint` is the
-migration spelling. `string` and `bytes` are separate the same way
-([`types/string-is-utf8`](types.md#types-string-is-utf8), [`types/bytes`](types.md#types-bytes)), so binary data answers `is bytes` where PHP's
-`is_string()` is true. Both are consequences of a finer type system rather than of this operator, and
-`is` is simply the first spelling that makes them reachable from a mechanical rewrite of PHP source.
-What that rewrite does with PHP's own class-test operator is [`types/one-type-test`](types.md#types-one-type-test)'s.
+answers `is uint` and **not** `is int`; `is int|uint` tests for any integer. `string` and `bytes` are
+separate the same way ([`types/string-is-utf8`](types.md#types-string-is-utf8), [`types/bytes`](types.md#types-bytes)), so binary data answers
+`is bytes` and not `is string`. Both are consequences of a finer type system rather than of this
+operator.
 
 <sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/single-value-types`](types.md#types-single-value-types), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`types/one-type-test`](types.md#types-one-type-test). Decided in [0150](../decisions/0150.md), [0192](../decisions/0192.md), [0261](../decisions/0261.md).</sub>
 
@@ -1057,7 +1047,7 @@ where it runs.
 `foreach` header the `as` belongs to `foreach`, so converting the subject takes parentheses:
 `foreach (($m as array<int>) as int $v)`. Two conversions are *not* spelled with it: an `int` or
 `uint` widening into a `float` position, which is implicit ([`types/implicit-widening`](types.md#types-implicit-widening)), and a
-condition, which tests any type against PHP's truthy table without asking for one. PHP's cast syntax
+condition, which tests any type for truthiness without asking for one. The `(int)` cast syntax
 is not a second spelling — it does not parse at all ([`types/no-legacy-cast`](types.md#types-no-legacy-cast)).
 
 <sub>See also [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/implicit-widening`](types.md#types-implicit-widening), [`types/arithmetic`](types.md#types-arithmetic), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0010](../decisions/0010.md), [0024](../decisions/0024.md), [0028](../decisions/0028.md), [0033](../decisions/0033.md), [0034](../decisions/0034.md), [0047](../decisions/0047.md), [0054](../decisions/0054.md), [0066](../decisions/0066.md), [0125](../decisions/0125.md), [0126](../decisions/0126.md), [0144](../decisions/0144.md), [0237](../decisions/0237.md), [0238](../decisions/0238.md).</sub>
@@ -1081,8 +1071,7 @@ to use, but it produces an error node; there is no cast node in the AST.
 The diagnostic fires only for that `(` *keyword* `)` shape in an operand position; the type keywords
 keep their ordinary meaning everywhere else, and the rejected form still consumes its operand, so
 `(int) !$x` leaves nothing dangling. `$x as int` is the only conversion spelling
-([`types/conversion`](types.md#types-conversion)), and a PHP file carrying a legacy cast needs that one mechanical rewrite
-before it parses.
+([`types/conversion`](types.md#types-conversion)).
 
 <sub>See also [`types/conversion`](types.md#types-conversion). Decided in [0034](../decisions/0034.md), [0007](../decisions/0007.md), [0049](../decisions/0049.md).</sub>
 
@@ -1209,7 +1198,7 @@ method reference — `Core\Str::length(...)`, `$user->getName(...)`, `self::help
 `static::helper(...)` (late-bound). A method reference names a member, and the checker records the
 resolved target. Both make the same kind of value, a callable.
 
-PHP's other three spellings are refused where they are written, each with a diagnostic naming the
+Three other ways to name a function are refused where they are written, each with a diagnostic naming the
 replacement: a bare name string (`'strlen'`), a `"Class::method"` string, and a `[$obj, 'method']`
 array. Two further refusals fall out of the same rule: `new C(...)` is `E0740`, because `new` names a
 class rather than a callee, and `$m->method(...)` on a `mixed` receiver is `E0732`, because a callable
@@ -1401,7 +1390,7 @@ callable that does not use `$this` comes back unchanged
 with the new `$this`, and an object of any other class, or `null`, throws a `LogicError`. The test is
 made when the call runs, because `callable` does not say whether a callable uses `$this`. It is the
 line between a rebind and a memory-safety hole: the compiled body reads `$this` at its own class's
-layout. PHP's scope argument does not compile (`E0402`), because a scope opens another class's
+layout. A scope argument does not compile (`E0402`), because a scope opens another class's
 `private` members. A static check was weighed and left out: it would need a part of the `callable`
 type, naming whether and where the callable uses `$this`, that every assignment and comparison of
 callables then carries.
@@ -1612,8 +1601,8 @@ already answered the question does not get to ask it again at run time.
 For all three:
 
 - **Read:** a checked, catchable throw if the concrete instance does not have that name — never a
-  silent value, never PHP's warning and a `null`. A receiver whose tag turns out not to be an object
-  is one more catchable throw, worded as PHP words its warning.
+  silent value or a `null`. A receiver whose tag turns out not to be an object is one more
+  catchable throw.
 - **Write:** the same missing-name throw, plus a check of the incoming value against the field's
   *real*, concrete declared type, throwing on a mismatch. A write through an erased view can **never
   create a field**.
@@ -1717,15 +1706,12 @@ class side is a written name and any value there, a `class<T>` included, is `E04
 `new $cls(...)` types its arguments against **`T`'s** constructor, exactly as `new static(...)` types
 them against the current class's; that is the only signature the site can see, and the value may be
 any implementor of `T`. So the site is refused **at the `new`**, naming the subclass, when any
-implementor of `T` declares a constructor incompatible with `T`'s (`E0794`). This is stricter than
-PHP and never *different* from PHP: every program it accepts, PHP runs the same way. It is
-deliberately checked at the `new` rather than at the class declaration — a subclass never instantiated
+implementor of `T` declares a constructor incompatible with `T`'s (`E0794`). It is deliberately checked at the `new` rather than at the class declaration — a subclass never instantiated
 through a class reference is nobody's problem.
 
 `$x is $cls` is the dynamic class test, and it narrows its subject to `T` on the true edge
 ([`types/narrowing`](types.md#types-narrowing)) — the value it tests holds `T` or an implementor, so the narrowing is what
-the reference already promised. PHP spells this site with the operator Novis refuses
-([`types/one-type-test`](types.md#types-one-type-test)).
+the reference already promised. No second operator tests a class ([`types/one-type-test`](types.md#types-one-type-test)).
 
 `$obj->$name` is untouched by any of this: a class reference answers "which class", never "which
 member" ([`types/property-key-access`](types.md#types-property-key-access)).
@@ -1759,10 +1745,8 @@ The operand must carry a class statically. An object does, and a `class<T>` does
 is a conversion rather than a member read ([`types/class-reference`](types.md#types-class-reference)), answering the **descriptor's**
 class rather than the `T` it was checked against, so `$name as class<Animal> as string` is the name it
 started from. A `mixed` or a `?T` is **refused** (`E0702`): narrow it — an `is` test, or a `!= null`
-one ([`types/narrowing`](types.md#types-narrowing)) — or ask reflection, whose whole purpose is the erased receiver. That is
-where this parts company
-with PHP, which accepts `$m::class` on any operand and fails at run time on one that is not an object;
-accepting it here would put a tag test and a throw behind a spelling that reads like a member read.
+one ([`types/narrowing`](types.md#types-narrowing)) — or ask reflection, whose whole purpose is the erased receiver. Accepting
+`$m::class` on any operand would fail at run time on one that is not an object, and would put a tag test and a throw behind a spelling that reads like a member read.
 The narrowing that lifts the refusal is the one `->` already requires of the same receiver.
 
 Per evaluation the run-time form spends one load, one call and one string allocation for the name,

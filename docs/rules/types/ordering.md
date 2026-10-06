@@ -8,8 +8,8 @@
 | two objects whose static type is provably the same class implementing `Comparable` | `bool`/`int`, via `compareTo`; a throwing `compareTo` propagates as a checked status like any other call |
 | any other operands | **compile error** |
 
-There is no fallback. Everything else PHP orders, it orders by converting an operand first, and there
-is no implicit conversion for that to be. So two strings order through `Core\Str::compare`, an enum
+There is no fallback. Ordering any other pair would mean converting an operand first, and there is no
+implicit conversion for that to be. So two strings order through `Core\Str::compare`, an enum
 case orders through its backing `as int` (`rule:enums/closed-integer-type`), and an `array<T>`, a
 `callable` and `null` do not order at all. Two objects with no `Comparable` between them are a
 compile error whose diagnostic names `Comparable` as the fix, however the receiver was spelled — an

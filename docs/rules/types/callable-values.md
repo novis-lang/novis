@@ -3,7 +3,7 @@ method reference — `Core\Str::length(...)`, `$user->getName(...)`, `self::help
 `static::helper(...)` (late-bound). A method reference names a member, and the checker records the
 resolved target. Both make the same kind of value, a callable.
 
-PHP's other three spellings are refused where they are written, each with a diagnostic naming the
+Three other ways to name a function are refused where they are written, each with a diagnostic naming the
 replacement: a bare name string (`'strlen'`), a `"Class::method"` string, and a `[$obj, 'method']`
 array. Two further refusals fall out of the same rule: `new C(...)` is `E0740`, because `new` names a
 class rather than a callee, and `$m->method(...)` on a `mixed` receiver is `E0732`, because a callable

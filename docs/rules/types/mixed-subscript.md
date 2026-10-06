@@ -6,9 +6,8 @@ time.
 `mixed` is the one unchecked position (`rule:types/unions-and-mixed`), so a subscript through one
 defers not only *which* array is behind the handle but *whether there is one*. The read is answered
 from the tag, and the two answers are the element or a catchable throw carrying the same "only an
-`array<T>` has elements" wording the refusal above uses — never PHP's warning and a `null`. Under a
-`??` both failures answer `null` instead, which is what PHP's own null-coalescing read does for any
-subject.
+`array<T>` has elements" wording the refusal above uses — never a `null`. Under a `??` both failures
+answer `null` instead, as a `??` read does for any subject.
 
 The **write** side is not deferred. An element write separates a copy-on-write buffer and needs a
 holder to write the separated one back through, which a value that is only a tag does not name, so

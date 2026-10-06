@@ -7,8 +7,8 @@ already answered the question does not get to ask it again at run time.
 For all three:
 
 - **Read:** a checked, catchable throw if the concrete instance does not have that name — never a
-  silent value, never PHP's warning and a `null`. A receiver whose tag turns out not to be an object
-  is one more catchable throw, worded as PHP words its warning.
+  silent value or a `null`. A receiver whose tag turns out not to be an object is one more
+  catchable throw.
 - **Write:** the same missing-name throw, plus a check of the incoming value against the field's
   *real*, concrete declared type, throwing on a mismatch. A write through an erased view can **never
   create a field**.

@@ -11,5 +11,4 @@ to use, but it produces an error node; there is no cast node in the AST.
 The diagnostic fires only for that `(` *keyword* `)` shape in an operand position; the type keywords
 keep their ordinary meaning everywhere else, and the rejected form still consumes its operand, so
 `(int) !$x` leaves nothing dangling. `$x as int` is the only conversion spelling
-(`rule:types/conversion`), and a PHP file carrying a legacy cast needs that one mechanical rewrite
-before it parses.
+(`rule:types/conversion`).

@@ -8,7 +8,7 @@ or `as ?T`, which yields `null`. `as` converts and so accepts what can be conver
 
 `mixed` is **not checked at all** — that is its entire job. It holds anything, every operation on it
 is allowed, and every operation on it is resolved dynamically at runtime through the generic helper
-path. That is PHP's semantics, exactly, at PHP's cost, which is the right pressure: the fast path is
+path. That is dynamic typing at dynamic typing's cost, which is the right pressure: the fast path is
 the typed one. `Core\Reflect::typeOf` is the one type-introspection member, and it is meaningful only
 on a `mixed`, because the checker already knows every other case.
 

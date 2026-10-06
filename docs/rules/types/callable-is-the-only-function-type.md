@@ -18,7 +18,7 @@ callable that does not use `$this` comes back unchanged
 with the new `$this`, and an object of any other class, or `null`, throws a `LogicError`. The test is
 made when the call runs, because `callable` does not say whether a callable uses `$this`. It is the
 line between a rebind and a memory-safety hole: the compiled body reads `$this` at its own class's
-layout. PHP's scope argument does not compile (`E0402`), because a scope opens another class's
+layout. A scope argument does not compile (`E0402`), because a scope opens another class's
 `private` members. A static check was weighed and left out: it would need a part of the `callable`
 type, naming whether and where the callable uses `$this`, that every assignment and comparison of
 callables then carries.

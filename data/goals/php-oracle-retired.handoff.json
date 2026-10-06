@@ -1,5 +1,5 @@
 {
-  "state": "**Goal `php-oracle-retired`: Stages 6 and 7 are on disk; Stage 8 is in progress.** ADR 0274 (`docs/decisions/0274.md`) is the goal's record.\n\nStage 8 on disk: the `php-migration/` topic is dissolved, `divergesFromPhp` and `docs/divergences.md` are gone, and the ten normative lines state the behaviour. The testing rules no longer name the oracle (`ide/case-files-have-their-own-grammar` had no PHP left to cut). Every `php`-tagged fence under `docs/rules/` is now `nvs` — all of them held Novis code. The `classes` topic carries no PHP mention.\n\nStage 8 still owes the incidental-mention sweep in the other topics (goal prose § *Stage 8*, `docs/agent/goals/php-oracle-retired.md:284`): `git grep -c -w -i php -- 'docs/rules/*/*.md'` lists about 133 files, far more than the prose's estimate of 35. A mention stays where the rule is a diagnostic for a PHP habit (E0229, `<?php`, the superglobals), the benchmarks, or `programs/no-compatibility-promise`; everywhere else the sentence is rewritten to state the behaviour. No check pins this, so it is judgment work, one topic per slice.\n\nThe Stage 9 checks the driver reports red are not written yet; they follow Stage 8.",
+  "state": "**Goal `php-oracle-retired`: Stages 6 and 7 are on disk; Stage 8 is in progress.** ADR 0274 (`docs/decisions/0274.md`) is the goal's record.\n\nStage 8 on disk: the `php-migration/` topic is dissolved, `divergesFromPhp` and `docs/divergences.md` are gone, and the ten normative lines state the behaviour. The testing rules no longer name the oracle. Every `php`-tagged fence under `docs/rules/` is `nvs`. The `classes`, `core-api` and `types` topics state behaviour: the PHP mentions left there are diagnostics for a PHP habit (`core-api/removals`, `core-api/legacy-property-shapes-name-the-visibility`, `types/callable-is-the-only-function-type`'s `Closure` line). `types/array-combination` lost its \"PHP equivalent\" column, and the converter sentences in `core-api/written-visibility` and `core-api/identifier-casing` are gone.\n\nStage 8 still owes the incidental-mention sweep in the other topics (goal prose § *Stage 8*, `docs/agent/goals/php-oracle-retired.md:284`). A mention stays where the rule is a diagnostic for a PHP habit (E0229, `<?php`, the superglobals), the benchmarks, or `programs/no-compatibility-promise`; everywhere else the sentence is rewritten to state the behaviour, and any sentence about a converter or a mechanical rewrite goes. No check pins this, so it is judgment work. A topic's whole list fits one `bun nv splice --patch`; two topics fit one session easily.\n\nThe Stage 9 checks the driver reports red are not written yet; they follow Stage 8.",
   "next": {
     "stage": 8,
     "title": "the rules state the behaviour",
@@ -8,20 +8,20 @@
     "items": [
       {
         "done": false,
-        "text": "**Incidental PHP mentions leave the `core-api` topic** — goal prose § *Stage 8*; `docs/rules/core-api/reference-card.md:1`, listed by `git grep -n -w -i php -- 'docs/rules/core-api/*.md'` (22 files)."
+        "text": "**Incidental PHP mentions leave `core-classes`, `ide`, `tooling` and `packaging`** — goal prose § *Stage 8*; `docs/rules/packaging/extension-calls-are-statically-typed.md:8`, listed by `git grep -n -w -i php -- 'docs/rules/core-classes/' 'docs/rules/ide/' 'docs/rules/tooling/' 'docs/rules/packaging/'` (skip the generated `<topic>.md` files)."
       },
       {
         "done": false,
-        "text": "**The same for `types`** — `docs/rules/types/arithmetic.md:1`, `git grep -n -w -i php -- 'docs/rules/types/*.md'` (16 files)."
+        "text": "**The same for `statements` and `expressions`** — `docs/rules/statements/nothing-gets-a-second-name.md:1`, `git grep -n -w -i php -- 'docs/rules/statements/' 'docs/rules/expressions/'`."
       },
       {
         "done": false,
-        "text": "**The same for `core-classes`, `ide`, `tooling` and `packaging`** — `docs/rules/packaging/extension-calls-are-statically-typed.md:8` (the goal prose's own example); then the small topics."
+        "text": "**The same for every topic still listed** — `docs/rules/programs/no-compatibility-promise.md:1` is the one that keeps its mentions; `git grep -c -w -i php -- 'docs/rules/*/*.md'` lists what is left."
       }
     ]
   },
   "backlog": [
-    "`classes/property-hooks.md` once said hooks keep asymmetric visibility's interaction; no conformance case pins a hooked property with `private(set)`, so the line was cut rather than restated — a case would let the rule say it (`rule:classes/property-hooks`).",
-    "Stage 9 follows Stage 8: `about.md`, registry text, website, the concept page (goal prose § *Stage 9*)."
+    "Stage 9: the about.md \"replaces PHP\" sentences, the registry test `no_member_text_says_what_it_replaces_in_php`, the website's \"Replaces in PHP\" fact and the concept page's crosswalk — goal prose § *Stage 9*.",
+    "Stage 10: `bun nv proofs --gate` owes nothing with PHP stepped back — goal prose § *Stage 10*."
   ]
 }

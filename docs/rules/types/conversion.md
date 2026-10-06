@@ -39,5 +39,5 @@ where it runs.
 `foreach` header the `as` belongs to `foreach`, so converting the subject takes parentheses:
 `foreach (($m as array<int>) as int $v)`. Two conversions are *not* spelled with it: an `int` or
 `uint` widening into a `float` position, which is implicit (`rule:types/implicit-widening`), and a
-condition, which tests any type against PHP's truthy table without asking for one. PHP's cast syntax
+condition, which tests any type for truthiness without asking for one. The `(int)` cast syntax
 is not a second spelling — it does not parse at all (`rule:types/no-legacy-cast`).

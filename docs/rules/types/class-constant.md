@@ -19,10 +19,8 @@ The operand must carry a class statically. An object does, and a `class<T>` does
 is a conversion rather than a member read (`rule:types/class-reference`), answering the **descriptor's**
 class rather than the `T` it was checked against, so `$name as class<Animal> as string` is the name it
 started from. A `mixed` or a `?T` is **refused** (`E0702`): narrow it — an `is` test, or a `!= null`
-one (`rule:types/narrowing`) — or ask reflection, whose whole purpose is the erased receiver. That is
-where this parts company
-with PHP, which accepts `$m::class` on any operand and fails at run time on one that is not an object;
-accepting it here would put a tag test and a throw behind a spelling that reads like a member read.
+one (`rule:types/narrowing`) — or ask reflection, whose whole purpose is the erased receiver. Accepting
+`$m::class` on any operand would fail at run time on one that is not an object, and would put a tag test and a throw behind a spelling that reads like a member read.
 The narrowing that lifts the refusal is the one `->` already requires of the same receiver.
 
 Per evaluation the run-time form spends one load, one call and one string allocation for the name,

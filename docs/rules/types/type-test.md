@@ -87,12 +87,10 @@ a compile error.
 `rule:types/narrowing` — which owns every other property of narrowing, including that it changes what
 is known about a binding and never its declared type.
 
-## Where it answers differently from PHP
+## Where the tags are finer than they look
 
 `int` and `uint` are separate tags (`rule:types/uint`), so a value from a `BIGINT UNSIGNED` column
-answers `is uint` and **not** `is int`, where PHP's `is_int()` is true for both; `is int|uint` is the
-migration spelling. `string` and `bytes` are separate the same way
-(`rule:types/string-is-utf8`, `rule:types/bytes`), so binary data answers `is bytes` where PHP's
-`is_string()` is true. Both are consequences of a finer type system rather than of this operator, and
-`is` is simply the first spelling that makes them reachable from a mechanical rewrite of PHP source.
-What that rewrite does with PHP's own class-test operator is `rule:types/one-type-test`'s.
+answers `is uint` and **not** `is int`; `is int|uint` tests for any integer. `string` and `bytes` are
+separate the same way (`rule:types/string-is-utf8`, `rule:types/bytes`), so binary data answers
+`is bytes` and not `is string`. Both are consequences of a finer type system rather than of this
+operator.
