@@ -39,5 +39,9 @@ wasmtime = { workspace = true, optional = true }
 [dev-dependencies]
 wat.workspace = true
 
+[[test]]
+name = "load"
+required-features = ["engine"]
+
 [lints]
 workspace = true

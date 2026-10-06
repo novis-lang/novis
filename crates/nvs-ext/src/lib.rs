@@ -7,6 +7,9 @@
 //! - [`section`] finds the two sections at a component's top level.
 //! - [`manifest`] is the manifest's Rust type and its JSON parser.
 //! - [`source`] is the `nvs.source` payload: the Novis source files the extension carries.
+//! - `load`, behind the `engine` feature, reads a `.nvsx` from its `[[extension]]` entry and
+//!   refuses it, naming the entry, unless its pin, its component, its manifest and its imports all
+//!   check. Its module doc owns the order and which Novis types the export check reads.
 //!
 //! **The manifest model never links wasmtime.** The three modules above use `serde_json` and
 //! `wasmparser` and nothing of the engine, because the checker and the language server read
@@ -31,6 +34,8 @@
 //! - **Every key is closed.** Both sections refuse a key they do not know, so a manifest written for
 //!   a newer host fails on its format number or on the key, never by being half-read.
 
+#[cfg(feature = "engine")]
+pub mod load;
 pub mod manifest;
 pub mod section;
 pub mod source;
@@ -53,6 +58,25 @@ impl std::error::Error for Malformed {}
 /// The error for `message`.
 fn malformed(message: impl Into<String>) -> Malformed {
     Malformed(message.into())
+}
+
+/// The WIT name of the Novis name `name`: kebab-case, so `distanceKm` and `distance_km` are both
+/// `distance-km`.
+fn kebab(name: &str) -> String {
+    let mut out = String::with_capacity(name.len() + 4);
+    for (i, c) in name.chars().enumerate() {
+        if c == '_' {
+            out.push('-');
+        } else if c.is_ascii_uppercase() {
+            if i > 0 && !out.ends_with('-') {
+                out.push('-');
+            }
+            out.push(c.to_ascii_lowercase());
+        } else {
+            out.push(c);
+        }
+    }
+    out
 }
 
 /// Whether `name` is a Novis identifier: a letter or `_`, then letters, digits and `_`.

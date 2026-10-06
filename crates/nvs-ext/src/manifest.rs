@@ -142,20 +142,7 @@ impl Method {
     /// The name of the WIT function this method calls: its name in kebab-case, so `distanceKm` is
     /// `distance-km`.
     pub fn export_name(&self) -> String {
-        let mut out = String::with_capacity(self.name.len() + 4);
-        for (i, c) in self.name.chars().enumerate() {
-            if c == '_' {
-                out.push('-');
-            } else if c.is_ascii_uppercase() {
-                if i > 0 && !out.ends_with('-') {
-                    out.push('-');
-                }
-                out.push(c.to_ascii_lowercase());
-            } else {
-                out.push(c);
-            }
-        }
-        out
+        crate::kebab(&self.name)
     }
 }
 
