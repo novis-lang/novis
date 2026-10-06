@@ -105,6 +105,7 @@ pub mod index;
 mod lexer;
 mod parser;
 pub mod string_lit;
+mod todo;
 mod token;
 pub mod visit;
 pub mod walk;
@@ -115,4 +116,5 @@ pub use lexer::{Lexer, OPEN_TAGS, first_open_tag, tokenize};
 pub use parser::{
     DOC_MARKER, Parsed, Parser, by_reference_assignment, parse, parse_expression, parse_file,
 };
+pub use todo::{Todo, todos, todos_in};
 pub use token::{Keyword, Token, TokenKind, Trivia, TriviaKind};

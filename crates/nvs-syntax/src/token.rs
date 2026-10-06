@@ -65,8 +65,8 @@ impl Trivia {
 pub enum TriviaKind {
     /// A run of whitespace, however long and across however many lines.
     Whitespace,
-    /// A comment nothing but a formatter reads: `//`, `#`, or a run of four or
-    /// more slashes.
+    /// A comment only a formatter and the todo list read: `//`, `#`, or a run
+    /// of four or more slashes (`rule:tooling/a-todo-is-a-comment-the-tools-list`).
     LineComment,
     /// `/* … */`, including an unterminated one — that is a diagnostic, and it
     /// is still trivia covering the bytes it ran over.
