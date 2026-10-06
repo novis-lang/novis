@@ -167,11 +167,7 @@ describe("the test explorer", () => {
                  "the corpus leg asks for a document nvs test refuses to write");
     assert.ok(/code === 0/.test(leg), "the corpus leg does not read the exit status");
 
-    // Coverage is absent rather than stubbed: the exporters that would source it do not exist, and
-    // a `FileCoverage` wired to nothing is a number the editor shows and nobody produced.
-    assert.equal(/FileCoverage|Coverage\b/.test(CLIENT), false,
-                 "the explorer reports coverage it has no source for");
-    // And no UI of this project's, the claim the whole file rests on.
+    // No UI of this project's, the claim the whole file rests on. Coverage is `test/coverage/`'s.
     assert.equal(/[Ww]ebview|<html|innerHTML/.test(CLIENT), false,
                  "the explorer draws UI of its own");
   });

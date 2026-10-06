@@ -1996,11 +1996,14 @@ Discovery must not run anything, which is why it is a flag on the runner rather 
 test skipped: `--list` answers from the table the compile already built, so a workspace whose tests
 fail, hang or `exit` populates a tree exactly as a passing one does.
 
-Coverage is not wired into the explorer. `nvs test --coverage-lcov` and `--coverage-clover` write a
-run's line coverage ([`testing/coverage-report`](testing.md#testing-coverage-report)), and nothing in the extension reads either file
-yet. When it does, the counts reach VS Code's own `FileCoverage` model and the extension still draws
-no gutter of its own ([`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has)). An explorer
-without coverage is the whole feature minus one column, not a stub.
+Coverage is a third document from the same run. A run profile of kind `Coverage` beside the Run one
+adds `--coverage-lcov` with a scratch file in the extension's storage directory and starts the run in
+the program's workspace folder, which is what the tracefile's names are relative to
+([`testing/coverage-report`](testing.md#testing-coverage-report)). Every `SF` record becomes one `FileCoverage` built from its `DA`
+lines as statements, its `BRDA` sides as branches on the line they start on, and its `FN`/`FNDA` pairs
+as declarations, so the totals VS Code shows are its own count of the runner's details. The extension
+draws no gutter of its own ([`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has)). The `.nvst`
+corpus runs unchanged under that profile, because the CLI refuses a coverage flag over a case tree.
 
 This is the shape [`ide/the-ast-panel-shells-out-to-the-cli`](ide.md#ide-the-ast-panel-shells-out-to-the-cli) already gives a view over compiler
 tables: the binary answers, and the client renders. A client that scanned the workspace for test

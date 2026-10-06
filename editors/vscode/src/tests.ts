@@ -2,9 +2,12 @@
 //
 // `rule:ide/the-extension-builds-no-ui-the-editor-already-has` is what decides the shape. A
 // `TestController` is fed and VS Code draws the tree, the gutter icons, the run buttons and the
-// failure peek; nothing here renders any of that. Coverage is absent rather than stubbed — the
-// exporters that would source it do not exist yet, and a `FileCoverage` wired to nothing is a
-// number the editor would show and nobody produced.
+// failure peek; nothing here renders any of that. Coverage is the same: the Coverage profile runs a
+// program with `--coverage-lcov` into a scratch file in the extension's storage directory, and
+// each file the tracefile lists becomes a `FileCoverage` whose statements, branches and functions are the runner's own counts
+// (`rule:testing/coverage-report`). VS Code draws the gutter and the summary. The `.nvst` corpus
+// has no coverage to give, because `nvs test` refuses the flag over a case tree, so under that
+// profile a case runs as it does under Run.
 //
 // **Discovery never runs anything.** `nvs test --list --format=json` is the front end's answer off
 // the compiled test table (`crates/nvs-cli/src/runner.rs`, `listing`), so a program whose tests
@@ -23,12 +26,19 @@
 // suite tests it. What is left here is the controller, the processes and the editor's run object.
 
 import { execFile } from "node:child_process";
+import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
 
 import {
+  BranchCoverage,
   CancellationToken,
+  DeclarationCoverage,
   ExtensionContext,
+  FileCoverage,
+  FileCoverageDetail,
   Position,
   Range,
+  StatementCoverage,
   TestController,
   TestItem,
   TestMessage,
@@ -41,7 +51,20 @@ import {
 } from "vscode";
 
 import { binary, runnable } from "./binary";
-import { Listed, Reported, filter, listed, messages, name, ran, state, suites } from "./report";
+import {
+  Listed,
+  Reported,
+  Traced,
+  filter,
+  listed,
+  messages,
+  name,
+  ran,
+  state,
+  statements,
+  suites,
+  traced,
+} from "./report";
 
 /** The controller's id, and the `testing` view's grouping key for everything below it. */
 export const CONTROLLER = "nvs";
@@ -62,10 +85,18 @@ const OUTPUT_CEILING = 64 * 1024 * 1024;
 /** What a program's listing said, kept so a run can tell a filtered request from a whole file. */
 const known = new Map<string, Listed[]>();
 
+// The details behind each `FileCoverage` a run added, read back when the user opens that file's
+// coverage. A run's details live as long as the editor keeps the run's coverage.
+const details = new WeakMap<FileCoverage, FileCoverageDetail[]>();
+
+// The extension's own storage directory, where each coverage run writes its tracefile and deletes it.
+let storage = "";
+
 /** Create the controller, and let the editor decide when to fill it. */
 export function install(context: ExtensionContext): void {
   const controller = tests.createTestController(CONTROLLER, "Novis");
   context.subscriptions.push(controller);
+  storage = (context.storageUri ?? context.globalStorageUri).fsPath;
   // Both are the same pass: the editor calls the first when the view opens with nothing resolved,
   // and the second when the user presses refresh.
   controller.resolveHandler = async (item?: TestItem): Promise<void> => {
@@ -77,9 +108,18 @@ export function install(context: ExtensionContext): void {
   controller.createRunProfile(
     "Run",
     TestRunProfileKind.Run,
-    (request: TestRunRequest, token: CancellationToken) => void perform(controller, request, token),
+    (request: TestRunRequest, token: CancellationToken) =>
+      void perform(controller, request, token, false),
     true,
   );
+  const coverage = controller.createRunProfile(
+    "Run with Coverage",
+    TestRunProfileKind.Coverage,
+    (request: TestRunRequest, token: CancellationToken) =>
+      void perform(controller, request, token, true),
+    true,
+  );
+  coverage.loadDetailedCoverage = async (_run, file) => details.get(file) ?? [];
 }
 
 /**
@@ -149,6 +189,7 @@ async function perform(
   controller: TestController,
   request: TestRunRequest,
   token: CancellationToken,
+  coverage: boolean,
 ): Promise<void> {
   const run = controller.createTestRun(request);
   const queued = leaves(controller, request);
@@ -162,14 +203,17 @@ async function perform(
     if (file === CORPUS) {
       await corpus(run, items);
     } else {
-      await program(run, Uri.parse(file), items);
+      await program(run, Uri.parse(file), items, coverage);
     }
   }
   run.end();
 }
 
-/** One program's run: the JSON report, mapped back onto the items that asked for it. */
-async function program(run: TestRun, uri: Uri, items: TestItem[]): Promise<void> {
+/**
+ * One program's run: the JSON report, mapped back onto the items that asked for it, and under the
+ * Coverage profile the lcov file the same run wrote.
+ */
+async function program(run: TestRun, uri: Uri, items: TestItem[], coverage: boolean): Promise<void> {
   const wanted = known.get(uri.toString()) ?? [];
   const narrowed = filter(
     wanted.filter((test) => items.some((item) => item.id.endsWith(`::${name(test)}`))),
@@ -179,7 +223,54 @@ async function program(run: TestRun, uri: Uri, items: TestItem[]): Promise<void>
     run.started(item);
   }
   const argv = ["test", "--format=json", uri.fsPath];
-  const document = await cli(narrowed === undefined ? argv : [...argv, "--filter", narrowed]);
+  const asked = narrowed === undefined ? argv : [...argv, "--filter", narrowed];
+  if (!coverage) {
+    answer(run, items, await cli(asked));
+    return;
+  }
+  // The tracefile names each file relative to the directory the run starts in, so the run starts
+  // in the program's workspace folder and every name is resolved against that folder.
+  const folder = workspace.getWorkspaceFolder(uri)?.uri.fsPath ?? dirname(uri.fsPath);
+  await mkdir(storage, { recursive: true });
+  const scratch = await mkdtemp(join(storage, "coverage-"));
+  try {
+    const tracefile = join(scratch, "coverage.lcov");
+    answer(run, items, await cli([...asked, "--coverage-lcov", tracefile], folder));
+    const files = traced(await readFile(tracefile, "utf8").catch(() => ""));
+    for (const trace of files ?? []) {
+      run.addCoverage(covered(Uri.file(resolve(folder, trace.file)), trace));
+    }
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+}
+
+/** One traced file as the editor's `FileCoverage`, with its details kept for when it is opened. */
+function covered(uri: Uri, trace: Traced): FileCoverage {
+  const found: FileCoverageDetail[] = statements(trace).map(
+    (line) =>
+      new StatementCoverage(
+        line.count,
+        new Position(line.line - 1, 0),
+        line.branches.map((branch) => new BranchCoverage(branch.count, undefined, branch.label)),
+      ),
+  );
+  for (const declared of trace.functions) {
+    found.push(
+      new DeclarationCoverage(declared.name, declared.count, new Position(declared.line - 1, 0)),
+    );
+  }
+  const file = FileCoverage.fromDetails(uri, found);
+  details.set(file, found);
+  return file;
+}
+
+/** The verdicts one program's process reported, put on the items that asked for them. */
+function answer(
+  run: TestRun,
+  items: TestItem[],
+  document: { stdout: string; stderr: string } | undefined,
+): void {
   const report = document === undefined ? undefined : ran(document.stdout);
   if (report === undefined) {
     const said = document?.stderr.trim() ?? `${binary()} did not run`;
@@ -281,13 +372,16 @@ function byFile(items: TestItem[]): Map<string, TestItem[]> {
 }
 
 /** What `nvs` printed and what it exited with, or nothing when it did not run at all. */
-async function cli(args: string[]): Promise<{ stdout: string; stderr: string; code: number } | undefined> {
+async function cli(
+  args: string[],
+  cwd?: string,
+): Promise<{ stdout: string; stderr: string; code: number } | undefined> {
   const { command } = await runnable();
   return new Promise((resolve) => {
     execFile(
       command,
       args,
-      { maxBuffer: OUTPUT_CEILING, env: { ...process.env, NO_COLOR: "1" } },
+      { cwd, maxBuffer: OUTPUT_CEILING, env: { ...process.env, NO_COLOR: "1" } },
       (failure, stdout, stderr) => {
         if (failure !== null && (failure as NodeJS.ErrnoException).code === "ENOENT") {
           resolve(undefined);

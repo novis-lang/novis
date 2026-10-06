@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 3,
+  "summary": {"total": 1, "passed": 1, "failed": 0, "skipped": 0, "flaky": 0, "durationMs": 0.676},
+  "tests": [
+    {"class": "SignTest", "method": "aPositiveNumberIsNotNegative", "file": "editors/vscode/test/coverage/recorded/branches.nvs", "line": 22, "column": 21, "verdict": "passed", "durationMs": 0.181, "coverage": {"editors/vscode/test/coverage/recorded/branches.nvs": [9, 12, 23]}}
+  ]
+}

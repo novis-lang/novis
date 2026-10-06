@@ -1,11 +1,16 @@
 // The two documents `nvs test` prints, and the tree the explorer builds out of them.
 //
 // Discovery reads `nvs test --list --format=json` and a run reads `nvs test --format=json`, both
-// `schemaVersion: 2` and both written by `crates/nvs-cli/src/runner.rs`. They are two readings of
-// one schema and the key that carries the data says which is which: a listing has `listed` and no
-// summary, because a summary of zeros would be a report of a run where nothing passed. Nothing
-// here re-derives a field either document should have carried — a client feature whose CLI surface
-// is missing is the CLI's problem, never a parse of the human rendering.
+// written by `crates/nvs-cli/src/runner.rs`. They are two readings of one schema and the key that
+// carries the data says which is which: a listing has `listed` and no summary, because a summary of
+// zeros would be a report of a run where nothing passed. A listing is `schemaVersion: 2`; a run is
+// 2, or 3 when a coverage flag was passed (`rule:testing/report-formats`). Nothing here re-derives a
+// field either document should have carried — a client feature whose CLI surface is missing is the
+// CLI's problem, never a parse of the human rendering.
+//
+// The Coverage profile's third document is the lcov file `--coverage-lcov` writes
+// (`rule:testing/coverage-report`), and `traced` is its reader: lines, functions and branches per
+// file, as the counts the runner wrote and nothing this client adds up.
 //
 // Nothing here imports `vscode`, for the reason `src/nodes.ts` gives: the headless tier runs it in
 // plain Node, and a decision whose test needs a display is a decision nobody tests. What is left in
@@ -32,6 +37,8 @@ export interface Reported extends Listed {
   failures?: string[];
   attempts?: number;
   exitCode?: number;
+  /** Version 3 only: each file the test reached, mapped to the sorted lines it reached there. */
+  coverage?: Record<string, number[]>;
 }
 
 /** A whole run: the summary line the terminal prints, and a record per test. */
@@ -53,8 +60,23 @@ export interface Suite<T extends Listed> {
   tests: T[];
 }
 
-/** The version both documents carry at their root, and the first key a consumer reads. */
+/** One file of an lcov tracefile, with every count as the runner wrote it. */
+export interface Traced {
+  /** The `SF` name: relative to the directory the run started in, or absolute outside it. */
+  file: string;
+  /** One per `DA` line, one-based. */
+  lines: { line: number; count: number }[];
+  /** One per `FN` line, with its `FNDA` count, or `0` when the file gave none. */
+  functions: { name: string; line: number; count: number }[];
+  /** One per `BRDA` line. `side` is `0` for true and `1` for false; `count` is `0` for a `-`. */
+  branches: { line: number; block: number; side: number; count: number }[];
+}
+
+/** The version a listing and a run without a coverage flag carry at their root. */
 const SCHEMA = 2;
+
+/** The version a run under a coverage flag carries, whose records also have `coverage`. */
+const COVERED = 3;
 
 /**
  * The listing `nvs test --list --format=json` printed, or nothing when it is not one.
@@ -64,7 +86,7 @@ const SCHEMA = 2;
  * already happened.
  */
 export function listed(text: string): Listed[] | undefined {
-  const document = parse(text);
+  const document = parse(text, [SCHEMA]);
   if (document === undefined || !Array.isArray(document.listed)) {
     return undefined;
   }
@@ -78,7 +100,7 @@ export function listed(text: string): Listed[] | undefined {
  * and a client that added its own up would disagree with the terminal the day a verdict is added.
  */
 export function ran(text: string): Run | undefined {
-  const document = parse(text);
+  const document = parse(text, [SCHEMA, COVERED]);
   if (document === undefined || !Array.isArray(document.tests)) {
     return undefined;
   }
@@ -190,8 +212,115 @@ export function messages(test: Reported): string[] {
   }
 }
 
-/** A document of this schema, as an object, or nothing when it is neither. */
-function parse(text: string): Record<string, unknown> | undefined {
+/**
+ * The files an lcov tracefile lists, or nothing when a record in it is not one.
+ *
+ * Only the keys `nvs test` writes are read: `SF`, `DA`, `FN`, `FNDA` and `BRDA`. The totals
+ * (`LF`, `FNH`, `BRF` and the rest) are skipped, because the editor counts the details it is
+ * given. A `BRDA` count of `-` means the branch's line never ran, so both sides read `0`.
+ */
+export function traced(text: string): Traced[] | undefined {
+  const files: Traced[] = [];
+  let current: Traced | undefined;
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    const colon = line.indexOf(":");
+    const key = colon < 0 ? line : line.slice(0, colon);
+    const rest = colon < 0 ? "" : line.slice(colon + 1);
+    if (key === "SF") {
+      current = { file: rest, lines: [], functions: [], branches: [] };
+      files.push(current);
+      continue;
+    }
+    if (key === "end_of_record") {
+      current = undefined;
+      continue;
+    }
+    if (!["DA", "FN", "FNDA", "BRDA"].includes(key)) {
+      continue;
+    }
+    if (current === undefined) {
+      return undefined;
+    }
+    const fields = rest.split(",");
+    if (key === "DA") {
+      const [at, count] = [whole(fields[0]), whole(fields[1])];
+      if (at === undefined || count === undefined) {
+        return undefined;
+      }
+      current.lines.push({ line: at, count });
+    } else if (key === "BRDA") {
+      const [at, block, side] = fields.slice(0, 3).map(whole);
+      const count = fields[3] === "-" ? 0 : whole(fields[3]);
+      if (at === undefined || block === undefined || side === undefined || count === undefined) {
+        return undefined;
+      }
+      current.branches.push({ line: at, block, side, count });
+    } else {
+      // A function's name is everything after the first comma, so a name may contain one.
+      const first = whole(fields[0]);
+      const named = fields.slice(1).join(",");
+      if (first === undefined || named === "") {
+        return undefined;
+      }
+      if (key === "FN") {
+        current.functions.push({ name: named, line: first, count: 0 });
+      } else {
+        const declared = current.functions.find((held) => held.name === named);
+        if (declared === undefined) {
+          return undefined;
+        }
+        declared.count = first;
+      }
+    }
+  }
+  return files;
+}
+
+/** One line of a file's coverage as the editor shows it: its count, and its branches' sides. */
+export interface Covered {
+  line: number;
+  count: number;
+  branches: { count: number; label: string }[];
+}
+
+/**
+ * A traced file's lines, each with the branch sides whose condition starts on it, in line order.
+ *
+ * A branch is listed at the line its condition starts on, which is nearly always a line a statement
+ * starts on too. A condition that starts on a line no statement does still gets that line, and its
+ * count is how often the condition ran: the two sides of its first branch, added together.
+ */
+export function statements(trace: Traced): Covered[] {
+  const covered = new Map<number, Covered>();
+  for (const { line, count } of trace.lines) {
+    covered.set(line, { line, count, branches: [] });
+  }
+  const many = (line: number): boolean =>
+    trace.branches.some((branch) => branch.line === line && branch.block > 0);
+  for (const branch of trace.branches) {
+    let held = covered.get(branch.line);
+    if (held === undefined) {
+      const ran = trace.branches
+        .filter((other) => other.line === branch.line && other.block === branch.block)
+        .reduce((sum, other) => sum + other.count, 0);
+      held = { line: branch.line, count: ran, branches: [] };
+      covered.set(branch.line, held);
+    }
+    const side = branch.side === 0 ? "true" : "false";
+    const label = many(branch.line) ? `condition ${branch.block + 1}: ${side}` : side;
+    held.branches.push({ count: branch.count, label });
+  }
+  return [...covered.values()].sort((a, b) => a.line - b.line);
+}
+
+/** A field that is a whole number of zero or more, or nothing when it is not one. */
+function whole(field: string | undefined): number | undefined {
+  return field !== undefined && /^\d+$/.test(field) ? Number(field) : undefined;
+}
+
+/** A document of one of `versions`, as an object, or nothing when it is not. */
+function parse(text: string, versions: number[]): Record<string, unknown> | undefined {
   let value: unknown;
   try {
     value = JSON.parse(text);
@@ -202,7 +331,7 @@ function parse(text: string): Record<string, unknown> | undefined {
     return undefined;
   }
   const document = value as Record<string, unknown>;
-  return document.schemaVersion === SCHEMA ? document : undefined;
+  return versions.includes(document.schemaVersion as number) ? document : undefined;
 }
 
 /** Whether a record names a test and carries the three location keys, whatever they hold. */
