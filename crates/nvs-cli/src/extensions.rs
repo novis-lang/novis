@@ -19,7 +19,8 @@
 //! `Request::call_values` converts it by the manifest. The call is a future polled on the calling
 //! task: between two polls the task parks for up to one epoch tick, so the other tasks on the core
 //! run (`rule:packaging/a-guest-call-yields-on-its-core`). A failure throws the class
-//! `Failure::outcome` names (`rule:packaging/a-guest-crash-throws`), and a limit is a `FATAL`.
+//! `Failure::outcome` names (`rule:packaging/a-guest-crash-throws`). A limit runs the request's
+//! limit handler, then is a `FATAL` (`rule:errors/on-limit`).
 //! [`Calls::end`] runs `Request::end` once the run's tasks are finished.
 //!
 //! The request's budget is an `nvs_ext::call::Meter` made at the first call from the request's
@@ -62,7 +63,7 @@ use nvs_config::resolve::Origin;
 use nvs_config::tree::{Config, Extension};
 use nvs_config::value::{Quantity, Unit};
 use nvs_diagnostics::{Diagnostic, SourceMap};
-use nvs_ext::call::{Host, Meter, Outcome, Request};
+use nvs_ext::call::{Host, Limit, Meter, Outcome, Request};
 use nvs_ext::convert::{Key, Value as Crossed, fits};
 use nvs_ext::load::{CacheKey, Entry, Loader, ModuleCache, Set};
 use nvs_ext::manifest::Manifest;
@@ -270,7 +271,13 @@ impl nvs_runtime::extension::Extensions for Calls {
                         .unwrap_or(ThrownClass::Extension);
                     Fault::thrown_as(thrown, message)
                 }
-                Outcome::Fatal(_, message) => Fault::fatal(message),
+                Outcome::Fatal(limit, message) => {
+                    ctx.run_limit_handler(match limit {
+                        Limit::Cpu => nvs_runtime::Limit::CpuTime,
+                        Limit::Memory => nvs_runtime::Limit::Memory,
+                    });
+                    Fault::fatal(message)
+                }
             }),
         }
     }
