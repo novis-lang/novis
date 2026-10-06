@@ -60,10 +60,7 @@ when its argument's refcount is 1 — measured, since it is the whole cost argum
 `rule:core-api/shape-rules` R3 — and allocates a copy when it is not.
 `rule:core-classes/derive-attribute`'s own *Verification* section lists the derive's cases, including the
 one that matters most: a decode with four bad fields throws exactly one error listing all four. The M4 CLI program
-is rewritten against `Core` and gets shorter. `bun nv migration` reports full coverage of
-every PHP name this milestone's classes replace, which is the point at which
-[docs/spec/02-php-migration.md](../spec/02-php-migration.md)'s string, array, number and date rows stop being
-a plan and become a tested claim.
+is rewritten against `Core` and gets shorter.
 
 **Also here: the OpenAPI emitter** (`rule:routing/api-document-is-generated-from-the-route-table`),
 alongside the `#[Route]` and `#[Json\Derive]` passes it reads. `Core\Api` joins

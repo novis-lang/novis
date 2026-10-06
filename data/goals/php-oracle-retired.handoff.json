@@ -1,32 +1,27 @@
 {
-  "state": "**Goal `php-oracle-retired`: Stage 6 (no list maps PHP to Novis), file set 1 is on disk; file sets 2 and 3 are next.** ADR 0274 (`docs/decisions/0274.md`) is the goal's record.\n\nOn disk: `nvs_stdlib::php_names`, its test file and the build-time join are gone; `crates/nvs-stdlib/build.rs` now builds only the reference intros. `nvs_hir::PhpFunctions` and its argument are gone, so `E0320` always gives its general help (`an_undefined_free_function_gets_the_general_help`), and `E0319`'s help no longer names the migration table. The LSP has no PHP-name completion layer, no `PhpNames` setting, and `nvs.completion.phpNames` left `editors/vscode/package.json`, its test, the editor chapter and `rule:ide/contributions-are-frozen-and-only-ever-added` (which now says a setting leaves only with its feature). Four conformance cases, the `.lspt` case and `docs/reference/tools/50-agents.md` print the general help.\n\n`tools/data/php-builtins.txt` is NOT deleted yet: `tools/nv/cmd/migration.ts` and the CI job `migration-table` still read it, so it goes with them in file set 2.",
+  "state": "**Goal `php-oracle-retired`: Stage 6 (no list maps PHP to Novis). File sets 1 and 2 are on disk, and file set 3 is half done.** ADR 0274 (`docs/decisions/0274.md`) is the goal's record.\n\nOn disk: `docs/spec/02-php-migration.md`, `data/spec/php-migration.json` and its schema, `tools/data/php-builtins.txt`, `tools/dump-php-builtins.php`, `bun nv migration`, Part D of `docs/novis.md`, the CI job `migration-table`, the wrap's migration gate and the two migration tests in `crates/nvs-stdlib/tests/spec_registry_coverage.rs` (with their ratchet file) are all gone. The `Replaces` column left every table in `docs/spec/01-core-library.md`, `website/config/spec-overrides.mjs`, `website-core.ts`, `core.json`, `MethodSignature.astro` and the proofs roster (`Entry.twin`). The five PHP-name rules and `ide/three-of-four-item-shapes-insert-nothing` are deleted. `core-api/removals` keeps its four reasons and no longer claims a per-name list. Frozen records lost their links to the deleted files, the way commit b40ffee55 did it: each link became its text.\n\nAll five Stage 6 checks should pass at this commit (the two `git grep` checks were run by hand and found nothing).",
   "next": {
     "stage": 6,
-    "title": "no list maps PHP to Novis, file set 2 (the data, the tools and the gates)",
+    "title": "no list maps PHP to Novis, file set 3 (the prose that is left)",
     "files": [],
-    "note": "one file set: the migration spec and its data, the tools that read them, the `Replaces` column and the gates. Goal prose § *Stage 6*, item 2.",
+    "note": "one file set: the agent docs, the claims page and the playbook entries that still name the list. Goal prose § *Stage 6*, item 3.",
     "items": [
       {
         "done": false,
-        "text": "**The migration list and its inventory are deleted** — `docs/spec/02-php-migration.md:1`, `data/spec/php-migration.json`, `phpMigration` in `tools/nv/renderers/spec-tables.ts:1`, `tools/nv/schema/spec.ts:1`, `tools/data/php-builtins.txt:1`, `tools/dump-php-builtins.php:1`, `tools/nv/cmd/migration.ts:31`, the reference topic at `tools/nv/cmd/reference.ts:507` (Part D), `tools/nv/proofs/roster.ts:1` and `tools/nv/test/render.test.ts:1`; the playbook bullet `tooling/a-plain-php-tools-dump-php-builtins-php-writes-a-smaller` goes with the generator."
+        "text": "**The agent docs stop naming `bun nv migration`** — `docs/agent/commands.md:298`, `docs/agent/commands.md:316`, `docs/agent/doc-cleanup.md:53`, and `docs/agent/goals/README.md:1` § *What stops the run*, whose parity-gate bullet is rewritten whole."
       },
       {
         "done": false,
-        "text": "**The `Replaces` column and its readers leave** — `docs/spec/01-core-library.md:1`, `data/spec/core-members.json`, `tools/nv/renderers/website-core.ts:1` (`replaces`, `replacesPhrase`), `website/src/components/MethodSignature.astro:201`."
+        "text": "**The claims page and the playbook entries that name the list are deleted** — `website/src/content/claims/php-migration-is-accounted.md:1`, and under `data/playbook/` plus `docs/agent/playbook/`: `tooling/after-touching-either-spec-file-python-tools-check-migration`, `tooling/check-migration-py-validates-a-core-x-y-cell-against-01-core`, `tooling/python-tools-check-migration-py-seed-is-a-candidate-list-not`, `writing-a-test-case/a-member-row-in-docs-spec-02-php-migration-md-whose-novis`, `writing-a-test-case/a-core-x-member-spelling-does-not-survive` (`docs/agent/playbook/tooling/check-migration-py-validates-a-core-x-y-cell-against-01-core.md:1`). Read `tooling/a-loop-goal-toml-check-can-fail-on-a-file-no-session-wrote` and `tooling/a-primer-marker-goes-in-docs-reference-whatever-else-names` first: they only name the list in passing."
       },
       {
         "done": false,
-        "text": "**The gates over the list are deleted** — `crates/nvs-stdlib/tests/spec_registry_coverage.rs:1` (`every_migration_member_row_has_a_conformance_case`, `every_migration_member_row_names_a_registered_member`, `crates/nvs-stdlib/tests/migration-members-outstanding.txt`), the CI job at `.github/workflows/ci.yml:515`, `MIGRATION_GATES` at `tools/nv/cmd/session.ts:512`, and `guardedBy` in `data/rules/core-api/removals.json`."
-      },
-      {
-        "done": false,
-        "text": "**Comments that cite the migration table are rewritten whole** — `crates/nvs-db/src/pg.rs:1`, `crates/nvs-repo/src/lib.rs:1`, `crates/nvs-runtime/src/environment.rs:1`, `crates/nvs-stdlib/src/compress.rs:1`, `crates/nvs-stdlib/src/env.rs:1`, `docs/reference/README.md:1` (each has one `02-php-migration` hit; `git grep -n 02-php-migration -- crates docs/reference` finds the line)."
+        "text": "**Stage 7 starts** once the group above is in: goal prose § *Stage 7* (`docs/agent/goals/php-oracle-retired.md:226`)."
       }
     ]
   },
   "backlog": [
-    "File set 3: the five PHP-name rules (`php-migration/completion-php-names-setting`, `every-php-builtin-is-a-completion-candidate`, `the-php-name-layer-is-joined-at-build-time`, `an-item-inserts-only-a-registered-member`, `ide/three-of-four-item-shapes-insert-nothing`) and ADR 0111's retirement — goal prose § *Stage 6* item 3.",
-    "`docs/novis.md` is regenerated with `bun nv reference` after the pipeline `nvs` is rebuilt; a stale binary fails the two `50-agents.md` examples.",
-    "Stages 8–10 (rules state the behaviour, the reader's text steps back, rendered and proven) — goal prose."
+    "Part II of `docs/spec/01-core-library.md` still says \"Replaces `x`\" inside some prose cells (§§ 13-19). The column is gone, but these sentences remain. They belong to Stage 9's \"the reader's text steps back\" (goal prose § *Stage 9*).",
+    "`docs/rules/core-api/removals.md` still lists PHP names per reason. Stage 8 decides whether the rule stays (`rule:core-api/removals`)."
   ]
 }

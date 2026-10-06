@@ -110,8 +110,8 @@ across a row of goals, and the goals tagged `post-parity` in the chain land in n
 single number per milestone could say none of that, and a chain number could say it only until something
 was inserted ahead of it. **So the goal is the unit of schedule and the milestone the unit of identity:
 say "goal `<slug>`", never "in M7".** A cell naming a goal means that milestone still has work
-scheduled — `done` is the only thing that means finished. PHP's optional extensions (`gd`, `intl`,
-`imap`, and the rest of the list in [02-php-migration.md](spec/02-php-migration.md)) are M9's.
+scheduled — `done` is the only thing that means finished. The optional subsystems PHP ships as
+extensions, such as `gd`, `intl` and `imap`, are M9's.
 
 Each row is a file under [docs/plan/](plan/). `bun nv plan --show M8` prints one
 without you needing to know that, and `--show M8:verify` prints only its acceptance paragraph.

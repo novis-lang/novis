@@ -37,9 +37,6 @@ names in an icon set, and never a class, a member or a type. It is data and is n
 language server makes no network request**: a lockfile on disk may be read, a remote index may not be
 consulted.
 
-One thing offered is not a *value*: a PHP built-in's name, admitted as a candidate from an audited table
-and bounded on the insert side by `rule:ide/three-of-four-item-shapes-insert-nothing`.
-
 A test, not review, enforces this: `nvs-lsp`'s completion sources are enumerated, and each must name a
 table the compiler builds for another reason or the table the completion files were loaded into. No
 completion source reads a directory or a file itself.

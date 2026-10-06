@@ -3,7 +3,7 @@
 
 # The editor
 
-*59 of 83 rules below are **designed** rather than shipped, and are marked where they appear.*
+*58 of 82 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="ide-one-grammar-one-tree"></a>
 
@@ -1145,14 +1145,11 @@ names in an icon set, and never a class, a member or a type. It is data and is n
 language server makes no network request**: a lockfile on disk may be read, a remote index may not be
 consulted.
 
-One thing offered is not a *value*: a PHP built-in's name, admitted as a candidate from an audited table
-and bounded on the insert side by [`ide/three-of-four-item-shapes-insert-nothing`](ide.md#ide-three-of-four-item-shapes-insert-nothing).
-
 A test, not review, enforces this: `nvs-lsp`'s completion sources are enumerated, and each must name a
 table the compiler builds for another reason or the table the completion files were loaded into. No
 completion source reads a directory or a file itself.
 
-<sub>See also [`ide/completion-files-offer-values-at-named-parameters`](ide.md#ide-completion-files-offer-values-at-named-parameters), [`ide/three-of-four-item-shapes-insert-nothing`](ide.md#ide-three-of-four-item-shapes-insert-nothing), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table), [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`php-migration/every-php-builtin-is-a-completion-candidate`](php-migration.md#php-migration-every-php-builtin-is-a-completion-candidate), [`php-migration/an-item-inserts-only-a-registered-member`](php-migration.md#php-migration-an-item-inserts-only-a-registered-member). Decided in [0108](../decisions/0108.md), [0111](../decisions/0111.md), [0240](../decisions/0240.md), [0242](../decisions/0242.md), [0243](../decisions/0243.md).</sub>
+<sub>See also [`ide/completion-files-offer-values-at-named-parameters`](ide.md#ide-completion-files-offer-values-at-named-parameters), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table), [`programs/first-party-framework`](programs.md#programs-first-party-framework). Decided in [0108](../decisions/0108.md), [0111](../decisions/0111.md), [0240](../decisions/0240.md), [0242](../decisions/0242.md), [0243](../decisions/0243.md).</sub>
 
 <a id="ide-completion-files-offer-values-at-named-parameters"></a>
 
@@ -1402,39 +1399,6 @@ ternary's last operand and a `case` arm's first statement are one position, and 
 there.
 
 <sub>See also [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed). Decided in [0193](../decisions/0193.md), [0194](../decisions/0194.md).</sub>
-
-<a id="ide-three-of-four-item-shapes-insert-nothing"></a>
-
-## A PHP-name completion item takes one of four shapes, and three of them insert nothing  *(designed — not yet in the compiler)*
-
-`rule:ide/three-of-four-item-shapes-insert-nothing`
-
-A PHP built-in's name typed at a top-level identifier position completes to an item shaped by the
-migration table's outcome for that name and by whether its destination is registered in `Core`. Four
-shapes, and three insert nothing:
-
-| Row | Item |
-|---|---|
-| `member` or `language`, destination registered | inserts it, with the signature the registry holds |
-| `member` or `language`, destination not registered | appears, names the milestone, inserts nothing |
-| `dropped` | appears, gives the row's reason and rewrite, inserts nothing |
-| `open`, or no row at all | appears, says undecided, inserts nothing |
-
-A missing row and an `open` row are one case, exactly as `bun nv migration` treats them. "Inserts
-nothing" is asserted as the absence of an edit, not as an empty string.
-
-A row whose cell names more than one destination is prose the converter may not guess at, and is a
-genuine ambiguity there. It is not one here: completion has a person in the loop, so such a row becomes
-one item per destination and the developer picks. This is the single place the editor may offer more than
-the converter, and it follows from the human, not from a better table; the converter's own tier for that
-row is unchanged.
-
-The shape table is what keeps this layer inside [`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived)
-rather than beside it: a *name* may come from an audited table, but the text an editor types on a
-developer's behalf still comes only from something the compiler can resolve. The PHP spelling never
-reaches a file, which is what [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name) requires of it.
-
-<sub>See also [`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`php-migration/every-php-builtin-is-a-completion-candidate`](php-migration.md#php-migration-every-php-builtin-is-a-completion-candidate), [`php-migration/an-item-inserts-only-a-registered-member`](php-migration.md#php-migration-an-item-inserts-only-a-registered-member), [`php-migration/completion-php-names-setting`](php-migration.md#php-migration-completion-php-names-setting). Decided in [0111](../decisions/0111.md), [0108](../decisions/0108.md).</sub>
 
 <a id="ide-a-template-region-gets-the-editors-services-and-formatter"></a>
 

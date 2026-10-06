@@ -14,11 +14,6 @@
     "php-migration/let-and-is-are-reserved",
     "php-migration/one-type-test",
     "php-migration/a-deprecation-is-a-refusal",
-    "php-migration/a-session-id-the-store-did-not-issue-is-rejected",
-    "php-migration/the-php-name-layer-is-joined-at-build-time",
-    "php-migration/every-php-builtin-is-a-completion-candidate",
-    "php-migration/an-item-inserts-only-a-registered-member",
-    "php-migration/a-php-name-sorts-below-every-novis-symbol",
-    "php-migration/completion-php-names-setting"
+    "php-migration/a-session-id-the-store-did-not-issue-is-rejected"
   ]
 }

@@ -47,7 +47,6 @@
     "ide/an-accepted-member-writes-its-call",
     "ide/a-completion-row-reads-as-a-declaration",
     "ide/keywords-are-offered-where-the-compiler-accepts-them",
-    "ide/three-of-four-item-shapes-insert-nothing",
     "ide/a-template-region-gets-the-editors-services-and-formatter",
     "ide/case-files-have-their-own-grammar",
     "ide/an-lsp-answer-is-frozen-as-an-lspt-case",

@@ -1297,12 +1297,11 @@ cares.
 
 <a id="core-api-removals"></a>
 
-## A PHP built-in is absent for one of four standing reasons, and every removed name is accounted for by name
+## A PHP built-in is absent for one of four standing reasons
 
 `rule:core-api/removals`
 
-A PHP built-in that has no successor here is absent for one of four standing reasons, and every removed
-name is accounted for individually rather than by category:
+A PHP built-in that has no successor here is absent for one of four standing reasons:
 
 1. **A pure alias** — `sizeof`, `join`, `chop`, `key_exists`, `pos`, `fputs`, `is_integer`, `doubleval`.
 2. **Dead or dying in PHP itself** — `ereg*`, `mysql_*`, `mcrypt`, `create_function`, `each`,
@@ -1317,8 +1316,7 @@ name is accounted for individually rather than by category:
    with one key type ([`types/array-combination`](types.md#types-array-combination)); the half-escapers, whose false confidence taint
    tracking exists to prevent; and `settype`/`gettype`/`strval` ([`types/no-legacy-cast`](types.md#types-no-legacy-cast)).
 
-The reason is not the record. A prose reason cannot be audited — "about 120 functions follow from declared
-types" leaves no way to notice the twelfth one nobody thought about — so every PHP name gets a row naming
-its outcome, and a CI check asserts the vendored built-in list has no name without one.
+No list maps a PHP name to its outcome ([`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise)): the four reasons are
+how a request for a missing built-in is judged, and the `Core` library states what Novis has.
 
 <sub>See also [`core-api/no-ambient-state`](core-api.md#core-api-no-ambient-state), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/array-combination`](types.md#types-array-combination). Decided in [0063](../decisions/0063.md), [0051](../decisions/0051.md).</sub>

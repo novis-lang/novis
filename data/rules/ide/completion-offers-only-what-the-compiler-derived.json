@@ -11,14 +11,11 @@
   "divergesFromPhp": "framework-aware IntelliSense built from convention scans and annotation dialects has no counterpart; a route name or a directive completes from the table the compiler built, a value from outside the program completes from the JSON files in a `.novis/completion/` folder, which do the job of PhpStorm's `.phpstorm.meta.php`, and an ORM column or a view name has nothing to complete from because Novis has neither",
   "seeAlso": [
     "ide/completion-files-offer-values-at-named-parameters",
-    "ide/three-of-four-item-shapes-insert-nothing",
     "routing/routes-are-compiled-not-registered",
     "routing/link-name-and-params-are-checked",
     "config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one",
     "routing/api-document-is-generated-from-the-route-table",
-    "programs/first-party-framework",
-    "php-migration/every-php-builtin-is-a-completion-candidate",
-    "php-migration/an-item-inserts-only-a-registered-member"
+    "programs/first-party-framework"
   ],
   "guardedBy": []
 }
