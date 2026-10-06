@@ -26,7 +26,7 @@ callables then carries.
 `call_user_func` and `call_user_func_array` are dropped with it. Every `callable` value supports
 direct invocation, which is what they existed to route around:
 
-```php
+```nvs
 $result = $fn($arg);       // replaces call_user_func($fn, $arg)
 $result = $fn(...$args);   // replaces call_user_func_array($fn, $args)
 ```

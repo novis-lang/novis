@@ -5,7 +5,7 @@ A name declared at the root — a user class in the global namespace, or the res
 (`Throwable`, `LogicError`, `TimeoutError` and their siblings) — is reached from inside a namespace by
 importing it:
 
-```php
+```nvs
 namespace App;
 use Throwable;
 

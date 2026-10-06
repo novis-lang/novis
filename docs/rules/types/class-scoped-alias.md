@@ -2,7 +2,7 @@ A `type` alias is also a member of a class, interface or enum body, taking no vi
 reached as `Owner::Name` from anywhere and as a bare `Name` inside its owner's own body, and never
 inherited.
 
-```php
+```nvs
 final class Order {
     type Meta = {total: decimal, note?: string};
 

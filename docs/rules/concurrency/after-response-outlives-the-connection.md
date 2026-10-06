@@ -1,7 +1,7 @@
 `Core\Task::afterResponse(callable $fn, {deadline?}): void` registers work to run once the request
 is done with:
 
-```php
+```nvs
 Task::afterResponse(fn(): void => Receipts::send($order), {deadline: 30s});
 return $response;         // the client has its bytes; the receipt is still going out
 ```

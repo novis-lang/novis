@@ -1,7 +1,7 @@
 A callable of arity *n* satisfies `callable(T₁..Tₘ): R` when **`n ≤ m`**, and only the first *n*
 parameter types are compared. An arity greater than *m* is refused where it is written.
 
-```php
+```nvs
 map(array<T> $a, callable(T, string): U $fn): array<U>
 
 Core\Arr::map($users, fn($u) => $u->name);               // 1 ≤ 2 — $u is User

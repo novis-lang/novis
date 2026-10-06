@@ -1,6 +1,6 @@
 A `callable` type may name its parameters and its return type:
 
-```php
+```nvs
 callable(User, string): string   $format;
 callable(): void                 $onExit;
 callable                         $anything;

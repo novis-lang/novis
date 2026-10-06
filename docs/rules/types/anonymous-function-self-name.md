@@ -1,7 +1,7 @@
 An anonymous function that needs to call itself may carry an optional name between `fn` and its
 parameter list:
 
-```php
+```nvs
 $fact = fn factorial($n) => $n <= 1 ? 1 : $n * factorial($n - 1);
 ```
 

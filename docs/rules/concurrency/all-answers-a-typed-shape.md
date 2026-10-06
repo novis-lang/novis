@@ -2,7 +2,7 @@
 callable, runs them concurrently, and answers **a shape with the same field names, each field
 carrying that field's own declared return type**:
 
-```php
+```nvs
 $page = Task::all({
     user:   fn(): User         => Users::load($id),
     orders: fn(): array<Order> => Orders::recent($id, 20),

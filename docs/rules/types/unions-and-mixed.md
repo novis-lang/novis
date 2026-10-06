@@ -17,7 +17,7 @@ on a `mixed`, because the checker already knows every other case.
 `mixed` per key, because input genuinely is untyped and pretending otherwise would be a lie in the
 type:
 
-```php
+```nvs
 uint $id = Core\Request::query('id') as uint;     // throws on "abc", on "-1", on "" — never quietly 0
 ```
 

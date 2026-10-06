@@ -1,4 +1,4 @@
-```php
+```nvs
 function Core\Program::constructors<T, C>(): array<{class: string, make: C}>;   // C is callable(...): T
 ```
 

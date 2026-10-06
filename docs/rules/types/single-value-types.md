@@ -4,7 +4,7 @@ value is exactly that one — parsed only in type position, the way `array<T>` i
 values**; `?"a"` is sugar for `"a"|null`. They are usable at every binding site
 (`rule:types/declaration`), with no special case.
 
-```php
+```nvs
 function setMode("a"|"b"|"c" $mode) { … }   // the set is the type
 ```
 

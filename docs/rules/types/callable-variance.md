@@ -1,6 +1,6 @@
 A callable type's **parameters are contravariant** and its **return type covariant**:
 
-```php
+```nvs
 callable(User, string): string   $slot;
 
 fn (User $u, string $k): string => …    // exact           — accepted

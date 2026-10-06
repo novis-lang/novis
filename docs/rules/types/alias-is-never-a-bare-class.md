@@ -1,7 +1,7 @@
 A `TypeExpr` that is nothing but one bare `ClassName`, `EnumName`, `self`, `static` or `parent` atom —
 with no union, intersection, array wrapper or `?` sugar around it — is refused (`E0307`).
 
-```php
+```nvs
 type Id = SomeClass;              // rejected
 type Ids = array<SomeClass>;      // fine
 type Result = SomeClass|NotFound; // fine

@@ -1,7 +1,7 @@
 The `enum` keyword appears only at the *declaration*. Everywhere a type is used, an enum is spelled with
 its own name, exactly like a class:
 
-```php
+```nvs
 enum Status { Active, Banned }
 
 class Account {

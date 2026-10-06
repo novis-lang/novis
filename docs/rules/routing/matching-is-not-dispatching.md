@@ -1,4 +1,4 @@
-```php
+```nvs
 Core\Request::route(): ?Router\Match;                                   // the match the server made
 Core\Router::match(Http\Method $method, tainted string $path): ?Router\Match;
 Core\Router::methodsFor(tainted string $path): array<Http\Method>;      // [] ⇒ 404, else 405 + Allow:

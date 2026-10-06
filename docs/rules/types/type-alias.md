@@ -3,7 +3,7 @@ file and namespace scope alongside `use` and `namespace` or as a member of a cla
 body (`rule:types/class-scoped-alias`) — never inside a method body, a block or an anonymous function's body, where
 it is `E0233` by name like any other declaration written where control flow can reach it.
 
-```php
+```nvs
 type UserId = uint;
 type Result = User|NotFoundError;
 type Matrix = array<array<float>>;

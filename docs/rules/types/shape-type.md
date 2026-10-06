@@ -1,4 +1,4 @@
-```php
+```nvs
 function move(object {x: int, y: int} $p): void { $p->x += 1; }
 type Point = {x: int, y: int};
 ```

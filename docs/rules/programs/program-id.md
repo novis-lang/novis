@@ -1,4 +1,4 @@
-```php
+```nvs
 function Core\Program::id(): string;
 ```
 

@@ -1,7 +1,7 @@
 `require 'path.nvs';` is the only same-frame inclusion construct. It throws when the target is missing or
 unparseable, and it executes every time control reaches it — there is no once-only guard.
 
-```php
+```nvs
 require 'partials/header.nvs';        // kept — throws if missing, runs every time
 include 'partials/header.nvs';        // rejected
 include_once 'lib/util.nvs';          // rejected

@@ -2,7 +2,7 @@ An attribute attaches to four things: a class or interface declaration, a method
 property declaration, and a parameter. It is written directly above the declaration, or directly
 before the parameter.
 
-```php
+```nvs
 #[Route(path: "/users/:id", method: "GET")]
 class UserController {
     #[Column(type: "varchar", length: 255)]

@@ -10,7 +10,7 @@ ordinary object, because capturing an object by value still shares the same heap
 rebinding a bare scalar or a copy-on-write `array<T>` local from inside an anonymous function is
 actually lost.
 
-```php
+```nvs
 class Counter { public int $value = 0; }
 $count = new Counter();
 $increment = fn() => $count->value++;   // both capture $count by value...

@@ -1,7 +1,7 @@
 `ClassName::CONST_NAME`, written where a type is expected, resolves at compile time to the constant's
 own value — exactly as long as that value is a `string` or `int` compile-time constant.
 
-```php
+```nvs
 class Foo {
     public const string TYPE_A = "a";
     public const string TYPE_B = "b";

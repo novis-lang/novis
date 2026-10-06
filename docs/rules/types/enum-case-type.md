@@ -1,7 +1,7 @@
 `EnumName::CaseName`, written where a type is expected, does **not** resolve to its backing integer. It
 names a new checker-only type: a subtype of `EnumName` inhabited by exactly that one case.
 
-```php
+```nvs
 enum Mode { Read, Write, Admin }
 
 function grant(Mode::Read|Mode::Write $m) { … }   // accepts only those two cases

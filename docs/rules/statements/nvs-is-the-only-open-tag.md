@@ -3,7 +3,7 @@ purely so the parser can name the fix instead of misreading the rest of the file
 reports `E0229` every time it consumes that token — at file start or at a mid-file reopen alike — and then
 parses the code that follows normally, so nothing after the tag is swallowed.
 
-```php
+```nvs
 <?php echo 1; ?>          // tag rejected, `echo 1;` still parses as code
 <?nvs echo 1; ?>          // unaffected
 if ($x) { ?>html<?nvs }   // unaffected — reopening mid-block was always legal

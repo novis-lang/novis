@@ -11,7 +11,7 @@ answered: `"7" as ?int` is `7`, because `string → int` is a conversion row, wh
 `false`, because a `string` is not an `int`. One asks what a value can *become*, the other what it
 *is*.
 
-```php
+```nvs
 mixed $m = Core\Request::query('id');
 if ($m is int) {
     // $m is an int here — no `as`, no throw path

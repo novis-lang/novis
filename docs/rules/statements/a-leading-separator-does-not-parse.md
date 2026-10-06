@@ -1,6 +1,6 @@
 The leading separator is refused in all three positions PHP writes one, rather than stripped:
 
-```php
+```nvs
 \App\Models\User::find(1);   // refused
 use \App\Models\User;        // refused
 namespace \App;              // refused

@@ -1,4 +1,4 @@
-```php
+```nvs
 function Core\Program::implementing<T>(): array<T>;   // T is an interface or a class
 ```
 

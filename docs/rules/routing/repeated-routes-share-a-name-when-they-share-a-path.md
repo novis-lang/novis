@@ -2,7 +2,7 @@
 several verbs. Repeated `#[Route]` attributes on **one method** may carry the same `name`, provided
 every one of them carries the same `path`:
 
-```php
+```nvs
 #[Route(path: "/webhook", method: Http\Method::Post, name: "webhook")]
 #[Route(path: "/webhook", method: Http\Method::Put,  name: "webhook")]
 #[Access(allow: Audience::Public)]

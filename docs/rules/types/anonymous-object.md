@@ -1,4 +1,4 @@
-```php
+```nvs
 $point = {x: 1, y: 2};
 $box   = {count: 0};
 ```

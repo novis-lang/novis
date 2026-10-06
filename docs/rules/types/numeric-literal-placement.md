@@ -3,7 +3,7 @@ in. An integer literal becomes `int`, `uint`, `float` or `decimal`; a literal ca
 part or an exponent becomes `decimal` or `float`. Because every binding site declares a type
 (`rule:types/declaration`), the target is known almost everywhere.
 
-```php
+```nvs
 decimal $price = 19.99;          // exact: mantissa 1999, scale 2
 float   $ratio = 19.99;          // an f64
 var $x = 19.99;                  // no target type: float

@@ -1,4 +1,4 @@
-```php
+```nvs
 Core\Metrics::increment(string $name, {by?: uint, labels?: array<string, string>}): void;
 Core\Metrics::observe(string $name, float $value, {labels?: array<string, string>}): void;
 Core\Metrics::gauge(string $name, float $value, {labels?: array<string, string>}): void;

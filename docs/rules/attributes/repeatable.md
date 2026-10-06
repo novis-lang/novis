@@ -1,7 +1,7 @@
 The same attribute — named or bare, with the same field values or different ones — may be attached to
 one declaration any number of times.
 
-```php
+```nvs
 #[Cache(ttlSeconds: 60)]
 #[Cache(ttlSeconds: 300, tag: "long")]
 public function show(): Response { … }

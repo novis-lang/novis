@@ -2,7 +2,7 @@ A request reads its own memory as three members on `Core\Budget` — `memoryHeld
 holds right now, `memoryPeak()` the high-water mark of that figure for this request, and
 `memoryLimit()` the ceiling both are measured against.
 
-```php
+```nvs
 Core\Budget::memoryHeld():  int
 Core\Budget::memoryPeak():  int
 Core\Budget::memoryLimit(): int
@@ -18,7 +18,7 @@ ever meant.
 otherwise reachable only as `Core\Config::get('limits.memory')` — a string with a suffix that every
 call site would parse — so the question the trio exists to answer stays one expression:
 
-```php
+```nvs
 if (Core\Budget::memoryPeak() * 10 > Core\Budget::memoryLimit() * 9) { … }
 ```
 

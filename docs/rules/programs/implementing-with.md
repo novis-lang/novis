@@ -1,4 +1,4 @@
-```php
+```nvs
 function Core\Program::implementingWith<I, T>(string $member = ""): array<{instance: I, attribute: ?T}>;
 ```
 

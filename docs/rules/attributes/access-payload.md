@@ -1,4 +1,4 @@
-```php
+```nvs
 enum Core\Audience { case Public; }
 type Core\Access = {allow: mixed, csrf?: bool};
 ```

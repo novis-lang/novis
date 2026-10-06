@@ -1,6 +1,6 @@
 The body of a doc comment is Markdown. Two tags may appear, each on its own line in a trailing block:
 
-```php
+```nvs
 /// The price in cents, never a float.
 ///
 /// @see Core\Money::fromCents

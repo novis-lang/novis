@@ -3,7 +3,7 @@ the anonymous function does not annotate takes its type from the corresponding p
 parameter it *does* annotate is checked against it under `rule:types/callable-variance`, and
 wins where it is wider.
 
-```php
+```nvs
 $users;                                       // array<User>
 Core\Arr::map($users, fn($u) => $u->name);    // $u : User, U : string ⇒ array<string>
 ```

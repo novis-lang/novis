@@ -3,7 +3,7 @@
 scalar/`array`/`object` type keyword `)` — so that it can emit `E0225` naming the exact `as` spelling
 to use, but it produces an error node; there is no cast node in the AST.
 
-```php
+```nvs
 (int)$x        // rejected — "use `$x as int` — it throws instead of silently truncating"
 (string)$x     // rejected — "use `$x as string` — it throws instead of silently truncating"
 ```

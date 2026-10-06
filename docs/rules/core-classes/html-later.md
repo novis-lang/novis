@@ -2,7 +2,7 @@
 at once as a task whose parent is the request, and returns a placeholder the page writes where the
 output belongs:
 
-```php
+```nvs
 <?= Core\Html::later(fn() => Comments::render($post->id),
                      {placeholder: html`<p>Loading comments…</p>`}) ?>
 ```

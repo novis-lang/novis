@@ -9,7 +9,7 @@ Given a name as written, and the namespace and import set active where it was wr
 A `use` therefore does exactly one thing: it binds **one declaration** under its own short name. Importing
 a *namespace* is not a concept here.
 
-```php
+```nvs
 namespace App;
 
 use App\Models;           // binds the name `Models`, and nothing under it

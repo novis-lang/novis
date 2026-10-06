@@ -1,6 +1,6 @@
 `autoload` is a top-level declaration in two forms, both taking **literal strings only**:
 
-```php
+```nvs
 autoload 'Framework' from './';                        // one prefix, one root
 autoload 'Acme\Legacy' from '../vendor/acme/lib',
                             '../vendor/acme/compat';   // one prefix, several roots

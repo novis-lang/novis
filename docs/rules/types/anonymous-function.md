@@ -1,6 +1,6 @@
 `fn` is the only way to write an anonymous function, in two body shapes:
 
-```php
+```nvs
 fn($x) => $x + 1                            // expression body, implicit return
 fn($x) => { $y = $x + 1; return $y * 2; }   // block body, explicit `return` required
 fn(int $x): int => $x + 1                   // typed either way

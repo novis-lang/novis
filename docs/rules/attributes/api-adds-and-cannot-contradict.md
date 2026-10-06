@@ -1,7 +1,7 @@
 `#[Api]` supplies what a handler's types cannot say — tags, error responses, a security scheme, an
 example — to the OpenAPI document `nvs build --openapi` writes.
 
-```php
+```nvs
 #[Route(path: "/orders/{id}", method: Http\Method::Get, name: "orders.show")]
 #[Access(allow: Role::User)]
 #[Api(tags: ["Orders"], errors: [{status: 404, type: Api\NotFound}], example: {id: 7})]

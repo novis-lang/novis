@@ -3,7 +3,7 @@ more slashes is an ordinary comment, as in Rust and for the same reason: a divid
 documentation. A `#` comment is never a doc comment whatever its length — `#[` already opens an attribute,
 and a second doc spelling is what `rule:statements/nothing-gets-a-second-name` refuses.
 
-```php
+```nvs
 /// The price in cents. Money is `decimal`, never `float`.
 /// A negative amount throws; zero is allowed and is a no-op.
 public function charge(uint $cents): void { … }

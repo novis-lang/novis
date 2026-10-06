@@ -3,7 +3,7 @@ the method and suggesting `#[Access(allow: Audience::Public)]` for a route that 
 same sentence read from the other side is `E0788`: an `#[Access]` on a method that declares no route is
 refused rather than ignored, because the route table is the only thing that ever asks the decision.
 
-```php
+```nvs
 #[Route(path: "/admin/users", method: Http\Method::Get)]
 #[Access(allow: Role::Admin)]
 public function listUsers(): Response { … }

@@ -1,4 +1,4 @@
-```php
+```nvs
 function Core\Attributes::get<T>(callable $target, string $member = ""): ?T;
 function Core\Attributes::all<T>(callable $target, string $member = ""): array<T>;
 ```
