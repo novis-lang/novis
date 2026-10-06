@@ -1,28 +1,29 @@
 {
-  "state": "**Goal `php-oracle-retired`, Stage 4: every Stage 4 check's artefact is on disk; the playbook sweep and `docs/setup.md` remain from item 3.** ADR 0274 (`docs/decisions/0274.md`) is the goal's record.\n\n`--ORACLE--`, `--ORACLE-DIVERGES--` and `--INI--` are unknown sections in `crates/nvs-test`; `nvs test --php` is an unknown flag; `tests/differential/` is deleted and no `nv` tool reads it. The `.nvst` grammar embeds no `source.php` and its tests and fixture carry no oracle (headless editor suite: 278 passing). `git grep -e --ORACLE` over the check's paths exits 1. `docs/agent/commands.md` § *Trying a snippet*, `docs/agent/conventions.md` § *A `.nvst` test case*, `docs/reference/lang/95-testing.md`, `docs/reference/tools/10-cli.md` (and `data/reference/tools/10-cli.json`), the CI conformance comment and the source comments in `call.rs`, `arr.rs`, `regex.rs`, `str.rs` and `uri.rs` name no oracle and no differential case. `rule:ide/case-files-have-their-own-grammar` and `rule:testing/nvst-is-separate` no longer promise PHP.",
+  "state": "**Goal `php-oracle-retired`: Stage 4 is complete on disk; Stage 5 (no mechanical migration is planned) is next and is the driver's earliest red check.** ADR 0274 (`docs/decisions/0274.md`) is the goal's record.\n\n`--ORACLE--`, `--ORACLE-DIVERGES--` and `--INI--` are unknown sections in `crates/nvs-test`; `nvs test --php` is an unknown flag; `tests/differential/` is deleted and no `nv` tool reads it. The `.nvst` grammar embeds no PHP. The playbook carries no oracle or differential trap: the bullets whose whole trap was one are deleted, and the rest are rewritten whole. `git grep -i -e oracle -e differential -e DIVERGES -- data/playbook` still lists four records on purpose: `divergences/a-refusal-of-a-shape-…` (names `divergesFromPhp` and `docs/divergences.md`, Stage 8's; its `[until: gone tools/nv/cmd/rules.ts:divergences.md]` retires it), `tooling/a-loop-goal-toml-check-name-…` (\"oracle\" means an RFC test vector set) and two that use \"diverges\" as a plain verb. `docs/setup.md` names PHP only as an optional dependency of the PHP benchmarks.",
   "next": {
-    "stage": 4,
-    "title": "the oracle is gone, item 3's tail (the playbook and setup)",
+    "stage": 5,
+    "title": "no mechanical migration is planned, file set 1 (the plan)",
     "files": [],
-    "note": "one file set: the playbook records under `data/playbook/` with their rendered `docs/agent/playbook/` twins, and `docs/setup.md`. Goal prose § *Stage 4*, item 3.",
+    "note": "one file set: the milestone M11 record and plan file, the plan index, the root README and the `nv plan` test that quotes the M11 row. Goal prose § *Stage 5*, item 1.",
     "items": [
       {
         "done": false,
-        "text": "**The oracle and differential playbook entries are deleted or rewritten** — `git grep -l -i \"oracle\\|differential\\|DIVERGES\" -- data/playbook` lists 25 records, e.g. `docs/agent/playbook/writing-a-test-case/never-put-oracle-in-a-tests-conformance-case.md:1`. Delete an entry whose whole trap is an oracle or the differential tree; rewrite whole one that only mentions them (`docs/agent/playbook/running-things/nvs-servers-afleetleaseisrenewedwhileitsrunisinflight-fails.md:1`, `docs/agent/playbook/writing-novis/widening-a-numeric-literals-placement-is-a-union-question.md:1`). Check how the rendered twin is regenerated before editing (`docs/agent/playbook.md`)."
+        "text": "**M11's plan file and record are deleted** — `docs/plan/m11.md:1`, `data/plan/milestones/M11.json:1`; then check what `bun nv plan` reads per milestone before deleting, since the index row is generated or checked against the record."
       },
       {
         "done": false,
-        "text": "**`docs/setup.md` says PHP is needed only to run the PHP benchmarks** — `docs/setup.md:8`, `docs/setup.md:34`, `docs/setup.md:102`, `docs/setup.md:206` (the `0 skipped` / `no PHP oracle` paragraph); goal standing decisions, first set."
+        "text": "**The plan index and the README name no M11** — `docs/implementation-plan.md:103` (the `backlog 3` row), the root README's milestone table (its line 64), and the fixture row in `tools/nv/test/plan.test.ts:10` (a test of the row parser, so it takes another milestone id rather than being deleted)."
       },
       {
         "done": false,
-        "text": "**Then Stage 5 file set 1, the plan** — `docs/plan/m11.md:1` and `data/plan/milestones/M11.json:1` deleted, `docs/implementation-plan.md:111` and the root README's milestone row; goal prose § *Stage 5*, item 1."
+        "text": "**The `tooling/convert-*` rules are deleted** — `docs/rules/tooling/convert-one-table-two-modes.md:1` and its seven `convert-*` siblings, with their records under `data/rules/tooling/`; a `rule:` citation of a deleted rule loses the `rule:` prefix (standing decisions). `rule:programs/no-compatibility-promise` names `nvs convert` and is rewritten in the same slice."
       }
     ]
   },
   "backlog": [
     "`docs/plan/m4b.md` still quotes the old title of `rule:ide/case-files-have-their-own-grammar` (a live milestone file; Stage 5 rewrites the plan files).",
     "`docs/reference/tools/10-cli.md:5` keywords still list `php -l`, `php -r`, `phpunit` — Stage 9 item 5.",
-    "`tools/nv/lib/chain.ts:119,147-150` (named by the goal prose) was not touched: nothing there reads the tree (*not checked* beyond a grep)."
+    "`tools/nv/lib/chain.ts:119,147-150` (named by the goal prose) was not touched: nothing there reads the tree (*not checked* beyond a grep).",
+    "`bun nv chain --check` reports three places naming walked goals (`docs/perf/performance-pass.md:3`, `docs/perf/performance-review.md:3`, `docs/plan/m10.md:166`); not this goal's, and present before this session."
   ]
 }
