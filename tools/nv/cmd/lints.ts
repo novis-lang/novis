@@ -59,6 +59,8 @@ export const UNSAFE_CRATES: Record<string, string> = {
   "crates/nvs-host": "the coroutine stack switcher's one deref of the opaque yielder, and CPU affinity through the platform API",
   "crates/nvs-config": "the process environment is read through `std::env`, whose accessors are `unsafe` in edition 2024",
   "crates/nvs-cli": "the process environment again, at the one place the binary sets it before handing control to the runtime",
+  "crates/nvs-ext":
+    "loading an extension's compiled component back from the artifact cache, whose bytes wasmtime runs as machine code without validating them",
   "benches/abi-probe":
     "it calls JIT-compiled code to measure it; `publish = false` and no shipped crate depends on it, so it does not widen the runtime's unsafe surface",
 };

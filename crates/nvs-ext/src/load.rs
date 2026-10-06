@@ -32,11 +32,25 @@
 //! import to the `0.2` release the host defines. An `nvs:ext` import matches by interface, under
 //! the version rule the manifest's own `world` is held to.
 //!
-//! Cost: one SHA-256 of the file, one wasmtime compile and one walk of the component's type, at
-//! boot and at reload. Nothing here runs on a request path.
+//! **The compiled form is cached behind a seam.** A loader given a [`ModuleCache`] looks the
+//! component up under a [`CacheKey`] — the file's pin and [`Loader::environment`], a SHA-256 of
+//! wasmtime's own compatibility hash (its version, the engine's configuration and the target) — and
+//! deserializes it on a hit rather than compiling. A miss compiles and stores the serialized form.
+//! The bytes stored are a SHA-256 of wasmtime's serialized component followed by that component, so
+//! an entry whose checksum does not match, or that wasmtime does not accept, is a miss and is
+//! overwritten by the next store: `rule:packaging/a-bad-cache-entry-is-a-miss-never-an-error`. The
+//! store itself is `nvs-cli`'s artifact cache, which owns the directory's ownership check
+//! (`rule:packaging/a-wasm-module-cache-reuses-the-artifact-cache`); this crate never touches a file
+//! for it. Deserializing is the crate's one `unsafe` call, and [`Loader::cached`] states why it holds.
+//!
+//! Cost: one SHA-256 of the file, one wasmtime compile or one deserialize and SHA-256 of the
+//! compiled form, and one walk of the component's type, at boot and at reload. Nothing here runs on
+//! a request path.
 
 use std::fmt;
+use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use sha2::{Digest, Sha256};
 use wasmtime::Engine;
@@ -177,13 +191,54 @@ impl Set {
 
 /// The SHA-256 of `bytes` as an entry's pin: 64 lower-case hexadecimal digits.
 pub fn pin(bytes: &[u8]) -> String {
+    hex(&Sha256::digest(bytes))
+}
+
+fn hex(bytes: &[u8]) -> String {
     use std::fmt::Write;
-    Sha256::digest(bytes)
+    bytes
         .iter()
-        .fold(String::with_capacity(64), |mut out, byte| {
+        .fold(String::with_capacity(bytes.len() * 2), |mut out, byte| {
             let _ = write!(out, "{byte:02x}");
             out
         })
+}
+
+/// Where a compiled component is kept between loads: `nvs-cli`'s artifact cache, or a test's map.
+///
+/// Neither call reports a failure. A `get` that cannot read is a miss, and a `put` that cannot
+/// write is dropped, because the loader's next move is the compile it would have done anyway.
+pub trait ModuleCache: Send + Sync {
+    /// The bytes last stored under `key`, if any.
+    fn get(&self, key: &CacheKey) -> Option<Vec<u8>>;
+    /// Stores `bytes` under `key`, replacing what was there.
+    fn put(&self, key: &CacheKey, bytes: &[u8]);
+}
+
+/// What a compiled component is stored under: the file it was compiled from and the engine that
+/// compiled it. Either one differing is a different key, so a component compiled by another engine
+/// is never looked at.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct CacheKey {
+    /// The file's SHA-256, lower-case hexadecimal.
+    pub pin: String,
+    /// [`Loader::environment`] of the loader that compiled it.
+    pub environment: String,
+}
+
+/// Feeds wasmtime's compatibility hash into a SHA-256, so the environment is the same digest in
+/// every process of one build.
+struct Sha256Hasher(Sha256);
+
+impl Hasher for Sha256Hasher {
+    fn write(&mut self, bytes: &[u8]) {
+        self.0.update(bytes);
+    }
+
+    fn finish(&self) -> u64 {
+        let digest = self.0.clone().finalize();
+        u64::from_le_bytes(digest[..8].try_into().expect("a SHA-256 has eight bytes"))
+    }
 }
 
 /// Loads extensions into one engine, against one version of the world.
@@ -191,22 +246,30 @@ pub fn pin(bytes: &[u8]) -> String {
 pub struct Loader {
     engine: Engine,
     world: WorldVersion,
+    environment: String,
+    cache: Option<Arc<dyn ModuleCache>>,
 }
 
 impl fmt::Debug for Loader {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Loader")
             .field("world", &self.world)
+            .field("environment", &self.environment)
+            .field("cached", &self.cache.is_some())
             .finish_non_exhaustive()
     }
 }
 
 impl Loader {
-    /// A loader compiling into `engine`, implementing [`WORLD`].
+    /// A loader compiling into `engine`, implementing [`WORLD`], with no cache.
     pub fn new(engine: &Engine) -> Self {
+        let mut hasher = Sha256Hasher(Sha256::new());
+        engine.precompile_compatibility_hash().hash(&mut hasher);
         Self {
             engine: engine.clone(),
             world: WORLD,
+            environment: hex(&hasher.0.finalize()),
+            cache: None,
         }
     }
 
@@ -215,6 +278,61 @@ impl Loader {
     pub fn with_world(mut self, world: WorldVersion) -> Self {
         self.world = world;
         self
+    }
+
+    /// The same loader, keeping compiled components in `cache`.
+    #[must_use]
+    pub fn with_cache(mut self, cache: Arc<dyn ModuleCache>) -> Self {
+        self.cache = Some(cache);
+        self
+    }
+
+    /// The engine's environment: a SHA-256, in lower-case hexadecimal, of everything wasmtime
+    /// requires to match before it loads a component another engine compiled.
+    pub fn environment(&self) -> &str {
+        &self.environment
+    }
+
+    /// The component `bytes` compile to, from the cache when it holds a good entry under `sha256`,
+    /// and stored there when it did not.
+    fn compile(&self, sha256: &str, bytes: &[u8]) -> wasmtime::Result<Component> {
+        let Some(cache) = &self.cache else {
+            return Component::new(&self.engine, bytes);
+        };
+        let key = CacheKey {
+            pin: sha256.to_owned(),
+            environment: self.environment.clone(),
+        };
+        if let Some(component) = cache.get(&key).and_then(|stored| self.cached(&stored)) {
+            return Ok(component);
+        }
+        let component = Component::new(&self.engine, bytes)?;
+        if let Ok(serialized) = component.serialize() {
+            let mut stored = Sha256::digest(&serialized).to_vec();
+            stored.extend_from_slice(&serialized);
+            cache.put(&key, &stored);
+        }
+        Ok(component)
+    }
+
+    /// The component a stored entry carries, or [`None`] when its checksum does not match or
+    /// wasmtime does not accept it.
+    #[expect(
+        unsafe_code,
+        reason = "`Component::deserialize` is unsafe because it loads machine code without \
+                  validating it; the block below states why these bytes are ones this engine wrote"
+    )]
+    fn cached(&self, stored: &[u8]) -> Option<Component> {
+        let (checksum, serialized) = stored.split_at_checked(32)?;
+        if Sha256::digest(serialized).as_slice() != checksum {
+            return None;
+        }
+        // SAFETY: the entry is under a key carrying this engine's environment, and its checksum
+        // matches the bytes `Component::serialize` returned when it was stored, so it is unchanged
+        // output of an engine wasmtime calls compatible, which it checks again from the bytes' own
+        // header. Who can write the store is bounded by its owner's check on the directory, the
+        // same one the artifact cache's native code rests on.
+        unsafe { Component::deserialize(&self.engine, serialized) }.ok()
     }
 
     /// Every entry of `entries`, loaded into one set, or the first entry that does not load.
@@ -243,7 +361,8 @@ impl Loader {
                 entry.sha256
             )));
         }
-        let component = Component::new(&self.engine, bytes)
+        let component = self
+            .compile(&sha256, bytes)
             .map_err(|err| refuse(format!("the file is not a valid component: {err:#}")))?;
         let sections = section::read(bytes).map_err(|err| refuse(err.0))?;
         let manifest = sections
