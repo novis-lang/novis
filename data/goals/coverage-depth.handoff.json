@@ -1,31 +1,30 @@
 {
-  "state": "**Goal `coverage-depth` — Stage 3 (branches) is on disk; Stage 4 (per-test lines) is next.** ADR 0273 is the goal's one record; no further ADR slot is owed.\n\nThe edge probe counts every `Terminator::Branch` side under `DebugFlags::BRANCH` (`crates/nvs-codegen/src/emit.rs`). The runner sizes `StmtHits::with_edges` and turns `COVERAGE | BRANCH` on, both for the suite's context and for a `server: true` test's request program. `crate::coverage::Probes::of` walks each function's blocks for branch edges only, so a `Switch` is in no report; the module doc's `# Branches` owns where a branch's line comes from. lcov writes `BRDA`/`BRF`/`BRH`, Clover `<line type=\"cond\">` and `conditionals`, Cobertura `condition-coverage` and `branch-rate`. `rule:testing/coverage-report`, the `nvs test` help and `docs/reference/tools/10-cli.md` say branches.\n\nThe stage 3 acceptance checks' tests pass under `cargo test --test test_coverage`; the human summary line still counts lines only.",
+  "state": "**Goal `coverage-depth` — Stage 4 (per-test lines) is on disk; Stage 5 (VS Code's coverage view) is next.** ADR 0273 is the goal's one record; no further ADR slot is owed.\n\nStages 1-3 (functions, Cobertura, branches) shipped earlier; `crate::coverage`'s module doc owns how each is counted and written. Stage 4: `run_suite` in `crates/nvs-cli/src/runner.rs` reads the shared `StmtHits` before and after each test, and `crate::coverage::grew` keeps the statements whose count grew as `Case::reached`. Tests run one at a time, so that is every attempt and every request a `server: true` test sent; fixtures are built before a class's first test and are in no test's list. `json_document` writes `schemaVersion: 3` and a `coverage` object per record (`Sites::reached`) only under a coverage flag; without one the document is version 2 unchanged. `rule:testing/report-formats`, `docs/reference/lang/95-testing.md` and `docs/reference/tools/10-cli.md` say so. The module doc's `# Per test` owns the mechanism.\n\nAll 17 cases of `cargo test --test test_coverage` pass, including the stage 4 check's three. The human summary line still counts lines only.",
   "next": {
-    "stage": 4,
-    "title": "per-test lines",
+    "stage": 5,
+    "title": "coverage in VS Code",
     "files": [
-      "crates/nvs-cli/src/runner.rs",
-      "crates/nvs-cli/src/coverage.rs",
-      "crates/nvs-cli/tests/test_coverage.rs"
+      "editors/vscode/src/tests.ts",
+      "editors/vscode/src/report.ts",
+      "editors/vscode/test/surfaces/tests.test.ts"
     ],
     "items": [
       {
         "done": false,
-        "text": "**Each test's lines** — `rule:testing/report-formats`, ADR 0273 § 5: under a coverage flag, snapshot or reset the shared `StmtHits` around each case in `run_case` at `crates/nvs-cli/src/runner.rs:1660` and turn the statements it reached into file lines with `crate::coverage::Sites` (`crates/nvs-cli/src/coverage.rs:113`)."
+        "text": "**A Coverage run profile** — ADR 0273 § 6, `rule:testing/coverage-report`: add a `TestRunProfileKind.Coverage` profile beside the Run one at `editors/vscode/src/tests.ts:77`, which runs `nvs test --format=json --coverage-lcov <scratch file>` (the run argv is built at `editors/vscode/src/tests.ts:181`) and reads the lcov file into `FileCoverage` / `StatementCoverage` / `BranchCoverage` for the run."
       },
       {
         "done": false,
-        "text": "**The JSON document at schema version 3** — `json_document` at `crates/nvs-cli/src/runner.rs:1881` writes `schemaVersion: 3` and each record's lines when a coverage flag is given, and stays at `2` otherwise; the test `the_json_document_lists_the_lines_each_test_reached` goes in `crates/nvs-cli/tests/test_coverage.rs:1`."
+        "text": "**The lcov reader** — ADR 0273 § 6: parse `SF`/`DA`/`BRDA`/`FN`/`FNDA` beside the report parser at `editors/vscode/src/report.ts:75`, with the run directory as the base for relative names."
       },
       {
         "done": false,
-        "text": "**The rule says per-test lines** — `rule:testing/report-formats`'s fragment at `docs/rules/testing/report-formats.md:1` names schema version 3."
+        "text": "**The headless check** — the goal's stage 5 check runs `npm run --silent test:headless` in `editors/vscode` and needs `coverage:` and then `0 failing` in its output: add a suite `coverage` that `editors/vscode/scripts/headless.mjs:18` runs, so it prints `coverage: N passing, 0 failing` (`editors/vscode/scripts/headless.mjs:64`)."
       }
     ]
   },
   "backlog": [
-    "Stage 5: the VS Code Coverage run profile reads an lcov file into the editor's coverage view (ADR 0273 § 6, the `vscode` check).",
-    "The human summary line could add `N of N branch sides run`; nothing asks for it yet (`crates/nvs-cli/src/runner.rs`).",
-    "`[context] adrs` lacks ADR 0273 § 4 and § 5; this session sliced them by hand."
+    "The human summary line counts lines only; branches are in the files (`crate::coverage` module doc).",
+    "An include or exclude list, an HTML report and merging runs are out of this goal (its standing decisions); for the user if asked."
   ]
 }

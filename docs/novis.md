@@ -7253,7 +7253,9 @@ A directory holding both kinds is refused, and the two kinds never run in one in
   with one `{class, method, file, line, column, verdict, durationMs}` per case — `file`, `line` and
   `column` being where the `#[Test]` method's name is written, one-based, the same location
   `nvs check --json` carries for a diagnostic — plus `reason` for a skip, `failures`
-  (every message) for a failure, and `attempts` for a flaky test. `--format junit` writes JUnit
+  (every message) for a failure, and `attempts` for a flaky test. With a coverage flag the
+  document is `schemaVersion` `3`, and every test also has `coverage`: each file name mapped to
+  the sorted lines that test reached in any attempt. `--format junit` writes JUnit
   XML: one `<testsuite>` per class, a `<testcase>` per test, `<skipped>`, `<failure>` with the
   first message as its attribute and all of them as its body, and `<flakyFailure>` for a flaky
   one. Under either machine format what the tests themselves `echo` goes to standard error, so
@@ -26940,7 +26942,8 @@ skipped: not written yet
   it runs, then `N failed, N passed, N skipped, N flaky in N ms`), `json` (one versioned document
   on standard output at the end: `schemaVersion` is `2`, then `summary`, and one `tests[]` entry per
   test with `class`, `method`, `file`, `line`, `column`, `verdict`, `durationMs`, and
-  `reason`/`failures`/`attempts` where they apply),
+  `reason`/`failures`/`attempts` where they apply; with a coverage flag `schemaVersion` is `3` and
+  each test also has `coverage`, each file name mapped to the sorted lines that test reached),
   or `junit` (JUnit XML). In the machine formats, what the tests themselves `echo` goes to standard
   error so that standard output is the document alone. Naming a machine format beside a `.nvst`
   tree is refused.
