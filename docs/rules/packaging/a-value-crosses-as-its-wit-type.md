@@ -33,10 +33,9 @@ unions of shapes and resources by name, the loader holds each against the export
 `variant`, record or resource, and `nvs_ext::convert` converts every row to its WIT value and back,
 `mixed` by lending it as a handle and a resource as a number the request keeps, which
 `nvs_ext::call::Request::end` drops (`crates/nvs-ext/tests/convert.rs`). `nvs run` crosses every
-scalar, `bytes`, a list, a keyed array, `?T`, a shape, a closed union of shapes, an enum, a
-`Core` value class and `mixed`
-(`tests/conformance/ext/an-extension-call-crosses-every-row-of-the-value-table.nvst`); a `Core`
-value class is read and rebuilt by `nvs_stdlib::ext_record`, with its constructor's checks, and
-an extension's enum is an `int`-backed enum in its class's namespace whose cases are numbered in
-the manifest's order (`nvs_types::ext_lib`). The checker does not type a method that names an
-extension's resource, so a resource does not cross from a program yet.
+row (`tests/conformance/ext/an-extension-call-crosses-every-row-of-the-value-table.nvst`,
+`tests/conformance/ext/an-extension-resource-is-held-by-the-program-and-passed-back.nvst`); a
+`Core` value class is read and rebuilt by `nvs_stdlib::ext_record`, with its constructor's checks.
+An extension's enum is an `int`-backed enum in its class's namespace whose cases are numbered in
+the manifest's order, and its resource is a member-less class in that namespace, held at run time
+as an object whose one slot is the request's number for it (`nvs_types::ext_lib`).

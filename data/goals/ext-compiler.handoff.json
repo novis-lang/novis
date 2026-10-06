@@ -1,28 +1,26 @@
 {
-  "state": "**Goal `ext-compiler`, Stage 3 (the call) is under way.** Stages 1 and 2 are on disk. The design is ADR 0246 § 8 and the goal file's § *Standing decisions*. This goal has no record slot.\n\n`nvs run` calls an extension end to end. Codegen emits `InstKind::ExtensionCall` as a variadic call of `nvs_runtime::extension::nvs_extension_call` (`crates/nvs-runtime/src/extension.rs` module doc), and `nvs-cli`'s `extensions::Calls` hosts it over one `nvs_ext::call::Request` (`crates/nvs-cli/src/extensions.rs` module doc).\n\nEvery scalar, `bytes`, a list, a keyed array, `?T`, a shape, a closed union of shapes, an enum, a `Core` value class and `mixed` cross both ways, and the row-table case `tests/conformance/ext/an-extension-call-crosses-every-row-of-the-value-table.nvst` covers each one. An extension's enum is an `int`-backed enum in its class's namespace (`Unit` of `Shop\\Ledger` is `Shop\\Unit`), seeded into the checker's enum table with its cases numbered in the manifest's order, and it crosses by that number (`crates/nvs-types/src/ext_lib.rs` module doc, `nvs_ext::convert::case_number`). The ledger fixture exports `echoUnit`.\n\n**Not yet crossing:** a resource. The checker leaves out any method that names an extension resource (`lowers` in `crates/nvs-types/src/ext_lib.rs`), so no program can call one. A limit is a plain `FATAL` with no limit handler, and `nvs serve` installs no `Calls`.",
+  "state": "**Goal `ext-compiler`, Stage 3 (the call) is under way.** Stages 1 and 2 are on disk. The design is ADR 0246 § 8 and the goal file's § *Standing decisions*. This goal has no record slot.\n\n`nvs run` calls an extension end to end. Codegen emits `InstKind::ExtensionCall` as a variadic call of `nvs_runtime::extension::nvs_extension_call` (`crates/nvs-runtime/src/extension.rs` module doc), and `nvs-cli`'s `extensions::Calls` hosts it over one `nvs_ext::call::Request` (`crates/nvs-cli/src/extensions.rs` module doc).\n\nEvery row of `rule:packaging/a-value-crosses-as-its-wit-type`'s table crosses both ways. A resource `Route` of `Shop\\Ledger` is the member-less class `Shop\\Route`, and at run time an object of a class `nvs_stdlib::ext_record::resource` makes for that name, holding the request's number for it (`crates/nvs-types/src/ext_lib.rs` module doc). The ledger fixture exports `openRoute` and `routeStop`, and `tests/conformance/ext/an-extension-resource-is-held-by-the-program-and-passed-back.nvst` covers it.\n\n**Still open in Stage 3:** a limit is a plain `FATAL` with no limit handler, and `nvs serve` installs no `Calls`. Stage 4 (qualifiers) is the driver's earliest red check and has nothing written yet.",
   "next": {
     "stage": 3,
     "title": "the call",
     "files": [
-      "crates/nvs-types/src/ext_lib.rs",
-      "crates/nvs-types/src/lower.rs",
       "crates/nvs-cli/src/extensions.rs",
-      "tests/conformance/ext/fixtures/ledger/"
+      "crates/nvs-cli/src/main.rs",
+      "tests/conformance/ext/"
     ],
     "items": [
       {
         "done": false,
-        "text": "**An extension resource type in the checker and crossing back**: a resource `Route` is a class `Shop\\Route` in the extension class's namespace, declared by `hir_classes` with no members. Lower it as `interner.class` in `lower` (`crates/nvs-types/src/ext_lib.rs:311`) and drop the `lowers` exclusion (`crates/nvs-types/src/ext_lib.rs:187`). An extension class written in type position is reported undeclared today, because `lower_name_type`'s `None` arm has no extension case (`crates/nvs-types/src/lower.rs:953`). At run time a returned `Crossed::Resource` needs a value the program holds and passes back (`crates/nvs-cli/src/extensions.rs:423`): decide whether it is an object of a class the runtime defines for it, and record the decision in the `ext_lib` module doc. Add a resource export to the ledger fixture (the WAT needs the `[resource-new]` and `[resource-rep]` imports), rebuilt with `NVS_WRITE_FIXTURES=1 cargo test --test fixtures`. `rule:packaging/a-value-crosses-as-its-wit-type`."
+        "text": "**A limit runs the limit handler**: map `Outcome::Fatal` to `nvs_runtime::Limit` and run `Ctx::run_limit_handler` before the `FATAL` (`crates/nvs-cli/src/extensions.rs:270`). `rule:packaging/a-guest-crash-throws`, `rule:errors/on-limit`."
       },
       {
         "done": false,
-        "text": "**A limit runs the limit handler**: map `Outcome::Fatal` to `nvs_runtime::Limit` and run `Ctx::run_limit_handler` before the `FATAL` (`crates/nvs-cli/src/extensions.rs:270`). `rule:packaging/a-guest-crash-throws`, `rule:errors/on-limit`."
+        "text": "**`nvs serve` hosts extension calls**: install a `Calls` per request from the live set (`crates/nvs-cli/src/extensions.rs:161`), ended when the request ends. `rule:packaging/extension-calls-are-statically-typed`."
       }
     ]
   },
   "backlog": [
-    "Stage 4 (qualifiers): the driver's earliest red check is `nvs-types-an-extension-sink-refuses-with-the-core-code` (`data/goals/ext-compiler.json`).",
-    "`nvs serve` installs no `Calls`, so a request cannot call an extension yet (`crates/nvs-cli/src/extensions.rs` module doc).",
-    "A `Core\\Crypto\\PublicKey` returned by a guest gets the first kind that reads its SubjectPublicKeyInfo, so an RSA key comes back as `RsaPkcs1` (`crates/nvs-stdlib/src/ext_record.rs` module doc)."
+    "Stage 4, qualifiers: the `nvs-types` sink and `secret` tests, the `nvs-ext` `load` tests and the four `.nvst` cases the goal record names (`data/goals/ext-compiler.json`).",
+    "Stage 5, the source section; Stage 6, the tools (`nvs check`, `nvs test`, the language server) — `data/goals/ext-compiler.json`."
   ]
 }
