@@ -15,6 +15,7 @@
     "packaging/a-package-is-its-digest"
   ],
   "guardedBy": [
-    "crates/nvs-config/tests/tree.rs"
+    "crates/nvs-config/tests/tree.rs",
+    "crates/nvs-config/tests/extension.rs"
   ]
 }

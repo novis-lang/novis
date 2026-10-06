@@ -1,9 +1,9 @@
 <?nvs
-// A native extension is a compiled file. The owner of the machine lists it in `nvs.toml`,
+// An extension is a compiled WebAssembly file. The owner of the machine lists it in `nvs.toml`,
 // with the checksum the file must have:
 //
 //     [[extension]]
-//     path   = "/usr/lib/novis/image.nvsx"
+//     path   = "/srv/extensions/geo.nvsx"
 //     sha256 = "…"
 //
 // This file lists none. A program cannot add an extension, so this prints `no`.

@@ -1035,12 +1035,16 @@
 
 
 # ----------------------------------------------------------------------------------------------
-# [[extension]] — a native extension, loaded only where root said so
+# [[extension]] — a sandboxed WebAssembly extension, loaded only where root said so
 # (`rule:packaging/extension-loading-is-root-controlled`).
 # ----------------------------------------------------------------------------------------------
 
 #[[extension]]
-# The `.nvsx` to load, and the pin re-verified on every `nvs ctl reload` — a mismatch refuses the
-# whole swap rather than loading the file that changed.
-#path = "/usr/lib/novis/image.nvsx"   # example
+# The `.nvsx` file to load. Required.
+#path = "/srv/extensions/geo.nvsx"    # example
+# The SHA-256 of that file, as 64 hexadecimal digits. Required. The server checks it when it
+# starts and on every `nvs ctl reload`. If it does not match the file, nothing is loaded.
 #sha256 = "0000000000000000000000000000000000000000000000000000000000000000"  # example
+# The most linear memory this extension may use. Optional. Its request's own memory limit
+# still applies.
+#memory = "64M"                       # example

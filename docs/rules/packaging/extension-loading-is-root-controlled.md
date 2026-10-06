@@ -29,5 +29,7 @@ is a lazy recompile with no invalidation pass. A component is compiled once, int
 content-addressed artifact cache as Novis's own code, and the compiled module is shared across every
 core.
 
-**Not on disk.** The entry parses and its pins fold into `env_hash`; both fields are optional, the pin
-is not checked, and nothing loads the file.
+**Not on disk.** The entry's shape is enforced: `nvs_config::extension::validate` refuses an entry
+with no `path`, no `sha256` or a pin that is not 64 hexadecimal digits, at boot and at reload, naming
+its file and line (`E0651`), and the pins fold into `env_hash`. Nothing reads the file yet, so no
+digest is compared and none of the load refusals runs, and `nvs ext pin` does not exist.
