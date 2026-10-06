@@ -624,7 +624,7 @@ pub const CLASS: CoreClass = CoreClass {
 /// `Core\Str::at`'s reference card — `rule:core-api/reference-card`.
 const AT_DOC: MethodDoc = MethodDoc {
     short: "Returns the one character at position `$index` of `$s`. A character is what a person \
-            sees as one letter, so `\"é\"` is one character. Replaces PHP's `mb_substr($s, $i, 1)`.",
+            sees as one letter, so `\"é\"` is one character.",
     params: &[
         ParamDoc {
             name: "s",
@@ -661,8 +661,7 @@ const IS_EMPTY_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Str::contains`'s reference card — `rule:core-api/reference-card`.
 const CONTAINS_DOC: MethodDoc = MethodDoc {
-    short: "Checks whether `$needle` appears anywhere in `$haystack`. Replaces PHP's \
-            `str_contains`.",
+    short: "Checks whether `$needle` appears anywhere in `$haystack`.",
     params: &[
         ParamDoc {
             name: "haystack",
@@ -682,7 +681,7 @@ const CONTAINS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Str::startsWith`'s reference card — `rule:core-api/reference-card`.
 const STARTS_WITH_DOC: MethodDoc = MethodDoc {
-    short: "Checks whether `$s` starts with `$prefix`. Replaces PHP's `str_starts_with`.",
+    short: "Checks whether `$s` starts with `$prefix`.",
     params: &[
         ParamDoc {
             name: "s",
@@ -702,7 +701,7 @@ const STARTS_WITH_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Str::endsWith`'s reference card — `rule:core-api/reference-card`.
 const ENDS_WITH_DOC: MethodDoc = MethodDoc {
-    short: "Checks whether `$s` ends with `$suffix`. Replaces PHP's `str_ends_with`.",
+    short: "Checks whether `$s` ends with `$suffix`.",
     params: &[
         ParamDoc {
             name: "s",
@@ -723,8 +722,7 @@ const ENDS_WITH_DOC: MethodDoc = MethodDoc {
 /// `Core\Str::slice`'s reference card — `rule:core-api/reference-card`.
 const SLICE_DOC: MethodDoc = MethodDoc {
     short: "Returns the part of `$s` that starts at `$offset` and has `$length` characters. \
-            Positions count characters as a person sees them, so \"é\" is one character. \
-            Replaces PHP's `substr` and `mb_substr`.",
+            Positions count characters as a person sees them, so \"é\" is one character.",
     params: &[
         ParamDoc {
             name: "s",
@@ -752,8 +750,7 @@ const SLICE_DOC: MethodDoc = MethodDoc {
 /// `Core\Str::indexOf`'s reference card — `rule:core-api/reference-card`.
 const INDEX_OF_DOC: MethodDoc = MethodDoc {
     short: "Finds the first place where `$needle` appears in `$haystack` and returns its \
-            position. The first character is position `0`. Replaces PHP's `strpos`, `stripos`, \
-            `mb_strpos` and `mb_stripos`.",
+            position. The first character is position `0`.",
     params: &[
         ParamDoc {
             name: "haystack",
@@ -788,8 +785,7 @@ const INDEX_OF_DOC: MethodDoc = MethodDoc {
 /// `Core\Str::lastIndexOf`'s reference card — `rule:core-api/reference-card`.
 const LAST_INDEX_OF_DOC: MethodDoc = MethodDoc {
     short: "Finds the last place where `$needle` appears in `$haystack` and returns its \
-            position. The first character is position `0`. Replaces PHP's `strrpos`, `strripos` \
-            and `mb_strrpos`.",
+            position. The first character is position `0`.",
     params: &[
         ParamDoc {
             name: "haystack",
@@ -822,8 +818,7 @@ const LAST_INDEX_OF_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Str::countOf`'s reference card — `rule:core-api/reference-card`.
 const COUNT_OF_DOC: MethodDoc = MethodDoc {
-    short: "Counts how many times `$needle` appears in `$haystack`. Replaces PHP's \
-            `substr_count`.",
+    short: "Counts how many times `$needle` appears in `$haystack`.",
     params: &[
         ParamDoc {
             name: "haystack",
@@ -846,8 +841,7 @@ const COUNT_OF_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Str::compare`'s reference card — `rule:core-api/reference-card`.
 const COMPARE_DOC: MethodDoc = MethodDoc {
-    short: "Compares two strings to sort them. Replaces PHP's `strcmp`, `strcasecmp`, \
-            `strnatcmp` and `strnatcasecmp`.",
+    short: "Compares two strings to sort them.",
     params: &[
         ParamDoc {
             name: "a",
@@ -880,8 +874,7 @@ const COMPARE_DOC: MethodDoc = MethodDoc {
 /// `Core\Str::before`'s reference card — `rule:core-api/reference-card`.
 const BEFORE_DOC: MethodDoc = MethodDoc {
     short: "Returns the part of `$s` before the first `$needle`, without the needle. With \
-            `{last: true}`, it cuts at the last `$needle`. Replaces PHP's `strstr($s, $needle, \
-            true)`.",
+            `{last: true}`, it cuts at the last `$needle`.",
     params: &[
         ParamDoc {
             name: "s",
@@ -909,7 +902,7 @@ const BEFORE_DOC: MethodDoc = MethodDoc {
 /// `Core\Str::after`'s reference card — `rule:core-api/reference-card`.
 const AFTER_DOC: MethodDoc = MethodDoc {
     short: "Returns the part of `$s` after the first `$needle`, without the needle. With \
-            `{last: true}`, it cuts at the last `$needle`. Replaces PHP's `strstr` and `strrchr`.",
+            `{last: true}`, it cuts at the last `$needle`.",
     params: &[
         ParamDoc {
             name: "s",
@@ -937,7 +930,7 @@ const AFTER_DOC: MethodDoc = MethodDoc {
 /// `Core\Str::join`'s reference card — `rule:core-api/reference-card`.
 const JOIN_DOC: MethodDoc = MethodDoc {
     short: "Joins the strings in `$parts` into one string, with `$separator` between each two \
-            neighbouring strings. Replaces PHP's `implode`.",
+            neighbouring strings.",
     params: &[
         ParamDoc {
             name: "parts",
@@ -957,8 +950,7 @@ const JOIN_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Str::split`'s reference card — `rule:core-api/reference-card`.
 const SPLIT_DOC: MethodDoc = MethodDoc {
-    short: "Splits `$s` into parts at every place where `$separator` is found. Replaces PHP's \
-            `explode`.",
+    short: "Splits `$s` into parts at every place where `$separator` is found.",
     params: &[
         ParamDoc {
             name: "s",
@@ -990,7 +982,7 @@ const SPLIT_DOC: MethodDoc = MethodDoc {
 /// `Core\Str::chunk`'s reference card — `rule:core-api/reference-card`.
 const CHUNK_DOC: MethodDoc = MethodDoc {
     short: "Divides `$s` into pieces of `$size` characters each. A piece never cuts a character \
-            in half. Replaces PHP's `str_split`, `mb_str_split` and `chunk_split`.",
+            in half.",
     params: &[
         ParamDoc {
             name: "s",
@@ -1014,7 +1006,7 @@ const CHUNK_DOC: MethodDoc = MethodDoc {
 /// `Core\Str::lines`'s reference card — `rule:core-api/reference-card`.
 const LINES_DOC: MethodDoc = MethodDoc {
     short: "Splits `$s` into its lines. A line ends at `\\n`, at `\\r\\n` or at `\\r`, on every \
-            system. Replaces PHP's `explode(PHP_EOL, $s)`.",
+            system.",
     params: &[ParamDoc {
         name: "s",
         desc: "The text to split.",
@@ -1030,8 +1022,7 @@ const LINES_DOC: MethodDoc = MethodDoc {
 const GRAPHEMES_DOC: MethodDoc = MethodDoc {
     short: "Divides `$s` into its characters, the way a person counts them. An accented letter, \
             a flag or an emoji with a skin tone is one character, even when it is several code \
-            points. These are the characters `Core\\Str::length` counts. Replaces PHP's \
-            `grapheme_str_split`.",
+            points. These are the characters `Core\\Str::length` counts.",
     params: &[ParamDoc {
         name: "s",
         desc: "The string to divide.",
@@ -1044,8 +1035,7 @@ const GRAPHEMES_DOC: MethodDoc = MethodDoc {
 /// `Core\Str::codePoints`'s reference card — `rule:core-api/reference-card`.
 const CODE_POINTS_DOC: MethodDoc = MethodDoc {
     short: "Lists the code points of `$s`. A code point is the number Unicode gives to one \
-            symbol. One character a person sees can be several code points. Replaces PHP's \
-            `mb_str_split` followed by `mb_ord`.",
+            symbol. One character a person sees can be several code points.",
     params: &[ParamDoc {
         name: "s",
         desc: "The string to read.",
@@ -1059,8 +1049,7 @@ const CODE_POINTS_DOC: MethodDoc = MethodDoc {
 /// `Core\Str::replace`'s reference card — `rule:core-api/reference-card`.
 const REPLACE_DOC: MethodDoc = MethodDoc {
     short: "Replaces every occurrence of `$search` in `$s` with `$replacement`. Matches are \
-              found from left to right and do not overlap. The new text is not searched again. \
-              Replaces PHP's `str_replace` and `str_ireplace`.",
+              found from left to right and do not overlap. The new text is not searched again.",
     params: &[
         ParamDoc {
             name: "s",
@@ -1099,7 +1088,7 @@ const REPLACE_ALL_DOC: MethodDoc = MethodDoc {
     short: "Replaces several texts in `$s` in one call. Each key of `$pairs` is a text to find, \
             and its value is the text that replaces it. The string is read once, from left to \
             right. Where several keys match at the same place, the longest one is used. The new \
-            text is not searched again. Replaces PHP's `strtr` and `str_replace` with arrays.",
+            text is not searched again.",
     params: &[
         ParamDoc {
             name: "s",
@@ -1128,8 +1117,7 @@ const REPLACE_ALL_DOC: MethodDoc = MethodDoc {
 /// `Core\Str::replaceRange`'s reference card — `rule:core-api/reference-card`.
 const REPLACE_RANGE_DOC: MethodDoc = MethodDoc {
     short: "Replaces a part of `$s` with `$replacement`. The part is the text \
-            `Core\\Str::slice` returns for the same `$offset` and `$length`. Replaces PHP's \
-            `substr_replace`.",
+            `Core\\Str::slice` returns for the same `$offset` and `$length`.",
     params: &[
         ParamDoc {
             name: "s",
@@ -1161,8 +1149,7 @@ const REPLACE_RANGE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Str::padStart`'s reference card — `rule:core-api/reference-card`.
 const PAD_START_DOC: MethodDoc = MethodDoc {
-    short: "Adds copies of `$padding` before `$s` until the result is `$length` characters long. \
-            Replaces PHP's `str_pad` with `STR_PAD_LEFT`.",
+    short: "Adds copies of `$padding` before `$s` until the result is `$length` characters long.",
     params: &[
         ParamDoc {
             name: "s",
@@ -1192,8 +1179,7 @@ const PAD_START_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Str::padEnd`'s reference card — `rule:core-api/reference-card`.
 const PAD_END_DOC: MethodDoc = MethodDoc {
-    short: "Adds copies of `$padding` after `$s` until the result is `$length` characters long. \
-            Replaces PHP's `str_pad` with `STR_PAD_RIGHT`.",
+    short: "Adds copies of `$padding` after `$s` until the result is `$length` characters long.",
     params: &[
         ParamDoc {
             name: "s",
@@ -1223,7 +1209,7 @@ const PAD_END_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Str::trim`'s reference card — `rule:core-api/reference-card`.
 const TRIM_DOC: MethodDoc = MethodDoc {
-    short: "Removes the given characters from both ends of `$s`. Replaces PHP's `trim`.",
+    short: "Removes the given characters from both ends of `$s`.",
     params: &[
         ParamDoc {
             name: "s",
@@ -1245,7 +1231,7 @@ const TRIM_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Str::trimStart`'s reference card — `rule:core-api/reference-card`.
 const TRIM_START_DOC: MethodDoc = MethodDoc {
-    short: "Removes the given characters from the start of `$s`. Replaces PHP's `ltrim`.",
+    short: "Removes the given characters from the start of `$s`.",
     params: &[
         ParamDoc {
             name: "s",
@@ -1266,8 +1252,7 @@ const TRIM_START_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Str::trimEnd`'s reference card — `rule:core-api/reference-card`.
 const TRIM_END_DOC: MethodDoc = MethodDoc {
-    short: "Removes the given characters from the end of `$s`. Replaces PHP's `rtrim` and \
-            `chop`.",
+    short: "Removes the given characters from the end of `$s`.",
     params: &[
         ParamDoc {
             name: "s",
@@ -1288,7 +1273,7 @@ const TRIM_END_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Str::repeat`'s reference card — `rule:core-api/reference-card`.
 const REPEAT_DOC: MethodDoc = MethodDoc {
-    short: "Returns `$times` copies of `$s`, joined into one string. Replaces PHP's `str_repeat`.",
+    short: "Returns `$times` copies of `$s`, joined into one string.",
     params: &[
         ParamDoc {
             name: "s",
@@ -1311,8 +1296,7 @@ const REPEAT_DOC: MethodDoc = MethodDoc {
 /// `Core\Str::reverse`'s reference card — `rule:core-api/reference-card`.
 const REVERSE_DOC: MethodDoc = MethodDoc {
     short: "Reverses the order of the characters in `$s`. A character is what a person sees as \
-            one character, so `\"café\"` becomes `\"éfac\"` and an accent stays on its letter. \
-            Replaces PHP's `strrev`.",
+            one character, so `\"café\"` becomes `\"éfac\"` and an accent stays on its letter.",
     params: &[ParamDoc {
         name: "s",
         desc: "The string to reverse.",
@@ -1326,7 +1310,7 @@ const REVERSE_DOC: MethodDoc = MethodDoc {
 const WRAP_DOC: MethodDoc = MethodDoc {
     short: "Splits `$s` into lines of at most `$width` characters. It breaks a line at a space \
             and writes `breakWith` in place of that space. A character is what a person sees \
-            as one character, so `\"é\"` counts as one. Replaces PHP's `wordwrap`.",
+            as one character, so `\"é\"` counts as one.",
     params: &[
         ParamDoc {
             name: "s",
@@ -1363,7 +1347,7 @@ const WRAP_DOC: MethodDoc = MethodDoc {
 /// `Core\Str::lower`'s reference card — `rule:core-api/reference-card`.
 const LOWER_DOC: MethodDoc = MethodDoc {
     short: "Changes every letter of `$s` to lower case. It uses Unicode's rules, so `ÄRGER` \
-            becomes `ärger`. Replaces PHP's `strtolower` and `mb_strtolower`.",
+            becomes `ärger`.",
     params: &[ParamDoc {
         name: "s",
         desc: "The string to change.",
@@ -1377,7 +1361,7 @@ const LOWER_DOC: MethodDoc = MethodDoc {
 /// `Core\Str::upper`'s reference card — `rule:core-api/reference-card`.
 const UPPER_DOC: MethodDoc = MethodDoc {
     short: "Changes every letter of `$s` to upper case. It uses Unicode's rules, so `straße` \
-            becomes `STRASSE`. Replaces PHP's `strtoupper` and `mb_strtoupper`.",
+            becomes `STRASSE`.",
     params: &[ParamDoc {
         name: "s",
         desc: "The string to change.",
@@ -1391,7 +1375,7 @@ const UPPER_DOC: MethodDoc = MethodDoc {
 /// `Core\Str::upperFirst`'s reference card — `rule:core-api/reference-card`.
 const UPPER_FIRST_DOC: MethodDoc = MethodDoc {
     short: "Changes the first letter of `$s` to upper case and keeps the rest as it is. It uses \
-            Unicode's rules, so `ärger` becomes `Ärger`. Replaces PHP's `ucfirst`.",
+            Unicode's rules, so `ärger` becomes `Ärger`.",
     params: &[ParamDoc {
         name: "s",
         desc: "The string whose first character changes.",
@@ -1404,7 +1388,7 @@ const UPPER_FIRST_DOC: MethodDoc = MethodDoc {
 /// `Core\Str::lowerFirst`'s reference card — `rule:core-api/reference-card`.
 const LOWER_FIRST_DOC: MethodDoc = MethodDoc {
     short: "Changes the first letter of `$s` to lower case and keeps the rest as it is. It uses \
-            Unicode's rules, so `Ärger` becomes `ärger`. Replaces PHP's `lcfirst`.",
+            Unicode's rules, so `Ärger` becomes `ärger`.",
     params: &[ParamDoc {
         name: "s",
         desc: "The string whose first character changes.",
@@ -1417,8 +1401,7 @@ const LOWER_FIRST_DOC: MethodDoc = MethodDoc {
 /// `Core\Str::fold`'s reference card — `rule:core-api/reference-card`.
 const FOLD_DOC: MethodDoc = MethodDoc {
     short: "Case-folds `$s`: every letter changes to one fixed form, so text that differs only \
-            in upper and lower case gives the same result. Replaces PHP's \
-            `mb_convert_case($s, MB_CASE_FOLD)`.",
+            in upper and lower case gives the same result.",
     params: &[ParamDoc {
         name: "s",
         desc: "The string to fold.",
@@ -1432,7 +1415,7 @@ const FOLD_DOC: MethodDoc = MethodDoc {
 /// `Core\Str::normalize`'s reference card — `rule:core-api/reference-card`.
 const NORMALIZE_DOC: MethodDoc = MethodDoc {
     short: "Changes `$s` into one of the four Unicode normal forms. Two ways to write the same \
-            text then give the same string. Replaces PHP's `Normalizer::normalize`.",
+            text then give the same string.",
     params: &[
         ParamDoc {
             name: "s",
@@ -1454,8 +1437,7 @@ const NORMALIZE_DOC: MethodDoc = MethodDoc {
 /// `Core\Str::fromCodePoint`'s reference card — `rule:core-api/reference-card`.
 const FROM_CODE_POINT_DOC: MethodDoc = MethodDoc {
     short: "Builds a string of one code point. A code point is the number Unicode gives to one \
-            symbol. Replaces PHP's `mb_chr`. To build one byte, as PHP's `chr` does, use \
-            `Core\\Bytes`.",
+            symbol. To build one byte, use `Core\\Bytes`.",
     params: &[ParamDoc {
         name: "codePoint",
         desc: "The number of the symbol. It is at most `0x10FFFF` and is not in the surrogate \
@@ -1473,8 +1455,7 @@ const FROM_CODE_POINT_DOC: MethodDoc = MethodDoc {
 /// `Core\Str::fromCodePoints`'s reference card — `rule:core-api/reference-card`.
 const FROM_CODE_POINTS_DOC: MethodDoc = MethodDoc {
     short: "Builds a string from a list of code points, in order. It does the opposite of \
-            `Core\\Str::codePoints`. Replaces PHP's `mb_chr` called on each number and joined \
-            with `implode`.",
+            `Core\\Str::codePoints`.",
     params: &[ParamDoc {
         name: "codePoints",
         desc: "The numbers of the symbols, in order. Each one is at most `0x10FFFF` and is not \
@@ -1492,8 +1473,8 @@ const FROM_CODE_POINTS_DOC: MethodDoc = MethodDoc {
 /// `Core\Str::format`'s reference card — `rule:core-api/reference-card`.
 const FORMAT_DOC: MethodDoc = MethodDoc {
     short: "Fills the placeholders in `$template` with `$arguments` and returns the text. The \
-            template syntax is the one PHP's `sprintf` uses: `%s %d %u %f %e %g %x %X %o %b %%`, \
-            with flags, a width, a precision and positions such as `%1$s`. The result never \
+            placeholders are `%s %d %u %f %e %g %x %X %o %b %%`, with flags, a width, a \
+            precision and positions such as `%1$s`. The result never \
             depends on the locale.",
     params: &[
         ParamDoc {

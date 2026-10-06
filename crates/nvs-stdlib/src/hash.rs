@@ -176,15 +176,13 @@ pub(crate) const DIGEST: CoreEnum = CoreEnum {
 /// [`DIGEST`]'s reference card — `rule:core-api/reference-card`. The roster's home is spec § 11's
 /// table; the notes here are that table's, condensed.
 const DIGEST_DOC: EnumDoc = EnumDoc {
-    short: "The algorithm a `Core\\Hash` member computes — every one PHP's `hash()` names that \
-            interop needs, checksums and the two broken digests included, plus BLAKE3. \
-            `StrongDigest`, the subset `Core\\Hash::hmac` accepts, is the ten SHA-2 and SHA-3 \
-            cases.",
+    short: "The algorithm a `Core\\Hash` method computes. It includes checksums and the two \
+            broken digests that other systems still use, and BLAKE3. `StrongDigest` is the ten \
+            SHA-2 and SHA-3 cases, which `Core\\Hash::hmac` accepts.",
     cases: &[
         CaseDoc {
             name: "Crc32",
-            desc: "CRC-32/ISO-HDLC, PHP's `crc32b` — a 4-octet checksum against accidental \
-                   corruption only.",
+            desc: "CRC-32/ISO-HDLC, a 4-octet checksum. It detects accidental corruption only.",
         },
         CaseDoc {
             name: "Md5",
@@ -214,12 +212,12 @@ const DIGEST_DOC: EnumDoc = EnumDoc {
         CaseDoc {
             name: "Sha512_224",
             desc: "SHA-512/224, 28 octets — SHA-512 truncated with its own IV (FIPS 180-4 \
-                   § 5.3.6), PHP's `sha512/224`; a `StrongDigest`.",
+                   § 5.3.6). It is a `StrongDigest`.",
         },
         CaseDoc {
             name: "Sha512_256",
             desc: "SHA-512/256, 32 octets — SHA-512's speed at SHA-256's width and \
-                   length-extension-proof, PHP's `sha512/256`; a `StrongDigest`.",
+                   length-extension-proof. It is a `StrongDigest`.",
         },
         CaseDoc {
             name: "Sha3_224",
@@ -244,8 +242,8 @@ const DIGEST_DOC: EnumDoc = EnumDoc {
         },
         CaseDoc {
             name: "Blake3",
-            desc: "BLAKE3, 32 octets — the fastest here and the one PHP cannot compute; outside \
-                   `StrongDigest` because it is keyed natively rather than through HMAC.",
+            desc: "BLAKE3, 32 octets, and the fastest here. It is not a `StrongDigest`, because \
+                   it has its own keyed mode and does not use HMAC.",
         },
     ],
 };

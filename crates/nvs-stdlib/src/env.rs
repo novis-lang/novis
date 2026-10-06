@@ -165,28 +165,25 @@ const CONSTANTS: &[CoreConst] = &[
         name: "EOL",
         ty: CoreTy::Str,
         value: Const::Str(EOL),
-        desc: "The line ending this platform writes — `\\r\\n` on Windows and `\\n` everywhere \
-               else, as `PHP_EOL` is. It is for *emitting* platform-native text and nothing \
-               reads it: `Core\\Str::lines` and `Core\\IO::lines` split on all three terminators \
-               and never consult it, which is spec § 1's own note.",
+        desc: "The line ending this platform writes: `\\r\\n` on Windows and `\\n` everywhere \
+               else. Use it to write text in the platform's own format. `Core\\Str::lines` and \
+               `Core\\IO::lines` do not use it, and split on all three line endings.",
     },
     CoreConst {
         name: "OS",
         ty: CoreTy::Str,
         value: Const::Str(OS),
-        desc: "The operating system **family**, spelled as `PHP_OS_FAMILY` spells it — \
-               `Windows`, `Darwin`, `Linux`, `BSD`, `Solaris`, or `Unknown` for anything else. \
-               A closed set a program can compare against, and never `uname`'s free text, \
-               which is what PHP's other spelling `PHP_OS` hands over.",
+        desc: "The operating system **family**: `Windows`, `Darwin`, `Linux`, `BSD`, `Solaris`, \
+               or `Unknown` for anything else. The value is always one of these six, so a \
+               program can compare against it.",
     },
     CoreConst {
         name: "VERSION",
         ty: CoreTy::Str,
         value: Const::Str(VERSION),
-        desc: "This runtime's version, replacing `PHP_VERSION` — three dot-separated numbers, \
-               and the same string `nvs info` reports. There is no `PHP_VERSION_ID` beside it: \
-               a second spelling of one fact is what R6 closes, and comparing versions is \
-               `Core\\Str::split` plus arithmetic on what this already says.",
+        desc: "This runtime's version: three numbers separated by dots, the same string \
+               `nvs info` prints. To compare versions, split it with `Core\\Str::split` and \
+               compare the numbers.",
     },
 ];
 

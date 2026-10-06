@@ -413,9 +413,7 @@ const FOR_OBJECT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Reflect::typeOf`'s reference card — `rule:core-api/reference-card`.
 const TYPE_OF_DOC: MethodDoc = MethodDoc {
-    short: "Which of the language's representations `$value` currently holds. The single \
-            replacement for PHP's fourteen `is_*` predicates and `gettype`, which are only \
-            meaningful on a `mixed` at all.",
+    short: "Returns the kind of value `$value` is right now. Use it on a `mixed` value.",
     params: &[ParamDoc {
         name: "value",
         desc: "The value to ask about. On anything but a `mixed` the checker already knows the \
@@ -476,8 +474,7 @@ const TYPE_KIND_DOC: EnumDoc = EnumDoc {
         },
         CaseDoc {
             name: "Uint",
-            desc: "An unsigned `uint`, which is a type of its own here and so a case of its own — \
-                   the one PHP had no predicate to ask with.",
+            desc: "An unsigned `uint`. It is a type of its own, so it has a case of its own.",
         },
         CaseDoc {
             name: "Float",
@@ -495,8 +492,8 @@ const TYPE_KIND_DOC: EnumDoc = EnumDoc {
         },
         CaseDoc {
             name: "Bytes",
-            desc: "A `bytes` value — the same heap shape as `Text` without the UTF-8 promise, and \
-                   the distinction PHP's one string type could not make.",
+            desc: "A `bytes` value. It is like `Text`, but its content does not have to be valid \
+                   UTF-8.",
         },
         CaseDoc {
             name: "Array",
@@ -1127,8 +1124,7 @@ const PARAMETER_COUNT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Reflect\MethodInfo::parameters`'s reference card — `rule:core-api/reference-card`.
 const METHOD_PARAMETERS_DOC: MethodDoc = MethodDoc {
-    short: "Returns the parameters of the method, in the order they are written. It replaces \
-            PHP's `ReflectionMethod::getParameters`.",
+    short: "Returns the parameters of the method, in the order they are written.",
     params: &[],
     ret: "One `Core\\Reflect\\ParameterInfo` for each parameter. `$this` is not included. For a \
           method the compiler adds, such as the constructor of `LogicError`, the array is empty. \

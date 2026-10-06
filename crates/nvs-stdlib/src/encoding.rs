@@ -584,8 +584,8 @@ const FROM_BASE64_URL_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Encoding::toBase32`'s reference card — `rule:core-api/reference-card`.
 const TO_BASE32_DOC: MethodDoc = MethodDoc {
-    short: "Spells `$b` in RFC 4648 § 6's base32 alphabet, upper case and unpadded — the form \
-            an `otpauth:` secret is written in; PHP has no counterpart.",
+    short: "Writes `$b` in the base32 alphabet of RFC 4648 § 6, in upper case and with no \
+            padding. An `otpauth:` secret is written this way.",
     params: &[ParamDoc {
         name: "b",
         desc: "The octets to encode.",

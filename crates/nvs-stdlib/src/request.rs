@@ -470,9 +470,8 @@ const PATH_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Request::query`'s reference card — `rule:core-api/reference-card`.
 const QUERY_DOC: MethodDoc = MethodDoc {
-    short: "One query-string parameter by name, read with PHP's bracket convention — the same \
-            parse `Core\\Uri::parseQuery` performs, so `a[b]=c` is reached as a nested array \
-            under `a`.",
+    short: "Returns one query-string parameter by its name. The query is read the same way \
+            `Core\\Uri::parseQuery` reads it, so `a[b]=c` gives a nested array under `a`.",
     params: &[ParamDoc {
         name: "name",
         desc: "The parameter's name, decoded — the key as a form writes it, without brackets \
@@ -537,8 +536,7 @@ const QUERY_AS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Request::header`'s reference card — `rule:core-api/reference-card`.
 const HEADER_DOC: MethodDoc = MethodDoc {
-    short: "Returns the value of one request header by its name. It replaces the `HTTP_` entries \
-            of PHP's `$_SERVER`.",
+    short: "Returns the value of one request header by its name.",
     params: &[ParamDoc {
         name: "name",
         desc: "The name of the header. Upper and lower case do not matter, so `Content-Type` and \
@@ -557,8 +555,7 @@ const HEADER_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Request::headers`'s reference card — `rule:core-api/reference-card`.
 const HEADERS_DOC: MethodDoc = MethodDoc {
-    short: "Returns every header of the request, grouped by name. It replaces PHP's \
-            `getallheaders`.",
+    short: "Returns every header of the request, grouped by name.",
     params: &[],
     ret: "An `array<array<tainted string>>`. Each key is a header name in lower case. Its value \
           is a list with one entry for each line of that header, in the order the lines arrived. \
@@ -571,7 +568,7 @@ const HEADERS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Request::cookie`'s reference card — `rule:core-api/reference-card`.
 const COOKIE_DOC: MethodDoc = MethodDoc {
-    short: "Returns the value of one cookie by its name. It replaces PHP's `$_COOKIE`.",
+    short: "Returns the value of one cookie by its name.",
     params: &[ParamDoc {
         name: "name",
         desc: "The name of the cookie, exactly as it was set. Upper and lower case are different, \
@@ -589,8 +586,7 @@ const COOKIE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Request::body`'s reference card — `rule:core-api/reference-card`.
 const BODY_DOC: MethodDoc = MethodDoc {
-    short: "Returns the whole request body as one string. It replaces PHP's \
-            `file_get_contents('php://input')`.",
+    short: "Returns the whole request body as one string.",
     params: &[],
     ret: "Every byte the client sent, in order and unchanged. The string is `tainted`. It is \
           empty when the request has no body, and every call returns the same string.",
@@ -647,8 +643,7 @@ const BYTES_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Request::json`'s reference card — `rule:core-api/reference-card`.
 const JSON_DOC: MethodDoc = MethodDoc {
-    short: "Reads the request body as one JSON document and returns the decoded value. It \
-            replaces PHP's `json_decode(file_get_contents('php://input'), true)`.",
+    short: "Reads the request body as one JSON document and returns the decoded value.",
     params: &[ParamDoc {
         name: "maxDepth",
         desc: "How deep the document may nest. The default is 512, and the value must be from 1 \
@@ -753,8 +748,7 @@ const BODY_STREAM_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Request::files`'s reference card — `rule:core-api/reference-card`.
 const FILES_DOC: MethodDoc = MethodDoc {
-    short: "Returns the files that a form uploaded, one at a time in a `foreach` loop. It \
-            replaces PHP's `$_FILES` and `move_uploaded_file`.",
+    short: "Returns the files that a form uploaded, one at a time in a `foreach` loop.",
     params: &[],
     ret: "An `Iterable<Core\\Request\\Part>`. Each loop step gives the next file as it arrives. \
           The text fields are not in the loop, and `post` reads them after it. The loop runs \
@@ -782,9 +776,9 @@ const FILES_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Request::post`'s reference card — `rule:core-api/reference-card`.
 const POST_DOC: MethodDoc = MethodDoc {
-    short: "One submitted form field by name, read with PHP's bracket convention — the same parse \
-            `query` performs, over a `multipart/form-data` body's non-file parts or over a \
-            urlencoded one, replacing `$_POST` and `filter_input(INPUT_POST, …)`.",
+    short: "Returns one submitted form field by its name. The fields are read the same way \
+            `query` reads them. The body can be `multipart/form-data`, where the parts that \
+            are not files are read, or urlencoded.",
     params: &[ParamDoc {
         name: "name",
         desc: "The field's name, as the form declared it and without brackets for a nested value.",
@@ -885,8 +879,7 @@ const SCHEME_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Request::host`'s reference card — `rule:core-api/reference-card`.
 const HOST_DOC: MethodDoc = MethodDoc {
-    short: "Returns the host name the request was sent to, read from its `Host` header. It \
-            replaces PHP's `$_SERVER['HTTP_HOST']`.",
+    short: "Returns the host name the request was sent to, read from its `Host` header.",
     params: &[],
     ret: "The host name as a `tainted` string in lower case. A port and one dot at the end are \
           removed, so `Shop.Example.com.:8443` returns `shop.example.com`. An IPv6 address keeps \
@@ -1390,9 +1383,8 @@ const READ_ALL_OPTIONS: &[CoreOption] = &[CoreOption {
 
 /// `Core\Request\Part::readAll`'s reference card — `rule:core-api/reference-card`.
 const READ_ALL_DOC: MethodDoc = MethodDoc {
-    short: "This part's whole content, pulled to its end into one value — the reading for an \
-            upload small enough to hold, replacing `$_FILES` plus a `file_get_contents` of the \
-            temporary file PHP wrote.",
+    short: "Reads the whole content of this part into one value. Use it for an upload small \
+            enough to keep in memory.",
     params: &[ParamDoc {
         name: "max",
         desc: "How many bytes this call is willing to hold. Omitted, the bound is `[limits] \

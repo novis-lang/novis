@@ -311,8 +311,8 @@ const POW_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Decimal::floor`'s reference card — `rule:core-api/reference-card`.
 const FLOOR_DOC: MethodDoc = MethodDoc {
-    short: "`$value` cut to `$scale` places towards negative infinity — the direction PHP's \
-            `floor` goes, kept exact and answering a `decimal` rather than a `float`.",
+    short: "Rounds `$value` to `$scale` places, toward negative infinity. The result is an \
+            exact `decimal`.",
     params: &[
         ParamDoc {
             name: "value",
@@ -338,8 +338,8 @@ const FLOOR_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Decimal::ceil`'s reference card — `rule:core-api/reference-card`.
 const CEIL_DOC: MethodDoc = MethodDoc {
-    short: "`$value` cut to `$scale` places towards positive infinity — the direction PHP's \
-            `ceil` goes, kept exact and answering a `decimal` rather than a `float`.",
+    short: "Rounds `$value` to `$scale` places, toward positive infinity. The result is an \
+            exact `decimal`.",
     params: &[
         ParamDoc {
             name: "value",

@@ -245,16 +245,13 @@ pub const CLASS: CoreClass = CoreClass {
 /// `Core\Path`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
     short: "Reads and builds file paths as text. It never touches the disk. Every method accepts \
-            `/` and `\\` as separators on every platform, and writes `Path::SEPARATOR`. This \
-            replaces PHP's `basename`, `dirname`, `pathinfo` and the string work around \
-            `DIRECTORY_SEPARATOR`.",
+            `/` and `\\` as separators on every platform, and writes `Path::SEPARATOR`.",
 };
 
 /// `Core\Path::basename`'s reference card — `rule:core-api/reference-card`.
 const BASENAME_DOC: MethodDoc = MethodDoc {
     short: "Returns the last part of `$path`: the file name, or the name of the last folder. A \
-            separator at the end is ignored, so `/srv/shop/` gives `shop`. This replaces PHP's \
-            `basename`.",
+            separator at the end is ignored, so `/srv/shop/` gives `shop`.",
     params: &[
         ParamDoc {
             name: "path",
@@ -276,7 +273,7 @@ const BASENAME_DOC: MethodDoc = MethodDoc {
 /// `Core\Path::dirname`'s reference card — `rule:core-api/reference-card`.
 const DIRNAME_DOC: MethodDoc = MethodDoc {
     short: "Returns the folder that contains `$path`. The option `levels` goes up more than one \
-            folder. This replaces PHP's `dirname`.",
+            folder.",
     params: &[
         ParamDoc {
             name: "path",
@@ -292,30 +289,28 @@ const DIRNAME_DOC: MethodDoc = MethodDoc {
         },
     ],
     ret: "The folder, written with `Path::SEPARATOR`. When nothing is left, the result is the \
-          root for an absolute path and `.` for a relative one. `dirname('')` is `.`, and PHP \
-          returns `''`.",
+          root for an absolute path and `.` for a relative one. `dirname('')` is `.`.",
     errors: &[],
 };
 
 /// `Core\Path::extension`'s reference card — `rule:core-api/reference-card`.
 const EXTENSION_DOC: MethodDoc = MethodDoc {
     short: "Returns the extension of the last part of `$path`: the text after the last `.`, \
-            without the dot. This replaces PHP's `pathinfo($path, PATHINFO_EXTENSION)`.",
+            without the dot.",
     params: &[ParamDoc {
         name: "path",
         desc: "The path. `/` and `\\` are both separators on every platform.",
         shape: &[],
     }],
     ret: "The extension, or `null` when there is none. A name that starts with a dot, such as \
-          `.gitignore`, has none. A name that ends with a dot, such as `report.`, has none too. \
-          PHP returns `gitignore` and `''` for these two.",
+          `.gitignore`, has none. A name that ends with a dot, such as `report.`, has none too.",
     errors: &[],
 };
 
 /// `Core\Path::withExtension`'s reference card — `rule:core-api/reference-card`.
 const WITH_EXTENSION_DOC: MethodDoc = MethodDoc {
     short: "Returns `$path` with the extension of its last part changed to `$extension`. When \
-            `$extension` is `null`, the extension is removed. PHP has no function for this.",
+            `$extension` is `null`, the extension is removed.",
     params: &[
         ParamDoc {
             name: "path",
@@ -341,8 +336,8 @@ const WITH_EXTENSION_DOC: MethodDoc = MethodDoc {
 /// `Core\Path::join`'s reference card — `rule:core-api/reference-card`.
 const JOIN_DOC: MethodDoc = MethodDoc {
     short: "Adds each of `$segments` to the end of `$base`, with one separator between each \
-            part. This replaces the `$a . \"/\" . $b` that PHP programs write. Only `$base` \
-            decides where the result starts. A segment that starts with `/` or a drive is \
+            part. Only `$base` decides where the result starts. A segment that starts with `/` \
+            or a drive is \
             added after `$base` and does not replace it.",
     params: &[
         ParamDoc {
@@ -365,9 +360,8 @@ const JOIN_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Path::split`'s reference card — `rule:core-api/reference-card`.
 const SPLIT_DOC: MethodDoc = MethodDoc {
-    short: "Splits `$path` into its parts: the folders and the file name, in order. This \
-            replaces PHP's `explode(\"/\", $path)`. `Core\\Path::join` puts the parts back \
-            together into the same path.",
+    short: "Splits `$path` into its parts: the folders and the file name, in order. \
+            `Core\\Path::join` puts the parts back together into the same path.",
     params: &[ParamDoc {
         name: "path",
         desc: "The path. `/` and `\\` are both separators on every platform.",
@@ -415,8 +409,7 @@ const IS_ABSOLUTE_DOC: MethodDoc = MethodDoc {
 /// `Core\Path::relativeTo`'s reference card — `rule:core-api/reference-card`.
 const RELATIVE_TO_DOC: MethodDoc = MethodDoc {
     short: "Returns the path that leads from the folder `$base` to `$path`. The `.` and `..` \
-            parts of both paths are removed first, as `Core\\Path::normalize` does. PHP has \
-            no function for this.",
+            parts of both paths are removed first, as `Core\\Path::normalize` does.",
     params: &[
         ParamDoc {
             name: "path",

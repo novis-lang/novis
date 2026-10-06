@@ -7410,7 +7410,7 @@ Counts the graphemes in `$s` — user-perceived characters, the unit every `Core
 Core\Str::at(string $s, int $index): string
 ```
 
-Returns the one character at position `$index` of `$s`. A character is what a person sees as one letter, so `"é"` is one character. Replaces PHP's `mb_substr($s, $i, 1)`.
+Returns the one character at position `$index` of `$s`. A character is what a person sees as one letter, so `"é"` is one character.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -7443,7 +7443,7 @@ Checks whether `$s` is the empty string `""`. A string of spaces is not empty, a
 Core\Str::contains(string $haystack, string $needle): bool
 ```
 
-Checks whether `$needle` appears anywhere in `$haystack`. Replaces PHP's `str_contains`.
+Checks whether `$needle` appears anywhere in `$haystack`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -7459,7 +7459,7 @@ Checks whether `$needle` appears anywhere in `$haystack`. Replaces PHP's `str_co
 Core\Str::startsWith(string $s, string $prefix): bool
 ```
 
-Checks whether `$s` starts with `$prefix`. Replaces PHP's `str_starts_with`.
+Checks whether `$s` starts with `$prefix`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -7475,7 +7475,7 @@ Checks whether `$s` starts with `$prefix`. Replaces PHP's `str_starts_with`.
 Core\Str::endsWith(string $s, string $suffix): bool
 ```
 
-Checks whether `$s` ends with `$suffix`. Replaces PHP's `str_ends_with`.
+Checks whether `$s` ends with `$suffix`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -7491,7 +7491,7 @@ Checks whether `$s` ends with `$suffix`. Replaces PHP's `str_ends_with`.
 Core\Str::slice(string $s, int $offset, ?int $length = null): string
 ```
 
-Returns the part of `$s` that starts at `$offset` and has `$length` characters. Positions count characters as a person sees them, so "é" is one character. Replaces PHP's `substr` and `mb_substr`.
+Returns the part of `$s` that starts at `$offset` and has `$length` characters. Positions count characters as a person sees them, so "é" is one character.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -7508,7 +7508,7 @@ Returns the part of `$s` that starts at `$offset` and has `$length` characters. 
 Core\Str::indexOf(string $haystack, string $needle, {from?: int, caseInsensitive?: bool}): ?uint
 ```
 
-Finds the first place where `$needle` appears in `$haystack` and returns its position. The first character is position `0`. Replaces PHP's `strpos`, `stripos`, `mb_strpos` and `mb_stripos`.
+Finds the first place where `$needle` appears in `$haystack` and returns its position. The first character is position `0`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -7526,7 +7526,7 @@ Finds the first place where `$needle` appears in `$haystack` and returns its pos
 Core\Str::lastIndexOf(string $haystack, string $needle, {before?: int, caseInsensitive?: bool}): ?uint
 ```
 
-Finds the last place where `$needle` appears in `$haystack` and returns its position. The first character is position `0`. Replaces PHP's `strrpos`, `strripos` and `mb_strrpos`.
+Finds the last place where `$needle` appears in `$haystack` and returns its position. The first character is position `0`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -7544,7 +7544,7 @@ Finds the last place where `$needle` appears in `$haystack` and returns its posi
 Core\Str::countOf(string $haystack, string $needle): uint
 ```
 
-Counts how many times `$needle` appears in `$haystack`. Replaces PHP's `substr_count`.
+Counts how many times `$needle` appears in `$haystack`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -7562,7 +7562,7 @@ Counts how many times `$needle` appears in `$haystack`. Replaces PHP's `substr_c
 Core\Str::compare(string $a, string $b, {caseInsensitive?: bool, natural?: bool}): int
 ```
 
-Compares two strings to sort them. Replaces PHP's `strcmp`, `strcasecmp`, `strnatcmp` and `strnatcasecmp`.
+Compares two strings to sort them.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -7580,7 +7580,7 @@ Compares two strings to sort them. Replaces PHP's `strcmp`, `strcasecmp`, `strna
 Core\Str::before(string $s, string $needle, {last?: bool}): ?string
 ```
 
-Returns the part of `$s` before the first `$needle`, without the needle. With `{last: true}`, it cuts at the last `$needle`. Replaces PHP's `strstr($s, $needle, true)`.
+Returns the part of `$s` before the first `$needle`, without the needle. With `{last: true}`, it cuts at the last `$needle`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -7597,7 +7597,7 @@ Returns the part of `$s` before the first `$needle`, without the needle. With `{
 Core\Str::after(string $s, string $needle, {last?: bool}): ?string
 ```
 
-Returns the part of `$s` after the first `$needle`, without the needle. With `{last: true}`, it cuts at the last `$needle`. Replaces PHP's `strstr` and `strrchr`.
+Returns the part of `$s` after the first `$needle`, without the needle. With `{last: true}`, it cuts at the last `$needle`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -7614,7 +7614,7 @@ Returns the part of `$s` after the first `$needle`, without the needle. With `{l
 Core\Str::join(array<string> $parts, string $separator = ""): string
 ```
 
-Joins the strings in `$parts` into one string, with `$separator` between each two neighbouring strings. Replaces PHP's `implode`.
+Joins the strings in `$parts` into one string, with `$separator` between each two neighbouring strings.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -7630,7 +7630,7 @@ Joins the strings in `$parts` into one string, with `$separator` between each tw
 Core\Str::split(string $s, string $separator, {limit?: int}): array<string>
 ```
 
-Splits `$s` into parts at every place where `$separator` is found. Replaces PHP's `explode`.
+Splits `$s` into parts at every place where `$separator` is found.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -7649,7 +7649,7 @@ Splits `$s` into parts at every place where `$separator` is found. Replaces PHP'
 Core\Str::chunk(string $s, uint $size): array<string>
 ```
 
-Divides `$s` into pieces of `$size` characters each. A piece never cuts a character in half. Replaces PHP's `str_split`, `mb_str_split` and `chunk_split`.
+Divides `$s` into pieces of `$size` characters each. A piece never cuts a character in half.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -7667,7 +7667,7 @@ Divides `$s` into pieces of `$size` characters each. A piece never cuts a charac
 Core\Str::lines(string $s): array<string>
 ```
 
-Splits `$s` into its lines. A line ends at `\n`, at `\r\n` or at `\r`, on every system. Replaces PHP's `explode(PHP_EOL, $s)`.
+Splits `$s` into its lines. A line ends at `\n`, at `\r\n` or at `\r`, on every system.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -7682,7 +7682,7 @@ Splits `$s` into its lines. A line ends at `\n`, at `\r\n` or at `\r`, on every 
 Core\Str::graphemes(string $s): array<string>
 ```
 
-Divides `$s` into its characters, the way a person counts them. An accented letter, a flag or an emoji with a skin tone is one character, even when it is several code points. These are the characters `Core\Str::length` counts. Replaces PHP's `grapheme_str_split`.
+Divides `$s` into its characters, the way a person counts them. An accented letter, a flag or an emoji with a skin tone is one character, even when it is several code points. These are the characters `Core\Str::length` counts.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -7697,7 +7697,7 @@ Divides `$s` into its characters, the way a person counts them. An accented lett
 Core\Str::codePoints(string $s): array<uint>
 ```
 
-Lists the code points of `$s`. A code point is the number Unicode gives to one symbol. One character a person sees can be several code points. Replaces PHP's `mb_str_split` followed by `mb_ord`.
+Lists the code points of `$s`. A code point is the number Unicode gives to one symbol. One character a person sees can be several code points.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -7712,7 +7712,7 @@ Lists the code points of `$s`. A code point is the number Unicode gives to one s
 Core\Str::replace(string $s, string $search, string $replacement, {caseInsensitive?: bool, limit?: uint}): string
 ```
 
-Replaces every occurrence of `$search` in `$s` with `$replacement`. Matches are found from left to right and do not overlap. The new text is not searched again. Replaces PHP's `str_replace` and `str_ireplace`.
+Replaces every occurrence of `$search` in `$s` with `$replacement`. Matches are found from left to right and do not overlap. The new text is not searched again.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -7731,7 +7731,7 @@ Replaces every occurrence of `$search` in `$s` with `$replacement`. Matches are 
 Core\Str::replaceAll(string $s, array<string> $pairs, {caseInsensitive?: bool}): string
 ```
 
-Replaces several texts in `$s` in one call. Each key of `$pairs` is a text to find, and its value is the text that replaces it. The string is read once, from left to right. Where several keys match at the same place, the longest one is used. The new text is not searched again. Replaces PHP's `strtr` and `str_replace` with arrays.
+Replaces several texts in `$s` in one call. Each key of `$pairs` is a text to find, and its value is the text that replaces it. The string is read once, from left to right. Where several keys match at the same place, the longest one is used. The new text is not searched again.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -7748,7 +7748,7 @@ Replaces several texts in `$s` in one call. Each key of `$pairs` is a text to fi
 Core\Str::replaceRange(string $s, int $offset, ?int $length, string $replacement): string
 ```
 
-Replaces a part of `$s` with `$replacement`. The part is the text `Core\Str::slice` returns for the same `$offset` and `$length`. Replaces PHP's `substr_replace`.
+Replaces a part of `$s` with `$replacement`. The part is the text `Core\Str::slice` returns for the same `$offset` and `$length`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -7766,7 +7766,7 @@ Replaces a part of `$s` with `$replacement`. The part is the text `Core\Str::sli
 Core\Str::padStart(string $s, uint $length, string $padding = " "): string
 ```
 
-Adds copies of `$padding` before `$s` until the result is `$length` characters long. Replaces PHP's `str_pad` with `STR_PAD_LEFT`.
+Adds copies of `$padding` before `$s` until the result is `$length` characters long.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -7785,7 +7785,7 @@ Adds copies of `$padding` before `$s` until the result is `$length` characters l
 Core\Str::padEnd(string $s, uint $length, string $padding = " "): string
 ```
 
-Adds copies of `$padding` after `$s` until the result is `$length` characters long. Replaces PHP's `str_pad` with `STR_PAD_RIGHT`.
+Adds copies of `$padding` after `$s` until the result is `$length` characters long.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -7804,7 +7804,7 @@ Adds copies of `$padding` after `$s` until the result is `$length` characters lo
 Core\Str::trim(string $s, {characters?: string}): string
 ```
 
-Removes the given characters from both ends of `$s`. Replaces PHP's `trim`.
+Removes the given characters from both ends of `$s`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -7820,7 +7820,7 @@ Removes the given characters from both ends of `$s`. Replaces PHP's `trim`.
 Core\Str::trimStart(string $s, {characters?: string}): string
 ```
 
-Removes the given characters from the start of `$s`. Replaces PHP's `ltrim`.
+Removes the given characters from the start of `$s`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -7836,7 +7836,7 @@ Removes the given characters from the start of `$s`. Replaces PHP's `ltrim`.
 Core\Str::trimEnd(string $s, {characters?: string}): string
 ```
 
-Removes the given characters from the end of `$s`. Replaces PHP's `rtrim` and `chop`.
+Removes the given characters from the end of `$s`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -7852,7 +7852,7 @@ Removes the given characters from the end of `$s`. Replaces PHP's `rtrim` and `c
 Core\Str::repeat(string $s, uint $times): string
 ```
 
-Returns `$times` copies of `$s`, joined into one string. Replaces PHP's `str_repeat`.
+Returns `$times` copies of `$s`, joined into one string.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -7870,7 +7870,7 @@ Returns `$times` copies of `$s`, joined into one string. Replaces PHP's `str_rep
 Core\Str::reverse(string $s): string
 ```
 
-Reverses the order of the characters in `$s`. A character is what a person sees as one character, so `"café"` becomes `"éfac"` and an accent stays on its letter. Replaces PHP's `strrev`.
+Reverses the order of the characters in `$s`. A character is what a person sees as one character, so `"café"` becomes `"éfac"` and an accent stays on its letter.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -7885,7 +7885,7 @@ Reverses the order of the characters in `$s`. A character is what a person sees 
 Core\Str::wrap(string $s, uint $width, {breakWith?: string, cutLongWords?: bool}): string
 ```
 
-Splits `$s` into lines of at most `$width` characters. It breaks a line at a space and writes `breakWith` in place of that space. A character is what a person sees as one character, so `"é"` counts as one. Replaces PHP's `wordwrap`.
+Splits `$s` into lines of at most `$width` characters. It breaks a line at a space and writes `breakWith` in place of that space. A character is what a person sees as one character, so `"é"` counts as one.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -7905,7 +7905,7 @@ Splits `$s` into lines of at most `$width` characters. It breaks a line at a spa
 Core\Str::lower(string $s): string
 ```
 
-Changes every letter of `$s` to lower case. It uses Unicode's rules, so `ÄRGER` becomes `ärger`. Replaces PHP's `strtolower` and `mb_strtolower`.
+Changes every letter of `$s` to lower case. It uses Unicode's rules, so `ÄRGER` becomes `ärger`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -7920,7 +7920,7 @@ Changes every letter of `$s` to lower case. It uses Unicode's rules, so `ÄRGER`
 Core\Str::upper(string $s): string
 ```
 
-Changes every letter of `$s` to upper case. It uses Unicode's rules, so `straße` becomes `STRASSE`. Replaces PHP's `strtoupper` and `mb_strtoupper`.
+Changes every letter of `$s` to upper case. It uses Unicode's rules, so `straße` becomes `STRASSE`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -7935,7 +7935,7 @@ Changes every letter of `$s` to upper case. It uses Unicode's rules, so `straße
 Core\Str::upperFirst(string $s): string
 ```
 
-Changes the first letter of `$s` to upper case and keeps the rest as it is. It uses Unicode's rules, so `ärger` becomes `Ärger`. Replaces PHP's `ucfirst`.
+Changes the first letter of `$s` to upper case and keeps the rest as it is. It uses Unicode's rules, so `ärger` becomes `Ärger`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -7950,7 +7950,7 @@ Changes the first letter of `$s` to upper case and keeps the rest as it is. It u
 Core\Str::lowerFirst(string $s): string
 ```
 
-Changes the first letter of `$s` to lower case and keeps the rest as it is. It uses Unicode's rules, so `Ärger` becomes `ärger`. Replaces PHP's `lcfirst`.
+Changes the first letter of `$s` to lower case and keeps the rest as it is. It uses Unicode's rules, so `Ärger` becomes `ärger`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -7965,7 +7965,7 @@ Changes the first letter of `$s` to lower case and keeps the rest as it is. It u
 Core\Str::fold(string $s): string
 ```
 
-Case-folds `$s`: every letter changes to one fixed form, so text that differs only in upper and lower case gives the same result. Replaces PHP's `mb_convert_case($s, MB_CASE_FOLD)`.
+Case-folds `$s`: every letter changes to one fixed form, so text that differs only in upper and lower case gives the same result.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -7980,7 +7980,7 @@ Case-folds `$s`: every letter changes to one fixed form, so text that differs on
 Core\Str::normalize(string $s, Core\NormalForm $form): string
 ```
 
-Changes `$s` into one of the four Unicode normal forms. Two ways to write the same text then give the same string. Replaces PHP's `Normalizer::normalize`.
+Changes `$s` into one of the four Unicode normal forms. Two ways to write the same text then give the same string.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -7996,7 +7996,7 @@ Changes `$s` into one of the four Unicode normal forms. Two ways to write the sa
 Core\Str::fromCodePoint(uint $codePoint): string
 ```
 
-Builds a string of one code point. A code point is the number Unicode gives to one symbol. Replaces PHP's `mb_chr`. To build one byte, as PHP's `chr` does, use `Core\Bytes`.
+Builds a string of one code point. A code point is the number Unicode gives to one symbol. To build one byte, use `Core\Bytes`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -8013,7 +8013,7 @@ Builds a string of one code point. A code point is the number Unicode gives to o
 Core\Str::fromCodePoints(array<uint> $codePoints): string
 ```
 
-Builds a string from a list of code points, in order. It does the opposite of `Core\Str::codePoints`. Replaces PHP's `mb_chr` called on each number and joined with `implode`.
+Builds a string from a list of code points, in order. It does the opposite of `Core\Str::codePoints`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -8030,7 +8030,7 @@ Builds a string from a list of code points, in order. It does the opposite of `C
 Core\Str::format(string $template, mixed ...$arguments): string
 ```
 
-Fills the placeholders in `$template` with `$arguments` and returns the text. The template syntax is the one PHP's `sprintf` uses: `%s %d %u %f %e %g %x %X %o %b %%`, with flags, a width, a precision and positions such as `%1$s`. The result never depends on the locale.
+Fills the placeholders in `$template` with `$arguments` and returns the text. The placeholders are `%s %d %u %f %e %g %x %X %o %b %%`, with flags, a width, a precision and positions such as `%1$s`. The result never depends on the locale.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -8230,7 +8230,7 @@ Stores every value under the key `$fn` answers for it — the `keyBy` idiom, and
 Core\Arr::groupBy(array<T> $a, callable(T, string): int|string $key): array<array<T>>
 ```
 
-Partitions the entries into buckets named by what `$key` answers for each — the group-by loop PHP has no function for.
+Puts the entries into groups. `$key` is called for each entry, and its result is the name of the group the entry goes into.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -8887,7 +8887,7 @@ Core\Arr::overlayDeep(array<T> $base, array<U> ...$layers): array<T|U>
 Core\Arr::underlay(array<T> $base, array<U> ...$layers): array<T|U>
 ```
 
-`$base` with every layer's entries written underneath it, the left-hand value winning — PHP's `array + array`, which does not compile here.
+Returns `$base` with the entries of every layer added under it. Where two have the same key, the value further left is kept.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -8961,7 +8961,7 @@ The entries of `$a` that `$b` also has, under strict identity — `array_interse
 Core\Arr::countBy(array<T> $a, {by?: callable}): array<uint>
 ```
 
-How many entries fall under each distinct value, as `array_count_values` does — or under each answer of `by`, the group-and-count loop PHP has no function for.
+Counts how many entries have each distinct value. With `by`, it counts how many entries give each result of `by`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -8993,7 +8993,7 @@ The entries whose value has not been seen before, as `array_unique` does — by 
 Core\Arr::min(array<T> $a): ?T
 ```
 
-The smallest entry under the natural order, as `min` with an array argument does — the order `sort` uses without a comparator, never PHP's loose comparison.
+Returns the smallest entry. Entries are compared in the order `sort` uses without a comparator.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -9010,7 +9010,7 @@ The smallest entry under the natural order, as `min` with an array argument does
 Core\Arr::max(array<T> $a): ?T
 ```
 
-The largest entry under the natural order, as `max` with an array argument does — the order `sort` uses without a comparator, never PHP's loose comparison.
+Returns the largest entry. Entries are compared in the order `sort` uses without a comparator.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -9260,17 +9260,17 @@ nan 9223372036854775807
 | [`Core\Math::toBase`](#core-core-math-tobase) | `toBase(int $n, uint $base): string` |
 | [`Core\Math::fromBase`](#core-core-math-frombase) | `fromBase(string $s, uint $base): int` |
 | [`Core\Math::format`](#core-core-math-format) | `format(int\|float\|decimal $n, {decimals?: uint, decimalSeparator?: string, groupSeparator?: string}): string` |
-| `Core\Math::PI` | `float` = `3.141592653589793` — The ratio of a circle's circumference to its diameter, `3.14159…` as the nearest `float` — PHP's `M_PI`. |
-| `Core\Math::TAU` | `float` = `6.283185307179586` — The ratio of a circle's circumference to its radius, `2 * PI` or `6.28318…` as the nearest `float` — a full turn in radians, which PHP spells `2 * M_PI`. |
-| `Core\Math::E` | `float` = `2.718281828459045` — Euler's number, the base of the natural logarithm, `2.71828…` as the nearest `float` — PHP's `M_E`, and `log`'s default base. |
-| `Core\Math::EPSILON` | `float` = `2.220446049250313e-16` — The smallest `float` that added to `1.0` gives a value other than `1.0`, `2.220446049250313e-16` — PHP's `PHP_FLOAT_EPSILON`, and the tolerance to compare two floats with in place of `==`. |
-| `Core\Math::INT_MAX` | `int` = `9223372036854775807` — The largest `int`, `9223372036854775807` — PHP's `PHP_INT_MAX`. |
-| `Core\Math::INT_MIN` | `int` = `-9223372036854775808` — The smallest `int`, `-9223372036854775808` — PHP's `PHP_INT_MIN`, and the one value `abs` has no `int` answer for. |
-| `Core\Math::UINT_MAX` | `uint` = `18446744073709551615` — The largest `uint`, `18446744073709551615` — a type PHP does not have, so there is no constant to replace. |
-| `Core\Math::FLOAT_MAX` | `float` = `1.7976931348623157e308` — The largest finite `float`, `1.7976931348623157e308` — PHP's `PHP_FLOAT_MAX`; the negative extreme is `-FLOAT_MAX`. |
-| `Core\Math::FLOAT_MIN` | `float` = `2.2250738585072014e-308` — The smallest positive normal `float`, `2.2250738585072014e-308` — PHP's `PHP_FLOAT_MIN`, and not the negative extreme, which is `-FLOAT_MAX`. |
-| `Core\Math::NAN` | `float` = `NaN` — The `float` that is not a number — PHP's `NAN` — equal to nothing, itself included, so `isNan` is the only test for it. |
-| `Core\Math::INFINITY` | `float` = `inf` — Positive infinity as a `float`, past every finite value — PHP's `INF`; the negative one is `-INFINITY`, and `isFinite` is `false` for both. |
+| `Core\Math::PI` | `float` = `3.141592653589793` — The ratio of a circle's circumference to its diameter, `3.14159…` as the nearest `float`. |
+| `Core\Math::TAU` | `float` = `6.283185307179586` — The ratio of a circle's circumference to its radius, `2 * PI` or `6.28318…` as the nearest `float`. This is a full turn in radians. |
+| `Core\Math::E` | `float` = `2.718281828459045` — Euler's number, the base of the natural logarithm, `2.71828…` as the nearest `float`. It is the default base of `log`. |
+| `Core\Math::EPSILON` | `float` = `2.220446049250313e-16` — The smallest `float` that added to `1.0` gives a value other than `1.0`, `2.220446049250313e-16`. Use it as the tolerance when you compare two floats, in place of `==`. |
+| `Core\Math::INT_MAX` | `int` = `9223372036854775807` — The largest `int`, `9223372036854775807`. |
+| `Core\Math::INT_MIN` | `int` = `-9223372036854775808` — The smallest `int`, `-9223372036854775808`. It is the one value `abs` cannot return as an `int`. |
+| `Core\Math::UINT_MAX` | `uint` = `18446744073709551615` — The largest `uint`, `18446744073709551615`. |
+| `Core\Math::FLOAT_MAX` | `float` = `1.7976931348623157e308` — The largest finite `float`, `1.7976931348623157e308`. The most negative one is `-FLOAT_MAX`. |
+| `Core\Math::FLOAT_MIN` | `float` = `2.2250738585072014e-308` — The smallest positive normal `float`, `2.2250738585072014e-308`. The most negative `float` is `-FLOAT_MAX`. |
+| `Core\Math::NAN` | `float` = `NaN` — The `float` that is not a number. It is equal to nothing, itself included, so `isNan` is the only test for it. |
+| `Core\Math::INFINITY` | `float` = `inf` — Positive infinity as a `float`, larger than every finite value. Negative infinity is `-INFINITY`, and `isFinite` is `false` for both. |
 
 <a id="core-core-math-abs"></a>
 #### `Core\Math::abs`
@@ -9296,7 +9296,7 @@ Returns `$n` without its sign, as the same kind of number. `-3` gives `3` and `-
 Core\Math::sign(int|float|decimal $n): int
 ```
 
-Returns `-1` when `$n` is below zero, `1` when it is above zero and `0` when it is zero. This replaces PHP's `$n <=> 0`.
+Returns `-1` when `$n` is below zero, `1` when it is above zero and `0` when it is zero.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -9313,7 +9313,7 @@ Returns `-1` when `$n` is below zero, `1` when it is above zero and `0` when it 
 Core\Math::min(T $a, T $b): T
 ```
 
-Returns the smaller of two values. This replaces PHP's `min` with two values. For the smallest value in an array, use `Core\Arr::min`.
+Returns the smaller of two values. For the smallest value in an array, use `Core\Arr::min`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -9331,7 +9331,7 @@ Returns the smaller of two values. This replaces PHP's `min` with two values. Fo
 Core\Math::max(T $a, T $b): T
 ```
 
-Returns the larger of two values. This replaces PHP's `max` with two values. For the largest value in an array, use `Core\Arr::max`.
+Returns the larger of two values. For the largest value in an array, use `Core\Arr::max`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -9349,7 +9349,7 @@ Returns the larger of two values. This replaces PHP's `max` with two values. For
 Core\Math::clamp(T $n, T $low, T $high): T
 ```
 
-Keeps `$n` between `$low` and `$high`. It replaces PHP's `min(max($n, $low), $high)`.
+Keeps `$n` between `$low` and `$high`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -9413,7 +9413,7 @@ Removes the fractional part of `$n`. The result moves toward zero, so `2.7` give
 Core\Math::round(float $n, {precision?: int, mode?: Core\RoundMode}): float
 ```
 
-Rounds `$n` to a number of decimal places. This replaces PHP's `round`. The `mode` option chooses the result for a value exactly halfway between two results.
+Rounds `$n` to a number of decimal places. The `mode` option chooses the result for a value exactly halfway between two results.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -9430,7 +9430,7 @@ Rounds `$n` to a number of decimal places. This replaces PHP's `round`. The `mod
 Core\Math::intDiv(int $a, int $b): int
 ```
 
-Divides `$a` by `$b` and drops the remainder, so the result moves toward zero. This replaces PHP's `intdiv`.
+Divides `$a` by `$b` and drops the remainder, so the result moves toward zero.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -9448,7 +9448,7 @@ Divides `$a` by `$b` and drops the remainder, so the result moves toward zero. T
 Core\Math::mod(float $a, float $b): float
 ```
 
-Returns the remainder after dividing `$a` by `$b`, for `float` values. The result has the sign of `$a`. This replaces PHP's `fmod`. For whole numbers, use the `%` operator.
+Returns the remainder after dividing `$a` by `$b`, for `float` values. The result has the sign of `$a`. For whole numbers, use the `%` operator.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -9457,7 +9457,7 @@ Returns the remainder after dividing `$a` by `$b`, for `float` values. The resul
 
 **Returns** `float` — The remainder. `mod(7.5, 2.0)` is `1.5`, and `mod(-7.5, 2.0)` is `-1.5`. When `$a` is an infinity, the result is `NaN`. When `$b` is an infinity, the result is `$a`.
 
-**Throws** `ArithmeticError` — When `$b` is zero. PHP's `fmod` returns `NaN` here.
+**Throws** `ArithmeticError` — When `$b` is zero.
 
 <a id="core-core-math-fdiv"></a>
 #### `Core\Math::fdiv`
@@ -9466,7 +9466,7 @@ Returns the remainder after dividing `$a` by `$b`, for `float` values. The resul
 Core\Math::fdiv(float $a, float $b): float
 ```
 
-Divides `$a` by `$b`. When `$b` is zero, it returns `INFINITY`, `-INFINITY` or `NaN`. The `/` operator throws an error there. This replaces PHP's `fdiv`.
+Divides `$a` by `$b`. When `$b` is zero, it returns `INFINITY`, `-INFINITY` or `NaN`. The `/` operator throws an error there.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -9482,7 +9482,7 @@ Divides `$a` by `$b`. When `$b` is zero, it returns `INFINITY`, `-INFINITY` or `
 Core\Math::gcd(int $a, int $b): int
 ```
 
-Returns the greatest common divisor of two integers. This is the largest integer that divides both with no remainder. This replaces PHP's `gmp_gcd`.
+Returns the greatest common divisor of two integers. This is the largest integer that divides both with no remainder.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -9500,7 +9500,7 @@ Returns the greatest common divisor of two integers. This is the largest integer
 Core\Math::lcm(int $a, int $b): int
 ```
 
-Returns the least common multiple of two integers. This is the smallest positive integer that both divide with no remainder. This replaces PHP's `gmp_lcm`.
+Returns the least common multiple of two integers. This is the smallest positive integer that both divide with no remainder.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -9518,7 +9518,7 @@ Returns the least common multiple of two integers. This is the smallest positive
 Core\Math::sqrt(float $n): float
 ```
 
-Returns the square root of `$n`. This replaces PHP's `sqrt`.
+Returns the square root of `$n`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -9533,7 +9533,7 @@ Returns the square root of `$n`. This replaces PHP's `sqrt`.
 Core\Math::cbrt(float $n): float
 ```
 
-Returns the cube root of `$n`. A negative `$n` works too. PHP code often writes `pow($n, 1/3)`, which gives `NaN` for a negative number.
+Returns the cube root of `$n`. A negative `$n` works too, so `cbrt(-8.0)` is `-2.0`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -9548,7 +9548,7 @@ Returns the cube root of `$n`. A negative `$n` works too. PHP code often writes 
 Core\Math::hypot(float $a, float $b): float
 ```
 
-Returns the length of the longest side of a right triangle. `$a` and `$b` are the other two sides. The result is `sqrt($a * $a + $b * $b)`, but it stays correct when `$a * $a` is too big for a `float`. This replaces PHP's `hypot`.
+Returns the length of the longest side of a right triangle. `$a` and `$b` are the other two sides. The result is `sqrt($a * $a + $b * $b)`, but it stays correct when `$a * $a` is too big for a `float`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -9564,7 +9564,7 @@ Returns the length of the longest side of a right triangle. `$a` and `$b` are th
 Core\Math::exp(float $n): float
 ```
 
-Returns `E` raised to the power `$n`. `E` is about `2.718`. This replaces PHP's `exp`.
+Returns `E` raised to the power `$n`. `E` is about `2.718`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -9579,7 +9579,7 @@ Returns `E` raised to the power `$n`. `E` is about `2.718`. This replaces PHP's 
 Core\Math::log(float $n, {base?: float}): float
 ```
 
-Returns the logarithm of `$n`: the power you raise `base` to to get `$n`. The base is `E` unless you give one. This replaces PHP's `log`, `log10` and `log2`.
+Returns the logarithm of `$n`: the power you raise `base` to to get `$n`. The base is `E` unless you give one.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -9588,7 +9588,7 @@ Returns the logarithm of `$n`: the power you raise `base` to to get `$n`. The ba
 
 **Returns** `float` — The logarithm. When `$n` is `0.0` and `base` is greater than `1.0`, the result is `-INFINITY`. When `$n` is negative, or `base` is `1.0`, the result is `NaN`.
 
-**Throws** `RuntimeError` — When `base` is zero or negative. PHP throws a `ValueError` here.
+**Throws** `RuntimeError` — When `base` is zero or negative.
 
 <a id="core-core-math-sin"></a>
 #### `Core\Math::sin`
@@ -9793,7 +9793,7 @@ Returns the number whose hyperbolic tangent is `$n`. This is the inverse hyperbo
 Core\Math::toRadians(float $degrees): float
 ```
 
-Converts an angle from degrees to radians. It computes `($degrees / 180) * PI`, the same way as PHP.
+Converts an angle from degrees to radians. It computes `($degrees / 180) * PI`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -9808,7 +9808,7 @@ Converts an angle from degrees to radians. It computes `($degrees / 180) * PI`, 
 Core\Math::toDegrees(float $radians): float
 ```
 
-Converts an angle from radians to degrees. It computes `($radians / PI) * 180`, the same way as PHP.
+Converts an angle from radians to degrees. It computes `($radians / PI) * 180`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -9823,7 +9823,7 @@ Converts an angle from radians to degrees. It computes `($radians / PI) * 180`, 
 Core\Math::isNan(float $n): bool
 ```
 
-Returns `true` when `$n` is `NaN`, a value that means "not a number". `NaN` is not equal to any value, itself included, so `==` cannot find it. This replaces PHP's `is_nan`.
+Returns `true` when `$n` is `NaN`, a value that means "not a number". `NaN` is not equal to any value, itself included, so `==` cannot find it.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -9838,7 +9838,7 @@ Returns `true` when `$n` is `NaN`, a value that means "not a number". `NaN` is n
 Core\Math::isFinite(float $n): bool
 ```
 
-Returns `true` when `$n` is an ordinary number. `INFINITY`, `-INFINITY` and `NaN` are not ordinary numbers. This replaces PHP's `is_finite`. PHP's `is_infinite($n)` is `!isFinite($n) && !isNan($n)`.
+Returns `true` when `$n` is an ordinary number. `INFINITY`, `-INFINITY` and `NaN` are not ordinary numbers. To test for infinity, write `!isFinite($n) && !isNan($n)`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -9853,7 +9853,7 @@ Returns `true` when `$n` is an ordinary number. `INFINITY`, `-INFINITY` and `NaN
 Core\Math::toBase(int $n, uint $base): string
 ```
 
-Writes the number `$n` in base `$base` and returns the digits as a `string`. This replaces PHP's `decbin`, `dechex`, `decoct` and `base_convert`. Digits above `9` are the lower case letters `a` to `z`.
+Writes the number `$n` in base `$base` and returns the digits as a `string`. Digits above `9` are the lower case letters `a` to `z`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -9862,7 +9862,7 @@ Writes the number `$n` in base `$base` and returns the digits as a `string`. Thi
 
 **Returns** `string` — The digits, with no prefix and no leading zeros. A negative `$n` starts with `-`. `0` returns `"0"`.
 
-**Throws** `RuntimeError` — When `$base` is outside `2` to `36`. PHP's `base_convert` returns `0` here.
+**Throws** `RuntimeError` — When `$base` is outside `2` to `36`.
 
 <a id="core-core-math-frombase"></a>
 #### `Core\Math::fromBase`
@@ -9871,7 +9871,7 @@ Writes the number `$n` in base `$base` and returns the digits as a `string`. Thi
 Core\Math::fromBase(string $s, uint $base): int
 ```
 
-Reads a number written in base `$base` and returns it as an `int`. This replaces PHP's `bindec`, `hexdec`, `octdec` and `base_convert`. Every character must be a digit of the base. PHP skips a character that is not.
+Reads a number written in base `$base` and returns it as an `int`. Every character must be a digit of the base.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -9889,7 +9889,7 @@ Reads a number written in base `$base` and returns it as an `int`. This replaces
 Core\Math::format(int|float|decimal $n, {decimals?: uint, decimalSeparator?: string, groupSeparator?: string}): string
 ```
 
-Writes a number as text for a person to read, with a fixed number of decimals. This replaces PHP's `number_format`. The digits are not grouped unless you give a `groupSeparator`.
+Writes a number as text for a person to read, with a fixed number of decimals. The digits are not grouped unless you give a `groupSeparator`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -10143,7 +10143,7 @@ Core\Decimal::pow(decimal $base, uint $exponent): decimal
 Core\Decimal::floor(decimal $value, uint $scale = 0): decimal
 ```
 
-`$value` cut to `$scale` places towards negative infinity — the direction PHP's `floor` goes, kept exact and answering a `decimal` rather than a `float`.
+Rounds `$value` to `$scale` places, toward negative infinity. The result is an exact `decimal`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -10161,7 +10161,7 @@ Core\Decimal::floor(decimal $value, uint $scale = 0): decimal
 Core\Decimal::ceil(decimal $value, uint $scale = 0): decimal
 ```
 
-`$value` cut to `$scale` places towards positive infinity — the direction PHP's `ceil` goes, kept exact and answering a `decimal` rather than a `float`.
+Rounds `$value` to `$scale` places, toward positive infinity. The result is an exact `decimal`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -10660,10 +10660,10 @@ Compiles a regular expression once, with options, and returns a `Core\Regex\Patt
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$pattern` | `string` (sink) | The regular expression, with no delimiters. A `tainted` string does not compile here. Use `Core\Regex::quote` to match a user's text literally. |
-| `{caseInsensitive: …}` | `bool` (default `false`) | `true` makes letters match in upper and lower case. PHP writes this as `i`. The default is `false`. |
-| `{multiline: …}` | `bool` (default `false`) | `true` makes `^` and `$` match at the start and end of every line. PHP writes this as `m`. The default is `false`. |
-| `{dotAll: …}` | `bool` (default `false`) | `true` makes `.` match a newline too. PHP writes this as `s`. The default is `false`. |
-| `{ungreedy: …}` | `bool` (default `false`) | `true` makes `*` and `+` match as little as possible, and `*?` as much as possible. PHP writes this as `U`. The default is `false`. |
+| `{caseInsensitive: …}` | `bool` (default `false`) | `true` makes letters match in upper and lower case. The default is `false`. |
+| `{multiline: …}` | `bool` (default `false`) | `true` makes `^` and `$` match at the start and end of every line. The default is `false`. |
+| `{dotAll: …}` | `bool` (default `false`) | `true` makes `.` match a newline too. The default is `false`. |
+| `{ungreedy: …}` | `bool` (default `false`) | `true` makes `*` and `+` match as little as possible, and `*?` as much as possible. The default is `false`. |
 
 **Returns** `Core\Regex\Pattern` — The compiled `Core\Regex\Pattern`. The pattern is checked here, so a mistake in it throws at this line and not at its first use.
 
@@ -10737,7 +10737,7 @@ Replaces every match of `$pattern` in `$subject` with `$replacement`, and return
 |---|---|---|
 | `$subject` | `string` | The text to search. |
 | `$pattern` | `Core\Regex\Pattern\|string` (sink) | A `Core\Regex\Pattern` from `Core\Regex::compile`, or a pattern string with no options. A `tainted` string does not compile here. |
-| `$replacement` | `string` | The text that replaces each match. `$1` to `$99` insert a numbered group, and `${name}` inserts a named group. Write `${1}0` when a digit follows the group. `$$` is one `$`. A group the pattern does not have inserts nothing. PHP's `\1` is not a group here. |
+| `$replacement` | `string` | The text that replaces each match. `$1` to `$99` insert a numbered group, and `${name}` inserts a named group. Write `${1}0` when a digit follows the group. `$$` is one `$`. A group the pattern does not have inserts nothing. `\1` is not a group. |
 | `{limit: …}` | `uint` (default `18446744073709551615`) | How many matches to replace, counted from the start of the text. The default is every match. `0` replaces nothing. |
 
 **Returns** `string` — The text with the matches replaced. It is the same text if there is no match.
@@ -10777,7 +10777,7 @@ Splits `$subject` at every match of `$pattern`, and returns the pieces as an arr
 |---|---|---|
 | `$subject` | `string` | The text to split. |
 | `$pattern` | `Core\Regex\Pattern\|string` (sink) | A `Core\Regex\Pattern` from `Core\Regex::compile`, or a pattern string with no options. A `tainted` string does not compile here. |
-| `{limit: …}` | `int` (default `9223372036854775807`) | The largest number of pieces. The last piece contains the rest of the text. A negative number removes that many pieces from the end. `0` returns the whole text as one piece. The default is no limit. PHP's `preg_split` reads `0` and `-1` as no limit. |
+| `{limit: …}` | `int` (default `9223372036854775807`) | The largest number of pieces. The last piece contains the rest of the text. A negative number removes that many pieces from the end. `0` returns the whole text as one piece. The default is no limit. |
 | `{keepEmpty: …}` | `bool` (default `true`) | Whether empty pieces are kept. The default is `true`. With `false`, empty pieces are removed after `limit` is applied. |
 
 **Returns** `array<string>` — The pieces, from left to right. If there is no match, the array has one piece: the whole text.
@@ -10797,7 +10797,7 @@ Puts a `\` before every character that has a special meaning in a pattern. The r
 |---|---|---|
 | `$text` | `string` (launder) | The text to match exactly. |
 
-**Returns** `string` — The escaped pattern. A text with no special characters is returned unchanged. The escaped characters are not the same as PHP's `preg_quote`: `&` and `~` are escaped here, and `!`, `:`, `<`, `=`, `>` and `/` are not.
+**Returns** `string` — The escaped pattern. A text with no special characters is returned unchanged. `&` and `~` are escaped, and `!`, `:`, `<`, `=`, `>` and `/` are not.
 
 <a id="core-core-regex-match"></a>
 ### `Core\Regex\Match`
@@ -10843,7 +10843,7 @@ no b c
 $match->group(int|string $group): ?string
 ```
 
-Returns the text of one group, by its number or by its name. PHP reads this as `$matches[$group]` after `preg_match`.
+Returns the text of one group, by its number or by its name.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -11014,7 +11014,7 @@ Parses the JSON text `$json` into a value, as `json_decode` does with `$associat
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$json` | `string` | The JSON text to parse. |
-| `{maxDepth: …}` | `uint` (default `512`) | The deepest nesting accepted, counted as PHP's `$depth` is — a scalar document is depth 1, `[1]` is depth 2; `512` by default and at most `1024`. |
+| `{maxDepth: …}` | `uint` (default `512`) | The deepest nesting allowed. A scalar document is depth 1, and `[1]` is depth 2. The default is `512`, and the largest value is `1024`. |
 
 **Returns** `mixed` — The decoded value: `null`, `bool`, `int`, `float`, `string`, or an array; a JSON object is always a string-keyed array, never an object.
 
@@ -11032,7 +11032,7 @@ Parses the JSON object `$json` into an instance of `T`, a class carrying `#[Json
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$json` | `string` | The JSON text to parse, whose top level must be an object — or an array, where `T` is written `array<C>`. |
-| `{maxDepth: …}` | `uint` (default `512`) | The deepest nesting accepted, counted as PHP's `$depth` is — a scalar document is depth 1, `[1]` is depth 2; `512` by default and at most `1024`. |
+| `{maxDepth: …}` | `uint` (default `512`) | The deepest nesting allowed. A scalar document is depth 1, and `[1]` is depth 2. The default is `512`, and the largest value is `1024`. |
 
 **Returns** `T` — A new `T` built from the document's fields, or — for an `array<C>` — one new `C` per element, in the document's own order.
 
@@ -11231,7 +11231,7 @@ Reads URL-safe base64 text `$s` back to octets — `toBase64Url`'s other half, a
 Core\Encoding::toBase32(bytes $b): string
 ```
 
-Spells `$b` in RFC 4648 § 6's base32 alphabet, upper case and unpadded — the form an `otpauth:` secret is written in; PHP has no counterpart.
+Writes `$b` in the base32 alphabet of RFC 4648 § 6, in upper case and with no padding. An `otpauth:` secret is written this way.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -11423,7 +11423,7 @@ Orders `$a` against `$b` lexicographically over unsigned octets, as `strcmp` doe
 | `$a` | `bytes` (neutral) | The first buffer. |
 | `$b` | `bytes` (neutral) | The second buffer. |
 
-**Returns** `int` — `-1`, `0` or `1` — exactly those three, as PHP 8's `strcmp` answers.
+**Returns** `int` — `-1`, `0` or `1`, and no other value.
 
 <a id="core-core-bytes-contains"></a>
 #### `Core\Bytes::contains`
@@ -11559,7 +11559,7 @@ Reads `$b` back through `$format`, as `unpack` does, over `pack`'s code table in
 | `$b` | `bytes` | The buffer read. |
 | `$format` | `string` (sink) | The same format string `pack` takes, an intrinsic and a sink; there is no second grammar for field names. |
 
-**Returns** `array<mixed>` — The fields as a positional list, never PHP's name-keyed map: an `int` for `c`, a `uint` for every other integer code, a `float` for `G`/`g`/`E`/`e`, and a `bytes` for a buffer code with `A`'s and `Z`'s padding taken back off.
+**Returns** `array<mixed>` — The fields as a list, in order: an `int` for `c`, a `uint` for every other integer code, a `float` for `G`/`g`/`E`/`e`, and a `bytes` for a buffer code with `A`'s and `Z`'s padding taken back off.
 
 **Throws** `RuntimeError` — `$format` holds a code outside the table or a count larger than any buffer, a field reads past the end of `$b`, or octets are left over after the last field.
 
@@ -11628,7 +11628,7 @@ none
 Core\Path::basename(string $path, {withoutExtension?: bool}): string
 ```
 
-Returns the last part of `$path`: the file name, or the name of the last folder. A separator at the end is ignored, so `/srv/shop/` gives `shop`. This replaces PHP's `basename`.
+Returns the last part of `$path`: the file name, or the name of the last folder. A separator at the end is ignored, so `/srv/shop/` gives `shop`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -11644,14 +11644,14 @@ Returns the last part of `$path`: the file name, or the name of the last folder.
 Core\Path::dirname(string $path, {levels?: uint}): string
 ```
 
-Returns the folder that contains `$path`. The option `levels` goes up more than one folder. This replaces PHP's `dirname`.
+Returns the folder that contains `$path`. The option `levels` goes up more than one folder.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$path` | `string` | The path. `/` and `\` are both separators on every platform. |
 | `{levels: …}` | `uint` (default `1`) | How many parts to remove from the end. The default is `1`. With `0`, the result is the path with its separators cleaned up. A number larger than the path stops at the root. |
 
-**Returns** `string` — The folder, written with `Path::SEPARATOR`. When nothing is left, the result is the root for an absolute path and `.` for a relative one. `dirname('')` is `.`, and PHP returns `''`.
+**Returns** `string` — The folder, written with `Path::SEPARATOR`. When nothing is left, the result is the root for an absolute path and `.` for a relative one. `dirname('')` is `.`.
 
 <a id="core-core-path-extension"></a>
 #### `Core\Path::extension`
@@ -11660,13 +11660,13 @@ Returns the folder that contains `$path`. The option `levels` goes up more than 
 Core\Path::extension(string $path): ?string
 ```
 
-Returns the extension of the last part of `$path`: the text after the last `.`, without the dot. This replaces PHP's `pathinfo($path, PATHINFO_EXTENSION)`.
+Returns the extension of the last part of `$path`: the text after the last `.`, without the dot.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$path` | `string` | The path. `/` and `\` are both separators on every platform. |
 
-**Returns** `?string` — The extension, or `null` when there is none. A name that starts with a dot, such as `.gitignore`, has none. A name that ends with a dot, such as `report.`, has none too. PHP returns `gitignore` and `''` for these two.
+**Returns** `?string` — The extension, or `null` when there is none. A name that starts with a dot, such as `.gitignore`, has none. A name that ends with a dot, such as `report.`, has none too.
 
 <a id="core-core-path-withextension"></a>
 #### `Core\Path::withExtension`
@@ -11675,7 +11675,7 @@ Returns the extension of the last part of `$path`: the text after the last `.`, 
 Core\Path::withExtension(string $path, ?string $extension): string
 ```
 
-Returns `$path` with the extension of its last part changed to `$extension`. When `$extension` is `null`, the extension is removed. PHP has no function for this.
+Returns `$path` with the extension of its last part changed to `$extension`. When `$extension` is `null`, the extension is removed.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -11693,7 +11693,7 @@ Returns `$path` with the extension of its last part changed to `$extension`. Whe
 Core\Path::join(string $base, string ...$segments): string
 ```
 
-Adds each of `$segments` to the end of `$base`, with one separator between each part. This replaces the `$a . "/" . $b` that PHP programs write. Only `$base` decides where the result starts. A segment that starts with `/` or a drive is added after `$base` and does not replace it.
+Adds each of `$segments` to the end of `$base`, with one separator between each part. Only `$base` decides where the result starts. A segment that starts with `/` or a drive is added after `$base` and does not replace it.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -11709,7 +11709,7 @@ Adds each of `$segments` to the end of `$base`, with one separator between each 
 Core\Path::split(string $path): array<string>
 ```
 
-Splits `$path` into its parts: the folders and the file name, in order. This replaces PHP's `explode("/", $path)`. `Core\Path::join` puts the parts back together into the same path.
+Splits `$path` into its parts: the folders and the file name, in order. `Core\Path::join` puts the parts back together into the same path.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -11754,7 +11754,7 @@ Checks whether `$path` starts at a root. A root is a separator, a drive followed
 Core\Path::relativeTo(string $path, string $base): ?string
 ```
 
-Returns the path that leads from the folder `$base` to `$path`. The `.` and `..` parts of both paths are removed first, as `Core\Path::normalize` does. PHP has no function for this.
+Returns the path that leads from the folder `$base` to `$path`. The `.` and `..` parts of both paths are removed first, as `Core\Path::normalize` does.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -12572,7 +12572,7 @@ Keywords: run, spawn
 Core\Process::run(string $path, array<string> $argv, {cwd?: string, env?: array<string>, timeout?: Core\Time\Duration}): Core\Process\Result
 ```
 
-Runs the program at `$path` with the arguments in `$argv`, and waits until it ends. The program is started directly, never through a shell, so nothing needs escaping. Needs the `process.exec` capability for the program. This replaces PHP's `exec`, `system`, `shell_exec`, `passthru` and the backtick operator.
+Runs the program at `$path` with the arguments in `$argv`, and waits until it ends. The program is started directly, never through a shell, so nothing needs escaping. Needs the `process.exec` capability for the program.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -12593,7 +12593,7 @@ Runs the program at `$path` with the arguments in `$argv`, and waits until it en
 Core\Process::spawn(string $path, array<string> $argv, {cwd?: string, env?: array<string>, timeout?: Core\Time\Duration}): Core\Process\Handle
 ```
 
-Starts the program at `$path` with the arguments in `$argv`, and returns at once while the program runs. The handle it returns reads the program's output and writes to its input. The program is started directly, never through a shell. Needs the `process.exec` capability for the program. This replaces PHP's `proc_open`.
+Starts the program at `$path` with the arguments in `$argv`, and returns at once while the program runs. The handle it returns reads the program's output and writes to its input. The program is started directly, never through a shell. Needs the `process.exec` capability for the program.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -12804,7 +12804,7 @@ Thursday, 1 January 1970
 Core\Time::now(): Core\Time\Instant
 ```
 
-Reads the current time from the system clock. It replaces PHP's `time`, `microtime` and `date_create`. Use `->in($zone)` to get the date and time of day in a zone.
+Reads the current time from the system clock. Use `->in($zone)` to get the date and time of day in a zone.
 
 **Returns** `Core\Time\Instant` — The current `Instant`, to the nanosecond.
 
@@ -12815,7 +12815,7 @@ Reads the current time from the system clock. It replaces PHP's `time`, `microti
 Core\Time::monotonic(): Core\Time\Duration
 ```
 
-Reads a clock that only moves forward, for measuring how long something takes. It replaces PHP's `hrtime`. Subtract two readings to get the time between them.
+Reads a clock that only moves forward, for measuring how long something takes. Subtract two readings to get the time between them.
 
 **Returns** `Core\Time\Duration` — A `Duration` since a fixed starting point. A later reading is never smaller than an earlier one.
 
@@ -15482,7 +15482,7 @@ a%20b%26c a+b%26c
 Core\Uri::parse(string $uri): Core\Uri
 ```
 
-Reads the text of an address, such as `https://example.com/cart?id=4`, and returns a `Uri`. Its methods return the parts: `scheme`, `userInfo`, `host`, `port`, `path`, `query` and `fragment`. Each part is returned as it was written. Escapes such as `%20` stay, and upper-case letters stay upper case. PHP's `parse_url` reads the same parts.
+Reads the text of an address, such as `https://example.com/cart?id=4`, and returns a `Uri`. Its methods return the parts: `scheme`, `userInfo`, `host`, `port`, `path`, `query` and `fragment`. Each part is returned as it was written. Escapes such as `%20` stay, and upper-case letters stay upper case.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -15499,7 +15499,7 @@ Reads the text of an address, such as `https://example.com/cart?id=4`, and retur
 Core\Uri::tryParse(string $uri): ?Core\Uri
 ```
 
-Reads the text of an address and returns a `Uri`, the same way `Core\Uri::parse` does. When the text is not an address, the result is `null` and no error is thrown. A space, a `%` without two hex digits and a port above `65535` all give `null`. PHP code uses `filter_var` with `FILTER_VALIDATE_URL` for this check.
+Reads the text of an address and returns a `Uri`, the same way `Core\Uri::parse` does. When the text is not an address, the result is `null` and no error is thrown. A space, a `%` without two hex digits and a port above `65535` all give `null`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -15514,7 +15514,7 @@ Reads the text of an address and returns a `Uri`, the same way `Core\Uri::parse`
 Core\Uri::encodeComponent(string $s): string
 ```
 
-Escapes `$s` so that it can be one part of a URI, such as a path segment, a fragment or one side of a query pair. A space becomes `%20`. Every byte that is not a letter, a digit or one of `-_.~` becomes a `%` and two hex digits. This includes `/ ? # & =`. PHP's `rawurlencode` does the same.
+Escapes `$s` so that it can be one part of a URI, such as a path segment, a fragment or one side of a query pair. A space becomes `%20`. Every byte that is not a letter, a digit or one of `-_.~` becomes a `%` and two hex digits. This includes `/ ? # & =`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -15529,7 +15529,7 @@ Escapes `$s` so that it can be one part of a URI, such as a path segment, a frag
 Core\Uri::decodeComponent(string $s): bytes
 ```
 
-Decodes one escaped part of a URI, such as a path segment or a fragment. Each `%XX` escape becomes the byte it encodes, so `%20` becomes a space. A `+` stays a `+`. `Core\Uri::encodeComponent` writes the escapes that this function reads. PHP's `rawurldecode` does the same.
+Decodes one escaped part of a URI, such as a path segment or a fragment. Each `%XX` escape becomes the byte it encodes, so `%20` becomes a space. A `+` stays a `+`. `Core\Uri::encodeComponent` writes the escapes that this function reads.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -15544,7 +15544,7 @@ Decodes one escaped part of a URI, such as a path segment or a fragment. Each `%
 Core\Uri::encodeFormValue(string $s): string
 ```
 
-Escapes `$s` so that it can be one value of a form, such as a value in a query string or in the body of a POST request. A space becomes `+`. Every byte that is not a letter, a digit or one of `-_.` becomes a `%` and two hex digits. This includes `~`, `+`, `&` and `=`. PHP's `urlencode` does the same.
+Escapes `$s` so that it can be one value of a form, such as a value in a query string or in the body of a POST request. A space becomes `+`. Every byte that is not a letter, a digit or one of `-_.` becomes a `%` and two hex digits. This includes `~`, `+`, `&` and `=`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -15559,7 +15559,7 @@ Escapes `$s` so that it can be one value of a form, such as a value in a query s
 Core\Uri::decodeFormValue(string $s): bytes
 ```
 
-Decodes one value of a form, such as a value in a query string or in the body of a POST request. A `+` becomes a space. Each `%XX` escape becomes the byte it encodes, so `%2B` becomes a `+` and `%20` becomes a space. `Core\Uri::encodeFormValue` writes the escapes that this function reads. PHP's `urldecode` does the same.
+Decodes one value of a form, such as a value in a query string or in the body of a POST request. A `+` becomes a space. Each `%XX` escape becomes the byte it encodes, so `%2B` becomes a `+` and `%20` becomes a space. `Core\Uri::encodeFormValue` writes the escapes that this function reads.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -15574,7 +15574,7 @@ Decodes one value of a form, such as a value in a query string or in the body of
 Core\Uri::parseQuery(string $query): array<mixed>
 ```
 
-Reads a query string, such as `q=red+shoes&page=2`, into an array. The text is split into pairs at each `&`, and each pair is split at its first `=`. Names and values are decoded like `decodeFormValue`, so `+` becomes a space. Brackets in a name build nested arrays: `a[]=1&a[]=2` gives a list, and `a[b]=c` gives an array with the key `b`. PHP's `parse_str` reads query strings the same way.
+Reads a query string, such as `q=red+shoes&page=2`, into an array. The text is split into pairs at each `&`, and each pair is split at its first `=`. Names and values are decoded like `decodeFormValue`, so `+` becomes a space. Brackets in a name build nested arrays: `a[]=1&a[]=2` gives a list, and `a[b]=c` gives an array with the key `b`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -15591,7 +15591,7 @@ Reads a query string, such as `q=red+shoes&page=2`, into an array. The text is s
 Core\Uri::buildQuery(array<mixed> $parameters): string
 ```
 
-Writes the array `$parameters` as a query string, such as `page=2&sort=name`. It gives the same text as PHP's `http_build_query`, and `Core\Uri::parseQuery` reads it back to the same array.
+Writes the array `$parameters` as a query string, such as `page=2&sort=name`. `Core\Uri::parseQuery` reads it back to the same array.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -16499,7 +16499,7 @@ threw: stop
 Core\Out::capture(callable(): mixed $fn, {through?: callable}): Core\Html\Markup|Core\Cli\Text
 ```
 
-Runs `$fn` and returns everything it printed with `echo`. This replaces PHP's `ob_start` and `ob_get_clean`. The printed text does not reach the output. You can call `capture` inside another `capture`, and each call collects only what its own function printed.
+Runs `$fn` and returns everything it printed with `echo`. The printed text does not reach the output. You can call `capture` inside another `capture`, and each call collects only what its own function printed.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -16687,7 +16687,7 @@ final class CartTest {
 Core\Test::assertSame(T $actual, T $expected, {message?: string}): void
 ```
 
-Asserts `$actual` is identical to `$expected` — two objects are the same object and nothing else is — as PHPUnit's `assertSame` does, subject first.
+Asserts that `$actual` is identical to `$expected`. Two objects are identical only when they are the same object.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -16706,7 +16706,7 @@ Asserts `$actual` is identical to `$expected` — two objects are the same objec
 Core\Test::assertEquals(T $actual, T $expected, {message?: string}): void
 ```
 
-Asserts `$actual` equals `$expected` — identity everywhere except two objects, which are compared through `Comparable::compareTo` — as PHPUnit's `assertEquals` does, subject first.
+Asserts that `$actual` equals `$expected`. Two objects are compared with `Comparable::compareTo`, and every other value must be identical.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -16762,7 +16762,7 @@ Checks that `$actual` is `true`. The value must be a `bool`, so a call with a nu
 Core\Test::assertNull(mixed $actual, {message?: string}): void
 ```
 
-Asserts `$actual` is `null`, as PHPUnit's `assertNull` does; the subject is `mixed`, so a value of any type may be asked.
+Asserts that `$actual` is `null`. `$actual` is `mixed`, so it can be a value of any type.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -16780,7 +16780,7 @@ Asserts `$actual` is `null`, as PHPUnit's `assertNull` does; the subject is `mix
 Core\Test::assertCount(array<T> $actual, uint $expected, {message?: string}): void
 ```
 
-Asserts `$actual` holds exactly `$expected` entries — `Core\Arr::count`'s own signature — as PHPUnit's `assertCount` does, subject first. A `string`'s length is asserted through `Core\Str::length`, which says which length was meant.
+Asserts that the array `$actual` has exactly `$expected` entries. To check the length of a `string`, assert on `Core\Str::length`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -16799,7 +16799,7 @@ Asserts `$actual` holds exactly `$expected` entries — `Core\Arr::count`'s own 
 Core\Test::assertContains(array<T> $actual, T $expected, {message?: string}): void
 ```
 
-Asserts some entry of `$actual` is `$expected` under strict identity — the question `Core\Arr::contains` answers, and the same answer — as PHPUnit's `assertContains` does, subject first. A substring is asserted through `Core\Str::contains`, which says which containment was meant.
+Asserts that some entry of `$actual` is identical to `$expected`, as `Core\Arr::contains` checks. To check for a substring, assert on `Core\Str::contains`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -16837,7 +16837,7 @@ Asserts that `$actual`, rendered as `Core\Debug::render` renders it, is exactly 
 Core\Test::assertThrows(callable(): mixed $body, string $expected, {message?: string}): void
 ```
 
-Runs `$body` and asserts it throws `$expected` or a subclass of it, as PHPUnit's `expectException` does; the throw it judged is consumed, so only the assertion's own verdict propagates.
+Runs `$body` and asserts that it throws `$expected` or a subclass of it. The error it throws is caught here, so only a failed assertion reaches the caller.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -17854,7 +17854,7 @@ Keywords: arguments, write, escape, isTty, width, height, colorDepth, displayWid
 Core\Cli::arguments(): array<tainted string>
 ```
 
-The words this program was started with, past the program itself — PHP's `$argv` and `$argc` in one place. A program that declares a `#[Command]` reads its arguments off the table `Core\Command::run` matched them against instead; this is the raw list, for a program that parses its own.
+Returns the arguments this program was started with, without the program name. A program that declares a `#[Command]` gets its arguments from `Core\Command::run` instead. This is the raw list, for a program that parses its own arguments.
 
 **Returns** `array<tainted string>` — An `array<tainted string>` in the order the shell wrote them, empty for a program started with none. Every element is `tainted`: the words came from outside the program's own text, so a path, a URL or a query built from one passes its own launderer first. The program's own name is not an element — nothing indexes it away, and `$argv[0]` has no spelling here.
 
@@ -17899,7 +17899,7 @@ Answers `$text` with every control byte replaced by a visible, inert glyph — `
 Core\Cli::isTty(Core\Cli\Stream $stream): bool
 ```
 
-Reports whether one standard stream is attached to a terminal — `posix_isatty` and `stream_isatty`, which PHP splits between two extensions. Resolved once for the process, so two calls in one run cannot disagree.
+Checks whether one standard stream is attached to a terminal. The check is made once for the process, so two calls in one run always give the same result.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -18038,7 +18038,7 @@ Offers `$choices` as a numbered list and answers every one chosen, as the values
 Core\Cli::secret(string $question): secret tainted string
 ```
 
-Asks `$question` with the terminal's echo turned off, so a password is not left on the screen or in a scrollback buffer — PHP's `readline` has no spelling for this at all and every program shells out to `stty -echo` for it.
+Prints `$question` and reads the answer with the terminal's echo turned off. A password typed here does not stay on the screen or in the scrollback buffer.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -18137,7 +18137,7 @@ Answers `$text` as a `Core\Cli\Text`, with every control byte already replaced b
 Core\Cli\Text::styled(string $text, Core\Cli\Style $style): Core\Cli\Text
 ```
 
-Answers `$text` as a `Core\Cli\Text` wearing `$style`, with the text itself neutralized exactly as `plain` neutralizes it — so the only control bytes in the answer are the ones the style put there. Replaces the `"\e[31m…"` string every PHP CLI program builds by hand.
+Answers `$text` as a `Core\Cli\Text` wearing `$style`, with the text itself neutralized exactly as `plain` neutralizes it — so the only control bytes in the answer are the ones the style put there.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -18476,9 +18476,9 @@ Keywords: get, all, mode
 | [`Core\Env::get`](#core-core-env-get) | `get(string $name): ?tainted string` |
 | [`Core\Env::all`](#core-core-env-all) | `all(): array<tainted string>` |
 | [`Core\Env::mode`](#core-core-env-mode) | `mode(): Core\Env\Mode` |
-| `Core\Env::EOL` | `string` = `"\n" ("\r\n" on Windows)` — The line ending this platform writes — `\r\n` on Windows and `\n` everywhere else, as `PHP_EOL` is. It is for *emitting* platform-native text and nothing reads it: `Core\Str::lines` and `Core\IO::lines` split on all three terminators and never consult it, which is spec § 1's own note. |
-| `Core\Env::OS` | `string` = `"Linux" ("Windows" or "Darwin" per platform)` — The operating system **family**, spelled as `PHP_OS_FAMILY` spells it — `Windows`, `Darwin`, `Linux`, `BSD`, `Solaris`, or `Unknown` for anything else. A closed set a program can compare against, and never `uname`'s free text, which is what PHP's other spelling `PHP_OS` hands over. |
-| `Core\Env::VERSION` | `string` = `"0.0.1"` — This runtime's version, replacing `PHP_VERSION` — three dot-separated numbers, and the same string `nvs info` reports. There is no `PHP_VERSION_ID` beside it: a second spelling of one fact is what R6 closes, and comparing versions is `Core\Str::split` plus arithmetic on what this already says. |
+| `Core\Env::EOL` | `string` = `"\n" ("\r\n" on Windows)` — The line ending this platform writes: `\r\n` on Windows and `\n` everywhere else. Use it to write text in the platform's own format. `Core\Str::lines` and `Core\IO::lines` do not use it, and split on all three line endings. |
+| `Core\Env::OS` | `string` = `"Linux" ("Windows" or "Darwin" per platform)` — The operating system **family**: `Windows`, `Darwin`, `Linux`, `BSD`, `Solaris`, or `Unknown` for anything else. The value is always one of these six, so a program can compare against it. |
+| `Core\Env::VERSION` | `string` = `"0.0.1"` — This runtime's version: three numbers separated by dots, the same string `nvs info` prints. To compare versions, split it with `Core\Str::split` and compare the numbers. |
 
 <a id="core-core-env-get"></a>
 #### `Core\Env::get`
@@ -18792,7 +18792,7 @@ The request path with the matched mount's prefix removed, so an application read
 Core\Request::query(string $name): mixed
 ```
 
-One query-string parameter by name, read with PHP's bracket convention — the same parse `Core\Uri::parseQuery` performs, so `a[b]=c` is reached as a nested array under `a`.
+Returns one query-string parameter by its name. The query is read the same way `Core\Uri::parseQuery` reads it, so `a[b]=c` gives a nested array under `a`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -18826,7 +18826,7 @@ The query string read as the type `T` written at the call site — `Core\Arr::sh
 Core\Request::header(string $name): ?tainted string
 ```
 
-Returns the value of one request header by its name. It replaces the `HTTP_` entries of PHP's `$_SERVER`.
+Returns the value of one request header by its name.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -18843,7 +18843,7 @@ Returns the value of one request header by its name. It replaces the `HTTP_` ent
 Core\Request::headers(): array<array<tainted string>>
 ```
 
-Returns every header of the request, grouped by name. It replaces PHP's `getallheaders`.
+Returns every header of the request, grouped by name.
 
 **Returns** `array<array<tainted string>>` — An `array<array<tainted string>>`. Each key is a header name in lower case. Its value is a list with one entry for each line of that header, in the order the lines arrived. The array is empty when the request has no headers.
 
@@ -18856,7 +18856,7 @@ Returns every header of the request, grouped by name. It replaces PHP's `getallh
 Core\Request::cookie(string $name): ?tainted string
 ```
 
-Returns the value of one cookie by its name. It replaces PHP's `$_COOKIE`.
+Returns the value of one cookie by its name.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -18873,7 +18873,7 @@ Returns the value of one cookie by its name. It replaces PHP's `$_COOKIE`.
 Core\Request::body(): tainted string
 ```
 
-Returns the whole request body as one string. It replaces PHP's `file_get_contents('php://input')`.
+Returns the whole request body as one string.
 
 **Returns** `tainted string` — Every byte the client sent, in order and unchanged. The string is `tainted`. It is empty when the request has no body, and every call returns the same string.
 
@@ -18899,7 +18899,7 @@ Returns the whole request body as `bytes`. Use it for a body that is not text, s
 Core\Request::json({maxDepth?: uint}): mixed
 ```
 
-Reads the request body as one JSON document and returns the decoded value. It replaces PHP's `json_decode(file_get_contents('php://input'), true)`.
+Reads the request body as one JSON document and returns the decoded value.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -18946,7 +18946,7 @@ Returns the request body in pieces, in the order they arrive. Use it for a large
 Core\Request::files(): Core\Request\Files
 ```
 
-Returns the files that a form uploaded, one at a time in a `foreach` loop. It replaces PHP's `$_FILES` and `move_uploaded_file`.
+Returns the files that a form uploaded, one at a time in a `foreach` loop.
 
 **Returns** `Core\Request\Files` — An `Iterable<Core\Request\Part>`. Each loop step gives the next file as it arrives. The text fields are not in the loop, and `post` reads them after it. The loop runs zero times when the request has no `multipart/form-data` body.
 
@@ -18959,7 +18959,7 @@ Returns the files that a form uploaded, one at a time in a `foreach` loop. It re
 Core\Request::post(string $name): mixed
 ```
 
-One submitted form field by name, read with PHP's bracket convention — the same parse `query` performs, over a `multipart/form-data` body's non-file parts or over a urlencoded one, replacing `$_POST` and `filter_input(INPUT_POST, …)`.
+Returns one submitted form field by its name. The fields are read the same way `query` reads them. The body can be `multipart/form-data`, where the parts that are not files are read, or urlencoded.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -19019,7 +19019,7 @@ The scheme this request effectively arrived over, which only a trusted peer's `X
 Core\Request::host(): ?tainted string
 ```
 
-Returns the host name the request was sent to, read from its `Host` header. It replaces PHP's `$_SERVER['HTTP_HOST']`.
+Returns the host name the request was sent to, read from its `Host` header.
 
 **Returns** `?tainted string` — The host name as a `tainted` string in lower case. A port and one dot at the end are removed, so `Shop.Example.com.:8443` returns `shop.example.com`. An IPv6 address keeps its brackets. The result is `null` when the request has no `Host` header. `header("host")` returns the header exactly as it arrived, with the port. Headers such as `X-Forwarded-Host` are never read.
 
@@ -19404,7 +19404,7 @@ This part's bytes, a chunk at a time — the reading for an upload that must nev
 $part->readAll({max?: uint}): tainted bytes
 ```
 
-This part's whole content, pulled to its end into one value — the reading for an upload small enough to hold, replacing `$_FILES` plus a `file_get_contents` of the temporary file PHP wrote.
+Reads the whole content of this part into one value. Use it for an upload small enough to keep in memory.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -21876,7 +21876,7 @@ Keywords: parse, reader, writer
 Core\Xml::parse(string $document): Core\Xml\Node
 ```
 
-Reads a whole XML document and returns its document node. It replaces PHP's `DOMDocument::load`, `simplexml_load_string` and `xml_parse`. A document that is not well-formed throws a `ParseError`. Nothing is repaired or guessed. `Core\Html::parse` returns the same kind of tree, and repairs broken HTML instead of throwing.
+Reads a whole XML document and returns its document node. A document that is not well-formed throws a `ParseError`. Nothing is repaired or guessed. `Core\Html::parse` returns the same kind of tree, and repairs broken HTML instead of throwing.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -21893,7 +21893,7 @@ Reads a whole XML document and returns its document node. It replaces PHP's `DOM
 Core\Xml::reader(string $document): Core\Xml\Reader
 ```
 
-Returns a reader that goes through `$document` one node at a time. It replaces PHP's `XMLReader`. Call `read` until it returns `null`. The reader does not build a tree. It keeps the current node and the names of the elements that are open. This call reads nothing yet. The first `read` reads the first node.
+Returns a reader that goes through `$document` one node at a time. Call `read` until it returns `null`. The reader does not build a tree. It keeps the current node and the names of the elements that are open. This call reads nothing yet. The first `read` reads the first node.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -21908,7 +21908,7 @@ Returns a reader that goes through `$document` one node at a time. It replaces P
 Core\Xml::writer({indent?: string}): Core\Xml\Writer
 ```
 
-Returns a writer that builds an XML document one node at a time. It replaces PHP's `XMLWriter`. The writer remembers which elements are open, so `endElement` needs no name. Ending the document while an element is still open throws a `LogicError`. Every method that takes text escapes it, so you never escape text yourself.
+Returns a writer that builds an XML document one node at a time. The writer remembers which elements are open, so `endElement` needs no name. Ending the document while an element is still open throws a `LogicError`. Every method that takes text escapes it, so you never escape text yourself.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -21984,7 +21984,7 @@ Returns the text of this node. For a text node, this is its characters. For a co
 $node->attributes(): array<tainted string>
 ```
 
-Returns the attributes of this element, in the order the document wrote them. It replaces PHP's `DOMElement::getAttribute` and the `attributes` property. For a node that is not an element, the array is empty.
+Returns the attributes of this element, in the order the document wrote them. For a node that is not an element, the array is empty.
 
 **Returns** `array<tainted string>` — An array keyed by attribute name. The name is written as in the document, with its prefix, such as `xml:lang`. Entities such as `&amp;` are expanded in the value. A tab or a line break written inside the value becomes a space, as XML requires. The values are `tainted`.
 
@@ -22327,7 +22327,7 @@ Feeds `$data` to the stream, as `deflate_add` does; the chunks are compressed in
 |---|---|---|
 | `$data` | `bytes\|string` | The next octets; a `string` is read as its UTF-8 bytes. |
 
-**Returns** `void` — Nothing. PHP's `deflate_add` answers whatever its flush mode let the coder emit, and there is no such answer here: the frame is written whole at `finish`.
+**Returns** `void` — Nothing. The compressed data is returned whole by `finish`.
 
 **Throws** `RuntimeError` — The stream has already been finished — a frame is whole once it is written, so open a new stream.
 
@@ -22367,7 +22367,7 @@ Feeds `$data` to the stream, as `inflate_add` does; the chunks are decompressed 
 |---|---|---|
 | `$data` | `bytes` | The next octets of the compressed frame. Nothing is decoded yet, so nothing here is refused for size — the bound is the whole stream's and `finish` applies it. |
 
-**Returns** `void` — Nothing. PHP's `inflate_add` answers whatever its flush mode let the decoder emit, and a bound charged against such an answer would be a bound per call rather than per stream.
+**Returns** `void` — Nothing. The size limit counts the whole stream, not each call.
 
 **Throws** `RuntimeError` — The stream has already been finished — the octets are final, so open a new stream.
 
@@ -22980,7 +22980,7 @@ The reply's body hydrated into an instance of `T` — `Core\Json::decodeAs` over
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `{maxDepth: …}` | `uint` (default `512`) | How deep the document may nest before it is refused, counted PHP's way: a scalar document is depth 1. |
+| `{maxDepth: …}` | `uint` (default `512`) | How deep the document may nest. A deeper document throws an error. A scalar document is depth 1. |
 
 **Returns** `T` — A new `T` built from the document's fields, or one `T` per element for an `array<T>`. Every text field of `T` has to declare `tainted`, because these are octets another host chose and the field is where they land.
 
@@ -23800,7 +23800,7 @@ Keywords: pid, hostname, cpuCount, residentBytes, loadAverage
 Core\Os::pid(): uint
 ```
 
-Returns the number the operating system gives this process. This replaces PHP's `getmypid`. The number belongs to the whole process. Two requests served by the same process get the same number.
+Returns the number the operating system gives this process. The number belongs to the whole process. Two requests served by the same process get the same number.
 
 **Returns** `uint` — The process number, which is larger than 0.
 
@@ -23811,7 +23811,7 @@ Returns the number the operating system gives this process. This replaces PHP's 
 Core\Os::hostname(): string
 ```
 
-Returns the name of the machine this program runs on. This replaces PHP's `gethostname`. It reads the name the machine has for itself, and it does not use the network.
+Returns the name of the machine this program runs on. It reads the name the machine has for itself, and it does not use the network.
 
 **Returns** `string` — The machine's name.
 
@@ -23837,7 +23837,7 @@ Returns how many CPU cores this program may use. A server or a container can lim
 Core\Os::residentBytes(): uint
 ```
 
-Returns the most memory this process has used so far, in bytes. This replaces the `ru_maxrss` figure of PHP's `getrusage`. On Windows it is the peak working set. The number covers every request the process has served, so it never gets smaller. For the memory of one request, use `Core\Budget`.
+Returns the most memory this process has used so far, in bytes. On Windows it is the peak working set. The number covers every request the process has served, so it never gets smaller. For the memory of one request, use `Core\Budget`.
 
 **Returns** `uint` — The most memory the process has used, in bytes.
 
@@ -23850,7 +23850,7 @@ Returns the most memory this process has used so far, in bytes. This replaces th
 Core\Os::loadAverage(): array<float>
 ```
 
-Returns how busy the machine is, as three numbers: the averages over the last 1, 5 and 15 minutes. This replaces PHP's `sys_getloadavg`. Each number counts the processes that are running or waiting to run. A number larger than `cpuCount()` means some processes are waiting.
+Returns how busy the machine is, as three numbers: the averages over the last 1, 5 and 15 minutes. Each number counts the processes that are running or waiting to run. A number larger than `cpuCount()` means some processes are waiting.
 
 **Returns** `array<float>` — Three floats: the averages over 1, 5 and 15 minutes, in that order.
 
@@ -24303,7 +24303,7 @@ Describes `$object`'s class — its name, and the properties code outside the cl
 Core\Reflect::typeOf(mixed $value): Core\Reflect\TypeKind
 ```
 
-Which of the language's representations `$value` currently holds. The single replacement for PHP's fourteen `is_*` predicates and `gettype`, which are only meaningful on a `mixed` at all.
+Returns the kind of value `$value` is right now. Use it on a `mixed` value.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -24570,7 +24570,7 @@ Returns how many parameters the method declares.
 $methodInfo->parameters(): array<Core\Reflect\ParameterInfo>
 ```
 
-Returns the parameters of the method, in the order they are written. It replaces PHP's `ReflectionMethod::getParameters`.
+Returns the parameters of the method, in the order they are written.
 
 **Returns** `array<Core\Reflect\ParameterInfo>` — One `Core\Reflect\ParameterInfo` for each parameter. `$this` is not included. For a method the compiler adds, such as the constructor of `LogicError`, the array is empty. `parameterCount` still returns how many arguments that method takes.
 
@@ -25008,7 +25008,7 @@ Opens a connection to a server the program itself names, for the case a `[db.<na
 Core\Db::inList(array<mixed> $values): Core\Db\InList
 ```
 
-Marks `$values` as a run of bound values rather than one, so the placeholder it is bound to expands into a parenthesised list of that many — the `IN (?, ?, ?)` every PHP program builds with `implode` and `array_fill`. Nothing else in a statement expands, which is what keeps the SQL text independent of what a value turned out to be.
+Binds `$values` as a list of values. The placeholder it is bound to becomes a list in parentheses with one placeholder per value, such as `IN (?, ?, ?)`. Nothing else in a statement changes the SQL text.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -25558,7 +25558,7 @@ One column's value, whatever the SQL-to-Novis type map made of it — the univer
 $row->toArray(): array<mixed>
 ```
 
-The whole row as a string-keyed array, in the server's column order — `FETCH_ASSOC`, which is the only one of PHP's three fetch shapes that survives.
+Returns the whole row as an array with string keys, in the server's column order.
 
 **Returns** `array<mixed>` — An `array<mixed>` keyed by column label, a NULL column being a `null` entry that is present rather than absent.
 
@@ -25611,7 +25611,7 @@ One column as `int` — `SMALLINT`, `INT` and `BIGINT`, and an unsigned column w
 
 **Returns** `?int` — The integer, or `null` for a NULL column.
 
-**Throws** `LogicError` — The row has no column with that name, the column is not an integer at all, or it is an unsigned value past `int`'s ceiling — which PHP would hand back as a `float` that no longer equals it.
+**Throws** `LogicError` — The row has no column with that name, the column is not an integer, or it is an unsigned value larger than the largest `int`.
 
 <a id="core-core-db-row-uint"></a>
 #### `Core\Db\Row->uint`
@@ -25671,7 +25671,7 @@ One column as `bool` — `BOOLEAN` and `BIT(1)`, and an integer column holding `
 $row->decimal(string $name): ?decimal
 ```
 
-One column as `decimal` — `DECIMAL`, `NUMERIC` and `MONEY`, exact, where PHP hands back a string to parse.
+Returns one column as an exact `decimal`. It reads `DECIMAL`, `NUMERIC` and `MONEY` columns.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -26262,14 +26262,14 @@ Which of UAX #15's four normal forms `Core\Str::normalize` rewrites into — com
 <a id="enum-core-roundmode"></a>
 #### `Core\RoundMode`
 
-How `Core\Math::round` settles a value between two neighbours — PHP's four `PHP_ROUND_HALF_*` constants plus the two whole-direction rules `ceil` and `floor` only cover at a precision of zero.
+Chooses how `Core\Math::round` rounds a value that lies between two results. Four cases decide what happens to a value exactly halfway, and two always round in one direction.
 
 | Case | Meaning |
 |---|---|
-| `Core\RoundMode::HalfUp` | A tie goes away from zero — `PHP_ROUND_HALF_UP`, and `round`'s default there and here. |
-| `Core\RoundMode::HalfDown` | A tie goes toward zero — `PHP_ROUND_HALF_DOWN`. |
-| `Core\RoundMode::HalfEven` | A tie goes to the even neighbour — banker's rounding, `PHP_ROUND_HALF_EVEN`, the rule that does not accumulate a bias over many values. |
-| `Core\RoundMode::HalfOdd` | A tie goes to the odd neighbour — `PHP_ROUND_HALF_ODD`. |
+| `Core\RoundMode::HalfUp` | A value exactly halfway rounds away from zero. This is the default of `round`. |
+| `Core\RoundMode::HalfDown` | A value exactly halfway rounds toward zero. |
+| `Core\RoundMode::HalfEven` | A value exactly halfway rounds to the even neighbour. This is banker's rounding, and it does not build up a bias over many values. |
+| `Core\RoundMode::HalfOdd` | A value exactly halfway rounds to the odd neighbour. |
 | `Core\RoundMode::Up` | Every value goes away from zero, tie or not — `ceil` for a positive number and `floor` for a negative one, at any precision. |
 | `Core\RoundMode::Down` | Every value goes toward zero, tie or not — truncation, at any precision. |
 
@@ -26318,36 +26318,36 @@ A day of the week, Monday first as ISO 8601 and `date("N")` order them — what 
 <a id="enum-core-digest"></a>
 #### `Core\Digest`
 
-The algorithm a `Core\Hash` member computes — every one PHP's `hash()` names that interop needs, checksums and the two broken digests included, plus BLAKE3. `StrongDigest`, the subset `Core\Hash::hmac` accepts, is the ten SHA-2 and SHA-3 cases.
+The algorithm a `Core\Hash` method computes. It includes checksums and the two broken digests that other systems still use, and BLAKE3. `StrongDigest` is the ten SHA-2 and SHA-3 cases, which `Core\Hash::hmac` accepts.
 
 | Case | Meaning |
 |---|---|
-| `Core\Digest::Crc32` | CRC-32/ISO-HDLC, PHP's `crc32b` — a 4-octet checksum against accidental corruption only. |
+| `Core\Digest::Crc32` | CRC-32/ISO-HDLC, a 4-octet checksum. It detects accidental corruption only. |
 | `Core\Digest::Md5` | MD5, 16 octets — collision-broken since 2004, for interop only. |
 | `Core\Digest::Sha1` | SHA-1, 20 octets — collision-broken since 2017, for interop only. |
 | `Core\Digest::Sha256` | SHA-256, 32 octets — the default to reach for; a `StrongDigest`. |
 | `Core\Digest::Sha384` | SHA-384, 48 octets; a `StrongDigest`. |
 | `Core\Digest::Sha512` | SHA-512, 64 octets — faster than SHA-256 on 64-bit hardware; a `StrongDigest`. |
 | `Core\Digest::Sha224` | SHA-224, 28 octets; a `StrongDigest`. |
-| `Core\Digest::Sha512_224` | SHA-512/224, 28 octets — SHA-512 truncated with its own IV (FIPS 180-4 § 5.3.6), PHP's `sha512/224`; a `StrongDigest`. |
-| `Core\Digest::Sha512_256` | SHA-512/256, 32 octets — SHA-512's speed at SHA-256's width and length-extension-proof, PHP's `sha512/256`; a `StrongDigest`. |
+| `Core\Digest::Sha512_224` | SHA-512/224, 28 octets — SHA-512 truncated with its own IV (FIPS 180-4 § 5.3.6). It is a `StrongDigest`. |
+| `Core\Digest::Sha512_256` | SHA-512/256, 32 octets — SHA-512's speed at SHA-256's width and length-extension-proof. It is a `StrongDigest`. |
 | `Core\Digest::Sha3_224` | SHA3-224, 28 octets — FIPS 202's Keccak sponge, an independent construction rather than a wider SHA-2; a `StrongDigest`. |
 | `Core\Digest::Sha3_256` | SHA3-256, 32 octets; a `StrongDigest`. |
 | `Core\Digest::Sha3_384` | SHA3-384, 48 octets; a `StrongDigest`. |
 | `Core\Digest::Sha3_512` | SHA3-512, 64 octets; a `StrongDigest`. |
 | `Core\Digest::Crc32c` | CRC-32C/Castagnoli, 4 octets — the checksum S3 and GCS stamp objects with. |
-| `Core\Digest::Blake3` | BLAKE3, 32 octets — the fastest here and the one PHP cannot compute; outside `StrongDigest` because it is keyed natively rather than through HMAC. |
+| `Core\Digest::Blake3` | BLAKE3, 32 octets, and the fastest here. It is not a `StrongDigest`, because it has its own keyed mode and does not use HMAC. |
 
 <a id="enum-core-codec"></a>
 #### `Core\Codec`
 
-The format a `Core\Compress` member reads or writes. The first three are one deflate stream under three different headers, which is what PHP spelled as three function names; the last two are the other two `Content-Encoding` formats in use.
+The format a `Core\Compress` method reads or writes. The first three are one deflate stream under three different headers. The last two are the other two `Content-Encoding` formats in use.
 
 | Case | Meaning |
 |---|---|
-| `Core\Codec::Gzip` | RFC 1952 — a deflate stream under a gzip header, PHP's `gzencode` and `Content-Encoding: gzip`. |
-| `Core\Codec::Zlib` | RFC 1950 — the same stream under a zlib header, PHP's `gzcompress` and what `Content-Encoding: deflate` names on the wire. |
-| `Core\Codec::Deflate` | RFC 1951 — the stream with no header at all, PHP's `gzdeflate`. |
+| `Core\Codec::Gzip` | RFC 1952: a deflate stream under a gzip header. This is `Content-Encoding: gzip`. |
+| `Core\Codec::Zlib` | RFC 1950: the same stream under a zlib header. This is what `Content-Encoding: deflate` means on the wire. |
+| `Core\Codec::Deflate` | RFC 1951: the stream with no header at all. |
 | `Core\Codec::Brotli` | RFC 7932, `Content-Encoding: br`. |
 | `Core\Codec::Zstd` | RFC 8878, `Content-Encoding: zstd`. |
 
@@ -26405,7 +26405,7 @@ What `Core\Mime::detect` read out of a run of octets. Closed, so a program compa
 | `Core\Mime\Type::Ogg` | `application/ogg` — the container, which carries audio and video alike and says which only inside. |
 | `Core\Mime\Type::Wav` | `audio/wav` — a RIFF container whose form is `WAVE`. |
 | `Core\Mime\Type::Zip` | `application/zip`, including every format that *is* a zip archive: `.docx`, `.xlsx`, `.odt`, `.jar`. |
-| `Core\Mime\Type::Gzip` | `application/gzip`, PHP's `gzencode` output and `Core\Codec::Gzip`'s frame. |
+| `Core\Mime\Type::Gzip` | `application/gzip`, the format `Core\Codec::Gzip` writes. |
 | `Core\Mime\Type::Zstd` | `application/zstd`, `Core\Codec::Zstd`'s frame. |
 | `Core\Mime\Type::Xz` | `application/x-xz`. |
 | `Core\Mime\Type::Wasm` | `application/wasm`, a binary WebAssembly module. |
@@ -26539,18 +26539,18 @@ What a value is, once its static type is gone — ten cases, one per representat
 | `Core\Reflect\TypeKind::Null` | The `null` value; what `is_null` asked. |
 | `Core\Reflect\TypeKind::Bool` | A `bool`, `true` or `false` alike. |
 | `Core\Reflect\TypeKind::Int` | A signed `int`. |
-| `Core\Reflect\TypeKind::Uint` | An unsigned `uint`, which is a type of its own here and so a case of its own — the one PHP had no predicate to ask with. |
+| `Core\Reflect\TypeKind::Uint` | An unsigned `uint`. It is a type of its own, so it has a case of its own. |
 | `Core\Reflect\TypeKind::Float` | A `float`; what `is_float` and its `is_double` alias asked. |
 | `Core\Reflect\TypeKind::Decimal` | A `decimal` — the exact scalar, and never a `float` that happens to be round. |
 | `Core\Reflect\TypeKind::Text` | A `string`, which is UTF-8 by the language's own guarantee; what `is_string` asked. |
-| `Core\Reflect\TypeKind::Bytes` | A `bytes` value — the same heap shape as `Text` without the UTF-8 promise, and the distinction PHP's one string type could not make. |
+| `Core\Reflect\TypeKind::Bytes` | A `bytes` value. It is like `Text`, but its content does not have to be valid UTF-8. |
 | `Core\Reflect\TypeKind::Array` | An `array<T>`; what `is_array`, `is_iterable` and `is_countable` between them asked. |
 | `Core\Reflect\TypeKind::Object` | A class instance. A callable is also an object here, so there is no `Callable` case. |
 
 <a id="enum-core-io-filemode"></a>
 #### `Core\IO\FileMode`
 
-What an open handle may do, replacing `fopen`'s mode string. There is no binary or text flag: Novis text is octets, so every mode is what PHP would call binary.
+What an open handle may do. There is no binary or text mode: every handle reads and writes the bytes unchanged.
 
 | Case | Meaning |
 |---|---|

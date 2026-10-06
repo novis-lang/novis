@@ -685,8 +685,7 @@ const PARSE_DOC: MethodDoc = MethodDoc {
     short: "Reads the text of an address, such as `https://example.com/cart?id=4`, and returns \
             a `Uri`. Its methods return the parts: `scheme`, `userInfo`, `host`, `port`, `path`, \
             `query` and `fragment`. Each part is returned as it was written. Escapes such as \
-            `%20` stay, and upper-case letters stay upper case. PHP's `parse_url` reads the same \
-            parts.",
+            `%20` stay, and upper-case letters stay upper case.",
     params: &[ParamDoc {
         name: "uri",
         desc: "The text to read. A relative link, such as `/a?b`, is allowed. Its scheme is \
@@ -708,8 +707,7 @@ const PARSE_DOC: MethodDoc = MethodDoc {
 const TRY_PARSE_DOC: MethodDoc = MethodDoc {
     short: "Reads the text of an address and returns a `Uri`, the same way `Core\\Uri::parse` \
             does. When the text is not an address, the result is `null` and no error is thrown. \
-            A space, a `%` without two hex digits and a port above `65535` all give `null`. \
-            PHP code uses `filter_var` with `FILTER_VALIDATE_URL` for this check.",
+            A space, a `%` without two hex digits and a port above `65535` all give `null`.",
     params: &[ParamDoc {
         name: "uri",
         desc: "The text to read. A relative link, such as `/a?b`, is allowed.",
@@ -724,8 +722,7 @@ const TRY_PARSE_DOC: MethodDoc = MethodDoc {
 const ENCODE_COMPONENT_DOC: MethodDoc = MethodDoc {
     short: "Escapes `$s` so that it can be one part of a URI, such as a path segment, a fragment \
             or one side of a query pair. A space becomes `%20`. Every byte that is not a letter, \
-            a digit or one of `-_.~` becomes a `%` and two hex digits. This includes `/ ? # & =`. \
-            PHP's `rawurlencode` does the same.",
+            a digit or one of `-_.~` becomes a `%` and two hex digits. This includes `/ ? # & =`.",
     params: &[ParamDoc {
         name: "s",
         desc: "The text to encode.",
@@ -741,8 +738,7 @@ const ENCODE_COMPONENT_DOC: MethodDoc = MethodDoc {
 const DECODE_COMPONENT_DOC: MethodDoc = MethodDoc {
     short: "Decodes one escaped part of a URI, such as a path segment or a fragment. Each `%XX` \
             escape becomes the byte it encodes, so `%20` becomes a space. A `+` stays a `+`. \
-            `Core\\Uri::encodeComponent` writes the escapes that this function reads. PHP's \
-            `rawurldecode` does the same.",
+            `Core\\Uri::encodeComponent` writes the escapes that this function reads.",
     params: &[ParamDoc {
         name: "s",
         desc: "The text to decode.",
@@ -759,7 +755,7 @@ const ENCODE_FORM_VALUE_DOC: MethodDoc = MethodDoc {
     short: "Escapes `$s` so that it can be one value of a form, such as a value in a query \
             string or in the body of a POST request. A space becomes `+`. Every byte that is not \
             a letter, a digit or one of `-_.` becomes a `%` and two hex digits. This includes \
-            `~`, `+`, `&` and `=`. PHP's `urlencode` does the same.",
+            `~`, `+`, `&` and `=`.",
     params: &[ParamDoc {
         name: "s",
         desc: "The text to encode.",
@@ -776,7 +772,7 @@ const DECODE_FORM_VALUE_DOC: MethodDoc = MethodDoc {
     short: "Decodes one value of a form, such as a value in a query string or in the body of a \
             POST request. A `+` becomes a space. Each `%XX` escape becomes the byte it encodes, \
             so `%2B` becomes a `+` and `%20` becomes a space. `Core\\Uri::encodeFormValue` writes \
-            the escapes that this function reads. PHP's `urldecode` does the same.",
+            the escapes that this function reads.",
     params: &[ParamDoc {
         name: "s",
         desc: "The text to decode.",
@@ -794,7 +790,7 @@ const PARSE_QUERY_DOC: MethodDoc = MethodDoc {
             into pairs at each `&`, and each pair is split at its first `=`. Names and values \
             are decoded like `decodeFormValue`, so `+` becomes a space. Brackets in a name build \
             nested arrays: `a[]=1&a[]=2` gives a list, and `a[b]=c` gives an array with the key \
-            `b`. PHP's `parse_str` reads query strings the same way.",
+            `b`.",
     params: &[ParamDoc {
         name: "query",
         desc: "The query text, without the `?` at its start.",
@@ -821,9 +817,8 @@ const CARD: ClassDoc = ClassDoc {
 
 /// `Core\Uri::buildQuery`'s reference card — `rule:core-api/reference-card`.
 const BUILD_QUERY_DOC: MethodDoc = MethodDoc {
-    short: "Writes the array `$parameters` as a query string, such as `page=2&sort=name`. It \
-            gives the same text as PHP's `http_build_query`, and `Core\\Uri::parseQuery` reads \
-            it back to the same array.",
+    short: "Writes the array `$parameters` as a query string, such as `page=2&sort=name`. \
+            `Core\\Uri::parseQuery` reads it back to the same array.",
     params: &[ParamDoc {
         name: "parameters",
         desc: "The names and values to write. A value is a scalar or another array. A nested \

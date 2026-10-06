@@ -142,23 +142,23 @@ pub(crate) const CODEC: CoreEnum = CoreEnum {
 
 /// [`CODEC`]'s reference card — `rule:core-api/reference-card`.
 const CODEC_DOC: EnumDoc = EnumDoc {
-    short: "The format a `Core\\Compress` member reads or writes. The first three are one deflate \
-            stream under three different headers, which is what PHP spelled as three function \
-            names; the last two are the other two `Content-Encoding` formats in use.",
+    short: "The format a `Core\\Compress` method reads or writes. The first three are one \
+            deflate stream under three different headers. The last two are the other two \
+            `Content-Encoding` formats in use.",
     cases: &[
         CaseDoc {
             name: "Gzip",
-            desc: "RFC 1952 — a deflate stream under a gzip header, PHP's `gzencode` and \
+            desc: "RFC 1952: a deflate stream under a gzip header. This is \
                    `Content-Encoding: gzip`.",
         },
         CaseDoc {
             name: "Zlib",
-            desc: "RFC 1950 — the same stream under a zlib header, PHP's `gzcompress` and what \
-                   `Content-Encoding: deflate` names on the wire.",
+            desc: "RFC 1950: the same stream under a zlib header. This is what \
+                   `Content-Encoding: deflate` means on the wire.",
         },
         CaseDoc {
             name: "Deflate",
-            desc: "RFC 1951 — the stream with no header at all, PHP's `gzdeflate`.",
+            desc: "RFC 1951: the stream with no header at all.",
         },
         CaseDoc {
             name: "Brotli",
@@ -424,8 +424,7 @@ const COMPRESSOR_ADD_DOC: MethodDoc = MethodDoc {
         desc: "The next octets; a `string` is read as its UTF-8 bytes.",
         shape: &[],
     }],
-    ret: "Nothing. PHP's `deflate_add` answers whatever its flush mode let the coder emit, and \
-          there is no such answer here: the frame is written whole at `finish`.",
+    ret: "Nothing. The compressed data is returned whole by `finish`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
         desc: "The stream has already been finished — a frame is whole once it is written, so \
@@ -495,9 +494,7 @@ const DECOMPRESSOR_ADD_DOC: MethodDoc = MethodDoc {
                is refused for size — the bound is the whole stream's and `finish` applies it.",
         shape: &[],
     }],
-    ret: "Nothing. PHP's `inflate_add` answers whatever its flush mode let the decoder emit, and \
-          a bound charged against such an answer would be a bound per call rather than per \
-          stream.",
+    ret: "Nothing. The size limit counts the whole stream, not each call.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
         desc: "The stream has already been finished — the octets are final, so open a new stream.",

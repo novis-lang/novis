@@ -249,16 +249,14 @@ const CARD: ClassDoc = ClassDoc {
     short: "Runs other programs. A program is started directly with a list of arguments, never \
             through a shell, so an argument cannot add a second command. `run` waits for the \
             program to end, and `spawn` returns a handle while it runs. Both need the \
-            `process.exec` capability. This replaces PHP's `exec`, `system`, `shell_exec`, \
-            `passthru`, `proc_open` and the backtick operator.",
+            `process.exec` capability.",
 };
 
 /// `Core\Process::run`'s reference card — `rule:core-api/reference-card`.
 const RUN_DOC: MethodDoc = MethodDoc {
     short: "Runs the program at `$path` with the arguments in `$argv`, and waits until it ends. \
             The program is started directly, never through a shell, so nothing needs escaping. \
-            Needs the `process.exec` capability for the program. This replaces PHP's `exec`, \
-            `system`, `shell_exec`, `passthru` and the backtick operator.",
+            Needs the `process.exec` capability for the program.",
     params: &[
         ParamDoc {
             name: "path",
@@ -309,7 +307,7 @@ const SPAWN_DOC: MethodDoc = MethodDoc {
     short: "Starts the program at `$path` with the arguments in `$argv`, and returns at once while \
             the program runs. The handle it returns reads the program's output and writes to its \
             input. The program is started directly, never through a shell. Needs the \
-            `process.exec` capability for the program. This replaces PHP's `proc_open`.",
+            `process.exec` capability for the program.",
     params: &[
         ParamDoc {
             name: "path",

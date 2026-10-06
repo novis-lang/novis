@@ -11,4 +11,4 @@ hover
 Core\Math::PI
 ```
 
-The ratio of a circle's circumference to its diameter, `3.14159…` as the nearest `float` — PHP's `M_PI`.
+The ratio of a circle's circumference to its diameter, `3.14159…` as the nearest `float`.

@@ -1,28 +1,29 @@
 {
-  "state": "**Goal `php-oracle-retired`: Stages 6, 7 and 8 are on disk; Stage 9 is under way.** ADR 0274 (`docs/decisions/0274.md`) is the goal's record.\n\nStage 9 file set 1 is closed: no `about.md` under `docs/examples/` outside `tools/php-differences` says what it replaces in PHP, so `no-about-md-says-what-it-replaces-in-php` is green. Every `about.md` under `docs/examples/core/` and `docs/examples/types/` names PHP nowhere. Under `lang/` and `tools/`, PHP is named only where the page is about a PHP habit: the `what-does-not-exist`, `*-that-do-not-parse` and `refused-in-expression-position` pages, the `<?php`/E0229 lines, `enums/what-replaces-php-s-enum-members` and the two `tools/agents` pages. `docs/examples/README.md` § *The description* no longer invites the hint.\n\nThe other three Stage 9 checks are red and are the next group onwards: the registry text, the website components and the concept page.",
+  "state": "**Goal `php-oracle-retired`: Stages 6, 7 and 8 are on disk; Stage 9 is under way.** ADR 0274 (`docs/decisions/0274.md`) is the goal's record.\n\nStage 9 file sets 1, 2 and 3 are closed. No `about.md` outside `docs/examples/tools/php-differences` says what it replaces in PHP. No registry card field names PHP: `no_member_text_says_what_it_replaces_in_php` in `crates/nvs-stdlib/src/registry.rs` walks every class, member, parameter, error, constant and enum card, and allows PHP only on `Core\\Password::verify`, which reads bcrypt hashes PHP wrote. `website/src/data/core.json` and `docs/novis.md` are regenerated from the new cards, so `the-website-shows-no-php-replacement-fact` is green too.\n\nThe one Stage 9 check still red is `the-concept-page-has-no-translation-tables`: `docs/reference/tools/30-php-differences.md` (its title, line 10, line 13's crosswalk, `# Two spellings side by side` at line 355) and three mentions of \"crosswalk\" in `docs/reference/findings.md`.",
   "next": {
     "stage": 9,
-    "title": "the registry text",
+    "title": "the concept page",
     "files": [],
-    "note": "one file set: the reference cards and helper doc comments under `crates/nvs-stdlib/src/` (goal prose § *Stage 9* item 2).",
+    "note": "one file set: `docs/reference/tools/30-php-differences.md`, `docs/examples/tools/php-differences/`, `docs/reference/findings.md` and the primer list in `crates/nvs-cli/src/agent.rs` (goal prose § *Stage 9* item 4).",
     "items": [
       {
         "done": false,
-        "text": "**Delete what a member replaces in PHP from every card's `short`, `ret` and `desc`** — `rule:core-api/reference-card`; `crates/nvs-stdlib/src/math.rs:1`, `crates/nvs-stdlib/src/str.rs:1`, `crates/nvs-stdlib/src/arr.rs:1`, listed by `git grep -n -i -e \"as PHP\" -e \"PHP's\" -- crates/nvs-stdlib/src`. The card states what the member does, in the voice of `AGENTS.md` § *Text an end user reads*."
+        "text": "**Cut the php-differences chapter to one concept page** — `rule:programs/no-compatibility-promise`; `docs/reference/tools/30-php-differences.md:3`, `docs/reference/tools/30-php-differences.md:355`. Keep the id; keep *The short list* as concepts, what Novis can do that PHP cannot, and how to port by rethinking (by hand, or an AI agent reading `nvs agent`'s topics). Say plainly there is no converter and no name table. Delete the refusal tables, *What parses but behaves differently*, *Two spellings side by side* and the crosswalk; rewrite keywords and summary."
       },
       {
         "done": false,
-        "text": "**Add the test `no_member_text_says_what_it_replaces_in_php`** — the check `nvs-stdlib-no-member-text-says-what-it-replaces-in-php`; beside `every_registry_row_carries_a_reference_card` in `crates/nvs-stdlib/src/registry.rs:1`. It walks every card's text and fails on a PHP replacement phrase."
+        "text": "**The chapter's examples and the `covers:` markers that pointed at a deleted section** — `docs/examples/tools/php-differences/about.md:1`; keep the folders whose section remains, rewrite `about.md` whole; a `tests/conformance/` `covers:` marker naming a deleted section points at a remaining one or is removed, the case stays."
       },
       {
         "done": false,
-        "text": "**The website components** — the check `the-website-shows-no-php-replacement-fact`; `website/src/components/MethodSignature.astro:9` still lists a PHP fact, and `website/src/data/core.json:27072` carries a card's \"replacement for PHP's\" text, which the registry item above regenerates away. A different file set, so take it only with room to spare."
+        "text": "**`findings.md` and the primer** — `docs/reference/findings.md:332`, `docs/reference/findings.md:394`, `crates/nvs-cli/src/agent.rs:211`: the three \"crosswalk\" mentions are rewritten; `php-differences` leaves `PRIMER_FIRST` and stays reachable by name."
       }
     ]
   },
   "backlog": [
-    "The example programs beside the pages still name PHP in their comments and file names (`docs/examples/core/Password/verify/02-a-hash-that-php-made.nvs:2`); file names stay (goal § *Standing decisions*), and the comments are for the Stage 9 example pass if the goal prose names one.",
-    "The concept page check `the-concept-page-has-no-translation-tables` — goal prose § *Stage 9*, `docs/examples/tools/php-differences/`.",
-    "`bun nv proofs --gate` (Stage 10) — run once the Stage 9 checks are green."
+    "Stage 9 file set 5: the lang chapters lose their PHP comparison tables, `README.md:24-30` becomes one line linking the concept page, the four `benches/members/` comments lose PHP (goal prose § *Stage 9* item 5).",
+    "The class summaries in `docs/spec/01-core-library.md` still list the PHP functions a class replaces (\"replacing `file_get_contents`, …\"), and `website/src/data/core.json`'s `surface`/`summary` fields render them; no check covers it yet (goal prose § *Standing decisions*, second set).",
+    "About 85 card fields compare with a PHP function without the word PHP (\"as `json_validate` does\"); the new test cannot see them. `git grep -n \"\\` does\" -- crates/nvs-stdlib/src` lists them.",
+    "Stage 10: `bun nv proofs --gate` owes nothing with PHP stepped back."
   ]
 }

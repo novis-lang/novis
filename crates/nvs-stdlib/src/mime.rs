@@ -166,7 +166,7 @@ const TYPE_DOC: EnumDoc = EnumDoc {
         },
         CaseDoc {
             name: "Gzip",
-            desc: "`application/gzip`, PHP's `gzencode` output and `Core\\Codec::Gzip`'s frame.",
+            desc: "`application/gzip`, the format `Core\\Codec::Gzip` writes.",
         },
         CaseDoc {
             name: "Zstd",

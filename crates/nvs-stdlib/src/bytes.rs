@@ -422,7 +422,7 @@ const COMPARE_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "`-1`, `0` or `1` — exactly those three, as PHP 8's `strcmp` answers.",
+    ret: "`-1`, `0` or `1`, and no other value.",
     errors: &[],
 };
 
@@ -612,7 +612,7 @@ const UNPACK_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "The fields as a positional list, never PHP's name-keyed map: an `int` for `c`, a \
+    ret: "The fields as a list, in order: an `int` for `c`, a \
           `uint` for every other integer code, a `float` for `G`/`g`/`E`/`e`, and a `bytes` \
           for a buffer code with `A`'s and `Z`'s padding taken back off.",
     errors: &[ErrorDoc {

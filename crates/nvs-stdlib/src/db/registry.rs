@@ -2189,11 +2189,9 @@ pub(super) const OPEN_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Db::inList`'s reference card — `rule:core-api/reference-card`.
 pub(super) const IN_LIST_DOC: MethodDoc = MethodDoc {
-    short: "Marks `$values` as a run of bound values rather than one, so the placeholder it is \
-            bound to expands into a parenthesised list of that many — the `IN (?, ?, ?)` every \
-            PHP program builds with `implode` and `array_fill`. Nothing else in a statement \
-            expands, which is what keeps the SQL text independent of what a value turned out \
-            to be.",
+    short: "Binds `$values` as a list of values. The placeholder it is bound to becomes a list \
+            in parentheses with one placeholder per value, such as `IN (?, ?, ?)`. Nothing else \
+            in a statement changes the SQL text.",
     params: &[ParamDoc {
         name: "values",
         desc: "The values to bind, one placeholder each, in the array's own order. Keys are not \
@@ -2795,8 +2793,7 @@ pub(super) const ROW_GET_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Db\Row::toArray`'s reference card — `rule:core-api/reference-card`.
 pub(super) const ROW_TO_ARRAY_DOC: MethodDoc = MethodDoc {
-    short: "The whole row as a string-keyed array, in the server's column order — `FETCH_ASSOC`, \
-            which is the only one of PHP's three fetch shapes that survives.",
+    short: "Returns the whole row as an array with string keys, in the server's column order.",
     params: &[],
     ret: "An `array<mixed>` keyed by column label, a NULL column being a `null` entry that is \
           present rather than absent.",
@@ -2849,9 +2846,8 @@ pub(super) const ROW_INT_DOC: MethodDoc = MethodDoc {
     ret: "The integer, or `null` for a NULL column.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "The row has no column with that name, the column is not an integer at all, or it is \
-               an unsigned value past `int`'s ceiling — which PHP would hand back as a `float` \
-               that no longer equals it.",
+        desc: "The row has no column with that name, the column is not an integer, or it is an \
+               unsigned value larger than the largest `int`.",
     }],
 };
 
@@ -2910,8 +2906,8 @@ pub(super) const ROW_BOOL_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Db\Row::decimal`'s reference card — `rule:core-api/reference-card`.
 pub(super) const ROW_DECIMAL_DOC: MethodDoc = MethodDoc {
-    short: "One column as `decimal` — `DECIMAL`, `NUMERIC` and `MONEY`, exact, where PHP hands \
-            back a string to parse.",
+    short: "Returns one column as an exact `decimal`. It reads `DECIMAL`, `NUMERIC` and \
+            `MONEY` columns.",
     params: &[ParamDoc {
         name: "name",
         desc: "The column label, as the server described it.",

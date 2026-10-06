@@ -403,8 +403,8 @@ const DECODE_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "maxDepth",
-            desc: "The deepest nesting accepted, counted as PHP's `$depth` is — a scalar document \
-                   is depth 1, `[1]` is depth 2; `512` by default and at most `1024`.",
+            desc: "The deepest nesting allowed. A scalar document is depth 1, and `[1]` is depth \
+                   2. The default is `512`, and the largest value is `1024`.",
             shape: &[],
         },
     ],
@@ -439,8 +439,8 @@ const DECODE_AS_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "maxDepth",
-            desc: "The deepest nesting accepted, counted as PHP's `$depth` is — a scalar document \
-                   is depth 1, `[1]` is depth 2; `512` by default and at most `1024`.",
+            desc: "The deepest nesting allowed. A scalar document is depth 1, and `[1]` is depth \
+                   2. The default is `512`, and the largest value is `1024`.",
             shape: &[],
         },
     ],

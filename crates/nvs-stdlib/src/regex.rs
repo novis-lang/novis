@@ -238,26 +238,24 @@ const COMPILE_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "caseInsensitive",
-            desc: "`true` makes letters match in upper and lower case. PHP writes this as `i`. \
-                   The default is `false`.",
+            desc: "`true` makes letters match in upper and lower case. The default is `false`.",
             shape: &[],
         },
         ParamDoc {
             name: "multiline",
-            desc: "`true` makes `^` and `$` match at the start and end of every line. PHP writes \
-                   this as `m`. The default is `false`.",
+            desc: "`true` makes `^` and `$` match at the start and end of every line. The \
+                   default is `false`.",
             shape: &[],
         },
         ParamDoc {
             name: "dotAll",
-            desc: "`true` makes `.` match a newline too. PHP writes this as `s`. The default is \
-                   `false`.",
+            desc: "`true` makes `.` match a newline too. The default is `false`.",
             shape: &[],
         },
         ParamDoc {
             name: "ungreedy",
             desc: "`true` makes `*` and `+` match as little as possible, and `*?` as much as \
-                   possible. PHP writes this as `U`. The default is `false`.",
+                   possible. The default is `false`.",
             shape: &[],
         },
     ],
@@ -343,7 +341,7 @@ const REPLACE_DOC: MethodDoc = MethodDoc {
             desc: "The text that replaces each match. `$1` to `$99` insert a numbered group, and \
                    `${name}` inserts a named group. Write `${1}0` when a digit follows the \
                    group. `$$` is one `$`. A group the pattern does not have inserts nothing. \
-                   PHP's `\\1` is not a group here.",
+                   `\\1` is not a group.",
             shape: &[],
         },
         ParamDoc {
@@ -422,8 +420,7 @@ const SPLIT_DOC: MethodDoc = MethodDoc {
             name: "limit",
             desc: "The largest number of pieces. The last piece contains the rest of the text. \
                    A negative number removes that many pieces from the end. `0` returns the \
-                   whole text as one piece. The default is no limit. PHP's `preg_split` reads \
-                   `0` and `-1` as no limit.",
+                   whole text as one piece. The default is no limit.",
             shape: &[],
         },
         ParamDoc {
@@ -452,9 +449,8 @@ const QUOTE_DOC: MethodDoc = MethodDoc {
         desc: "The text to match exactly.",
         shape: &[],
     }],
-    ret: "The escaped pattern. A text with no special characters is returned unchanged. The \
-          escaped characters are not the same as PHP's `preg_quote`: `&` and `~` are escaped \
-          here, and `!`, `:`, `<`, `=`, `>` and `/` are not.",
+    ret: "The escaped pattern. A text with no special characters is returned unchanged. `&` \
+          and `~` are escaped, and `!`, `:`, `<`, `=`, `>` and `/` are not.",
     errors: &[],
 };
 
@@ -651,8 +647,7 @@ const MATCH_CARD: ClassDoc = ClassDoc {
 
 /// `Core\Regex\Match::group`'s reference card — `rule:core-api/reference-card`.
 const MATCH_GROUP_DOC: MethodDoc = MethodDoc {
-    short: "Returns the text of one group, by its number or by its name. PHP reads this as \
-            `$matches[$group]` after `preg_match`.",
+    short: "Returns the text of one group, by its number or by its name.",
     params: &[ParamDoc {
         name: "group",
         desc: "The number of the group, or its name. Group `0` is the whole match.",

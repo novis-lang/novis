@@ -254,8 +254,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 const CARD: ClassDoc = ClassDoc {
     short: "Stores and checks passwords safely. `hash` turns a password into a string you can \
             save, `verify` checks a password against that string, and `needsRehash` tells you \
-            when a saved hash should be made again. This replaces PHP's `password_hash`, \
-            `password_verify` and `password_needs_rehash`.",
+            when a saved hash should be made again.",
 };
 
 /// `Core\Password::hash`'s reference card — `rule:core-api/reference-card`.

@@ -115,9 +115,8 @@ const CARD: ClassDoc = ClassDoc {
 
 /// `Core\Os::pid`'s reference card — `rule:core-api/reference-card`.
 const PID_DOC: MethodDoc = MethodDoc {
-    short: "Returns the number the operating system gives this process. This replaces PHP's \
-            `getmypid`. The number belongs to the whole process. Two requests served by the same \
-            process get the same number.",
+    short: "Returns the number the operating system gives this process. The number belongs to \
+            the whole process. Two requests served by the same process get the same number.",
     params: &[],
     ret: "The process number, which is larger than 0.",
     errors: &[],
@@ -125,9 +124,8 @@ const PID_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Os::hostname`'s reference card — `rule:core-api/reference-card`.
 const HOSTNAME_DOC: MethodDoc = MethodDoc {
-    short: "Returns the name of the machine this program runs on. This replaces PHP's \
-            `gethostname`. It reads the name the machine has for itself, and it does not use the \
-            network.",
+    short: "Returns the name of the machine this program runs on. It reads the name the machine \
+            has for itself, and it does not use the network.",
     params: &[],
     ret: "The machine's name.",
     errors: &[ErrorDoc {
@@ -151,8 +149,8 @@ const CPU_COUNT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Os::residentBytes`'s reference card — `rule:core-api/reference-card`.
 const RESIDENT_BYTES_DOC: MethodDoc = MethodDoc {
-    short: "Returns the most memory this process has used so far, in bytes. This replaces the \
-            `ru_maxrss` figure of PHP's `getrusage`. On Windows it is the peak working set. The \
+    short: "Returns the most memory this process has used so far, in bytes. On Windows it is \
+            the peak working set. The \
             number covers every request the process has served, so it never gets smaller. For \
             the memory of one request, use `Core\\Budget`.",
     params: &[],
@@ -166,7 +164,7 @@ const RESIDENT_BYTES_DOC: MethodDoc = MethodDoc {
 /// `Core\Os::loadAverage`'s reference card — `rule:core-api/reference-card`.
 const LOAD_AVERAGE_DOC: MethodDoc = MethodDoc {
     short: "Returns how busy the machine is, as three numbers: the averages over the last 1, 5 \
-            and 15 minutes. This replaces PHP's `sys_getloadavg`. Each number counts the \
+            and 15 minutes. Each number counts the \
             processes that are running or waiting to run. A number larger than `cpuCount()` \
             means some processes are waiting.",
     params: &[],

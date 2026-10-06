@@ -1267,8 +1267,8 @@ pub(crate) const FILE_MODE: CoreEnum = CoreEnum {
 
 /// [`FILE_MODE`]'s reference card — `rule:core-api/reference-card`.
 const FILE_MODE_DOC: EnumDoc = EnumDoc {
-    short: "What an open handle may do, replacing `fopen`'s mode string. There is no binary or text \
-            flag: Novis text is octets, so every mode is what PHP would call binary.",
+    short: "What an open handle may do. There is no binary or text mode: every handle reads and \
+            writes the bytes unchanged.",
     cases: &[
         CaseDoc {
             name: "Read",

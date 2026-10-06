@@ -1915,7 +1915,7 @@ const JSON_AS_DOC: MethodDoc = MethodDoc {
             a JSON array as one instance per element.",
     params: &[ParamDoc {
         name: "maxDepth",
-        desc: "How deep the document may nest before it is refused, counted PHP's way: a scalar \
+        desc: "How deep the document may nest. A deeper document throws an error. A scalar \
                document is depth 1.",
         shape: &[],
     }],

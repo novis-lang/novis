@@ -1699,7 +1699,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "<code>$base</code> with every layer's entries written underneath it, the left-hand value winning — PHP's <code>array + array</code>, which does not compile here.",
+            "shortHtml": "Returns <code>$base</code> with the entries of every layer added under it. Where two have the same key, the value further left is kept.",
             "params": [
               {
                 "name": "base",
@@ -2005,7 +2005,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "How many entries fall under each distinct value, as <code>array_count_values</code> does — or under each answer of <code>by</code>, the group-and-count loop PHP has no function for.",
+            "shortHtml": "Counts how many entries have each distinct value. With <code>by</code>, it counts how many entries give each result of <code>by</code>.",
             "params": [
               {
                 "name": "a",
@@ -2467,7 +2467,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Partitions the entries into buckets named by what <code>$key</code> answers for each — the group-by loop PHP has no function for.",
+            "shortHtml": "Puts the entries into groups. <code>$key</code> is called for each entry, and its result is the name of the group the entry goes into.",
             "params": [
               {
                 "name": "a",
@@ -2641,7 +2641,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "The smallest entry under the natural order, as <code>min</code> with an array argument does — the order <code>sort</code> uses without a comparator, never PHP's loose comparison.",
+            "shortHtml": "Returns the smallest entry. Entries are compared in the order <code>sort</code> uses without a comparator.",
             "params": [
               {
                 "name": "a",
@@ -2685,7 +2685,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "The largest entry under the natural order, as <code>max</code> with an array argument does — the order <code>sort</code> uses without a comparator, never PHP's loose comparison.",
+            "shortHtml": "Returns the largest entry. Entries are compared in the order <code>sort</code> uses without a comparator.",
             "params": [
               {
                 "name": "a",
@@ -4501,7 +4501,7 @@
                 "descHtml": "The second buffer."
               }
             ],
-            "returnHtml": "<code>-1</code>, <code>0</code> or <code>1</code> — exactly those three, as PHP 8's <code>strcmp</code> answers."
+            "returnHtml": "<code>-1</code>, <code>0</code> or <code>1</code>, and no other value."
           },
           "slug": "compare",
           "url": "/reference/core/bytes/compare/",
@@ -4933,7 +4933,7 @@
                 "descHtml": "The same format string <code>pack</code> takes, an intrinsic and a sink; there is no second grammar for field names."
               }
             ],
-            "returnHtml": "The fields as a positional list, never PHP's name-keyed map: an <code>int</code> for <code>c</code>, a <code>uint</code> for every other integer code, a <code>float</code> for <code>G</code>/<code>g</code>/<code>E</code>/<code>e</code>, and a <code>bytes</code> for a buffer code with <code>A</code>'s and <code>Z</code>'s padding taken back off.",
+            "returnHtml": "The fields as a list, in order: an <code>int</code> for <code>c</code>, a <code>uint</code> for every other integer code, a <code>float</code> for <code>G</code>/<code>g</code>/<code>E</code>/<code>e</code>, and a <code>bytes</code> for a buffer code with <code>A</code>'s and <code>Z</code>'s padding taken back off.",
             "errors": [
               {
                 "error": "RuntimeError",
@@ -5685,7 +5685,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "The words this program was started with, past the program itself — PHP's <code>$argv</code> and <code>$argc</code> in one place. A program that declares a <code>#[Command]</code> reads its arguments off the table <code>Core\\Command::run</code> matched them against instead; this is the raw list, for a program that parses its own.",
+            "shortHtml": "Returns the arguments this program was started with, without the program name. A program that declares a <code>#[Command]</code> gets its arguments from <code>Core\\Command::run</code> instead. This is the raw list, for a program that parses its own arguments.",
             "returnHtml": "An <code>array&lt;tainted string&gt;</code> in the order the shell wrote them, empty for a program started with none. Every element is <code>tainted</code>: the words came from outside the program's own text, so a path, a URL or a query built from one passes its own launderer first. The program's own name is not an element — nothing indexes it away, and <code>$argv[0]</code> has no spelling here."
           },
           "slug": "arguments",
@@ -5816,7 +5816,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Reports whether one standard stream is attached to a terminal — <code>posix_isatty</code> and <code>stream_isatty</code>, which PHP splits between two extensions. Resolved once for the process, so two calls in one run cannot disagree.",
+            "shortHtml": "Checks whether one standard stream is attached to a terminal. The check is made once for the process, so two calls in one run always give the same result.",
             "params": [
               {
                 "name": "stream",
@@ -6221,7 +6221,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Asks <code>$question</code> with the terminal's echo turned off, so a password is not left on the screen or in a scrollback buffer — PHP's <code>readline</code> has no spelling for this at all and every program shells out to <code>stty -echo</code> for it.",
+            "shortHtml": "Prints <code>$question</code> and reads the answer with the terminal's echo turned off. A password typed here does not stay on the screen or in the scrollback buffer.",
             "params": [
               {
                 "name": "question",
@@ -6775,7 +6775,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Answers <code>$text</code> as a <code>Core\\Cli\\Text</code> wearing <code>$style</code>, with the text itself neutralized exactly as <code>plain</code> neutralizes it — so the only control bytes in the answer are the ones the style put there. Replaces the <code>&quot;\\e[31m…&quot;</code> string every PHP CLI program builds by hand.",
+            "shortHtml": "Answers <code>$text</code> as a <code>Core\\Cli\\Text</code> wearing <code>$style</code>, with the text itself neutralized exactly as <code>plain</code> neutralizes it — so the only control bytes in the answer are the ones the style put there.",
             "params": [
               {
                 "name": "text",
@@ -7252,7 +7252,7 @@
                 "descHtml": "The next octets; a <code>string</code> is read as its UTF-8 bytes."
               }
             ],
-            "returnHtml": "Nothing. PHP's <code>deflate_add</code> answers whatever its flush mode let the coder emit, and there is no such answer here: the frame is written whole at <code>finish</code>.",
+            "returnHtml": "Nothing. The compressed data is returned whole by <code>finish</code>.",
             "errors": [
               {
                 "error": "RuntimeError",
@@ -7343,7 +7343,7 @@
                 "descHtml": "The next octets of the compressed frame. Nothing is decoded yet, so nothing here is refused for size — the bound is the whole stream's and <code>finish</code> applies it."
               }
             ],
-            "returnHtml": "Nothing. PHP's <code>inflate_add</code> answers whatever its flush mode let the decoder emit, and a bound charged against such an answer would be a bound per call rather than per stream.",
+            "returnHtml": "Nothing. The size limit counts the whole stream, not each call.",
             "errors": [
               {
                 "error": "RuntimeError",
@@ -9008,7 +9008,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Marks <code>$values</code> as a run of bound values rather than one, so the placeholder it is bound to expands into a parenthesised list of that many — the <code>IN (?, ?, ?)</code> every PHP program builds with <code>implode</code> and <code>array_fill</code>. Nothing else in a statement expands, which is what keeps the SQL text independent of what a value turned out to be.",
+            "shortHtml": "Binds <code>$values</code> as a list of values. The placeholder it is bound to becomes a list in parentheses with one placeholder per value, such as <code>IN (?, ?, ?)</code>. Nothing else in a statement changes the SQL text.",
             "params": [
               {
                 "name": "values",
@@ -10066,7 +10066,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "The whole row as a string-keyed array, in the server's column order — <code>FETCH_ASSOC</code>, which is the only one of PHP's three fetch shapes that survives.",
+            "shortHtml": "Returns the whole row as an array with string keys, in the server's column order.",
             "returnHtml": "An <code>array&lt;mixed&gt;</code> keyed by column label, a NULL column being a <code>null</code> entry that is present rather than absent."
           },
           "slug": "toarray",
@@ -10197,7 +10197,7 @@
             "errors": [
               {
                 "error": "LogicError",
-                "descHtml": "The row has no column with that name, the column is not an integer at all, or it is an unsigned value past <code>int</code>'s ceiling — which PHP would hand back as a <code>float</code> that no longer equals it."
+                "descHtml": "The row has no column with that name, the column is not an integer, or it is an unsigned value larger than the largest <code>int</code>."
               }
             ]
           },
@@ -10362,7 +10362,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "One column as <code>decimal</code> — <code>DECIMAL</code>, <code>NUMERIC</code> and <code>MONEY</code>, exact, where PHP hands back a string to parse.",
+            "shortHtml": "Returns one column as an exact <code>decimal</code>. It reads <code>DECIMAL</code>, <code>NUMERIC</code> and <code>MONEY</code> columns.",
             "params": [
               {
                 "name": "name",
@@ -12033,7 +12033,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "<code>$value</code> cut to <code>$scale</code> places towards negative infinity — the direction PHP's <code>floor</code> goes, kept exact and answering a <code>decimal</code> rather than a <code>float</code>.",
+            "shortHtml": "Rounds <code>$value</code> to <code>$scale</code> places, toward negative infinity. The result is an exact <code>decimal</code>.",
             "params": [
               {
                 "name": "value",
@@ -12089,7 +12089,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "<code>$value</code> cut to <code>$scale</code> places towards positive infinity — the direction PHP's <code>ceil</code> goes, kept exact and answering a <code>decimal</code> rather than a <code>float</code>.",
+            "shortHtml": "Rounds <code>$value</code> to <code>$scale</code> places, toward positive infinity. The result is an exact <code>decimal</code>.",
             "params": [
               {
                 "name": "value",
@@ -12687,7 +12687,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Spells <code>$b</code> in RFC 4648 § 6's base32 alphabet, upper case and unpadded — the form an <code>otpauth:</code> secret is written in; PHP has no counterpart.",
+            "shortHtml": "Writes <code>$b</code> in the base32 alphabet of RFC 4648 § 6, in upper case and with no padding. An <code>otpauth:</code> secret is written this way.",
             "params": [
               {
                 "name": "b",
@@ -16191,7 +16191,7 @@
             "params": [
               {
                 "name": "maxDepth",
-                "descHtml": "How deep the document may nest before it is refused, counted PHP's way: a scalar document is depth 1."
+                "descHtml": "How deep the document may nest. A deeper document throws an error. A scalar document is depth 1."
               }
             ],
             "returnHtml": "A new <code>T</code> built from the document's fields, or one <code>T</code> per element for an <code>array&lt;T&gt;</code>. Every text field of <code>T</code> has to declare <code>tainted</code>, because these are octets another host chose and the field is where they land.",
@@ -18978,7 +18978,7 @@
               },
               {
                 "name": "maxDepth",
-                "descHtml": "The deepest nesting accepted, counted as PHP's <code>$depth</code> is — a scalar document is depth 1, <code>[1]</code> is depth 2; <code>512</code> by default and at most <code>1024</code>."
+                "descHtml": "The deepest nesting allowed. A scalar document is depth 1, and <code>[1]</code> is depth 2. The default is <code>512</code>, and the largest value is <code>1024</code>."
               }
             ],
             "returnHtml": "The decoded value: <code>null</code>, <code>bool</code>, <code>int</code>, <code>float</code>, <code>string</code>, or an array; a JSON object is always a string-keyed array, never an object.",
@@ -19035,7 +19035,7 @@
               },
               {
                 "name": "maxDepth",
-                "descHtml": "The deepest nesting accepted, counted as PHP's <code>$depth</code> is — a scalar document is depth 1, <code>[1]</code> is depth 2; <code>512</code> by default and at most <code>1024</code>."
+                "descHtml": "The deepest nesting allowed. A scalar document is depth 1, and <code>[1]</code> is depth 2. The default is <code>512</code>, and the largest value is <code>1024</code>."
               }
             ],
             "returnHtml": "A new <code>T</code> built from the document's fields, or — for an <code>array&lt;C&gt;</code> — one new <code>C</code> per element, in the document's own order.",
@@ -20138,23 +20138,23 @@
           ],
           "raw": "RoundMode { HalfUp, HalfDown, HalfEven, HalfOdd, Up, Down }",
           "doc": {
-            "shortHtml": "How <code>Core\\Math::round</code> settles a value between two neighbours — PHP's four <code>PHP_ROUND_HALF_*</code> constants plus the two whole-direction rules <code>ceil</code> and <code>floor</code> only cover at a precision of zero.",
+            "shortHtml": "Chooses how <code>Core\\Math::round</code> rounds a value that lies between two results. Four cases decide what happens to a value exactly halfway, and two always round in one direction.",
             "cases": [
               {
                 "name": "HalfUp",
-                "descHtml": "A tie goes away from zero — <code>PHP_ROUND_HALF_UP</code>, and <code>round</code>'s default there and here."
+                "descHtml": "A value exactly halfway rounds away from zero. This is the default of <code>round</code>."
               },
               {
                 "name": "HalfDown",
-                "descHtml": "A tie goes toward zero — <code>PHP_ROUND_HALF_DOWN</code>."
+                "descHtml": "A value exactly halfway rounds toward zero."
               },
               {
                 "name": "HalfEven",
-                "descHtml": "A tie goes to the even neighbour — banker's rounding, <code>PHP_ROUND_HALF_EVEN</code>, the rule that does not accumulate a bias over many values."
+                "descHtml": "A value exactly halfway rounds to the even neighbour. This is banker's rounding, and it does not build up a bias over many values."
               },
               {
                 "name": "HalfOdd",
-                "descHtml": "A tie goes to the odd neighbour — <code>PHP_ROUND_HALF_ODD</code>."
+                "descHtml": "A value exactly halfway rounds to the odd neighbour."
               },
               {
                 "name": "Up",
@@ -20171,47 +20171,47 @@
       "constants": [
         {
           "name": "PI",
-          "descHtml": "The ratio of a circle's circumference to its diameter, <code>3.14159…</code> as the nearest <code>float</code> — PHP's <code>M_PI</code>."
+          "descHtml": "The ratio of a circle's circumference to its diameter, <code>3.14159…</code> as the nearest <code>float</code>."
         },
         {
           "name": "TAU",
-          "descHtml": "The ratio of a circle's circumference to its radius, <code>2 <em> PI</code> or <code>6.28318…</code> as the nearest <code>float</code> — a full turn in radians, which PHP spells <code>2 </em> M_PI</code>."
+          "descHtml": "The ratio of a circle's circumference to its radius, <code>2 * PI</code> or <code>6.28318…</code> as the nearest <code>float</code>. This is a full turn in radians."
         },
         {
           "name": "E",
-          "descHtml": "Euler's number, the base of the natural logarithm, <code>2.71828…</code> as the nearest <code>float</code> — PHP's <code>M_E</code>, and <code>log</code>'s default base."
+          "descHtml": "Euler's number, the base of the natural logarithm, <code>2.71828…</code> as the nearest <code>float</code>. It is the default base of <code>log</code>."
         },
         {
           "name": "EPSILON",
-          "descHtml": "The smallest <code>float</code> that added to <code>1.0</code> gives a value other than <code>1.0</code>, <code>2.220446049250313e-16</code> — PHP's <code>PHP_FLOAT_EPSILON</code>, and the tolerance to compare two floats with in place of <code>==</code>."
+          "descHtml": "The smallest <code>float</code> that added to <code>1.0</code> gives a value other than <code>1.0</code>, <code>2.220446049250313e-16</code>. Use it as the tolerance when you compare two floats, in place of <code>==</code>."
         },
         {
           "name": "INT_MAX",
-          "descHtml": "The largest <code>int</code>, <code>9223372036854775807</code> — PHP's <code>PHP_INT_MAX</code>."
+          "descHtml": "The largest <code>int</code>, <code>9223372036854775807</code>."
         },
         {
           "name": "INT_MIN",
-          "descHtml": "The smallest <code>int</code>, <code>-9223372036854775808</code> — PHP's <code>PHP_INT_MIN</code>, and the one value <code>abs</code> has no <code>int</code> answer for."
+          "descHtml": "The smallest <code>int</code>, <code>-9223372036854775808</code>. It is the one value <code>abs</code> cannot return as an <code>int</code>."
         },
         {
           "name": "UINT_MAX",
-          "descHtml": "The largest <code>uint</code>, <code>18446744073709551615</code> — a type PHP does not have, so there is no constant to replace."
+          "descHtml": "The largest <code>uint</code>, <code>18446744073709551615</code>."
         },
         {
           "name": "FLOAT_MAX",
-          "descHtml": "The largest finite <code>float</code>, <code>1.7976931348623157e308</code> — PHP's <code>PHP_FLOAT_MAX</code>; the negative extreme is <code>-FLOAT_MAX</code>."
+          "descHtml": "The largest finite <code>float</code>, <code>1.7976931348623157e308</code>. The most negative one is <code>-FLOAT_MAX</code>."
         },
         {
           "name": "FLOAT_MIN",
-          "descHtml": "The smallest positive normal <code>float</code>, <code>2.2250738585072014e-308</code> — PHP's <code>PHP_FLOAT_MIN</code>, and not the negative extreme, which is <code>-FLOAT_MAX</code>."
+          "descHtml": "The smallest positive normal <code>float</code>, <code>2.2250738585072014e-308</code>. The most negative <code>float</code> is <code>-FLOAT_MAX</code>."
         },
         {
           "name": "NAN",
-          "descHtml": "The <code>float</code> that is not a number — PHP's <code>NAN</code> — equal to nothing, itself included, so <code>isNan</code> is the only test for it."
+          "descHtml": "The <code>float</code> that is not a number. It is equal to nothing, itself included, so <code>isNan</code> is the only test for it."
         },
         {
           "name": "INFINITY",
-          "descHtml": "Positive infinity as a <code>float</code>, past every finite value — PHP's <code>INF</code>; the negative one is <code>-INFINITY</code>, and <code>isFinite</code> is <code>false</code> for both."
+          "descHtml": "Positive infinity as a <code>float</code>, larger than every finite value. Negative infinity is <code>-INFINITY</code>, and <code>isFinite</code> is <code>false</code> for both."
         }
       ],
       "members": [
@@ -20284,7 +20284,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Returns <code>-1</code> when <code>$n</code> is below zero, <code>1</code> when it is above zero and <code>0</code> when it is zero. This replaces PHP's <code>$n &lt;=&gt; 0</code>.",
+            "shortHtml": "Returns <code>-1</code> when <code>$n</code> is below zero, <code>1</code> when it is above zero and <code>0</code> when it is zero.",
             "params": [
               {
                 "name": "n",
@@ -20340,7 +20340,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Returns the smaller of two values. This replaces PHP's <code>min</code> with two values. For the smallest value in an array, use <code>Core\\Arr::min</code>.",
+            "shortHtml": "Returns the smaller of two values. For the smallest value in an array, use <code>Core\\Arr::min</code>.",
             "params": [
               {
                 "name": "a",
@@ -20396,7 +20396,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Returns the larger of two values. This replaces PHP's <code>max</code> with two values. For the largest value in an array, use <code>Core\\Arr::max</code>.",
+            "shortHtml": "Returns the larger of two values. For the largest value in an array, use <code>Core\\Arr::max</code>.",
             "params": [
               {
                 "name": "a",
@@ -20460,7 +20460,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Keeps <code>$n</code> between <code>$low</code> and <code>$high</code>. It replaces PHP's <code>min(max($n, $low), $high)</code>.",
+            "shortHtml": "Keeps <code>$n</code> between <code>$low</code> and <code>$high</code>.",
             "params": [
               {
                 "name": "n",
@@ -20635,7 +20635,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Rounds <code>$n</code> to a number of decimal places. This replaces PHP's <code>round</code>. The <code>mode</code> option chooses the result for a value exactly halfway between two results.",
+            "shortHtml": "Rounds <code>$n</code> to a number of decimal places. The <code>mode</code> option chooses the result for a value exactly halfway between two results.",
             "params": [
               {
                 "name": "n",
@@ -20689,7 +20689,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Divides <code>$a</code> by <code>$b</code> and drops the remainder, so the result moves toward zero. This replaces PHP's <code>intdiv</code>.",
+            "shortHtml": "Divides <code>$a</code> by <code>$b</code> and drops the remainder, so the result moves toward zero.",
             "params": [
               {
                 "name": "a",
@@ -20745,7 +20745,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Returns the remainder after dividing <code>$a</code> by <code>$b</code>, for <code>float</code> values. The result has the sign of <code>$a</code>. This replaces PHP's <code>fmod</code>. For whole numbers, use the <code>%</code> operator.",
+            "shortHtml": "Returns the remainder after dividing <code>$a</code> by <code>$b</code>, for <code>float</code> values. The result has the sign of <code>$a</code>. For whole numbers, use the <code>%</code> operator.",
             "params": [
               {
                 "name": "a",
@@ -20760,7 +20760,7 @@
             "errors": [
               {
                 "error": "ArithmeticError",
-                "descHtml": "When <code>$b</code> is zero. PHP's <code>fmod</code> returns <code>NaN</code> here."
+                "descHtml": "When <code>$b</code> is zero."
               }
             ]
           },
@@ -20801,7 +20801,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Divides <code>$a</code> by <code>$b</code>. When <code>$b</code> is zero, it returns <code>INFINITY</code>, <code>-INFINITY</code> or <code>NaN</code>. The <code>/</code> operator throws an error there. This replaces PHP's <code>fdiv</code>.",
+            "shortHtml": "Divides <code>$a</code> by <code>$b</code>. When <code>$b</code> is zero, it returns <code>INFINITY</code>, <code>-INFINITY</code> or <code>NaN</code>. The <code>/</code> operator throws an error there.",
             "params": [
               {
                 "name": "a",
@@ -20851,7 +20851,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Returns the greatest common divisor of two integers. This is the largest integer that divides both with no remainder. This replaces PHP's <code>gmp_gcd</code>.",
+            "shortHtml": "Returns the greatest common divisor of two integers. This is the largest integer that divides both with no remainder.",
             "params": [
               {
                 "name": "a",
@@ -20907,7 +20907,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Returns the least common multiple of two integers. This is the smallest positive integer that both divide with no remainder. This replaces PHP's <code>gmp_lcm</code>.",
+            "shortHtml": "Returns the least common multiple of two integers. This is the smallest positive integer that both divide with no remainder.",
             "params": [
               {
                 "name": "a",
@@ -20955,7 +20955,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Returns the square root of <code>$n</code>. This replaces PHP's <code>sqrt</code>.",
+            "shortHtml": "Returns the square root of <code>$n</code>.",
             "params": [
               {
                 "name": "n",
@@ -20993,7 +20993,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Returns the cube root of <code>$n</code>. A negative <code>$n</code> works too. PHP code often writes <code>pow($n, 1/3)</code>, which gives <code>NaN</code> for a negative number.",
+            "shortHtml": "Returns the cube root of <code>$n</code>. A negative <code>$n</code> works too, so <code>cbrt(-8.0)</code> is <code>-2.0</code>.",
             "params": [
               {
                 "name": "n",
@@ -21039,7 +21039,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Returns the length of the longest side of a right triangle. <code>$a</code> and <code>$b</code> are the other two sides. The result is <code>sqrt($a <em> $a + $b </em> $b)</code>, but it stays correct when <code>$a * $a</code> is too big for a <code>float</code>. This replaces PHP's <code>hypot</code>.",
+            "shortHtml": "Returns the length of the longest side of a right triangle. <code>$a</code> and <code>$b</code> are the other two sides. The result is <code>sqrt($a <em> $a + $b </em> $b)</code>, but it stays correct when <code>$a * $a</code> is too big for a <code>float</code>.",
             "params": [
               {
                 "name": "a",
@@ -21081,7 +21081,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Returns <code>E</code> raised to the power <code>$n</code>. <code>E</code> is about <code>2.718</code>. This replaces PHP's <code>exp</code>.",
+            "shortHtml": "Returns <code>E</code> raised to the power <code>$n</code>. <code>E</code> is about <code>2.718</code>.",
             "params": [
               {
                 "name": "n",
@@ -21124,7 +21124,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Returns the logarithm of <code>$n</code>: the power you raise <code>base</code> to to get <code>$n</code>. The base is <code>E</code> unless you give one. This replaces PHP's <code>log</code>, <code>log10</code> and <code>log2</code>.",
+            "shortHtml": "Returns the logarithm of <code>$n</code>: the power you raise <code>base</code> to to get <code>$n</code>. The base is <code>E</code> unless you give one.",
             "params": [
               {
                 "name": "n",
@@ -21139,7 +21139,7 @@
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "When <code>base</code> is zero or negative. PHP throws a <code>ValueError</code> here."
+                "descHtml": "When <code>base</code> is zero or negative."
               }
             ]
           },
@@ -21450,7 +21450,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Converts an angle from degrees to radians. It computes <code>($degrees / 180) * PI</code>, the same way as PHP.",
+            "shortHtml": "Converts an angle from degrees to radians. It computes <code>($degrees / 180) * PI</code>.",
             "params": [
               {
                 "name": "degrees",
@@ -21488,7 +21488,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Converts an angle from radians to degrees. It computes <code>($radians / PI) * 180</code>, the same way as PHP.",
+            "shortHtml": "Converts an angle from radians to degrees. It computes <code>($radians / PI) * 180</code>.",
             "params": [
               {
                 "name": "radians",
@@ -21526,7 +21526,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Returns <code>true</code> when <code>$n</code> is <code>NaN</code>, a value that means &quot;not a number&quot;. <code>NaN</code> is not equal to any value, itself included, so <code>==</code> cannot find it. This replaces PHP's <code>is_nan</code>.",
+            "shortHtml": "Returns <code>true</code> when <code>$n</code> is <code>NaN</code>, a value that means &quot;not a number&quot;. <code>NaN</code> is not equal to any value, itself included, so <code>==</code> cannot find it.",
             "params": [
               {
                 "name": "n",
@@ -21564,7 +21564,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Returns <code>true</code> when <code>$n</code> is an ordinary number. <code>INFINITY</code>, <code>-INFINITY</code> and <code>NaN</code> are not ordinary numbers. This replaces PHP's <code>is_finite</code>. PHP's <code>is_infinite($n)</code> is <code>!isFinite($n) &amp;&amp; !isNan($n)</code>.",
+            "shortHtml": "Returns <code>true</code> when <code>$n</code> is an ordinary number. <code>INFINITY</code>, <code>-INFINITY</code> and <code>NaN</code> are not ordinary numbers. To test for infinity, write <code>!isFinite($n) &amp;&amp; !isNan($n)</code>.",
             "params": [
               {
                 "name": "n",
@@ -21610,7 +21610,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Writes the number <code>$n</code> in base <code>$base</code> and returns the digits as a <code>string</code>. This replaces PHP's <code>decbin</code>, <code>dechex</code>, <code>decoct</code> and <code>base_convert</code>. Digits above <code>9</code> are the lower case letters <code>a</code> to <code>z</code>.",
+            "shortHtml": "Writes the number <code>$n</code> in base <code>$base</code> and returns the digits as a <code>string</code>. Digits above <code>9</code> are the lower case letters <code>a</code> to <code>z</code>.",
             "params": [
               {
                 "name": "n",
@@ -21625,7 +21625,7 @@
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "When <code>$base</code> is outside <code>2</code> to <code>36</code>. PHP's <code>base_convert</code> returns <code>0</code> here."
+                "descHtml": "When <code>$base</code> is outside <code>2</code> to <code>36</code>."
               }
             ]
           },
@@ -21666,7 +21666,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Reads a number written in base <code>$base</code> and returns it as an <code>int</code>. This replaces PHP's <code>bindec</code>, <code>hexdec</code>, <code>octdec</code> and <code>base_convert</code>. Every character must be a digit of the base. PHP skips a character that is not.",
+            "shortHtml": "Reads a number written in base <code>$base</code> and returns it as an <code>int</code>. Every character must be a digit of the base.",
             "params": [
               {
                 "name": "s",
@@ -21731,7 +21731,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Writes a number as text for a person to read, with a fixed number of decimals. This replaces PHP's <code>number_format</code>. The digits are not grouped unless you give a <code>groupSeparator</code>.",
+            "shortHtml": "Writes a number as text for a person to read, with a fixed number of decimals. The digits are not grouped unless you give a <code>groupSeparator</code>.",
             "params": [
               {
                 "name": "n",
@@ -23908,7 +23908,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Returns the number the operating system gives this process. This replaces PHP's <code>getmypid</code>. The number belongs to the whole process. Two requests served by the same process get the same number.",
+            "shortHtml": "Returns the number the operating system gives this process. The number belongs to the whole process. Two requests served by the same process get the same number.",
             "returnHtml": "The process number, which is larger than 0."
           },
           "slug": "pid",
@@ -23931,7 +23931,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Returns the name of the machine this program runs on. This replaces PHP's <code>gethostname</code>. It reads the name the machine has for itself, and it does not use the network.",
+            "shortHtml": "Returns the name of the machine this program runs on. It reads the name the machine has for itself, and it does not use the network.",
             "returnHtml": "The machine's name.",
             "errors": [
               {
@@ -23989,7 +23989,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Returns the most memory this process has used so far, in bytes. This replaces the <code>ru_maxrss</code> figure of PHP's <code>getrusage</code>. On Windows it is the peak working set. The number covers every request the process has served, so it never gets smaller. For the memory of one request, use <code>Core\\Budget</code>.",
+            "shortHtml": "Returns the most memory this process has used so far, in bytes. On Windows it is the peak working set. The number covers every request the process has served, so it never gets smaller. For the memory of one request, use <code>Core\\Budget</code>.",
             "returnHtml": "The most memory the process has used, in bytes.",
             "errors": [
               {
@@ -24018,7 +24018,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Returns how busy the machine is, as three numbers: the averages over the last 1, 5 and 15 minutes. This replaces PHP's <code>sys_getloadavg</code>. Each number counts the processes that are running or waiting to run. A number larger than <code>cpuCount()</code> means some processes are waiting.",
+            "shortHtml": "Returns how busy the machine is, as three numbers: the averages over the last 1, 5 and 15 minutes. Each number counts the processes that are running or waiting to run. A number larger than <code>cpuCount()</code> means some processes are waiting.",
             "returnHtml": "Three floats: the averages over 1, 5 and 15 minutes, in that order.",
             "errors": [
               {
@@ -24079,7 +24079,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Runs <code>$fn</code> and returns everything it printed with <code>echo</code>. This replaces PHP's <code>ob_start</code> and <code>ob_get_clean</code>. The printed text does not reach the output. You can call <code>capture</code> inside another <code>capture</code>, and each call collects only what its own function printed.",
+            "shortHtml": "Runs <code>$fn</code> and returns everything it printed with <code>echo</code>. The printed text does not reach the output. You can call <code>capture</code> inside another <code>capture</code>, and each call collects only what its own function printed.",
             "params": [
               {
                 "name": "fn",
@@ -24324,7 +24324,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Returns the last part of <code>$path</code>: the file name, or the name of the last folder. A separator at the end is ignored, so <code>/srv/shop/</code> gives <code>shop</code>. This replaces PHP's <code>basename</code>.",
+            "shortHtml": "Returns the last part of <code>$path</code>: the file name, or the name of the last folder. A separator at the end is ignored, so <code>/srv/shop/</code> gives <code>shop</code>.",
             "params": [
               {
                 "name": "path",
@@ -24371,7 +24371,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Returns the folder that contains <code>$path</code>. The option <code>levels</code> goes up more than one folder. This replaces PHP's <code>dirname</code>.",
+            "shortHtml": "Returns the folder that contains <code>$path</code>. The option <code>levels</code> goes up more than one folder.",
             "params": [
               {
                 "name": "path",
@@ -24382,7 +24382,7 @@
                 "descHtml": "How many parts to remove from the end. The default is <code>1</code>. With <code>0</code>, the result is the path with its separators cleaned up. A number larger than the path stops at the root."
               }
             ],
-            "returnHtml": "The folder, written with <code>Path::SEPARATOR</code>. When nothing is left, the result is the root for an absolute path and <code>.</code> for a relative one. <code>dirname('')</code> is <code>.</code>, and PHP returns <code>''</code>."
+            "returnHtml": "The folder, written with <code>Path::SEPARATOR</code>. When nothing is left, the result is the root for an absolute path and <code>.</code> for a relative one. <code>dirname('')</code> is <code>.</code>."
           },
           "slug": "dirname",
           "url": "/reference/core/path/dirname/",
@@ -24413,14 +24413,14 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Returns the extension of the last part of <code>$path</code>: the text after the last <code>.</code>, without the dot. This replaces PHP's <code>pathinfo($path, PATHINFO_EXTENSION)</code>.",
+            "shortHtml": "Returns the extension of the last part of <code>$path</code>: the text after the last <code>.</code>, without the dot.",
             "params": [
               {
                 "name": "path",
                 "descHtml": "The path. <code>/</code> and <code>\\</code> are both separators on every platform."
               }
             ],
-            "returnHtml": "The extension, or <code>null</code> when there is none. A name that starts with a dot, such as <code>.gitignore</code>, has none. A name that ends with a dot, such as <code>report.</code>, has none too. PHP returns <code>gitignore</code> and <code>''</code> for these two."
+            "returnHtml": "The extension, or <code>null</code> when there is none. A name that starts with a dot, such as <code>.gitignore</code>, has none. A name that ends with a dot, such as <code>report.</code>, has none too."
           },
           "slug": "extension",
           "url": "/reference/core/path/extension/",
@@ -24459,7 +24459,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Returns <code>$path</code> with the extension of its last part changed to <code>$extension</code>. When <code>$extension</code> is <code>null</code>, the extension is removed. PHP has no function for this.",
+            "shortHtml": "Returns <code>$path</code> with the extension of its last part changed to <code>$extension</code>. When <code>$extension</code> is <code>null</code>, the extension is removed.",
             "params": [
               {
                 "name": "path",
@@ -24515,7 +24515,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Adds each of <code>$segments</code> to the end of <code>$base</code>, with one separator between each part. This replaces the <code>$a . &quot;/&quot; . $b</code> that PHP programs write. Only <code>$base</code> decides where the result starts. A segment that starts with <code>/</code> or a drive is added after <code>$base</code> and does not replace it.",
+            "shortHtml": "Adds each of <code>$segments</code> to the end of <code>$base</code>, with one separator between each part. Only <code>$base</code> decides where the result starts. A segment that starts with <code>/</code> or a drive is added after <code>$base</code> and does not replace it.",
             "params": [
               {
                 "name": "base",
@@ -24557,7 +24557,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Splits <code>$path</code> into its parts: the folders and the file name, in order. This replaces PHP's <code>explode(&quot;/&quot;, $path)</code>. <code>Core\\Path::join</code> puts the parts back together into the same path.",
+            "shortHtml": "Splits <code>$path</code> into its parts: the folders and the file name, in order. <code>Core\\Path::join</code> puts the parts back together into the same path.",
             "params": [
               {
                 "name": "path",
@@ -24679,7 +24679,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Returns the path that leads from the folder <code>$base</code> to <code>$path</code>. The <code>.</code> and <code>..</code> parts of both paths are removed first, as <code>Core\\Path::normalize</code> does. PHP has no function for this.",
+            "shortHtml": "Returns the path that leads from the folder <code>$base</code> to <code>$path</code>. The <code>.</code> and <code>..</code> parts of both paths are removed first, as <code>Core\\Path::normalize</code> does.",
             "params": [
               {
                 "name": "path",
@@ -24879,7 +24879,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Runs the program at <code>$path</code> with the arguments in <code>$argv</code>, and waits until it ends. The program is started directly, never through a shell, so nothing needs escaping. Needs the <code>process.exec</code> capability for the program. This replaces PHP's <code>exec</code>, <code>system</code>, <code>shell_exec</code>, <code>passthru</code> and the backtick operator.",
+            "shortHtml": "Runs the program at <code>$path</code> with the arguments in <code>$argv</code>, and waits until it ends. The program is started directly, never through a shell, so nothing needs escaping. Needs the <code>process.exec</code> capability for the program.",
             "params": [
               {
                 "name": "path",
@@ -24968,7 +24968,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Starts the program at <code>$path</code> with the arguments in <code>$argv</code>, and returns at once while the program runs. The handle it returns reads the program's output and writes to its input. The program is started directly, never through a shell. Needs the <code>process.exec</code> capability for the program. This replaces PHP's <code>proc_open</code>.",
+            "shortHtml": "Starts the program at <code>$path</code> with the arguments in <code>$argv</code>, and returns at once while the program runs. The handle it returns reads the program's output and writes to its input. The program is started directly, never through a shell. Needs the <code>process.exec</code> capability for the program.",
             "params": [
               {
                 "name": "path",
@@ -27069,7 +27069,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Which of the language's representations <code>$value</code> currently holds. The single replacement for PHP's fourteen <code>is_*</code> predicates and <code>gettype</code>, which are only meaningful on a <code>mixed</code> at all.",
+            "shortHtml": "Returns the kind of value <code>$value</code> is right now. Use it on a <code>mixed</code> value.",
             "params": [
               {
                 "name": "value",
@@ -28127,7 +28127,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Returns the parameters of the method, in the order they are written. It replaces PHP's <code>ReflectionMethod::getParameters</code>.",
+            "shortHtml": "Returns the parameters of the method, in the order they are written.",
             "returnHtml": "One <code>Core\\Reflect\\ParameterInfo</code> for each parameter. <code>$this</code> is not included. For a method the compiler adds, such as the constructor of <code>LogicError</code>, the array is empty. <code>parameterCount</code> still returns how many arguments that method takes."
           },
           "slug": "parameters",
@@ -28353,19 +28353,19 @@
               },
               {
                 "name": "caseInsensitive",
-                "descHtml": "<code>true</code> makes letters match in upper and lower case. PHP writes this as <code>i</code>. The default is <code>false</code>."
+                "descHtml": "<code>true</code> makes letters match in upper and lower case. The default is <code>false</code>."
               },
               {
                 "name": "multiline",
-                "descHtml": "<code>true</code> makes <code>^</code> and <code>$</code> match at the start and end of every line. PHP writes this as <code>m</code>. The default is <code>false</code>."
+                "descHtml": "<code>true</code> makes <code>^</code> and <code>$</code> match at the start and end of every line. The default is <code>false</code>."
               },
               {
                 "name": "dotAll",
-                "descHtml": "<code>true</code> makes <code>.</code> match a newline too. PHP writes this as <code>s</code>. The default is <code>false</code>."
+                "descHtml": "<code>true</code> makes <code>.</code> match a newline too. The default is <code>false</code>."
               },
               {
                 "name": "ungreedy",
-                "descHtml": "<code>true</code> makes <code><em></code> and <code>+</code> match as little as possible, and <code></em>?</code> as much as possible. PHP writes this as <code>U</code>. The default is <code>false</code>."
+                "descHtml": "<code>true</code> makes <code><em></code> and <code>+</code> match as little as possible, and <code></em>?</code> as much as possible. The default is <code>false</code>."
               }
             ],
             "returnHtml": "The compiled <code>Core\\Regex\\Pattern</code>. The pattern is checked here, so a mistake in it throws at this line and not at its first use.",
@@ -28615,7 +28615,7 @@
               },
               {
                 "name": "replacement",
-                "descHtml": "The text that replaces each match. <code>$1</code> to <code>$99</code> insert a numbered group, and <code>${name}</code> inserts a named group. Write <code>${1}0</code> when a digit follows the group. <code>$$</code> is one <code>$</code>. A group the pattern does not have inserts nothing. PHP's <code>\\1</code> is not a group here."
+                "descHtml": "The text that replaces each match. <code>$1</code> to <code>$99</code> insert a numbered group, and <code>${name}</code> inserts a named group. Write <code>${1}0</code> when a digit follows the group. <code>$$</code> is one <code>$</code>. A group the pattern does not have inserts nothing. <code>\\1</code> is not a group."
               },
               {
                 "name": "limit",
@@ -28765,7 +28765,7 @@
               },
               {
                 "name": "limit",
-                "descHtml": "The largest number of pieces. The last piece contains the rest of the text. A negative number removes that many pieces from the end. <code>0</code> returns the whole text as one piece. The default is no limit. PHP's <code>preg_split</code> reads <code>0</code> and <code>-1</code> as no limit."
+                "descHtml": "The largest number of pieces. The last piece contains the rest of the text. A negative number removes that many pieces from the end. <code>0</code> returns the whole text as one piece. The default is no limit."
               },
               {
                 "name": "keepEmpty",
@@ -28816,7 +28816,7 @@
                 "descHtml": "The text to match exactly."
               }
             ],
-            "returnHtml": "The escaped pattern. A text with no special characters is returned unchanged. The escaped characters are not the same as PHP's <code>preg_quote</code>: <code>&amp;</code> and <code>~</code> are escaped here, and <code>!</code>, <code>:</code>, <code>&lt;</code>, <code>=</code>, <code>&gt;</code> and <code>/</code> are not."
+            "returnHtml": "The escaped pattern. A text with no special characters is returned unchanged. <code>&amp;</code> and <code>~</code> are escaped, and <code>!</code>, <code>:</code>, <code>&lt;</code>, <code>=</code>, <code>&gt;</code> and <code>/</code> are not."
           },
           "slug": "quote",
           "url": "/reference/core/regex/quote/",
@@ -28865,7 +28865,7 @@
           "implemented": true,
           "notesHtml": "one group's text; <code>null</code> where the pattern declares it and this match did not reach it, and a <strong>throw</strong> for a group the pattern does not declare",
           "doc": {
-            "shortHtml": "Returns the text of one group, by its number or by its name. PHP reads this as <code>$matches[$group]</code> after <code>preg_match</code>.",
+            "shortHtml": "Returns the text of one group, by its number or by its name.",
             "params": [
               {
                 "name": "group",
@@ -29083,7 +29083,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "One query-string parameter by name, read with PHP's bracket convention — the same parse <code>Core\\Uri::parseQuery</code> performs, so <code>a[b]=c</code> is reached as a nested array under <code>a</code>.",
+            "shortHtml": "Returns one query-string parameter by its name. The query is read the same way <code>Core\\Uri::parseQuery</code> reads it, so <code>a[b]=c</code> gives a nested array under <code>a</code>.",
             "params": [
               {
                 "name": "name",
@@ -29171,7 +29171,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Returns the value of one request header by its name. It replaces the <code>HTTP_</code> entries of PHP's <code>$_SERVER</code>.",
+            "shortHtml": "Returns the value of one request header by its name.",
             "params": [
               {
                 "name": "name",
@@ -29206,7 +29206,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Returns every header of the request, grouped by name. It replaces PHP's <code>getallheaders</code>.",
+            "shortHtml": "Returns every header of the request, grouped by name.",
             "returnHtml": "An <code>array&lt;array&lt;tainted string&gt;&gt;</code>. Each key is a header name in lower case. Its value is a list with one entry for each line of that header, in the order the lines arrived. The array is empty when the request has no headers.",
             "errors": [
               {
@@ -29244,7 +29244,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Returns the value of one cookie by its name. It replaces PHP's <code>$_COOKIE</code>.",
+            "shortHtml": "Returns the value of one cookie by its name.",
             "params": [
               {
                 "name": "name",
@@ -29279,7 +29279,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Returns the whole request body as one string. It replaces PHP's <code>file_get_contents('php://input')</code>.",
+            "shortHtml": "Returns the whole request body as one string.",
             "returnHtml": "Every byte the client sent, in order and unchanged. The string is <code>tainted</code>. It is empty when the request has no body, and every call returns the same string.",
             "errors": [
               {
@@ -29362,7 +29362,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Reads the request body as one JSON document and returns the decoded value. It replaces PHP's <code>json_decode(file_get_contents('php://input'), true)</code>.",
+            "shortHtml": "Reads the request body as one JSON document and returns the decoded value.",
             "params": [
               {
                 "name": "maxDepth",
@@ -29498,7 +29498,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Returns the files that a form uploaded, one at a time in a <code>foreach</code> loop. It replaces PHP's <code>$_FILES</code> and <code>move_uploaded_file</code>.",
+            "shortHtml": "Returns the files that a form uploaded, one at a time in a <code>foreach</code> loop.",
             "returnHtml": "An <code>Iterable&lt;Core\\Request\\Part&gt;</code>. Each loop step gives the next file as it arrives. The text fields are not in the loop, and <code>post</code> reads them after it. The loop runs zero times when the request has no <code>multipart/form-data</code> body.",
             "errors": [
               {
@@ -29544,7 +29544,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "One submitted form field by name, read with PHP's bracket convention — the same parse <code>query</code> performs, over a <code>multipart/form-data</code> body's non-file parts or over a urlencoded one, replacing <code>$_POST</code> and <code>filter_input(INPUT_POST, …)</code>.",
+            "shortHtml": "Returns one submitted form field by its name. The fields are read the same way <code>query</code> reads them. The body can be <code>multipart/form-data</code>, where the parts that are not files are read, or urlencoded.",
             "params": [
               {
                 "name": "name",
@@ -29693,7 +29693,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Returns the host name the request was sent to, read from its <code>Host</code> header. It replaces PHP's <code>$_SERVER['HTTP_HOST']</code>.",
+            "shortHtml": "Returns the host name the request was sent to, read from its <code>Host</code> header.",
             "returnHtml": "The host name as a <code>tainted</code> string in lower case. A port and one dot at the end are removed, so <code>Shop.Example.com.:8443</code> returns <code>shop.example.com</code>. An IPv6 address keeps its brackets. The result is <code>null</code> when the request has no <code>Host</code> header. <code>header(&quot;host&quot;)</code> returns the header exactly as it arrived, with the port. Headers such as <code>X-Forwarded-Host</code> are never read.",
             "errors": [
               {
@@ -29977,7 +29977,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "This part's whole content, pulled to its end into one value — the reading for an upload small enough to hold, replacing <code>$_FILES</code> plus a <code>file_get_contents</code> of the temporary file PHP wrote.",
+            "shortHtml": "Reads the whole content of this part into one value. Use it for an upload small enough to keep in memory.",
             "params": [
               {
                 "name": "max",
@@ -33707,7 +33707,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Returns the one character at position <code>$index</code> of <code>$s</code>. A character is what a person sees as one letter, so <code>&quot;é&quot;</code> is one character. Replaces PHP's <code>mb_substr($s, $i, 1)</code>.",
+            "shortHtml": "Returns the one character at position <code>$index</code> of <code>$s</code>. A character is what a person sees as one letter, so <code>&quot;é&quot;</code> is one character.",
             "params": [
               {
                 "name": "s",
@@ -33763,7 +33763,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Checks whether <code>$needle</code> appears anywhere in <code>$haystack</code>. Replaces PHP's <code>str_contains</code>.",
+            "shortHtml": "Checks whether <code>$needle</code> appears anywhere in <code>$haystack</code>.",
             "params": [
               {
                 "name": "haystack",
@@ -33813,7 +33813,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Checks whether <code>$s</code> starts with <code>$prefix</code>. Replaces PHP's <code>str_starts_with</code>.",
+            "shortHtml": "Checks whether <code>$s</code> starts with <code>$prefix</code>.",
             "params": [
               {
                 "name": "s",
@@ -33863,7 +33863,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Checks whether <code>$s</code> ends with <code>$suffix</code>. Replaces PHP's <code>str_ends_with</code>.",
+            "shortHtml": "Checks whether <code>$s</code> ends with <code>$suffix</code>.",
             "params": [
               {
                 "name": "s",
@@ -33922,7 +33922,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Finds the first place where <code>$needle</code> appears in <code>$haystack</code> and returns its position. The first character is position <code>0</code>. Replaces PHP's <code>strpos</code>, <code>stripos</code>, <code>mb_strpos</code> and <code>mb_stripos</code>.",
+            "shortHtml": "Finds the first place where <code>$needle</code> appears in <code>$haystack</code> and returns its position. The first character is position <code>0</code>.",
             "params": [
               {
                 "name": "haystack",
@@ -33989,7 +33989,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Finds the last place where <code>$needle</code> appears in <code>$haystack</code> and returns its position. The first character is position <code>0</code>. Replaces PHP's <code>strrpos</code>, <code>strripos</code> and <code>mb_strrpos</code>.",
+            "shortHtml": "Finds the last place where <code>$needle</code> appears in <code>$haystack</code> and returns its position. The first character is position <code>0</code>.",
             "params": [
               {
                 "name": "haystack",
@@ -34047,7 +34047,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Counts how many times <code>$needle</code> appears in <code>$haystack</code>. Replaces PHP's <code>substr_count</code>.",
+            "shortHtml": "Counts how many times <code>$needle</code> appears in <code>$haystack</code>.",
             "params": [
               {
                 "name": "haystack",
@@ -34112,7 +34112,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Compares two strings to sort them. Replaces PHP's <code>strcmp</code>, <code>strcasecmp</code>, <code>strnatcmp</code> and <code>strnatcasecmp</code>.",
+            "shortHtml": "Compares two strings to sort them.",
             "params": [
               {
                 "name": "a",
@@ -34178,7 +34178,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Returns the part of <code>$s</code> that starts at <code>$offset</code> and has <code>$length</code> characters. Positions count characters as a person sees them, so &quot;é&quot; is one character. Replaces PHP's <code>substr</code> and <code>mb_substr</code>.",
+            "shortHtml": "Returns the part of <code>$s</code> that starts at <code>$offset</code> and has <code>$length</code> characters. Positions count characters as a person sees them, so &quot;é&quot; is one character.",
             "params": [
               {
                 "name": "s",
@@ -34237,7 +34237,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Returns the part of <code>$s</code> before the first <code>$needle</code>, without the needle. With <code>{last: true}</code>, it cuts at the last <code>$needle</code>. Replaces PHP's <code>strstr($s, $needle, true)</code>.",
+            "shortHtml": "Returns the part of <code>$s</code> before the first <code>$needle</code>, without the needle. With <code>{last: true}</code>, it cuts at the last <code>$needle</code>.",
             "params": [
               {
                 "name": "s",
@@ -34296,7 +34296,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Returns the part of <code>$s</code> after the first <code>$needle</code>, without the needle. With <code>{last: true}</code>, it cuts at the last <code>$needle</code>. Replaces PHP's <code>strstr</code> and <code>strrchr</code>.",
+            "shortHtml": "Returns the part of <code>$s</code> after the first <code>$needle</code>, without the needle. With <code>{last: true}</code>, it cuts at the last <code>$needle</code>.",
             "params": [
               {
                 "name": "s",
@@ -34355,7 +34355,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Splits <code>$s</code> into parts at every place where <code>$separator</code> is found. Replaces PHP's <code>explode</code>.",
+            "shortHtml": "Splits <code>$s</code> into parts at every place where <code>$separator</code> is found.",
             "params": [
               {
                 "name": "s",
@@ -34415,7 +34415,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Divides <code>$s</code> into pieces of <code>$size</code> characters each. A piece never cuts a character in half. Replaces PHP's <code>str_split</code>, <code>mb_str_split</code> and <code>chunk_split</code>.",
+            "shortHtml": "Divides <code>$s</code> into pieces of <code>$size</code> characters each. A piece never cuts a character in half.",
             "params": [
               {
                 "name": "s",
@@ -34463,7 +34463,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Splits <code>$s</code> into its lines. A line ends at <code>\\n</code>, at <code>\\r\\n</code> or at <code>\\r</code>, on every system. Replaces PHP's <code>explode(PHP_EOL, $s)</code>.",
+            "shortHtml": "Splits <code>$s</code> into its lines. A line ends at <code>\\n</code>, at <code>\\r\\n</code> or at <code>\\r</code>, on every system.",
             "params": [
               {
                 "name": "s",
@@ -34501,7 +34501,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Divides <code>$s</code> into its characters, the way a person counts them. An accented letter, a flag or an emoji with a skin tone is one character, even when it is several code points. These are the characters <code>Core\\Str::length</code> counts. Replaces PHP's <code>grapheme_str_split</code>.",
+            "shortHtml": "Divides <code>$s</code> into its characters, the way a person counts them. An accented letter, a flag or an emoji with a skin tone is one character, even when it is several code points. These are the characters <code>Core\\Str::length</code> counts.",
             "params": [
               {
                 "name": "s",
@@ -34539,7 +34539,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Lists the code points of <code>$s</code>. A code point is the number Unicode gives to one symbol. One character a person sees can be several code points. Replaces PHP's <code>mb_str_split</code> followed by <code>mb_ord</code>.",
+            "shortHtml": "Lists the code points of <code>$s</code>. A code point is the number Unicode gives to one symbol. One character a person sees can be several code points.",
             "params": [
               {
                 "name": "s",
@@ -34585,7 +34585,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Joins the strings in <code>$parts</code> into one string, with <code>$separator</code> between each two neighbouring strings. Replaces PHP's <code>implode</code>.",
+            "shortHtml": "Joins the strings in <code>$parts</code> into one string, with <code>$separator</code> between each two neighbouring strings.",
             "params": [
               {
                 "name": "parts",
@@ -34652,7 +34652,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Replaces every occurrence of <code>$search</code> in <code>$s</code> with <code>$replacement</code>. Matches are found from left to right and do not overlap. The new text is not searched again. Replaces PHP's <code>str_replace</code> and <code>str_ireplace</code>.",
+            "shortHtml": "Replaces every occurrence of <code>$search</code> in <code>$s</code> with <code>$replacement</code>. Matches are found from left to right and do not overlap. The new text is not searched again.",
             "params": [
               {
                 "name": "s",
@@ -34719,7 +34719,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Replaces several texts in <code>$s</code> in one call. Each key of <code>$pairs</code> is a text to find, and its value is the text that replaces it. The string is read once, from left to right. Where several keys match at the same place, the longest one is used. The new text is not searched again. Replaces PHP's <code>strtr</code> and <code>str_replace</code> with arrays.",
+            "shortHtml": "Replaces several texts in <code>$s</code> in one call. Each key of <code>$pairs</code> is a text to find, and its value is the text that replaces it. The string is read once, from left to right. Where several keys match at the same place, the longest one is used. The new text is not searched again.",
             "params": [
               {
                 "name": "s",
@@ -34789,7 +34789,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Replaces a part of <code>$s</code> with <code>$replacement</code>. The part is the text <code>Core\\Str::slice</code> returns for the same <code>$offset</code> and <code>$length</code>. Replaces PHP's <code>substr_replace</code>.",
+            "shortHtml": "Replaces a part of <code>$s</code> with <code>$replacement</code>. The part is the text <code>Core\\Str::slice</code> returns for the same <code>$offset</code> and <code>$length</code>.",
             "params": [
               {
                 "name": "s",
@@ -34844,7 +34844,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Removes the given characters from both ends of <code>$s</code>. Replaces PHP's <code>trim</code>.",
+            "shortHtml": "Removes the given characters from both ends of <code>$s</code>.",
             "params": [
               {
                 "name": "s",
@@ -34891,7 +34891,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Removes the given characters from the start of <code>$s</code>. Replaces PHP's <code>ltrim</code>.",
+            "shortHtml": "Removes the given characters from the start of <code>$s</code>.",
             "params": [
               {
                 "name": "s",
@@ -34938,7 +34938,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Removes the given characters from the end of <code>$s</code>. Replaces PHP's <code>rtrim</code> and <code>chop</code>.",
+            "shortHtml": "Removes the given characters from the end of <code>$s</code>.",
             "params": [
               {
                 "name": "s",
@@ -34996,7 +34996,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Adds copies of <code>$padding</code> before <code>$s</code> until the result is <code>$length</code> characters long. Replaces PHP's <code>str_pad</code> with <code>STR_PAD_LEFT</code>.",
+            "shortHtml": "Adds copies of <code>$padding</code> before <code>$s</code> until the result is <code>$length</code> characters long.",
             "params": [
               {
                 "name": "s",
@@ -35064,7 +35064,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Adds copies of <code>$padding</code> after <code>$s</code> until the result is <code>$length</code> characters long. Replaces PHP's <code>str_pad</code> with <code>STR_PAD_RIGHT</code>.",
+            "shortHtml": "Adds copies of <code>$padding</code> after <code>$s</code> until the result is <code>$length</code> characters long.",
             "params": [
               {
                 "name": "s",
@@ -35124,7 +35124,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Returns <code>$times</code> copies of <code>$s</code>, joined into one string. Replaces PHP's <code>str_repeat</code>.",
+            "shortHtml": "Returns <code>$times</code> copies of <code>$s</code>, joined into one string.",
             "params": [
               {
                 "name": "s",
@@ -35172,7 +35172,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Reverses the order of the characters in <code>$s</code>. A character is what a person sees as one character, so <code>&quot;café&quot;</code> becomes <code>&quot;éfac&quot;</code> and an accent stays on its letter. Replaces PHP's <code>strrev</code>.",
+            "shortHtml": "Reverses the order of the characters in <code>$s</code>. A character is what a person sees as one character, so <code>&quot;café&quot;</code> becomes <code>&quot;éfac&quot;</code> and an accent stays on its letter.",
             "params": [
               {
                 "name": "s",
@@ -35227,7 +35227,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Splits <code>$s</code> into lines of at most <code>$width</code> characters. It breaks a line at a space and writes <code>breakWith</code> in place of that space. A character is what a person sees as one character, so <code>&quot;é&quot;</code> counts as one. Replaces PHP's <code>wordwrap</code>.",
+            "shortHtml": "Splits <code>$s</code> into lines of at most <code>$width</code> characters. It breaks a line at a space and writes <code>breakWith</code> in place of that space. A character is what a person sees as one character, so <code>&quot;é&quot;</code> counts as one.",
             "params": [
               {
                 "name": "s",
@@ -35283,7 +35283,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Changes every letter of <code>$s</code> to lower case. It uses Unicode's rules, so <code>ÄRGER</code> becomes <code>ärger</code>. Replaces PHP's <code>strtolower</code> and <code>mb_strtolower</code>.",
+            "shortHtml": "Changes every letter of <code>$s</code> to lower case. It uses Unicode's rules, so <code>ÄRGER</code> becomes <code>ärger</code>.",
             "params": [
               {
                 "name": "s",
@@ -35321,7 +35321,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Changes every letter of <code>$s</code> to upper case. It uses Unicode's rules, so <code>straße</code> becomes <code>STRASSE</code>. Replaces PHP's <code>strtoupper</code> and <code>mb_strtoupper</code>.",
+            "shortHtml": "Changes every letter of <code>$s</code> to upper case. It uses Unicode's rules, so <code>straße</code> becomes <code>STRASSE</code>.",
             "params": [
               {
                 "name": "s",
@@ -35359,7 +35359,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Changes the first letter of <code>$s</code> to upper case and keeps the rest as it is. It uses Unicode's rules, so <code>ärger</code> becomes <code>Ärger</code>. Replaces PHP's <code>ucfirst</code>.",
+            "shortHtml": "Changes the first letter of <code>$s</code> to upper case and keeps the rest as it is. It uses Unicode's rules, so <code>ärger</code> becomes <code>Ärger</code>.",
             "params": [
               {
                 "name": "s",
@@ -35397,7 +35397,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Changes the first letter of <code>$s</code> to lower case and keeps the rest as it is. It uses Unicode's rules, so <code>Ärger</code> becomes <code>ärger</code>. Replaces PHP's <code>lcfirst</code>.",
+            "shortHtml": "Changes the first letter of <code>$s</code> to lower case and keeps the rest as it is. It uses Unicode's rules, so <code>Ärger</code> becomes <code>ärger</code>.",
             "params": [
               {
                 "name": "s",
@@ -35435,7 +35435,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Case-folds <code>$s</code>: every letter changes to one fixed form, so text that differs only in upper and lower case gives the same result. Replaces PHP's <code>mb_convert_case($s, MB_CASE_FOLD)</code>.",
+            "shortHtml": "Case-folds <code>$s</code>: every letter changes to one fixed form, so text that differs only in upper and lower case gives the same result.",
             "params": [
               {
                 "name": "s",
@@ -35481,7 +35481,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Changes <code>$s</code> into one of the four Unicode normal forms. Two ways to write the same text then give the same string. Replaces PHP's <code>Normalizer::normalize</code>.",
+            "shortHtml": "Changes <code>$s</code> into one of the four Unicode normal forms. Two ways to write the same text then give the same string.",
             "params": [
               {
                 "name": "s",
@@ -35523,7 +35523,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Builds a string of one code point. A code point is the number Unicode gives to one symbol. Replaces PHP's <code>mb_chr</code>. To build one byte, as PHP's <code>chr</code> does, use <code>Core\\Bytes</code>.",
+            "shortHtml": "Builds a string of one code point. A code point is the number Unicode gives to one symbol. To build one byte, use <code>Core\\Bytes</code>.",
             "params": [
               {
                 "name": "codePoint",
@@ -35567,7 +35567,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Builds a string from a list of code points, in order. It does the opposite of <code>Core\\Str::codePoints</code>. Replaces PHP's <code>mb_chr</code> called on each number and joined with <code>implode</code>.",
+            "shortHtml": "Builds a string from a list of code points, in order. It does the opposite of <code>Core\\Str::codePoints</code>.",
             "params": [
               {
                 "name": "codePoints",
@@ -35619,7 +35619,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Fills the placeholders in <code>$template</code> with <code>$arguments</code> and returns the text. The template syntax is the one PHP's <code>sprintf</code> uses: <code>%s %d %u %f %e %g %x %X %o %b %%</code>, with flags, a width, a precision and positions such as <code>%1$s</code>. The result never depends on the locale.",
+            "shortHtml": "Fills the placeholders in <code>$template</code> with <code>$arguments</code> and returns the text. The placeholders are <code>%s %d %u %f %e %g %x %X %o %b %%</code>, with flags, a width, a precision and positions such as <code>%1$s</code>. The result never depends on the locale.",
             "params": [
               {
                 "name": "template",
@@ -36066,7 +36066,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Asserts <code>$actual</code> is identical to <code>$expected</code> — two objects are the same object and nothing else is — as PHPUnit's <code>assertSame</code> does, subject first.",
+            "shortHtml": "Asserts that <code>$actual</code> is identical to <code>$expected</code>. Two objects are identical only when they are the same object.",
             "params": [
               {
                 "name": "actual",
@@ -36131,7 +36131,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Asserts <code>$actual</code> equals <code>$expected</code> — identity everywhere except two objects, which are compared through <code>Comparable::compareTo</code> — as PHPUnit's <code>assertEquals</code> does, subject first.",
+            "shortHtml": "Asserts that <code>$actual</code> equals <code>$expected</code>. Two objects are compared with <code>Comparable::compareTo</code>, and every other value must be identical.",
             "params": [
               {
                 "name": "actual",
@@ -36314,7 +36314,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Asserts <code>$actual</code> is <code>null</code>, as PHPUnit's <code>assertNull</code> does; the subject is <code>mixed</code>, so a value of any type may be asked.",
+            "shortHtml": "Asserts that <code>$actual</code> is <code>null</code>. <code>$actual</code> is <code>mixed</code>, so it can be a value of any type.",
             "params": [
               {
                 "name": "actual",
@@ -36375,7 +36375,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Asserts <code>$actual</code> holds exactly <code>$expected</code> entries — <code>Core\\Arr::count</code>'s own signature — as PHPUnit's <code>assertCount</code> does, subject first. A <code>string</code>'s length is asserted through <code>Core\\Str::length</code>, which says which length was meant.",
+            "shortHtml": "Asserts that the array <code>$actual</code> has exactly <code>$expected</code> entries. To check the length of a <code>string</code>, assert on <code>Core\\Str::length</code>.",
             "params": [
               {
                 "name": "actual",
@@ -36440,7 +36440,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Asserts some entry of <code>$actual</code> is <code>$expected</code> under strict identity — the question <code>Core\\Arr::contains</code> answers, and the same answer — as PHPUnit's <code>assertContains</code> does, subject first. A substring is asserted through <code>Core\\Str::contains</code>, which says which containment was meant.",
+            "shortHtml": "Asserts that some entry of <code>$actual</code> is identical to <code>$expected</code>, as <code>Core\\Arr::contains</code> checks. To check for a substring, assert on <code>Core\\Str::contains</code>.",
             "params": [
               {
                 "name": "actual",
@@ -36570,7 +36570,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Runs <code>$body</code> and asserts it throws <code>$expected</code> or a subclass of it, as PHPUnit's <code>expectException</code> does; the throw it judged is consumed, so only the assertion's own verdict propagates.",
+            "shortHtml": "Runs <code>$body</code> and asserts that it throws <code>$expected</code> or a subclass of it. The error it throws is caught here, so only a failed assertion reaches the caller.",
             "params": [
               {
                 "name": "body",
@@ -38003,7 +38003,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Reads the current time from the system clock. It replaces PHP's <code>time</code>, <code>microtime</code> and <code>date_create</code>. Use <code>-&gt;in($zone)</code> to get the date and time of day in a zone.",
+            "shortHtml": "Reads the current time from the system clock. Use <code>-&gt;in($zone)</code> to get the date and time of day in a zone.",
             "returnHtml": "The current <code>Instant</code>, to the nanosecond."
           },
           "slug": "now",
@@ -38026,7 +38026,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Reads a clock that only moves forward, for measuring how long something takes. It replaces PHP's <code>hrtime</code>. Subtract two readings to get the time between them.",
+            "shortHtml": "Reads a clock that only moves forward, for measuring how long something takes. Subtract two readings to get the time between them.",
             "returnHtml": "A <code>Duration</code> since a fixed starting point. A later reading is never smaller than an earlier one."
           },
           "slug": "monotonic",
@@ -41317,7 +41317,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Reads the text of an address, such as <code>https://example.com/cart?id=4</code>, and returns a <code>Uri</code>. Its methods return the parts: <code>scheme</code>, <code>userInfo</code>, <code>host</code>, <code>port</code>, <code>path</code>, <code>query</code> and <code>fragment</code>. Each part is returned as it was written. Escapes such as <code>%20</code> stay, and upper-case letters stay upper case. PHP's <code>parse_url</code> reads the same parts.",
+            "shortHtml": "Reads the text of an address, such as <code>https://example.com/cart?id=4</code>, and returns a <code>Uri</code>. Its methods return the parts: <code>scheme</code>, <code>userInfo</code>, <code>host</code>, <code>port</code>, <code>path</code>, <code>query</code> and <code>fragment</code>. Each part is returned as it was written. Escapes such as <code>%20</code> stay, and upper-case letters stay upper case.",
             "params": [
               {
                 "name": "uri",
@@ -41361,7 +41361,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Reads the text of an address and returns a <code>Uri</code>, the same way <code>Core\\Uri::parse</code> does. When the text is not an address, the result is <code>null</code> and no error is thrown. A space, a <code>%</code> without two hex digits and a port above <code>65535</code> all give <code>null</code>. PHP code uses <code>filter_var</code> with <code>FILTER_VALIDATE_URL</code> for this check.",
+            "shortHtml": "Reads the text of an address and returns a <code>Uri</code>, the same way <code>Core\\Uri::parse</code> does. When the text is not an address, the result is <code>null</code> and no error is thrown. A space, a <code>%</code> without two hex digits and a port above <code>65535</code> all give <code>null</code>.",
             "params": [
               {
                 "name": "uri",
@@ -41399,7 +41399,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Escapes <code>$s</code> so that it can be one part of a URI, such as a path segment, a fragment or one side of a query pair. A space becomes <code>%20</code>. Every byte that is not a letter, a digit or one of <code>-_.~</code> becomes a <code>%</code> and two hex digits. This includes <code>/ ? # &amp; =</code>. PHP's <code>rawurlencode</code> does the same.",
+            "shortHtml": "Escapes <code>$s</code> so that it can be one part of a URI, such as a path segment, a fragment or one side of a query pair. A space becomes <code>%20</code>. Every byte that is not a letter, a digit or one of <code>-_.~</code> becomes a <code>%</code> and two hex digits. This includes <code>/ ? # &amp; =</code>.",
             "params": [
               {
                 "name": "s",
@@ -41437,7 +41437,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Decodes one escaped part of a URI, such as a path segment or a fragment. Each <code>%XX</code> escape becomes the byte it encodes, so <code>%20</code> becomes a space. A <code>+</code> stays a <code>+</code>. <code>Core\\Uri::encodeComponent</code> writes the escapes that this function reads. PHP's <code>rawurldecode</code> does the same.",
+            "shortHtml": "Decodes one escaped part of a URI, such as a path segment or a fragment. Each <code>%XX</code> escape becomes the byte it encodes, so <code>%20</code> becomes a space. A <code>+</code> stays a <code>+</code>. <code>Core\\Uri::encodeComponent</code> writes the escapes that this function reads.",
             "params": [
               {
                 "name": "s",
@@ -41475,7 +41475,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Escapes <code>$s</code> so that it can be one value of a form, such as a value in a query string or in the body of a POST request. A space becomes <code>+</code>. Every byte that is not a letter, a digit or one of <code>-_.</code> becomes a <code>%</code> and two hex digits. This includes <code>~</code>, <code>+</code>, <code>&amp;</code> and <code>=</code>. PHP's <code>urlencode</code> does the same.",
+            "shortHtml": "Escapes <code>$s</code> so that it can be one value of a form, such as a value in a query string or in the body of a POST request. A space becomes <code>+</code>. Every byte that is not a letter, a digit or one of <code>-_.</code> becomes a <code>%</code> and two hex digits. This includes <code>~</code>, <code>+</code>, <code>&amp;</code> and <code>=</code>.",
             "params": [
               {
                 "name": "s",
@@ -41513,7 +41513,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Decodes one value of a form, such as a value in a query string or in the body of a POST request. A <code>+</code> becomes a space. Each <code>%XX</code> escape becomes the byte it encodes, so <code>%2B</code> becomes a <code>+</code> and <code>%20</code> becomes a space. <code>Core\\Uri::encodeFormValue</code> writes the escapes that this function reads. PHP's <code>urldecode</code> does the same.",
+            "shortHtml": "Decodes one value of a form, such as a value in a query string or in the body of a POST request. A <code>+</code> becomes a space. Each <code>%XX</code> escape becomes the byte it encodes, so <code>%2B</code> becomes a <code>+</code> and <code>%20</code> becomes a space. <code>Core\\Uri::encodeFormValue</code> writes the escapes that this function reads.",
             "params": [
               {
                 "name": "s",
@@ -41551,7 +41551,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Reads a query string, such as <code>q=red+shoes&amp;page=2</code>, into an array. The text is split into pairs at each <code>&amp;</code>, and each pair is split at its first <code>=</code>. Names and values are decoded like <code>decodeFormValue</code>, so <code>+</code> becomes a space. Brackets in a name build nested arrays: <code>a[]=1&amp;a[]=2</code> gives a list, and <code>a[b]=c</code> gives an array with the key <code>b</code>. PHP's <code>parse_str</code> reads query strings the same way.",
+            "shortHtml": "Reads a query string, such as <code>q=red+shoes&amp;page=2</code>, into an array. The text is split into pairs at each <code>&amp;</code>, and each pair is split at its first <code>=</code>. Names and values are decoded like <code>decodeFormValue</code>, so <code>+</code> becomes a space. Brackets in a name build nested arrays: <code>a[]=1&amp;a[]=2</code> gives a list, and <code>a[b]=c</code> gives an array with the key <code>b</code>.",
             "params": [
               {
                 "name": "query",
@@ -41595,7 +41595,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Writes the array <code>$parameters</code> as a query string, such as <code>page=2&amp;sort=name</code>. It gives the same text as PHP's <code>http_build_query</code>, and <code>Core\\Uri::parseQuery</code> reads it back to the same array.",
+            "shortHtml": "Writes the array <code>$parameters</code> as a query string, such as <code>page=2&amp;sort=name</code>. <code>Core\\Uri::parseQuery</code> reads it back to the same array.",
             "params": [
               {
                 "name": "parameters",
@@ -42712,7 +42712,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Reads a whole XML document and returns its document node. It replaces PHP's <code>DOMDocument::load</code>, <code>simplexml_load_string</code> and <code>xml_parse</code>. A document that is not well-formed throws a <code>ParseError</code>. Nothing is repaired or guessed. <code>Core\\Html::parse</code> returns the same kind of tree, and repairs broken HTML instead of throwing.",
+            "shortHtml": "Reads a whole XML document and returns its document node. A document that is not well-formed throws a <code>ParseError</code>. Nothing is repaired or guessed. <code>Core\\Html::parse</code> returns the same kind of tree, and repairs broken HTML instead of throwing.",
             "params": [
               {
                 "name": "document",
@@ -42756,7 +42756,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Returns a reader that goes through <code>$document</code> one node at a time. It replaces PHP's <code>XMLReader</code>. Call <code>read</code> until it returns <code>null</code>. The reader does not build a tree. It keeps the current node and the names of the elements that are open. This call reads nothing yet. The first <code>read</code> reads the first node.",
+            "shortHtml": "Returns a reader that goes through <code>$document</code> one node at a time. Call <code>read</code> until it returns <code>null</code>. The reader does not build a tree. It keeps the current node and the names of the elements that are open. This call reads nothing yet. The first <code>read</code> reads the first node.",
             "params": [
               {
                 "name": "document",
@@ -42790,7 +42790,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Returns a writer that builds an XML document one node at a time. It replaces PHP's <code>XMLWriter</code>. The writer remembers which elements are open, so <code>endElement</code> needs no name. Ending the document while an element is still open throws a <code>LogicError</code>. Every method that takes text escapes it, so you never escape text yourself.",
+            "shortHtml": "Returns a writer that builds an XML document one node at a time. The writer remembers which elements are open, so <code>endElement</code> needs no name. Ending the document while an element is still open throws a <code>LogicError</code>. Every method that takes text escapes it, so you never escape text yourself.",
             "params": [
               {
                 "name": "indent",
@@ -42935,7 +42935,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Returns the attributes of this element, in the order the document wrote them. It replaces PHP's <code>DOMElement::getAttribute</code> and the <code>attributes</code> property. For a node that is not an element, the array is empty.",
+            "shortHtml": "Returns the attributes of this element, in the order the document wrote them. For a node that is not an element, the array is empty.",
             "returnHtml": "An array keyed by attribute name. The name is written as in the document, with its prefix, such as <code>xml:lang</code>. Entities such as <code>&amp;amp;</code> are expanded in the value. A tab or a line break written inside the value becomes a space, as XML requires. The values are <code>tainted</code>."
           },
           "slug": "attributes",

@@ -448,7 +448,7 @@ const ABS_DOC: MethodDoc = MethodDoc {
 /// `Core\Math::sign`'s reference card — `rule:core-api/reference-card`.
 const SIGN_DOC: MethodDoc = MethodDoc {
     short: "Returns `-1` when `$n` is below zero, `1` when it is above zero and `0` when it is \
-            zero. This replaces PHP's `$n <=> 0`.",
+            zero.",
     params: &[ParamDoc {
         name: "n",
         desc: "The number to check: an `int`, a `float` or a `decimal`.",
@@ -470,8 +470,8 @@ const SIGN_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::min`'s reference card — `rule:core-api/reference-card`.
 const MIN_DOC: MethodDoc = MethodDoc {
-    short: "Returns the smaller of two values. This replaces PHP's `min` with two values. For \
-            the smallest value in an array, use `Core\\Arr::min`.",
+    short: "Returns the smaller of two values. For the smallest value in an array, use \
+            `Core\\Arr::min`.",
     params: &[
         ParamDoc {
             name: "a",
@@ -495,8 +495,8 @@ const MIN_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::max`'s reference card — `rule:core-api/reference-card`.
 const MAX_DOC: MethodDoc = MethodDoc {
-    short: "Returns the larger of two values. This replaces PHP's `max` with two values. For \
-            the largest value in an array, use `Core\\Arr::max`.",
+    short: "Returns the larger of two values. For the largest value in an array, use \
+            `Core\\Arr::max`.",
     params: &[
         ParamDoc {
             name: "a",
@@ -520,7 +520,7 @@ const MAX_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::clamp`'s reference card — `rule:core-api/reference-card`.
 const CLAMP_DOC: MethodDoc = MethodDoc {
-    short: "Keeps `$n` between `$low` and `$high`. It replaces PHP's `min(max($n, $low), $high)`.",
+    short: "Keeps `$n` between `$low` and `$high`.",
     params: &[
         ParamDoc {
             name: "n",
@@ -591,8 +591,8 @@ const TRUNCATE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::round`'s reference card — `rule:core-api/reference-card`.
 const ROUND_DOC: MethodDoc = MethodDoc {
-    short: "Rounds `$n` to a number of decimal places. This replaces PHP's `round`. The `mode` \
-            option chooses the result for a value exactly halfway between two results.",
+    short: "Rounds `$n` to a number of decimal places. The `mode` option chooses the result \
+            for a value exactly halfway between two results.",
     params: &[
         ParamDoc {
             name: "n",
@@ -620,8 +620,7 @@ const ROUND_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::intDiv`'s reference card — `rule:core-api/reference-card`.
 const INT_DIV_DOC: MethodDoc = MethodDoc {
-    short: "Divides `$a` by `$b` and drops the remainder, so the result moves toward zero. This \
-            replaces PHP's `intdiv`.",
+    short: "Divides `$a` by `$b` and drops the remainder, so the result moves toward zero.",
     params: &[
         ParamDoc {
             name: "a",
@@ -646,7 +645,7 @@ const INT_DIV_DOC: MethodDoc = MethodDoc {
 /// `Core\Math::mod`'s reference card — `rule:core-api/reference-card`.
 const MOD_DOC: MethodDoc = MethodDoc {
     short: "Returns the remainder after dividing `$a` by `$b`, for `float` values. The result has \
-            the sign of `$a`. This replaces PHP's `fmod`. For whole numbers, use the `%` operator.",
+            the sign of `$a`. For whole numbers, use the `%` operator.",
     params: &[
         ParamDoc {
             name: "a",
@@ -663,14 +662,14 @@ const MOD_DOC: MethodDoc = MethodDoc {
           an infinity, the result is `NaN`. When `$b` is an infinity, the result is `$a`.",
     errors: &[ErrorDoc {
         error: "ArithmeticError",
-        desc: "When `$b` is zero. PHP's `fmod` returns `NaN` here.",
+        desc: "When `$b` is zero.",
     }],
 };
 
 /// `Core\Math::fdiv`'s reference card — `rule:core-api/reference-card`.
 const FDIV_DOC: MethodDoc = MethodDoc {
     short: "Divides `$a` by `$b`. When `$b` is zero, it returns `INFINITY`, `-INFINITY` or \
-            `NaN`. The `/` operator throws an error there. This replaces PHP's `fdiv`.",
+            `NaN`. The `/` operator throws an error there.",
     params: &[
         ParamDoc {
             name: "a",
@@ -692,7 +691,7 @@ const FDIV_DOC: MethodDoc = MethodDoc {
 /// `Core\Math::gcd`'s reference card — `rule:core-api/reference-card`.
 const GCD_DOC: MethodDoc = MethodDoc {
     short: "Returns the greatest common divisor of two integers. This is the largest integer \
-            that divides both with no remainder. This replaces PHP's `gmp_gcd`.",
+            that divides both with no remainder.",
     params: &[
         ParamDoc {
             name: "a",
@@ -717,7 +716,7 @@ const GCD_DOC: MethodDoc = MethodDoc {
 /// `Core\Math::lcm`'s reference card — `rule:core-api/reference-card`.
 const LCM_DOC: MethodDoc = MethodDoc {
     short: "Returns the least common multiple of two integers. This is the smallest positive \
-            integer that both divide with no remainder. This replaces PHP's `gmp_lcm`.",
+            integer that both divide with no remainder.",
     params: &[
         ParamDoc {
             name: "a",
@@ -741,7 +740,7 @@ const LCM_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::sqrt`'s reference card — `rule:core-api/reference-card`.
 const SQRT_DOC: MethodDoc = MethodDoc {
-    short: "Returns the square root of `$n`. This replaces PHP's `sqrt`.",
+    short: "Returns the square root of `$n`.",
     params: &[ParamDoc {
         name: "n",
         desc: "The number to take the square root of.",
@@ -754,8 +753,8 @@ const SQRT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::cbrt`'s reference card — `rule:core-api/reference-card`.
 const CBRT_DOC: MethodDoc = MethodDoc {
-    short: "Returns the cube root of `$n`. A negative `$n` works too. PHP code often writes \
-            `pow($n, 1/3)`, which gives `NaN` for a negative number.",
+    short: "Returns the cube root of `$n`. A negative `$n` works too, so `cbrt(-8.0)` is \
+            `-2.0`.",
     params: &[ParamDoc {
         name: "n",
         desc: "Any number.",
@@ -770,7 +769,7 @@ const CBRT_DOC: MethodDoc = MethodDoc {
 const HYPOT_DOC: MethodDoc = MethodDoc {
     short: "Returns the length of the longest side of a right triangle. `$a` and `$b` are the \
             other two sides. The result is `sqrt($a * $a + $b * $b)`, but it stays correct when \
-            `$a * $a` is too big for a `float`. This replaces PHP's `hypot`.",
+            `$a * $a` is too big for a `float`.",
     params: &[
         ParamDoc {
             name: "a",
@@ -790,7 +789,7 @@ const HYPOT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::exp`'s reference card — `rule:core-api/reference-card`.
 const EXP_DOC: MethodDoc = MethodDoc {
-    short: "Returns `E` raised to the power `$n`. `E` is about `2.718`. This replaces PHP's `exp`.",
+    short: "Returns `E` raised to the power `$n`. `E` is about `2.718`.",
     params: &[ParamDoc {
         name: "n",
         desc: "The power to raise `E` to.",
@@ -804,7 +803,7 @@ const EXP_DOC: MethodDoc = MethodDoc {
 /// `Core\Math::log`'s reference card — `rule:core-api/reference-card`.
 const LOG_DOC: MethodDoc = MethodDoc {
     short: "Returns the logarithm of `$n`: the power you raise `base` to to get `$n`. The base \
-            is `E` unless you give one. This replaces PHP's `log`, `log10` and `log2`.",
+            is `E` unless you give one.",
     params: &[
         ParamDoc {
             name: "n",
@@ -822,7 +821,7 @@ const LOG_DOC: MethodDoc = MethodDoc {
           `-INFINITY`. When `$n` is negative, or `base` is `1.0`, the result is `NaN`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "When `base` is zero or negative. PHP throws a `ValueError` here.",
+        desc: "When `base` is zero or negative.",
     }],
 };
 
@@ -1003,8 +1002,7 @@ const ATANH_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::toRadians`'s reference card — `rule:core-api/reference-card`.
 const TO_RADIANS_DOC: MethodDoc = MethodDoc {
-    short: "Converts an angle from degrees to radians. It computes `($degrees / 180) * PI`, the \
-            same way as PHP.",
+    short: "Converts an angle from degrees to radians. It computes `($degrees / 180) * PI`.",
     params: &[ParamDoc {
         name: "degrees",
         desc: "The angle, in degrees.",
@@ -1017,8 +1015,7 @@ const TO_RADIANS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::toDegrees`'s reference card — `rule:core-api/reference-card`.
 const TO_DEGREES_DOC: MethodDoc = MethodDoc {
-    short: "Converts an angle from radians to degrees. It computes `($radians / PI) * 180`, the \
-            same way as PHP.",
+    short: "Converts an angle from radians to degrees. It computes `($radians / PI) * 180`.",
     params: &[ParamDoc {
         name: "radians",
         desc: "The angle, in radians.",
@@ -1032,8 +1029,7 @@ const TO_DEGREES_DOC: MethodDoc = MethodDoc {
 /// `Core\Math::isNan`'s reference card — `rule:core-api/reference-card`.
 const IS_NAN_DOC: MethodDoc = MethodDoc {
     short: "Returns `true` when `$n` is `NaN`, a value that means \"not a number\". `NaN` is not \
-            equal to any value, itself included, so `==` cannot find it. This replaces PHP's \
-            `is_nan`.",
+            equal to any value, itself included, so `==` cannot find it.",
     params: &[ParamDoc {
         name: "n",
         desc: "The value to test.",
@@ -1047,8 +1043,8 @@ const IS_NAN_DOC: MethodDoc = MethodDoc {
 /// `Core\Math::isFinite`'s reference card — `rule:core-api/reference-card`.
 const IS_FINITE_DOC: MethodDoc = MethodDoc {
     short: "Returns `true` when `$n` is an ordinary number. `INFINITY`, `-INFINITY` and `NaN` \
-            are not ordinary numbers. This replaces PHP's `is_finite`. PHP's `is_infinite($n)` \
-            is `!isFinite($n) && !isNan($n)`.",
+            are not ordinary numbers. To test for infinity, write \
+            `!isFinite($n) && !isNan($n)`.",
     params: &[ParamDoc {
         name: "n",
         desc: "The value to test.",
@@ -1061,9 +1057,8 @@ const IS_FINITE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::toBase`'s reference card — `rule:core-api/reference-card`.
 const TO_BASE_DOC: MethodDoc = MethodDoc {
-    short: "Writes the number `$n` in base `$base` and returns the digits as a `string`. This \
-            replaces PHP's `decbin`, `dechex`, `decoct` and `base_convert`. Digits above `9` are \
-            the lower case letters `a` to `z`.",
+    short: "Writes the number `$n` in base `$base` and returns the digits as a `string`. \
+            Digits above `9` are the lower case letters `a` to `z`.",
     params: &[
         ParamDoc {
             name: "n",
@@ -1080,15 +1075,14 @@ const TO_BASE_DOC: MethodDoc = MethodDoc {
           `0` returns `\"0\"`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "When `$base` is outside `2` to `36`. PHP's `base_convert` returns `0` here.",
+        desc: "When `$base` is outside `2` to `36`.",
     }],
 };
 
 /// `Core\Math::fromBase`'s reference card — `rule:core-api/reference-card`.
 const FROM_BASE_DOC: MethodDoc = MethodDoc {
-    short: "Reads a number written in base `$base` and returns it as an `int`. This replaces \
-            PHP's `bindec`, `hexdec`, `octdec` and `base_convert`. Every character must be a \
-            digit of the base. PHP skips a character that is not.",
+    short: "Reads a number written in base `$base` and returns it as an `int`. Every character \
+            must be a digit of the base.",
     params: &[
         ParamDoc {
             name: "s",
@@ -1118,9 +1112,8 @@ const FROM_BASE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math::format`'s reference card — `rule:core-api/reference-card`.
 const FORMAT_DOC: MethodDoc = MethodDoc {
-    short: "Writes a number as text for a person to read, with a fixed number of decimals. This \
-            replaces PHP's `number_format`. The digits are not grouped unless you give a \
-            `groupSeparator`.",
+    short: "Writes a number as text for a person to read, with a fixed number of decimals. The \
+            digits are not grouped unless you give a `groupSeparator`.",
     params: &[
         ParamDoc {
             name: "n",
@@ -1181,77 +1174,76 @@ const CONSTANTS: &[CoreConst] = &[
         ty: CoreTy::Float,
         value: Const::Float(std::f64::consts::PI),
         desc: "The ratio of a circle's circumference to its diameter, `3.14159…` as the nearest \
-               `float` — PHP's `M_PI`.",
+               `float`.",
     },
     CoreConst {
         name: "TAU",
         ty: CoreTy::Float,
         value: Const::Float(std::f64::consts::TAU),
         desc: "The ratio of a circle's circumference to its radius, `2 * PI` or `6.28318…` as the \
-               nearest `float` — a full turn in radians, which PHP spells `2 * M_PI`.",
+               nearest `float`. This is a full turn in radians.",
     },
     CoreConst {
         name: "E",
         ty: CoreTy::Float,
         value: Const::Float(std::f64::consts::E),
         desc: "Euler's number, the base of the natural logarithm, `2.71828…` as the nearest \
-               `float` — PHP's `M_E`, and `log`'s default base.",
+               `float`. It is the default base of `log`.",
     },
     CoreConst {
         name: "EPSILON",
         ty: CoreTy::Float,
         value: Const::Float(f64::EPSILON),
         desc: "The smallest `float` that added to `1.0` gives a value other than `1.0`, \
-               `2.220446049250313e-16` — PHP's `PHP_FLOAT_EPSILON`, and the tolerance to compare \
-               two floats with in place of `==`.",
+               `2.220446049250313e-16`. Use it as the tolerance when you compare two floats, \
+               in place of `==`.",
     },
     CoreConst {
         name: "INT_MAX",
         ty: CoreTy::Int,
         value: Const::Int(i64::MAX),
-        desc: "The largest `int`, `9223372036854775807` — PHP's `PHP_INT_MAX`.",
+        desc: "The largest `int`, `9223372036854775807`.",
     },
     CoreConst {
         name: "INT_MIN",
         ty: CoreTy::Int,
         value: Const::Int(i64::MIN),
-        desc: "The smallest `int`, `-9223372036854775808` — PHP's `PHP_INT_MIN`, and the one \
-               value `abs` has no `int` answer for.",
+        desc: "The smallest `int`, `-9223372036854775808`. It is the one value `abs` cannot \
+               return as an `int`.",
     },
     CoreConst {
         name: "UINT_MAX",
         ty: CoreTy::Uint,
         value: Const::Uint(u64::MAX),
-        desc: "The largest `uint`, `18446744073709551615` — a type PHP does not have, so there \
-               is no constant to replace.",
+        desc: "The largest `uint`, `18446744073709551615`.",
     },
     CoreConst {
         name: "FLOAT_MAX",
         ty: CoreTy::Float,
         value: Const::Float(f64::MAX),
-        desc: "The largest finite `float`, `1.7976931348623157e308` — PHP's `PHP_FLOAT_MAX`; \
-               the negative extreme is `-FLOAT_MAX`.",
+        desc: "The largest finite `float`, `1.7976931348623157e308`. The most negative one is \
+               `-FLOAT_MAX`.",
     },
     CoreConst {
         name: "FLOAT_MIN",
         ty: CoreTy::Float,
         value: Const::Float(f64::MIN_POSITIVE),
-        desc: "The smallest positive normal `float`, `2.2250738585072014e-308` — PHP's \
-               `PHP_FLOAT_MIN`, and not the negative extreme, which is `-FLOAT_MAX`.",
+        desc: "The smallest positive normal `float`, `2.2250738585072014e-308`. The most \
+               negative `float` is `-FLOAT_MAX`.",
     },
     CoreConst {
         name: "NAN",
         ty: CoreTy::Float,
         value: Const::Float(f64::NAN),
-        desc: "The `float` that is not a number — PHP's `NAN` — equal to nothing, itself \
-               included, so `isNan` is the only test for it.",
+        desc: "The `float` that is not a number. It is equal to nothing, itself included, so \
+               `isNan` is the only test for it.",
     },
     CoreConst {
         name: "INFINITY",
         ty: CoreTy::Float,
         value: Const::Float(f64::INFINITY),
-        desc: "Positive infinity as a `float`, past every finite value — PHP's `INF`; the \
-               negative one is `-INFINITY`, and `isFinite` is `false` for both.",
+        desc: "Positive infinity as a `float`, larger than every finite value. Negative \
+               infinity is `-INFINITY`, and `isFinite` is `false` for both.",
     },
 ];
 
@@ -1278,27 +1270,27 @@ pub const ROUND_MODE: CoreEnum = CoreEnum {
 /// [`ROUND_MODE`]'s reference card — `rule:core-api/reference-card`, one line per case, and
 /// the semantics are [`RoundMode`]'s, which `round_with` implements.
 const ROUND_MODE_DOC: EnumDoc = EnumDoc {
-    short: "How `Core\\Math::round` settles a value between two neighbours — PHP's four \
-            `PHP_ROUND_HALF_*` constants plus the two whole-direction rules `ceil` and `floor` \
-            only cover at a precision of zero.",
+    short: "Chooses how `Core\\Math::round` rounds a value that lies between two results. Four \
+            cases decide what happens to a value exactly halfway, and two always round in one \
+            direction.",
     cases: &[
         CaseDoc {
             name: "HalfUp",
-            desc: "A tie goes away from zero — `PHP_ROUND_HALF_UP`, and `round`'s default \
-                   there and here.",
+            desc: "A value exactly halfway rounds away from zero. This is the default of \
+                   `round`.",
         },
         CaseDoc {
             name: "HalfDown",
-            desc: "A tie goes toward zero — `PHP_ROUND_HALF_DOWN`.",
+            desc: "A value exactly halfway rounds toward zero.",
         },
         CaseDoc {
             name: "HalfEven",
-            desc: "A tie goes to the even neighbour — banker's rounding, `PHP_ROUND_HALF_EVEN`, \
-                   the rule that does not accumulate a bias over many values.",
+            desc: "A value exactly halfway rounds to the even neighbour. This is banker's \
+                   rounding, and it does not build up a bias over many values.",
         },
         CaseDoc {
             name: "HalfOdd",
-            desc: "A tie goes to the odd neighbour — `PHP_ROUND_HALF_ODD`.",
+            desc: "A value exactly halfway rounds to the odd neighbour.",
         },
         CaseDoc {
             name: "Up",

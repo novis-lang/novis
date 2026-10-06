@@ -823,8 +823,8 @@ const MAP_KEYS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::groupBy`'s reference card — `rule:core-api/reference-card`.
 const GROUP_BY_DOC: MethodDoc = MethodDoc {
-    short: "Partitions the entries into buckets named by what `$key` answers for each — the \
-            group-by loop PHP has no function for.",
+    short: "Puts the entries into groups. `$key` is called for each entry, and its result is \
+            the name of the group the entry goes into.",
     params: &[
         ParamDoc {
             name: "a",
@@ -1669,8 +1669,8 @@ const OVERLAY_DEEP_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::underlay`'s reference card — `rule:core-api/reference-card`.
 const UNDERLAY_DOC: MethodDoc = MethodDoc {
-    short: "`$base` with every layer's entries written underneath it, the left-hand value \
-            winning — PHP's `array + array`, which does not compile here.",
+    short: "Returns `$base` with the entries of every layer added under it. Where two have the \
+            same key, the value further left is kept.",
     params: &[
         ParamDoc {
             name: "base",
@@ -1796,8 +1796,8 @@ const INTERSECT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::countBy`'s reference card — `rule:core-api/reference-card`.
 const COUNT_BY_DOC: MethodDoc = MethodDoc {
-    short: "How many entries fall under each distinct value, as `array_count_values` does — or \
-            under each answer of `by`, the group-and-count loop PHP has no function for.",
+    short: "Counts how many entries have each distinct value. With `by`, it counts how many \
+            entries give each result of `by`.",
     params: &[
         ParamDoc {
             name: "a",
@@ -1841,8 +1841,8 @@ const UNIQUE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::min`'s reference card — `rule:core-api/reference-card`.
 const MIN_DOC: MethodDoc = MethodDoc {
-    short: "The smallest entry under the natural order, as `min` with an array argument does — \
-            the order `sort` uses without a comparator, never PHP's loose comparison.",
+    short: "Returns the smallest entry. Entries are compared in the order `sort` uses without \
+            a comparator.",
     params: &[ParamDoc {
         name: "a",
         desc: "The array to search.",
@@ -1859,8 +1859,8 @@ const MIN_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::max`'s reference card — `rule:core-api/reference-card`.
 const MAX_DOC: MethodDoc = MethodDoc {
-    short: "The largest entry under the natural order, as `max` with an array argument does — \
-            the order `sort` uses without a comparator, never PHP's loose comparison.",
+    short: "Returns the largest entry. Entries are compared in the order `sort` uses without \
+            a comparator.",
     params: &[ParamDoc {
         name: "a",
         desc: "The array to search.",

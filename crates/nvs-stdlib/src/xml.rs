@@ -243,8 +243,7 @@ const CARD: ClassDoc = ClassDoc {
 
 /// `Core\Xml::parse`'s reference card — `rule:core-api/reference-card`.
 const PARSE_DOC: MethodDoc = MethodDoc {
-    short: "Reads a whole XML document and returns its document node. It replaces PHP's \
-            `DOMDocument::load`, `simplexml_load_string` and `xml_parse`. A document that is not \
+    short: "Reads a whole XML document and returns its document node. A document that is not \
             well-formed throws a `ParseError`. Nothing is repaired or guessed. \
             `Core\\Html::parse` returns the same kind of tree, and repairs broken HTML instead of \
             throwing.",
@@ -431,9 +430,8 @@ const TEXT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Xml\Node::attributes`'s reference card — `rule:core-api/reference-card`.
 const ATTRIBUTES_DOC: MethodDoc = MethodDoc {
-    short: "Returns the attributes of this element, in the order the document wrote them. It \
-            replaces PHP's `DOMElement::getAttribute` and the `attributes` property. For a node that \
-            is not an element, the array is empty.",
+    short: "Returns the attributes of this element, in the order the document wrote them. For \
+            a node that is not an element, the array is empty.",
     params: &[],
     ret: "An array keyed by attribute name. The name is written as in the document, with its \
           prefix, such as `xml:lang`. Entities such as `&amp;` are expanded in the value. A tab or \
@@ -567,8 +565,8 @@ pub(crate) const READER: CoreClass = CoreClass {
 
 /// `Core\Xml::reader`'s reference card — `rule:core-api/reference-card`.
 const READER_DOC: MethodDoc = MethodDoc {
-    short: "Returns a reader that goes through `$document` one node at a time. It replaces PHP's \
-            `XMLReader`. Call `read` until it returns `null`. The reader does not build a tree. \
+    short: "Returns a reader that goes through `$document` one node at a time. Call `read` \
+            until it returns `null`. The reader does not build a tree. \
             It keeps the current node and the names of the elements that are open. This call \
             reads nothing yet. The first `read` reads the first node.",
     params: &[ParamDoc {
@@ -785,8 +783,8 @@ const WRITER_OPTIONS: &[CoreOption] = &[CoreOption {
 
 /// `Core\Xml::writer`'s reference card — `rule:core-api/reference-card`.
 const WRITER_DOC: MethodDoc = MethodDoc {
-    short: "Returns a writer that builds an XML document one node at a time. It replaces PHP's \
-            `XMLWriter`. The writer remembers which elements are open, so `endElement` needs no \
+    short: "Returns a writer that builds an XML document one node at a time. The writer \
+            remembers which elements are open, so `endElement` needs no \
             name. Ending the document while an element is still open throws a `LogicError`. \
             Every method that takes text escapes it, so you never escape text \
             yourself.",

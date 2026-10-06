@@ -186,7 +186,7 @@ fn the_golden_for_math_pi_matches_the_contract() {
             "type": "float",
             "value": "3.141592653589793",
             "doc": "The ratio of a circle's circumference to its diameter, `3.14159…` as the \
-                    nearest `float` — PHP's `M_PI`."
+                    nearest `float`."
         })
     );
 }

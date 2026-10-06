@@ -83,14 +83,13 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// `Core\Out`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
     short: "Collects what a piece of code prints, so your program can use it as a value. \
-            `capture` runs a function and returns everything it printed. This replaces PHP's \
-            `ob_start` and `ob_get_clean`.",
+            `capture` runs a function and returns everything it printed.",
 };
 
 /// `Core\Out::capture`'s reference card — `rule:core-api/reference-card`.
 const CAPTURE_DOC: MethodDoc = MethodDoc {
-    short: "Runs `$fn` and returns everything it printed with `echo`. This replaces PHP's \
-            `ob_start` and `ob_get_clean`. The printed text does not reach the output. You can \
+    short: "Runs `$fn` and returns everything it printed with `echo`. The printed text does \
+            not reach the output. You can \
             call `capture` inside another `capture`, and each call collects only what its own \
             function printed.",
     params: &[

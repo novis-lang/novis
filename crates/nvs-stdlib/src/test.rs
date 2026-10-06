@@ -1761,8 +1761,8 @@ const SENT_BODY_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Test::assertSame`'s reference card — `rule:core-api/reference-card`.
 const ASSERT_SAME_DOC: MethodDoc = MethodDoc {
-    short: "Asserts `$actual` is identical to `$expected` — two objects are the same object \
-            and nothing else is — as PHPUnit's `assertSame` does, subject first.",
+    short: "Asserts that `$actual` is identical to `$expected`. Two objects are identical only \
+            when they are the same object.",
     params: &[
         ParamDoc {
             name: "actual",
@@ -1792,9 +1792,8 @@ const ASSERT_SAME_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Test::assertEquals`'s reference card — `rule:core-api/reference-card`.
 const ASSERT_EQUALS_DOC: MethodDoc = MethodDoc {
-    short: "Asserts `$actual` equals `$expected` — identity everywhere except two objects, \
-            which are compared through `Comparable::compareTo` — as PHPUnit's `assertEquals` \
-            does, subject first.",
+    short: "Asserts that `$actual` equals `$expected`. Two objects are compared with \
+            `Comparable::compareTo`, and every other value must be identical.",
     params: &[
         ParamDoc {
             name: "actual",
@@ -1894,8 +1893,8 @@ const ASSERT_TRUE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Test::assertNull`'s reference card — `rule:core-api/reference-card`.
 const ASSERT_NULL_DOC: MethodDoc = MethodDoc {
-    short: "Asserts `$actual` is `null`, as PHPUnit's `assertNull` does; the subject is \
-            `mixed`, so a value of any type may be asked.",
+    short: "Asserts that `$actual` is `null`. `$actual` is `mixed`, so it can be a value of \
+            any type.",
     params: &[
         ParamDoc {
             name: "actual",
@@ -1919,9 +1918,8 @@ const ASSERT_NULL_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Test::assertCount`'s reference card — `rule:core-api/reference-card`.
 const ASSERT_COUNT_DOC: MethodDoc = MethodDoc {
-    short: "Asserts `$actual` holds exactly `$expected` entries — `Core\\Arr::count`'s own \
-            signature — as PHPUnit's `assertCount` does, subject first. A `string`'s length \
-            is asserted through `Core\\Str::length`, which says which length was meant.",
+    short: "Asserts that the array `$actual` has exactly `$expected` entries. To check the \
+            length of a `string`, assert on `Core\\Str::length`.",
     params: &[
         ParamDoc {
             name: "actual",
@@ -1950,10 +1948,9 @@ const ASSERT_COUNT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Test::assertContains`'s reference card — `rule:core-api/reference-card`.
 const ASSERT_CONTAINS_DOC: MethodDoc = MethodDoc {
-    short: "Asserts some entry of `$actual` is `$expected` under strict identity — the question \
-            `Core\\Arr::contains` answers, and the same answer — as PHPUnit's `assertContains` \
-            does, subject first. A substring is asserted through `Core\\Str::contains`, which \
-            says which containment was meant.",
+    short: "Asserts that some entry of `$actual` is identical to `$expected`, as \
+            `Core\\Arr::contains` checks. To check for a substring, assert on \
+            `Core\\Str::contains`.",
     params: &[
         ParamDoc {
             name: "actual",
@@ -2017,9 +2014,8 @@ const ASSERT_MATCHES_INLINE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Test::assertThrows`'s reference card — `rule:core-api/reference-card`.
 const ASSERT_THROWS_DOC: MethodDoc = MethodDoc {
-    short: "Runs `$body` and asserts it throws `$expected` or a subclass of it, as PHPUnit's \
-            `expectException` does; the throw it judged is consumed, so only the assertion's \
-            own verdict propagates.",
+    short: "Runs `$body` and asserts that it throws `$expected` or a subclass of it. The error \
+            it throws is caught here, so only a failed assertion reaches the caller.",
     params: &[
         ParamDoc {
             name: "body",

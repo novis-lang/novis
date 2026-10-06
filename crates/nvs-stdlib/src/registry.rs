@@ -5688,6 +5688,74 @@ mod tests {
         );
     }
 
+    /// A card says what the member does, never which PHP function it
+    /// replaces or how it differs from one (`rule:programs/no-compatibility-promise`:
+    /// no table maps a PHP function to a Novis one, and a card naming its PHP
+    /// counterpart is a row of that table).
+    ///
+    /// PHP is named only where the member reads or writes something PHP
+    /// itself produced, which is interop rather than translation; those
+    /// members are listed in `INTEROP` by their full name.
+    #[test]
+    fn no_member_text_says_what_it_replaces_in_php() {
+        // A bcrypt hash PHP wrote is one `verify` reads.
+        const INTEROP: &[&str] = &["Core\\Password::verify"];
+
+        nvs_footprint::every_card();
+        let mut named = Vec::new();
+        let mut note = |owner: &str, place: String, text: &str| {
+            if text.contains("PHP") && !INTEROP.contains(&owner) {
+                named.push(format!("{place}: {text}"));
+            }
+        };
+        for class in CLASSES {
+            if let Some(doc) = class.doc {
+                note(class.name, format!("{} short", class.name), doc.short);
+            }
+            for method in class.members() {
+                let Some(doc) = method.doc else { continue };
+                let member = format!("{}::{}", class.name, method.name);
+                note(&member, format!("{member} short"), doc.short);
+                note(&member, format!("{member} ret"), doc.ret);
+                for param in doc.params {
+                    note(&member, format!("{member} ${}", param.name), param.desc);
+                    for key in param.shape {
+                        note(
+                            &member,
+                            format!("{member} ${}.{}", param.name, key.key),
+                            key.desc,
+                        );
+                    }
+                }
+                for error in doc.errors {
+                    note(
+                        &member,
+                        format!("{member} throws {}", error.error),
+                        error.desc,
+                    );
+                }
+            }
+            for constant in class.constants {
+                let name = format!("{}::{}", class.name, constant.name);
+                note(&name, name.clone(), constant.desc);
+            }
+        }
+        for declared in ENUMS {
+            let Some(doc) = declared.doc else { continue };
+            note(declared.name, format!("{} short", declared.name), doc.short);
+            for case in doc.cases {
+                let name = format!("{}::{}", declared.name, case.name);
+                note(&name, name.clone(), case.desc);
+            }
+        }
+        assert!(
+            named.is_empty(),
+            "{} card field(s) name PHP — say what the member does instead:\n  {}",
+            named.len(),
+            named.join("\n  ")
+        );
+    }
+
     /// `rule:core-api/reference-card`'s card keys itself by `rule:core-api/shape-rules` R2's names, so the two cannot
     /// be written independently: [`MethodDoc::params`] is one entry per
     /// positional parameter under the row's own [`CoreMethod::names`], then

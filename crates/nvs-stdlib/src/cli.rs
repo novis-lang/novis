@@ -368,9 +368,8 @@ const ESCAPE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Cli::isTty`'s reference card — `rule:core-api/reference-card`.
 const IS_TTY_DOC: MethodDoc = MethodDoc {
-    short: "Reports whether one standard stream is attached to a terminal — `posix_isatty` and \
-            `stream_isatty`, which PHP splits between two extensions. Resolved once for the \
-            process, so two calls in one run cannot disagree.",
+    short: "Checks whether one standard stream is attached to a terminal. The check is made \
+            once for the process, so two calls in one run always give the same result.",
     params: &[ParamDoc {
         name: "stream",
         desc: "Which stream to ask about. It is a parameter rather than a single process-wide \
@@ -470,10 +469,9 @@ const WRITE_OPTIONS: &[CoreOption] = &[
 
 /// `Core\Cli::arguments`'s reference card — `rule:core-api/reference-card`.
 const ARGUMENTS_DOC: MethodDoc = MethodDoc {
-    short: "The words this program was started with, past the program itself — PHP's `$argv` and \
-            `$argc` in one place. A program that declares a `#[Command]` reads its arguments off \
-            the table `Core\\Command::run` matched them against instead; this is the raw list, for \
-            a program that parses its own.",
+    short: "Returns the arguments this program was started with, without the program name. A \
+            program that declares a `#[Command]` gets its arguments from `Core\\Command::run` \
+            instead. This is the raw list, for a program that parses its own arguments.",
     params: &[],
     ret: "An `array<tainted string>` in the order the shell wrote them, empty for a program \
           started with none. Every element is `tainted`: the words came from outside the program's \
@@ -731,9 +729,8 @@ const MULTI_SELECT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Cli::secret`'s reference card — `rule:core-api/reference-card`.
 const SECRET_DOC: MethodDoc = MethodDoc {
-    short: "Asks `$question` with the terminal's echo turned off, so a password is not left on \
-            the screen or in a scrollback buffer — PHP's `readline` has no spelling for this at \
-            all and every program shells out to `stty -echo` for it.",
+    short: "Prints `$question` and reads the answer with the terminal's echo turned off. A \
+            password typed here does not stay on the screen or in the scrollback buffer.",
     params: &[ParamDoc {
         name: "question",
         desc: "What to write at the terminal, substituted as `ask` substitutes it.",
@@ -2045,8 +2042,7 @@ const TEXT_TEXT_DOC: MethodDoc = MethodDoc {
 const STYLED_DOC: MethodDoc = MethodDoc {
     short: "Answers `$text` as a `Core\\Cli\\Text` wearing `$style`, with the text itself \
             neutralized exactly as `plain` neutralizes it — so the only control bytes in the \
-            answer are the ones the style put there. Replaces the `\"\\e[31m…\"` string every PHP \
-            CLI program builds by hand.",
+            answer are the ones the style put there.",
     params: &[
         ParamDoc {
             name: "text",

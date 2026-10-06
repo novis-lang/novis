@@ -2262,8 +2262,8 @@ const TIME_CARD: ClassDoc = ClassDoc {
 
 /// `Core\Time::now`'s reference card — `rule:core-api/reference-card`.
 const TIME_NOW_DOC: MethodDoc = MethodDoc {
-    short: "Reads the current time from the system clock. It replaces PHP's `time`, `microtime` \
-            and `date_create`. Use `->in($zone)` to get the date and time of day in a zone.",
+    short: "Reads the current time from the system clock. Use `->in($zone)` to get the date and \
+            time of day in a zone.",
     params: &[],
     ret: "The current `Instant`, to the nanosecond.",
     errors: &[],
@@ -2271,8 +2271,8 @@ const TIME_NOW_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time::monotonic`'s reference card — `rule:core-api/reference-card`.
 const TIME_MONOTONIC_DOC: MethodDoc = MethodDoc {
-    short: "Reads a clock that only moves forward, for measuring how long something takes. It \
-            replaces PHP's `hrtime`. Subtract two readings to get the time between them.",
+    short: "Reads a clock that only moves forward, for measuring how long something takes. \
+            Subtract two readings to get the time between them.",
     params: &[],
     ret: "A `Duration` since a fixed starting point. A later reading is never smaller than an \
           earlier one.",
