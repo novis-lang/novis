@@ -59,7 +59,7 @@ use std::time::SystemTime;
 
 use lsp_types::Uri;
 use nvs_diagnostics::{BytePos, Diagnostics, SourceId, SourceMap, Span, canonical_key};
-use nvs_hir::{AutoloadMap, Lender, Loaded, Module, resolve_program_borrowing};
+use nvs_hir::{AutoloadMap, Lender, Loaded, Module, resolve_program_linted};
 use nvs_syntax::{SyntaxIndex, Trivia, check_declarations, parse};
 use nvs_types::deprecated::Notices;
 use nvs_types::{ExprTypeTable, LocalBinding, TypeId, TypeInterner};
@@ -542,9 +542,21 @@ pub struct Analysed {
     pub diags: Diagnostics,
     /// The stub tree a `Core` name is answered from, as the store named it.
     pub stubs: Option<Stubs>,
+    /// The manifests of the extension set the document's tree pins, which the
+    /// walk and the type phase read. An extension class has no declaration to
+    /// answer a cursor from, so completion and hover read its manifest.
+    pub extensions: Vec<nvs_ext::manifest::Manifest>,
 }
 
 impl Analysed {
+    /// The manifest of the extension class `class`, if the set has one.
+    #[must_use]
+    pub fn extension(&self, class: &str) -> Option<&nvs_ext::manifest::Manifest> {
+        self.extensions
+            .iter()
+            .find(|manifest| manifest.class.eq_ignore_ascii_case(class))
+    }
+
     /// The path of every file this analysis depends on: the graph it read,
     /// entry first, then each file it borrowed an `autoload` declaration from.
     ///
@@ -679,7 +691,8 @@ pub fn analyse_file(documents: &Documents, path: &Path, version: i32) -> Option<
     // program's (`rule:ide/an-open-document-is-its-own-entry-point`).
     let lender = documents.lender_for(path);
     let lent = lender.map_or_else(Vec::new, |lender| lender.declaring().to_vec());
-    let (module, loaded, autoload) = resolve_program_borrowing(
+    let extensions = extension_set(path);
+    let (module, loaded, autoload) = resolve_program_linted(
         entry,
         stmts,
         &mut map,
@@ -688,7 +701,9 @@ pub fn analyse_file(documents: &Documents, path: &Path, version: i32) -> Option<
             closed: &closed,
         },
         &mut diags,
+        false,
         lender.map_or(&[], |lender| lender.sites()),
+        &nvs_types::ext_lib::hir_classes(&extensions),
     );
     let autoloads: Vec<nvs_hir::autoload::Site> = autoload
         .sites()
@@ -723,7 +738,15 @@ pub fn analyse_file(documents: &Documents, path: &Path, version: i32) -> Option<
         // The enum table is dropped and the expression table is not: nothing
         // here lowers, so a case's constant value has no reader, while what
         // each expression resolved to is what a cursor request asks about.
-        let _ = nvs_types::check_program(&files, &module, &mut interner, &mut exprs, &mut diags);
+        let _ = nvs_types::check::check_program_loaded(
+            &files,
+            &module,
+            None,
+            &extensions,
+            &mut interner,
+            &mut exprs,
+            &mut diags,
+        );
         deprecated = nvs_types::deprecated::notices(&files);
     }
 
@@ -743,7 +766,56 @@ pub fn analyse_file(documents: &Documents, path: &Path, version: i32) -> Option<
         deprecated,
         diags,
         stubs: documents.stubs.clone(),
+        extensions,
     })
+}
+
+/// The manifests of the extension set the tree beside `path` resolves to, read and never
+/// instantiated (`rule:packaging/extension-calls-are-statically-typed`).
+///
+/// The tree is the one `nvs check` reads when it is run in the document's directory: its
+/// `nvs.toml`, through the same reader with no ownership check, with the `[[app]]` blocks that
+/// match the document folded in. A document that is not on disk yet takes the host's tree. A
+/// directory with no `nvs.toml` is no set and costs one file test.
+///
+/// A tree that does not resolve, and an entry that does not read, are no set here. `nvs check`
+/// reports both against the configuration file, and a diagnostic in the open document would put
+/// the configuration's mistake on a line of code. Every analysis reads the tree again and hashes
+/// each `.nvsx` it pins, because a cached set would be a second answer that outlives an edit to
+/// `nvs.toml`.
+fn extension_set(path: &Path) -> Vec<nvs_ext::manifest::Manifest> {
+    use nvs_config::resolve::{Unowned, resolve, roots};
+    let Some(dir) = path.parent() else {
+        return Vec::new();
+    };
+    let roots = roots(&[], dir, &Unowned);
+    if !matches!(roots, nvs_config::Roots::Files(_)) {
+        return Vec::new();
+    }
+    let Ok(resolved) = resolve(&roots, &mut SourceMap::new(), &Unowned) else {
+        return Vec::new();
+    };
+    let snapshot = nvs_config::Snapshot::build(&resolved, path, &Unowned)
+        .or_else(|_| nvs_config::Snapshot::host(&resolved, &Unowned));
+    let Ok(snapshot) = snapshot else {
+        return Vec::new();
+    };
+    let entries: Vec<nvs_ext::load::Entry> = snapshot
+        .config
+        .extension
+        .iter()
+        .enumerate()
+        .map(|(index, written)| nvs_ext::load::Entry {
+            path: nvs_config::extension::file(
+                index,
+                written.path.as_deref().unwrap_or_default(),
+                &resolved.origins,
+            ),
+            sha256: written.sha256.clone().unwrap_or_default(),
+            memory: None,
+        })
+        .collect();
+    nvs_ext::load::read_manifests(&entries).unwrap_or_default()
 }
 
 /// [`analyse`], unless `version` has already been superseded.

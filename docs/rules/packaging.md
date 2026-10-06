@@ -1598,9 +1598,10 @@ signature table and `nvs_hir::resolve_file_with_extensions` declares their class
 `nvs_ext::load::read_manifests` and type a program against it
 (`tests/conformance/reject/an-extension-call-with-a-wrong-argument-type-does-not-compile.nvst`),
 `nvs serve` types its programs against the set it loaded, and `nvs test` types a suite against
-the set and hosts it while the suite runs (`crates/nvs-cli/tests/test_command.rs`); the language
-server does not yet. `nvs_ir` lowers a call into an
-extension to one `InstKind::ExtensionCall` naming the export (`crates/nvs-ir/src/lower/tests.rs`).
+the set and hosts it while the suite runs (`crates/nvs-cli/tests/test_command.rs`). The language
+server types a document against the set its directory's `nvs.toml` pins, and completes and hovers
+an extension class's members from its manifest (`crates/nvs-lsp/tests/extensions.rs`). `nvs_ir`
+lowers a call into an extension to one `InstKind::ExtensionCall` naming the export (`crates/nvs-ir/src/lower/tests.rs`).
 Codegen emits it as a direct call of one runtime helper with the export named in its first slot
 (`nvs_runtime::extension`), and `nvs run` hosts it
 (`tests/conformance/ext/an-extension-call-crosses-every-row-of-the-value-table.nvst`). So does

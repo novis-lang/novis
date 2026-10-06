@@ -71,51 +71,10 @@ use crate::render_diagnostics;
 /// out of an unchecked file belongs in it. Until then nothing here grants
 /// anything: `Core\Config` reads values and `[capabilities]` is enforced
 /// nowhere, so the split above costs no right that is currently checked.
-pub(crate) struct LocalFiles;
-
-impl nvs_config::resolve::Files for LocalFiles {
-    /// Canonicalization without the ownership check — see the type's own docs.
-    /// The canonical path still comes from `nvs_config::trust::canonical`,
-    /// because the resolver's cycle test compares files rather than spellings
-    /// and a second canonicalizer is how a symlinked cycle gets through.
-    fn trust(&self, path: &Path) -> Result<PathBuf, nvs_config::trust::Untrusted> {
-        nvs_footprint::exists(path);
-        nvs_config::trust::canonical(path)
-            .map_err(|err| nvs_config::trust::Untrusted::Unreadable(err.to_string()))
-    }
-
-    fn canonical(&self, path: &Path) -> Result<PathBuf, String> {
-        nvs_config::resolve::Disk.canonical(path)
-    }
-
-    fn canonical_block(&self, path: &Path) -> Result<PathBuf, String> {
-        nvs_config::resolve::Disk.canonical_block(path)
-    }
-
-    fn read(&self, path: &Path) -> Result<String, String> {
-        nvs_config::resolve::Disk.read(path)
-    }
-
-    fn read_config(&self, path: &Path) -> Result<String, String> {
-        nvs_config::resolve::Disk.read_config(path)
-    }
-
-    fn read_bytes(&self, path: &Path) -> Result<Vec<u8>, String> {
-        nvs_config::resolve::Disk.read_bytes(path)
-    }
-
-    fn exposure(&self, path: &Path) -> Option<String> {
-        nvs_config::resolve::Disk.exposure(path)
-    }
-
-    fn list(&self, dir: &Path) -> Result<Vec<PathBuf>, String> {
-        nvs_config::resolve::Disk.list(dir)
-    }
-
-    fn exists(&self, path: &Path) -> bool {
-        nvs_config::resolve::Disk.exists(path)
-    }
-}
+///
+/// The language server reads a document's tree through the same type, for the
+/// same reason: the editor is the developer's own.
+pub(crate) use nvs_config::resolve::Unowned as LocalFiles;
 
 /// The working directory, as the diagnostic a caller reports when it cannot be
 /// read.

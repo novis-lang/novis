@@ -32,6 +32,10 @@ lsp-types.workspace = true
 # reports and call it agreement. It also links `nvs-stdlib` and the runtime
 # beneath it into the server, which `tests/stdout_policy.rs` names.
 nvs-diagnostics.workspace = true
+# The manifests of the document's extension set, read with `read_manifests` and
+# never instantiated (`crate::document`). Already linked through `nvs-types`;
+# named here because this crate reads it directly.
+nvs-ext.workspace = true
 # The default `nvs.toml` the binary ships, which is the table `nvs/directives`
 # completes from (`crate::directives`). Already linked through `nvs-types`;
 # named here because this crate reads it directly.
@@ -73,6 +77,10 @@ serde.workspace = true
 [dev-dependencies]
 # How this crate's tests reach files outside the package.
 nvs-repo.workspace = true
+# `tests/extensions.rs` writes a `.nvsx` the document's `nvs.toml` pins: a
+# component from WAT text with the packer's two sections added to it.
+nvs-ext = { workspace = true, features = ["pack"] }
+wat.workspace = true
 
 # The workspace table verbatim, and `print_stdout` is the reason this block is
 # spelled out rather than inherited-and-forgotten: `rule:ide/stdout-belongs-to-the-protocol` gives this

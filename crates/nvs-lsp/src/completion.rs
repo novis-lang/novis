@@ -566,9 +566,58 @@ fn members_of(cursor: &Cursor<'_>, class: &QName, reach: Reach) -> Vec<Completio
         core_members(cursor, core, reach)
     } else if let Some(core) = registry::core_enum(&name) {
         core_cases(core, reach)
+    } else if let Some(manifest) = cursor.analysed.extension(&name) {
+        extension_members(cursor, manifest, reach)
     } else {
         declared_members(cursor, class, reach)
     }
+}
+
+/// Every member of an extension class that `reach` reaches, spelled from its
+/// manifest: the methods and constants, all of them static
+/// (`rule:packaging/extension-calls-are-statically-typed`).
+fn extension_members(
+    cursor: &Cursor<'_>,
+    manifest: &nvs_ext::manifest::Manifest,
+    reach: Reach,
+) -> Vec<CompletionItem> {
+    if reach == Reach::Instance {
+        return Vec::new();
+    }
+    let methods = manifest.methods.iter().map(|method| {
+        let (params, returns) = extension_parts(method);
+        let takes = if method.params.is_empty() {
+            Takes::Nothing
+        } else {
+            Takes::Arguments
+        };
+        called(
+            cursor,
+            method_row(&manifest.class, method.name.clone(), params, Some(returns)),
+            takes,
+        )
+    });
+    let consts = manifest.consts.iter().map(|constant| {
+        valued_row(
+            &manifest.class,
+            constant.name.clone(),
+            CompletionItemKind::CONSTANT,
+            None,
+            Some(constant.ty.clone()),
+        )
+    });
+    methods.chain(consts).collect()
+}
+
+/// An extension method's parameter list and its return type, spelled apart as
+/// [`core_parts`] spells a `Core` member's.
+pub(crate) fn extension_parts(method: &nvs_ext::manifest::Method) -> (String, String) {
+    let params: Vec<String> = method
+        .params
+        .iter()
+        .map(|param| format!("{} ${}", param.ty, param.name))
+        .collect();
+    (format!("({})", params.join(", ")), method.returns.clone())
 }
 
 /// A string literal the cursor is inside whose text the compiler reads as a

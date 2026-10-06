@@ -1,27 +1,20 @@
 {
-  "state": "**Goal `ext-compiler`. Stages 1 to 5 are done; Stage 6 (the tools) has two of its three checks green.** The design is ADR 0246 § 3 and § 8 and the goal file's § *Standing decisions*. This goal has no record slot.\n\n`nvs_ext::manifest::Manifest` has a `source` field (`#[serde(skip)]`, the `nvs.source` section's files). `nvs_ext::load::read_manifests` fills it and refuses a file outside the class's namespace, through the same `outside` helper `Loader::load_bytes` uses. `nvs_types::ext_lib::hir_classes` copies it into `ExtensionClass::source`, so every command that reads the set's manifests resolves the extension's source with no `autoload` line.\n\n`nvs check` reads the tree's set (`crates/nvs-cli/tests/check_command.rs`, an empty component carrying the ledger manifest, so nothing could be instantiated). `nvs test <program>` now types the suite against `config::extension_set` and installs `config::extension_calls` around `runner::run`, one request for the whole suite (`crates/nvs-cli/src/main.rs`, `run_test`). A `.nvst` tree run by `nvs test` is unchanged: each case is its own `nvs run`.\n\nThe language server still types a document with no extension set.",
+  "state": "**Goal `ext-compiler`. Stages 1 to 6 are on disk, and every Stage 6 check passed in this session's own runs.** The design is ADR 0246 § 3 and § 8 and the goal file's § *Standing decisions*. This goal has no record slot.\n\n`nvs check` has the three tests its check names (`crates/nvs-cli/tests/check_command.rs`). The third pins a component that imports a function no host provides: `nvs run` fails on it, and `nvs check` still types the program.\n\nThe language server reads the document's extension set (`extension_set` in `crates/nvs-lsp/src/document.rs`). It resolves the tree beside the document through `nvs_config::resolve::Unowned` (the CLI's `LocalFiles` is now a re-export of it), folds `[[app]]` for the document or takes the host tree for an unsaved one, and reads the entries with `read_manifests`. An unresolvable tree is no set. `Analysed::extensions` carries the manifests. `completion::extension_members` and `hover::extension` answer from them (`crates/nvs-lsp/tests/extensions.rs`).\n\nWhat is left is the goal's closing gates. No code item is open.",
   "next": {
     "stage": 6,
-    "title": "the tools",
-    "files": [
-      "crates/nvs-lsp/src/document.rs",
-      "crates/nvs-lsp/src/completion.rs",
-      "crates/nvs-lsp/src/hover.rs",
-      "crates/nvs-lsp/tests/completion.rs"
-    ],
+    "title": "the tools — closing the goal",
+    "files": [],
+    "note": "one file set: `docs/agent/goals/ext-compiler.md`, `docs/rules/packaging/extension-calls-are-statically-typed.md`, the gap records under `data/gaps/`.",
     "items": [
       {
         "done": false,
-        "text": "**An extension class's methods complete and hover from its manifest, and the server never instantiates it**: check `nvs-lsp` test `completion_after_an_extension_class_offers_its_manifest_methods`. The document's resolve is `resolve_program_borrowing` at `crates/nvs-lsp/src/document.rs:682` and its check `nvs_types::check_program` at `crates/nvs-lsp/src/document.rs:726`; both take no extension set yet. Read the set with `nvs_ext::load::read_manifests` from the tree the document's configuration resolves, never `Loader::load`, and pass its classes and manifests the way `crates/nvs-cli/src/main.rs:2184` does. `rule:packaging/extension-calls-are-statically-typed`."
-      },
-      {
-        "done": false,
-        "text": "**Hover on an extension method shows the manifest's help text**: the same file set. Hover is `at` at `crates/nvs-lsp/src/hover.rs:132`, and a call's documentation is read by `documentation` at `crates/nvs-lsp/src/hover.rs:272`, which only knows the `Core` registry (`registry_row`, `crates/nvs-lsp/src/hover.rs:296`). `rule:packaging/extension-calls-are-statically-typed`."
+        "text": "**Close the goal**: run `bun nv verify --doc` and fix each broken link. Run `bun nv owners --closes ext-compiler` and close or re-owner each gap. Move every decision only the goal prose holds to its rule or module doc (`rule:tooling/the-chain-names-its-live-goal`). The rule's *Not on disk* lead at `docs/rules/packaging/extension-calls-are-statically-typed.md:21` now describes a rule that is on disk in every tool, so rewrite it as the rule's on-disk paragraph. Then write `DONE`."
       }
     ]
   },
   "backlog": [
-    "The rule fragment `rule:packaging/extension-calls-are-statically-typed` still says the language server does not read the set; rewrite its *Not on disk* paragraph when the check above is green.",
-    "`nvs test --list` loads the extension components it never calls; move `extension_calls` below the listing if that cost shows up (`crates/nvs-cli/src/main.rs`, `run_test`)."
+    "Completion of an extension class's *name* where a type or class name is written is not pinned by a test. The goal prose names `class_names` in `crates/nvs-lsp/src/completion.rs`. Owner: this goal, or a gap record for `nvs-lsp` if it is not pinned before `DONE`.",
+    "Signature help (`help_at` in `crates/nvs-lsp/src/hover.rs`) has no extension arm. The manifest has the parameter names it would need.",
+    "The language server reads the tree and hashes each pinned `.nvsx` on every analysis. If `tests/latency.rs` goes red under a large set, cache the set by the `nvs.toml` modification time."
   ]
 }

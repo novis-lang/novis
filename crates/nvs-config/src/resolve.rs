@@ -233,6 +233,54 @@ impl Files for Disk {
     }
 }
 
+/// [`Disk`] without the ownership check, for the commands a developer runs on a checkout of
+/// their own: `nvs run`, `nvs check` and the language server. Why a tree read for one of those
+/// skips the check is `nvs-cli`'s `config::LocalFiles` doc, which names this type.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Unowned;
+
+impl Files for Unowned {
+    /// The canonical path still comes from [`trust::canonical`], because the resolver's cycle
+    /// test compares files rather than spellings and a second canonicalizer is how a symlinked
+    /// cycle gets through.
+    fn trust(&self, path: &Path) -> Result<PathBuf, Untrusted> {
+        nvs_footprint::exists(path);
+        trust::canonical(path).map_err(|err| Untrusted::Unreadable(err.to_string()))
+    }
+
+    fn canonical(&self, path: &Path) -> Result<PathBuf, String> {
+        Disk.canonical(path)
+    }
+
+    fn canonical_block(&self, path: &Path) -> Result<PathBuf, String> {
+        Disk.canonical_block(path)
+    }
+
+    fn read(&self, path: &Path) -> Result<String, String> {
+        Disk.read(path)
+    }
+
+    fn read_config(&self, path: &Path) -> Result<String, String> {
+        Disk.read_config(path)
+    }
+
+    fn read_bytes(&self, path: &Path) -> Result<Vec<u8>, String> {
+        Disk.read_bytes(path)
+    }
+
+    fn exposure(&self, path: &Path) -> Option<String> {
+        Disk.exposure(path)
+    }
+
+    fn list(&self, dir: &Path) -> Result<Vec<PathBuf>, String> {
+        Disk.list(dir)
+    }
+
+    fn exists(&self, path: &Path) -> bool {
+        Disk.exists(path)
+    }
+}
+
 /// Where one value in the resolved configuration was written.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Origin {

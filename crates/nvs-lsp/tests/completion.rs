@@ -515,7 +515,10 @@ fn sources() -> Vec<Source> {
 ///
 /// The deprecation tag adds no item. It shapes a declared member's item from
 /// `Analysed::deprecated`, the walk the checker raises `W1003` from.
-const SOURCED: [(&str, &str); 37] = [
+///
+/// An extension class's members are read from its manifest, the one the
+/// checker seeded the class's signatures from (`Analysed::extensions`).
+const SOURCED: [(&str, &str); 38] = [
     ("tagged", "analysed.deprecated"),
     ("named_type", "..item("),
     ("type_row", "..named_type("),
@@ -552,6 +555,7 @@ const SOURCED: [(&str, &str); 37] = [
     ("core_member", "&CoreMethod"),
     ("core_constant", "&CoreConst"),
     ("core_cases", "&CoreEnum"),
+    ("extension_members", "&nvs_ext::manifest::Manifest"),
     ("item", "CompletionItem {"),
 ];
 

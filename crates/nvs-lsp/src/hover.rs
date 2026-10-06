@@ -420,6 +420,7 @@ fn answer_in(analysed: &Analysed, nodes: &[Span], offset: BytePos) -> Option<(St
             .and_then(|target| {
                 written(analysed, &target, *node, offset, receiver)
                     .or_else(|| core(analysed, &target))
+                    .or_else(|| extension(analysed, &target))
                     .or_else(|| run(analysed, &target))
                     .or_else(|| enclosing_run(analysed, &target))
             })
@@ -660,6 +661,43 @@ fn core(analysed: &Analysed, target: &Target<'_>) -> Option<String> {
     );
     if let Some(doc) = member.doc {
         value.push_str(&reference_card(member, doc));
+    }
+    Some(value)
+}
+
+/// An extension member's signature and help text, read from its class's
+/// manifest, or `None` for a target on any other class. An extension class has
+/// no declaration and no registry row, so the manifest is all there is to show
+/// (`rule:packaging/extension-calls-are-statically-typed`).
+fn extension(analysed: &Analysed, target: &Target<'_>) -> Option<String> {
+    let manifest = analysed.extension(&class_of(target).to_string())?;
+    let class = &manifest.class;
+    let (line, help) = match target {
+        Target::Method(call) => {
+            let method = manifest
+                .methods
+                .iter()
+                .find(|method| method.name.eq_ignore_ascii_case(&call.method))?;
+            let (params, returns) = crate::completion::extension_parts(method);
+            (
+                format!("{class}::{}{params}: {returns}", method.name),
+                method.help.as_deref(),
+            )
+        }
+        Target::Constant { name, .. } => {
+            let constant = manifest
+                .consts
+                .iter()
+                .find(|constant| constant.name == **name)?;
+            (format!("{class}::{}: {}", constant.name, constant.ty), None)
+        }
+        Target::Type(_) => (format!("class {class}"), None),
+        Target::Property { .. } | Target::TypeAlias { .. } => return None,
+    };
+    let mut value = format!("```nvs\n{line}\n```");
+    if let Some(help) = help {
+        value.push_str("\n\n");
+        value.push_str(help);
     }
     Some(value)
 }
