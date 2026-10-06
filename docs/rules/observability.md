@@ -19,7 +19,7 @@ and that path's measured cost is a guard that a change to the export must leave 
 
 One instrumentation, four consumers. Coverage, the timeline, the deterministic profiler and the
 production export all read the same events, so a number cannot disagree with itself depending on
-which tool asked. The distance between "measured" and "exported" is where PHP's story goes wrong —
+which tool asked. The distance between "measured" and "exported" is where a runtime without this goes wrong —
 an unsandboxed C agent in the request path, or a userland client reimplemented per framework, and
 neither able to see a GC pause or an isolate spawn — and closing it inside the runtime is the whole
 of this chapter.
@@ -624,7 +624,7 @@ Core\Budget::memoryLimit(): int
 **`held`, not `usage`**, because the runtime already says *held*: a breach renders as *"the request
 exceeded its memory limit — N bytes held against a ceiling of M"*, and a member whose name disagrees
 with the error text about the same quantity is a second vocabulary to learn. `usage` is also the word
-that carries PHP's ambiguity between "occupied now" and "consumed in total", and only one of those is
+that carries an ambiguity between "occupied now" and "consumed in total", and only one of those is
 ever meant.
 
 **`memoryLimit` is among them because a peak with no scale is not actionable.** The ceiling is
@@ -644,7 +644,7 @@ it.
 the resident set — what `getrusage`'s `ru_maxrss` answers — beside `pid`, `hostname`, `cpuCount` and
 `loadAverage`, which are host and process facts too. Two classes, two names, and neither readable as
 the other: a per-request figure sitting among host facts would be read as process memory by everyone
-who had not been told otherwise, which is PHP's own confusion relocated rather than removed.
+who had not been told otherwise, which is the same ambiguity relocated rather than removed.
 
 There is no `$real_usage`-style boolean in any spelling. Two accountings behind one member is what
 [`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings) refuses, and where two numbers are genuinely different questions they
@@ -668,10 +668,10 @@ is exact for every allocation rather than approximate between two reads. A sampl
 precisely the short spike that deterministic release makes invisible, which is the case the mark
 exists for.
 
-**Why a current figure is not enough here, when it nearly is in PHP.** Novis releases memory when the
-last reference dies ([`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root)), so held bytes fall back toward the
-baseline as soon as values die. PHP's allocator keeps its chunks, so a reading taken at the end of a
-script is sticky and approximates the high-water mark by accident. A Novis request that decoded a
+**Why a current figure is not enough.** Novis releases memory when the last reference dies
+([`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root)), so held bytes fall back toward the baseline as soon as
+values die, and a reading taken at the end of a request says nothing about the high-water mark. A
+Novis request that decoded a
 90 MB payload and returned a 2 KB summary reports the 2 KB, and a request that sat at 96% of its
 ceiling for most of its life is indistinguishable at exit from one that never passed 30%. The better
 memory behaviour is what destroys the evidence, so the evidence is kept deliberately.
@@ -764,8 +764,8 @@ compensating mechanism, because a breach is the one case [`errors/on-limit`](err
 names both numbers for.
 
 Which endings drain the queue is [`observability/three-endings-fire-the-exit-queue`](observability.md#observability-three-endings-fire-the-exit-queue); the two that
-never do are [`observability/a-fatal-and-a-cancellation-run-no-exit-hook`](observability.md#observability-a-fatal-and-a-cancellation-run-no-exit-hook). This is the home of
-PHP's `register_shutdown_function` for every ending that is not a fatal.
+never do are [`observability/a-fatal-and-a-cancellation-run-no-exit-hook`](observability.md#observability-a-fatal-and-a-cancellation-run-no-exit-hook). This is the
+one hook for work that must run at every ending that is not a fatal.
 
 <sub>See also [`observability/three-endings-fire-the-exit-queue`](observability.md#observability-three-endings-fire-the-exit-queue), [`observability/a-fatal-and-a-cancellation-run-no-exit-hook`](observability.md#observability-a-fatal-and-a-cancellation-run-no-exit-hook), [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`core-api/removals`](core-api.md#core-api-removals). Decided in [0127](../decisions/0127.md), [0063](../decisions/0063.md), [0148](../decisions/0148.md).</sub>
 
@@ -841,9 +841,8 @@ Two terminations never fire the exit queue.
 **A `FATAL`.** A resource-limit breach stopped the request *for exceeding its budget*. Running an
 unbounded queue of arbitrary hooks after that point is either an unenforceable cap or a reserved
 slice sized for work that cannot be sized — the reasoning behind [`errors/on-limit`](errors.md#errors-on-limit)'s single
-handler on a single reserved slice. The one observer of a `FATAL` stays `Core\Fatal::onLimit`. This
-is the deliberate divergence from PHP, whose shutdown functions fire on most fatals; a migrator moves
-that one use to `onLimit`. A limit breach *inside* a hook is a `FATAL` like any other: the ladder
+handler on a single reserved slice. The one observer of a `FATAL` stays `Core\Fatal::onLimit`, and
+a program that must see a fatal registers there, because no exit hook ever does. A limit breach *inside* a hook is a `FATAL` like any other: the ladder
 takes over and the rest of the queue never runs.
 
 **A cancellation.** [`concurrency/cancellation-runs-no-user-code`](concurrency.md#concurrency-cancellation-runs-no-user-code) extends to this queue
@@ -851,7 +850,7 @@ unchanged, and for the same reason: every producer of a cancellation — a sibli
 expired, the parent died, the client disconnected at a safepoint — means the request is already
 failing or already gone. Process death is the same answer for free.
 
-The firing set is therefore narrower than PHP's. Someone who assumed "no matter what" learns the two
+The firing set is therefore narrower than "every ending". Someone who assumed "no matter what" learns the two
 exceptions, and gets `Core\Fatal::onLimit` for the one that matters.
 
 <sub>See also [`observability/three-endings-fire-the-exit-queue`](observability.md#observability-three-endings-fire-the-exit-queue), [`errors/on-limit`](errors.md#errors-on-limit), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`concurrency/cancellation-runs-no-user-code`](concurrency.md#concurrency-cancellation-runs-no-user-code). Decided in [0127](../decisions/0127.md), [0020](../decisions/0020.md), [0072](../decisions/0072.md).</sub>

@@ -1,5 +1,5 @@
 No `Core` member that takes a path interprets a scheme prefix, and there is no registry by which
-userland or an extension adds one. A read of `"php://filter/..."` looks for a file with that name and
+userland or an extension adds one. A read of `"data://text/plain,..."` looks for a file with that name and
 does not find it.
 
 Making every filesystem function accept a URL, and letting userland register new schemes, is the root

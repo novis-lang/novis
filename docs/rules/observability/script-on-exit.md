@@ -31,5 +31,5 @@ compensating mechanism, because a breach is the one case `rule:errors/on-limit`'
 names both numbers for.
 
 Which endings drain the queue is `rule:observability/three-endings-fire-the-exit-queue`; the two that
-never do are `rule:observability/a-fatal-and-a-cancellation-run-no-exit-hook`. This is the home of
-PHP's `register_shutdown_function` for every ending that is not a fatal.
+never do are `rule:observability/a-fatal-and-a-cancellation-run-no-exit-hook`. This is the
+one hook for work that must run at every ending that is not a fatal.

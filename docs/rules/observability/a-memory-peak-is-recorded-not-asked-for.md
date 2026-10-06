@@ -8,10 +8,10 @@ is exact for every allocation rather than approximate between two reads. A sampl
 precisely the short spike that deterministic release makes invisible, which is the case the mark
 exists for.
 
-**Why a current figure is not enough here, when it nearly is in PHP.** Novis releases memory when the
-last reference dies (`rule:security/arena-is-an-ownership-root`), so held bytes fall back toward the
-baseline as soon as values die. PHP's allocator keeps its chunks, so a reading taken at the end of a
-script is sticky and approximates the high-water mark by accident. A Novis request that decoded a
+**Why a current figure is not enough.** Novis releases memory when the last reference dies
+(`rule:security/arena-is-an-ownership-root`), so held bytes fall back toward the baseline as soon as
+values die, and a reading taken at the end of a request says nothing about the high-water mark. A
+Novis request that decoded a
 90 MB payload and returned a 2 KB summary reports the 2 KB, and a request that sat at 96% of its
 ceiling for most of its life is indistinguishable at exit from one that never passed 30%. The better
 memory behaviour is what destroys the evidence, so the evidence is kept deliberately.

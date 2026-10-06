@@ -7,6 +7,6 @@ verification proves the password, this member says the row has fallen behind, ha
 the legacy column converges to empty. It reads a legacy hash rather than throwing at it, which is the
 one behaviour this member owes the roster.
 
-PHP's equivalent compares the stored parameters for difference, which answers `true` when a deployment
+A check that compares the stored parameters for difference answers `true` when a deployment
 *lowers* its cost as readily as when it raises it. Measuring weakness rather than difference is the
-divergence, and it is the direction that never rewrites a strong row into a weaker one.
+direction that never rewrites a strong row into a weaker one.

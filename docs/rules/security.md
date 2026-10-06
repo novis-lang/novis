@@ -255,7 +255,7 @@ bounded, and visible in the grants.
 
 `rule:security/closed-doors`
 
-Four mechanisms PHP has are absent from Novis by construction: native code loading
+Four mechanisms that dynamic web runtimes commonly have are absent from Novis by construction: native code loading
 ([`security/no-ffi`](security.md#security-no-ffi)), scheme dispatch on a path ([`security/a-path-is-not-a-url`](security.md#security-a-path-is-not-a-url)),
 cross-request state ([`security/no-cross-request-state`](security.md#security-no-cross-request-state)) and `eval`
 ([`security/no-eval`](security.md#security-no-eval)). Each closes a vulnerability class outright rather than defending against
@@ -324,7 +324,7 @@ Running code chosen at run time is `spawn script`: in an isolate, spending the p
 `rule:security/a-path-is-not-a-url`
 
 No `Core` member that takes a path interprets a scheme prefix, and there is no registry by which
-userland or an extension adds one. A read of `"php://filter/..."` looks for a file with that name and
+userland or an extension adds one. A read of `"data://text/plain,..."` looks for a file with that name and
 does not find it.
 
 Making every filesystem function accept a URL, and letting userland register new schemes, is the root
@@ -2168,7 +2168,7 @@ by amending this rule, never by accepting what a parser happens to read.**
 One further prefix is refused: it exists to be bug-compatible with an implementation's
 sign-extension overflow, and verifying it means reimplementing the bug.
 
-This is what lets a PHP application's existing user table verify on day one and rewrite itself one
+This is what lets an existing user table, hashed by another runtime, verify on day one and rewrite itself one
 successful login at a time ([`security/needs-rehash-answers-weaker`](security.md#security-needs-rehash-answers-weaker)). What it spends: a few
 kilobytes transiently per verification of a legacy row, on the calling task — bounded by in-flight
 logins, and shrinking as the table converges.
@@ -2190,9 +2190,9 @@ verification proves the password, this member says the row has fallen behind, ha
 the legacy column converges to empty. It reads a legacy hash rather than throwing at it, which is the
 one behaviour this member owes the roster.
 
-PHP's equivalent compares the stored parameters for difference, which answers `true` when a deployment
+A check that compares the stored parameters for difference answers `true` when a deployment
 *lowers* its cost as readily as when it raises it. Measuring weakness rather than difference is the
-divergence, and it is the direction that never rewrites a strong row into a weaker one.
+direction that never rewrites a strong row into a weaker one.
 
 <sub>See also [`security/bcrypt-read-roster`](security.md#security-bcrypt-read-roster), [`security/hash-writes-argon2id-only`](security.md#security-hash-writes-argon2id-only). Decided in [0129](../decisions/0129.md).</sub>
 

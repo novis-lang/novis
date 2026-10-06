@@ -1,4 +1,4 @@
-Four mechanisms PHP has are absent from Novis by construction: native code loading
+Four mechanisms that dynamic web runtimes commonly have are absent from Novis by construction: native code loading
 (`rule:security/no-ffi`), scheme dispatch on a path (`rule:security/a-path-is-not-a-url`),
 cross-request state (`rule:security/no-cross-request-state`) and `eval`
 (`rule:security/no-eval`). Each closes a vulnerability class outright rather than defending against

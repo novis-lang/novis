@@ -6,7 +6,7 @@ and that path's measured cost is a guard that a change to the export must leave 
 
 One instrumentation, four consumers. Coverage, the timeline, the deterministic profiler and the
 production export all read the same events, so a number cannot disagree with itself depending on
-which tool asked. The distance between "measured" and "exported" is where PHP's story goes wrong —
+which tool asked. The distance between "measured" and "exported" is where a runtime without this goes wrong —
 an unsandboxed C agent in the request path, or a userland client reimplemented per framework, and
 neither able to see a GC pause or an isolate spawn — and closing it inside the runtime is the whole
 of this chapter.
