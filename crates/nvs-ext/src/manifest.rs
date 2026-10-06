@@ -35,7 +35,9 @@
 //! read: a format other than `1`, an unknown key, a name that is not an identifier, a name used
 //! twice, and a setting whose default is not of its type. `sink` and `source` are the only
 //! qualifier declarations (`rule:security/extension-declares-sink-or-source`), and both only
-//! tighten.
+//! tighten (`rule:security/extension-manifest-only-tightens`). Any other qualifier key is an unknown
+//! key; a `secret` return, by key or in a type, and a `secret` or `tainted` written into a type are
+//! refused by name, so no manifest spelling admits `secret` or launders `tainted`.
 //!
 //! **`enums`, `unions` and `resources` declare the named types** a signature writes by their short
 //! name, and [`Manifest::novis_type`] resolves them. A declared name is not a built-in type's, and
@@ -154,6 +156,10 @@ pub struct Method {
     /// The return is always `tainted`: the extension is a source.
     #[serde(default)]
     pub source: bool,
+    /// A `secret` return, which is read only to be refused: nothing `secret` crosses an
+    /// extension boundary (`rule:security/secret-does-not-cross-an-extension`).
+    #[serde(default)]
+    pub secret: bool,
     /// The help text `nvs` shows for the method.
     #[serde(default)]
     pub help: Option<String>,
@@ -416,6 +422,15 @@ impl Manifest {
                 &format!("parameter of `{}`", method.name),
                 method.params.iter().map(|p| p.name.as_str()),
             )?;
+            let returns = format!("the return of `{}`", method.name);
+            if method.secret {
+                return Err(secret_crosses(&returns));
+            }
+            unqualified(&returns, &method.returns)?;
+            for param in &method.params {
+                let what = format!("the parameter `{}` of `{}`", param.name, method.name);
+                unqualified(&what, &param.ty)?;
+            }
         }
         unique("constant", self.consts.iter().map(|c| c.name.as_str()))?;
         let names = self.enums.iter().map(|decl| decl.name.as_str());
@@ -464,6 +479,25 @@ impl Manifest {
         }
         Ok(())
     }
+}
+
+/// Refuses a qualifier written into the type `text` of `what`. `sink` and `source` are the only
+/// qualifier declarations, so a `tainted` type has one spelling, and a `secret` one has none.
+fn unqualified(what: &str, text: &str) -> Result<(), Malformed> {
+    match text.split_whitespace().next() {
+        Some("secret") => Err(secret_crosses(what)),
+        Some("tainted") => Err(malformed(format!(
+            "{what} writes `tainted` in its type: a manifest declares a tainted return with \
+             `\"source\": true` and a parameter that refuses one with `\"sink\": true`"
+        ))),
+        _ => Ok(()),
+    }
+}
+
+fn secret_crosses(what: &str) -> Malformed {
+    malformed(format!(
+        "{what} is declared `secret`, and a `secret` value never crosses an extension boundary"
+    ))
 }
 
 /// Refuses a name in `names` that is not an identifier or that appears twice.

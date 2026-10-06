@@ -191,6 +191,61 @@ fn a_manifest_naming_a_type_outside_the_value_table_is_refused() {
     }
 }
 
+/// `distanceKm` with its `from` parameter typed `from` and `extra` keys spliced into the method.
+fn method_with(from: &str, extra: &str) -> String {
+    format!(
+        r#"{{"name": "distanceKm", "params": [{{"name": "from", "type": "{from}"}}, {{"name": "round", "type": "bool"}}], "returns": "float"{extra}}}"#
+    )
+}
+
+#[test]
+fn a_manifest_declaring_a_secret_return_is_refused() {
+    let cases = [
+        (
+            method_with("string", r#", "secret": true"#),
+            "the return of `distanceKm` is declared `secret`",
+        ),
+        (
+            method_with("string", "").replace(r#""float""#, r#""secret float""#),
+            "the return of `distanceKm` is declared `secret`",
+        ),
+        (
+            method_with("secret string", ""),
+            "the parameter `from` of `distanceKm` is declared `secret`",
+        ),
+        (
+            method_with("string", "").replace(r#""float""#, r#""tainted float""#),
+            "writes `tainted` in its type",
+        ),
+    ];
+    for (method, says) in cases {
+        let bytes = nvsx(guest(""), &manifest("Shop\\Geo", "1.0.0", &method));
+        assert_says(&refusal(&loader(), &bytes), &[says]);
+    }
+}
+
+#[test]
+fn a_manifest_naming_an_unknown_qualifier_is_refused() {
+    let on_method = method_with("string", r#", "trusted": true"#);
+    let on_param = method_with("string", "").replace(
+        r#""type": "string"}"#,
+        r#""type": "string", "launders": "html"}"#,
+    );
+    for (method, key) in [(on_method, "trusted"), (on_param, "launders")] {
+        let bytes = nvsx(guest(""), &manifest("Shop\\Geo", "1.0.0", &method));
+        assert_says(
+            &refusal(&loader(), &bytes),
+            &[&format!("unknown field `{key}`")],
+        );
+    }
+    let declared = method_with("string", r#", "source": true"#)
+        .replace(r#""type": "string"}"#, r#""type": "string", "sink": true}"#);
+    let bytes = nvsx(guest(""), &manifest("Shop\\Geo", "1.0.0", &declared));
+    loader()
+        .load_bytes(&entry("geo.nvsx", &bytes), &bytes)
+        .expect("a sink and a source are the declarations a manifest may make");
+}
+
 #[test]
 fn an_import_outside_the_world_is_refused_naming_the_import() {
     for import in [
