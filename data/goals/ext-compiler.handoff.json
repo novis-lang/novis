@@ -1,20 +1,14 @@
 {
-  "state": "**Goal `ext-compiler`, Stage 3 (the call) is under way.** Stages 1 and 2 are on disk. The design is ADR 0246 § 8 and the goal file's § *Standing decisions*. This goal has no record slot.\n\n`nvs_ext::convert` (behind `engine`) turns a `Value` — the host's view of a Novis value, an array as ordered key and value pairs — into the `wasmtime::component::Val` its `NovisType` crosses as, and back. Its module doc owns the value model and what it refuses. It covers the structural rows: `bool`, `int`, `uint`, `float`, `string`, `bytes`, `array<T>`, `array<K, V>`, `?T` and a shape. `crates/nvs-ext/tests/convert.rs` round-trips each through a WAT guest; 4 of the check's 9 tests exist and pass.\n\nNot converting yet: an enum, a closed union of shapes, a `Core` value class, a `resource` and `mixed`. The first four are not `NovisType` rows at all — `crates/nvs-ext/src/types.rs` parses no named type, and the loader refuses one (`crates/nvs-ext/src/load.rs` module doc) — because the manifest carries nothing a name could resolve to. `mixed` needs the call's handle table (`rule:packaging/values-cross-as-handles`).\n\nNot reading the set yet: `nvs serve`'s `script::Compiler`, `nvs test` and the language server (Stage 6). A program calling an extension type-checks and then reaches `nvs-ir`, which has no lowering for the call.\n\nFixture gaps, Stage 3's: the named rows of 0246 § 1 are absent from the fixture (`crates/nvs-ext/src/load.rs:26`), and `kindOf` (`mixed`) is never called.",
+  "state": "**Goal `ext-compiler`, Stage 3 (the call) is under way.** Stages 1 and 2 are on disk. The design is ADR 0246 § 8 and the goal file's § *Standing decisions*. This goal has no record slot.\n\n`nvs_ext::convert` (behind `engine`) turns a `Value` (the host's view of a Novis value) into the `wasmtime::component::Val` its `NovisType` crosses as, and back, for every row of `rule:packaging/a-value-crosses-as-its-wit-type`'s table except `resource` and `mixed`. The named rows are on disk: a manifest's `enums` and `unions` (`crates/nvs-ext/src/manifest.rs` module doc owns their rules, including the \"cases told apart by their keys\" check), `Manifest::novis_type` resolves them, `nvs_ext::types::CORE_CLASSES` is the one list of `Core` value classes that cross (`crates/nvs-stdlib/tests/ext_world.rs` holds it to `wit/nvs-ext/types.wit`, fields included), and the loader matches each against the export's `enum`, `variant` or record. `crates/nvs-ext/tests/convert.rs` loads its guest through `Loader::load_bytes`, so every row is also checked against the WIT; 7 of the check's 9 tests exist and pass.\n\nThe checker (`crates/nvs-types/src/ext_lib.rs`) types a union as the union of its shapes and a `Core` value class as that class, and leaves out a method or constant whose type names an extension enum: the enum has no class in the program yet.\n\nNot reading the set yet: `nvs serve`'s `script::Compiler`, `nvs test` and the language server (Stage 6). A program calling an extension type-checks and then reaches `nvs-ir`, which has no lowering for the call.\n\nFixture gaps, Stage 3's: the named rows are absent from the conformance fixture under `tests/conformance/ext/fixtures/`, and `kindOf` (`mixed`) is never called.",
   "next": {
     "stage": 3,
     "title": "the call",
     "files": [
-      "crates/nvs-ext/src/types.rs",
-      "crates/nvs-ext/src/manifest.rs",
-      "crates/nvs-ext/src/load.rs",
       "crates/nvs-ext/src/convert.rs",
+      "crates/nvs-ext/src/call.rs",
       "crates/nvs-ext/tests/convert.rs"
     ],
     "items": [
-      {
-        "done": false,
-        "text": "**The named rows**: the manifest declares its enums and shape unions by name, `NovisType` parses a name it declares and a `Core` value class the world's `types` interface has a record for, the loader checks each against the export's `enum`, `variant` and `record`, and `convert` turns each both ways. Tests `an_enum_case_crosses_in_kebab_case`, `a_closed_union_of_shapes_crosses_as_a_variant` and `a_core_value_class_crosses_as_its_types_record`, and a sample of each in `every_row_of_the_value_table_round_trips_through_a_guest`. Anchors `crates/nvs-ext/src/types.rs:40`, `crates/nvs-ext/src/manifest.rs:49`, `crates/nvs-ext/src/load.rs:594`, `crates/nvs-ext/src/convert.rs:68`. `rule:packaging/a-value-crosses-as-its-wit-type`."
-      },
       {
         "done": false,
         "text": "**`mixed` and `resource`**: a `mixed` argument as a `borrow<value>` into a per-call handle table read through the accessor imports, and an extension `resource` kept by the request and dropped at its end. Tests `a_mixed_argument_crosses_as_a_value_handle_read_through_accessors` and `an_extension_resource_is_dropped_when_its_request_ends`. Anchors `crates/nvs-ext/src/convert.rs:122`, `crates/nvs-ext/src/call.rs:471`. `rule:packaging/values-cross-as-handles`."
@@ -26,7 +20,8 @@
     ]
   },
   "backlog": [
-    "The two end-to-end cases under `tests/conformance/ext/` (an `--EXTENSION--` section loading the fixture): goal file, Stage 3.",
+    "An extension enum as a class the program can name (`<class namespace>\\<Name>`), so `ext_lib` types a method that uses one: `crates/nvs-types/src/ext_lib.rs` module doc.",
+    "The two end-to-end cases under `tests/conformance/ext/` (an `--EXTENSION--` section loading the fixture), and the named rows added to that fixture: goal file, Stage 3.",
     "Stage 4's qualifier checks and the `secret`-return refusal: goal file, Stage 4.",
     "Stage 5's source section through `autoload`: goal file, Stage 5.",
     "Stage 6: `nvs serve`'s `script::Compiler`, `nvs test` and the language server read the set: `rule:packaging/extension-calls-are-statically-typed`.",
