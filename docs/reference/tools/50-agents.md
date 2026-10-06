@@ -84,10 +84,9 @@ A section, a key, a command, a flag and a code have `text`. An unknown symbol gi
 `nearest` list of records, and the command exits with a non-zero status.
 
 So the loop is three calls and a check: `find` the name, `show` its card, write the program, then
-`nvs check` it. A diagnostic names the spelling this language wants at the place the program got it
-wrong, which makes the check part of reading the language rather than an alternative to it. A call
-to a PHP function is the common case. The help names what replaces that function: a `Core` member,
-an operator, or nothing.
+`nvs check` it. A diagnostic points at the line the program got wrong, so the check is part of
+reading the language. A call to a function that does not exist is a common case. Every callable is
+a method, and the help says where the built-in methods are:
 
 ```nvs error
 <?nvs
@@ -96,10 +95,10 @@ array<int> $sizes = [3, 1, 2];
 echo count($sizes), "\n";
 ```
 ```output
-PHP's `count` is `Core\Arr::count` here
+the built-ins live under the reserved `Core` namespace
 ```
 
-A name the help has no single answer for gets the general sentence, and `find` is the next call.
+`nvs agent find` with the name of the task is the next call.
 
 # nvs agent primer
 
@@ -296,8 +295,8 @@ returns:
   The grapheme count; `0` for the empty string.
 ```
 
-Had it written the program first, `nvs check` would have said the same thing at the place it got it
-wrong — the free function does not exist, and the help names the member that replaces it:
+Had it written the program first, `nvs check` would have stopped at the call. The free function
+does not exist, and the help says the built-in methods are on `Core` classes:
 
 ```nvs error
 <?nvs
@@ -306,7 +305,7 @@ string $name = "Zoë";
 echo strlen($name), "\n";
 ```
 ```output
-PHP's `strlen` is `Core\Str::length` here
+the built-ins live under the reserved `Core` namespace
 ```
 
 Either way it arrives at one program, and `nvs check` accepts it:

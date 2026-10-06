@@ -32,7 +32,7 @@ error[E0320]: `json_encode` is not a function that exists
   |
 9 | echo json_encode($ordered), "\n";
   |      ^^^^^^^^^^^ no free function has this name
-  = help: PHP's `json_encode` is `Core\Json::encode` here. `rule:classes/no-free-functions-or-constants`: every callable is a method, so there is no free function to call, and `docs/spec/02-php-migration.md` has the row of each PHP built-in, with its reason and any rewrite
+  = help: `rule:classes/no-free-functions-or-constants`: every callable is a method, and the built-ins live under the reserved `Core` namespace — `Core\Str::length($s)`, or `use Core\Str;` and then `Str::length($s)`
 
 error[E0401]: expected `array<string>`, found `int`
    --> %s:10:12

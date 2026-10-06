@@ -2214,16 +2214,8 @@ fn resolve_entry(
     let mut diags = Diagnostics::new();
     let stmts = parse_file(map.file(id), &mut diags);
     check_declarations(&stmts, map.file(id), &mut diags);
-    let (module, loaded, autoload) = nvs_hir::resolve_program_linted(
-        id,
-        stmts,
-        map,
-        core,
-        Some(nvs_stdlib::php_names::became),
-        &mut diags,
-        strict_docs,
-        borrowed,
-    );
+    let (module, loaded, autoload) =
+        nvs_hir::resolve_program_linted(id, stmts, map, core, &mut diags, strict_docs, borrowed);
     (diags, module, loaded, autoload)
 }
 

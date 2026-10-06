@@ -24,14 +24,14 @@ error[E0319]: `PHP_EOL` is not a constant that exists
   |
 4 | echo PHP_EOL;
   |      ^^^^^^^ no global constant has this name
-  = help: `rule:statements/storage-that-outlives-a-call`: a constant always belongs to a class, so there is no global one to fetch — write `Class::NAME`, and for a PHP built-in the `Core` member `docs/spec/02-php-migration.md` maps it to (`M_PI` is `Core\Math::PI`)
+  = help: `rule:statements/storage-that-outlives-a-call`: a constant always belongs to a class, so there is no global one to fetch — write `Class::NAME`, and a built-in constant is on its `Core` class, such as `Core\Math::PI`
 
 error[E0320]: `strlen` is not a function that exists
   --> %s:8:6
   |
 8 | echo strlen("abc");
   |      ^^^^^^ no free function has this name
-  = help: PHP's `strlen` is `Core\Str::length` here. `rule:classes/no-free-functions-or-constants`: every callable is a method, so there is no free function to call, and `docs/spec/02-php-migration.md` has the row of each PHP built-in, with its reason and any rewrite
+  = help: `rule:classes/no-free-functions-or-constants`: every callable is a method, and the built-ins live under the reserved `Core` namespace — `Core\Str::length($s)`, or `use Core\Str;` and then `Str::length($s)`
 
 error: aborting due to 2 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

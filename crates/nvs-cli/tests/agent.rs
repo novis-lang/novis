@@ -949,15 +949,13 @@ fn every_index_line_the_chapter_shows_is_a_line_of_the_index() {
     }
 }
 
-/// The check that closes the loop. A program written from the PHP name is
-/// refused, and the help names what the language writes for that name — as a
-/// spelling `show` resolves, so the diagnostic leads back into the same two
-/// calls instead of out of them. A name that has no single replacement gets no
-/// such sentence, because a guess there would be a spelling that does not
-/// resolve.
+/// The check that closes the loop. A call to a free function is refused, and
+/// every such call gets the same help, whose example member is a spelling
+/// `show` resolves, so the diagnostic leads back into the same two calls
+/// instead of out of them. A name PHP has gets no help of its own.
 // covers: tools:agents/nvs-agent
 #[test]
-fn the_member_a_diagnostic_names_for_a_php_function_is_one_show_resolves() {
+fn the_member_a_free_function_diagnostic_names_is_one_show_resolves() {
     let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("agent-check-loop");
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("a private directory under the target directory");
@@ -992,24 +990,20 @@ fn the_member_a_diagnostic_names_for_a_php_function_is_one_show_resolves() {
             err.contains(&format!("`{name}` is not a function that exists")),
             "`{name}` is refused by name: {err}"
         );
-        let opening = format!("help: PHP's `{name}` is `");
-        let named = err
-            .lines()
-            .find_map(|line| line.trim_start().strip_prefix("= ")?.strip_prefix(&opening))
-            .and_then(|rest| rest.split_once("` here"))
-            .map(|(member, _)| member);
-        if name == "tally" {
-            assert_eq!(named, None, "a name PHP does not have is told no member");
-            continue;
-        }
-        let member = named.unwrap_or_else(|| panic!("the help names a member for `{name}`: {err}"));
-        let (card, _, ok) = agent(&["show", member]);
-        assert!(ok, "`show` resolves `{member}`, which the help named");
-        assert!(
-            card.starts_with(member),
-            "the card is that member's own: {card}"
-        );
     }
+    assert!(!err.contains("PHP"), "no help names a PHP function: {err}");
+    let member = "Core\\Str::length";
+    assert_eq!(
+        err.matches(&format!("`{member}($s)`")).count(),
+        calls.len(),
+        "every call gets the general help: {err}"
+    );
+    let (card, _, ok) = agent(&["show", member]);
+    assert!(ok, "`show` resolves `{member}`, which the help named");
+    assert!(
+        card.starts_with(member),
+        "the card is that member's own: {card}"
+    );
 }
 
 /// Every `$ nvs agent …` command one section of the agents chapter shows, as

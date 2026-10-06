@@ -29265,7 +29265,6 @@ as nothing.
 | `nvs.template.format` | `true` | whether the editor's own HTML formatter lays out the markup of a template after `nvs fmt` has laid out the Novis — see below |
 | `nvs.secrets.redact` | `true` | conceal the ranges the server reports as `secret` |
 | `nvs.taint.mark` | `"off"` | whether a `tainted` value carries a marker glyph as well as the token modifier every theme already styles — `off`, `declaration` for each declaration whose type carries it, or `sink` |
-| `nvs.completion.phpNames` | `"all"` | which PHP built-ins are offered beside a half-written name — `all`, `resolved` for only the ones whose `Core` member exists, or `off`. Whatever the value, an item inserts a member only where the registry holds it |
 | `nvs.lsp.debounce` | `150` | milliseconds a keystroke is to wait before analysis starts. Contributed and not yet read — see below |
 | `nvs.stubs.dir` | `""` | the directory the server writes the `Core` declaration files to, which Go to Definition on a `Core` name opens. Empty is a directory inside the extension's own storage, one per server version |
 
@@ -29274,8 +29273,8 @@ already running.
 
 The rest divide by who reads them. `nvs.secrets.redact`, `nvs.taint.mark`, `nvs.template.services`
 and `nvs.template.format` are the client's own and take effect on the next redraw, request or save,
-and `nvs.lsp.trace.server` is read by the LSP client library off the id the server is started under. `nvs.check.scope`, `nvs.codeLens.enable`,
-`nvs.completion.phpNames` and `nvs.stubs.dir` are the server's: the client hands it the whole `nvs` section once, in
+and `nvs.lsp.trace.server` is read by the LSP client library off the id the server is started under. `nvs.check.scope`, `nvs.codeLens.enable`
+and `nvs.stubs.dir` are the server's: the client hands it the whole `nvs` section once, in
 `initialize`, so a change to one of those reaches it when it next starts — **Novis: Restart Language
 Server**. There is no `didChangeConfiguration` exchange, because two of them decide what the server
 *built* rather than how it answers the next request.
@@ -29497,10 +29496,9 @@ A section, a key, a command, a flag and a code have `text`. An unknown symbol gi
 `nearest` list of records, and the command exits with a non-zero status.
 
 So the loop is three calls and a check: `find` the name, `show` its card, write the program, then
-`nvs check` it. A diagnostic names the spelling this language wants at the place the program got it
-wrong, which makes the check part of reading the language rather than an alternative to it. A call
-to a PHP function is the common case. The help names what replaces that function: a `Core` member,
-an operator, or nothing.
+`nvs check` it. A diagnostic points at the line the program got wrong, so the check is part of
+reading the language. A call to a function that does not exist is a common case. Every callable is
+a method, and the help says where the built-in methods are:
 
 ```nvs error
 <?nvs
@@ -29509,10 +29507,10 @@ array<int> $sizes = [3, 1, 2];
 echo count($sizes), "\n";
 ```
 ```output
-PHP's `count` is `Core\Arr::count` here
+the built-ins live under the reserved `Core` namespace
 ```
 
-A name the help has no single answer for gets the general sentence, and `find` is the next call.
+`nvs agent find` with the name of the task is the next call.
 
 ### nvs agent primer
 
@@ -29709,8 +29707,8 @@ returns:
   The grapheme count; `0` for the empty string.
 ```
 
-Had it written the program first, `nvs check` would have said the same thing at the place it got it
-wrong — the free function does not exist, and the help names the member that replaces it:
+Had it written the program first, `nvs check` would have stopped at the call. The free function
+does not exist, and the help says the built-in methods are on `Core` classes:
 
 ```nvs error
 <?nvs
@@ -29719,7 +29717,7 @@ string $name = "Zoë";
 echo strlen($name), "\n";
 ```
 ```output
-PHP's `strlen` is `Core\Str::length` here
+the built-ins live under the reserved `Core` namespace
 ```
 
 Either way it arrives at one program, and `nvs check` accepts it:

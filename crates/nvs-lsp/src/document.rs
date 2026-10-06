@@ -680,7 +680,6 @@ pub fn analyse_file(documents: &Documents, path: &Path, version: i32) -> Option<
             links: &core,
             closed: &closed,
         },
-        Some(nvs_stdlib::php_names::became),
         &mut diags,
         lender.map_or(&[], |lender| lender.sites()),
     );

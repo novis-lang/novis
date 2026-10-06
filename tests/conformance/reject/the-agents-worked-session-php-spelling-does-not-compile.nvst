@@ -1,10 +1,10 @@
 --TEST--
-The PHP spelling the worked session of the agents chapter starts from does not compile, and the help names the member the session arrives at — `rule:tooling/an-agent-asks-the-binary`, `rule:classes/no-free-functions-or-constants`
+The PHP spelling the worked session of the agents chapter starts from does not compile, and the help says where the built-in methods are — `rule:tooling/an-agent-asks-the-binary`, `rule:classes/no-free-functions-or-constants`
 --FILE--
 <?nvs
 // covers: tools:agents/a-worked-session
 // The program is the section's own `nvs error` block. The section says the
-// check answers what `find` and `show` answered, so the help is pinned whole.
+// check prints its help, so the help is pinned whole.
 
 string $name = "Zoë";
 echo strlen($name), "\n";
@@ -14,7 +14,7 @@ error[E0320]: `strlen` is not a function that exists
   |
 7 | echo strlen($name), "\n";
   |      ^^^^^^ no free function has this name
-  = help: PHP's `strlen` is `Core\Str::length` here. `rule:classes/no-free-functions-or-constants`: every callable is a method, so there is no free function to call, and `docs/spec/02-php-migration.md` has the row of each PHP built-in, with its reason and any rewrite
+  = help: `rule:classes/no-free-functions-or-constants`: every callable is a method, and the built-ins live under the reserved `Core` namespace — `Core\Str::length($s)`, or `use Core\Str;` and then `Str::length($s)`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

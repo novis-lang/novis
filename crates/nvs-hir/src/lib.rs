@@ -79,7 +79,7 @@ pub use hierarchy::{
 };
 pub use imports::{ImportSite, candidates, import_site};
 pub use lenders::Lender;
-pub use members::{ClassMembers, MemberResolver, MemberTable, PhpFunctions};
+pub use members::{ClassMembers, MemberResolver, MemberTable};
 pub use qname::QName;
 pub use requires::{Loaded, resolve_program, resolve_program_borrowing, resolve_program_linted};
 pub use resolve::{Import, Module, Resolver, resolve_file};
