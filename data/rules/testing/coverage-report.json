@@ -1,5 +1,5 @@
 {
-  "title": "`nvs test` writes line and function coverage as lcov, Clover and Cobertura, from one hit table every context of the run counts into",
+  "title": "`nvs test` writes line, function and branch coverage as lcov, Clover and Cobertura, from one hit table every context of the run counts into",
   "status": "shipped",
   "because": [
     "0235",

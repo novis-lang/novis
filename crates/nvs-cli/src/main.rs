@@ -506,21 +506,24 @@ enum Command {
         /// Write the run's coverage to this file in the lcov format.
         ///
         /// Every line a statement starts on is listed with the number of
-        /// times it ran, `0` for a line no test reached. Every function is
-        /// listed with the number of times it was called. A `.nvst` tree has
+        /// times it ran, `0` for a line no test reached. Every branch is
+        /// listed with the number of times its true side and its false side
+        /// ran. Every function is listed with the number of times it was
+        /// called. A `.nvst` tree has
         /// no coverage to report, so naming it there is an error.
         // `rule:testing/debug-probes`; `crate::coverage` owns how the counts are taken.
         #[arg(long, value_name = "FILE", conflicts_with = "list")]
         coverage_lcov: Option<PathBuf>,
         /// Write the run's coverage to this file as Clover XML.
         ///
-        /// The same lines, functions and counts as `--coverage-lcov`, in the
-        /// format PHPUnit's `--coverage-clover` writes.
+        /// The same lines, branches, functions and counts as
+        /// `--coverage-lcov`, in the format PHPUnit's `--coverage-clover`
+        /// writes.
         #[arg(long, value_name = "FILE", conflicts_with = "list")]
         coverage_clover: Option<PathBuf>,
-        /// Write the run's line coverage to this file as Cobertura XML.
+        /// Write the run's coverage to this file as Cobertura XML.
         ///
-        /// The same lines and counts as `--coverage-lcov`, in the format
+        /// The same lines, branches and counts as `--coverage-lcov`, in the format
         /// GitLab and Azure DevOps read. One run can write all three files.
         #[arg(long, value_name = "FILE", conflicts_with = "list")]
         coverage_cobertura: Option<PathBuf>,

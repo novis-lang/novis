@@ -1,31 +1,31 @@
 {
-  "state": "**Goal `coverage-depth` — Stage 3 (branches): the probe is on disk; the reports are next.** ADR 0273 is the goal's one record; no further ADR slot is owed.\n\nEvery `Terminator::Branch` loads the debug-flags word once and branches on it. With every bit off the plain `brif` runs, and with any bit set a twin `brif` calls `nvs_probe_edge(ctx, edge)` on the edge taken (`Emitter::emit_edge_probe_check` and `emit_edge_probe` in `crates/nvs-codegen/src/emit.rs`). Edge numbers get a per-function `edge_base` the way statements get `stmt_base`, and `nvs_ir::Program::edge_spans` is their table. `nvs_probe_edge` counts under `DebugFlags::BRANCH` alone, into the edge half of `StmtHits` (`StmtHits::with_edges`, `record_edge`, `edge_counts`), so every child context already shares the edge table through the one handle. The codegen acceptance check's three tests pass, with a fourth for the per-function edge base.\n\nNothing in `nvs-cli` reads edges yet: the runner sizes `StmtHits::new(sites.len())` with no edges and never sets `BRANCH`, and all three formats print no branch.",
+  "state": "**Goal `coverage-depth` — Stage 3 (branches) is on disk; Stage 4 (per-test lines) is next.** ADR 0273 is the goal's one record; no further ADR slot is owed.\n\nThe edge probe counts every `Terminator::Branch` side under `DebugFlags::BRANCH` (`crates/nvs-codegen/src/emit.rs`). The runner sizes `StmtHits::with_edges` and turns `COVERAGE | BRANCH` on, both for the suite's context and for a `server: true` test's request program. `crate::coverage::Probes::of` walks each function's blocks for branch edges only, so a `Switch` is in no report; the module doc's `# Branches` owns where a branch's line comes from. lcov writes `BRDA`/`BRF`/`BRH`, Clover `<line type=\"cond\">` and `conditionals`, Cobertura `condition-coverage` and `branch-rate`. `rule:testing/coverage-report`, the `nvs test` help and `docs/reference/tools/10-cli.md` say branches.\n\nThe stage 3 acceptance checks' tests pass under `cargo test --test test_coverage`; the human summary line still counts lines only.",
   "next": {
-    "stage": 3,
-    "title": "branches, the reports",
+    "stage": 4,
+    "title": "per-test lines",
     "files": [
-      "crates/nvs-cli/src/coverage.rs",
       "crates/nvs-cli/src/runner.rs",
+      "crates/nvs-cli/src/coverage.rs",
       "crates/nvs-cli/tests/test_coverage.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**The runner counts edges** — `rule:testing/coverage-report`, ADR 0273 § 3: size the table with `StmtHits::with_edges(stmts, program.edge_spans().len())` and add `DebugFlags::BRANCH` beside `COVERAGE` at `crates/nvs-cli/src/runner.rs:370`; `crate::coverage::Probes::of` (`crates/nvs-cli/src/coverage.rs:83`) also reads the edge spans. Only edges a `Terminator::Branch` carries have a probe: a `Switch`'s edges are in `edge_spans` too and must stay out of every report (the goal's standing decision \"a count is a statement's or an edge's\"), so `Probes::of` walks each function's terminators to pick the branch edges."
+        "text": "**Each test's lines** — `rule:testing/report-formats`, ADR 0273 § 5: under a coverage flag, snapshot or reset the shared `StmtHits` around each case in `run_case` at `crates/nvs-cli/src/runner.rs:1660` and turn the statements it reached into file lines with `crate::coverage::Sites` (`crates/nvs-cli/src/coverage.rs:113`)."
       },
       {
         "done": false,
-        "text": "**Three formats list branches** — lcov `BRDA`/`BRF`/`BRH` in `crates/nvs-cli/src/coverage.rs:287`, Clover `conditionals`/`coveredconditionals` and `<line type=\"cond\">` in `crates/nvs-cli/src/coverage.rs:318`, Cobertura's `branch-rate` (fixed `0` today) and `condition-coverage` in `crates/nvs-cli/src/coverage.rs:405`. Tests `the_lcov_file_lists_each_branch_and_each_side_taken`, `the_clover_file_counts_conditionals_and_covered_conditionals`, `the_cobertura_file_carries_the_branch_rate` beside `crates/nvs-cli/tests/test_coverage.rs:380`."
+        "text": "**The JSON document at schema version 3** — `json_document` at `crates/nvs-cli/src/runner.rs:1881` writes `schemaVersion: 3` and each record's lines when a coverage flag is given, and stays at `2` otherwise; the test `the_json_document_lists_the_lines_each_test_reached` goes in `crates/nvs-cli/tests/test_coverage.rs:1`."
       },
       {
         "done": false,
-        "text": "**The rule says branches** — `rule:testing/coverage-report`'s fragment at `docs/rules/testing/coverage-report.md:4` and the flags' paragraph at `docs/reference/tools/10-cli.md:260` gain the branch lines once the formats write them."
+        "text": "**The rule says per-test lines** — `rule:testing/report-formats`'s fragment at `docs/rules/testing/report-formats.md:1` names schema version 3."
       }
     ]
   },
   "backlog": [
-    "Stage 4, per-test lines in `--format json` at schema version 3 — `rule:testing/report-formats`, ADR 0273.",
-    "Stage 5, the VS Code coverage run profile reading lcov — ADR 0273.",
-    "`[context] shapes` names 'A decision record' without 'A rule fragment'; `nv orient` warns on it. Add 'A rule fragment' to `data/goals/coverage-depth.json`'s shapes."
+    "Stage 5: the VS Code Coverage run profile reads an lcov file into the editor's coverage view (ADR 0273 § 6, the `vscode` check).",
+    "The human summary line could add `N of N branch sides run`; nothing asks for it yet (`crates/nvs-cli/src/runner.rs`).",
+    "`[context] adrs` lacks ADR 0273 § 4 and § 5; this session sliced them by hand."
   ]
 }

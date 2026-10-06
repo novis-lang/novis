@@ -26953,10 +26953,12 @@ skipped: not written yet
   (default `php`).
 - `--coverage-lcov <file>` writes the run's coverage to the file in the lcov format.
   `--coverage-clover <file>` writes the same coverage as Clover XML, the format PHPUnit's
-  `--coverage-clover` writes. `--coverage-cobertura <file>` writes the lines as Cobertura XML,
-  the format GitLab and Azure DevOps read. You can give all three in one run. Each line where a
-  statement starts is listed with the number of times it ran. A line that no test reached has the
-  count `0`. The lcov and Clover files also list each function with the number of times it was
+  `--coverage-clover` writes. `--coverage-cobertura <file>` writes the same coverage as Cobertura
+  XML, the format GitLab and Azure DevOps read. You can give all three in one run. Each line where
+  a statement starts is listed with the number of times it ran. A line that no test reached has the
+  count `0`. Each branch is listed too. A branch is a condition, such as the one in an `if`, a
+  `while` or an `&&`. The file says how many times its true side ran and how many times its false
+  side ran. The lcov and Clover files also list each function with the number of times it was
   called. A file is named relative to the directory you run `nvs test` in, so run it from your
   repository's root for your CI service to find the files. Under the `human` format, the run
   prints one more line, `N of N lines run (N%)`. The top-level statements of a file do not run
