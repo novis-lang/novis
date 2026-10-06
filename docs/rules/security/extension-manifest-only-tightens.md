@@ -11,5 +11,8 @@ An extension call site is checked by the same code path as a `Core` call site, r
 from the registered signature rather than from a table of built-ins. There is no second analysis and
 no extension-specific relaxation, so the two cannot drift.
 
-**Not on disk.** There is no extension tier in the tree — no component loader, no manifest reader, no
-qualifier axis in a world file — so none of this is enforced today.
+**On disk in the checker.** `nvs_ext::manifest` reads `sink` and `source` as the only qualifier keys,
+refuses any other key, and refuses a `secret` or `tainted` written into a type
+(`crates/nvs-ext/tests/load.rs`). `nvs_types::ext_lib` writes the two declarations into the
+`MethodSig` fields a `Core` row fills, and the call is checked by the code a `Core` call goes through
+(`crates/nvs-types/tests/extensions.rs`).

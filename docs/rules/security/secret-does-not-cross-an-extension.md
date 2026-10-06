@@ -11,4 +11,6 @@ This constrains what may live outside `Core`. A signer built as an extension wou
 every call site, turning a deliberately conspicuous escape hatch into boilerplate, which is one of the
 two reasons the protocol roster stays in `Core` (`rule:security/protocol-roster`).
 
-**Not on disk.** There is no extension boundary in the tree to refuse at.
+**On disk.** A `secret` argument is refused at every extension parameter
+(`tests/conformance/reject/a-secret-argument-to-an-extension-does-not-compile.nvst`), and a manifest
+declaring a `secret` return does not load (`crates/nvs-ext/tests/load.rs`).

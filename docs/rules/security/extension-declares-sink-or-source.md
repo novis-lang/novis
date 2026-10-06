@@ -8,4 +8,6 @@ call site fail that would otherwise have compiled, and the second can only add a
 must then launder. The axis exists only in the manifest, for the compiler — a guest's generated
 bindings ignore both, since neither affects the wire representation.
 
-**Not on disk.** There is no manifest format in the tree carrying either declaration.
+**On disk.** A manifest's `"sink": true` parameter and `"source": true` method are both checked
+(`tests/conformance/reject/a-tainted-argument-to-an-extension-sink-does-not-compile.nvst`,
+`tests/conformance/ext/an-extension-declared-source-taints-its-result.nvst`).

@@ -8,5 +8,5 @@ number is still tainted. An extension cannot itself be a sink — it is a compon
 authority, so everything it does to the world outside travels through a `Core` member, and that member
 is classified (`rule:security/unclassified-parameter-refuses-tainted`).
 
-**Not on disk.** No extension boundary exists in the tree, so there is no call site at which this
-default is applied.
+**On disk.** A parameter with no declaration is `Qual::Contagious` in `nvs_types::ext_lib`
+(`tests/conformance/ext/an-extension-result-is-tainted-when-an-argument-was.nvst`).

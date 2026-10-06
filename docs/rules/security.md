@@ -1556,8 +1556,11 @@ An extension call site is checked by the same code path as a `Core` call site, r
 from the registered signature rather than from a table of built-ins. There is no second analysis and
 no extension-specific relaxation, so the two cannot drift.
 
-**Not on disk.** There is no extension tier in the tree — no component loader, no manifest reader, no
-qualifier axis in a world file — so none of this is enforced today.
+**On disk in the checker.** `nvs_ext::manifest` reads `sink` and `source` as the only qualifier keys,
+refuses any other key, and refuses a `secret` or `tainted` written into a type
+(`crates/nvs-ext/tests/load.rs`). `nvs_types::ext_lib` writes the two declarations into the
+`MethodSig` fields a `Core` row fills, and the call is checked by the code a `Core` call goes through
+(`crates/nvs-types/tests/extensions.rs`).
 
 <sub>See also [`security/extension-contagion`](security.md#security-extension-contagion), [`security/extension-declares-sink-or-source`](security.md#security-extension-declares-sink-or-source), [`security/extension-cannot-launder`](security.md#security-extension-cannot-launder), [`security/no-ffi`](security.md#security-no-ffi). Decided in [0055](../decisions/0055.md), [0003](../decisions/0003.md), [0088](../decisions/0088.md).</sub>
 
@@ -1612,8 +1615,8 @@ number is still tainted. An extension cannot itself be a sink — it is a compon
 authority, so everything it does to the world outside travels through a `Core` member, and that member
 is classified ([`security/unclassified-parameter-refuses-tainted`](security.md#security-unclassified-parameter-refuses-tainted)).
 
-**Not on disk.** No extension boundary exists in the tree, so there is no call site at which this
-default is applied.
+**On disk.** A parameter with no declaration is `Qual::Contagious` in `nvs_types::ext_lib`
+(`tests/conformance/ext/an-extension-result-is-tainted-when-an-argument-was.nvst`).
 
 <sub>See also [`security/taint-propagation`](security.md#security-taint-propagation), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`security/image-component-declares-nothing`](security.md#security-image-component-declares-nothing). Decided in [0055](../decisions/0055.md), [0024](../decisions/0024.md), [0088](../decisions/0088.md).</sub>
 
@@ -1633,7 +1636,9 @@ call site fail that would otherwise have compiled, and the second can only add a
 must then launder. The axis exists only in the manifest, for the compiler — a guest's generated
 bindings ignore both, since neither affects the wire representation.
 
-**Not on disk.** There is no manifest format in the tree carrying either declaration.
+**On disk.** A manifest's `"sink": true` parameter and `"source": true` method are both checked
+(`tests/conformance/reject/a-tainted-argument-to-an-extension-sink-does-not-compile.nvst`,
+`tests/conformance/ext/an-extension-declared-source-taints-its-result.nvst`).
 
 <sub>See also [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`security/extension-contagion`](security.md#security-extension-contagion), [`security/sink-predicate`](security.md#security-sink-predicate). Decided in [0055](../decisions/0055.md), [0024](../decisions/0024.md).</sub>
 
@@ -1653,7 +1658,8 @@ call site where it is visible and greppable. That is a real capability loss and 
 alternatives are for the sanitizer to be adopted into the standard library, where we own it, or for
 the caller to say so out loud. The rejected option is the invisible one.
 
-**Not on disk.** No extension boundary exists, so nothing enforces the refusal today.
+**On disk.** A manifest key other than `sink` and `source` does not load, nor does a `tainted` written
+into a type, so no spelling reaches a parameter mark that launders (`crates/nvs-ext/tests/load.rs`).
 
 <sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/assert-trusted`](security.md#security-assert-trusted), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize). Decided in [0055](../decisions/0055.md), [0024](../decisions/0024.md), [0060](../decisions/0060.md).</sub>
 
@@ -1676,7 +1682,9 @@ This constrains what may live outside `Core`. A signer built as an extension wou
 every call site, turning a deliberately conspicuous escape hatch into boilerplate, which is one of the
 two reasons the protocol roster stays in `Core` ([`security/protocol-roster`](security.md#security-protocol-roster)).
 
-**Not on disk.** There is no extension boundary in the tree to refuse at.
+**On disk.** A `secret` argument is refused at every extension parameter
+(`tests/conformance/reject/a-secret-argument-to-an-extension-does-not-compile.nvst`), and a manifest
+declaring a `secret` return does not load (`crates/nvs-ext/tests/load.rs`).
 
 <sub>See also [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`security/protocol-roster`](security.md#security-protocol-roster), [`security/extension-cannot-launder`](security.md#security-extension-cannot-launder), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0055](../decisions/0055.md), [0033](../decisions/0033.md), [0060](../decisions/0060.md).</sub>
 

@@ -8,4 +8,5 @@ call site where it is visible and greppable. That is a real capability loss and 
 alternatives are for the sanitizer to be adopted into the standard library, where we own it, or for
 the caller to say so out loud. The rejected option is the invisible one.
 
-**Not on disk.** No extension boundary exists, so nothing enforces the refusal today.
+**On disk.** A manifest key other than `sink` and `source` does not load, nor does a `tainted` written
+into a type, so no spelling reaches a parameter mark that launders (`crates/nvs-ext/tests/load.rs`).

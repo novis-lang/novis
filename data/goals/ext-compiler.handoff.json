@@ -1,33 +1,28 @@
 {
-  "state": "**Goal `ext-compiler`. Stage 3 (the call) is done; Stage 4 (qualifiers) is next and has nothing written.** Stages 1 to 3 are on disk. The design is ADR 0246 § 8 and the goal file's § *Standing decisions*. This goal has no record slot.\n\n`nvs run` and `nvs serve` both call an extension end to end. Codegen emits `InstKind::ExtensionCall` as a variadic call of `nvs_runtime::extension::nvs_extension_call`. `nvs-cli`'s `extensions::Calls` hosts it over one `nvs_ext::call::Request`, and dropping a `Calls` ends the request (`crates/nvs-cli/src/extensions.rs` module doc).\n\nIn `nvs serve` every worker installs `extensions::Served`, which keeps one `Calls` per request in `nvs_runtime::TreeState::extensions`, dropped with the request tree. Serve's compiler types a program against the live set's manifests (`extensions::live_manifests`). Pinned by `crates/nvs-cli/tests/live_config.rs` `a_served_request_calls_a_configured_extension`.\n\nThe driver's earliest red check is Stage 4's `nvs-types-an-extension-sink-refuses-with-the-core-code`, with the rest of Stage 4, then Stages 5 and 6.",
+  "state": "**Goal `ext-compiler`. Stages 1 to 3 are done; Stage 4 (qualifiers) has one case left.** The design is ADR 0246 § 8 and the goal file's § *Standing decisions*. This goal has no record slot.\n\nA manifest's only qualifier keys are `sink` and `source`. A `secret` return (key or type), a `secret` or `tainted` in a type, and any other key refuse the load (`crates/nvs-ext/src/manifest.rs` module doc, `crates/nvs-ext/tests/load.rs`). `nvs_types::ext_lib` already wrote `sink`/`source` into `MethodSig` (`Qual::Sink`, `Qual::Contagious`, a tainted `return_ty`). It now also drops a `secret` method. Checks `nvs-types-an-extension-sink-refuses-with-the-core-code` and `nvs-ext-a-manifest-cannot-loosen-a-qualifier` pass. Four of the five cases of `an-extension-call-keeps-every-qualifier-rule` are written and pass.\n\nThe missing case is `tests/conformance/ext/a-manifest-declaring-a-secret-return-does-not-load.nvst`. It needs a fixture `.nvsx` whose manifest does not parse, and `nvs_ext::pack::pack` refuses to build one: it runs `Manifest::parse` first (`crates/nvs-ext/src/pack.rs:100`), and it refuses a component that already carries a manifest section.",
   "next": {
     "stage": 4,
-    "title": "qualifiers",
+    "title": "qualifiers, then Stage 5: the source section",
     "files": [
-      "crates/nvs-ext/src/manifest.rs",
-      "crates/nvs-types/src/ext_lib.rs",
-      "crates/nvs-types/tests/extensions.rs",
-      "tests/conformance/ext/",
-      "tests/conformance/reject/"
+      "crates/nvs-ext/tests/fixtures.rs",
+      "crates/nvs-ext/src/pack.rs",
+      "tests/conformance/ext/fixtures/",
+      "crates/nvs-ext/src/source.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**A manifest declares `tainted` and `secret`, and a declaration that loosens does not load**: a param may be a `sink` (refuses `tainted`), a return may be a `source` (is `tainted`); a `secret` return or an unknown qualifier refuses the load (`crates/nvs-ext/src/manifest.rs:145`, `crates/nvs-ext/src/manifest.rs:182`). `rule:security/extension-manifest-only-tightens`. Check `nvs-ext-a-manifest-cannot-loosen-a-qualifier`."
+        "text": "**A fixture whose manifest does not load, and its case**: let `fixtures.rs`'s `build` pack a fixture directory whose `manifest.json` declares `\"secret\": true` (for example `loose/`), by packing a loadable manifest and then writing the refused one in its place. Or add a narrow `pack` entry point that skips the parse, and document it as fixture-only. Then write `tests/conformance/ext/a-manifest-declaring-a-secret-return-does-not-load.nvst`, expecting the load refusal's text (`crates/nvs-ext/src/pack.rs:99`, `crates/nvs-ext/tests/fixtures.rs:90`). `rule:security/secret-does-not-cross-an-extension`. Check `an-extension-call-keeps-every-qualifier-rule`."
       },
       {
         "done": false,
-        "text": "**The declarations reach the `MethodSig` fields a `Core` member's carry**, so `admits_tainted_argument` and `tainted_result` read them with no extension branch, and a `secret` argument is refused with the code a `Core` boundary gives (`crates/nvs-types/src/ext_lib.rs:225`, `crates/nvs-types/src/signatures.rs:58`). `rule:packaging/extension-calls-are-statically-typed`. Check `nvs-types-an-extension-sink-refuses-with-the-core-code`."
-      },
-      {
-        "done": false,
-        "text": "**The four conformance cases** of check `an-extension-call-keeps-every-qualifier-rule`; the fixture gains the sink and source methods it needs (`tests/conformance/ext/fixtures/ledger/manifest.json:56`, held to its text by `crates/nvs-ext/tests/fixtures.rs`)."
+        "text": "**A source file outside the extension's namespace refuses the load, naming the file** (`crates/nvs-ext/src/source.rs:47`). Check `nvs-ext` `a_source_file_outside_the_extension_namespace_is_refused_naming_the_file`. Stage 5."
       }
     ]
   },
   "backlog": [
-    "A worker thread that does not run the serve loop (a queue crew, an off-core member) installs no `Served`, so an extension call there finds no host: `crates/nvs-cli/src/extensions.rs` module doc.",
-    "`spawn script` inside `nvs run` compiles through `script::Compiler`, which reads the live set, and `nvs run` installs none: the child is typed with no extensions.",
-    "Stage 5 (the source section) and Stage 6 (`nvs check`, `nvs test`, the language server): the goal file."
+    "Stage 5: a loaded extension's namespace resolves through `autoload` with no line written (`nvs-hir`), plus its conformance case. Goal file § Stage 5.",
+    "Stage 6: `nvs check`, `nvs test` and the language server read the set's manifests. Goal file § Stage 6.",
+    "The five `security/extension-*` rules still have `status: designed`. Flip them to `shipped` when the goal closes."
   ]
 }
