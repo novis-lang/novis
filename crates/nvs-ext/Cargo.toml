@@ -59,6 +59,16 @@ wat.workspace = true
 # alone: `dummy-module` makes the core module a world needs.
 wit-component = { workspace = true, features = ["dummy-module"] }
 wit-parser.workspace = true
+# The outbound HTTP test sends a guest's request as `nvs serve` does, through
+# `nvs_stdlib::extension_send` under a context built from an `nvs.toml` text.
+# `nvs-stdlib` takes this crate as a dev-dependency only, so neither library
+# links the other.
+nvs-stdlib.workspace = true
+toml.workspace = true
+# The same test's untrusted `https` origin: a self-signed certificate and the
+# server end of its handshake, on the provider `nvs-host` already carries.
+rcgen.workspace = true
+rustls.workspace = true
 
 [[test]]
 name = "cache"
@@ -82,6 +92,10 @@ required-features = ["engine", "pack"]
 
 [[test]]
 name = "files"
+required-features = ["engine"]
+
+[[test]]
+name = "http"
 required-features = ["engine"]
 
 [[test]]
