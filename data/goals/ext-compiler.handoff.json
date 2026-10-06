@@ -1,28 +1,27 @@
 {
-  "state": "**Goal `ext-compiler`. Stages 1 to 3 are done; Stage 4 (qualifiers) has one case left.** The design is ADR 0246 § 8 and the goal file's § *Standing decisions*. This goal has no record slot.\n\nA manifest's only qualifier keys are `sink` and `source`. A `secret` return (key or type), a `secret` or `tainted` in a type, and any other key refuse the load (`crates/nvs-ext/src/manifest.rs` module doc, `crates/nvs-ext/tests/load.rs`). `nvs_types::ext_lib` already wrote `sink`/`source` into `MethodSig` (`Qual::Sink`, `Qual::Contagious`, a tainted `return_ty`). It now also drops a `secret` method. Checks `nvs-types-an-extension-sink-refuses-with-the-core-code` and `nvs-ext-a-manifest-cannot-loosen-a-qualifier` pass. Four of the five cases of `an-extension-call-keeps-every-qualifier-rule` are written and pass.\n\nThe missing case is `tests/conformance/ext/a-manifest-declaring-a-secret-return-does-not-load.nvst`. It needs a fixture `.nvsx` whose manifest does not parse, and `nvs_ext::pack::pack` refuses to build one: it runs `Manifest::parse` first (`crates/nvs-ext/src/pack.rs:100`), and it refuses a component that already carries a manifest section.",
+  "state": "**Goal `ext-compiler`. Stages 1 to 4 are done; Stage 5 (the source section) is next.** The design is ADR 0246 § 8 and the goal file's § *Standing decisions*. This goal has no record slot.\n\nStage 4's three checks pass: all five cases of `an-extension-call-keeps-every-qualifier-rule`, including `tests/conformance/ext/a-manifest-declaring-a-secret-return-does-not-load.nvst`, which loads the fixture `Shop\\Vault` and expects `E0652` naming the `secret` return.\n\nA fixture whose directory has a `refused.txt` is one whose manifest must not load. `crates/nvs-ext/tests/fixtures.rs` packs it with a stand-in manifest and splices its own `manifest.json` in place; the module doc says how, and `a_fixture_with_a_refusal_does_not_load_and_gives_it` holds each refused fixture to its text. `NVS_WRITE_FIXTURES=1 cargo test --test fixtures` rewrites the bytes.",
   "next": {
-    "stage": 4,
-    "title": "qualifiers, then Stage 5: the source section",
+    "stage": 5,
+    "title": "the source section",
     "files": [
-      "crates/nvs-ext/tests/fixtures.rs",
-      "crates/nvs-ext/src/pack.rs",
-      "tests/conformance/ext/fixtures/",
-      "crates/nvs-ext/src/source.rs"
+      "crates/nvs-ext/src/source.rs",
+      "crates/nvs-ext/tests/load.rs",
+      "crates/nvs-hir/src/resolve.rs",
+      "tests/conformance/ext/fixtures/ledger/source/"
     ],
     "items": [
       {
         "done": false,
-        "text": "**A fixture whose manifest does not load, and its case**: let `fixtures.rs`'s `build` pack a fixture directory whose `manifest.json` declares `\"secret\": true` (for example `loose/`), by packing a loadable manifest and then writing the refused one in its place. Or add a narrow `pack` entry point that skips the parse, and document it as fixture-only. Then write `tests/conformance/ext/a-manifest-declaring-a-secret-return-does-not-load.nvst`, expecting the load refusal's text (`crates/nvs-ext/src/pack.rs:99`, `crates/nvs-ext/tests/fixtures.rs:90`). `rule:security/secret-does-not-cross-an-extension`. Check `an-extension-call-keeps-every-qualifier-rule`."
+        "text": "**A source file outside the extension's namespace refuses the load, naming the file**: `Source::parse` or the loader checks each packed path against the manifest class's namespace (`crates/nvs-ext/src/source.rs:47`). Check `nvs-ext` test `a_source_file_outside_the_extension_namespace_is_refused_naming_the_file`. `rule:packaging/extension-calls-are-statically-typed`."
       },
       {
         "done": false,
-        "text": "**A source file outside the extension's namespace refuses the load, naming the file** (`crates/nvs-ext/src/source.rs:47`). Check `nvs-ext` `a_source_file_outside_the_extension_namespace_is_refused_naming_the_file`. Stage 5."
+        "text": "**A loaded extension's namespace resolves through `autoload` with no line written** (`crates/nvs-hir/src/resolve.rs:340`). Check `nvs-hir` test `an_extension_namespace_resolves_through_autoload_with_no_line_written`, then the case `tests/conformance/ext/an-extension-source-class-resolves-with-no-autoload-line.nvst` against `ledger`'s `Ledger/Receipt.nvs`."
       }
     ]
   },
   "backlog": [
-    "Stage 5: a loaded extension's namespace resolves through `autoload` with no line written (`nvs-hir`), plus its conformance case. Goal file § Stage 5.",
-    "Stage 6: `nvs check`, `nvs test` and the language server read the set's manifests. Goal file § Stage 6.",
-    "The five `security/extension-*` rules still have `status: designed`. Flip them to `shipped` when the goal closes."
+    "Stage 6, the tools: `nvs check` and `nvs test` type an extension call from the configured set, and the language server completes and hovers from its manifest (`rule:packaging/extension-calls-are-statically-typed`, its *Not on disk* paragraph).",
+    "`rule:security/secret-does-not-cross-an-extension`'s *On disk* paragraph could also cite the new conformance case; it names `crates/nvs-ext/tests/load.rs` only."
   ]
 }
