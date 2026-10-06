@@ -384,6 +384,10 @@ pub enum ThrownClass {
     /// (`rule:errors/a-use-of-deprecated-code-may-log-or-throw`). A
     /// `LogicError`, and [`crate::nvs_deprecated_use`] is its one thrower.
     Deprecated,
+    /// `ExtensionError` — an extension's guest trapped
+    /// (`rule:packaging/a-guest-crash-throws`). A `RuntimeError` whose message
+    /// names the extension, the export and the trap.
+    Extension,
 }
 
 impl ThrownClass {
@@ -403,6 +407,7 @@ impl ThrownClass {
             Self::DbError => "Core\\Db\\DbError",
             Self::DbRolledBack => "Core\\Db\\RolledBack",
             Self::Deprecated => "Core\\DeprecatedError",
+            Self::Extension => "ExtensionError",
         }
     }
 
@@ -420,6 +425,7 @@ impl ThrownClass {
         Self::DbError,
         Self::DbRolledBack,
         Self::Deprecated,
+        Self::Extension,
     ];
 }
 

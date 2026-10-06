@@ -5164,6 +5164,7 @@ class, not an interface: a user class extends it directly. The tree is fixed and
 | `ParseError` | `RuntimeError` | `$issues` |
 | `TimeoutError` | `RuntimeError` | — |
 | `RecursionError` | `RuntimeError` | — |
+| `ExtensionError` | `RuntimeError` | — |
 | `ArithmeticError` | `Throwable` | — |
 | `Core\Test\Failure` | `Throwable` | — |
 | `Core\Cli\NotInteractive` | `RuntimeError` | — |

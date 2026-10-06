@@ -15,6 +15,7 @@ Core\Db\DbError class
 Core\Db\RolledBack class
 Core\DeprecatedError class
 Core\Test\Failure class
+ExtensionError class
 IOError class
 LogicError class
 OutOfStock class

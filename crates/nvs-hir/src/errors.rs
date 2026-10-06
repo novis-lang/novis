@@ -108,6 +108,7 @@ pub const TREE: &[(&str, Option<&str>)] = &[
     ("ParseError", Some("RuntimeError")),
     ("TimeoutError", Some("RuntimeError")),
     ("RecursionError", Some("RuntimeError")),
+    ("ExtensionError", Some("RuntimeError")),
     ("ArithmeticError", Some("Throwable")),
     ("Core\\Test\\Failure", Some("Throwable")),
     ("Core\\Cli\\NotInteractive", Some("RuntimeError")),
@@ -404,6 +405,19 @@ mod tests {
         for (name, _) in OWN_PROPERTIES {
             assert!(is_exception_class(name), "{name} is not in the tree");
         }
+    }
+
+    /// `rule:packaging/a-guest-crash-throws`: a handler that catches runtime
+    /// errors catches a guest's trap, and the message is all it carries.
+    #[test]
+    fn extension_error_is_a_runtime_error_with_no_property_of_its_own() {
+        assert!(is_exception_class("ExtensionError"));
+        assert_eq!(
+            conforms_to("ExtensionError"),
+            Some(vec!["RuntimeError", "Throwable"])
+        );
+        assert!(own_properties("ExtensionError").is_empty());
+        assert!(!declares_constructor("ExtensionError"));
     }
 
     #[test]

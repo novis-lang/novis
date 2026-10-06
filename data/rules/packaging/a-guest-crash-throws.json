@@ -9,5 +9,7 @@
     "errors/on-limit",
     "errors/throwable-hierarchy"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-hir/src/errors.rs"
+  ]
 }

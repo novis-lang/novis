@@ -3280,6 +3280,7 @@ fn a_file_with_no_class_still_carries_every_compiler_declared_class() {
             // tests against descriptors, and this is the one that answers no.
             "Core\\Script\\Finished",
             "Core\\Test\\Failure",
+            "ExtensionError",
             "IOError",
             "Iterable",
             "Iterator",

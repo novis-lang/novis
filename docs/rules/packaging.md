@@ -1762,7 +1762,9 @@ answers one the decoder refused.
 A limit stays a `FATAL` because the request, not the extension, asked for too much, and a resource
 limit is not a `Throwable` ([`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy)).
 
-**Not on disk.** `ExtensionError` does not exist.
+**Not on disk.** `ExtensionError` is in the compiler's exception tree under `RuntimeError` with no
+property of its own (`nvs_hir::errors::TREE`) and in the runtime's thrown-class roster, but nothing
+turns a guest's `err` or trap into a throw yet.
 
 <sub>See also [`packaging/a-guest-runs-under-the-requests-budget`](packaging.md#packaging-a-guest-runs-under-the-requests-budget), [`errors/on-limit`](errors.md#errors-on-limit), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy). Decided in [0246](../decisions/0246.md).</sub>
 
