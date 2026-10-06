@@ -2294,6 +2294,7 @@ dependencies = [
 name = "nvs-ext"
 version = "0.0.1"
 dependencies = [
+ "nvs-repo",
  "nvs-runtime",
  "serde",
  "serde_json",
