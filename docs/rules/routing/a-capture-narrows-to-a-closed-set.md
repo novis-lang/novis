@@ -10,7 +10,7 @@ The constraint is written where the type is written. The inline `{id:uint}` gram
 not taken — the same fact in two places that can disagree — and **a regex constraint is refused
 outright, as a security decision**: an application-authored pattern over the request path runs before
 any rate limiting, so catastrophic backtracking is a denial of service open to any unauthenticated
-client, which is priority 1 spent to buy priority 4 (`rule:programs/memory-priority`). A shape a type
+client, so security decides it and simplicity agrees (`rule:programs/memory-priority`). A shape a type
 cannot express — a `[a-z0-9-]+` slug — stays a `Core\Validate` check inside the handler, answering `400`.
 
 `Core\Router::url` builds a link for every member of the set and refuses a value written outside it at

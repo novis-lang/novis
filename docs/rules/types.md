@@ -817,9 +817,9 @@ behave exactly as they do there.
 (`E0782`) — the code an ordinary post-construction write already gets. Reading `$id` through a key is
 fine, and a class whose fields are all assignable is unaffected. It is deliberately compile-time:
 where a request-controlled name selects a field to write, refusing at build time is the direction
-priority 1 points in.
+security points in.
 
-<sub>See also [`types/property-key`](types.md#types-property-key), [`types/erased-member-access`](types.md#types-erased-member-access), [`types/property-key-variance`](types.md#types-property-key-variance). Decided in [0126](../decisions/0126.md), [0036](../decisions/0036.md), [0014](../decisions/0014.md), [0038](../decisions/0038.md).</sub>
+<sub>See also [`types/property-key`](types.md#types-property-key), [`types/erased-member-access`](types.md#types-erased-member-access), [`types/property-key-variance`](types.md#types-property-key-variance). Decided in [0126](../decisions/0126.md), [0036](../decisions/0036.md), [0014](../decisions/0014.md), [0038](../decisions/0038.md), [0274](../decisions/0274.md).</sub>
 
 <a id="types-unions-and-mixed"></a>
 

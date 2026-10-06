@@ -11,8 +11,8 @@
 
 `rule:php-migration/every-divergence-is-deliberate-and-listed`
 
-PHP-compatible observable behaviour is the second priority, so a departure from it is never discovered
-later: every one is listed, PHP's behaviour beside Novis's. Almost every one is reachable in PHP only
+Every departure from PHP's observable behaviour is listed, PHP's behaviour beside Novis's, as help for
+somebody porting a program by hand; the rules, not PHP, say what Novis does. Almost every one is reachable in PHP only
 *because* a binding somewhere is untyped, and is what a declared type answers instead.
 
 The list, by where each is stated: array keys are always `string` ([`types/arrays`](types.md#types-arrays)); `int` and
@@ -40,7 +40,7 @@ The consequence to plan around: the imported `.phpt` corpus passes at a **struct
 than a compatibility-first design would, and a failure in one of these classes is intentional
 divergence, not a bug. The tracked number distinguishes the two, or it reads as regression.
 
-<sub>See also [`types/declaration`](types.md#types-declaration), [`types/conversion`](types.md#types-conversion), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/arithmetic`](types.md#types-arithmetic), [`types/arrays`](types.md#types-arrays), [`types/uint`](types.md#types-uint), [`php-migration/absent-storage-is-never-a-zero-value`](php-migration.md#php-migration-absent-storage-is-never-a-zero-value), [`php-migration/a-declared-type-answers-before-the-program-runs`](php-migration.md#php-migration-a-declared-type-answers-before-the-program-runs), [`php-migration/an-element-write-needs-storage-to-write-back-into`](php-migration.md#php-migration-an-element-write-needs-storage-to-write-back-into), [`php-migration/a-body-never-falls-off-its-end`](php-migration.md#php-migration-a-body-never-falls-off-its-end), [`php-migration/one-type-test`](php-migration.md#php-migration-one-type-test). Decided in [0007](../decisions/0007.md), [0192](../decisions/0192.md).</sub>
+<sub>See also [`types/declaration`](types.md#types-declaration), [`types/conversion`](types.md#types-conversion), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/arithmetic`](types.md#types-arithmetic), [`types/arrays`](types.md#types-arrays), [`types/uint`](types.md#types-uint), [`php-migration/absent-storage-is-never-a-zero-value`](php-migration.md#php-migration-absent-storage-is-never-a-zero-value), [`php-migration/a-declared-type-answers-before-the-program-runs`](php-migration.md#php-migration-a-declared-type-answers-before-the-program-runs), [`php-migration/an-element-write-needs-storage-to-write-back-into`](php-migration.md#php-migration-an-element-write-needs-storage-to-write-back-into), [`php-migration/a-body-never-falls-off-its-end`](php-migration.md#php-migration-a-body-never-falls-off-its-end), [`php-migration/one-type-test`](php-migration.md#php-migration-one-type-test). Decided in [0007](../decisions/0007.md), [0192](../decisions/0192.md), [0274](../decisions/0274.md).</sub>
 
 <a id="php-migration-a-declared-type-answers-before-the-program-runs"></a>
 

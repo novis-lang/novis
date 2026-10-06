@@ -9,5 +9,5 @@ there is exactly one rendering of the component table and it is the one a reader
 repository. The generator and the reader each carry half of that agreement, and a test fails if either
 is changed alone.
 
-The cost is roughly 55 KB of read-only data in a binary measured in tens of megabytes: priority 5 spent
-on a legal obligation, never touching a request path.
+The cost is roughly 55 KB of read-only data in a binary measured in tens of megabytes: memory footprint
+spent on a legal obligation, never touching a request path.

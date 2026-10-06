@@ -8,4 +8,4 @@ An object is the one shape that can close a cycle, so the drain is followed by a
 context's intrusive live list. The sweep first tallies, per member, how many references come from
 another member's field slot; a member the tally does not exactly account for is reachable from outside
 and is left alone, along with everything under it. Freeing memory somebody still holds is a
-use-after-free, so priority 1 decides a question priority 5 would have answered the other way.
+use-after-free, so security decides a question memory footprint would have answered the other way.

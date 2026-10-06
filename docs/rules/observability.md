@@ -575,13 +575,13 @@ found neither takeable — the first is separable from a transport but not from 
 without either a second HTTP client or `opentelemetry_sdk`'s executor, which is a required
 dependency rather than an optional one.
 
-The objections are priority 1 and priority 4 agreeing. A second scheduler in a thread-per-core
+The objections are security and simplicity agreeing. A second scheduler in a thread-per-core
 runtime is what [`concurrency/one-scheduler`](concurrency.md#concurrency-one-scheduler) already refuses; a second HTTP client and a second
 TLS provider are a second set of verification defaults to keep in step, and a provider that is a C
 dependency is priced again by [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions). What it costs is
 that two versioned formats are ours to track, which is the trade taken deliberately.
 
-<sub>See also [`observability/the-exporters-are-crates`](observability.md#observability-the-exporters-are-crates), [`observability/a-registry-is-per-core-and-nothing-reads-it`](observability.md#observability-a-registry-is-per-core-and-nothing-reads-it), [`observability/the-exporter-is-a-feature-and-core-metrics-is-not`](observability.md#observability-the-exporter-is-a-feature-and-core-metrics-is-not), [`concurrency/one-scheduler`](concurrency.md#concurrency-one-scheduler), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions). Decided in [0186](../decisions/0186.md).</sub>
+<sub>See also [`observability/the-exporters-are-crates`](observability.md#observability-the-exporters-are-crates), [`observability/a-registry-is-per-core-and-nothing-reads-it`](observability.md#observability-a-registry-is-per-core-and-nothing-reads-it), [`observability/the-exporter-is-a-feature-and-core-metrics-is-not`](observability.md#observability-the-exporter-is-a-feature-and-core-metrics-is-not), [`concurrency/one-scheduler`](concurrency.md#concurrency-one-scheduler), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions). Decided in [0186](../decisions/0186.md), [0274](../decisions/0274.md).</sub>
 
 <a id="observability-speedscope-timeline-export"></a>
 

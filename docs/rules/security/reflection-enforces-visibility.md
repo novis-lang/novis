@@ -9,7 +9,7 @@ access there reaches it, while the same site is refused the class's `private` me
 
 **There is no `setAccessible(true)` and no equivalent.** It is rejected outright rather than left
 undocumented, because an escape hatch for reaching a private member from anywhere is a structural
-privilege-escalation path, and priority 1 does not get spent on convenience. The cost is that a
+privilege-escalation path, and security does not get spent on convenience. The cost is that a
 serializer or a test helper that reached into private state through reflection has no port: it needs
 the declaring class to offer the access, which is the same answer `rule:testing/private-in-the-same-file`
 gives a test.

@@ -888,7 +888,7 @@ Three refusals, and each is a soundness question rather than a difficulty one.
 `Core\Request::query()`, a `Core\Script::args()` or any other value that arrives from outside — those are
 `array<mixed>` on purpose ([`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables)).
 The shape of one payload someone looked at does not bound the next request's, and narrowing there would
-convert a runtime check into a compile-time assumption that is not true. This is priority 1 and 2, not
+convert a runtime check into a compile-time assumption that is not true. This is security, not
 ergonomics, and a developer may not point the action at such a value on the grounds that they know their
 data.
 
@@ -904,7 +904,7 @@ Narrowing from writes made *after* the declaration is not offered: it needs the 
 reaching the declaration and a generator that picks between answers, which
 [`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined) refuses.
 
-<sub>See also [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`security/tainted-sources`](security.md#security-tainted-sources). Decided in [0114](../decisions/0114.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`security/tainted-sources`](security.md#security-tainted-sources). Decided in [0114](../decisions/0114.md), [0007](../decisions/0007.md), [0274](../decisions/0274.md).</sub>
 
 <a id="ide-no-compile-path-calls-the-synthesis"></a>
 
@@ -1505,7 +1505,7 @@ written is the one for the format the project authors most — the only grammar 
 people working on Novis rather than the people using it. A `.nvst` case opens with its sections coloured
 and Novis highlighted inside `--FILE--`.
 
-<sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate). Decided in [0099](../decisions/0099.md).</sub>
+<sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate). Decided in [0099](../decisions/0099.md), [0274](../decisions/0274.md).</sub>
 
 <a id="ide-an-lsp-answer-is-frozen-as-an-lspt-case"></a>
 

@@ -3,7 +3,8 @@
   "status": "shipped",
   "because": [
     "0019",
-    "0014"
+    "0014",
+    "0274"
   ],
   "divergesFromPhp": "`ReflectionProperty::setAccessible(true)` and every equivalent are rejected outright, not merely undocumented",
   "seeAlso": [

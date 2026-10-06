@@ -2,7 +2,8 @@
   "title": "`.nvst` and `.lspt` get a grammar of their own, with Novis embedded in `--FILE--` and PHP in `--ORACLE--`",
   "status": "designed",
   "because": [
-    "0099"
+    "0099",
+    "0274"
   ],
   "seeAlso": [
     "ide/highlighting-is-two-layers",

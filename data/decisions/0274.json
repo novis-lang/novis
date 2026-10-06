@@ -1,0 +1,15 @@
+{
+  "title": "Nothing in Novis is tested against PHP or translated from it, and correctness leaves the priority ordering",
+  "status": "accepted",
+  "scope": "the end of PHP as a reference for Novis: the priority ordering loses its correctness item and is\ncited by name; the PHP oracle, `nvs test --php` and the differential tree go; `nvs convert`, M11 and\nevery list that maps a PHP name or construct to a Novis one go, with the editor's PHP-name completion\nand E0320's PHP clause; the `php-migration/` rule topic and the divergence catalogue go; and the three\nstdlib gaps parked on M11 are decided by Novis's own rules. What stays naming PHP is listed in § 5.\nThe wording of the one concept page, and which Novis rule each moved `php-migration/` rule lands in,\nare left to the goal's stages and the rules they write.",
+  "dependsOn": [
+    "0004",
+    "0007",
+    "0079",
+    "0089",
+    "0099",
+    "0111"
+  ],
+  "dependsOnText": "[0004](0004.md) (the ordering this record shortens), [0007](0007.md) (the divergence list),\n[0079](0079.md) (`.nvst` and its differential comparison), [0089](0089.md) and [0111](0111.md) (the\nconverter and the PHP-name completion layer this record ends), [0099](0099.md) (the case-file grammar).",
+  "validatedBy": "the goal `php-oracle-retired`'s acceptance checks: no `--ORACLE--` section and no `php` spawn\nremain under `crates/nvs-test/src/`, `tests/differential/` is gone, and `AGENTS.md` and\n`rule:programs/memory-priority` list four priorities."
+}

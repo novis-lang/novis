@@ -3,7 +3,8 @@
   "status": "shipped",
   "because": [
     "0007",
-    "0192"
+    "0192",
+    "0274"
   ],
   "divergesFromPhp": "the imported `.phpt` corpus passes at a structurally lower rate than a compatibility-first design would, and a failure in a listed class is intentional rather than a regression",
   "seeAlso": [

@@ -4,7 +4,7 @@ Three refusals, and each is a soundness question rather than a difficulty one.
 `Core\Request::query()`, a `Core\Script::args()` or any other value that arrives from outside — those are
 `array<mixed>` on purpose (`rule:types/unions-and-mixed`, `rule:statements/no-host-populated-variables`).
 The shape of one payload someone looked at does not bound the next request's, and narrowing there would
-convert a runtime check into a compile-time assumption that is not true. This is priority 1 and 2, not
+convert a runtime check into a compile-time assumption that is not true. This is security, not
 ergonomics, and a developer may not point the action at such a value on the grounds that they know their
 data.
 

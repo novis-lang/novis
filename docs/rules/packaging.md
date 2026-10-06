@@ -572,10 +572,10 @@ resource that cannot be written is a build warning and a binary without one, nev
 A program built with `nvs build --compile` is a copy of the host, so on Windows it carries this icon
 and this version information too, the way it already carries the host's notice.
 
-The cost is the icon's bytes, a few tens of kilobytes of data no request path reads: priority 5, spent
+The cost is the icon's bytes, a few tens of kilobytes of data no request path reads: memory footprint, spent
 on the program being recognisable to the person and the operating system running it.
 
-<sub>See also [`packaging/a-build-records-no-timestamp`](packaging.md#packaging-a-build-records-no-timestamp), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host). Decided in [0196](../decisions/0196.md).</sub>
+<sub>See also [`packaging/a-build-records-no-timestamp`](packaging.md#packaging-a-build-records-no-timestamp), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host). Decided in [0196](../decisions/0196.md), [0274](../decisions/0274.md).</sub>
 
 <a id="packaging-the-third-party-notice-is-generated-never-written-by-hand"></a>
 
@@ -627,10 +627,10 @@ there is exactly one rendering of the component table and it is the one a reader
 repository. The generator and the reader each carry half of that agreement, and a test fails if either
 is changed alone.
 
-The cost is roughly 55 KB of read-only data in a binary measured in tens of megabytes: priority 5 spent
-on a legal obligation, never touching a request path.
+The cost is roughly 55 KB of read-only data in a binary measured in tens of megabytes: memory footprint
+spent on a legal obligation, never touching a request path.
 
-<sub>See also [`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand), [`packaging/nvs-info-is-the-one-call`](packaging.md#packaging-nvs-info-is-the-one-call). Decided in [0065](../decisions/0065.md).</sub>
+<sub>See also [`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand), [`packaging/nvs-info-is-the-one-call`](packaging.md#packaging-nvs-info-is-the-one-call). Decided in [0065](../decisions/0065.md), [0274](../decisions/0274.md).</sub>
 
 <a id="packaging-the-cli-surface-is-novis-own"></a>
 

@@ -2,7 +2,8 @@
   "title": "`.nvst` proves the language; `#[Test]` is how a program written in Novis tests itself",
   "status": "shipped",
   "because": [
-    "0079"
+    "0079",
+    "0274"
   ],
   "seeAlso": [
     "testing/test-attribute",

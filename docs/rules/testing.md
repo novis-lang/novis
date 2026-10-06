@@ -613,7 +613,7 @@ The two formats answer different questions and are not unified, now or later. `n
 both — a path of `.nvst` files, or a program's compiled test table — and reports each in the shape
 that fits it.
 
-<sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/report-formats`](testing.md#testing-report-formats), [`testing/feature-proofs`](testing.md#testing-feature-proofs). Decided in [0079](../decisions/0079.md).</sub>
+<sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/report-formats`](testing.md#testing-report-formats), [`testing/feature-proofs`](testing.md#testing-feature-proofs). Decided in [0079](../decisions/0079.md), [0274](../decisions/0274.md).</sub>
 
 <a id="testing-a-directory-of-programs-is-one-test-program"></a>
 

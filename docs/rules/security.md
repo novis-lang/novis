@@ -134,9 +134,9 @@ An object is the one shape that can close a cycle, so the drain is followed by a
 context's intrusive live list. The sweep first tallies, per member, how many references come from
 another member's field slot; a member the tally does not exactly account for is reachable from outside
 and is left alone, along with everything under it. Freeing memory somebody still holds is a
-use-after-free, so priority 1 decides a question priority 5 would have answered the other way.
+use-after-free, so security decides a question memory footprint would have answered the other way.
 
-<sub>See also [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0116](../decisions/0116.md), [0006](../decisions/0006.md), [0004](../decisions/0004.md).</sub>
+<sub>See also [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0116](../decisions/0116.md), [0006](../decisions/0006.md), [0004](../decisions/0004.md), [0274](../decisions/0274.md).</sub>
 
 <a id="security-arena-is-an-ownership-root"></a>
 
@@ -357,12 +357,12 @@ access there reaches it, while the same site is refused the class's `private` me
 
 **There is no `setAccessible(true)` and no equivalent.** It is rejected outright rather than left
 undocumented, because an escape hatch for reaching a private member from anywhere is a structural
-privilege-escalation path, and priority 1 does not get spent on convenience. The cost is that a
+privilege-escalation path, and security does not get spent on convenience. The cost is that a
 serializer or a test helper that reached into private state through reflection has no port: it needs
 the declaring class to offer the access, which is the same answer [`testing/private-in-the-same-file`](testing.md#testing-private-in-the-same-file)
 gives a test.
 
-<sub>See also [`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability), [`enums/reflection`](enums.md#enums-reflection). Decided in [0019](../decisions/0019.md), [0014](../decisions/0014.md).</sub>
+<sub>See also [`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability), [`enums/reflection`](enums.md#enums-reflection). Decided in [0019](../decisions/0019.md), [0014](../decisions/0014.md), [0274](../decisions/0274.md).</sub>
 
 <a id="security-reflection-needs-no-capability"></a>
 

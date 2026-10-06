@@ -2,7 +2,8 @@
   "title": "`nvs.exe` carries the logo as its icon and the manifest's facts as its version information, and a debug build carries its own icon",
   "status": "shipped",
   "because": [
-    "0196"
+    "0196",
+    "0274"
   ],
   "seeAlso": [
     "packaging/a-build-records-no-timestamp",

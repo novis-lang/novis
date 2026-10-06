@@ -1,8 +1,9 @@
 {
-  "title": "Memory buys security, correctness, latency and simplicity — bounded, attributable and stated",
+  "title": "Memory buys security, latency and simplicity — bounded, attributable and stated",
   "status": "shipped",
   "because": [
-    "0004"
+    "0004",
+    "0274"
   ],
   "seeAlso": [
     "programs/program-id",

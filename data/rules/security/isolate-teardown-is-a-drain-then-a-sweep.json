@@ -4,7 +4,8 @@
   "because": [
     "0116",
     "0006",
-    "0004"
+    "0004",
+    "0274"
   ],
   "seeAlso": [
     "security/arena-is-an-ownership-root",

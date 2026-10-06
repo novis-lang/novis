@@ -30,5 +30,5 @@ resource that cannot be written is a build warning and a binary without one, nev
 A program built with `nvs build --compile` is a copy of the host, so on Windows it carries this icon
 and this version information too, the way it already carries the host's notice.
 
-The cost is the icon's bytes, a few tens of kilobytes of data no request path reads: priority 5, spent
+The cost is the icon's bytes, a few tens of kilobytes of data no request path reads: memory footprint, spent
 on the program being recognisable to the person and the operating system running it.

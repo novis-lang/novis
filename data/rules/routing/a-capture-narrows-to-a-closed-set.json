@@ -6,7 +6,8 @@
     "0077",
     "0047",
     "0075",
-    "0186"
+    "0186",
+    "0274"
   ],
   "divergesFromPhp": "there is no `->where('lang', 'en|de|fr')`; the constraint is the parameter's type, and a regex on a route is refused outright",
   "seeAlso": [

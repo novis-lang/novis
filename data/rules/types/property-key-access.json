@@ -5,7 +5,8 @@
     "0126",
     "0036",
     "0014",
-    "0038"
+    "0038",
+    "0274"
   ],
   "divergesFromPhp": "a computed property name is not a string at the site — every other operand is refused, dispatch through a computed *method* name stays refused, and a `readonly` field in the set is refused at the write",
   "seeAlso": [

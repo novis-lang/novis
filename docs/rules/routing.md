@@ -167,7 +167,7 @@ The constraint is written where the type is written. The inline `{id:uint}` gram
 not taken — the same fact in two places that can disagree — and **a regex constraint is refused
 outright, as a security decision**: an application-authored pattern over the request path runs before
 any rate limiting, so catastrophic backtracking is a denial of service open to any unauthenticated
-client, which is priority 1 spent to buy priority 4 ([`programs/memory-priority`](programs.md#programs-memory-priority)). A shape a type
+client, so security decides it and simplicity agrees ([`programs/memory-priority`](programs.md#programs-memory-priority)). A shape a type
 cannot express — a `[a-z0-9-]+` slug — stays a `Core\Validate` check inside the handler, answering `400`.
 
 `Core\Router::url` builds a link for every member of the set and refuses a value written outside it at
@@ -175,7 +175,7 @@ compile time; a computed value is substituted and encoded. Which text an enum ca
 a segment, in a link and in the generated document alike — is
 [`routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name`](routing.md#routing-an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name).
 
-<sub>See also [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`types/single-value-types`](types.md#types-single-value-types), [`core-classes/validate-has-no-type-predicates`](core-classes.md#core-classes-validate-has-no-type-predicates), [`programs/memory-priority`](programs.md#programs-memory-priority), [`routing/a-leftover-link-key-is-a-query-string`](routing.md#routing-a-leftover-link-key-is-a-query-string), [`routing/path-grammar`](routing.md#routing-path-grammar), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table). Decided in [0102](../decisions/0102.md), [0077](../decisions/0077.md), [0047](../decisions/0047.md), [0075](../decisions/0075.md), [0186](../decisions/0186.md).</sub>
+<sub>See also [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`types/single-value-types`](types.md#types-single-value-types), [`core-classes/validate-has-no-type-predicates`](core-classes.md#core-classes-validate-has-no-type-predicates), [`programs/memory-priority`](programs.md#programs-memory-priority), [`routing/a-leftover-link-key-is-a-query-string`](routing.md#routing-a-leftover-link-key-is-a-query-string), [`routing/path-grammar`](routing.md#routing-path-grammar), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table). Decided in [0102](../decisions/0102.md), [0077](../decisions/0077.md), [0047](../decisions/0047.md), [0075](../decisions/0075.md), [0186](../decisions/0186.md), [0274](../decisions/0274.md).</sub>
 
 <a id="routing-an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name"></a>
 

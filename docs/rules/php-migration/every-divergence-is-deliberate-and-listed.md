@@ -1,5 +1,5 @@
-PHP-compatible observable behaviour is the second priority, so a departure from it is never discovered
-later: every one is listed, PHP's behaviour beside Novis's. Almost every one is reachable in PHP only
+Every departure from PHP's observable behaviour is listed, PHP's behaviour beside Novis's, as help for
+somebody porting a program by hand; the rules, not PHP, say what Novis does. Almost every one is reachable in PHP only
 *because* a binding somewhere is untyped, and is what a declared type answers instead.
 
 The list, by where each is stated: array keys are always `string` (`rule:types/arrays`); `int` and

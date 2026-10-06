@@ -17,7 +17,7 @@ found neither takeable — the first is separable from a transport but not from 
 without either a second HTTP client or `opentelemetry_sdk`'s executor, which is a required
 dependency rather than an optional one.
 
-The objections are priority 1 and priority 4 agreeing. A second scheduler in a thread-per-core
+The objections are security and simplicity agreeing. A second scheduler in a thread-per-core
 runtime is what `rule:concurrency/one-scheduler` already refuses; a second HTTP client and a second
 TLS provider are a second set of verification defaults to keep in step, and a provider that is a C
 dependency is priced again by `rule:packaging/a-c-dependency-answers-two-questions`. What it costs is

@@ -24,4 +24,4 @@ behave exactly as they do there.
 (`E0782`) — the code an ordinary post-construction write already gets. Reading `$id` through a key is
 fine, and a class whose fields are all assignable is unaffected. It is deliberately compile-time:
 where a request-controlled name selects a field to write, refusing at build time is the direction
-priority 1 points in.
+security points in.
