@@ -119,14 +119,11 @@ fn a_source_file_that_is_not_utf_8_is_e0006_at_its_first_bad_byte() {
     assert!(!stderr.contains("E0006"), "{stderr}");
 }
 
-/// A call into an extension of the tree's `[[extension]]` set is typed from its manifest: a right
-/// one checks, a wrong argument is the `E0401` a `Core` call gives, and a class from the
-/// extension's source section resolves with no `autoload` line. The `.nvsx` is the `ledger`
-/// fixture's manifest and source over an empty component, which exports nothing and so could
-/// never be instantiated (`rule:packaging/extension-calls-are-statically-typed`).
-#[test]
-fn nvs_check_types_an_extension_call_from_the_configured_set() {
-    let dir = scratch("extension-set");
+/// A tree whose `nvs.toml` pins one extension: the `ledger` fixture's manifest and source over
+/// the component `wat`, which exports none of the manifest's methods, plus a `good.nvs` that
+/// calls it rightly and a `bad.nvs` that passes a string where it takes an `int`.
+fn extension_tree(case: &str, wat: &str) -> PathBuf {
+    let dir = scratch(case);
     let fixture = nvs_repo::path("tests/conformance/ext/fixtures/ledger");
     let manifest = fs::read(fixture.join("manifest.json")).expect("the fixture's manifest");
     let receipt = fs::read_to_string(fixture.join("source/Ledger/Receipt.nvs.src"))
@@ -134,7 +131,7 @@ fn nvs_check_types_an_extension_call_from_the_configured_set() {
     let source = format!(
         "{{\"source\": 1, \"files\": [{{\"path\": \"Ledger/Receipt.nvs\", \"text\": {receipt:?}}}]}}"
     );
-    let component = wat::parse_str("(component)").expect("an empty component");
+    let component = wat::parse_str(wat).expect("the component's text parses");
     let nvsx = nvs_ext::pack::append_section(component, nvs_ext::section::MANIFEST, &manifest);
     let nvsx = nvs_ext::pack::append_section(nvsx, nvs_ext::section::SOURCE, source.as_bytes());
     fs::write(dir.join("shop.nvsx"), &nvsx).unwrap();
@@ -156,17 +153,57 @@ fn nvs_check_types_an_extension_call_from_the_configured_set() {
         "<?nvs\necho Shop\\Ledger::echoInt(\"seven\"), \"\\n\";\n",
     )
     .unwrap();
+    dir
+}
 
+/// A call into an extension of the tree's `[[extension]]` set is typed from its manifest, and a
+/// class from the extension's source section resolves with no `autoload` line
+/// (`rule:packaging/extension-calls-are-statically-typed`).
+#[test]
+fn nvs_check_types_an_extension_call_from_the_configured_set() {
+    let dir = extension_tree("extension-set", "(component)");
+    let good = check_in(&dir, &["good.nvs"]);
+    let stderr = String::from_utf8_lossy(&good.stderr);
+    assert_eq!(good.status.code(), Some(0), "{stderr}");
+    assert_eq!(String::from_utf8_lossy(&good.stdout), "no errors\n");
+}
+
+/// A wrong argument to an extension call is the `E0401` a `Core` call gives, at the call's line.
+#[test]
+fn nvs_check_refuses_a_wrong_argument_to_an_extension_call() {
+    let dir = extension_tree("extension-wrong-argument", "(component)");
+    let bad = check_in(&dir, &["bad.nvs"]);
+    let stderr = String::from_utf8_lossy(&bad.stderr);
+    assert_eq!(bad.status.code(), Some(1), "{stderr}");
+    assert!(bad.stdout.is_empty(), "{stderr}");
+    assert!(stderr.contains("error[E0401]"), "{stderr}");
+    assert!(stderr.contains("bad.nvs:2:"), "{stderr}");
+}
+
+/// The component imports a function no host provides, so instantiating it fails: `nvs run`
+/// cannot, and `nvs check` still types the program, because it reads only the manifest.
+#[test]
+fn nvs_check_never_instantiates_an_extension() {
+    let dir = extension_tree(
+        "extension-never-instantiated",
+        "(component (import \"missing\" (func)))",
+    );
     let good = check_in(&dir, &["good.nvs"]);
     let stderr = String::from_utf8_lossy(&good.stderr);
     assert_eq!(good.status.code(), Some(0), "{stderr}");
     assert_eq!(String::from_utf8_lossy(&good.stdout), "no errors\n");
 
-    let bad = check_in(&dir, &["bad.nvs"]);
-    let stderr = String::from_utf8_lossy(&bad.stderr);
-    assert_eq!(bad.status.code(), Some(1), "{stderr}");
-    assert!(stderr.contains("error[E0401]"), "{stderr}");
-    assert!(stderr.contains("bad.nvs:2:"), "{stderr}");
+    let run = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .args(["run", "good.nvs"])
+        .current_dir(&dir)
+        .output()
+        .expect("the `nvs` binary this test was built beside runs");
+    assert_ne!(
+        run.status.code(),
+        Some(0),
+        "running the program does instantiate the component, and fails: {}",
+        String::from_utf8_lossy(&run.stderr)
+    );
 }
 
 /// The numbers on a `compile:` line, by name, in the order printed.
