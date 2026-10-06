@@ -320,6 +320,15 @@ wasmtime = "48"
 # `decoding` would pull `wasmparser` and `serde` for binary components it never
 # reads. Its one caller is `crates/nvs-stdlib/tests/ext_world.rs`.
 wit-parser = { version = "0.254", default-features = false, features = ["std"] }
+# The reader of a `.nvsx`'s custom sections, at the version wasmtime 48 parses
+# with, so it adds no crate the lock file did not already hold. `std` and
+# `component-model` are what walking a component's sections needs; `validate`
+# is left off because validating is the engine's job at load.
+# `crates/nvs-ext/src/section.rs` is the one caller.
+wasmparser = { version = "0.254", default-features = false, features = ["std", "component-model"] }
+# Component text compiled at test time, so a test guest needs no wasm
+# toolchain. Already in the lock file under wasmtime's own `wat` feature.
+wat = "1"
 
 # --- the language server's wire and its vocabulary (ADR 0099 §§ 1-5) ---
 # `rule:ide/the-server-is-synchronous` is "a reader thread, a writer thread, one

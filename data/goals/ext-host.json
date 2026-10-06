@@ -19,7 +19,8 @@
       "crates/nvs-cli/src/cache.rs",
       "crates/nvs-cli/src/control.rs",
       "benches/abi-probe/src/wasm.rs",
-      "crates/nvs-config/src/extension.rs"
+      "crates/nvs-config/src/extension.rs",
+      "crates/nvs-ext"
     ],
     "rules": [
       "packaging/extension-loading-is-root-controlled",

@@ -24,5 +24,8 @@ newer minor or another major is refused, naming both versions. An `.nvsx` compil
 `nvs:ext@1.0.0` is not recompiled for a minor engine release.
 
 **Not on disk.** The world `nvs:ext@1.0.0` is written under `wit/nvs-ext/`, with the WASI 0.2 WIT it
-imports vendored under `deps/`, and `crates/nvs-stdlib/tests/ext_world.rs` parses it. There is no
-manifest reader or component loader, and nothing builds a component against the world.
+imports vendored under `deps/`, and `crates/nvs-stdlib/tests/ext_world.rs` parses it. `nvs-ext`
+reads both sections and parses the manifest and the source list without linking wasmtime
+(`crates/nvs-ext/tests/manifest.rs`), and its module doc owns the JSON shapes. There is no component
+loader, so no manifest is checked against its exports, and nothing builds a component against the
+world.

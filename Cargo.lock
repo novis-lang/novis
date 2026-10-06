@@ -2288,6 +2288,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "nvs-ext"
+version = "0.0.1"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "wasmparser 0.254.2",
+ "wasmtime",
+ "wat",
+]
+
+[[package]]
 name = "nvs-fmt"
 version = "0.0.1"
 dependencies = [

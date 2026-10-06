@@ -1,0 +1,43 @@
+[package]
+name = "nvs-ext"
+build = "../../tools/build/tests_without_pdb.rs"
+description = "Novis extensions: the `.nvsx` manifest and section reader, and the wasmtime host that loads and runs a component"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lib]
+# No doc comment in this crate has a runnable example, so `cargo test` does
+# not run rustdoc over it. A crate that gains one deletes this table.
+doctest = false
+
+[features]
+default = ["engine"]
+# The wasmtime host. The checker and the language server read manifests and
+# never instantiate, so they take this crate with `default-features = false`
+# and do not link wasmtime. `component-model` for a component guest, `async`
+# for a call the request's coroutine polls, `pooling-allocator` for one slot
+# per instance. wasmtime's defaults already carry all three; naming them keeps
+# them on if the workspace entry ever turns the defaults off.
+engine = [
+    "dep:wasmtime",
+    "wasmtime/component-model",
+    "wasmtime/async",
+    "wasmtime/pooling-allocator",
+]
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+wasmparser.workspace = true
+wasmtime = { workspace = true, optional = true }
+
+[dev-dependencies]
+wat.workspace = true
+
+[lints]
+workspace = true

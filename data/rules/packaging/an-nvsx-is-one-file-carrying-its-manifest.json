@@ -11,5 +11,7 @@
     "security/extension-manifest-only-tightens",
     "config/the-extension-set-is-in-every-unit-key"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-ext/tests/manifest.rs"
+  ]
 }
