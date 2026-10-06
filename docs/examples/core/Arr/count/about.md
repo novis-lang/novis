@@ -1,4 +1,4 @@
-Counts the entries in an array. It replaces PHP's `count` and `sizeof`.
+Counts the entries in an array.
 
 The result is a whole number, and `0` for an array with nothing in it. `Core\Arr::count` counts the
 entries at the top level only. An entry that is itself an array counts as one, so counting the

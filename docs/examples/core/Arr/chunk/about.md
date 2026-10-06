@@ -1,4 +1,4 @@
-Gives you the entries of an array in runs of the same size. It replaces PHP's `array_chunk`.
+Gives you the entries of an array in runs of the same size.
 
 `$size` is how many entries each run holds, and the result is a list of those runs. The last run is
 short when the number of entries does not divide by the size. An array with no entries gives you no

@@ -1,4 +1,4 @@
-Gives you the value of the first entry of an array. It replaces PHP's `reset` and `current`.
+Gives you the value of the first entry of an array.
 
 First means first in the order the entries were put in, not the smallest key. A list gives you the
 value at position 0. A map gives you the value that was added first.

@@ -1,5 +1,4 @@
-Searches an array for the first entry that meets a condition you write, and returns that entry. It
-replaces PHP's `array_find`.
+Searches an array for the first entry that meets a condition you write, and returns that entry.
 
 You pass the array and a small function. Novis calls that function with one entry at a time, and the
 function returns `true` or `false`. The first time it returns `true`, `Core\Arr::find` stops there

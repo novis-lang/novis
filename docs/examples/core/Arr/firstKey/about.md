@@ -1,4 +1,4 @@
-Gives you the key of the first entry of an array. It replaces PHP's `array_key_first`.
+Gives you the key of the first entry of an array.
 
 First means first in the order the entries were put in, not the smallest key. A map gives you the
 name the first entry was stored under, and a list gives you `"0"`.

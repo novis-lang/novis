@@ -1,4 +1,4 @@
-Adds one or more values to the front of an array. It replaces PHP's `array_unshift`.
+Adds one or more values to the front of an array.
 
 `Core\Arr::prepend` never changes the array you give it. It returns a new array: first each value
 you added, in the order you wrote them, then every value of your array.

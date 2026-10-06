@@ -1,5 +1,5 @@
 Folds a whole array into one value. A function is called for every entry, and each call receives the
-value the fold has so far. It replaces PHP's `array_reduce`.
+value the fold has so far.
 
 You give `Core\Arr::reduce` an array, a function and a start value. The function receives the value
 so far, the entry's value and the entry's key, and returns the next value. A function that needs

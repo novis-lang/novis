@@ -1,5 +1,5 @@
-Gives you a copy of an array with one window of entries replaced by other values. It replaces PHP's
-`array_splice`, and the array you pass in is never changed.
+Gives you a copy of an array with one window of entries replaced by other values. The array you
+pass in is never changed.
 
 The window is the one `Core\Arr::slice` returns, so the positions are read the same way. `$offset` is
 where the window opens, and a negative offset counts back from the last entry. `$length` is how many

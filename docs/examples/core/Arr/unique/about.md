@@ -1,5 +1,4 @@
-Gives you the entries of an array whose value has not appeared before. It replaces PHP's
-`array_unique`, which compares values as text instead.
+Gives you the entries of an array whose value has not appeared before.
 
 The first entry with a value wins. It keeps its key and its position, and every later entry with the
 same value is dropped. The keys are not renumbered, so a list with repeated values comes back with

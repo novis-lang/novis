@@ -1,5 +1,4 @@
-Returns a new array with every entry except the last one. It replaces what PHP's `array_pop` leaves
-behind.
+Returns a new array with every entry except the last one.
 
 `Core\Arr::withoutLast` never changes the array you give it. Every entry that stays keeps its own
 key, so a list keeps the numbering it had and only its highest key is gone.

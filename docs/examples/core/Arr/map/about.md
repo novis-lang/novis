@@ -1,5 +1,4 @@
-Makes a new array by replacing every value with what a function returns for it. It replaces PHP's
-`array_map`.
+Makes a new array by replacing every value with what a function returns for it.
 
 You give `Core\Arr::map` an array and a function. The function receives the value and the key, and
 returns the new value. A function that needs only the value declares only that one parameter.

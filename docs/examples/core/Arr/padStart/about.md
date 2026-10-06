@@ -1,5 +1,5 @@
-Returns a new array with copies of a value added in front, until the array has the length you asked
-for. It replaces PHP's `array_pad` with a negative length.
+Returns a new array with copies of a value added in front, until the array has the
+length you asked for.
 
 `Core\Arr::padStart` never changes the array you give it. The result is always a list: its keys are
 numbers counting from `"0"`, and the keys your array had are gone. The copies come first, then every

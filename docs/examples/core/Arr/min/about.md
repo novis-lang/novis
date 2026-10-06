@@ -1,4 +1,4 @@
-Gives you the smallest value in an array. It replaces PHP's `min` with an array argument.
+Gives you the smallest value in an array.
 
 The values are compared the way `Core\Arr::sort` orders them, so the smallest value and the first
 value of the sorted array are always the same entry. Numbers compare as numbers. Texts compare byte

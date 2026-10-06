@@ -1,5 +1,4 @@
-Turns an array inside out: every value becomes a key, and every key becomes the value under it. It
-replaces PHP's `array_flip`.
+Turns an array inside out: every value becomes a key, and every key becomes the value under it.
 
 The values have to be whole numbers or strings, because those are the only things an array can use as
 a key. Every key of the result is a string, so a value that was the number 7 becomes the key `"7"`.

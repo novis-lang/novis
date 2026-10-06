@@ -6,7 +6,7 @@ the whole value. This method combines the two arrays one level further down, and
 again for every key inside them, as deep as the arrays go.
 
 A list is always replaced whole. Two lists under one key are not joined, because nothing can say
-what order the result should then have. It replaces PHP's `array_replace_recursive`.
+what order the result should then have.
 
 **The examples below** show two settings trees combined, a list that is replaced, and three layers
 written over each other in one call.

@@ -1,5 +1,5 @@
 Searches an array for the first entry that meets a condition you write, and returns the key of that
-entry. It replaces PHP's `array_find_key`.
+entry.
 
 You pass the array and a small function. Novis calls that function with one entry at a time, and the
 function returns `true` or `false`. The first time it returns `true`, `Core\Arr::findKey` stops

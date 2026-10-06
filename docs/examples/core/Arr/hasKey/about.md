@@ -1,4 +1,4 @@
-Tests whether an array has an entry stored under a key. It replaces PHP's `array_key_exists`.
+Tests whether an array has an entry stored under a key.
 
 The result is `true` when the key is present, whatever is stored under it. A key whose value is
 `null` is still a key that is present, so `Core\Arr::hasKey` is how you tell a stored `null` from a

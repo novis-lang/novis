@@ -1,6 +1,5 @@
 Adds up all the values of an array and divides the total by how many entries there are. That is the
-mean. In PHP you would write `array_sum($a) / count($a)`, and this member answers the empty case as
-well.
+mean.
 
 An array with no entries gives you `null`. There is nothing to divide, so there is no mean.
 

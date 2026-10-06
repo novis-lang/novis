@@ -1,5 +1,4 @@
-Tests whether every entry in an array meets a condition that you write. It replaces PHP's
-`array_all`.
+Tests whether every entry in an array meets a condition that you write.
 
 You pass the array and a small function. Novis calls that function with one entry at a time, and
 the function returns `true` or `false`. If it returns `false` for an entry, `Core\Arr::all` stops

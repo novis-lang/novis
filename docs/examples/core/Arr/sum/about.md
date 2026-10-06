@@ -1,4 +1,4 @@
-Adds up every value in an array and gives you the total. It replaces PHP's `array_sum`.
+Adds up every value in an array and gives you the total.
 
 The type of the total follows the values it meets. Whole numbers added to whole numbers stay whole.
 One `float` anywhere makes the total a `float`. One `decimal` anywhere makes the total a `decimal`,

@@ -1,4 +1,4 @@
-Gives you the key of the last entry of an array. It replaces PHP's `array_key_last`.
+Gives you the key of the last entry of an array.
 
 Last means last in the order the entries were put in, not the largest key. A map gives you the name
 of the entry that was put in last, and a list gives you the last position as text.

@@ -1,4 +1,4 @@
-Finds the key of the first entry that holds a value. It replaces PHP's `array_search`.
+Finds the key of the first entry that holds a value.
 
 The key is returned as text, whatever the array uses. In a list the keys are the positions, so the
 first entry gives `"0"`. When no entry holds the value the result is `null`. There is no `false` to

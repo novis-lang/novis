@@ -1,4 +1,4 @@
-Gives you the entries of one window of an array. It replaces PHP's `array_slice`.
+Gives you the entries of one window of an array.
 
 A position counts entries from the front and starts at 0, whatever the keys are. `$offset` is where
 the window opens, and `$length` is how many entries it holds. A negative offset counts back from the

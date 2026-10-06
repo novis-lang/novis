@@ -1,5 +1,4 @@
-Returns a new array with every entry except the first one. It replaces what PHP's `array_shift`
-leaves behind.
+Returns a new array with every entry except the first one.
 
 `Core\Arr::withoutFirst` never changes the array you give it. Every entry that stays keeps its own
 key. A list numbered from `"0"` gives a result numbered from `"1"`. Use `Core\Arr::values` when you

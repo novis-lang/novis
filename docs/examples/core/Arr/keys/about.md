@@ -1,4 +1,4 @@
-Gives you every key of an array, as a list. It replaces PHP's `array_keys`.
+Gives you every key of an array, as a list.
 
 The keys come back in the order they were put in, and the list they come back in is a fresh array
 you can walk, count or change without touching the array you asked about.

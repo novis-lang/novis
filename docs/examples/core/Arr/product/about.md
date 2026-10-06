@@ -1,5 +1,4 @@
-Multiplies all the values of an array together and gives you the result. It replaces PHP's
-`array_product`.
+Multiplies all the values of an array together and gives you the result.
 
 The values are multiplied one at a time, and the type of the result follows what it meets. Whole
 numbers multiplied by whole numbers stay whole. One `float` anywhere makes the result a `float`.

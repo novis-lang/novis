@@ -1,4 +1,4 @@
-Tests whether an array holds a value. It replaces PHP's `in_array`.
+Tests whether an array holds a value.
 
 The result is `true` as soon as one entry is the value you are looking for, and `false` when no
 entry is. The empty array gives `false`.

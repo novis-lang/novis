@@ -1,4 +1,4 @@
-Tests whether an array is a plain list. It replaces PHP's `array_is_list`.
+Tests whether an array is a plain list.
 
 An array is a list when its keys are exactly `0`, `1`, `2` and so on, with no key missing and no key
 out of order. An array you build with `[]`, or by adding entries with `$a[] = ...`, is a list. An

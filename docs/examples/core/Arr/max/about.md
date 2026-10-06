@@ -1,4 +1,4 @@
-Gives you the largest value in an array. It replaces PHP's `max` with an array argument.
+Gives you the largest value in an array.
 
 The values are compared the way `Core\Arr::sort` orders them, so the largest value and the last
 value of the sorted array are always the same entry. Numbers compare as numbers. Texts compare byte

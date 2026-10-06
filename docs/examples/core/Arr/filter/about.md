@@ -1,5 +1,4 @@
-Keeps the entries of an array that a function accepts, and leaves the others out. It replaces PHP's
-`array_filter` and both of its flags.
+Keeps the entries of an array that a function accepts, and leaves the others out.
 
 You give `Core\Arr::filter` an array and a function. The function receives the value and the key, and
 returns `true` for an entry you want to keep. A function that needs only the value declares only that

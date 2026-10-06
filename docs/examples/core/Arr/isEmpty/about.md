@@ -1,5 +1,4 @@
-Tests whether an array holds no entries at all. It replaces PHP's `empty($a)` and `count($a) === 0`
-with one method.
+Tests whether an array holds no entries at all.
 
 The result is `true` when the array has no entries, and `false` when it has at least one. A value of
 `null`, `0` or an empty text is still an entry, so an array holding one of those is not empty. What

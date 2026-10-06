@@ -1,4 +1,4 @@
-Gives you the value of the last entry of an array. It replaces PHP's `end`.
+Gives you the value of the last entry of an array.
 
 Last means last in the order the entries were put in, not the largest key. When you add an entry to
 the end of a list, that entry is the one you get back.

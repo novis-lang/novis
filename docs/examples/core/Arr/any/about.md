@@ -1,5 +1,4 @@
-Tests whether at least one entry in an array meets a condition that you write. It replaces PHP's
-`array_any`.
+Tests whether at least one entry in an array meets a condition that you write.
 
 You pass the array and a small function. Novis calls that function with one entry at a time, and
 the function returns `true` or `false`. The first time it returns `true`, `Core\Arr::any` stops

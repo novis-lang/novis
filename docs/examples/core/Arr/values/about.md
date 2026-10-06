@@ -1,4 +1,4 @@
-Gives you every value of an array, as a list. It replaces PHP's `array_values`.
+Gives you every value of an array, as a list.
 
 The values come back in the order they were put in, and the keys are dropped. The list is numbered
 from 0, so the first value is at position 0 and the second at position 1.

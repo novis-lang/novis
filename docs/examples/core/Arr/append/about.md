@@ -1,5 +1,4 @@
-Adds one or more values to the end of an array. It replaces PHP's `array_push` and the statement
-`$a[] = $value`.
+Adds one or more values to the end of an array.
 
 `Core\Arr::append` never changes the array you give it. It returns a new array: first every entry of
 your array, under the key it already had, then each value you added.
