@@ -46,6 +46,7 @@
 //! | `--SCHEME--` | `http` or `https`, the scheme that request arrived over |
 //! | `--FILE <relative/path>--` | another file, written beside `--FILE--`; repeatable |
 //! | `--RUN--` | `run` (the default), `test`, `test --format=json`, `test --format=junit`, `test --list --format=json` or `config dump --origin`: the command line `--FILE--` goes through |
+//! | `--EXTENSION--` | fixture extensions to load, one name per line: each `<name>.nvsx` under the nearest `ext/fixtures/` above the case is copied beside `--FILE--`, and its pinned `[[extension]]` entry is added to `nvs.toml`, which is created when the case wrote none; a name with no fixture is a parse error |
 //!
 //! ## Which subcommand a case is run through
 //!

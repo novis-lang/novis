@@ -205,6 +205,30 @@ pub struct AuxFile {
     pub body: String,
 }
 
+/// One fixture extension a case's `--EXTENSION--` section loads.
+///
+/// The fixtures are the committed `<name>.nvsx` files under the nearest
+/// `ext/fixtures/` directory above the case, each with its pin beside it as
+/// `<name>.sha256` — this crate has no hash of its own, and `nvs-ext`'s
+/// `fixtures` test holds both files to the fixture's text.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExtensionFixture {
+    /// The name the case wrote, which is also the file's stem.
+    pub name: String,
+    /// The committed `.nvsx` the runner copies into the working directory.
+    pub source: PathBuf,
+    /// The `sha256` pin the runner writes into its `[[extension]]` entry.
+    pub sha256: String,
+}
+
+impl ExtensionFixture {
+    /// The file name the runner copies the fixture to, and its entry's `path`.
+    #[must_use]
+    pub fn file_name(&self) -> String {
+        format!("{}.nvsx", self.name)
+    }
+}
+
 /// One parsed `.nvst` file.
 #[derive(Debug, Clone)]
 pub struct Case {
@@ -258,6 +282,9 @@ pub struct Case {
     pub request: Option<Request>,
     /// Every `--FILE <relative/path>--`, in the order they were written.
     pub aux: Vec<AuxFile>,
+    /// `--EXTENSION--`, the fixture extensions the case loads, one name per
+    /// line in the order they were written.
+    pub extensions: Vec<ExtensionFixture>,
     /// `--EXPECT--` or `--EXPECTF--`, matched against standard output.
     pub expect: Option<Expectation>,
     /// `--EXPECT-ERROR--` or `--EXPECTF-ERROR--`, matched against standard
@@ -321,7 +348,64 @@ const KNOWN: &[&str] = &[
     "EXPECTF-ERROR",
     "CLEAN",
     "RUN",
+    "EXTENSION",
 ];
+
+/// Where the fixture extensions sit, below some directory above the case.
+const FIXTURES: [&str; 2] = ["ext", "fixtures"];
+
+/// Reads `--EXTENSION--`'s names into the fixtures they name, searching each
+/// directory above `case` for [`FIXTURES`] and taking the nearest that has the
+/// name. A name no such directory has is an error naming it.
+fn extension_fixtures(
+    case: &Path,
+    section: Option<(usize, String)>,
+) -> Result<Vec<ExtensionFixture>, ParseError> {
+    let Some((line, body)) = section else {
+        return Ok(Vec::new());
+    };
+    let mut fixtures: Vec<ExtensionFixture> = Vec::new();
+    for name in body.lines().map(str::trim).filter(|name| !name.is_empty()) {
+        if fixtures.iter().any(|seen| seen.name == name) {
+            return Err(err(
+                format!("`--EXTENSION--` names `{name}` twice"),
+                Some(line),
+            ));
+        }
+        let found = case.ancestors().skip(1).find_map(|dir| {
+            let root = FIXTURES
+                .iter()
+                .fold(dir.to_path_buf(), |path, part| path.join(part));
+            let source = root.join(format!("{name}.nvsx"));
+            source
+                .is_file()
+                .then(|| (source, root.join(format!("{name}.sha256"))))
+        });
+        let Some((source, pin)) = found else {
+            return Err(err(
+                format!(
+                    "`--EXTENSION--` names `{name}`, and no `ext/fixtures/{name}.nvsx` is above the case"
+                ),
+                Some(line),
+            ));
+        };
+        let sha256 = std::fs::read_to_string(&pin)
+            .map_err(|error| {
+                err(
+                    format!("`{}` does not read: {error}", pin.display()),
+                    Some(line),
+                )
+            })?
+            .trim()
+            .to_owned();
+        fixtures.push(ExtensionFixture {
+            name: name.to_owned(),
+            source,
+            sha256,
+        });
+    }
+    Ok(fixtures)
+}
 
 /// The one section name that takes an argument, and what the argument is.
 const TAKES_A_PATH: &str = "FILE";
@@ -439,6 +523,21 @@ pub fn parse(path: &Path, text: &str) -> Result<Case, ParseError> {
             path,
             body: section.body.clone(),
         });
+    }
+
+    let extensions = extension_fixtures(path, take("EXTENSION"))?;
+    if let Some(clash) = aux.iter().find(|file| {
+        extensions
+            .iter()
+            .any(|fixture| fixture.file_name() == file.path)
+    }) {
+        return Err(err(
+            format!(
+                "`--FILE {}--` is the file `--EXTENSION--` copies its fixture to",
+                clash.path
+            ),
+            None,
+        ));
     }
 
     let Some((title_line, title)) = take("TEST") else {
@@ -602,6 +701,7 @@ pub fn parse(path: &Path, text: &str) -> Result<Case, ParseError> {
         file,
         run,
         aux,
+        extensions,
         expect,
         expect_error,
         clean: take("CLEAN")
@@ -1156,6 +1256,42 @@ hi
         assert_eq!(parsed.args, ["greet", "ada lovelace", "--dryRun"]);
         let bare = case("--TEST--\nt\n--FILE--\n<?nvs\n--EXPECT--\n\n").expect("no args section");
         assert!(bare.args.is_empty());
+    }
+
+    #[test]
+    fn an_extension_section_naming_no_fixture_is_a_parse_error_naming_it() {
+        let case = nvs_repo::path("tests/conformance/reject/a.nvst");
+        let text = |names: &str| {
+            format!("--TEST--\nt\n--EXTENSION--\n{names}--FILE--\n<?nvs\n--EXPECT--\n")
+        };
+
+        let parsed = parse(&case, &text("ledger\n")).expect("the ledger is a fixture");
+        assert_eq!(parsed.extensions.len(), 1);
+        assert_eq!(parsed.extensions[0].file_name(), "ledger.nvsx");
+        assert!(parsed.extensions[0].source.is_file());
+
+        let missing = parse(&case, &text("ledger\nNoSuchFixture\n")).expect_err("it is refused");
+        assert_eq!(missing.line, Some(3));
+        assert!(
+            missing.message.contains("`NoSuchFixture`"),
+            "{}",
+            missing.message
+        );
+        assert!(
+            parse(&case, &text("ledger\nledger\n"))
+                .expect_err("a name twice is refused")
+                .message
+                .contains("twice")
+        );
+        assert!(
+            parse(
+                &case,
+                &format!("{}--FILE ledger.nvsx--\nx\n", text("ledger\n"))
+            )
+            .expect_err("an auxiliary file cannot take the fixture's name")
+            .message
+            .contains("`--EXTENSION--` copies")
+        );
     }
 
     #[test]

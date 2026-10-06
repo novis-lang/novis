@@ -30,7 +30,7 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use crate::case::{Case, Subcommand};
+use crate::case::{Case, ExtensionFixture, Subcommand};
 use crate::expect::{matches, normalize, shown};
 
 /// How long one case's process may run before the runner gives up on it.
@@ -188,6 +188,9 @@ pub fn run_case(case: &Case, opts: &Options, workdir: &Path) -> Outcome {
         if let Err(error) = write_aux(workdir, &aux.path, &aux.body) {
             return Outcome::Fail(vec![format!("--FILE {}--: {error}", aux.path)]);
         }
+    }
+    if let Err(error) = write_extensions(workdir, &case.extensions) {
+        return Outcome::Fail(vec![format!("--EXTENSION--: {error}")]);
     }
 
     let record = recording(case, opts);
@@ -352,6 +355,36 @@ fn write_aux(workdir: &Path, relative: &str, body: &str) -> io::Result<()> {
         fs::create_dir_all(parent)?;
     }
     fs::write(target, body)
+}
+
+/// Copies each fixture into `workdir` and appends its pinned `[[extension]]`
+/// entry to the `nvs.toml` there, creating the file when the case wrote none.
+///
+/// The entries go after whatever the case's own `nvs.toml` holds, so a case
+/// that writes its configuration and loads a fixture gets both, and an array
+/// of tables at the end of a file is valid wherever the file's last table was.
+fn write_extensions(workdir: &Path, fixtures: &[ExtensionFixture]) -> io::Result<()> {
+    if fixtures.is_empty() {
+        return Ok(());
+    }
+    let config = workdir.join("nvs.toml");
+    let mut text = match fs::read_to_string(&config) {
+        Ok(text) => text,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => String::new(),
+        Err(error) => return Err(error),
+    };
+    for fixture in fixtures {
+        fs::copy(&fixture.source, workdir.join(fixture.file_name()))?;
+        if !text.is_empty() && !text.ends_with('\n') {
+            text.push('\n');
+        }
+        text.push_str(&format!(
+            "\n[[extension]]\npath = \"{}\"\nsha256 = \"{}\"\n",
+            fixture.file_name(),
+            fixture.sha256
+        ));
+    }
+    fs::write(config, text)
 }
 
 /// Writes `source` into `workdir` as `name` and runs `nvs <sub>` on it.
@@ -568,6 +601,52 @@ fn indented(label: &str, text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn ledger() -> ExtensionFixture {
+        let case = nvs_repo::path("tests/conformance/reject/a.nvst");
+        let parsed = crate::case::parse(
+            &case,
+            "--TEST--\nt\n--EXTENSION--\nledger\n--FILE--\n<?nvs\n--EXPECT--\n",
+        )
+        .expect("a case naming the ledger parses");
+        parsed.extensions[0].clone()
+    }
+
+    #[test]
+    fn an_extension_section_copies_its_fixture_and_writes_its_pinned_entry() {
+        let root = nvs_repo::scratch("test-extension-new");
+        let ledger = ledger();
+
+        write_extensions(&root, std::slice::from_ref(&ledger)).expect("it writes");
+        assert_eq!(
+            fs::read(root.join("ledger.nvsx")).expect("the fixture is copied"),
+            fs::read(&ledger.source).expect("the fixture reads")
+        );
+        assert_eq!(ledger.sha256.len(), 64, "{}", ledger.sha256);
+        assert_eq!(
+            fs::read_to_string(root.join("nvs.toml")).expect("the file is created"),
+            format!(
+                "\n[[extension]]\npath = \"ledger.nvsx\"\nsha256 = \"{}\"\n",
+                ledger.sha256
+            )
+        );
+    }
+
+    #[test]
+    fn an_extension_section_adds_its_entry_to_the_nvs_toml_the_case_wrote() {
+        let root = nvs_repo::scratch("test-extension-add");
+        let ledger = ledger();
+        write_aux(&root, "nvs.toml", "[opcache]\nenabled = false").expect("it writes");
+
+        write_extensions(&root, std::slice::from_ref(&ledger)).expect("it writes");
+        assert_eq!(
+            fs::read_to_string(root.join("nvs.toml")).expect("it reads"),
+            format!(
+                "[opcache]\nenabled = false\n\n[[extension]]\npath = \"ledger.nvsx\"\nsha256 = \"{}\"\n",
+                ledger.sha256
+            )
+        );
+    }
 
     #[test]
     fn an_auxiliary_file_lands_under_the_directories_its_path_names() {
