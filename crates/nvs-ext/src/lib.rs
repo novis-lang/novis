@@ -14,6 +14,8 @@
 //! - `call`, behind the `engine` feature, runs a loaded extension: one instance per extension per
 //!   request, a call the request's coroutine polls, and the request's CPU time and memory as its
 //!   limits. Its module doc owns how a call waits, yields and fails.
+//! - `convert`, behind the `engine` feature, turns a Novis value into the WIT value its manifest
+//!   type crosses as, and back. Its module doc owns the value model and what it refuses.
 //! - `pack`, behind the `pack` feature, makes a `.nvsx` from a component or a core module, a
 //!   manifest and source files, the same bytes each time.
 //!
@@ -42,6 +44,8 @@
 
 #[cfg(feature = "engine")]
 pub mod call;
+#[cfg(feature = "engine")]
+pub mod convert;
 #[cfg(feature = "engine")]
 pub mod load;
 pub mod manifest;

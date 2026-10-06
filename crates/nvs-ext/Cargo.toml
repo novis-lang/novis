@@ -58,6 +58,10 @@ name = "call"
 required-features = ["engine"]
 
 [[test]]
+name = "convert"
+required-features = ["engine"]
+
+[[test]]
 name = "failure"
 required-features = ["engine"]
 
