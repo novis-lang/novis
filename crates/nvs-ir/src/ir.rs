@@ -610,6 +610,23 @@ pub enum InstKind {
     /// function, the same "cheap now, expensive to retrofit" reason
     /// `crate::ids` already gives for `StmtId`/`EdgeId`. Defines no value.
     Safepoint,
+    /// `rule:errors/a-use-of-deprecated-code-may-log-or-throw`'s check: one
+    /// load of the context's deprecation word and a predicted-not-taken branch
+    /// to `nvs_runtime::nvs_deprecated_use`, which logs `message` or throws a
+    /// `Core\DeprecatedError` carrying it, as `[errors] deprecated` says.
+    ///
+    /// Emitted at the entry of a deprecated method, and before an expression
+    /// the checker recorded through
+    /// `nvs_types::expr_table::ExprTypeTable::deprecation_checks`. Nothing else
+    /// emits it, so a program that uses no deprecated code has none. Defines
+    /// no value and always carries an error edge.
+    DeprecationCheck {
+        /// `W1003`'s message, which a `Core\DeprecatedError` carries.
+        message: String,
+        /// `file:line` of the use, which the log record names; empty at a
+        /// method's entry.
+        at: String,
+    },
     /// A `bool` constant.
     ConstBool(bool),
     /// An `int` constant.

@@ -13,6 +13,7 @@ ArithmeticError class
 Core\Cli\NotInteractive class
 Core\Db\DbError class
 Core\Db\RolledBack class
+Core\DeprecatedError class
 Core\Test\Failure class
 IOError class
 LogicError class

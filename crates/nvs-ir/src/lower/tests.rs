@@ -3274,6 +3274,7 @@ fn a_file_with_no_class_still_carries_every_compiler_declared_class() {
             "Core\\Cli\\NotInteractive",
             "Core\\Db\\DbError",
             "Core\\Db\\RolledBack",
+            "Core\\DeprecatedError",
             // The table's other root, which is not an exception: a descriptor
             // for it has to exist for the same reason as the rest — a `catch`
             // tests against descriptors, and this is the one that answers no.

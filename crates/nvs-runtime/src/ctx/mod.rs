@@ -36,6 +36,9 @@
 //! * [`STATICS_OFFSET`] — the base of this request's static-property storage,
 //!   loaded inline by every `Class::$prop` read and write. See *Static
 //!   properties are request-scoped* below.
+//! * [`DEPRECATED_OFFSET`] — `rule:errors/a-use-of-deprecated-code-may-log-or-throw`'s
+//!   word, loaded at every use of deprecated code. See `deprecated`'s module
+//!   docs.
 //!
 //! All of them are exposed as `offset_of!` constants rather than restated
 //! numbers, so adding a field can never silently desynchronise codegen from
@@ -178,6 +181,7 @@ use crate::value::Value;
 
 mod answers;
 mod current;
+mod deprecated;
 mod error;
 mod held;
 mod hooks;
@@ -200,6 +204,7 @@ pub(crate) use self::current::*;
 // carries the pair off the thread and back — see [`CurrentStack`].
 pub use self::answers::*;
 pub use self::current::CurrentStack;
+pub use self::deprecated::{OnDeprecated, nvs_deprecated_use};
 pub use self::error::*;
 pub use self::held::*;
 pub use self::inbound::*;
@@ -359,6 +364,14 @@ pub struct Ctx {
     /// slot index compiled code carries comes from `nvs_ir::Program::statics`,
     /// so there is an index only where there is a slot.
     statics: *mut Value,
+    /// Hot. [`OnDeprecated`] as a word, loaded inline at every use of
+    /// deprecated code; zero when a use does nothing. Written by
+    /// [`Self::refresh_limits`] from `[errors] deprecated`.
+    deprecated: u64,
+    /// The sites `"log"` has already written a record for in this request,
+    /// keyed by the address of each site's own message bytes. Empty unless the
+    /// request logs deprecated uses, and freed with the context.
+    deprecated_logged: std::collections::HashSet<usize>,
     /// The state this request tree shares — the safepoint word [`Self::safepoint`]
     /// names, and the counters a member of the tree running on another core
     /// charges into. [`TreeState`] owns what it holds and what it costs.
@@ -1682,6 +1695,9 @@ pub const HOT_LINE_BYTES: usize = 64;
 /// module docs' *Static properties are request-scoped* section.
 pub const STATICS_OFFSET: usize = std::mem::offset_of!(Ctx, statics);
 
+/// Byte offset of the deprecation word within [`Ctx`] — see the module docs.
+pub const DEPRECATED_OFFSET: usize = std::mem::offset_of!(Ctx, deprecated);
+
 /// The depth [`Ctx::new`] asserts for a context nothing has put on a task
 /// yet: **8 MiB of reserved address space**, the default Linux thread stack,
 /// of which only the touched pages are ever resident.
@@ -1772,6 +1788,7 @@ mod tests {
         assert_eq!(DEADLINE_OFFSET, 16);
         assert_eq!(STACK_LIMIT_OFFSET, 24);
         assert_eq!(STATICS_OFFSET, 40);
+        assert_eq!(DEPRECATED_OFFSET, 48);
         // The offsets above are the arrangement; this is the property `rule:http-server/time-is-bounded-inside-a-helper`
         // actually buys with it, and it is what fails first when a field
         // is added rather than appended.
@@ -1781,6 +1798,7 @@ mod tests {
             ("deadline", DEADLINE_OFFSET),
             ("stack_limit", STACK_LIMIT_OFFSET),
             ("statics", STATICS_OFFSET),
+            ("deprecated", DEPRECATED_OFFSET),
         ] {
             assert!(
                 offset + size_of::<u64>() <= HOT_LINE_BYTES,

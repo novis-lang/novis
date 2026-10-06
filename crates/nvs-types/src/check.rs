@@ -692,6 +692,9 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     if let Some(label) = &label {
         env.exprs.record_method(m.name, label.clone());
     }
+    if let Some(class) = ctx.current_class {
+        crate::deprecated::record_entry(class, span_text(env.src, m.name), m.name, env);
+    }
 
     check_return_type_is_written(m, env);
 

@@ -73,6 +73,13 @@
 /// and the `sql` the program wrote — so the class carries the root's own set,
 /// those, and a message that is what the server said.
 ///
+/// `Core\DeprecatedError` is what a use of deprecated code throws under
+/// `[errors] deprecated = "throw"`
+/// (`rule:errors/a-use-of-deprecated-code-may-log-or-throw`). Its parent is
+/// `LogicError`, because calling code its author retired is a fault in the
+/// program and not the world saying no. It declares nothing of its own: the
+/// message is `W1003`'s text.
+///
 /// Those are the entries whose names have more than one segment, which is
 /// why every consumer here goes through `QName::parse` rather than treating a
 /// row as a bare global segment. `QName::is_reserved_global_class`
@@ -106,6 +113,7 @@ pub const TREE: &[(&str, Option<&str>)] = &[
     ("Core\\Cli\\NotInteractive", Some("RuntimeError")),
     ("Core\\Db\\DbError", Some("RuntimeError")),
     ("Core\\Db\\RolledBack", Some("RuntimeError")),
+    ("Core\\DeprecatedError", Some("LogicError")),
     (FINISH_MARKER, None),
 ];
 

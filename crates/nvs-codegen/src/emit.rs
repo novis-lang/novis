@@ -70,8 +70,8 @@ use nvs_ir::ir::{
     AbsentKey, BasicBlock, BinOp, Function, Helper, Inst, InstKind, Terminator, TestedClass, UnOp,
 };
 use nvs_runtime::{
-    DEBUG_FLAGS_OFFSET, Decimal as NvsDecimal, OK, SAFEPOINT_OFFSET, STACK_LIMIT_OFFSET, THROWN,
-    Tag, Value as NvsValue,
+    DEBUG_FLAGS_OFFSET, DEPRECATED_OFFSET, Decimal as NvsDecimal, OK, SAFEPOINT_OFFSET,
+    STACK_LIMIT_OFFSET, THROWN, Tag, Value as NvsValue,
 };
 use rustc_hash::FxHashMap;
 
@@ -520,6 +520,9 @@ impl Emitter<'_, '_> {
                 return self.emit_stmt_probe(cur, stmt);
             }
             InstKind::Safepoint => return self.emit_safepoint(cur),
+            InstKind::DeprecationCheck { message, at } => {
+                return self.emit_deprecation_check(message, at, inst.on_error);
+            }
             InstKind::ConstBool(v) => {
                 let v = self.b.ins().iconst(types::I8, i64::from(*v));
                 self.define(inst, v)?;
@@ -1146,6 +1149,45 @@ impl Emitter<'_, '_> {
 
         self.b.switch_to_block(stop);
         self.b.ins().return_(&[status]);
+
+        self.b.switch_to_block(cont);
+        Ok(cont)
+    }
+
+    /// `rule:errors/a-use-of-deprecated-code-may-log-or-throw`'s check: one load
+    /// of the context's deprecation word and a predicted-not-taken branch, the
+    /// shape [`Self::emit_stmt_probe`] has. The message and the site are baked
+    /// into the unit once per check and materialized only on the cold path,
+    /// so a request under `"ignore"` pays the load and the branch and nothing
+    /// else. The helper's status is checked like any call's.
+    fn emit_deprecation_check(
+        &mut self,
+        message: &str,
+        at: &str,
+        on_error: Option<BlockId>,
+    ) -> Result<Block, CodegenError> {
+        let offset = i32::try_from(DEPRECATED_OFFSET)
+            .map_err(|_| internal("the deprecation word sits past a 2 GiB offset"))?;
+        let word = self
+            .b
+            .ins()
+            .load(types::I64, ctx_word(), self.ctx_p, offset);
+
+        let slow = self.b.create_block();
+        let cont = self.b.create_block();
+        self.b.ins().brif(word, slow, &[], cont, &[]);
+
+        self.b.switch_to_block(slow);
+        let (text, text_len) = self.emit_bytes(message.as_bytes())?;
+        let (site, site_len) = self.emit_bytes(at.as_bytes())?;
+        let callee = self.runtime_ref("nvs_deprecated_use", RuntimeSig::Deprecated)?;
+        let call = self
+            .b
+            .ins()
+            .call(callee, &[self.ctx_p, text, text_len, site, site_len]);
+        let status = self.b.inst_results(call)[0];
+        self.emit_status_check(status, on_error)?;
+        self.b.ins().jump(cont, &[]);
 
         self.b.switch_to_block(cont);
         Ok(cont)
@@ -3986,6 +4028,7 @@ impl Emitter<'_, '_> {
             RuntimeSig::HelperVariadic => &self.sigs.helper_variadic,
             RuntimeSig::Safepoint => &self.sigs.safepoint,
             RuntimeSig::StackCheck => &self.sigs.stack_check,
+            RuntimeSig::Deprecated => &self.sigs.deprecated,
             RuntimeSig::Probe => &self.sigs.probe,
             RuntimeSig::ProbeCall => &self.sigs.probe_call,
             RuntimeSig::ProbeCallExit => &self.sigs.probe_call_exit,
@@ -4048,6 +4091,7 @@ enum RuntimeSig {
     HelperVariadic,
     Safepoint,
     StackCheck,
+    Deprecated,
     Probe,
     ProbeCall,
     ProbeCallExit,

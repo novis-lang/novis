@@ -1241,6 +1241,13 @@ pub fn lower_method(
         param_tys.push(bound_ty);
     }
 
+    // `rule:errors/a-use-of-deprecated-code-may-log-or-throw`: a deprecated
+    // method checks on entry, so a call through an interface or a dynamic
+    // call is checked too.
+    if let Some(check) = exprs.deprecated_entry(m.name) {
+        low.emit_deprecation_checks(entry, std::slice::from_ref(check), &env);
+    }
+
     // PHP 8's constructor promotion: the parameter *is* the property, so the
     // store the author did not write is emitted here, before the body, in
     // declaration order. See `promoted_stores`.
@@ -2661,6 +2668,29 @@ impl<'a> Lowering<'a> {
             on_error: None,
             raise_site: None,
         });
+    }
+    /// Appends one [`InstKind::DeprecationCheck`] to `b` for each check in
+    /// `checks`, each with the error edge `env` gives every fallible
+    /// instruction.
+    pub(crate) fn emit_deprecation_checks(
+        &mut self,
+        b: BlockId,
+        checks: &[nvs_types::expr_table::DeprecationCheck],
+        env: &Env,
+    ) {
+        for check in checks {
+            let landing = self.landing_block(env);
+            self.block_insts[b.index() as usize].push(Inst {
+                result: None,
+                ty: None,
+                kind: InstKind::DeprecationCheck {
+                    message: check.message.clone(),
+                    at: check.at.clone(),
+                },
+                on_error: Some(landing),
+                raise_site: None,
+            });
+        }
     }
     /// Appends an [`InstKind::Retain`] on `v` to `b` — see the module docs'
     /// refcounting-policy section for when a call site actually wants one;

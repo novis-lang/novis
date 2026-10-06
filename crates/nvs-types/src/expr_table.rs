@@ -1341,6 +1341,20 @@ pub struct ExprTypeTable {
     callable_markers: Vec<(TypeId, String)>,
     callable_conformance: FxHashMap<Span, Vec<String>>,
     attribute_names: Vec<(Span, QName)>,
+    deprecation_checks: FxHashMap<Span, Vec<DeprecationCheck>>,
+    deprecated_entries: FxHashMap<Span, DeprecationCheck>,
+}
+
+/// What one runtime check of `rule:errors/a-use-of-deprecated-code-may-log-or-throw`
+/// says: the text a `Core\DeprecatedError` carries, and where the use is
+/// written for the log record.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DeprecationCheck {
+    /// `W1003`'s message for this use.
+    pub message: String,
+    /// `file:line` of the use, or empty for a method's entry check, which no
+    /// one use names.
+    pub at: String,
 }
 
 /// One local variable, as the body that declared it left it.
@@ -1644,6 +1658,36 @@ impl ExprTypeTable {
     /// declaration is recorded in a table otherwise about expressions.
     pub(crate) fn record_method(&mut self, span: Span, label: String) {
         self.methods.insert(span, label);
+    }
+
+    /// Records that the expression at `span` uses deprecated code and checks
+    /// `[errors] deprecated` where it runs. One expression may use more than
+    /// one deprecated declaration, and each is its own check.
+    pub(crate) fn record_deprecation_check(&mut self, span: Span, check: DeprecationCheck) {
+        self.deprecation_checks.entry(span).or_default().push(check);
+    }
+
+    /// The checks the expression at `span` makes before it runs, in the order
+    /// the checker found them. Empty for every expression that names no
+    /// deprecated property, constant, case, class or parameter.
+    #[must_use]
+    pub fn deprecation_checks(&self, span: Span) -> &[DeprecationCheck] {
+        self.deprecation_checks
+            .get(&span)
+            .map_or(&[], Vec::as_slice)
+    }
+
+    /// Records that the method whose name sits at `span` is deprecated and
+    /// checks `[errors] deprecated` on entry.
+    pub(crate) fn record_deprecated_entry(&mut self, span: Span, check: DeprecationCheck) {
+        self.deprecated_entries.insert(span, check);
+    }
+
+    /// The entry check of the method whose name sits at `span`, keyed as
+    /// [`Self::method_label`] is, or `None` when the method is not deprecated.
+    #[must_use]
+    pub fn deprecated_entry(&self, span: Span) -> Option<&DeprecationCheck> {
+        self.deprecated_entries.get(&span)
     }
 
     /// The `Class::method` label of the method declaration whose name sits at

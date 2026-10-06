@@ -542,6 +542,10 @@ impl Ctx {
         // Nothing is carved out of it — [`Self::output_limit`]'s field doc owns
         // why a ceiling on writing needs no slice reserved from it.
         self.output_limit = self.configured_output_limit();
+        // Not a ceiling, but read off the same configuration in the same pass,
+        // so a `Core\Config::set` of `[errors] deprecated` reaches the word
+        // compiled code loads.
+        self.deprecated = self.configured_on_deprecated() as u64;
         // Last, because it mirrors what the lines above just decided: the
         // allocator is held to the ceiling ordinary execution is held to, and
         // arming it from the same pass is what stops the two from being left

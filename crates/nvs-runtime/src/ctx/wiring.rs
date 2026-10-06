@@ -114,6 +114,8 @@ impl Ctx {
             stack_limit: 0,
             stack_floor: 0,
             statics: std::ptr::null_mut(),
+            deprecated: 0,
+            deprecated_logged: std::collections::HashSet::new(),
             tree,
             cancelled: false,
             exit_code: 0,

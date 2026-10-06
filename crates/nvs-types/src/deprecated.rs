@@ -40,7 +40,7 @@ use nvs_syntax::ast::{
     Param, Stmt, StmtKind,
 };
 
-use crate::expr_table::{ArgSlot, ExprInfo};
+use crate::expr_table::{ArgSlot, DeprecationCheck, ExprInfo};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::testing::OptionTy;
@@ -329,7 +329,36 @@ fn report(
         }
         (None, _) => {}
     }
+    if at_new || !matches!(member, Member::Type | Member::Method(_)) {
+        let message = message(&what, deprecation, shown);
+        let (line, _) = env.src.line_col(span.start);
+        let at = format!("{}:{}", env.src.name(), line + 1);
+        env.exprs
+            .record_deprecation_check(span, DeprecationCheck { message, at });
+    }
     env.diags.report(diagnostic);
+}
+
+/// Records the entry check of method `name` of `class`, declared at `span`,
+/// when the method is deprecated. Its message names the template as it is
+/// written, because no one use fills it in.
+pub(crate) fn record_entry(class: &QName, name: &str, span: Span, env: &mut Env<'_>) {
+    let member = Member::Method(name.to_owned());
+    let Some(deprecation) = env.deprecations.get(class, &member) else {
+        return;
+    };
+    let message = message(
+        &template::describe(class, &member),
+        deprecation,
+        deprecation.replace.as_deref(),
+    );
+    env.exprs.record_deprecated_entry(
+        span,
+        DeprecationCheck {
+            message,
+            at: String::new(),
+        },
+    );
 }
 
 /// The member, then `since`, then `note`, then the replacement.

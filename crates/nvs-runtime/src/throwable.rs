@@ -379,6 +379,11 @@ pub enum ThrownClass {
     /// `nvs_ir::lower::exception`'s synthesized constructor does — there is no
     /// second field for a helper here to write.
     DbRolledBack,
+    /// `Core\DeprecatedError` — a use of deprecated code under
+    /// `[errors] deprecated = "throw"`
+    /// (`rule:errors/a-use-of-deprecated-code-may-log-or-throw`). A
+    /// `LogicError`, and [`crate::nvs_deprecated_use`] is its one thrower.
+    Deprecated,
 }
 
 impl ThrownClass {
@@ -397,6 +402,7 @@ impl ThrownClass {
             Self::CliNotInteractive => "Core\\Cli\\NotInteractive",
             Self::DbError => "Core\\Db\\DbError",
             Self::DbRolledBack => "Core\\Db\\RolledBack",
+            Self::Deprecated => "Core\\DeprecatedError",
         }
     }
 
@@ -413,6 +419,7 @@ impl ThrownClass {
         Self::CliNotInteractive,
         Self::DbError,
         Self::DbRolledBack,
+        Self::Deprecated,
     ];
 }
 

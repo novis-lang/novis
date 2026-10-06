@@ -3368,6 +3368,10 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
             (crate::ctx::nvs_stack_check as *const ()).cast::<u8>(),
         ),
         (
+            "nvs_deprecated_use",
+            (crate::ctx::nvs_deprecated_use as *const ()).cast::<u8>(),
+        ),
+        (
             "nvs_probe_stmt",
             (crate::ctx::nvs_probe_stmt as *const ()).cast::<u8>(),
         ),

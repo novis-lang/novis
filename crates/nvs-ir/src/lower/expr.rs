@@ -60,6 +60,13 @@ impl<'a> Lowering<'a> {
         if let Some((v, ty)) = self.staged(expr.span) {
             return (v, ty);
         }
+        // `rule:errors/a-use-of-deprecated-code-may-log-or-throw`'s check at a
+        // use, before the expression runs. Empty for nearly every expression.
+        let exprs = self.exprs;
+        let checks = exprs.deprecation_checks(expr.span);
+        if !checks.is_empty() {
+            self.emit_deprecation_checks(*cur, checks, env);
+        }
         // A value the checker accepted at a union naming `float` only through
         // the `int` → `float` row. Such a union is tagged, so the position's
         // own `Self::coerce` would tag the integer as an integer; the

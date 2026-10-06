@@ -1773,6 +1773,9 @@ struct Signatures {
     /// slow path. `sp` is `I64` for the reason every other pointer-shaped
     /// parameter here is: this JIT compiles for 64-bit targets only.
     stack_check: Signature,
+    /// `nvs_deprecated_use(ctx, message, len, at, len) -> status` —
+    /// `rule:errors/a-use-of-deprecated-code-may-log-or-throw`'s slow path.
+    deprecated: Signature,
     /// `nvs_probe_stmt(ctx, stmt_id)`, and `nvs_probe_edge(ctx, edge_id)`.
     probe: Signature,
     /// `nvs_probe_call_enter(ctx, name, len)`.
@@ -2393,6 +2396,13 @@ impl Signatures {
         stack_check.params.push(AbiParam::new(types::I64));
         stack_check.returns.push(AbiParam::new(types::I32));
 
+        let mut deprecated = module.make_signature();
+        deprecated.params.push(AbiParam::new(ptr));
+        for _ in 0..4 {
+            deprecated.params.push(AbiParam::new(types::I64));
+        }
+        deprecated.returns.push(AbiParam::new(types::I32));
+
         let mut probe = module.make_signature();
         probe.params.push(AbiParam::new(ptr));
         probe.params.push(AbiParam::new(types::I32));
@@ -2557,6 +2567,7 @@ impl Signatures {
             helper_variadic,
             safepoint,
             stack_check,
+            deprecated,
             probe,
             probe_call,
             probe_call_exit,

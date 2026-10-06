@@ -71,6 +71,10 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         let _ = writeln!(out, "    safepoint");
         return;
     }
+    if let InstKind::DeprecationCheck { message, .. } = &inst.kind {
+        let _ = writeln!(out, "    deprecated {message:?}");
+        return;
+    }
     if let InstKind::Retain { operand } = inst.kind {
         let _ = writeln!(out, "    retain v{}", operand.index());
         return;
@@ -359,6 +363,7 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         InstKind::StmtMarker(_)
         | InstKind::SeedRaiseSite
         | InstKind::Safepoint
+        | InstKind::DeprecationCheck { .. }
         | InstKind::Retain { .. }
         | InstKind::Release { .. }
         | InstKind::RefStore { .. }
