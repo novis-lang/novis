@@ -12,6 +12,7 @@
 //! | `tests/invariants.rs` | the checked-return ABI and coroutine behaviour of [ADR 0002](/docs/decisions/0002.md) |
 //! | `tests/unwind_unavailable.rs` | the *premise* of ADR 0002 — that native unwinding is unavailable |
 //! | `tests/wasm_sandbox.rs` | the sandbox guarantees of [ADR 0003](/docs/decisions/0003.md) |
+//! | `tests/wasm_async.rs` | the async bridge of [ADR 0246](/docs/decisions/0246.md) § 5: a guest call parks, yields and traps inside a coroutine |
 //! | `tests/perf_guards.rs` | order-of-magnitude regressions in the quoted costs |
 //! | [`process`] | the cost of the child process that [ADR 0006](/docs/decisions/0006.md) replaces with an in-process isolate |
 //! | `shared/isolate.rs` | the cost of the in-process isolate it is replaced *with* — the other half of that comparison, outside this library because it needs the compiler crates and those are dev-only |

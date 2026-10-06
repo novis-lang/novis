@@ -1684,8 +1684,12 @@ A request has one instance per extension it calls ([`packaging/a-fresh-instance-
 component cannot be re-entered, so a second task of the same request calling the same extension waits
 until the first call returns.
 
-**Not on disk.** There is no guest call in the tree; `benches/abi-probe` proves epoch interruption on a
-plain thread only.
+**Not on disk.** No shipped crate makes a guest call. `benches/abi-probe` proves the bridge with a
+component guest under its `wasm-probe` feature: a `corosensei` coroutine polls `call_async`, a pending
+host import parks it, a second coroutine runs a whole guest call on the thread while the first is
+parked inside wasm, an epoch tick yields a long call to a sibling, and the CPU deadline traps a call
+that keeps yielding. The core there is a model of one run queue and a waker per task; neither
+`nvs-host`'s scheduler nor its `RemoteWake` drives a guest call yet.
 
 <sub>See also [`packaging/a-guest-runs-under-the-requests-budget`](packaging.md#packaging-a-guest-runs-under-the-requests-budget), [`packaging/a-fresh-instance-per-request`](packaging.md#packaging-a-fresh-instance-per-request). Decided in [0246](../decisions/0246.md).</sub>
 

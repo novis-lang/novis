@@ -8,5 +8,7 @@
     "packaging/a-guest-runs-under-the-requests-budget",
     "packaging/a-fresh-instance-per-request"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "benches/abi-probe/tests/wasm_async.rs"
+  ]
 }
