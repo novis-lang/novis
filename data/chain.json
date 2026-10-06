@@ -1,7 +1,6 @@
 {
-  "live": "coverage-depth",
+  "live": "php-oracle-retired",
   "goals": [
-    "coverage-depth",
     "php-oracle-retired",
     "deprecated-and-todo",
     "ext-design",
