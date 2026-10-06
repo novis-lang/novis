@@ -244,9 +244,7 @@ one first.
 ## What it claims
 
 `.nvs`, and nothing else. It starts when you open a Novis document, or when the workspace has a
-file named `nvs.toml`. In any other window it does not start. It does not claim `.php`, though the
-compiler reads that dialect: the file type belongs to whichever PHP extension a person already has, and
-losing a quiet fight over it looks like Novis being broken rather than like two extensions disagreeing.
+file named `nvs.toml`. In any other window it does not start.
 
 A file named `nvs.toml` gets completion and nothing else. After a `[`, you get the block headers. On an
 empty line under a header, you get the keys of that block, with the default and the comment from the

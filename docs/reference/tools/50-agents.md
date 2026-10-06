@@ -260,7 +260,7 @@ added hook to .cursor/hooks.json
 # A worked session
 
 An agent that holds nothing but this binary, asked to print how long a name is. It reads the primer
-once, then looks for the member by the PHP name it already knows:
+once, then looks for the member by a name it knows from another language:
 
 ```text
 $ nvs agent find strlen
@@ -316,7 +316,7 @@ echo Core\Str::length($name), "\n";
 3
 ```
 
-Asked next whether classes load themselves, it looks for the PHP word, which is a keyword here and
+Asked next whether classes load themselves, it looks for the word it already knows, which is a keyword here and
 no member's name. Two lines come back: a heading, and a flag of `nvs check` that has the word in
 its name. The heading is the one it wants, and the same `show` prints the section:
 

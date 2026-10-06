@@ -31,9 +31,8 @@ usually one file:
 | `nvs agent <verb>` | the same registry for a coding agent: a primer, an index, a search, one card — and the pointers `init` installs |
 | `nvs ast [--json] <file>` | parse one file and print its syntax tree |
 
-Every subcommand also takes `--config <PATH>` (see `nvs run`) and `-h`/`--help`. `nvs` declares no
-short flag of PHP's: there is no `-i`, `-a`, `-r`, `-f` or lowercase `-v`, and every operation is
-spelled as a subcommand.
+Every subcommand also takes `--config <PATH>` (see `nvs run`) and `-h`/`--help`. Every operation is
+a subcommand: there is no `-i`, `-a`, `-r`, `-f` or lowercase `-v`.
 
 **In other chapters:** `nvs serve`, `nvs ctl` and `nvs service` are in
 [the server chapter](#tools-server); `nvs lsp` and `nvs lsp-test` are in

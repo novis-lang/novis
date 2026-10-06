@@ -150,9 +150,7 @@ before the cap
 **`cpu_time` and `wall_time` answer different questions.** `wall_time` bounds how long a client
 waits; `cpu_time` bounds how much of the machine one request burns, so a runaway loop is stopped
 while a request parked on a slow query is not. A request cannot compute for longer than it runs, so
-`cpu_time` only ever fires when it is set below `wall_time` — set equal, it never does. PHP's one
-`max_execution_time` counts CPU time on Linux and elapsed time on Windows: the first is `cpu_time`
-here, and PHP-FPM's `request_terminate_timeout` is `wall_time`. A request that needs more — a large
+`cpu_time` only ever fires when it is set below `wall_time` — set equal, it never does. A request that needs more — a large
 report — raises its own limit with `Core\Config::set("cpu_time", "40s")`, up to `[limits.hard]`,
 rather than the starting value being raised for every request. The CPU clock is sampled about twice
 a second, so a request may overrun `cpu_time` by up to that much. Linux, macOS and Windows have a

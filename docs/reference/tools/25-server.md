@@ -119,8 +119,7 @@ entry  = "Shop/public/index.nvs"
 
 In production — `dispatch = "entry"`, `static = false` — steps 3 and 4 do not run: match, strip,
 entry. With `dispatch = "path"` and `static = true`, which is what development gives when neither
-key is written, the sequence is `try_files $uri /index.nvs`, the shape a PHP application already
-deploys under. A prefix is matched exactly, and in steps 3 and 4 the URL has to write the name of
+key is written, the sequence is `try_files $uri /index.nvs`. A prefix is matched exactly, and in steps 3 and 4 the URL has to write the name of
 the file exactly as the disk has it. A name in another case, a name with a dot or a space added at
 its end and a Windows short name such as `REPORT~1.NVS` are each a file that is not there, on every
 platform. A trailing slash is never added or removed: `/users` and `/users/` are two URLs. `HEAD`
