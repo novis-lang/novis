@@ -254,7 +254,7 @@ fn a_manifest_naming_an_unknown_qualifier_is_refused() {
 fn an_import_outside_the_world_is_refused_naming_the_import() {
     for import in [
         "wasi:sockets/tcp@0.2.12",
-        "wasi:http/types@0.2.12",
+        "wasi:http/incoming-handler@0.2.12",
         "shop:other/api",
         "wasi:cli/stdout@0.3.0",
     ] {

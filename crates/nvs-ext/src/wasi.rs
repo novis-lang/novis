@@ -22,15 +22,19 @@
 //!   ([`crate::grants::effective`]), named by its canonical absolute path, opened read-only for a
 //!   `read` root and read-write for a `write` root. With no grant there is none, and a guest never
 //!   holds a descriptor. [`files`] owns how a path under a root is resolved.
+//! - `wasi:http` — `types` and `outgoing-handler`, sent through [`Budget::send`] to a host in the
+//!   instance's effective `connect` set, and refused before anything is sent for any other host.
+//!   With no grant every request is refused. [`http`] owns how a request crosses.
 //!
-//! `wasi:http` is in the world and not linked yet, so [`crate::load::Loader`] refuses a
-//! component that imports it: a WASI import loads only when [`LINKED`] names it.
+//! A WASI import loads only when [`LINKED`] names it, so [`crate::load::Loader`] refuses
+//! `wasi:http/incoming-handler`, `wasi:sockets` and every other interface outside the list.
 //!
 //! Cost: one `ResourceTable` per instance, empty until a guest asks for a stream or a pollable,
-//! a line of at most twice [`PERMIT`] per output stream a guest asks for, and one path per
-//! granted root, all freed with the instance.
+//! a line of at most twice [`PERMIT`] per output stream a guest asks for, one path per granted
+//! root and one name per granted host, all freed with the instance.
 
 mod files;
+mod http;
 
 use std::sync::Arc;
 
@@ -71,6 +75,8 @@ mod bindings {
             import wasi:random/insecure-seed@0.2.12;
             import wasi:filesystem/types@0.2.12;
             import wasi:filesystem/preopens@0.2.12;
+            import wasi:http/types@0.2.12;
+            import wasi:http/outgoing-handler@0.2.12;
         }
     ",
     world: "nvs:host/linked",
@@ -82,6 +88,15 @@ mod bindings {
         "wasi:io/error": wasmtime_wasi_io::bindings::wasi::io::error,
         "wasi:filesystem/types.descriptor": crate::wasi::files::Descriptor,
         "wasi:filesystem/types.directory-entry-stream": crate::wasi::files::Entries,
+        "wasi:http/types.fields": crate::wasi::http::Fields,
+        "wasi:http/types.outgoing-request": crate::wasi::http::OutgoingRequest,
+        "wasi:http/types.outgoing-response": crate::wasi::http::OutgoingResponse,
+        "wasi:http/types.outgoing-body": crate::wasi::http::OutgoingBody,
+        "wasi:http/types.request-options": crate::wasi::http::RequestOptions,
+        "wasi:http/types.future-incoming-response": crate::wasi::http::FutureIncomingResponse,
+        "wasi:http/types.incoming-response": crate::wasi::http::IncomingResponse,
+        "wasi:http/types.incoming-body": crate::wasi::http::IncomingBody,
+        "wasi:http/types.future-trailers": crate::wasi::http::FutureTrailers,
     },
     });
 }
@@ -89,6 +104,7 @@ mod bindings {
 use self::bindings::wasi::cli::{environment, exit, stderr, stdin, stdout};
 use self::bindings::wasi::clocks::{monotonic_clock, wall_clock};
 use self::bindings::wasi::filesystem::{preopens, types};
+use self::bindings::wasi::http::{outgoing_handler, types as http_types};
 use self::bindings::wasi::random::{insecure, insecure_seed, random};
 
 /// The WASI interfaces a guest links, without their versions: what [`link`] defines, and the
@@ -107,29 +123,34 @@ pub const LINKED: &[&str] = &[
     "wasi:random/insecure-seed",
     "wasi:filesystem/types",
     "wasi:filesystem/preopens",
+    "wasi:http/types",
+    "wasi:http/outgoing-handler",
     "wasi:io/error",
     "wasi:io/poll",
     "wasi:io/streams",
 ];
 
 /// One instance's WASI state: the resources its streams, pollables and descriptors live in, the
-/// request and channel its output is logged to, and the roots it may open.
+/// request and channel its output is logged to, the roots it may open and the hosts it may send
+/// to.
 pub(crate) struct Context {
     table: ResourceTable,
     budget: Arc<dyn Budget>,
     channel: Arc<str>,
     preopens: Vec<Arc<files::Root>>,
+    connect: Vec<String>,
 }
 
 impl Context {
-    /// A context whose output goes to `budget`'s log under `channel`, and whose preopens are
-    /// `reach`'s roots.
+    /// A context whose output goes to `budget`'s log under `channel`, whose preopens are
+    /// `reach`'s roots, and whose requests may go to `reach`'s hosts.
     pub(crate) fn new(budget: Arc<dyn Budget>, channel: &str, reach: &Effective) -> Self {
         Self {
             table: ResourceTable::new(),
             budget,
             channel: Arc::from(channel),
             preopens: files::roots(reach),
+            connect: reach.connect.clone(),
         }
     }
 
@@ -190,6 +211,8 @@ pub(crate) fn link(linker: &mut Linker<Guest>) -> wasmtime::Result<()> {
     insecure_seed::add_to_linker::<Guest, Wasi>(linker, cx)?;
     types::add_to_linker::<Guest, Wasi>(linker, cx)?;
     preopens::add_to_linker::<Guest, Wasi>(linker, cx)?;
+    http_types::add_to_linker::<Guest, Wasi>(linker, &http_types::LinkOptions::default(), cx)?;
+    outgoing_handler::add_to_linker::<Guest, Wasi>(linker, cx)?;
     Ok(())
 }
 
