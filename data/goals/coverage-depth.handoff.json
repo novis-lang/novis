@@ -1,30 +1,25 @@
 {
-  "state": "**Goal `coverage-depth` — Stage 4 (per-test lines) is on disk; Stage 5 (VS Code's coverage view) is next.** ADR 0273 is the goal's one record; no further ADR slot is owed.\n\nStages 1-3 (functions, Cobertura, branches) shipped earlier; `crate::coverage`'s module doc owns how each is counted and written. Stage 4: `run_suite` in `crates/nvs-cli/src/runner.rs` reads the shared `StmtHits` before and after each test, and `crate::coverage::grew` keeps the statements whose count grew as `Case::reached`. Tests run one at a time, so that is every attempt and every request a `server: true` test sent; fixtures are built before a class's first test and are in no test's list. `json_document` writes `schemaVersion: 3` and a `coverage` object per record (`Sites::reached`) only under a coverage flag; without one the document is version 2 unchanged. `rule:testing/report-formats`, `docs/reference/lang/95-testing.md` and `docs/reference/tools/10-cli.md` say so. The module doc's `# Per test` owns the mechanism.\n\nAll 17 cases of `cargo test --test test_coverage` pass, including the stage 4 check's three. The human summary line still counts lines only.",
+  "state": "**Goal `coverage-depth` is reached: every stage, 1 to 6, is on disk.** ADR 0273 is the goal's one record.\n\n`crate::coverage`'s module doc owns how lines, functions, branches and per-test lines are counted and written. Stage 5: the Test Explorer has a `TestRunProfileKind.Coverage` profile beside Run (`editors/vscode/src/tests.ts`), which runs `nvs test --format=json --coverage-lcov <scratch>` from the program's workspace folder, reads the tracefile with `traced` and `statements` (`editors/vscode/src/report.ts`) and adds one `FileCoverage.fromDetails` per `SF` record. `rule:ide/the-test-tree-is-discovered-and-run-through-the-cli` says so. The headless `coverage:` suite is `editors/vscode/test/coverage/lcov.test.ts`, over a recorded tracefile. `bun nv proofs --gate` is green: the seven `lang:testing/*` perf records were re-recorded after `docs/reference/lang/95-testing.md` changed.",
   "next": {
-    "stage": 5,
-    "title": "coverage in VS Code",
-    "files": [
-      "editors/vscode/src/tests.ts",
-      "editors/vscode/src/report.ts",
-      "editors/vscode/test/surfaces/tests.test.ts"
-    ],
+    "stage": null,
+    "files": [],
     "items": [
       {
-        "done": false,
-        "text": "**A Coverage run profile** — ADR 0273 § 6, `rule:testing/coverage-report`: add a `TestRunProfileKind.Coverage` profile beside the Run one at `editors/vscode/src/tests.ts:77`, which runs `nvs test --format=json --coverage-lcov <scratch file>` (the run argv is built at `editors/vscode/src/tests.ts:181`) and reads the lcov file into `FileCoverage` / `StatementCoverage` / `BranchCoverage` for the run."
+        "done": true,
+        "text": "**A Coverage run profile** — `editors/vscode/src/tests.ts:77`, `rule:testing/coverage-report`."
       },
       {
-        "done": false,
-        "text": "**The lcov reader** — ADR 0273 § 6: parse `SF`/`DA`/`BRDA`/`FN`/`FNDA` beside the report parser at `editors/vscode/src/report.ts:75`, with the run directory as the base for relative names."
+        "done": true,
+        "text": "**The lcov reader** — `editors/vscode/src/report.ts:75`."
       },
       {
-        "done": false,
-        "text": "**The headless check** — the goal's stage 5 check runs `npm run --silent test:headless` in `editors/vscode` and needs `coverage:` and then `0 failing` in its output: add a suite `coverage` that `editors/vscode/scripts/headless.mjs:18` runs, so it prints `coverage: N passing, 0 failing` (`editors/vscode/scripts/headless.mjs:64`)."
+        "done": true,
+        "text": "**The headless check** — `editors/vscode/test/coverage/lcov.test.ts:1`."
       }
     ]
   },
   "backlog": [
-    "The human summary line counts lines only; branches are in the files (`crate::coverage` module doc).",
-    "An include or exclude list, an HTML report and merging runs are out of this goal (its standing decisions); for the user if asked."
+    "Per-test coverage in the editor (`TestRunProfile.loadDetailedCoverageForTest`) from the version 3 report's `coverage` keys: not in this goal's stage 5; `rule:ide/the-test-tree-is-discovered-and-run-through-the-cli`.",
+    "For the user, out of this goal by their call: choosing which files a report covers, an HTML report, and merging reports from several runs (`rule:testing/coverage-report`)."
   ]
 }
