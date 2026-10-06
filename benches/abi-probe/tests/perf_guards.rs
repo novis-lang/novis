@@ -1707,9 +1707,15 @@ fn a_typed_arithmetic_loop_contains_no_call() {
     // the first two emitted unconditionally and guarded for cost separately
     // above. Tying the machine-code count to the IR site count is what makes
     // half one a claim about the emitted code rather than only about the IR.
+    // A two-way branch is two sites: the edge probe's call sits on each edge.
     let sites = insts()
         .filter(|i| matches!(i.kind, InstKind::Safepoint | InstKind::StmtMarker(_)))
-        .count();
+        .count()
+        + 2 * sum
+            .blocks
+            .iter()
+            .filter(|b| matches!(b.term, nvs_ir::ir::Terminator::Branch { .. }))
+            .count();
     // The remaining accounted categories, both owed to ADR 0007 § 4's overflow
     // throw. Each checked integer arithmetic instruction owns a cold block
     // calling `nvs_runtime::nvs_raise_new`, and the ADR 0002 error edge it
@@ -1778,7 +1784,8 @@ fn a_typed_arithmetic_loop_stays_in_the_native_cost_class() {
     // never an absolute figure quoted from another one.
     //
     // An iteration does a compare, three arithmetic operations, a safepoint
-    // poll and six ADR 0018 probe checks — and still costs less than one
+    // poll and the ADR 0018 probe checks at its statements and its loop
+    // branch — and still costs less than one
     // cross-frame call, which is the whole of ADR 0007's claim. The soft bound
     // is set well above that. Arithmetic going through a runtime helper instead
     // of a native instruction puts four calls in each iteration, and

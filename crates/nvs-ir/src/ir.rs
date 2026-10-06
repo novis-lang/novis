@@ -51,6 +51,19 @@ impl Program {
             .flat_map(|function| function.stmt_spans.iter().copied())
             .collect()
     }
+
+    /// The source span of every conditional edge in the program, indexed by
+    /// the number a compiled branch probe passes to
+    /// `nvs_runtime::nvs_probe_edge`. Numbered the way [`Self::stmt_spans`]
+    /// numbers statements: each function's [`EdgeId`]s plus the count of edges
+    /// in every function before it.
+    #[must_use]
+    pub fn edge_spans(&self) -> Vec<Span> {
+        self.functions
+            .iter()
+            .flat_map(|function| function.edge_spans.iter().copied())
+            .collect()
+    }
 }
 
 /// One declared `enum`'s whole shape, on its way to

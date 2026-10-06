@@ -37,7 +37,7 @@
 //! Every call this file emits — a runtime helper, `nvs_safepoint` — is
 //! followed by the compare-and-branch `rule:errors/propagation`
 //! puts in place of a landing pad, and a non-`OK` status returns onward
-//! unchanged. `nvs_probe_stmt` and the refcount primitives are the exceptions,
+//! unchanged. `nvs_probe_stmt`, `nvs_probe_edge` and the refcount primitives are the exceptions,
 //! and only because they return no status at all: neither can fail.
 //!
 //! # A runtime call that is not a helper
@@ -135,6 +135,10 @@ pub(crate) struct UnitTables<'a> {
     /// coverage probe in it adds to its own `StmtId` — see
     /// `nvs_ir::Program::stmt_spans`.
     pub stmt_base: u32,
+    /// The program-wide number of this function's first conditional edge,
+    /// which every branch probe in it adds to its own `EdgeId` — see
+    /// `nvs_ir::Program::edge_spans`.
+    pub edge_base: u32,
 }
 
 /// Emits `f` into `ctx.func`, which the caller has already given the ABI
@@ -153,6 +157,7 @@ pub(crate) fn emit_function(
         statics,
         literals,
         stmt_base,
+        edge_base,
     } = tables;
     let target_config = module.target_config();
     let mut b = FunctionBuilder::new(&mut ctx.func, fn_ctx);
@@ -225,6 +230,7 @@ pub(crate) fn emit_function(
         statics,
         literals,
         stmt_base,
+        edge_base,
         f,
         values: FxHashMap::default(),
         blocks,
@@ -395,6 +401,8 @@ struct Emitter<'a, 'f> {
     literals: &'a mut usize,
     /// See [`UnitTables::stmt_base`].
     stmt_base: u32,
+    /// See [`UnitTables::edge_base`].
+    edge_base: u32,
     f: &'a Function,
     /// Every SSA value defined so far, with the representation it was defined
     /// at — the IR carries that on the defining instruction, and an operand
@@ -1171,6 +1179,44 @@ impl Emitter<'_, '_> {
 
         self.b.switch_to_block(cont);
         Ok(cont)
+    }
+
+    /// `rule:testing/debug-probes`'s conditional-edge check, emitted before a
+    /// two-way branch: one load of the debug-flags word and one
+    /// predicted-not-taken branch, as [`Self::emit_stmt_probe`] does.
+    ///
+    /// Leaves the builder in the block the plain branch belongs in, and
+    /// returns the block reached when any bit is set, where the caller emits
+    /// the same branch again with [`Self::emit_edge_probe`] on each edge. The
+    /// flags are loaded once per branch, not once per edge, and the path with
+    /// every bit off gains no jump.
+    fn emit_edge_probe_check(&mut self) -> Result<Block, CodegenError> {
+        let offset = i32::try_from(DEBUG_FLAGS_OFFSET)
+            .map_err(|_| internal("the debug-flags word sits past a 2 GiB offset"))?;
+        let flags = self
+            .b
+            .ins()
+            .load(types::I64, ctx_word(), self.ctx_p, offset);
+
+        let probed = self.b.create_block();
+        let plain = self.b.create_block();
+        self.b.ins().brif(flags, probed, &[], plain, &[]);
+        self.b.switch_to_block(plain);
+        Ok(probed)
+    }
+
+    /// Calls [`nvs_runtime::nvs_probe_edge`] for `edge`, a function-local
+    /// `EdgeId` this adds the function's base to. Like the statement probe it
+    /// has no status to check.
+    fn emit_edge_probe(&mut self, edge: u32) -> Result<(), CodegenError> {
+        let edge = self
+            .edge_base
+            .checked_add(edge)
+            .ok_or_else(|| internal("a unit with more than 2^32 conditional edges"))?;
+        let callee = self.runtime_ref("nvs_probe_edge", RuntimeSig::Probe)?;
+        let id = self.b.ins().iconst(types::I32, i64::from(edge));
+        self.b.ins().call(callee, &[self.ctx_p, id]);
+        Ok(())
     }
 
     /// A string literal: **one address, no call and no allocation**, whatever
@@ -3619,17 +3665,33 @@ impl Emitter<'_, '_> {
             Terminator::Branch {
                 cond,
                 then_block,
+                then_edge,
                 else_block,
-                ..
+                else_edge,
             } => {
                 let (cond, _) = self.value(*cond)?;
                 let then_args = self.phi_args(block.id, *then_block)?;
                 let else_args = self.phi_args(block.id, *else_block)?;
                 let then_target = self.block(*then_block)?;
                 let else_target = self.block(*else_block)?;
+                let probed = self.emit_edge_probe_check()?;
                 self.b
                     .ins()
                     .brif(cond, then_target, &then_args, else_target, &else_args);
+
+                // The slow side: the same branch, with a probe on each edge.
+                let then_slow = self.b.create_block();
+                let else_slow = self.b.create_block();
+                self.b.switch_to_block(probed);
+                self.b.ins().brif(cond, then_slow, &[], else_slow, &[]);
+                for (slow, edge, target, args) in [
+                    (then_slow, then_edge, then_target, &then_args),
+                    (else_slow, else_edge, else_target, &else_args),
+                ] {
+                    self.b.switch_to_block(slow);
+                    self.emit_edge_probe(edge.index())?;
+                    self.b.ins().jump(target, args);
+                }
             }
             // A compare chain, not a jump table. Correct for any case set —
             // the IR deliberately does not require a dense or sorted one —

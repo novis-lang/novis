@@ -11,13 +11,18 @@ use common::*;
 /// poll and a back-edge poll and nothing else that reads the context.
 const A_LOOP: &str = "<?nvs\nint $i = 0;\nwhile ($i < 3) {\n    $i = $i + 1;\n}\necho $i;\n";
 
-/// Runs `source` with `flags` on and a hit table sized for its program, and
-/// returns one `(line, hits)` pair per statement the probes can count, sorted
-/// by line. A statement that never ran is in the list with `0`.
-fn covered_with(ctx: &mut Ctx, flags: DebugFlags, source: &str) -> Vec<(usize, u64)> {
+/// One `(line, hits)` pair per counted site, sorted by line.
+type Lines = Vec<(usize, u64)>;
+
+/// Runs `source` with `flags` on and a hit table sized for its program's
+/// statements and conditional edges. Returns one `(line, hits)` pair per
+/// statement and one per edge, each list sorted by line. A statement or an
+/// edge that never ran is in its list with `0`.
+fn counted_with(ctx: &mut Ctx, flags: DebugFlags, source: &str) -> (Lines, Lines) {
     let program = lower(source);
-    let spans = program.stmt_spans();
-    let hits = std::sync::Arc::new(nvs_runtime::StmtHits::new(spans.len()));
+    let stmts = program.stmt_spans();
+    let edges = program.edge_spans();
+    let hits = std::sync::Arc::new(nvs_runtime::StmtHits::with_edges(stmts.len(), edges.len()));
     ctx.set_stmt_hits(Some(std::sync::Arc::clone(&hits)));
     ctx.set_debug_flags(flags);
     let unit = nvs_codegen::compile(&program).expect("the fixture compiles");
@@ -30,13 +35,29 @@ fn covered_with(ctx: &mut Ctx, flags: DebugFlags, source: &str) -> Vec<(usize, u
     // the same file id.
     let mut map = nvs_diagnostics::SourceMap::new();
     map.add("test.nvs", source);
-    let mut lines: Vec<(usize, u64)> = spans
-        .iter()
-        .zip(hits.counts())
-        .map(|(span, count)| (map.file(span.file).line_col(span.start).0 + 1, count))
-        .collect();
-    lines.sort_unstable();
-    lines
+    let by_line = |spans: &[nvs_diagnostics::Span], counts: Vec<u64>| {
+        let mut lines: Vec<(usize, u64)> = spans
+            .iter()
+            .zip(counts)
+            .map(|(span, count)| (map.file(span.file).line_col(span.start).0 + 1, count))
+            .collect();
+        lines.sort_unstable();
+        lines
+    };
+    (
+        by_line(&stmts, hits.counts()),
+        by_line(&edges, hits.edge_counts()),
+    )
+}
+
+/// [`counted_with`]'s statement list alone.
+fn covered_with(ctx: &mut Ctx, flags: DebugFlags, source: &str) -> Vec<(usize, u64)> {
+    counted_with(ctx, flags, source).0
+}
+
+/// [`counted_with`]'s edge list alone, on a fresh context.
+fn branched_with(flags: DebugFlags, source: &str) -> Vec<(usize, u64)> {
+    counted_with(&mut Ctx::buffered(), flags, source).1
 }
 
 /// [`covered_with`] with coverage on, on a fresh context.
@@ -270,6 +291,63 @@ fn a_loop_and_a_branch_run_through_their_phis() {
             "<?nvs\nint $i = 0;\nwhile ($i < 3) {\n    echo \"x\";\n    $i = $i + 1;\n}\nif ($i > 2) {\n    echo \"!\";\n}\n"
         ),
         "xxx!"
+    );
+}
+
+/// An `if` whose condition is true and one whose condition is false, then a
+/// loop that runs its body twice.
+const BRANCHES: &str = "<?nvs\nint $i = 0;\nif ($i == 0) {\n    echo \"a\";\n}\nif ($i == 1) {\n    echo \"b\";\n}\nwhile ($i < 2) {\n    $i = $i + 1;\n}\n";
+
+#[test]
+fn a_branch_probe_counts_each_edge_taken() {
+    // Each `if` has two edges and one of them ran once. The loop's test ran
+    // three times: twice into the body, and once out of the loop.
+    assert_eq!(
+        branched_with(DebugFlags::BRANCH, BRANCHES),
+        [(3, 0), (3, 1), (6, 0), (6, 1), (9, 1), (9, 2)]
+    );
+}
+
+/// Two functions, each with one `if`, so each numbers its edges from zero.
+const TWO_BRANCHING_METHODS: &str = "<?nvs\nclass Sign {\n    public static function of(int $n): int {\n        if ($n < 0) {\n            return -1;\n        }\n        return 1;\n    }\n    public static function never(int $n): int {\n        if ($n < 0) {\n            return 0;\n        }\n        return 1;\n    }\n}\necho Sign::of(-5);\necho Sign::of(5);\necho Sign::of(7);\n";
+
+#[test]
+fn every_function_counts_its_edges_into_its_own_part_of_the_table() {
+    // The probe adds each function's edge base, so the method that ran twice
+    // past its `if` and once into it is counted apart from the one that never
+    // ran.
+    assert_eq!(
+        branched_with(DebugFlags::BRANCH, TWO_BRANCHING_METHODS),
+        [(4, 1), (4, 2), (10, 0), (10, 0)]
+    );
+}
+
+#[test]
+fn branch_coverage_and_line_coverage_are_separate_flags() {
+    // Line coverage alone counts no edge, and branch coverage alone counts no
+    // statement, though both read the same flag word at their sites.
+    assert!(
+        branched_with(DebugFlags::COVERAGE, BRANCHES)
+            .iter()
+            .all(|(_, count)| *count == 0)
+    );
+    let (lines, edges) = counted_with(&mut Ctx::buffered(), DebugFlags::BRANCH, BRANCHES);
+    assert!(lines.iter().all(|(_, count)| *count == 0), "{lines:?}");
+    assert!(edges.iter().any(|(_, count)| *count > 0), "{edges:?}");
+}
+
+#[test]
+fn the_branch_probe_costs_nothing_observable_with_every_bit_off() {
+    // The check is emitted at every two-way branch. With no bit set the run
+    // never reaches `nvs_probe_edge`, and still takes the same edges.
+    let edges = branched_with(DebugFlags::empty(), BRANCHES);
+    assert_eq!(edges.len(), 6);
+    assert!(edges.iter().all(|(_, count)| *count == 0), "{edges:?}");
+    assert_eq!(
+        output_of(
+            "<?nvs\nint $i = 0;\nwhile ($i < 3) {\n    $i = $i + 1;\n}\nif ($i == 3) {\n    echo \"three\";\n} else {\n    echo \"other\";\n}\n"
+        ),
+        "three"
     );
 }
 

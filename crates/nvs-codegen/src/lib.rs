@@ -83,7 +83,9 @@
 //!   past the reserve their caller already checked with, and those carry none;
 //! * `rule:testing/debug-probes`'s **debug-flags check**, at every
 //!   [`nvs_ir::ir::InstKind::StmtMarker`] (branching to
-//!   [`nvs_runtime::nvs_probe_stmt`]) and twice at every call site, before and
+//!   [`nvs_runtime::nvs_probe_stmt`]), once at every two-way branch (on the
+//!   edge taken, to [`nvs_runtime::nvs_probe_edge`]) and twice at every call
+//!   site, before and
 //!   after (branching to [`nvs_runtime::nvs_probe_call_enter`] and
 //!   [`nvs_runtime::nvs_probe_call_exit`]).
 //!
@@ -1771,7 +1773,7 @@ struct Signatures {
     /// slow path. `sp` is `I64` for the reason every other pointer-shaped
     /// parameter here is: this JIT compiles for 64-bit targets only.
     stack_check: Signature,
-    /// `nvs_probe_stmt(ctx, stmt_id)`.
+    /// `nvs_probe_stmt(ctx, stmt_id)`, and `nvs_probe_edge(ctx, edge_id)`.
     probe: Signature,
     /// `nvs_probe_call_enter(ctx, name, len)`.
     probe_call: Signature,
@@ -2148,12 +2150,17 @@ impl<M: Module> UnitBuilder<M> {
                 .insert(function.name.clone(), MethodShape::of(&function.params));
         }
         let mut stmt_base = 0_u32;
+        let mut edge_base = 0_u32;
         for function in &program.functions {
-            self.compile_function(function, stmt_base)?;
+            self.compile_function(function, stmt_base, edge_base)?;
             stmt_base = u32::try_from(function.stmt_spans.len())
                 .ok()
                 .and_then(|count| stmt_base.checked_add(count))
                 .ok_or_else(|| emit::internal("a unit with more than 2^32 statements"))?;
+            edge_base = u32::try_from(function.edge_spans.len())
+                .ok()
+                .and_then(|count| edge_base.checked_add(count))
+                .ok_or_else(|| emit::internal("a unit with more than 2^32 conditional edges"))?;
         }
         Ok(())
     }
@@ -2161,11 +2168,13 @@ impl<M: Module> UnitBuilder<M> {
     /// Emits one already-declared function's body. `stmt_base` is the
     /// program-wide number of the function's first statement: the count of
     /// statements in every function before it in `program.functions`, which is
-    /// the order `nvs_ir::Program::stmt_spans` lists them in.
+    /// the order `nvs_ir::Program::stmt_spans` lists them in. `edge_base` is
+    /// the same count for conditional edges and `nvs_ir::Program::edge_spans`.
     fn compile_function(
         &mut self,
         function: &nvs_ir::Function,
         stmt_base: u32,
+        edge_base: u32,
     ) -> Result<(), CodegenError> {
         let id =
             *self
@@ -2191,6 +2200,7 @@ impl<M: Module> UnitBuilder<M> {
                 statics: &self.statics,
                 literals: &mut self.literals,
                 stmt_base,
+                edge_base,
             },
             function,
         );

@@ -1272,8 +1272,8 @@ pub struct Ctx {
     /// one that does.
     inbound: Option<Box<Inbound>>,
     /// The run's shared [`StmtHits`] table, which [`DebugFlags::COVERAGE`]
-    /// counts into. `None` unless the host installed one, which only
-    /// `nvs test --coverage-lcov` and `--coverage-clover` do; a child context
+    /// and [`DebugFlags::BRANCH`] count into. `None` unless the host installed
+    /// one, which only `nvs test`'s coverage flags do; a child context
     /// gets a clone of the handle together with the flags.
     stmt_hits: Option<std::sync::Arc<StmtHits>>,
     /// `rule:testing/bench-counters`'s two counts, kept only under

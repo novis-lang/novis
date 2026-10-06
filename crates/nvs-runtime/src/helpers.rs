@@ -3372,6 +3372,10 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
             (crate::ctx::nvs_probe_stmt as *const ()).cast::<u8>(),
         ),
         (
+            "nvs_probe_edge",
+            (crate::ctx::nvs_probe_edge as *const ()).cast::<u8>(),
+        ),
+        (
             "nvs_probe_call_enter",
             (crate::ctx::nvs_probe_call_enter as *const ()).cast::<u8>(),
         ),

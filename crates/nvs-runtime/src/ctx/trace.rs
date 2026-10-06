@@ -4,7 +4,7 @@
 //! The probe sites are emitted unconditionally and cost a load and a
 //! predicted-not-taken branch while [`DebugFlags`] is empty, which is the whole
 //! of why coverage and tracing can be turned on *mid-request*. This file holds
-//! both ends: [`nvs_probe_stmt`], [`nvs_probe_call_enter`] and
+//! both ends: [`nvs_probe_stmt`], [`nvs_probe_edge`], [`nvs_probe_call_enter`] and
 //! [`nvs_probe_call_exit`], and the [`Ctx`] methods they call into.
 //!
 //! [`FaultSite`] rides along because it is the same shape — a site compiled in,
@@ -256,6 +256,15 @@ impl Ctx {
         }
     }
 
+    /// Counts one hit for the conditional edge `edge` names in this context's
+    /// [`StmtHits`] table — [`nvs_probe_edge`]'s whole effect under
+    /// [`DebugFlags::BRANCH`]. A context with no table counts nothing.
+    pub fn record_edge_hit(&self, edge: u32) {
+        if let Some(hits) = &self.stmt_hits {
+            hits.record_edge(edge);
+        }
+    }
+
     /// Gives this context the table [`DebugFlags::COVERAGE`] counts into, or
     /// takes it away with `None`. Every child context made from this one
     /// afterwards shares the same table.
@@ -502,9 +511,9 @@ impl Ctx {
 /// 0018 puts a debugger break at a safepoint, not at a probe — so a compiled
 /// probe site has no status to check and no error edge to emit.
 ///
-/// Only [`DebugFlags::COVERAGE`] acts here. `BRANCH` needs the per-edge probe
-/// site that lands with `nvs_ir::Terminator::Branch`'s lowering; `TRACE` and
-/// `PROFILE` are the call-site pair below.
+/// Only [`DebugFlags::COVERAGE`] and [`DebugFlags::COUNT`] act here.
+/// `BRANCH` is [`nvs_probe_edge`]'s, and `TRACE` and `PROFILE` are the
+/// call-site pair below.
 ///
 /// # Safety
 ///
@@ -532,6 +541,37 @@ pub unsafe extern "C" fn nvs_probe_stmt(ctx: *mut Ctx, stmt: u32) {
     }
 }
 
+/// `rule:testing/debug-probes`'s conditional-edge probe — the slow path a
+/// compiled two-way branch takes when the debug-flags word it loaded was
+/// non-zero, called on the edge the branch took.
+///
+/// [`nvs_probe_stmt`]'s shape: nothing to return, so the site has no status
+/// to check. Only [`DebugFlags::BRANCH`] acts here, counting into the edge
+/// half of the run's [`StmtHits`]. `edge` is the program-wide number
+/// `nvs_ir::Program::edge_spans` indexes.
+///
+/// # Safety
+///
+/// `ctx` must be non-null, aligned, and valid for the duration of the call.
+#[expect(
+    unsafe_code,
+    reason = "compiled code passes the context pointer; the contract cannot be \
+              expressed in the signature"
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvs_probe_edge(ctx: *mut Ctx, edge: u32) {
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees `ctx` is valid for this call, and \
+                  nothing here allocates or panics"
+    )]
+    let ctx = unsafe { &*ctx };
+
+    if ctx.debug.contains(DebugFlags::BRANCH) {
+        ctx.record_edge_hit(edge);
+    }
+}
+
 /// What [`Ctx::counted`] answers: `rule:testing/bench-counters`'s two
 /// probe-site counts, read once at the end of a run.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -542,10 +582,11 @@ pub struct Counted {
     pub calls: u64,
 }
 
-/// `rule:testing/debug-probes`'s statement hit counters for one run, indexed by
-/// the program-wide statement number codegen passes to [`nvs_probe_stmt`]
-/// (`nvs_ir::Program::stmt_spans` is the table that says which source span each
-/// number is).
+/// `rule:testing/debug-probes`'s hit counters for one run: one per statement,
+/// indexed by the program-wide number codegen passes to [`nvs_probe_stmt`],
+/// and one per conditional edge, indexed by the number it passes to
+/// [`nvs_probe_edge`] (`nvs_ir::Program::stmt_spans` and
+/// `nvs_ir::Program::edge_spans` say which source span each number is).
 ///
 /// **One table for every context the run makes.** A child copies its parent's
 /// handle the way it copies [`DebugFlags`] ([`Ctx::isolate`], [`Ctx::child`],
@@ -556,38 +597,78 @@ pub struct Counted {
 /// (`rule:security/isolate-shares-nothing`). The counters are atomic because a
 /// placed isolate runs on another core.
 ///
-/// **What it spends:** one `u64` per statement in the program, once per run
-/// that asks for coverage, allocated by whoever installs it. A run that does
-/// not ask allocates nothing.
+/// The edge counters ride in the same handle, so every place that hands a
+/// child the statement table hands it the edge table too.
+///
+/// **What it spends:** one `u64` per statement in the program, and one per
+/// edge when the run asks for branches, once per run that asks for coverage,
+/// allocated by whoever installs it. A run that does not ask allocates nothing.
 #[derive(Debug)]
-pub struct StmtHits(Box<[std::sync::atomic::AtomicU64]>);
+pub struct StmtHits {
+    stmts: Box<[std::sync::atomic::AtomicU64]>,
+    edges: Box<[std::sync::atomic::AtomicU64]>,
+}
+
+/// `len` counters, all zero.
+fn zeroed(len: usize) -> Box<[std::sync::atomic::AtomicU64]> {
+    (0..len)
+        .map(|_| std::sync::atomic::AtomicU64::new(0))
+        .collect()
+}
+
+/// Counts one hit at `index`. A number past the end is ignored: it can only
+/// come from a unit the table was not sized for.
+fn bump(counters: &[std::sync::atomic::AtomicU64], index: u32) {
+    if let Some(counter) = counters.get(index as usize) {
+        counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
+/// Every counter's value, in order.
+fn read(counters: &[std::sync::atomic::AtomicU64]) -> Vec<u64> {
+    counters
+        .iter()
+        .map(|counter| counter.load(std::sync::atomic::Ordering::Relaxed))
+        .collect()
+}
 
 impl StmtHits {
-    /// A table of `statements` counters, all zero.
+    /// A table of `statements` counters, all zero, and no edge counters.
     #[must_use]
     pub fn new(statements: usize) -> Self {
-        Self(
-            (0..statements)
-                .map(|_| std::sync::atomic::AtomicU64::new(0))
-                .collect(),
-        )
+        Self::with_edges(statements, 0)
     }
 
-    /// Counts one hit for statement `stmt`. A number past the table's end is
-    /// ignored: it can only come from a unit the table was not sized for.
-    pub fn record(&self, stmt: u32) {
-        if let Some(counter) = self.0.get(stmt as usize) {
-            counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    /// A table of `statements` statement counters and `edges` edge counters,
+    /// all zero.
+    #[must_use]
+    pub fn with_edges(statements: usize, edges: usize) -> Self {
+        Self {
+            stmts: zeroed(statements),
+            edges: zeroed(edges),
         }
     }
 
-    /// Every counter's value, in statement order.
+    /// Counts one hit for statement `stmt`.
+    pub fn record(&self, stmt: u32) {
+        bump(&self.stmts, stmt);
+    }
+
+    /// Counts one hit for conditional edge `edge`.
+    pub fn record_edge(&self, edge: u32) {
+        bump(&self.edges, edge);
+    }
+
+    /// Every statement counter's value, in statement order.
     #[must_use]
     pub fn counts(&self) -> Vec<u64> {
-        self.0
-            .iter()
-            .map(|counter| counter.load(std::sync::atomic::Ordering::Relaxed))
-            .collect()
+        read(&self.stmts)
+    }
+
+    /// Every edge counter's value, in edge order.
+    #[must_use]
+    pub fn edge_counts(&self) -> Vec<u64> {
+        read(&self.edges)
     }
 }
 
@@ -840,6 +921,32 @@ mod tests {
         // Statement 1 never ran and reads back as zero; 2 ran twice. 7 is past
         // the table's end and is ignored.
         assert_eq!(hits.counts(), [1, 0, 2]);
+    }
+
+    #[test]
+    fn an_edge_probe_counts_into_the_edge_table_under_branch_alone() {
+        let mut ctx = Ctx::buffered();
+        let hits = Arc::new(StmtHits::with_edges(2, 3));
+        ctx.set_stmt_hits(Some(Arc::clone(&hits)));
+        let probe = |ctx: &mut Ctx, edges: &[u32]| {
+            for edge in edges {
+                #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
+                unsafe {
+                    nvs_probe_edge(&raw mut *ctx, *edge);
+                }
+            }
+        };
+        // Line coverage alone does not count edges.
+        ctx.set_debug_flags(DebugFlags::COVERAGE);
+        probe(&mut ctx, &[0, 1]);
+        assert_eq!(hits.edge_counts(), [0, 0, 0]);
+
+        // Under `BRANCH`, edge 9 is past the table's end and is ignored, and no
+        // statement is counted.
+        ctx.set_debug_flags(DebugFlags::BRANCH);
+        probe(&mut ctx, &[2, 0, 2, 9]);
+        assert_eq!(hits.edge_counts(), [1, 0, 2]);
+        assert_eq!(hits.counts(), [0, 0]);
     }
 
     #[test]
