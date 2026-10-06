@@ -1634,9 +1634,9 @@ and `mixed` keeps the pull-only path for the case that needs it.
 resource and one record per `Core` value class that crosses, and `crates/nvs-stdlib/tests/ext_world.rs`
 names every other value class with the reason it cannot. A manifest declares its enums and closed
 unions of shapes by name, the loader holds each against the export's `enum`, `variant` or record,
-and `nvs_ext::convert` converts every row but `resource` and `mixed` to its WIT value and back
-(`crates/nvs-ext/tests/convert.rs`). A `resource` and `mixed` do not convert yet, the checker does
-not type a method that names an extension's enum, and there is no trampoline.
+and `nvs_ext::convert` converts every row but `resource` to its WIT value and back, `mixed` by
+lending it as a handle (`crates/nvs-ext/tests/convert.rs`). A `resource` does not convert yet, the
+checker does not type a method that names an extension's enum, and there is no trampoline.
 
 <sub>See also [`packaging/values-cross-as-handles`](packaging.md#packaging-values-cross-as-handles), [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), [`packaging/extension-calls-are-statically-typed`](packaging.md#packaging-extension-calls-are-statically-typed). Decided in [0246](../decisions/0246.md).</sub>
 
@@ -1663,7 +1663,10 @@ accessor call is a fixed cost, a bulk copy is nearly free, and the design that w
 a few times rather than words many times ([`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost),
 [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline)).
 
-**Not on disk.** There is no extension boundary in the tree.
+**Not on disk.** `nvs_ext::handle` is the per-call table and the `value` accessors, and
+`nvs_ext::call::Request::call_values` lends a `mixed` argument through it; a handle kept past its
+call traps when it is read (`crates/nvs-ext/tests/convert.rs`). No host calls an extension from a
+request yet, and there is no bulk byte copy beyond `as-bytes`.
 
 <sub>See also [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), [`core-api/a-lifetime-is-an-object`](core-api.md#core-api-a-lifetime-is-an-object). Decided in [0003](../decisions/0003.md), [0246](../decisions/0246.md).</sub>
 

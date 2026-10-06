@@ -27,8 +27,13 @@
 //! not `?T`, a required shape field that is absent, a key that is neither `int` nor `string`, and a
 //! `Val` of another shape than the type's. The checker has already typed the call, so a refusal is a
 //! host bug or a guest that wasmtime let lift something the export did not declare, and the message
-//! names the type that was expected. `mixed` is refused too: it crosses as a handle into the call's
-//! handle table, which this module does not hold.
+//! names the type that was expected.
+//!
+//! **`mixed` is lent, not converted.** [`to_wit_with`] hands each `mixed` value to the call's
+//! lender, which puts it in the call's handle table (`crate::handle`) and returns the
+//! `borrow<value>` the guest receives; [`to_wit`] has no call and refuses one. A `mixed` value is
+//! any [`Value`], [`Value::Object`] included: an instance of a class with no row in the table, of
+//! which the guest reads only the class's name. `mixed` is never a return: a borrow cannot be one.
 //!
 //! What it costs: one copy of the value each way, on top of the canonical ABI's own. wasmtime's
 //! dynamic [`Val`] holds one `Val` per element, a byte of `bytes` included, so a `bytes` value costs
@@ -67,6 +72,9 @@ pub enum Value {
         /// Each field's name and value.
         fields: Vec<(String, Value)>,
     },
+    /// An instance of a class that crosses only as a `mixed` value: its class's full name, which
+    /// is all a guest can read of it.
+    Object(String),
 }
 
 /// The key of one array entry.
@@ -84,7 +92,24 @@ pub enum Key {
 ///
 /// Why `value` is not a value of `ty`, naming the type.
 pub fn to_wit(ty: &NovisType, value: Value) -> Result<Val, String> {
+    to_wit_with(ty, value, &mut |_| {
+        Err("a `mixed` value crosses as a handle, which only a call can lend".to_owned())
+    })
+}
+
+/// The WIT value `value` crosses into a guest as, where the manifest's type is `ty` and `mixed`
+/// lends each `mixed` value to the call as a handle.
+///
+/// # Errors
+///
+/// Why `value` is not a value of `ty`, naming the type, or why `mixed` could not lend one.
+pub fn to_wit_with(
+    ty: &NovisType,
+    value: Value,
+    mixed: &mut dyn FnMut(Value) -> Result<Val, String>,
+) -> Result<Val, String> {
     Ok(match (ty, value) {
+        (NovisType::Mixed, value) => mixed(value)?,
         (NovisType::Bool, Value::Bool(b)) => Val::Bool(b),
         (NovisType::Int, Value::Int(n)) => Val::S64(n),
         (NovisType::Uint, Value::Uint(n)) => Val::U64(n),
@@ -94,20 +119,27 @@ pub fn to_wit(ty: &NovisType, value: Value) -> Result<Val, String> {
             Val::List(bytes.into_iter().map(Val::U8).collect())
         }
         (NovisType::Optional(_), Value::Null) => Val::Option(None),
-        (NovisType::Optional(inner), value) => Val::Option(Some(Box::new(to_wit(inner, value)?))),
+        (NovisType::Optional(inner), value) => {
+            Val::Option(Some(Box::new(to_wit_with(inner, value, mixed)?)))
+        }
         (NovisType::List(item), Value::Array(entries)) => Val::List(
             entries
                 .into_iter()
-                .map(|(_, value)| to_wit(item, value))
+                .map(|(_, value)| to_wit_with(item, value, mixed))
                 .collect::<Result<_, _>>()?,
         ),
         (NovisType::Keyed(key, value), Value::Array(entries)) => Val::List(
             entries
                 .into_iter()
-                .map(|(k, v)| Ok(Val::Tuple(vec![key_to_wit(key, k)?, to_wit(value, v)?])))
+                .map(|(k, v)| {
+                    Ok(Val::Tuple(vec![
+                        key_to_wit(key, k)?,
+                        to_wit_with(value, v, mixed)?,
+                    ]))
+                })
                 .collect::<Result<_, String>>()?,
         ),
-        (NovisType::Shape(fields), Value::Array(entries)) => shape_to_wit(fields, entries)?,
+        (NovisType::Shape(fields), Value::Array(entries)) => shape_to_wit(fields, entries, mixed)?,
         (NovisType::Enum { name, cases }, Value::Case(case)) => {
             if !cases.contains(&case) {
                 return Err(format!("`{case}` is not a case of the enum `{name}`"));
@@ -121,7 +153,7 @@ pub fn to_wit(ty: &NovisType, value: Value) -> Result<Val, String> {
             };
             Val::Variant(
                 crate::kebab(case),
-                Some(Box::new(shape_to_wit(fields, entries)?)),
+                Some(Box::new(shape_to_wit(fields, entries, mixed)?)),
             )
         }
         (NovisType::Core(core), Value::Core { class, mut fields }) if class == core.class => {
@@ -130,7 +162,8 @@ pub fn to_wit(ty: &NovisType, value: Value) -> Result<Val, String> {
                 let Some(at) = fields.iter().position(|(n, _)| n == name) else {
                     return Err(format!("the `{class}` has no field `{name}`"));
                 };
-                record.push(((*name).to_owned(), to_wit(ty, fields.swap_remove(at).1)?));
+                let value = fields.swap_remove(at).1;
+                record.push(((*name).to_owned(), to_wit_with(ty, value, mixed)?));
             }
             Val::Record(record)
         }
@@ -139,7 +172,11 @@ pub fn to_wit(ty: &NovisType, value: Value) -> Result<Val, String> {
 }
 
 /// The WIT record of the shape `fields`, where `entries` are the array's.
-fn shape_to_wit(fields: &[Field], mut entries: Vec<(Key, Value)>) -> Result<Val, String> {
+fn shape_to_wit(
+    fields: &[Field],
+    mut entries: Vec<(Key, Value)>,
+    mixed: &mut dyn FnMut(Value) -> Result<Val, String>,
+) -> Result<Val, String> {
     let mut record = Vec::with_capacity(fields.len());
     for (name, optional, ty) in fields {
         let found = entries
@@ -147,8 +184,8 @@ fn shape_to_wit(fields: &[Field], mut entries: Vec<(Key, Value)>) -> Result<Val,
             .position(|(key, _)| matches!(key, Key::String(k) if k == name))
             .map(|at| entries.swap_remove(at).1);
         let val = match (found, optional) {
-            (Some(value), false) => to_wit(ty, value)?,
-            (Some(value), true) => Val::Option(Some(Box::new(to_wit(ty, value)?))),
+            (Some(value), false) => to_wit_with(ty, value, mixed)?,
+            (Some(value), true) => Val::Option(Some(Box::new(to_wit_with(ty, value, mixed)?))),
             (None, true) => Val::Option(None),
             (None, false) => {
                 return Err(format!(

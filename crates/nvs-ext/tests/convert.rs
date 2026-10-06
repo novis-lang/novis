@@ -570,3 +570,212 @@ fn a_keyed_array_crosses_as_a_list_of_tuples_in_its_order() {
         ordered
     );
 }
+
+/// A guest that reads a `mixed` argument through the `value` accessors. `total` sums the `int`
+/// elements under the key `prices`, and returns `-1` for a value that is not an array and `-2` for
+/// one with no `prices`. `kind-of` returns the argument's kind. `keep` stores the handle of its
+/// argument's first element in a global, and `stale` reads that handle in a later call. Each
+/// export drops the borrow it received before it returns, as the canonical ABI requires. A memory
+/// module of its own comes first, so the accessors are lowered into a memory that exists.
+const VALUES: &str = r#"(component
+  (import "nvs:ext/types@1.0.0" (instance $types
+    (type $e (variant (case "invalid" string) (case "parse" string) (case "runtime" string)))
+    (export "error" (type (eq $e)))
+    (type $k (enum "null" "bool" "int" "uint" "float" "string" "bytes" "array" "object"))
+    (export "kind" (type $kind (eq $k)))
+    (export "value" (type $value (sub resource)))
+    (export "[method]value.kind" (func (param "self" (borrow $value)) (result $kind)))
+    (export "[method]value.as-int" (func (param "self" (borrow $value)) (result (option s64))))
+    (export "[method]value.length" (func (param "self" (borrow $value)) (result (option u64))))
+    (export "[method]value.element"
+      (func (param "self" (borrow $value)) (param "index" u64) (result (option (own $value)))))
+    (export "[method]value.field"
+      (func (param "self" (borrow $value)) (param "name" string) (result (option (own $value)))))))
+  (alias export $types "error" (type $error))
+  (alias export $types "kind" (type $kind))
+  (alias export $types "value" (type $value))
+  (core module $memory
+    (memory (export "memory") 1)
+    (global $bump (mut i32) (i32.const 1024))
+    (func (export "realloc") (param i32 i32 i32 i32) (result i32) (local $at i32)
+      (local.set $at
+        (i32.and
+          (i32.add (global.get $bump) (i32.sub (local.get 2) (i32.const 1)))
+          (i32.sub (i32.const 0) (local.get 2))))
+      (global.set $bump (i32.add (local.get $at) (local.get 3)))
+      (local.get $at)))
+  (core instance $mi (instantiate $memory))
+  (alias core export $mi "memory" (core memory $mem))
+  (alias core export $mi "realloc" (core func $realloc))
+  (core func $kind (canon lower (func $types "[method]value.kind")))
+  (core func $as-int (canon lower (func $types "[method]value.as-int") (memory $mem)))
+  (core func $length (canon lower (func $types "[method]value.length") (memory $mem)))
+  (core func $element (canon lower (func $types "[method]value.element") (memory $mem)))
+  (core func $field (canon lower (func $types "[method]value.field") (memory $mem)))
+  (core func $drop (canon resource.drop $value))
+  (core module $m
+    (import "host" "memory" (memory 1))
+    (import "host" "kind" (func $kind (param i32) (result i32)))
+    (import "host" "as-int" (func $as-int (param i32 i32)))
+    (import "host" "length" (func $length (param i32 i32)))
+    (import "host" "element" (func $element (param i32 i64 i32)))
+    (import "host" "field" (func $field (param i32 i32 i32 i32)))
+    (import "host" "drop" (func $drop (param i32)))
+    (global $kept (mut i32) (i32.const 0))
+    (data (i32.const 512) "prices")
+    (func $ok (param i64) (result i32)
+      (i32.store8 (i32.const 16) (i32.const 0))
+      (i64.store (i32.const 24) (local.get 0))
+      (i32.const 16))
+    (func (export "total") (param $v i32) (result i32) (local $r i32)
+      (local.set $r (call $total (local.get $v)))
+      (call $drop (local.get $v))
+      (local.get $r))
+    (func $total (param $v i32) (result i32)
+      (local $p i32) (local $n i64) (local $i i64) (local $e i32) (local $sum i64)
+      (if (i32.ne (call $kind (local.get $v)) (i32.const 7))
+        (then (return (call $ok (i64.const -1)))))
+      (call $field (local.get $v) (i32.const 512) (i32.const 6) (i32.const 64))
+      (if (i32.eqz (i32.load8_u (i32.const 64)))
+        (then (return (call $ok (i64.const -2)))))
+      (local.set $p (i32.load (i32.const 68)))
+      (call $length (local.get $p) (i32.const 64))
+      (local.set $n (i64.load (i32.const 72)))
+      (block $done
+        (loop $next
+          (br_if $done (i64.ge_u (local.get $i) (local.get $n)))
+          (call $element (local.get $p) (local.get $i) (i32.const 64))
+          (local.set $e (i32.load (i32.const 68)))
+          (call $as-int (local.get $e) (i32.const 80))
+          (if (i32.load8_u (i32.const 80))
+            (then (local.set $sum (i64.add (local.get $sum) (i64.load (i32.const 88))))))
+          (call $drop (local.get $e))
+          (local.set $i (i64.add (local.get $i) (i64.const 1)))
+          (br $next)))
+      (call $drop (local.get $p))
+      (call $ok (local.get $sum)))
+    (func (export "kind-of") (param $v i32) (result i32)
+      (i32.store8 (i32.const 16) (i32.const 0))
+      (i32.store8 (i32.const 20) (call $kind (local.get $v)))
+      (call $drop (local.get $v))
+      (i32.const 16))
+    (func (export "keep") (param $v i32) (result i32)
+      (call $element (local.get $v) (i64.const 0) (i32.const 64))
+      (global.set $kept (i32.load (i32.const 68)))
+      (call $drop (local.get $v))
+      (call $ok (i64.const 0)))
+    (func (export "stale") (result i32)
+      (call $as-int (global.get $kept) (i32.const 80))
+      (call $ok (i64.load (i32.const 88)))))
+  (core instance $i (instantiate $m
+    (with "host" (instance
+      (export "memory" (memory $mem))
+      (export "kind" (func $kind))
+      (export "as-int" (func $as-int))
+      (export "length" (func $length))
+      (export "element" (func $element))
+      (export "field" (func $field))
+      (export "drop" (func $drop))))))
+  (func $total (param "value" (borrow $value)) (result (result s64 (error $error)))
+    (canon lift (core func $i "total") (memory $mem) (realloc $realloc)))
+  (func $kind-of (param "value" (borrow $value)) (result (result $kind (error $error)))
+    (canon lift (core func $i "kind-of") (memory $mem) (realloc $realloc)))
+  (func $keep (param "value" (borrow $value)) (result (result s64 (error $error)))
+    (canon lift (core func $i "keep") (memory $mem) (realloc $realloc)))
+  (func $stale (result (result s64 (error $error)))
+    (canon lift (core func $i "stale") (memory $mem) (realloc $realloc)))
+  (instance $api
+    (export "total" (func $total))
+    (export "kind-of" (func $kind-of))
+    (export "keep" (func $keep))
+    (export "stale" (func $stale)))
+  (export "shop:values/api" (instance $api)))"#;
+
+/// The manifest of the `VALUES` guest.
+const VALUES_MANIFEST: &str = r#"{"manifest": 1, "world": "1.0.0", "class": "Shop\\Values", "interface": "shop:values/api",
+  "enums": [{"name": "Kind", "cases": ["Null", "Bool", "Int", "Uint", "Float", "String", "Bytes", "Array", "Object"]}],
+  "methods": [
+    {"name": "total", "params": [{"name": "value", "type": "mixed"}], "returns": "int"},
+    {"name": "kindOf", "params": [{"name": "value", "type": "mixed"}], "returns": "Kind"},
+    {"name": "keep", "params": [{"name": "value", "type": "mixed"}], "returns": "int"},
+    {"name": "stale", "returns": "int"}]}"#;
+
+#[test]
+fn a_mixed_argument_crosses_as_a_value_handle_read_through_accessors() {
+    let host = host();
+    let component = wat::parse_str(VALUES).expect("the test component compiles");
+    let bytes = append_section(component, MANIFEST, VALUES_MANIFEST.as_bytes());
+    let entry = Entry {
+        path: PathBuf::from("values.nvsx"),
+        sha256: pin(&bytes),
+        memory: None,
+    };
+    let extension = Loader::new(host.engine())
+        .load_bytes(&entry, &bytes)
+        .expect("the guest loads");
+    let request = request(&host);
+    let call =
+        |method: &str, args: Vec<Value>| block_on(request.call_values(&extension, method, args));
+    let order = Value::Array(vec![
+        (k("name"), s("lamp")),
+        (
+            k("prices"),
+            list(vec![Value::Int(3), s("free"), Value::Int(4)]),
+        ),
+    ]);
+    assert_eq!(
+        call("total", vec![order.clone()]),
+        Ok(Some(Value::Int(7))),
+        "the guest reads the array through `field`, `length`, `element` and `as-int`"
+    );
+    assert_eq!(call("total", vec![Value::Int(5)]), Ok(Some(Value::Int(-1))));
+    assert_eq!(
+        call("total", vec![list(vec![Value::Int(1)])]),
+        Ok(Some(Value::Int(-2)))
+    );
+
+    let kinds = [
+        (Value::Null, "Null"),
+        (Value::Bool(true), "Bool"),
+        (Value::Int(1), "Int"),
+        (Value::Uint(1), "Uint"),
+        (Value::Float(1.5), "Float"),
+        (s("text"), "String"),
+        (Value::Bytes(vec![1]), "Bytes"),
+        (list(vec![]), "Array"),
+        (instant(0, 0), "Object"),
+        (Value::Object("Shop\\Cart".to_owned()), "Object"),
+        (case("Metres"), "Object"),
+    ];
+    for (value, kind) in kinds {
+        assert_eq!(
+            call("kindOf", vec![value.clone()]),
+            Ok(Some(case(kind))),
+            "{value:?}"
+        );
+    }
+
+    assert_eq!(
+        call("keep", vec![list(vec![Value::Int(9)])]),
+        Ok(Some(Value::Int(0)))
+    );
+    match call("stale", vec![]) {
+        Err(Failure::Trap(crash)) => assert!(
+            crash.reason.contains("not one this call received"),
+            "{crash:?}"
+        ),
+        other => panic!("a handle kept past its call reads nothing, and got {other:?}"),
+    }
+    assert_eq!(
+        call("total", vec![order]),
+        Ok(Some(Value::Int(7))),
+        "the call after the trap runs on a fresh instance"
+    );
+    assert!(
+        matches!(
+            call("total", vec![]),
+            Err(Failure::Error(nvs_ext::call::Error::Invalid(_)))
+        ),
+        "a call with the wrong number of arguments is invalid"
+    );
+}

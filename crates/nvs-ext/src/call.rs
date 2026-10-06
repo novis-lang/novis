@@ -39,6 +39,14 @@
 //! throw with `Ctx::set_pending_as`, or runs `Ctx::run_limit_handler` and records the `FATAL`,
 //! without this crate linking the runtime.
 //!
+//! **Novis values.** [`Request::call_values`] takes a call's Novis values, converts each by the
+//! type the manifest declares for its parameter (`crate::convert`), lends a `mixed` one as a handle
+//! (`crate::handle`), and converts the result back. An argument that is not a value of its type is
+//! [`Error::Invalid`]: it throws `LogicError` and keeps the instance. A result that does not convert
+//! is the extension's fault, a [`Failure::Trap`]. When the call returns, the borrows it was lent
+//! are dropped and every handle it made stops being valid, whatever the outcome. It parses the
+//! method's types on every call.
+//!
 //! **The budget is a trait.** [`Budget`] is the two questions the store asks of its request, so
 //! this crate does not link the runtime. The host that wires a call into a request implements it
 //! over the request's own deadline and memory accounting; [`Meter`] is a standalone budget for a
@@ -57,11 +65,14 @@ use std::{fmt, future};
 
 use wasmtime::component::{ComponentExportIndex, Instance, Linker, Val};
 use wasmtime::{
-    Config, Engine, InstanceAllocationStrategy, PoolingAllocationConfig, ResourceLimiter, Store,
-    Trap, UpdateDeadline,
+    AsContextMut, Config, Engine, InstanceAllocationStrategy, PoolingAllocationConfig,
+    ResourceLimiter, Store, Trap, UpdateDeadline,
 };
 
+use crate::convert::{self, Value};
+use crate::handle::{self, Handles};
 use crate::load::Extension;
+use crate::manifest::Method;
 
 /// How often the ticker advances the engine's epoch, which is how often a running guest checks
 /// its request's CPU deadline and yields to the other tasks on its core.
@@ -262,6 +273,7 @@ pub struct Guest {
     charged: u64,
     reached: Option<Limit>,
     live: Arc<AtomicUsize>,
+    pub(crate) handles: Handles,
 }
 
 impl fmt::Debug for Guest {
@@ -372,6 +384,7 @@ impl Host {
         config.allocation_strategy(InstanceAllocationStrategy::Pooling(pool));
         let engine = Engine::new(&config)?;
         let mut linker = Linker::new(&engine);
+        handle::link(&mut linker)?;
         imports(&mut linker)?;
         let stop = Arc::new(AtomicBool::new(false));
         let ticker = {
@@ -474,12 +487,82 @@ impl Request {
         method: &str,
         args: &[Val],
     ) -> Result<Vec<Val>, Failure> {
-        let declared = extension
-            .manifest
-            .methods
-            .iter()
-            .find(|declared| declared.name.eq_ignore_ascii_case(method))
-            .ok_or_else(|| Failure::NoMethod(method.to_owned()))?;
+        let declared = declared(extension, method)?;
+        self.run(
+            extension,
+            declared,
+            |_, _| Ok(args.to_vec()),
+            |results, _| Ok(results),
+        )
+        .await
+    }
+
+    /// Calls `method` of `extension` with the Novis values `args`, converted by the types its
+    /// manifest declares, and returns its result as a Novis value: `None` for a `void` method.
+    ///
+    /// # Errors
+    ///
+    /// A [`Failure`], as [`Request::call`] returns one, and [`Error::Invalid`] where `args` are not
+    /// values of the parameters' types.
+    pub async fn call_values(
+        &self,
+        extension: &Extension,
+        method: &str,
+        args: Vec<Value>,
+    ) -> Result<Option<Value>, Failure> {
+        let declared = declared(extension, method)?;
+        let manifest = &extension.manifest;
+        let invalid = |err: String| Failure::Error(Error::Invalid(err));
+        if args.len() != declared.params.len() {
+            return Err(invalid(format!(
+                "`{}` takes {} arguments, and the call passed {}",
+                declared.name,
+                declared.params.len(),
+                args.len()
+            )));
+        }
+        let lower = |store: &mut Store<Guest>, _: At<'_>| {
+            declared
+                .params
+                .iter()
+                .zip(args)
+                .map(|(param, value)| {
+                    let ty = manifest.novis_type(&param.ty).map_err(invalid)?;
+                    convert::to_wit_with(&ty, value, &mut |value| {
+                        handle::lend(store.as_context_mut(), value)
+                    })
+                    .map_err(invalid)
+                })
+                .collect()
+        };
+        let lift = |results: Vec<Val>, at: At<'_>| {
+            if declared.returns == "void" {
+                return Ok(None);
+            }
+            let ty = manifest
+                .novis_type(&declared.returns)
+                .map_err(|err| at.crash(err))?;
+            match <[Val; 1]>::try_from(results) {
+                Ok([val]) => convert::from_wit(&ty, val)
+                    .map(Some)
+                    .map_err(|err| at.crash(err)),
+                Err(results) => {
+                    Err(at.crash(format!("it returned {} values, not one", results.len())))
+                }
+            }
+        };
+        self.run(extension, declared, lower, lift).await
+    }
+
+    /// Runs one call of `declared` on this request's instance of `extension`: `args` makes the
+    /// arguments in its store, and `results` reads what the export returned.
+    async fn run<R>(
+        &self,
+        extension: &Extension,
+        declared: &Method,
+        args: impl FnOnce(&mut Store<Guest>, At<'_>) -> Result<Vec<Val>, Failure>,
+        results: impl FnOnce(Vec<Val>, At<'_>) -> Result<R, Failure>,
+    ) -> Result<R, Failure> {
         let export = declared.export_name();
         let at = At {
             extension: &extension.manifest.class,
@@ -492,7 +575,17 @@ impl Request {
         let Some(live) = held.live.as_mut() else {
             unreachable!("the instance was made above");
         };
-        let outcome = live.call(at, method, args).await;
+        let outcome = match args(&mut live.store, at) {
+            Ok(args) => live
+                .call(at, &declared.name, &args)
+                .await
+                .and_then(|out| results(out, at)),
+            Err(failure) => Err(failure),
+        };
+        let outcome = match (live.end_call().await, outcome) {
+            (Err(err), Ok(_)) => Err(at.crash(err)),
+            (_, outcome) => outcome,
+        };
         if outcome
             .as_ref()
             .is_err_and(|failure| !matches!(failure, Failure::Error(_)))
@@ -550,6 +643,7 @@ impl Request {
                 charged: 0,
                 reached: None,
                 live: Arc::clone(&self.host.shared.live),
+                handles: Handles::default(),
             },
         );
         store.limiter(|guest| guest);
@@ -588,7 +682,31 @@ impl Request {
     }
 }
 
+/// The method `method` of `extension`'s manifest, matched as a Novis method name is.
+fn declared<'e>(extension: &'e Extension, method: &str) -> Result<&'e Method, Failure> {
+    extension
+        .manifest
+        .methods
+        .iter()
+        .find(|declared| declared.name.eq_ignore_ascii_case(method))
+        .ok_or_else(|| Failure::NoMethod(method.to_owned()))
+}
+
 impl Live {
+    /// Drops the borrows the call's `mixed` arguments were lent as, and ends every handle the call
+    /// made.
+    async fn end_call(&mut self) -> Result<(), String> {
+        let lent = self.store.data_mut().handles.take_lent();
+        let mut dropped = Ok(());
+        for borrow in lent {
+            if let Err(err) = borrow.resource_drop_async(&mut self.store).await {
+                dropped = Err(format!("a `value` handle did not drop: {err}"));
+            }
+        }
+        self.store.data_mut().handles.end_call();
+        dropped
+    }
+
     async fn call(&mut self, at: At<'_>, method: &str, args: &[Val]) -> Result<Vec<Val>, Failure> {
         let func = self
             .instance
@@ -640,9 +758,10 @@ fn failure(store: &Store<Guest>, err: &wasmtime::Error, at: At<'_>) -> Failure {
     }
     match err.downcast_ref::<Trap>() {
         Some(Trap::Interrupt) => Failure::Limit(Limit::Cpu),
-        // The trap alone: the error's context is a backtrace of offsets into the guest.
+        // The trap or the host function's error alone: the error's context is a backtrace of
+        // offsets into the guest.
         Some(trap) => at.crash(trap.to_string()),
-        None => at.crash(err.to_string()),
+        None => at.crash(err.root_cause().to_string()),
     }
 }
 

@@ -16,6 +16,8 @@
 //!   limits. Its module doc owns how a call waits, yields and fails.
 //! - `convert`, behind the `engine` feature, turns a Novis value into the WIT value its manifest
 //!   type crosses as, and back. Its module doc owns the value model and what it refuses.
+//! - `handle`, behind the `engine` feature, is the per-call table a `mixed` argument is lent
+//!   through, and the `value` accessors a guest reads it with.
 //! - `pack`, behind the `pack` feature, makes a `.nvsx` from a component or a core module, a
 //!   manifest and source files, the same bytes each time.
 //!
@@ -46,6 +48,8 @@
 pub mod call;
 #[cfg(feature = "engine")]
 pub mod convert;
+#[cfg(feature = "engine")]
+pub mod handle;
 #[cfg(feature = "engine")]
 pub mod load;
 pub mod manifest;
