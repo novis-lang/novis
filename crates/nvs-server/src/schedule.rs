@@ -895,8 +895,8 @@ where
                 // stops — and `Completion::value` is a reference copied into *this* ownership
                 // rather than a borrow of the arena that has already gone. Dropping it without
                 // releasing it leaks the returned graph once per fire, which grows with runs served
-                // rather than with runs in flight: AGENTS.md's priority 5 calls that a leak and not
-                // a footprint. The queue worker discharges the identical obligation for the
+                // rather than with runs in flight: `rule:programs/memory-priority` calls that a
+                // leak and not a footprint. The queue worker discharges the identical obligation for the
                 // identical reason.
                 done.discard_value();
             }

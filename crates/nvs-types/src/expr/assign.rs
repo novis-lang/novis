@@ -1171,7 +1171,7 @@ fn reject_readonly_write(root: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>) -> bool 
 /// write might name it. § 5 also decides that this is compile-time rather than
 /// a `readonly` bit on `ClassDesc` and a throw the program has to reach —
 /// where a request-controlled name selects the field to write, the earlier
-/// report is the direction priority 1 points in.
+/// report is the direction security points in.
 ///
 /// It sits here, off the recorded [`ExprInfo::KeyedProperty`], rather than in
 /// the [`super::members`] checker that records that entry, because this is the

@@ -117,7 +117,7 @@ fn a_value_is_within_a_ceiling_up_to_and_including_it() {
 }
 
 /// Two quantities in different units have no order, and the check refuses rather than letting the
-/// pair through: a ceiling that cannot compare must refuse (module doc, AGENTS.md priority 1).
+/// pair through: a ceiling that cannot compare must refuse (module doc, security).
 #[test]
 fn an_incomparable_pair_exceeds() {
     assert!(!Quantity::Bytes(1).within(Quantity::Nanos(u64::MAX)));

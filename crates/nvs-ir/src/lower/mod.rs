@@ -4218,7 +4218,7 @@ pub(crate) const FN_ARITY: &str = "fn#arity";
 /// gives `callable` no parameter list, so **no checker can compare a call site
 /// against the body it will reach** — and the compiled `invoke` reads argument
 /// slot *i* at its own declared representation, which turns a mismatch into an
-/// arbitrary dereference rather than a fault. That is a priority-1 hole, so
+/// arbitrary dereference rather than a fault. That is a security hole, so
 /// the one party that still knows the declared types — this lowering, at the
 /// literal — writes them down for the one party that can act on them:
 /// `nvs_runtime::call_callable`, which compares before it passes.

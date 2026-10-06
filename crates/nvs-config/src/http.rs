@@ -51,7 +51,7 @@
 //! **[`validate`] carries the outbound block's refusals too, and they are asked first.** They are
 //! not about a response at all: `[http.client.tls]`'s three and then `[http.client.proxy]`'s four,
 //! because a tree that writes its own TLS secrets to a file or hands its destinations to a proxy on
-//! terms it never stated is priority 1, and what a header means is not. Inside the proxy block the
+//! terms it never stated is a security question, and what a header means is not. Inside the proxy block the
 //! mandatory `resolve` is asked before the `url` it qualifies, since that word is what decides
 //! whether `rule:security/net-address-policy` is still answered about an address
 //! (`rule:http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`).
@@ -891,7 +891,7 @@ fn socket_bound(
 /// bound written as `false` or as zero, which is a bound that is not one.
 pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), Diagnostic> {
     // The outbound block first, and its `keylog` is why: a tree that leaks its own TLS secrets is
-    // priority 1, so it is refused before any question about what a response header means.
+    // a security hole, so it is refused before any question about what a response header means.
     tls(config, origins)?;
     // The proxy beside it, for the same ordering reason: where every outbound byte goes, and who
     // gets to resolve the destination, outranks what a response header means.

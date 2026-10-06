@@ -85,8 +85,8 @@
 //! [`SCRATCH`] bytes of the accepting coroutine's own stack while a read is in
 //! flight, and one `memcpy` of at most that much per readable poll. Per
 //! connection and only while it is polling, so O(in-flight) and nothing held
-//! between polls. AGENTS.md's ordering puts security and simplicity above
-//! priority 3, and a bounded `memcpy` on an L1-resident buffer is the cheap
+//! between polls. AGENTS.md's ordering puts security above latency, and a
+//! bounded `memcpy` on an L1-resident buffer is the cheap
 //! side of that trade; if a benchmark ever says otherwise, the thing to change
 //! is the buffer's size, and only then the `forbid`.
 //!

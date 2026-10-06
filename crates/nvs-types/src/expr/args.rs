@@ -1277,7 +1277,7 @@ pub(crate) fn option_names(options: &[crate::ty::CoreShapeField]) -> String {
 ///    long as the callee does not reach the same array: where it does, the
 ///    write-back lands after the callee's own writes and silently discards
 ///    them, and where it does not, the two are identical. Novis does not
-///    offer a reference that is sometimes not one (priority 2, and `rule:types/arrays`'s separation is what buys priority 1), so the refusal names the
+///    offer a reference that is sometimes not one (`rule:types/arrays`'s separation is what keeps it memory-safe), so the refusal names the
 ///    rewrite instead — the same copy, written where the reader can see it.
 ///    `an_array_element_passed_by_reference_is_diagnosed` in
 ///    `crates/nvs-types/tests/by_reference.rs` holds it.

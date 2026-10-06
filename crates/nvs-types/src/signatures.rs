@@ -173,9 +173,8 @@ pub struct MethodSig {
     /// worse: interning `static` as a *distinct* type is the principled fix
     /// and rewrites every consumer of a `TypeId`; setting this bit only for a
     /// body that provably forwards would weaken a call site silently, which
-    /// `rule:types/declaration` exists to prevent; and accepting the hole spends priority 2
-    /// (correctness) to buy priority 4 (simplicity), which AGENTS.md's
-    /// ordering forbids outright.
+    /// `rule:types/declaration` exists to prevent; and accepting the hole would
+    /// break that rule to keep the compiler simple, which no ordering allows.
     ///
     /// [`crate::expr_table::ResolvedCall`] deliberately keeps the *declared*
     /// return type rather than the substituted one: `nvs-ir` reads that record

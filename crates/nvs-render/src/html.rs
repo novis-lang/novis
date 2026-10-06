@@ -99,8 +99,8 @@ const REPLACEMENT: char = '\u{FFFD}';
 /// through here whether or not it is tainted. Text with nothing to escape is
 /// therefore not an edge case but most of a page, and answering the borrow
 /// keeps it at one scan and no allocation — which is what makes a rule that
-/// cannot be switched off affordable on the request path (`AGENTS.md`'s
-/// priority 3).
+/// cannot be switched off affordable on the request path, where latency is
+/// what it would cost.
 #[must_use]
 pub fn escape(text: &str) -> Cow<'_, str> {
     // Both halves are a scan and neither fires on ordinary text, so they are

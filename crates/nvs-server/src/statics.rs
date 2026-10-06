@@ -53,7 +53,7 @@
 //! carries — the whole file, or the one range that was asked for. Nothing is
 //! cached between requests, so it is O(in-flight) and not O(files served): a
 //! second request for the same asset reads it again. That is a deliberate
-//! spend of priority 3 for priority 4 at this stage — a development server's
+//! spend of latency for simplicity at this stage, and a cheap one — a development server's
 //! asset traffic is a handful of files on a local disk the OS has already
 //! cached — and the place a byte cache would go is behind [`Source`], where the
 //! [`OnDisk`] implementation is the only thing that would change.

@@ -47,7 +47,8 @@ const REPLACEMENT: char = '\u{FFFD}';
 /// `echo` — and text with nothing to substitute is nearly all of the output a
 /// program writes. Answering the borrow there keeps that path at one scan and
 /// no allocation, which is what makes a rule that cannot be switched off
-/// affordable on the hot path (`AGENTS.md`'s priority 3). A caller that owns
+/// affordable on the hot path, where latency is what it would cost. A caller
+/// that owns
 /// the result regardless — [`crate::Rendered::new`], building a record —
 /// takes `.into_owned()` and is exactly where it was.
 #[must_use]

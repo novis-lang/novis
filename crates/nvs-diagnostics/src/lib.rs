@@ -2171,15 +2171,13 @@ pub mod code {
     /// `static::$prop` — late static binding on a *static property*, whose
     /// storage Novis resolves at compile time.
     ///
-    /// PHP re-resolves the name against the **called** class, so a subclass
-    /// that redeclares the property gets its own storage through this
-    /// spelling and the parent's through `self::`. Novis's slot is fixed where
-    /// the access is written (`nvs_ir::ir::StaticProp`), which answers the
-    /// same as PHP for every class that does *not* redeclare and differs
-    /// silently for one that does — so the spelling is refused rather than
-    /// left to diverge, per `AGENTS.md`'s priority 2. `self::$prop` and a
-    /// written class name both say exactly which storage is meant and are
-    /// unaffected.
+    /// The spelling reads as a lookup against the **called** class, so a
+    /// reader expects a subclass that redeclares the property to get its own
+    /// storage through it. Novis's slot is fixed where the access is written
+    /// (`nvs_ir::ir::StaticProp`), so for such a subclass the spelling would
+    /// silently name the parent's storage instead, and it is refused.
+    /// `self::$prop` and a written class name both say exactly which storage
+    /// is meant and are unaffected.
     ///
     /// **The last code in the E04xx band**, which is full. The band decision
     /// is [`E_ELEMENT_WRITE_ROOT_NOT_A_PLACE`]'s: the types band continues at

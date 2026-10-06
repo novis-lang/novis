@@ -1,29 +1,25 @@
 {
-  "state": "**Goal `php-oracle-retired`, Stage 2 under way.** ADR 0274 is on disk (`docs/decisions/0274.md`, `data/decisions/0274.json`): the whole goal's record, the user's calls, the tradeoffs, the old-to-new ordering table (§ 2) and the rules this goal removes (§ 4). Priority 2 is gone from `AGENTS.md`, `rule:programs/memory-priority`, the website's `how-we-decide.mdx`, every `docs/rules/` fragment and every `docs/agent/` file.\n\n`crates/nvs-ir` cites no priority by number any more. **Left in Stage 2:** the rest of the Rust comments — `git grep -n -i -E \"priority [1-5]\\b\" -- crates` lists 110 hits in 66 files. Old numbering: 1 security, 2 correctness (deleted), 3 latency, 4 simplicity, 5 memory footprint. A comment that leans on \"priority 2\" is rewritten whole to state the behaviour it protects, and a \"PHP does this\" sentence in the same comment goes with it; a scheduler or task priority stays. Whether a Stage 2 check greps `crates/` for these is *not checked*.",
+  "state": "**Goal `php-oracle-retired`, Stage 2 under way.** ADR 0274 is on disk (`docs/decisions/0274.md`, `data/decisions/0274.json`): the whole goal's record, the user's calls, the tradeoffs, the old-to-new ordering table (§ 2) and the rules this goal removes (§ 4). Priority 2 is gone from `AGENTS.md`, `rule:programs/memory-priority`, the website's `how-we-decide.mdx`, every `docs/rules/` fragment and every `docs/agent/` file.\n\nEvery crate but `nvs-stdlib` now cites a priority by its name: `git grep -n -i -E \"priority[ -][1-5]\\b|priorities [1-5]\" -- crates` lists only `crates/nvs-stdlib/src/` (51 hits in 32 files). Note the hyphenated `priority-1` form, which the old grep missed. Old numbering: 1 security, 2 correctness (deleted), 3 latency, 4 simplicity, 5 memory footprint. A comment that leans on \"priority 2\" is rewritten to state the behaviour or the rule it protects, and a \"PHP does this\" sentence in the same comment goes with it; a scheduler or task priority stays. Whether a Stage 2 check greps `crates/` for these is *not checked*.",
   "next": {
     "stage": 2,
-    "title": "a priority is cited by its name, the Rust comments",
+    "title": "a priority is cited by its name, the `nvs-stdlib` comments",
     "files": [
-      "crates/nvs-host/src/",
-      "crates/nvs-db/src/"
+      "crates/nvs-stdlib/src/"
     ],
     "items": [
       {
         "done": false,
-        "text": "**The host and database comments** — `rule:programs/memory-priority` (cite by name): `crates/nvs-host/src/net.rs:114`, `crates/nvs-host/src/tls.rs:61`, `crates/nvs-host/src/tls.rs:992`, `crates/nvs-host/src/tls.rs:1401`, `crates/nvs-host/src/tls.rs:1408`, `crates/nvs-host/src/scheduler.rs:291`, `crates/nvs-db/src/mysql.rs:2440`, `crates/nvs-db/src/mysql.rs:4718`, `crates/nvs-db/src/pg.rs:3395`, `crates/nvs-db/src/sqlite.rs:680`."
+        "text": "**The stdlib comments, `bus` to `json`** — `rule:programs/memory-priority` (cite by name): `crates/nvs-stdlib/src/bus.rs:48`, `crates/nvs-stdlib/src/bytes.rs:140`, `crates/nvs-stdlib/src/bytes.rs:1700`, `crates/nvs-stdlib/src/cache.rs:35`, `crates/nvs-stdlib/src/cache.rs:1344`, `crates/nvs-stdlib/src/cli.rs:1218`, `crates/nvs-stdlib/src/compress.rs:93`, `crates/nvs-stdlib/src/compress.rs:792`, `crates/nvs-stdlib/src/crypto.rs:1269`, `crates/nvs-stdlib/src/crypto.rs:3007`, `crates/nvs-stdlib/src/db/mod.rs:135`, `crates/nvs-stdlib/src/db/stream.rs:32`, `crates/nvs-stdlib/src/hash.rs:32`, `crates/nvs-stdlib/src/hash.rs:110`, `crates/nvs-stdlib/src/hash.rs:269`, `crates/nvs-stdlib/src/html.rs:578`, `crates/nvs-stdlib/src/html.rs:1337`, `crates/nvs-stdlib/src/http.rs:300`, `crates/nvs-stdlib/src/http.rs:3532`, `crates/nvs-stdlib/src/http/transport.rs:72`, `crates/nvs-stdlib/src/http/transport.rs:2353`, `crates/nvs-stdlib/src/io.rs:3174`, `crates/nvs-stdlib/src/json.rs:20`, `crates/nvs-stdlib/src/json.rs:537`."
       },
       {
         "done": false,
-        "text": "**The runtime comments** — same rule: `crates/nvs-runtime/src/object.rs:33`, `crates/nvs-runtime/src/object.rs:168`, `crates/nvs-runtime/src/string.rs:45`, `crates/nvs-runtime/src/array.rs:18`, and the rest of `git grep -n -i -E \"priority [1-5]\\b\" -- crates/nvs-runtime` (about 40 hits)."
-      },
-      {
-        "done": false,
-        "text": "**The rest of `crates/`** — same rule: `crates/nvs-codegen/src/emit.rs:1689`, `crates/nvs-config/src/http.rs:54`, `crates/nvs-config/src/value.rs:27`, and the rest of the grep over `crates/nvs-stdlib`, `crates/nvs-types`, `crates/nvs-server`, `crates/nvs-render`, `crates/nvs-cli`, `crates/nvs-diagnostics`."
+        "text": "**The stdlib comments, `jwt` to `validate`** — same rule: `crates/nvs-stdlib/src/jwt.rs:120`, `crates/nvs-stdlib/src/jwt.rs:991`, `crates/nvs-stdlib/src/mail.rs:680`, `crates/nvs-stdlib/src/math.rs:24`, `crates/nvs-stdlib/src/math.rs:1663`, `crates/nvs-stdlib/src/path.rs:1006`, `crates/nvs-stdlib/src/queue.rs:309`, `crates/nvs-stdlib/src/queue.rs:746`, `crates/nvs-stdlib/src/random.rs:29`, `crates/nvs-stdlib/src/random.rs:41`, `crates/nvs-stdlib/src/regex.rs:2051`, `crates/nvs-stdlib/src/request.rs:1205`, `crates/nvs-stdlib/src/router.rs:575`, `crates/nvs-stdlib/src/router.rs:588`, `crates/nvs-stdlib/src/sse.rs:746`, `crates/nvs-stdlib/src/task.rs:320`, `crates/nvs-stdlib/src/topic.rs:171`, `crates/nvs-stdlib/src/topic.rs:1305`, `crates/nvs-stdlib/src/uri.rs:41`, `crates/nvs-stdlib/src/uuid.rs:55`, `crates/nvs-stdlib/src/validate.rs:82`."
       }
-    ]
+    ],
+    "after": "Both items fit one session: read every hit with one `git grep -n -C2` and write them as one `bun nv splice --patch`."
   },
   "backlog": [
-    "Stages 3 to 9 of `docs/agent/goals/php-oracle-retired.md`: the driver's red checks name them, the earliest being `nvs-stdlib-the-error-corpus-is-conformance-alone` (Stage 3).",
-    "The runtime and stdlib items are large; a session may split them by file rather than by crate."
+    "After the stdlib sweep, re-run the grep over `crates/`, `tools/` and `website/` and check which Stage 2 checks in `data/goals/php-oracle-retired.json` are still red — goal prose `docs/agent/goals/php-oracle-retired.md`.",
+    "Stage 3 onward (the error corpus is the conformance tree alone) is the driver's earliest red check; it is not open until Stage 2 is closed — same goal prose."
   ]
 }

@@ -1686,8 +1686,7 @@ impl Emitter<'_, '_> {
     /// Integer `%`, with the two divisors that would otherwise **trap the
     /// whole process** dealt with before the machine instruction runs.
     ///
-    /// A trap is a request-isolation failure — AGENTS.md's priority 1 — not a
-    /// wrong answer, so neither case may reach `srem`/`urem`:
+    /// A trap is a request-isolation failure, not a wrong answer, so neither case may reach `srem`/`urem`:
     ///
     /// * **A zero divisor** throws spec § 10's `ArithmeticError`, carrying
     ///   PHP's own `Modulo by zero` message. That is the branch: compare,
@@ -1696,9 +1695,8 @@ impl Emitter<'_, '_> {
     ///   not-taken side costs a compare and a predicted branch, which is the
     ///   same shape and the same cost as `rule:errors/propagation`'s status check.
     /// * **`i64::MIN % -1`** does not throw, because it is not an overflow:
-    ///   `x % -1` is exactly `0` for every `x`, which is representable. PHP 8
-    ///   answers `0` here and AGENTS.md's priority 2 keeps that. So the
-    ///   divisor is rewritten to `1` when it is `-1` — a compare and a
+    ///   `x % -1` is exactly `0` for every `x`, which is representable, so the
+    ///   result is `0`. The divisor is rewritten to `1` when it is `-1` — a compare and a
     ///   `select`, no branch, and `x % 1` is `0` by the same identity.
     ///
     /// The unsigned case needs only the zero guard: `urem` has no second
@@ -1743,8 +1741,7 @@ impl Emitter<'_, '_> {
     /// Which of the two it produces is a **runtime** question, so it is a
     /// branch and not a type: the quotient is an integer exactly where the
     /// remainder is zero. Guards stand in front of it, and each is a
-    /// trap — a request-isolation failure, AGENTS.md's priority 1 — rather
-    /// than a wrong answer, so none may reach `sdiv`/`udiv`:
+    /// trap — a request-isolation failure — rather than a wrong answer, so none may reach `sdiv`/`udiv`:
     ///
     /// * **A zero divisor** throws spec § 10's `ArithmeticError` carrying
     ///   PHP's own `Division by zero` message, exactly as
@@ -3230,8 +3227,8 @@ impl Emitter<'_, '_> {
     /// array-map-filter and method-dispatch alike, that last because an
     /// instance method already dispatches
     /// through `call_indirect` and never took this path. `rule:programs/memory-priority`'s ordering
-    /// spends priority-3 latency to buy off a priority-2 crash, which is the
-    /// direction it allows and not the reverse.
+    /// spends latency to rule out a crash, which is the direction it allows and
+    /// not the reverse.
     fn callee_ref(&mut self, target: &str) -> Result<codegen::ir::FuncRef, CodegenError> {
         if let Some(reference) = self.callee_refs.get(target) {
             return Ok(*reference);

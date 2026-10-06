@@ -24,7 +24,7 @@
 //!
 //! **An incomparable pair exceeds.** [`Quantity::within`] answers `false` for two quantities with
 //! no order between them rather than letting the pair through, because a ceiling check that cannot
-//! compare must refuse — priority 1 in `AGENTS.md`, and the only way to reach that case is a caller
+//! compare must refuse on security grounds, and the only way to reach that case is a caller
 //! that parsed the two sides under different units.
 //!
 //! What this module does **not** do is decide who may set a directive: that is

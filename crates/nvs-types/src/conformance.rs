@@ -197,8 +197,8 @@ pub(crate) fn check_class_conformance(decl: &ClassDecl, qname: &QName, env: &mut
 /// declared `parse(tainted string $s): static`, and a binding site that hands
 /// a route segment to it reads the answer as the class the parameter named.
 /// An implementor answering anything else would put a value of one class where
-/// the site had already decided another, which is priority 2 in AGENTS.md's
-/// ordering.
+/// the site had already decided another, and every later read of it would be
+/// wrong.
 ///
 /// The primary lands on the class's own declaration of the member where it has
 /// one; a class that inherits the weakened answer gets its own name instead,

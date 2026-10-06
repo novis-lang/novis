@@ -135,7 +135,7 @@ mod tests {
     /// exactly the byte [`tag_of`] answers. Neither of those crates can name
     /// the other, and this one names both: a representation whose two answers
     /// drift apart makes every call through such a callable either refuse a
-    /// good argument or accept a mismatched one, which is the priority-1 hole
+    /// good argument or accept a mismatched one, which is the security hole
     /// the nibble exists to close.
     #[test]
     fn param_tag_nibbles_are_the_runtime_tag_bytes() {

@@ -3103,7 +3103,7 @@ echo Tag::of(3);
     /// the two differ by the implicit receiver in slot 0, and [`MethodShape`]
     /// is the one place that difference is taken. Getting it wrong is not a
     /// wrong count but a shifted one: every nibble would then judge the
-    /// argument beside the one it describes, which is the priority-1 hole the
+    /// argument beside the one it describes, which is the security hole the
     /// word exists to close, arrived at from inside the compiler.
     #[test]
     fn a_method_shape_subtracts_the_receiver_and_packs_the_rest() {

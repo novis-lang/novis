@@ -290,7 +290,7 @@ pub(crate) fn tainted_result(ty: TypeId, interner: &mut TypeInterner) -> TypeId 
 ///   back out**, which is what `tainted_result` answering something different
 ///   means. That conservative half is deliberate: admitting a tainted argument
 ///   into a member whose return type has nowhere to put the bit is laundering,
-///   and AGENTS.md's ordering does not trade priority 1 for a call that
+///   and AGENTS.md's ordering does not trade security for a call that
 ///   compiles. A member in that position is either mis-classified — an answer
 ///   carrying no byte of any argument is `Neutral` — or answers a shape or an
 ///   object, whose fields are a slice of their own.

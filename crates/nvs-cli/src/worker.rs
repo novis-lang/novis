@@ -1472,8 +1472,8 @@ fn run(ctx: &mut nvs_runtime::Ctx, job: &Job) -> Option<nvs_host::Failure> {
             // this frame's ownership*, not a borrow of the arena that has already
             // gone. Dropping it without releasing it leaks the whole returned
             // graph, once per job that returns one, which grows with jobs served
-            // rather than with jobs in flight: AGENTS.md's priority 5 calls that a
-            // leak and not a footprint. Released before the verdict is read
+            // rather than with jobs in flight: `rule:programs/memory-priority` calls
+            // that a leak and not a footprint. Released before the verdict is read
             // because the obligation is the same on both arms.
             completion.discard_value();
             if completion.ok {

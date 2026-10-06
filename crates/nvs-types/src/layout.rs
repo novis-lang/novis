@@ -330,7 +330,7 @@ pub struct ClassConstant {
     /// an ordinary string at the next sink, and
     /// `rule:security/secret-sinks-refuse`'s refusal would never be made. So
     /// the bit rides with the value and the reading member refuses rather than
-    /// laundering — priority 1 of `rule:programs/memory-priority`, bought with
+    /// laundering — security under `rule:programs/memory-priority`, bought with
     /// one `bool`.
     pub secret: bool,
     /// What `rule:types/constant-in-type-position`'s fold makes of the

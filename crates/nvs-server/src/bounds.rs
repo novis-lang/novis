@@ -6,8 +6,8 @@
 //! *nothing*: "every bound is finite with nothing configured". A connection is
 //! the one thing this server holds that no request ever ends, so a bound left
 //! to a later configuration pass is a bound that is absent on every deployment
-//! that did not know to write it — which is the shape `rule:programs/memory-priority`'s priority 1
-//! refuses. [`Connection::default`] is therefore the whole answer a deployment
+//! that did not know to write it — which is the shape security, at the top of
+//! `rule:programs/memory-priority`'s ordering, refuses. [`Connection::default`] is therefore the whole answer a deployment
 //! that writes nothing is served under, and the test at the foot of this
 //! module is what says so:
 //! it destructures the struct, so a bound added here without a finite default
@@ -300,8 +300,8 @@ impl Drop for Slot {
 /// a deployment that shortened that wait for its own reasons would otherwise
 /// buy a stream that writes a comment several times a second for as long as it
 /// is open. What it costs where it binds is one three-byte frame a second on a
-/// stream that is saying nothing, which is `rule:programs/memory-priority`'s
-/// priority 3 spent on priority 1's behalf — the alternative is the connection
+/// stream that is saying nothing, which under `rule:programs/memory-priority`
+/// is latency spent on security's behalf — the alternative is the connection
 /// closing under a program that is working correctly.
 pub const HEARTBEAT_FLOOR: Duration = Duration::from_secs(1);
 
@@ -356,7 +356,7 @@ const RECONNECT_SPREAD: u32 = 3;
 /// deploy drains every connection this process holds at once.
 ///
 /// **What it spends**, per `rule:programs/memory-priority`: one draw from
-/// `rand::rng()` per open event stream, at priority 3 and on priority 1's
+/// `rand::rng()` per open event stream, a latency cost paid on security's
 /// behalf — a self-inflicted arrival spike is an availability failure and not a
 /// latency one.
 #[must_use]

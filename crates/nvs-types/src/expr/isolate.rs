@@ -102,7 +102,7 @@
 //! Against that: no new checker or lowering machinery, one object of four slots
 //! per awaited child either way, and a result whose fields are read with the
 //! same two instructions an anonymous object's already are. Simplicity of the
-//! language surface is priority 4 and the machinery a class would need buys
+//! language surface is in the ordering, and the machinery a class would need buys
 //! nothing above it (`AGENTS.md` § *The priority ordering*).
 //!
 //! [`ExprInfo::ShapeProperty`]: crate::expr_table::ExprInfo::ShapeProperty
