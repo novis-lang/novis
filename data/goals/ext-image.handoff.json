@@ -1,31 +1,32 @@
 {
-  "state": "**Goal `ext-image`, Stage 3 (decode, and the cap) is done on disk; Stage 4 (the pipeline) is next.** The design is settled by ADR 0120, ADR 0247 and the goal file's § *Standing decisions*; no session re-decides one.\n\nThe image component is embedded, typed into every compile and callable with no `nvs.toml` (`crates/nvs-cli/src/extensions.rs` module doc). `run` decodes JPEG, PNG, WebP, GIF, AVIF and JPEG XL inside the guest and returns the RGBA8 pixels or the size, and refuses to encode JPEG XL; no format encodes yet. The guest checks the header against the cap before it decodes (`extensions/image/src/decode.rs` module doc), and the host clamps every encoded source's `maxPixels`, the overlays' included, to `[image] max_pixels` before the call crosses (`nvs_ext::builtin::cap_pixels`). `crates/nvs-ext/tests/image_decode.rs` and the two `tests/conformance/novis/image-*` cases pin Stage 3.\n\nA plan `step` is a WIT record with one optional field per operation, exactly one set (`rule:core-classes/image-pipeline`). The guest's `run` honours only `format` and `metadata` steps, and `variants` returns `runtime`. The `Novis\\Image` builder (Novis source half) does not exist.",
+  "state": "**Goal `ext-image`, Stage 4 (the pipeline) is under way.** The design is settled by ADR 0120, ADR 0247 and the goal file's § *Standing decisions*; no session re-decides one.\n\nThe image component is embedded, typed into every compile and callable with no `nvs.toml` (`crates/nvs-cli/src/extensions.rs` module doc). `run` decodes JPEG, PNG, WebP, GIF, AVIF and JPEG XL inside the guest under the cap (`extensions/image/src/decode.rs` module doc), applies the EXIF orientation of the formats `image` decodes when `autoOrient` is set, and encodes JPEG, PNG, lossless WebP and GIF (`extensions/image/src/encode.rs` module doc). Metadata is dropped unless a `metadata({keep: true})` step keeps the EXIF block, whose orientation tag is reset to `1` when it was applied (`rule:core-classes/image-correct-by-default`). Lossy WebP and AVIF encoding return `runtime`.\n\n`crates/nvs-ext/tests/image_pipeline.rs` exists and its four orientation and GPS tests pass; the tagged JPEGs are built in the test (`extensions/image/fixtures/README.md`). The guest's `run` still honours only `format` and `metadata` steps, `variants` returns `runtime`, and the `Novis\\Image` builder (Novis source half) does not exist.",
   "next": {
     "stage": 4,
     "title": "the pipeline",
-    "files": [],
-    "note": "one file set: `extensions/image/src/lib.rs`, `extensions/image/src/decode.rs`, a new `crates/nvs-ext/tests/image_pipeline.rs`, `extensions/image/fixtures/`.",
+    "files": [
+      "extensions/image/src/encode.rs",
+      "extensions/image/src/lib.rs",
+      "extensions/image/Cargo.toml",
+      "crates/nvs-ext/tests/image_pipeline.rs"
+    ],
     "items": [
       {
         "done": false,
-        "text": "**Auto-orient and metadata stripped by default** (`rule:core-classes/image-correct-by-default`) — the guest's `run` at `extensions/image/src/lib.rs:168` applies the EXIF orientation when `autoOrient` is set and drops EXIF/GPS on encode unless `metadata({keep: true})`. Create `crates/nvs-ext/tests/image_pipeline.rs` (the goal's Stage 4 checks name that target), copying the helpers at `crates/nvs-ext/tests/image_decode.rs:16`, plus an orientation-6 JPEG fixture and a GPS-tagged one made by a generator, named in `extensions/image/fixtures/README.md`."
+        "text": "**Encoders for the first wave** (`rule:core-classes/image-format-roster`) — lossy WebP through the prebuilt libwebp and AVIF through `ravif` replace the two `runtime` arms at `extensions/image/src/encode.rs:58`; `jpeg-encoder` per the standing decisions may replace `image`'s JPEG encoder. Add `every_encoder_writes_its_format_and_the_result_reopens` and `lossy_webp_is_encoded_by_libwebp` to `crates/nvs-ext/tests/image_pipeline.rs`."
       },
       {
         "done": false,
-        "text": "**Encoders for the first wave** (`rule:core-classes/image-format-roster`) — every encoder writes a file its decoder reopens, lossy WebP through the linked libwebp; `extensions/image/src/lib.rs:176` is the step loop, and `crates/nvs-ext/tests/image_decode.rs:216` is the JPEG XL refusal the encoders sit beside."
+        "text": "**`variants` decodes once and runs each plan** (`rule:core-classes/image-pipeline`) — `extensions/image/src/lib.rs:225` returns `runtime` today; decode once with `crate::decode` and call `crate::encode` per plan. Tests `variants_with_three_entries_costs_one_crossing` and `encode_costs_one_crossing` count host-to-guest calls."
       },
       {
         "done": false,
-        "text": "**`variants` decodes once and runs each plan** (`rule:core-classes/image-pipeline`) — `extensions/image/src/lib.rs:209` returns `runtime` today; the fixture counts one host-to-guest call. The host already clamps each plan's overlays at `crates/nvs-ext/src/builtin.rs:34`."
-      },
-      {
-        "done": false,
-        "text": "**CMYK with an ICC profile to sRGB** (`rule:core-classes/image-correct-by-default`) — `moxcms` per the standing decisions, the profile's licence named in the fixtures README; anchor `extensions/image/src/decode.rs:25`; the source helper is `crates/nvs-ext/tests/image_decode.rs:56`."
+        "text": "**CMYK with an ICC profile to sRGB** (`rule:core-classes/image-correct-by-default`) — `moxcms` per the standing decisions, in `extensions/image/src/decode.rs:115`; a CMYK fixture whose profile allows redistribution, named in `extensions/image/fixtures/README.md`. Tests `a_cmyk_jpeg_with_a_profile_resizes_to_the_reference_colours_not_inverted` and `to_srgb_false_keeps_the_raw_channels`."
       }
     ]
   },
   "backlog": [
-    "The `Novis\\Image` builder and `tests/conformance/novis/image-a-pipeline-is-a-value-and-runs-at-its-terminal.nvst` — Stage 4's last check, after the guest pipeline (`rule:core-classes/image-pipeline`).",
-    "Stage 5's `image_guest` bench target and Stage 6's `nvs meta --json` and proofs checks — the goal record's own check list."
+    "The pixel steps (resize, crop, rotate, …) in the guest's `run`, then the `Novis\\Image` builder and the five Stage 4 `.nvst` cases (`rule:core-classes/image-pipeline`).",
+    "AVIF `irot`/`imir` and JPEG XL orientation are not applied by `extensions/image/src/decode.rs` (`rule:core-classes/image-correct-by-default`).",
+    "`info`'s `exif` is always `None` (`extensions/image/src/info.rs` module doc)."
   ]
 }

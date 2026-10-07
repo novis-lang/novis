@@ -73,10 +73,10 @@ const PROMOTED_WHOLE = 20;
 const TRIAGE = "Tooling > a goal record's*";
 
 /** A `path:line` anchor in a checklist item, which the pack expands into a window of the file. */
-export const ANCHOR_RE = /\b((?:crates|tools|tests|benches|examples|fuzz|docs|editors|website|apps)\/[\w./-]+\.\w+):(\d+)\b/g;
+export const ANCHOR_RE = /\b((?:crates|extensions|tools|tests|benches|examples|fuzz|docs|editors|website|apps)\/[\w./-]+\.\w+):(\d+)\b/g;
 
 /** A path a checklist item names, file or directory, which the traps are narrowed to. */
-const ITEM_PATH_RE = /\b((?:crates|tools|tests|benches|examples|fuzz|docs|editors|website|apps)\/[\w./-]*[\w-])/g;
+const ITEM_PATH_RE = /\b((?:crates|extensions|tools|tests|benches|examples|fuzz|docs|editors|website|apps)\/[\w./-]*[\w-])/g;
 
 /** Lines printed either side of an anchor: a signature and the top of a body. */
 const ANCHOR_CONTEXT = 12;
