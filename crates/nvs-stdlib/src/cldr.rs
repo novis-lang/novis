@@ -1820,9 +1820,9 @@ impl Category {
 /// CLDR's plural operands for one count, holding the three the carried rules
 /// read.
 ///
-/// `n` is derived rather than stored ([`Operands::n`]), and `t` — `f` without
-/// its trailing zeros — is never needed as a number: every rule here asks only
-/// whether it is zero, which is `f == 0`.
+/// `n` and `t` are derived rather than stored ([`Operands::n`],
+/// [`Operands::t`]). Most rules ask only whether `t` is zero, which is
+/// `f == 0`; Icelandic reads its digits.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Operands {
     /// `i` — the integer part of the absolute value.
@@ -1844,6 +1844,16 @@ impl Operands {
     /// its published rule.
     fn n(self) -> Option<u128> {
         (self.f == 0).then_some(self.i)
+    }
+
+    /// `t` — the fraction digits the count shows, read as an integer with
+    /// their trailing zeros dropped: `5` for `1.50`, `0` for `1.0`.
+    fn t(self) -> u128 {
+        let mut t = self.f;
+        while t != 0 && t.is_multiple_of(10) {
+            t /= 10;
+        }
+        t
     }
 
     /// CLDR's `n = value`.
@@ -1937,7 +1947,8 @@ enum RuleSet {
     Lithuanian,
     /// Latvian, the one carried set with a `zero` that is not `n = 0`.
     Latvian,
-    /// Romanian, whose `few` swallows the fraction, zero and 2–19 alike.
+    /// Romanian, whose `few` swallows the fraction, zero and every count but 1
+    /// ending in 1–19 alike.
     Romanian,
     /// Slovenian, which reads `i % 100` where the Slavic sets read `i % 10`.
     Slovenian,
@@ -1967,8 +1978,8 @@ enum RuleSet {
     /// Manx, whose `many` is any visible fraction and whose `few` is the even
     /// twenties.
     Manx,
-    /// Icelandic: [`Self::EastSlavic`]'s `one` test on `i`, with every count
-    /// showing a non-zero fraction joining `one` rather than leaving it.
+    /// Icelandic: [`Self::EastSlavic`]'s `one` test, read on `i` for a whole
+    /// count and on the fraction digits `t` for any other.
     Icelandic,
     /// Macedonian: [`Self::SerboCroatian`]'s `one` with no `few` behind it.
     Macedonian,
@@ -2136,9 +2147,14 @@ impl RuleSet {
             }
             Self::Latvian => Other,
 
-            // one: i = 1 and v = 0 / few: v != 0 or n = 0 or n % 100 = 2..19
+            // one: i = 1 and v = 0
+            // few: v != 0 or n = 0 or n != 1 and n % 100 = 1..19
             Self::Romanian if at.i == 1 && at.v == 0 => One,
-            Self::Romanian if at.v != 0 || at.n_is(0) || at.n_mod_in(100, 2..=19) => Few,
+            Self::Romanian
+                if at.v != 0 || at.n_is(0) || (!at.n_is(1) && at.n_mod_in(100, 1..=19)) =>
+            {
+                Few
+            }
             Self::Romanian => Other,
 
             // one: v = 0 and i % 100 = 1 / two: v = 0 and i % 100 = 2
@@ -2245,10 +2261,14 @@ impl RuleSet {
             Self::Manx if at.v != 0 => Many,
             Self::Manx => Other,
 
-            // one: t = 0 and i % 10 = 1 and i % 100 != 11 or t != 0
-            // `t` is `f` with its trailing zeros dropped, so `t != 0` is
-            // `f != 0` — the equivalence [`Operands`]'s doc states.
-            Self::Icelandic if at.f != 0 || (at.i % 10 == 1 && at.i % 100 != 11) => One,
+            // one: t = 0 and i % 10 = 1 and i % 100 != 11
+            //      or t % 10 = 1 and t % 100 != 11
+            Self::Icelandic
+                if (at.t() == 0 && at.i % 10 == 1 && at.i % 100 != 11)
+                    || (at.t() % 10 == 1 && at.t() % 100 != 11) =>
+            {
+                One
+            }
             Self::Icelandic => Other,
 
             // one: v = 0 and i % 10 = 1 and i % 100 != 11
@@ -2454,7 +2474,7 @@ static RULES: &[(&str, RuleSet)] = &[
     ("sah", RuleSet::NoDistinction),
     ("saq", RuleSet::ExactlyOne),
     ("sc", RuleSet::Unit),
-    ("scn", RuleSet::Unit),
+    ("scn", RuleSet::UnitAndMillions),
     ("sd", RuleSet::ExactlyOne),
     ("sdh", RuleSet::ExactlyOne),
     ("seh", RuleSet::ExactlyOne),
@@ -2526,8 +2546,13 @@ enum OrdinalSet {
     Ukrainian,
     /// Belarusian, whose one marked form covers the second and the third.
     Belarusian,
-    /// Italian, Sardinian and Sicilian: four counts and nothing else.
+    /// Italian and Sardinian: four counts and nothing else.
     Italian,
+    /// Ligurian and Sicilian: [`Self::Italian`] with its two last counts
+    /// widened to the eighties and the eight hundreds.
+    Ligurian,
+    /// Scottish Gaelic, whose first three forms each repeat once in the teens.
+    ScottishGaelic,
     /// The first and nothing else — French, Irish, Armenian, Lao, Malay,
     /// Romanian, Vietnamese and the Filipino pair, which is the widest group
     /// CLDR publishes one ordinal rule for.
@@ -2597,6 +2622,16 @@ impl OrdinalSet {
             Self::Italian if at.n_any(&[8, 11, 80, 800]) => Many,
             Self::Italian => Other,
 
+            // many: n = 11,8,80..89,800..899
+            Self::Ligurian if at.n_any(&[8, 11]) || at.n_in(80..=89) || at.n_in(800..=899) => Many,
+            Self::Ligurian => Other,
+
+            // one: n = 1,11 / two: n = 2,12 / few: n = 3,13
+            Self::ScottishGaelic if at.n_any(&[1, 11]) => One,
+            Self::ScottishGaelic if at.n_any(&[2, 12]) => Two,
+            Self::ScottishGaelic if at.n_any(&[3, 13]) => Few,
+            Self::ScottishGaelic => Other,
+
             // one: n = 1
             Self::FirstOnly if at.n_is(1) => One,
             Self::FirstOnly => Other,
@@ -2642,22 +2677,24 @@ impl OrdinalSet {
             Self::Odia if at.n_is(6) => Many,
             Self::Odia => Other,
 
-            // one:  n % 10 = 1,2,5,7,8 or n % 100 = 20,50,70,80
-            // few:  n % 10 = 3,4 or n % 1000 = 100,200,300,400,500,600,700,800,900
-            // many: n = 0 or n % 10 = 6 or n % 100 = 40,60,90
+            // one:  i % 10 = 1,2,5,7,8 or i % 100 = 20,50,70,80
+            // few:  i % 10 = 3,4 or i % 1000 = 100,200,300,400,500,600,700,800,900
+            // many: i = 0 or i % 10 = 6 or i % 100 = 40,60,90
+            // `i`, not `n`: a count showing a fraction is read by its integer part.
             Self::Azerbaijani
-                if at.n_mod_any(10, &[1, 2, 5, 7, 8]) || at.n_mod_any(100, &[20, 50, 70, 80]) =>
+                if matches!(at.i % 10, 1 | 2 | 5 | 7 | 8)
+                    || matches!(at.i % 100, 20 | 50 | 70 | 80) =>
             {
                 One
             }
             Self::Azerbaijani
-                if at.n_mod_any(10, &[3, 4])
-                    || at.n_mod_any(1_000, &[100, 200, 300, 400, 500, 600, 700, 800, 900]) =>
+                if matches!(at.i % 10, 3 | 4)
+                    || (!at.i.is_multiple_of(1_000) && at.i.is_multiple_of(100)) =>
             {
                 Few
             }
             Self::Azerbaijani
-                if at.n_is(0) || at.n_mod_is(10, 6) || at.n_mod_any(100, &[40, 60, 90]) =>
+                if at.i == 0 || at.i % 10 == 6 || matches!(at.i % 100, 40 | 60 | 90) =>
             {
                 Many
             }
@@ -2748,6 +2785,7 @@ static ORDINALS: &[(&str, OrdinalSet)] = &[
     ("fil", OrdinalSet::FirstOnly),
     ("fr", OrdinalSet::FirstOnly),
     ("ga", OrdinalSet::FirstOnly),
+    ("gd", OrdinalSet::ScottishGaelic),
     ("gu", OrdinalSet::Hindi),
     ("hi", OrdinalSet::Hindi),
     ("hu", OrdinalSet::Hungarian),
@@ -2756,6 +2794,7 @@ static ORDINALS: &[(&str, OrdinalSet)] = &[
     ("ka", OrdinalSet::Georgian),
     ("kk", OrdinalSet::Kazakh),
     ("kw", OrdinalSet::Cornish),
+    ("lij", OrdinalSet::Ligurian),
     ("lo", OrdinalSet::FirstOnly),
     ("mk", OrdinalSet::Macedonian),
     ("mo", OrdinalSet::FirstOnly),
@@ -2765,7 +2804,7 @@ static ORDINALS: &[(&str, OrdinalSet)] = &[
     ("or", OrdinalSet::Odia),
     ("ro", OrdinalSet::FirstOnly),
     ("sc", OrdinalSet::Italian),
-    ("scn", OrdinalSet::Italian),
+    ("scn", OrdinalSet::Ligurian),
     ("sq", OrdinalSet::Albanian),
     ("sv", OrdinalSet::Swedish),
     ("tk", OrdinalSet::Turkmen),
@@ -3788,14 +3827,24 @@ mod tests {
         );
         assert_eq!(category(Value::decimal(dec("1.5")), "gv"), Many);
 
-        // Icelandic is the opposite reading of a fraction: 1.5 joins `one`
-        // rather than leaving it, which is what `t != 0` says.
+        // Romanian's `few` takes every count ending in 1 to 19 except 1 itself,
+        // so 101 is `few` and 120 is not.
+        assert_eq!(
+            [1, 2, 19, 20, 101, 119, 120].map(|n| whole(n, "ro")),
+            [One, Few, Few, Other, Few, Few, Other]
+        );
+
+        // Icelandic reads a fraction by its own digits: 0.1 and 2.21 are `one`
+        // because their fraction ends in 1, and 1.5 is not.
         assert_eq!(
             [1, 11, 21, 2].map(|n| whole(n, "is")),
             [One, Other, One, Other]
         );
-        assert_eq!(category(Value::decimal(dec("1.5")), "is"), One);
-        assert_eq!(category(Value::decimal(dec("2.5")), "is"), One);
+        assert_eq!(category(Value::decimal(dec("0.1")), "is"), One);
+        assert_eq!(category(Value::decimal(dec("2.21")), "is"), One);
+        assert_eq!(category(Value::decimal(dec("0.10")), "is"), One);
+        assert_eq!(category(Value::decimal(dec("1.5")), "is"), Other);
+        assert_eq!(category(Value::decimal(dec("1.11")), "is"), Other);
 
         // Macedonian is Serbo-Croatian's `one` with nothing behind it, so 2 to
         // 4 are `other` here and `few` there.
@@ -3937,7 +3986,14 @@ mod tests {
             [1, 8, 11, 80, 800, 8_000].map(|n| place(n, "it")),
             [Other, Many, Many, Many, Many, Other]
         );
-        assert_eq!(place(8, "scn"), Many);
+        assert_eq!(
+            [8, 81, 800, 899, 900].map(|n| place(n, "scn")),
+            [Many, Many, Many, Many, Other]
+        );
+        assert_eq!(
+            [1, 11, 2, 12, 3, 13, 21].map(|n| place(n, "gd")),
+            [One, One, Two, Two, Few, Few, Other]
+        );
         assert_eq!([1, 2].map(|n| place(n, "fr")), [One, Other]);
         assert_eq!([1, 5, 2].map(|n| place(n, "hu")), [One, One, Other]);
         assert_eq!([1, 4, 5].map(|n| place(n, "ne")), [One, One, Other]);
@@ -3961,6 +4017,15 @@ mod tests {
         assert_eq!(
             [1, 20, 3, 100, 0, 6, 40, 9].map(|n| place(n, "az")),
             [One, One, Few, Few, Many, Many, Many, Other]
+        );
+        // Azerbaijani reads `i`, so a fraction takes its integer part's form.
+        assert_eq!(
+            [(0, 5), (1, 5), (100, 25)].map(|(i, f)| OrdinalSet::Azerbaijani.select(Operands {
+                i,
+                v: 2,
+                f
+            })),
+            [Many, One, Few]
         );
         assert_eq!(
             [1, 4, 14, 24].map(|n| place(n, "sq")),
@@ -4050,7 +4115,9 @@ mod tests {
             (OrdinalSet::Ukrainian, &["uk"]),
             (OrdinalSet::Turkmen, &["tk"]),
             (OrdinalSet::Kazakh, &["kk"]),
-            (OrdinalSet::Italian, &["it", "sc", "scn"]),
+            (OrdinalSet::Italian, &["it", "sc"]),
+            (OrdinalSet::Ligurian, &["lij", "scn"]),
+            (OrdinalSet::ScottishGaelic, &["gd"]),
             (OrdinalSet::Georgian, &["ka"]),
             (OrdinalSet::Albanian, &["sq"]),
             (OrdinalSet::Cornish, &["kw"]),

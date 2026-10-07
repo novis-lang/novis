@@ -1,0 +1,64 @@
+--TEST--
+`Core\Cldr::pluralCategory` and `::ordinalCategory` follow current CLDR for Romanian, Icelandic, Sicilian, Scottish Gaelic, Ligurian and Azerbaijani, one row per rule that changed — `rule:programs/framework-core-half`
+--FILE--
+<?nvs
+// Each row is a count whose category changed in CLDR 46, the data ICU4X 2.3
+// carries. `Novis\Intl\PluralRules` answers from that data, and the two agree
+// on every language `Core\Cldr` carries rules for.
+class Form {
+    public static function name(Core\Cldr\PluralCategory $category): string {
+        return match ($category) {
+            Core\Cldr\PluralCategory::Zero => "zero",
+            Core\Cldr\PluralCategory::One => "one",
+            Core\Cldr\PluralCategory::Two => "two",
+            Core\Cldr\PluralCategory::Few => "few",
+            Core\Cldr\PluralCategory::Many => "many",
+            Core\Cldr\PluralCategory::Other => "other",
+        };
+    }
+
+    public static function plural(int|decimal $count, string $locale): string {
+        return Form::name(Core\Cldr::pluralCategory($count, $locale));
+    }
+
+    public static function place(int|decimal $count, string $locale): string {
+        return Form::name(Core\Cldr::ordinalCategory($count, $locale));
+    }
+}
+
+// Romanian `few` takes every count ending in 1 to 19 except 1 itself.
+echo "ro 101: ", Form::plural(101, "ro"), "\n";
+echo "ro 120: ", Form::plural(120, "ro"), "\n";
+
+// Icelandic reads a fraction by its fraction digits: one ending in 1 is `one`.
+decimal $tenth = 0.1;
+decimal $half = 1.5;
+echo "is 0.1: ", Form::plural($tenth, "is"), "\n";
+echo "is 1.5: ", Form::plural($half, "is"), "\n";
+
+// Sicilian has a `many` form for whole millions, as Italian does.
+echo "scn 1000000: ", Form::plural(1000000, "scn"), "\n";
+
+// Scottish Gaelic marks the first three places and the same three in the teens.
+echo "gd 1st 2nd 3rd 13th 4th: ", Form::place(1, "gd"), " ", Form::place(2, "gd"), " ",
+    Form::place(3, "gd"), " ", Form::place(13, "gd"), " ", Form::place(4, "gd"), "\n";
+
+// Ligurian and Sicilian mark all of the eighties, not only 80.
+echo "lij 81: ", Form::place(81, "lij"), "\n";
+echo "scn 81: ", Form::place(81, "scn"), "\n";
+echo "it 81: ", Form::place(81, "it"), "\n";
+
+// Azerbaijani reads the whole-number part of a fraction.
+decimal $onePointFive = 1.5;
+echo "az 1.5: ", Form::place($onePointFive, "az"), "\n";
+--EXPECT--
+ro 101: few
+ro 120: other
+is 0.1: one
+is 1.5: other
+scn 1000000: many
+gd 1st 2nd 3rd 13th 4th: one two few few other
+lij 81: many
+scn 81: many
+it 81: other
+az 1.5: one
