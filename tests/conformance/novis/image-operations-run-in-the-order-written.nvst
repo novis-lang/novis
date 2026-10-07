@@ -2,6 +2,7 @@
 The steps of a `Novis\Image\Image` run in the order they are written, so a crop before a resize gives a different size than a crop after it — rule:core-classes/image-pipeline
 --FILE--
 <?nvs
+// covers: Novis\Image\Image::resize, Novis\Image\Image::crop, Novis\Image\Image::rotate, Novis\Image\Image::encode
 use Novis\Image\Image;
 
 // A PNG of 3 by 2 pixels with an alpha channel, written as hex.

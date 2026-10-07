@@ -421,6 +421,7 @@ fn exif_in(jpeg: &[u8]) -> Option<Vec<u8>> {
     None
 }
 
+// covers: Novis\Image\Image::open, Novis\Image\Image::raw
 #[test]
 fn a_jpeg_with_orientation_6_opens_upright() {
     let host = Host::new(4, |_| Ok(())).expect("the host starts");
@@ -466,6 +467,7 @@ fn cmyk_with_profile() -> Vec<u8> {
     with_icc(&fixture("cmyk.jpg"), &cmyk_profile())
 }
 
+// covers: Novis\Image\Image::resize
 #[test]
 fn a_cmyk_jpeg_with_a_profile_resizes_to_the_reference_colours_not_inverted() {
     let host = Host::new(4, |_| Ok(())).expect("the host starts");
@@ -522,6 +524,7 @@ fn to_srgb_false_keeps_the_raw_channels() {
     block_on(request.end()).expect("the request ends");
 }
 
+// covers: Novis\Image\Image::rotate, Novis\Image\Image::crop
 #[test]
 fn pixel_steps_run_in_the_order_written() {
     let host = Host::new(4, |_| Ok(())).expect("the host starts");
@@ -602,6 +605,7 @@ fn a_jpeg_with_gps_tags_re_encodes_without_them() {
     block_on(request.end()).expect("the request ends");
 }
 
+// covers: Novis\Image\Image::metadata, Novis\Image\Image::info, Novis\Image\Codec::info
 #[test]
 fn metadata_keep_true_keeps_them() {
     let host = Host::new(4, |_| Ok(())).expect("the host starts");
@@ -640,6 +644,7 @@ fn metadata_keep_true_keeps_them() {
     block_on(request.end()).expect("the request ends");
 }
 
+// covers: Novis\Image\Image::format
 #[test]
 fn every_encoder_writes_its_format_and_the_result_reopens() {
     let host = Host::new(4, |_| Ok(())).expect("the host starts");
@@ -746,6 +751,7 @@ fn lossy_webp_is_encoded_by_libwebp() {
     block_on(request.end()).expect("the request ends");
 }
 
+// covers: Novis\Image\Image::variants, Novis\Image\Codec::variants
 #[test]
 fn variants_with_three_entries_costs_one_crossing() {
     let host = Host::new(4, |_| Ok(())).expect("the host starts");
@@ -787,6 +793,7 @@ fn variants_with_three_entries_costs_one_crossing() {
     block_on(request.end()).expect("the request ends");
 }
 
+// covers: Novis\Image\Image::encode, Novis\Image\Codec::run
 #[test]
 fn encode_costs_one_crossing() {
     let host = Host::new(4, |_| Ok(())).expect("the host starts");
@@ -804,5 +811,128 @@ fn encode_costs_one_crossing() {
     .expect("the JPEG re-encodes");
     assert_eq!(format_of(&out), "Png");
     assert_eq!(request.crossings(), 1);
+    block_on(request.end()).expect("the request ends");
+}
+
+/// The colour `{r, g, b, alpha}` a canvas, `flatten` or `tint` takes.
+fn rgba(r: u64, g: u64, b: u64, alpha: f64) -> Value {
+    shape(vec![
+        ("r", Value::Uint(r)),
+        ("g", Value::Uint(g)),
+        ("b", Value::Uint(b)),
+        ("alpha", Value::Float(alpha)),
+    ])
+}
+
+/// A blank canvas of `width` by `height`, filled with `fill`, as `Image::create` builds it.
+fn canvas(width: u64, height: u64, fill: Value) -> Value {
+    shape(vec![
+        ("width", Value::Uint(width)),
+        ("height", Value::Uint(height)),
+        ("fill", fill),
+    ])
+}
+
+/// A pixel source of `width` by `height` from RGBA8 `pixels`, as `Image::fromRaw` builds it.
+fn pixels(width: u64, height: u64, pixels: Vec<[u8; 4]>) -> Value {
+    shape(vec![
+        ("width", Value::Uint(width)),
+        ("height", Value::Uint(height)),
+        ("pixels", Value::Bytes(pixels.concat())),
+    ])
+}
+
+/// A 3 by 3 frame of `border` with `centre` in the middle.
+fn framed(border: [u8; 4], centre: [u8; 4]) -> Value {
+    let mut all = vec![border; 9];
+    all[4] = centre;
+    pixels(3, 3, all)
+}
+
+/// The pixels `source` has after the one step `name` with `options`.
+fn after(
+    request: &Request,
+    extension: &Extension,
+    source: Value,
+    name: &str,
+    options: Value,
+) -> Vec<u8> {
+    run(
+        request,
+        extension,
+        source,
+        plan(vec![shape(vec![(name, options)])], "Raw"),
+    )
+    .unwrap_or_else(|err| panic!("`{name}` runs: {err:?}"))
+}
+
+/// Each pixel step of a plan, run alone on a source whose pixels the test knows, changes the
+/// pixel it should by what `extensions/image/src/ops.rs`'s module doc says, and a canvas and a
+/// pixel source are both a frame the steps run on.
+// covers: Novis\Image\Image::create, Novis\Image\Image::fromRaw, Novis\Image\Image::trim, Novis\Image\Image::flip, Novis\Image\Image::flatten, Novis\Image\Image::sharpen, Novis\Image\Image::blur, Novis\Image\Image::grayscale, Novis\Image\Image::brightness, Novis\Image\Image::contrast, Novis\Image\Image::gamma, Novis\Image\Image::tint
+#[test]
+fn each_pixel_step_changes_a_known_pixel_as_documented() {
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let extension = component(&host);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(60), None)));
+    let orange = || canvas(2, 2, rgba(200, 100, 50, 1.0));
+    let step = |source: Value, name: &str, options: Value| {
+        after(&request, &extension, source, name, options)
+    };
+
+    let blank = step(
+        canvas(4, 3, rgba(0, 0, 0, 0.0)),
+        "brightness",
+        Value::Float(1.0),
+    );
+    assert_eq!(size_of(&blank), (4, 3));
+    assert_eq!(pixel(&blank, 3, 2), [0, 0, 0, 0]);
+
+    // Rec. 709 luma of 200, 100, 50 is 117.65.
+    let gray = pixel(&step(orange(), "grayscale", Value::Bool(true)), 0, 0);
+    assert!(
+        gray[0] == gray[1] && gray[1] == gray[2] && near(gray, [118, 118, 118]),
+        "{gray:?}"
+    );
+    let darker = pixel(&step(orange(), "brightness", Value::Float(0.5)), 0, 0);
+    assert!(near(darker, [100, 50, 25]), "{darker:?}");
+    // Half the distance from 128: 164, 114 and 89.
+    let flatter = pixel(&step(orange(), "contrast", Value::Float(0.5)), 0, 0);
+    assert!(near(flatter, [164, 114, 89]), "{flatter:?}");
+    // 255 * (v / 255) ^ (1 / 2): 226, 160 and 113.
+    let lighter = pixel(&step(orange(), "gamma", Value::Float(2.0)), 0, 0);
+    assert!(near(lighter, [226, 160, 113]), "{lighter:?}");
+    let blue = pixel(&step(orange(), "tint", rgba(0, 0, 255, 1.0)), 0, 0);
+    assert!(near(blue, [0, 0, 50]), "{blue:?}");
+
+    let clear = [0, 0, 0, 0];
+    let solid = [200, 100, 50, 255];
+    let row = || pixels(2, 1, vec![clear, solid]);
+    let flat = step(row(), "flatten", rgba(0, 255, 0, 1.0));
+    assert_eq!(pixel(&flat, 0, 0), [0, 255, 0, 255]);
+    assert_eq!(pixel(&flat, 1, 0), solid);
+    let flipped = step(row(), "flip", Value::Case("Horizontal".to_owned()));
+    assert_eq!(
+        (pixel(&flipped, 0, 0), pixel(&flipped, 1, 0)),
+        (solid, clear)
+    );
+
+    let white = [255, 255, 255, 255];
+    let red = [255, 0, 0, 255];
+    let trimmed = step(framed(white, red), "trim", shape(Vec::new()));
+    assert_eq!(size_of(&trimmed), (1, 1));
+    assert_eq!(pixel(&trimmed, 0, 0), red);
+    let soft = pixel(&step(framed(white, red), "blur", Value::Float(1.0)), 1, 1);
+    assert!(soft[1] > 0 && soft[2] > 0, "{soft:?}");
+    let sharp = pixel(
+        &step(
+            framed([100, 100, 100, 255], [150, 150, 150, 255]),
+            "sharpen",
+            shape(Vec::new()),
+        ),
+        1,
+        1,
+    );
+    assert!(sharp[0] > 150, "{sharp:?}");
     block_on(request.end()).expect("the request ends");
 }

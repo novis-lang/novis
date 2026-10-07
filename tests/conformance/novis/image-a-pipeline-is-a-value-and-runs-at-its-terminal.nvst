@@ -2,6 +2,7 @@
 A `Novis\Image\Image` is a value: each step returns a new image and leaves the old one as it was, and nothing is decoded until a terminal runs — rule:core-classes/image-pipeline
 --FILE--
 <?nvs
+// covers: Novis\Image\Image::format, Novis\Image\Image::grayscale, Novis\Image\Codec::run
 use Novis\Image\Image;
 use Novis\Image\Format;
 

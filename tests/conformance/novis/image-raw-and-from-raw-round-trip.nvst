@@ -2,6 +2,7 @@
 `raw` returns the pixels of a `Novis\Image\Image` as RGBA8 rows, and `Image::fromRaw` reads them back unchanged — rule:core-classes/image-pipeline
 --FILE--
 <?nvs
+// covers: Novis\Image\Image::raw, Novis\Image\Image::flip, Novis\Image\Color::hex
 use Novis\Image\Image;
 use Novis\Image\Color;
 

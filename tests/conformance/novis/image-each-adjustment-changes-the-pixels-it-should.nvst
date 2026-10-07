@@ -1,0 +1,77 @@
+--TEST--
+Each adjustment step of a `Novis\Image\Image` changes a known pixel the way its card says, `metadata` and `variants` run on an opened file, and an adjustment never changes the image it was called on — rule:core-classes/image-pipeline
+--FILE--
+<?nvs
+// covers: Novis\Image\Image::trim, Novis\Image\Image::flatten, Novis\Image\Image::sharpen, Novis\Image\Image::blur, Novis\Image\Image::brightness, Novis\Image\Image::contrast, Novis\Image\Image::gamma, Novis\Image\Image::tint, Novis\Image\Image::metadata, Novis\Image\Image::variants, Novis\Image\Codec::variants, Novis\Image\Color::rgba
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Format;
+
+class Pixel
+{
+    /// The first pixel of `$image`, as hex.
+    public static function first(Image $image): string
+    {
+        return Core\Encoding::toHex(Core\Bytes::slice($image->raw()->pixels, 0, 4));
+    }
+}
+
+Image $orange = Image::create(2, 2, Color::rgba(200, 100, 50, 1.0));
+echo "brightness ", Pixel::first($orange->brightness(0.5)), "\n";
+echo "contrast ", Pixel::first($orange->contrast(0.5)), "\n";
+echo "gamma ", Pixel::first($orange->gamma(2.0)), "\n";
+echo "tint ", Pixel::first($orange->tint(Color::rgba(0, 0, 255, 1.0))), "\n";
+echo "unchanged ", Pixel::first($orange), "\n";
+
+// A transparent pixel on green becomes green, and an opaque one keeps its colour.
+Image $row = Image::fromRaw({width: 2, height: 1, pixels: Core\Encoding::fromHex("00000000c86432ff")});
+var $flat = $row->flatten(Color::hex("#00ff00"))->raw();
+echo "flatten ", Core\Encoding::toHex($flat->pixels), "\n";
+
+// A white border around one red pixel: `trim` keeps the red pixel, `blur` mixes white into it.
+Image $framed = Image::fromRaw({width: 3, height: 3, pixels: Core\Encoding::fromHex(
+    "ffffffffffffffffffffffff" . "ffffffffff0000ffffffffff" . "ffffffffffffffffffffffff"
+)});
+var $trimmed = $framed->trim()->raw();
+echo "trim ", $trimmed->width, "x", $trimmed->height, " ", Core\Encoding::toHex($trimmed->pixels), "\n";
+var $soft = $framed->blur(1.0)->raw();
+echo "blur keeps red ", Core\Encoding::toHex(Core\Bytes::slice($soft->pixels, 16, 4)) != "ff0000ff" ? "no" : "yes", "\n";
+
+// A light pixel on gray is lighter after `sharpen`.
+Image $dot = Image::fromRaw({width: 3, height: 3, pixels: Core\Encoding::fromHex(
+    "646464ff646464ff646464ff" . "646464ff969696ff646464ff" . "646464ff646464ff646464ff"
+)});
+array<mixed> $centre = Core\Bytes::unpack(Core\Bytes::slice($dot->sharpen()->raw()->pixels, 16, 1), "C");
+echo "sharpen lighter ", ($centre[0] as uint) > 150 ? "yes" : "no", "\n";
+
+// A PNG of 3 by 2 pixels with an alpha channel, written as hex.
+bytes $png = Core\Encoding::fromHex(
+    "89504e470d0a1a0a0000000d49484452000000030000000208060000009d74661a"
+    . "0000000b49444154789c6360c00500001a0001bc3ce0410000000049454e44ae426082"
+);
+var $kept = Image::info(Image::open($png)->metadata({keep: true})->encode());
+echo "metadata ", Image::extension($kept->format), " ", $kept->width, "x", $kept->height, "\n";
+
+array<bytes> $files = Image::open($png)->variants([
+    {width: 2, format: Format::Jpeg, quality: 80},
+    {format: Format::Webp},
+    {},
+]);
+foreach ($files as bytes $file) {
+    var $info = Image::info($file);
+    echo "variant ", Image::extension($info->format), " ", $info->width, "x", $info->height, "\n";
+}
+--EXPECT--
+brightness 643219ff
+contrast a47259ff
+gamma e2a071ff
+tint 000032ff
+unchanged c86432ff
+flatten 00ff00ffc86432ff
+trim 1x1 ff0000ff
+blur keeps red no
+sharpen lighter yes
+metadata png 3x2
+variant jpg 2x1
+variant webp 3x2
+variant png 3x2
