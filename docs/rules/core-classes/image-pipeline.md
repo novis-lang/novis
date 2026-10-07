@@ -26,4 +26,6 @@ source and call no export.
 builder member. A plan's `step` is a WIT record with one optional field per operation, exactly one
 of them set, because the manifest tells a union's cases apart by their required keys and most steps
 have none: a step crosses as a Novis array keyed by its operation, `['resize' => [...]]`. The
-component's `run` takes a plan of `format` and `metadata` steps alone (`extensions/image/src/lib.rs`).
+component's `run` and `variants` take plans of `format` and `metadata` steps alone
+(`extensions/image/src/lib.rs`); `variants` decodes once and costs one host-to-guest call, counted by
+`nvs_ext::call::Request::crossings` (`crates/nvs-ext/tests/image_pipeline.rs`).

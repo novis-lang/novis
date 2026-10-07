@@ -5,11 +5,12 @@
 //! tests run under an ordinary `cargo test` in this directory. The WIT glue in `guest` is compiled
 //! only for a wasm target, and maps each export onto the core and the core's types onto WIT's.
 //!
-//! `info` and `run` are the exports that are implemented. `run` decodes encoded bytes
+//! `info`, `run` and `variants` are the exports that are implemented. `run` decodes encoded bytes
 //! (`decode`'s module doc) and returns the pixels, their size or the encoded file (`encode`'s
-//! module doc). A step other than `format` and `metadata`, a source other than encoded bytes and
-//! an overlay each return `runtime` naming what is missing. Every other export returns `runtime`
-//! naming it, until the slice of goal `ext-image` that writes it lands.
+//! module doc); `variants` decodes once and runs each of its plans on a copy of that frame. A
+//! step other than `format` and `metadata`, a source other than encoded bytes and an overlay each
+//! return `runtime` naming what is missing. Every other export returns `runtime` naming it, until
+//! the slice of goal `ext-image` that writes it lands.
 
 mod avif;
 mod decode;
@@ -50,15 +51,45 @@ pub fn run(
     encoding: Encoding,
     output: Output,
 ) -> Result<Vec<u8>, Error> {
-    let target = encoding.format.unwrap_or(sniff(data)?);
-    if output == Output::Encoded && matches!(target, Format::Jxl | Format::Svg | Format::Pdf) {
-        return Err(Error::Invalid(format!(
-            "{target:?} is a format the image component decodes and does not encode"
-        )));
+    let mut outs = variants(data, cap, auto_orient, &[(encoding, output)])?;
+    Ok(outs.pop().unwrap_or_default())
+}
+
+/// Runs each of `plans` as `run` does, on one decode of `data`, and returns their outputs in
+/// order. Every plan's format is checked before anything is decoded. Each plan but the last works
+/// on its own copy of the frame, so a call holds at most two frames at once.
+pub fn variants(
+    data: &[u8],
+    cap: u64,
+    auto_orient: bool,
+    plans: &[(Encoding, Output)],
+) -> Result<Vec<Vec<u8>>, Error> {
+    let input = sniff(data)?;
+    for (encoding, output) in plans {
+        let target = encoding.format.unwrap_or(input);
+        if *output == Output::Encoded && matches!(target, Format::Jxl | Format::Svg | Format::Pdf) {
+            return Err(Error::Invalid(format!(
+                "{target:?} is a format the image component decodes and does not encode"
+            )));
+        }
     }
+    let Some(((encoding, output), rest)) = plans.split_last() else {
+        return Ok(Vec::new());
+    };
     let pixels = decode(data, cap, auto_orient)?;
+    let mut outs = Vec::with_capacity(plans.len());
+    for (encoding, output) in rest {
+        outs.push(finish(pixels.clone(), input, *encoding, *output)?);
+    }
+    outs.push(finish(pixels, input, *encoding, *output)?);
+    Ok(outs)
+}
+
+/// `pixels` returned as `output`: encoded in the plan's format, or else `input`'s, or as the
+/// size header with or without the RGBA8 rows behind it.
+fn finish(pixels: Pixels, input: Format, encoding: Encoding, output: Output) -> Result<Vec<u8>, Error> {
     if output == Output::Encoded {
-        return encode(pixels, target, encoding);
+        return encode(pixels, encoding.format.unwrap_or(input), encoding);
     }
     let mut out = Vec::with_capacity(16);
     out.extend_from_slice(&u64::from(pixels.width).to_be_bytes());
@@ -159,6 +190,53 @@ mod guest {
         )))
     }
 
+    /// How `plan` writes its result, read off its `format` and `metadata` steps. Any other step
+    /// and any overlay return `runtime` naming what is missing.
+    fn encoding(plan: &Plan) -> Result<(crate::Encoding, crate::Output), Error> {
+        if !plan.overlays.is_empty() {
+            return missing("an overlay");
+        }
+        let mut encoding = crate::Encoding::default();
+        for step in &plan.steps {
+            match operations(step).as_slice() {
+                ["format"] => {
+                    if let Some(options) = &step.format {
+                        encoding.format = Some(match options.format {
+                            Format::Jpeg => crate::Format::Jpeg,
+                            Format::Png => crate::Format::Png,
+                            Format::Webp => crate::Format::Webp,
+                            Format::Gif => crate::Format::Gif,
+                            Format::Avif => crate::Format::Avif,
+                            Format::Jxl => crate::Format::Jxl,
+                            Format::Svg => crate::Format::Svg,
+                            Format::Pdf => crate::Format::Pdf,
+                        });
+                        encoding.quality = options.quality;
+                        encoding.lossless = options.lossless;
+                    }
+                }
+                ["metadata"] => {
+                    if let Some(options) = &step.metadata {
+                        encoding.keep_metadata = options.keep;
+                    }
+                }
+                [operation] => return missing(&format!("the `{operation}` step")),
+                set => {
+                    return Err(Error::Invalid(format!(
+                        "a step sets exactly one operation, and this one sets {}",
+                        set.len()
+                    )));
+                }
+            }
+        }
+        let output = match plan.output {
+            Output::Encoded => crate::Output::Encoded,
+            Output::Raw => crate::Output::Raw,
+            Output::Size => crate::Output::Size,
+        };
+        Ok((encoding, output))
+    }
+
     impl Guest for Component {
         fn info(data: Vec<u8>) -> Result<ImageInfo, Error> {
             let info = crate::info(&data).map_err(error)?;
@@ -178,53 +256,18 @@ mod guest {
             let Source::Encoded(source) = source else {
                 return missing("a source other than encoded bytes");
             };
-            if !plan.overlays.is_empty() {
-                return missing("an overlay");
-            }
-            let mut encoding = crate::Encoding::default();
-            for step in &plan.steps {
-                match operations(step).as_slice() {
-                    ["format"] => {
-                        if let Some(options) = &step.format {
-                            encoding.format = Some(match options.format {
-                                Format::Jpeg => crate::Format::Jpeg,
-                                Format::Png => crate::Format::Png,
-                                Format::Webp => crate::Format::Webp,
-                                Format::Gif => crate::Format::Gif,
-                                Format::Avif => crate::Format::Avif,
-                                Format::Jxl => crate::Format::Jxl,
-                                Format::Svg => crate::Format::Svg,
-                                Format::Pdf => crate::Format::Pdf,
-                            });
-                            encoding.quality = options.quality;
-                            encoding.lossless = options.lossless;
-                        }
-                    }
-                    ["metadata"] => {
-                        if let Some(options) = &step.metadata {
-                            encoding.keep_metadata = options.keep;
-                        }
-                    }
-                    [operation] => return missing(&format!("the `{operation}` step")),
-                    set => {
-                        return Err(Error::Invalid(format!(
-                            "a step sets exactly one operation, and this one sets {}",
-                            set.len()
-                        )));
-                    }
-                }
-            }
-            let output = match plan.output {
-                Output::Encoded => crate::Output::Encoded,
-                Output::Raw => crate::Output::Raw,
-                Output::Size => crate::Output::Size,
-            };
+            let (encoding, output) = encoding(&plan)?;
             let cap = source.max_pixels.unwrap_or(crate::DEFAULT_MAX_PIXELS);
             crate::run(&source.data, cap, source.auto_orient, encoding, output).map_err(error)
         }
 
-        fn variants(_source: Source, _plans: Vec<Plan>) -> Result<Vec<Vec<u8>>, Error> {
-            missing("variants")
+        fn variants(source: Source, plans: Vec<Plan>) -> Result<Vec<Vec<u8>>, Error> {
+            let Source::Encoded(source) = source else {
+                return missing("a source other than encoded bytes");
+            };
+            let plans = plans.iter().map(encoding).collect::<Result<Vec<_>, _>>()?;
+            let cap = source.max_pixels.unwrap_or(crate::DEFAULT_MAX_PIXELS);
+            crate::variants(&source.data, cap, source.auto_orient, &plans).map_err(error)
         }
 
         fn compare(_a: Vec<u8>, _b: Vec<u8>, _options: CompareOptions) -> Result<Diff, Error> {

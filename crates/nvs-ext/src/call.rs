@@ -673,6 +673,7 @@ impl Host {
             budget,
             slots: Mutex::default(),
             ids: AtomicU64::new(0),
+            crossings: AtomicU64::new(0),
         }
     }
 }
@@ -683,6 +684,8 @@ pub struct Request {
     budget: Arc<dyn Budget>,
     slots: Mutex<Vec<Slot>>,
     ids: AtomicU64,
+    /// How many times this request called into a guest (`rule:packaging/the-boundary-is-the-cost`).
+    crossings: AtomicU64,
 }
 
 impl fmt::Debug for Request {
@@ -717,6 +720,12 @@ impl Request {
     #[must_use]
     pub fn instances(&self) -> usize {
         self.lock().len()
+    }
+
+    /// How many host-to-guest calls this request has made, each export call counted once.
+    #[must_use]
+    pub fn crossings(&self) -> u64 {
+        self.crossings.load(Ordering::Relaxed)
     }
 
     /// Calls `method` of `extension` with `args`, and returns its results: the `ok` side's value
@@ -827,7 +836,11 @@ impl Request {
         let Some(live) = held.live.as_mut() else {
             unreachable!("the instance was made above");
         };
-        let outcome = match args(&mut live.store, at) {
+        let args = args(&mut live.store, at);
+        if args.is_ok() {
+            self.crossings.fetch_add(1, Ordering::Relaxed);
+        }
+        let outcome = match args {
             Ok(args) => match live.call(at, &declared.name, &args).await {
                 Ok(out) => results(&mut live.store, out, at),
                 Err(failure) => Err(failure),

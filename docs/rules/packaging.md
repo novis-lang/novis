@@ -1424,7 +1424,7 @@ A build script compiles their Rust crates, under `extensions/` and outside the w
 library is prebuilt ([`packaging/a-prebuilt-wasm-library-is-rebuilt-in-ci`](packaging.md#packaging-a-prebuilt-wasm-library-is-rebuilt-in-ci)).
 
 **Partly on disk.** The image crate is `extensions/image/`, excluded from the workspace, and builds for
-`wasm32-wasip2` with `simd128` on. Its one implemented export is `info`; the others return `runtime`.
+`wasm32-wasip2` with `simd128` on. Its implemented exports are `info`, `run` and `variants`; the others return `runtime`.
 `crates/nvs-ext/build.rs` builds it into `target/ext/`, packs it with `extensions/image/manifest.json`
 and embeds it as `nvs_ext::builtin::IMAGE` with its digest. `nvs_ext::load::Loader::builtins` reads
 its manifest without compiling, and `Builtin::extension` compiles and checks it on first use

@@ -2,7 +2,8 @@
 //! (`rule:core-classes/image-pipeline`, `rule:core-classes/image-correct-by-default`): a JPEG
 //! with an EXIF orientation opens upright unless `autoOrient` is off, a re-encoded JPEG carries
 //! no EXIF block unless the plan keeps it, and every format the roster encodes writes a file the
-//! component reopens (`rule:core-classes/image-format-roster`).
+//! component reopens (`rule:core-classes/image-format-roster`). `variants` decodes once and costs
+//! one host-to-guest call whatever its number of plans, as `encode` costs one.
 //!
 //! The tagged inputs are built here from `extensions/image/fixtures/gradient.jpg`, by inserting
 //! an APP1 segment whose EXIF block this file writes, so no fixture carries real metadata.
@@ -488,5 +489,66 @@ fn lossy_webp_is_encoded_by_libwebp() {
         info_field(&request, &extension, kept, "width"),
         Value::Uint(16)
     );
+    block_on(request.end()).expect("the request ends");
+}
+
+#[test]
+fn variants_with_three_entries_costs_one_crossing() {
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let extension = component(&host);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(60), None)));
+    let plans = Value::Array(
+        [
+            plan(vec![format_step("Png", None, None)], "Encoded"),
+            plan(vec![format_step("Webp", Some(70), None)], "Encoded"),
+            plan(Vec::new(), "Raw"),
+        ]
+        .into_iter()
+        .enumerate()
+        .map(|(at, plan)| (Key::Int(i64::try_from(at).unwrap()), plan))
+        .collect(),
+    );
+    let out = block_on(request.call_values(
+        &extension,
+        "variants",
+        vec![encoded(fixture("gradient.jpg"), true), plans],
+    ))
+    .expect("`variants` answers");
+    assert_eq!(request.crossings(), 1);
+    let Some(Value::Array(outs)) = out else {
+        panic!("`variants` returned {out:?}")
+    };
+    let outs: Vec<Vec<u8>> = outs
+        .into_iter()
+        .map(|(_, out)| match out {
+            Value::Bytes(bytes) => bytes,
+            other => panic!("a variant is {other:?}"),
+        })
+        .collect();
+    assert_eq!(outs.len(), 3);
+    assert_eq!(format_of(&outs[0]), "Png");
+    assert_eq!(format_of(&outs[1]), "Webp");
+    assert_eq!(size_of(&outs[2]), (16, 12));
+    assert!(is_red(pixel(&outs[2], 0, 0)), "{:?}", pixel(&outs[2], 0, 0));
+    block_on(request.end()).expect("the request ends");
+}
+
+#[test]
+fn encode_costs_one_crossing() {
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let extension = component(&host);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(60), None)));
+    let out = run(
+        &request,
+        &extension,
+        encoded(fixture("gradient.jpg"), true),
+        plan(
+            vec![format_step("Png", None, None), metadata(false)],
+            "Encoded",
+        ),
+    )
+    .expect("the JPEG re-encodes");
+    assert_eq!(format_of(&out), "Png");
+    assert_eq!(request.crossings(), 1);
     block_on(request.end()).expect("the request ends");
 }
