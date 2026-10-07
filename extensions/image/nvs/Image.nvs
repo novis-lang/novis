@@ -25,12 +25,14 @@ final class Image
         contrast?: float,
         gamma?: float,
         tint?: Rgba,
+        text?: {text: string, font: bytes, size: float, color: Rgba, gravity: ?Gravity, x: ?int, y: ?int, maxWidth: ?uint, align: ?Align},
         format?: Encoding,
         metadata?: {keep: bool},
     };
     type Origin = {data: bytes, autoOrient: bool, toSrgb: bool, maxPixels?: uint}
         | {width: uint, height: uint, fill: Rgba}
-        | {width: uint, height: uint, pixels: bytes};
+        | {width: uint, height: uint, pixels: bytes}
+        | {text: string, font: bytes, size: float, maxWidth: ?uint, align: ?Align};
     type Layer = {source: Origin, steps: array<Step>};
     type Plan = {steps: array<Step>, overlays: array<Layer>, output: Output};
     type Raw = {width: uint, height: uint, pixels: bytes};
@@ -45,6 +47,7 @@ final class Image
         hasIcc: bool,
     };
     type Variant = {width?: uint, height?: uint, fit?: Fit, format?: Format, quality?: uint};
+    type Size = {width: uint, height: uint};
 
     private function constructor(
         private readonly Origin $source,
@@ -232,6 +235,34 @@ final class Image
     public function tint(Color $color): Image
     {
         return $this->then({tint: Image::rgba($color)});
+    }
+
+    /// `text` draws `$text` on the image with `$font`, in `color`. `size` is the font size in pixels.
+    /// `x` and `y` place the top-left corner of the text. Without them, `gravity` places it, and
+    /// the default is `Gravity::Center`. With `maxWidth`, lines break at spaces to stay that wide.
+    /// `align` sets how the lines line up, and the default is `Align::Left`. Only Latin text is supported.
+    public function text(string $text, Font $font, {size: float, color: Color, gravity?: Gravity, x?: int, y?: int, maxWidth?: uint, align?: Align} $options): Image
+    {
+        return $this->then({text: {
+            text: $text,
+            font: $font->data,
+            size: $options->size,
+            color: Image::rgba($options->color),
+            gravity: $options->gravity ?? null,
+            x: $options->x ?? null,
+            y: $options->y ?? null,
+            maxWidth: $options->maxWidth ?? null,
+            align: $options->align ?? null,
+        }});
+    }
+
+    /// `Image::measureText` returns the `width` and `height` in pixels that `text` needs for the same text and options.
+    public static function measureText(string $text, Font $font, {size: float, maxWidth?: uint, align?: Align} $options): Size
+    {
+        Origin $source = {text: $text, font: $font->data, size: $options->size, maxWidth: $options->maxWidth ?? null, align: $options->align ?? null};
+        bytes $result = Codec::run($source, {steps: [], overlays: [], output: Output::Size});
+        array<mixed> $size = Core\Bytes::unpack($result, "JJ");
+        return {width: $size[0] as uint, height: $size[1] as uint};
     }
 
     /// `format` sets the format that `encode` writes. Without it, the output has the format of the input.

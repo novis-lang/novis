@@ -2035,7 +2035,7 @@ Novis shape has no way to leave a key out conditionally; both cross as the same 
 builder member. A plan's `step` is a WIT record with one optional field per operation, exactly one
 of them set, because the manifest tells a union's cases apart by their required keys and most steps
 have none: a step crosses as a Novis array keyed by its operation, `['resize' => [...]]`. The
-component's `run` and `variants` run every step but `text`, in order, and check each step's
+component's `run` and `variants` run every step, in order, and check each step's
 options before anything is decoded; what each pixel step does where 0120 leaves it open, and the
 pixel cap every frame a step makes is held to, are `extensions/image/src/ops.rs`'s module doc. A
 `composite` step names only an earlier row, and one plan draws a bounded number of overlays counting
@@ -2044,7 +2044,7 @@ every level, so a few rows that each draw the one before twice cannot double the
 rows and then the overlay to the table, renumbering the overlay's steps by the rows already there. `variants` decodes once and costs one host-to-guest call, counted by
 `nvs_ext::call::Request::crossings` (`crates/nvs-ext/tests/image_pipeline.rs`). The `Novis\Image`
 builder is Novis source in `extensions/image/nvs/`, packed into the component's `nvs.source`:
-`Image` with every member of 0120 § 2's table but `text`, and `Color` with `rgba` and `hex` and no named constants yet
+`Image` with every member of 0120 § 2's table, and `Color` with `rgba` and `hex` and no named constants yet
 (`tests/conformance/novis/`). A canvas or pixel source is held to the default pixel cap, not the
 `[image]` one.
 
@@ -2212,8 +2212,11 @@ both placeholder formats and how the palette clusters `color_quant`'s colours, a
 `Image::placeholder`, `PlaceholderKind` and `Image::palette`. QR codes are on disk: the
 component's `qr` export over the `qrcode` crate, whose module doc `extensions/image/src/qr.rs`
 says how `size`, `margin` and the level make the image and what each default is, and
-`QrCode::render` and `QrLevel`; the host checks read each code back with `rqrr`. Text and SVG
-are not.
+`QrCode::render` and `QrLevel`; the host checks read each code back with `rqrr`. Text is on
+disk: the `text` step and the `text` source over `ab_glyph`, whose module doc
+`extensions/image/src/text.rs` says how a size, a line, kerning, `maxWidth` and `align` set the
+text and what the box is, and `Image::text`, `Image::measureText` and `Font::fromBytes`, which
+checks only the file's first four bytes and calls no export. SVG is not.
 
 <sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed). Decided in [0120](../decisions/0120.md), [0079](../decisions/0079.md), [0095](../decisions/0095.md).</sub>
 

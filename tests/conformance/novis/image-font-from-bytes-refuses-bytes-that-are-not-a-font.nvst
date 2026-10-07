@@ -1,0 +1,43 @@
+--TEST--
+`Novis\Image\Font::fromBytes` throws a `ParseError` for bytes that do not start like a TrueType or OpenType file, with no call to the component, and a font whose header is right but whose tables are missing throws a `ParseError` when `Image::measureText` or `Image::text` runs it — rule:core-classes/image-one-entry-point-per-job
+--FILE--
+<?nvs
+// covers: Novis\Image\Font::fromBytes, Novis\Image\Image::measureText, Novis\Image\Image::text
+use Novis\Image\Color;
+use Novis\Image\Font;
+use Novis\Image\Image;
+
+try {
+    Font::fromBytes("tiny" as bytes);
+} catch (ParseError $e) {
+    echo $e->message, "\n";
+}
+
+try {
+    Font::fromBytes("<html><body>Shop</body></html>" as bytes);
+} catch (ParseError $e) {
+    echo $e->message, "\n";
+}
+
+// These 16 bytes start like a TrueType file, so `fromBytes` accepts them.
+// They have no tables, so drawing with them fails.
+Font $empty = Font::fromBytes(Core\Bytes::pack("NNNN", 65536, 0, 0, 0));
+echo Core\Bytes::length($empty->data), " bytes\n";
+
+try {
+    Image::measureText("Shop", $empty, {size: 16.0});
+} catch (ParseError $e) {
+    echo "measureText: ParseError\n";
+}
+
+try {
+    Image::create(40, 20)->text("Blog", $empty, {size: 16.0, color: Color::rgba(0, 0, 0)})->encode();
+} catch (ParseError $e) {
+    echo "text: ParseError\n";
+}
+--EXPECT--
+a font file is at least 12 bytes long, and this one is 4
+these 30 bytes do not start like a TrueType or OpenType font file
+16 bytes
+measureText: ParseError
+text: ParseError

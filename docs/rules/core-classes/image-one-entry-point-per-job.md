@@ -28,5 +28,8 @@ both placeholder formats and how the palette clusters `color_quant`'s colours, a
 `Image::placeholder`, `PlaceholderKind` and `Image::palette`. QR codes are on disk: the
 component's `qr` export over the `qrcode` crate, whose module doc `extensions/image/src/qr.rs`
 says how `size`, `margin` and the level make the image and what each default is, and
-`QrCode::render` and `QrLevel`; the host checks read each code back with `rqrr`. Text and SVG
-are not.
+`QrCode::render` and `QrLevel`; the host checks read each code back with `rqrr`. Text is on
+disk: the `text` step and the `text` source over `ab_glyph`, whose module doc
+`extensions/image/src/text.rs` says how a size, a line, kerning, `maxWidth` and `align` set the
+text and what the box is, and `Image::text`, `Image::measureText` and `Font::fromBytes`, which
+checks only the file's first four bytes and calls no export. SVG is not.
