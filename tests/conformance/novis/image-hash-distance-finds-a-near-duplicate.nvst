@@ -1,0 +1,40 @@
+--TEST--
+`Novis\Image\Image::hash` gives a resized copy a hash near its source and a mirror a hash farther from it, `hashDistance` of a hash with itself is 0, and two hashes of different lengths throw a `LogicError` — rule:core-classes/image-one-entry-point-per-job
+--FILE--
+<?nvs
+// covers: Novis\Image\Image::hash, Novis\Image\Image::hashDistance, Novis\Image\HashKind
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\HashKind;
+use Novis\Image\Gravity;
+use Novis\Image\Axis;
+
+// A white picture with a blue block in the top left corner.
+var $block = Image::create(100, 60, Color::hex("#2050c0"));
+var $picture = Image::create(240, 180, Color::hex("#ffffff"))->composite($block, {gravity: Gravity::NorthWest});
+var $source = $picture->encode();
+var $copy = $picture->resize({width: 120})->encode();
+var $mirror = $picture->flip(Axis::Horizontal)->encode();
+
+array<HashKind> $kinds = [HashKind::Perceptual, HashKind::Difference, HashKind::Average];
+foreach ($kinds as HashKind $kind) {
+    bytes $hash = Image::hash($source, $kind);
+    uint $bits = Core\Bytes::length($hash) * 8;
+    uint $near = Image::hashDistance($hash, Image::hash($copy, $kind));
+    uint $far = Image::hashDistance($hash, Image::hash($mirror, $kind));
+    echo $bits, " bits: itself ", Image::hashDistance($hash, $hash);
+    echo ", copy ", $near * 8 <= $bits ? "near" : "far";
+    echo ", mirror ", $far > $near ? "farther" : "not farther", "\n";
+}
+
+// A `Perceptual` hash is 8 bytes and an `Average` hash is 32 bytes.
+try {
+    Image::hashDistance(Image::hash($source, HashKind::Perceptual), Image::hash($source, HashKind::Average));
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+--EXPECT--
+64 bits: itself 0, copy near, mirror farther
+128 bits: itself 0, copy near, mirror farther
+256 bits: itself 0, copy near, mirror farther
+the hashes are 8 and 32 bytes long, and `hashDistance` needs two hashes of the same kind

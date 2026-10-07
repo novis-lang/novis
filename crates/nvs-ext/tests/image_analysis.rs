@@ -3,7 +3,10 @@
 //! `identical` with an SSIM of exactly `1.0`, and of two images differing in one pixel reports
 //! one differing pixel, in one host-to-guest call. A size mismatch returns `invalid` naming both
 //! sizes, `tolerance` counts only the pixels whose delta is above it, and `render` returns a PNG
-//! of the frames' size with the differing pixel in red. The inputs are built here from
+//! of the frames' size with the differing pixel in red. `hash` returns 8, 16 or 32 bytes for
+//! `Perceptual`, `Difference` and `Average` whatever the image's size, and a copy at half the
+//! size hashes within an eighth of the bits of its source. `hashDistance` is Novis source and
+//! is pinned under `tests/conformance/novis/`. The inputs are built here from
 //! `extensions/image/fixtures/gradient.png`.
 
 use std::future::Future;
@@ -237,4 +240,87 @@ fn render_returns_a_png_of_the_same_size_with_the_differing_pixel_in_red() {
         .map(|(at, _)| at)
         .collect();
     assert_eq!(red, [4]);
+}
+
+const HASH_KINDS: [(&str, usize); 3] = [("Perceptual", 8), ("Difference", 16), ("Average", 32)];
+
+fn hash(request: &Request, extension: &Extension, data: &[u8], kind: &str) -> Vec<u8> {
+    let args = vec![Value::Bytes(data.to_vec()), Value::Case(kind.to_owned())];
+    match block_on(request.call_values(extension, "hash", args)) {
+        Ok(Some(Value::Bytes(bytes))) => bytes,
+        other => panic!("`hash` returned {other:?}"),
+    }
+}
+
+/// How many bits differ between `a` and `b`, as `Image::hashDistance` counts them.
+fn distance(a: &[u8], b: &[u8]) -> u32 {
+    a.iter().zip(b).map(|(a, b)| (a ^ b).count_ones()).sum()
+}
+
+#[test]
+fn each_hash_kind_returns_a_hash_of_its_own_length() {
+    let (host, extension) = setup();
+    let request = request(&host);
+    let tiny = png(&request, &extension, 3, 2, &[7; 24]);
+    for data in [gradient(), tiny] {
+        for (kind, bytes) in HASH_KINDS {
+            assert_eq!(
+                hash(&request, &extension, &data, kind).len(),
+                bytes,
+                "{kind}"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_resized_copy_hashes_within_a_small_distance_of_its_source() {
+    let (host, extension) = setup();
+    let request = request(&host);
+    // A picture big enough that half of it still fills every hash's grid: red rises to the
+    // right, green rises downwards, and blue fills the top left and the bottom right.
+    let (width, height) = (240u64, 180u64);
+    let mut pixels = Vec::new();
+    for y in 0..height {
+        for x in 0..width {
+            let blue = if (x < width / 2) == (y < height * 3 / 10) {
+                255
+            } else {
+                0
+            };
+            pixels.extend_from_slice(&[
+                u8::try_from(x * 255 / width).unwrap(),
+                u8::try_from(y * 255 / height).unwrap(),
+                blue,
+                255,
+            ]);
+        }
+    }
+    let (half_width, half_height) = (width / 2, height / 2);
+    let mut half = Vec::new();
+    for y in 0..half_height {
+        for x in 0..half_width {
+            for channel in 0..4 {
+                let at = |dx: u64, dy: u64| {
+                    let offset = ((y * 2 + dy) * width + x * 2 + dx) * 4 + channel;
+                    u32::from(pixels[usize::try_from(offset).unwrap()])
+                };
+                let mean = (at(0, 0) + at(1, 0) + at(0, 1) + at(1, 1)) / 4;
+                half.push(u8::try_from(mean).unwrap());
+            }
+        }
+    }
+    let source = png(&request, &extension, width, height, &pixels);
+    let copy = png(&request, &extension, half_width, half_height, &half);
+    for (kind, bytes) in HASH_KINDS {
+        let bits = u32::try_from(bytes * 8).unwrap();
+        let near = distance(
+            &hash(&request, &extension, &source, kind),
+            &hash(&request, &extension, &copy, kind),
+        );
+        assert!(
+            near <= bits / 8,
+            "{kind}: the copy is {near} of {bits} bits away"
+        );
+    }
 }
