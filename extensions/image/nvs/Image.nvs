@@ -16,6 +16,7 @@ final class Image
         trim?: {threshold?: float},
         rotate?: {degrees: float, background: ?Rgba},
         flip?: Axis,
+        composite?: {overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend},
         flatten?: Rgba,
         sharpen?: {sigma?: float},
         blur?: float,
@@ -30,7 +31,8 @@ final class Image
     type Origin = {data: bytes, autoOrient: bool, toSrgb: bool, maxPixels?: uint}
         | {width: uint, height: uint, fill: Rgba}
         | {width: uint, height: uint, pixels: bytes};
-    type Plan = {steps: array<Step>, overlays: array<{source: Origin, steps: array<Step>}>, output: Output};
+    type Layer = {source: Origin, steps: array<Step>};
+    type Plan = {steps: array<Step>, overlays: array<Layer>, output: Output};
     type Raw = {width: uint, height: uint, pixels: bytes};
     type Info = {
         format: Format,
@@ -44,7 +46,11 @@ final class Image
     };
     type Variant = {width?: uint, height?: uint, fit?: Fit, format?: Format, quality?: uint};
 
-    private function constructor(private readonly Origin $source, private readonly array<Step> $steps) {}
+    private function constructor(
+        private readonly Origin $source,
+        private readonly array<Step> $steps,
+        private readonly array<Layer> $overlays,
+    ) {}
 
     /// `Image::open` starts from the bytes of an encoded image. It turns the image upright and
     /// converts its colours to sRGB, unless `autoOrient` or `toSrgb` is `false`.
@@ -55,22 +61,22 @@ final class Image
         bool $toSrgb = $options?->toSrgb ?? true;
         ?uint $maxPixels = $options?->maxPixels ?? null;
         if ($maxPixels == null) {
-            return new Image({data: $data, autoOrient: $autoOrient, toSrgb: $toSrgb}, []);
+            return new Image({data: $data, autoOrient: $autoOrient, toSrgb: $toSrgb}, [], []);
         }
-        return new Image({data: $data, autoOrient: $autoOrient, toSrgb: $toSrgb, maxPixels: $maxPixels}, []);
+        return new Image({data: $data, autoOrient: $autoOrient, toSrgb: $toSrgb, maxPixels: $maxPixels}, [], []);
     }
 
     /// `Image::create` starts from a blank canvas. Without `$fill`, the canvas is transparent.
     public static function create(uint $width, uint $height, ?Color $fill = null): Image
     {
         Color $color = $fill ?? Color::rgba(0, 0, 0, 0.0);
-        return new Image({width: $width, height: $height, fill: Image::rgba($color)}, []);
+        return new Image({width: $width, height: $height, fill: Image::rgba($color)}, [], []);
     }
 
     /// `Image::fromRaw` starts from RGBA8 pixels, as `raw` returns them.
     public static function fromRaw(Raw $raw): Image
     {
-        return new Image({width: $raw->width, height: $raw->height, pixels: $raw->pixels}, []);
+        return new Image({width: $raw->width, height: $raw->height, pixels: $raw->pixels}, [], []);
     }
 
     /// `Image::info` reads the format, the size and the orientation from the header. No pixel is decoded.
@@ -149,6 +155,31 @@ final class Image
         return $this->then({flip: $axis});
     }
 
+    /// `composite` draws `$overlay` on top of this image, with all of the overlay's own steps.
+    /// `gravity` places it, and the default is `Gravity::Center`. `x` and `y` place its top-left
+    /// corner in pixels instead, and may be negative. The parts outside this image are cut off.
+    /// `opacity` is from 0.0 to 1.0, and the default is 1.0. `blend` mixes the colours, and the
+    /// default is `Blend::Normal`. A `format` or `metadata` step of the overlay changes nothing.
+    public function composite(Image $overlay, ?{gravity?: Gravity, x?: int, y?: int, opacity?: float, blend?: Blend} $options = null): Image
+    {
+        uint $base = Core\Arr::count($this->overlays);
+        array<Layer> $overlays = $this->overlays;
+        foreach ($overlay->overlays as Layer $layer) {
+            $overlays[] = {source: $layer->source, steps: Image::moved($layer->steps, $base)};
+        }
+        $overlays[] = {source: $overlay->source, steps: Image::moved($overlay->steps, $base)};
+        array<Step> $steps = $this->steps;
+        $steps[] = {composite: {
+            overlay: Core\Arr::count($overlays) - 1,
+            gravity: $options?->gravity ?? null,
+            x: $options?->x ?? null,
+            y: $options?->y ?? null,
+            opacity: $options?->opacity ?? null,
+            blend: $options?->blend ?? null,
+        }};
+        return new Image($this->source, $steps, $overlays);
+    }
+
     /// `flatten` puts the image on a background of one colour. The result has no transparent pixels.
     public function flatten(Color $background): Image
     {
@@ -224,13 +255,13 @@ final class Image
     /// `encode` runs every step and returns the encoded file.
     public function encode(): bytes
     {
-        return Codec::run($this->source, {steps: $this->steps, overlays: [], output: Output::Encoded});
+        return Codec::run($this->source, {steps: $this->steps, overlays: $this->overlays, output: Output::Encoded});
     }
 
     /// `raw` runs every step and returns the pixels as RGBA8 rows, four bytes per pixel.
     public function raw(): Raw
     {
-        bytes $result = Codec::run($this->source, {steps: $this->steps, overlays: [], output: Output::Raw});
+        bytes $result = Codec::run($this->source, {steps: $this->steps, overlays: $this->overlays, output: Output::Raw});
         array<mixed> $size = Core\Bytes::unpack(Core\Bytes::slice($result, 0, 16), "JJ");
         return {width: $size[0] as uint, height: $size[1] as uint, pixels: Core\Bytes::slice($result, 16)};
     }
@@ -254,7 +285,7 @@ final class Image
             } elseif ($quality != null) {
                 throw new LogicError("a variant with a `quality` needs a `format`");
             }
-            $plans[] = {steps: $steps, overlays: [], output: Output::Encoded};
+            $plans[] = {steps: $steps, overlays: $this->overlays, output: Output::Encoded};
         }
         return Codec::variants($this->source, $plans);
     }
@@ -274,7 +305,23 @@ final class Image
     {
         array<Step> $steps = $this->steps;
         $steps[] = $step;
-        return new Image($this->source, $steps);
+        return new Image($this->source, $steps, $this->overlays);
+    }
+
+    /// `$steps` with every `composite` step naming the row `$by` rows further down the table, for
+    /// an overlay whose table is appended after `$by` rows of another.
+    private static function moved(array<Step> $steps, uint $by): array<Step>
+    {
+        array<Step> $out = [];
+        foreach ($steps as Step $step) {
+            if (isset($step->composite)) {
+                var $c = $step->composite;
+                $out[] = {composite: {overlay: $c->overlay + $by, gravity: $c->gravity, x: $c->x, y: $c->y, opacity: $c->opacity, blend: $c->blend}};
+            } else {
+                $out[] = $step;
+            }
+        }
+        return $out;
     }
 
     private static function rgba(Color $color): Rgba

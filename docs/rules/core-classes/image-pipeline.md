@@ -33,13 +33,16 @@ Novis shape has no way to leave a key out conditionally; both cross as the same 
 builder member. A plan's `step` is a WIT record with one optional field per operation, exactly one
 of them set, because the manifest tells a union's cases apart by their required keys and most steps
 have none: a step crosses as a Novis array keyed by its operation, `['resize' => [...]]`. The
-component's `run` and `variants` run every step but `composite` and `text`, in order, and check
-each step's options before anything is decoded; what each pixel step does where 0120 leaves it
-open, and the pixel cap every frame a step makes is held to, are `extensions/image/src/ops.rs`'s
-module doc. `variants` decodes once and costs one host-to-guest call, counted by
+component's `run` and `variants` run every step but `text`, in order, and check each step's
+options before anything is decoded; what each pixel step does where 0120 leaves it open, and the
+pixel cap every frame a step makes is held to, are `extensions/image/src/ops.rs`'s module doc. A
+`composite` step names only an earlier row, and one plan draws a bounded number of overlays counting
+every level, so a few rows that each draw the one before twice cannot double the work per level
+(`extensions/image/src/lib.rs` module doc). The builder's `composite` appends the overlay's own
+rows and then the overlay to the table, renumbering the overlay's steps by the rows already there. `variants` decodes once and costs one host-to-guest call, counted by
 `nvs_ext::call::Request::crossings` (`crates/nvs-ext/tests/image_pipeline.rs`). The `Novis\Image`
 builder is Novis source in `extensions/image/nvs/`, packed into the component's `nvs.source`:
-`Image` with every member of 0120 § 2's table but `composite`, `text`, `compare`, `hash`,
+`Image` with every member of 0120 § 2's table but `text`, `compare`, `hash`,
 `placeholder` and `palette`, and `Color` with `rgba` and `hex` and no named constants yet
 (`tests/conformance/novis/`). A canvas or pixel source is held to the default pixel cap, not the
 `[image]` one.

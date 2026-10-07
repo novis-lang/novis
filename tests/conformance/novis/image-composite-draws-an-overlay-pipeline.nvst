@@ -1,0 +1,66 @@
+--TEST--
+`composite` draws another `Novis\Image\Image` on top, with its own steps, at a gravity or at `x` and `y`, with an opacity and a blend, and an overlay's own overlays come with it — rule:core-classes/image-pipeline
+--FILE--
+<?nvs
+// covers: Novis\Image\Image::composite
+use Novis\Image\Blend;
+use Novis\Image\Color;
+use Novis\Image\Gravity;
+use Novis\Image\Image;
+
+class Look {
+    public static function at(Image $image, uint $x, uint $y): string {
+        var $raw = $image->raw();
+        int $offset = (($y * $raw->width + $x) * 4) as int;
+        return Core\Encoding::toHex(Core\Bytes::slice($raw->pixels, $offset, 4));
+    }
+}
+
+Image $red = Image::create(4, 4, Color::hex("#ff0000"));
+Image $blue = Image::create(2, 2, Color::hex("#0000ff"));
+
+// The default gravity is the centre.
+Image $centred = $red->composite($blue);
+echo Look::at($centred, 0, 0), " ", Look::at($centred, 1, 1), " ", Look::at($centred, 3, 3), "\n";
+
+Image $corner = $red->composite($blue, {gravity: Gravity::SouthEast});
+echo Look::at($corner, 1, 1), " ", Look::at($corner, 3, 3), "\n";
+
+// At -1, -1 only one pixel of the overlay is inside the image.
+Image $cut = $red->composite($blue, {x: -1, y: -1});
+echo Look::at($cut, 0, 0), " ", Look::at($cut, 1, 0), "\n";
+
+// The overlay runs its own steps first: here it shrinks to 1 by 1.
+Image $small = $red->composite($blue->resize({width: 1}), {x: 3, y: 0});
+echo Look::at($small, 3, 0), " ", Look::at($small, 3, 1), "\n";
+
+Image $half = Image::create(1, 1, Color::hex("#ff0000"))->composite(Image::create(1, 1, Color::hex("#0000ff")), {opacity: 0.5});
+echo Look::at($half, 0, 0), "\n";
+
+Image $grey = Image::create(1, 1, Color::hex("#808080"));
+Image $dot = Image::create(1, 1, Color::hex("#ff0000"));
+echo Look::at($grey->composite($dot, {blend: Blend::Multiply}), 0, 0), "\n";
+
+// An overlay that has an overlay of its own keeps it.
+Image $badge = Image::create(2, 2, Color::hex("#00ff00"))->composite(Image::create(1, 1, Color::hex("#ffffff")), {x: 0, y: 0});
+Image $both = $red->composite($blue, {x: 2, y: 2})->composite($badge, {x: 0, y: 0});
+echo Look::at($both, 0, 0), " ", Look::at($both, 1, 1), " ", Look::at($both, 3, 3), "\n";
+
+// The original image does not change.
+echo Look::at($red, 1, 1), "\n";
+
+try {
+    $red->composite($blue, {opacity: 2.0})->raw();
+} catch (LogicError $e) {
+    echo "opacity 2.0: LogicError\n";
+}
+--EXPECT--
+ff0000ff 0000ffff ff0000ff
+ff0000ff 0000ffff
+0000ffff ff0000ff
+0000ffff ff0000ff
+800080ff
+800000ff
+ffffffff 00ff00ff 0000ffff
+ff0000ff
+opacity 2.0: LogicError
