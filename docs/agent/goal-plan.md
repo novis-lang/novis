@@ -5,14 +5,13 @@ Every goal on the chain, in the order the loop walks them, with the stages of ea
 goals, which are off the chain. `bun nv render` writes this file from `data/chain.json` and
 `data/goals/`: change those, never this file.
 
-The chain holds 4 goals. 0 are walked, `ext-image` is live at 1 of 4, and 3 are ahead.
+The chain holds 3 goals. 0 are walked, `ext-image-analysis` is live at 1 of 3, and 2 are ahead.
 
 The loop runs a goal's own record and no check of any other goal. A walked goal whose record keeps no
 checks and no stages is read in its prose.
 
 | # | Goal | What it builds | State | Milestone | Stages |
 |--:|---|---|---|---|---|
-| 1 | [`ext-image`](goals/ext-image.md) | `Novis\Image` is built into every binary: it decodes, transforms and encodes inside the sandbox, under the pixel cap | **live**, pinned last | M9 | **2** the build · **3** decode, and the cap · **4** the pipeline · **5** the benchmark · **6** the feature proofs |
-| 2 | [`ext-image-analysis`](goals/ext-image-analysis.md) | `Novis\Image` compares, hashes, summarises and draws: comparison, perceptual hashes, placeholders, palette, QR codes and text | ahead, pinned last | M9 | **2** comparison · **3** hashes, placeholders, palette · **4** QR codes · **5** text · **6** the feature proofs |
-| 3 | [`ext-intl`](goals/ext-intl.md) | `Novis\Intl` is built into every binary: ICU4X with every CLDR locale, batch-shaped, over `Core\Time` values | ahead, pinned last | M9 | **2** the record and `wit/intl.wit` · **3** collation, and the component is built in · **4** numbers and plural rules · **5** dates and times, relative time, lists · **6** segmentation and locale negotiation · **7** the growth, and a bundle · **8** the feature proofs |
-| 4 | [`ldap`](goals/ldap.md) | `Core\Ldap`: a native LDAPv3 client over LDAPS and StartTLS, with a filter builder and typed Active Directory values | ahead, pinned last | M8 | **2** the record · **3** the wire, and a directory to test against · **4** `Core\Ldap`: connect, open, search, read · **5** the filter builder and `Dn` · **6** typed values · **7** writes and passwords · **8** `authenticate` and AD's reasons · **9** the AD extras · **10** the feature proofs |
+| 1 | [`ext-image-analysis`](goals/ext-image-analysis.md) | `Novis\Image` compares, hashes, summarises and draws: comparison, perceptual hashes, placeholders, palette, QR codes and text | **live**, pinned last | M9 | **2** comparison · **3** hashes, placeholders, palette · **4** QR codes · **5** text · **6** the feature proofs |
+| 2 | [`ext-intl`](goals/ext-intl.md) | `Novis\Intl` is built into every binary: ICU4X with every CLDR locale, batch-shaped, over `Core\Time` values | ahead, pinned last | M9 | **2** the record and `wit/intl.wit` · **3** collation, and the component is built in · **4** numbers and plural rules · **5** dates and times, relative time, lists · **6** segmentation and locale negotiation · **7** the growth, and a bundle · **8** the feature proofs |
+| 3 | [`ldap`](goals/ldap.md) | `Core\Ldap`: a native LDAPv3 client over LDAPS and StartTLS, with a filter builder and typed Active Directory values | ahead, pinned last | M8 | **2** the record · **3** the wire, and a directory to test against · **4** `Core\Ldap`: connect, open, search, read · **5** the filter builder and `Dn` · **6** typed values · **7** writes and passwords · **8** `authenticate` and AD's reasons · **9** the AD extras · **10** the feature proofs |

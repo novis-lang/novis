@@ -1,7 +1,6 @@
 {
-  "live": "ext-image",
+  "live": "ext-image-analysis",
   "goals": [
-    "ext-image",
     "ext-image-analysis",
     "ext-intl",
     "ldap"
