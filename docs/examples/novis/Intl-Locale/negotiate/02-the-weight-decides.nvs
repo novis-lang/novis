@@ -1,0 +1,11 @@
+<?nvs
+// Shows that the language with the highest weight wins, not the first one in the header.
+use Novis\Intl\Locale;
+
+array<string> $offered = ["en", "fr"];
+
+// French has the weight 0.5 and English has 0.8. This prints en.
+echo Locale::negotiate("fr;q=0.5, en;q=0.8", $offered, "fr"), "\n";
+
+// Japanese is not offered, so the next language is used. This prints fr.
+echo Locale::negotiate("ja, fr;q=0.4", $offered, "en"), "\n";

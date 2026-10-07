@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to write a whole list of dates with one call.
+use Novis\Intl\DateFormat;
+use Novis\Intl\Length;
+
+// The order dates come from a `Core\Time\DateTime` each. `date()` keeps only the calendar date.
+var $zone = Core\Time\Zone::of("Europe/Berlin");
+array<Core\Time\Date> $deliveries = [
+    Core\Time::at(2026, 5, 4, $zone, {hour: 10})->date(),
+    Core\Time::at(2026, 5, 11, $zone, {hour: 16})->date(),
+];
+
+// The result has one string for each date, in the same order.
+// This prints 4. Mai 2026, then 11. Mai 2026.
+foreach (DateFormat::dates($deliveries, "de", {length: Length::Long}) as string $line) {
+    echo $line, "\n";
+}

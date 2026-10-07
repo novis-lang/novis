@@ -180,7 +180,7 @@ fn sorting_ten_thousand_strings_is_one_crossing() {
     );
 }
 
-// covers: Novis\Intl\Collator::sortKeys
+// covers: Novis\Intl\Collator::sortKeys, Novis\Intl\Icu::sortKeys, Novis\Intl\Icu::collateOrder
 #[test]
 fn sort_keys_order_as_the_collator_orders() {
     let input = names(2_000);
@@ -284,7 +284,7 @@ fn plurals(
         .collect()
 }
 
-// covers: Novis\Intl\NumberFormat::decimal, Novis\Intl\NumberFormat::percent, Novis\Intl\NumberFormat::currency, Novis\Intl\NumberFormat::compact
+// covers: Novis\Intl\NumberFormat::decimal, Novis\Intl\NumberFormat::percent, Novis\Intl\NumberFormat::currency, Novis\Intl\NumberFormat::compact, Novis\Intl\Icu::formatNumbers
 #[test]
 fn decimal_percent_currency_and_compact_format_by_locale() {
     run(|request, extension| {
@@ -429,7 +429,7 @@ fn a_batch_of_numbers_formats_in_one_crossing() {
     assert_eq!(formatted[4_999], "184,963.99");
 }
 
-// covers: Novis\Intl\PluralRules::cardinal, Novis\Intl\PluralRules::ordinal
+// covers: Novis\Intl\PluralRules::cardinal, Novis\Intl\PluralRules::ordinal, Novis\Intl\Icu::pluralCategories
 #[test]
 fn plural_and_ordinal_categories_of_a_batch() {
     let (english, russian, ordinals, crossings) = run(|request, extension| {
@@ -579,6 +579,7 @@ fn core(class: &str, fields: &[(&str, i64)]) -> Value {
     }
 }
 
+// covers: Novis\Intl\DateFormat::dateTimes, Novis\Intl\DateFormat::dates, Novis\Intl\DateFormat::times, Novis\Intl\Icu::formatDateTimes, Novis\Intl\Icu::formatDates, Novis\Intl\Icu::formatTimes
 #[test]
 fn a_core_time_value_formats_in_its_zone_and_locale() {
     let (date_times, zoned, dates, times, crossings) = run(|request, extension| {
@@ -743,7 +744,7 @@ fn relative(count: i64, unit: &str) -> Value {
     ])
 }
 
-// covers: Novis\Intl\RelativeTime::format
+// covers: Novis\Intl\RelativeTime::format, Novis\Intl\Icu::formatRelative
 #[test]
 fn relative_time_formats_past_and_future() {
     let (written_out, crossings) = run(|request, extension| {
@@ -790,7 +791,7 @@ fn relative_time_formats_past_and_future() {
     );
 }
 
-// covers: Novis\Intl\ListFormat::join
+// covers: Novis\Intl\ListFormat::join, Novis\Intl\Icu::formatLists
 #[test]
 fn a_list_formats_with_its_locale_conjunction() {
     let (joined, crossings) = run(|request, extension| {
@@ -851,7 +852,7 @@ fn segments(
         .collect()
 }
 
-// covers: Novis\Intl\Segmenter::words, Novis\Intl\Segmenter::sentences
+// covers: Novis\Intl\Segmenter::words, Novis\Intl\Segmenter::sentences, Novis\Intl\Icu::wordSegments, Novis\Intl\Icu::sentenceSegments
 #[test]
 fn word_and_sentence_segments_of_a_batch_of_strings() {
     let (words, sentences, crossings) = run(|request, extension| {
@@ -954,6 +955,7 @@ fn negotiated(
     }
 }
 
+// covers: Novis\Intl\Locale::negotiate, Novis\Intl\Icu::negotiate
 #[test]
 fn accept_language_negotiates_the_best_offered_locale() {
     let (chosen, crossings) = run(|request, extension| {
@@ -971,6 +973,7 @@ fn accept_language_negotiates_the_best_offered_locale() {
     assert_eq!(chosen, ["de", "fr", "fr"]);
 }
 
+// covers: Novis\Intl\Locale::resolve, Novis\Intl\Icu::resolveLocales
 #[test]
 fn a_regional_range_falls_back_to_its_language() {
     let (chosen, resolved) = run(|request, extension| {

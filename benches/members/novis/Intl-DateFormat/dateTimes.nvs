@@ -1,0 +1,25 @@
+<?nvs
+// Writes two order times in German, as an order history page does for each row it shows.
+// bench: iterations 1000
+// bench: complexity constant
+use Novis\Intl\DateFormat;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $zone = Core\Time\Zone::of("Europe/Berlin");
+        array<array<Core\Time\DateTime>> $batches = [
+            [Core\Time::at(2026, 3, 1, $zone, {hour: 9}), Core\Time::at(2026, 3, 2, $zone, {hour: 17})],
+            [Core\Time::at(2026, 7, 14, $zone, {hour: 12}), Core\Time::at(2026, 12, 24, $zone, {hour: 20})],
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            array<string> $lines = DateFormat::dateTimes($batches[$total % 2], "de");
+            $total = $total + Core\Str::length($lines[0]) % 7 + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1000), "\n";

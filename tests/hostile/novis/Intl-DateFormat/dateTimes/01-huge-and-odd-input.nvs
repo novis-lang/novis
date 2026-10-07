@@ -1,0 +1,61 @@
+<?nvs
+// Attack: a request formats very many dates and times, dates far in the past and future, odd
+// calendars and broken locale tags. Each call should return a list or throw an error.
+// hostile: timeout-ms 20000
+use Novis\Intl\DateFormat;
+use Novis\Intl\Length;
+use Novis\Intl\ZoneStyle;
+
+var $zone = Core\Time\Zone::of('Europe/Vienna');
+
+// 1. An empty list.
+try {
+    echo 'step 1 ran ', Core\Arr::count(DateFormat::dateTimes([], 'en')), "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. Twenty thousand values in one call, with every option set.
+try {
+    array<Core\Time\DateTime> $values = [];
+    for (uint $i = 0; $i < 20000; $i++) {
+        $values[] = Core\Time::at(2026, 1 + $i % 12, 1 + $i % 28, $zone, { hour: $i % 24, minute: $i % 60 });
+    }
+    array<string> $lines = DateFormat::dateTimes($values, 'de', { length: Length::Long, seconds: true, zone: ZoneStyle::Generic });
+    echo 'step 2 ran ', Core\Arr::count($lines), "\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. The first and the last year a date can have.
+try {
+    var $early = Core\Time::at(1, 1, 1, Core\Time\Zone::of('UTC'));
+    var $late = Core\Time::at(9999, 12, 31, Core\Time\Zone::of('Pacific/Kiritimati'), { hour: 23, minute: 59 });
+    echo 'step 3 ran ', Core\Arr::count(DateFormat::dateTimes([$early, $late], 'en', { zone: ZoneStyle::Offset })), "\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. Locale tags that ask for other calendars and digits, and a tag of ten thousand characters.
+array<string> $tags = ['th-u-ca-buddhist', 'en-u-ca-hebrew', 'ar-u-nu-arab', 'ja-u-ca-japanese', 'x' . Core\Str::repeat('-abcdefgh', 1000)];
+uint $answered = 0;
+foreach ($tags as string $tag) {
+    try {
+        DateFormat::dateTimes([Core\Time::at(2026, 3, 1, $zone)], $tag);
+        $answered = $answered + 1;
+    } catch (Throwable $e) {
+        $answered = $answered + 1;
+    }
+}
+echo 'step 4 ran ', $answered, "\n";
+
+// 5. A bad locale tag a thousand times. Each call must still return or throw.
+uint $stopped = 0;
+for (int $j = 0; $j < 1000; $j++) {
+    try {
+        DateFormat::dateTimes([Core\Time::at(2026, 3, 1, $zone)], 'en_US!');
+    } catch (Throwable $e) {
+        $stopped = $stopped + 1;
+    }
+}
+echo 'step 5 stopped ', $stopped, "\n";

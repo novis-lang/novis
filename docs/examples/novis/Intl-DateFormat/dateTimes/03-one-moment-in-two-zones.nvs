@@ -1,0 +1,13 @@
+<?nvs
+// Shows that each value is written with the clock of its own time zone.
+use Novis\Intl\DateFormat;
+use Novis\Intl\Length;
+
+var $vienna = Core\Time::at(2026, 3, 1, Core\Time\Zone::of("Europe/Vienna"), {hour: 21, minute: 30});
+var $newYork = $vienna->toInstant()->in(Core\Time\Zone::of("America/New_York"));
+
+// Both values are the same moment. One call writes both, and each shows its own clock.
+// This prints March 1, 2026 at 9:30 PM, then March 1, 2026 at 3:30 PM.
+foreach (DateFormat::dateTimes([$vienna, $newYork], "en-US", {length: Length::Long}) as string $line) {
+    echo $line, "\n";
+}

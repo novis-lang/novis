@@ -1,0 +1,24 @@
+<?nvs
+// Writes two delivery dates in French, as a checkout page does before it shows the choices.
+// bench: iterations 1000
+// bench: complexity constant
+use Novis\Intl\DateFormat;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<array<Core\Time\Date>> $batches = [
+            [Core\Time\Date::at(2026, 3, 1), Core\Time\Date::at(2026, 3, 4)],
+            [Core\Time\Date::at(2026, 11, 30), Core\Time\Date::at(2026, 12, 2)],
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            array<string> $lines = DateFormat::dates($batches[$total % 2], "fr");
+            $total = $total + Core\Str::length($lines[0]) % 7 + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1000), "\n";

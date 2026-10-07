@@ -1,0 +1,57 @@
+<?nvs
+// Attack: a request resolves very many tags, very long tags and broken tags for every service.
+// Each call should return a list or throw an error, and the server keeps running.
+// hostile: timeout-ms 20000
+use Novis\Intl\Locale;
+use Novis\Intl\Service;
+
+array<Service> $services = [Service::Collation, Service::Numbers, Service::Plurals, Service::Dates, Service::RelativeTime, Service::Lists, Service::Segmentation];
+
+// 1. An empty list for every service.
+uint $empty = 0;
+foreach ($services as Service $service) {
+    try {
+        $empty = $empty + Core\Arr::count(Locale::resolve([], $service));
+    } catch (Throwable $e) {
+        echo "step 1 stopped\n";
+    }
+}
+echo 'step 1 ran ', $empty, "\n";
+
+// 2. Twenty thousand tags in one call.
+try {
+    array<string> $tags = [];
+    for (int $i = 0; $i < 20000; $i++) {
+        $tags[] = $i % 2 == 0 ? 'de-AT' : 'sr-Latn-RS';
+    }
+    echo 'step 2 ran ', Core\Arr::count(Locale::resolve($tags, Service::Dates)), "\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. A valid tag with ten thousand characters of variants and extensions.
+try {
+    string $long = 'en-u' . Core\Str::repeat('-ca-gregory', 1000);
+    echo 'step 3 ran ', Locale::resolve([$long], Service::Numbers)[0], "\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. One good tag and one broken tag in the same list.
+try {
+    Locale::resolve(['de', "de\0AT"], Service::Lists);
+    echo "step 4 ran\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}
+
+// 5. A broken tag a thousand times. Each call must still return or throw.
+uint $stopped = 0;
+for (int $j = 0; $j < 1000; $j++) {
+    try {
+        Locale::resolve(['not a tag'], Service::Segmentation);
+    } catch (Throwable $e) {
+        $stopped = $stopped + 1;
+    }
+}
+echo 'step 5 stopped ', $stopped, "\n";

@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to add the seconds to a time of day.
+use Novis\Intl\DateFormat;
+
+var $finish = Core\Time\TimeOfDay::at(21, 30, {second: 15});
+
+// Without options, the seconds are not shown. This prints 9:30 PM.
+echo DateFormat::times([$finish], "en-US")[0], "\n";
+
+// `seconds: true` shows them. This prints 9:30:15 PM.
+echo DateFormat::times([$finish], "en-US", {seconds: true})[0], "\n";

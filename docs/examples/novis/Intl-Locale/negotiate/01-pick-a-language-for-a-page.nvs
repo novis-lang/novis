@@ -1,0 +1,9 @@
+<?nvs
+// Shows how to choose a page's language from the browser's `Accept-Language` header.
+use Novis\Intl\Locale;
+
+array<string> $offered = ["en", "de", "fr"];
+
+// The reader prefers Swiss German, then German, then English.
+// "de-CH" matches the offered "de". This prints de.
+echo Locale::negotiate("de-CH, de;q=0.9, en;q=0.5", $offered, "en"), "\n";

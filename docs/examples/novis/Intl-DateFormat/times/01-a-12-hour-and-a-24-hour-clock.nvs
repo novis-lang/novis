@@ -1,0 +1,11 @@
+<?nvs
+// Shows that the locale decides between a 12-hour and a 24-hour clock.
+use Novis\Intl\DateFormat;
+
+var $closes = Core\Time\TimeOfDay::at(21, 30);
+
+// This prints 9:30 PM.
+echo DateFormat::times([$closes], "en-US")[0], "\n";
+
+// This prints 21:30.
+echo DateFormat::times([$closes], "de")[0], "\n";

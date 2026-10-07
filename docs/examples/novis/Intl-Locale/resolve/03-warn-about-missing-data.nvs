@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to find the locales in a settings list that have no date rules of their own.
+use Novis\Intl\Locale;
+use Novis\Intl\Service;
+
+array<string> $configured = ["en-GB", "de-CH", "zz", "ja"];
+array<string> $used = Locale::resolve($configured, Service::Dates);
+
+// The result has one tag for each configured tag, in the same order. This prints zz.
+for (int $i = 0; $i < Core\Arr::count($configured); $i++) {
+    if ($used[$i] == "und") {
+        echo $configured[$i], "\n";
+    }
+}

@@ -1,0 +1,12 @@
+<?nvs
+// Shows the three lengths of a date.
+use Novis\Intl\DateFormat;
+use Novis\Intl\Length;
+
+var $start = Core\Time\Date::at(2026, 3, 1);
+array<Length> $lengths = [Length::Short, Length::Medium, Length::Long];
+
+// This prints 01.03.26, then 01.03.2026, then 1. März 2026.
+foreach ($lengths as Length $length) {
+    echo DateFormat::dates([$start], "de", {length: $length})[0], "\n";
+}
