@@ -1,35 +1,28 @@
 {
-  "state": "**Goal `ext-image-analysis` — `Novis\\Image` compares, hashes, summarises and draws. Stage 2, comparison, is on disk; Stages 3 to 5 are not.**\n\nThe design is ADR 0120 §§ 8 and 9, and the goal file's § *Standing decisions* answers every call a session meets, the crates included. No session re-decides one.\n\nComparison: the component's `compare` export (`extensions/image/src/compare.rs`, whose module doc defines the delta, the SSIM and the rendered diff), the manifest's `Codec::compare`, `Image::compare` and `Diff` (`extensions/image/nvs/`), the host checks in `crates/nvs-ext/tests/image_analysis.rs` (ADR 0120 *Verification*'s compare fixture, the size refusal, `tolerance`, `render`) and `tests/conformance/novis/image-compare-counts-the-pixels-that-differ.nvst`. `rule:core-classes/image-one-entry-point-per-job`'s *Not shipped* paragraph says what is on disk. The component's own unit tests run with `cargo test --lib` inside `extensions/image/`, a workspace of its own.\n\n`crates/nvs-ext` did not exist when the goal was written, so the goal's `context` names no module in it: add the files you read with `bun nv goal context --add`.",
+  "state": "**Goal `ext-image-analysis` — `Novis\\Image` compares, hashes, summarises and draws. Stage 2, comparison, and stage 3's hashing are on disk; placeholders, palette and Stages 4 to 5 are not.**\n\nThe design is ADR 0120 §§ 8 and 9, and the goal file's § *Standing decisions* answers every call a session meets, the crates included. No session re-decides one.\n\nComparison and hashing: the component's `compare` and `hash` exports (`extensions/image/src/compare.rs`, `extensions/image/src/hash.rs`, whose module docs define them), the manifest's `Codec::compare` and `Codec::hash` and `HashKind`, `Image::compare`, `Diff`, `Image::hash` and `Image::hashDistance` (`extensions/image/nvs/`), the host checks in `crates/nvs-ext/tests/image_analysis.rs` and the two `image-compare-*` / `image-hash-*` cases under `tests/conformance/novis/`. `rule:core-classes/image-one-entry-point-per-job`'s *Not shipped* paragraph says what is on disk. The three hashes are written in the component with no crate: `image_hasher` was the goal writer's unconfirmed pick, and a few dozen lines of grid and DCT keep a third-party crate out of the guest.\n\nThe goal record's stage 2 and 3 checks were repointed at the tests the tree holds: `nvs-ext` cannot run Novis source, so the record's claims about `hashDistance` and \"runs each `Image` argument once\" are not host tests. `hashDistance` is pinned by `tests/conformance/novis/image-hash-distance-finds-a-near-duplicate.nvst`; the once-per-`Image` claim has no harness that counts crossings from Novis (backlog).\n\nThe component's own unit tests run with `cargo test --lib` inside `extensions/image/`, a workspace of its own.",
   "next": {
     "stage": 3,
     "title": "hashes, placeholders, palette",
-    "files": [
-      "extensions/image/src/lib.rs",
-      "extensions/image/src/hash.rs",
-      "extensions/image/Cargo.toml",
-      "extensions/image/manifest.json",
-      "extensions/image/nvs/Image.nvs",
-      "crates/nvs-ext/tests/image_analysis.rs"
-    ],
+    "files": [],
+    "note": "one file set: `extensions/image/src/lib.rs`, a new `extensions/image/src/summary.rs`, `extensions/image/Cargo.toml`, `extensions/image/manifest.json`, `extensions/image/nvs/Image.nvs`, `crates/nvs-ext/tests/image_analysis.rs`.",
     "items": [
       {
         "done": false,
-        "text": "**The `hash` export** (`rule:core-classes/image-one-entry-point-per-job`, ADR 0120 § 8) — new `extensions/image/src/hash.rs` wired in at `extensions/image/src/lib.rs:666`: `Perceptual`, `Difference` and `Average`, each a hash of a fixed length, through `image_hasher` or the goal's fallback when it does not build for `wasm32-wasip2`; follow `compare.rs`'s split of a core function over `Pixels` with host unit tests."
+        "text": "**The `placeholder` and `palette` exports** (`rule:core-classes/image-one-entry-point-per-job`, ADR 0120 § 8) — wired in at `extensions/image/src/lib.rs:677` and `extensions/image/src/lib.rs:681`: `BlurHash` and `ThumbHash` through the `blurhash` and `thumbhash` crates (each checked with `cargo deny` and the third-party notice) or written in the component; `palette` through `color_quant`, already linked, most frequent first and at most `count`. Follow `hash.rs`'s split of a core function over `Pixels` with host unit tests."
       },
       {
         "done": false,
-        "text": "**`Image::hash`, `Image::hashDistance`, `HashKind`** — `extensions/image/nvs/Image.nvs:295` beside `compare`, a `hash` entry in `extensions/image/manifest.json`; `hashDistance` runs where `wit/image.wit`'s test list places it, and hashes of two lengths throw a `LogicError`."
+        "text": "**`Image::placeholder`, `Image::palette`, `PlaceholderKind`** — `extensions/image/nvs/Image.nvs:329`, after `hashDistance`, and entries after `hash` at `extensions/image/manifest.json:43`; `palette` returns `array<Color>` with `count = 5`."
       },
       {
         "done": false,
-        "text": "**The hash checks** — `crates/nvs-ext/tests/image_analysis.rs:196`, after the compare checks: a fixed length per kind, distance 0 for one image, small for a resized copy."
+        "text": "**The placeholder and palette checks** — `crates/nvs-ext/tests/image_analysis.rs:314`: the four names of the record's `nvs-ext-placeholders-and-palette` check, then `tests/conformance/novis/image-placeholder-and-palette-of-a-plain-image.nvst`."
       }
     ]
   },
   "backlog": [
-    "`placeholder` and `palette` exports (goal Stage 3, `extensions/image/src/lib.rs:670`), after the hashes.",
-    "QR codes (goal Stage 4), text and `measureText` (goal Stage 5).",
-    "`Image::compare`'s feature proofs: `bun nv proofs --id 'Novis\\Image\\Image::compare'` names what it owes (`rule:testing/feature-proofs`); not checked this session.",
-    "Builder doc comments in `extensions/image/nvs/Image.nvs` from goal `ext-image` exceed `bun nv proofs --comments`' two-line bound at lines 55, 118 and 158."
+    "\"`compare` runs each `Image` argument once\" has no test: no harness runs Novis and reads `nvs_ext::call::Request::crossings`. It wants one in whichever crate runs `Novis\\Image` with the host (`crates/nvs-stdlib/tests/ext_world.rs` places the builder).",
+    "Pre-existing comment bounds in `extensions/image/nvs/Image.nvs` (lines 55, 118, 158, 358) fail `bun nv proofs --comments`; stage 6's proofs will meet them.",
+    "Stages 4 (QR codes) and 5 (text), then stage 6's feature proofs for every member this goal adds."
   ]
 }

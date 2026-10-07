@@ -5,7 +5,9 @@
   "files": [],
   "context": {
     "modules": [
-      "tools/nv/proofs/roster.ts"
+      "tools/nv/proofs/roster.ts",
+      "crates/nvs-ext/tests/image_analysis.rs",
+      "extensions/image/src/hash.rs"
     ],
     "rules": [
       "core-classes/image-one-entry-point-per-job",
@@ -124,15 +126,15 @@
         "image_analysis"
       ],
       "tests": [
-        "compare_of_an_image_with_itself_is_identical_with_ssim_one",
-        "compare_of_two_images_differing_in_one_pixel_reports_one_differing_pixel"
+        "an_image_compared_with_itself_is_identical_with_an_ssim_of_one_in_one_call",
+        "two_images_differing_in_one_pixel_report_one_differing_pixel"
       ]
     },
     {
       "id": "nvs-ext-compare-refuses-renders-and-tolerates",
       "kind": "cargo-named",
       "stage": 2,
-      "name": "nvs-ext (`compare` refuses a size mismatch as a `LogicError`, renders a diff on request, honours `tolerance`, and runs each `Image` argument once)",
+      "name": "nvs-ext (`compare` refuses a size mismatch as `invalid`, the variant that throws `LogicError`, renders a diff on request, and honours `tolerance`)",
       "args": [
         "test",
         "-p",
@@ -141,10 +143,9 @@
         "image_analysis"
       ],
       "tests": [
-        "compare_refuses_a_size_mismatch_as_a_logic_error",
-        "compare_with_render_returns_a_png_marking_the_differing_pixels",
-        "compare_within_tolerance_counts_no_difference",
-        "compare_of_two_pipelines_runs_each_once"
+        "a_size_mismatch_returns_invalid_naming_both_sizes",
+        "render_returns_a_png_of_the_same_size_with_the_differing_pixel_in_red",
+        "a_delta_at_the_tolerance_is_not_counted_and_one_above_it_is"
       ]
     },
     {
@@ -157,16 +158,14 @@
         "tests/conformance/"
       ],
       "cases": [
-        "tests/conformance/novis/image-compare-of-an-image-with-itself-is-identical.nvst",
-        "tests/conformance/novis/image-compare-reports-one-differing-pixel.nvst",
-        "tests/conformance/novis/image-compare-refuses-two-sizes.nvst"
+        "tests/conformance/novis/image-compare-counts-the-pixels-that-differ.nvst"
       ]
     },
     {
       "id": "nvs-ext-the-three-hashes",
       "kind": "cargo-named",
       "stage": 3,
-      "name": "nvs-ext (each hash kind has its own fixed length, a resized copy hashes near its source, and `hashDistance` refuses two lengths)",
+      "name": "nvs-ext (each hash kind has its own fixed length, and a resized copy hashes near its source)",
       "args": [
         "test",
         "-p",
@@ -176,9 +175,7 @@
       ],
       "tests": [
         "each_hash_kind_returns_a_hash_of_its_own_length",
-        "a_resized_copy_hashes_within_a_small_distance_of_its_source",
-        "hash_distance_of_a_hash_with_itself_is_zero",
-        "hash_distance_refuses_two_hashes_of_different_lengths"
+        "a_resized_copy_hashes_within_a_small_distance_of_its_source"
       ]
     },
     {

@@ -26282,7 +26282,7 @@ new Novis\Image\Diff(bool $identical, uint $differingPixels, uint $maxDelta, flo
 <a id="core-novis-image-image"></a>
 ### `Novis\Image\Image`
 
-Keywords: image, gd, imagick, imagecreatefromstring, imagecopyresampled, imagejpeg, imagepng, imagewebp, getimagesize, thumbnail, resize, crop, rotate, convert, jpeg, png, webp, open, create, fromRaw, info, mime, extension, resize, crop, trim, rotate, flip, composite, flatten, sharpen, blur, grayscale, brightness, contrast, gamma, tint, format, metadata, encode, raw, variants, compare
+Keywords: image, gd, imagick, imagecreatefromstring, imagecopyresampled, imagejpeg, imagepng, imagewebp, getimagesize, thumbnail, resize, crop, rotate, convert, jpeg, png, webp, open, create, fromRaw, info, mime, extension, resize, crop, trim, rotate, flip, composite, flatten, sharpen, blur, grayscale, brightness, contrast, gamma, tint, format, metadata, encode, raw, variants, compare, hash, hashDistance
 
 `Novis\Image\Image` is an image and a list of steps to run on it. Each step method, such as
 `resize`, `crop` or `format`, returns a new `Image` and does not change the old one. No pixel is
@@ -26339,6 +26339,8 @@ image/jpeg 6x4
 | [`Novis\Image\Image->raw`](#core-novis-image-image-raw) | `raw(): Raw` |
 | [`Novis\Image\Image->variants`](#core-novis-image-image-variants) | `variants(array<Variant> $set): array<bytes>` |
 | [`Novis\Image\Image::compare`](#core-novis-image-image-compare) | `compare(bytes\|Image $a, bytes\|Image $b, ?{tolerance?: uint, render?: bool} $options = null): Diff` |
+| [`Novis\Image\Image::hash`](#core-novis-image-image-hash) | `hash(bytes $data, HashKind $kind): bytes` |
+| [`Novis\Image\Image::hashDistance`](#core-novis-image-image-hashdistance) | `hashDistance(bytes $a, bytes $b): uint` |
 
 <a id="core-novis-image-image-open"></a>
 #### `Novis\Image\Image::open`
@@ -26641,10 +26643,34 @@ A pixel differs when its delta is above `tolerance`, which is 0 by default.
 
 **Returns** `Diff`
 
+<a id="core-novis-image-image-hash"></a>
+#### `Novis\Image\Image::hash`
+
+```nvs skip
+Novis\Image\Image::hash(bytes $data, HashKind $kind): bytes
+```
+
+`Image::hash` returns a short hash of an encoded image. Two similar images have similar hashes.
+Each `HashKind` returns a hash of its own fixed length.
+
+**Returns** `bytes`
+
+<a id="core-novis-image-image-hashdistance"></a>
+#### `Novis\Image\Image::hashDistance`
+
+```nvs skip
+Novis\Image\Image::hashDistance(bytes $a, bytes $b): uint
+```
+
+`Image::hashDistance` returns how many bits differ between two hashes. A small number means similar images.
+Two hashes of different lengths throw a `LogicError`.
+
+**Returns** `uint`
+
 <a id="core-novis-image-codec"></a>
 ### `Novis\Image\Codec`
 
-Keywords: info, run, variants, compare
+Keywords: info, run, variants, compare, hash
 
 | Member | Signature |
 |---|---|
@@ -26652,6 +26678,7 @@ Keywords: info, run, variants, compare
 | [`Novis\Image\Codec::run`](#core-novis-image-codec-run) | `run(Source $source, {steps: array<{resize?: {width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool}, crop?: {x: uint, y: uint, width: uint, height: uint}, trim?: {threshold?: float}, rotate?: {degrees: float, background: ?{r: uint, g: uint, b: uint, alpha: float}}, flip?: Axis, composite?: {overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend}, flatten?: {r: uint, g: uint, b: uint, alpha: float}, sharpen?: {sigma?: float}, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: {r: uint, g: uint, b: uint, alpha: float}, text?: {text: string, font: bytes, size: float, color: {r: uint, g: uint, b: uint, alpha: float}, gravity?: Gravity, x?: int, y?: int, maxWidth?: uint, align?: Align}, format?: {format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint}, metadata?: {keep: bool}}>, overlays: array<{source: Source, steps: array<{resize?: {width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool}, crop?: {x: uint, y: uint, width: uint, height: uint}, trim?: {threshold?: float}, rotate?: {degrees: float, background: ?{r: uint, g: uint, b: uint, alpha: float}}, flip?: Axis, composite?: {overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend}, flatten?: {r: uint, g: uint, b: uint, alpha: float}, sharpen?: {sigma?: float}, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: {r: uint, g: uint, b: uint, alpha: float}, text?: {text: string, font: bytes, size: float, color: {r: uint, g: uint, b: uint, alpha: float}, gravity?: Gravity, x?: int, y?: int, maxWidth?: uint, align?: Align}, format?: {format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint}, metadata?: {keep: bool}}>}>, output: Output} $plan): bytes` |
 | [`Novis\Image\Codec::variants`](#core-novis-image-codec-variants) | `variants(Source $source, array<{steps: array<{resize?: {width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool}, crop?: {x: uint, y: uint, width: uint, height: uint}, trim?: {threshold?: float}, rotate?: {degrees: float, background: ?{r: uint, g: uint, b: uint, alpha: float}}, flip?: Axis, composite?: {overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend}, flatten?: {r: uint, g: uint, b: uint, alpha: float}, sharpen?: {sigma?: float}, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: {r: uint, g: uint, b: uint, alpha: float}, text?: {text: string, font: bytes, size: float, color: {r: uint, g: uint, b: uint, alpha: float}, gravity?: Gravity, x?: int, y?: int, maxWidth?: uint, align?: Align}, format?: {format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint}, metadata?: {keep: bool}}>, overlays: array<{source: Source, steps: array<{resize?: {width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool}, crop?: {x: uint, y: uint, width: uint, height: uint}, trim?: {threshold?: float}, rotate?: {degrees: float, background: ?{r: uint, g: uint, b: uint, alpha: float}}, flip?: Axis, composite?: {overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend}, flatten?: {r: uint, g: uint, b: uint, alpha: float}, sharpen?: {sigma?: float}, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: {r: uint, g: uint, b: uint, alpha: float}, text?: {text: string, font: bytes, size: float, color: {r: uint, g: uint, b: uint, alpha: float}, gravity?: Gravity, x?: int, y?: int, maxWidth?: uint, align?: Align}, format?: {format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint}, metadata?: {keep: bool}}>}>, output: Output}> $plans): array<bytes>` |
 | [`Novis\Image\Codec::compare`](#core-novis-image-codec-compare) | `compare(bytes $a, bytes $b, {tolerance: ?uint, render: bool} $options): {identical: bool, differingPixels: uint, maxDelta: uint, ssim: float, diff: ?bytes}` |
+| [`Novis\Image\Codec::hash`](#core-novis-image-codec-hash) | `hash(bytes $data, HashKind $kind): bytes` |
 
 <a id="core-novis-image-codec-info"></a>
 #### `Novis\Image\Codec::info`
@@ -26716,6 +26743,22 @@ Decodes two encoded images of the same size and compares their pixels. Two image
 | `$options` | `{tolerance: ?uint, render: bool}` |  |
 
 **Returns** `{identical: bool, differingPixels: uint, maxDelta: uint, ssim: float, diff: ?bytes}`
+
+<a id="core-novis-image-codec-hash"></a>
+#### `Novis\Image\Codec::hash`
+
+```nvs skip
+Novis\Image\Codec::hash(bytes $data, HashKind $kind): bytes
+```
+
+Decodes an encoded image and returns its hash. Similar images have hashes that differ in few bits.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$data` | `bytes` |  |
+| `$kind` | `HashKind` |  |
+
+**Returns** `bytes`
 
 <a id="core-enums"></a>
 ### `Core` enums
@@ -27244,6 +27287,14 @@ How the lines of a text are aligned.
 #### `Novis\Image\Output`
 
 What `Codec::run` returns: the encoded file, the RGBA8 pixels, or the size alone.
+
+| Case | Meaning |
+|---|---|
+
+<a id="enum-novis-image-hashkind"></a>
+#### `Novis\Image\HashKind`
+
+The kind of hash `Image::hash` returns. A `Perceptual` hash is 8 bytes, a `Difference` hash is 16 bytes and an `Average` hash is 32 bytes.
 
 | Case | Meaning |
 |---|---|
