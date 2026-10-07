@@ -5,8 +5,9 @@
 //! tests run under an ordinary `cargo test` in this directory. The WIT glue in `guest` is compiled
 //! only for a wasm target, and maps each export onto the core and the core's types onto WIT's.
 //!
-//! `info`, `run`, `variants`, `compare`, `hash`, `placeholder` and `palette` are the exports
-//! that are implemented; `compare`, `hash` and `summary` are their modules' docs. `run` starts
+//! `info`, `run`, `variants`, `compare`, `hash`, `placeholder`, `palette` and `qr` are the
+//! exports that are implemented; `compare`, `hash`, `summary` and `qr` are their modules' docs.
+//! `run` starts
 //! from an
 //! [`Input`] — encoded bytes it decodes (`decode`'s module doc), a blank canvas or RGBA8 rows —
 //! runs the plan's pixel steps on the frame in order (`ops`'s module doc), and returns the pixels,
@@ -20,9 +21,7 @@
 //! decoded. So is the size of every frame the plan and each overlay row makes, from the source's
 //! size and `ops::size`, up to the first step whose size depends on the pixels: a plan that grows
 //! its frame past the cap returns `Runtime` before its first step runs, not after its last one
-//! under the cap. An encoded source's size is its header's. A `text` step and a `text` source return `runtime` naming what is missing. Every
-//! other export returns `runtime` naming it, until the slice of goal `ext-image-analysis` that
-//! writes it lands.
+//! under the cap. An encoded source's size is its header's. A `text` step and a `text` source return `runtime` naming what is missing.
 
 mod avif;
 pub mod compare;
@@ -31,6 +30,7 @@ mod encode;
 pub mod hash;
 mod info;
 pub mod ops;
+pub mod qr;
 pub mod summary;
 mod webp;
 
@@ -363,7 +363,7 @@ mod guest {
 
     use exports::nvs::image::codec::{
         Axis, Blend, Color, CompareOptions, Diff, Error, Filter, Fit, Format, Gravity, Guest,
-        HashKind, ImageInfo, Output, PlaceholderKind, Plan, QrOptions, Source, Step,
+        HashKind, ImageInfo, Output, PlaceholderKind, Plan, QrLevel, QrOptions, Source, Step,
     };
 
     use crate::ops::{self, Op};
@@ -388,6 +388,19 @@ mod guest {
             crate::Format::Jxl => Format::Jxl,
             crate::Format::Svg => Format::Svg,
             crate::Format::Pdf => Format::Pdf,
+        }
+    }
+
+    fn from_format(format: Format) -> crate::Format {
+        match format {
+            Format::Jpeg => crate::Format::Jpeg,
+            Format::Png => crate::Format::Png,
+            Format::Webp => crate::Format::Webp,
+            Format::Gif => crate::Format::Gif,
+            Format::Avif => crate::Format::Avif,
+            Format::Jxl => crate::Format::Jxl,
+            Format::Svg => crate::Format::Svg,
+            Format::Pdf => crate::Format::Pdf,
         }
     }
 
@@ -595,16 +608,7 @@ mod guest {
             match operations(step).as_slice() {
                 ["format"] => {
                     if let Some(options) = &step.format {
-                        encoding.format = Some(match options.format {
-                            Format::Jpeg => crate::Format::Jpeg,
-                            Format::Png => crate::Format::Png,
-                            Format::Webp => crate::Format::Webp,
-                            Format::Gif => crate::Format::Gif,
-                            Format::Avif => crate::Format::Avif,
-                            Format::Jxl => crate::Format::Jxl,
-                            Format::Svg => crate::Format::Svg,
-                            Format::Pdf => crate::Format::Pdf,
-                        });
+                        encoding.format = Some(from_format(options.format));
                         encoding.quality = options.quality;
                         encoding.lossless = options.lossless;
                     }
@@ -697,8 +701,20 @@ mod guest {
                 .collect())
         }
 
-        fn qr(_data: String, _options: QrOptions) -> Result<Vec<u8>, Error> {
-            missing("qr")
+        fn qr(data: String, options: QrOptions) -> Result<Vec<u8>, Error> {
+            let defaults = crate::qr::Options::default();
+            let options = crate::qr::Options {
+                size: options.size.unwrap_or(defaults.size),
+                margin: options.margin.unwrap_or(defaults.margin),
+                level: options.level.map_or(defaults.level, |level| match level {
+                    QrLevel::Low => crate::qr::Level::Low,
+                    QrLevel::Medium => crate::qr::Level::Medium,
+                    QrLevel::Quartile => crate::qr::Level::Quartile,
+                    QrLevel::High => crate::qr::Level::High,
+                }),
+                format: options.format.map_or(defaults.format, from_format),
+            };
+            crate::qr::render(&data, options).map_err(error)
         }
     }
 
