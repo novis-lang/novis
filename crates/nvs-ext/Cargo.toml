@@ -81,6 +81,8 @@ rustls.workspace = true
 # The native arm of `image_guest`: the image component's codec core built for
 # the host, run on the same input and plan as the guest.
 nvs-image.workspace = true
+# The QR checks of `image_analysis` read each code back to its data.
+rqrr.workspace = true
 
 # Times both arms of `image_guest` in a release build and, with `--record`,
 # writes `benches/results/image-guest.json`. Its own loop rather than

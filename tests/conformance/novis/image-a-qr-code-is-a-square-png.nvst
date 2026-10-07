@@ -1,0 +1,41 @@
+--TEST--
+`Novis\Image\QrCode::render` returns a square PNG of the size asked for, 256 pixels by default, in the format given, and data too long for its `QrLevel` or a size too small for the code throws a `LogicError` — rule:core-classes/image-one-entry-point-per-job
+--FILE--
+<?nvs
+// covers: Novis\Image\QrCode::render, Novis\Image\QrLevel
+use Novis\Image\Codec;
+use Novis\Image\Format;
+use Novis\Image\QrCode;
+use Novis\Image\QrLevel;
+
+var $plain = Codec::info(QrCode::render("https://example.com/"));
+echo $plain->format == Format::Png ? "png" : "other", " ", $plain->width, "x", $plain->height, "\n";
+
+var $sized = Codec::info(QrCode::render("Shop", {size: 120, margin: 2, level: QrLevel::High}));
+echo $sized->width, "x", $sized->height, "\n";
+
+var $webp = Codec::info(QrCode::render("Shop", {format: Format::Webp}));
+echo $webp->format == Format::Webp ? "webp" : "other", "\n";
+
+// "Shop" is 21 modules wide. With a margin of 4 on each side, the code needs 29 pixels.
+try {
+    QrCode::render("Shop", {size: 28});
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// 2000 bytes fit at `Low`, but not at `High`.
+string $long = Core\Str::repeat("x", 2000);
+echo Core\Bytes::length(QrCode::render($long, {level: QrLevel::Low})) > 0 ? "fits" : "empty", "\n";
+try {
+    QrCode::render($long, {level: QrLevel::High});
+} catch (LogicError $e) {
+    echo "too long\n";
+}
+--EXPECT--
+png 256x256
+120x120
+webp
+this QR code is 29 modules wide with its margin, so `size` must be at least 29, and it is 28
+fits
+too long

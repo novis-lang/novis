@@ -1,29 +1,27 @@
 {
-  "state": "**Goal `ext-image-analysis` — `Novis\\Image` compares, hashes, summarises and draws. Stages 2 and 3 are on disk: comparison, hashing, placeholders and the palette. Stages 4 (QR codes), 5 (text) and 6 (the feature proofs) are not.**\n\nThe design is ADR 0120 §§ 8 and 9, and the goal file's § *Standing decisions* answers every call a session meets, the crates included. No session re-decides one.\n\nStage 3 on disk: the component's `hash`, `placeholder` and `palette` exports (`extensions/image/src/hash.rs`, `extensions/image/src/summary.rs`, whose module docs define them), the manifest's `Codec::placeholder`, `Codec::palette` and `PlaceholderKind`, `Image::placeholder` and `Image::palette` in `extensions/image/nvs/Image.nvs`, the host checks in `crates/nvs-ext/tests/image_analysis.rs` and the `image-hash-*` / `image-placeholder-*` cases under `tests/conformance/novis/`. BlurHash and ThumbHash are written in the component with no crate, as the hashes are, so `cargo deny` and the third-party notice did not move; the palette uses `color_quant` (already in the component's lock, now a direct dependency). `rule:core-classes/image-one-entry-point-per-job`'s *Not shipped* paragraph says what is on disk.\n\nThe component's own unit tests run with `cargo test --lib` inside `extensions/image/`, a workspace of its own.",
+  "state": "**Goal `ext-image-analysis` — `Novis\\Image` compares, hashes, summarises and draws. Stages 2, 3 and 4 are on disk: comparison, hashing, placeholders, the palette and QR codes. Stages 5 (text) and 6 (the feature proofs) are not.**\n\nThe design is ADR 0120 §§ 8 and 9, and the goal file's § *Standing decisions* answers every call a session meets, the crates included. No session re-decides one.\n\nStage 4 on disk: the component's `qr` export over the `qrcode` crate (default features off), whose module doc `extensions/image/src/qr.rs` defines `size` (default 256), `margin` (default 4), the level (default `Medium`) and the format (default PNG); `QrCode::render` in `extensions/image/nvs/QrCode.nvs`, the manifest's `Codec::qr` and `QrLevel`; the four QR host checks in `crates/nvs-ext/tests/image_analysis.rs`, which read each code back with `rqrr` (a workspace dev-dependency, `image` feature off); and `tests/conformance/novis/image-a-qr-code-is-a-square-png.nvst`. `rule:core-classes/image-one-entry-point-per-job`'s *Not shipped* paragraph says what is on disk.\n\nThe component's own unit tests run with `cargo test --lib` inside `extensions/image/`, a workspace of its own. `cargo deny check licenses` passes with both new crates; `cargo deny check bans` fails on a `nvs-image` wildcard dev-dependency that was already there before this goal's QR slice.",
   "next": {
-    "stage": 4,
-    "title": "QR codes",
+    "stage": 5,
+    "title": "text",
     "files": [],
-    "note": "one file set: `extensions/image/src/lib.rs`, a new `extensions/image/src/qr.rs`, `extensions/image/Cargo.toml`, `extensions/image/manifest.json`, `wit/image.wit`, a new `extensions/image/nvs/QrCode.nvs`, and the record's QR check file under `crates/nvs-ext/tests/`.",
+    "note": "one file set: `extensions/image/src/lib.rs`, a new `extensions/image/src/text.rs`, `extensions/image/Cargo.toml`, `extensions/image/manifest.json`, `extensions/image/nvs/Image.nvs`, a new `extensions/image/nvs/Font.nvs`, and `crates/nvs-ext/tests/image_analysis.rs`.",
     "items": [
       {
         "done": false,
-        "text": "**The `qr` export** (`rule:core-classes/image-one-entry-point-per-job`, ADR 0120 § 9) — wired in at `extensions/image/src/lib.rs:700`, its options at `wit/image.wit:293`: render through the `qrcode` crate (check it with `cargo deny` and the third-party notice, or write the encoder in the component if it does not build for `wasm32-wasip2`), encode as PNG or the options' format, and follow `summary.rs`'s split of a core function with host unit tests."
+        "text": "**The `text` step and `text` source** (`rule:core-classes/image-one-entry-point-per-job`, `rule:core-classes/image-pipeline`, ADR 0120 § 9) — replace the `missing` arms at `extensions/image/src/lib.rs:471` and `extensions/image/src/lib.rs:621` with a new `text.rs` over `ab_glyph` (Latin only, kerning, `maxWidth` wraps at a word, `align`), its options at `wit/image.wit:204`; follow `qr.rs`'s split of a core function with host unit tests."
       },
       {
         "done": false,
-        "text": "**`QrCode::render` and `QrLevel`** — a new `extensions/image/nvs/QrCode.nvs` beside `extensions/image/nvs/Image.nvs:338`, and the manifest's `qr` entry and `QrLevel` enum; `size` and `margin` set the image size."
+        "text": "**`Image::text`, `Image::measureText` and `Font::fromBytes`** — beside `extensions/image/nvs/Image.nvs:329`; `Font::fromBytes` checks the header in Novis and throws `ParseError` on bytes that are no font (goal § *Standing decisions*)."
       },
       {
         "done": false,
-        "text": "**The QR checks** — the record's `nvs-ext` QR test `a_qr_code_renders_and_decodes_back_to_its_data` (read the record for its `--test` file; `rqrr` is a dev-dependency there only), and `tests/conformance/novis/image-a-qr-code-is-a-square-png.nvst`, next to `crates/nvs-ext/tests/image_analysis.rs:460`."
+        "text": "**The text checks** — the record's `nvs-ext` test `text_renders_latin_with_the_font_given_as_bytes` and its siblings in `crates/nvs-ext/tests/image_analysis.rs:1`, and the case `tests/conformance/novis/image-font-from-bytes-refuses-bytes-that-are-not-a-font.nvst`. A font fixture needs a permissive licence (OFL is not in `deny.toml`, which covers crates only; check the fixture's licence is acceptable before committing one)."
       }
     ]
   },
   "backlog": [
-    "Stage 5, text: `Font::fromBytes` in Novis, `Image::text` and `Image::measureText` over `ab_glyph` (goal record's stage 5 checks).",
-    "Stage 6: `bun nv proofs --only` reported the goal's members as not on the roster before they existed (`tools/nv/proofs/roster.ts`); re-run it once the members land and write each proof it names.",
-    "`extensions/image/nvs/Image.nvs` has four comments `bun nv proofs --comments` names (lines 55, 118, 158, 376), all older than this goal's members; stage 6 rewrites them.",
-    "The once-per-`Image` claim for `compare` has no harness that counts crossings from Novis."
+    "Stage 6, the feature proofs for every `Novis\\Image` member and enum this goal added (`bun nv proofs --owed`; the goal record's stage 6 checks).",
+    "`cargo deny check bans` fails on `nvs-image.workspace = true` in `crates/nvs-ext/Cargo.toml:83` being a wildcard (no `version`); a gap for whoever owns `deny.toml`."
   ]
 }

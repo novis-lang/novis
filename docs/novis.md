@@ -217,6 +217,7 @@ Conventions the whole file uses:
 | [`Novis\Image\Color`](#core-novis-image-color) |  |
 | [`Novis\Image\Diff`](#core-novis-image-diff) |  |
 | [`Novis\Image\Image`](#core-novis-image-image) | open, resize, crop and convert images, with nothing decoded until the result is written |
+| [`Novis\Image\QrCode`](#core-novis-image-qrcode) |  |
 | [`Novis\Image\Codec`](#core-novis-image-codec) |  |
 | [`Core` enums](#core-enums) | every enum a member takes, with its cases |
 
@@ -26693,10 +26694,31 @@ Transparent pixels are not counted. A `count` above 256 throws a `LogicError`.
 
 **Returns** `array<Color>`
 
+<a id="core-novis-image-qrcode"></a>
+### `Novis\Image\QrCode`
+
+Keywords: render
+
+| Member | Signature |
+|---|---|
+| [`Novis\Image\QrCode::render`](#core-novis-image-qrcode-render) | `render(string $data, ?{size?: uint, margin?: uint, level?: QrLevel, format?: Format} $options = null): bytes` |
+
+<a id="core-novis-image-qrcode-render"></a>
+#### `Novis\Image\QrCode::render`
+
+```nvs skip
+Novis\Image\QrCode::render(string $data, ?{size?: uint, margin?: uint, level?: QrLevel, format?: Format} $options = null): bytes
+```
+
+`QrCode::render` returns `data` as a square QR code image. By default it is a PNG of 256 by 256 pixels.
+Data too long for the `level`, or a `size` too small for the code, throws a `LogicError`.
+
+**Returns** `bytes`
+
 <a id="core-novis-image-codec"></a>
 ### `Novis\Image\Codec`
 
-Keywords: info, run, variants, compare, hash, placeholder, palette
+Keywords: info, run, variants, compare, hash, placeholder, palette, qr
 
 | Member | Signature |
 |---|---|
@@ -26707,6 +26729,7 @@ Keywords: info, run, variants, compare, hash, placeholder, palette
 | [`Novis\Image\Codec::hash`](#core-novis-image-codec-hash) | `hash(bytes $data, HashKind $kind): bytes` |
 | [`Novis\Image\Codec::placeholder`](#core-novis-image-codec-placeholder) | `placeholder(bytes $data, PlaceholderKind $kind): string` |
 | [`Novis\Image\Codec::palette`](#core-novis-image-codec-palette) | `palette(bytes $data, uint $count): array<{r: uint, g: uint, b: uint, alpha: float}>` |
+| [`Novis\Image\Codec::qr`](#core-novis-image-codec-qr) | `qr(string $data, {size: ?uint, margin: ?uint, level: ?QrLevel, format: ?Format} $options): bytes` |
 
 <a id="core-novis-image-codec-info"></a>
 #### `Novis\Image\Codec::info`
@@ -26819,6 +26842,22 @@ Decodes an encoded image and returns at most `count` of its main colours, the mo
 | `$count` | `uint` |  |
 
 **Returns** `array<{r: uint, g: uint, b: uint, alpha: float}>`
+
+<a id="core-novis-image-codec-qr"></a>
+#### `Novis\Image\Codec::qr`
+
+```nvs skip
+Novis\Image\Codec::qr(string $data, {size: ?uint, margin: ?uint, level: ?QrLevel, format: ?Format} $options): bytes
+```
+
+Returns a text as an encoded QR code image. Data too long for the level, or a size too small for the code, throws a `LogicError`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$data` | `string` |  |
+| `$options` | `{size: ?uint, margin: ?uint, level: ?QrLevel, format: ?Format}` |  |
+
+**Returns** `bytes`
 
 <a id="core-enums"></a>
 ### `Core` enums
@@ -27363,6 +27402,14 @@ The kind of hash `Image::hash` returns. A `Perceptual` hash is 8 bytes, a `Diffe
 #### `Novis\Image\PlaceholderKind`
 
 The kind of placeholder `Image::placeholder` returns. A `BlurHash` is 28 characters. A `ThumbHash` is base64 text and also keeps transparency.
+
+| Case | Meaning |
+|---|---|
+
+<a id="enum-novis-image-qrlevel"></a>
+#### `Novis\Image\QrLevel`
+
+How much of a QR code can be damaged and still be read: about 7, 15, 25 or 30 percent. A higher level makes a bigger code for the same data.
 
 | Case | Meaning |
 |---|---|

@@ -9,8 +9,10 @@
 //! is pinned under `tests/conformance/novis/`. A `BlurHash` and a `ThumbHash` placeholder decode
 //! to the image's average colour, in linear light and in sRGB. `palette` of two flat colours
 //! returns those colours, most frequent first, and never more than `count`; a `count` above 256
-//! returns `invalid`. The inputs are built here or read from
-//! `extensions/image/fixtures/gradient.png`.
+//! returns `invalid`. A `qr` code reads back to its data through `rqrr` at every level, a higher
+//! level needing a version at least as big, and is a `size`-pixel square with a light margin; a
+//! `size` under the code's modules and data too long for its level return `invalid`. The inputs
+//! are built here or read from `extensions/image/fixtures/gradient.png`.
 
 use std::future::Future;
 use std::pin::pin;
@@ -471,5 +473,125 @@ fn palette_returns_at_most_count_colours() {
             assert!(message.contains("257"), "{message}");
         }
         other => panic!("a count of 257 returned {other:?}"),
+    }
+}
+
+/// `qr` of `data` with each option `None` left unset.
+fn qr(
+    request: &Request,
+    extension: &Extension,
+    data: &str,
+    size: Option<u64>,
+    margin: Option<u64>,
+    level: Option<&str>,
+) -> Result<Vec<u8>, Failure> {
+    let options = shape(vec![
+        ("size", size.map_or(Value::Null, Value::Uint)),
+        ("margin", margin.map_or(Value::Null, Value::Uint)),
+        (
+            "level",
+            level.map_or(Value::Null, |level| Value::Case(level.to_owned())),
+        ),
+        ("format", Value::Null),
+    ]);
+    let args = vec![Value::String(data.to_owned()), options];
+    match block_on(request.call_values(extension, "qr", args))? {
+        Some(Value::Bytes(bytes)) => Ok(bytes),
+        other => panic!("`qr` returned {other:?}"),
+    }
+}
+
+/// The data and the version of the one QR code in the encoded image `png`, read by `rqrr`.
+fn read_qr(request: &Request, extension: &Extension, png: &[u8]) -> (String, usize) {
+    let (width, height, rgba) = raw(request, extension, png);
+    let width = usize::try_from(width).unwrap();
+    let mut prepared = rqrr::PreparedImage::prepare_from_greyscale(
+        width,
+        usize::try_from(height).unwrap(),
+        |x, y| rgba[(y * width + x) * 4],
+    );
+    let grids = prepared.detect_grids();
+    assert_eq!(grids.len(), 1, "one QR code is found");
+    let (meta, content) = grids[0].decode().expect("the QR code decodes");
+    (content, meta.version.0)
+}
+
+#[test]
+fn a_qr_code_renders_and_decodes_back_to_its_data() {
+    let (host, extension) = setup();
+    let request = request(&host);
+    let data = "https://shop.example.com/orders/1234?ref=Blog";
+    let png = qr(&request, &extension, data, None, None, None).expect("`qr` succeeds");
+    assert_eq!(request.crossings(), 1);
+    assert!(png.starts_with(b"\x89PNG"), "the default format is PNG");
+    let (width, height, _) = raw(&request, &extension, &png);
+    assert_eq!((width, height), (256, 256), "the default size is 256");
+    assert_eq!(read_qr(&request, &extension, &png).0, data);
+}
+
+#[test]
+fn each_qr_level_renders_a_code_that_decodes() {
+    let (host, extension) = setup();
+    let request = request(&host);
+    let data = "Shop order 1234, shipped to Blog Street 5";
+    let mut versions = Vec::new();
+    for level in ["Low", "Medium", "Quartile", "High"] {
+        let png = qr(&request, &extension, data, Some(400), None, Some(level))
+            .unwrap_or_else(|failure| panic!("{level}: {failure:?}"));
+        let (content, version) = read_qr(&request, &extension, &png);
+        assert_eq!(content, data, "{level}");
+        versions.push(version);
+    }
+    assert!(
+        versions.windows(2).all(|pair| pair[0] <= pair[1]) && versions[0] < versions[3],
+        "a higher level needs a bigger code for the same data: {versions:?}"
+    );
+}
+
+#[test]
+fn qr_size_and_margin_set_the_image_size() {
+    let (host, extension) = setup();
+    for (size, margin) in [(25, 2), (29, 4), (100, 2), (333, 4), (512, 10)] {
+        // A request of its own for each size, so the pixels read back stay under one request's copy limit.
+        let request = self::request(&host);
+        let png = qr(&request, &extension, "Shop", Some(size), Some(margin), None)
+            .unwrap_or_else(|failure| panic!("{size}/{margin}: {failure:?}"));
+        let (width, height, rgba) = raw(&request, &extension, &png);
+        assert_eq!((width, height), (size, size), "{size}/{margin}");
+        if margin > 0 {
+            let side = usize::try_from(size).unwrap();
+            let light = (0..side).all(|at| rgba[at * 4] == 255 && rgba[at * side * 4] == 255);
+            assert!(light, "{size}/{margin}: the margin is light");
+        }
+        assert_eq!(
+            read_qr(&request, &extension, &png).0,
+            "Shop",
+            "{size}/{margin}"
+        );
+    }
+    // "Shop" is a version 1 code, 21 modules wide, so 4 modules of margin on each side make 29.
+    let request = request(&host);
+    match qr(&request, &extension, "Shop", Some(28), Some(4), None) {
+        Err(Failure::Error(Error::Invalid(message))) => {
+            assert!(
+                message.contains("29") && message.contains("28"),
+                "{message}"
+            );
+        }
+        other => panic!("a size of 28 returned {other:?}"),
+    }
+}
+
+#[test]
+fn qr_data_too_long_for_its_level_is_a_logic_error() {
+    let (host, extension) = setup();
+    let request = request(&host);
+    let data = "x".repeat(2_000);
+    assert!(qr(&request, &extension, &data, None, None, Some("Low")).is_ok());
+    match qr(&request, &extension, &data, None, None, Some("High")) {
+        Err(Failure::Error(Error::Invalid(message))) => {
+            assert!(message.contains("2000"), "{message}");
+        }
+        other => panic!("2000 bytes at `High` returned {other:?}"),
     }
 }
