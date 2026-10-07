@@ -1,0 +1,19 @@
+<?nvs
+// Shows how `threshold` decides which colours count as border.
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Fit;
+
+// A light gray picture sits on a white border. The gray is 15 away from white.
+Image $scan = Image::create(400, 200, Color::hex("#f0f0f0"))
+    ->resize({width: 300, height: 300, fit: Fit::Contain})
+    ->flatten(Color::hex("#ffffff"));
+
+// With the default threshold of 10, the gray is not border. This prints 300x150.
+var $trimmed = $scan->trim()->raw();
+echo $trimmed->width, "x", $trimmed->height, "\n";
+
+// With a threshold of 20, the gray counts as border too.
+// The whole image is border, so it keeps its size. This prints 300x300.
+var $kept = $scan->trim({threshold: 20.0})->raw();
+echo $kept->width, "x", $kept->height, "\n";

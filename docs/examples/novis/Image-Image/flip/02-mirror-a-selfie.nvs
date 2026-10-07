@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to mirror a photo from left to right, as a front camera shows it.
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Fit;
+use Novis\Image\Gravity;
+use Novis\Image\Axis;
+use Novis\Image\Format;
+
+// A blue stripe sits at the left edge of a transparent image.
+Image $selfie = Image::create(20, 100, Color::hex("#3366cc"))
+    ->resize({width: 100, height: 100, fit: Fit::Contain, gravity: Gravity::West});
+
+// After the flip, the stripe is at the right edge. The top-left pixel is transparent, so this prints 0.
+bytes $mirrored = $selfie->flip(Axis::Horizontal)->format(Format::Png)->encode();
+array<mixed> $pixel = Core\Bytes::unpack(Core\Bytes::slice(Image::open($mirrored)->raw()->pixels, 0, 4), "C4");
+echo $pixel[3], "\n";

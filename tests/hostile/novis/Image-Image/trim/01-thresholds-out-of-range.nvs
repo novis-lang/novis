@@ -1,0 +1,45 @@
+<?nvs
+// Attack: a request sends thresholds that are not between 0 and 255, and trims an image that is all border.
+// Each attempt should throw an error or return an image, and the server keeps running.
+use Novis\Image\Color;
+use Novis\Image\Image;
+
+Image $small = Image::create(8, 8, Color::hex('#ffffff'));
+
+// 1. A negative threshold.
+try {
+    $small->trim({ threshold: -1.0 })->raw();
+    echo "step 1 ran\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. A threshold far above 255.
+try {
+    $small->trim({ threshold: 1.0e300 })->raw();
+    echo "step 2 ran\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. A threshold that is not a number.
+try {
+    $small->trim({ threshold: Core\Math::sqrt(-1.0) })->raw();
+    echo "step 3 ran\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. Many trims in a row on an image that is all border.
+try {
+    Image $same = $small;
+    uint $i = 0;
+    while ($i < 64) {
+        $same = $same->trim();
+        $i = $i + 1;
+    }
+    var $last = $same->raw();
+    echo 'step 4 ran ', $last->width, "\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}

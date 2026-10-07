@@ -1,0 +1,16 @@
+<?nvs
+// Shows what happens when the box does not fit inside the image.
+use Novis\Image\Image;
+use Novis\Image\Color;
+
+Image $photo = Image::create(300, 200, Color::hex("#22aa55"));
+
+// The box ends at x 400, but the image is only 300 pixels wide.
+// `crop` itself does not throw. The error comes from `raw`, which runs the steps.
+Image $tooWide = $photo->crop({x: 100, y: 0, width: 300, height: 200});
+try {
+    $tooWide->raw();
+    echo "cropped\n";
+} catch (Throwable $e) {
+    echo "The box does not fit inside the image.\n";
+}

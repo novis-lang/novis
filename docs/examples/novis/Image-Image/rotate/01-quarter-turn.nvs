@@ -1,0 +1,14 @@
+<?nvs
+// Shows that a quarter turn swaps the width and the height.
+use Novis\Image\Image;
+use Novis\Image\Color;
+
+Image $photo = Image::create(600, 400, Color::hex("#336699"));
+
+// This prints 400x600.
+var $turned = $photo->rotate(90.0)->raw();
+echo $turned->width, "x", $turned->height, "\n";
+
+// A turn by 180 degrees keeps the size. This prints 600x400.
+var $upsideDown = $photo->rotate(180.0)->raw();
+echo $upsideDown->width, "x", $upsideDown->height, "\n";

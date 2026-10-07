@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to remove the transparent bands above and below a picture.
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Fit;
+
+// `Fit::Contain` puts a 400 by 200 picture in a 300 by 300 box.
+// The box has transparent bands above and below the picture.
+Image $padded = Image::create(400, 200, Color::hex("#cc3333"))->resize({width: 300, height: 300, fit: Fit::Contain});
+
+// This prints 300x300 and then 300x150.
+var $before = $padded->raw();
+echo $before->width, "x", $before->height, "\n";
+var $after = $padded->trim()->raw();
+echo $after->width, "x", $after->height, "\n";

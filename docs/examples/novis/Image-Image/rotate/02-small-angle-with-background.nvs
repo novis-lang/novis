@@ -1,0 +1,15 @@
+<?nvs
+// Shows how a small turn makes the image larger and fills the corners with `background`.
+use Novis\Image\Image;
+use Novis\Image\Color;
+
+Image $card = Image::create(100, 100, Color::hex("#cc6633"));
+
+// The turned square needs more room, so the size grows. This prints 142x142.
+Image $tilted = $card->rotate(45.0, {background: Color::hex("#ffffff")});
+var $raw = $tilted->raw();
+echo $raw->width, "x", $raw->height, "\n";
+
+// The top-left pixel is a corner, so it has the background colour. This prints 255 255 255.
+array<mixed> $corner = Core\Bytes::unpack(Core\Bytes::slice($raw->pixels, 0, 4), "C4");
+echo $corner[0], " ", $corner[1], " ", $corner[2], "\n";

@@ -1,0 +1,8 @@
+<?nvs
+// Shows that an image of one colour keeps its full size.
+use Novis\Image\Image;
+use Novis\Image\Color;
+
+// Every pixel has the colour of the top-left pixel. This prints 50x50.
+var $plain = Image::create(50, 50, Color::hex("#ffffff"))->trim()->raw();
+echo $plain->width, "x", $plain->height, "\n";

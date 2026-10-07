@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to colour the empty bands that `Fit::Contain` adds around a picture.
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Fit;
+
+Image $photo = Image::create(400, 200, Color::hex("#336699"));
+
+// The bands above and below the picture become light gray.
+var $raw = $photo->resize({width: 200, height: 200, fit: Fit::Contain})->flatten(Color::hex("#eeeeee"))->raw();
+
+// The top-left pixel is in a band. This prints 238 238 238 255.
+array<mixed> $pixel = Core\Bytes::unpack(Core\Bytes::slice($raw->pixels, 0, 4), "C4");
+echo $pixel[0], " ", $pixel[1], " ", $pixel[2], " ", $pixel[3], "\n";

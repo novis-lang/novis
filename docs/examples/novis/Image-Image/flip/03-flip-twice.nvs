@@ -1,0 +1,18 @@
+<?nvs
+// Shows that flipping the same way twice gives the original pixels back.
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Fit;
+use Novis\Image\Gravity;
+use Novis\Image\Axis;
+
+Image $photo = Image::create(30, 10, Color::hex("#22aa55"))
+    ->resize({width: 40, height: 40, fit: Fit::Contain, gravity: Gravity::NorthEast});
+
+bytes $original = $photo->raw()->pixels;
+bytes $once = $photo->flip(Axis::Horizontal)->raw()->pixels;
+bytes $twice = $photo->flip(Axis::Horizontal)->flip(Axis::Horizontal)->raw()->pixels;
+
+// This prints "once: different" and "twice: same".
+echo "once: ", $once == $original ? "same" : "different", "\n";
+echo "twice: ", $twice == $original ? "same" : "different", "\n";

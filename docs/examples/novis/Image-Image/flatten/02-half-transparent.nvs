@@ -1,0 +1,12 @@
+<?nvs
+// Shows how a half-transparent colour is mixed with the background.
+use Novis\Image\Image;
+use Novis\Image\Color;
+
+// Red with an alpha of 0.5 is half transparent.
+Image $glass = Image::create(10, 10, Color::rgba(255, 0, 0, 0.5));
+
+// Half red and half white gives pink. This prints 255 127 127 255.
+var $raw = $glass->flatten(Color::hex("#ffffff"))->raw();
+array<mixed> $pixel = Core\Bytes::unpack(Core\Bytes::slice($raw->pixels, 0, 4), "C4");
+echo $pixel[0], " ", $pixel[1], " ", $pixel[2], " ", $pixel[3], "\n";

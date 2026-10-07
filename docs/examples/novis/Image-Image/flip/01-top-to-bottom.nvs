@@ -1,0 +1,18 @@
+<?nvs
+// Shows how `flip(Axis::Vertical)` moves the top of an image to the bottom.
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Fit;
+use Novis\Image\Gravity;
+use Novis\Image\Axis;
+
+// A red bar sits at the top of a transparent square.
+Image $bar = Image::create(100, 20, Color::hex("#cc3333"))
+    ->resize({width: 100, height: 100, fit: Fit::Contain, gravity: Gravity::North});
+
+// The fourth number is the alpha of the top-left pixel. This prints 255, and then 0 after the flip.
+array<Image> $versions = [$bar, $bar->flip(Axis::Vertical)];
+foreach ($versions as Image $version) {
+    array<mixed> $pixel = Core\Bytes::unpack(Core\Bytes::slice($version->raw()->pixels, 0, 4), "C4");
+    echo $pixel[3], "\n";
+}

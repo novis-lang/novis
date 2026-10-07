@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to use the size of an uploaded image to choose the box.
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Format;
+
+bytes $upload = Image::create(600, 400, Color::hex("#cc6633"))->format(Format::Png)->encode();
+
+// `Image::info` reads the size without decoding the pixels.
+// The box is the square at the right edge of the image.
+var $info = Image::info($upload);
+uint $x = $info->width - $info->height;
+
+// The square starts at x 200 and is 400 pixels wide. This prints 400x400.
+var $square = Image::open($upload)->crop({x: $x, y: 0, width: $info->height, height: $info->height})->raw();
+echo $square->width, "x", $square->height, "\n";

@@ -1,0 +1,45 @@
+<?nvs
+// Attack: a request sends crop boxes that lie outside the image or are empty.
+// Each attempt should throw an error, and the server keeps running.
+use Novis\Image\Color;
+use Novis\Image\Image;
+
+Image $small = Image::create(8, 8, Color::hex('#ff0000'));
+
+// 1. A box that starts at the largest whole number, so x plus width is too large to count.
+try {
+    $small->crop({ x: 18446744073709551615, y: 0, width: 2, height: 2 })->raw();
+    echo "step 1 ran\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. A box with a width and a height of zero.
+try {
+    $small->crop({ x: 0, y: 0, width: 0, height: 0 })->raw();
+    echo "step 2 ran\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. A box far larger than the image.
+try {
+    $small->crop({ x: 0, y: 0, width: 1000000, height: 1000000 })->raw();
+    echo "step 3 ran\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. Many crops in a row, each one pixel smaller, until the image is empty.
+try {
+    Image $shrinking = $small;
+    uint $i = 0;
+    while ($i < 8) {
+        $shrinking = $shrinking->crop({ x: 1, y: 1, width: 7 - $i, height: 7 - $i });
+        $i = $i + 1;
+    }
+    $shrinking->raw();
+    echo "step 4 ran\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}
