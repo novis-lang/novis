@@ -7,6 +7,7 @@ ledger
 zoom = 3
 --FILE--
 <?nvs
+// covers: directive:ext
 // No loaded extension declares a block named `maps`.
 // The block above is refused, so this program never runs.
 echo "unreachable\n";

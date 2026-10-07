@@ -1,0 +1,27 @@
+<?nvs
+// Shows a test run that stops at each use of deprecated code.
+
+class Mailer {
+    #[Core\Deprecated(since: "3.0", replace: 'Mailer::send($to)')]
+    public static function mail(string $to): string {
+        return Mailer::send($to);
+    }
+
+    public static function send(string $to): string {
+        return "sent to " . $to;
+    }
+}
+
+// `nvs.toml` sets `deprecated` to `throw`, so this call throws.
+try {
+    echo Mailer::mail("ana@example.com"), "\n";
+} catch (Core\DeprecatedError $old) {
+    echo $old->message, "\n";
+}
+
+// This prints "sent to ana@example.com".
+echo Mailer::send("ana@example.com"), "\n";
+
+// A program may change the setting for its own request. With `ignore`, the old method runs.
+Core\Config::set('errors.deprecated', 'ignore');
+echo Mailer::mail("ben@example.com"), "\n";

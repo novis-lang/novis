@@ -1,0 +1,62 @@
+<?nvs
+// Attack: a request tries to raise `image.max_pixels`, then sends images whose
+// headers claim a huge size. Every write should fail, and every image should
+// throw an error before it is decoded.
+// hostile: timeout-ms 30000
+
+use Novis\Image\Image;
+
+// The header of this PNG says it is 16384 by 16384 pixels. The file is 62 bytes long.
+bytes $bomb = Core\Encoding::fromHex(
+    '89504e470d0a1a0a0000000d4948445200004000000040000806000000a9c81084'
+        . '000000044944415478010000456a05430000000049454e44ae426082',
+);
+
+// 1. Tries the key and keys that are almost the same, with values that mean "no limit".
+array<string> $names = [
+    'image.max_pixels',
+    'max_pixels',
+    'image.MAX_PIXELS',
+    'image.max_pixels.',
+    'image..max_pixels',
+    'image.max-pixels',
+    ' image.max_pixels',
+    "image.max_pixels\u{0000}",
+    'image.' . Core\Str::repeat('sub.', 20000) . 'max_pixels',
+];
+array<string> $values = ['false', '0', '-1', '', 'inf', '1e309', '18446744073709551616', '1024G', '1T'];
+foreach ($names as string $key) {
+    foreach ($values as string $value) {
+        Core\Config::set($key, $value);
+    }
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 2. Each call passes a very high cap of its own. The cap from the server still applies.
+uint $refused = 0;
+uint $round = 0;
+while ($round < 2000) {
+    try {
+        uint $huge = 18446744073709551615 - ($round as uint);
+        bytes $png = Image::open($bomb, { maxPixels: $huge })->encode();
+    } catch (RuntimeError $tooBig) {
+        $refused = $refused + 1;
+    }
+    $round = $round + 1;
+}
+echo 'refused: ', $refused, "\n";
+
+// 3. The same bomb with no option, many times.
+$round = 0;
+while ($round < 2000) {
+    try {
+        bytes $again = Image::open($bomb)->encode();
+    } catch (RuntimeError $tooBig) {
+        $refused = $refused + 1;
+    }
+    $round = $round + 1;
+}
+echo 'refused: ', $refused, "\n";
+
+echo 'cap: ', Core\Config::get('image.max_pixels') ?? '(unset)', "\n";
