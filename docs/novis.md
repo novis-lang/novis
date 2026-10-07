@@ -223,9 +223,11 @@ Conventions the whole file uses:
 | [`Novis\Intl\Collator`](#core-novis-intl-collator) |  |
 | [`Novis\Intl\DateFormat`](#core-novis-intl-dateformat) |  |
 | [`Novis\Intl\ListFormat`](#core-novis-intl-listformat) |  |
+| [`Novis\Intl\Locale`](#core-novis-intl-locale) |  |
 | [`Novis\Intl\NumberFormat`](#core-novis-intl-numberformat) |  |
 | [`Novis\Intl\PluralRules`](#core-novis-intl-pluralrules) |  |
 | [`Novis\Intl\RelativeTime`](#core-novis-intl-relativetime) |  |
+| [`Novis\Intl\Segmenter`](#core-novis-intl-segmenter) |  |
 | [`Novis\Intl\Icu`](#core-novis-intl-icu) |  |
 | [`Core` enums](#core-enums) | every enum a member takes, with its cases |
 
@@ -27018,6 +27020,40 @@ Novis\Intl\ListFormat::join(array<array<string>> $lists, string $locale, ?{type?
 
 **Returns** `array<string>`
 
+<a id="core-novis-intl-locale"></a>
+### `Novis\Intl\Locale`
+
+Keywords: negotiate, resolve
+
+| Member | Signature |
+|---|---|
+| [`Novis\Intl\Locale::negotiate`](#core-novis-intl-locale-negotiate) | `negotiate(string $acceptLanguage, array<string> $offered, string $default): string` |
+| [`Novis\Intl\Locale::resolve`](#core-novis-intl-locale-resolve) | `resolve(array<string> $tags, Service $service): array<string>` |
+
+<a id="core-novis-intl-locale-negotiate"></a>
+#### `Novis\Intl\Locale::negotiate`
+
+```nvs skip
+Novis\Intl\Locale::negotiate(string $acceptLanguage, array<string> $offered, string $default): string
+```
+
+`Locale::negotiate` returns the best of `$offered` for an `Accept-Language` value. `"de-AT"`
+matches `"de"`. An empty, malformed or unmatched value gives `$default` and does not throw.
+
+**Returns** `string`
+
+<a id="core-novis-intl-locale-resolve"></a>
+#### `Novis\Intl\Locale::resolve`
+
+```nvs skip
+Novis\Intl\Locale::resolve(array<string> $tags, Service $service): array<string>
+```
+
+`Locale::resolve` returns, for each tag, the locale whose data is used for `$service`.
+For `"de-AT"` with `Service::Lists` the result is `"de"`. `"und"` means only the general rules are used.
+
+**Returns** `array<string>`
+
 <a id="core-novis-intl-numberformat"></a>
 ### `Novis\Intl\NumberFormat`
 
@@ -27132,6 +27168,40 @@ Novis\Intl\RelativeTime::format(array<{count: int, unit: TimeUnit}> $items, stri
 `Numeric::Auto` writes words such as "yesterday", and `Width::Short` writes "in 2 hr.".
 
 **Returns** `array<string>`
+
+<a id="core-novis-intl-segmenter"></a>
+### `Novis\Intl\Segmenter`
+
+Keywords: words, sentences
+
+| Member | Signature |
+|---|---|
+| [`Novis\Intl\Segmenter::words`](#core-novis-intl-segmenter-words) | `words(array<string> $strings, string $locale): array<array<{text: string, wordLike: bool}>>` |
+| [`Novis\Intl\Segmenter::sentences`](#core-novis-intl-segmenter-sentences) | `sentences(array<string> $strings, string $locale): array<array<string>>` |
+
+<a id="core-novis-intl-segmenter-words"></a>
+#### `Novis\Intl\Segmenter::words`
+
+```nvs skip
+Novis\Intl\Segmenter::words(array<string> $strings, string $locale): array<array<{text: string, wordLike: bool}>>
+```
+
+`Segmenter::words` returns each string as a list of parts. `wordLike` is `true` for a word
+or a number, and `false` for spaces and punctuation. All parts joined give the string.
+
+**Returns** `array<array<{text: string, wordLike: bool}>>`
+
+<a id="core-novis-intl-segmenter-sentences"></a>
+#### `Novis\Intl\Segmenter::sentences`
+
+```nvs skip
+Novis\Intl\Segmenter::sentences(array<string> $strings, string $locale): array<array<string>>
+```
+
+`Segmenter::sentences` returns each string as a list of sentences. A sentence keeps the
+spaces after it. An empty string gives an empty list.
+
+**Returns** `array<array<string>>`
 
 <a id="core-novis-intl-icu"></a>
 ### `Novis\Intl\Icu`

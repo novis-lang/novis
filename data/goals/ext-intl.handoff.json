@@ -1,28 +1,24 @@
 {
-  "state": "**Goal `ext-intl`: Stage 5 (dates, relative time, lists) is on disk; Stage 6 is next.** `format-relative` is `extensions/intl/src/relative.rs` over `icu_experimental`'s `RelativeTimeFormatter` (one formatter per unit a call names), and `format-lists` is `extensions/intl/src/lists.rs` over `icu_list`; each module doc owns its behaviour. Their Novis halves are `extensions/intl/nvs/RelativeTime.nvs` and `extensions/intl/nvs/ListFormat.nvs`. All four tests of check `nvs-ext-dates-relative-time-and-lists` (`crates/nvs-ext/tests/intl.rs`) pass, and both Stage 5 cases, `tests/conformance/novis/intl-dates-format-in-their-zone-and-locale.nvst` and `tests/conformance/novis/intl-relative-time-and-lists.nvst`, pass.\n\n`word-segments`, `sentence-segments`, `resolve-locales` and `negotiate` still return `runtime`. The guest wasm size is recorded by Stage 7.",
+  "state": "**Goal `ext-intl`: Stage 6 (segmentation and locale negotiation) is on disk; Stage 7 is next.** Every export of `nvs:intl/icu` is implemented. `word-segments` and `sentence-segments` are `extensions/intl/src/segments.rs` over `icu_segmenter` (`try_new_auto`, so the LSTM and dictionary data for languages without spaces are in the wasm); `negotiate` and `resolve-locales` are `extensions/intl/src/negotiate.rs` over `icu_locale`'s `LocaleFallbacker` and each crate's baked provider. Each module doc owns its behaviour. Their Novis halves are `extensions/intl/nvs/Segmenter.nvs` and `extensions/intl/nvs/Locale.nvs`. All four tests of check `nvs-ext-segments-and-negotiation` (`crates/nvs-ext/tests/intl.rs`) pass, and both Stage 6 cases pass under a rebuilt `nvs`.\n\n`resolve-locales` answers with CLDR's real parent: `en-GB` resolves to `en-001` for lists and plurals, and segmentation resolves almost every tag to `und` because only a few locales tailor word breaks. The guest wasm size is recorded by Stage 7.",
   "next": {
-    "stage": 6,
-    "title": "segmentation and locale negotiation",
+    "stage": 7,
+    "title": "the growth, and a bundle",
     "files": [],
-    "note": "one file set: `extensions/intl/src/lib.rs`, new `extensions/intl/src/segments.rs` and `extensions/intl/src/negotiate.rs`, `extensions/intl/nvs/`, `crates/nvs-ext/tests/intl.rs`, `tests/conformance/novis/`.",
+    "note": "one file set: `extensions/intl/src/lib.rs` and `extensions/image/src/lib.rs` (their module docs), `crates/nvs-ext/tests/builtin.rs`, `crates/nvs-cli/tests/bundle.rs`.",
     "items": [
       {
         "done": false,
-        "text": "**Implement `word-segments` and `sentence-segments`** at `extensions/intl/src/lib.rs:307` and `extensions/intl/src/lib.rs:311` over `icu_segmenter`'s word and sentence segmenters, with `word-like` from the word segmenter's rule status. Write `extensions/intl/nvs/Segmenter.nvs` beside `extensions/intl/nvs/ListFormat.nvs:1`. Test `word_and_sentence_segments_of_a_batch_of_strings` goes after `crates/nvs-ext/tests/intl.rs:792`, reusing `written`. Owned by ADR 0277 § 1 and § 9."
+        "text": "**Record each component's embedded size** in the module docs at `extensions/intl/src/lib.rs:1` and `extensions/image/src/lib.rs:1`, in MiB to one decimal, measured from a release build, and write `the_recorded_growth_matches_the_embedded_components` beside `crates/nvs-ext/tests/builtin.rs:138`: it reads both docs and fails past 5% from `nvs_ext::builtin::INTL` and `IMAGE`'s lengths. Owned by ADR 0247 *Consequences* and the goal's Stage 7."
       },
       {
         "done": false,
-        "text": "**Implement `negotiate` and `resolve-locales`** at `extensions/intl/src/lib.rs:322` and `extensions/intl/src/lib.rs:318`, and write `extensions/intl/nvs/Locale.nvs`; the check's other named tests are printed by `bun nv loop --list --stage 6`. Owned by ADR 0277 § 1, § 9 and `rule:core-classes/intl-locale-is-an-argument`."
-      },
-      {
-        "done": false,
-        "text": "**Write the two Stage 6 cases** `tests/conformance/novis/intl-segments-words-and-sentences.nvst` and `tests/conformance/novis/intl-negotiates-a-locale-from-accept-language.nvst`, shaped like `tests/conformance/novis/intl-relative-time-and-lists.nvst:1`. The pipeline's `nvs` predates a guest change, so run them with `cargo build` and `target/debug/nvs.exe test <case>`."
+        "text": "**Write `a_bundle_calls_both_built_in_components`** in `crates/nvs-cli/tests/bundle.rs:44` (`bundle_of`): a bundle built with `nvs build --compile` from a folder with no `nvs.toml` calls `Novis\\Image` and `Novis\\Intl`. Owned by `rule:packaging/the-first-party-components-are-built-in`."
       }
     ]
   },
   "backlog": [
-    "Stage 7: the recorded growth per component and a bundle calling both built-ins (`data/goals/ext-intl.json`, checks of stage 7).",
-    "`docs/rules/packaging/the-first-party-components-are-built-in.md:36` still says only `collateOrder` and `sortKeys` are implemented; point it at `extensions/intl/src/lib.rs`'s module doc. An edit under `docs/rules/` runs `bun nv rules --check`, which today fails on `docs/agent/goals/pdf.md`'s citations of rules that goal has not written yet.",
-    "Stage 8: the feature proofs of every `Novis\\Intl` class (`bun nv proofs --owed`)."
+    "Stage 8: the feature proofs for every `Novis\\Intl` class (`bun nv proofs --owed`), each `about.md` held to AGENTS.md § *Text an end user reads*.",
+    "`docs/rules/packaging/the-first-party-components-are-built-in.md:36` still says only `collateOrder` and `sortKeys` are implemented; every export is now. Editing it runs `bun nv rules --check`, which fails on `docs/agent/goals/pdf.md` citing five rules that goal has not written yet, so that has to be settled first; then `bun nv rules --render`.",
+    "ADR 0277 § 8 says a malformed tag's `LogicError` names the tag cut to 64 characters; `crate::locale` in `extensions/intl/src/lib.rs` does not cut it yet."
   ]
 }
