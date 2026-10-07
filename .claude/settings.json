@@ -180,7 +180,8 @@
       "Bash(bun nv webp-lib:*)",
       "PowerShell(bun nv webp-lib:*)",
       "Bash(cargo search:*)",
-      "Bash(cargo info:*)"
+      "Bash(cargo info:*)",
+      "Bash(cargo deny:*)"
     ]
   }
 }
