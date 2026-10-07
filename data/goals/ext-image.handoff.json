@@ -1,31 +1,30 @@
 {
-  "state": "**Goal `ext-image`, Stage 2 (the build): the image component is embedded, typed into every compile, and callable with no `nvs.toml`; the libwebp leg is not started.** The design is settled by ADR 0120, ADR 0247 and the goal file's § *Standing decisions*; no session re-decides one.\n\n`nvs_ext::load::builtin_manifests` reads the built-in manifests without an engine, and `crates/nvs-cli/src/extensions.rs` `with_built_in` puts them in front of the entries' manifests in `front_end_in`, so every compile (run, test, serve, check, bundle) resolves `Novis\\Image\\Codec`. A call no loaded entry answers reaches `built_in`, which makes the loader once per process (in the artifact cache of the first caller's configuration) and runs `Builtin::extension`. `nvs run` and `nvs test`'s `#[Test]` suite now always install a `Calls`, over an empty set when there is no `[[extension]]`; `nvs serve` already installed one. How it works is the module doc of `crates/nvs-cli/src/extensions.rs` and the rule fragment's *Partly on disk*.\n\nGreen in Stage 2: `tests/conformance/novis/image-info-answers-with-no-configuration.nvst`, the four `crates/nvs-ext/tests/builtin.rs` tests, and the `env_hash` check. Still red: the `webp-lib` tool and its test, `--check-c-deps` for libwebp, and the attribution test.",
+  "state": "**Goal `ext-image`, Stage 2 (the build) is done; Stage 3 (decode, and the cap) is next.** The design is settled by ADR 0120, ADR 0247 and the goal file's § *Standing decisions*; no session re-decides one.\n\nThe image component is embedded, typed into every compile and callable with no `nvs.toml` (`crates/nvs-cli/src/extensions.rs` module doc). libwebp 1.6.0 is prebuilt by `bun nv webp-lib` into `extensions/image/libwebp/libwebp.a`, and `SOURCE.json` beside it pins the source tarball and wasi-sdk 30 by sha256. The build is reproducible: two builds in different folders gave the same bytes. CI's `webp-lib` job runs `--verify`. The image crate does not link the library yet; that is Stage 4's lossy WebP encoder. `bun nv gen-attribution` now covers the image component's crates and libwebp, and the C-dependency ledger records wasmtime's default-feature C code (`tools/nv/cmd/gen-attribution.ts` `C_DEPENDENCIES`).\n\nThe only export implemented is `info`; `run` and `variants` return `runtime`.",
   "next": {
-    "stage": 2,
-    "title": "the build",
+    "stage": 3,
+    "title": "decode, and the cap",
     "files": [
-      "tools/nv/cmd/",
-      "tools/nv/test/",
-      "extensions/image/"
+      "extensions/image/src/",
+      "crates/nvs-ext/tests/",
+      "crates/nvs-config/src/"
     ],
     "items": [
       {
         "done": false,
-        "text": "**The libwebp tool** (`rule:packaging/a-prebuilt-wasm-library-is-rebuilt-in-ci`) — `tools/nv/cmd/webp-lib.ts` with `--check` (prints `libwebp: the committed library matches its recorded digest`), shaped like `tools/nv/cmd/gen-attribution.ts:274`; it builds under WSL with wasi-sdk into `extensions/image/` beside a `SOURCE.json` holding the source tarball's pinned digest and the library's digest. Whether wasi-sdk is installed under WSL on this machine is not checked; if it is not, name the install in the handoff."
+        "text": "**The `[image]` block with `max_pixels`** (`rule:core-classes/image-pixel-cap`, `rule:config/every-block-is-argued-where-it-is-added`) — a `System` key that reloads, defaulting to 24M, beside `[limits]` at `crates/nvs-config/src/tree.rs:81` and its directive rows at `crates/nvs-config/src/directive.rs:91`; the test `the_image_block_is_a_system_block_that_reloads`."
       },
       {
         "done": false,
-        "text": "**The tool's test** — `tools/nv/test/webp-lib.test.ts`: a library whose bytes differ from its record fails the check, and a source tarball whose digest differs from the pin is refused (the record's `webp-lib-refuses-a-library-or-a-source-that-differs` names both test titles), shaped like `tools/nv/cmd/gen-attribution.ts:274`."
+        "text": "**Decode inside the guest, with the cap checked from the header first** (`rule:core-classes/image-format-roster`) — `run` at `extensions/image/src/lib.rs:94` decodes every first-wave format and throws `RuntimeError` over the cap before a buffer is allocated, and `ParseError` for bytes that are no image or a malformed IFD. A new `[[test]] name = \"image_decode\"` in `crates/nvs-ext/Cargo.toml:82` with its fixtures, generated under `extensions/image/fixtures/`."
       },
       {
         "done": false,
-        "text": "**libwebp in the C-dependency ledger and the notice** (`rule:packaging/a-c-dependency-answers-two-questions`) — `bun nv gen-attribution --check-c-deps` names libwebp as `inside the image component`, and `tools/nv/test/attribution-extensions.test.ts` holds that the notice carries every crate the built-in components link and libwebp's licence; the ledger is read at `tools/nv/cmd/gen-attribution.ts:274`."
+        "text": "**The bomb case** — `tests/conformance/novis/image-a-bomb-is-refused-before-it-is-decoded.nvst`, beside `tests/conformance/novis/image-info-answers-with-no-configuration.nvst:1`."
       }
     ]
   },
   "backlog": [
-    "The `[image]` block's `max_pixels` (Stage 3) — `crates/nvs-config/src/tree.rs`.",
-    "`nvs meta --json` lists the built-in classes (Stage 6) — `crates/nvs-cli/src/meta.rs`.",
-    "The intl crate does not exist — `rule:packaging/the-first-party-components-are-built-in`."
+    "Turning off wasmtime's default features would remove zstd, ittapi and gdbjit C code from the binary; the ledger rows in `tools/nv/cmd/gen-attribution.ts` `C_DEPENDENCIES` record them as unreachable meanwhile (`rule:packaging/a-c-dependency-answers-two-questions`).",
+    "libwebp's source pin was taken from the tarball as downloaded; Google publishes a `.asc` signature beside it that no tool checks yet (`tools/nv/cmd/webp-lib.ts`)."
   ]
 }

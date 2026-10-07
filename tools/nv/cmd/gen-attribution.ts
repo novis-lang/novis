@@ -22,17 +22,25 @@
 //   own copyright line: crates whose text is byte-identical share one entry, and crates whose
 //   copyright differs do not.
 //
-// The C-dependency enumeration reads the same package set: every package reachable from `nvs-cli`
-// through a normal or build dependency. A package counts when it declares `links`, or when it
-// build-depends on a tool that compiles C (`C_BUILD_TOOLS`). Either signal can fire on a crate that
-// builds nothing native, and the ledger entry is what answers it. The check fails in both directions:
-// on a C dependency with no entry, and on an entry naming a crate the graph no longer signals.
+// The notice's package set is every package reachable from `nvs-cli` through a normal or build
+// dependency, and every package reachable the same way from each built-in component's crate
+// (`BUILT_IN_COMPONENTS`), which is compiled to wasm and embedded in the binary. The C libraries a
+// component carries prebuilt (`PREBUILT_C`) have no manifest, so their licence files are read from
+// beside the library.
+//
+// The C-dependency enumeration reads the binary's package set alone. A package counts when it
+// declares `links`, or when it build-depends on a tool that compiles C (`C_BUILD_TOOLS`). Either
+// signal can fire on a crate that builds nothing native, and the ledger entry is what answers it. The
+// check fails in both directions: on a C dependency with no entry, and on an entry naming a crate the
+// graph no longer signals. It then lists each prebuilt library, whose answer is that it runs only
+// inside a component, and fails when one is missing or differs from its recorded digest.
 
 import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { ROOT } from "../lib/paths.ts";
 import { run as runProc } from "../lib/proc.ts";
 import { ArgError, parseArgs, pyRepr } from "../lib/py.ts";
+import { checkLibrary, readRecord } from "./webp-lib.ts";
 
 export const summary = "THIRD-PARTY-LICENSES.txt from the dependency graph, and the C-dependency ledger: nv gen-attribution [--check|--check-c-deps]";
 
@@ -184,7 +192,78 @@ const C_DEPENDENCIES: Record<string, Entry> = {
       "the runtime at one version. It builds no C, and it is reached only through a " +
       "`cfg(target_arch = \"wasm32\")` dependency that no shipped `nvs` binary compiles.",
   },
+  "rayon-core": {
+    verdict: "no-native-code",
+    requires: [],
+    record:
+      "`links = \"rayon-core\"` is the same one-version token as `defmt`'s, keeping one global thread " +
+      "pool per process. It builds no C. wasmtime's `parallel-compilation` reaches it, and so does " +
+      "`criterion` for the benches.",
+  },
+  wasmtime: {
+    verdict: "unreachable",
+    requires: [],
+    record:
+      "Its build script compiles `helpers.c`, some fifty lines of trampolines a debugger calls to " +
+      "read a guest's memory, and one function that says whether the unwinder is libunwind. No guest " +
+      "and no request reaches them: they exist for a person stepping through JIT code under gdb or " +
+      "lldb. Everything that runs a guest is Rust.",
+  },
+  "wasmtime-internal-fiber": {
+    verdict: "unreachable",
+    requires: [],
+    record:
+      "Compiles `windows.c` on Windows only, the stack switch a guest's async call runs on, through " +
+      "the Win32 fiber API. It moves no data: it switches stacks, and what runs on them is Rust and " +
+      "compiled wasm. On every other host the switch is inline assembly in Rust.",
+  },
+  "wasmtime-internal-jit-debug": {
+    verdict: "unreachable",
+    requires: [],
+    record:
+      "Compiles `gdbjit.c` under `gdb_jit_int`, one of wasmtime's default features: the registration " +
+      "hook GDB reads JIT code from. It reads the compiled image of a module the configuration loaded, " +
+      "only when debug info is turned on, which `nvs_ext::call`'s `Config` never does.",
+  },
+  "ittapi-sys": {
+    verdict: "unreachable",
+    requires: [],
+    record:
+      "Intel's ITT notify library, behind wasmtime's default `profiling` feature, for VTune. Only a " +
+      "`Config` that sets the VTune profiling strategy calls it, and `nvs_ext::call`'s does not, so " +
+      "nothing a request sends reaches it.",
+  },
+  "zstd-sys": {
+    verdict: "unreachable",
+    requires: [],
+    record:
+      "zstd, behind wasmtime's default `cache` feature, which compresses wasmtime's own on-disk module " +
+      "cache. `nvs` never turns that cache on: a compiled component is stored through " +
+      "`nvs_ext::load::ModuleCache` in the artifact cache " +
+      "(`rule:packaging/a-wasm-module-cache-reuses-the-artifact-cache`), so the library is linked and " +
+      "never called.",
+  },
 };
+
+// The built-in components: Rust crates outside the workspace, compiled for `wasm32-wasip2` and
+// embedded in the binary (`rule:packaging/the-first-party-components-are-built-in`). Their crates ship
+// with the binary, so the notice carries them.
+const BUILT_IN_COMPONENTS = [{ name: "image", manifest: "extensions/image/Cargo.toml" }];
+
+// The C libraries inside a built-in component, each prebuilt for wasm by its own `bun nv` tool
+// (`rule:packaging/a-prebuilt-wasm-library-is-rebuilt-in-ci`). Confined to wasm is the answer
+// `rule:packaging/a-c-dependency-answers-two-questions` gives a codec, so the record is the
+// confinement: the library must exist and match its digest. `texts` are reproduced in the notice.
+interface Prebuilt {
+  name: string;
+  component: string;
+  dir: string;
+  license: string;
+  texts: string[];
+}
+const PREBUILT_C: Prebuilt[] = [
+  { name: "libwebp", component: "image", dir: "extensions/image/libwebp", license: "BSD-3-Clause", texts: ["COPYING", "PATENTS"] },
+];
 
 interface Package {
   id: string;
@@ -212,17 +291,20 @@ interface Metadata {
 
 class Fatal extends Error {}
 
-async function cargoMetadata(): Promise<Metadata> {
-  const r = await runProc(["cargo", "metadata", "--format-version", "1", "--locked"], { cwd: ROOT });
-  if (r.code !== 0) throw new Fatal(`error: cargo metadata failed:\n${r.stderr.trim()}`);
+/** `cargo metadata` for the workspace, or for the crate `manifest` names when it is given. */
+async function cargoMetadata(manifest?: string): Promise<Metadata> {
+  const at = manifest ? ["--manifest-path", join(ROOT, manifest)] : [];
+  const r = await runProc(["cargo", "metadata", "--format-version", "1", "--locked", ...at], { cwd: ROOT });
+  if (r.code !== 0) throw new Fatal(`error: cargo metadata${manifest ? ` for ${manifest}` : ""} failed:\n${r.stderr.trim()}`);
   return JSON.parse(r.stdout) as Metadata;
 }
 
-/** Every third-party package reachable from the binary through a normal or build dependency. */
-function shippedPackages(meta: Metadata): Package[] {
+/** Every third-party package reachable from `roots`, by default the binary's package, through a
+ * normal or build dependency. */
+function shippedPackages(meta: Metadata, roots?: string[]): Package[] {
   const byId = new Map(meta.packages.map((p) => [p.id, p]));
   const nodes = new Map(meta.resolve.nodes.map((n) => [n.id, n]));
-  const stack = meta.packages.filter((p) => p.name === ROOT_PACKAGE).map((p) => p.id);
+  const stack = roots ?? meta.packages.filter((p) => p.name === ROOT_PACKAGE).map((p) => p.id);
   if (stack.length === 0) throw new Fatal(`error: no package named ${ROOT_PACKAGE} in this workspace`);
   const seen = new Set<string>();
   while (stack.length > 0) {
@@ -245,6 +327,23 @@ function shippedPackages(meta: Metadata): Package[] {
 
 function cmp(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/** The binary's third-party packages, then every built-in component's, each name and version once. */
+async function allShippedPackages(meta: Metadata): Promise<Package[]> {
+  const all = new Map(shippedPackages(meta).map((p) => [`${p.name} ${p.version}`, p]));
+  for (const component of BUILT_IN_COMPONENTS) {
+    const own = await cargoMetadata(component.manifest);
+    for (const p of shippedPackages(own, own.workspace_members)) {
+      if (!all.has(`${p.name} ${p.version}`)) all.set(`${p.name} ${p.version}`, p);
+    }
+  }
+  return [...all.values()].sort((a, b) => cmp(a.name.toLowerCase(), b.name.toLowerCase()) || cmp(a.version, b.version));
+}
+
+/** A prebuilt library's version, read from the record its tool writes. */
+function prebuiltVersion(lib: Prebuilt): string {
+  return readRecord(join(ROOT, lib.dir)).source.version;
 }
 
 /** Every shipped package that compiles or links C, as `[name, version, signal]`, sorted. */
@@ -319,6 +418,16 @@ async function checkCDeps(): Promise<number> {
           `    that left is a ledger nobody trusts.`,
       );
     }
+  }
+  console.log(`C libraries inside the built-in components: ${PREBUILT_C.length}, each compiled to wasm`);
+  for (const lib of PREBUILT_C) {
+    const problem = checkLibrary(join(ROOT, lib.dir));
+    if (problem) {
+      console.log(`  ${lib.name} — prebuilt under ${lib.dir}/ [NOT CONFINED]`);
+      problems.push(`  - ${lib.name}: ${problem}`);
+      continue;
+    }
+    console.log(`  ${lib.name} ${prebuiltVersion(lib)} — wasm static library under ${lib.dir}/, inside the ${lib.component} component [confined-to-wasm]`);
   }
   if (problems.length === 0) return 0;
   console.error("error: the C-dependency ledger is out of date:");
@@ -702,7 +811,7 @@ function render(components: Component[], groups: Group[], notices: [string, stri
 
 async function build(): Promise<string> {
   const meta = await cargoMetadata();
-  const packages = shippedPackages(meta);
+  const packages = await allShippedPackages(meta);
   const allowed = denyAllowlist();
   checkPoliciesAgree(allowed);
 
@@ -750,6 +859,15 @@ async function build(): Promise<string> {
       group(ident, body).push(label);
     }
   }
+
+  // A prebuilt C library has no manifest: its record names the licence, and its own files are the text.
+  for (const lib of PREBUILT_C) {
+    const version = prebuiltVersion(lib);
+    components.push({ name: lib.name, version, taken: lib.license, offered: lib.license });
+    const text = lib.texts.map((name) => normalize(readText(join(ROOT, lib.dir, name)))).join("\n\n");
+    group(lib.license, text).push(`${lib.name} ${version}`);
+  }
+  components.sort((a, b) => cmp(a.name.toLowerCase(), b.name.toLowerCase()) || cmp(a.version, b.version));
 
   // A crate with no license file of its own is common where only a repository's root crate carries
   // one. Borrowing the sibling's text is exact for a license with no per-crate copyright line
@@ -823,7 +941,8 @@ function help(): string {
     "                  nothing",
     "  --check-c-deps  list the default binary's C dependencies; exit non-zero on",
     "                  one `rule:packaging/a-c-dependency-answers-two-questions`",
-    "                  has no record for",
+    "                  has no record for, and the prebuilt C libraries inside",
+    "                  the built-in components",
   ].join("\n");
 }
 
