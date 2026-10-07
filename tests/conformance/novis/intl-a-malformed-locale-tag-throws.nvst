@@ -1,0 +1,18 @@
+--TEST--
+A malformed locale tag throws a `LogicError` that names it, and a well-formed tag with no data of its own still sorts: rule:core-classes/intl-locale-is-an-argument
+--FILE--
+<?nvs
+use Novis\Intl\Collator;
+
+// `en_US!` is not a valid locale tag, so `sort` throws a `LogicError`.
+try {
+    Collator::sort(["b", "a"], "en_US!");
+} catch (LogicError $error) {
+    echo "LogicError: ", $error->message, "\n";
+}
+
+// `xx` is a valid tag with no data. The general rules sort the list.
+echo Core\Str::join(Collator::sort(["b", "a"], "xx"), " "), "\n";
+--EXPECT--
+LogicError: `en_US!` is not a valid locale tag.
+a b

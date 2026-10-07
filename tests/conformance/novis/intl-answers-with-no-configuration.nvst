@@ -1,0 +1,10 @@
+--TEST--
+`Novis\Intl\Collator::sort` answers from a program with no `nvs.toml` and no `[[extension]]` entry: rule:packaging/the-first-party-components-are-built-in
+--FILE--
+<?nvs
+use Novis\Intl\Collator;
+
+// The intl component is in every binary, so this program needs no configuration.
+echo Core\Str::join(Collator::sort(["pear", "apple", "fig"], "en"), " "), "\n";
+--EXPECT--
+apple fig pear

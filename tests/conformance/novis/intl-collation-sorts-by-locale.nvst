@@ -1,0 +1,39 @@
+--TEST--
+`Novis\Intl\Collator` sorts by the locale's order, its options change the order, and its sort keys order as `sort` does: rule:core-classes/intl-batch-shape
+--FILE--
+<?nvs
+use Novis\Intl\Collator;
+use Novis\Intl\Strength;
+
+// Swedish sorts `ä` after `z`. German sorts it after `a`.
+array<string> $words = ["ä", "z", "a"];
+echo Core\Str::join(Collator::sort($words, "sv"), " "), "\n";
+echo Core\Str::join(Collator::sort($words, "de"), " "), "\n";
+
+// With `numeric`, digits sort by their value.
+echo Core\Str::join(Collator::sort(["10", "9", "1"], "en"), " "), "\n";
+echo Core\Str::join(Collator::sort(["10", "9", "1"], "en", {numeric: true}), " "), "\n";
+
+// With `Primary` strength, case does not count, so equal strings keep their order.
+echo Core\Str::join(Collator::sort(["b", "B", "a", "A"], "en", {strength: Strength::Primary}), " "), "\n";
+
+// This sorts the names, and then gets a key for each sorted name.
+// Each key compares less than or equal to the next one.
+array<string> $sorted = Collator::sort(["Zoë", "zoe", "Émile", "emile", "Åsa", "asa"], "de");
+array<bytes> $keys = Collator::sortKeys($sorted, "de");
+int $inOrder = 0;
+for (int $i = 0; $i < 5; $i++) {
+    if (Core\Bytes::compare($keys[$i], $keys[$i + 1]) <= 0) {
+        $inOrder++;
+    }
+}
+echo Core\Str::join($sorted, " "), "\n";
+echo $inOrder, " of 5\n";
+--EXPECT--
+a z ä
+a ä z
+1 10 9
+1 9 10
+a A b B
+asa Åsa emile Émile zoe Zoë
+5 of 5

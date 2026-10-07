@@ -1,0 +1,27 @@
+<?nvs
+namespace Novis\Intl;
+
+/// Sorts strings by the rules of a language and region. Each method takes a whole list and
+/// a locale tag, such as `"de"` or `"sv-SE"`, and sorts the whole list in one call.
+final class Collator
+{
+    type CollateOptions = {strength?: Strength, caseFirst?: CaseFirst, numeric?: bool, ignorePunctuation?: bool};
+
+    /// `Collator::sort` returns the strings sorted by the rules of `$locale`. Equal strings
+    /// keep their order. A locale tag that is not valid throws a `LogicError`.
+    public static function sort(array<string> $strings, string $locale, ?CollateOptions $options = null): array<string>
+    {
+        array<string> $sorted = [];
+        foreach (Icu::collateOrder($strings, $locale, $options ?? {}) as uint $index) {
+            $sorted[] = $strings[$index as int];
+        }
+        return $sorted;
+    }
+
+    /// `Collator::sortKeys` returns one sort key for each string. Keys compare byte by byte in the
+    /// order `sort` gives their strings. You can store a key in a column and sort rows by it.
+    public static function sortKeys(array<string> $strings, string $locale, ?CollateOptions $options = null): array<bytes>
+    {
+        return Icu::sortKeys($strings, $locale, $options ?? {});
+    }
+}
