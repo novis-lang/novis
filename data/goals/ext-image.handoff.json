@@ -1,32 +1,31 @@
 {
-  "state": "**Goal `ext-image`: Stages 2 to 5 are done on disk, and Stage 6 (the feature proofs) is in progress.** ADR 0120, ADR 0247 and the goal file's § *Standing decisions* settle the design, and no session re-decides it.\n\nThe component is embedded and callable with no `nvs.toml` (`crates/nvs-cli/src/extensions.rs` module doc). The `Novis\\Image` builder is Novis source in `extensions/image/nvs/`, and `rule:core-classes/image-pipeline`'s fragment says what it has and lacks. `nvs meta --json` lists the built-in classes, the roster gives a `Novis\\` member the path `novis/<tail>/<member>` and an enum the path `types/Novis-Image-<Enum>`, and `docs/reference/novis/Image-Image.md` is the class intro.\n\n**Every `Novis\\Image\\Image` member the builder has, `Color::rgba`, `Color::hex` and the six enums owe nothing.** `Color` is pinned from Novis by `tests/conformance/novis/image-a-colour-checks-its-channels.nvst` and from Rust by `crates/nvs-cli/tests/image_color.rs`; the enums by `tests/conformance/novis/image-each-enum-case-reaches-the-step-it-names.nvst`. `Color::rgba` now throws for a `NAN` alpha instead of passing it to the guest. What is left of the acceptance check is `Codec`'s three members and `composite`.\n\n**The acceptance check cannot pass as written:** `dossier-novis-image-pipeline` names `Novis\\Image\\Image::composite`, which the builder does not have (`rule:core-classes/image-pipeline` lists it as missing, and the guest's `run` skips `composite`), so `--only` refuses the whole list. Either `composite` is built or it leaves the check; see the next group's last item.",
+  "state": "**Goal `ext-image`: Stages 2 to 5 are done on disk, and Stage 6 (the feature proofs) is in progress.** ADR 0120, ADR 0247 and the goal file's § *Standing decisions* settle the design, and no session re-decides it.\n\nThe component is embedded and callable with no `nvs.toml` (`crates/nvs-cli/src/extensions.rs` module doc). The `Novis\\Image` builder is Novis source in `extensions/image/nvs/`, and `rule:core-classes/image-pipeline`'s fragment says what it has and lacks. `nvs meta --json` lists the built-in classes, the roster gives a `Novis\\` member the path `novis/<tail>/<member>` and an enum the path `types/Novis-Image-<Enum>`, and `docs/reference/novis/Image-Image.md` is the class intro.\n\n**Every member in `dossier-novis-image-pipeline` but `Image::composite` owes nothing**: every `Image` member the builder has, `Color::rgba`, `Color::hex`, the six enums and now `Codec::info`, `::run` and `::variants`. A manifest carries its export class's card as a top-level `help` key (`crates/nvs-ext/src/manifest.rs` module doc), and `nvs meta` emits it as the class's `doc.short` (`crates/nvs-cli/tests/meta.rs` `a_built_in_member_carries_its_card`).\n\n**The acceptance check still cannot pass:** it names `Novis\\Image\\Image::composite`, which the builder does not have (the guest's `run` skips `composite`), so `--only` refuses the whole list. Building it is the next group.",
   "next": {
     "stage": 6,
-    "title": "the feature proofs, the programs",
+    "title": "the feature proofs, `composite`",
     "files": [
-      "extensions/image/manifest.json",
       "extensions/image/nvs/Image.nvs",
       "extensions/image/src/ops.rs",
-      "docs/examples/novis/",
-      "tests/hostile/novis/",
-      "benches/members/novis/",
+      "extensions/image/manifest.json",
+      "docs/examples/novis/Image-Image/composite/",
+      "tests/hostile/novis/Image-Image/composite/",
+      "benches/members/novis/Image-Image/composite.nvs",
       "docs/perf/members.ndjson"
     ],
     "items": [
       {
         "done": false,
-        "text": "**`Novis\\Image\\Codec`'s members, and its class card**: `nv proofs` says `Novis\\Image\\Codec` has no class card; it is the component's manifest-declared class, so its card belongs in `extensions/image/manifest.json`. Then `Codec::info`, `::run` and `::variants` owe what `bun nv proofs --id 'Novis\\Image\\Codec::info'` prints; the Rust `covers:` markers are already in `crates/nvs-ext/tests/image_pipeline.rs`. Anchor: `extensions/image/manifest.json:34`."
+        "text": "**The guest's `composite` step**: `run` and `variants` skip `composite` today; make it draw the plan's overlay row it names, at `gravity` or `x`/`y`, with `opacity` and `blend`, and pin it from Rust (`rule:core-classes/image-pipeline`, ADR 0120 § 2). Anchor: `extensions/image/src/ops.rs:1`."
       },
       {
         "done": false,
-        "text": "**`composite` in the acceptance check**: build `Image::composite` (builder in `extensions/image/nvs/Image.nvs:152`, the guest's `composite` step in `extensions/image/src/ops.rs:1`), or take it out of `dossier-novis-image-pipeline` in `data/goals/ext-image.json` with the reason in the goal file. The goal file's builder item names `composite`, so building it is the default. Building it makes `Blend` usable, and `docs/examples/types/Novis-Image-Blend/about.md` then needs its last paragraph rewritten."
+        "text": "**`Image::composite` in the builder**: an `Image` carries its overlay table beside its steps, and `composite(Image $overlay, ...)` appends the overlay's source and steps as a row and a step naming its position; `encode`, `raw` and `variants` pass the table instead of `overlays: []`. Then its proofs as `bun nv proofs --id 'Novis\\Image\\Image::composite'` prints, and `docs/examples/types/Novis-Image-Blend/about.md`'s last paragraph rewritten now that `Blend` is usable. Update `rule:core-classes/image-pipeline`'s list of what the builder lacks. Anchor: `extensions/image/nvs/Image.nvs:152`."
       }
     ]
   },
   "backlog": [
-    "`Image::mime` and `Image::extension` are builder members the check does not name; `bun nv proofs --id` says what they owe (`rule:testing/feature-proofs`).",
-    "The growth of several benches reads `unclear` at 256 iterations of a 4x4 image; `bun nv scaling` owns the ramp (`rule:testing/feature-proofs`).",
-    "`format`'s `progressive` and `effort` options are accepted and no encoder reads them (`extensions/image/src/encode.rs` module doc); `docs/examples/novis/Image-Image/format/about.md` says so, and wiring them changes that page.",
-    "`Image::info` returned `exif: null` for a JPEG whose EXIF block has only an orientation tag, and the WIT `exif` is `list<tuple<string, string>>` while the Novis `Info` shape says `?array<string>` (`wit/image.wit:104`, `extensions/image/nvs/Image.nvs:42`); whether the two agree is not checked."
+    "The LSP hover on the export class does not show the manifest's class `help` yet (`crates/nvs-lsp/src/hover.rs:674`); `nvs meta` does.",
+    "Once `composite` lands, run `dossier-novis-image-pipeline`'s argv and the other three Stage 6 checks in `data/goals/ext-image.json`.",
+    "`Codec::info`'s bench reports `growth: unclear` in `docs/perf/members.ndjson`; the ramp may need a larger batch (`benches/members/README.md`)."
   ]
 }
