@@ -26243,8 +26243,8 @@ Keywords: rgba, hex
 Novis\Image\Color::rgba(uint $r, uint $g, uint $b, float $alpha = 1.0): Color
 ```
 
-`Color::rgba` makes a colour from its channels. A channel above 255, or an alpha outside
-0.0 to 1.0, throws a `LogicError`.
+`Color::rgba` makes a colour from its channels. A channel above 255 throws a `LogicError`.
+So does an alpha that is `NAN` or outside 0.0 to 1.0.
 
 **Returns** `Color`
 

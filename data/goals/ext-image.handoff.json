@@ -1,11 +1,12 @@
 {
-  "state": "**Goal `ext-image`: Stages 2 to 5 are done on disk, and Stage 6 (the feature proofs) is in progress.** ADR 0120, ADR 0247 and the goal file's § *Standing decisions* settle the design, and no session re-decides it.\n\nThe component is embedded and callable with no `nvs.toml` (`crates/nvs-cli/src/extensions.rs` module doc). The `Novis\\Image` builder is Novis source in `extensions/image/nvs/`, and `rule:core-classes/image-pipeline`'s fragment says what it has and lacks. `nvs meta --json` lists the built-in classes, the roster gives a `Novis\\` member the path `novis/<tail>/<member>`, and `docs/reference/novis/Image-Image.md` is the class intro.\n\n**Every `Novis\\Image\\Image` member the builder has owes nothing** (22 members), and `bun nv proofs --verify --only` passes for each. Each has an `about.md` and three examples under `docs/examples/novis/Image-Image/<member>/`, one attack under `tests/hostile/novis/Image-Image/<member>/`, a bench at `benches/members/novis/Image-Image/<member>.nvs` and a figure in `docs/perf/members.ndjson`. What is left of the acceptance check is `Color`, `Codec`, the six enums and `composite`.\n\n**The acceptance check cannot pass as written:** `dossier-novis-image-pipeline` names `Novis\\Image\\Image::composite`, which the builder does not have (`rule:core-classes/image-pipeline` lists it as missing, and the guest's `run` skips `composite`), so `--only` refuses the whole list. Either `composite` is built or it leaves the check; see the next group's last item.",
+  "state": "**Goal `ext-image`: Stages 2 to 5 are done on disk, and Stage 6 (the feature proofs) is in progress.** ADR 0120, ADR 0247 and the goal file's § *Standing decisions* settle the design, and no session re-decides it.\n\nThe component is embedded and callable with no `nvs.toml` (`crates/nvs-cli/src/extensions.rs` module doc). The `Novis\\Image` builder is Novis source in `extensions/image/nvs/`, and `rule:core-classes/image-pipeline`'s fragment says what it has and lacks. `nvs meta --json` lists the built-in classes, the roster gives a `Novis\\` member the path `novis/<tail>/<member>` and an enum the path `types/Novis-Image-<Enum>`, and `docs/reference/novis/Image-Image.md` is the class intro.\n\n**Every `Novis\\Image\\Image` member the builder has, `Color::rgba`, `Color::hex` and the six enums owe nothing.** `Color` is pinned from Novis by `tests/conformance/novis/image-a-colour-checks-its-channels.nvst` and from Rust by `crates/nvs-cli/tests/image_color.rs`; the enums by `tests/conformance/novis/image-each-enum-case-reaches-the-step-it-names.nvst`. `Color::rgba` now throws for a `NAN` alpha instead of passing it to the guest. What is left of the acceptance check is `Codec`'s three members and `composite`.\n\n**The acceptance check cannot pass as written:** `dossier-novis-image-pipeline` names `Novis\\Image\\Image::composite`, which the builder does not have (`rule:core-classes/image-pipeline` lists it as missing, and the guest's `run` skips `composite`), so `--only` refuses the whole list. Either `composite` is built or it leaves the check; see the next group's last item.",
   "next": {
     "stage": 6,
     "title": "the feature proofs, the programs",
     "files": [
-      "extensions/image/nvs/Color.nvs",
       "extensions/image/manifest.json",
+      "extensions/image/nvs/Image.nvs",
+      "extensions/image/src/ops.rs",
       "docs/examples/novis/",
       "tests/hostile/novis/",
       "benches/members/novis/",
@@ -14,15 +15,11 @@
     "items": [
       {
         "done": false,
-        "text": "**`Novis\\Image\\Color::rgba` and `::hex`, and the six enums**: Color owes a Rust-side `covers:` test (`rgba` also a second case) and the full proofs; the enums owe what `bun nv proofs --id 'Novis\\Image\\Fit'` prints. Copy the shape of `docs/examples/novis/Image-Image/raw/`. A variable declared inside one `try` block clashes with the same name in the next one, so each step of an attack uses its own names or a helper class (`tests/hostile/novis/Image-Image/metadata/01-broken-exif-blocks.nvs`). Anchor: `extensions/image/nvs/Color.nvs:19`."
+        "text": "**`Novis\\Image\\Codec`'s members, and its class card**: `nv proofs` says `Novis\\Image\\Codec` has no class card; it is the component's manifest-declared class, so its card belongs in `extensions/image/manifest.json`. Then `Codec::info`, `::run` and `::variants` owe what `bun nv proofs --id 'Novis\\Image\\Codec::info'` prints; the Rust `covers:` markers are already in `crates/nvs-ext/tests/image_pipeline.rs`. Anchor: `extensions/image/manifest.json:34`."
       },
       {
         "done": false,
-        "text": "**`Novis\\Image\\Codec`'s members, and its class card**: `nv proofs` says `Novis\\Image\\Codec` has no class card; it is the component's manifest-declared class, so its card belongs in `extensions/image/manifest.json`. Anchor: `extensions/image/manifest.json:34`."
-      },
-      {
-        "done": false,
-        "text": "**`composite` in the acceptance check**: build `Image::composite` (builder in `extensions/image/nvs/Image.nvs:152`, the guest's `composite` step in `extensions/image/src/ops.rs:1`), or take it out of `dossier-novis-image-pipeline` in `data/goals/ext-image.json` with the reason in the goal file. The goal file's builder item names `composite`, so building it is the default."
+        "text": "**`composite` in the acceptance check**: build `Image::composite` (builder in `extensions/image/nvs/Image.nvs:152`, the guest's `composite` step in `extensions/image/src/ops.rs:1`), or take it out of `dossier-novis-image-pipeline` in `data/goals/ext-image.json` with the reason in the goal file. The goal file's builder item names `composite`, so building it is the default. Building it makes `Blend` usable, and `docs/examples/types/Novis-Image-Blend/about.md` then needs its last paragraph rewritten."
       }
     ]
   },
