@@ -23,4 +23,7 @@ source and call no export.
 
 **Not shipped.** The interface is written: `wit/image.wit` holds package `nvs:image@1.0.0`, its
 `codec` interface and the `image` world, and `crates/nvs-stdlib/tests/ext_world.rs` places every
-builder member. There is no component and no crate behind it.
+builder member. A plan's `step` is a WIT record with one optional field per operation, exactly one
+of them set, because the manifest tells a union's cases apart by their required keys and most steps
+have none: a step crosses as a Novis array keyed by its operation, `['resize' => [...]]`. The
+component's `run` takes a plan of `format` and `metadata` steps alone (`extensions/image/src/lib.rs`).

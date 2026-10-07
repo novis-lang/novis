@@ -312,7 +312,7 @@ fn codec(resolve: &Resolve, package: PackageId) -> InterfaceId {
         .expect("`nvs:image` has an interface `codec`")
 }
 
-/// The case names of the `codec` variant or enum `name`.
+/// The case names of the `codec` variant or enum `name`, or the field names of the record `name`.
 fn codec_cases(resolve: &Resolve, codec: InterfaceId, name: &str) -> Vec<String> {
     let id = *resolve.interfaces[codec]
         .types
@@ -321,7 +321,8 @@ fn codec_cases(resolve: &Resolve, codec: InterfaceId, name: &str) -> Vec<String>
     match &resolve.types[id].kind {
         TypeDefKind::Variant(variant) => variant.cases.iter().map(|c| c.name.clone()).collect(),
         TypeDefKind::Enum(cases) => cases.cases.iter().map(|c| c.name.clone()).collect(),
-        other => panic!("`{name}` is a {other:?}, not a variant or an enum"),
+        TypeDefKind::Record(record) => record.fields.iter().map(|f| f.name.clone()).collect(),
+        other => panic!("`{name}` is a {other:?}, not a variant, an enum or a record"),
     }
 }
 

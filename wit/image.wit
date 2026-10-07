@@ -226,24 +226,27 @@ interface codec {
     }
 
     /// One operation of a pipeline. The steps run in the order of the list.
-    variant step {
-        resize(resize-options),
-        crop(crop-box),
-        trim(trim-options),
-        rotate(rotate-options),
-        flip(axis),
-        composite(composite-options),
-        flatten(color),
-        sharpen(sharpen-options),
-        blur(f64),
-        grayscale,
-        brightness(f64),
-        contrast(f64),
-        gamma(f64),
-        tint(color),
-        text(text-options),
-        format(format-options),
-        metadata(metadata-options),
+    /// Exactly one field is set, and a step with none or with two returns
+    /// `invalid`. It is a record and not a variant so that it crosses as a
+    /// Novis array keyed by the operation, as `['resize' => [...]]`.
+    record step {
+        resize: option<resize-options>,
+        crop: option<crop-box>,
+        trim: option<trim-options>,
+        rotate: option<rotate-options>,
+        flip: option<axis>,
+        composite: option<composite-options>,
+        flatten: option<color>,
+        sharpen: option<sharpen-options>,
+        blur: option<f64>,
+        grayscale: option<bool>,
+        brightness: option<f64>,
+        contrast: option<f64>,
+        gamma: option<f64>,
+        tint: option<color>,
+        text: option<text-options>,
+        format: option<format-options>,
+        metadata: option<metadata-options>,
     }
 
     /// A pipeline drawn on top of another one by a `composite` step.
