@@ -2,7 +2,8 @@
 //! (`rule:core-classes/image-pipeline`, `rule:core-classes/image-correct-by-default`): a JPEG
 //! with an EXIF orientation opens upright unless `autoOrient` is off, a re-encoded JPEG carries
 //! no EXIF block unless the plan keeps it, and every format the roster encodes writes a file the
-//! component reopens (`rule:core-classes/image-format-roster`). `variants` decodes once and costs
+//! component reopens (`rule:core-classes/image-format-roster`). Pixel steps run in the order the
+//! plan lists them, and a CMYK input resizes after its conversion. `variants` decodes once and costs
 //! one host-to-guest call whatever its number of plans, as `encode` costs one.
 //!
 //! The tagged inputs are built here from `extensions/image/fixtures/gradient.jpg`, by inserting
@@ -158,6 +159,32 @@ fn webp_chunks(file: &[u8]) -> Vec<([u8; 4], Vec<u8>)> {
     }
     assert_eq!(at, file.len(), "a chunk runs past the end of the file");
     chunks
+}
+
+/// The step `resize({width: width})`.
+fn resize(width: u64) -> Value {
+    shape(vec![("resize", shape(vec![("width", Value::Uint(width))]))])
+}
+
+/// The step `rotate(degrees)`.
+fn rotate(degrees: f64) -> Value {
+    shape(vec![(
+        "rotate",
+        shape(vec![("degrees", Value::Float(degrees))]),
+    )])
+}
+
+/// The step `crop({x: 0, y: 0, width: width, height: height})`.
+fn crop(width: u64, height: u64) -> Value {
+    shape(vec![(
+        "crop",
+        shape(vec![
+            ("x", Value::Uint(0)),
+            ("y", Value::Uint(0)),
+            ("width", Value::Uint(width)),
+            ("height", Value::Uint(height)),
+        ]),
+    )])
 }
 
 /// The step `metadata({keep: keep})`.
@@ -440,20 +467,21 @@ fn a_cmyk_jpeg_with_a_profile_resizes_to_the_reference_colours_not_inverted() {
     let request = host.request(Arc::new(Meter::new(Duration::from_secs(60), None)));
     // The top half is magenta and yellow ink, the bottom half cyan and magenta. Through the
     // profile they print as `press`'s red and blue. Read without Adobe's inversion, the top half
-    // would be cyan and black ink and print near black.
+    // would be cyan and black ink and print near black. The resize runs on the converted frame,
+    // so the halves keep those colours away from the seam.
     let raw = run(
         &request,
         &extension,
         opened(cmyk_with_profile(), true, true),
-        plan(Vec::new(), "Raw"),
+        plan(vec![resize(8)], "Raw"),
     )
     .expect("the CMYK JPEG decodes");
-    assert_eq!(size_of(&raw), (16, 16));
-    for (x, y) in [(0, 0), (15, 7)] {
+    assert_eq!(size_of(&raw), (8, 8));
+    for (x, y) in [(0, 0), (7, 2)] {
         let got = pixel(&raw, x, y);
         assert!(near(got, press(0, 1, 1, 0)), "({x}, {y}) is {got:?}");
     }
-    for (x, y) in [(0, 8), (15, 15)] {
+    for (x, y) in [(0, 5), (7, 7)] {
         let got = pixel(&raw, x, y);
         assert!(near(got, press(1, 1, 0, 0)), "({x}, {y}) is {got:?}");
     }
@@ -485,6 +513,51 @@ fn to_srgb_false_keeps_the_raw_channels() {
         "{:?}",
         pixel(&raw, 15, 15)
     );
+    block_on(request.end()).expect("the request ends");
+}
+
+#[test]
+fn pixel_steps_run_in_the_order_written() {
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let extension = component(&host);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(60), None)));
+    // `gradient.jpg` is 16 by 12, red at the top. Turned clockwise first, the red edge is the
+    // right-hand column of a 12 by 16 frame, and the crop keeps its top 4 rows.
+    let turned_first = run(
+        &request,
+        &extension,
+        encoded(fixture("gradient.jpg"), true),
+        plan(vec![rotate(90.0), crop(12, 4)], "Raw"),
+    )
+    .expect("the plan runs");
+    assert_eq!(size_of(&turned_first), (12, 4));
+    assert!(
+        is_red(pixel(&turned_first, 11, 0)),
+        "{:?}",
+        pixel(&turned_first, 11, 0)
+    );
+    assert!(
+        is_blue(pixel(&turned_first, 0, 0)),
+        "{:?}",
+        pixel(&turned_first, 0, 0)
+    );
+    // Cropped first, the 12 by 4 strip is all near red, and turning it gives 4 by 12.
+    let cropped_first = run(
+        &request,
+        &extension,
+        encoded(fixture("gradient.jpg"), true),
+        plan(vec![crop(12, 4), rotate(90.0)], "Size"),
+    )
+    .expect("the plan runs");
+    assert_eq!(size_of(&cropped_first), (4, 12));
+    // A crop outside the frame is an error the export returns, and the instance is kept.
+    let outside = run(
+        &request,
+        &extension,
+        encoded(fixture("gradient.jpg"), true),
+        plan(vec![crop(17, 4)], "Size"),
+    );
+    assert!(matches!(outside, Err(Failure::Error(_))), "{outside:?}");
     block_on(request.end()).expect("the request ends");
 }
 
