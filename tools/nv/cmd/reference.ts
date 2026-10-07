@@ -15,7 +15,8 @@
 // directives), so the reference cannot describe a member that does not run; one hand-written chapter
 // per topic under `docs/reference/lang/` and `docs/reference/tools/`, in filename order, in the format
 // `docs/reference/README.md` gives; and an optional introduction per class under
-// `docs/reference/core/`, named for the class after `Core\` with `\` written `-`.
+// `docs/reference/core/`, named for the class after `Core\` with `\` written `-`, or for a built-in
+// component's class under `docs/reference/novis/`, named after `Novis\` (`Image-Image.md`).
 //
 // Every fenced `nvs` block in a chapter is a program this command runs against the binary, and the
 // `output` fence after it is what the program must print, so an example that stops being true fails
@@ -185,10 +186,12 @@ function loadChapters(part: string): Chapter[] {
   });
 }
 
-/** The hand-written introduction for a `Core` class, or null when nobody wrote one. */
+/** The hand-written introduction for a `Core` class, or for a built-in component's `Novis\` class
+ * under `docs/reference/novis/`, or null when nobody wrote one. */
 function classIntro(name: string): [Map<string, string>, string] | null {
-  const stem = (name.startsWith("Core\\") ? name.slice(5) : name).replaceAll("\\", "-");
-  const path = join(SOURCES, "core", `${stem}.md`);
+  const novis = name.startsWith("Novis\\");
+  const stem = (name.startsWith("Core\\") ? name.slice(5) : novis ? name.slice(6) : name).replaceAll("\\", "-");
+  const path = join(SOURCES, novis ? "novis" : "core", `${stem}.md`);
   if (!existsSync(path) || !statSync(path).isFile()) return null;
   return parseFront(readText(path), path);
 }
@@ -593,7 +596,7 @@ async function pool<T, R>(items: T[], width: number, task: (item: T) => Promise<
 }
 
 async function checkExamples(only: string | undefined, keep: boolean): Promise<number> {
-  let paths = ["lang", "tools", "core"].flatMap((part) => markdownIn(join(SOURCES, part)));
+  let paths = ["lang", "tools", "core", "novis"].flatMap((part) => markdownIn(join(SOURCES, part)));
   if (only) paths = paths.filter((p) => p.split(sep).join("/").includes(only));
   const examples = paths.flatMap(examplesIn);
   if (examples.length === 0) {

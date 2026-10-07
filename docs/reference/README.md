@@ -12,6 +12,7 @@ follows the code without anyone remembering to.
 | `lang/*.md` | hand-written, this directory | Part A — one chapter per language topic, in filename order |
 | `tools/*.md` | hand-written, this directory | Part C — one chapter per tool |
 | `core/<Class>.md` | hand-written, this directory | the introduction and one worked example at the top of a class's Part B section. Optional: a class without one gets its member cards alone |
+| `novis/<Class>.md` | hand-written, this directory | the same, for a built-in component's `Novis\` class |
 
 ## Who reads this, and what that means for the prose
 
@@ -93,7 +94,8 @@ expresses is a chapter missing it — the edit belongs in the chapter.
 ## A class introduction file
 
 `core/<Class>.md`, named by the class after `Core\` with `\` written `-`: `Str.md`,
-`Time-DateTime.md`, `Task-Channel.md`. Same front matter, with only `summary` and `keywords` read
+`Time-DateTime.md`, `Task-Channel.md`; a `Novis\` class's is `novis/<Class>.md`, named after
+`Novis\` the same way: `Image-Image.md`. Same front matter, with only `summary` and `keywords` read
 (`keywords` here are *extra* — every member name is added automatically; put the PHP names the
 class replaces, and the concepts). The body is a two-to-four sentence introduction — what the class
 is for, the one rule a user must know (grapheme counting, copy-on-write, `?T` for absence) — and
