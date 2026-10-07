@@ -1,16 +1,17 @@
 //! `rule:packaging/the-first-party-components-are-built-in` as `nvs-ext` sees it: the image
 //! component is in the binary, loads with no `[[extension]]` entry and no pin, compiles on its
-//! first use and not before, and an entry declaring a `Novis\` class is still refused.
+//! first use and not before, and an entry declaring a `Novis\` class is still refused. Each
+//! component's module doc states its embedded size, held within 5% of the bytes here.
 
 use std::collections::HashMap;
 use std::future::Future;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::pin::pin;
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll, Waker};
 use std::time::Duration;
 
-use nvs_ext::builtin::{IMAGE, IMAGE_SHA256};
+use nvs_ext::builtin::{IMAGE, IMAGE_SHA256, INTL};
 use nvs_ext::call::{Host, Meter};
 use nvs_ext::convert::{Key, Value};
 use nvs_ext::load::{Builtin, CacheKey, Entry, Loader, ModuleCache};
@@ -132,6 +133,46 @@ fn field<'a>(value: &'a Value, key: &str) -> &'a Value {
         .find(|(k, _)| *k == Key::String(key.to_owned()))
         .map(|(_, v)| v)
         .unwrap_or_else(|| panic!("the shape has no `{key}`: {value:?}"))
+}
+
+/// The size a component's module doc states, from its sentence "the component is N.N MiB".
+fn recorded_mib(path: &Path) -> f64 {
+    let doc = std::fs::read_to_string(path)
+        .unwrap_or_else(|e| panic!("{} is not readable: {e}", path.display()));
+    let doc = doc
+        .lines()
+        .take_while(|line| line.starts_with("//!"))
+        .map(|line| line.trim_start_matches("//!").trim())
+        .collect::<Vec<_>>()
+        .join(" ");
+    let (_, after) = doc
+        .split_once("the component is ")
+        .unwrap_or_else(|| panic!("{} states no embedded size", path.display()));
+    let (figure, _) = after
+        .split_once(" MiB")
+        .unwrap_or_else(|| panic!("{}'s size is not in MiB", path.display()));
+    figure
+        .parse()
+        .unwrap_or_else(|e| panic!("{}'s size `{figure}` is not a number: {e}", path.display()))
+}
+
+#[test]
+fn the_recorded_growth_matches_the_embedded_components() {
+    let docs = [
+        (nvs_repo::path("extensions/intl/src/lib.rs"), INTL),
+        (nvs_repo::path("extensions/image/src/lib.rs"), IMAGE),
+    ];
+    for (path, bytes) in docs {
+        let recorded = recorded_mib(&path);
+        let embedded = bytes.len() as f64 / (1024.0 * 1024.0);
+        let drift = (recorded - embedded).abs() / embedded;
+        assert!(
+            drift <= 0.05,
+            "{} says the component is {recorded} MiB, and the binary carries {embedded:.2} MiB: \
+             write the new size there",
+            path.display(),
+        );
+    }
 }
 
 #[test]

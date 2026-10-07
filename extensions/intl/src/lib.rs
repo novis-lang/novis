@@ -17,6 +17,11 @@
 //! A locale is a BCP 47 tag that [`locale`] parses for every export. A malformed tag is
 //! `Invalid` and names the tag. A well-formed tag with no data of its own falls back along CLDR's
 //! chain inside ICU4X, down to the root locale.
+//!
+//! Packed as a `.nvsx` and embedded in every `nvs` binary, the component is 9.7 MiB, built for
+//! release as `crates/nvs-ext/build.rs` always builds it. That is the binary's growth for intl,
+//! and `crates/nvs-ext/tests/builtin.rs` fails when this figure drifts past 5% of the bytes the
+//! binary carries.
 
 pub mod collation;
 pub mod dates;

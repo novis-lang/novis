@@ -23,6 +23,11 @@
 //! its frame past the cap returns `Runtime` before its first step runs, not after its last one
 //! under the cap. An encoded source's size is its header's, and a `text` source's is its laid-out
 //! box (`text`'s module doc, which says what the `text` step draws too).
+//!
+//! Packed as a `.nvsx` and embedded in every `nvs` binary, the component is 5.8 MiB, built for
+//! release as `crates/nvs-ext/build.rs` always builds it. That is the binary's growth for image,
+//! and `crates/nvs-ext/tests/builtin.rs` fails when this figure drifts past 5% of the bytes the
+//! binary carries.
 
 mod avif;
 pub mod compare;
