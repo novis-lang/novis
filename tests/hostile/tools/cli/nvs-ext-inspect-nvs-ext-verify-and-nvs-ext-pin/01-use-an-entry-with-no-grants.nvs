@@ -1,0 +1,29 @@
+<?nvs
+// Attack: the entry from `nvs ext pin` has no grants, but the program itself may read, write
+// and connect. The program asks the extension to do the same. Every attempt should fail.
+
+use Geo\Atlas;
+
+// 1. Read files the program may read.
+array<string> $paths = ['note.txt', 'data/note.txt', '.', '/'];
+foreach ($paths as string $path) {
+    try {
+        echo Atlas::read($path);
+    } catch (RuntimeError $denied) {
+        echo $path, ': ', $denied->message, "\n";
+    }
+}
+
+// 2. Write a file where the program may write.
+try {
+    Atlas::write('new.txt', "text\n");
+} catch (RuntimeError $denied) {
+    echo 'write: ', $denied->message, "\n";
+}
+
+// 3. Connect to a host the extension asks for and the program may reach.
+try {
+    echo Atlas::status('tiles.example.com'), "\n";
+} catch (RuntimeError $denied) {
+    echo 'connect: ', $denied->message, "\n";
+}

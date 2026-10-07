@@ -1,0 +1,13 @@
+# This is the entry that `nvs ext pin` printed for the extension `Geo\Atlas`, with a relative path.
+# The entry has no `grants`.
+[[extension]]
+path = "../../../../../docs/examples/tools/config/extension-grants-what-a-component-may-reach/atlas.nvsx"
+sha256 = "f9d428fc0a2b9aeb6e0990ddf298d7a1e9664e65a3d3b26f39c57d6f0cd0b896"
+
+# The program may read and write the folder `data/`, and connect to `tiles.example.com`.
+[capabilities.fs]
+read = ["data/"]
+write = ["data/"]
+
+[capabilities.net]
+connect = ["tiles.example.com"]

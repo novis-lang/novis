@@ -1,0 +1,43 @@
+<?nvs
+// Attack: tests call an extension that has no grants, and keep calling it after every error.
+// Each call should throw a `RuntimeError`, and the next call should still work.
+use Core\Test;
+use Geo\Atlas;
+
+final class AtlasAttackTest
+{
+    // 1. Read 500 files in a row. Each read throws.
+    #[Test]
+    public function readsAfterEveryError(): void
+    {
+        uint $failed = 0;
+        uint $i = 0;
+        while ($i < 500) {
+            try {
+                Atlas::read('file-' . $i . '.txt');
+            } catch (RuntimeError $denied) {
+                $failed = $failed + 1;
+            }
+            $i = $i + 1;
+        }
+        Test::assertSame($failed, 500);
+        echo 'failed reads: ', $failed, "\n";
+    }
+
+    // 2. Connect to a host 100 times. Each call throws the same error.
+    #[Test]
+    public function connectsAfterEveryError(): void
+    {
+        uint $i = 0;
+        while ($i < 100) {
+            Test::assertThrows(fn() => Atlas::status('tiles.example.com'), 'RuntimeError');
+            $i = $i + 1;
+        }
+        echo "every connect failed\n";
+    }
+}
+
+// 3. The code outside the class calls both tests one after the other.
+AtlasAttackTest $tests = new AtlasAttackTest();
+$tests->readsAfterEveryError();
+$tests->connectsAfterEveryError();

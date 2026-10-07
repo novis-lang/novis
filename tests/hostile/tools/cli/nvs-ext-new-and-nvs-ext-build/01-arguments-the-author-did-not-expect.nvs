@@ -1,0 +1,29 @@
+<?nvs
+// Attack: a program calls a built extension with arguments its author did not expect.
+// Each call should return or throw an error. The program must not crash.
+
+use Geo\Atlas;
+
+array<string> $paths = [
+    '',                                  // 1. An empty path.
+    "note.txt\u{0}.png",                 // 2. A path with a NUL character in the middle.
+    '../../../../../../../../etc/passwd', // 3. A path that tries to leave `data/`.
+    Core\Str::repeat('a', 1000000),      // 4. A path of one million characters.
+    "\u{202E}txt.eton",                  // 5. A path with a right-to-left mark.
+];
+foreach ($paths as string $path) {
+    try {
+        echo Core\Str::length(Atlas::read($path)), "\n";
+    } catch (RuntimeError $error) {
+        echo Core\Str::length($error->message), "\n";
+    }
+}
+
+// 6. The same file is read 1,000 times. Every call gets its own result.
+uint $total = 0;
+uint $i = 0;
+while ($i < 1000) {
+    $total = $total + Core\Str::length(Atlas::read('note.txt'));
+    $i = $i + 1;
+}
+echo $total, "\n";

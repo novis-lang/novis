@@ -1,0 +1,15 @@
+<?nvs
+// Shows a program that calls the class of an extension you built with `nvs ext build`.
+
+use Geo\Atlas;
+
+// The class `Geo\Atlas` comes from the `.nvsx` file that `nvs.toml` lists.
+// `Atlas::read` returns the text of a file in `data/`, so this prints `Welcome to the atlas.`.
+echo Atlas::read("welcome.txt");
+
+// `missing.txt` is not in `data/`. So the call throws a `RuntimeError`, and this prints `no such file`.
+try {
+    echo Atlas::read("missing.txt");
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}

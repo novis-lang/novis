@@ -1,0 +1,10 @@
+# The attack calls the extension `Geo\Atlas` from the examples of the configuration chapter.
+# The extension may read the folder `data/`.
+[[extension]]
+path = "../../../../../docs/examples/tools/config/extension-grants-what-a-component-may-reach/atlas.nvsx"
+sha256 = "f9d428fc0a2b9aeb6e0990ddf298d7a1e9664e65a3d3b26f39c57d6f0cd0b896"
+grants = { read = ["data/"] }
+
+# The program may read the folder `data/` too.
+[capabilities.fs]
+read = ["data/"]
