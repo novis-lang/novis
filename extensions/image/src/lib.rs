@@ -27,6 +27,7 @@ mod avif;
 pub mod compare;
 mod decode;
 mod encode;
+pub mod hash;
 mod info;
 pub mod ops;
 mod webp;
@@ -664,8 +665,13 @@ mod guest {
             })
         }
 
-        fn hash(_data: Vec<u8>, _kind: HashKind) -> Result<Vec<u8>, Error> {
-            missing("hash")
+        fn hash(data: Vec<u8>, kind: HashKind) -> Result<Vec<u8>, Error> {
+            let kind = match kind {
+                HashKind::Perceptual => crate::hash::Kind::Perceptual,
+                HashKind::Difference => crate::hash::Kind::Difference,
+                HashKind::Average => crate::hash::Kind::Average,
+            };
+            crate::hash::hash(&data, kind).map_err(error)
         }
 
         fn placeholder(_data: Vec<u8>, _kind: PlaceholderKind) -> Result<String, Error> {

@@ -96,7 +96,7 @@ fn named(which: &str, err: Error) -> Error {
 }
 
 /// Each pixel's Rec. 601 luma, its colour multiplied by its alpha.
-fn luma(pixels: &Pixels) -> Vec<f64> {
+pub(crate) fn luma(pixels: &Pixels) -> Vec<f64> {
     pixels
         .rgba
         .chunks_exact(4)
