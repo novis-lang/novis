@@ -1,0 +1,54 @@
+<?nvs
+// Attack: a request sends colour text that is very long, empty or not hex at all.
+// Each attempt should throw an error or give a colour, and the server keeps running.
+use Novis\Image\Color;
+
+// 1. One million hex digits.
+try {
+    Color::hex('#' . Core\Str::repeat('f', 1000000));
+    echo "step 1 ran\n";
+} catch (Throwable $e1) {
+    echo "step 1 stopped\n";
+}
+
+// 2. Only the `#`, and then nothing at all.
+try {
+    Color::hex('#');
+    Color::hex('');
+    echo "step 2 ran\n";
+} catch (Throwable $e2) {
+    echo "step 2 stopped\n";
+}
+
+// 3. Letters with accents, which are more than one byte each.
+try {
+    Color::hex('#ééé');
+    echo "step 3 ran\n";
+} catch (Throwable $e3) {
+    echo "step 3 stopped\n";
+}
+
+// 4. Emoji, which are four bytes each.
+try {
+    Color::hex('#😀😀😀');
+    echo "step 4 ran\n";
+} catch (Throwable $e4) {
+    echo "step 4 stopped\n";
+}
+
+// 5. A zero byte and spaces inside the digits.
+try {
+    Color::hex("#ff\u{0}000");
+    Color::hex(' ff8800 ');
+    echo "step 5 ran\n";
+} catch (Throwable $e5) {
+    echo "step 5 stopped\n";
+}
+
+// 6. A sign in front of the digits.
+try {
+    Color::hex('-f8800');
+    echo "step 6 ran\n";
+} catch (Throwable $e6) {
+    echo "step 6 stopped\n";
+}

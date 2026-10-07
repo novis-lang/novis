@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to make a placeholder image in a colour that is stored as text.
+use Novis\Image\Color;
+use Novis\Image\Format;
+use Novis\Image\Image;
+
+// The colour as it might be stored in a setting or a style sheet.
+string $brand = "#2a6f97";
+
+// A new PNG image of 64 by 64 pixels in that colour.
+bytes $png = Image::create(64, 64, Color::hex($brand))->format(Format::Png)->encode();
+
+// A PNG file always starts with these 8 bytes. This prints 89504e470d0a1a0a.
+echo Core\Encoding::toHex(Core\Bytes::slice($png, 0, 8)), "\n";

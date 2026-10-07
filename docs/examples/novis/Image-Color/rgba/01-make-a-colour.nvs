@@ -1,0 +1,9 @@
+<?nvs
+// Shows how to make a colour and read its four values.
+use Novis\Image\Color;
+
+// Alpha is left out, so it is 1.0.
+Color $orange = Color::rgba(255, 136, 0);
+
+// This prints 255 136 0 1.
+echo $orange->r, " ", $orange->g, " ", $orange->b, " ", $orange->alpha, "\n";

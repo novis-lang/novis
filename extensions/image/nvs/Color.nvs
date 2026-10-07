@@ -14,14 +14,14 @@ final class Color
         public readonly float $alpha,
     ) {}
 
-    /// `Color::rgba` makes a colour from its channels. A channel above 255, or an alpha outside
-    /// 0.0 to 1.0, throws a `LogicError`.
+    /// `Color::rgba` makes a colour from its channels. A channel above 255 throws a `LogicError`.
+    /// So does an alpha that is `NAN` or outside 0.0 to 1.0.
     public static function rgba(uint $r, uint $g, uint $b, float $alpha = 1.0): Color
     {
         if ($r > 255 || $g > 255 || $b > 255) {
             throw new LogicError("a colour channel is a number from 0 to 255");
         }
-        if ($alpha < 0.0 || $alpha > 1.0) {
+        if (!($alpha >= 0.0 && $alpha <= 1.0)) {
             throw new LogicError("the alpha of a colour is a number from 0.0 to 1.0");
         }
         return new Color($r, $g, $b, $alpha);
