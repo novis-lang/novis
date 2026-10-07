@@ -16,7 +16,8 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 icu_collator = "2.3"
 icu_decimal = "2.3"
-icu_plurals = "2.3"
+# `serde` compiles the rule parser in, for the languages `plurals.rs` carries rules for itself.
+icu_plurals = { version = "2.3", features = ["serde"] }
 icu_datetime = "2.3"
 icu_list = "2.3"
 icu_segmenter = "2.3"
@@ -25,6 +26,8 @@ icu_experimental = "=0.6.0"
 icu_provider = "2.3"
 # The exact decimal a number crosses as; the version `icu_decimal` 2.3 uses.
 fixed_decimal = "0.7"
+# The deserializer that hands a rule string to `icu_plurals`' parser.
+serde = "1"
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 wit-bindgen = "0.62"

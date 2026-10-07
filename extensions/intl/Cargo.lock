@@ -390,10 +390,12 @@ version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e475e6766ef87b1d3c1f97be6363995b0bfaeddbc789671615df598a97ff0593"
 dependencies = [
+ "displaydoc",
  "fixed_decimal",
  "icu_locale_fallback",
  "icu_plurals_data",
  "icu_provider",
+ "serde",
  "zerovec",
 ]
 
@@ -613,6 +615,7 @@ dependencies = [
  "icu_plurals",
  "icu_provider",
  "icu_segmenter",
+ "serde",
  "wit-bindgen",
 ]
 
