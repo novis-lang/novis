@@ -1,0 +1,51 @@
+<?nvs
+// Attack: a request splits very long texts, many texts and broken text into words, with broken
+// locale tags too. Each call should return a list or throw an error, and the server keeps running.
+// hostile: timeout-ms 60000
+use Novis\Intl\Segmenter;
+
+// 1. No strings, and an empty string.
+try {
+    echo 'step 1 ran ', Core\Arr::count(Segmenter::words([], 'en')), ' ', Core\Arr::count(Segmenter::words([''], 'en')[0]), "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. One string of one million letters with no space, and one of one million spaces.
+try {
+    array<string> $long = [Core\Str::repeat('a', 1000000), Core\Str::repeat(' ', 1000000)];
+    array<array<{text: string, wordLike: bool}>> $parts = Segmenter::words($long, 'en');
+    echo 'step 2 ran ', Core\Arr::count($parts[0]), ' ', Core\Arr::count($parts[1]), "\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. Thirty thousand Japanese characters, which use the dictionary.
+try {
+    string $japanese = Core\Str::repeat('東京で買い物', 5000);
+    echo 'step 3 ran ', Core\Arr::count(Segmenter::words([$japanese], 'ja')[0]), "\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. Five thousand strings in one call, mixing emoji, combining marks and control characters.
+try {
+    array<string> $many = [];
+    for (int $i = 0; $i < 5000; $i++) {
+        $many[] = "👩‍👩‍👧 e\u{301}\u{301}\u{301} \u{0}\u{200B}x";
+    }
+    echo 'step 4 ran ', Core\Arr::count(Segmenter::words($many, 'th')), "\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}
+
+// 5. A bad locale tag a thousand times. Each call must still return or throw.
+uint $stopped = 0;
+for (int $j = 0; $j < 1000; $j++) {
+    try {
+        Segmenter::words(['Shop'], 'en_US!');
+    } catch (Throwable $e) {
+        $stopped = $stopped + 1;
+    }
+}
+echo 'step 5 stopped ', $stopped, "\n";

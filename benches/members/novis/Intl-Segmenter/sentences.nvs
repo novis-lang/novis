@@ -1,0 +1,24 @@
+<?nvs
+// Splits two short reviews into sentences, as a page does before it shows the first sentence as a preview.
+// bench: iterations 1000
+// bench: complexity constant
+use Novis\Intl\Segmenter;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<array<string>> $batches = [
+            ["The Shop is open. Is the Blog? Yes!", "Fast delivery."],
+            ["The price is 3.50 euros. It was 4.20 before.", "Good. Very good."],
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            array<array<string>> $sentences = Segmenter::sentences($batches[$total % 2], "en");
+            $total = $total + Core\Arr::count($sentences[0]) % 5 + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1000), "\n";

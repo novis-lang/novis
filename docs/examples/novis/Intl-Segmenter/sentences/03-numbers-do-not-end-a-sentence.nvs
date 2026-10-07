@@ -1,0 +1,11 @@
+<?nvs
+// Shows that a dot inside a number does not end a sentence.
+use Novis\Intl\Segmenter;
+
+array<string> $sentences = Segmenter::sentences(["The price is 3.50 euros. It was 4.20 before."], "en")[0];
+
+// The text has two sentences. This prints each one between brackets.
+// The first sentence keeps the space after it.
+foreach ($sentences as string $sentence) {
+    echo "[", $sentence, "]\n";
+}
