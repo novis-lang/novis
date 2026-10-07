@@ -221,6 +221,7 @@ Conventions the whole file uses:
 | [`Novis\Image\QrCode`](#core-novis-image-qrcode) |  |
 | [`Novis\Image\Codec`](#core-novis-image-codec) |  |
 | [`Novis\Intl\Collator`](#core-novis-intl-collator) |  |
+| [`Novis\Intl\DateFormat`](#core-novis-intl-dateformat) |  |
 | [`Novis\Intl\NumberFormat`](#core-novis-intl-numberformat) |  |
 | [`Novis\Intl\PluralRules`](#core-novis-intl-pluralrules) |  |
 | [`Novis\Intl\Icu`](#core-novis-intl-icu) |  |
@@ -26946,6 +26947,53 @@ Novis\Intl\Collator::sortKeys(array<string> $strings, string $locale, ?CollateOp
 order `sort` gives their strings. You can store a key in a column and sort rows by it.
 
 **Returns** `array<bytes>`
+
+<a id="core-novis-intl-dateformat"></a>
+### `Novis\Intl\DateFormat`
+
+Keywords: dateTimes, dates, times
+
+| Member | Signature |
+|---|---|
+| [`Novis\Intl\DateFormat::dateTimes`](#core-novis-intl-dateformat-datetimes) | `dateTimes(array<Core\Time\DateTime> $values, string $locale, ?{length?: Length, seconds?: bool, zone?: ZoneStyle} $options = null): array<string>` |
+| [`Novis\Intl\DateFormat::dates`](#core-novis-intl-dateformat-dates) | `dates(array<Core\Time\Date> $values, string $locale, ?{length?: Length} $options = null): array<string>` |
+| [`Novis\Intl\DateFormat::times`](#core-novis-intl-dateformat-times) | `times(array<Core\Time\TimeOfDay> $values, string $locale, ?{seconds?: bool} $options = null): array<string>` |
+
+<a id="core-novis-intl-dateformat-datetimes"></a>
+#### `Novis\Intl\DateFormat::dateTimes`
+
+```nvs skip
+Novis\Intl\DateFormat::dateTimes(array<Core\Time\DateTime> $values, string $locale, ?{length?: Length, seconds?: bool, zone?: ZoneStyle} $options = null): array<string>
+```
+
+`DateFormat::dateTimes` returns each date and time as the clock shows it in its own time
+zone. Set `zone` to show the zone: `ZoneStyle::Offset` shows "GMT+2".
+
+**Returns** `array<string>`
+
+<a id="core-novis-intl-dateformat-dates"></a>
+#### `Novis\Intl\DateFormat::dates`
+
+```nvs skip
+Novis\Intl\DateFormat::dates(array<Core\Time\Date> $values, string $locale, ?{length?: Length} $options = null): array<string>
+```
+
+`DateFormat::dates` returns each calendar date. `Length::Short` writes "3/1/26" in
+English, and `Length::Long` writes "March 1, 2026". The default is `Length::Medium`.
+
+**Returns** `array<string>`
+
+<a id="core-novis-intl-dateformat-times"></a>
+#### `Novis\Intl\DateFormat::times`
+
+```nvs skip
+Novis\Intl\DateFormat::times(array<Core\Time\TimeOfDay> $values, string $locale, ?{seconds?: bool} $options = null): array<string>
+```
+
+`DateFormat::times` returns each time of day, with hours and minutes. Set `seconds` to
+`true` to show the seconds too.
+
+**Returns** `array<string>`
 
 <a id="core-novis-intl-numberformat"></a>
 ### `Novis\Intl\NumberFormat`

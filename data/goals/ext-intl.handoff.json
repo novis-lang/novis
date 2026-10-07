@@ -1,29 +1,25 @@
 {
-  "state": "**Goal `ext-intl`: Stage 4 is closed, and Stage 5 (dates, relative time, lists) is next.** `format-numbers` (`extensions/intl/src/numbers.rs`) and `plural-categories` (`extensions/intl/src/plurals.rs`) are implemented. `plural_rules_agree_with_core_cldr_on_its_whole_roster` (`crates/nvs-ext/tests/intl.rs`) runs and passes, so `Novis\\Intl\\PluralRules` agrees with `Core\\Cldr` on every language of its roster. The languages ICU4X's compiled data has no plural rules for are CLDR 46 rule strings in `plurals.rs` (`CARDINAL`, `ORDINAL`), parsed through `icu_plurals`' `serde` feature, and `mo`, `sh` and `tl` are read as `ro`, `sr` and `fil`. The module doc owns the details. This added 51,173 bytes to the guest wasm (3,230,540 to 3,281,713).\n\nThe exports `format-date-times`, `format-dates`, `format-times`, `format-relative`, `format-lists`, `word-segments`, `sentence-segments`, `resolve-locales` and `negotiate` still return `runtime`. `extensions/intl/nvs/` has `Collator`, `NumberFormat` and `PluralRules` and none of the other job classes.",
+  "state": "**Goal `ext-intl`: Stage 5 (dates, relative time, lists) is in progress.** `format-date-times`, `format-dates` and `format-times` are implemented in `extensions/intl/src/dates.rs` over `icu_datetime`'s `FieldSetBuilder`, from the local fields, offset and IANA id the host sends; the module doc owns the zone styles and their fallbacks. `extensions/intl/nvs/DateFormat.nvs` reads a `Core\\Time\\DateTime`'s fields with `format` (`u`, `M`, `d`, `H`, `m`, `s`, `SSSSSSSSS`, `VV`) and its offset with `zone()->offsetAt(...)->toSeconds()`, because `Core\\Time` values have no field properties. `a_core_time_value_formats_in_its_zone_and_locale` and `the_guest_carries_no_time_zone_database` (`crates/nvs-ext/tests/intl.rs`) pass, so check `nvs-ext-dates-relative-time-and-lists` now owes only its two other tests.\n\nThe guest wasm grew from 3,281,713 to 7,142,436 bytes with the date data, mostly zone names (not measured apart). Stage 7 records the size.\n\n`format-relative`, `format-lists`, `word-segments`, `sentence-segments`, `resolve-locales` and `negotiate` still return `runtime`.",
   "next": {
     "stage": 5,
     "title": "dates and times, relative time, lists",
     "files": [],
-    "note": "one file set: `extensions/intl/src/lib.rs`, a new `extensions/intl/src/dates.rs` (and `relative.rs` / `lists.rs` beside it), `extensions/intl/nvs/`, `crates/nvs-ext/tests/intl.rs`.",
+    "note": "one file set: `extensions/intl/src/lib.rs`, new `extensions/intl/src/relative.rs` and `extensions/intl/src/lists.rs`, `extensions/intl/nvs/`, `crates/nvs-ext/tests/intl.rs`, `tests/conformance/novis/`.",
     "items": [
       {
         "done": false,
-        "text": "**Implement `format-date-times`, `format-dates` and `format-times`** over `icu_datetime`, from the local fields the host sends, with no time-zone database in the guest. Owned by ADR 0277 § 6 and § 9. The exports are at `extensions/intl/src/lib.rs:164`, `extensions/intl/src/lib.rs:172` and `extensions/intl/src/lib.rs:180`. Write `extensions/intl/nvs/DateFormat.nvs`, which converts a `Core\\Time` value to local fields. The tests `a_core_time_value_formats_in_its_zone_and_locale` and `the_guest_carries_no_time_zone_database` go in `crates/nvs-ext/tests/intl.rs:464`."
+        "text": "**Implement `format-relative` and `format-lists`** at `extensions/intl/src/lib.rs:247` and `extensions/intl/src/lib.rs:255`: relative time over `icu_experimental`'s relative-time formatter, lists over `icu_list`. Write `extensions/intl/nvs/RelativeTime.nvs` and `extensions/intl/nvs/ListFormat.nvs` beside `extensions/intl/nvs/DateFormat.nvs:1`. Tests `relative_time_formats_past_and_future` and `a_list_formats_with_its_locale_conjunction` go after `crates/nvs-ext/tests/intl.rs:735`, reusing its `written` and `shape` helpers. Owned by ADR 0277 § 1 and § 9."
       },
       {
         "done": false,
-        "text": "**Implement `format-relative` and `format-lists`** at `extensions/intl/src/lib.rs:188` and `extensions/intl/src/lib.rs:196` (relative time is in `icu_experimental`, list formatting in `icu_list`). Write `RelativeTime.nvs` and `ListFormat.nvs`. The tests are `relative_time_formats_past_and_future` and `a_list_formats_with_its_locale_conjunction`. Owned by ADR 0277 § 1 and § 9."
-      },
-      {
-        "done": false,
-        "text": "**Write the two Stage 5 cases**: `tests/conformance/novis/intl-dates-format-in-their-zone-and-locale.nvst` and `tests/conformance/novis/intl-relative-time-and-lists.nvst`. Use `tests/conformance/novis/intl-numbers-format-by-locale.nvst:1` as the shape."
+        "text": "**Write the two Stage 5 cases** `tests/conformance/novis/intl-dates-format-in-their-zone-and-locale.nvst` and `tests/conformance/novis/intl-relative-time-and-lists.nvst`, in the shape of `tests/conformance/novis/intl-numbers-format-by-locale.nvst:1`. The dates case can pin what a debug `nvs run` printed: `DateFormat::dateTimes` of Vienna 2026-07-14 15:05:09 in `en` is `Jul 14, 2026, 3:05 PM` (a U+202F before `PM`), in `de` with `{zone: ZoneStyle::Generic, seconds: true}` is `14.07.2026, 15:05:09 Mitteleuropäische Zeit`, and a `Zone::fixed` offset of two hours names itself `GMT+02:00`."
       }
     ]
   },
   "backlog": [
-    "Stage 6: `word-segments`, `sentence-segments`, `negotiate`, `resolve-locales` (ADR 0277 § 9).",
-    "Stage 7: each component's module doc states its embedded size, and a bundle calls both components (`crates/nvs-cli/tests/bundle.rs`).",
-    "Stage 8: the feature proofs for every `Novis\\Intl` class (`bun nv proofs --owed`).",
-    "`rule:packaging/the-first-party-components-are-built-in` still says only `collateOrder` and `sortKeys` are implemented. Rewrite that sentence when Stage 5 lands."
+    "`rule:packaging/the-first-party-components-are-built-in`'s *Partly on disk* paragraph still names only `collateOrder` and `sortKeys` as implemented; rewrite it when Stage 5 closes (its fragment under `docs/rules/packaging/`).",
+    "Stage 6: segmentation and `negotiate` / `resolve-locales` (`extensions/intl/src/lib.rs`, ADR 0277 § 9).",
+    "Stage 7: the size each component's module doc states (`nvs-ext` check `the_recorded_growth_matches_the_embedded_components`); the zone-name share of the date data is not measured.",
+    "Stage 8: feature proofs for every `Novis\\Intl` class (`bun nv proofs --id`)."
   ]
 }
