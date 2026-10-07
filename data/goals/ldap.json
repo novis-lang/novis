@@ -188,7 +188,7 @@
           "Feature proofs — an example, an attack, a bench, a `covers:` marker"
         ],
         "playbook": [
-          "Tooling > `bun nv proofs --verify --group`"
+          "Tooling > `bun nv proofs --verify --group`*"
         ]
       }
     }
@@ -475,6 +475,102 @@
       ]
     },
     {
+      "id": "dossier-core-ldap-owes-nothing",
+      "kind": "command",
+      "stage": 10,
+      "name": "proofs: `Core\\Ldap` owes nothing, and its examples and attacks pass",
+      "argv": ["bun", "nv", "proofs", "--verify", "--group", "Core\\Ldap"],
+      "want": ["nothing owed in Core\\Ldap ("]
+    },
+    {
+      "id": "dossier-core-ldap-connection-owes-nothing",
+      "kind": "command",
+      "stage": 10,
+      "name": "proofs: `Core\\Ldap\\Connection` owes nothing, and its examples and attacks pass",
+      "argv": ["bun", "nv", "proofs", "--verify", "--group", "Core\\Ldap\\Connection"],
+      "want": ["nothing owed in Core\\Ldap\\Connection ("]
+    },
+    {
+      "id": "dossier-core-ldap-entries-owes-nothing",
+      "kind": "command",
+      "stage": 10,
+      "name": "proofs: `Core\\Ldap\\Entries` owes nothing, and its examples and attacks pass",
+      "argv": ["bun", "nv", "proofs", "--verify", "--group", "Core\\Ldap\\Entries"],
+      "want": ["nothing owed in Core\\Ldap\\Entries ("]
+    },
+    {
+      "id": "dossier-core-ldap-changes-owes-nothing",
+      "kind": "command",
+      "stage": 10,
+      "name": "proofs: `Core\\Ldap\\Changes` owes nothing, and its examples and attacks pass",
+      "argv": ["bun", "nv", "proofs", "--verify", "--group", "Core\\Ldap\\Changes"],
+      "want": ["nothing owed in Core\\Ldap\\Changes ("]
+    },
+    {
+      "id": "dossier-core-ldap-entry-owes-nothing",
+      "kind": "command",
+      "stage": 10,
+      "name": "proofs: `Core\\Ldap\\Entry` owes nothing, and its examples and attacks pass",
+      "argv": ["bun", "nv", "proofs", "--verify", "--group", "Core\\Ldap\\Entry"],
+      "want": ["nothing owed in Core\\Ldap\\Entry ("]
+    },
+    {
+      "id": "dossier-core-ldap-filter-owes-nothing",
+      "kind": "command",
+      "stage": 10,
+      "name": "proofs: `Core\\Ldap\\Filter` owes nothing, and its examples and attacks pass",
+      "argv": ["bun", "nv", "proofs", "--verify", "--group", "Core\\Ldap\\Filter"],
+      "want": ["nothing owed in Core\\Ldap\\Filter ("]
+    },
+    {
+      "id": "dossier-core-ldap-dn-owes-nothing",
+      "kind": "command",
+      "stage": 10,
+      "name": "proofs: `Core\\Ldap\\Dn` owes nothing, and its examples and attacks pass",
+      "argv": ["bun", "nv", "proofs", "--verify", "--group", "Core\\Ldap\\Dn"],
+      "want": ["nothing owed in Core\\Ldap\\Dn ("]
+    },
+    {
+      "id": "dossier-core-ldap-change-owes-nothing",
+      "kind": "command",
+      "stage": 10,
+      "name": "proofs: `Core\\Ldap\\Change` owes nothing, and its examples and attacks pass",
+      "argv": ["bun", "nv", "proofs", "--verify", "--group", "Core\\Ldap\\Change"],
+      "want": ["nothing owed in Core\\Ldap\\Change ("]
+    },
+    {
+      "id": "dossier-core-ldap-sid-owes-nothing",
+      "kind": "command",
+      "stage": 10,
+      "name": "proofs: `Core\\Ldap\\Sid` owes nothing, and its examples and attacks pass",
+      "argv": ["bun", "nv", "proofs", "--verify", "--group", "Core\\Ldap\\Sid"],
+      "want": ["nothing owed in Core\\Ldap\\Sid ("]
+    },
+    {
+      "id": "dossier-core-ldap-ad-owes-nothing",
+      "kind": "command",
+      "stage": 10,
+      "name": "proofs: `Core\\Ldap\\Ad` owes nothing, and its examples and attacks pass",
+      "argv": ["bun", "nv", "proofs", "--verify", "--group", "Core\\Ldap\\Ad"],
+      "want": ["nothing owed in Core\\Ldap\\Ad ("]
+    },
+    {
+      "id": "dossier-core-ldap-ad-accountflags-owes-nothing",
+      "kind": "command",
+      "stage": 10,
+      "name": "proofs: `Core\\Ldap\\Ad\\AccountFlags` owes nothing, and its examples and attacks pass",
+      "argv": ["bun", "nv", "proofs", "--verify", "--group", "Core\\Ldap\\Ad\\AccountFlags"],
+      "want": ["nothing owed in Core\\Ldap\\Ad\\AccountFlags ("]
+    },
+    {
+      "id": "dossier-core-ldap-ad-grouptype-owes-nothing",
+      "kind": "command",
+      "stage": 10,
+      "name": "proofs: `Core\\Ldap\\Ad\\GroupType` owes nothing, and its examples and attacks pass",
+      "argv": ["bun", "nv", "proofs", "--verify", "--group", "Core\\Ldap\\Ad\\GroupType"],
+      "want": ["nothing owed in Core\\Ldap\\Ad\\GroupType ("]
+    },
+    {
       "id": "dossier-core-ldap-carries-plain-comments",
       "kind": "command",
       "stage": 10,
@@ -486,7 +582,40 @@
         "--comments",
         "docs/examples/core/Ldap",
         "tests/hostile/core/Ldap",
-        "benches/members/core/Ldap"
+        "benches/members/core/Ldap",
+        "docs/examples/core/Ldap-Connection",
+        "tests/hostile/core/Ldap-Connection",
+        "benches/members/core/Ldap-Connection",
+        "docs/examples/core/Ldap-Entries",
+        "tests/hostile/core/Ldap-Entries",
+        "benches/members/core/Ldap-Entries",
+        "docs/examples/core/Ldap-Changes",
+        "tests/hostile/core/Ldap-Changes",
+        "benches/members/core/Ldap-Changes",
+        "docs/examples/core/Ldap-Entry",
+        "tests/hostile/core/Ldap-Entry",
+        "benches/members/core/Ldap-Entry",
+        "docs/examples/core/Ldap-Filter",
+        "tests/hostile/core/Ldap-Filter",
+        "benches/members/core/Ldap-Filter",
+        "docs/examples/core/Ldap-Dn",
+        "tests/hostile/core/Ldap-Dn",
+        "benches/members/core/Ldap-Dn",
+        "docs/examples/core/Ldap-Change",
+        "tests/hostile/core/Ldap-Change",
+        "benches/members/core/Ldap-Change",
+        "docs/examples/core/Ldap-Sid",
+        "tests/hostile/core/Ldap-Sid",
+        "benches/members/core/Ldap-Sid",
+        "docs/examples/core/Ldap-Ad",
+        "tests/hostile/core/Ldap-Ad",
+        "benches/members/core/Ldap-Ad",
+        "docs/examples/core/Ldap-Ad-AccountFlags",
+        "tests/hostile/core/Ldap-Ad-AccountFlags",
+        "benches/members/core/Ldap-Ad-AccountFlags",
+        "docs/examples/core/Ldap-Ad-GroupType",
+        "tests/hostile/core/Ldap-Ad-GroupType",
+        "benches/members/core/Ldap-Ad-GroupType"
       ],
       "want": [
         "each inside the bounds"
