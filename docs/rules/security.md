@@ -3,7 +3,7 @@
 
 # Security and isolation
 
-*18 of 91 rules below are **designed** rather than shipped, and are marked where they appear.*
+*21 of 94 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="security-isolate-shares-nothing"></a>
 
@@ -1330,6 +1330,66 @@ from: a reload can publish the same block name under a different user, and a poo
 alone would hand the new generation's request a connection authenticated as the old one's.
 
 <sub>See also [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`security/one-tls-client`](security.md#security-one-tls-client), [`security/net-address-policy`](security.md#security-net-address-policy), [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named). Decided in [0067](../decisions/0067.md), [0078](../decisions/0078.md), [0074](../decisions/0074.md).</sub>
+
+<a id="security-ldap-pool-is-bound-as-its-block"></a>
+
+## A pooled LDAP connection is bound as its block for its whole life, and `authenticate` binds on a connection of its own  *(designed — not yet in the compiler)*
+
+`rule:security/ldap-pool-is-bound-as-its-block`
+
+A pooled `Ldap\Connection` is bound as its block's identity for its whole life, and `authenticate` binds on a connection of its own and closes it. No member rebinds a pooled connection, so no request can change whose rights the next request borrows.
+
+The pool follows [`security/db-pool-reset-is-a-boundary`](security.md#security-db-pool-reset-is-a-boundary): per core, keyed by every URL, the user,
+a digest of the password, the TLS mode and CA file, and the configuration generation. An LDAP session
+keeps no other state a program can set — a control lives for one operation — so the reset is the
+property that the last operation finished: a connection released with a search still paging, or an
+operation outstanding, is closed rather than returned.
+
+`authenticate($login, $password)` dials the block's URL list with the same TLS, binds as the login,
+and closes the connection whether the bind succeeded or not. The login may be a DN, `user@upn-suffix`
+or `DOMAIN\user`; it accepts `tainted`, being a framed name the server looks up rather than text it
+parses. AD's reasons are kinds — `AccountDisabled`, `AccountLocked`, `PasswordExpired`,
+`MustChangePassword`, `AccountExpired`, `NotAllowedNow` — and **an unknown user (525) and a wrong
+password (52e) are both `InvalidCredentials`**, so a login form cannot tell an attacker which accounts
+exist. The message never carries the password. Each login pays one TCP and TLS handshake.
+
+<sub>See also [`security/db-pool-reset-is-a-boundary`](security.md#security-db-pool-reset-is-a-boundary), [`security/ldap-empty-password-is-refused`](security.md#security-ldap-empty-password-is-refused). Decided in [0278](../decisions/0278.md).</sub>
+
+<a id="security-ldap-empty-password-is-refused"></a>
+
+## A simple bind with an empty password is refused by the client before a byte is sent  *(designed — not yet in the compiler)*
+
+`rule:security/ldap-empty-password-is-refused`
+
+A simple bind with an empty password is refused by the client before a byte is sent, as the error kind `InvalidCredentials`. RFC 4513 § 5.1.2 makes a name with an empty password an *unauthenticated* bind, and Active Directory answers it as a successful anonymous bind, so a login form that passes an empty field through would sign anybody in.
+
+The refusal is the client's, never the server's: Samba answers the same bind `invalidCredentials` and
+AD answers it success, and the test asserts nothing reached the wire. It applies to `authenticate` and
+to every bind a connection makes. A configuration block or `Ldap\Settings` with a `user` and an empty
+password is refused when it is read. An anonymous bind is a block with no `user` at all, written on
+purpose, never an empty password. The kind is `InvalidCredentials`, the same as a wrong password, so an
+empty field tells a caller nothing a wrong one does not.
+
+<sub>See also [`security/ldap-pool-is-bound-as-its-block`](security.md#security-ldap-pool-is-bound-as-its-block), [`security/ldap-cleartext-bind-is-granted-per-host`](security.md#security-ldap-cleartext-bind-is-granted-per-host). Decided in [0278](../decisions/0278.md).</sub>
+
+<a id="security-ldap-cleartext-bind-is-granted-per-host"></a>
+
+## An LDAP bind without TLS needs `tls = "none"` in the block and the host on `[capabilities.ldap] cleartext`  *(designed — not yet in the compiler)*
+
+`rule:security/ldap-cleartext-bind-is-granted-per-host`
+
+A simple bind is sent over TLS — LDAPS, or StartTLS on `ldap://` — unless the block or `Ldap\Settings` says `tls = "none"` and the host is on `[capabilities.ldap] cleartext`. The client checks both before the password is written, and without both, `ldap://` runs StartTLS or fails.
+
+Two halves, for [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant)'s reason: the deployment
+says *where* this may happen and the code says *here*. `cleartext` is a list of hosts, matched as
+`ldap.open` matches them, in the shape of `tls.insecure` and `net.downgrade`, and `true` is not a
+spelling it has. Some controllers accept a cleartext bind and the operator decides per host; the cost
+is that the password and every answer cross the network readable and changeable. A controller that
+refuses one answers `strongerAuthRequired`, which is the kind `EncryptionRequired`. Passwords are
+written only over TLS whatever the grant says, and nothing relaxes certificate checks beyond what
+`[capabilities.tls]` already allows per host.
+
+<sub>See also [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`security/ldap-empty-password-is-refused`](security.md#security-ldap-empty-password-is-refused), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities). Decided in [0278](../decisions/0278.md).</sub>
 
 <a id="security-secret-qualifier"></a>
 

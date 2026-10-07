@@ -1,0 +1,14 @@
+{
+  "title": "`Core\\Ldap` is a native LDAPv3 client that binds only by simple bind over TLS, takes filters as values and reads Active Directory's attributes as typed values",
+  "status": "accepted",
+  "scope": "The whole surface of `Core\\Ldap`: its classes, members and options shapes, the `[ldap.<name>]` block and the three `ldap.*` grants, how a connection binds and when it may bind without TLS, the pool and `authenticate`'s own connection, the search options and the four Active Directory extras, the filter builder and `Ldap\\Dn`, the type table, writes and passwords, and the error kinds. Not in scope: which sans-IO codec crate `crates/nvs-ldap` borrows, which Stage 3 of the goal picks under `rule:core-classes/db-crate-boundary`; and the tier, which [0051](0051.md) § 3 already placed.",
+  "dependsOn": [
+    "0051",
+    "0067",
+    "0024",
+    "0063",
+    "0088"
+  ],
+  "dependsOnText": "[0051](0051.md) § 3 (the Native placement and the escaper in `Core`), [0067](0067.md) (`Core\\Db`, whose block, grants, pool and reset this mirrors), [0024](0024.md) (`tainted` and its sink-named launderers), [0063](0063.md) (one paradigm per operation, the options bag), [0088](0088.md) (the sink predicate).",
+  "validatedBy": "The `ldap` goal's stage checks: `crates/nvs-ldap/tests/` against the `samba-ad` test server, and the `tests/conformance/core/ldap-*.nvst` cases and `tests/hostile/core/Ldap*/` attacks as each stage lands them."
+}

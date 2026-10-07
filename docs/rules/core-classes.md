@@ -3,7 +3,7 @@
 
 # The Core classes
 
-*25 of 91 rules below are **designed** rather than shipped, and are marked where they appear.*
+*28 of 94 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="core-classes-cli-arguments"></a>
 
@@ -1666,6 +1666,85 @@ member runs. Footprint is O(derived classes in compiled code), not O(objects) an
 a program that neither carries the attribute nor writes a half pays nothing at all, including no pass.
 
 <sub>See also [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`types/anonymous-object`](types.md#types-anonymous-object), [`types/shape-type`](types.md#types-shape-type). Decided in [0071](../decisions/0071.md), [0023](../decisions/0023.md), [0029](../decisions/0029.md), [0042](../decisions/0042.md), [0063](../decisions/0063.md).</sub>
+
+<a id="core-classes-ldap-filter-is-a-value"></a>
+
+## An LDAP filter is an immutable value encoded straight to BER, whose values accept `tainted` and whose attribute names are a sink  *(designed — not yet in the compiler)*
+
+`rule:core-classes/ldap-filter-is-a-value`
+
+An LDAP filter is an immutable `Ldap\Filter` value, encoded straight to BER, whose values are data and whose attribute names are a sink. It is made by static functions — `equals`, `startsWith`, `endsWith`, `contains`, `present`, `atLeast`, `atMost`, `approx` — and combined with `all`, `any` and `not`; there is no fluent chain, and no `<` or `>` because RFC 4511 has none. Base, scope, attributes and paging are search options, never part of the filter.
+
+**The split follows [`security/sink-predicate`](security.md#security-sink-predicate).** A filter on the wire is a BER structure, not
+text, so a value is a framed octet string the server compares against and never parses: it accepts
+`tainted`, and `*)(objectClass=*` or a NUL byte matches only itself. An attribute name selects what the
+server evaluates, so it is a sink, checked against RFC 4512's attribute-description grammar, and
+anything else throws `LogicError`. A value may be a string, bytes, an `int`, a `bool`, a `Core\Uuid`, an
+`Ldap\Sid` or an `Instant`, encoded at search time by the table [`core-classes/ldap-value-types`](core-classes.md#core-classes-ldap-value-types)
+reads with, so a GUID filter matches the server's byte order.
+
+**No filter escaper exists.** The builder is the protocol's own shape, the way a bound parameter is
+SQL's, so an escaper would be a second, weaker answer. [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api) keeps query
+builders out of `Core` because SQL has a text form the server executes; LDAP has none on the wire, and
+that rule is about SQL. `Filter::parse` reads RFC 4515 text an operator wrote, and its parameter refuses
+`tainted`. `toString` renders that text for a log and is itself `tainted`. `Ldap\Ad` adds AD's matching
+rules as filters: `memberOf` with `nested: true` (`1.2.840.113556.1.4.1941`), `bitAnd` and `bitOr`
+(`.803`, `.804`), `enabled` and `disabled`.
+
+<sub>See also [`core-classes/ldap-dn-is-the-launderer`](core-classes.md#core-classes-ldap-dn-is-the-launderer), [`core-classes/ldap-value-types`](core-classes.md#core-classes-ldap-value-types), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`security/sink-predicate`](security.md#security-sink-predicate). Decided in [0278](../decisions/0278.md).</sub>
+
+<a id="core-classes-ldap-dn-is-the-launderer"></a>
+
+## `Ldap\Dn` is the one launderer for the DN sink, and every DN parameter takes a `Dn` or a string that refuses `tainted`  *(designed — not yet in the compiler)*
+
+`rule:core-classes/ldap-dn-is-the-launderer`
+
+`Ldap\Dn` is the one launderer for the DN sink: it is built from an attribute type and a value that may be `tainted`, and escapes the value per RFC 4514. A DN is parsed by the server into a path in the directory tree, so a DN parameter is an instruction by [`security/sink-predicate`](security.md#security-sink-predicate), and [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named) puts its launderer in `Core`.
+
+`Dn::of` and `$dn->child` take the attribute type, checked against RFC 4512's grammar, and the value.
+Every member that takes a DN takes `Dn|string`, and the `string` arm refuses `tainted`; `Dn::parse`
+refuses it too, for text an operator wrote. The launderer returns a carrier, not a string
+([`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier)), so a value laundered for a DN reaches only a DN
+parameter. A DN the server returns comes back as a `Dn`, and `parent`, `rdn` and `isWithin` read one
+without text handling. There is no `ldap_escape`, and no escaper for filter text either
+([`core-classes/ldap-filter-is-a-value`](core-classes.md#core-classes-ldap-filter-is-a-value)).
+
+<sub>See also [`core-classes/ldap-filter-is-a-value`](core-classes.md#core-classes-ldap-filter-is-a-value), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier). Decided in [0278](../decisions/0278.md).</sub>
+
+<a id="core-classes-ldap-value-types"></a>
+
+## Each LDAP attribute has one natural type from the schema and a fixed table of Active Directory names, and a typed reader converts only where nothing is lost  *(designed — not yet in the compiler)*
+
+`rule:core-classes/ldap-value-types`
+
+Each LDAP attribute has one natural type, given by the server's schema plus a fixed table of Active Directory names, and a typed reader on `Ldap\Entry` converts only where nothing is lost. The principle is [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types)'s: anything else throws, and text and bytes are `tainted`.
+
+The schema gives the base type — AD's `attributeSyntax`/`oMSyntax`, or the subschema's `SYNTAX` OID on
+any other server — read lazily, once per pool, and immutable after. The fixed table gives what the
+schema cannot say:
+
+| Attribute | Natural type |
+|---|---|
+| `objectGUID` and every GUID-valued AD attribute | `Core\Uuid`, the first three groups byte-swapped from AD's mixed-endian form |
+| `objectSid`, `tokenGroups`, `sIDHistory` | `Ldap\Sid` (`S-1-5-21-…`) |
+| FILETIME integers (`pwdLastSet`, `lastLogonTimestamp`, `accountExpires`, `lockoutTime`, …) | `?Instant`; `0` and `0x7FFFFFFFFFFFFFFF` are `null` |
+| negative intervals (`maxPwdAge`, `lockoutDuration`, …) | `Duration` |
+| GeneralizedTime | `Instant` |
+| `TRUE`/`FALSE` | `bool` |
+| `userAccountControl` with `msDS-User-Account-Control-Computed` | `Ad\AccountFlags` |
+| `groupType` | `Ad\GroupType` |
+| `sAMAccountType` | the enum `Ad\AccountType` |
+
+**A flag field is a readonly object with one `bool` per flag** and an immutable `with`; `Core` has no
+general flag-set type. Bits the object does not name are kept, so a write never drops them. Lockout and
+an expired password are read from the computed attribute, which `search` requests whenever
+`userAccountControl` is selected, because AD does not store them in `userAccountControl`; `with`
+cannot set them. A value is written in the form it is read, so every type above round-trips through
+`modify` and is encoded the same way inside a filter. A ranged attribute (`member;range=0-1499`) is
+fetched to its end and returned whole under its plain name. An attribute name matches without case and
+keeps the server's case.
+
+<sub>See also [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types), [`core-classes/ldap-filter-is-a-value`](core-classes.md#core-classes-ldap-filter-is-a-value). Decided in [0278](../decisions/0278.md).</sub>
 
 <a id="core-classes-queue-storage-is-a-table"></a>
 

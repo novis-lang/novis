@@ -1,0 +1,12 @@
+{
+  "title": "Each LDAP attribute has one natural type from the schema and a fixed table of Active Directory names, and a typed reader converts only where nothing is lost",
+  "status": "designed",
+  "because": [
+    "0278"
+  ],
+  "seeAlso": [
+    "core-classes/db-column-types",
+    "core-classes/ldap-filter-is-a-value"
+  ],
+  "guardedBy": []
+}
