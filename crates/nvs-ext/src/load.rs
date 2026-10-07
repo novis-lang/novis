@@ -661,11 +661,14 @@ impl Builtin {
 }
 
 /// Every built-in component: its name, the bytes the binary carries and the digest the build took.
-const BUILTINS: [(&str, &[u8], &[u8; 32]); 1] = [(
-    "image",
-    crate::builtin::IMAGE,
-    &crate::builtin::IMAGE_SHA256,
-)];
+const BUILTINS: [(&str, &[u8], &[u8; 32]); 2] = [
+    (
+        "image",
+        crate::builtin::IMAGE,
+        &crate::builtin::IMAGE_SHA256,
+    ),
+    ("intl", crate::builtin::INTL, &crate::builtin::INTL_SHA256),
+];
 
 /// The manifests of the built-in components, read without an engine and without compiling: what
 /// a compiler types a call into `Novis\` against, beside the manifests [`read_manifests`] reads.

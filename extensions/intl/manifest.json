@@ -1,0 +1,152 @@
+{
+  "manifest": 1,
+  "world": "1.0.0",
+  "class": "Novis\\Intl\\Icu",
+  "interface": "nvs:intl/icu",
+  "help": "The functions that sort, format and split text by the rules of a language and region. The other classes in `Novis\\Intl` call them for you, so most programs use those classes instead.",
+  "methods": [
+    {
+      "name": "collateOrder",
+      "params": [
+        {"name": "strings", "type": "array<string>"},
+        {"name": "locale", "type": "string"},
+        {"name": "options", "type": "{strength?: Strength, caseFirst?: CaseFirst, numeric?: bool, ignorePunctuation?: bool}"}
+      ],
+      "returns": "array<uint>",
+      "help": "Sorts strings by the rules of a locale. Returns the indexes of the strings in sorted order. Equal strings keep their order."
+    },
+    {
+      "name": "sortKeys",
+      "params": [
+        {"name": "strings", "type": "array<string>"},
+        {"name": "locale", "type": "string"},
+        {"name": "options", "type": "{strength?: Strength, caseFirst?: CaseFirst, numeric?: bool, ignorePunctuation?: bool}"}
+      ],
+      "returns": "array<bytes>",
+      "help": "Returns one sort key for each string. Two keys compare byte by byte in the same order as their strings sort in the locale."
+    },
+    {
+      "name": "formatNumbers",
+      "params": [
+        {"name": "numbers", "type": "array<string>"},
+        {"name": "locale", "type": "string"},
+        {"name": "options", "type": "{style: NumberStyle, minFractionDigits?: uint, maxFractionDigits?: uint, grouping?: bool, currency?: string, currencyDisplay?: CurrencyDisplay, compactDisplay?: CompactDisplay}"}
+      ],
+      "returns": "array<string>",
+      "help": "Formats numbers, each given as its decimal text, in the style and locale you give."
+    },
+    {
+      "name": "pluralCategories",
+      "params": [
+        {"name": "numbers", "type": "array<string>"},
+        {"name": "locale", "type": "string"},
+        {"name": "kind", "type": "PluralKind"}
+      ],
+      "returns": "array<PluralCategory>",
+      "help": "Returns the plural category of each number, each given as its decimal text, in the locale."
+    },
+    {
+      "name": "formatDateTimes",
+      "params": [
+        {"name": "values", "type": "array<{year: int, month: int, day: int, hour: int, minute: int, second: int, nanos: int, offsetSeconds: int, zone: string}>"},
+        {"name": "locale", "type": "string"},
+        {"name": "options", "type": "{length?: Length, seconds?: bool, zone?: ZoneStyle}"}
+      ],
+      "returns": "array<string>",
+      "help": "Formats dates with times of day, each given as its local fields, its UTC offset and its time zone, in the locale."
+    },
+    {
+      "name": "formatDates",
+      "params": [
+        {"name": "values", "type": "array<Core\\Time\\Date>"},
+        {"name": "locale", "type": "string"},
+        {"name": "length", "type": "Length"}
+      ],
+      "returns": "array<string>",
+      "help": "Formats calendar dates in the locale."
+    },
+    {
+      "name": "formatTimes",
+      "params": [
+        {"name": "values", "type": "array<Core\\Time\\TimeOfDay>"},
+        {"name": "locale", "type": "string"},
+        {"name": "options", "type": "{seconds?: bool}"}
+      ],
+      "returns": "array<string>",
+      "help": "Formats times of day in the locale."
+    },
+    {
+      "name": "formatRelative",
+      "params": [
+        {"name": "items", "type": "array<{count: int, unit: TimeUnit}>"},
+        {"name": "locale", "type": "string"},
+        {"name": "options", "type": "{width?: Width, numeric?: Numeric}"}
+      ],
+      "returns": "array<string>",
+      "help": "Formats amounts of time before or after now, such as \"in 3 days\". A negative count is in the past."
+    },
+    {
+      "name": "formatLists",
+      "params": [
+        {"name": "lists", "type": "array<array<string>>"},
+        {"name": "locale", "type": "string"},
+        {"name": "options", "type": "{type?: ListType, width?: Width}"}
+      ],
+      "returns": "array<string>",
+      "help": "Joins the items of each list with the words of the locale, such as \"a, b and c\"."
+    },
+    {
+      "name": "wordSegments",
+      "params": [
+        {"name": "strings", "type": "array<string>"},
+        {"name": "locale", "type": "string"}
+      ],
+      "returns": "array<array<{text: string, wordLike: bool}>>",
+      "help": "Splits each string into words, spaces and punctuation. Joined again, the parts of a string are the string."
+    },
+    {
+      "name": "sentenceSegments",
+      "params": [
+        {"name": "strings", "type": "array<string>"},
+        {"name": "locale", "type": "string"}
+      ],
+      "returns": "array<array<string>>",
+      "help": "Splits each string into sentences. Joined again, the sentences of a string are the string."
+    },
+    {
+      "name": "resolveLocales",
+      "params": [
+        {"name": "tags", "type": "array<string>"},
+        {"name": "service", "type": "Service"}
+      ],
+      "returns": "array<string>",
+      "help": "Returns, for each locale tag, the locale whose data is used for the service. `und` means only the general rules are used."
+    },
+    {
+      "name": "negotiate",
+      "params": [
+        {"name": "acceptLanguage", "type": "string"},
+        {"name": "offered", "type": "array<string>"},
+        {"name": "default", "type": "string"}
+      ],
+      "returns": "string",
+      "help": "Returns the best of the offered locales for an `Accept-Language` header value. If no offered locale matches, it returns the default."
+    }
+  ],
+  "enums": [
+    {"name": "Strength", "cases": ["Primary", "Secondary", "Tertiary", "Quaternary", "Identical"], "help": "Which differences between two strings change their order. `Primary` compares letters only. `Secondary` also compares accents, and `Tertiary`, the default, also compares upper and lower case."},
+    {"name": "CaseFirst", "cases": ["Off", "Upper", "Lower"], "help": "Whether uppercase or lowercase letters sort first. `Off`, the default, uses the order of the locale."},
+    {"name": "NumberStyle", "cases": ["Decimal", "Percent", "Currency", "Compact"], "help": "How `Icu::formatNumbers` writes a number. Each `NumberFormat` method uses one style."},
+    {"name": "CurrencyDisplay", "cases": ["Symbol", "Narrow", "Name"], "help": "How a currency is written: as its symbol, such as \"US$\", as its short symbol, such as \"$\", or as its name. The default is `Symbol`."},
+    {"name": "CompactDisplay", "cases": ["Short", "Long"], "help": "How a compact number is written: \"1.2K\" is `Short`, the default, and \"1.2 thousand\" is `Long`."},
+    {"name": "PluralKind", "cases": ["Cardinal", "Ordinal"], "help": "Which plural rules `Icu::pluralCategories` uses: the rules for counting, such as \"3 items\", or the rules for places, such as \"3rd\"."},
+    {"name": "PluralCategory", "cases": ["Zero", "One", "Two", "Few", "Many", "Other"], "help": "A plural category of the locale. `PluralRules` returns these as `Core\\Cldr\\PluralCategory`."},
+    {"name": "Length", "cases": ["Short", "Medium", "Long"], "help": "How long a formatted date is. The default is `Medium`."},
+    {"name": "ZoneStyle", "cases": ["None", "Offset", "Location", "Generic"], "help": "How a formatted date and time shows its time zone: not at all, as its UTC offset, as a place, or as the name of the zone. The default is `None`."},
+    {"name": "TimeUnit", "cases": ["Second", "Minute", "Hour", "Day", "Week", "Month", "Quarter", "Year"], "help": "The unit of an amount of time in `RelativeTime::format`."},
+    {"name": "Width", "cases": ["Wide", "Short", "Narrow"], "help": "How many words a formatted text uses. `Wide`, the default, writes words in full."},
+    {"name": "Numeric", "cases": ["Always", "Auto"], "help": "Whether a relative time is always written with a number. `Always`, the default, writes \"in 1 day\". `Auto` writes \"tomorrow\"."},
+    {"name": "ListType", "cases": ["And", "Or", "Unit"], "help": "The words that join a list: \"a, b and c\" is `And`, the default, \"a, b or c\" is `Or`, and `Unit` joins amounts such as \"3 feet, 7 inches\"."},
+    {"name": "Service", "cases": ["Collation", "Numbers", "Plurals", "Dates", "RelativeTime", "Lists", "Segmentation"], "help": "The data `Icu::resolveLocales` checks: the rules for sorting, numbers, plurals, dates, relative times, lists or splitting text."}
+  ]
+}

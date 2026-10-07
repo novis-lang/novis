@@ -2,8 +2,8 @@ An example of how a coding agent finds the right method with the `nvs agent` com
 
 The agent has to print the length of a name. It knows the PHP function `strlen`, so it runs
 `nvs agent find strlen`. The command prints nothing, because Novis has nothing with that name. The
-agent then runs `nvs agent find length` and gets two lines: `Core\Str::length` and
-`Core\Bytes::length`. `nvs agent show 'Core\Str::length'` prints the description, which says that
+agent then runs `nvs agent find length` and gets the functions `Core\Str::length` and
+`Core\Bytes::length`, and also the enum `Novis\Intl\Length`. `nvs agent show 'Core\Str::length'` prints the description, which says that
 this method counts characters and not bytes. The agent uses it, and `nvs check` accepts the
 program. For the name "Zoë" the program prints `3`.
 

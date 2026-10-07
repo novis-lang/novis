@@ -31,4 +31,7 @@ types a program against the built-in manifests beside the entries' (`nvs_ext::lo
 and a call no `[[extension]]` entry answers reaches the built-in component, compiled on that first
 call (`crates/nvs-cli/src/extensions.rs`), so `Novis\Image\Codec::info` answers with no `nvs.toml`
 (`tests/conformance/novis/image-info-answers-with-no-configuration.nvst`). The loader refuses a
-`Novis\` class from every `[[extension]]` entry. The intl crate does not exist.
+`Novis\` class from every `[[extension]]` entry. The intl crate is `extensions/intl/`, built and
+embedded the same way as `nvs_ext::builtin::INTL` with its digest folded in beside the image's. Its
+manifest class is `Novis\Intl\Icu`, of whose exports `collateOrder` and `sortKeys` are implemented and
+the others return `runtime`; its Novis half is `Novis\Intl\Collator` (`crates/nvs-ext/tests/intl.rs`).

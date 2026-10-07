@@ -2,7 +2,7 @@
 // Shows a program that was written after three lookups with `nvs agent`.
 // It checks that a name has at most 20 characters and at most 32 bytes.
 
-// `nvs agent find length` lists two functions: `Core\Str::length` and `Core\Bytes::length`.
+// `nvs agent find length` lists the functions `Core\Str::length` and `Core\Bytes::length`.
 // `nvs agent show 'Core\Str::length'` prints that this function counts characters.
 array<string> $names = ["Zoë", "Björk Guðmundsdóttir", "👩‍👩‍👧‍👦 The Family Account Of Us"];
 foreach ($names as string $name) {

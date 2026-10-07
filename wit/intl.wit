@@ -185,8 +185,9 @@ interface icu {
         segmentation,
     }
 
-    /// The position of each string in the locale's order, so only numbers
-    /// cross back. Equal strings keep their input order.
+    /// For each place in the locale's order, the index of the string that
+    /// goes there, so only numbers cross back. Equal strings keep their input
+    /// order.
     collate-order: func(strings: list<string>, locale: string, options: collate-options) -> result<list<u64>, error>;
 
     /// One key per string. Two keys compare by byte order as the collator

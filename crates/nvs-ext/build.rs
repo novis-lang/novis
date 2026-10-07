@@ -100,18 +100,34 @@ const PARENT_BUILD_VARS: &[&str] = &[
 ];
 
 /// One built-in component: its crate's directory under `extensions/`, the wasm file its build
-/// writes, and the name its `.nvsx` and digest are written under in `OUT_DIR`.
+/// writes, the name its `.nvsx` and digest are written under in `OUT_DIR`, its WIT file under
+/// `wit/`, and the inputs in its directory beside the ones every component has. Every input is a
+/// path that exists, because Cargo reruns a script on every build while one it watches does not,
+/// and a component's `nvs/` folder is one of them.
 struct Component {
     dir: &'static str,
     wasm: &'static str,
     name: &'static str,
+    wit: &'static str,
+    extra_inputs: &'static [&'static str],
 }
 
-const COMPONENTS: &[Component] = &[Component {
-    dir: "image",
-    wasm: "nvs_image.wasm",
-    name: "image",
-}];
+const COMPONENTS: &[Component] = &[
+    Component {
+        dir: "image",
+        wasm: "nvs_image.wasm",
+        name: "image",
+        wit: "wit/image.wit",
+        extra_inputs: &["build.rs", "libwebp"],
+    },
+    Component {
+        dir: "intl",
+        wasm: "nvs_intl.wasm",
+        name: "intl",
+        wit: "wit/intl.wit",
+        extra_inputs: &[],
+    },
+];
 
 fn main() {
     tests_without_pdb::main();
@@ -126,17 +142,18 @@ fn main() {
         let dir = root.join("extensions").join(component.dir);
         for input in [
             "src",
-            "build.rs",
-            "libwebp",
             "Cargo.toml",
             "Cargo.lock",
             ".cargo",
             "manifest.json",
             "nvs",
-        ] {
+        ]
+        .iter()
+        .chain(component.extra_inputs)
+        {
             println!("cargo:rerun-if-changed={}", dir.join(input).display());
         }
-        for wit in ["wit/nvs-ext", "wit/image.wit"] {
+        for wit in ["wit/nvs-ext", component.wit] {
             println!("cargo:rerun-if-changed={}", root.join(wit).display());
         }
         let wasm = build(&dir, &target).join(component.wasm);

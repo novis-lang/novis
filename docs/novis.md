@@ -220,6 +220,8 @@ Conventions the whole file uses:
 | [`Novis\Image\Image`](#core-novis-image-image) | open, resize, crop and convert images, with nothing decoded until the result is written |
 | [`Novis\Image\QrCode`](#core-novis-image-qrcode) |  |
 | [`Novis\Image\Codec`](#core-novis-image-codec) |  |
+| [`Novis\Intl\Collator`](#core-novis-intl-collator) |  |
+| [`Novis\Intl\Icu`](#core-novis-intl-icu) |  |
 | [`Core` enums](#core-enums) | every enum a member takes, with its cases |
 
 ### Part C — The toolchain
@@ -26909,6 +26911,279 @@ Returns a text as an encoded QR code image. Data too long for the level, or a si
 
 **Returns** `bytes`
 
+<a id="core-novis-intl-collator"></a>
+### `Novis\Intl\Collator`
+
+Keywords: sort, sortKeys
+
+| Member | Signature |
+|---|---|
+| [`Novis\Intl\Collator::sort`](#core-novis-intl-collator-sort) | `sort(array<string> $strings, string $locale, ?CollateOptions $options = null): array<string>` |
+| [`Novis\Intl\Collator::sortKeys`](#core-novis-intl-collator-sortkeys) | `sortKeys(array<string> $strings, string $locale, ?CollateOptions $options = null): array<bytes>` |
+
+<a id="core-novis-intl-collator-sort"></a>
+#### `Novis\Intl\Collator::sort`
+
+```nvs skip
+Novis\Intl\Collator::sort(array<string> $strings, string $locale, ?CollateOptions $options = null): array<string>
+```
+
+`Collator::sort` returns the strings sorted by the rules of `$locale`. Equal strings
+keep their order. A locale tag that is not valid throws a `LogicError`.
+
+**Returns** `array<string>`
+
+<a id="core-novis-intl-collator-sortkeys"></a>
+#### `Novis\Intl\Collator::sortKeys`
+
+```nvs skip
+Novis\Intl\Collator::sortKeys(array<string> $strings, string $locale, ?CollateOptions $options = null): array<bytes>
+```
+
+`Collator::sortKeys` returns one sort key for each string. Keys compare byte by byte in the
+order `sort` gives their strings. You can store a key in a column and sort rows by it.
+
+**Returns** `array<bytes>`
+
+<a id="core-novis-intl-icu"></a>
+### `Novis\Intl\Icu`
+
+Keywords: collateOrder, sortKeys, formatNumbers, pluralCategories, formatDateTimes, formatDates, formatTimes, formatRelative, formatLists, wordSegments, sentenceSegments, resolveLocales, negotiate
+
+| Member | Signature |
+|---|---|
+| [`Novis\Intl\Icu::collateOrder`](#core-novis-intl-icu-collateorder) | `collateOrder(array<string> $strings, string $locale, {strength?: Strength, caseFirst?: CaseFirst, numeric?: bool, ignorePunctuation?: bool} $options): array<uint>` |
+| [`Novis\Intl\Icu::sortKeys`](#core-novis-intl-icu-sortkeys) | `sortKeys(array<string> $strings, string $locale, {strength?: Strength, caseFirst?: CaseFirst, numeric?: bool, ignorePunctuation?: bool} $options): array<bytes>` |
+| [`Novis\Intl\Icu::formatNumbers`](#core-novis-intl-icu-formatnumbers) | `formatNumbers(array<string> $numbers, string $locale, {style: NumberStyle, minFractionDigits?: uint, maxFractionDigits?: uint, grouping?: bool, currency?: string, currencyDisplay?: CurrencyDisplay, compactDisplay?: CompactDisplay} $options): array<string>` |
+| [`Novis\Intl\Icu::pluralCategories`](#core-novis-intl-icu-pluralcategories) | `pluralCategories(array<string> $numbers, string $locale, PluralKind $kind): array<PluralCategory>` |
+| [`Novis\Intl\Icu::formatDateTimes`](#core-novis-intl-icu-formatdatetimes) | `formatDateTimes(array<{year: int, month: int, day: int, hour: int, minute: int, second: int, nanos: int, offsetSeconds: int, zone: string}> $values, string $locale, {length?: Length, seconds?: bool, zone?: ZoneStyle} $options): array<string>` |
+| [`Novis\Intl\Icu::formatDates`](#core-novis-intl-icu-formatdates) | `formatDates(array<Core\Time\Date> $values, string $locale, Length $length): array<string>` |
+| [`Novis\Intl\Icu::formatTimes`](#core-novis-intl-icu-formattimes) | `formatTimes(array<Core\Time\TimeOfDay> $values, string $locale, {seconds?: bool} $options): array<string>` |
+| [`Novis\Intl\Icu::formatRelative`](#core-novis-intl-icu-formatrelative) | `formatRelative(array<{count: int, unit: TimeUnit}> $items, string $locale, {width?: Width, numeric?: Numeric} $options): array<string>` |
+| [`Novis\Intl\Icu::formatLists`](#core-novis-intl-icu-formatlists) | `formatLists(array<array<string>> $lists, string $locale, {type?: ListType, width?: Width} $options): array<string>` |
+| [`Novis\Intl\Icu::wordSegments`](#core-novis-intl-icu-wordsegments) | `wordSegments(array<string> $strings, string $locale): array<array<{text: string, wordLike: bool}>>` |
+| [`Novis\Intl\Icu::sentenceSegments`](#core-novis-intl-icu-sentencesegments) | `sentenceSegments(array<string> $strings, string $locale): array<array<string>>` |
+| [`Novis\Intl\Icu::resolveLocales`](#core-novis-intl-icu-resolvelocales) | `resolveLocales(array<string> $tags, Service $service): array<string>` |
+| [`Novis\Intl\Icu::negotiate`](#core-novis-intl-icu-negotiate) | `negotiate(string $acceptLanguage, array<string> $offered, string $default): string` |
+
+<a id="core-novis-intl-icu-collateorder"></a>
+#### `Novis\Intl\Icu::collateOrder`
+
+```nvs skip
+Novis\Intl\Icu::collateOrder(array<string> $strings, string $locale, {strength?: Strength, caseFirst?: CaseFirst, numeric?: bool, ignorePunctuation?: bool} $options): array<uint>
+```
+
+Sorts strings by the rules of a locale. Returns the indexes of the strings in sorted order. Equal strings keep their order.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$strings` | `array<string>` |  |
+| `$locale` | `string` |  |
+| `$options` | `{strength?: Strength, caseFirst?: CaseFirst, numeric?: bool, ignorePunctuation?: bool}` |  |
+
+**Returns** `array<uint>`
+
+<a id="core-novis-intl-icu-sortkeys"></a>
+#### `Novis\Intl\Icu::sortKeys`
+
+```nvs skip
+Novis\Intl\Icu::sortKeys(array<string> $strings, string $locale, {strength?: Strength, caseFirst?: CaseFirst, numeric?: bool, ignorePunctuation?: bool} $options): array<bytes>
+```
+
+Returns one sort key for each string. Two keys compare byte by byte in the same order as their strings sort in the locale.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$strings` | `array<string>` |  |
+| `$locale` | `string` |  |
+| `$options` | `{strength?: Strength, caseFirst?: CaseFirst, numeric?: bool, ignorePunctuation?: bool}` |  |
+
+**Returns** `array<bytes>`
+
+<a id="core-novis-intl-icu-formatnumbers"></a>
+#### `Novis\Intl\Icu::formatNumbers`
+
+```nvs skip
+Novis\Intl\Icu::formatNumbers(array<string> $numbers, string $locale, {style: NumberStyle, minFractionDigits?: uint, maxFractionDigits?: uint, grouping?: bool, currency?: string, currencyDisplay?: CurrencyDisplay, compactDisplay?: CompactDisplay} $options): array<string>
+```
+
+Formats numbers, each given as its decimal text, in the style and locale you give.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$numbers` | `array<string>` |  |
+| `$locale` | `string` |  |
+| `$options` | `{style: NumberStyle, minFractionDigits?: uint, maxFractionDigits?: uint, grouping?: bool, currency?: string, currencyDisplay?: CurrencyDisplay, compactDisplay?: CompactDisplay}` |  |
+
+**Returns** `array<string>`
+
+<a id="core-novis-intl-icu-pluralcategories"></a>
+#### `Novis\Intl\Icu::pluralCategories`
+
+```nvs skip
+Novis\Intl\Icu::pluralCategories(array<string> $numbers, string $locale, PluralKind $kind): array<PluralCategory>
+```
+
+Returns the plural category of each number, each given as its decimal text, in the locale.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$numbers` | `array<string>` |  |
+| `$locale` | `string` |  |
+| `$kind` | `PluralKind` |  |
+
+**Returns** `array<PluralCategory>`
+
+<a id="core-novis-intl-icu-formatdatetimes"></a>
+#### `Novis\Intl\Icu::formatDateTimes`
+
+```nvs skip
+Novis\Intl\Icu::formatDateTimes(array<{year: int, month: int, day: int, hour: int, minute: int, second: int, nanos: int, offsetSeconds: int, zone: string}> $values, string $locale, {length?: Length, seconds?: bool, zone?: ZoneStyle} $options): array<string>
+```
+
+Formats dates with times of day, each given as its local fields, its UTC offset and its time zone, in the locale.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$values` | `array<{year: int, month: int, day: int, hour: int, minute: int, second: int, nanos: int, offsetSeconds: int, zone: string}>` |  |
+| `$locale` | `string` |  |
+| `$options` | `{length?: Length, seconds?: bool, zone?: ZoneStyle}` |  |
+
+**Returns** `array<string>`
+
+<a id="core-novis-intl-icu-formatdates"></a>
+#### `Novis\Intl\Icu::formatDates`
+
+```nvs skip
+Novis\Intl\Icu::formatDates(array<Core\Time\Date> $values, string $locale, Length $length): array<string>
+```
+
+Formats calendar dates in the locale.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$values` | `array<Core\Time\Date>` |  |
+| `$locale` | `string` |  |
+| `$length` | `Length` |  |
+
+**Returns** `array<string>`
+
+<a id="core-novis-intl-icu-formattimes"></a>
+#### `Novis\Intl\Icu::formatTimes`
+
+```nvs skip
+Novis\Intl\Icu::formatTimes(array<Core\Time\TimeOfDay> $values, string $locale, {seconds?: bool} $options): array<string>
+```
+
+Formats times of day in the locale.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$values` | `array<Core\Time\TimeOfDay>` |  |
+| `$locale` | `string` |  |
+| `$options` | `{seconds?: bool}` |  |
+
+**Returns** `array<string>`
+
+<a id="core-novis-intl-icu-formatrelative"></a>
+#### `Novis\Intl\Icu::formatRelative`
+
+```nvs skip
+Novis\Intl\Icu::formatRelative(array<{count: int, unit: TimeUnit}> $items, string $locale, {width?: Width, numeric?: Numeric} $options): array<string>
+```
+
+Formats amounts of time before or after now, such as "in 3 days". A negative count is in the past.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$items` | `array<{count: int, unit: TimeUnit}>` |  |
+| `$locale` | `string` |  |
+| `$options` | `{width?: Width, numeric?: Numeric}` |  |
+
+**Returns** `array<string>`
+
+<a id="core-novis-intl-icu-formatlists"></a>
+#### `Novis\Intl\Icu::formatLists`
+
+```nvs skip
+Novis\Intl\Icu::formatLists(array<array<string>> $lists, string $locale, {type?: ListType, width?: Width} $options): array<string>
+```
+
+Joins the items of each list with the words of the locale, such as "a, b and c".
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$lists` | `array<array<string>>` |  |
+| `$locale` | `string` |  |
+| `$options` | `{type?: ListType, width?: Width}` |  |
+
+**Returns** `array<string>`
+
+<a id="core-novis-intl-icu-wordsegments"></a>
+#### `Novis\Intl\Icu::wordSegments`
+
+```nvs skip
+Novis\Intl\Icu::wordSegments(array<string> $strings, string $locale): array<array<{text: string, wordLike: bool}>>
+```
+
+Splits each string into words, spaces and punctuation. Joined again, the parts of a string are the string.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$strings` | `array<string>` |  |
+| `$locale` | `string` |  |
+
+**Returns** `array<array<{text: string, wordLike: bool}>>`
+
+<a id="core-novis-intl-icu-sentencesegments"></a>
+#### `Novis\Intl\Icu::sentenceSegments`
+
+```nvs skip
+Novis\Intl\Icu::sentenceSegments(array<string> $strings, string $locale): array<array<string>>
+```
+
+Splits each string into sentences. Joined again, the sentences of a string are the string.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$strings` | `array<string>` |  |
+| `$locale` | `string` |  |
+
+**Returns** `array<array<string>>`
+
+<a id="core-novis-intl-icu-resolvelocales"></a>
+#### `Novis\Intl\Icu::resolveLocales`
+
+```nvs skip
+Novis\Intl\Icu::resolveLocales(array<string> $tags, Service $service): array<string>
+```
+
+Returns, for each locale tag, the locale whose data is used for the service. `und` means only the general rules are used.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$tags` | `array<string>` |  |
+| `$service` | `Service` |  |
+
+**Returns** `array<string>`
+
+<a id="core-novis-intl-icu-negotiate"></a>
+#### `Novis\Intl\Icu::negotiate`
+
+```nvs skip
+Novis\Intl\Icu::negotiate(string $acceptLanguage, array<string> $offered, string $default): string
+```
+
+Returns the best of the offered locales for an `Accept-Language` header value. If no offered locale matches, it returns the default.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$acceptLanguage` | `string` |  |
+| `$offered` | `array<string>` |  |
+| `$default` | `string` |  |
+
+**Returns** `string`
+
 <a id="core-enums"></a>
 ### `Core` enums
 
@@ -27460,6 +27735,118 @@ The kind of placeholder `Image::placeholder` returns. A `BlurHash` is 28 charact
 #### `Novis\Image\QrLevel`
 
 How much of a QR code can be damaged and still be read: about 7, 15, 25 or 30 percent. A higher level makes a bigger code for the same data.
+
+| Case | Meaning |
+|---|---|
+
+<a id="enum-novis-intl-strength"></a>
+#### `Novis\Intl\Strength`
+
+Which differences between two strings change their order. `Primary` compares letters only. `Secondary` also compares accents, and `Tertiary`, the default, also compares upper and lower case.
+
+| Case | Meaning |
+|---|---|
+
+<a id="enum-novis-intl-casefirst"></a>
+#### `Novis\Intl\CaseFirst`
+
+Whether uppercase or lowercase letters sort first. `Off`, the default, uses the order of the locale.
+
+| Case | Meaning |
+|---|---|
+
+<a id="enum-novis-intl-numberstyle"></a>
+#### `Novis\Intl\NumberStyle`
+
+How `Icu::formatNumbers` writes a number. Each `NumberFormat` method uses one style.
+
+| Case | Meaning |
+|---|---|
+
+<a id="enum-novis-intl-currencydisplay"></a>
+#### `Novis\Intl\CurrencyDisplay`
+
+How a currency is written: as its symbol, such as "US$", as its short symbol, such as "$", or as its name. The default is `Symbol`.
+
+| Case | Meaning |
+|---|---|
+
+<a id="enum-novis-intl-compactdisplay"></a>
+#### `Novis\Intl\CompactDisplay`
+
+How a compact number is written: "1.2K" is `Short`, the default, and "1.2 thousand" is `Long`.
+
+| Case | Meaning |
+|---|---|
+
+<a id="enum-novis-intl-pluralkind"></a>
+#### `Novis\Intl\PluralKind`
+
+Which plural rules `Icu::pluralCategories` uses: the rules for counting, such as "3 items", or the rules for places, such as "3rd".
+
+| Case | Meaning |
+|---|---|
+
+<a id="enum-novis-intl-pluralcategory"></a>
+#### `Novis\Intl\PluralCategory`
+
+A plural category of the locale. `PluralRules` returns these as `Core\Cldr\PluralCategory`.
+
+| Case | Meaning |
+|---|---|
+
+<a id="enum-novis-intl-length"></a>
+#### `Novis\Intl\Length`
+
+How long a formatted date is. The default is `Medium`.
+
+| Case | Meaning |
+|---|---|
+
+<a id="enum-novis-intl-zonestyle"></a>
+#### `Novis\Intl\ZoneStyle`
+
+How a formatted date and time shows its time zone: not at all, as its UTC offset, as a place, or as the name of the zone. The default is `None`.
+
+| Case | Meaning |
+|---|---|
+
+<a id="enum-novis-intl-timeunit"></a>
+#### `Novis\Intl\TimeUnit`
+
+The unit of an amount of time in `RelativeTime::format`.
+
+| Case | Meaning |
+|---|---|
+
+<a id="enum-novis-intl-width"></a>
+#### `Novis\Intl\Width`
+
+How many words a formatted text uses. `Wide`, the default, writes words in full.
+
+| Case | Meaning |
+|---|---|
+
+<a id="enum-novis-intl-numeric"></a>
+#### `Novis\Intl\Numeric`
+
+Whether a relative time is always written with a number. `Always`, the default, writes "in 1 day". `Auto` writes "tomorrow".
+
+| Case | Meaning |
+|---|---|
+
+<a id="enum-novis-intl-listtype"></a>
+#### `Novis\Intl\ListType`
+
+The words that join a list: "a, b and c" is `And`, the default, "a, b or c" is `Or`, and `Unit` joins amounts such as "3 feet, 7 inches".
+
+| Case | Meaning |
+|---|---|
+
+<a id="enum-novis-intl-service"></a>
+#### `Novis\Intl\Service`
+
+The data `Icu::resolveLocales` checks: the rules for sorting, numbers, plurals, dates, relative times, lists or splitting text.
 
 | Case | Meaning |
 |---|---|
@@ -30383,9 +30770,10 @@ and no heading has that name. It searches for the operation instead of the spell
 $ nvs agent find length
 Core\Str::length(string $s): uint
 Core\Bytes::length(bytes $b): uint
+Novis\Intl\Length  enum
 ```
 
-Two, and the card says which one is meant:
+Two functions and an enum, and the card says which function is meant:
 
 ```text
 $ nvs agent show 'Core\Str::length'

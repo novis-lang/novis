@@ -274,9 +274,10 @@ and no heading has that name. It searches for the operation instead of the spell
 $ nvs agent find length
 Core\Str::length(string $s): uint
 Core\Bytes::length(bytes $b): uint
+Novis\Intl\Length  enum
 ```
 
-Two, and the card says which one is meant:
+Two functions and an enum, and the card says which function is meant:
 
 ```text
 $ nvs agent show 'Core\Str::length'
