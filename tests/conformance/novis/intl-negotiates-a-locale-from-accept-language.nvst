@@ -1,0 +1,45 @@
+--TEST--
+An `Accept-Language` value picks the offered locale by weight and CLDR fallback, an empty, malformed or unmatched value gives the default, and a tag resolves to the locale whose data answers: rule:core-classes/intl-batch-shape rule:core-classes/intl-roster
+--FILE--
+<?nvs
+use Novis\Intl\Locale;
+use Novis\Intl\Service;
+
+// The range with the highest weight that matches an offered locale wins.
+var $offered = ["en", "de", "pt-BR"];
+echo Locale::negotiate("fr;q=0.5, de, en;q=0.8", $offered, "en"), "\n";
+echo Locale::negotiate("ja, en;q=0.4", $offered, "de"), "\n";
+
+// A regional range falls back to its language. The result is written as `$offered` writes it.
+echo Locale::negotiate("de-AT", $offered, "en"), "\n";
+echo Locale::negotiate("pt-br", $offered, "en"), "\n";
+
+// These headers are empty, malformed or match nothing, so the result is the default.
+array<string> $headers = ["", "de;q=2", "not a tag", "ja", "pt-PT"];
+foreach ($headers as string $header) {
+    echo "[", $header, "] ", Locale::negotiate($header, $offered, "en"), "\n";
+}
+
+// `Locale::resolve` shows which locale's data a tag uses. "und" is the general rules.
+echo Core\Str::join(Locale::resolve(["de-AT", "de-CH", "zz"], Service::Numbers), " | "), "\n";
+echo Core\Str::join(Locale::resolve(["de-AT", "zz"], Service::Lists), " | "), "\n";
+
+// A malformed offered tag is a bug in the program, so it throws.
+try {
+    Locale::negotiate("de", ["de", "not a tag"], "en");
+} catch (LogicError $error) {
+    echo "LogicError\n";
+}
+--EXPECT--
+de
+en
+de
+pt-BR
+[] en
+[de;q=2] en
+[not a tag] en
+[ja] en
+[pt-PT] en
+de-AT | de-CH | und
+de | und
+LogicError

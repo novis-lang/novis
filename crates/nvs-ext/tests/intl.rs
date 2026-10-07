@@ -4,7 +4,9 @@
 //! collator does, and the order is the locale's. A batch of numbers is formatted in one crossing in
 //! all four styles, and its plural categories agree with `Core\Cldr`'s on that member's whole
 //! roster. A date and time is formatted from the local fields and the offset the host sent, in its
-//! locale, and the guest carries no time-zone database.
+//! locale, and the guest carries no time-zone database. A batch of strings is cut into words and
+//! sentences in one crossing, and an `Accept-Language` value picks an offered locale by weight and
+//! CLDR fallback, or the default, and never throws for the header.
 
 use std::future::Future;
 use std::pin::pin;
@@ -156,11 +158,6 @@ fn the_intl_component_is_built_in_and_answers_with_no_configuration() {
             assert!(message.contains("en_US!"), "{message}");
         }
         other => panic!("a malformed tag was not `invalid`: {other:?}"),
-    }
-    let args = vec![strings(&input), Value::String("en".to_owned())];
-    match block_on(request.call_values(extension, "wordSegments", args)) {
-        Err(Failure::Error(Error::Runtime(_))) => {}
-        other => panic!("an export not implemented yet answered: {other:?}"),
     }
     block_on(request.end()).expect("the request ends");
 }
@@ -827,5 +824,189 @@ fn a_list_formats_with_its_locale_conjunction() {
             ["Shop, Blog, or Wiki"],
             ["Shop, Blog ou Wiki"],
         ]
+    );
+}
+
+/// `method` called with `input` and `locale`, each string's segments in order.
+fn segments(
+    request: &Request,
+    extension: &Extension,
+    method: &str,
+    input: &[&str],
+    locale: &str,
+) -> Vec<Vec<Value>> {
+    let input: Vec<String> = input.iter().map(|text| (*text).to_owned()).collect();
+    let args = vec![strings(&input), Value::String(locale.to_owned())];
+    let result = block_on(request.call_values(extension, method, args))
+        .unwrap_or_else(|failure| panic!("`{method}` answers: {failure:?}"));
+    items(result.expect("the method returns a value"))
+        .into_iter()
+        .map(items)
+        .collect()
+}
+
+#[test]
+fn word_and_sentence_segments_of_a_batch_of_strings() {
+    let (words, sentences, crossings) = run(|request, extension| {
+        let before = request.crossings();
+        let input = ["The Shop opens at 9.", "こんにちは世界", ""];
+        let words = segments(request, extension, "wordSegments", &input, "ja");
+        let sentences = segments(
+            request,
+            extension,
+            "sentenceSegments",
+            &["The Shop is open. Is the Blog? Yes!", ""],
+            "en",
+        );
+        (words, sentences, request.crossings() - before)
+    });
+    assert_eq!(crossings, 2, "one crossing per batch");
+    let words: Vec<Vec<(String, bool)>> = words
+        .into_iter()
+        .map(|string| {
+            string
+                .into_iter()
+                .map(|word| {
+                    let Value::Array(fields) = word else {
+                        panic!("a word record was expected, not {word:?}");
+                    };
+                    match fields.as_slice() {
+                        [
+                            (Key::String(text_key), Value::String(text)),
+                            (Key::String(like_key), Value::Bool(like)),
+                        ] if text_key == "text" && like_key == "wordLike" => (text.clone(), *like),
+                        other => panic!("`{{text, wordLike}}` was expected, not {other:?}"),
+                    }
+                })
+                .collect()
+        })
+        .collect();
+    let expected = |pairs: &[(&str, bool)]| {
+        pairs
+            .iter()
+            .map(|(text, like)| ((*text).to_owned(), *like))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        words,
+        [
+            expected(&[
+                ("The", true),
+                (" ", false),
+                ("Shop", true),
+                (" ", false),
+                ("opens", true),
+                (" ", false),
+                ("at", true),
+                (" ", false),
+                ("9", true),
+                (".", false),
+            ]),
+            expected(&[("こんにちは", true), ("世界", true)]),
+            Vec::new(),
+        ]
+    );
+    let sentences: Vec<Vec<String>> = sentences
+        .into_iter()
+        .map(|string| {
+            string
+                .into_iter()
+                .map(|sentence| match sentence {
+                    Value::String(sentence) => sentence,
+                    other => panic!("a string was expected, not {other:?}"),
+                })
+                .collect()
+        })
+        .collect();
+    assert_eq!(
+        sentences,
+        [
+            vec!["The Shop is open. ", "Is the Blog? ", "Yes!"],
+            Vec::new(),
+        ]
+    );
+}
+
+/// `negotiate` called with `header`, `offered` and `default`.
+fn negotiated(
+    request: &Request,
+    extension: &Extension,
+    header: &str,
+    offered: &[&str],
+    default: &str,
+) -> Result<String, Failure> {
+    let offered: Vec<String> = offered.iter().map(|tag| (*tag).to_owned()).collect();
+    let args = vec![
+        Value::String(header.to_owned()),
+        strings(&offered),
+        Value::String(default.to_owned()),
+    ];
+    match block_on(request.call_values(extension, "negotiate", args))? {
+        Some(Value::String(tag)) => Ok(tag),
+        other => panic!("a tag was expected, not {other:?}"),
+    }
+}
+
+#[test]
+fn accept_language_negotiates_the_best_offered_locale() {
+    let (chosen, crossings) = run(|request, extension| {
+        let before = request.crossings();
+        let offered = ["en", "de", "fr"];
+        let chosen = [
+            "fr;q=0.5, de, en;q=0.8",
+            "ja, fr;q=0.4, de;q=0.4",
+            "FR-ca;q=0.9, en;q=0.1",
+        ]
+        .map(|header| negotiated(request, extension, header, &offered, "en").unwrap());
+        (chosen, request.crossings() - before)
+    });
+    assert_eq!(crossings, 3, "one crossing per header");
+    assert_eq!(chosen, ["de", "fr", "fr"]);
+}
+
+#[test]
+fn a_regional_range_falls_back_to_its_language() {
+    let (chosen, resolved) = run(|request, extension| {
+        let offered = ["en", "de", "pt-BR"];
+        let chosen = ["de-AT", "pt-br", "pt-PT"]
+            .map(|header| negotiated(request, extension, header, &offered, "en").unwrap());
+        let tags: Vec<String> = ["de-AT", "zz"].map(str::to_owned).to_vec();
+        let args = vec![strings(&tags), Value::Case("Lists".to_owned())];
+        let resolved = block_on(request.call_values(extension, "resolveLocales", args))
+            .expect("`resolveLocales` answers");
+        (chosen, items(resolved.expect("the method returns a value")))
+    });
+    assert_eq!(chosen, ["de", "pt-BR", "en"]);
+    assert_eq!(
+        resolved,
+        [
+            Value::String("de".to_owned()),
+            Value::String("und".to_owned())
+        ]
+    );
+}
+
+#[test]
+fn an_empty_or_malformed_accept_language_returns_the_default() {
+    let (chosen, offered_failure) = run(|request, extension| {
+        let header = format!("{}de", "ja, ".repeat(32));
+        let chosen = [
+            "",
+            " , ",
+            "de;q=2",
+            "de;x=1",
+            "not a tag",
+            "ja",
+            "de;q=0",
+            &header,
+        ]
+        .map(|header| negotiated(request, extension, header, &["en", "de"], "en").unwrap());
+        let offered_failure = negotiated(request, extension, "de", &["de", "not a tag"], "en");
+        (chosen, offered_failure)
+    });
+    assert_eq!(chosen, ["en"; 8], "the header never throws");
+    assert!(
+        matches!(offered_failure, Err(Failure::Error(Error::Invalid(_)))),
+        "a malformed offered tag is the program's own: {offered_failure:?}"
     );
 }
