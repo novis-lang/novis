@@ -334,6 +334,9 @@ One file set: `docs/examples/core/Ldap*/`, `tests/hostile/core/Ldap*/`, `benches
   - Simplicity: one new Native subsystem, a filter builder in `Core` with a recorded reason, and no
     second spelling of anything.
 - **Neutral names only** in every test, example and record: `example.test`, `Shop`, `Blog`, `Staff`.
+  A config block in an example is named for the directory it reaches, such as `[ldap.corp]`, never for
+  a judgement such as `legacy` or `old`. Where a block runs without TLS, a comment says so in plain
+  words.
 - **Every comment in a new `.nvs` and every `about.md` this goal writes follows `AGENTS.md`
   § *Text an end user reads* at the first write**, and `bun nv proofs --comments <paths>` is run over
   them before the wrap.
