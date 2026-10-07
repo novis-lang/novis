@@ -49,8 +49,7 @@ fn ext_help_lists_the_six_subcommands() {
 #[test]
 fn an_unbuilt_subcommand_says_so_and_exits_non_zero() {
     let dir = nvs_repo::scratch("ext-command-unbuilt");
-    let calls: [(&str, &[&str]); 5] = [
-        ("new", &["ext", "new", "--lang", "rust", "project"]),
+    let calls: [(&str, &[&str]); 4] = [
         ("inspect", &["ext", "inspect", "geo.nvsx"]),
         ("test", &["ext", "test"]),
         ("verify", &["ext", "verify", "geo.nvsx"]),
@@ -84,6 +83,127 @@ fn ext_new_takes_rust_or_c() {
     );
     let (_, err, code) = nvs_in(&dir, &["ext", "new", "project"]);
     assert_eq!(code, Some(2), "`--lang` is required: {err}");
+}
+
+/// `nvs ext new --lang <lang> greeting` run in a fresh scratch directory, which must succeed and
+/// print the project's path; the directory is returned.
+fn new_project(name: &str, lang: &str) -> nvs_repo::Scratch {
+    let dir = nvs_repo::scratch(name);
+    let (out, err, code) = nvs_in(&dir, &["ext", "new", "--lang", lang, "greeting"]);
+    assert_eq!(code, Some(0), "`nvs ext new --lang {lang}` succeeds: {err}");
+    assert_eq!(out.trim(), "greeting", "the project's path is printed");
+    assert!(
+        !dir.join("nvs.toml").exists() && !dir.join("greeting/nvs.toml").exists(),
+        "`nvs ext new` writes no `nvs.toml`"
+    );
+    dir
+}
+
+/// The text of `path` under the project `dir/greeting`.
+fn written(dir: &Path, path: &str) -> String {
+    std::fs::read_to_string(dir.join("greeting").join(path))
+        .unwrap_or_else(|err| format!("`{path}` is not written: {err}"))
+}
+
+/// Every file of the world under `wit/nvs-ext/` is in the project under `wit/deps/`, byte for
+/// byte, each WASI package as one file and the `nvs:ext` package as a folder of its own.
+fn assert_the_binarys_own_world(dir: &Path) {
+    let world = nvs_repo::path("wit/nvs-ext");
+    let mut compared = 0;
+    for entry in std::fs::read_dir(&world).expect("the world is on disk") {
+        let path = entry.expect("an entry is readable").path();
+        let name = path
+            .file_name()
+            .expect("a name")
+            .to_string_lossy()
+            .into_owned();
+        if path.is_dir() {
+            for dep in std::fs::read_dir(&path).expect("the WASI folder is on disk") {
+                let dep = dep.expect("an entry is readable").path();
+                let name = dep
+                    .file_name()
+                    .expect("a name")
+                    .to_string_lossy()
+                    .into_owned();
+                let want = std::fs::read_to_string(&dep).expect("a WASI file reads");
+                assert_eq!(written(dir, &format!("wit/deps/{name}")), want, "{name}");
+                compared += 1;
+            }
+        } else {
+            let want = std::fs::read_to_string(&path).expect("a world file reads");
+            assert_eq!(
+                written(dir, &format!("wit/deps/nvs-ext/{name}")),
+                want,
+                "{name}"
+            );
+            compared += 1;
+        }
+    }
+    assert!(compared > 0, "the world has files to compare");
+    let package = written(dir, "wit/greeting.wit");
+    assert!(
+        package.contains("include nvs:ext/extension@1.0.0;") && package.contains("export api;"),
+        "the author's world includes the extension world: {package}"
+    );
+}
+
+#[test]
+fn nvs_ext_new_writes_a_rust_project_with_the_binarys_own_world() {
+    let dir = new_project("ext-new-rust", "rust");
+    assert_the_binarys_own_world(&dir);
+    let cargo = written(&dir, "Cargo.toml");
+    assert!(
+        cargo.lines().any(|line| line.trim() == "[workspace]"),
+        "the project is a workspace of its own: {cargo}"
+    );
+    assert!(cargo.contains("crate-type = [\"cdylib\"]"), "{cargo}");
+    assert!(written(&dir, "src/lib.rs").contains("world: \"greeting\""));
+    let toml = written(&dir, "nvsx.toml");
+    assert!(
+        toml.contains("module = \"target/wasm32-wasip2/release/greeting.wasm\""),
+        "{toml}"
+    );
+    assert!(written(&dir, "tests/GreetingTest.nvs").contains("#[Test]"));
+}
+
+#[test]
+fn nvs_ext_new_writes_a_c_project_with_the_binarys_own_world() {
+    let dir = new_project("ext-new-c", "c");
+    assert_the_binarys_own_world(&dir);
+    let readme = written(&dir, "README.md");
+    assert!(
+        readme.contains("wit-bindgen-cli") && readme.contains("wasi-sdk"),
+        "the README names both tools: {readme}"
+    );
+    assert!(written(&dir, "greeting.c").contains("#include \"greeting.h\""));
+    assert!(written(&dir, "nvsx.toml").contains("module = \"greeting.wasm\""));
+    assert!(written(&dir, "tests/GreetingTest.nvs").contains("#[Test]"));
+    assert!(
+        !dir.join("greeting/Cargo.toml").exists(),
+        "the C project has no `Cargo.toml`"
+    );
+}
+
+/// A folder that already holds a file is refused, and nothing is written into it.
+#[test]
+fn nvs_ext_new_refuses_a_folder_that_is_not_empty() {
+    let dir = nvs_repo::scratch("ext-new-not-empty");
+    std::fs::create_dir(dir.join("greeting")).expect("the folder is made");
+    std::fs::write(dir.join("greeting/notes.txt"), b"mine\n").expect("the file is written");
+    let (out, err, code) = nvs_in(&dir, &["ext", "new", "--lang", "rust", "greeting"]);
+    assert_eq!(code, Some(1), "`nvs ext new` fails: {err}");
+    assert!(out.is_empty(), "nothing goes to standard output: {out}");
+    assert!(err.contains("not empty"), "the error says why: {err}");
+    let left: Vec<_> = std::fs::read_dir(dir.join("greeting"))
+        .expect("the folder is readable")
+        .map(|entry| entry.expect("an entry is readable").file_name())
+        .collect();
+    assert_eq!(left, ["notes.txt"], "nothing was added");
+    assert_eq!(
+        written(&dir, "notes.txt"),
+        "mine\n",
+        "the file is untouched"
+    );
 }
 
 /// The author's WIT: the interface the manifest names.

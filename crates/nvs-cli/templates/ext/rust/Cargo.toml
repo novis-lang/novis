@@ -1,0 +1,21 @@
+[package]
+name = "greeting"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+# A `cdylib` builds one wasm file for `nvs ext build` to pack.
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wit-bindgen = "0.62"
+
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true
+
+# This table makes the project its own workspace. Without it, a project inside
+# another Cargo workspace is built as part of that workspace.
+[workspace]

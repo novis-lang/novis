@@ -997,7 +997,8 @@ enum ExtCommand {
     /// Create a new extension project in a directory.
     ///
     /// The project builds a component for the `nvs:ext` world. It contains
-    /// the world's WIT files, an `nvsx.toml` and an empty test.
+    /// the world's WIT files, an `nvsx.toml`, the code of one function and a
+    /// test for it. Its README says how to build it.
     New {
         /// The language of the project.
         #[arg(long, value_enum)]

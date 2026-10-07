@@ -1,0 +1,12 @@
+<?nvs
+// Tests for the extension. `nvs ext test` runs them with the built `.nvsx` loaded.
+
+use Core\Test;
+use Example\Greeting;
+
+class GreetingTest {
+    #[Test]
+    public function helloGreetsByName(): void {
+        Test::assertSame(Greeting::hello("Ada"), "Hello, Ada!");
+    }
+}

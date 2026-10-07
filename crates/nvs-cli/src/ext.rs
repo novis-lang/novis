@@ -6,6 +6,9 @@
 //! so a script that calls it fails rather than reading an empty success. A project's `nvsx.toml`
 //! is read into its manifest by [`nvsx_toml`], whose module doc is the file's reference.
 //!
+//! **`nvs ext new`** writes a Rust or C project from the templates [`new`]'s module doc
+//! describes, with the `nvs:ext` world's WIT copied from this binary under `wit/deps/`.
+//!
 //! **`nvs ext build`** reads `nvsx.toml`, the module it names, the top-level `.wit` files of its
 //! `wit` folder and every `.nvs` file under its `source` folder, each list sorted by its relative
 //! `/` path so the same project packs to the same bytes. `nvs_ext::pack` makes the `.nvsx`, and
@@ -32,6 +35,7 @@
 //! - Files under `wit/deps/` are not the author's package: the `nvs:ext` world and its WASI are
 //!   compiled into the binary, so `build` reads only the `wit` folder's top level.
 
+mod new;
 mod nvsx_toml;
 
 use std::path::{Path, PathBuf};
@@ -47,7 +51,7 @@ use crate::ExtCommand;
 /// Runs one `nvs ext` subcommand.
 pub(crate) fn run(command: ExtCommand) -> ExitCode {
     match command {
-        ExtCommand::New { .. } => unbuilt("new"),
+        ExtCommand::New { lang, dir } => answer(new::new(lang, &dir)),
         ExtCommand::Build { project } => answer(build(&project)),
         ExtCommand::Inspect { .. } => unbuilt("inspect"),
         ExtCommand::Test { .. } => unbuilt("test"),

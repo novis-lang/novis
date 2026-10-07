@@ -76,6 +76,21 @@ const WASI_WIT: &[(&str, &str)] = &[
     ),
 ];
 
+/// The `nvs:ext` world's WIT and the WASI it imports, as `(path, text)` with each path relative to
+/// a project's `wit` folder: the world's package under `deps/nvs-ext/`, each WASI package one file
+/// under `deps/`. This is the layout bindings generators read, and `nvs ext new` writes it, so a
+/// project builds against the world this binary implements and never a fetched copy.
+pub fn world_wit() -> impl Iterator<Item = (String, &'static str)> {
+    WORLD_WIT
+        .iter()
+        .map(|(name, text)| (format!("deps/nvs-ext/{name}"), *text))
+        .chain(
+            WASI_WIT
+                .iter()
+                .map(|(path, text)| ((*path).to_owned(), *text)),
+        )
+}
+
 /// What a `.nvsx` is packed from.
 #[derive(Debug, Clone, Copy)]
 pub struct Inputs<'a> {
