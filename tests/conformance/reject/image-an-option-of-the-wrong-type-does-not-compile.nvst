@@ -1,0 +1,21 @@
+--TEST--
+An option of the wrong type to a `Novis\Image\Image` step does not compile — rule:core-classes/image-pipeline
+--FILE--
+<?nvs
+use Novis\Image\Image;
+use Novis\Image\Format;
+
+Image $image = Image::open("x" as bytes);
+
+// `width` is a whole number, so the text "800" does not compile.
+echo Core\Bytes::length($image->resize({width: "800"})->encode()), "\n";
+
+// `quality` is a whole number, so 80.5 does not compile.
+echo Core\Bytes::length($image->format(Format::Jpeg, {quality: 80.5})->encode()), "\n";
+--EXPECTF-ERROR--
+error[E0401]: expected `{filter?: Novis\Image\Filter, fit?: Novis\Image\Fit, gravity?: Novis\Image\Gravity, height?: uint, upscale?: bool, width?: uint}`, found `{width: string}`
+%A
+error[E0401]: %s
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

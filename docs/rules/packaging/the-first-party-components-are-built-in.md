@@ -22,6 +22,7 @@ library is prebuilt (`rule:packaging/a-prebuilt-wasm-library-is-rebuilt-in-ci`).
 
 **Partly on disk.** The image crate is `extensions/image/`, excluded from the workspace, and builds for
 `wasm32-wasip2` with `simd128` on. Its implemented exports are `info`, `run` and `variants`; the others return `runtime`.
+Its Novis source half is every `.nvs` file in `extensions/image/nvs/`, which the build packs into `nvs.source`.
 `crates/nvs-ext/build.rs` builds it into `target/ext/`, packs it with `extensions/image/manifest.json`
 and embeds it as `nvs_ext::builtin::IMAGE` with its digest. `nvs_ext::load::Loader::builtins` reads
 its manifest without compiling, and `Builtin::extension` compiles and checks it on first use

@@ -1,0 +1,263 @@
+<?nvs
+namespace Novis\Image;
+
+use LogicError;
+
+// An image and a list of steps to run on it. Each step method returns a new `Image`
+// and leaves this one as it was. Nothing is decoded until `encode`, `variants` or `raw` runs.
+final class Image
+{
+    type Rgba = {r: uint, g: uint, b: uint, alpha: float};
+    type Resize = {width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool};
+    type Encoding = {format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint};
+    type Step = {
+        resize?: Resize,
+        crop?: {x: uint, y: uint, width: uint, height: uint},
+        trim?: {threshold?: float},
+        rotate?: {degrees: float, background: ?Rgba},
+        flip?: Axis,
+        flatten?: Rgba,
+        sharpen?: {sigma?: float},
+        blur?: float,
+        grayscale?: bool,
+        brightness?: float,
+        contrast?: float,
+        gamma?: float,
+        tint?: Rgba,
+        format?: Encoding,
+        metadata?: {keep: bool},
+    };
+    type Origin = {data: bytes, autoOrient: bool, toSrgb: bool, maxPixels?: uint}
+        | {width: uint, height: uint, fill: Rgba}
+        | {width: uint, height: uint, pixels: bytes};
+    type Plan = {steps: array<Step>, overlays: array<{source: Origin, steps: array<Step>}>, output: Output};
+    type Raw = {width: uint, height: uint, pixels: bytes};
+    type Info = {
+        format: Format,
+        width: uint,
+        height: uint,
+        hasAlpha: bool,
+        frames: uint,
+        orientation: uint,
+        exif: ?array<string>,
+        hasIcc: bool,
+    };
+    type Variant = {width?: uint, height?: uint, fit?: Fit, format?: Format, quality?: uint};
+
+    private function constructor(private readonly Origin $source, private readonly array<Step> $steps) {}
+
+    // `Image::open` reads the header of an encoded image. It turns the image upright and
+    // converts its colours to sRGB, unless `autoOrient` or `toSrgb` is `false`.
+    public static function open(bytes $data, ?{autoOrient?: bool, toSrgb?: bool, maxPixels?: uint} $options = null): Image
+    {
+        bool $autoOrient = $options?->autoOrient ?? true;
+        bool $toSrgb = $options?->toSrgb ?? true;
+        ?uint $maxPixels = $options?->maxPixels ?? null;
+        if ($maxPixels == null) {
+            return new Image({data: $data, autoOrient: $autoOrient, toSrgb: $toSrgb}, []);
+        }
+        return new Image({data: $data, autoOrient: $autoOrient, toSrgb: $toSrgb, maxPixels: $maxPixels}, []);
+    }
+
+    // `Image::create` starts from a blank canvas. Without `$fill`, the canvas is transparent.
+    public static function create(uint $width, uint $height, ?Color $fill = null): Image
+    {
+        Color $color = $fill ?? Color::rgba(0, 0, 0, 0.0);
+        return new Image({width: $width, height: $height, fill: Image::rgba($color)}, []);
+    }
+
+    // `Image::fromRaw` starts from RGBA8 pixels, as `raw` returns them.
+    public static function fromRaw(Raw $raw): Image
+    {
+        return new Image({width: $raw->width, height: $raw->height, pixels: $raw->pixels}, []);
+    }
+
+    // `Image::info` reads the format, the size and the orientation from the header. No pixel is decoded.
+    public static function info(bytes $data): Info
+    {
+        return Codec::info($data);
+    }
+
+    // `Image::mime` returns the MIME type of a format, for example `image/webp`.
+    public static function mime(Format $format): string
+    {
+        return match ($format) {
+            Format::Jpeg => "image/jpeg",
+            Format::Png => "image/png",
+            Format::Webp => "image/webp",
+            Format::Gif => "image/gif",
+            Format::Avif => "image/avif",
+            Format::Jxl => "image/jxl",
+            Format::Svg => "image/svg+xml",
+            Format::Pdf => "application/pdf",
+        };
+    }
+
+    // `Image::extension` returns the file extension of a format, without the dot, for example `jpg`.
+    public static function extension(Format $format): string
+    {
+        return match ($format) {
+            Format::Jpeg => "jpg",
+            Format::Png => "png",
+            Format::Webp => "webp",
+            Format::Gif => "gif",
+            Format::Avif => "avif",
+            Format::Jxl => "jxl",
+            Format::Svg => "svg",
+            Format::Pdf => "pdf",
+        };
+    }
+
+    public function resize(Resize $options): Image
+    {
+        return $this->then({resize: $options});
+    }
+
+    public function crop({x: uint, y: uint, width: uint, height: uint} $box): Image
+    {
+        return $this->then({crop: {x: $box->x, y: $box->y, width: $box->width, height: $box->height}});
+    }
+
+    public function trim(?{threshold?: float} $options = null): Image
+    {
+        ?float $threshold = $options?->threshold ?? null;
+        if ($threshold == null) {
+            return $this->then({trim: {}});
+        }
+        return $this->then({trim: {threshold: $threshold}});
+    }
+
+    public function rotate(float $degrees, ?{background?: Color} $options = null): Image
+    {
+        ?Color $background = $options?->background ?? null;
+        return $this->then({rotate: {degrees: $degrees, background: $background == null ? null : Image::rgba($background)}});
+    }
+
+    public function flip(Axis $axis): Image
+    {
+        return $this->then({flip: $axis});
+    }
+
+    public function flatten(Color $background): Image
+    {
+        return $this->then({flatten: Image::rgba($background)});
+    }
+
+    public function sharpen(?{sigma?: float} $options = null): Image
+    {
+        ?float $sigma = $options?->sigma ?? null;
+        if ($sigma == null) {
+            return $this->then({sharpen: {}});
+        }
+        return $this->then({sharpen: {sigma: $sigma}});
+    }
+
+    public function blur(float $sigma): Image
+    {
+        return $this->then({blur: $sigma});
+    }
+
+    public function grayscale(): Image
+    {
+        return $this->then({grayscale: true});
+    }
+
+    public function brightness(float $amount): Image
+    {
+        return $this->then({brightness: $amount});
+    }
+
+    public function contrast(float $amount): Image
+    {
+        return $this->then({contrast: $amount});
+    }
+
+    public function gamma(float $gamma): Image
+    {
+        return $this->then({gamma: $gamma});
+    }
+
+    public function tint(Color $color): Image
+    {
+        return $this->then({tint: Image::rgba($color)});
+    }
+
+    // `format` sets the format that `encode` writes. Without it, the output has the format of the input.
+    public function format(Format $format, ?{quality?: uint, progressive?: bool, lossless?: bool, effort?: uint} $options = null): Image
+    {
+        return $this->then({format: {
+            format: $format,
+            quality: $options?->quality ?? null,
+            progressive: $options?->progressive ?? null,
+            lossless: $options?->lossless ?? null,
+            effort: $options?->effort ?? null,
+        }});
+    }
+
+    // `metadata({keep: true})` keeps the EXIF data in the output. Without it, `encode` removes all metadata.
+    public function metadata({keep: bool} $options): Image
+    {
+        return $this->then({metadata: {keep: $options->keep}});
+    }
+
+    // `encode` runs every step and returns the encoded file.
+    public function encode(): bytes
+    {
+        return Codec::run($this->source, {steps: $this->steps, overlays: [], output: Output::Encoded});
+    }
+
+    // `raw` runs every step and returns the pixels as RGBA8 rows, four bytes per pixel.
+    public function raw(): Raw
+    {
+        bytes $result = Codec::run($this->source, {steps: $this->steps, overlays: [], output: Output::Raw});
+        array<mixed> $size = Core\Bytes::unpack(Core\Bytes::slice($result, 0, 16), "JJ");
+        return {width: $size[0] as uint, height: $size[1] as uint, pixels: Core\Bytes::slice($result, 16)};
+    }
+
+    // `variants` decodes the image once and returns one encoded file per entry, in the same order.
+    // An entry may resize the image and choose its own format and quality.
+    public function variants(array<Variant> $set): array<bytes>
+    {
+        array<Plan> $plans = [];
+        foreach ($set as Variant $variant) {
+            array<Step> $steps = $this->steps;
+            if (isset($variant->width) || isset($variant->height) || isset($variant->fit)) {
+                $steps[] = {resize: $variant};
+            }
+            ?Format $format = $variant->format ?? $this->lastFormat();
+            ?uint $quality = $variant->quality ?? null;
+            if ($format != null) {
+                if (isset($variant->format) || $quality != null) {
+                    $steps[] = {format: {format: $format, quality: $quality, progressive: null, lossless: null, effort: null}};
+                }
+            } elseif ($quality != null) {
+                throw new LogicError("a variant with a `quality` needs a `format`");
+            }
+            $plans[] = {steps: $steps, overlays: [], output: Output::Encoded};
+        }
+        return Codec::variants($this->source, $plans);
+    }
+
+    private function lastFormat(): ?Format
+    {
+        ?Format $found = null;
+        foreach ($this->steps as Step $step) {
+            if (isset($step->format)) {
+                $found = $step->format->format;
+            }
+        }
+        return $found;
+    }
+
+    private function then(Step $step): Image
+    {
+        array<Step> $steps = $this->steps;
+        $steps[] = $step;
+        return new Image($this->source, $steps);
+    }
+
+    private static function rgba(Color $color): Rgba
+    {
+        return {r: $color->r, g: $color->g, b: $color->b, alpha: $color->alpha};
+    }
+}

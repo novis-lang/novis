@@ -14,6 +14,9 @@
 //! clippy-driver, a coverage build's flags, the parent's target directory — so the component's
 //! bytes are the same whichever command built the tree.
 //!
+//! A component's Novis source is every `.nvs` file directly in its crate's `nvs/` folder, packed
+//! into `nvs.source` in the order of their names, each under its file name.
+//!
 //! Only a build with the `engine` feature embeds the components; a reader of manifests alone
 //! builds none.
 
@@ -129,6 +132,7 @@ fn main() {
             "Cargo.lock",
             ".cargo",
             "manifest.json",
+            "nvs",
         ] {
             println!("cargo:rerun-if-changed={}", dir.join(input).display());
         }
@@ -180,8 +184,8 @@ fn build(dir: &Path, target: &Path) -> PathBuf {
     target.join("wasm32-wasip2/release")
 }
 
-/// The `.nvsx` of the component in `dir`: its built `wasm` and its `manifest.json`, packed as
-/// `nvs ext build` packs a component, with no Novis source files yet.
+/// The `.nvsx` of the component in `dir`: its built `wasm`, its `manifest.json` and the Novis
+/// source in its `nvs/` folder, packed as `nvs ext build` packs a component.
 fn pack_component(dir: &Path, wasm: &Path) -> Result<Vec<u8>, Malformed> {
     let read = |path: &Path| {
         fs::read(path).map_err(|err| malformed(format!("{} does not read: {err}", path.display())))
@@ -192,8 +196,34 @@ fn pack_component(dir: &Path, wasm: &Path) -> Result<Vec<u8>, Malformed> {
         wasm: &wasm,
         wit: &[],
         manifest: &manifest,
-        files: &[],
+        files: &novis_source(&dir.join("nvs"))?,
     })
+}
+
+/// Every `.nvs` file directly in `folder`, in the order of their names; none when `folder` does
+/// not exist.
+fn novis_source(folder: &Path) -> Result<Vec<source::SourceFile>, Malformed> {
+    let Ok(entries) = fs::read_dir(folder) else {
+        return Ok(Vec::new());
+    };
+    let mut files = Vec::new();
+    for entry in entries {
+        let path = entry
+            .map_err(|err| malformed(format!("{} does not list: {err}", folder.display())))?
+            .path();
+        if path.extension().is_none_or(|ext| ext != "nvs") {
+            continue;
+        }
+        let text = fs::read_to_string(&path)
+            .map_err(|err| malformed(format!("{} does not read: {err}", path.display())))?;
+        let name = path.file_name().unwrap_or_default().to_string_lossy();
+        files.push(source::SourceFile {
+            path: name.into_owned(),
+            text,
+        });
+    }
+    files.sort_by(|a, b| a.path.cmp(&b.path));
+    Ok(files)
 }
 
 fn write(path: &Path, bytes: &[u8]) {

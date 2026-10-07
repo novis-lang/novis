@@ -1,5 +1,6 @@
-An `Image` is an **immutable value**: the source bytes plus a plan. `open` reads the header and
-decodes nothing; every operation returns a new value that shares the bytes and extends the plan, so
+An `Image` is an **immutable value**: the source bytes plus a plan. `open` keeps the bytes and calls
+nothing, so bytes that are not an image throw at the terminal, and a pipeline costs one host-to-guest
+call however it was built; every operation returns a new value that shares the bytes and extends the plan, so
 branching a pipeline costs an array rather than a frame; and nothing decodes until a terminal —
 `encode`, `variants`, `raw` — runs it. The plan executes in the order written, and steps may be fused
 only where the result differs by resampling rounding alone.
@@ -21,6 +22,12 @@ encoded file (`encode`), the RGBA8 pixels behind a size header (`raw`), or the s
 position, because WIT has no recursive types. `hashDistance`, `Color` and `Font::fromBytes` are Novis
 source and call no export.
 
+A `Format` carries no members, because an enum declares only cases (`rule:enums/no-class-machinery`):
+`Image::mime(Format)` and `Image::extension(Format)` name a format's MIME type and file extension. The
+plan's option shapes that the builder fills in for the caller — `format`'s, `rotate`'s and
+`composite`'s — declare `x: ?T` rather than `x?: T` in `extensions/image/manifest.json`, because a
+Novis shape has no way to leave a key out conditionally; both cross as the same WIT `option`.
+
 **Not shipped.** The interface is written: `wit/image.wit` holds package `nvs:image@1.0.0`, its
 `codec` interface and the `image` world, and `crates/nvs-stdlib/tests/ext_world.rs` places every
 builder member. A plan's `step` is a WIT record with one optional field per operation, exactly one
@@ -31,4 +38,8 @@ each step's options before anything is decoded; what each pixel step does where 
 open, and the pixel cap every frame a step makes is held to, are `extensions/image/src/ops.rs`'s
 module doc. `variants` decodes once and costs one host-to-guest call, counted by
 `nvs_ext::call::Request::crossings` (`crates/nvs-ext/tests/image_pipeline.rs`). The `Novis\Image`
-builder does not exist.
+builder is Novis source in `extensions/image/nvs/`, packed into the component's `nvs.source`:
+`Image` with every member of 0120 § 2's table but `composite`, `text`, `compare`, `hash`,
+`placeholder` and `palette`, and `Color` with `rgba` and `hex` and no named constants yet
+(`tests/conformance/novis/`). A canvas or pixel source is held to the default pixel cap, not the
+`[image]` one.

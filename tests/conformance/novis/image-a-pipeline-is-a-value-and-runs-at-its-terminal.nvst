@@ -1,0 +1,38 @@
+--TEST--
+A `Novis\Image\Image` is a value: each step returns a new image and leaves the old one as it was, and nothing is decoded until a terminal runs — rule:core-classes/image-pipeline
+--FILE--
+<?nvs
+use Novis\Image\Image;
+use Novis\Image\Format;
+
+// A PNG of 3 by 2 pixels with an alpha channel, written as hex.
+bytes $png = Core\Encoding::fromHex(
+    "89504e470d0a1a0a0000000d49484452000000030000000208060000009d74661a"
+    . "0000000b49444154789c6360c00500001a0001bc3ce0410000000049454e44ae426082"
+);
+
+Image $base = Image::open($png);
+Image $wide = $base->resize({width: 6, upscale: true});
+Image $jpeg = $wide->format(Format::Jpeg, {quality: 80});
+
+// Each image encodes its own steps. `$base` is still 3 by 2.
+array<Image> $images = [$base, $wide, $jpeg];
+foreach ($images as Image $image) {
+    var $info = Image::info($image->encode());
+    echo Image::extension($info->format), " ", $info->width, "x", $info->height, "\n";
+}
+
+// `open` decodes nothing, so bytes that are not an image fail only at `encode`.
+Image $broken = Image::open("not an image" as bytes)->grayscale();
+echo "opened\n";
+try {
+    $broken->encode();
+} catch (ParseError $e) {
+    echo "ParseError at encode\n";
+}
+--EXPECT--
+png 3x2
+png 6x4
+jpg 6x4
+opened
+ParseError at encode

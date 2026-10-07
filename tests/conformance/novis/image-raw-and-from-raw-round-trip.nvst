@@ -1,0 +1,28 @@
+--TEST--
+`raw` returns the pixels of a `Novis\Image\Image` as RGBA8 rows, and `Image::fromRaw` reads them back unchanged — rule:core-classes/image-pipeline
+--FILE--
+<?nvs
+use Novis\Image\Image;
+use Novis\Image\Color;
+
+// A blank 3 by 2 canvas in one colour.
+var $raw = Image::create(3, 2, Color::hex("#ff8000"))->raw();
+echo $raw->width, "x", $raw->height, " ", Core\Bytes::length($raw->pixels), " bytes\n";
+
+// Each pixel is four bytes: red, green, blue and alpha.
+echo Core\Encoding::toHex(Core\Bytes::slice($raw->pixels, 0, 4)), "\n";
+
+// `fromRaw` reads the pixels back, and `raw` returns the same bytes.
+var $again = Image::fromRaw($raw)->raw();
+echo $again->pixels == $raw->pixels ? "same pixels" : "different pixels", "\n";
+
+// `flip` changes the image. The original pixels stay the same.
+var $flipped = Image::fromRaw({width: 2, height: 1, pixels: Core\Encoding::fromHex("ff0000ff0000ffff")})
+    ->flip(Novis\Image\Axis::Horizontal)
+    ->raw();
+echo Core\Encoding::toHex($flipped->pixels), "\n";
+--EXPECT--
+3x2 24 bytes
+ff8000ff
+same pixels
+0000ffffff0000ff

@@ -1,0 +1,61 @@
+<?nvs
+namespace Novis\Image;
+
+use LogicError;
+use Throwable;
+
+// A colour: red, green and blue from 0 to 255, and alpha from 0.0 (transparent) to 1.0 (opaque).
+final class Color
+{
+    private function constructor(
+        public readonly uint $r,
+        public readonly uint $g,
+        public readonly uint $b,
+        public readonly float $alpha,
+    ) {}
+
+    // `Color::rgba` makes a colour from its channels. A channel above 255, or an alpha outside
+    // 0.0 to 1.0, throws a `LogicError`.
+    public static function rgba(uint $r, uint $g, uint $b, float $alpha = 1.0): Color
+    {
+        if ($r > 255 || $g > 255 || $b > 255) {
+            throw new LogicError("a colour channel is a number from 0 to 255");
+        }
+        if ($alpha < 0.0 || $alpha > 1.0) {
+            throw new LogicError("the alpha of a colour is a number from 0.0 to 1.0");
+        }
+        return new Color($r, $g, $b, $alpha);
+    }
+
+    // `Color::hex` reads a colour written as `#rgb`, `#rgba`, `#rrggbb` or `#rrggbbaa`.
+    // The `#` is optional. Any other text throws a `LogicError`.
+    public static function hex(string $hex): Color
+    {
+        string $digits = Core\Str::startsWith($hex, "#") ? Core\Str::slice($hex, 1) : $hex;
+        if (Core\Str::length($digits) == 3 || Core\Str::length($digits) == 4) {
+            array<string> $doubled = [];
+            foreach (Core\Str::chunk($digits, 1) as string $digit) {
+                $doubled[] = $digit . $digit;
+            }
+            $digits = Core\Str::join($doubled, "");
+        }
+        if (Core\Str::length($digits) != 6 && Core\Str::length($digits) != 8) {
+            throw new LogicError("`{$hex}` is not a colour written in hex");
+        }
+        bytes $channels;
+        try {
+            $channels = Core\Encoding::fromHex($digits);
+        } catch (Throwable $e) {
+            throw new LogicError("`{$hex}` is not a colour written in hex");
+        }
+        float $alpha = Core\Bytes::length($channels) == 4
+            ? (Core\Bytes::at($channels, 3) as float) / 255.0
+            : 1.0;
+        return new Color(
+            Core\Bytes::at($channels, 0) as uint,
+            Core\Bytes::at($channels, 1) as uint,
+            Core\Bytes::at($channels, 2) as uint,
+            $alpha,
+        );
+    }
+}

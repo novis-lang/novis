@@ -20,4 +20,4 @@ converts its RGB or CMYK profile to sRGB, and re-encodes JPEG, PNG, WebP, GIF an
 metadata unless a `metadata` step keeps the EXIF block, which an AVIF never carries
 (`extensions/image/src/decode.rs`, `extensions/image/src/encode.rs`,
 `crates/nvs-ext/tests/image_pipeline.rs`). AVIF and JPEG XL inputs are neither oriented nor
-converted, and the `Novis\Image` builder does not exist.
+converted. The `Novis\Image` builder's `open` turns both on unless its options say `false`.
