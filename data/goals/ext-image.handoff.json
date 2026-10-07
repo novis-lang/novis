@@ -1,23 +1,25 @@
 {
-  "state": "**Goal `ext-image`, Stage 4 (the pipeline) is under way.** The design is settled by ADR 0120, ADR 0247 and the goal file's § *Standing decisions*; no session re-decides one.\n\nThe image component is embedded, typed into every compile and callable with no `nvs.toml` (`crates/nvs-cli/src/extensions.rs` module doc). `run` and `variants` decode JPEG, PNG, WebP, GIF, AVIF and JPEG XL inside the guest under the cap, apply the EXIF orientation when `autoOrient` is set, and convert an RGB or CMYK ICC profile to sRGB through `moxcms` when `toSrgb` is set (`extensions/image/src/decode.rs` module doc, `rule:core-classes/image-correct-by-default`). They encode JPEG, PNG, WebP, GIF and AVIF (`extensions/image/src/encode.rs` module doc). `variants` decodes once and runs each plan on a copy of the frame.\n\n`crates/nvs-ext/tests/image_pipeline.rs` has ten passing tests: orientation, GPS, the CMYK profile and `toSrgb: false`, the two encoder checks and the two crossing counts. The CMYK test writes its own profile and inserts it into `extensions/image/fixtures/cmyk.jpg` (a YCCK JPEG). Plans still honour only `format` and `metadata` steps, and the `Novis\\Image` builder (Novis source half) does not exist.",
+  "state": "**Goal `ext-image`, Stage 4 (the pipeline) is under way.** The design is settled by ADR 0120, ADR 0247 and the goal file's § *Standing decisions*; no session re-decides one.\n\nThe image component is embedded, typed into every compile and callable with no `nvs.toml` (`crates/nvs-cli/src/extensions.rs` module doc). `run` and `variants` decode every roster format inside the guest under the cap, orient and convert to sRGB (`extensions/image/src/decode.rs` module doc), run every pixel step but `composite` and `text` in order (`extensions/image/src/ops.rs` module doc, which also says what each step means where ADR 0120 leaves it open), and encode JPEG, PNG, WebP, GIF and AVIF (`extensions/image/src/encode.rs`). Step options are checked before the decode, and every frame a step makes is held to the pixel cap.\n\n`crates/nvs-ext/tests/image_pipeline.rs` has eleven passing tests, so every Stage 4 `cargo-named` check is green. What is left of Stage 4 is the `Novis\\Image` builder (Novis source half) and the five `.nvst` cases of check `image-the-builder-runs-and-refuses`. A `composite` step, an overlay and a source other than encoded bytes still return `runtime`.",
   "next": {
     "stage": 4,
     "title": "the pipeline",
     "files": [],
-    "note": "one file set: `extensions/image/src/lib.rs`, a new `extensions/image/src/ops.rs`, `extensions/image/Cargo.toml`, `crates/nvs-ext/tests/image_pipeline.rs`.",
+    "note": "one file set: the builder's Novis source under `extensions/image/`, `crates/nvs-ext/build.rs`, `extensions/image/manifest.json`, `tests/conformance/novis/`.",
     "items": [
       {
         "done": false,
-        "text": "**The pixel steps in the guest** (`rule:core-classes/image-pipeline`) — `resize` through `fast_image_resize`, then `crop`, `rotate`, `flip`, the adjustments; `encoding` in `extensions/image/src/lib.rs:198` returns `runtime` for every step but `format` and `metadata`, and `finish` at `extensions/image/src/lib.rs:93` is where a step list would run on the frame. Add a `resize` step to the CMYK test at `crates/nvs-ext/tests/image_pipeline.rs:430`, so its name is true."
+        "text": "**The `Novis\\Image` builder, Novis source half** (`rule:core-classes/image-pipeline`, ADR 0120 § 2's table) — `Image`, `Color` and the enums as Novis source carried in `nvs.source`; `crates/nvs-ext/build.rs:183` packs the built-in `.nvsx` with no Novis source yet, and the manifest is `extensions/image/manifest.json:1`. A step crosses as `['resize' => [...]]` (`wit/image.wit:232`)."
       },
       {
         "done": false,
-        "text": "**The `Novis\\Image` builder, Novis source half** (`rule:core-classes/image-pipeline`) — the `.nvst` cases the goal record names under `tests/conformance/novis/`; the manifest is `extensions/image/manifest.json:1`."
+        "text": "**The five `.nvst` cases** of check `image-the-builder-runs-and-refuses` (`rule:core-classes/image-pipeline`) — under `tests/conformance/novis/` and `tests/conformance/reject/`, beside `tests/conformance/novis/image-info-answers-with-no-configuration.nvst:1`."
       }
     ]
   },
   "backlog": [
-    "A plain CMYK (Adobe transform 0) JPEG is converted by the branch in `extensions/image/src/decode.rs` that no test reaches: no tool here writes one (ImageMagick writes YCCK). Its inversion matches `zune-jpeg`'s own CMYK conversion.",
+    "`composite` with the overlay table, and the `canvas`, `pixels` and `text` sources (`extensions/image/src/lib.rs` module doc); `fromRaw` needs the `pixels` source.",
+    "`blur` and `sharpen` cost O(pixels × sigma), bounded only by the request's CPU cap (`extensions/image/src/ops.rs` module doc).",
+    "A plain CMYK (Adobe transform 0) JPEG is converted by the branch in `extensions/image/src/decode.rs` that no test reaches: no tool here writes one (ImageMagick writes YCCK).",
     "Stage 5: the `image_guest` bench test target in `nvs-ext` (goal `ext-image`'s record).",
     "Stage 6: `nvs meta --json` lists the built-in components' classes, and the proofs roster's `novis/` paths (`crates/nvs-cli/src/meta.rs`, `tools/nv/proofs/roster.ts`)."
   ]
