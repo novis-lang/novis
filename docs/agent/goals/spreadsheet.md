@@ -135,7 +135,7 @@ One file set: `extensions/spreadsheet/` (new), `crates/nvs-ext/build.rs:115` (`C
   data descriptors (`zip`'s `ZipWriter::new_stream`, or by hand with `miniz_oxide` and `crc32fast`).
   Strings are written inline (`t="inlineStr"`), so no string table grows. A batch of rows goes in, and
   the compressed bytes ready to leave come back.
-- **The targets** (`rule:core-classes/spreadsheet-writes-as-a-stream`):
+- **The targets** (`core-classes/spreadsheet-writes-as-a-stream`):
   `Workbook::createForDownload($name)` sets `Content-Disposition` and calls `Core\Response::stream` at
   once, `createForFile($path)` writes through `Core\IO::writeStream`, `createForStream($file)` writes
   to an open `Core\IO\File`, and `createInMemory()` keeps the bytes for `finish()`'s result. `finish()`

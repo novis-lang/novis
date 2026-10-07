@@ -144,7 +144,7 @@ One file set: `extensions/image/src/text.rs`, `extensions/image/src/qr.rs`,
 - **Shaping** replaces the first wave's Latin-only kerning (`text.rs:1`) with `harfrust`, with
   `unicode-bidi` for direction, so Arabic, Hebrew and Devanagari draw correctly. ADR 0120 § 9 and M17
   Part 1 placed it here.
-- **Barcodes** (`rule:core-classes/image-barcode-roster`): Code 128 and GS1-128, EAN-13, EAN-8,
+- **Barcodes** (`core-classes/image-barcode-roster`): Code 128 and GS1-128, EAN-13, EAN-8,
   UPC-A, Code 39 and ITF-14 through `barcoders`, DataMatrix through `datamatrix`. Each renders as an
   SVG string or as any raster format the component encodes. A wrong check digit or a character the
   symbology cannot carry throws `LogicError` naming it.
@@ -186,7 +186,7 @@ One file set: `extensions/pdf/src/css/` (new), `extensions/pdf/tests/css.rs` (ne
 - **Our own cascade** over `cssparser` and `selectors`: the selectors the subset lists, specificity,
   inheritance, `!important`, `var()`, `calc()`, `@media print` and `all` applied and `screen` not.
 - **The subset is data**: `extensions/pdf/subset.json` (new), which
-  `rule:core-classes/pdf-css-subset-table` points to and nothing restates. It lists every property,
+  `core-classes/pdf-css-subset-table` points to and nothing restates. It lists every property,
   value function, at-rule, selector and PDF-specific HTML attribute (`data-repeat`, `data-mark`,
   `<slot>`) with a one-line plain description. A test reads it: every property it lists parses, and
   every property it does not list is dropped and reported with its selector and source position
@@ -256,7 +256,7 @@ page with a `Page` value, and a second call places what it returns.
 One file set: `extensions/pdf/nvs/` (new: `Document.nvs`, `Page.nvs`, `Rendered.nvs`),
 `extensions/pdf/src/paginate/`, `crates/nvs-ext/tests/pdf.rs`.
 
-- **`rule:core-classes/pdf-header-is-a-page-function`**: the component lays out the body once and
+- **`core-classes/pdf-header-is-a-page-function`**: the component lays out the body once and
   returns each page's facts; Novis calls the function once per page with no crossing; one more call
   places the header and footer markup in the page margins. The instance keeps the laid-out body
   between the two calls (`rule:packaging/a-fresh-instance-per-request`, `crates/nvs-ext/src/call.rs:1`).
@@ -278,7 +278,7 @@ closes its borders at every break and fills its running values.
 One file set: `extensions/pdf/src/layout/table.rs` (new), `extensions/pdf/src/paginate/`,
 `extensions/pdf/tests/tables.rs` (new).
 
-The user's eight rules (`rule:core-classes/pdf-tables-across-pages`), each a default with no
+The user's eight rules (`core-classes/pdf-tables-across-pages`), each a default with no
 configuration:
 
 1. **Column widths are computed once for the whole table**, so every page has the same columns.
@@ -312,7 +312,7 @@ One file set: `extensions/pdf/src/write.rs`, `extensions/pdf/src/encrypt.rs` (ne
   `alt`, and the document language.
 - **A document that breaks its chosen standard throws** naming what broke, through `krilla`'s
   validation: an image with no `alt` under PDF/UA-1, a missing font embedding under PDF/A.
-- **Factur-X** (`rule:core-classes/pdf-factur-x-is-the-one-attachment`): exactly one XML file,
+- **Factur-X** (`core-classes/pdf-factur-x-is-the-one-attachment`): exactly one XML file,
   checked well-formed and inside the memory cap, under PDF/A-3b only, with the fixed file name, the
   `AFRelationship` and the XMP fields the standard requires. Any other attachment, and this one
   outside PDF/A-3b, throws. The XML is the program's to build.
