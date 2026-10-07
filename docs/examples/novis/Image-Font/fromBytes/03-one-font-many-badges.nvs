@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to load a font once and draw with it on several images.
+use Novis\Image\Color;
+use Novis\Image\Font;
+use Novis\Image\Image;
+
+require 'fonts/box-font.nvs';
+
+Font $font = BoxFont::load();
+array<string> $labels = ["Sale", "New", "Shop"];
+
+// Each badge is as wide as its label, plus 4 pixels on each side. This prints 32, 26 and 32.
+foreach ($labels as string $label) {
+    uint $width = Image::measureText($label, $font, {size: 10.0})->width + 8;
+    bytes $png = Image::create($width, 18, Color::hex("#2e7d32"))
+        ->text($label, $font, {size: 10.0, color: Color::hex("#ffffff")})
+        ->encode();
+    echo Image::info($png)->width, "\n";
+}

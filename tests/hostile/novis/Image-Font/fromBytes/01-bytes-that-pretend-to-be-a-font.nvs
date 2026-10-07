@@ -1,0 +1,38 @@
+<?nvs
+// Attack: a request makes a `Font` from bytes that are empty, too short, very long or only look like a font.
+// Each attempt should return a `Font` or throw an error, and the server keeps running.
+use Novis\Image\Font;
+use Novis\Image\Image;
+
+// 1. No bytes at all.
+try {
+    echo 'step 1 ran ', Core\Bytes::length(Font::fromBytes('' as bytes)->data), "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. The first four bytes of a font file, and nothing after them.
+try {
+    echo 'step 2 ran ', Core\Bytes::length(Font::fromBytes(Core\Encoding::fromHex('00010000'))->data), "\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. The first four bytes of each kind of font file, then zeros. Each is used to measure text.
+array<string> $starts = ['00010000', '4f54544f', '74727565', '74746366'];
+foreach ($starts as string $start) {
+    try {
+        Font $font = Font::fromBytes(Core\Encoding::fromHex($start . Core\Str::repeat('00', 60)));
+        echo 'step 3 ran ', Image::measureText('Shop', $font, { size: 10.0 })->width, "\n";
+    } catch (Throwable $e) {
+        echo "step 3 stopped\n";
+    }
+}
+
+// 4. A font file start followed by 16 MB of the byte 0xff.
+try {
+    bytes $big = Core\Encoding::fromHex('00010000' . Core\Str::repeat('ff', 16000000));
+    echo 'step 4 ran ', Image::measureText('Shop', Font::fromBytes($big), { size: 10.0 })->width, "\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}
