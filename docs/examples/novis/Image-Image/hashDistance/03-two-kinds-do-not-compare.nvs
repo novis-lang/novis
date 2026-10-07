@@ -1,0 +1,18 @@
+<?nvs
+// Shows the error `Image::hashDistance` throws for two hashes of different kinds.
+use Novis\Image\Color;
+use Novis\Image\HashKind;
+use Novis\Image\Image;
+
+bytes $photo = Image::create(16, 16, Color::hex("#2563eb"))->encode();
+
+// A `Perceptual` hash is 8 bytes and an `Average` hash is 32 bytes.
+bytes $perceptual = Image::hash($photo, HashKind::Perceptual);
+bytes $average = Image::hash($photo, HashKind::Average);
+
+// The lengths are different, so this throws a `LogicError`.
+try {
+    echo Image::hashDistance($perceptual, $average), "\n";
+} catch (LogicError $e) {
+    echo "LogicError: ", $e->message, "\n";
+}

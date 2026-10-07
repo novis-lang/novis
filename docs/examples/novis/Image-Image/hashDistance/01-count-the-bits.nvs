@@ -1,0 +1,12 @@
+<?nvs
+// Shows how `Image::hashDistance` counts the bits that differ between two hashes.
+use Novis\Image\Image;
+
+// Two hashes of 2 bytes each. Only the last byte is different.
+// 0x0f is 00001111 and 0x0c is 00001100, so two bits differ.
+bytes $first = Core\Encoding::fromHex("a10f");
+bytes $second = Core\Encoding::fromHex("a10c");
+
+// This prints 0 and then 2.
+echo Image::hashDistance($first, $first), "\n";
+echo Image::hashDistance($first, $second), "\n";

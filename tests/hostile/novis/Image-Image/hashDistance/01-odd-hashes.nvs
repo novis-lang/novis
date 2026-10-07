@@ -1,0 +1,28 @@
+<?nvs
+// Attack: a request compares hashes that are empty, very long or of different lengths.
+// Each attempt should return a number or throw an error, and the server keeps running.
+use Novis\Image\Image;
+
+// 1. Two empty hashes.
+try {
+    echo 'step 1 ran ', Image::hashDistance('' as bytes, '' as bytes), "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. Two hashes of one million bytes, where every bit differs.
+try {
+    bytes $zeros = Core\Encoding::fromHex(Core\Str::repeat('00', 1000000));
+    bytes $ones = Core\Encoding::fromHex(Core\Str::repeat('ff', 1000000));
+    echo 'step 2 ran ', Image::hashDistance($zeros, $ones), "\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. A hash of 8 bytes and a hash of 7 bytes.
+try {
+    uint $distance = Image::hashDistance(Core\Encoding::fromHex('0011223344556677'), Core\Encoding::fromHex('00112233445566'));
+    echo 'step 3 ran ', $distance, "\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
