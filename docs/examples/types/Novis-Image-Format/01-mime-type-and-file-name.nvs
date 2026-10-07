@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to get the MIME type and the file name for an image you write.
+use Novis\Image\Color;
+use Novis\Image\Format;
+use Novis\Image\Image;
+
+array<Format> $formats = [Format::Png, Format::Webp, Format::Jpeg];
+
+// Each line prints the MIME type and a file name.
+// For example, the first line is "image/png  avatar.png".
+foreach ($formats as Format $format) {
+    echo Image::mime($format), "  avatar.", Image::extension($format), "\n";
+}
+
+// `encode` writes the format that `format` sets.
+// Bytes 1 to 3 of a PNG file are the letters "PNG", so this prints PNG.
+bytes $png = Image::create(8, 8, Color::hex("#fff"))->format(Format::Png)->encode();
+echo Core\Bytes::slice($png, 1, 3) as string, "\n";

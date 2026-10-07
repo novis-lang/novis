@@ -1,0 +1,24 @@
+<?nvs
+// Shows how `gravity` chooses which part of an image a square thumbnail keeps.
+use Novis\Image\Fit;
+use Novis\Image\Gravity;
+use Novis\Image\Image;
+
+class FirstPixel {
+    public static function of(Image $image): string {
+        array<mixed> $p = Core\Bytes::unpack(Core\Bytes::slice($image->raw()->pixels, 0, 4), "C4");
+        return "{$p[0]} {$p[1]} {$p[2]}";
+    }
+}
+
+// An image of 2 by 1 pixels: red on the left and blue on the right.
+Image $banner = Image::fromRaw({
+    width: 2,
+    height: 1,
+    pixels: Core\Encoding::fromHex("ff0000ff0000ffff"),
+});
+
+// A thumbnail of 1 by 1 pixel can keep only one of them.
+// `West` keeps the red pixel and prints 255 0 0. `East` keeps the blue one and prints 0 0 255.
+echo FirstPixel::of($banner->resize({ width: 1, height: 1, fit: Fit::Cover, gravity: Gravity::West })), "\n";
+echo FirstPixel::of($banner->resize({ width: 1, height: 1, fit: Fit::Cover, gravity: Gravity::East })), "\n";

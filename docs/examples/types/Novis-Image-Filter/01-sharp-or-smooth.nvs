@@ -1,0 +1,32 @@
+<?nvs
+// Shows how `Nearest` keeps hard edges and `Bilinear` mixes the colours when an image is made larger.
+use Novis\Image\Filter;
+use Novis\Image\Fit;
+use Novis\Image\Image;
+
+class Row {
+    public static function reds(Image $image): string {
+        bytes $pixels = $image->raw()->pixels;
+        array<string> $out = [];
+        uint $x = 0;
+        while ($x < 4) {
+            $out[] = Core\Bytes::at($pixels, ($x * 4) as int) as string;
+            $x = $x + 1;
+        }
+        return Core\Str::join($out, " ");
+    }
+}
+
+// An image of 2 by 1 pixels: black on the left and red on the right.
+Image $pair = Image::fromRaw({
+    width: 2,
+    height: 1,
+    pixels: Core\Encoding::fromHex("000000ffff0000ff"),
+});
+
+// Both lines show the red value of the 4 new pixels.
+// `Nearest` gives only 0 and 255. `Bilinear` also gives values in between.
+Image $sharp = $pair->resize({ width: 4, height: 1, fit: Fit::Fill, upscale: true, filter: Filter::Nearest });
+Image $smooth = $pair->resize({ width: 4, height: 1, fit: Fit::Fill, upscale: true, filter: Filter::Bilinear });
+echo "Nearest:  ", Row::reds($sharp), "\n";
+echo "Bilinear: ", Row::reds($smooth), "\n";

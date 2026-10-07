@@ -1,0 +1,22 @@
+<?nvs
+// Shows the size each `Fit` gives when a wide image is resized into a square box.
+use Novis\Image\Color;
+use Novis\Image\Fit;
+use Novis\Image\Image;
+
+class Size {
+    public static function of(Image $image): string {
+        var $raw = $image->raw();
+        return "{$raw->width} x {$raw->height}";
+    }
+}
+
+// The image is 400 by 200 pixels. The box is 100 by 100.
+Image $wide = Image::create(400, 200, Color::hex("#336699"));
+
+// `Inside` gives 100 x 50 and `Outside` gives 200 x 100. The other three give 100 x 100.
+echo "Cover:   ", Size::of($wide->resize({ width: 100, height: 100, fit: Fit::Cover })), "\n";
+echo "Contain: ", Size::of($wide->resize({ width: 100, height: 100, fit: Fit::Contain })), "\n";
+echo "Fill:    ", Size::of($wide->resize({ width: 100, height: 100, fit: Fit::Fill })), "\n";
+echo "Inside:  ", Size::of($wide->resize({ width: 100, height: 100, fit: Fit::Inside })), "\n";
+echo "Outside: ", Size::of($wide->resize({ width: 100, height: 100, fit: Fit::Outside })), "\n";

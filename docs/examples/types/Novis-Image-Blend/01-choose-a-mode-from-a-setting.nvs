@@ -1,0 +1,27 @@
+<?nvs
+// Shows how to choose a `Blend` from the text of a setting.
+use Novis\Image\Blend;
+
+class Mode {
+    public static function from(string $text): Blend {
+        return match ($text) {
+            "multiply" => Blend::Multiply,
+            "screen" => Blend::Screen,
+            "overlay" => Blend::Overlay,
+            "darken" => Blend::Darken,
+            "lighten" => Blend::Lighten,
+            default => Blend::Normal,
+        };
+    }
+
+    public static function darker(Blend $blend): bool {
+        return $blend == Blend::Multiply || $blend == Blend::Darken;
+    }
+}
+
+// "multiply" makes the result darker, so the first line prints "darker".
+// "unknown" is not a mode and gives `Normal`, so the second line prints "not darker".
+array<string> $settings = ["multiply", "unknown"];
+foreach ($settings as string $setting) {
+    echo Mode::darker(Mode::from($setting)) ? "darker" : "not darker", "\n";
+}

@@ -1,0 +1,24 @@
+<?nvs
+// Shows what each `Axis` does to the pixels of an image.
+use Novis\Image\Axis;
+use Novis\Image\Image;
+
+class Corner {
+    public static function topLeft(Image $image): string {
+        array<mixed> $p = Core\Bytes::unpack(Core\Bytes::slice($image->raw()->pixels, 0, 4), "C4");
+        return "{$p[0]} {$p[1]} {$p[2]}";
+    }
+}
+
+// An image of 2 by 2 pixels. The top row is red and green, and the bottom row is blue and white.
+Image $tiles = Image::fromRaw({
+    width: 2,
+    height: 2,
+    pixels: Core\Encoding::fromHex("ff0000ff00ff00ff0000ffffffffffff"),
+});
+
+// The top-left pixel is red at the start, so the first line prints 255 0 0.
+// After `Horizontal` it is green (0 255 0). After `Vertical` it is blue (0 0 255).
+echo Corner::topLeft($tiles), "\n";
+echo Corner::topLeft($tiles->flip(Axis::Horizontal)), "\n";
+echo Corner::topLeft($tiles->flip(Axis::Vertical)), "\n";
