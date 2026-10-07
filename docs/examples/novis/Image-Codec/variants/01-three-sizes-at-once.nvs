@@ -1,0 +1,26 @@
+<?nvs
+// Shows how to write three sizes of one photo with a single call.
+use Novis\Image\Codec;
+use Novis\Image\Color;
+use Novis\Image\Format;
+use Novis\Image\Image;
+use Novis\Image\Output;
+
+bytes $photo = Image::create(1600, 1200, Color::hex("#336699"))->format(Format::Jpeg)->encode();
+
+uint $large = 800;
+uint $medium = 400;
+uint $small = 100;
+
+// The photo is decoded once. Each plan then runs on its own copy.
+array<bytes> $files = Codec::variants({data: $photo, autoOrient: true, toSrgb: true}, [
+    {steps: [{resize: {width: $large}}], overlays: [], output: Output::Encoded},
+    {steps: [{resize: {width: $medium}}], overlays: [], output: Output::Encoded},
+    {steps: [{resize: {width: $small}}], overlays: [], output: Output::Encoded},
+]);
+
+// This prints 800x600, 400x300 and 100x75.
+foreach ($files as bytes $file) {
+    var $info = Codec::info($file);
+    echo $info->width, "x", $info->height, "\n";
+}

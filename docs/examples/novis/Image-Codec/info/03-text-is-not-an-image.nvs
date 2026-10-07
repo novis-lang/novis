@@ -1,0 +1,13 @@
+<?nvs
+// Shows what happens when the bytes are not an image.
+use Novis\Image\Codec;
+
+// These bytes are the text "not an image".
+bytes $text = Core\Encoding::fromHex("6e6f7420616e20696d616765");
+
+// `Codec::info` throws a `ParseError`.
+try {
+    Codec::info($text);
+} catch (ParseError $error) {
+    echo "ParseError: ", $error->message, "\n";
+}

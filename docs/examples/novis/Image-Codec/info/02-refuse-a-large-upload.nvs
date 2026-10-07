@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to check the size of an upload before you do any work on it.
+use Novis\Image\Codec;
+use Novis\Image\Color;
+use Novis\Image\Format;
+use Novis\Image\Image;
+
+// This JPEG replaces an upload of 4000 by 3000 pixels.
+bytes $upload = Image::create(4000, 3000, Color::hex("#336699"))->format(Format::Jpeg)->encode();
+
+// The header has the size, so this check is fast. No pixel is decoded.
+var $info = Codec::info($upload);
+uint $limit = 2000;
+
+// This prints too large: 4000x3000.
+if ($info->width > $limit || $info->height > $limit) {
+    echo "too large: ", $info->width, "x", $info->height, "\n";
+} else {
+    echo "accepted\n";
+}

@@ -1,0 +1,21 @@
+<?nvs
+// Shows that `Codec::variants` throws an error when one of its plans cannot run.
+use Novis\Image\Codec;
+use Novis\Image\Color;
+use Novis\Image\Image;
+use Novis\Image\Output;
+
+bytes $png = Image::create(100, 100, Color::hex("#336699"))->encode();
+uint $side = 200;
+
+// The second plan crops a box that is larger than the image.
+// The call throws an error, and you get no files at all.
+try {
+    Codec::variants({data: $png, autoOrient: true, toSrgb: true}, [
+        {steps: [], overlays: [], output: Output::Encoded},
+        {steps: [{crop: {x: 0, y: 0, width: $side, height: $side}}], overlays: [], output: Output::Encoded},
+    ]);
+    echo "no error\n";
+} catch (Throwable $error) {
+    echo $error->message, "\n";
+}

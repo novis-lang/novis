@@ -1,0 +1,26 @@
+<?nvs
+// Reads the header of a small PNG, as a server does to check the size of an upload.
+// bench: iterations 256
+// bench: complexity constant
+use Novis\Image\Codec;
+use Novis\Image\Color;
+use Novis\Image\Image;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<bytes> $files = [
+            Image::create(4, 4, Color::hex("#336699"))->encode(),
+            Image::create(8, 2, Color::hex("#336699"))->encode(),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            var $info = Codec::info($files[$total % 2]);
+            $total = $total + $info->width % 3;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

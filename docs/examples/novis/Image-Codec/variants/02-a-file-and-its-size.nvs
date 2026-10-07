@@ -1,0 +1,20 @@
+<?nvs
+// Shows that each plan in `Codec::variants` can return a different output.
+use Novis\Image\Codec;
+use Novis\Image\Color;
+use Novis\Image\Image;
+use Novis\Image\Output;
+
+bytes $png = Image::create(500, 500, Color::hex("#336699"))->encode();
+uint $width = 50;
+
+// The first plan returns a PNG file. The second returns only the size of a 50 pixel wide copy.
+array<bytes> $results = Codec::variants({data: $png, autoOrient: true, toSrgb: true}, [
+    {steps: [], overlays: [], output: Output::Encoded},
+    {steps: [{resize: {width: $width}}], overlays: [], output: Output::Size},
+]);
+
+// This prints png and then 50x50.
+echo Image::extension(Codec::info($results[0])->format), "\n";
+array<mixed> $size = Core\Bytes::unpack($results[1], "JJ");
+echo $size[0], "x", $size[1], "\n";

@@ -1,0 +1,51 @@
+<?nvs
+// Attack: a request sends headers that are cut short, empty or claim a huge size.
+// Each call should return a shape or throw an error, and the server keeps running.
+use Novis\Image\Codec;
+
+// 1. No bytes at all.
+try {
+    Codec::info(Core\Encoding::fromHex(''));
+    echo "step 1 ran\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. Only the eight bytes of the PNG signature.
+try {
+    Codec::info(Core\Encoding::fromHex('89504e470d0a1a0a'));
+    echo "step 2 ran\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. A PNG header that says 4294967295 by 4294967295 pixels, with no pixel data.
+try {
+    var $info = Codec::info(Core\Encoding::fromHex(
+        '89504e470d0a1a0a0000000d49484452ffffffffffffffff0806000000000000000000000049454e44ae426082',
+    ));
+    echo 'step 3 ran ', $info->width, "\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. A JPEG start marker and then one megabyte of zero bytes.
+try {
+    Codec::info(Core\Encoding::fromHex('ffd8ffe0' . Core\Str::repeat('00', 1048576)));
+    echo "step 4 ran\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}
+
+// 5. The same broken header a thousand times. Each call must still return or throw.
+uint $i = 0;
+uint $stopped = 0;
+while ($i < 1000) {
+    try {
+        Codec::info(Core\Encoding::fromHex('47494638396100'));
+    } catch (Throwable $e) {
+        $stopped = $stopped + 1;
+    }
+    $i = $i + 1;
+}
+echo 'step 5 stopped ', $stopped, "\n";

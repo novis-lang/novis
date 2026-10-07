@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to get the size an image will have after a resize, without encoding it.
+use Novis\Image\Codec;
+use Novis\Image\Color;
+use Novis\Image\Image;
+use Novis\Image\Output;
+
+bytes $png = Image::create(1200, 800, Color::hex("#336699"))->encode();
+uint $width = 300;
+
+// `Output::Size` returns 16 bytes: the width and then the height, each as a 64-bit number.
+bytes $size = Codec::run(
+    {data: $png, autoOrient: true, toSrgb: true},
+    {steps: [{resize: {width: $width}}], overlays: [], output: Output::Size}
+);
+
+// This prints 300x200.
+array<mixed> $numbers = Core\Bytes::unpack($size, "JJ");
+echo $numbers[0], "x", $numbers[1], "\n";

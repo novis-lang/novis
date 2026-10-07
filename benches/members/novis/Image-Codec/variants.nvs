@@ -1,0 +1,30 @@
+<?nvs
+// Decodes a small PNG once and makes two sizes of it, as a server does for a set of thumbnails.
+// bench: iterations 256
+// bench: complexity constant
+use Novis\Image\Codec;
+use Novis\Image\Color;
+use Novis\Image\Image;
+use Novis\Image\Output;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        bytes $png = Image::create(16, 16, Color::hex("#336699"))->encode();
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            uint $small = 1 + $total % 4;
+            uint $large = 5 + $total % 8;
+            array<bytes> $sizes = Codec::variants({data: $png, autoOrient: true, toSrgb: true}, [
+                {steps: [{resize: {width: $small}}], overlays: [], output: Output::Size},
+                {steps: [{resize: {width: $large}}], overlays: [], output: Output::Size},
+            ]);
+            array<mixed> $numbers = Core\Bytes::unpack($sizes[1], "JJ");
+            $total = $total + ($numbers[0] as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

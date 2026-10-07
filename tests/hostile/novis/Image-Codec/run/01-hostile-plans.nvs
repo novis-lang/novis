@@ -1,0 +1,64 @@
+<?nvs
+// Attack: a request calls `Codec::run` directly with plans and sources the builder never makes.
+// Each call should return bytes or throw an error, and the server keeps running.
+use Novis\Image\Codec;
+use Novis\Image\Color;
+use Novis\Image\Image;
+use Novis\Image\Output;
+
+bytes $png = Image::create(8, 8, Color::hex('#ff0000'))->encode();
+uint $zero = 0;
+uint $huge = 4294967295;
+
+// 1. A canvas of 4294967295 by 4294967295 pixels.
+try {
+    Codec::run({ width: $huge, height: $huge, fill: { r: $zero, g: $zero, b: $zero, alpha: 1.0 } }, { steps: [], overlays: [], output: Output::Raw });
+    echo "step 1 ran\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. Pixels that say 1000 by 1000, with only 4 bytes of data.
+try {
+    uint $side = 1000;
+    Codec::run({ width: $side, height: $side, pixels: Core\Encoding::fromHex('ff0000ff') }, { steps: [], overlays: [], output: Output::Encoded });
+    echo "step 2 ran\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. A step with no operation in it.
+try {
+    Codec::run({ data: $png, autoOrient: true, toSrgb: true }, { steps: [{}], overlays: [], output: Output::Encoded });
+    echo "step 3 ran\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. A resize to 0 by 0 pixels, and then a resize far beyond the pixel limit.
+try {
+    Codec::run({ data: $png, autoOrient: true, toSrgb: true }, { steps: [{ resize: { width: $zero, height: $zero } }], overlays: [], output: Output::Size });
+    echo "step 4a ran\n";
+} catch (Throwable $e) {
+    echo "step 4a stopped\n";
+}
+try {
+    Codec::run({ data: $png, autoOrient: true, toSrgb: true }, { steps: [{ resize: { width: $huge, height: $huge, upscale: true } }], overlays: [], output: Output::Size });
+    echo "step 4b ran\n";
+} catch (Throwable $e) {
+    echo "step 4b stopped\n";
+}
+
+// 5. Ten thousand rotations in one plan.
+try {
+    array<{rotate: {degrees: float, background: null}}> $steps = [];
+    uint $i = 0;
+    while ($i < 10000) {
+        $steps[] = { rotate: { degrees: 90.0, background: null } };
+        $i = $i + 1;
+    }
+    Codec::run({ data: $png, autoOrient: true, toSrgb: true }, { steps: $steps, overlays: [], output: Output::Size });
+    echo "step 5 ran\n";
+} catch (Throwable $e) {
+    echo "step 5 stopped\n";
+}

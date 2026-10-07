@@ -1,0 +1,54 @@
+<?nvs
+// Attack: a request calls `Codec::variants` with a great many plans, or with plans that cannot run.
+// Each call should return results or throw an error, and the server keeps running.
+use Novis\Image\Codec;
+use Novis\Image\Color;
+use Novis\Image\Image;
+use Novis\Image\Output;
+
+bytes $png = Image::create(16, 16, Color::hex('#ff0000'))->encode();
+uint $big = 1000;
+
+// 1. Two thousand plans that each return the pixels.
+try {
+    array<{steps: array<{grayscale: bool}>, overlays: array<{source: {data: bytes, autoOrient: bool, toSrgb: bool}, steps: array<{grayscale: bool}>}>, output: Output}> $plans = [];
+    uint $i = 0;
+    while ($i < 2000) {
+        $plans[] = { steps: [{ grayscale: true }], overlays: [], output: Output::Raw };
+        $i = $i + 1;
+    }
+    echo 'step 1 ran ', Core\Arr::count(Codec::variants({ data: $png, autoOrient: true, toSrgb: true }, $plans)), "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. A good plan, and then a crop outside the image.
+try {
+    Codec::variants({ data: $png, autoOrient: true, toSrgb: true }, [
+        { steps: [], overlays: [], output: Output::Size },
+        { steps: [{ crop: { x: $big, y: $big, width: $big, height: $big } }], overlays: [], output: Output::Size },
+    ]);
+    echo "step 2 ran\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. Plans for a source that is not an image.
+try {
+    Codec::variants({ data: Core\Encoding::fromHex('00ff00ff'), autoOrient: true, toSrgb: true }, [
+        { steps: [], overlays: [], output: Output::Encoded },
+    ]);
+    echo "step 3 ran\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. A plan whose overlay table points at a source that is not an image.
+try {
+    Codec::variants({ data: $png, autoOrient: true, toSrgb: true }, [
+        { steps: [], overlays: [{ source: { data: Core\Encoding::fromHex('00'), autoOrient: true, toSrgb: true }, steps: [] }], output: Output::Size },
+    ]);
+    echo "step 4 ran\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}

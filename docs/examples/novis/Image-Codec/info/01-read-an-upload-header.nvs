@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to read the format and the size of an uploaded image without decoding it.
+use Novis\Image\Codec;
+use Novis\Image\Color;
+use Novis\Image\Image;
+
+// These PNG bytes replace a file that a user uploaded.
+bytes $upload = Image::create(640, 480, Color::hex("#336699"))->encode();
+
+// `Codec::info` reads only the header of the file.
+var $info = Codec::info($upload);
+
+// This prints png 640x480.
+echo Image::extension($info->format), " ", $info->width, "x", $info->height, "\n";

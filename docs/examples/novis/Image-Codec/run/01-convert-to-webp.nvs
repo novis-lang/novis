@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to call `Codec::run` yourself to convert a PNG file to WebP.
+use Novis\Image\Codec;
+use Novis\Image\Color;
+use Novis\Image\Format;
+use Novis\Image\Image;
+use Novis\Image\Output;
+
+bytes $png = Image::create(300, 200, Color::hex("#336699"))->encode();
+
+// The source is the encoded file. The plan has one step, which sets the output format.
+bytes $webp = Codec::run(
+    {data: $png, autoOrient: true, toSrgb: true},
+    {
+        steps: [{format: {format: Format::Webp, quality: null, progressive: null, lossless: null, effort: null}}],
+        overlays: [],
+        output: Output::Encoded,
+    }
+);
+
+// This prints webp 300x200.
+var $info = Codec::info($webp);
+echo Image::extension($info->format), " ", $info->width, "x", $info->height, "\n";
