@@ -38,6 +38,7 @@ const COMMANDS: Record<string, () => Promise<Command>> = {
   directives: () => import("./cmd/directives.ts"),
   disk: () => import("./cmd/disk.ts"),
   "exe-icons": () => import("./cmd/exe-icons.ts"),
+  "ext-templates": () => import("./cmd/ext-templates.ts"),
   gaps: () => import("./cmd/gaps.ts"),
   "gen-attribution": () => import("./cmd/gen-attribution.ts"),
   goal: () => import("./cmd/goal.ts"),

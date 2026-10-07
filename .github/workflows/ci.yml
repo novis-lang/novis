@@ -73,6 +73,7 @@ jobs:
       code: ${{ steps.lanes.outputs.code }}
       native: ${{ steps.lanes.outputs.native }}
       probe: ${{ steps.lanes.outputs.probe }}
+      ext: ${{ steps.lanes.outputs.ext }}
       editor: ${{ steps.lanes.outputs.editor }}
       deps: ${{ steps.lanes.outputs.deps }}
       refdoc: ${{ steps.lanes.outputs.refdoc }}
@@ -403,6 +404,71 @@ jobs:
         run: |
           cargo clippy --workspace --all-targets \
             --features nvs-abi-probe/wasm-probe -- -D warnings
+
+  # ---------------------------------------------------------------------------
+  # Both `nvs ext new` templates, as an extension author meets them: written, built for
+  # wasm32-wasip2 with their README's commands, run through `nvs ext build`, `verify` and `test`,
+  # and called from a program. Three platforms, because an author builds on any of them.
+  # `tools/nv/cmd/ext-templates.ts` is every step, so a contributor runs the same definition; under
+  # CI its C leg fails rather than skipping when wasi-sdk or `wit-bindgen` is missing.
+  # ---------------------------------------------------------------------------
+  ext-templates:
+    name: ext templates / ${{ matrix.name }}
+    needs: changes
+    if: needs.changes.outputs.ext == 'true'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            os: ubuntu-latest
+            wasi-sdk: x86_64-linux
+          - name: windows-x86_64
+            os: windows-latest
+            wasi-sdk: x86_64-windows
+          - name: macos-aarch64
+            os: macos-latest
+            wasi-sdk: arm64-macos
+    env:
+      WASI_SDK_VERSION: '25'
+      NVS_BIN: ${{ github.workspace }}/target/debug/nvs${{ runner.os == 'Windows' && '.exe' || '' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install toolchain
+        run: rustup toolchain install --no-self-update
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: ext-templates-${{ matrix.name }}
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - name: Install tool dependencies
+        run: bun install --frozen-lockfile
+
+      # The C template's two tools, as its README tells an author to install them. tar runs inside
+      # the folder because GNU tar reads `D:` in a Windows path as a remote host.
+      - name: wasi-sdk
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP"
+          curl -fsSL -o wasi-sdk.tar.gz \
+            "https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${WASI_SDK_VERSION}/wasi-sdk-${WASI_SDK_VERSION}.0-${{ matrix.wasi-sdk }}.tar.gz"
+          tar -xzf wasi-sdk.tar.gz
+          echo "WASI_SDK_PATH=$RUNNER_TEMP/wasi-sdk-${WASI_SDK_VERSION}.0-${{ matrix.wasi-sdk }}" >> "$GITHUB_ENV"
+      - name: wit-bindgen
+        run: cargo install wit-bindgen-cli --version 0.62.0 --locked
+
+      - run: cargo build --bin nvs
+
+      - name: The Rust template
+        run: bun nv ext-templates --lang rust
+      - name: The C template
+        run: bun nv ext-templates --lang c
 
   # ---------------------------------------------------------------------------
   # The VS Code client, built the way a user installs it and then tested without

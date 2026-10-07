@@ -38,7 +38,7 @@ const USAGE = "usage: nv ci-changes [-h] [--base BASE] [--full] [--files FILE] [
 //
 // `.github/workflows/` is in every lane on purpose: a run that edits the workflows is the one run
 // where the lanes themselves are what needs proving.
-const LANES: Record<string, string[]> = {
+export const LANES: Record<string, string[]> = {
   // Any input to a cargo build. Gates the Linux build/test/conformance leg and `lint`.
   code: [
     "crates/", "benches/", "tests/", "examples/", "fuzz/", "tools/",
@@ -56,6 +56,13 @@ const LANES: Record<string, string[]> = {
   ],
   // Where `wasmtime` enters the tree, and so the only thing `extension-sandbox` can observe.
   probe: ["benches/abi-probe/", ".github/workflows/"],
+  // What the `nvs ext new` templates are built from and loaded by: the extension host, the
+  // `nvs ext` command and the templates it writes, the world's WIT, the tool that drives them and
+  // the toolchain that lists `wasm32-wasip2`. Gates `ext-templates`.
+  ext: [
+    "crates/nvs-ext/", "crates/nvs-cli/src/ext.rs", "crates/nvs-cli/src/ext/", "crates/nvs-cli/templates/ext/",
+    "wit/nvs-ext/", "tools/nv/cmd/ext-templates.ts", "rust-toolchain.toml", ".github/workflows/",
+  ],
   // The VS Code client, and every crate with it: the protocol suite spawns the real `nvs lsp` and the
   // host suite points a throwaway profile at the binary the same run built
   // (`rule:ide/headless-gates-the-loop-the-host-run-gates-the-milestone`), so a change anywhere in the
@@ -193,7 +200,7 @@ function nonEmpty(text: string): string[] {
 const matches = (path: string, prefixes: string[]) => prefixes.some((p) => (p.endsWith("/") ? path.startsWith(p) : path === p));
 
 /** One boolean per lane. `paths` of `null` means "not known", which means all of them. */
-function lanesFor(lanes: Record<string, string[]>, paths: string[] | null): [string, boolean][] {
+export function lanesFor(lanes: Record<string, string[]>, paths: string[] | null): [string, boolean][] {
   return Object.entries(lanes).map(([name, pre]) => [name, paths === null || paths.some((p) => matches(p, pre))]);
 }
 
