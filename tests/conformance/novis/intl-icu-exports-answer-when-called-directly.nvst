@@ -1,0 +1,50 @@
+--TEST--
+Each export of the manifest class `Novis\Intl\Icu` answers when a program calls it directly, with the same records the job classes build: rule:core-classes/intl-batch-shape
+--FILE--
+<?nvs
+use Novis\Intl\Icu;
+use Novis\Intl\Length;
+use Novis\Intl\NumberStyle;
+use Novis\Intl\PluralKind;
+use Novis\Intl\Service;
+use Novis\Intl\TimeUnit;
+
+// `collateOrder` returns the position of each string in sorted order, and `sortKeys` one key per string.
+array<string> $order = [];
+foreach (Icu::collateOrder(["b", "a", "ä"], "de", {}) as uint $index) {
+    $order[] = $index as string;
+}
+echo Core\Str::join($order, " "), "\n";
+echo Core\Arr::count(Icu::sortKeys(["b", "a"], "sv", {})) as string, "\n";
+
+// Numbers cross as decimal text, and the options record names every field.
+echo Core\Str::join(Icu::formatNumbers(["1234.5", "-0.25"], "de", {style: NumberStyle::Decimal, minFractionDigits: null, maxFractionDigits: null, grouping: null, currency: null, currencyDisplay: null, compactDisplay: null}), " | "), "\n";
+echo Core\Arr::count(Icu::pluralCategories(["1", "2", "5"], "ru", PluralKind::Cardinal)) as string, "\n";
+
+// A date and time crosses as local fields, an offset and a zone id.
+echo Core\Str::join(Icu::formatDateTimes([{year: 2026, month: 3, day: 1, hour: 21, minute: 30, second: 0, nanos: 0, offsetSeconds: 3600, zone: "Europe/Vienna"}], "de", {}), " | "), "\n";
+echo Core\Str::join(Icu::formatDates([Core\Time\Date::at(2026, 3, 1)], "en-US", Length::Long), " | "), "\n";
+echo Core\Str::join(Icu::formatTimes([Core\Time\TimeOfDay::at(21, 30)], "de", {}), " | "), "\n";
+echo Core\Str::join(Icu::formatRelative([{count: -1, unit: TimeUnit::Day}, {count: 3, unit: TimeUnit::Hour}], "en", {}), " | "), "\n";
+echo Core\Str::join(Icu::formatLists([["Shop", "Blog", "Wiki"]], "de", {}), " | "), "\n";
+
+// Segments keep the text between them, so a sentence keeps its trailing space.
+echo Core\Arr::count(Icu::wordSegments(["Hello, Shop!"], "en")[0]) as string, "\n";
+echo Core\Str::join(Icu::sentenceSegments(["One. Two? Three!"], "en")[0], "|"), "\n";
+
+echo Core\Str::join(Icu::resolveLocales(["de-AT", "zz"], Service::Dates), " | "), "\n";
+echo Icu::negotiate("de-AT, en;q=0.5", ["en", "de"], "en"), "\n";
+--EXPECT--
+1 2 0
+2
+1.234,5 | -0,25
+3
+01.03.2026, 21:30
+March 1, 2026
+21:30
+1 day ago | in 3 hours
+Shop, Blog und Wiki
+5
+One. |Two? |Three!
+de | und
+de

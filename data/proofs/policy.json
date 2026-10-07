@@ -38,6 +38,71 @@
     "Core\\Test::assertCompletes": {
       "perf": "A bench runs under `nvs run`, where no `#[Test(at: ...)]` fixes a clock, so every iteration would measure the `LogicError` thrown before the body runs rather than the check."
     },
+    "Novis\\Intl\\Icu::collateOrder": {
+      "examples": "The manifest export `Collator::sort` calls once with its own arguments; a reader learns sorting from that member's examples, and one here would teach the raw positions a program never needs.",
+      "hostile": "`Collator::sort` validates nothing the guest validates, so its attack delivers the same huge and broken input to this export unchanged.",
+      "perf": "`Collator::sort` is this one crossing plus a loop over the result, so its figure is this export's."
+    },
+    "Novis\\Intl\\Icu::formatDateTimes": {
+      "examples": "The manifest export `DateFormat::dateTimes` calls once after it converts each `Core\\Time\\DateTime` to local fields; a reader learns from that member's examples, and one here would teach a record a program never writes.",
+      "hostile": "`DateFormat::dateTimes` validates nothing the guest validates, so its attack delivers the same huge and odd input to this export.",
+      "perf": "`DateFormat::dateTimes` is this one crossing plus the field conversion, so its figure bounds this export's."
+    },
+    "Novis\\Intl\\Icu::formatDates": {
+      "examples": "The manifest export `DateFormat::dates` calls once with its own arguments; a reader learns from that member's examples.",
+      "hostile": "`DateFormat::dates` passes its input to this export unchanged, so its attack is this export's.",
+      "perf": "`DateFormat::dates` is this one crossing and nothing else, so its figure is this export's."
+    },
+    "Novis\\Intl\\Icu::formatLists": {
+      "examples": "The manifest export `ListFormat::join` calls once with its own arguments; a reader learns from that member's examples.",
+      "hostile": "`ListFormat::join` passes its input to this export unchanged, so its attack is this export's.",
+      "perf": "`ListFormat::join` is this one crossing and nothing else, so its figure is this export's."
+    },
+    "Novis\\Intl\\Icu::formatNumbers": {
+      "examples": "The manifest export the four `NumberFormat` members call once each, after they write each number as decimal text; a reader learns from their examples, and one here would teach a record a program never writes.",
+      "hostile": "The `NumberFormat` members validate nothing the guest validates, so their attacks deliver the same huge and broken input to this export.",
+      "perf": "Each `NumberFormat` member is this one crossing plus the decimal text, so their figures bound this export's."
+    },
+    "Novis\\Intl\\Icu::formatRelative": {
+      "examples": "The manifest export `RelativeTime::format` calls once with its own arguments; a reader learns from that member's examples.",
+      "hostile": "`RelativeTime::format` passes its input to this export unchanged, so its attack is this export's.",
+      "perf": "`RelativeTime::format` is this one crossing and nothing else, so its figure is this export's."
+    },
+    "Novis\\Intl\\Icu::formatTimes": {
+      "examples": "The manifest export `DateFormat::times` calls once with its own arguments; a reader learns from that member's examples.",
+      "hostile": "`DateFormat::times` passes its input to this export unchanged, so its attack is this export's.",
+      "perf": "`DateFormat::times` is this one crossing and nothing else, so its figure is this export's."
+    },
+    "Novis\\Intl\\Icu::negotiate": {
+      "examples": "The manifest export `Locale::negotiate` calls once with its own arguments; a reader learns from that member's examples.",
+      "hostile": "`Locale::negotiate` passes its input to this export unchanged, so its attack is this export's.",
+      "perf": "`Locale::negotiate` is this one crossing and nothing else, so its figure is this export's."
+    },
+    "Novis\\Intl\\Icu::pluralCategories": {
+      "examples": "The manifest export `PluralRules::cardinal` and `::ordinal` call once each, after they write each number as decimal text; a reader learns from their examples.",
+      "hostile": "The `PluralRules` members validate nothing the guest validates, so their attacks deliver the same huge and broken input to this export.",
+      "perf": "Each `PluralRules` member is this one crossing plus the decimal text and the case mapping, so their figures bound this export's."
+    },
+    "Novis\\Intl\\Icu::resolveLocales": {
+      "examples": "The manifest export `Locale::resolve` calls once with its own arguments; a reader learns from that member's examples.",
+      "hostile": "`Locale::resolve` passes its input to this export unchanged, so its attack is this export's.",
+      "perf": "`Locale::resolve` is this one crossing and nothing else, so its figure is this export's."
+    },
+    "Novis\\Intl\\Icu::sentenceSegments": {
+      "examples": "The manifest export `Segmenter::sentences` calls once with its own arguments; a reader learns from that member's examples.",
+      "hostile": "`Segmenter::sentences` passes its input to this export unchanged, so its attack is this export's.",
+      "perf": "`Segmenter::sentences` is this one crossing and nothing else, so its figure is this export's."
+    },
+    "Novis\\Intl\\Icu::sortKeys": {
+      "examples": "The manifest export `Collator::sortKeys` calls once with its own arguments; a reader learns from that member's examples.",
+      "hostile": "`Collator::sortKeys` passes its input to this export unchanged, so its attack is this export's.",
+      "perf": "`Collator::sortKeys` is this one crossing and nothing else, so its figure is this export's."
+    },
+    "Novis\\Intl\\Icu::wordSegments": {
+      "examples": "The manifest export `Segmenter::words` calls once with its own arguments; a reader learns from that member's examples.",
+      "hostile": "`Segmenter::words` passes its input to this export unchanged, so its attack is this export's.",
+      "perf": "`Segmenter::words` is this one crossing and nothing else, so its figure is this export's."
+    },
     "lang:attributes/core-api-and-the-openapi-document": {
       "perf": "`#[Api]` is read while the program compiles and has no runtime surface to iterate; a loop here would measure the annotated method call instead."
     },
