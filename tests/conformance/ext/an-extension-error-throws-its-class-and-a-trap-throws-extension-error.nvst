@@ -4,6 +4,7 @@ An error the extension returns throws its mapped class, a trap throws `Extension
 ledger
 --FILE--
 <?nvs
+// covers: ExtensionError
 use Shop\Ledger;
 
 // `Ledger::fail` returns an error of the kind its first argument names.

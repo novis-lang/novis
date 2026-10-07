@@ -1,0 +1,23 @@
+<?nvs
+// Shows how a page keeps working when code in an extension crashes.
+
+class Thumbnails {
+    // This method replaces a call into an image extension. For one file, it
+    // throws the same error that a crashed extension throws.
+    public static function make(string $name): string {
+        if ($name == "broken.png") {
+            throw new ExtensionError("the extension stopped while it read " . $name);
+        }
+        return $name . " at 200x200";
+    }
+}
+
+array<string> $uploads = ["cat.png", "broken.png", "dog.png"];
+foreach ($uploads as string $name) {
+    try {
+        echo Thumbnails::make($name), "\n";
+    } catch (ExtensionError $crashed) {
+        // The page shows this file without a thumbnail and goes on with the next one.
+        echo $name, " has no thumbnail: ", $crashed->message, "\n";
+    }
+}

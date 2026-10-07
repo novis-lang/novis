@@ -51,7 +51,7 @@ class Api {
 echo "next request: ", (new Api())->findById(5), "\n";
 --FILE--
 <?nvs
-// covers: tools:config/reading-and-changing-it-from-a-program-core-config
+// covers: tools:config/reading-and-changing-it-from-a-program-core-config, Core\DeprecatedError, directive:errors.deprecated
 // The two requests run one after the other: the second `await` returns only
 // after the first child has finished.
 var $setter = spawn script "setter.nvs" with(output: "capture");

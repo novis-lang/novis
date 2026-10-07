@@ -1,0 +1,76 @@
+<?nvs
+// Attack: a program crashes an extension thousands of times, sends broken images to
+// the image extension, and throws `ExtensionError` up a deep call chain. Every call
+// should throw an error the program catches, and both extensions should still work.
+// hostile: timeout-ms 30000
+
+use Novis\Image\Codec;
+use Shop\Ledger;
+
+// 1. `Ledger::crash` crashes the extension. Each call throws `ExtensionError`.
+uint $crashes = 0;
+uint $call = 0;
+while ($call < 2000) {
+    try {
+        Ledger::crash();
+    } catch (ExtensionError $crashed) {
+        $crashes = $crashes + 1;
+    }
+    $call = $call + 1;
+}
+echo 'crashes: ', $crashes, ', then ', Ledger::echoInt(7), "\n";
+
+final class Flood
+{
+    // 2. Each round sends a PNG header followed by up to 63 bytes of junk.
+    public static function brokenImages(uint $rounds): uint
+    {
+        uint $caught = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            try {
+                bytes $junk = Core\Encoding::fromHex('89504e470d0a1a0a' . Core\Str::repeat('ff', $i % 64));
+                var $info = Codec::info($junk);
+            } catch (RuntimeError $refused) {
+                $caught = $caught + 1;
+            }
+            $i = $i + 1;
+        }
+        return $caught;
+    }
+
+    // 3. Each level catches the error from below and throws a new one with a longer message.
+    public static function rise(int $depth): string
+    {
+        if ($depth == 0) {
+            throw new ExtensionError(Core\Str::repeat('x', 100000));
+        }
+        try {
+            return Flood::rise($depth - 1);
+        } catch (ExtensionError $below) {
+            throw new ExtensionError($below->message . 'x');
+        }
+    }
+}
+
+echo Flood::brokenImages(3000), "\n";
+
+try {
+    echo Flood::rise(2000), "\n";
+} catch (ExtensionError $top) {
+    echo 'grew to ', Core\Str::length($top->message), "\n";
+}
+
+// 4. This chain is deeper than the call stack allows. The `catch` catches the error that stops it.
+try {
+    echo Flood::rise(200000), "\n";
+} catch (Throwable $gaveUp) {
+    echo "the chain ended\n";
+}
+
+// 5. A good PNG of 3 by 2 pixels. The extension still reads it.
+bytes $png = Core\Encoding::fromHex(
+    '89504e470d0a1a0a0000000d49484452000000030000000208060000009d74661a'
+        . '0000000b49444154789c6360c00500001a0001bc3ce0410000000049454e44ae426082',
+);
+echo Codec::info($png)->width, "\n";
