@@ -1,7 +1,6 @@
 {
-  "live": "ext-tooling",
+  "live": "ext-image",
   "goals": [
-    "ext-tooling",
     "ext-image",
     "ext-image-analysis",
     "ext-intl"
