@@ -1,0 +1,30 @@
+--TEST--
+A `Core\Time\DateTime` formats as its own zone's clock shows it, in the locale's words, and a date and a time of day format alone: rule:core-classes/intl-host-converts-time rule:core-classes/intl-batch-shape
+--FILE--
+<?nvs
+use Novis\Intl\DateFormat;
+use Novis\Intl\Length;
+use Novis\Intl\ZoneStyle;
+
+// One instant, placed in two zones. Each value shows its own zone's clock.
+var $vienna = Core\Time::at(2026, 7, 14, Core\Time\Zone::of("Europe/Vienna"), {hour: 15, minute: 5, second: 9});
+var $newYork = $vienna->toInstant()->in(Core\Time\Zone::of("America/New_York"));
+var $both = [$vienna, $newYork];
+
+echo Core\Str::join(DateFormat::dateTimes($both, "de"), " | "), "\n";
+echo Core\Str::join(DateFormat::dateTimes($both, "en-GB", {seconds: true, zone: ZoneStyle::Offset}), " | "), "\n";
+echo Core\Str::join(DateFormat::dateTimes($both, "de", {zone: ZoneStyle::Generic}), " | "), "\n";
+
+// A date has no time of day, and a time of day has no date.
+echo Core\Str::join(DateFormat::dates([$vienna->date()], "de", {length: Length::Long}), " | "), "\n";
+echo Core\Str::join(DateFormat::times([$newYork->timeOfDay()], "de", {seconds: true}), " | "), "\n";
+
+// An empty list returns an empty list.
+echo Core\Arr::count(DateFormat::dates([], "de")) as string, "\n";
+--EXPECT--
+14.07.2026, 15:05 | 14.07.2026, 09:05
+14 Jul 2026, 15:05:09 GMT+2 | 14 Jul 2026, 09:05:09 GMT-4
+14.07.2026, 15:05 Mitteleuropäische Zeit | 14.07.2026, 09:05 Nordamerikanische Ostküstenzeit
+14. Juli 2026
+09:05:09
+0
