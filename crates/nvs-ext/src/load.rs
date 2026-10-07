@@ -11,7 +11,8 @@
 //! 4. a manifest built against another major of the world or a newer minor, naming both versions —
 //!    checked before the imports, so a newer component is refused by its version and not by the
 //!    first import this host lacks;
-//! 5. an import outside the world `wit/nvs-ext/world.wit` names ([`WORLD_IMPORTS`]), naming it;
+//! 5. an import outside the world `wit/nvs-ext/world.wit` names ([`WORLD_IMPORTS`]), naming it,
+//!    unless it is one of the refusing stubs [`crate::wasi::STUBBED`] names;
 //! 6. a class under `Core\` or `Novis\`, whatever the case of the first segment, and then a source
 //!    file whose `namespace` is not under the class's own, naming the file ([`Source::outside`]);
 //! 7. a method whose export is missing from the manifest's interface, or whose parameters or result
@@ -469,11 +470,12 @@ impl Loader {
     /// Whether the import `name` is one the world offers.
     fn imports(&self, name: &str) -> bool {
         let (interface, version) = name.split_once('@').unwrap_or((name, ""));
-        if !WORLD_IMPORTS.contains(&interface) {
+        let stubbed = wasi::STUBBED.contains(&interface);
+        if !stubbed && !WORLD_IMPORTS.contains(&interface) {
             return false;
         }
         if interface.starts_with("wasi:") {
-            if !wasi::LINKED.contains(&interface) {
+            if !stubbed && !wasi::LINKED.contains(&interface) {
                 return false;
             }
             return version.strip_prefix("0.2.").is_some_and(|patch| {

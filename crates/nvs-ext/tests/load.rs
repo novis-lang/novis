@@ -270,6 +270,11 @@ fn an_import_outside_the_world_is_refused_naming_the_import() {
     loader()
         .load_bytes(&entry("geo.nvsx", &bytes), &bytes)
         .expect("an older WASI 0.2 import is in the world");
+    let component = guest(r#"(import "wasi:cli/terminal-stdin@0.2.9" (instance))"#);
+    let bytes = nvsx(component, &manifest("Shop\\Geo", "1.0.0", METHOD));
+    loader()
+        .load_bytes(&entry("geo.nvsx", &bytes), &bytes)
+        .expect("a terminal import Rust's standard library makes is a refusing stub");
 }
 
 #[test]

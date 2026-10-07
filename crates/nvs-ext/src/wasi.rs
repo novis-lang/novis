@@ -26,8 +26,15 @@
 //!   instance's effective `connect` set, and refused before anything is sent for any other host.
 //!   With no grant every request is refused. [`http`] owns how a request crosses.
 //!
-//! A WASI import loads only when [`LINKED`] names it, so [`crate::load::Loader`] refuses
-//! `wasi:http/incoming-handler`, `wasi:sockets` and every other interface outside the list.
+//! A WASI import loads only when [`LINKED`] or [`STUBBED`] names it, so [`crate::load::Loader`]
+//! refuses `wasi:http/incoming-handler`, `wasi:sockets` and every other interface outside both.
+//!
+//! **A libc's import outside the world is a refusing stub.** A toolchain's standard library
+//! imports some WASI interfaces whether or not a guest calls them: Rust's on `wasm32-wasip2`
+//! imports `wasi:cli/terminal-*`. [`STUBBED`] names those, and [`link`] defines each with every
+//! function giving its refusal — for the terminal interfaces, no terminal — so such a guest loads
+//! and reaches nothing. The world `nvs:ext@1.0.0` does not offer them, and a component built
+//! against it never needs them.
 //!
 //! Cost: one `ResourceTable` per instance, empty until a guest asks for a stream or a pollable,
 //! a line of at most twice [`PERMIT`] per output stream a guest asks for, one path per granted
@@ -77,6 +84,11 @@ mod bindings {
             import wasi:filesystem/preopens@0.2.12;
             import wasi:http/types@0.2.12;
             import wasi:http/outgoing-handler@0.2.12;
+            import wasi:cli/terminal-input@0.2.12;
+            import wasi:cli/terminal-output@0.2.12;
+            import wasi:cli/terminal-stdin@0.2.12;
+            import wasi:cli/terminal-stdout@0.2.12;
+            import wasi:cli/terminal-stderr@0.2.12;
         }
     ",
     world: "nvs:host/linked",
@@ -101,15 +113,19 @@ mod bindings {
     });
 }
 
-use self::bindings::wasi::cli::{environment, exit, stderr, stdin, stdout};
+use self::bindings::wasi::cli::{
+    environment, exit, stderr, stdin, stdout, terminal_input, terminal_output, terminal_stderr,
+    terminal_stdin, terminal_stdout,
+};
 use self::bindings::wasi::clocks::{monotonic_clock, wall_clock};
 use self::bindings::wasi::filesystem::{preopens, types};
 use self::bindings::wasi::http::{outgoing_handler, types as http_types};
 use self::bindings::wasi::random::{insecure, insecure_seed, random};
 
-/// The WASI interfaces a guest links, without their versions: what [`link`] defines, and the
-/// only WASI imports [`crate::load::Loader`] admits. `tests/wasi.rs` holds this list equal to the
-/// set of interfaces a component importing one alone can be instantiated with.
+/// The WASI interfaces of the world a guest links, without their versions: what [`link`]
+/// defines beside [`STUBBED`], and the only WASI imports of the world [`crate::load::Loader`]
+/// admits. `tests/wasi.rs` holds this list and [`STUBBED`] together equal to the set of
+/// interfaces a component importing one alone can be instantiated with.
 pub const LINKED: &[&str] = &[
     "wasi:cli/environment",
     "wasi:cli/exit",
@@ -128,6 +144,17 @@ pub const LINKED: &[&str] = &[
     "wasi:io/error",
     "wasi:io/poll",
     "wasi:io/streams",
+];
+
+/// The WASI interfaces outside the world that [`link`] defines as refusing stubs, without their
+/// versions: what a toolchain's standard library imports whether or not a guest calls it.
+/// [`crate::load::Loader`] admits these as it admits [`LINKED`].
+pub const STUBBED: &[&str] = &[
+    "wasi:cli/terminal-input",
+    "wasi:cli/terminal-output",
+    "wasi:cli/terminal-stdin",
+    "wasi:cli/terminal-stdout",
+    "wasi:cli/terminal-stderr",
 ];
 
 /// One instance's WASI state: the resources its streams, pollables and descriptors live in, the
@@ -189,7 +216,7 @@ impl HasData for Wasi {
     type Data<'a> = &'a mut Context;
 }
 
-/// Defines every interface [`LINKED`] names in `linker`.
+/// Defines every interface [`LINKED`] and [`STUBBED`] name in `linker`.
 ///
 /// # Errors
 ///
@@ -213,7 +240,58 @@ pub(crate) fn link(linker: &mut Linker<Guest>) -> wasmtime::Result<()> {
     preopens::add_to_linker::<Guest, Wasi>(linker, cx)?;
     http_types::add_to_linker::<Guest, Wasi>(linker, &http_types::LinkOptions::default(), cx)?;
     outgoing_handler::add_to_linker::<Guest, Wasi>(linker, cx)?;
+    terminal_input::add_to_linker::<Guest, Wasi>(linker, cx)?;
+    terminal_output::add_to_linker::<Guest, Wasi>(linker, cx)?;
+    terminal_stdin::add_to_linker::<Guest, Wasi>(linker, cx)?;
+    terminal_stdout::add_to_linker::<Guest, Wasi>(linker, cx)?;
+    terminal_stderr::add_to_linker::<Guest, Wasi>(linker, cx)?;
     Ok(())
+}
+
+/// `terminal-input` and `terminal-output`: a guest never holds one, because every
+/// `get-terminal-*` gives none, so dropping one is a handle the guest made up.
+impl terminal_input::Host for Context {}
+
+impl terminal_input::HostTerminalInput for Context {
+    fn drop(&mut self, _: Resource<terminal_input::TerminalInput>) -> wasmtime::Result<()> {
+        Err(wasmtime::Error::msg(
+            "the guest dropped a terminal it was never given",
+        ))
+    }
+}
+
+impl terminal_output::Host for Context {}
+
+impl terminal_output::HostTerminalOutput for Context {
+    fn drop(&mut self, _: Resource<terminal_output::TerminalOutput>) -> wasmtime::Result<()> {
+        Err(wasmtime::Error::msg(
+            "the guest dropped a terminal it was never given",
+        ))
+    }
+}
+
+impl terminal_stdin::Host for Context {
+    fn get_terminal_stdin(
+        &mut self,
+    ) -> wasmtime::Result<Option<Resource<terminal_input::TerminalInput>>> {
+        Ok(None)
+    }
+}
+
+impl terminal_stdout::Host for Context {
+    fn get_terminal_stdout(
+        &mut self,
+    ) -> wasmtime::Result<Option<Resource<terminal_output::TerminalOutput>>> {
+        Ok(None)
+    }
+}
+
+impl terminal_stderr::Host for Context {
+    fn get_terminal_stderr(
+        &mut self,
+    ) -> wasmtime::Result<Option<Resource<terminal_output::TerminalOutput>>> {
+        Ok(None)
+    }
 }
 
 impl environment::Host for Context {

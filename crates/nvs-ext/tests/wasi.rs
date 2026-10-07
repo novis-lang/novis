@@ -1,5 +1,5 @@
 //! `rule:packaging/a-guest-has-no-ambient-authority`. The link half: the WASI interfaces a guest's
-//! linker defines are exactly `nvs_ext::wasi::LINKED`, proved by instantiating one probe component
+//! linker defines are exactly `nvs_ext::wasi::LINKED` and its refusing stubs, `STUBBED`, proved by instantiating one probe component
 //! per WASI interface the world's WIT holds. The context half: a guest calling those interfaces
 //! finds them empty, its output reaches its request's log, and its clock and random bytes are its
 //! request's. A guest shaped like a toolchain's libc fits one slot, and its `exit` throws. The
@@ -22,7 +22,7 @@ use nvs_ext::call::{Budget, Class, Failure, Host, Level, Outcome, Request};
 use nvs_ext::load::{Extension, pin as pin_of};
 use nvs_ext::manifest::Manifest;
 use nvs_ext::source::{FORMAT, Source};
-use nvs_ext::wasi::LINKED;
+use nvs_ext::wasi::{LINKED, STUBBED};
 use wasmtime::component::{Component, Val};
 use wit_component::{ComponentEncoder, StringEncoding, dummy_module, embed_component_metadata};
 use wit_parser::{ManglingAndAbi, Resolve};
@@ -91,7 +91,7 @@ fn a_guest_linker_defines_only_the_worlds_wasi_interfaces() {
         .map(|(index, interface)| (interface.clone(), probe(&mut resolve, index, interface)))
         .collect();
     assert!(
-        probes.len() > LINKED.len(),
+        probes.len() > LINKED.len() + STUBBED.len(),
         "the WIT holds the WASI interfaces the host does not link too"
     );
     let mut linked = BTreeSet::new();
@@ -105,7 +105,11 @@ fn a_guest_linker_defines_only_the_worlds_wasi_interfaces() {
         Ok(())
     })
     .expect("the host starts");
-    let expected: BTreeSet<String> = LINKED.iter().map(|&name| name.to_owned()).collect();
+    let expected: BTreeSet<String> = LINKED
+        .iter()
+        .chain(STUBBED)
+        .map(|&name| name.to_owned())
+        .collect();
     assert_eq!(linked, expected);
 }
 

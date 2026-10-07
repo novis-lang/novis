@@ -18,8 +18,10 @@ the built-in components (`rule:packaging/the-first-party-components-are-built-in
 the project, runs every load check and writes the `.nvsx` beside `nvsx.toml`, printing its path and
 pin; it refuses a WASI preview 1 module naming `wasm32-wasip2`. `nvs ext new` writes the Rust or C
 template into a new or empty folder, with the world's WIT copied from the binary under `wit/deps/`,
-and `rust-toolchain.toml` lists `wasm32-wasip2`. The Rust template builds, but the module Rust's
-standard library makes imports `wasi:cli/terminal-*`, which the loader refuses. `nvs ext inspect`
+and `rust-toolchain.toml` lists `wasm32-wasip2`. The Rust template builds, loads, passes `nvs ext test`
+and is called from a program: the `wasi:cli/terminal-*` imports its standard library makes link as
+refusing stubs (`crates/nvs-ext/src/wasi.rs`), and `bun nv ext-templates`, which CI's `ext-templates`
+job runs on three platforms, does every step; the C template is not checked here. `nvs ext inspect`
 prints the manifest, the I/O it requests and the source paths, and with `--source` the source, every
 string from the file with its control characters escaped; `nvs ext verify` runs boot's loader on a file
 under its own pin and instantiates nothing; `nvs ext pin` prints the entry with its absolute `path` and

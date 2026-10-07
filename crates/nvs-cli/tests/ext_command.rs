@@ -531,7 +531,7 @@ fn nvs_ext_verify_names_every_refusal_boot_would_make() {
     const PARAMS: &str = r#"{"name": "from", "type": "string"}, {"name": "round", "type": "bool"}"#;
     let outside = wat::parse_str(
         r#"(component
-  (import "wasi:cli/terminal-input@0.2.9" (instance))
+  (import "wasi:sockets/tcp@0.2.9" (instance))
   (instance $api)
   (export "shop:geo/api" (instance $api)))"#,
     )
@@ -551,7 +551,7 @@ fn nvs_ext_verify_names_every_refusal_boot_would_make() {
         (
             "outside.nvsx",
             packed(&outside, &manifest("1.0.0", "Shop\\\\Geo", "")),
-            "`wasi:cli/terminal-input@0.2.9`",
+            "`wasi:sockets/tcp@0.2.9`",
         ),
         (
             "reserved.nvsx",
