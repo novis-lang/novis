@@ -1,29 +1,28 @@
 {
-  "state": "**Goal `ldap` — Stage 2 is done: ADR 0278 and its six fragments are on disk, and nothing of the wire or the class has landed.** `docs/decisions/0278.md` is the design every later stage builds to: § 1 is the class and member roster, § 2 the `[ldap.<name>]` block, `Ldap\\Settings` and the three `[capabilities.ldap]` grants (`connect`, `open`, `cleartext`), § 5 search, § 8 the type table, § 10 the error kinds, § 11 the four AD extras (`uSNChanged` polling is left out; DirSync is the one sync form, as `Connection::changes`). Read the section a stage needs rather than the whole record.\n\nThe six fragments are `designed` with empty `guardedBy`: `core-classes/ldap-filter-is-a-value`, `ldap-dn-is-the-launderer`, `ldap-value-types`, `security/ldap-empty-password-is-refused`, `ldap-cleartext-bind-is-granted-per-host`, `ldap-pool-is-bound-as-its-block`. A stage that lands the guard adds the test path to the rule's JSON under `data/rules/` and flips `status` to `shipped`.\n\nStage 10 of `data/goals/ldap.json` now carries one `proofs --verify --group` check per member-bearing class the record names (12), and the `--comments` check lists every class's `Ldap-*` directory. If a later stage renames a class, those checks move with it.\n\n`bun nv rules --check` is clean: the `pdf` and `spreadsheet` goal files now name the rules they will create without the `rule:` prefix, as this goal's prose does.",
+  "state": "**Goal `ldap` — Stage 2 is done, and Stage 3's test server is on disk. No wire code or class has landed yet.** `docs/decisions/0278.md` is the design every later stage builds to: § 1 is the class and member roster, § 2 the `[ldap.<name>]` block, `Ldap\\Settings` and the three `[capabilities.ldap]` grants (`connect`, `open`, `cleartext`), § 5 search, § 8 the type table, § 10 the error kinds, § 11 the four AD extras. Read the section a stage needs, not the whole record.\n\nThe six fragments are `designed` with empty `guardedBy`. A stage that lands a guard adds the test path to the rule's JSON under `data/rules/` and flips `status` to `shipped`. The Stage 2 check's `want` now follows `brief --where`'s chapter order (security first), and it passes.\n\n`samba-ad` in `tests/db/compose.yaml` comes up healthy without `--privileged` (digest-pinned `smblds/smblds`, Samba 4.23.8). Its header comment owns the facts: realm `EXAMPLE.TEST`, base `DC=example,DC=test`, `CN=Administrator,CN=Users,DC=example,DC=test` / `Novis-test-1`, loopback 16389 (cleartext bind accepted) and 16636 (LDAPS, serving the `certs` leaf, whose SAN now has `samba-ad`). Checked by hand: a cleartext bind on 389 succeeds, and an empty-password bind returns `invalidCredentials` with `data 52e`. `env.docker` in `data/goals/ldap.json` names it, so the driver brings it up from now on. The Global Catalog ports 3268/3269 are not published yet.",
   "next": {
     "stage": 3,
     "title": "the wire, and a directory to test against",
     "files": [],
-    "note": "first file set: the test server (`tests/db/compose.yaml`, `.github/workflows/ci.yml`, `tools/nv/cmd/db-matrix.ts`, `data/goals/ldap.json`).",
+    "note": "file set: the new crate `crates/nvs-ldap/`, root `Cargo.toml`, `deny.toml`, `.github/workflows/ci.yml`.",
     "items": [
       {
         "done": false,
-        "text": "**The `samba-ad` service** — `smblds/smblds` pinned by digest, a fixed `hostname`, loopback ports 16389 and 16636, a health check, no `--privileged`, `ldap server require strong auth = no` so the cleartext path is testable; its name joins the `certs` leaf's SAN at `tests/db/compose.yaml:90`, and the service sits beside `tests/db/compose.yaml:294` (`redis`). `rule:security/ldap-cleartext-bind-is-granted-per-host`."
+        "text": "**`crates/nvs-ldap`, made by hand**: a sans-IO BER/LDAP codec (check that `rasn-ldap` pulls no tokio and no async runtime before adopting it; `ldap3` is out), simple bind, unbind and search over `NvsTcp`/`NvsTls` (`crates/nvs-host/src/tls.rs:224` `over`), StartTLS the way `Core\\Mail` upgrades. `rule:core-classes/db-crate-boundary`, `rule:concurrency/one-scheduler`, and the no-tokio check filed in `crates/nvs-runtime/tests/manifest_policy.rs:1`."
       },
       {
         "done": false,
-        "text": "**`env.docker` naming `samba-ad` in `data/goals/ldap.json`**, in the same slice as the service, and an `ldap` step in CI beside the Redis one at `.github/workflows/ci.yml:275`; `tools/nv/cmd/db-matrix.ts:343` (`bringUp`) is where the matrix brings services up."
+        "text": "**An empty password is refused before a byte is sent, and a cleartext bind needs `tls = \"none\"` and the host grant**; `strongerAuthRequired` maps to `EncryptionRequired` as a unit test over a recorded response. `rule:security/ldap-empty-password-is-refused`, `rule:security/ldap-cleartext-bind-is-granted-per-host`; the directory tests skip only when nothing listens on 16636, as `crates/nvs-stdlib/src/cache/redis.rs:1286` does."
       },
       {
         "done": false,
-        "text": "**`crates/nvs-ldap`** (second file set: the new crate, `Cargo.toml`, `deny.toml`) — a sans-IO codec checked for no tokio (`crates/nvs-runtime/tests/manifest_policy.rs:148`), bind, StartTLS over `crates/nvs-host/src/tls.rs:224`, unbind, paged search, the empty-password refusal, result codes as kinds. `rule:core-classes/db-crate-boundary`, ADR 0278 § 3 and § 5."
+        "text": "**The CI `ldap` step**, moved here from the server slice because it has nothing to run until the crate's tests exist: `docker compose -f tests/db/compose.yaml up -d --wait samba-ad` and the crate's tests, in the `database` job beside `bun nv db-matrix --all` at `.github/workflows/ci.yml:347`, under a `changes` lane that covers `crates/nvs-ldap/`. `bun nv db-matrix --down` already takes `samba-ad` down with the rest (`tools/nv/cmd/db-matrix.ts:360`)."
       }
     ]
   },
   "backlog": [
-    "Stages 4 to 9: `Core\\Ldap` connect/open/search, the filter builder and `Dn`, typed values, writes and passwords, `authenticate`, the AD extras — under `crates/nvs-stdlib/src/ldap/`, to ADR 0278 § 1–§ 11.",
-    "Stage 10: the feature proofs, one `Ldap-*` directory per class (`docs/agent/goals/ldap.md`).",
-    "Stage 0's closing search, `grep -rn -i ldap docs/rules docs/reference crates`, is owed now the record exists (`docs/agent/goals/ldap.md` § Stage 0).",
-    "A run against a Windows Server evaluation VM is the user's to do by hand; a gap it finds comes back here."
+    "Publish 3268/3269 on `samba-ad` when Stage 9's Global Catalog block needs them (`docs/decisions/0278.md` § 11).",
+    "Paging with the paged-results control, and referrals returned as data (goal Stage 3, `docs/agent/goals/ldap.md`).",
+    "A run against a Windows Server evaluation VM is the user's to do by hand (goal § *Standing decisions*)."
   ]
 }
