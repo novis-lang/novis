@@ -214,6 +214,9 @@ Conventions the whole file uses:
 | [`Core\Queue`](#core-core-queue) |  |
 | [`Core\Queue\Id`](#core-core-queue-id) |  |
 | [`Core\Queue\Stats`](#core-core-queue-stats) |  |
+| [`Novis\Image\Color`](#core-novis-image-color) |  |
+| [`Novis\Image\Image`](#core-novis-image-image) |  |
+| [`Novis\Image\Codec`](#core-novis-image-codec) |  |
 | [`Core` enums](#core-enums) | every enum a member takes, with its cases |
 
 ### Part C — The toolchain
@@ -26223,6 +26226,404 @@ The total number of attempts the jobs in the dead-letter table used. Divide it b
 
 **Returns** `uint` — A `uint` for the dead-letter table only. Every attempt is counted in this number or in `attempts`, never in both. Add the two to get the total.
 
+<a id="core-novis-image-color"></a>
+### `Novis\Image\Color`
+
+Keywords: rgba, hex
+
+| Member | Signature |
+|---|---|
+| [`Novis\Image\Color::rgba`](#core-novis-image-color-rgba) | `rgba(uint $r, uint $g, uint $b, float $alpha = 1.0): Color` |
+| [`Novis\Image\Color::hex`](#core-novis-image-color-hex) | `hex(string $hex): Color` |
+
+<a id="core-novis-image-color-rgba"></a>
+#### `Novis\Image\Color::rgba`
+
+```nvs skip
+Novis\Image\Color::rgba(uint $r, uint $g, uint $b, float $alpha = 1.0): Color
+```
+
+`Color::rgba` makes a colour from its channels. A channel above 255, or an alpha outside
+0.0 to 1.0, throws a `LogicError`.
+
+**Returns** `Color`
+
+<a id="core-novis-image-color-hex"></a>
+#### `Novis\Image\Color::hex`
+
+```nvs skip
+Novis\Image\Color::hex(string $hex): Color
+```
+
+`Color::hex` reads a colour written as `#rgb`, `#rgba`, `#rrggbb` or `#rrggbbaa`.
+The `#` is optional. Any other text throws a `LogicError`.
+
+**Returns** `Color`
+
+<a id="core-novis-image-image"></a>
+### `Novis\Image\Image`
+
+Keywords: open, create, fromRaw, info, mime, extension, resize, crop, trim, rotate, flip, flatten, sharpen, blur, grayscale, brightness, contrast, gamma, tint, format, metadata, encode, raw, variants
+
+| Member | Signature |
+|---|---|
+| [`Novis\Image\Image::open`](#core-novis-image-image-open) | `open(bytes $data, ?{autoOrient?: bool, toSrgb?: bool, maxPixels?: uint} $options = null): Image` |
+| [`Novis\Image\Image::create`](#core-novis-image-image-create) | `create(uint $width, uint $height, ?Color $fill = null): Image` |
+| [`Novis\Image\Image::fromRaw`](#core-novis-image-image-fromraw) | `fromRaw(Raw $raw): Image` |
+| [`Novis\Image\Image::info`](#core-novis-image-image-info) | `info(bytes $data): Info` |
+| [`Novis\Image\Image::mime`](#core-novis-image-image-mime) | `mime(Format $format): string` |
+| [`Novis\Image\Image::extension`](#core-novis-image-image-extension) | `extension(Format $format): string` |
+| [`Novis\Image\Image->resize`](#core-novis-image-image-resize) | `resize(Resize $options): Image` |
+| [`Novis\Image\Image->crop`](#core-novis-image-image-crop) | `crop({x: uint, y: uint, width: uint, height: uint} $box): Image` |
+| [`Novis\Image\Image->trim`](#core-novis-image-image-trim) | `trim(?{threshold?: float} $options = null): Image` |
+| [`Novis\Image\Image->rotate`](#core-novis-image-image-rotate) | `rotate(float $degrees, ?{background?: Color} $options = null): Image` |
+| [`Novis\Image\Image->flip`](#core-novis-image-image-flip) | `flip(Axis $axis): Image` |
+| [`Novis\Image\Image->flatten`](#core-novis-image-image-flatten) | `flatten(Color $background): Image` |
+| [`Novis\Image\Image->sharpen`](#core-novis-image-image-sharpen) | `sharpen(?{sigma?: float} $options = null): Image` |
+| [`Novis\Image\Image->blur`](#core-novis-image-image-blur) | `blur(float $sigma): Image` |
+| [`Novis\Image\Image->grayscale`](#core-novis-image-image-grayscale) | `grayscale(): Image` |
+| [`Novis\Image\Image->brightness`](#core-novis-image-image-brightness) | `brightness(float $amount): Image` |
+| [`Novis\Image\Image->contrast`](#core-novis-image-image-contrast) | `contrast(float $amount): Image` |
+| [`Novis\Image\Image->gamma`](#core-novis-image-image-gamma) | `gamma(float $gamma): Image` |
+| [`Novis\Image\Image->tint`](#core-novis-image-image-tint) | `tint(Color $color): Image` |
+| [`Novis\Image\Image->format`](#core-novis-image-image-format) | `format(Format $format, ?{quality?: uint, progressive?: bool, lossless?: bool, effort?: uint} $options = null): Image` |
+| [`Novis\Image\Image->metadata`](#core-novis-image-image-metadata) | `metadata({keep: bool} $options): Image` |
+| [`Novis\Image\Image->encode`](#core-novis-image-image-encode) | `encode(): bytes` |
+| [`Novis\Image\Image->raw`](#core-novis-image-image-raw) | `raw(): Raw` |
+| [`Novis\Image\Image->variants`](#core-novis-image-image-variants) | `variants(array<Variant> $set): array<bytes>` |
+
+<a id="core-novis-image-image-open"></a>
+#### `Novis\Image\Image::open`
+
+```nvs skip
+Novis\Image\Image::open(bytes $data, ?{autoOrient?: bool, toSrgb?: bool, maxPixels?: uint} $options = null): Image
+```
+
+`Image::open` starts from the bytes of an encoded image. It turns the image upright and
+converts its colours to sRGB, unless `autoOrient` or `toSrgb` is `false`.
+Bytes that are not an image throw an error when `encode`, `variants` or `raw` runs.
+
+**Returns** `Image`
+
+<a id="core-novis-image-image-create"></a>
+#### `Novis\Image\Image::create`
+
+```nvs skip
+Novis\Image\Image::create(uint $width, uint $height, ?Color $fill = null): Image
+```
+
+`Image::create` starts from a blank canvas. Without `$fill`, the canvas is transparent.
+
+**Returns** `Image`
+
+<a id="core-novis-image-image-fromraw"></a>
+#### `Novis\Image\Image::fromRaw`
+
+```nvs skip
+Novis\Image\Image::fromRaw(Raw $raw): Image
+```
+
+`Image::fromRaw` starts from RGBA8 pixels, as `raw` returns them.
+
+**Returns** `Image`
+
+<a id="core-novis-image-image-info"></a>
+#### `Novis\Image\Image::info`
+
+```nvs skip
+Novis\Image\Image::info(bytes $data): Info
+```
+
+`Image::info` reads the format, the size and the orientation from the header. No pixel is decoded.
+
+**Returns** `Info`
+
+<a id="core-novis-image-image-mime"></a>
+#### `Novis\Image\Image::mime`
+
+```nvs skip
+Novis\Image\Image::mime(Format $format): string
+```
+
+`Image::mime` returns the MIME type of a format, for example `image/webp`.
+
+**Returns** `string`
+
+<a id="core-novis-image-image-extension"></a>
+#### `Novis\Image\Image::extension`
+
+```nvs skip
+Novis\Image\Image::extension(Format $format): string
+```
+
+`Image::extension` returns the file extension of a format, without the dot, for example `jpg`.
+
+**Returns** `string`
+
+<a id="core-novis-image-image-resize"></a>
+#### `Novis\Image\Image->resize`
+
+```nvs skip
+$image->resize(Resize $options): Image
+```
+
+`resize` scales the image. With only `width` or only `height`, the image keeps its proportions.
+With both, `fit` decides how the image fills that size. The default is `Fit::Cover`.
+The image does not grow larger than it is, unless `upscale` is `true`.
+
+**Returns** `Image`
+
+<a id="core-novis-image-image-crop"></a>
+#### `Novis\Image\Image->crop`
+
+```nvs skip
+$image->crop({x: uint, y: uint, width: uint, height: uint} $box): Image
+```
+
+`crop` keeps only the box at `x` and `y`, with its `width` and `height`.
+The box must lie inside the image.
+
+**Returns** `Image`
+
+<a id="core-novis-image-image-trim"></a>
+#### `Novis\Image\Image->trim`
+
+```nvs skip
+$image->trim(?{threshold?: float} $options = null): Image
+```
+
+`trim` removes the border that has the colour of the top-left pixel.
+`threshold` is how far a colour may differ and still count, from 0 to 255. The default is 10.
+
+**Returns** `Image`
+
+<a id="core-novis-image-image-rotate"></a>
+#### `Novis\Image\Image->rotate`
+
+```nvs skip
+$image->rotate(float $degrees, ?{background?: Color} $options = null): Image
+```
+
+`rotate` turns the image clockwise by `$degrees`. For an angle that is not a multiple of 90,
+the image grows to fit the turned picture, and `background` fills the corners.
+
+**Returns** `Image`
+
+<a id="core-novis-image-image-flip"></a>
+#### `Novis\Image\Image->flip`
+
+```nvs skip
+$image->flip(Axis $axis): Image
+```
+
+`flip(Axis::Horizontal)` swaps left and right. `flip(Axis::Vertical)` swaps top and bottom.
+
+**Returns** `Image`
+
+<a id="core-novis-image-image-flatten"></a>
+#### `Novis\Image\Image->flatten`
+
+```nvs skip
+$image->flatten(Color $background): Image
+```
+
+`flatten` puts the image on a background of one colour. The result has no transparent pixels.
+
+**Returns** `Image`
+
+<a id="core-novis-image-image-sharpen"></a>
+#### `Novis\Image\Image->sharpen`
+
+```nvs skip
+$image->sharpen(?{sigma?: float} $options = null): Image
+```
+
+`sharpen` makes edges clearer. A larger `sigma` sharpens wider edges. The default is 1.
+
+**Returns** `Image`
+
+<a id="core-novis-image-image-blur"></a>
+#### `Novis\Image\Image->blur`
+
+```nvs skip
+$image->blur(float $sigma): Image
+```
+
+`blur` makes the image soft. A larger `$sigma` gives a stronger blur.
+
+**Returns** `Image`
+
+<a id="core-novis-image-image-grayscale"></a>
+#### `Novis\Image\Image->grayscale`
+
+```nvs skip
+$image->grayscale(): Image
+```
+
+`grayscale` removes the colours and keeps the light and dark of each pixel.
+
+**Returns** `Image`
+
+<a id="core-novis-image-image-brightness"></a>
+#### `Novis\Image\Image->brightness`
+
+```nvs skip
+$image->brightness(float $amount): Image
+```
+
+`brightness` multiplies every colour by `$amount`. 1.0 changes nothing, and 1.2 is 20% brighter.
+
+**Returns** `Image`
+
+<a id="core-novis-image-image-contrast"></a>
+#### `Novis\Image\Image->contrast`
+
+```nvs skip
+$image->contrast(float $amount): Image
+```
+
+`contrast` moves every colour away from middle gray by `$amount`. 1.0 changes nothing.
+A value below 1.0 gives less contrast.
+
+**Returns** `Image`
+
+<a id="core-novis-image-image-gamma"></a>
+#### `Novis\Image\Image->gamma`
+
+```nvs skip
+$image->gamma(float $gamma): Image
+```
+
+`gamma` changes the middle tones and keeps black and white. 1.0 changes nothing.
+A value above 1.0 makes the middle tones lighter.
+
+**Returns** `Image`
+
+<a id="core-novis-image-image-tint"></a>
+#### `Novis\Image\Image->tint`
+
+```nvs skip
+$image->tint(Color $color): Image
+```
+
+`tint` colours the image with `$color`. The alpha of `$color` is how strong the tint is.
+
+**Returns** `Image`
+
+<a id="core-novis-image-image-format"></a>
+#### `Novis\Image\Image->format`
+
+```nvs skip
+$image->format(Format $format, ?{quality?: uint, progressive?: bool, lossless?: bool, effort?: uint} $options = null): Image
+```
+
+`format` sets the format that `encode` writes. Without it, the output has the format of the input.
+
+**Returns** `Image`
+
+<a id="core-novis-image-image-metadata"></a>
+#### `Novis\Image\Image->metadata`
+
+```nvs skip
+$image->metadata({keep: bool} $options): Image
+```
+
+`metadata({keep: true})` keeps the EXIF data in the output. Without it, `encode` removes all metadata.
+
+**Returns** `Image`
+
+<a id="core-novis-image-image-encode"></a>
+#### `Novis\Image\Image->encode`
+
+```nvs skip
+$image->encode(): bytes
+```
+
+`encode` runs every step and returns the encoded file.
+
+**Returns** `bytes`
+
+<a id="core-novis-image-image-raw"></a>
+#### `Novis\Image\Image->raw`
+
+```nvs skip
+$image->raw(): Raw
+```
+
+`raw` runs every step and returns the pixels as RGBA8 rows, four bytes per pixel.
+
+**Returns** `Raw`
+
+<a id="core-novis-image-image-variants"></a>
+#### `Novis\Image\Image->variants`
+
+```nvs skip
+$image->variants(array<Variant> $set): array<bytes>
+```
+
+`variants` decodes the image once and returns one encoded file per entry, in the same order.
+An entry may resize the image and choose its own format and quality.
+
+**Returns** `array<bytes>`
+
+<a id="core-novis-image-codec"></a>
+### `Novis\Image\Codec`
+
+Keywords: info, run, variants
+
+| Member | Signature |
+|---|---|
+| [`Novis\Image\Codec::info`](#core-novis-image-codec-info) | `info(bytes $data): {format: Format, width: uint, height: uint, hasAlpha: bool, frames: uint, orientation: uint, exif: ?array<string, string>, hasIcc: bool}` |
+| [`Novis\Image\Codec::run`](#core-novis-image-codec-run) | `run(Source $source, {steps: array<{resize?: {width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool}, crop?: {x: uint, y: uint, width: uint, height: uint}, trim?: {threshold?: float}, rotate?: {degrees: float, background: ?{r: uint, g: uint, b: uint, alpha: float}}, flip?: Axis, composite?: {overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend}, flatten?: {r: uint, g: uint, b: uint, alpha: float}, sharpen?: {sigma?: float}, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: {r: uint, g: uint, b: uint, alpha: float}, text?: {text: string, font: bytes, size: float, color: {r: uint, g: uint, b: uint, alpha: float}, gravity?: Gravity, x?: int, y?: int, maxWidth?: uint, align?: Align}, format?: {format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint}, metadata?: {keep: bool}}>, overlays: array<{source: Source, steps: array<{resize?: {width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool}, crop?: {x: uint, y: uint, width: uint, height: uint}, trim?: {threshold?: float}, rotate?: {degrees: float, background: ?{r: uint, g: uint, b: uint, alpha: float}}, flip?: Axis, composite?: {overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend}, flatten?: {r: uint, g: uint, b: uint, alpha: float}, sharpen?: {sigma?: float}, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: {r: uint, g: uint, b: uint, alpha: float}, text?: {text: string, font: bytes, size: float, color: {r: uint, g: uint, b: uint, alpha: float}, gravity?: Gravity, x?: int, y?: int, maxWidth?: uint, align?: Align}, format?: {format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint}, metadata?: {keep: bool}}>}>, output: Output} $plan): bytes` |
+| [`Novis\Image\Codec::variants`](#core-novis-image-codec-variants) | `variants(Source $source, array<{steps: array<{resize?: {width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool}, crop?: {x: uint, y: uint, width: uint, height: uint}, trim?: {threshold?: float}, rotate?: {degrees: float, background: ?{r: uint, g: uint, b: uint, alpha: float}}, flip?: Axis, composite?: {overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend}, flatten?: {r: uint, g: uint, b: uint, alpha: float}, sharpen?: {sigma?: float}, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: {r: uint, g: uint, b: uint, alpha: float}, text?: {text: string, font: bytes, size: float, color: {r: uint, g: uint, b: uint, alpha: float}, gravity?: Gravity, x?: int, y?: int, maxWidth?: uint, align?: Align}, format?: {format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint}, metadata?: {keep: bool}}>, overlays: array<{source: Source, steps: array<{resize?: {width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool}, crop?: {x: uint, y: uint, width: uint, height: uint}, trim?: {threshold?: float}, rotate?: {degrees: float, background: ?{r: uint, g: uint, b: uint, alpha: float}}, flip?: Axis, composite?: {overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend}, flatten?: {r: uint, g: uint, b: uint, alpha: float}, sharpen?: {sigma?: float}, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: {r: uint, g: uint, b: uint, alpha: float}, text?: {text: string, font: bytes, size: float, color: {r: uint, g: uint, b: uint, alpha: float}, gravity?: Gravity, x?: int, y?: int, maxWidth?: uint, align?: Align}, format?: {format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint}, metadata?: {keep: bool}}>}>, output: Output}> $plans): array<bytes>` |
+
+<a id="core-novis-image-codec-info"></a>
+#### `Novis\Image\Codec::info`
+
+```nvs skip
+Novis\Image\Codec::info(bytes $data): {format: Format, width: uint, height: uint, hasAlpha: bool, frames: uint, orientation: uint, exif: ?array<string, string>, hasIcc: bool}
+```
+
+Reads the format, the size and the orientation of an encoded image from its header. No pixel is decoded.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$data` | `bytes` |  |
+
+**Returns** `{format: Format, width: uint, height: uint, hasAlpha: bool, frames: uint, orientation: uint, exif: ?array<string, string>, hasIcc: bool}`
+
+<a id="core-novis-image-codec-run"></a>
+#### `Novis\Image\Codec::run`
+
+```nvs skip
+Novis\Image\Codec::run(Source $source, {steps: array<{resize?: {width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool}, crop?: {x: uint, y: uint, width: uint, height: uint}, trim?: {threshold?: float}, rotate?: {degrees: float, background: ?{r: uint, g: uint, b: uint, alpha: float}}, flip?: Axis, composite?: {overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend}, flatten?: {r: uint, g: uint, b: uint, alpha: float}, sharpen?: {sigma?: float}, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: {r: uint, g: uint, b: uint, alpha: float}, text?: {text: string, font: bytes, size: float, color: {r: uint, g: uint, b: uint, alpha: float}, gravity?: Gravity, x?: int, y?: int, maxWidth?: uint, align?: Align}, format?: {format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint}, metadata?: {keep: bool}}>, overlays: array<{source: Source, steps: array<{resize?: {width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool}, crop?: {x: uint, y: uint, width: uint, height: uint}, trim?: {threshold?: float}, rotate?: {degrees: float, background: ?{r: uint, g: uint, b: uint, alpha: float}}, flip?: Axis, composite?: {overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend}, flatten?: {r: uint, g: uint, b: uint, alpha: float}, sharpen?: {sigma?: float}, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: {r: uint, g: uint, b: uint, alpha: float}, text?: {text: string, font: bytes, size: float, color: {r: uint, g: uint, b: uint, alpha: float}, gravity?: Gravity, x?: int, y?: int, maxWidth?: uint, align?: Align}, format?: {format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint}, metadata?: {keep: bool}}>}>, output: Output} $plan): bytes
+```
+
+Runs one image pipeline on a source and returns the result: the encoded file, the pixels, or the size.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$source` | `Source` |  |
+| `$plan` | `{steps: array<{resize?: {width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool}, crop?: {x: uint, y: uint, width: uint, height: uint}, trim?: {threshold?: float}, rotate?: {degrees: float, background: ?{r: uint, g: uint, b: uint, alpha: float}}, flip?: Axis, composite?: {overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend}, flatten?: {r: uint, g: uint, b: uint, alpha: float}, sharpen?: {sigma?: float}, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: {r: uint, g: uint, b: uint, alpha: float}, text?: {text: string, font: bytes, size: float, color: {r: uint, g: uint, b: uint, alpha: float}, gravity?: Gravity, x?: int, y?: int, maxWidth?: uint, align?: Align}, format?: {format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint}, metadata?: {keep: bool}}>, overlays: array<{source: Source, steps: array<{resize?: {width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool}, crop?: {x: uint, y: uint, width: uint, height: uint}, trim?: {threshold?: float}, rotate?: {degrees: float, background: ?{r: uint, g: uint, b: uint, alpha: float}}, flip?: Axis, composite?: {overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend}, flatten?: {r: uint, g: uint, b: uint, alpha: float}, sharpen?: {sigma?: float}, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: {r: uint, g: uint, b: uint, alpha: float}, text?: {text: string, font: bytes, size: float, color: {r: uint, g: uint, b: uint, alpha: float}, gravity?: Gravity, x?: int, y?: int, maxWidth?: uint, align?: Align}, format?: {format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint}, metadata?: {keep: bool}}>}>, output: Output}` |  |
+
+**Returns** `bytes`
+
+<a id="core-novis-image-codec-variants"></a>
+#### `Novis\Image\Codec::variants`
+
+```nvs skip
+Novis\Image\Codec::variants(Source $source, array<{steps: array<{resize?: {width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool}, crop?: {x: uint, y: uint, width: uint, height: uint}, trim?: {threshold?: float}, rotate?: {degrees: float, background: ?{r: uint, g: uint, b: uint, alpha: float}}, flip?: Axis, composite?: {overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend}, flatten?: {r: uint, g: uint, b: uint, alpha: float}, sharpen?: {sigma?: float}, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: {r: uint, g: uint, b: uint, alpha: float}, text?: {text: string, font: bytes, size: float, color: {r: uint, g: uint, b: uint, alpha: float}, gravity?: Gravity, x?: int, y?: int, maxWidth?: uint, align?: Align}, format?: {format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint}, metadata?: {keep: bool}}>, overlays: array<{source: Source, steps: array<{resize?: {width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool}, crop?: {x: uint, y: uint, width: uint, height: uint}, trim?: {threshold?: float}, rotate?: {degrees: float, background: ?{r: uint, g: uint, b: uint, alpha: float}}, flip?: Axis, composite?: {overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend}, flatten?: {r: uint, g: uint, b: uint, alpha: float}, sharpen?: {sigma?: float}, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: {r: uint, g: uint, b: uint, alpha: float}, text?: {text: string, font: bytes, size: float, color: {r: uint, g: uint, b: uint, alpha: float}, gravity?: Gravity, x?: int, y?: int, maxWidth?: uint, align?: Align}, format?: {format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint}, metadata?: {keep: bool}}>}>, output: Output}> $plans): array<bytes>
+```
+
+Decodes a source once and runs each pipeline on it. Returns one result per pipeline, in the same order.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$source` | `Source` |  |
+| `$plans` | `array<{steps: array<{resize?: {width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool}, crop?: {x: uint, y: uint, width: uint, height: uint}, trim?: {threshold?: float}, rotate?: {degrees: float, background: ?{r: uint, g: uint, b: uint, alpha: float}}, flip?: Axis, composite?: {overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend}, flatten?: {r: uint, g: uint, b: uint, alpha: float}, sharpen?: {sigma?: float}, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: {r: uint, g: uint, b: uint, alpha: float}, text?: {text: string, font: bytes, size: float, color: {r: uint, g: uint, b: uint, alpha: float}, gravity?: Gravity, x?: int, y?: int, maxWidth?: uint, align?: Align}, format?: {format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint}, metadata?: {keep: bool}}>, overlays: array<{source: Source, steps: array<{resize?: {width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool}, crop?: {x: uint, y: uint, width: uint, height: uint}, trim?: {threshold?: float}, rotate?: {degrees: float, background: ?{r: uint, g: uint, b: uint, alpha: float}}, flip?: Axis, composite?: {overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend}, flatten?: {r: uint, g: uint, b: uint, alpha: float}, sharpen?: {sigma?: float}, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: {r: uint, g: uint, b: uint, alpha: float}, text?: {text: string, font: bytes, size: float, color: {r: uint, g: uint, b: uint, alpha: float}, gravity?: Gravity, x?: int, y?: int, maxWidth?: uint, align?: Align}, format?: {format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint}, metadata?: {keep: bool}}>}>, output: Output}>` |  |
+
+**Returns** `array<bytes>`
+
 <a id="core-enums"></a>
 ### `Core` enums
 
@@ -26689,6 +27090,70 @@ What has become of a background job, as `Core\Queue::status` answers it. Five st
 | `Core\Queue\State::Succeeded` | It ran to completion. Delivery is at-least-once, so this says the work happened and not that it happened exactly once. |
 | `Core\Queue\State::Dead` | It exhausted its attempts and is in the dead-letter table, with its payload and every attempt's error. Only `purge` and `delete` remove it from there. |
 | `Core\Queue\State::Cancelled` | `cancel` reached it while it was still pending, so no worker ever will. A job already claimed cannot arrive here — cancelling does not stop work in flight. |
+
+<a id="enum-novis-image-format"></a>
+#### `Novis\Image\Format`
+
+An image file format. `Image::format` sets the format that `encode` writes.
+
+| Case | Meaning |
+|---|---|
+
+<a id="enum-novis-image-gravity"></a>
+#### `Novis\Image\Gravity`
+
+A position in an image, as a direction from the center. `resize` uses it to choose which part of the image it keeps.
+
+| Case | Meaning |
+|---|---|
+
+<a id="enum-novis-image-fit"></a>
+#### `Novis\Image\Fit`
+
+How `resize` fits an image into the width and height you give.
+
+| Case | Meaning |
+|---|---|
+
+<a id="enum-novis-image-filter"></a>
+#### `Novis\Image\Filter`
+
+The filter `resize` uses to calculate the new pixels. The default is `Lanczos3`.
+
+| Case | Meaning |
+|---|---|
+
+<a id="enum-novis-image-axis"></a>
+#### `Novis\Image\Axis`
+
+The direction `flip` mirrors an image in.
+
+| Case | Meaning |
+|---|---|
+
+<a id="enum-novis-image-blend"></a>
+#### `Novis\Image\Blend`
+
+How the pixels of one image are mixed with the pixels of the image below it.
+
+| Case | Meaning |
+|---|---|
+
+<a id="enum-novis-image-align"></a>
+#### `Novis\Image\Align`
+
+How the lines of a text are aligned.
+
+| Case | Meaning |
+|---|---|
+
+<a id="enum-novis-image-output"></a>
+#### `Novis\Image\Output`
+
+What `Codec::run` returns: the encoded file, the RGBA8 pixels, or the size alone.
+
+| Case | Meaning |
+|---|---|
 
 # Part C — The toolchain
 

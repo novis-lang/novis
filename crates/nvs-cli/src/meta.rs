@@ -16,6 +16,16 @@
 //! ignores fields it does not know, so a field may be added here without
 //! breaking one; a field may not be renamed or moved.
 //!
+//! **The built-in components' classes and enums follow the registry's** in the
+//! same two rosters (`rule:packaging/the-first-party-components-are-built-in`),
+//! because a program calls `Novis\Image\Image::open` exactly as it calls a
+//! `Core` member and a consumer — the proofs roster, `nvs agent` — has no
+//! reason to tell them apart by where they sit. They are read from the
+//! components' manifests and Novis source halves, never compiled: a manifest
+//! method is a `static` member whose card is its `help`, a manifest enum's
+//! card is its `help`, and a source class is the program half's shape over
+//! its public members, its cards the `///` runs. See [`builtin_json`].
+//!
 //! ## What is omitted, and why
 //!
 //! A row with no documentation has **no `doc` key at all** — a shape the
@@ -111,7 +121,7 @@
 use std::path::Path;
 use std::process::ExitCode;
 
-use nvs_diagnostics::{SourceFile, Span};
+use nvs_diagnostics::{Diagnostics, SourceFile, SourceMap, Span};
 use nvs_hir::QName;
 use nvs_stdlib::registry::{
     CAPABILITIES, CLASSES, Const, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreOption, CoreTy,
@@ -169,9 +179,10 @@ pub(crate) fn program_document(entry: &Path) -> Result<Value, ExitCode> {
 pub(crate) fn document() -> Value {
     nvs_footprint::every_class();
     nvs_footprint::every_card();
+    let (builtin_classes, builtin_enums) = builtin_json();
     json!({
-        "classes": CLASSES.iter().map(class_json).collect::<Vec<_>>(),
-        "enums": ENUMS.iter().map(enum_json).collect::<Vec<_>>(),
+        "classes": CLASSES.iter().map(class_json).chain(builtin_classes).collect::<Vec<_>>(),
+        "enums": ENUMS.iter().map(enum_json).chain(builtin_enums).collect::<Vec<_>>(),
         "exceptions": nvs_hir::errors::TREE.iter().map(exception_json).collect::<Vec<_>>(),
         "interfaces": nvs_hir::interfaces::RESERVED.iter().map(interface_json).collect::<Vec<_>>(),
         "attributes": nvs_types::derive::ATTRIBUTES.iter().map(|name| Value::from(*name)).collect::<Vec<_>>(),
@@ -537,6 +548,152 @@ fn enum_doc_json(doc: &EnumDoc) -> Value {
         doc.cases,
         |case| json!({ "name": case.name, "desc": case.desc }),
     );
+    Value::Object(out)
+}
+
+// ============================================================================
+// The built-in components (`rule:packaging/the-first-party-components-are-built-in`)
+// ============================================================================
+
+/// The classes and enums of every built-in component, in the registry's
+/// shape, to follow the registry's own in `classes` and `enums`.
+///
+/// A component's manifest gives its export class, every method `static`
+/// with the manifest's `help` as its card, and its enums, named under the
+/// class's namespace with their `help` as theirs. Its Novis source half gives
+/// the classes written in Novis, read by the program half's own walk over a
+/// parse of each file, and only their public members: a private member is not
+/// something a program calls. A source class's card is its `///` run, as a
+/// program's is.
+fn builtin_json() -> (Vec<Value>, Vec<Value>) {
+    let manifests = nvs_ext::load::builtin_manifests()
+        .expect("the built-in components' manifests read, because the build packed them");
+    let mut classes = Vec::new();
+    let mut enums = Vec::new();
+    for manifest in &manifests {
+        let namespace = manifest
+            .class
+            .rsplit_once('\\')
+            .map_or("", |(namespace, _)| namespace);
+        let mut declared = Declared::default();
+        for file in &manifest.source {
+            let mut map = SourceMap::new();
+            let id = map.add(file.path.as_str(), file.text.as_str());
+            let stmts = nvs_syntax::parse_file(map.file(id), &mut Diagnostics::new());
+            collect(&stmts, map.file(id), "", &mut declared);
+        }
+        classes.extend(declared.classes.into_iter().map(public_surface));
+        classes.push(manifest_class_json(manifest));
+        enums.extend(
+            manifest
+                .enums
+                .iter()
+                .map(|declared| manifest_enum_json(declared, namespace)),
+        );
+    }
+    (classes, enums)
+}
+
+/// A source class with its private and protected members left out, and each
+/// method's `returns` beside its signature, as a registry member carries it:
+/// the type written after the parameter list's `): `.
+fn public_surface(mut class: Value) -> Value {
+    if let Some(members) = class["members"].as_array_mut() {
+        members.retain(|member| member["visibility"] == "public");
+        for member in members {
+            let returns = member["signature"]
+                .as_str()
+                .and_then(|signature| signature.rsplit_once("): "))
+                .map_or("void", |(_, returns)| returns)
+                .to_owned();
+            member["returns"] = Value::from(returns);
+        }
+    }
+    class
+}
+
+/// A component's export class: one `static` member per manifest method, its
+/// constants, and no card of its own, because a manifest has no field for one.
+fn manifest_class_json(manifest: &nvs_ext::manifest::Manifest) -> Value {
+    let members: Vec<Value> = manifest
+        .methods
+        .iter()
+        .map(|method| {
+            let written: Vec<String> = method
+                .params
+                .iter()
+                .map(|param| match &param.default {
+                    Some(default) => format!("{} ${} = {default}", param.ty, param.name),
+                    None => format!("{} ${}", param.ty, param.name),
+                })
+                .collect();
+            let params: Vec<Value> = method
+                .params
+                .iter()
+                .map(|param| {
+                    let mut out = Map::new();
+                    out.insert("name".into(), Value::from(param.name.as_str()));
+                    out.insert("type".into(), Value::from(param.ty.as_str()));
+                    if let Some(default) = &param.default {
+                        out.insert("default".into(), Value::from(default.to_string()));
+                    }
+                    Value::Object(out)
+                })
+                .collect();
+            let mut out = Map::new();
+            out.insert("name".into(), Value::from(method.name.as_str()));
+            out.insert("kind".into(), Value::from("static"));
+            out.insert(
+                "signature".into(),
+                Value::from(format!(
+                    "{}({}): {}",
+                    method.name,
+                    written.join(", "),
+                    method.returns
+                )),
+            );
+            put_values(&mut out, "params", params);
+            out.insert("returns".into(), Value::from(method.returns.as_str()));
+            if let Some(help) = &method.help {
+                out.insert("doc".into(), json!({ "short": help }));
+            }
+            Value::Object(out)
+        })
+        .collect();
+    let constants: Vec<Value> = manifest
+        .consts
+        .iter()
+        .map(|constant| {
+            json!({
+                "name": constant.name,
+                "type": constant.ty,
+                "value": constant.value.to_string(),
+            })
+        })
+        .collect();
+    let mut out = Map::new();
+    out.insert("name".into(), Value::from(manifest.class.as_str()));
+    out.insert("members".into(), Value::Array(members));
+    put_values(&mut out, "constants", constants);
+    Value::Object(out)
+}
+
+/// A manifest enum under `namespace`: its cases, and its `help` as its card.
+fn manifest_enum_json(declared: &nvs_ext::manifest::Enum, namespace: &str) -> Value {
+    let mut out = Map::new();
+    out.insert(
+        "name".into(),
+        Value::from(qualify(namespace, &declared.name)),
+    );
+    let cases: Vec<Value> = declared
+        .cases
+        .iter()
+        .map(|case| json!({ "name": case }))
+        .collect();
+    out.insert("cases".into(), Value::Array(cases));
+    if let Some(help) = &declared.help {
+        out.insert("doc".into(), json!({ "short": help }));
+    }
     Value::Object(out)
 }
 
@@ -1209,8 +1366,14 @@ mod tests {
     fn the_document_lists_every_class_member_and_constant_in_registry_order() {
         let document = document();
         let classes = document["classes"].as_array().expect("an array");
-        assert_eq!(classes.len(), CLASSES.len());
-        for (class, emitted) in CLASSES.iter().zip(classes) {
+        let (registry, builtin) = classes.split_at(CLASSES.len());
+        assert!(
+            builtin.iter().all(|class| class["name"]
+                .as_str()
+                .is_some_and(|n| n.starts_with(r"Novis\"))),
+            "only the built-in components' classes follow the registry's"
+        );
+        for (class, emitted) in CLASSES.iter().zip(registry) {
             assert_eq!(emitted["name"], class.name);
             let names: Vec<&str> = emitted["members"]
                 .as_array()
@@ -1239,7 +1402,8 @@ mod tests {
         }
     }
 
-    /// Every enum in the registry appears, top-level, in the roster's order.
+    /// Every enum in the registry appears, top-level, in the roster's order,
+    /// and only the built-in components' enums follow it.
     #[test]
     fn the_document_lists_every_enum_in_roster_order() {
         let document = document();
@@ -1249,7 +1413,12 @@ mod tests {
             .iter()
             .map(|e| e["name"].as_str().expect("a name"))
             .collect();
+        let (registry, builtin) = names.split_at(ENUMS.len());
         let expected: Vec<&str> = ENUMS.iter().map(|e| e.name).collect();
-        assert_eq!(names, expected);
+        assert_eq!(registry, expected);
+        assert!(
+            builtin.iter().all(|name| name.starts_with(r"Novis\")),
+            "{builtin:?}"
+        );
     }
 }

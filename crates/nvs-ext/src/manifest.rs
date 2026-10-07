@@ -18,7 +18,7 @@
 //!     "help": "The distance between two places, in kilometres."
 //!   }],
 //!   "consts": [{"name": "EARTH_RADIUS_KM", "type": "float", "value": 6371.0}],
-//!   "enums": [{"name": "Unit", "cases": ["Metres", "NauticalMiles"]}],
+//!   "enums": [{"name": "Unit", "cases": ["Metres", "NauticalMiles"], "help": "A unit of distance."}],
 //!   "unions": [{"name": "Area", "cases": [
 //!     {"name": "Circle", "shape": "{radius: float}"},
 //!     {"name": "Box", "shape": "{width: float, height: float}"}]}],
@@ -226,6 +226,9 @@ pub struct Enum {
     pub name: String,
     /// Its cases, in order.
     pub cases: Vec<String>,
+    /// The help text `nvs` shows for the enum.
+    #[serde(default)]
+    pub help: Option<String>,
 }
 
 /// A closed union of shapes a signature names.

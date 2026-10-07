@@ -3,8 +3,8 @@ namespace Novis\Image;
 
 use LogicError;
 
-// An image and a list of steps to run on it. Each step method returns a new `Image`
-// and leaves this one as it was. Nothing is decoded until `encode`, `variants` or `raw` runs.
+/// An image and a list of steps to run on it. Each step method returns a new `Image`
+/// and leaves this one as it was. Nothing is decoded until `encode`, `variants` or `raw` runs.
 final class Image
 {
     type Rgba = {r: uint, g: uint, b: uint, alpha: float};
@@ -46,8 +46,9 @@ final class Image
 
     private function constructor(private readonly Origin $source, private readonly array<Step> $steps) {}
 
-    // `Image::open` reads the header of an encoded image. It turns the image upright and
-    // converts its colours to sRGB, unless `autoOrient` or `toSrgb` is `false`.
+    /// `Image::open` starts from the bytes of an encoded image. It turns the image upright and
+    /// converts its colours to sRGB, unless `autoOrient` or `toSrgb` is `false`.
+    /// Bytes that are not an image throw an error when `encode`, `variants` or `raw` runs.
     public static function open(bytes $data, ?{autoOrient?: bool, toSrgb?: bool, maxPixels?: uint} $options = null): Image
     {
         bool $autoOrient = $options?->autoOrient ?? true;
@@ -59,26 +60,26 @@ final class Image
         return new Image({data: $data, autoOrient: $autoOrient, toSrgb: $toSrgb, maxPixels: $maxPixels}, []);
     }
 
-    // `Image::create` starts from a blank canvas. Without `$fill`, the canvas is transparent.
+    /// `Image::create` starts from a blank canvas. Without `$fill`, the canvas is transparent.
     public static function create(uint $width, uint $height, ?Color $fill = null): Image
     {
         Color $color = $fill ?? Color::rgba(0, 0, 0, 0.0);
         return new Image({width: $width, height: $height, fill: Image::rgba($color)}, []);
     }
 
-    // `Image::fromRaw` starts from RGBA8 pixels, as `raw` returns them.
+    /// `Image::fromRaw` starts from RGBA8 pixels, as `raw` returns them.
     public static function fromRaw(Raw $raw): Image
     {
         return new Image({width: $raw->width, height: $raw->height, pixels: $raw->pixels}, []);
     }
 
-    // `Image::info` reads the format, the size and the orientation from the header. No pixel is decoded.
+    /// `Image::info` reads the format, the size and the orientation from the header. No pixel is decoded.
     public static function info(bytes $data): Info
     {
         return Codec::info($data);
     }
 
-    // `Image::mime` returns the MIME type of a format, for example `image/webp`.
+    /// `Image::mime` returns the MIME type of a format, for example `image/webp`.
     public static function mime(Format $format): string
     {
         return match ($format) {
@@ -93,7 +94,7 @@ final class Image
         };
     }
 
-    // `Image::extension` returns the file extension of a format, without the dot, for example `jpg`.
+    /// `Image::extension` returns the file extension of a format, without the dot, for example `jpg`.
     public static function extension(Format $format): string
     {
         return match ($format) {
@@ -108,16 +109,23 @@ final class Image
         };
     }
 
+    /// `resize` scales the image. With only `width` or only `height`, the image keeps its proportions.
+    /// With both, `fit` decides how the image fills that size. The default is `Fit::Cover`.
+    /// The image does not grow larger than it is, unless `upscale` is `true`.
     public function resize(Resize $options): Image
     {
         return $this->then({resize: $options});
     }
 
+    /// `crop` keeps only the box at `x` and `y`, with its `width` and `height`.
+    /// The box must lie inside the image.
     public function crop({x: uint, y: uint, width: uint, height: uint} $box): Image
     {
         return $this->then({crop: {x: $box->x, y: $box->y, width: $box->width, height: $box->height}});
     }
 
+    /// `trim` removes the border that has the colour of the top-left pixel.
+    /// `threshold` is how far a colour may differ and still count, from 0 to 255. The default is 10.
     public function trim(?{threshold?: float} $options = null): Image
     {
         ?float $threshold = $options?->threshold ?? null;
@@ -127,22 +135,27 @@ final class Image
         return $this->then({trim: {threshold: $threshold}});
     }
 
+    /// `rotate` turns the image clockwise by `$degrees`. For an angle that is not a multiple of 90,
+    /// the image grows to fit the turned picture, and `background` fills the corners.
     public function rotate(float $degrees, ?{background?: Color} $options = null): Image
     {
         ?Color $background = $options?->background ?? null;
         return $this->then({rotate: {degrees: $degrees, background: $background == null ? null : Image::rgba($background)}});
     }
 
+    /// `flip(Axis::Horizontal)` swaps left and right. `flip(Axis::Vertical)` swaps top and bottom.
     public function flip(Axis $axis): Image
     {
         return $this->then({flip: $axis});
     }
 
+    /// `flatten` puts the image on a background of one colour. The result has no transparent pixels.
     public function flatten(Color $background): Image
     {
         return $this->then({flatten: Image::rgba($background)});
     }
 
+    /// `sharpen` makes edges clearer. A larger `sigma` sharpens wider edges. The default is 1.
     public function sharpen(?{sigma?: float} $options = null): Image
     {
         ?float $sigma = $options?->sigma ?? null;
@@ -152,37 +165,45 @@ final class Image
         return $this->then({sharpen: {sigma: $sigma}});
     }
 
+    /// `blur` makes the image soft. A larger `$sigma` gives a stronger blur.
     public function blur(float $sigma): Image
     {
         return $this->then({blur: $sigma});
     }
 
+    /// `grayscale` removes the colours and keeps the light and dark of each pixel.
     public function grayscale(): Image
     {
         return $this->then({grayscale: true});
     }
 
+    /// `brightness` multiplies every colour by `$amount`. 1.0 changes nothing, and 1.2 is 20% brighter.
     public function brightness(float $amount): Image
     {
         return $this->then({brightness: $amount});
     }
 
+    /// `contrast` moves every colour away from middle gray by `$amount`. 1.0 changes nothing.
+    /// A value below 1.0 gives less contrast.
     public function contrast(float $amount): Image
     {
         return $this->then({contrast: $amount});
     }
 
+    /// `gamma` changes the middle tones and keeps black and white. 1.0 changes nothing.
+    /// A value above 1.0 makes the middle tones lighter.
     public function gamma(float $gamma): Image
     {
         return $this->then({gamma: $gamma});
     }
 
+    /// `tint` colours the image with `$color`. The alpha of `$color` is how strong the tint is.
     public function tint(Color $color): Image
     {
         return $this->then({tint: Image::rgba($color)});
     }
 
-    // `format` sets the format that `encode` writes. Without it, the output has the format of the input.
+    /// `format` sets the format that `encode` writes. Without it, the output has the format of the input.
     public function format(Format $format, ?{quality?: uint, progressive?: bool, lossless?: bool, effort?: uint} $options = null): Image
     {
         return $this->then({format: {
@@ -194,19 +215,19 @@ final class Image
         }});
     }
 
-    // `metadata({keep: true})` keeps the EXIF data in the output. Without it, `encode` removes all metadata.
+    /// `metadata({keep: true})` keeps the EXIF data in the output. Without it, `encode` removes all metadata.
     public function metadata({keep: bool} $options): Image
     {
         return $this->then({metadata: {keep: $options->keep}});
     }
 
-    // `encode` runs every step and returns the encoded file.
+    /// `encode` runs every step and returns the encoded file.
     public function encode(): bytes
     {
         return Codec::run($this->source, {steps: $this->steps, overlays: [], output: Output::Encoded});
     }
 
-    // `raw` runs every step and returns the pixels as RGBA8 rows, four bytes per pixel.
+    /// `raw` runs every step and returns the pixels as RGBA8 rows, four bytes per pixel.
     public function raw(): Raw
     {
         bytes $result = Codec::run($this->source, {steps: $this->steps, overlays: [], output: Output::Raw});
@@ -214,8 +235,8 @@ final class Image
         return {width: $size[0] as uint, height: $size[1] as uint, pixels: Core\Bytes::slice($result, 16)};
     }
 
-    // `variants` decodes the image once and returns one encoded file per entry, in the same order.
-    // An entry may resize the image and choose its own format and quality.
+    /// `variants` decodes the image once and returns one encoded file per entry, in the same order.
+    /// An entry may resize the image and choose its own format and quality.
     public function variants(array<Variant> $set): array<bytes>
     {
         array<Plan> $plans = [];

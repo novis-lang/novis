@@ -4,7 +4,7 @@ namespace Novis\Image;
 use LogicError;
 use Throwable;
 
-// A colour: red, green and blue from 0 to 255, and alpha from 0.0 (transparent) to 1.0 (opaque).
+/// A colour: red, green and blue from 0 to 255, and alpha from 0.0 (transparent) to 1.0 (opaque).
 final class Color
 {
     private function constructor(
@@ -14,8 +14,8 @@ final class Color
         public readonly float $alpha,
     ) {}
 
-    // `Color::rgba` makes a colour from its channels. A channel above 255, or an alpha outside
-    // 0.0 to 1.0, throws a `LogicError`.
+    /// `Color::rgba` makes a colour from its channels. A channel above 255, or an alpha outside
+    /// 0.0 to 1.0, throws a `LogicError`.
     public static function rgba(uint $r, uint $g, uint $b, float $alpha = 1.0): Color
     {
         if ($r > 255 || $g > 255 || $b > 255) {
@@ -27,8 +27,8 @@ final class Color
         return new Color($r, $g, $b, $alpha);
     }
 
-    // `Color::hex` reads a colour written as `#rgb`, `#rgba`, `#rrggbb` or `#rrggbbaa`.
-    // The `#` is optional. Any other text throws a `LogicError`.
+    /// `Color::hex` reads a colour written as `#rgb`, `#rgba`, `#rrggbb` or `#rrggbbaa`.
+    /// The `#` is optional. Any other text throws a `LogicError`.
     public static function hex(string $hex): Color
     {
         string $digits = Core\Str::startsWith($hex, "#") ? Core\Str::slice($hex, 1) : $hex;

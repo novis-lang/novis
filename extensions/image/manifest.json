@@ -30,14 +30,14 @@
     }
   ],
   "enums": [
-    {"name": "Format", "cases": ["Jpeg", "Png", "Webp", "Gif", "Avif", "Jxl", "Svg", "Pdf"]},
-    {"name": "Gravity", "cases": ["Center", "North", "NorthEast", "East", "SouthEast", "South", "SouthWest", "West", "NorthWest"]},
-    {"name": "Fit", "cases": ["Cover", "Contain", "Fill", "Inside", "Outside"]},
-    {"name": "Filter", "cases": ["Nearest", "Bilinear", "CatmullRom", "Mitchell", "Lanczos3"]},
-    {"name": "Axis", "cases": ["Horizontal", "Vertical"]},
-    {"name": "Blend", "cases": ["Normal", "Multiply", "Screen", "Overlay", "Darken", "Lighten"]},
-    {"name": "Align", "cases": ["Left", "Center", "Right"]},
-    {"name": "Output", "cases": ["Encoded", "Raw", "Size"]}
+    {"name": "Format", "cases": ["Jpeg", "Png", "Webp", "Gif", "Avif", "Jxl", "Svg", "Pdf"], "help": "An image file format. `Image::format` sets the format that `encode` writes."},
+    {"name": "Gravity", "cases": ["Center", "North", "NorthEast", "East", "SouthEast", "South", "SouthWest", "West", "NorthWest"], "help": "A position in an image, as a direction from the center. `resize` uses it to choose which part of the image it keeps."},
+    {"name": "Fit", "cases": ["Cover", "Contain", "Fill", "Inside", "Outside"], "help": "How `resize` fits an image into the width and height you give."},
+    {"name": "Filter", "cases": ["Nearest", "Bilinear", "CatmullRom", "Mitchell", "Lanczos3"], "help": "The filter `resize` uses to calculate the new pixels. The default is `Lanczos3`."},
+    {"name": "Axis", "cases": ["Horizontal", "Vertical"], "help": "The direction `flip` mirrors an image in."},
+    {"name": "Blend", "cases": ["Normal", "Multiply", "Screen", "Overlay", "Darken", "Lighten"], "help": "How the pixels of one image are mixed with the pixels of the image below it."},
+    {"name": "Align", "cases": ["Left", "Center", "Right"], "help": "How the lines of a text are aligned."},
+    {"name": "Output", "cases": ["Encoded", "Raw", "Size"], "help": "What `Codec::run` returns: the encoded file, the RGBA8 pixels, or the size alone."}
   ],
   "unions": [
     {"name": "Source", "cases": [

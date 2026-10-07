@@ -228,6 +228,105 @@ fn every_enum_and_constant_carries_a_doc_key() {
     );
 }
 
+/// The built-in image component's classes follow the registry's in `classes`:
+/// `Novis\Image\Image` and `Novis\Image\Color` from its Novis source with their
+/// public members only, and `Novis\Image\Codec` from its manifest with every
+/// export `static`. Its enums follow the registry's in `enums`, under the
+/// export class's namespace, with their cases.
+// covers: tools:cli/nvs-meta-json
+#[test]
+fn meta_lists_the_built_in_components_classes_and_enums() {
+    let (doc, ok) = meta(&["--json"]);
+    assert!(ok, "`nvs meta --json` succeeds");
+    let document: serde_json::Value = serde_json::from_str(&doc).expect("the document is JSON");
+    let names = |class: &str| -> Vec<String> {
+        document["classes"]
+            .as_array()
+            .expect("`classes` is an array")
+            .iter()
+            .find(|c| c["name"] == class)
+            .unwrap_or_else(|| panic!("{class} is in the document"))["members"]
+            .as_array()
+            .expect("`members` is an array")
+            .iter()
+            .map(|m| m["name"].as_str().expect("a member has a name").to_owned())
+            .collect()
+    };
+    let image = names(r"Novis\Image\Image");
+    for public in [
+        "open", "create", "fromRaw", "resize", "encode", "variants", "raw",
+    ] {
+        assert!(
+            image.contains(&public.to_owned()),
+            "Image::{public} is listed"
+        );
+    }
+    for private in ["constructor", "then", "lastFormat", "rgba"] {
+        assert!(
+            !image.contains(&private.to_owned()),
+            "Image::{private} is private and not listed"
+        );
+    }
+    assert_eq!(names(r"Novis\Image\Color"), ["rgba", "hex"]);
+    assert_eq!(names(r"Novis\Image\Codec"), ["info", "run", "variants"]);
+    assert_eq!(
+        member(&document, r"Novis\Image\Codec", "info")["kind"],
+        "static"
+    );
+    let signature = member(&document, r"Novis\Image\Codec", "info")["signature"].clone();
+    assert!(
+        signature
+            .as_str()
+            .is_some_and(|s| s.starts_with("info(bytes $data): {format: Format")),
+        "{signature}"
+    );
+    assert_eq!(
+        member(&document, r"Novis\Image\Image", "resize")["kind"],
+        "instance"
+    );
+    let fit = core_enum(&document, r"Novis\Image\Fit");
+    assert_eq!(fit["cases"][0]["name"], "Cover");
+    for name in ["Format", "Gravity", "Filter", "Axis", "Blend"] {
+        core_enum(&document, &format!(r"Novis\Image\{name}"));
+    }
+}
+
+/// A built-in member's card is its source's `///` run or its manifest's
+/// `help`, under `doc.short` as a `Core` member's is, and an enum's card is
+/// its manifest `help`. `every_member_carries_a_doc_key` above then holds every
+/// built-in member to a card too, because it walks the same `classes`.
+// covers: tools:cli/nvs-meta-json
+#[test]
+fn a_built_in_member_carries_its_card() {
+    let (doc, _) = meta(&["--json"]);
+    let document: serde_json::Value = serde_json::from_str(&doc).expect("the document is JSON");
+    let short = |value: serde_json::Value| value["doc"]["short"].as_str().map(str::to_owned);
+    let open = short(member(&document, r"Novis\Image\Image", "open")).expect("open has a card");
+    assert!(
+        open.starts_with("`Image::open` starts from the bytes"),
+        "{open}"
+    );
+    assert!(
+        !open.contains("///"),
+        "the marker is not part of the card: {open}"
+    );
+    assert_eq!(
+        short(member(&document, r"Novis\Image\Codec", "info")).as_deref(),
+        Some(
+            "Reads the format, the size and the orientation of an encoded image from its header. No pixel is decoded."
+        )
+    );
+    assert!(short(core_enum(&document, r"Novis\Image\Fit")).is_some());
+    let class = document["classes"]
+        .as_array()
+        .expect("`classes` is an array")
+        .iter()
+        .find(|c| c["name"] == r"Novis\Image\Image")
+        .expect("Image is in the document")
+        .clone();
+    assert!(short(class).is_some(), "the class carries its own card");
+}
+
 /// `--json` is required: a `meta` that prints nothing would be a subcommand
 /// that succeeds having done nothing, exactly as `build` without `--openapi`.
 // covers: tools:cli/nvs-meta-json

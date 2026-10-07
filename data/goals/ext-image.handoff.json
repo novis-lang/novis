@@ -1,30 +1,30 @@
 {
-  "state": "**Goal `ext-image`: Stages 2 to 5 are done on disk, and Stage 6 (the feature proofs) is next.** ADR 0120, ADR 0247 and the goal file's § *Standing decisions* settle the design, and no session re-decides it.\n\nThe component is embedded and callable with no `nvs.toml` (`crates/nvs-cli/src/extensions.rs` module doc). The `Novis\\Image` builder is Novis source in `extensions/image/nvs/`, and `rule:core-classes/image-pipeline`'s fragment says what it has and lacks. Stage 5: `crates/nvs-ext/tests/image_guest.rs` holds the guest and native arms of a resize and a JPEG decode to identical bytes. `crates/nvs-ext/benches/image_guest.rs` wrote `benches/results/image-guest.json`, and `rule:packaging/the-boundary-is-the-cost` states the figure. The native arm is `extensions/image` as a host-built dev-dependency (`nvs-image` in the root `[workspace.dependencies]`).\n\nStill red, all Stage 6: `nvs meta --json` listing the built-in classes, the proofs roster's `novis/` paths, and the `Novis\\Image` proofs.",
+  "state": "**Goal `ext-image`: Stages 2 to 5 are done on disk, and Stage 6 (the feature proofs) is in progress.** ADR 0120, ADR 0247 and the goal file's § *Standing decisions* settle the design, and no session re-decides it.\n\nThe component is embedded and callable with no `nvs.toml` (`crates/nvs-cli/src/extensions.rs` module doc). The `Novis\\Image` builder is Novis source in `extensions/image/nvs/`, and `rule:core-classes/image-pipeline`'s fragment says what it has and lacks. Stage 5's figure is in `benches/results/image-guest.json` and `rule:packaging/the-boundary-is-the-cost`.\n\nStage 6, on disk: `nvs meta --json` lists the built-in classes (`Novis\\Image\\Image`, `Color` from the source half, public members only; `Novis\\Image\\Codec` from the manifest, every export `static`) after the registry's in `classes`, and the manifest enums after the registry's in `enums` (`crates/nvs-cli/src/meta.rs` module doc, `builtin_json`). A manifest enum now takes an optional `help` (`crates/nvs-ext/src/manifest.rs`), and every public `Image`/`Color` member has a `///` card, which is its help.\n\nStill red, all Stage 6: the proofs roster's `novis/` paths, and the `Novis\\Image` proofs.",
   "next": {
     "stage": 6,
     "title": "the feature proofs, the tooling",
     "files": [
-      "crates/nvs-cli/src/meta.rs",
-      "crates/nvs-cli/tests/meta.rs",
-      "tools/nv/proofs/roster.ts"
+      "tools/nv/proofs/roster.ts",
+      "tools/nv/test/roster-novis.test.ts",
+      "tools/nv/cmd/reference.ts"
     ],
     "items": [
       {
         "done": false,
-        "text": "**`nvs meta --json` lists the built-in components' classes and enums** (goal file § *Stage 6*, `rule:testing/feature-proofs`). The classes and enums come from their manifests and source halves, and each member's card comes from the manifest's help text or the source's doc comment. Anchors: `crates/nvs-cli/src/meta.rs:173`, and the check's test `meta_lists_the_built_in_components_classes_and_enums` in `crates/nvs-cli/tests/meta.rs:10`."
+        "text": "**The roster gives a `Novis\\` member the path `novis/<tail>/<member>`**, with `\\` in the tail written `-` (`novis/Image-Image/open`), and an enum `types/<tail>` as today (goal file § *Stage 6*, `rule:testing/feature-proofs`). The roster reads `nvs meta --json`, which now lists the `Novis\\` classes after the registry's, so until this lands they get `core/` paths. The check's test file `tools/nv/test/roster-novis.test.ts` is new and must print `a Novis class member has its proofs under novis/`. Anchor: `tools/nv/proofs/roster.ts:287`."
       },
       {
         "done": false,
-        "text": "**The roster gives a `Novis\\` member the path `novis/<tail>/<member>`**, with `\\` in the tail written `-` (`novis/Image-Image/open`), and an enum `types/<tail>` (goal file § *Stage 6*). Anchor: `tools/nv/proofs/roster.ts:287`."
+        "text": "**`bun nv reference` reads `docs/reference/novis/`** if it does not already, so `docs/reference/novis/Image.md` (new, in the shape of `docs/reference/core/Path.md`) is shown (goal file § *Stage 6*). Anchor: `tools/nv/cmd/reference.ts:1`."
       },
       {
         "done": false,
-        "text": "**The proofs for every `Novis\\Image` member**, after the two above, across `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/novis/` and `docs/reference/novis/Image.md` (goal file § *Stage 6*). `bun nv proofs --id 'Novis\\Image\\Image::resize'` names what each still owes. Anchor: `tools/nv/cmd/reference.ts:1`."
+        "text": "**The proofs for every `Novis\\Image` member**, after the two above, across `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/novis/` and `about.md`s; `Codec`'s examples and bench are `skip` entries in `data/proofs/policy.json` (goal file § *Stage 6*). `bun nv proofs --id 'Novis\\Image\\Image::resize'` prints what each owes. Anchors: `extensions/image/nvs/Image.nvs:8`, `extensions/image/nvs/Color.nvs:8`."
       }
     ]
   },
   "backlog": [
-    "**For the user: the image component runs over twenty times slower than native end to end, but most of that is the copy across the boundary.** Decode compute alone is two to three times native (`benches/results/image-guest.json`). A byte list crosses as one wasmtime `Val` per byte, and a `raw()` over about one megapixel traps on wasmtime's hostcall fuel. This is `data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`. ADR 0120's *Revisiting* names the exit if the compute ratio is ever the problem. Today the compute ratio is fine and the copy is not.",
-    "The `[image]` block reads only `max_pixels`; any further key is a new decision (goal file § *Standing decisions*)."
+    "A manifest enum's card has a `short` only; per-case lines (`rule:core-api/reference-card`) need a manifest field for them (`crates/nvs-ext/src/manifest.rs`).",
+    "`Novis\\Image\\Codec` has no class card, because a manifest has no field for one (`crates/nvs-cli/src/meta.rs` `manifest_class_json`)."
   ]
 }
