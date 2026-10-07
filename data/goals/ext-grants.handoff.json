@@ -1,23 +1,18 @@
 {
-  "state": "**Goal `ext-grants`: a guest reaches only the files and hosts that all three parties grant. Stages 4 (files) and 5 (outbound HTTP) are written and tested; Stage 6 has its feature proofs and its fixture pin check on disk, and the reload test through a running server is what is left.** M9. No floor is carried: the suites, the `.nvst` trees and `nv verify` are the safety net.\n\nThe design is ADR 0246 § 7 plus the user's own calls, and the goal file's § *Standing decisions* answers every call a session meets.\n\n**On disk:** the feature `tools:config/extension-grants-what-a-component-may-reach` is the section `# Extension grants: what a component may reach` in `docs/reference/tools/20-config.md`, with `about.md`, three examples and three attacks (one per grant party), all passing `bun nv proofs --verify --only` and `--comments`. Its tests are `covers:` markers on one test each in `crates/nvs-ext/tests/grants.rs`, `files.rs` and `http.rs`. The programs call the proof extension `Geo\\Atlas`, packed from `docs/examples/tools/config/extension-grants-what-a-component-may-reach/atlas/` (core WAT, `api.wit`, `manifest.json`) into `atlas.nvsx` beside it; the attack tree's `nvs.toml` names that same file by a relative path, so the fixture has one home. `crates/nvs-ext/tests/fixtures.rs`'s `every_committed_proof_fixture_is_what_the_packer_builds_from_its_text` walks both proof trees for a directory holding `module.wat` and `manifest.json` and checks its `.nvsx` and `.sha256`; `NVS_WRITE_FIXTURES=1 cargo test --test fixtures` rewrites them, and the new pin must then be copied into both `nvs.toml` files by hand.",
+  "state": "**Goal `ext-grants`: a guest reaches only the files and hosts that all three parties grant. Stages 4 (files), 5 (outbound HTTP) and 6's tests and feature proofs are written and green; closing the goal is what is left.** M9. No floor is carried: the suites, the `.nvst` trees and `nv verify` are the safety net.\n\nThe design is ADR 0246 § 7 plus the user's own calls, and the goal file's § *Standing decisions* answers every call a session meets.\n\n**On disk:** the feature `tools:config/extension-grants-what-a-component-may-reach` has its reference section, `about.md`, three examples and three attacks, and `crates/nvs-ext/tests/fixtures.rs` pins the `Geo\\Atlas` fixture. `crates/nvs-cli/tests/live_config.rs` holds the four reload tests of check `nvs-cli-an-extension-set-reloads-whole`, all through a running `nvs serve`: an extension a reload adds (served by path dispatch, because the boot compiles the entry), a refused pin with the boot's ledger still answering, a unit not reused when another component takes the same class name, and a narrowed `grants` on `Geo\\Atlas`. `bun nv owners --closes ext-grants` names no gap.",
   "next": {
     "stage": 6,
     "title": "the adversarial suite and the feature proofs",
     "files": [],
-    "note": "one file set: `crates/nvs-cli/tests/live_config.rs` and the `.nvsx` fixtures it writes.",
+    "note": "one file set: the goal's prose, the two rules it ships and their status records.",
     "items": [
       {
         "done": false,
-        "text": "**The reload test through a running server**: `an_extension_added_by_a_reload_is_callable_from_the_next_request` and its siblings in check `nvs-cli-an-extension-set-reloads-whole` (`data/goals/ext-grants.json`), built on `crates/nvs-cli/tests/live_config.rs:2194`'s `Server::start` harness. `rule:config/the-extension-set-is-in-every-unit-key`, `rule:config/the-config-is-an-immutable-snapshot`. The conformance fixture `tests/conformance/ext/fixtures/ledger.nvsx` and its `.sha256` are a ready extension to copy into the server's directory."
-      },
-      {
-        "done": false,
-        "text": "**Close the goal**: `bun nv verify --doc`, `bun nv owners --closes ext-grants`, then move each decision only `docs/agent/goals/ext-grants.md:1` holds to its rule or module doc, and write `DONE`."
+        "text": "**Close the goal**: run `bun nv verify --doc` and fix each broken link it names; `bun nv owners --closes ext-grants` is already clean. Move every decision only `docs/agent/goals/ext-grants.md:1`'s § *Standing decisions* holds to its home (the libc refusing-stub call has no home in `wit/nvs-ext/world.wit` or `crates/nvs-ext/src/wasi.rs` yet; the isolate's own instance and the canonical-path call need checking against `crates/nvs-ext/src/wasi/files.rs:1`), per `rule:tooling/the-chain-names-its-live-goal`. Decide whether `rule:security/extension-grants-are-an-intersection` (`data/rules/security.json:68`) and `rule:packaging/a-guest-has-no-ambient-authority` (`data/rules/packaging.json:69`) now ship, and turn each fragment's **Not on disk.** paragraph into what is on disk. Then write `DONE`."
       }
     ]
   },
   "backlog": [
-    "Example 02 and the attacks show only refused HTTP calls: a granted call needs a peer the program serves while the guest waits, which no proof program does yet (`docs/examples/README.md`).",
-    "`rule:security/extension-grants-are-an-intersection` still reads *designed, not yet shipped*; its status moves when the goal closes (`docs/rules/security/`)."
+    "Nothing else is open in this goal; a gap that outlives it goes under `data/gaps/`."
   ]
 }

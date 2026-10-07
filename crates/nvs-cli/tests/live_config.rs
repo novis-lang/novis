@@ -1979,6 +1979,15 @@ fn a_changed_extension_set_compiles_every_program_again() {
     });
 }
 
+/// The ledger fixture the conformance cases load, which declares `Shop\Ledger`.
+fn ledger() -> Vec<u8> {
+    std::fs::read(nvs_repo::path("tests/conformance/ext/fixtures/ledger.nvsx"))
+        .expect("the ledger fixture reads")
+}
+
+/// A program that calls three methods of `Shop\Ledger` and answers `7 ok`.
+const LEDGER_CALLS: &str = "<?nvs\nuse Shop\\Ledger;\n\nvar $route = Ledger::openRoute(Ledger::echoInt(7));\necho Ledger::routeStop($route), \" \", Ledger::echoString(\"ok\");\n";
+
 /// `nvs serve` hosts a call into an extension the configuration loads. Each
 /// request opens a resource and passes it back, so a request whose instance or
 /// resources outlived it, or were shared with the next one, would answer
@@ -1986,13 +1995,11 @@ fn a_changed_extension_set_compiles_every_program_again() {
 #[test]
 fn a_served_request_calls_a_configured_extension() {
     let shelf = Shelf::new("serve-calls");
-    let ledger = std::fs::read(nvs_repo::path("tests/conformance/ext/fixtures/ledger.nvsx"))
-        .expect("the ledger fixture reads");
-    let program = "<?nvs\nuse Shop\\Ledger;\n\nvar $route = Ledger::openRoute(Ledger::echoInt(7));\necho Ledger::routeStop($route), \" \", Ledger::echoString(\"ok\");\n";
+    let ledger = ledger();
     let server = Server::start(
         "serve-calls",
         &shelf.put("ledger.nvsx", &ledger, &ledger),
-        &[("app.nvs", program)],
+        &[("app.nvs", LEDGER_CALLS)],
     );
     for request in ["the first request", "the second request"] {
         server.awaits("/", request, |answer| answer.body == "7 ok");
@@ -2788,25 +2795,25 @@ fn a_boot_with_an_extension_entry_that_does_not_load_refuses_to_start() {
 
 /// A file rewritten under its pin is refused at the next reload, even though
 /// its entry did not change: nothing in that reload is published, and the
-/// running server keeps its configuration. Once the file is back, the same
-/// reload goes through.
+/// extension the server loaded at boot still answers the next request. Once
+/// the file is back, the same reload goes through.
 #[test]
-fn a_reload_whose_extension_pin_does_not_match_is_refused_whole_and_the_previous_set_stays_live() {
+fn a_reload_whose_extension_pin_does_not_match_is_refused_whole_and_the_previous_set_serves() {
     let shelf = Shelf::new("pin-refused");
-    let geo = extension("Shop\\Geo");
-    let entry = shelf.put("geo.nvsx", &geo, &geo);
+    let ledger = ledger();
+    let entry = shelf.put("ledger.nvsx", &ledger, &ledger);
     let server = Server::start(
         "pin-refused",
         &format!("{}\n{entry}", policy("no-referrer")),
-        &[("app.nvs", PLAIN)],
+        &[("app.nvs", LEDGER_CALLS)],
     );
-    server.awaits("/", "the boot's answer", |answer| answer.status == 200);
+    server.awaits("/", "the boot's answer", |answer| answer.body == "7 ok");
 
-    shelf.put("geo.nvsx", &extension("Shop\\Blog"), &geo);
+    shelf.put("ledger.nvsx", &extension("Shop\\Ledger"), &ledger);
     server.save(&format!("{}\n{entry}", policy("same-origin")));
     let said = refused_reload(&server);
     assert!(
-        said.contains("E0652") && said.contains("geo.nvsx") && said.contains("sha256"),
+        said.contains("E0652") && said.contains("ledger.nvsx") && said.contains("sha256"),
         "the refusal does not name the code, the file and its digest: {said}"
     );
     assert!(
@@ -2818,9 +2825,15 @@ fn a_reload_whose_extension_pin_does_not_match_is_refused_whole_and_the_previous
         "a refused reload changed the running configuration"
     );
     let answer = server.get("/");
-    assert_eq!(answer.status, 200, "{answer:?}");
+    assert_eq!(
+        answer.body,
+        "7 ok",
+        "the extension loaded at boot did not answer after a refused reload: {answer:?}; the \
+         server wrote: {}",
+        server.said()
+    );
 
-    shelf.put("geo.nvsx", &geo, &geo);
+    shelf.put("ledger.nvsx", &ledger, &ledger);
     server.ctl("reload");
     assert!(
         running_policy(&server).contains("\"same-origin\""),
@@ -2948,5 +2961,124 @@ fn a_reload_that_changes_the_extension_set_rekeys_the_unit_cache() {
         invalidated(&report),
         0,
         "a reload that kept the extension set dropped compiled units: {report}"
+    );
+}
+
+/// An extension a reload adds is callable from the next request, with no
+/// restart. The server runs the file the path names, and `ledger.nvs` calls
+/// `Shop\Ledger`. Before the reload no extension declares that class, so the
+/// file does not compile and its request fails.
+#[test]
+fn an_extension_added_by_a_reload_is_callable_from_the_next_request() {
+    let shelf = Shelf::new("added");
+    let ledger = ledger();
+    let by_path = "[server]\ndispatch = \"path\"\n";
+    let server = Server::start(
+        "added",
+        by_path,
+        &[("app.nvs", PLAIN), ("ledger.nvs", LEDGER_CALLS)],
+    );
+    let before = server.awaits("/ledger.nvs", "the answer with no extension", |answer| {
+        answer.status != 200
+    });
+    assert_ne!(before.body, "7 ok", "{before:?}");
+
+    let entry = shelf.put("ledger.nvsx", &ledger, &ledger);
+    let report = server.reload(&format!("{by_path}\n{entry}"));
+    assert!(
+        report.contains("applied: extension\n"),
+        "the reload did not name `extension` as applied: {report}"
+    );
+    let answer = server.get("/ledger.nvs");
+    assert_eq!(
+        answer.body,
+        "7 ok",
+        "the extension the reload added did not answer the next request: {answer:?}; the server \
+         wrote: {}",
+        server.said()
+    );
+}
+
+/// A unit compiled under one extension set is never run under another. The
+/// program calls `Shop\Ledger::echoInt`. A reload then loads another
+/// component under the same class name, whose manifest has no `echoInt`, and
+/// the next request is compiled again and fails. A reload back to the first
+/// set answers as before.
+#[test]
+fn a_unit_compiled_under_one_extension_set_is_not_reused_under_another() {
+    let shelf = Shelf::new("not-reused");
+    let ledger = ledger();
+    let other = extension("Shop\\Ledger");
+    let first = shelf.put("ledger.nvsx", &ledger, &ledger);
+    let second = shelf.put("other.nvsx", &other, &other);
+    let server = Server::start("not-reused", &first, &[("app.nvs", LEDGER_CALLS)]);
+    server.awaits("/", "the answer under the first set", |answer| {
+        answer.body == "7 ok"
+    });
+
+    let report = server.reload(&second);
+    assert!(
+        invalidated(&report) > 0,
+        "a reload that replaced the extension set kept every compiled unit: {report}"
+    );
+    let answer = server.get("/");
+    assert!(
+        answer.status != 200 && answer.body != "7 ok",
+        "a unit compiled under the first set answered under the second: {answer:?}"
+    );
+    let said = server.logs("echoInt");
+    assert!(
+        said.contains("error[E0"),
+        "the program was not compiled again under the second set: {said}"
+    );
+
+    server.reload(&first);
+    server.awaits("/", "the answer under the first set again", |answer| {
+        answer.body == "7 ok"
+    });
+}
+
+/// The `[[extension]]` entry for the proof extension `Geo\Atlas`, whose
+/// `read` looks a path up in each folder it may read, granted `read`.
+fn atlas(shelf: &Shelf, read: &str) -> String {
+    let dir = "docs/examples/tools/config/extension-grants-what-a-component-may-reach";
+    let atlas = std::fs::read(nvs_repo::path(&format!("{dir}/atlas.nvsx")))
+        .expect("the atlas fixture reads");
+    format!(
+        "[capabilities.fs]\nread = [\"data/\"]\n\n{}grants = {{ read = [\"{read}\"] }}\n",
+        shelf.put("atlas.nvsx", &atlas, &atlas)
+    )
+}
+
+/// A program that prints what `Geo\Atlas` reads at `note.txt`, or `refused`
+/// and the error's message.
+const ATLAS_READS: &str = "<?nvs\nuse Geo\\Atlas;\n\ntry {\n    echo Atlas::read(\"note.txt\");\n} catch (RuntimeError $denied) {\n    echo \"refused: \", $denied->message;\n}\n";
+
+/// An extension's `grants` reloads. The extension reads `data/note.txt` while
+/// its entry grants `data/`. After a reload that narrows the grant to
+/// `data/geo/`, the next request's instance holds only that folder, and the
+/// same call throws.
+#[test]
+fn a_reload_that_narrows_an_extension_grant_reaches_the_next_request() {
+    let shelf = Shelf::new("narrowed");
+    let server = Server::start(
+        "narrowed",
+        &atlas(&shelf, "data/"),
+        &[
+            ("app.nvs", ATLAS_READS),
+            ("data/note.txt", "hello"),
+            ("data/geo/city.txt", "Graz"),
+        ],
+    );
+    server.awaits("/", "a read under the wide grant", |answer| {
+        answer.body == "hello"
+    });
+
+    server.reload(&atlas(&shelf, "data/geo/"));
+    let answer = server.get("/");
+    assert!(
+        answer.body.starts_with("refused: "),
+        "a read outside the narrowed grant was answered: {answer:?}; the server wrote: {}",
+        server.said()
     );
 }
