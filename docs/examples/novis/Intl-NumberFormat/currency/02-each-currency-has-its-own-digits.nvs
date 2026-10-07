@@ -1,0 +1,11 @@
+<?nvs
+// Shows that each currency is rounded to the digits it uses.
+use Novis\Intl\NumberFormat;
+
+array<int|float|decimal> $amounts = [1234.5, 3];
+
+// Dollars have 2 fraction digits. This prints $1,234.50 | $3.00.
+echo Core\Str::join(NumberFormat::currency($amounts, "USD", "en"), " | "), "\n";
+
+// Yen have none, so 1234.5 is rounded. This prints ¥1,235 | ¥3.
+echo Core\Str::join(NumberFormat::currency($amounts, "JPY", "en"), " | "), "\n";

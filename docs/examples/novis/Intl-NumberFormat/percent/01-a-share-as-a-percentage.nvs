@@ -1,0 +1,9 @@
+<?nvs
+// Shows how to write the share of finished orders as a percentage.
+use Novis\Intl\NumberFormat;
+
+int $finished = 3;
+int $orders = 4;
+
+// 3 of 4 is 0.75. This prints 75%.
+echo NumberFormat::percent([$finished / $orders], "en")[0], "\n";

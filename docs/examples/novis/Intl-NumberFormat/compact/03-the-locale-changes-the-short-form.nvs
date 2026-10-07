@@ -1,0 +1,11 @@
+<?nvs
+// Shows that each language has its own short form for large numbers.
+use Novis\Intl\NumberFormat;
+
+array<int|float|decimal> $downloads = [1500000];
+
+// This prints 1.5M.
+echo NumberFormat::compact($downloads, "en")[0], "\n";
+
+// This prints 1,5 Mio.
+echo NumberFormat::compact($downloads, "de")[0], "\n";

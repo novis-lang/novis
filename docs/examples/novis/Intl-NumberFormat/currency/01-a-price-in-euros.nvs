@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to write a price in euros for an English reader and for a German reader.
+use Novis\Intl\NumberFormat;
+
+decimal $price = "1234.5" as decimal;
+
+// English puts the symbol first. This prints €1,234.50.
+echo NumberFormat::currency([$price], "EUR", "en")[0], "\n";
+
+// German puts the symbol last, after a space. This prints 1.234,50 €.
+echo NumberFormat::currency([$price], "EUR", "de")[0], "\n";

@@ -1,0 +1,9 @@
+<?nvs
+// Shows how to write the word for thousand or million instead of a letter.
+use Novis\Intl\CompactDisplay;
+use Novis\Intl\NumberFormat;
+
+array<int|float|decimal> $views = [1234, 1500000];
+
+// This prints 1.2 thousand | 1.5 million.
+echo Core\Str::join(NumberFormat::compact($views, "en", {display: CompactDisplay::Long}), " | "), "\n";

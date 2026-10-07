@@ -1,0 +1,24 @@
+<?nvs
+// Formats a short list of totals for German, as a page does before it shows an order summary.
+// bench: iterations 1000
+// bench: complexity constant
+use Novis\Intl\NumberFormat;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<array<int|float|decimal>> $lists = [
+            [1234567.891, 19.9, 42, 0.5, 1000],
+            [7, 250000, 3.25, 99.99, 12],
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            array<string> $written = NumberFormat::decimal($lists[$total % 2], "de");
+            $total = $total + Core\Str::length($written[0]) % 3;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1000), "\n";

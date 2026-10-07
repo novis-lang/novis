@@ -1,0 +1,11 @@
+<?nvs
+// Shows how the same numbers are written in English and in German.
+use Novis\Intl\NumberFormat;
+
+array<int|float|decimal> $totals = [1234567.891, 19.9, 42];
+
+// English groups digits with a comma. This prints 1,234,567.891 | 19.9 | 42.
+echo Core\Str::join(NumberFormat::decimal($totals, "en"), " | "), "\n";
+
+// German groups digits with a period. This prints 1.234.567,891 | 19,9 | 42.
+echo Core\Str::join(NumberFormat::decimal($totals, "de"), " | "), "\n";

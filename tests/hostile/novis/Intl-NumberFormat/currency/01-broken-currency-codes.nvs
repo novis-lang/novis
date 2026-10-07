@@ -1,0 +1,62 @@
+<?nvs
+// Attack: a request formats money with broken currency codes, huge amounts and very large lists.
+// Each call should return a list or throw an error, and the server keeps running.
+// hostile: timeout-ms 20000
+use Novis\Intl\CurrencyDisplay;
+use Novis\Intl\NumberFormat;
+
+// 1. An empty list.
+try {
+    echo 'step 1 ran ', Core\Arr::count(NumberFormat::currency([], 'EUR', 'de')), "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. Currency codes that are empty, too long, not letters, or not a real currency.
+array<string> $codes = ['', 'EURO', '€€€', 'eur', 'ZZZ', "E\0R", Core\Str::repeat('A', 100000)];
+foreach ($codes as string $code) {
+    try {
+        NumberFormat::currency([1], $code, 'en', { display: CurrencyDisplay::Name });
+        echo "step 2 ran\n";
+    } catch (Throwable $e) {
+        echo "step 2 stopped\n";
+    }
+}
+
+// 3. Twenty thousand amounts in one call.
+try {
+    array<int|float|decimal> $many = [];
+    for (int $i = 0; $i < 20000; $i++) {
+        $many[] = $i * 0.01;
+    }
+    echo 'step 3 ran ', Core\Arr::count(NumberFormat::currency($many, 'JPY', 'ja')), "\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. An amount with one hundred thousand digits.
+try {
+    decimal $huge = Core\Str::repeat('9', 100000) as decimal;
+    echo 'step 4 ran ', Core\Arr::count(NumberFormat::currency([$huge], 'USD', 'en')), "\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}
+
+// 5. An amount that is not finite.
+try {
+    NumberFormat::currency([Core\Math::INFINITY], 'USD', 'en');
+    echo "step 5 ran\n";
+} catch (Throwable $e) {
+    echo "step 5 stopped\n";
+}
+
+// 6. A bad locale tag a thousand times. Each call must still return or throw.
+uint $stopped = 0;
+for (int $j = 0; $j < 1000; $j++) {
+    try {
+        NumberFormat::currency([1], 'EUR', 'en_US!');
+    } catch (Throwable $e) {
+        $stopped = $stopped + 1;
+    }
+}
+echo 'step 6 stopped ', $stopped, "\n";

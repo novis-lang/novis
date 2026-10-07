@@ -1,0 +1,9 @@
+<?nvs
+// Shows that a `decimal` value is written with every digit it has.
+use Novis\Intl\NumberFormat;
+
+decimal $balance = "98765432109876543.21" as decimal;
+
+// A float cannot store this number exactly. A `decimal` can.
+// This prints 98,765,432,109,876,543.21.
+echo NumberFormat::decimal([$balance], "en", {maxFractionDigits: 2})[0], "\n";

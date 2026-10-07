@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to write the name of the currency instead of its symbol.
+use Novis\Intl\CurrencyDisplay;
+use Novis\Intl\NumberFormat;
+
+// This prints 2.00 US dollars.
+echo NumberFormat::currency([2], "USD", "en", {display: CurrencyDisplay::Name})[0], "\n";
+
+// This prints 1.00 euros.
+echo NumberFormat::currency([1], "EUR", "en", {display: CurrencyDisplay::Name})[0], "\n";
