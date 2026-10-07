@@ -1,0 +1,11 @@
+<?nvs
+// Shows how less contrast moves every colour closer to gray, for a faded background.
+use Novis\Image\Image;
+use Novis\Image\Color;
+
+Image $photo = Image::create(10, 10, Color::rgba(0, 255, 128));
+
+// With 0.5, each distance from 128 is cut in half. This prints 64 192 128.
+var $raw = $photo->contrast(0.5)->raw();
+array<mixed> $pixel = Core\Bytes::unpack(Core\Bytes::slice($raw->pixels, 0, 4), "C4");
+echo $pixel[0], " ", $pixel[1], " ", $pixel[2], "\n";

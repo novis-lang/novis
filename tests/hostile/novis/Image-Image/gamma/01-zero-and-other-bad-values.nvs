@@ -1,0 +1,39 @@
+<?nvs
+// Attack: a request sends a gamma of zero, a negative gamma, and values that are not numbers.
+// A gamma of zero would divide by zero. Each attempt should throw an error or return an image.
+use Novis\Image\Color;
+use Novis\Image\Image;
+
+Image $small = Image::create(8, 8, Color::rgba(64, 128, 192));
+
+// 1. A gamma of zero.
+try {
+    $small->gamma(0.0)->raw();
+    echo "step 1 ran\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. A negative gamma.
+try {
+    $small->gamma(-2.0)->raw();
+    echo "step 2 ran\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. A gamma that is not a number.
+try {
+    $small->gamma(Core\Math::sqrt(-1.0))->raw();
+    echo "step 3 ran\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. The smallest positive number, which is almost zero.
+try {
+    $small->gamma(5.0e-324)->raw();
+    echo "step 4 ran\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}

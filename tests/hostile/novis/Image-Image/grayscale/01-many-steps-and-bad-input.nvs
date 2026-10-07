@@ -1,0 +1,37 @@
+<?nvs
+// Attack: a request builds a very long list of grayscale steps, and sends bytes that are not an image.
+// Each attempt should throw an error or return an image, and the server keeps running.
+use Novis\Image\Color;
+use Novis\Image\Image;
+
+Image $small = Image::create(8, 8, Color::hex('#cc3333'));
+
+// 1. Ten thousand grayscale steps in one pipeline.
+try {
+    Image $gray = $small;
+    uint $i = 0;
+    while ($i < 10000) {
+        $gray = $gray->grayscale();
+        $i = $i + 1;
+    }
+    var $last = $gray->raw();
+    echo 'step 1 ran ', $last->width, "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. Bytes that start like a PNG file and then stop.
+try {
+    Image::open(Core\Encoding::fromHex('89504e470d0a1a0a0000'))->grayscale()->raw();
+    echo "step 2 ran\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. No bytes at all.
+try {
+    Image::open('' as bytes)->grayscale()->encode();
+    echo "step 3 ran\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}

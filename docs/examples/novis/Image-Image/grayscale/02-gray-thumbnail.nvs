@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to make a small gray JPEG for a list of archived items.
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Format;
+
+Image $photo = Image::create(800, 600, Color::hex("#cc6633"));
+
+// This prints image/jpeg 160x120.
+bytes $jpeg = $photo->resize({width: 160})->grayscale()->format(Format::Jpeg, {quality: 70})->encode();
+var $info = Image::info($jpeg);
+echo Image::mime($info->format), " ", $info->width, "x", $info->height, "\n";

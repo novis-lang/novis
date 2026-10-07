@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to make a background image darker, so white text on it is easier to read.
+use Novis\Image\Image;
+use Novis\Image\Color;
+
+Image $banner = Image::create(10, 10, Color::rgba(200, 180, 160));
+
+// An amount below 1.0 makes the image darker. This prints 100 90 80.
+var $raw = $banner->brightness(0.5)->raw();
+array<mixed> $pixel = Core\Bytes::unpack(Core\Bytes::slice($raw->pixels, 0, 4), "C4");
+echo $pixel[0], " ", $pixel[1], " ", $pixel[2], "\n";

@@ -1,0 +1,22 @@
+<?nvs
+// Removes the colours of a small image and reads its pixels, as a program does when it makes a gray thumbnail.
+// bench: iterations 256
+// bench: complexity constant
+use Novis\Image\Image;
+use Novis\Image\Color;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            Image $photo = Image::create(4, 4, Color::rgba(($total + $i) % 256, 102, 153));
+            bytes $pixels = $photo->grayscale()->raw()->pixels;
+            $total = $total + Core\Bytes::length($pixels);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

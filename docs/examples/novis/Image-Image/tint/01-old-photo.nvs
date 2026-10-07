@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to give a photo the brown colour of an old print.
+use Novis\Image\Image;
+use Novis\Image\Color;
+
+Image $photo = Image::create(10, 10, Color::hex("#ffffff"));
+
+// White becomes the tint colour. This prints 255 204 153.
+var $raw = $photo->grayscale()->tint(Color::hex("#ffcc99"))->raw();
+array<mixed> $pixel = Core\Bytes::unpack(Core\Bytes::slice($raw->pixels, 0, 4), "C4");
+echo $pixel[0], " ", $pixel[1], " ", $pixel[2], "\n";

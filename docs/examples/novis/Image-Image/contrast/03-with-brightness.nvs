@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to combine `contrast` and `brightness`. The steps run in the order you write them.
+use Novis\Image\Image;
+use Novis\Image\Color;
+
+Image $photo = Image::create(10, 10, Color::rgba(100, 100, 100));
+
+// Contrast and then brightness gives 108.
+// Brightness and then contrast gives 172.
+array<Image> $orders = [$photo->contrast(2.0)->brightness(1.5), $photo->brightness(1.5)->contrast(2.0)];
+foreach ($orders as Image $edited) {
+    array<mixed> $pixel = Core\Bytes::unpack(Core\Bytes::slice($edited->raw()->pixels, 0, 4), "C4");
+    echo $pixel[0], "\n";
+}

@@ -1,0 +1,19 @@
+<?nvs
+// Shows how `blur` makes a hard edge between two colours soft.
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Fit;
+use Novis\Image\Gravity;
+
+// The top half is black and the bottom half is white. The edge is between rows 9 and 10.
+Image $edge = Image::create(20, 10, Color::hex("#000000"))
+    ->resize({width: 20, height: 20, fit: Fit::Contain, gravity: Gravity::North})
+    ->flatten(Color::hex("#ffffff"));
+
+// This prints the red value in row 9: 0 before the blur and 102 after it.
+array<Image> $versions = [$edge, $edge->blur(2.0)];
+foreach ($versions as Image $version) {
+    bytes $row = Core\Bytes::slice($version->raw()->pixels, 9 * 20 * 4, 4);
+    array<mixed> $pixel = Core\Bytes::unpack($row, "C4");
+    echo $pixel[0], "\n";
+}

@@ -1,0 +1,19 @@
+<?nvs
+// Shows how a larger `sigma` changes pixels further away from an edge.
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Fit;
+use Novis\Image\Gravity;
+
+Image $edge = Image::create(20, 10, Color::rgba(80, 80, 80))
+    ->resize({width: 20, height: 20, fit: Fit::Contain, gravity: Gravity::North})
+    ->flatten(Color::rgba(180, 180, 180));
+
+// Row 6 is four rows above the edge. This prints its red value.
+// A `sigma` of 1 does not reach it, so the first line is 80. A `sigma` of 4 changes it to 61.
+array<float> $sigmas = [1.0, 4.0];
+foreach ($sigmas as float $sigma) {
+    var $raw = $edge->sharpen({sigma: $sigma})->raw();
+    array<mixed> $pixel = Core\Bytes::unpack(Core\Bytes::slice($raw->pixels, 6 * 20 * 4, 4), "C4");
+    echo $pixel[0], "\n";
+}

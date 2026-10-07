@@ -1,0 +1,12 @@
+<?nvs
+// Shows how more contrast makes a dark colour darker and a light colour lighter.
+use Novis\Image\Image;
+use Novis\Image\Color;
+
+// 100 is 28 below middle gray, and 200 is 72 above it.
+Image $flat = Image::create(10, 10, Color::rgba(100, 200, 128));
+
+// With 1.5, each distance from 128 grows by half. This prints 86 236 128.
+var $raw = $flat->contrast(1.5)->raw();
+array<mixed> $pixel = Core\Bytes::unpack(Core\Bytes::slice($raw->pixels, 0, 4), "C4");
+echo $pixel[0], " ", $pixel[1], " ", $pixel[2], "\n";

@@ -1,0 +1,45 @@
+<?nvs
+// Attack: a request sends tint colours with values outside their range, and very many tints.
+// Each attempt should throw an error or return an image, and the server keeps running.
+use Novis\Image\Color;
+use Novis\Image\Image;
+
+Image $small = Image::create(8, 8, Color::hex('#ffffff'));
+
+// 1. A blue value far above 255.
+try {
+    $small->tint(Color::rgba(0, 0, 18446744073709551615))->raw();
+    echo "step 1 ran\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. An alpha far above 1.
+try {
+    $small->tint(Color::rgba(255, 0, 0, 1.0e300))->raw();
+    echo "step 2 ran\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. A negative alpha.
+try {
+    $small->tint(Color::rgba(255, 0, 0, -1.0))->raw();
+    echo "step 3 ran\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. A thousand tints in one pipeline.
+try {
+    Image $tinted = $small;
+    uint $i = 0;
+    while ($i < 1000) {
+        $tinted = $tinted->tint(Color::rgba($i % 256, 128, 255, 0.5));
+        $i = $i + 1;
+    }
+    var $last = $tinted->raw();
+    echo 'step 4 ran ', $last->width, "\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}

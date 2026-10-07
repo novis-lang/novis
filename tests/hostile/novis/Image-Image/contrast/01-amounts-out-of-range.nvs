@@ -1,0 +1,45 @@
+<?nvs
+// Attack: a request sends contrast amounts that are negative, too large or not numbers.
+// Each attempt should throw an error or return an image, and the server keeps running.
+use Novis\Image\Color;
+use Novis\Image\Image;
+
+Image $small = Image::create(8, 8, Color::rgba(100, 200, 128));
+
+// 1. An amount that is not a number.
+try {
+    $small->contrast(Core\Math::sqrt(-1.0))->raw();
+    echo "step 1 ran\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. An amount of minus infinity.
+try {
+    $small->contrast(-1.0e308 * 10.0)->raw();
+    echo "step 2 ran\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. A very large amount.
+try {
+    $small->contrast(1.0e300)->raw();
+    echo "step 3 ran\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. A thousand steps in one pipeline that alternate between more and less contrast.
+try {
+    Image $edited = $small;
+    uint $i = 0;
+    while ($i < 1000) {
+        $edited = $edited->contrast($i % 2 == 0 ? 3.0 : 0.25);
+        $i = $i + 1;
+    }
+    var $last = $edited->raw();
+    echo 'step 4 ran ', $last->width, "\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}

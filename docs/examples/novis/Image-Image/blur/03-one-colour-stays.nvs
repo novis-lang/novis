@@ -1,0 +1,11 @@
+<?nvs
+// Shows that a blur does not change an image of one colour.
+use Novis\Image\Image;
+use Novis\Image\Color;
+
+Image $plain = Image::create(16, 16, Color::hex("#22aa55"));
+
+// Every pixel is mixed with pixels of the same colour. This prints "same".
+bytes $before = $plain->raw()->pixels;
+bytes $after = $plain->blur(4.0)->raw()->pixels;
+echo $before == $after ? "same" : "different", "\n";

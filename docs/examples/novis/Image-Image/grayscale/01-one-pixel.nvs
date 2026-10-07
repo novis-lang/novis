@@ -1,0 +1,13 @@
+<?nvs
+// Shows the gray value that `grayscale` gives a red, a green and a blue pixel.
+use Novis\Image\Image;
+use Novis\Image\Color;
+
+// Green looks lightest to a person, and blue looks darkest.
+// This prints 54 54 54, then 182 182 182, then 18 18 18.
+array<Color> $colours = [Color::hex("#ff0000"), Color::hex("#00ff00"), Color::hex("#0000ff")];
+foreach ($colours as Color $colour) {
+    var $raw = Image::create(4, 4, $colour)->grayscale()->raw();
+    array<mixed> $pixel = Core\Bytes::unpack(Core\Bytes::slice($raw->pixels, 0, 4), "C4");
+    echo $pixel[0], " ", $pixel[1], " ", $pixel[2], "\n";
+}

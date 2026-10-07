@@ -1,0 +1,12 @@
+<?nvs
+// Shows that `gamma` does not change black and white.
+use Novis\Image\Image;
+use Novis\Image\Color;
+
+// This prints 0 and 255, because black and white do not change.
+array<Color> $colours = [Color::hex("#000000"), Color::hex("#ffffff")];
+foreach ($colours as Color $colour) {
+    var $raw = Image::create(10, 10, $colour)->gamma(2.0)->raw();
+    array<mixed> $pixel = Core\Bytes::unpack(Core\Bytes::slice($raw->pixels, 0, 4), "C4");
+    echo $pixel[0], "\n";
+}

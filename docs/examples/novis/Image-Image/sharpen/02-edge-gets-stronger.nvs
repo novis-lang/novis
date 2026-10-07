@@ -1,0 +1,18 @@
+<?nvs
+// Shows how `sharpen` makes the dark side of an edge darker.
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Fit;
+use Novis\Image\Gravity;
+
+// The top half is dark gray and the bottom half is light gray. The edge is between rows 9 and 10.
+Image $edge = Image::create(20, 10, Color::rgba(80, 80, 80))
+    ->resize({width: 20, height: 20, fit: Fit::Contain, gravity: Gravity::North})
+    ->flatten(Color::rgba(180, 180, 180));
+
+// This prints the red value in row 9: 80 before `sharpen` and 50 after it.
+array<Image> $versions = [$edge, $edge->sharpen()];
+foreach ($versions as Image $version) {
+    array<mixed> $pixel = Core\Bytes::unpack(Core\Bytes::slice($version->raw()->pixels, 9 * 20 * 4, 4), "C4");
+    echo $pixel[0], "\n";
+}
