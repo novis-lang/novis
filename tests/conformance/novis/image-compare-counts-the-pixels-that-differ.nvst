@@ -1,0 +1,37 @@
+--TEST--
+`Novis\Image\Image::compare` takes bytes or an `Image`, counts the pixels that differ above `tolerance`, renders a diff, and throws a `LogicError` for two sizes — rule:core-classes/image-one-entry-point-per-job
+--FILE--
+<?nvs
+// covers: Novis\Image\Image::compare
+use Novis\Image\Image;
+use Novis\Image\Color;
+
+// An image compared with its own encoded bytes is identical.
+var $canvas = Image::create(4, 3, Color::hex("#336699"));
+var $same = Image::compare($canvas->encode(), $canvas);
+echo $same->identical ? "identical" : "different", " ", $same->differingPixels, " ", $same->maxDelta, " ", $same->ssim, "\n";
+
+// The second pixel differs by 15 in its blue channel.
+var $a = Image::fromRaw({width: 2, height: 1, pixels: Core\Encoding::fromHex("ff0000ff0000ffff")});
+var $b = Image::fromRaw({width: 2, height: 1, pixels: Core\Encoding::fromHex("ff0000ff0000f0ff")});
+var $diff = Image::compare($a, $b, {render: true});
+echo $diff->identical ? "identical" : "different", " ", $diff->differingPixels, " ", $diff->maxDelta, "\n";
+var $info = Image::info($diff->diff as bytes);
+echo $info->width, "x", $info->height, " ", Image::mime($info->format), "\n";
+
+// With a tolerance of 15, a delta of 15 does not count.
+echo Image::compare($a, $b, {tolerance: 15})->differingPixels, "\n";
+echo Image::compare($a, $b)->diff == null ? "no diff" : "a diff", "\n";
+
+try {
+    Image::compare($canvas, $a);
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+--EXPECT--
+identical 0 0 1
+different 1 15
+2x1 image/png
+0
+no diff
+the images are 4x3 and 2x1, and `compare` needs two images of the same size
