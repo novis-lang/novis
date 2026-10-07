@@ -26263,7 +26263,7 @@ The `#` is optional. Any other text throws a `LogicError`.
 <a id="core-novis-image-image"></a>
 ### `Novis\Image\Image`
 
-Keywords: image, gd, imagick, imagecreatefromstring, imagecopyresampled, imagejpeg, imagepng, imagewebp, getimagesize, thumbnail, resize, crop, rotate, convert, jpeg, png, webp, open, create, fromRaw, info, mime, extension, resize, crop, trim, rotate, flip, flatten, sharpen, blur, grayscale, brightness, contrast, gamma, tint, format, metadata, encode, raw, variants
+Keywords: image, gd, imagick, imagecreatefromstring, imagecopyresampled, imagejpeg, imagepng, imagewebp, getimagesize, thumbnail, resize, crop, rotate, convert, jpeg, png, webp, open, create, fromRaw, info, mime, extension, resize, crop, trim, rotate, flip, composite, flatten, sharpen, blur, grayscale, brightness, contrast, gamma, tint, format, metadata, encode, raw, variants
 
 `Novis\Image\Image` is an image and a list of steps to run on it. Each step method, such as
 `resize`, `crop` or `format`, returns a new `Image` and does not change the old one. No pixel is
@@ -26305,6 +26305,7 @@ image/jpeg 6x4
 | [`Novis\Image\Image->trim`](#core-novis-image-image-trim) | `trim(?{threshold?: float} $options = null): Image` |
 | [`Novis\Image\Image->rotate`](#core-novis-image-image-rotate) | `rotate(float $degrees, ?{background?: Color} $options = null): Image` |
 | [`Novis\Image\Image->flip`](#core-novis-image-image-flip) | `flip(Axis $axis): Image` |
+| [`Novis\Image\Image->composite`](#core-novis-image-image-composite) | `composite(Image $overlay, ?{gravity?: Gravity, x?: int, y?: int, opacity?: float, blend?: Blend} $options = null): Image` |
 | [`Novis\Image\Image->flatten`](#core-novis-image-image-flatten) | `flatten(Color $background): Image` |
 | [`Novis\Image\Image->sharpen`](#core-novis-image-image-sharpen) | `sharpen(?{sigma?: float} $options = null): Image` |
 | [`Novis\Image\Image->blur`](#core-novis-image-image-blur) | `blur(float $sigma): Image` |
@@ -26444,6 +26445,21 @@ $image->flip(Axis $axis): Image
 ```
 
 `flip(Axis::Horizontal)` swaps left and right. `flip(Axis::Vertical)` swaps top and bottom.
+
+**Returns** `Image`
+
+<a id="core-novis-image-image-composite"></a>
+#### `Novis\Image\Image->composite`
+
+```nvs skip
+$image->composite(Image $overlay, ?{gravity?: Gravity, x?: int, y?: int, opacity?: float, blend?: Blend} $options = null): Image
+```
+
+`composite` draws `$overlay` on top of this image, with all of the overlay's own steps.
+`gravity` places it, and the default is `Gravity::Center`. `x` and `y` place its top-left
+corner in pixels instead, and may be negative. The parts outside this image are cut off.
+`opacity` is from 0.0 to 1.0, and the default is 1.0. `blend` mixes the colours, and the
+default is `Blend::Normal`. A `format` or `metadata` step of the overlay changes nothing.
 
 **Returns** `Image`
 

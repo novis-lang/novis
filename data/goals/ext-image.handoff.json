@@ -1,31 +1,28 @@
 {
-  "state": "**Goal `ext-image`: Stages 2 to 5 are done on disk, and Stage 6 (the feature proofs) is in progress.** ADR 0120, ADR 0247 and the goal file's § *Standing decisions* settle the design, and no session re-decides it.\n\nThe component is embedded and callable with no `nvs.toml` (`crates/nvs-cli/src/extensions.rs` module doc). The `Novis\\Image` builder is Novis source in `extensions/image/nvs/`, and `rule:core-classes/image-pipeline`'s fragment says what it has and lacks. `nvs meta --json` lists the built-in classes, the roster gives a `Novis\\` member the path `novis/<tail>/<member>` and an enum the path `types/Novis-Image-<Enum>`, and `docs/reference/novis/Image-Image.md` is the class intro.\n\n**Every member in `dossier-novis-image-pipeline` but `Image::composite` owes nothing**: every `Image` member the builder has, `Color::rgba`, `Color::hex`, the six enums and now `Codec::info`, `::run` and `::variants`. A manifest carries its export class's card as a top-level `help` key (`crates/nvs-ext/src/manifest.rs` module doc), and `nvs meta` emits it as the class's `doc.short` (`crates/nvs-cli/tests/meta.rs` `a_built_in_member_carries_its_card`).\n\n**The acceptance check still cannot pass:** it names `Novis\\Image\\Image::composite`, which the builder does not have (the guest's `run` skips `composite`), so `--only` refuses the whole list. Building it is the next group.",
+  "state": "**Goal `ext-image`: Stages 2 to 5 are done on disk, and Stage 6 (the feature proofs) should now be green.** ADR 0120, ADR 0247 and the goal file's § *Standing decisions* settle the design, and no session re-decides it.\n\nThe component is embedded and callable with no `nvs.toml` (`crates/nvs-cli/src/extensions.rs` module doc). The `Novis\\Image` builder is Novis source in `extensions/image/nvs/`, and `rule:core-classes/image-pipeline`'s fragment says what it has and lacks. `nvs meta --json` lists the built-in classes, the roster gives a `Novis\\` member the path `novis/<tail>/<member>`, and `docs/reference/novis/Image-Image.md` is the class intro.\n\n**`Image::composite` is built and has every proof.** The guest runs a `composite` step by making the named overlay row's frame, running its steps, and drawing it (`extensions/image/src/ops.rs` and `extensions/image/src/lib.rs` module docs: placement, blend formulas, the earlier-row rule and `MAX_OVERLAY_DRAWS`). The builder carries an overlay table beside its steps and renumbers an overlay's own rows when it appends them. Pinned from Rust by `crates/nvs-ext/tests/image_pipeline.rs` `composite_draws_its_overlay_row_where_and_how_the_step_says` and from Novis by `tests/conformance/novis/image-composite-draws-an-overlay-pipeline.nvst`. So every member `dossier-novis-image-pipeline` names should owe nothing; this session did not run that check on the proof binary.",
   "next": {
     "stage": 6,
-    "title": "the feature proofs, `composite`",
+    "title": "the feature proofs, closing the goal",
     "files": [
-      "extensions/image/nvs/Image.nvs",
-      "extensions/image/src/ops.rs",
-      "extensions/image/manifest.json",
-      "docs/examples/novis/Image-Image/composite/",
-      "tests/hostile/novis/Image-Image/composite/",
-      "benches/members/novis/Image-Image/composite.nvs",
-      "docs/perf/members.ndjson"
+      "docs/agent/goals/ext-image.md",
+      "data/goals/ext-image.json",
+      "docs/rules/core-classes/image-pipeline.md",
+      "data/gaps/"
     ],
     "items": [
       {
         "done": false,
-        "text": "**The guest's `composite` step**: `run` and `variants` skip `composite` today; make it draw the plan's overlay row it names, at `gravity` or `x`/`y`, with `opacity` and `blend`, and pin it from Rust (`rule:core-classes/image-pipeline`, ADR 0120 § 2). Anchor: `extensions/image/src/ops.rs:1`."
+        "text": "**Confirm the acceptance check and close the goal**: if the driver's sweep shows `dossier-novis-image-pipeline` green, run `bun nv verify --doc` and `bun nv owners --closes ext-image`, close or re-owner each gap, move every decision only the goal prose holds to its rule fragment, and write `DONE` (`rule:testing/feature-proofs`, `rule:tooling/the-chain-names-its-live-goal`). Anchor: `docs/rules/core-classes/image-pipeline.md:31`."
       },
       {
         "done": false,
-        "text": "**`Image::composite` in the builder**: an `Image` carries its overlay table beside its steps, and `composite(Image $overlay, ...)` appends the overlay's source and steps as a row and a step naming its position; `encode`, `raw` and `variants` pass the table instead of `overlays: []`. Then its proofs as `bun nv proofs --id 'Novis\\Image\\Image::composite'` prints, and `docs/examples/types/Novis-Image-Blend/about.md`'s last paragraph rewritten now that `Blend` is usable. Update `rule:core-classes/image-pipeline`'s list of what the builder lacks. Anchor: `extensions/image/nvs/Image.nvs:152`."
+        "text": "**If the check is still red**, read the member it names in `bun nv proofs --verify --only ...` and close that one first (`rule:testing/feature-proofs`). Anchor: `extensions/image/nvs/Image.nvs:1`."
       }
     ]
   },
   "backlog": [
-    "The LSP hover on the export class does not show the manifest's class `help` yet (`crates/nvs-lsp/src/hover.rs:674`); `nvs meta` does.",
-    "Once `composite` lands, run `dossier-novis-image-pipeline`'s argv and the other three Stage 6 checks in `data/goals/ext-image.json`.",
-    "`Codec::info`'s bench reports `growth: unclear` in `docs/perf/members.ndjson`; the ramp may need a larger batch (`benches/members/README.md`)."
+    "`extensions/image/src/decode.rs:179` has a collapsible `if` that `cargo clippy --target wasm32-wasip2` warns on in `extensions/image/`; nothing runs that clippy in `nv verify` (`crates/nvs-ext/build.rs`).",
+    "`crates/nvs-cli/tests/live_config.rs:717` `a_changed_memory_limit_moves_the_admission_ceiling` failed once under the full `nv verify` load and passed alone and on the rerun; `tools/nv/cmd/verify.ts` module doc says what to give it.",
+    "`text`, `compare`, `hash`, `placeholder`, `palette` and `qr` still return `runtime` (`rule:core-classes/image-pipeline`); they belong to a later goal, not this one's acceptance list."
   ]
 }
