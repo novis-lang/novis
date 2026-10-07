@@ -280,6 +280,210 @@ fn a_bundled_executable_runs_identically_to_nvs_run() {
     );
 }
 
+/// The program the extension tests bundle: it calls the conformance fixture `ledger`'s class and
+/// a class from its source section.
+const LEDGER_APP: &str = "<?nvs
+use Shop\\Ledger;
+use Shop\\Ledger\\Receipt;
+
+echo Ledger::echoInt(7), \"\\n\";
+echo Receipt::line(\"Tea\", 250), \"\\n\";
+";
+
+/// The fixture `ledger`'s bytes and its pin.
+fn ledger() -> (Vec<u8>, String) {
+    let fixtures = nvs_repo::path("tests/conformance/ext/fixtures");
+    let bytes = std::fs::read(fixtures.join("ledger.nvsx")).expect("the fixture reads");
+    let pin = std::fs::read_to_string(fixtures.join("ledger.sha256")).expect("the fixture's pin");
+    (bytes, pin.trim().to_owned())
+}
+
+/// A project under `<scratch>/src` whose `nvs.toml` lists `shop.nvsx`, the fixture `ledger`,
+/// under the pin `pin`, and whose `app.nvs` is [`LEDGER_APP`].
+fn ledger_project(name: &str, pin: &str) -> Project {
+    let dir = nvs_repo::scratch(&format!("bundle-ext-{name}"));
+    let src = dir.join("src");
+    let out = dir.join("out");
+    std::fs::create_dir_all(&src).expect("the project folder is made");
+    std::fs::create_dir_all(&out).expect("the output folder is made");
+    std::fs::write(src.join("shop.nvsx"), ledger().0).expect("the fixture is copied");
+    std::fs::write(
+        src.join("nvs.toml"),
+        format!("[[extension]]\npath = 'shop.nvsx'\nsha256 = \"{pin}\"\n"),
+    )
+    .expect("the configuration is written");
+    std::fs::write(src.join("app.nvs"), LEDGER_APP).expect("the program is written");
+    let exe = out.join(if cfg!(windows) { "app.exe" } else { "app" });
+    Project {
+        _dir: dir,
+        src,
+        out,
+        exe,
+    }
+}
+
+/// A [`ledger_project`]: its scratch guard, the project folder, the folder the executable is
+/// written to, and the executable.
+struct Project {
+    _dir: nvs_repo::Scratch,
+    src: PathBuf,
+    out: PathBuf,
+    exe: PathBuf,
+}
+
+/// `nvs build --compile app.nvs` run in the project folder, writing the project's executable.
+fn build_in(project: &Project) -> std::process::Output {
+    Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .args(["build", "--compile", "app.nvs", "-o"])
+        .arg(&project.exe)
+        .current_dir(&project.src)
+        .output()
+        .expect("the `nvs` binary this test was built beside runs")
+}
+
+/// [`build_in`], which must succeed.
+fn built(project: &Project) {
+    let out = build_in(project);
+    assert!(
+        out.status.success(),
+        "the project builds: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+/// Runs the executable in the folder it was written to, which has no `nvs.toml` and no `.nvsx`
+/// unless the test wrote one there.
+fn run_beside(project: &Project) -> std::process::Output {
+    nvs_repo::spawn(&project.exe, &[])
+        .current_dir(&project.out)
+        .output()
+        .expect("the bundle is an executable this host can run")
+}
+
+/// The bundle embeds the `.nvsx` its configuration lists, so it calls the extension with the
+/// file deleted from the project and none beside the executable
+/// (`rule:packaging/a-nvsx-dependency-embeds-in-the-same-payload`).
+// covers: tools:cli/nvs-build-compile
+#[test]
+fn a_bundle_carrying_an_extension_calls_it_with_no_nvsx_beside_it() {
+    let project = ledger_project("carry", &ledger().1);
+    built(&project);
+    std::fs::remove_file(project.src.join("shop.nvsx")).expect("the project's copy is deleted");
+
+    let out = run_beside(&project);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(out.status.code(), Some(0), "{stdout}{stderr}");
+    assert_eq!(stdout, "7\nTea: 250 EUR\n", "{stderr}");
+}
+
+/// An embedded extension runs as the same entry does under `nvs run`: the same standard output,
+/// standard error and exit status.
+#[test]
+fn a_bundled_extension_runs_identically_to_its_entry_under_nvs_run() {
+    let project = ledger_project("identical", &ledger().1);
+    built(&project);
+
+    let bundled = run_beside(&project);
+    let interpreted = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .args(["run", "app.nvs"])
+        .current_dir(&project.src)
+        .output()
+        .expect("the `nvs` binary this test was built beside runs");
+
+    assert_eq!(
+        String::from_utf8_lossy(&bundled.stdout),
+        String::from_utf8_lossy(&interpreted.stdout)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&bundled.stderr),
+        String::from_utf8_lossy(&interpreted.stderr)
+    );
+    assert_eq!(bundled.status.code(), interpreted.status.code());
+    assert!(
+        String::from_utf8_lossy(&bundled.stdout).contains("Tea: 250 EUR"),
+        "a positive control: both sides called the extension"
+    );
+}
+
+/// A configuration whose pin does not match the `.nvsx` refuses the build, and no executable is
+/// written.
+#[test]
+fn a_bundle_refuses_to_build_when_an_extension_does_not_match_its_pin() {
+    let project = ledger_project("pin", &"0".repeat(64));
+    let out = build_in(&project);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(!out.status.success(), "the build fails: {stderr}");
+    assert!(stderr.contains("sha256"), "the pin is named: {stderr}");
+    assert!(!project.exe.exists(), "and nothing is written");
+}
+
+/// One byte of the embedded `.nvsx` changed in the executable: its pin no longer matches, and the
+/// bundle does not start.
+#[test]
+fn a_bundle_whose_embedded_extension_was_altered_refuses_to_start() {
+    let project = ledger_project("altered", &ledger().1);
+    built(&project);
+
+    let mut bytes = std::fs::read(&project.exe).expect("the bundle was just written");
+    let footer = &bytes[bytes.len() - FOOTER_LEN..];
+    let offset = at_most_usize(u64::from_le_bytes(
+        footer[6..14].try_into().expect("eight bytes"),
+    ));
+    let embedded = ledger().0;
+    let at = offset
+        + bytes[offset..]
+            .windows(embedded.len())
+            .position(|window| window == embedded.as_slice())
+            .expect("the payload carries the fixture's bytes whole");
+    bytes[at + embedded.len() / 2] ^= 0x01;
+    std::fs::write(&project.exe, &bytes).expect("the bundle is rewritten");
+
+    let out = run_beside(&project);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        !out.status.success(),
+        "the bundle does not start: {stdout}{stderr}"
+    );
+    assert!(stderr.contains("sha256"), "the pin is named: {stderr}");
+    assert!(
+        !stdout.contains("Tea"),
+        "and the program did not run: {stdout}"
+    );
+}
+
+/// The run's own configuration lists the extension the bundle embeds: two entries declare one
+/// class, and the bundle does not start, as two entries of one configuration would not.
+#[test]
+fn a_class_declared_by_a_bundled_and_a_configured_extension_is_refused() {
+    let project = ledger_project("twice", &ledger().1);
+    built(&project);
+    let (bytes, pin) = ledger();
+    std::fs::write(project.out.join("shop.nvsx"), bytes).expect("the fixture is copied");
+    std::fs::write(
+        project.out.join("nvs.toml"),
+        format!("[[extension]]\npath = 'shop.nvsx'\nsha256 = \"{pin}\"\n"),
+    )
+    .expect("the configuration is written");
+
+    let out = run_beside(&project);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        !out.status.success(),
+        "the bundle does not start: {stdout}{stderr}"
+    );
+    assert!(
+        stderr.contains("already declared"),
+        "the class declared twice is named: {stderr}"
+    );
+    assert!(
+        !stdout.contains("Tea"),
+        "and the program did not run: {stdout}"
+    );
+}
+
 /// The attack written against the bundle: a program whose own commands are
 /// `run` and `build`, bundled and started with the words `nvs` would act on.
 /// Each reaches the program's command, and `-o out` writes no file, because

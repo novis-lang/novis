@@ -10,5 +10,7 @@
     "packaging/a-bundle-carries-source-not-artifacts",
     "packaging/an-extension-is-a-sandboxed-wasm-component"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-cli/tests/bundle.rs"
+  ]
 }

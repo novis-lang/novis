@@ -9,4 +9,10 @@ An extension embedded in a bundle behaves identically to the same extension load
 `[[extension]]` entry for a plain `nvs run`: it is the same component, the same manifest and the same
 pin, read from a different byte source.
 
-**Not on disk.** A bundle embeds source only.
+An embedded entry keeps its `grants` as written, each root made absolute at build time, and loads
+before the run's own `[[extension]]` entries, so a class both declare refuses the start. Each embedded
+pin is checked when the bundle builds and again when it starts.
+
+**Not on disk.** The built-in components do not exist yet. `nvs build --compile` embeds each listed
+`.nvsx` and its entry, and the bundle loads them from its payload with no file beside it
+(`crates/nvs-cli/tests/bundle.rs`; the layout is in `crates/nvs-cli/src/bundle.rs`'s module doc).

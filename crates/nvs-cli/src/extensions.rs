@@ -142,9 +142,11 @@ pub(crate) fn loaded(
             });
         }
         let loader = cached.as_ref().expect("the loader is made above");
-        let extension = loader
-            .load(&entry)
-            .map_err(|refused| refuse(&refused.reason))?;
+        let extension = match crate::bundle::extension_file(&entry.path) {
+            Some(bytes) => loader.load_bytes(&entry, bytes),
+            None => loader.load(&entry),
+        }
+        .map_err(|refused| refuse(&refused.reason))?;
         if let Some(settings) = &extension.manifest.settings
             && let Some(block) = config.ext.get(&settings.name)
         {
@@ -193,7 +195,11 @@ pub(crate) fn manifests(
         .enumerate()
         .map(|(index, written)| entry(index, written, origins))
         .collect();
-    nvs_ext::load::read_manifests(&entries).map_err(|(index, refused)| {
+    nvs_ext::load::read_manifests_with(&entries, |entry| {
+        crate::bundle::extension_file(&entry.path)
+            .map_or_else(|| std::fs::read(&entry.path), |bytes| Ok(bytes.to_vec()))
+    })
+    .map_err(|(index, refused)| {
         nvs_config::extension::not_loaded(
             index,
             &entries[index].path.to_string_lossy(),
@@ -834,7 +840,11 @@ impl ModuleCache for Modules {
 /// The loader's entry for the written `[[extension]]` block `index`, its path resolved against
 /// the file that wrote it. `nvs_config::extension::validate` has already refused one with no
 /// `path`, no pin or a `memory` that is not a size.
-fn entry(index: usize, written: &Extension, origins: &BTreeMap<String, Origin>) -> Entry {
+pub(crate) fn entry(
+    index: usize,
+    written: &Extension,
+    origins: &BTreeMap<String, Origin>,
+) -> Entry {
     let memory = written.memory.as_ref().and_then(|memory| {
         match Quantity::parse("extension.memory", Unit::Bytes, memory) {
             Ok(Quantity::Bytes(bytes)) => Some(bytes),

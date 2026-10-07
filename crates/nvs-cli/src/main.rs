@@ -1747,7 +1747,7 @@ fn main() -> ExitCode {
             output,
         } => {
             if compile {
-                bundle::build(&file, output.as_deref())
+                bundle::build(&file, output.as_deref(), &cli.config)
             } else {
                 run_build(&file, openapi)
             }

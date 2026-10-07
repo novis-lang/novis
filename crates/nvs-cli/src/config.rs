@@ -508,7 +508,9 @@ fn resolved_in(
     {
         roots = nvs_config::resolve::roots(config, cwd, &files);
     }
-    nvs_config::resolve::resolve(&roots, sources, &files)
+    let mut resolved = nvs_config::resolve::resolve(&roots, sources, &files)?;
+    crate::bundle::carry_extensions(&mut resolved);
+    Ok(resolved)
 }
 
 /// The `[capabilities]` block the machine that is **compiling** reads — `rule:core-classes/db-compile-time-query-checking`'s second sentence, which is what makes a literal `Core\Db::open` host

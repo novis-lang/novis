@@ -496,11 +496,23 @@ impl Loader {
 ///
 /// The index of the first entry that does not read, and why.
 pub fn read_manifests(entries: &[Entry]) -> Result<Vec<Manifest>, (usize, Refused)> {
+    read_manifests_with(entries, |entry| std::fs::read(&entry.path))
+}
+
+/// [`read_manifests`] over the bytes `read` returns for each entry, which a bundle answers from its
+/// payload rather than from a file.
+///
+/// # Errors
+///
+/// As [`read_manifests`].
+pub fn read_manifests_with(
+    entries: &[Entry],
+    read: impl Fn(&Entry) -> std::io::Result<Vec<u8>>,
+) -> Result<Vec<Manifest>, (usize, Refused)> {
     let mut manifests: Vec<Manifest> = Vec::with_capacity(entries.len());
     for (index, entry) in entries.iter().enumerate() {
         let refuse = |reason: String| (index, refused(&entry.path, reason));
-        let bytes = std::fs::read(&entry.path)
-            .map_err(|err| refuse(format!("the file does not read: {err}")))?;
+        let bytes = read(entry).map_err(|err| refuse(format!("the file does not read: {err}")))?;
         let sha256 = pin(&bytes);
         if !sha256.eq_ignore_ascii_case(&entry.sha256) {
             return Err(refuse(format!(
