@@ -176,7 +176,9 @@
       "Bash(./target/release/nvs.exe:*)",
       "PowerShell(bun test:*)",
       "Bash(bun nv ext-templates:*)",
-      "PowerShell(bun nv ext-templates:*)"
+      "PowerShell(bun nv ext-templates:*)",
+      "Bash(bun nv webp-lib:*)",
+      "PowerShell(bun nv webp-lib:*)"
     ]
   }
 }
