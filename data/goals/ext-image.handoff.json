@@ -1,29 +1,33 @@
 {
-  "state": "**Goal `ext-image`, Stage 2 (the build): the crate is on disk; nothing packs or embeds it yet.** The design is settled by ADR 0120, ADR 0247 and the goal file's § *Standing decisions*; no session re-decides one.\n\n`extensions/image/` is the crate `nvs-image`, its own workspace and excluded from the root one (`Cargo.toml:27`). Its codec core is plain Rust on `image` 0.25 (`jpeg`, `png`, `gif`, `webp` features), tested on the host with `cargo test --lib` run from that directory. The WIT glue (`extensions/image/src/lib.rs`, module `guest`) is `cfg(target_family = \"wasm\")` and resolves `wit/nvs-ext` then `wit/image.wit`, the same two pushes `crates/nvs-stdlib/tests/ext_world.rs:297` makes. `simd128` is on through `extensions/image/.cargo/config.toml`, which `cargo` reads only when run from that directory. `cargo build --release --target wasm32-wasip2` there builds a ~700 KB `nvs_image.wasm`, clippy-clean on both targets; `cargo deny --config ../../deny.toml check` passes. `rust-toolchain.toml` already listed `wasm32-wasip2`.\n\n`info` is the one implemented export. Its `frames` is fixed at `1` and its `exif` at `None` (module doc of `extensions/image/src/info.rs`). Every other export returns `runtime`.\n\nThe packer is not compilable alone: `crates/nvs-ext/src/pack.rs:33-36` reaches `manifest`, `section`, `source` and `crate::Malformed`, and `world_wit` (`pack.rs:83`) reads `world.rs`. So the goal's fallback applies to slice 2 unless the `#[path]` set stays small: a crate `crates/nvs-builtin` whose build script takes `nvs-ext` as a build-dependency. The standing decision pre-authorizes it; the commit says which was taken.",
+  "state": "**Goal `ext-image`, Stage 2 (the build): the image component is built, packed and embedded; nothing loads it yet.** The design is settled by ADR 0120, ADR 0247 and the goal file's § *Standing decisions*; no session re-decides one.\n\n`crates/nvs-ext/build.rs` compiles the packer into itself with `#[path]` (`pack`, `manifest`, `section`, `source`, `types`, and `src/common.rs`, which now holds `Malformed`, `malformed`, `kebab` and `is_identifier` for both crates). The `crates/nvs-builtin` fallback was not taken, so the Stage 2 checks keep naming `nvs-ext`. With the `engine` feature on, the script runs `cargo build --release --locked --target wasm32-wasip2` in `extensions/image` into `target/ext/`, with the parent's `RUSTFLAGS`, wrappers and target directory removed. It packs the wasm with `extensions/image/manifest.json` (only `info` for now, `Format` declared) and writes `OUT_DIR/image.nvsx` and `image.sha256`. `nvs_ext::builtin::IMAGE` and `IMAGE_SHA256` embed them (`crates/nvs-ext/src/builtin.rs`).\n\nNot yet checked: whether `Loader::load_bytes` accepts the packed component's imports and whether the manifest's `info` shape matches the export. `load_bytes` refuses any `Novis\\` class through `reserved` (`crates/nvs-ext/src/load.rs:560`), so the built-in set needs a path that skips that one check, and only that check.",
   "next": {
     "stage": 2,
     "title": "the build",
-    "files": [],
-    "note": "one file set: `crates/nvs-ext/Cargo.toml`, `crates/nvs-ext/src/pack.rs`, the new build script (`crates/nvs-ext/build.rs` or `crates/nvs-builtin/build.rs`), `crates/nvs-ext/src/builtin.rs`, `crates/nvs-config/src/cache.rs`.",
+    "files": [
+      "crates/nvs-ext/src/builtin.rs",
+      "crates/nvs-ext/src/load.rs",
+      "crates/nvs-ext/tests/builtin.rs",
+      "crates/nvs-ext/Cargo.toml",
+      "crates/nvs-config/src/cache.rs"
+    ],
     "items": [
       {
         "done": false,
-        "text": "**The build script** (`rule:packaging/the-first-party-components-are-built-in`) — builds `extensions/image` with `--release --target wasm32-wasip2` (cwd `extensions/image`, so `.cargo/config.toml` applies) into `target/ext/`, and packs it with `crates/nvs-ext/src/pack.rs:115` (`pack`). Decide `#[path]` versus the `crates/nvs-builtin` fallback first, from `crates/nvs-ext/src/pack.rs:33`. The image component needs an `nvsx.toml`-equivalent manifest for `Novis\\Image\\Codec`; the Rust template's `crates/nvs-cli/templates/ext/rust/nvsx.toml:1` is the shape."
+        "text": "**The built-in set and its pin** (`rule:packaging/the-first-party-components-are-built-in`) — a loader entry point that loads `IMAGE` (`crates/nvs-ext/src/builtin.rs:13`) before any `[[extension]]` entry, with every check of `crates/nvs-ext/src/load.rs:373` except `reserved` (`crates/nvs-ext/src/load.rs:412`), and with `IMAGE_SHA256` as its pin. Compile on first use, not at load. If the manifest does not match the export, fix `extensions/image/manifest.json`."
       },
       {
         "done": false,
-        "text": "**The built-in set and its pin** — `crates/nvs-ext/src/builtin.rs` loads the embedded component before any `[[extension]]` entry, every load check applied, and `Novis\\` is reserved for it; its digest folds into `env_hash` at `crates/nvs-config/src/cache.rs:173` (`env_hash_of`)."
+        "text": "**The Stage 2 Rust checks** — `crates/nvs-ext/tests/builtin.rs` (the four tests the record names; a `[[test]] name = \"builtin\"` with `required-features = [\"engine\"]` in `crates/nvs-ext/Cargo.toml:73`), and `two_builds_with_different_built_in_component_bytes_key_apart` against `crates/nvs-config/src/cache.rs:167`. `nvs-config` cannot depend on `nvs-ext` (the reverse edge exists), so `env_hash` takes the digest from its caller."
       },
       {
         "done": false,
-        "text": "**The Stage 2 Rust checks** — `crates/nvs-ext/tests/builtin.rs` (four tests, the `Novis\\` refusal among them), `two_builds_with_different_built_in_components_differ` beside `crates/nvs-config/src/cache.rs:173`."
+        "text": "**The conformance case** — `tests/conformance/novis/image-info-answers-with-no-configuration.nvst`, once `nvs serve` and `nvs run` load the built-in set (`crates/nvs-cli/src/extensions.rs:119`, `loaded`)."
       }
     ]
   },
   "backlog": [
-    "`info`'s `frames` count for animated GIF, APNG and WebP, and its `exif` list (`kamadak-exif`, a standing decision) — `extensions/image/src/info.rs`.",
-    "The `extensions/image` crate has no CI leg yet: its host tests and its wasm build run only by hand — `rule:packaging/the-first-party-components-are-built-in`.",
-    "libwebp prebuilt by a `bun nv` tool — `rule:packaging/a-prebuilt-wasm-library-is-rebuilt-in-ci`.",
-    "`[context] modules` names nothing under `crates/nvs-ext` yet; add `pack.rs` and `builtin.rs` with `bun nv goal context --add` as slice 2 reads them."
+    "libwebp: `bun nv webp-lib`, `tools/nv/test/webp-lib.test.ts`, the C-dependency ledger and the notice (goal file § Stage 2).",
+    "The manifest lists only `info`; every other export joins it as Stage 3 and 4 implement it (`extensions/image/manifest.json`).",
+    "The build script embeds nothing without the `engine` feature; a reader of manifests alone builds no component (`crates/nvs-ext/build.rs` module doc)."
   ]
 }
