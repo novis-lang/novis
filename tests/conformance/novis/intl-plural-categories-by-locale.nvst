@@ -1,0 +1,53 @@
+--TEST--
+`Novis\Intl\PluralRules` gives the cardinal and ordinal categories of a list by the locale's rules, and agrees with `Core\Cldr` on the same numbers: rule:core-classes/intl-batch-shape
+--FILE--
+<?nvs
+use Novis\Intl\PluralRules;
+
+final class Names
+{
+    // This returns the category names, joined with spaces.
+    public static function of(array<Core\Cldr\PluralCategory> $categories): string
+    {
+        array<string> $names = [];
+        foreach ($categories as Core\Cldr\PluralCategory $category) {
+            $names[] = match ($category) {
+                Core\Cldr\PluralCategory::Zero => "Zero",
+                Core\Cldr\PluralCategory::One => "One",
+                Core\Cldr\PluralCategory::Two => "Two",
+                Core\Cldr\PluralCategory::Few => "Few",
+                Core\Cldr\PluralCategory::Many => "Many",
+                Core\Cldr\PluralCategory::Other => "Other",
+            };
+        }
+        return Core\Str::join($names, " ");
+    }
+}
+
+array<int|float|decimal> $counts = [0, 1, 2, 5, 21, 1.5];
+
+// English has two forms for counting. Russian has four.
+echo Names::of(PluralRules::cardinal($counts, "en")), "\n";
+echo Names::of(PluralRules::cardinal($counts, "ru")), "\n";
+
+// The digits a number shows count. In English, `1.0` is `Other`.
+echo Names::of(PluralRules::cardinal([1, "1.0" as decimal], "en")), "\n";
+
+// The rules for places: 1st, 2nd, 3rd, 4th, 11th and 22nd.
+echo Names::of(PluralRules::ordinal([1, 2, 3, 4, 11, 22], "en")), "\n";
+
+// `Core\Cldr::pluralCategory` gives the same category for each number.
+int $same = 0;
+array<Core\Cldr\PluralCategory> $categories = PluralRules::cardinal($counts, "ru");
+for (int $i = 0; $i < 6; $i++) {
+    if ($categories[$i] == Core\Cldr::pluralCategory($counts[$i], "ru")) {
+        $same++;
+    }
+}
+echo $same, " of 6\n";
+--EXPECT--
+Other One Other Other Other Other
+Many One Few Many One Other
+One Other
+One Two Few Other Other Two
+6 of 6

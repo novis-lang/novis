@@ -1,0 +1,86 @@
+<?nvs
+namespace Novis\Intl;
+
+use RuntimeError;
+
+/// Writes numbers the way a language and region write them. Each method takes a whole list and
+/// a locale tag, such as `"de"` or `"en-IN"`, and formats the whole list in one call.
+final class NumberFormat
+{
+    type DigitOptions = {minFractionDigits?: uint, maxFractionDigits?: uint, grouping?: bool};
+
+    /// `NumberFormat::decimal` returns each number with the locale's separators, and by default up
+    /// to 3 fraction digits. A float that is not finite throws a `RuntimeError`.
+    public static function decimal(array<int|float|decimal> $numbers, string $locale, ?DigitOptions $options = null): array<string>
+    {
+        return Icu::formatNumbers(NumberFormat::texts($numbers), $locale, {
+            style: NumberStyle::Decimal,
+            minFractionDigits: $options?->minFractionDigits ?? null,
+            maxFractionDigits: $options?->maxFractionDigits ?? null,
+            grouping: $options?->grouping ?? null,
+            currency: null,
+            currencyDisplay: null,
+            compactDisplay: null,
+        });
+    }
+
+    /// `NumberFormat::percent` returns each number as a percentage. The number `0.25` is
+    /// 25 percent. By default it shows no fraction digits.
+    public static function percent(array<int|float|decimal> $numbers, string $locale, ?DigitOptions $options = null): array<string>
+    {
+        return Icu::formatNumbers(NumberFormat::texts($numbers), $locale, {
+            style: NumberStyle::Percent,
+            minFractionDigits: $options?->minFractionDigits ?? null,
+            maxFractionDigits: $options?->maxFractionDigits ?? null,
+            grouping: $options?->grouping ?? null,
+            currency: null,
+            currencyDisplay: null,
+            compactDisplay: null,
+        });
+    }
+
+    /// `NumberFormat::currency` returns each amount as money in `$currency`, a three-letter code
+    /// such as `"EUR"`. The amount is rounded to the digits the currency uses, such as 2 for euros.
+    public static function currency(array<int|float|decimal> $amounts, string $currency, string $locale, ?{display?: CurrencyDisplay} $options = null): array<string>
+    {
+        return Icu::formatNumbers(NumberFormat::texts($amounts), $locale, {
+            style: NumberStyle::Currency,
+            minFractionDigits: null,
+            maxFractionDigits: null,
+            grouping: null,
+            currency: $currency,
+            currencyDisplay: $options?->display ?? null,
+            compactDisplay: null,
+        });
+    }
+
+    /// `NumberFormat::compact` returns each number in a short form, such as "1.2K" or
+    /// "1.2 thousand" in English.
+    public static function compact(array<int|float|decimal> $numbers, string $locale, ?{display?: CompactDisplay} $options = null): array<string>
+    {
+        return Icu::formatNumbers(NumberFormat::texts($numbers), $locale, {
+            style: NumberStyle::Compact,
+            minFractionDigits: null,
+            maxFractionDigits: null,
+            grouping: null,
+            currency: null,
+            currencyDisplay: null,
+            compactDisplay: $options?->display ?? null,
+        });
+    }
+
+    /// Each number written as its decimal text.
+    private static function texts(array<int|float|decimal> $numbers): array<string>
+    {
+        array<string> $texts = [];
+        foreach ($numbers as int|float|decimal $number) {
+            if ($number is float) {
+                if (!Core\Math::isFinite($number)) {
+                    throw new RuntimeError("`{$number}` is not a finite number, so it cannot be formatted.");
+                }
+            }
+            $texts[] = $number as string;
+        }
+        return $texts;
+    }
+}

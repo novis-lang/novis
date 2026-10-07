@@ -1,0 +1,57 @@
+--TEST--
+`Novis\Intl\NumberFormat` writes decimals, percentages, money and compact numbers by the locale's rules, and a float that is not finite throws: rule:core-classes/intl-batch-shape
+--FILE--
+<?nvs
+use Novis\Intl\CompactDisplay;
+use Novis\Intl\CurrencyDisplay;
+use Novis\Intl\NumberFormat;
+
+// English groups digits with a comma. German uses a period, and a comma before the fraction.
+array<int|float|decimal> $prices = [1234567.891, 19.9, -0.0001, 42];
+echo Core\Str::join(NumberFormat::decimal($prices, "en"), " | "), "\n";
+echo Core\Str::join(NumberFormat::decimal($prices, "de"), " | "), "\n";
+
+// The options set the fraction digits and turn grouping off.
+echo Core\Str::join(NumberFormat::decimal([1234.5, 2.345], "en", {minFractionDigits: 2, maxFractionDigits: 2, grouping: false}), " | "), "\n";
+
+// A `decimal` keeps every digit it has. It is never rounded through a float.
+echo Core\Str::join(NumberFormat::decimal(["12345678901234567.25" as decimal], "en", {maxFractionDigits: 2}), " | "), "\n";
+
+// `percent` multiplies by 100, so `0.25` is 25 percent.
+echo Core\Str::join(NumberFormat::percent([0.25, 1, -0.125], "en"), " | "), "\n";
+
+// `currency` rounds to the digits the currency uses: 2 for dollars, none for yen.
+echo Core\Str::join(NumberFormat::currency([1234.5, 3], "USD", "en"), " | "), "\n";
+echo Core\Str::join(NumberFormat::currency([1234.5], "JPY", "en"), " | "), "\n";
+echo Core\Str::join(NumberFormat::currency([2], "USD", "en", {display: CurrencyDisplay::Name}), " | "), "\n";
+
+// `compact` writes large numbers in a short form.
+echo Core\Str::join(NumberFormat::compact([1234, 1500000, 999], "en"), " | "), "\n";
+echo Core\Str::join(NumberFormat::compact([1234], "en", {display: CompactDisplay::Long}), " | "), "\n";
+
+// A float that is not finite throws a `RuntimeError`.
+try {
+    NumberFormat::decimal([1.0, Core\Math::INFINITY], "en");
+} catch (RuntimeError $e) {
+    echo "RuntimeError\n";
+}
+
+// A currency code must have three letters.
+try {
+    NumberFormat::currency([1], "EURO", "en");
+} catch (LogicError $invalid) {
+    echo "LogicError\n";
+}
+--EXPECT--
+1,234,567.891 | 19.9 | 0 | 42
+1.234.567,891 | 19,9 | 0 | 42
+1234.50 | 2.35
+12,345,678,901,234,567.25
+25% | 100% | -13%
+$1,234.50 | $3.00
+¥1,235
+2.00 US dollars
+1.2K | 1.5M | 999
+1.2 thousand
+RuntimeError
+LogicError

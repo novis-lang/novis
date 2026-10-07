@@ -1,0 +1,55 @@
+<?nvs
+namespace Novis\Intl;
+
+use RuntimeError;
+
+/// Gives the plural category of numbers in a language. You use the category to choose the right
+/// form of a word, such as "1 file" or "2 files". Each method takes a whole list and a locale tag.
+final class PluralRules
+{
+    /// `PluralRules::cardinal` returns the category for counting, as in "3 files". The digits a
+    /// number shows count: in English, `1` is `One` and `1.0` is `Other`.
+    public static function cardinal(array<int|float|decimal> $numbers, string $locale): array<Core\Cldr\PluralCategory>
+    {
+        return PluralRules::categories(Icu::pluralCategories(PluralRules::texts($numbers), $locale, PluralKind::Cardinal));
+    }
+
+    /// `PluralRules::ordinal` returns the category for a place, as in "3rd". In English, `1` is
+    /// `One`, `2` is `Two`, `3` is `Few` and `4` is `Other`.
+    public static function ordinal(array<int|float|decimal> $numbers, string $locale): array<Core\Cldr\PluralCategory>
+    {
+        return PluralRules::categories(Icu::pluralCategories(PluralRules::texts($numbers), $locale, PluralKind::Ordinal));
+    }
+
+    /// Each category as the matching `Core\Cldr\PluralCategory`.
+    private static function categories(array<PluralCategory> $categories): array<Core\Cldr\PluralCategory>
+    {
+        array<Core\Cldr\PluralCategory> $result = [];
+        foreach ($categories as PluralCategory $category) {
+            $result[] = match ($category) {
+                PluralCategory::Zero => Core\Cldr\PluralCategory::Zero,
+                PluralCategory::One => Core\Cldr\PluralCategory::One,
+                PluralCategory::Two => Core\Cldr\PluralCategory::Two,
+                PluralCategory::Few => Core\Cldr\PluralCategory::Few,
+                PluralCategory::Many => Core\Cldr\PluralCategory::Many,
+                PluralCategory::Other => Core\Cldr\PluralCategory::Other,
+            };
+        }
+        return $result;
+    }
+
+    /// Each number written as its decimal text.
+    private static function texts(array<int|float|decimal> $numbers): array<string>
+    {
+        array<string> $texts = [];
+        foreach ($numbers as int|float|decimal $number) {
+            if ($number is float) {
+                if (!Core\Math::isFinite($number)) {
+                    throw new RuntimeError("`{$number}` is not a finite number, so it has no plural category.");
+                }
+            }
+            $texts[] = $number as string;
+        }
+        return $texts;
+    }
+}
