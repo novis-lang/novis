@@ -38,6 +38,36 @@
     "Core\\Test::assertCompletes": {
       "perf": "A bench runs under `nvs run`, where no `#[Test(at: ...)]` fixes a clock, so every iteration would measure the `LogicError` thrown before the body runs rather than the check."
     },
+    "Novis\\Image\\Codec::compare": {
+      "examples": "The manifest export `Image::compare` calls once after it encodes an `Image` argument; a reader learns from that member's examples, and one here would teach the raw result shape a program never needs.",
+      "hostile": "`Image::compare` validates nothing the guest validates, so its attack delivers the same huge and broken input to this export.",
+      "perf": "`Image::compare` is this one crossing plus building the `Diff`, so its figure bounds this export's."
+    },
+    "Novis\\Image\\Codec::hash": {
+      "examples": "The manifest export `Image::hash` calls once with its own arguments; a reader learns from that member's examples.",
+      "hostile": "`Image::hash` passes its input to this export unchanged, so its attack is this export's.",
+      "perf": "`Image::hash` is this one crossing and nothing else, so its figure is this export's."
+    },
+    "Novis\\Image\\Codec::palette": {
+      "examples": "The manifest export `Image::palette` calls once and turns each colour into a `Color`; a reader learns from that member's examples, and one here would teach a colour shape a program never writes.",
+      "hostile": "`Image::palette` validates nothing the guest validates, so its attack delivers the same huge and broken input to this export.",
+      "perf": "`Image::palette` is this one crossing plus a `Color` per result, so its figure bounds this export's."
+    },
+    "Novis\\Image\\Codec::placeholder": {
+      "examples": "The manifest export `Image::placeholder` calls once with its own arguments; a reader learns from that member's examples.",
+      "hostile": "`Image::placeholder` passes its input to this export unchanged, so its attack is this export's.",
+      "perf": "`Image::placeholder` is this one crossing and nothing else, so its figure is this export's."
+    },
+    "Novis\\Image\\Codec::qr": {
+      "examples": "The manifest export `QrCode::render` calls once after it fills in the options a program left out; a reader learns from that member's examples, and one here would teach an options record with every key written out.",
+      "hostile": "`QrCode::render` validates nothing the guest validates, so its attack delivers the same long and odd input to this export.",
+      "perf": "`QrCode::render` is this one crossing plus the options record, so its figure bounds this export's."
+    },
+    "Novis\\Image\\Diff::constructor": {
+      "examples": "`new Diff` stores five values and calls nothing; a program meets a `Diff` as the result of `Image::compare`, whose examples read every one of them.",
+      "hostile": "`new Diff` stores five typed read-only values and calls nothing, so a wrong value does not compile and there is no input left to attack.",
+      "perf": "`new Diff` stores five values and calls nothing; `Image::compare` builds one on every call, so its figure includes this one."
+    },
     "Novis\\Intl\\Icu::collateOrder": {
       "examples": "The manifest export `Collator::sort` calls once with its own arguments; a reader learns sorting from that member's examples, and one here would teach the raw positions a program never needs.",
       "hostile": "`Collator::sort` validates nothing the guest validates, so its attack delivers the same huge and broken input to this export unchanged.",

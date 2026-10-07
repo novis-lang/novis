@@ -164,6 +164,7 @@ fn an_image_compared_with_itself_is_identical_with_an_ssim_of_one_in_one_call() 
     assert_eq!(field(&diff, "diff"), Value::Null);
 }
 
+// covers: Novis\Image\Codec::compare
 #[test]
 fn two_images_differing_in_one_pixel_report_one_differing_pixel() {
     let (host, extension) = setup();
@@ -284,6 +285,7 @@ fn each_hash_kind_returns_a_hash_of_its_own_length() {
     }
 }
 
+// covers: Novis\Image\Codec::hash
 #[test]
 fn a_resized_copy_hashes_within_a_small_distance_of_its_source() {
     let (host, extension) = setup();
@@ -430,6 +432,7 @@ fn a_blurhash_placeholder_decodes_to_the_image_average_colour() {
     );
 }
 
+// covers: Novis\Image\Codec::placeholder
 #[test]
 fn a_thumbhash_placeholder_decodes_to_the_image_average_colour() {
     let (host, extension) = setup();
@@ -466,6 +469,7 @@ fn the_palette_of_a_two_colour_image_returns_those_two_colours() {
     );
 }
 
+// covers: Novis\Image\Codec::palette
 #[test]
 fn palette_returns_at_most_count_colours() {
     let (host, extension) = setup();
@@ -538,6 +542,7 @@ fn a_qr_code_renders_and_decodes_back_to_its_data() {
     assert_eq!(read_qr(&request, &extension, &png).0, data);
 }
 
+// covers: Novis\Image\Codec::qr
 #[test]
 fn each_qr_level_renders_a_code_that_decodes() {
     let (host, extension) = setup();

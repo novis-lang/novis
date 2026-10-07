@@ -2,7 +2,7 @@
 `Novis\Image\Image::compare` takes bytes or an `Image`, counts the pixels that differ above `tolerance`, renders a diff, and throws a `LogicError` for two sizes — rule:core-classes/image-one-entry-point-per-job
 --FILE--
 <?nvs
-// covers: Novis\Image\Image::compare
+// covers: Novis\Image\Image::compare, Novis\Image\Codec::compare, Novis\Image\Diff::constructor
 use Novis\Image\Image;
 use Novis\Image\Color;
 

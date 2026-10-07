@@ -2,7 +2,7 @@
 `Novis\Image\Image::placeholder` of a plain image gives each `PlaceholderKind` its fixed text, `palette` of it returns its one colour, a transparent image has no palette, and a `count` above 256 throws a `LogicError` — rule:core-classes/image-one-entry-point-per-job
 --FILE--
 <?nvs
-// covers: Novis\Image\Image::placeholder, Novis\Image\Image::palette, Novis\Image\PlaceholderKind
+// covers: Novis\Image\Image::placeholder, Novis\Image\Image::palette, Novis\Image\PlaceholderKind, Novis\Image\Codec::placeholder, Novis\Image\Codec::palette
 use Novis\Image\Image;
 use Novis\Image\Color;
 use Novis\Image\PlaceholderKind;

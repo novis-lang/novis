@@ -2,7 +2,7 @@
 `Novis\Image\Image::hash` gives a resized copy a hash near its source and a mirror a hash farther from it, `hashDistance` of a hash with itself is 0, and two hashes of different lengths throw a `LogicError` — rule:core-classes/image-one-entry-point-per-job
 --FILE--
 <?nvs
-// covers: Novis\Image\Image::hash, Novis\Image\Image::hashDistance, Novis\Image\HashKind
+// covers: Novis\Image\Image::hash, Novis\Image\Image::hashDistance, Novis\Image\HashKind, Novis\Image\Codec::hash
 use Novis\Image\Image;
 use Novis\Image\Color;
 use Novis\Image\HashKind;

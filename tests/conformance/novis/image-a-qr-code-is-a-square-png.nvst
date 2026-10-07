@@ -2,7 +2,7 @@
 `Novis\Image\QrCode::render` returns a square PNG of the size asked for, 256 pixels by default, in the format given, and data too long for its `QrLevel` or a size too small for the code throws a `LogicError` — rule:core-classes/image-one-entry-point-per-job
 --FILE--
 <?nvs
-// covers: Novis\Image\QrCode::render, Novis\Image\QrLevel
+// covers: Novis\Image\QrCode::render, Novis\Image\QrLevel, Novis\Image\Codec::qr
 use Novis\Image\Codec;
 use Novis\Image\Format;
 use Novis\Image\QrCode;
