@@ -1,28 +1,21 @@
 {
-  "state": "**Goal `ext-image`: Stages 2 to 5 are done on disk, and Stage 6 (the feature proofs) should now be green.** ADR 0120, ADR 0247 and the goal file's § *Standing decisions* settle the design, and no session re-decides it.\n\nThe component is embedded and callable with no `nvs.toml` (`crates/nvs-cli/src/extensions.rs` module doc). The `Novis\\Image` builder is Novis source in `extensions/image/nvs/`, and `rule:core-classes/image-pipeline`'s fragment says what it has and lacks. `nvs meta --json` lists the built-in classes, the roster gives a `Novis\\` member the path `novis/<tail>/<member>`, and `docs/reference/novis/Image-Image.md` is the class intro.\n\n**`Image::composite` is built and has every proof.** The guest runs a `composite` step by making the named overlay row's frame, running its steps, and drawing it (`extensions/image/src/ops.rs` and `extensions/image/src/lib.rs` module docs: placement, blend formulas, the earlier-row rule and `MAX_OVERLAY_DRAWS`). The builder carries an overlay table beside its steps and renumbers an overlay's own rows when it appends them. Pinned from Rust by `crates/nvs-ext/tests/image_pipeline.rs` `composite_draws_its_overlay_row_where_and_how_the_step_says` and from Novis by `tests/conformance/novis/image-composite-draws-an-overlay-pipeline.nvst`. So every member `dossier-novis-image-pipeline` names should owe nothing; this session did not run that check on the proof binary.",
+  "state": "**Goal `ext-image` is reached: every stage's checks are green on disk.** ADR 0120, ADR 0247 and `rule:core-classes/image-pipeline` settle the design; the goal prose's standing decisions each have a home (`rule:packaging/the-first-party-components-are-built-in`, `rule:core-classes/image-pixel-cap`, `extensions/image/Cargo.toml`, `extensions/image/fixtures/README.md`, the `extensions/image/src/` module docs).\n\n`dossier-novis-image-pipeline` is green: `bun nv proofs --verify --only ...` over the 34 members owes nothing, and 0 examples and 0 hostile cases fail. The hostile case `tests/hostile/novis/Image-Image/encode/01-long-and-broken-pipelines.nvs` ran past 10s because forty 45-degree rotations ran in full until a frame passed the cap. The plan now holds every frame's size to the cap before any step runs (`extensions/image/src/lib.rs` and `extensions/image/src/ops.rs` module docs, `ops::size`). `bun nv verify --doc` is green, and `bun nv owners --closes ext-image` names no gap.",
   "next": {
     "stage": 6,
-    "title": "the feature proofs, closing the goal",
+    "title": "the feature proofs, closed",
     "files": [
-      "docs/agent/goals/ext-image.md",
-      "data/goals/ext-image.json",
-      "docs/rules/core-classes/image-pipeline.md",
-      "data/gaps/"
+      "extensions/image/src/lib.rs",
+      "extensions/image/src/ops.rs"
     ],
     "items": [
       {
-        "done": false,
-        "text": "**Confirm the acceptance check and close the goal**: if the driver's sweep shows `dossier-novis-image-pipeline` green, run `bun nv verify --doc` and `bun nv owners --closes ext-image`, close or re-owner each gap, move every decision only the goal prose holds to its rule fragment, and write `DONE` (`rule:testing/feature-proofs`, `rule:tooling/the-chain-names-its-live-goal`). Anchor: `docs/rules/core-classes/image-pipeline.md:31`."
-      },
-      {
-        "done": false,
-        "text": "**If the check is still red**, read the member it names in `bun nv proofs --verify --only ...` and close that one first (`rule:testing/feature-proofs`). Anchor: `extensions/image/nvs/Image.nvs:1`."
+        "done": true,
+        "text": "**The plan holds every frame's size to the cap before it runs a step** (`rule:core-classes/image-pixel-cap`). Anchor: `extensions/image/src/ops.rs:1`."
       }
     ]
   },
   "backlog": [
-    "`extensions/image/src/decode.rs:179` has a collapsible `if` that `cargo clippy --target wasm32-wasip2` warns on in `extensions/image/`; nothing runs that clippy in `nv verify` (`crates/nvs-ext/build.rs`).",
-    "`crates/nvs-cli/tests/live_config.rs:717` `a_changed_memory_limit_moves_the_admission_ceiling` failed once under the full `nv verify` load and passed alone and on the rerun; `tools/nv/cmd/verify.ts` module doc says what to give it.",
-    "`text`, `compare`, `hash`, `placeholder`, `palette` and `qr` still return `runtime` (`rule:core-classes/image-pipeline`); they belong to a later goal, not this one's acceptance list."
+    "The intl component does not exist yet (`rule:packaging/the-first-party-components-are-built-in`).",
+    "`text`, `compare`, `hash`, `placeholder` and `palette` are not built (`rule:core-classes/image-pipeline`)."
   ]
 }
