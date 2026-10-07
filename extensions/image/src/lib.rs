@@ -5,7 +5,8 @@
 //! tests run under an ordinary `cargo test` in this directory. The WIT glue in `guest` is compiled
 //! only for a wasm target, and maps each export onto the core and the core's types onto WIT's.
 //!
-//! `info`, `run` and `variants` are the exports that are implemented. `run` starts from an
+//! `info`, `run`, `variants` and `compare` are the exports that are implemented; `compare` is
+//! its module's doc. `run` starts from an
 //! [`Input`] — encoded bytes it decodes (`decode`'s module doc), a blank canvas or RGBA8 rows —
 //! runs the plan's pixel steps on the frame in order (`ops`'s module doc), and returns the pixels,
 //! their size or the encoded file (`encode`'s module doc); `variants` makes the frame once and
@@ -19,10 +20,11 @@
 //! size and `ops::size`, up to the first step whose size depends on the pixels: a plan that grows
 //! its frame past the cap returns `Runtime` before its first step runs, not after its last one
 //! under the cap. An encoded source's size is its header's. A `text` step and a `text` source return `runtime` naming what is missing. Every
-//! other export returns `runtime` naming it, until the slice of goal `ext-image` that writes it
-//! lands.
+//! other export returns `runtime` naming it, until the slice of goal `ext-image-analysis` that
+//! writes it lands.
 
 mod avif;
+pub mod compare;
 mod decode;
 mod encode;
 mod info;
@@ -649,8 +651,17 @@ mod guest {
             crate::variants(&input, cap, &plans).map_err(error)
         }
 
-        fn compare(_a: Vec<u8>, _b: Vec<u8>, _options: CompareOptions) -> Result<Diff, Error> {
-            missing("compare")
+        fn compare(a: Vec<u8>, b: Vec<u8>, options: CompareOptions) -> Result<Diff, Error> {
+            let diff =
+                crate::compare::compare(&a, &b, options.tolerance.unwrap_or(0), options.render)
+                    .map_err(error)?;
+            Ok(Diff {
+                identical: diff.identical,
+                differing_pixels: diff.differing_pixels,
+                max_delta: diff.max_delta,
+                ssim: diff.ssim,
+                diff: diff.diff,
+            })
         }
 
         fn hash(_data: Vec<u8>, _kind: HashKind) -> Result<Vec<u8>, Error> {
