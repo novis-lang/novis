@@ -47,6 +47,24 @@
       ],
       "returns": "bytes",
       "help": "Decodes an encoded image and returns its hash. Similar images have hashes that differ in few bits."
+    },
+    {
+      "name": "placeholder",
+      "params": [
+        {"name": "data", "type": "bytes"},
+        {"name": "kind", "type": "PlaceholderKind"}
+      ],
+      "returns": "string",
+      "help": "Decodes an encoded image and returns a short text that a web page can draw as a blurred preview of it."
+    },
+    {
+      "name": "palette",
+      "params": [
+        {"name": "data", "type": "bytes"},
+        {"name": "count", "type": "uint"}
+      ],
+      "returns": "array<{r: uint, g: uint, b: uint, alpha: float}>",
+      "help": "Decodes an encoded image and returns at most `count` of its main colours, the most common first."
     }
   ],
   "enums": [
@@ -58,7 +76,8 @@
     {"name": "Blend", "cases": ["Normal", "Multiply", "Screen", "Overlay", "Darken", "Lighten"], "help": "How the pixels of one image are mixed with the pixels of the image below it."},
     {"name": "Align", "cases": ["Left", "Center", "Right"], "help": "How the lines of a text are aligned."},
     {"name": "Output", "cases": ["Encoded", "Raw", "Size"], "help": "What `Codec::run` returns: the encoded file, the RGBA8 pixels, or the size alone."},
-    {"name": "HashKind", "cases": ["Perceptual", "Difference", "Average"], "help": "The kind of hash `Image::hash` returns. A `Perceptual` hash is 8 bytes, a `Difference` hash is 16 bytes and an `Average` hash is 32 bytes."}
+    {"name": "HashKind", "cases": ["Perceptual", "Difference", "Average"], "help": "The kind of hash `Image::hash` returns. A `Perceptual` hash is 8 bytes, a `Difference` hash is 16 bytes and an `Average` hash is 32 bytes."},
+    {"name": "PlaceholderKind", "cases": ["BlurHash", "ThumbHash"], "help": "The kind of placeholder `Image::placeholder` returns. A `BlurHash` is 28 characters. A `ThumbHash` is base64 text and also keeps transparency."}
   ],
   "unions": [
     {"name": "Source", "cases": [

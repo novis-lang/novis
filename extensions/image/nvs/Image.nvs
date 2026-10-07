@@ -326,6 +326,24 @@ final class Image
         return $bits;
     }
 
+    /// `Image::placeholder` returns a short text that a web page can draw as a blurred preview of the image.
+    /// Its average colour is the average colour of the image.
+    public static function placeholder(bytes $data, PlaceholderKind $kind): string
+    {
+        return Codec::placeholder($data, $kind);
+    }
+
+    /// `Image::palette` returns at most `count` main colours of the image, the most common first.
+    /// Transparent pixels are not counted. A `count` above 256 throws a `LogicError`.
+    public static function palette(bytes $data, uint $count = 5): array<Color>
+    {
+        array<Color> $colours = [];
+        foreach (Codec::palette($data, $count) as var $found) {
+            $colours[] = Color::rgba($found->r, $found->g, $found->b, $found->alpha);
+        }
+        return $colours;
+    }
+
     private static function bytesOf(bytes|Image $image): bytes
     {
         if ($image is Image) {
