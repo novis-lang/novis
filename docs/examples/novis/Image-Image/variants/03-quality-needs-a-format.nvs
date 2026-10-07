@@ -1,0 +1,18 @@
+<?nvs
+// Shows that an entry with a `quality` needs a `format`.
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Format;
+
+Image $photo = Image::create(200, 200, Color::hex("#336699"));
+
+// The entry has a quality and no format, so `variants` throws a `LogicError`.
+try {
+    $photo->variants([{width: 100, quality: 60}]);
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// After `format`, every entry has a format. This prints 1.
+array<bytes> $files = $photo->format(Format::Jpeg)->variants([{width: 100, quality: 60}]);
+echo Core\Arr::count($files), "\n";

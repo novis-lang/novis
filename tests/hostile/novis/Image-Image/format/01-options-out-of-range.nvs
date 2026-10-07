@@ -1,0 +1,53 @@
+<?nvs
+// Attack: a request chooses formats Novis cannot write, and options far outside their range.
+// Each attempt should throw an error or write a file, and the server keeps running.
+use Novis\Image\Color;
+use Novis\Image\Format;
+use Novis\Image\Image;
+
+Image $small = Image::create(8, 8, Color::hex('#ff0000'));
+
+// 1. Formats that Novis reads but cannot write.
+try {
+    $small->format(Format::Svg)->encode();
+    echo "step 1 ran\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. A JPEG quality of the largest whole number.
+try {
+    $small->format(Format::Jpeg, { quality: 18446744073709551615 })->encode();
+    echo "step 2 ran\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. A WebP effort of the largest whole number, which could make the encoder work for a long time.
+try {
+    $small->format(Format::Webp, { effort: 18446744073709551615, quality: 1000 })->encode();
+    echo "step 3 ran\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. Every option at once, on a format that ignores most of them.
+try {
+    $small->format(Format::Gif, { quality: 0, progressive: true, lossless: true, effort: 0 })->encode();
+    echo "step 4 ran\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}
+
+// 5. A thousand `format` calls on one image. Only the last one counts.
+try {
+    Image $image = $small;
+    uint $i = 0;
+    while ($i < 1000) {
+        $image = $image->format($i % 2 == 0 ? Format::Png : Format::Jpeg);
+        $i = $i + 1;
+    }
+    echo 'step 5 ran ', Image::extension(Image::info($image->encode())->format), "\n";
+} catch (Throwable $e) {
+    echo "step 5 stopped\n";
+}

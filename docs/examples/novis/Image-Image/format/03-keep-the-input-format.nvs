@@ -1,0 +1,13 @@
+<?nvs
+// Shows that without `format`, the output has the format of the file you opened.
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Format;
+
+// These JPEG bytes replace a photo that a user uploaded.
+bytes $upload = Image::create(400, 300, Color::hex("#336699"))->format(Format::Jpeg)->encode();
+
+// The pipeline makes a smaller copy and does not call `format`. This prints jpg 200x150.
+bytes $small = Image::open($upload)->resize({width: 200})->encode();
+var $info = Image::info($small);
+echo Image::extension($info->format), " ", $info->width, "x", $info->height, "\n";

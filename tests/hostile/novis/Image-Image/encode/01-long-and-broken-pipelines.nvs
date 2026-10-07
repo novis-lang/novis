@@ -1,0 +1,67 @@
+<?nvs
+// Attack: a request builds very long pipelines and pipelines with a broken step in the middle.
+// Each attempt should throw an error or write a file, and the server keeps running.
+use Novis\Image\Axis;
+use Novis\Image\Color;
+use Novis\Image\Format;
+use Novis\Image\Image;
+
+Image $small = Image::create(16, 16, Color::hex('#ff0000'));
+
+// 1. Ten thousand steps in one pipeline.
+try {
+    Image $image = $small;
+    uint $i = 0;
+    while ($i < 10000) {
+        $image = $image->flip($i % 2 == 0 ? Axis::Horizontal : Axis::Vertical);
+        $i = $i + 1;
+    }
+    $image->encode();
+    echo "step 1 ran\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. A step that cannot run, with valid steps before and after it.
+try {
+    $small->blur(1.0)->crop({ x: 100, y: 100, width: 4, height: 4 })->grayscale()->encode();
+    echo "step 2 ran\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. Resizes that grow the image past the pixel limit.
+try {
+    $small->resize({ width: 100000, height: 100000, upscale: true })->encode();
+    echo "step 3 ran\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. A rotation that grows the image a little each time, many times in a row.
+try {
+    Image $turned = $small;
+    uint $turns = 0;
+    while ($turns < 40) {
+        $turned = $turned->rotate(45.0);
+        $turns = $turns + 1;
+    }
+    $turned->format(Format::Png)->encode();
+    echo "step 4 ran\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}
+
+// 5. The same pipeline encoded many times. Each call starts again from the input.
+try {
+    Image $pipeline = $small->resize({ width: 8 })->format(Format::Jpeg);
+    uint $round = 0;
+    uint $length = 0;
+    while ($round < 200) {
+        $length = Core\Bytes::length($pipeline->encode());
+        $round = $round + 1;
+    }
+    echo 'step 5 ran ', $length > 0 ? 'some' : 'none', "\n";
+} catch (Throwable $e) {
+    echo "step 5 stopped\n";
+}

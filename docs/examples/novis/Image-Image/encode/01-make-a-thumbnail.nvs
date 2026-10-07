@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to turn an upload into a small square thumbnail file.
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Format;
+
+// These JPEG bytes replace a photo that a user uploaded.
+bytes $upload = Image::create(1200, 800, Color::hex("#336699"))->format(Format::Jpeg)->encode();
+
+// Nothing runs until `encode`. Then the photo is decoded, resized and written as WebP.
+bytes $thumbnail = Image::open($upload)
+    ->resize({width: 150, height: 150})
+    ->format(Format::Webp, {quality: 75})
+    ->encode();
+
+// This prints webp 150x150.
+var $info = Image::info($thumbnail);
+echo Image::extension($info->format), " ", $info->width, "x", $info->height, "\n";

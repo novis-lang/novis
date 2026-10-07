@@ -1,0 +1,13 @@
+<?nvs
+// Shows that a lossless WebP file keeps the exact colour of every pixel.
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Format;
+
+Image $logo = Image::create(40, 40, Color::hex("#336699"));
+bytes $webp = $logo->format(Format::Webp, {lossless: true})->encode();
+
+// The first pixel has the same colour after the file is decoded. This prints 51 102 153.
+var $pixels = Image::open($webp)->raw();
+array<mixed> $pixel = Core\Bytes::unpack(Core\Bytes::slice($pixels->pixels, 0, 4), "C4");
+echo $pixel[0], " ", $pixel[1], " ", $pixel[2], "\n";

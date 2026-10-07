@@ -1,0 +1,16 @@
+<?nvs
+// Shows that `encode` removes the EXIF data of a photo unless you keep it.
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Format;
+
+// A JPEG with an EXIF block replaces a photo from a phone. The block has orientation 6.
+bytes $jpeg = Image::create(400, 200, Color::hex("#336699"))->format(Format::Jpeg)->encode();
+bytes $exif = Core\Encoding::fromHex("ffe1002245786966000049492a0008000000010012010300010000000600000000000000");
+bytes $photo = Core\Bytes::join([Core\Bytes::slice($jpeg, 0, 2), $exif, Core\Bytes::slice($jpeg, 2)]);
+// This prints 6.
+echo Image::info($photo)->orientation, "\n";
+
+// `autoOrient: false` leaves the pixels as they are. `encode` removes the EXIF block. This prints 1.
+bytes $published = Image::open($photo, {autoOrient: false})->encode();
+echo Image::info($published)->orientation, "\n";

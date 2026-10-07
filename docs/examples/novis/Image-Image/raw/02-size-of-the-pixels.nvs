@@ -1,0 +1,11 @@
+<?nvs
+// Shows that the pixels have four bytes for each pixel of the image.
+use Novis\Image\Image;
+use Novis\Image\Color;
+
+// `raw` runs the resize first. The result is 30 by 20 pixels.
+var $image = Image::create(300, 200, Color::hex("#336699"))->resize({width: 30})->raw();
+echo $image->width, "x", $image->height, "\n";
+
+// 30 times 20 times 4 is 2400. This prints 2400.
+echo Core\Bytes::length($image->pixels), "\n";

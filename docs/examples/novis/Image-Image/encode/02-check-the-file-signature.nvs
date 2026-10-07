@@ -1,0 +1,10 @@
+<?nvs
+// Shows that `encode` returns the bytes of a real file, ready to save or to send.
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Format;
+
+bytes $png = Image::create(10, 10, Color::hex("#336699"))->format(Format::Png)->encode();
+
+// Every PNG file starts with the same four bytes. This prints 89504e47.
+echo Core\Encoding::toHex(Core\Bytes::slice($png, 0, 4)), "\n";

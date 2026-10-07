@@ -1,0 +1,65 @@
+<?nvs
+// Attack: a request uploads photos with broken EXIF blocks and asks to keep them.
+// Each attempt should throw an error or write a file, and the server keeps running.
+use Novis\Image\Color;
+use Novis\Image\Format;
+use Novis\Image\Image;
+
+class Upload
+{
+    // Puts the EXIF block `$hex` right after the first two bytes of a small JPEG.
+    public static function withExif(string $hex): bytes
+    {
+        bytes $jpeg = Image::create(8, 8, Color::hex('#ff0000'))->format(Format::Jpeg)->encode();
+        return Core\Bytes::join([Core\Bytes::slice($jpeg, 0, 2), Core\Encoding::fromHex($hex), Core\Bytes::slice($jpeg, 2)]);
+    }
+}
+
+// 1. An EXIF block whose list of tags starts far past the end of the block.
+try {
+    Image::open(Upload::withExif('ffe1002245786966000049492a00ffffff7f010012010300010000000600000000000000'))->metadata({ keep: true })->encode();
+    echo "step 1 ran\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. An EXIF block that claims 65535 tags and contains none.
+try {
+    Image::open(Upload::withExif('ffe1001645786966000049492a0008000000ffff00000000'))->metadata({ keep: true })->encode();
+    echo "step 2 ran\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. An EXIF block whose next list of tags points back at itself.
+try {
+    Image::open(Upload::withExif('ffe1002245786966000049492a0008000000010012010300010000000600000008000000'))->metadata({ keep: true })->encode();
+    echo "step 3 ran\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. An orientation of 200, which is not one of the eight orientations.
+try {
+    Image::open(Upload::withExif('ffe1002245786966000049492a000800000001001201030001000000c800000000000000'))->metadata({ keep: true })->encode();
+    echo "step 4 ran\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}
+
+// 5. A valid EXIF block repeated many times in one file.
+try {
+    bytes $jpeg = Image::create(8, 8, Color::hex('#ff0000'))->format(Format::Jpeg)->encode();
+    bytes $exif = Core\Encoding::fromHex('ffe1002245786966000049492a0008000000010012010300010000000600000000000000');
+    array<bytes> $parts = [Core\Bytes::slice($jpeg, 0, 2)];
+    uint $i = 0;
+    while ($i < 500) {
+        $parts[] = $exif;
+        $i = $i + 1;
+    }
+    $parts[] = Core\Bytes::slice($jpeg, 2);
+    Image::open(Core\Bytes::join($parts))->metadata({ keep: true })->encode();
+    echo "step 5 ran\n";
+} catch (Throwable $e) {
+    echo "step 5 stopped\n";
+}

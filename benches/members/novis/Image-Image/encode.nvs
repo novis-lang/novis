@@ -1,0 +1,24 @@
+<?nvs
+// Runs a short pipeline on a small PNG and writes the file, as a program does for each image it serves.
+// bench: iterations 256
+// bench: complexity constant
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Format;
+use Novis\Image\Axis;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        bytes $png = Image::create(4, 4, Color::hex("#336699"))->format(Format::Png)->encode();
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            Axis $axis = ($total + $i) % 2 == 0 ? Axis::Horizontal : Axis::Vertical;
+            $total = $total + Core\Bytes::length(Image::open($png)->flip($axis)->encode()) % 5;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";
