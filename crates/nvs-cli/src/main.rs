@@ -145,6 +145,7 @@ mod ctl;
 mod dispatch;
 mod doc;
 mod events;
+mod ext;
 mod extensions;
 mod fmt;
 mod info;
@@ -612,6 +613,16 @@ enum Command {
         #[command(subcommand)]
         command: ApiCommand,
     },
+    /// Create, build, check and pin a Novis extension.
+    ///
+    /// An extension is a `.nvsx` file: a WebAssembly component with a
+    /// manifest and Novis source inside it. These commands are the tools an
+    /// extension author needs beside the compiler of their own language.
+    // `rule:packaging/nvs-ext-is-the-authoring-tool`; see [`ext`].
+    Ext {
+        #[command(subcommand)]
+        command: ExtCommand,
+    },
     /// Write the shipped default `nvs.toml` into the working directory, or
     /// to the one path `--config` names.
     ///
@@ -977,6 +988,72 @@ enum AgentCommand {
         #[arg(value_parser = clap::builder::PossibleValuesParser::new(agent::hooked_agent_names()))]
         agent: String,
     },
+}
+
+/// `nvs ext`'s own subcommands, one per row of
+/// `rule:packaging/nvs-ext-is-the-authoring-tool`'s table. [`ext`] runs each.
+#[derive(Subcommand)]
+enum ExtCommand {
+    /// Create a new extension project in a directory.
+    ///
+    /// The project builds a component for the `nvs:ext` world. It contains
+    /// the world's WIT files, an `nvsx.toml` and an empty test.
+    New {
+        /// The language of the project.
+        #[arg(long, value_enum)]
+        lang: ExtLang,
+        /// The directory to create. It must not exist, or must be empty.
+        dir: PathBuf,
+    },
+    /// Make a `.nvsx` file from the wasm file your toolchain built.
+    ///
+    /// The wasm file may be a core module or a component. The manifest comes
+    /// from the project's `nvsx.toml`. The Novis source files are put inside
+    /// the `.nvsx`. The command then checks that the result loads.
+    Build {
+        /// The project directory (default: the working directory).
+        #[arg(default_value = ".")]
+        project: PathBuf,
+    },
+    /// Print the manifest of a `.nvsx` file and the files and hosts it needs.
+    Inspect {
+        /// The `.nvsx` file.
+        file: PathBuf,
+        /// Print the Novis source files inside the `.nvsx` as well.
+        #[arg(long)]
+        source: bool,
+    },
+    /// Run the project's `.nvs` tests with the built `.nvsx` loaded.
+    ///
+    /// No `nvs.toml` is read, so the extension gets no files and no hosts.
+    /// Use `--config` to name a configuration that gives it some.
+    Test {
+        /// The project directory (default: the working directory).
+        #[arg(default_value = ".")]
+        project: PathBuf,
+    },
+    /// Run every check that loading a `.nvsx` file runs, and report the result.
+    Verify {
+        /// The `.nvsx` file.
+        file: PathBuf,
+    },
+    /// Print the `[[extension]]` entry for a `.nvsx` file, with its `sha256`.
+    ///
+    /// Copy the entry into your `nvs.toml`. It has no `grants`: you add the
+    /// files and hosts you allow yourself.
+    Pin {
+        /// The `.nvsx` file.
+        file: PathBuf,
+    },
+}
+
+/// The languages `nvs ext new` has a template for.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, clap::ValueEnum)]
+enum ExtLang {
+    /// Rust, built with `cargo` for `wasm32-wasip2`.
+    Rust,
+    /// C, built with wasi-sdk and `wit-bindgen`.
+    C,
 }
 
 /// `nvs api`'s own subcommands.
@@ -1677,6 +1754,7 @@ fn main() -> ExitCode {
         Command::Api {
             command: ApiCommand::Diff { old, new },
         } => api_diff::run(&old, &new),
+        Command::Ext { command } => ext::run(command),
         Command::Init => config::init(&cli.config),
         Command::Config {
             command: ConfigCommand::Check { files },
