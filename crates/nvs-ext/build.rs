@@ -121,7 +121,15 @@ fn main() {
     let target = root.join("target/ext");
     for component in COMPONENTS {
         let dir = root.join("extensions").join(component.dir);
-        for input in ["src", "Cargo.toml", "Cargo.lock", ".cargo", "manifest.json"] {
+        for input in [
+            "src",
+            "build.rs",
+            "libwebp",
+            "Cargo.toml",
+            "Cargo.lock",
+            ".cargo",
+            "manifest.json",
+        ] {
             println!("cargo:rerun-if-changed={}", dir.join(input).display());
         }
         for wit in ["wit/nvs-ext", "wit/image.wit"] {

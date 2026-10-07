@@ -15,6 +15,7 @@ mod avif;
 mod decode;
 mod encode;
 mod info;
+mod webp;
 
 pub use decode::{DEFAULT_MAX_PIXELS, Pixels, decode, sniff};
 pub use encode::{DEFAULT_JPEG_QUALITY, encode};

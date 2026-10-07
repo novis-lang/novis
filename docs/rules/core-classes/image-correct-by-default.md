@@ -12,7 +12,7 @@ from the header and stores them where it chooses. A kept EXIF block whose orient
 is written with its orientation tag set to `1`, so a viewer does not turn the image a second time.
 
 **Not shipped.** The component's `run` applies the orientation of a JPEG, PNG or WebP input and
-re-encodes JPEG, PNG, lossless WebP and GIF with no metadata unless a `metadata` step keeps the EXIF
-block (`extensions/image/src/decode.rs`, `extensions/image/src/encode.rs`,
+re-encodes JPEG, PNG, WebP, GIF and AVIF with no metadata unless a `metadata` step keeps the EXIF
+block, which an AVIF never carries (`extensions/image/src/decode.rs`, `extensions/image/src/encode.rs`,
 `crates/nvs-ext/tests/image_pipeline.rs`). AVIF and JPEG XL inputs are not oriented, the ICC
 conversion does not exist, and the `Novis\Image` builder does not exist.

@@ -1,7 +1,8 @@
 //! The image component's pipeline, called through the host as `Novis\Image` calls it
 //! (`rule:core-classes/image-pipeline`, `rule:core-classes/image-correct-by-default`): a JPEG
-//! with an EXIF orientation opens upright unless `autoOrient` is off, and a re-encoded JPEG
-//! carries no EXIF block unless the plan keeps it.
+//! with an EXIF orientation opens upright unless `autoOrient` is off, a re-encoded JPEG carries
+//! no EXIF block unless the plan keeps it, and every format the roster encodes writes a file the
+//! component reopens (`rule:core-classes/image-format-roster`).
 //!
 //! The tagged inputs are built here from `extensions/image/fixtures/gradient.jpg`, by inserting
 //! an APP1 segment whose EXIF block this file writes, so no fixture carries real metadata.
@@ -80,6 +81,77 @@ fn plan(steps: Vec<Value>, output: &str) -> Value {
         ("overlays", Value::Array(Vec::new())),
         ("output", Value::Case(output.to_owned())),
     ])
+}
+
+/// The step `format(Format::<format>, {...})`, with `quality` and `lossless` when they are given.
+fn format_step(format: &str, quality: Option<u64>, lossless: Option<bool>) -> Value {
+    let mut options = vec![("format", Value::Case(format.to_owned()))];
+    if let Some(quality) = quality {
+        options.push(("quality", Value::Uint(quality)));
+    }
+    if let Some(lossless) = lossless {
+        options.push(("lossless", Value::Bool(lossless)));
+    }
+    shape(vec![("format", shape(options))])
+}
+
+/// The `Format` case `file` is in, read from its signature.
+fn format_of(file: &[u8]) -> &'static str {
+    match file {
+        [0xff, 0xd8, 0xff, ..] => "Jpeg",
+        [0x89, b'P', b'N', b'G', ..] => "Png",
+        [
+            b'R',
+            b'I',
+            b'F',
+            b'F',
+            _,
+            _,
+            _,
+            _,
+            b'W',
+            b'E',
+            b'B',
+            b'P',
+            ..,
+        ] => "Webp",
+        [b'G', b'I', b'F', b'8', ..] => "Gif",
+        [
+            _,
+            _,
+            _,
+            _,
+            b'f',
+            b't',
+            b'y',
+            b'p',
+            b'a',
+            b'v',
+            b'i',
+            b'f',
+            ..,
+        ] => "Avif",
+        _ => panic!("no known signature: {:?}", &file[..file.len().min(12)]),
+    }
+}
+
+/// The chunks of the WebP `file`, each as its four-byte name and its payload.
+fn webp_chunks(file: &[u8]) -> Vec<([u8; 4], Vec<u8>)> {
+    assert_eq!(&file[..4], b"RIFF", "the output is not a RIFF file");
+    assert_eq!(&file[8..12], b"WEBP", "the output is not a WebP file");
+    let riff = u32::from_le_bytes(file[4..8].try_into().unwrap());
+    assert_eq!(usize::try_from(riff).unwrap() + 8, file.len());
+    let mut chunks = Vec::new();
+    let mut at = 12;
+    while at + 8 <= file.len() {
+        let name: [u8; 4] = file[at..at + 4].try_into().unwrap();
+        let size =
+            usize::try_from(u32::from_le_bytes(file[at + 4..at + 8].try_into().unwrap())).unwrap();
+        chunks.push((name, file[at + 8..at + 8 + size].to_vec()));
+        at += 8 + size + size % 2;
+    }
+    assert_eq!(at, file.len(), "a chunk runs past the end of the file");
+    chunks
 }
 
 /// The step `metadata({keep: keep})`.
@@ -309,6 +381,112 @@ fn metadata_keep_true_keeps_them() {
     assert_eq!(
         info_field(&request, &extension, out, "orientation"),
         Value::Uint(1)
+    );
+    block_on(request.end()).expect("the request ends");
+}
+
+#[test]
+fn every_encoder_writes_its_format_and_the_result_reopens() {
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let extension = component(&host);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(60), None)));
+    // WebP appears twice: lossless through `image`, and lossy through libwebp.
+    for (format, lossless) in [
+        ("Jpeg", None),
+        ("Png", None),
+        ("Webp", Some(true)),
+        ("Webp", None),
+        ("Gif", None),
+        ("Avif", None),
+    ] {
+        let out = run(
+            &request,
+            &extension,
+            encoded(fixture("gradient.jpg"), true),
+            plan(vec![format_step(format, None, lossless)], "Encoded"),
+        )
+        .unwrap_or_else(|err| panic!("{format} {lossless:?} does not encode: {err:?}"));
+        assert_eq!(format_of(&out), format, "{lossless:?}");
+        let raw = run(
+            &request,
+            &extension,
+            encoded(out, true),
+            plan(Vec::new(), "Raw"),
+        )
+        .unwrap_or_else(|err| panic!("{format} {lossless:?} does not reopen: {err:?}"));
+        assert_eq!(size_of(&raw), (16, 12), "{format} {lossless:?}");
+        assert!(
+            is_red(pixel(&raw, 0, 0)),
+            "{format} {:?}",
+            pixel(&raw, 0, 0)
+        );
+        assert!(
+            is_blue(pixel(&raw, 15, 11)),
+            "{format} {:?}",
+            pixel(&raw, 15, 11)
+        );
+    }
+    block_on(request.end()).expect("the request ends");
+}
+
+#[test]
+fn lossy_webp_is_encoded_by_libwebp() {
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let extension = component(&host);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(60), None)));
+    let encode = |source: Vec<u8>, steps: Vec<Value>| {
+        run(
+            &request,
+            &extension,
+            encoded(source, true),
+            plan(steps, "Encoded"),
+        )
+        .expect("the WebP encodes")
+    };
+    // A lossy WebP holds a `VP8 ` bitstream, which only libwebp writes here. A lossless one
+    // holds `VP8L`.
+    let lossy = encode(
+        fixture("gradient.jpg"),
+        vec![format_step("Webp", None, None)],
+    );
+    let names: Vec<[u8; 4]> = webp_chunks(&lossy)
+        .into_iter()
+        .map(|(name, _)| name)
+        .collect();
+    assert_eq!(names, vec![*b"VP8 "]);
+    let lossless = encode(
+        fixture("gradient.jpg"),
+        vec![format_step("Webp", None, Some(true))],
+    );
+    assert_eq!(webp_chunks(&lossless)[0].0, *b"VP8L");
+    // `quality` reaches libwebp: a lower quality writes a smaller file.
+    let low = encode(
+        fixture("gradient.jpg"),
+        vec![format_step("Webp", Some(5), None)],
+    );
+    let high = encode(
+        fixture("gradient.jpg"),
+        vec![format_step("Webp", Some(100), None)],
+    );
+    assert!(low.len() < high.len(), "{} >= {}", low.len(), high.len());
+    // A kept EXIF block goes in an `EXIF` chunk after the bitstream, flagged in a `VP8X` header.
+    let block = exif_block(None, true);
+    let kept = encode(
+        with_exif(&fixture("gradient.jpg"), &block),
+        vec![format_step("Webp", None, None), metadata(true)],
+    );
+    let chunks = webp_chunks(&kept);
+    let names: Vec<[u8; 4]> = chunks.iter().map(|(name, _)| *name).collect();
+    assert_eq!(names, vec![*b"VP8X", *b"VP8 ", *b"EXIF"]);
+    assert_eq!(
+        chunks[0].1[0] & 0x08,
+        0x08,
+        "the VP8X header has no EXIF flag"
+    );
+    assert_eq!(chunks[2].1, block);
+    assert_eq!(
+        info_field(&request, &extension, kept, "width"),
+        Value::Uint(16)
     );
     block_on(request.end()).expect("the request ends");
 }

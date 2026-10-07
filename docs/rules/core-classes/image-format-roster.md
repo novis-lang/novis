@@ -13,4 +13,7 @@ image and is documented as queue work rather than a request-path call.
 
 **Not shipped.** The image component's `run` decodes JPEG, PNG, WebP, GIF, AVIF and JPEG XL inside
 the guest and refuses to encode JPEG XL (`crates/nvs-ext/tests/image_decode.rs`). AVIF decodes
-through `rav1d` on one thread (`extensions/image/src/avif.rs`), and no format encodes.
+through `rav1d` on one thread (`extensions/image/src/avif.rs`). JPEG, PNG, WebP, GIF and AVIF
+encode (`extensions/image/src/encode.rs`, `crates/nvs-ext/tests/image_pipeline.rs`): lossy WebP
+through the libwebp that `extensions/image/build.rs` links, and AVIF through `ravif` on one thread.
+APNG is neither decoded as an animation nor encoded.
