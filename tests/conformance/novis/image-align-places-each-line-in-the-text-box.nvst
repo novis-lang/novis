@@ -1,0 +1,51 @@
+--TEST--
+`Novis\Image\Align` places each wrapped line of `Image::text` at the left, middle or right of a box as wide as the longest line, and `Image::measureText` returns the same box for every case — rule:core-classes/image-one-entry-point-per-job
+--FILE--
+<?nvs
+// covers: Novis\Image\Align
+use Novis\Image\Align;
+use Novis\Image\Color;
+use Novis\Image\Font;
+use Novis\Image\Image;
+
+// A font whose printable ASCII glyphs are boxes 0.6 em wide, from x 0.05 em to 0.55 em.
+Font $font = Font::fromBytes(Core\Encoding::fromHex(
+    "000100000007004000020030636d6170001001230000007c00000034676c7966" .
+    "03be0582000000b00000002268656164616b43a1000000d40000003668686561" .
+    "054801c60000010c00000024686d747807080032000001300000000c6c6f6361" .
+    "000000110000013c000000086d61787000035000000001440000000600000001" .
+    "0003000a0000000c000d00000000002800000000000000020000002000000020" .
+    "00000001000000210000007e00000002000100320000022602bc000300000101" .
+    "01010032000001f40000000002bc0000fd440000000100000001000000000000" .
+    "5f0f3cf5000003e80000000000000000000000000000000000320000022602bc" .
+    "000000080002000000000000000100000320ff38000002580000003202260001" .
+    "0000000000000000000000000000000302580000025800000258003200000000" .
+    "000000110000500000030000"
+));
+
+class Row {
+    // One character per pixel of row 15, the second line: `#` dark, `.` white.
+    public static function draw(Font $font, Align $align): string {
+        var $raw = Image::create(24, 20, Color::hex("#ffffff"))
+            ->text("Shop Hi", $font, {size: 10.0, color: Color::hex("#000000"), x: 0, y: 0, maxWidth: 24, align: $align})
+            ->raw();
+        string $out = "";
+        int $x = 0;
+        while ($x < 24) {
+            bytes $red = Core\Bytes::slice($raw->pixels, (360 + $x) * 4, 1);
+            $out = $out . (Core\Encoding::toHex($red) == "ff" ? "." : "#");
+            $x = $x + 1;
+        }
+        return $out;
+    }
+}
+
+array<Align> $aligns = [Align::Left, Align::Center, Align::Right];
+foreach ($aligns as Align $align) {
+    var $box = Image::measureText("Shop Hi", $font, {size: 10.0, maxWidth: 24, align: $align});
+    echo $box->width, "x", $box->height, " ", Row::draw($font, $align), "\n";
+}
+--EXPECT--
+24x20 ############............
+24x20 ......############......
+24x20 ............############
