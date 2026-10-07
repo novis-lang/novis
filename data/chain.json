@@ -3,6 +3,7 @@
   "goals": [
     "ext-intl",
     "ldap",
-    "pdf"
+    "pdf",
+    "spreadsheet"
   ]
 }

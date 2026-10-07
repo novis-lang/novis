@@ -1,0 +1,755 @@
+{
+  "title": "`Novis\\Spreadsheet` is built into every binary: xlsx written and read in constant memory, styled exports from one array, templates filled, and CSV through the same API",
+  "milestone": "M17",
+  "position": "last",
+  "files": [],
+  "context": {
+    "modules": [
+      "crates/nvs-ext/build.rs",
+      "crates/nvs-ext/src/builtin.rs",
+      "crates/nvs-ext/src/load.rs",
+      "crates/nvs-ext/src/call.rs",
+      "extensions/image/src/lib.rs"
+    ],
+    "rules": [
+      "packaging/the-first-party-components-are-built-in",
+      "packaging/the-boundary-is-the-cost",
+      "core-classes/spreadsheet-has-no-io",
+      "core-classes/spreadsheet-bulk-boundary"
+    ],
+    "adrs": [
+      "0123 §2",
+      "0247 §1"
+    ],
+    "shapes": [
+      "A commit message"
+    ],
+    "playbook": [
+      "Tooling > the end",
+      "Tooling > one call reads",
+      "Tooling > a commit message",
+      "Tooling > a [context]*",
+      "Tooling > another agent",
+      "Tooling > a crate added to a built-in component",
+      "Running things > a new dependency owes three things",
+      "Running things > target/release/nvs.exe is"
+    ],
+    "plan": [
+      "Open now",
+      "Blocking"
+    ],
+    "milestones": [
+      "M17"
+    ]
+  },
+  "stages": [
+    {
+      "number": 2,
+      "title": "the record, its fragments and `wit/spreadsheet.wit`",
+      "summary": "Writes the `Novis\\Spreadsheet` record from the goal's standing decisions, the fragments it creates and rewrites, and the WIT interface the component exports.",
+      "context": {
+        "rules": [
+          "core-classes/spreadsheet-evaluation-and-roster",
+          "core-classes/spreadsheet-formula-is-a-value",
+          "core-classes/spreadsheet-output-is-inert",
+          "core-classes/decompression-bound",
+          "packaging/a-value-crosses-as-its-wit-type",
+          "packaging/a-guest-has-no-ambient-authority",
+          "core-api/options-bag",
+          "core-api/one-paradigm-per-operation"
+        ],
+        "adrs": [
+          "0123 §1",
+          "0123 §4",
+          "0123 §5",
+          "0123 §6",
+          "0166 §2",
+          "0166 §6"
+        ],
+        "shapes": [
+          "A decision record",
+          "A rule fragment"
+        ]
+      }
+    },
+    {
+      "number": 3,
+      "title": "the component is built in, and the streaming writer",
+      "summary": "Builds `extensions/spreadsheet` into every binary as the fourth component, and writes a typed sheet as a stream to every target in constant memory.",
+      "context": {
+        "rules": [
+          "core-classes/spreadsheet-output-is-inert",
+          "core-classes/io-write-stream",
+          "packaging/a-wasm-module-cache-reuses-the-artifact-cache"
+        ],
+        "adrs": [
+          "0247 §4"
+        ],
+        "shapes": [
+          "A `.nvst` test case"
+        ],
+        "playbook": [
+          "Writing Novis > in extensions/intl/nvs/Collator.nvs"
+        ]
+      }
+    },
+    {
+      "number": 4,
+      "title": "columns, styles, defaults and sheets",
+      "summary": "Adds columns, `Style` and its layering, the defaults for a sheet with a header, several sheets, and the row limit.",
+      "context": {
+        "rules": [
+          "core-api/options-bag"
+        ],
+        "adrs": [],
+        "shapes": [
+          "A `.nvst` test case"
+        ]
+      }
+    },
+    {
+      "number": 5,
+      "title": "the sheet-end parts, formulas, tables, conditional formats and images",
+      "summary": "Adds everything xlsx writes after the rows or in its own part, so it may point at any earlier row until the sheet is finished.",
+      "context": {
+        "rules": [
+          "core-classes/spreadsheet-formula-is-a-value"
+        ],
+        "adrs": [
+          "0123 §3"
+        ],
+        "shapes": [
+          "A `.nvst` test case"
+        ]
+      }
+    },
+    {
+      "number": 6,
+      "title": "charts",
+      "summary": "Adds the chart subset: column, bar, line, area, pie, doughnut, scatter and a combination of two types, with titles, axis titles, the legend, series colours and data labels.",
+      "context": {
+        "rules": [],
+        "adrs": [],
+        "shapes": [
+          "A `.nvst` test case"
+        ]
+      }
+    },
+    {
+      "number": 7,
+      "title": "the reader",
+      "summary": "Reads xlsx and xlsb as a stream over byte ranges, and xlsm, xls and ods whole, into the read type table, with the header, row-number keys and the reading defaults.",
+      "context": {
+        "rules": [
+          "core-classes/spreadsheet-evaluation-and-roster",
+          "core-classes/xml-refuses-by-construction",
+          "security/taint-propagation",
+          "security/tainted-sources"
+        ],
+        "adrs": [
+          "0123 §5"
+        ],
+        "shapes": [
+          "A `.nvst` test case"
+        ]
+      }
+    },
+    {
+      "number": 8,
+      "title": "the number-format renderer",
+      "summary": "Renders a cell the way Excel displays it, for `{text: [...]}` on read and for auto width on write.",
+      "context": {
+        "rules": [],
+        "adrs": [],
+        "shapes": [
+          "A `.nvst` test case"
+        ]
+      }
+    },
+    {
+      "number": 9,
+      "title": "CSV through the same API",
+      "summary": "`Reader` recognises CSV and passes it to `Core\\Csv`, and `Workbook` writes CSV when the name ends in `.csv` or `{format: 'csv'}` is given.",
+      "context": {
+        "rules": [
+          "core-api/one-paradigm-per-operation"
+        ],
+        "adrs": [],
+        "shapes": [
+          "A `.nvst` test case"
+        ]
+      }
+    },
+    {
+      "number": 10,
+      "title": "template fill",
+      "summary": "`Template::open($file)->fill($data)` copies every part of a designed workbook unchanged except the cells it fills, repeats the rows marked by a list, and keeps every reference below them right.",
+      "context": {
+        "rules": [
+          "core-classes/spreadsheet-output-is-inert",
+          "core-classes/spreadsheet-formula-is-a-value"
+        ],
+        "adrs": [],
+        "shapes": [
+          "A `.nvst` test case"
+        ]
+      }
+    },
+    {
+      "number": 11,
+      "title": "limits and hostile files",
+      "summary": "Implements the decompression bound for streamed parts and proves every hostile-file class of the genre ends in a throw or a contained trap.",
+      "context": {
+        "rules": [
+          "core-classes/decompression-bound",
+          "core-classes/xml-refuses-by-construction",
+          "packaging/a-guest-runs-under-the-requests-budget",
+          "testing/hostile-case-contract"
+        ],
+        "adrs": [
+          "0166 §2",
+          "0166 §5",
+          "0123 §4"
+        ],
+        "shapes": []
+      }
+    },
+    {
+      "number": 12,
+      "title": "100 MB, the growth and the benches",
+      "summary": "Proves a 100 MB workbook writes and reads in memory proportional to rows in flight, records what the component adds to the binary, and commits the benches.",
+      "context": {
+        "rules": [
+          "testing/feature-proofs"
+        ],
+        "adrs": [
+          "0247 §3"
+        ],
+        "shapes": [
+          "Feature proofs — an example, an attack, a bench, a `covers:` marker"
+        ]
+      }
+    },
+    {
+      "number": 13,
+      "title": "what opens in Excel",
+      "summary": "Checks that what the writer and the template filler produce is what Excel itself writes.",
+      "context": {
+        "rules": [
+          "core-classes/spreadsheet-output-is-inert"
+        ],
+        "adrs": [],
+        "shapes": []
+      }
+    },
+    {
+      "number": 14,
+      "title": "the feature proofs",
+      "summary": "Writes the feature proofs for every member the record named.",
+      "context": {
+        "rules": [
+          "testing/feature-proofs",
+          "core-api/reference-card",
+          "testing/hostile-case-contract"
+        ],
+        "adrs": [],
+        "shapes": [
+          "Feature proofs — an example, an attack, a bench, a `covers:` marker"
+        ],
+        "playbook": [
+          "Tooling > `bun nv proofs --verify --group`*"
+        ]
+      }
+    }
+  ],
+  "checks": [
+    {
+      "id": "spreadsheet-the-record-creates-its-fragments",
+      "kind": "command",
+      "stage": 2,
+      "name": "rulebook: the `Novis\\Spreadsheet` record created its fragments",
+      "argv": [
+        "bun",
+        "nv",
+        "brief",
+        "--where",
+        "spreadsheet"
+      ],
+      "want": [
+        "rule:core-classes/spreadsheet-writes-as-a-stream",
+        "rule:core-classes/spreadsheet-value-types",
+        "rule:core-classes/spreadsheet-styles-and-defaults",
+        "rule:core-classes/spreadsheet-template-fill",
+        "rule:core-classes/spreadsheet-reads-as-a-stream"
+      ]
+    },
+    {
+      "id": "nvs-stdlib-the-spreadsheet-interface-parses-against-the-world",
+      "kind": "cargo-named",
+      "stage": 2,
+      "name": "nvs-stdlib (`wit/spreadsheet.wit` parses against the world in its types alone, and exports a writer, a reader and a template resource)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-stdlib",
+        "--test",
+        "ext_world"
+      ],
+      "tests": [
+        "the_spreadsheet_interface_parses_against_the_world_in_wit_types_alone",
+        "the_spreadsheet_interface_exports_writer_reader_and_template_resources"
+      ]
+    },
+    {
+      "id": "nvs-ext-the-spreadsheet-component-writes-as-a-stream",
+      "kind": "cargo-named",
+      "stage": 3,
+      "name": "nvs-ext (the spreadsheet component is built in, writes with no configuration and no grant, returns compressed bytes per batch with no string table, maps the write type table, and writes byte-equal output)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-ext",
+        "--test",
+        "spreadsheet"
+      ],
+      "tests": [
+        "the_spreadsheet_component_is_built_in_and_answers_with_no_configuration",
+        "a_write_needs_no_capability_grant",
+        "a_batch_of_rows_returns_the_compressed_bytes_ready_to_leave",
+        "the_guest_holds_no_row_of_an_earlier_batch",
+        "strings_are_written_inline_and_no_string_table_grows",
+        "the_chunks_of_a_finished_workbook_are_one_valid_xlsx_archive",
+        "every_novis_type_writes_as_its_cell_type",
+        "a_number_past_fifteen_significant_digits_is_a_text_cell",
+        "an_instant_is_its_clock_time_in_the_workbook_zone",
+        "an_instant_with_no_workbook_zone_throws_naming_the_column",
+        "finish_returns_the_row_count_per_sheet_and_the_size",
+        "a_workbook_never_finished_is_logged_naming_it",
+        "two_writes_of_equal_input_are_byte_equal"
+      ]
+    },
+    {
+      "id": "spreadsheet-writes-to-every-target",
+      "kind": "nvs-suite",
+      "stage": 3,
+      "name": "`Novis\\Spreadsheet` writes from a binary with no `nvs.toml` to memory, a file and an open file, and an `Instant` with no zone throws",
+      "args": [
+        "test",
+        "tests/conformance/"
+      ],
+      "cases": [
+        "tests/conformance/novis/spreadsheet-writes-with-no-configuration.nvst",
+        "tests/conformance/novis/spreadsheet-writes-to-a-file-and-an-open-file.nvst",
+        "tests/conformance/novis/spreadsheet-an-instant-with-no-zone-throws.nvst"
+      ]
+    },
+    {
+      "id": "spreadsheet-columns-styles-defaults-and-sheets",
+      "kind": "cargo-named",
+      "stage": 4,
+      "name": "extensions/spreadsheet (styles layer column, row and cell into shared entries, a header row gets the defaults, auto width measures and caps, sheets follow one another, and Excel's limits throw naming them)",
+      "args": [
+        "test",
+        "--manifest-path",
+        "extensions/spreadsheet/Cargo.toml",
+        "--test",
+        "write"
+      ],
+      "tests": [
+        "columns_take_header_width_format_style_hidden_and_formula",
+        "a_list_of_plain_lists_has_no_header",
+        "each_style_field_comes_from_the_most_specific_layer",
+        "equal_style_combinations_share_one_styles_xml_entry",
+        "every_format_shortcut_writes_its_format_code",
+        "past_the_format_limit_throws_naming_it",
+        "a_header_row_is_bold_bordered_frozen_and_filtered_by_default",
+        "each_header_default_turns_off",
+        "auto_width_measures_the_header_and_the_first_thousand_rows",
+        "auto_width_counts_a_wide_east_asian_character_as_two_and_caps_at_sixty",
+        "writing_to_a_finished_sheet_throws_naming_it",
+        "position_sets_the_tab_order",
+        "a_bad_sheet_name_throws_naming_the_rule",
+        "the_row_past_the_limit_throws_naming_it",
+        "overflow_new_sheet_continues_with_the_header_repeated",
+        "a_value_past_the_cell_length_throws_naming_the_cell"
+      ]
+    },
+    {
+      "id": "spreadsheet-an-export-is-styled-by-default",
+      "kind": "nvs-suite",
+      "stage": 4,
+      "name": "`Workbook::fromRows` styles its header by default, and a second sheet finishes the first",
+      "args": [
+        "test",
+        "tests/conformance/"
+      ],
+      "cases": [
+        "tests/conformance/novis/spreadsheet-from-rows-styles-its-header.nvst",
+        "tests/conformance/novis/spreadsheet-sheets-are-written-one-after-another.nvst"
+      ]
+    },
+    {
+      "id": "spreadsheet-the-sheet-end-parts",
+      "kind": "cargo-named",
+      "stage": 5,
+      "name": "extensions/spreadsheet (the sheet-end parts point at any earlier row, formulas carry their cached value and recalculate on open, and tables, conditional formats and images are written)",
+      "args": [
+        "test",
+        "--manifest-path",
+        "extensions/spreadsheet/Cargo.toml",
+        "--test",
+        "sheet_end"
+      ],
+      "tests": [
+        "merges_links_and_notes_point_at_earlier_rows",
+        "data_validation_writes_every_rule_kind_and_its_messages",
+        "hidden_rows_columns_and_sheets_and_outline_groups_are_written",
+        "page_setup_print_titles_and_print_area_are_written",
+        "protection_defined_names_and_document_properties_are_written",
+        "rich_text_in_one_cell_is_written",
+        "a_formula_carries_its_cached_value_and_the_workbook_recalculates_on_open",
+        "cell_and_column_give_a1_text_over_the_rows_written_so_far",
+        "a_column_formula_is_called_once_per_row",
+        "a_table_with_a_totals_row_and_structured_references_is_written",
+        "every_conditional_format_kind_is_written_with_its_style",
+        "an_image_is_its_own_entry_anchored_to_its_cell",
+        "an_image_that_is_not_png_jpeg_or_gif_throws"
+      ]
+    },
+    {
+      "id": "spreadsheet-a-report-with-totals-runs",
+      "kind": "nvs-suite",
+      "stage": 5,
+      "name": "a report sums its column in a formula row and carries a table, and an image of another format throws",
+      "args": [
+        "test",
+        "tests/conformance/"
+      ],
+      "cases": [
+        "tests/conformance/novis/spreadsheet-a-totals-row-sums-its-column.nvst",
+        "tests/conformance/novis/spreadsheet-an-image-of-another-format-throws.nvst"
+      ]
+    },
+    {
+      "id": "spreadsheet-the-chart-subset",
+      "kind": "cargo-named",
+      "stage": 6,
+      "name": "extensions/spreadsheet (every chart type of the subset and the combination are written with titles, legend, colours and labels, and a series over a stream covers every row)",
+      "args": [
+        "test",
+        "--manifest-path",
+        "extensions/spreadsheet/Cargo.toml",
+        "--test",
+        "chart"
+      ],
+      "tests": [
+        "every_chart_type_in_the_subset_is_written",
+        "a_combination_of_two_types_is_written",
+        "titles_axis_titles_legend_colours_and_data_labels_are_written",
+        "a_series_over_a_stream_covers_every_row_the_sheet_ends_with",
+        "two_writes_of_equal_charts_are_byte_equal"
+      ]
+    },
+    {
+      "id": "spreadsheet-a-report-carries-a-chart",
+      "kind": "nvs-suite",
+      "stage": 6,
+      "name": "a streamed report carries a column chart over every row it wrote",
+      "args": [
+        "test",
+        "tests/conformance/"
+      ],
+      "cases": [
+        "tests/conformance/novis/spreadsheet-a-report-carries-a-chart.nvst"
+      ]
+    },
+    {
+      "id": "nvs-ext-the-spreadsheet-reader",
+      "kind": "cargo-named",
+      "stage": 7,
+      "name": "nvs-ext (xlsx and xlsb read as a stream of byte ranges, the other formats whole, every cell as its read type, the header and row-number keys and the reading defaults, and nothing a file names is followed)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-ext",
+        "--test",
+        "spreadsheet_read"
+      ],
+      "tests": [
+        "an_xlsx_is_read_through_byte_ranges_and_never_whole",
+        "an_xlsb_is_read_through_byte_ranges",
+        "xlsm_xls_and_ods_are_read_whole",
+        "xlsm_macros_are_listed_and_never_run",
+        "shared_strings_are_kept_in_one_arena",
+        "every_cell_reads_as_its_read_table_type",
+        "a_number_with_a_date_format_reads_as_its_time_type_in_the_zone",
+        "an_elapsed_time_format_reads_as_a_duration",
+        "an_error_cell_reads_as_its_cell_error_case",
+        "formulas_true_gives_the_formula_with_its_stored_result",
+        "the_header_names_every_key_and_a_missing_cell_is_null",
+        "a_duplicate_header_is_numbered_and_an_empty_one_is_its_column_letter",
+        "the_foreach_key_is_the_row_number_in_the_file",
+        "from_limit_and_columns_select_the_range",
+        "empty_rows_merged_cells_and_hidden_rows_follow_their_options",
+        "sheets_gives_name_position_visibility_size_and_kind",
+        "the_extras_read_on_request",
+        "an_external_link_or_connection_reads_as_data_and_is_never_followed",
+        "a_cell_read_from_tainted_bytes_is_tainted"
+      ]
+    },
+    {
+      "id": "spreadsheet-an-upload-reads-with-row-numbers",
+      "kind": "nvs-suite",
+      "stage": 7,
+      "name": "an xlsx reads back as typed rows keyed by their row numbers, and what the writer wrote reads back equal",
+      "args": [
+        "test",
+        "tests/conformance/"
+      ],
+      "cases": [
+        "tests/conformance/novis/spreadsheet-reads-typed-rows-by-row-number.nvst",
+        "tests/conformance/novis/spreadsheet-reads-back-what-it-wrote.nvst"
+      ]
+    },
+    {
+      "id": "spreadsheet-the-number-format-renderer",
+      "kind": "cargo-named",
+      "stage": 8,
+      "name": "extensions/spreadsheet (every row of the committed reference table renders as Excel displays it, with the built-in ids, both epochs, elapsed time and the locale's separators)",
+      "args": [
+        "test",
+        "--manifest-path",
+        "extensions/spreadsheet/Cargo.toml",
+        "--test",
+        "format"
+      ],
+      "tests": [
+        "every_row_of_the_reference_table_renders_as_excel_displays_it",
+        "the_built_in_format_ids_map_to_their_codes",
+        "sections_conditions_and_colours_parse",
+        "elapsed_time_and_both_epochs_render",
+        "the_1900_leap_day_bug_is_kept",
+        "separators_follow_the_locale_and_a_locale_prefix"
+      ]
+    },
+    {
+      "id": "spreadsheet-a-column-reads-as-text",
+      "kind": "nvs-suite",
+      "stage": 8,
+      "name": "a zip-code column reads as its displayed text with its leading zeros",
+      "args": [
+        "test",
+        "tests/conformance/"
+      ],
+      "cases": [
+        "tests/conformance/novis/spreadsheet-a-zip-code-column-reads-as-text.nvst"
+      ]
+    },
+    {
+      "id": "spreadsheet-csv-through-the-same-api",
+      "kind": "nvs-suite",
+      "stage": 9,
+      "name": "CSV reads with the same options and row shape as xlsx, writes from the same calls, and a second CSV sheet throws",
+      "args": [
+        "test",
+        "tests/conformance/"
+      ],
+      "cases": [
+        "tests/conformance/novis/spreadsheet-reads-csv-with-the-same-row-shape.nvst",
+        "tests/conformance/novis/spreadsheet-writes-csv-from-the-same-calls.nvst",
+        "tests/conformance/novis/spreadsheet-a-second-csv-sheet-throws.nvst"
+      ]
+    },
+    {
+      "id": "spreadsheet-template-fill",
+      "kind": "cargo-named",
+      "stage": 10,
+      "name": "extensions/spreadsheet (a fill copies every other part unchanged, placeholders keep their type, lists repeat rows and named blocks, and every reference below them shifts)",
+      "args": [
+        "test",
+        "--manifest-path",
+        "extensions/spreadsheet/Cargo.toml",
+        "--test",
+        "template"
+      ],
+      "tests": [
+        "every_part_but_the_filled_cells_is_copied_unchanged",
+        "a_lone_placeholder_keeps_the_value_type_and_text_around_it_makes_text",
+        "a_value_beginning_with_equals_stays_text",
+        "a_placeholder_the_data_lacks_throws_naming_it_and_its_cell",
+        "a_list_placeholder_repeats_its_row_with_its_style",
+        "a_defined_name_repeats_a_block_of_rows",
+        "a_list_inside_a_list_throws",
+        "rows_below_a_block_move_with_every_part_that_points_at_them",
+        "a_range_over_the_template_row_grows_with_the_block",
+        "the_shifter_moves_every_a1_reference_form_and_nothing_else",
+        "set_writes_one_cell_by_address",
+        "an_xlsm_template_gives_xlsx_without_its_macros",
+        "two_fills_of_equal_input_are_byte_equal"
+      ]
+    },
+    {
+      "id": "spreadsheet-a-template-fills-an-invoice",
+      "kind": "nvs-suite",
+      "stage": 10,
+      "name": "a template fills with an item list and saves, and a missing placeholder throws",
+      "args": [
+        "test",
+        "tests/conformance/"
+      ],
+      "cases": [
+        "tests/conformance/novis/spreadsheet-a-template-fills-an-item-list.nvst",
+        "tests/conformance/novis/spreadsheet-a-missing-placeholder-throws.nvst"
+      ]
+    },
+    {
+      "id": "nvs-stdlib-a-streamed-part-is-bounded-by-the-ratio",
+      "kind": "cargo-named",
+      "stage": 11,
+      "name": "nvs-stdlib (a part streamed and never held is bounded by the ratio alone, a held part keeps both bounds, and `Core\\Zip` refuses every bomb it refused before)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-stdlib",
+        "--lib",
+        "zip::"
+      ],
+      "tests": [
+        "a_decompression_bomb_is_refused_by_stage_twos_bound_per_entry_and_across_the_archive",
+        "a_streamed_part_is_bounded_by_the_ratio_alone",
+        "a_held_part_stays_under_both_bounds",
+        "the_archive_total_counts_held_parts_only"
+      ]
+    },
+    {
+      "id": "nvs-ext-the-spreadsheet-bomb-corpus",
+      "kind": "cargo-named",
+      "stage": 11,
+      "name": "nvs-ext (every hostile spreadsheet in the corpus ends in a throw or a contained trap, the configured bound reaches the guest, and no entity or DTD is resolved)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-ext",
+        "--test",
+        "spreadsheet_hostile"
+      ],
+      "tests": [
+        "the_configured_decompression_bound_reaches_the_guest",
+        "the_spreadsheet_bomb_corpus_ends_in_a_throw_or_a_contained_trap",
+        "an_entity_is_never_expanded_and_no_dtd_is_loaded",
+        "an_external_entity_naming_a_file_or_a_url_reads_nothing",
+        "a_row_index_past_the_grid_throws_naming_the_cell",
+        "a_merged_range_past_the_grid_throws",
+        "an_xls_sector_chain_that_loops_is_refused",
+        "an_xlsb_record_whose_length_lies_throws",
+        "a_template_list_past_the_memory_cap_is_a_contained_trap",
+        "an_export_string_beginning_with_equals_is_a_text_cell"
+      ]
+    },
+    {
+      "id": "nvs-ext-a-big-workbook-holds-memory-flat",
+      "kind": "cargo-named",
+      "stage": 12,
+      "name": "nvs-ext (a generated 100 MB workbook writes and reads back with the guest's peak flat as rows grow, and a text-heavy file peaks at its strings plus a batch)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-ext",
+        "--test",
+        "spreadsheet"
+      ],
+      "tests": [
+        "a_100_mb_workbook_writes_and_reads_back",
+        "the_guest_peak_stays_flat_as_rows_grow",
+        "a_text_heavy_workbook_peaks_at_its_strings_plus_a_batch"
+      ]
+    },
+    {
+      "id": "nvs-ext-the-recorded-growth-is-the-embedded-size",
+      "kind": "cargo-named",
+      "stage": 12,
+      "name": "nvs-ext (each component's module doc states its embedded size, within 5% of the bytes the binary carries, the spreadsheet component included)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-ext",
+        "--test",
+        "builtin"
+      ],
+      "tests": [
+        "the_recorded_growth_matches_the_embedded_components",
+        "the_spreadsheet_component_is_one_of_four_built_in"
+      ]
+    },
+    {
+      "id": "spreadsheet-what-opens-in-excel",
+      "kind": "cargo-named",
+      "stage": 13,
+      "name": "extensions/spreadsheet (every write fixture reads back through our reader and calamine, and each part matches Excel's own file for styles, tables, conditional formats, validation, images and every chart type)",
+      "args": [
+        "test",
+        "--manifest-path",
+        "extensions/spreadsheet/Cargo.toml",
+        "--test",
+        "excel"
+      ],
+      "tests": [
+        "every_write_fixture_reads_back_through_our_reader_and_calamine",
+        "a_filled_template_reads_back_with_its_values_and_shifted_references",
+        "styles_match_the_excel_made_fixtures",
+        "tables_match_the_excel_made_fixtures",
+        "conditional_formats_match_the_excel_made_fixtures",
+        "data_validation_matches_the_excel_made_fixtures",
+        "images_match_the_excel_made_fixtures",
+        "every_chart_type_in_the_subset_matches_its_excel_made_fixture"
+      ]
+    },
+    {
+      "id": "dossier-the-whole-roster-owes-nothing-with-novis-spreadsheet",
+      "kind": "command",
+      "stage": 14,
+      "name": "proofs: the whole roster owes nothing with `Novis\\Spreadsheet` in it",
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--gate"
+      ],
+      "want": [
+        "nothing owed in the whole roster"
+      ]
+    },
+    {
+      "id": "dossier-novis-spreadsheet-carries-plain-comments",
+      "kind": "command",
+      "stage": 14,
+      "name": "proofs: the `Novis\\` programs carry comments inside the plain-comment bounds",
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--comments",
+        "docs/examples/novis",
+        "tests/hostile/novis",
+        "benches/members/novis"
+      ],
+      "want": [
+        "each inside the bounds"
+      ]
+    }
+  ],
+  "env": {
+    "valgrind": {
+      "skip": [
+        "examples/fatal.nvs",
+        "examples/uncaught.nvs",
+        "examples/cache-shared-socket.nvs",
+        "examples/queue-sqlite.nvs",
+        "examples/cache-shared-tls.nvs"
+      ]
+    },
+    "wsl": {
+      "targetDir": "/var/tmp/nvs-target-wsl"
+    }
+  }
+}
