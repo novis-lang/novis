@@ -1,0 +1,59 @@
+<?nvs
+// Attack: a request sorts very large lists, very long strings and broken locale tags.
+// Each call should return a list or throw an error, and the server keeps running.
+// hostile: timeout-ms 20000
+use Novis\Intl\Collator;
+use Novis\Intl\Strength;
+
+// 1. An empty list.
+try {
+    echo 'step 1 ran ', Core\Arr::count(Collator::sort([], 'de')), "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. Twenty thousand strings that are all the same.
+try {
+    array<string> $same = [];
+    for (int $i = 0; $i < 20000; $i++) {
+        $same[] = 'ä';
+    }
+    echo 'step 2 ran ', Core\Arr::count(Collator::sort($same, 'sv')), "\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. One string of one million characters, sorted with digits by value.
+try {
+    array<string> $long = [Core\Str::repeat('9', 1000000), '1'];
+    echo 'step 3 ran ', Core\Arr::count(Collator::sort($long, 'en', { numeric: true })), "\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. A locale tag of ten thousand characters.
+try {
+    Collator::sort(['b', 'a'], Core\Str::repeat('x-', 5000));
+    echo "step 4 ran\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}
+
+// 5. A locale tag with a broken extension, and every option at once.
+try {
+    Collator::sort(['b', 'a'], 'de-u-co-', { strength: Strength::Identical, numeric: true, ignorePunctuation: true });
+    echo "step 5 ran\n";
+} catch (Throwable $e) {
+    echo "step 5 stopped\n";
+}
+
+// 6. A bad locale tag a thousand times. Each call must still return or throw.
+uint $stopped = 0;
+for (int $j = 0; $j < 1000; $j++) {
+    try {
+        Collator::sort(['a'], 'en_US!');
+    } catch (Throwable $e) {
+        $stopped = $stopped + 1;
+    }
+}
+echo 'step 6 stopped ', $stopped, "\n";

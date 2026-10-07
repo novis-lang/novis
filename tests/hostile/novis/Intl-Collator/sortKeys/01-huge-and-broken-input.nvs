@@ -1,0 +1,51 @@
+<?nvs
+// Attack: a request asks for sort keys of very large lists, long strings and broken locale tags.
+// Each call should return keys or throw an error, and the server keeps running.
+// hostile: timeout-ms 20000
+use Novis\Intl\Collator;
+use Novis\Intl\Strength;
+
+// 1. An empty list and an empty string.
+try {
+    echo 'step 1 ran ', Core\Arr::count(Collator::sortKeys([], 'de')), ' ', Core\Arr::count(Collator::sortKeys([''], 'de')), "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. Five thousand different strings.
+try {
+    array<string> $many = [];
+    for (int $i = 0; $i < 5000; $i++) {
+        $many[] = 'Shop ' . $i;
+    }
+    echo 'step 2 ran ', Core\Arr::count(Collator::sortKeys($many, 'de')), "\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. One string of one hundred thousand characters, with the longest keys.
+try {
+    array<string> $long = [Core\Str::repeat('éA', 50000)];
+    echo 'step 3 ran ', Core\Arr::count(Collator::sortKeys($long, 'fr', { strength: Strength::Identical })), "\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. A locale tag of ten thousand characters.
+try {
+    Collator::sortKeys(['a'], Core\Str::repeat('x-', 5000));
+    echo "step 4 ran\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}
+
+// 5. A bad locale tag a thousand times. Each call must still return or throw.
+uint $stopped = 0;
+for (int $j = 0; $j < 1000; $j++) {
+    try {
+        Collator::sortKeys(['a'], '');
+    } catch (Throwable $e) {
+        $stopped = $stopped + 1;
+    }
+}
+echo 'step 5 stopped ', $stopped, "\n";

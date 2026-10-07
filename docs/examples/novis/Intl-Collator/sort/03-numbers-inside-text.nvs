@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to sort file names that contain numbers.
+use Novis\Intl\Collator;
+
+array<string> $files = ["page 10.txt", "page 2.txt", "page 1.txt"];
+
+// Without options, digits sort one by one, so "10" comes before "2".
+// This prints page 1.txt, page 10.txt, page 2.txt.
+echo Core\Str::join(Collator::sort($files, "en"), ", "), "\n";
+
+// With `numeric: true`, digits sort by their value.
+// This prints page 1.txt, page 2.txt, page 10.txt.
+echo Core\Str::join(Collator::sort($files, "en", {numeric: true}), ", "), "\n";

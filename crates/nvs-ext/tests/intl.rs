@@ -180,6 +180,7 @@ fn sorting_ten_thousand_strings_is_one_crossing() {
     );
 }
 
+// covers: Novis\Intl\Collator::sortKeys
 #[test]
 fn sort_keys_order_as_the_collator_orders() {
     let input = names(2_000);
@@ -196,6 +197,7 @@ fn sort_keys_order_as_the_collator_orders() {
     assert_eq!(by_key, sorted);
 }
 
+// covers: Novis\Intl\Collator::sort
 #[test]
 fn a_swedish_sort_puts_a_umlaut_after_z_and_a_german_sort_does_not() {
     let input: Vec<String> = ["ä", "z", "a"].iter().map(|s| (*s).to_owned()).collect();

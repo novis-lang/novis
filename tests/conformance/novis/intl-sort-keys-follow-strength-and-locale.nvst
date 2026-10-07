@@ -1,0 +1,34 @@
+--TEST--
+`Novis\Intl\Collator::sortKeys` returns one key per string, equal keys at `Primary` strength for strings that differ only in case, and the locale's order, and throws a `LogicError` for a malformed tag: rule:core-classes/intl-batch-shape
+--FILE--
+<?nvs
+use Novis\Intl\Collator;
+use Novis\Intl\Strength;
+
+// One key for each string, and none for an empty list.
+echo Core\Arr::count(Collator::sortKeys(["a", "b", "c"], "en")), " ", Core\Arr::count(Collator::sortKeys([], "en")), "\n";
+
+// Case counts by default, and does not count at `Primary` strength.
+array<bytes> $keys = Collator::sortKeys(["Apple", "apple"], "en");
+array<bytes> $loose = Collator::sortKeys(["Apple", "apple"], "en", {strength: Strength::Primary});
+echo Core\Bytes::compare($keys[0], $keys[1]) == 0 ? "same" : "different", "\n";
+echo Core\Bytes::compare($loose[0], $loose[1]) == 0 ? "same" : "different", "\n";
+
+// Swedish puts `ä` after `z`, and German puts it before.
+array<bytes> $sv = Collator::sortKeys(["ä", "z"], "sv");
+array<bytes> $de = Collator::sortKeys(["ä", "z"], "de");
+echo Core\Bytes::compare($sv[0], $sv[1]) > 0 ? "after" : "before", "\n";
+echo Core\Bytes::compare($de[0], $de[1]) > 0 ? "after" : "before", "\n";
+
+try {
+    Collator::sortKeys(["a"], "en_US!");
+} catch (LogicError $error) {
+    echo "LogicError: ", $error->message, "\n";
+}
+--EXPECT--
+3 0
+different
+same
+after
+before
+LogicError: `en_US!` is not a valid locale tag.
