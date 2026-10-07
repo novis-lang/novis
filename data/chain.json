@@ -1,7 +1,6 @@
 {
-  "live": "ext-intl",
+  "live": "ldap",
   "goals": [
-    "ext-intl",
     "ldap",
     "pdf",
     "spreadsheet"
