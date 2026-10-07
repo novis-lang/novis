@@ -15,7 +15,10 @@
 //! own: the row's frame is made and run when the step runs, and drawn over the frame
 //! (`ops::composite`). A row's own `composite` steps name only earlier rows, and one plan draws
 //! at most [`MAX_OVERLAY_DRAWS`] overlays counting every level, both checked before anything is
-//! decoded. A `text` step and a `text` source return `runtime` naming what is missing. Every
+//! decoded. So is the size of every frame the plan and each overlay row makes, from the source's
+//! size and `ops::size`, up to the first step whose size depends on the pixels: a plan that grows
+//! its frame past the cap returns `Runtime` before its first step runs, not after its last one
+//! under the cap. An encoded source's size is its header's. A `text` step and a `text` source return `runtime` naming what is missing. Every
 //! other export returns `runtime` naming it, until the slice of goal `ext-image` that writes it
 //! lands.
 
@@ -163,6 +166,16 @@ pub fn variants(input: &Input<'_>, cap: u64, plans: &[Plan<'_>]) -> Result<Vec<V
         }
         check(plan)?;
     }
+    for plan in plans {
+        sizes(known_size(input, cap), &plan.steps, cap)?;
+        for overlay in &plan.overlays {
+            sizes(
+                known_size(&overlay.input, overlay.cap),
+                &overlay.steps,
+                overlay.cap,
+            )?;
+        }
+    }
     let Some((last, rest)) = plans.split_last() else {
         return Ok(Vec::new());
     };
@@ -173,6 +186,46 @@ pub fn variants(input: &Input<'_>, cap: u64, plans: &[Plan<'_>]) -> Result<Vec<V
     }
     outs.push(finish(pixels, format, last, cap)?);
     Ok(outs)
+}
+
+/// The size of the frame `input` makes, when it is known before anything is decoded and within
+/// `cap`. An encoded source's size is read from its header, turned as `auto_orient` turns it.
+fn known_size(input: &Input<'_>, cap: u64) -> Option<(u32, u32)> {
+    let (width, height) = match *input {
+        Input::Canvas { width, height, .. } | Input::Pixels { width, height, .. } => {
+            (width, height)
+        }
+        Input::Encoded {
+            data, auto_orient, ..
+        } => {
+            let info = info(data).ok()?;
+            if auto_orient && info.orientation >= 5 {
+                (info.height, info.width)
+            } else {
+                (info.width, info.height)
+            }
+        }
+    };
+    if width == 0 || height == 0 || decode::check(width, height, cap).is_err() {
+        return None;
+    }
+    Some((u32::try_from(width).ok()?, u32::try_from(height).ok()?))
+}
+
+/// `Runtime` when a step of `steps` would make a frame over `cap` from a frame of `start`, found
+/// from the sizes alone before any step runs. It stops at the first step whose size depends on
+/// the pixels, and does nothing when `start` is not known.
+fn sizes(start: Option<(u32, u32)>, steps: &[Op], cap: u64) -> Result<(), Error> {
+    let Some((mut width, mut height)) = start else {
+        return Ok(());
+    };
+    for op in steps {
+        match ops::size(op, width, height, cap)? {
+            Some(next) => (width, height) = next,
+            None => break,
+        }
+    }
+    Ok(())
 }
 
 /// The frame `input` starts from, held to `cap` pixels. A canvas or a pixel source with no pixel

@@ -4,7 +4,9 @@
 //! **Every step is checked before anything is decoded** (`check`), so an option out of range
 //! returns `Invalid` and costs no decode. **Every frame a step makes is held to the pixel cap
 //! before it is allocated**, so a `resize` or a `rotate` cannot grow a frame past what `open`
-//! would have accepted (`rule:core-classes/image-pixel-cap`).
+//! would have accepted (`rule:core-classes/image-pixel-cap`). `size` works out the frame a step
+//! makes from the size alone, so the plan holds every step to the cap before it runs any, up to
+//! the first step whose size depends on the pixels.
 //!
 //! What each step means where the record leaves it open:
 //!
@@ -275,12 +277,7 @@ pub fn apply(pixels: &mut Pixels, op: Op, cap: u64) -> Result<(), Error> {
             width,
             height,
         } => {
-            let fits = x
-                .checked_add(width)
-                .is_some_and(|right| right <= u64::from(pixels.width))
-                && y.checked_add(height)
-                    .is_some_and(|bottom| bottom <= u64::from(pixels.height));
-            if !fits {
+            if !inside((x, y, width, height), pixels.width, pixels.height) {
                 return Err(Error::Invalid(format!(
                     "`crop` of {width}x{height} at {x}, {y} does not lie inside the {}x{} image",
                     pixels.width, pixels.height
@@ -355,6 +352,44 @@ pub fn apply(pixels: &mut Pixels, op: Op, cap: u64) -> Result<(), Error> {
             Ok(())
         }
     }
+}
+
+/// The size of the frame `op` makes from a `width` by `height` frame, with every frame it makes
+/// held to `cap` as `apply` holds it. `None` when the size depends on the pixels, as `trim`'s
+/// does, or when `op` is a `crop` whose box `apply` refuses.
+pub fn size(op: &Op, width: u32, height: u32, cap: u64) -> Result<Option<(u32, u32)>, Error> {
+    match *op {
+        Op::Resize(options) => {
+            let (size, _, canvas) = resized(width, height, options);
+            let made = frame(size.0, size.1, cap)?;
+            match canvas {
+                Some((canvas_w, canvas_h)) => frame(canvas_w, canvas_h, cap).map(Some),
+                None => Ok(Some(made)),
+            }
+        }
+        Op::Rotate { degrees, .. } => {
+            let (out_w, out_h) = turned(width, height, degrees);
+            frame(out_w, out_h, cap).map(Some)
+        }
+        Op::Crop {
+            x,
+            y,
+            width: box_w,
+            height: box_h,
+        } => {
+            Ok(inside((x, y, box_w, box_h), width, height).then(|| (to_u32(box_w), to_u32(box_h))))
+        }
+        Op::Trim { .. } => Ok(None),
+        _ => Ok(Some((width, height))),
+    }
+}
+
+/// Whether the `x`, `y`, width, height box lies inside a `width` by `height` frame.
+fn inside((x, y, box_w, box_h): (u64, u64, u64, u64), width: u32, height: u32) -> bool {
+    x.checked_add(box_w)
+        .is_some_and(|right| right <= u64::from(width))
+        && y.checked_add(box_h)
+            .is_some_and(|bottom| bottom <= u64::from(height))
 }
 
 /// Draws `overlay` over `pixels` where `options` places it, clipped to `pixels`.
@@ -438,13 +473,20 @@ fn curve(pixels: &mut Pixels, map: impl Fn(f64) -> f64) {
     }
 }
 
-fn resize(pixels: &mut Pixels, options: Resize, cap: u64) -> Result<(), Error> {
-    let (width, height) = (pixels.width, pixels.height);
+/// The left, top, width and height of the part of a frame a `Cover` resize reads.
+type SourceBox = (f64, f64, f64, f64);
+
+/// What `options` makes of a `width` by `height` frame: the size of the resized frame, the
+/// source box it is read from when that is not the whole frame, and the canvas a `Contain`
+/// result is placed on.
+fn resized(
+    width: u32,
+    height: u32,
+    options: Resize,
+) -> ((u64, u64), Option<SourceBox>, Option<(u64, u64)>) {
     let limit = |by: f64| if options.upscale { by } else { by.min(1.0) };
     let both = |by: f64| (scale(width, by), scale(height, by));
-    // The size of the resized frame, the source box it is read from when that is not the whole
-    // frame, and the canvas a `Contain` result is placed on.
-    let (size, source, canvas) = match (options.width, options.height) {
+    match (options.width, options.height) {
         (Some(w), None) => (both(limit(w as f64 / f64::from(width))), None, None),
         (None, Some(h)) => (both(limit(h as f64 / f64::from(height))), None, None),
         (Some(w), Some(h)) => {
@@ -475,7 +517,12 @@ fn resize(pixels: &mut Pixels, options: Resize, cap: u64) -> Result<(), Error> {
             }
         }
         (None, None) => unreachable!("`check` refuses a resize with no dimension"),
-    };
+    }
+}
+
+fn resize(pixels: &mut Pixels, options: Resize, cap: u64) -> Result<(), Error> {
+    let (width, height) = (pixels.width, pixels.height);
+    let (size, source, canvas) = resized(width, height, options);
     let (out_w, out_h) = frame(size.0, size.1, cap)?;
     if let Some((canvas_w, canvas_h)) = canvas {
         frame(canvas_w, canvas_h, cap)?;
@@ -603,11 +650,37 @@ fn flip(pixels: &mut Pixels, axis: Axis) {
     }
 }
 
-fn rotate(pixels: &mut Pixels, degrees: f64, background: [u8; 4], cap: u64) -> Result<(), Error> {
+/// The quarter turns `degrees` makes, 0 to 3, when it is a multiple of 90.
+fn quarters(degrees: f64) -> Option<u32> {
     let turn = degrees.rem_euclid(360.0);
     let quarters = (turn / 90.0).round();
-    if (turn - quarters * 90.0).abs() < 1e-9 {
-        match quarters as u32 % 4 {
+    ((turn - quarters * 90.0).abs() < 1e-9).then_some(quarters as u32 % 4)
+}
+
+/// The size of the frame a `width` by `height` frame turned by `degrees` makes: the canvas that
+/// holds the whole turned frame.
+fn turned(width: u32, height: u32, degrees: f64) -> (u64, u64) {
+    match quarters(degrees) {
+        Some(1 | 3) => (u64::from(height), u64::from(width)),
+        Some(_) => (u64::from(width), u64::from(height)),
+        None => {
+            let (sin, cos) = degrees.rem_euclid(360.0).to_radians().sin_cos();
+            let (width, height) = (f64::from(width), f64::from(height));
+            (
+                ((width * cos.abs() + height * sin.abs()) - 1e-6)
+                    .ceil()
+                    .max(1.0) as u64,
+                ((width * sin.abs() + height * cos.abs()) - 1e-6)
+                    .ceil()
+                    .max(1.0) as u64,
+            )
+        }
+    }
+}
+
+fn rotate(pixels: &mut Pixels, degrees: f64, background: [u8; 4], cap: u64) -> Result<(), Error> {
+    if let Some(quarter) = quarters(degrees) {
+        match quarter {
             0 => {}
             2 => {
                 let mut quads: Vec<[u8; 4]> = pixels
@@ -641,16 +714,9 @@ fn rotate(pixels: &mut Pixels, degrees: f64, background: [u8; 4], cap: u64) -> R
         }
         return Ok(());
     }
-    let (sin, cos) = turn.to_radians().sin_cos();
+    let (sin, cos) = degrees.rem_euclid(360.0).to_radians().sin_cos();
     let (width, height) = (f64::from(pixels.width), f64::from(pixels.height));
-    let (out_w, out_h) = (
-        ((width * cos.abs() + height * sin.abs()) - 1e-6)
-            .ceil()
-            .max(1.0) as u64,
-        ((width * sin.abs() + height * cos.abs()) - 1e-6)
-            .ceil()
-            .max(1.0) as u64,
-    );
+    let (out_w, out_h) = turned(pixels.width, pixels.height, degrees);
     let (out_w, out_h) = frame(out_w, out_h, cap)?;
     let premultiplied = |px: &[u8]| {
         let alpha = f32::from(px[3]) / 255.0;
@@ -957,6 +1023,32 @@ mod tests {
             Err(Error::Runtime(_))
         ));
         assert_eq!((pixels.width, pixels.height), (4, 4));
+    }
+
+    #[test]
+    fn size_follows_the_steps_without_the_pixels() {
+        let grow = Op::Resize(Resize {
+            width: Some(100),
+            upscale: true,
+            ..Resize::default()
+        });
+        assert_eq!(size(&grow, 4, 2, 1 << 20).unwrap(), Some((100, 50)));
+        assert!(matches!(size(&grow, 4, 4, 1000), Err(Error::Runtime(_))));
+        let quarter = Op::Rotate {
+            degrees: 90.0,
+            background: [0; 4],
+        };
+        assert_eq!(size(&quarter, 4, 2, 1 << 20).unwrap(), Some((2, 4)));
+        let mut pixels = numbered(16, 16);
+        let eighth = Op::Rotate {
+            degrees: 45.0,
+            background: [0; 4],
+        };
+        let made = size(&eighth, 16, 16, 1 << 20).unwrap();
+        apply(&mut pixels, eighth, 1 << 20).unwrap();
+        assert_eq!(made, Some((pixels.width, pixels.height)));
+        let trim = Op::Trim { threshold: 10.0 };
+        assert_eq!(size(&trim, 4, 4, 1 << 20).unwrap(), None);
     }
 
     #[test]
