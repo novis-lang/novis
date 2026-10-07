@@ -1,28 +1,28 @@
 {
-  "state": "**Goal `ext-image-analysis` — `Novis\\Image` compares, hashes, summarises and draws. Stages 2 to 5 are on disk: comparison, hashing, placeholders, the palette, QR codes and text. Stage 6 (the feature proofs) is not.**\n\nThe design is ADR 0120 §§ 8 and 9, and the goal file's § *Standing decisions* answers every call a session meets, the crates included. No session re-decides one.\n\nStage 5 on disk: `extensions/image/src/text.rs` (module doc: size is the em in pixels, line height, `GPOS` `kern`-feature pair kerning read through `ttf-parser` with the `kern` table as fallback, `maxWidth` breaks at spaces and never inside a word, `align`, the box, the source drawn opaque black) is `Op::Text` and `Input::Text`; `Image::text`, `Image::measureText` (a `text` source run to the `size` output) and `Font::fromBytes` (checks the first four bytes in Novis) in `extensions/image/nvs/`; the manifest's text shapes are `x: ?T` per `rule:core-classes/image-pipeline`. The four host checks are in `crates/nvs-ext/tests/image_analysis.rs` over the fixture `extensions/image/fixtures/DancingScript-Regular.ttf` (OFL, beside its licence), and `tests/conformance/novis/image-font-from-bytes-refuses-bytes-that-are-not-a-font.nvst` pins the `ParseError`s. Both rule fragments' *Not shipped* paragraphs say what is on disk.\n\nThe component's own unit tests run with `cargo test --lib` inside `extensions/image/`, a workspace of its own. `cargo deny check bans` fails on a `nvs-image` wildcard dev-dependency that was already there before this goal; `cargo deny check licenses` was not re-run for `ab_glyph`, `ab_glyph_rasterizer`, `owned_ttf_parser` and `ttf-parser` (all Apache-2.0 or MIT, not checked).",
+  "state": "**Goal `ext-image-analysis` — `Novis\\Image` compares, hashes, summarises and draws. Stages 2 to 5 are on disk: comparison, hashing, placeholders, the palette, QR codes and text. Stage 6 (the feature proofs) is partly on disk.**\n\nThe design is ADR 0120 §§ 8 and 9, and the goal file's § *Standing decisions* answers every call a session meets. No session re-decides one.\n\nStage 6 on disk: the three enums (`HashKind`, `PlaceholderKind`, `QrLevel`) owe nothing, so check `dossier-novis-image-analysis-enums` passes. `Image::hashDistance` owes nothing: description, three examples, an attack, a bench measured in `docs/perf/members.ndjson`. Every one of the nine members now has its Rust test: `// covers:` markers in `crates/nvs-ext/tests/image_analysis.rs`, and `crates/nvs-cli/tests/image_analysis.rs` runs `hashDistance` and `Font::fromBytes` through the binary. The other eight members each still owe `about.md`, three examples, one attack and one bench (then `bun nv proofs --record-perf --only '<member>'`, which the gate reads as \"perf: never measured\" until it runs).\n\nOpen question for the text members: an example needs a font as bytes, and the examples tree wants one self-contained file. The candidate is a font file in a subdirectory of the example's own folder (docs/examples/README.md § companions say a subdirectory is not counted as an example), read with a file-reading `Core` member. Not checked: which member reads a file, whether it needs a grant, and what the working directory is when `bun nv proofs --verify` runs an example. The fixture is `extensions/image/fixtures/DancingScript-Regular.ttf` (OFL, keep its licence beside any copy).\n\n`cargo deny check bans` fails on a `nvs-image` wildcard dev-dependency that was already there before this goal; `cargo deny check licenses` was not re-run for `ab_glyph` and its three crates (not checked).",
   "next": {
     "stage": 6,
     "title": "the feature proofs",
     "files": [],
-    "note": "one file set: `docs/examples/types/Novis-Image-*/`, `docs/examples/` folders for the new `Image` members, `tests/hostile/`, `benches/members/`, read through `bun nv proofs --id '<feature>'`.",
+    "note": "one file set: `docs/examples/novis/Image-Image/<member>/`, `tests/hostile/novis/Image-Image/<member>/`, `benches/members/novis/Image-Image/<member>.nvs`, using `docs/examples/novis/Image-Image/hashDistance/` and `benches/members/novis/Image-Image/hashDistance.nvs` as the model.",
     "items": [
       {
         "done": false,
-        "text": "**The three enums' proofs** (`rule:testing/feature-proofs`) — `about.md` and one example each for `HashKind`, `PlaceholderKind` and `QrLevel`, the paths `bun nv proofs --id 'Novis\\Image\\QrLevel'` prints; the enums are declared at `extensions/image/manifest.json:88`."
+        "text": "**The analysis members' proofs** (`rule:testing/feature-proofs`) — `Image::hash`, `Image::placeholder`, `Image::palette` and `Image::compare` at `extensions/image/nvs/Image.nvs:326`: `about.md`, three examples, one attack and one bench each, then `--record-perf`. A 4x4 grey pattern resized to 64x64 (see `docs/examples/types/Novis-Image-HashKind/01-find-a-changed-copy.nvs`) gives hashes that separate clearly; a flat canvas does not."
       },
       {
         "done": false,
-        "text": "**The text members' proofs** (`rule:testing/feature-proofs`) — `Image::text`, `Image::measureText` and `Font::fromBytes` at `extensions/image/nvs/Image.nvs:244`, `extensions/image/nvs/Image.nvs:260` and `extensions/image/nvs/Font.nvs:17`; first check the roster in `tools/nv/proofs/roster.ts:1` now lists them, since the driver's last sweep said it did not."
+        "text": "**`QrCode::render`'s proofs** (`rule:testing/feature-proofs`) — at `extensions/image/nvs/QrCode.nvs:9`; `docs/examples/types/Novis-Image-QrLevel/01-more-repair-more-modules.nvs` shows how to find the module count."
       },
       {
         "done": false,
-        "text": "**The other members this goal added** — `compare`, `hash`, `hashDistance`, `placeholder`, `palette`, `QrCode::render`, whatever `bun nv proofs --owed` still names under `Novis\\Image`, beside `extensions/image/nvs/Image.nvs:295`."
+        "text": "**The text members' proofs** (`rule:testing/feature-proofs`) — `Image::text`, `Image::measureText` at `extensions/image/nvs/Image.nvs:244` and `Font::fromBytes` at `extensions/image/nvs/Font.nvs:17`; first settle how an example gets font bytes (§ State)."
       }
     ]
   },
   "backlog": [
-    "`cargo deny check licenses` over the text crates, and the pre-existing `nvs-image` wildcard dev-dependency `cargo deny check bans` names (`deny.toml`).",
-    "An example that draws text needs a font the program reads itself: an example or attack under `docs/examples/` has to ship one, and the fixture's OFL allows it (`extensions/image/fixtures/README.md`).",
-    "Complex shaping (`rustybuzz`) is a later wave per ADR 0120 § 9; the reference card for `Image::text` must say Latin only."
+    "`cargo deny check licenses` for `ab_glyph`, `ab_glyph_rasterizer`, `owned_ttf_parser`, `ttf-parser` — `deny.toml`.",
+    "`bun nv proofs --comments docs/examples/novis tests/hostile/novis benches/members/novis` — check `dossier-novis-image-analysis-carries-plain-comments`, run it once the group is written.",
+    "An array literal of enum cases infers `mixed` in a `foreach`; the examples declare `array<HashKind> $kinds` first. Not checked whether that is a known checker gap."
   ]
 }
