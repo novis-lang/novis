@@ -2,7 +2,8 @@
 // class member, exception, enum, interface and configuration directive come from the binary's own
 // `nvs meta --json`. A language feature is a `#` heading in a chapter under `docs/reference/lang/`, and
 // a tool feature is one under `docs/reference/tools/`. Each feature has one path, `core/Str/length`,
-// that the example, attack and bench trees share. `rule:testing/feature-proofs` is what each one owes.
+// that the example, attack and bench trees share; a member of a built-in component's `Novis\` class
+// has one under `novis/`, `novis/Image-Image/open`. `rule:testing/feature-proofs` is what each one owes.
 //
 // An anchor, `crates/…/file.rs:NN`, is where the feature is implemented when the roster can find it. It
 // keys the perf ledger's currency, and a feature with no anchor is still on the roster.
@@ -76,6 +77,13 @@ export function slugify(text: string): string {
 /** `Core\Db\Row` -> `Db-Row`, the spelling every tree and the website use. */
 export function classTail(name: string): string {
   return (name.startsWith("Core\\") ? name.slice(5) : name).replaceAll("\\", "-");
+}
+
+/** A class member's path: `Core\Db\Row::get` -> `core/Db-Row/get`, and a built-in component's
+ * `Novis\Image\Image::open` -> `novis/Image-Image/open`. */
+export function memberPath(cname: string, mname: string): string {
+  if (cname.startsWith("Novis\\")) return `novis/${cname.slice(6).replaceAll("\\", "-")}/${mname}`;
+  return `core/${classTail(cname)}/${mname}`;
 }
 
 const lineAt = (text: string, offset: number) => text.slice(0, offset).split("\n").length;
@@ -259,12 +267,13 @@ export async function roster(nvs: string, doc?: Meta): Promise<Entry[]> {
 
   for (const klass of doc.classes ?? []) {
     const cname = klass.name;
-    const tail = classTail(cname);
     // A member's own card is enforced by the registry test. What the binary can still be missing is
     // the class's card, which a completion list and `show` print above the member.
     const classHelp = klass.doc?.short
       ? ""
-      : `\`${cname}\` has no class card: add its \`ClassDoc\` above the class's \`CLASS\` row and delete it from \`CLASSES_STILL_OWING_A_CARD\` in crates/nvs-stdlib/src/registry.rs`;
+      : cname.startsWith("Novis\\")
+        ? `\`${cname}\` has no class card: add a \`///\` comment above the class in its component's Novis source`
+        : `\`${cname}\` has no class card: add its \`ClassDoc\` above the class's \`CLASS\` row and delete it from \`CLASSES_STILL_OWING_A_CARD\` in crates/nvs-stdlib/src/registry.rs`;
     for (const member of klass.members ?? []) {
       const mname = member.name;
       const key = `${cname}::${mname}`;
@@ -272,7 +281,7 @@ export async function roster(nvs: string, doc?: Meta): Promise<Entry[]> {
         id: key,
         kind: "member",
         group: cname,
-        path: `core/${tail}/${mname}`,
+        path: memberPath(cname, mname),
         anchor: anchors.get(key) ?? "",
         summary: member.doc?.short || member.signature || "",
         help: member.doc?.short ? classHelp : `\`${key}\` has no card, so \`nvs agent show\` prints nothing for it`,
