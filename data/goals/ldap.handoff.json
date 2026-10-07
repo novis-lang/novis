@@ -1,32 +1,29 @@
 {
-  "state": "**Goal `ldap` — `Core\\Ldap`: a native LDAPv3 client over LDAPS and StartTLS, with a filter builder and typed Active Directory values — has just started; nothing of it has landed yet.** Stage 1's floor is whatever the chain carries.\n\nADR 0051 § 3 placed `ldap` as Native but unscheduled; this goal schedules it. The user made six calls when the goal was written, and the goal file's § *Standing decisions* holds them with the writer's own calls beside them: simple bind over TLS only and Kerberos declined for good, filters as immutable values, flag fields as readonly objects, both `connect` and `open`, a general LDAPv3 client with AD helpers, and all four AD extras. No session re-decides one.\n\nTwo facts about the tree as the goal was written. `ldap3` runs on tokio, which `crates/nvs-runtime/tests/manifest_policy.rs:148` keeps out, so the codec is borrowed sans-IO and the connection is ours over `nvs_host::net::NvsTcp` and `NvsTls` (`crates/nvs-host/src/tls.rs:224`). `smblds/smblds` (Samba 4.23.8) was run by hand without `--privileged` and answered LDAPS, AD's bind sub-codes and the nested-group rule; its own certificate names the random container id, so Stage 3 gives it a fixed hostname and the `certs` volume's leaf.",
+  "state": "**Goal `ldap` — Stage 2 is done: ADR 0278 and its six fragments are on disk, and nothing of the wire or the class has landed.** `docs/decisions/0278.md` is the design every later stage builds to: § 1 is the class and member roster, § 2 the `[ldap.<name>]` block, `Ldap\\Settings` and the three `[capabilities.ldap]` grants (`connect`, `open`, `cleartext`), § 5 search, § 8 the type table, § 10 the error kinds, § 11 the four AD extras (`uSNChanged` polling is left out; DirSync is the one sync form, as `Connection::changes`). Read the section a stage needs rather than the whole record.\n\nThe six fragments are `designed` with empty `guardedBy`: `core-classes/ldap-filter-is-a-value`, `ldap-dn-is-the-launderer`, `ldap-value-types`, `security/ldap-empty-password-is-refused`, `ldap-cleartext-bind-is-granted-per-host`, `ldap-pool-is-bound-as-its-block`. A stage that lands the guard adds the test path to the rule's JSON under `data/rules/` and flips `status` to `shipped`.\n\nStage 10 of `data/goals/ldap.json` now carries one `proofs --verify --group` check per member-bearing class the record names (12), and the `--comments` check lists every class's `Ldap-*` directory. If a later stage renames a class, those checks move with it.\n\n`bun nv rules --check` is clean: the `pdf` and `spreadsheet` goal files now name the rules they will create without the `rule:` prefix, as this goal's prose does.",
   "next": {
-    "stage": 2,
-    "title": "the record",
-    "files": [
-      "docs/decisions/",
-      "docs/rules/core-classes/",
-      "docs/rules/security/"
-    ],
+    "stage": 3,
+    "title": "the wire, and a directory to test against",
+    "files": [],
+    "note": "first file set: the test server (`tests/db/compose.yaml`, `.github/workflows/ci.yml`, `tools/nv/cmd/db-matrix.ts`, `data/goals/ldap.json`).",
     "items": [
       {
         "done": false,
-        "text": "**The record** — one new record, its number checked against `docs/decisions/` right before it is written: every `Core\\Ldap` class, member and options shape, the `[ldap.<name>]` block and the `ldap.connect`/`ldap.open` grants, the type table, the error kinds, the pool and `authenticate`'s own connection, why the filter builder is `Core` against `rule:core-classes/db-one-api`, Kerberos and NTLM declined, and the tradeoffs."
+        "text": "**The `samba-ad` service** — `smblds/smblds` pinned by digest, a fixed `hostname`, loopback ports 16389 and 16636, a health check, no `--privileged`, `ldap server require strong auth = no` so the cleartext path is testable; its name joins the `certs` leaf's SAN at `tests/db/compose.yaml:90`, and the service sits beside `tests/db/compose.yaml:294` (`redis`). `rule:security/ldap-cleartext-bind-is-granted-per-host`."
       },
       {
         "done": false,
-        "text": "**Its six fragments** under the ids the Stage 2 check reads: `core-classes/ldap-filter-is-a-value`, `core-classes/ldap-dn-is-the-launderer`, `security/ldap-empty-password-is-refused`, `security/ldap-cleartext-bind-is-granted-per-host` (`tls = \"none\"` in the block or `Settings` plus the host on `[capabilities.ldap] cleartext`, in the shape of `tls.insecure`), `core-classes/ldap-value-types`, `security/ldap-pool-is-bound-as-its-block`."
+        "text": "**`env.docker` naming `samba-ad` in `data/goals/ldap.json`**, in the same slice as the service, and an `ldap` step in CI beside the Redis one at `.github/workflows/ci.yml:275`; `tools/nv/cmd/db-matrix.ts:343` (`bringUp`) is where the matrix brings services up."
       },
       {
         "done": false,
-        "text": "**The proofs checks the record makes possible** — one `bun nv proofs --verify --group '<class>'` check per class it names, and every class's `Ldap-*` directories on the `--comments` check, both in Stage 10 of `data/goals/ldap.json`."
+        "text": "**`crates/nvs-ldap`** (second file set: the new crate, `Cargo.toml`, `deny.toml`) — a sans-IO codec checked for no tokio (`crates/nvs-runtime/tests/manifest_policy.rs:148`), bind, StartTLS over `crates/nvs-host/src/tls.rs:224`, unbind, paged search, the empty-password refusal, result codes as kinds. `rule:core-classes/db-crate-boundary`, ADR 0278 § 3 and § 5."
       }
     ]
   },
   "backlog": [
-    "Stage 3: the `samba-ad` service in `tests/db/compose.yaml` (pinned by digest, fixed hostname, the `certs` leaf, ports 16389/16636), `env.docker` added to `data/goals/ldap.json` in the same slice, a CI step, then `crates/nvs-ldap` over a sans-IO codec with no tokio.",
-    "Stages 4 to 9: `Core\\Ldap` connect/open/search, the filter builder and `Dn`, typed values, writes and passwords, `authenticate`, the AD extras — all under `crates/nvs-stdlib/src/ldap/`, sharing `crates/nvs-stdlib/tests/ldap.rs`.",
-    "Stage 10: the feature proofs — `docs/agent/goals/ldap.md`.",
-    "A run against a Windows Server evaluation VM is the user's to do by hand; a gap it finds comes back as a backlog item here."
+    "Stages 4 to 9: `Core\\Ldap` connect/open/search, the filter builder and `Dn`, typed values, writes and passwords, `authenticate`, the AD extras — under `crates/nvs-stdlib/src/ldap/`, to ADR 0278 § 1–§ 11.",
+    "Stage 10: the feature proofs, one `Ldap-*` directory per class (`docs/agent/goals/ldap.md`).",
+    "Stage 0's closing search, `grep -rn -i ldap docs/rules docs/reference crates`, is owed now the record exists (`docs/agent/goals/ldap.md` § Stage 0).",
+    "A run against a Windows Server evaluation VM is the user's to do by hand; a gap it finds comes back here."
   ]
 }
