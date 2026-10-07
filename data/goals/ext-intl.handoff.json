@@ -1,34 +1,25 @@
 {
-  "state": "**Goal `ext-intl` — `Novis\\Intl` is built into every binary: ICU4X with every CLDR locale, batch-shaped, over `Core\\Time` values — has just started; nothing of it has landed yet.** Stage 1's floor is whatever the chain carries; after goal `goal-closeout` that is nothing.\n\nADR 0247 § 5 fixes the scope and ADR 0051 § 3 the batch shape; the API itself is this goal's one record, written first in Stage 2. The goal file's § *Standing decisions* answers every call a session meets, the crates included, and no session re-decides one.\n\nWhat the earlier M9 goals left and this goal stands on: the world and `crates/nvs-stdlib/tests/ext_world.rs` (goal `ext-design`), `crates/nvs-ext` (goal `ext-host`), the registration layer and source section (goal `ext-compiler`), and from goal `ext-image` the build script, the built-in set in `crates/nvs-ext/src/builtin.rs`, the crossing counter, the roster's `novis/` paths and `docs/reference/novis/Image.md`. Neither `crates/nvs-ext` nor `extensions/` existed when the goal was written, so the goal's `context` names no module in them: add the files you read with `bun nv goal context --add`.\n\nTwo facts about the tree as the goal was written. `Core\\Cldr` (`crates/nvs-stdlib/src/cldr.rs:1625`) already answers cardinal and ordinal plural categories in Tier 0 over a closed roster, so the record says how `Novis\\Intl`'s plural rules relate to it. `rule:core-api/no-ambient-state` forbids a default locale, so a locale is an argument everywhere.",
+  "state": "**Goal `ext-intl` — Stage 2 is on disk: ADR 0277 fixes the `Novis\\Intl` API and `wit/intl.wit` is its interface.** Nothing of the component itself exists yet: no `extensions/intl/`, no embedding, no Novis half.\n\nADR 0277 is the API's one record and the goal's one slot; it is taken, and no session opens another number. § 1 is the class table (eight job classes in Novis source over the manifest class `Novis\\Intl\\Icu`), § 9 the thirteen exports of `nvs:intl/icu`, and `rule:core-classes/intl-roster`, `intl-batch-shape`, `intl-locale-is-an-argument` and `intl-host-converts-time` are its fragments, all `designed`. `crates/nvs-stdlib/tests/ext_world.rs` holds the interface: the Stage 2 check's two tests are written there. Stage 8 in `data/goals/ext-intl.json` carries one `proofs --verify --group` check per class, `Icu` included.\n\nThree things 0277 leaves to the session that pins ICU4X, each written there as *not checked*: whether `icu_collator` writes sort keys itself (§ 3), which locale set `compiled_data` bakes in (§ 10), and which `Core\\Time` accessors give a `DateTime`'s offset (§ 6). The record's choices that differ from the goal prose: there is no `Instant`-plus-`Zone` member (`dateTimes` takes `DateTime`s), and `RelativeTime::format` takes a count and a unit, not a `Duration`.",
   "next": {
-    "stage": 2,
-    "title": "the record and `wit/intl.wit`",
-    "files": [
-      "docs/decisions/",
-      "docs/rules/core-classes/",
-      "wit/intl.wit",
-      "crates/nvs-stdlib/tests/ext_world.rs"
-    ],
+    "stage": 3,
+    "title": "collation, and the component is built in",
+    "files": [],
+    "note": "one file set: `extensions/intl/` (new: `Cargo.toml`, `manifest.json`, `src/lib.rs`, `src/collation.rs`, `nvs/Collator.nvs`), `crates/nvs-ext/build.rs`, `crates/nvs-ext/src/builtin.rs`, `crates/nvs-ext/tests/intl.rs` (new).",
     "items": [
       {
         "done": false,
-        "text": "**The record** — one new record, its number checked against `docs/decisions/` right before it is written: every `Novis\\Intl` class, member and options shape for ADR 0247 § 5's list (`rule:core-api/one-paradigm-per-operation`), every export of `wit/intl.wit`, the batch shape (ADR 0051 § 3), a locale as an argument (`rule:core-api/no-ambient-state`), the malformed and the unsupported locale, `Core\\Time` values converted to local fields by the host, the relation to `Core\\Cldr`, and the tradeoffs. It creates its fragments under `docs/rules/core-classes/`."
+        "text": "**The crate and its embedding** — `rule:packaging/the-first-party-components-are-built-in`: `extensions/intl/` outside the workspace, ICU4X pinned (`icu_experimental` with `=`), built for `wasm32-wasip2` by the image's build script at `crates/nvs-ext/build.rs:116`, embedded beside `IMAGE` at `crates/nvs-ext/src/builtin.rs:18` with its digest folded in at `crates/nvs-ext/src/builtin.rs:99`. The manifest's one class is `Novis\\Intl\\Icu` with every § 9 export (the unimplemented ones return `runtime`, as the image's did), its enums named as ADR 0277 § 1 names them."
       },
       {
         "done": false,
-        "text": "**The proofs checks the record makes possible** — the record's last item adds one `bun nv proofs --verify --group '<class>'` check per class it names to Stage 8 of `data/goals/ext-intl.json`, wanting `nothing owed`, `0 failed`, `0 failed`."
-      },
-      {
-        "done": false,
-        "text": "**`wit/intl.wit` and its test** — the interface against `nvs:ext@1.0.0` in ADR 0246 § 1's types alone (`rule:packaging/a-value-crosses-as-its-wit-type`); `the_intl_interface_parses_against_the_world_in_wit_types_alone` and `every_intl_formatting_export_takes_a_list_and_returns_a_list` in `crates/nvs-stdlib/tests/ext_world.rs`, negotiation the one named exception."
+        "text": "**Collation** — `rule:core-classes/intl-batch-shape`, ADR 0277 § 3: `collate-order` and `sort-keys` (`wit/intl.wit:190`) over `icu_collator`, dispatched beside the image's at `crates/nvs-ext/src/builtin.rs:35`, `Collator::sort` and `sortKeys` in `extensions/intl/nvs/`, and the locale handling of `rule:core-classes/intl-locale-is-an-argument` (malformed tag, fallback, the `-u-ks/kf/kn` clash) in `extensions/intl/src/lib.rs`, shared by every later export. The Stage 3 tests in `crates/nvs-ext/tests/intl.rs` and the three `tests/conformance/novis/intl-*.nvst` cases."
       }
     ]
   },
   "backlog": [
-    "Stage 3: the crate `extensions/intl/` built and embedded beside the image component (`crates/nvs-ext/build.rs`, `crates/nvs-ext/src/builtin.rs`), then collation and the one-crossing sort of 10,000 strings.",
-    "Stages 4 to 6: numbers and plural rules, dates and relative time and lists, segmentation and negotiation — one file each under `extensions/intl/src/`, all sharing `crates/nvs-ext/tests/intl.rs`.",
-    "Stage 7: the growth in both components' module docs, and `a_bundle_calls_both_built_in_components` in `crates/nvs-cli/tests/bundle.rs` (`bundle_of` at line 43).",
-    "Stage 8: the feature proofs — `docs/agent/goals/ext-intl.md`.",
-    "This is the last of the M9 goals."
+    "Stage 4: numbers and plural rules (ADR 0277 § 4–5); the agreement test reads `crates/nvs-stdlib/src/cldr.rs:1625`.",
+    "Stage 5: dates, relative time, lists (ADR 0277 § 6); the Novis half converts a `DateTime` with `Core\\Time`.",
+    "Stage 6: segmentation, `Locale::negotiate` and `Locale::resolve` (ADR 0277 § 7–8).",
+    "Stage 0's two sentences: `rule:packaging/the-first-party-components-are-built-in`'s **Not on disk** and the `cldr.rs` module doc, rewritten when the behaviour lands."
   ]
 }

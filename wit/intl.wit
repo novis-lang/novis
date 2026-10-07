@@ -1,0 +1,233 @@
+package nvs:intl@1.0.0;
+
+/// The intl component's whole surface: thirteen exports, and every one but
+/// `negotiate` takes a list and returns a list in the same order, in one
+/// locale, in one call.
+///
+/// `Novis\Intl`'s classes are Novis source that build these records and call
+/// one export each. A locale is a BCP 47 tag the guest parses: a malformed
+/// one returns `invalid`, and a well-formed one with no data falls back
+/// along CLDR's chain. A number crosses as its decimal text, so a `decimal`
+/// is never rounded through `f64`. Every type here is one the Novis-to-WIT
+/// table gives.
+interface icu {
+    use nvs:ext/types@1.0.0.{error, date, time-of-day};
+
+    enum strength {
+        primary,
+        secondary,
+        tertiary,
+        quaternary,
+        identical,
+    }
+
+    enum case-first {
+        off,
+        upper,
+        lower,
+    }
+
+    /// An absent field is the collator's default: `tertiary`, `off`, and
+    /// `false` for the two flags. A `-u-ks-`, `-u-kf-` or `-u-kn-` keyword in
+    /// the locale beside the field it names returns `invalid`.
+    record collate-options {
+        strength: option<strength>,
+        case-first: option<case-first>,
+        numeric: option<bool>,
+        ignore-punctuation: option<bool>,
+    }
+
+    enum number-style {
+        decimal,
+        percent,
+        currency,
+        compact,
+    }
+
+    enum currency-display {
+        symbol,
+        narrow,
+        name,
+    }
+
+    enum compact-display {
+        short,
+        long,
+    }
+
+    /// `currency` is an ISO 4217 code, needed by the `currency` style and
+    /// returning `invalid` with any other. An absent field is the locale's
+    /// or the currency's default.
+    record number-options {
+        style: number-style,
+        min-fraction-digits: option<u64>,
+        max-fraction-digits: option<u64>,
+        grouping: option<bool>,
+        currency: option<string>,
+        currency-display: option<currency-display>,
+        compact-display: option<compact-display>,
+    }
+
+    enum plural-kind {
+        cardinal,
+        ordinal,
+    }
+
+    /// CLDR's plural categories, which the Novis half maps by name to
+    /// `Core\Cldr\PluralCategory`.
+    enum plural-category {
+        zero,
+        one,
+        two,
+        few,
+        many,
+        other,
+    }
+
+    enum length {
+        short,
+        medium,
+        long,
+    }
+
+    enum zone-style {
+        none,
+        offset,
+        location,
+        generic,
+    }
+
+    /// A `Core\Time\DateTime` as the host computed it in its zone: ISO
+    /// calendar fields, `month` and `day` from 1, the UTC offset in seconds
+    /// and the IANA zone id. The guest carries no time-zone database.
+    record local-date-time {
+        year: s64,
+        month: s64,
+        day: s64,
+        hour: s64,
+        minute: s64,
+        second: s64,
+        nanos: s64,
+        offset-seconds: s64,
+        zone: string,
+    }
+
+    record date-time-options {
+        length: option<length>,
+        seconds: option<bool>,
+        zone: option<zone-style>,
+    }
+
+    record time-options {
+        seconds: option<bool>,
+    }
+
+    enum time-unit {
+        second,
+        minute,
+        hour,
+        day,
+        week,
+        month,
+        quarter,
+        year,
+    }
+
+    /// A negative `count` is in the past.
+    record relative-item {
+        count: s64,
+        unit: time-unit,
+    }
+
+    enum width {
+        wide,
+        short,
+        narrow,
+    }
+
+    /// `always` writes "in 1 day", and `auto` writes "tomorrow".
+    enum numeric {
+        always,
+        auto,
+    }
+
+    record relative-options {
+        width: option<width>,
+        numeric: option<numeric>,
+    }
+
+    enum list-type {
+        and,
+        or,
+        unit,
+    }
+
+    record list-options {
+        %type: option<list-type>,
+        width: option<width>,
+    }
+
+    /// One segment of a string. The segments of a string, joined, are the
+    /// string.
+    record word {
+        text: string,
+        word-like: bool,
+    }
+
+    /// The job whose data `resolve-locales` reports on.
+    enum service {
+        collation,
+        numbers,
+        plurals,
+        dates,
+        relative-time,
+        lists,
+        segmentation,
+    }
+
+    /// The position of each string in the locale's order, so only numbers
+    /// cross back. Equal strings keep their input order.
+    collate-order: func(strings: list<string>, locale: string, options: collate-options) -> result<list<u64>, error>;
+
+    /// One key per string. Two keys compare by byte order as the collator
+    /// orders their strings.
+    sort-keys: func(strings: list<string>, locale: string, options: collate-options) -> result<list<list<u8>>, error>;
+
+    /// Each number, given as its decimal text, formatted in the style.
+    format-numbers: func(numbers: list<string>, locale: string, options: number-options) -> result<list<string>, error>;
+
+    plural-categories: func(numbers: list<string>, locale: string, kind: plural-kind) -> result<list<plural-category>, error>;
+
+    format-date-times: func(values: list<local-date-time>, locale: string, options: date-time-options) -> result<list<string>, error>;
+
+    format-dates: func(values: list<date>, locale: string, length: length) -> result<list<string>, error>;
+
+    format-times: func(values: list<time-of-day>, locale: string, options: time-options) -> result<list<string>, error>;
+
+    format-relative: func(items: list<relative-item>, locale: string, options: relative-options) -> result<list<string>, error>;
+
+    /// Each list joined with the locale's words.
+    format-lists: func(lists: list<list<string>>, locale: string, options: list-options) -> result<list<string>, error>;
+
+    word-segments: func(strings: list<string>, locale: string) -> result<list<list<word>>, error>;
+
+    sentence-segments: func(strings: list<string>, locale: string) -> result<list<list<string>>, error>;
+
+    /// For each tag, the locale whose data answers for `service`, or `und`
+    /// where only the root locale does.
+    resolve-locales: func(tags: list<string>, service: service) -> result<list<string>, error>;
+
+    /// The best of `offered` for an `Accept-Language` value, spelt as
+    /// `offered` spells it. At most the first 32 ranges are read. An empty,
+    /// malformed or unmatched header returns `default`; a malformed tag in
+    /// `offered` or `default` returns `invalid`. The only export that takes
+    /// no list first, because its input is one request's header.
+    negotiate: func(accept-language: string, offered: list<string>, default: string) -> result<string, error>;
+}
+
+/// The intl component: everything an extension may import, and `icu`.
+world intl {
+    include nvs:ext/extension@1.0.0;
+
+    export icu;
+}

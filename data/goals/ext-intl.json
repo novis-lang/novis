@@ -6,14 +6,18 @@
   "context": {
     "modules": [
       "crates/nvs-stdlib/src/cldr.rs",
-      "crates/nvs-cli/tests/bundle.rs"
+      "crates/nvs-cli/tests/bundle.rs",
+      "crates/nvs-stdlib/tests/ext_world.rs",
+      "crates/nvs-ext/src/builtin.rs"
     ],
     "rules": [
       "packaging/the-first-party-components-are-built-in",
       "packaging/the-boundary-is-the-cost"
     ],
     "adrs": [
-      "0247 §5"
+      "0247 §5",
+      "0277 §1",
+      "0277 §9"
     ],
     "shapes": [
       "A commit message"
@@ -322,6 +326,177 @@
       ],
       "tests": [
         "a_bundle_calls_both_built_in_components"
+      ]
+    },
+    {
+      "id": "dossier-novis-intl-icu",
+      "kind": "command",
+      "stage": 8,
+      "name": "proofs: `Novis\\Intl\\Icu`, the manifest class, owes nothing and its proofs pass",
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--verify",
+        "--group",
+        "Novis\\Intl\\Icu"
+      ],
+      "want": [
+        "nothing owed",
+        "0 failed",
+        "0 failed"
+      ]
+    },
+    {
+      "id": "dossier-novis-intl-collator",
+      "kind": "command",
+      "stage": 8,
+      "name": "proofs: `Novis\\Intl\\Collator` owes nothing and its proofs pass",
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--verify",
+        "--group",
+        "Novis\\Intl\\Collator"
+      ],
+      "want": [
+        "nothing owed",
+        "0 failed",
+        "0 failed"
+      ]
+    },
+    {
+      "id": "dossier-novis-intl-number-format",
+      "kind": "command",
+      "stage": 8,
+      "name": "proofs: `Novis\\Intl\\NumberFormat` owes nothing and its proofs pass",
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--verify",
+        "--group",
+        "Novis\\Intl\\NumberFormat"
+      ],
+      "want": [
+        "nothing owed",
+        "0 failed",
+        "0 failed"
+      ]
+    },
+    {
+      "id": "dossier-novis-intl-plural-rules",
+      "kind": "command",
+      "stage": 8,
+      "name": "proofs: `Novis\\Intl\\PluralRules` owes nothing and its proofs pass",
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--verify",
+        "--group",
+        "Novis\\Intl\\PluralRules"
+      ],
+      "want": [
+        "nothing owed",
+        "0 failed",
+        "0 failed"
+      ]
+    },
+    {
+      "id": "dossier-novis-intl-date-format",
+      "kind": "command",
+      "stage": 8,
+      "name": "proofs: `Novis\\Intl\\DateFormat` owes nothing and its proofs pass",
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--verify",
+        "--group",
+        "Novis\\Intl\\DateFormat"
+      ],
+      "want": [
+        "nothing owed",
+        "0 failed",
+        "0 failed"
+      ]
+    },
+    {
+      "id": "dossier-novis-intl-relative-time",
+      "kind": "command",
+      "stage": 8,
+      "name": "proofs: `Novis\\Intl\\RelativeTime` owes nothing and its proofs pass",
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--verify",
+        "--group",
+        "Novis\\Intl\\RelativeTime"
+      ],
+      "want": [
+        "nothing owed",
+        "0 failed",
+        "0 failed"
+      ]
+    },
+    {
+      "id": "dossier-novis-intl-list-format",
+      "kind": "command",
+      "stage": 8,
+      "name": "proofs: `Novis\\Intl\\ListFormat` owes nothing and its proofs pass",
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--verify",
+        "--group",
+        "Novis\\Intl\\ListFormat"
+      ],
+      "want": [
+        "nothing owed",
+        "0 failed",
+        "0 failed"
+      ]
+    },
+    {
+      "id": "dossier-novis-intl-segmenter",
+      "kind": "command",
+      "stage": 8,
+      "name": "proofs: `Novis\\Intl\\Segmenter` owes nothing and its proofs pass",
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--verify",
+        "--group",
+        "Novis\\Intl\\Segmenter"
+      ],
+      "want": [
+        "nothing owed",
+        "0 failed",
+        "0 failed"
+      ]
+    },
+    {
+      "id": "dossier-novis-intl-locale",
+      "kind": "command",
+      "stage": 8,
+      "name": "proofs: `Novis\\Intl\\Locale` owes nothing and its proofs pass",
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--verify",
+        "--group",
+        "Novis\\Intl\\Locale"
+      ],
+      "want": [
+        "nothing owed",
+        "0 failed",
+        "0 failed"
       ]
     },
     {

@@ -14,7 +14,9 @@
 //! are written in pulled in, must import exactly those. The third is
 //! [`IMAGE_MEMBERS`]: every member of `Novis\Image`'s builder with the place
 //! in `codec` it runs, so a member with no place, or a place no member
-//! reaches, fails.
+//! reaches, fails. `wit/intl.wit`'s `nvs:intl@1.0.0` is held to
+//! `rule:core-classes/intl-batch-shape`: [`ICU_EXPORTS`] in order, and every
+//! one but [`ICU_SINGLE`] takes a list first and returns a list.
 //!
 //! The WIT text is parsed from the repository, never embedded, so the test
 //! and the file an extension author builds against cannot drift.
@@ -814,6 +816,157 @@ fn every_image_builder_member_maps_to_an_export_a_plan_step_or_novis_source() {
                     "the {roster} `{name}` is the place of no `Novis\\Image` member"
                 ));
             }
+        }
+    }
+    assert!(problems.is_empty(), "\n{}", problems.join("\n"));
+}
+
+/// The exports of the intl component's `icu`, ADR 0277 § 9's thirteen.
+const ICU_EXPORTS: &[&str] = &[
+    "collate-order",
+    "sort-keys",
+    "format-numbers",
+    "plural-categories",
+    "format-date-times",
+    "format-dates",
+    "format-times",
+    "format-relative",
+    "format-lists",
+    "word-segments",
+    "sentence-segments",
+    "resolve-locales",
+    "negotiate",
+];
+
+/// The one `icu` export that is not a batch: its input is one request's
+/// `Accept-Language` header (`rule:core-classes/intl-batch-shape`).
+const ICU_SINGLE: &str = "negotiate";
+
+/// `wit/intl.wit`, resolved against the `nvs:ext` world it includes: the
+/// resolve, the `nvs:ext` package, the `nvs:intl` package and its `icu`.
+fn intl() -> (Resolve, PackageId, PackageId, InterfaceId) {
+    let (mut resolve, ext) = world();
+    let file = nvs_repo::path("wit/intl.wit");
+    let package = resolve
+        .push_file(&file)
+        .unwrap_or_else(|err| panic!("{} does not parse: {err:?}", file.display()));
+    assert_eq!(resolve.packages[package].name.to_string(), "nvs:intl@1.0.0");
+    let icu = *resolve.packages[package]
+        .interfaces
+        .get("icu")
+        .expect("`nvs:intl` has an interface `icu`");
+    (resolve, ext, package, icu)
+}
+
+/// Whether `ty`, with aliases followed, is a `list`.
+fn is_list(resolve: &Resolve, ty: Type) -> bool {
+    match ty {
+        Type::Id(id) => matches!(
+            resolve.types[dealias(resolve, id)].kind,
+            TypeDefKind::List(_)
+        ),
+        _ => false,
+    }
+}
+
+#[test]
+fn the_intl_interface_parses_against_the_world_in_wit_types_alone() {
+    let (resolve, ext, package, icu) = intl();
+    let found = &resolve.packages[package];
+    let interfaces: Vec<&str> = found.interfaces.keys().map(String::as_str).collect();
+    assert_eq!(interfaces, ["icu"], "the package's interfaces");
+    let worlds: Vec<&str> = found.worlds.keys().map(String::as_str).collect();
+    assert_eq!(worlds, ["intl"], "the package's worlds");
+
+    let world_id = found.worlds["intl"];
+    let allowed: BTreeSet<String> = ALLOWED_IMPORTS.iter().map(ToString::to_string).collect();
+    let imported = imports(&resolve, world_id);
+    let extra: Vec<&String> = imported.difference(&allowed).collect();
+    let missing: Vec<&String> = allowed.difference(&imported).collect();
+    assert!(
+        extra.is_empty() && missing.is_empty(),
+        "the `intl` world imports {extra:?} that the `extension` world does not, and misses {missing:?}"
+    );
+    let exports: Vec<String> = resolve.worlds[world_id]
+        .exports
+        .iter()
+        .map(|(key, item)| match (key, item) {
+            (WorldKey::Interface(id), WorldItem::Interface { .. }) => resolve
+                .id_of(*id)
+                .expect("an exported interface has a package"),
+            (key, item) => panic!("the world exports {key:?} as {item:?}, not a named interface"),
+        })
+        .collect();
+    assert_eq!(
+        exports,
+        ["nvs:intl/icu@1.0.0"],
+        "the `intl` world exports `icu` alone"
+    );
+
+    let functions = &resolve.interfaces[icu].functions;
+    let names: Vec<&str> = functions.keys().map(String::as_str).collect();
+    assert_eq!(names, ICU_EXPORTS, "`icu`'s functions, in order");
+
+    let error = named_type(&resolve, interface(&resolve, ext, "types"), "error");
+    let mut problems = Vec::new();
+    for (name, function) in functions {
+        if function.kind != FunctionKind::Freestanding {
+            problems.push(format!("`{name}` is not a plain function"));
+        }
+        for param in &function.params {
+            if let Err(err) =
+                check_crossable(&resolve, param.ty, &format!("{name}({})", param.name))
+            {
+                problems.push(err);
+            }
+        }
+        match result_of(&resolve, function) {
+            Some((Some(ok), Some(Type::Id(err)))) if dealias(&resolve, err) == error => {
+                if let Err(err) = check_crossable(&resolve, ok, &format!("{name} -> ok")) {
+                    problems.push(err);
+                }
+            }
+            Some((ok, err)) => problems.push(format!(
+                "`{name}` returns `result<{ok:?}, {err:?}>`, not a value and `nvs:ext/types`' `error`"
+            )),
+            None => problems.push(format!("`{name}` does not return a `result`")),
+        }
+    }
+    for (name, id) in &resolve.interfaces[icu].types {
+        if let Err(err) = check_crossable(&resolve, Type::Id(*id), name) {
+            problems.push(err);
+        }
+    }
+    assert!(problems.is_empty(), "\n{}", problems.join("\n"));
+}
+
+#[test]
+fn every_intl_formatting_export_takes_a_list_and_returns_a_list() {
+    let (resolve, _, _, icu) = intl();
+    let mut problems = Vec::new();
+    for (name, function) in &resolve.interfaces[icu].functions {
+        let takes_list = function
+            .params
+            .first()
+            .is_some_and(|param| is_list(&resolve, param.ty));
+        let returns_list = matches!(
+            result_of(&resolve, function),
+            Some((Some(ok), _)) if is_list(&resolve, ok)
+        );
+        if name == ICU_SINGLE {
+            assert!(
+                !takes_list && !returns_list,
+                "`{name}` is the named exception, so it takes one header and returns one tag"
+            );
+            continue;
+        }
+        if !takes_list {
+            problems.push(format!(
+                "`{name}` takes a single value first where a list would do"
+            ));
+        }
+        if !returns_list {
+            problems.push(format!("`{name}` does not return a list"));
         }
     }
     assert!(problems.is_empty(), "\n{}", problems.join("\n"));
