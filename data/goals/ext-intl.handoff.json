@@ -1,26 +1,27 @@
 {
-  "state": "**Goal `ext-intl`: Stage 8, the feature proofs, is in progress.** Stages 1 to 7 are on disk, and every `Novis\\Intl` feature owes nothing: the nine classes and the 14 enums.\n\nThe five `Novis\\Image\\Codec` exports `compare`, `hash`, `placeholder`, `palette` and `qr`, `Novis\\Image\\Diff::constructor` and the enum `Novis\\Image\\Output` now owe nothing. The exports and `new Diff` are excused from examples, hostile and perf by skip entries in `data/proofs/policy.json`, each naming the member that calls them. Their Rust tests are `covers:` lines in `crates/nvs-ext/tests/image_analysis.rs` and the new tests in `crates/nvs-cli/tests/image_analysis.rs`.\n\nStill red: `bun nv proofs --gate`, now 2 of 1280 features: `Novis\\Image\\Image::mime` and `Novis\\Image\\Image::extension`. Their tests are done (`crates/nvs-cli/tests/image_analysis.rs::mime_and_extension_name_every_format`, and conformance cases already call them). They owe an about page, three examples, one attack and one bench each. Both are pure Novis `match` functions over `Format` that call no export, so no skip entry fits them.",
+  "state": "**Goal `ext-intl` is reached: Stages 1 to 8 are on disk.** Every `Novis\\Intl` feature owes nothing: the manifest class `Novis\\Intl\\Icu`, the eight job classes and the 14 enums. `bun nv proofs --gate` reports nothing owed in the whole roster of 1280 features, and `bun nv proofs --comments` passes over the `Novis\\` trees.\n\n`Novis\\Image\\Image::mime` and `::extension`, the roster gate's last two, now carry an about page, three examples, one attack and one bench each, with their figures in `docs/perf/members.ndjson`.\n\nTwo rule fragments are stale, and this session could not fix them. `bun nv session --wrap` refuses every edit under `docs/rules/` while `bun nv rules --check` fails. It fails on six citations in `docs/agent/goals/pdf.md` and `docs/agent/goals/spreadsheet.md`, which name rules those goals have not written yet.",
   "next": {
     "stage": 8,
-    "title": "the feature proofs, `Image::mime` and `Image::extension`",
+    "title": "the feature proofs, closed",
     "files": [
-      "docs/examples/novis/Image-Image/mime/",
-      "docs/examples/novis/Image-Image/extension/",
+      "docs/examples/novis/Image-Image/",
       "tests/hostile/novis/Image-Image/",
       "benches/members/novis/Image-Image/"
     ],
     "items": [
       {
-        "done": false,
-        "text": "**Write the about page, three examples, an attack and a bench for `Image::mime`** (`rule:testing/feature-proofs`), at the paths `bun nv proofs --id 'Novis\\Image\\Image::mime'` prints. The member is `extensions/image/nvs/Image.nvs:92`. It maps the eight `Format` cases, for example `Format::Svg` to `image/svg+xml` and `Format::Pdf` to `application/pdf`. Bless each example with `bun nv proofs --bless`, and record the bench's figure so perf does not read `never measured`."
+        "done": true,
+        "text": "**The about page, three examples, an attack and a bench for `Image::mime`** (`rule:testing/feature-proofs`), `extensions/image/nvs/Image.nvs:92`."
       },
       {
-        "done": false,
-        "text": "**The same for `Image::extension`** (`extensions/image/nvs/Image.nvs:107`): `Format::Jpeg` gives `jpg`, and the others give their lower-case name. Then run `bun nv proofs --gate`, which should print `nothing owed in the whole roster`, and `bun nv proofs --comments docs/examples/novis tests/hostile/novis benches/members/novis`."
+        "done": true,
+        "text": "**The same for `Image::extension`** (`rule:testing/feature-proofs`), `extensions/image/nvs/Image.nvs:107`."
       }
     ]
   },
   "backlog": [
-    "Once the gate is green, run each `bun nv proofs --verify --group 'Novis\\Intl\\…'` check in `data/goals/ext-intl.json` stage 8, then the goal's closing gates (`bun nv verify --doc`, `bun nv owners --closes ext-intl`) before writing `DONE`."
+    "`docs/rules/core-classes/intl-roster.md`'s last paragraph says `extensions/intl/` does not exist. It does, and the rule is `shipped` once that paragraph is rewritten (`data/rules/core-classes/intl-roster.json`, guard `crates/nvs-ext/tests/intl.rs`).",
+    "`docs/rules/packaging/the-first-party-components-are-built-in.md`'s \"Partly on disk\" paragraph says the image and intl exports other than a few return `runtime`. Neither crate has a stub export left.",
+    "Both edits are blocked by `bun nv rules --check`, which fails on the `pdf` and `spreadsheet` goals' citations of rules they have not written yet."
   ]
 }
