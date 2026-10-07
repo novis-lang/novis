@@ -335,9 +335,12 @@ pub(crate) fn build(entry: &Path, out: Option<&Path>, config: &[PathBuf]) -> Exi
         Err(code) => return code,
     };
     // A file an extension's source section carries travels inside its `.nvsx`, under the name
-    // the compiler gives it, and has no path on disk.
-    let carried: HashSet<String> = manifests
+    // the compiler gives it, and has no path on disk. A built-in component's travels inside the
+    // host binary the bundle copies.
+    let built_in = crate::extensions::with_built_in(Vec::new());
+    let carried: HashSet<String> = built_in
         .iter()
+        .chain(&manifests)
         .flat_map(|manifest| {
             manifest
                 .source

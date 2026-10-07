@@ -406,6 +406,51 @@ fn a_bundled_extension_runs_identically_to_its_entry_under_nvs_run() {
     );
 }
 
+/// The program [`a_bundle_calls_both_built_in_components`] bundles: one call into each built-in
+/// component, a PNG of 3 by 2 pixels written as hex and a sort by locale.
+const BUILTIN_APP: &str = "<?nvs
+use Novis\\Image\\Codec;
+use Novis\\Intl\\Collator;
+
+bytes $png = Core\\Encoding::fromHex(
+    \"89504e470d0a1a0a0000000d49484452000000030000000208060000009d74661a\"
+    . \"0000000b49444154789c6360c00500001a0001bc3ce0410000000049454e44ae426082\"
+);
+var $info = Codec::info($png);
+echo $info->width, \"x\", $info->height, \"\\n\";
+echo Core\\Str::join(Collator::sort([\"pear\", \"apple\", \"fig\"], \"en\"), \" \"), \"\\n\";
+";
+
+/// The built-in components travel inside the host binary the bundle copies, so a bundle built from
+/// a folder with no `nvs.toml` calls both, run from a folder with nothing beside it
+/// (`rule:packaging/the-first-party-components-are-built-in`).
+#[test]
+fn a_bundle_calls_both_built_in_components() {
+    let dir = nvs_repo::scratch("bundle-builtin");
+    let project = Project {
+        src: dir.join("src"),
+        out: dir.join("out"),
+        exe: dir
+            .join("out")
+            .join(if cfg!(windows) { "app.exe" } else { "app" }),
+        _dir: dir,
+    };
+    std::fs::create_dir_all(&project.src).expect("the project folder is made");
+    std::fs::create_dir_all(&project.out).expect("the output folder is made");
+    std::fs::write(project.src.join("app.nvs"), BUILTIN_APP).expect("the program is written");
+    assert!(
+        !project.src.join("nvs.toml").exists(),
+        "the project has no configuration"
+    );
+    built(&project);
+
+    let out = run_beside(&project);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(out.status.code(), Some(0), "{stdout}{stderr}");
+    assert_eq!(stdout, "3x2\napple fig pear\n", "{stderr}");
+}
+
 /// A configuration whose pin does not match the `.nvsx` refuses the build, and no executable is
 /// written.
 #[test]

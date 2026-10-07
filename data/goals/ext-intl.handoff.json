@@ -1,24 +1,30 @@
 {
-  "state": "**Goal `ext-intl`: Stage 6 (segmentation and locale negotiation) is on disk; Stage 7 is next.** Every export of `nvs:intl/icu` is implemented. `word-segments` and `sentence-segments` are `extensions/intl/src/segments.rs` over `icu_segmenter` (`try_new_auto`, so the LSTM and dictionary data for languages without spaces are in the wasm); `negotiate` and `resolve-locales` are `extensions/intl/src/negotiate.rs` over `icu_locale`'s `LocaleFallbacker` and each crate's baked provider. Each module doc owns its behaviour. Their Novis halves are `extensions/intl/nvs/Segmenter.nvs` and `extensions/intl/nvs/Locale.nvs`. All four tests of check `nvs-ext-segments-and-negotiation` (`crates/nvs-ext/tests/intl.rs`) pass, and both Stage 6 cases pass under a rebuilt `nvs`.\n\n`resolve-locales` answers with CLDR's real parent: `en-GB` resolves to `en-001` for lists and plurals, and segmentation resolves almost every tag to `und` because only a few locales tailor word breaks. The guest wasm size is recorded by Stage 7.",
+  "state": "**Goal `ext-intl`: Stage 7 (the growth, and a bundle) is on disk; Stage 8, the feature proofs, is next.** Every export of `nvs:intl/icu` is implemented, and each of the eight job classes in `extensions/intl/nvs/` has its Novis half. The embedded sizes are in the component module docs: intl is 9.7 MiB (`extensions/intl/src/lib.rs`) and image is 5.8 MiB (`extensions/image/src/lib.rs`). `the_recorded_growth_matches_the_embedded_components` in `crates/nvs-ext/tests/builtin.rs` holds both within 5%. `a_bundle_calls_both_built_in_components` in `crates/nvs-cli/tests/bundle.rs` passes. It needed `bundle::build` to skip the built-in components' Novis source halves, because the host binary carries them (`crates/nvs-cli/src/bundle.rs`).\n\nWhat is still red is Stage 8 alone. No `Novis\\Intl` member has an `about.md`, examples, an attack, a bench or a Rust `covers:` marker yet. Most have 1 of 2 `.nvst` cases. `bun nv proofs --id '<Class::member>'` prints each owed path.",
   "next": {
-    "stage": 7,
-    "title": "the growth, and a bundle",
+    "stage": 8,
+    "title": "the feature proofs, one class at a time",
     "files": [],
-    "note": "one file set: `extensions/intl/src/lib.rs` and `extensions/image/src/lib.rs` (their module docs), `crates/nvs-ext/tests/builtin.rs`, `crates/nvs-cli/tests/bundle.rs`.",
+    "note": "one file set per class: `docs/examples/novis/Intl-<Class>/`, `tests/hostile/novis/Intl-<Class>/`, `benches/members/novis/Intl-<Class>/`, `tests/conformance/novis/intl-*.nvst`. Copy the shape of the `Image-Codec` trees beside them. Every comment and `about.md` follows `AGENTS.md` § *Text an end user reads*, and `bun nv proofs --comments` checks them before the wrap.",
     "items": [
       {
         "done": false,
-        "text": "**Record each component's embedded size** in the module docs at `extensions/intl/src/lib.rs:1` and `extensions/image/src/lib.rs:1`, in MiB to one decimal, measured from a release build, and write `the_recorded_growth_matches_the_embedded_components` beside `crates/nvs-ext/tests/builtin.rs:138`: it reads both docs and fails past 5% from `nvs_ext::builtin::INTL` and `IMAGE`'s lengths. Owned by ADR 0247 *Consequences* and the goal's Stage 7."
+        "text": "**`Novis\\Intl\\Collator` owes nothing** (`rule:testing/feature-proofs`): `sort` and `sortKeys`, each with an about, 3 examples, 1 attack, a bench and a second case. `sort` also needs a Rust test with its `covers:` marker. Source half `extensions/intl/nvs/Collator.nvs:1`."
       },
       {
         "done": false,
-        "text": "**Write `a_bundle_calls_both_built_in_components`** in `crates/nvs-cli/tests/bundle.rs:44` (`bundle_of`): a bundle built with `nvs build --compile` from a folder with no `nvs.toml` calls `Novis\\Image` and `Novis\\Intl`. Owned by `rule:packaging/the-first-party-components-are-built-in`."
+        "text": "**`Novis\\Intl\\NumberFormat` owes nothing**: `percent`, `currency` and `compact`, the same set each. Source half `extensions/intl/nvs/NumberFormat.nvs:1`."
+      },
+      {
+        "done": false,
+        "text": "**`Novis\\Intl\\PluralRules` and `Novis\\Intl\\RelativeTime` owe nothing**: `cardinal`, `ordinal` and `format`. Source halves `extensions/intl/nvs/PluralRules.nvs:1` and `extensions/intl/nvs/RelativeTime.nvs:1`."
       }
     ]
   },
   "backlog": [
-    "Stage 8: the feature proofs for every `Novis\\Intl` class (`bun nv proofs --owed`), each `about.md` held to AGENTS.md § *Text an end user reads*.",
-    "`docs/rules/packaging/the-first-party-components-are-built-in.md:36` still says only `collateOrder` and `sortKeys` are implemented; every export is now. Editing it runs `bun nv rules --check`, which fails on `docs/agent/goals/pdf.md` citing five rules that goal has not written yet, so that has to be settled first; then `bun nv rules --render`.",
-    "ADR 0277 § 8 says a malformed tag's `LogicError` names the tag cut to 64 characters; `crate::locale` in `extensions/intl/src/lib.rs` does not cut it yet."
+    "`DateFormat` (`dates`, `times`, `dateTimes`), `ListFormat::join`, `Segmenter` (`words`, `sentences`) and `Locale` (`negotiate`, `resolve`) owe the same proofs — `rule:testing/feature-proofs`.",
+    "`Novis\\Intl\\Icu`, the manifest class, owes proofs for `sentenceSegments`, `resolveLocales` and `negotiate` (`bun nv proofs --id 'Novis\\Intl\\Icu'`).",
+    "`rule:packaging/the-first-party-components-are-built-in`'s *Partly on disk* paragraph still lists only `collateOrder` and `sortKeys` as implemented. Every export is now implemented, and the paragraph should say so.",
+    "`rule:packaging/a-nvsx-dependency-embeds-in-the-same-payload`'s *Not on disk* paragraph says the built-in components do not exist yet, and that is stale. A rule edit cannot wrap while `bun nv rules --check` fails on `docs/agent/goals/pdf.md`'s five citations of rules that do not exist yet.",
+    "ADR 0277 § 10 says the module doc states whether `compiled_data` is CLDR's whole set or ICU4X's default coverage level. The intl module doc states the size only, and the coverage level is not checked."
   ]
 }
