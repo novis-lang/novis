@@ -1633,6 +1633,11 @@ fn main() -> ExitCode {
     // classifier that has no other way to reach it.
     nvs_runtime::floor::install_ladder(nvs_host::ladder::escalate);
 
+    // Before the first `env_hash`, which a bundle computes too: the built-in
+    // components are part of the environment every unit is compiled for
+    // (`rule:packaging/the-first-party-components-are-built-in`).
+    nvs_ext::builtin::fold_into_env_hash();
+
     // `rule:packaging/a-bundle-is-found-by-its-footer-before-argv-is-read`, and it happens before clap sees anything: a bundled
     // executable's `argv` belongs to the program it carries, so an app whose
     // first argument is `run` or `--help` must not have it read as one of

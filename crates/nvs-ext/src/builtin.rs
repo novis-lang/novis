@@ -14,3 +14,9 @@ pub static IMAGE: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/image.nvsx")
 
 /// The SHA-256 of [`IMAGE`], taken when the binary was built.
 pub const IMAGE_SHA256: [u8; 32] = *include_bytes!(concat!(env!("OUT_DIR"), "/image.sha256"));
+
+/// Records every built-in component's digest with [`nvs_config::cache::set_built_in`], so each
+/// `env_hash` this process computes afterwards folds them in. The binary calls it once, first.
+pub fn fold_into_env_hash() -> bool {
+    nvs_config::cache::set_built_in(&[IMAGE_SHA256])
+}

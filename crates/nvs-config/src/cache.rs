@@ -6,7 +6,8 @@
 //!
 //! ```text
 //! extension_set_hash = BLAKE3(sorted sha256 pins of the [[extension]] array)
-//! env_hash           = BLAKE3(target_triple ‖ cpu_feature_bitset ‖ compiler_version_hash ‖ extension_set_hash)
+//! built_in_hash      = BLAKE3(count ‖ sha256 of each built-in component, in the binary's order)
+//! env_hash           = BLAKE3(target_triple ‖ cpu_feature_bitset ‖ compiler_version_hash ‖ built_in_hash ‖ extension_set_hash)
 //! content_hash       = BLAKE3(each file's name ‖ text ‖ folder, in program order)
 //! probe_hash         = BLAKE3(each path the unit's autoload resolution probed, in probe order)
 //! artifact_key       = BLAKE3(content_hash ‖ env_hash)
@@ -171,6 +172,11 @@ pub fn env_hash(config: &Config) -> EnvHash {
 /// [`env_hash`] with the compiler build named rather than read, which is the seam a test drives:
 /// two stamps are two builds, and [`None`] is a compiler that could not examine its own binary.
 fn env_hash_of(config: &Config, build: Option<Digest>) -> EnvHash {
+    env_hash_with(config, build, built_in())
+}
+
+/// [`env_hash_of`] with the built-in components' digest named too.
+fn env_hash_with(config: &Config, build: Option<Digest>, built_in: Digest) -> EnvHash {
     let mut hasher = blake3::Hasher::new();
     // The triple, spelled from what the process can actually read. `rustc`'s own target string
     // needs a build script to reach, and the fields below distinguish the same set of hosts.
@@ -191,8 +197,41 @@ fn env_hash_of(config: &Config, build: Option<Digest>) -> EnvHash {
             hasher.update(&[0]);
         }
     }
+    hasher.update(built_in.as_bytes());
     hasher.update(extension_set_hash(config).as_bytes());
     EnvHash(Digest(*hasher.finalize().as_bytes()))
+}
+
+/// The built-in components' digests, as `set_built_in` recorded them.
+static BUILT_IN: OnceLock<Digest> = OnceLock::new();
+
+/// Records the SHA-256 of each built-in component the binary carries
+/// (`rule:packaging/the-first-party-components-are-built-in`), so every later [`env_hash`] folds
+/// them in. This crate cannot reach the bytes, which `nvs-ext` embeds, so the binary hands their
+/// digests over once, before it computes its first [`env_hash`].
+///
+/// Returns `false`, and changes nothing, when another set was already recorded.
+pub fn set_built_in(pins: &[[u8; 32]]) -> bool {
+    let digest = built_in_hash(pins);
+    *BUILT_IN.get_or_init(|| digest) == digest
+}
+
+/// The digests `set_built_in` recorded, or the empty set's digest when it has not run.
+fn built_in() -> Digest {
+    BUILT_IN
+        .get()
+        .copied()
+        .unwrap_or_else(|| built_in_hash(&[]))
+}
+
+/// `BLAKE3` over `pins` in the order the binary lists them, which is fixed by the build.
+fn built_in_hash(pins: &[[u8; 32]]) -> Digest {
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(&u64::try_from(pins.len()).unwrap_or(u64::MAX).to_le_bytes());
+    for pin in pins {
+        hasher.update(pin);
+    }
+    Digest(*hasher.finalize().as_bytes())
 }
 
 /// Whether this process could identify its own build, which is what an on-disk cache is asked
@@ -758,6 +797,16 @@ mod tests {
             env_hash_of(&config, None),
             env_hash_of(&config, Some(unit(1)))
         );
+    }
+
+    #[test]
+    fn two_builds_with_different_built_in_component_bytes_key_apart() {
+        let config = Config::default();
+        // One compiler stamp, so only the embedded components differ.
+        let with = |pins: &[[u8; 32]]| env_hash_with(&config, Some(unit(1)), built_in_hash(pins));
+        assert_ne!(with(&[[1; 32]]), with(&[[2; 32]]));
+        assert_ne!(with(&[]), with(&[[1; 32]]));
+        assert_eq!(with(&[[1; 32]]), with(&[[1; 32]]));
     }
 
     #[test]

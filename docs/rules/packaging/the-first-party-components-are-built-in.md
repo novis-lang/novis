@@ -23,6 +23,8 @@ library is prebuilt (`rule:packaging/a-prebuilt-wasm-library-is-rebuilt-in-ci`).
 **Partly on disk.** The image crate is `extensions/image/`, excluded from the workspace, and builds for
 `wasm32-wasip2` with `simd128` on. Its one implemented export is `info`; the others return `runtime`.
 `crates/nvs-ext/build.rs` builds it into `target/ext/`, packs it with `extensions/image/manifest.json`
-and embeds it as `nvs_ext::builtin::IMAGE` with its digest. Nothing loads the embedded bytes yet, and
-`env_hash` does not fold the digest. The loader already refuses a `Novis\` class from every
-`[[extension]]` entry. The intl crate does not exist.
+and embeds it as `nvs_ext::builtin::IMAGE` with its digest. `nvs_ext::load::Loader::builtins` reads
+its manifest without compiling, and `Builtin::extension` compiles and checks it on first use
+(`crates/nvs-ext/tests/builtin.rs`). `nvs` folds the digest into `env_hash` at start. Neither `nvs
+serve` nor `nvs run` loads the built-in set yet, so no program can call `Novis\Image`. The loader
+refuses a `Novis\` class from every `[[extension]]` entry. The intl crate does not exist.
