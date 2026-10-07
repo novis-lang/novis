@@ -1,0 +1,39 @@
+<?nvs
+// Attack: a request hashes bytes that are empty, broken or claim a huge image.
+// Each attempt should return a hash or throw an error, and the server keeps running.
+use Novis\Image\HashKind;
+use Novis\Image\Image;
+
+// 1. No bytes at all.
+try {
+    echo 'step 1 ran ', Core\Bytes::length(Image::hash('' as bytes, HashKind::Perceptual)), "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. A real PNG file cut off after its first 40 bytes.
+try {
+    bytes $png = Image::create(64, 64)->encode();
+    bytes $half = Core\Bytes::slice($png, 0, 40);
+    echo 'step 2 ran ', Core\Bytes::length(Image::hash($half, HashKind::Difference)), "\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. A PNG header that says the image is 100000 by 100000 pixels.
+try {
+    bytes $header = Core\Encoding::fromHex(
+        '89504e470d0a1a0a0000000d49484452000186a0000186a00806000000' . '00000000',
+    );
+    echo 'step 3 ran ', Core\Bytes::length(Image::hash($header, HashKind::Average)), "\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. A one-pixel image, which is smaller than any hash grid.
+try {
+    bytes $dot = Image::create(1, 1)->encode();
+    echo 'step 4 ran ', Core\Bytes::length(Image::hash($dot, HashKind::Perceptual)), "\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}

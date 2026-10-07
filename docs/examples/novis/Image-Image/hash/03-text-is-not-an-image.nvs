@@ -1,0 +1,13 @@
+<?nvs
+// Shows the error `Image::hash` throws for bytes that are not an image.
+use Novis\Image\HashKind;
+use Novis\Image\Image;
+
+bytes $upload = "This is a text file." as bytes;
+
+// The bytes are not an image, so this throws a `ParseError`.
+try {
+    echo Core\Encoding::toHex(Image::hash($upload, HashKind::Perceptual)), "\n";
+} catch (ParseError $e) {
+    echo "ParseError: the upload is not an image\n";
+}

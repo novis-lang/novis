@@ -1,0 +1,23 @@
+<?nvs
+// Shows the hash each `HashKind` returns for the same image.
+use Novis\Image\HashKind;
+use Novis\Image\Image;
+
+// A pattern of 4 by 4 grey pixels, made 64 by 64 pixels wide.
+bytes $photo = Image::fromRaw({
+    width: 4,
+    height: 4,
+    pixels: Core\Encoding::fromHex(
+        "202020ffe0e0e0ff606060ffa0a0a0ff" .
+        "909090ff303030ffd0d0d0ff505050ff" .
+        "f0f0f0ff707070ff101010ffc0c0c0ff" .
+        "404040ffb0b0b0ff808080ff000000ff"
+    ),
+})->resize({ width: 64, height: 64 })->encode();
+
+// This prints 8, 16 and 32 bytes.
+array<HashKind> $kinds = [HashKind::Perceptual, HashKind::Difference, HashKind::Average];
+foreach ($kinds as HashKind $kind) {
+    bytes $hash = Image::hash($photo, $kind);
+    echo Core\Bytes::length($hash), " bytes: ", Core\Encoding::toHex($hash), "\n";
+}

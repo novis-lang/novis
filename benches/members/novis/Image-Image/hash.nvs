@@ -1,0 +1,24 @@
+<?nvs
+// Hashes a small encoded image, as a program does when it checks an upload for copies.
+// bench: iterations 256
+// bench: complexity constant
+use Novis\Image\HashKind;
+use Novis\Image\Image;
+use Novis\Image\Color;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        bytes $photo = Image::create(16, 16, Color::hex("#336699"))->encode();
+        array<HashKind> $kinds = [HashKind::Perceptual, HashKind::Difference, HashKind::Average];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            bytes $hash = Image::hash($photo, $kinds[$total % 3]);
+            $total = $total + Core\Bytes::length($hash);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";
