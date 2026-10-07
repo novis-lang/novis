@@ -642,6 +642,112 @@ pub(crate) fn extension_calls(
     }
 }
 
+/// A resolved tree folded for one entry: the snapshot, where each key was written, and the files
+/// it was read from, which a refusal is rendered against.
+pub(crate) struct Tree {
+    pub(crate) snapshot: Arc<nvs_config::Snapshot>,
+    pub(crate) origins: std::collections::BTreeMap<String, nvs_config::resolve::Origin>,
+    pub(crate) sources: SourceMap,
+}
+
+/// [`boot_origins`] for `entry`, kept whole as a [`Tree`].
+///
+/// # Errors
+///
+/// The exit code after the tree's refusal is rendered.
+pub(crate) fn boot_tree(config: &[PathBuf], entry: &Path, init: Init) -> Result<Tree, ExitCode> {
+    let mut sources = SourceMap::new();
+    match boot_origins(config, Some(entry), &mut sources, init) {
+        Ok((snapshot, origins)) => Ok(Tree {
+            snapshot,
+            origins,
+            sources,
+        }),
+        Err(diagnostic) => Err(rendered(diagnostic, &sources)),
+    }
+}
+
+/// The tree `nvs ext test` runs a project's tests under, folded for `entry`: the files `config`
+/// names and never `./nvs.toml`, else the shipped defaults, with the `.nvsx` at `file` in its
+/// extension set under the pin `sha256`.
+///
+/// An entry of `config` that names `file` is kept with its grants. With none, an entry granting
+/// nothing is added after the others, so a test run with no `--config` holds no I/O.
+///
+/// # Errors
+///
+/// The exit code after the tree's refusal is rendered, or after one line naming an entry of
+/// `config` that pins `file` to another digest.
+pub(crate) fn extension_test_tree(
+    config: &[PathBuf],
+    entry: &Path,
+    file: &Path,
+    sha256: &str,
+) -> Result<Tree, ExitCode> {
+    let mut sources = SourceMap::new();
+    let roots = if config.is_empty() {
+        nvs_config::Roots::Defaults
+    } else {
+        nvs_config::resolve::roots(
+            config,
+            &working_directory().map_err(|d| rendered(d, &sources))?,
+            &LocalFiles,
+        )
+    };
+    let mut resolved = nvs_config::resolve::resolve(&roots, &mut sources, &LocalFiles)
+        .map_err(|diagnostic| rendered(diagnostic, &sources))?;
+    let canonical = |path: &Path| std::fs::canonicalize(path).ok();
+    let built = canonical(file);
+    let mut listed = false;
+    for (index, written) in resolved.config.extension.iter().enumerate() {
+        let path = nvs_config::extension::file(
+            index,
+            written.path.as_deref().unwrap_or_default(),
+            &resolved.origins,
+        );
+        if built.is_none() || canonical(&path) != built {
+            continue;
+        }
+        let pinned = written.sha256.as_deref().unwrap_or_default();
+        if !pinned.eq_ignore_ascii_case(sha256) {
+            eprintln!(
+                "error: {}: the configuration pins it to sha256 \"{pinned}\", and the built file is \"{sha256}\". Run `nvs ext pin` and copy its `sha256` into the configuration.",
+                file.display()
+            );
+            return Err(ExitCode::FAILURE);
+        }
+        listed = true;
+    }
+    if !listed {
+        // The snapshot is typed again from the table, so the entry is added there.
+        let mut added = toml::Table::new();
+        added.insert("path".into(), file.display().to_string().into());
+        added.insert("sha256".into(), sha256.into());
+        let entries = resolved
+            .table
+            .entry("extension")
+            .or_insert_with(|| toml::Value::Array(Vec::new()));
+        if let toml::Value::Array(entries) = entries {
+            entries.push(toml::Value::Table(added));
+        }
+    }
+    let snapshot = nvs_config::Snapshot::build(&resolved, entry, &LocalFiles)
+        .map_err(|diagnostic| rendered(diagnostic, &sources))?;
+    Ok(Tree {
+        snapshot,
+        origins: resolved.origins,
+        sources,
+    })
+}
+
+/// The exit code after `diagnostic` is rendered against `sources`.
+fn rendered(diagnostic: Diagnostic, sources: &SourceMap) -> ExitCode {
+    let mut diags = Diagnostics::new();
+    diags.report(diagnostic);
+    render_diagnostics(&mut diags, sources);
+    ExitCode::FAILURE
+}
+
 /// `nvs config check [<file>...]` — resolve the tree and report what it holds,
 /// exiting non-zero on any refusal.
 ///

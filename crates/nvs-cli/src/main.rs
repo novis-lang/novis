@@ -1755,7 +1755,7 @@ fn main() -> ExitCode {
         Command::Api {
             command: ApiCommand::Diff { old, new },
         } => api_diff::run(&old, &new),
-        Command::Ext { command } => ext::run(command),
+        Command::Ext { command } => ext::run(command, &cli.config),
         Command::Init => config::init(&cli.config),
         Command::Config {
             command: ConfigCommand::Check { files },
@@ -3638,7 +3638,6 @@ fn run_test(
             );
             return ExitCode::FAILURE;
         }
-        let path = program.configured();
         // `rule:config/the-config-is-an-immutable-snapshot`'s snapshot, resolved here for the reason `run_run`
         // resolves it above its own compile: `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s artifact key is half
         // configuration — § 7's `[opcache]` says where artifacts live and
@@ -3646,53 +3645,11 @@ fn run_test(
         // loaded extension set — so a suite compiled above the tree would
         // address an artifact by an environment this run is not in. A tree that
         // does not resolve stops a test run exactly as it stops a `nvs run`.
-        let mut config_sources = SourceMap::new();
-        let snapshot = match config::boot_snapshot(config, path, &mut config_sources, init) {
-            Ok(snapshot) => snapshot,
-            Err(diagnostic) => {
-                let mut diags = Diagnostics::new();
-                diags.report(diagnostic);
-                render_diagnostics(&mut diags, &config_sources);
-                return ExitCode::FAILURE;
-            }
-        };
-        // The same install `run_run` does above, for the same reason: a suite
-        // runs the program, and a `#[Test]` method reaching an origin asks the
-        // anchors the tree named rather than whichever set a first call happened
-        // to settle.
-        if let Err(diagnostic) = config::install_tls_client(&snapshot) {
-            let mut diags = Diagnostics::new();
-            diags.report(diagnostic);
-            render_diagnostics(&mut diags, &config_sources);
-            return ExitCode::FAILURE;
-        }
-        // The suite is typed against the tree's extension set, as `nvs run` types a program, and
-        // a call into one reaches the loaded set through `nvs_runtime::extension` while the
-        // suite runs. The whole suite is one request to the set: its tests share the instances.
-        let extensions = match config::extension_set(config, path) {
-            Ok(extensions) => extensions,
+        let tree = match config::boot_tree(config, program.configured(), init) {
+            Ok(tree) => tree,
             Err(code) => return code,
         };
-        let checked = match program.front_end(extensions) {
-            Ok(checked) => checked,
-            Err(code) => return code,
-        };
-        let calls = match config::extension_calls(config, path) {
-            Ok(calls) => calls.map(std::rc::Rc::new),
-            Err(code) => return code,
-        };
-        let calling = calls.clone().map(|calls| {
-            nvs_runtime::extension::install(
-                calls as std::rc::Rc<dyn nvs_runtime::extension::Extensions>,
-            )
-        });
-        // `--filter` reaches both suites, and means the same thing in each:
-        // `runner::selected` owns the rule and why it is the `.nvst` tree's.
-        let code = runner::run(checked, &snapshot, format, filter, flags, coverage);
-        drop(calling);
-        // The last reference, so this ends the suite's request and drops its resources.
-        drop(calls);
-        return code;
+        return run_program_tests(program, &tree, format, filter, flags, coverage);
     }
     if list {
         // A `.nvst` tree is discovered by walking directories, which is what
@@ -3785,6 +3742,62 @@ fn run_test(
             ExitCode::FAILURE
         }
     }
+}
+
+/// Runs `program`'s `#[Test]` methods under `tree`, which `nvs test` resolves from the run's
+/// configuration and `nvs ext test` from the extension under test.
+fn run_program_tests(
+    program: &Program,
+    tree: &config::Tree,
+    format: runner::Format,
+    filter: Option<String>,
+    flags: runner::Flags,
+    coverage: &coverage::Requested,
+) -> ExitCode {
+    let refuse = |diagnostic| {
+        let mut diags = Diagnostics::new();
+        diags.report(diagnostic);
+        render_diagnostics(&mut diags, &tree.sources);
+        ExitCode::FAILURE
+    };
+    // The same install `run_run` does, for the same reason: a suite runs the program, and a
+    // `#[Test]` method reaching an origin asks the anchors the tree named rather than whichever
+    // set a first call happened to settle.
+    if let Err(diagnostic) = config::install_tls_client(&tree.snapshot) {
+        return refuse(diagnostic);
+    }
+    // The suite is typed against the tree's extension set, as `nvs run` types a program, and a
+    // call into one reaches the loaded set through `nvs_runtime::extension` while the suite runs.
+    // The whole suite is one request to the set: its tests share the instances.
+    let config = &tree.snapshot.config;
+    let manifests = match extensions::manifests(config, &tree.origins, &tree.sources) {
+        Ok(manifests) => manifests,
+        Err(diagnostic) => return refuse(diagnostic),
+    };
+    let checked = match program.front_end(manifests) {
+        Ok(checked) => checked,
+        Err(code) => return code,
+    };
+    let calls = if config.extension.is_empty() {
+        None
+    } else {
+        match extensions::loaded(config, &tree.origins, &tree.sources) {
+            Ok(set) => Some(std::rc::Rc::new(extensions::Calls::new(set))),
+            Err(diagnostic) => return refuse(diagnostic),
+        }
+    };
+    let calling = calls.clone().map(|calls| {
+        nvs_runtime::extension::install(
+            calls as std::rc::Rc<dyn nvs_runtime::extension::Extensions>,
+        )
+    });
+    // `--filter` reaches both suites, and means the same thing in each:
+    // `runner::selected` owns the rule and why it is the `.nvst` tree's.
+    let code = runner::run(checked, &tree.snapshot, format, filter, flags, coverage);
+    drop(calling);
+    // The last reference, so this ends the suite's request and drops its resources.
+    drop(calls);
+    code
 }
 
 /// What `nvs test` compiles when a path names a **program** rather than a

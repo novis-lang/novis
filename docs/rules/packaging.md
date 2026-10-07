@@ -1892,8 +1892,10 @@ standard library makes imports `wasi:cli/terminal-*`, which the loader refuses. 
 prints the manifest, the I/O it requests and the source paths, and with `--source` the source, every
 string from the file with its control characters escaped; `nvs ext verify` runs boot's loader on a file
 under its own pin and instantiates nothing; `nvs ext pin` prints the entry with its absolute `path` and
-no `grants`, and only for a file that loads. `nvs ext test` says it is not available and exits
-non-zero (`crates/nvs-cli/tests/ext_command.rs`). The packer is: `nvs_ext::pack` takes a component, or
+no `grants`, and only for a file that loads. `nvs ext test` runs the `#[Test]` methods under the
+project's `tests` folder with the built file loaded, reads the files `--config` names and never
+`./nvs.toml`, grants nothing without one, and refuses a file older than any input of its build or one
+a `--config` entry pins to another digest (`crates/nvs-cli/tests/ext_command.rs`). The packer is: `nvs_ext::pack` takes a component, or
 a core module with the author's WIT, plus a manifest and source files, refuses a source path that leaves
 the project, and writes a `.nvsx` that loads, the same bytes each time (`crates/nvs-ext/tests/pack.rs`).
 

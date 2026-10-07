@@ -44,28 +44,6 @@ fn ext_help_lists_the_six_subcommands() {
     );
 }
 
-/// A subcommand this binary does not implement says so and fails, and writes nothing into the
-/// directory it runs in — no `nvs.toml` above all.
-#[test]
-fn an_unbuilt_subcommand_says_so_and_exits_non_zero() {
-    let dir = nvs_repo::scratch("ext-command-unbuilt");
-    let calls: [(&str, &[&str]); 1] = [("test", &["ext", "test"])];
-    for (subcommand, args) in calls {
-        let (out, err, code) = nvs_in(&dir, args);
-        assert_eq!(code, Some(1), "`nvs ext {subcommand}` fails: {err}");
-        assert!(out.is_empty(), "nothing goes to standard output: {out}");
-        assert!(
-            err.contains(&format!("`nvs ext {subcommand}` is not available")),
-            "the error names the subcommand: {err}"
-        );
-    }
-    let left: Vec<_> = std::fs::read_dir(&*dir)
-        .expect("the scratch directory is readable")
-        .map(|entry| entry.expect("an entry is readable").file_name())
-        .collect();
-    assert!(left.is_empty(), "`nvs ext` wrote nothing here: {left:?}");
-}
-
 /// `--lang` takes `rust` and `c` and nothing else, and is required.
 #[test]
 fn ext_new_takes_rust_or_c() {
@@ -695,4 +673,128 @@ fn nvs_ext_pin_never_writes_a_grant() {
         before,
         "`pin` writes nothing, `nvs.toml` least of all"
     );
+}
+
+/// A test file calling the extension's one method, which the component above answers with `0.0`,
+/// and expecting `expected`.
+fn geo_test(expected: &str) -> String {
+    format!(
+        "<?nvs
+use Core\\Test;
+use Shop\\Geo;
+
+final class GeoTest {{
+    #[Test]
+    public function measuresADistance(): void {{
+        Test::assertSame(Geo::distanceKm(\"a\", true), {expected});
+    }}
+}}
+"
+    )
+}
+
+/// A built project whose `tests` folder holds [`geo_test`] expecting `expected`.
+fn tested_project(name: &str, expected: &str) -> nvs_repo::Scratch {
+    let dir = project(name, NVSX_TOML, &component());
+    built(&dir);
+    std::fs::create_dir_all(dir.join("tests")).expect("the folder is made");
+    std::fs::write(dir.join("tests/GeoTest.nvs"), geo_test(expected)).expect("the test is written");
+    dir
+}
+
+/// Sets the modification time of the file at `path` to `seconds` after `file`'s.
+fn touch_after(path: &Path, file: &Path, seconds: u64) {
+    let then = std::fs::metadata(file)
+        .and_then(|meta| meta.modified())
+        .expect("the file has a modification time")
+        + std::time::Duration::from_secs(seconds);
+    std::fs::File::options()
+        .write(true)
+        .open(path)
+        .and_then(|opened| opened.set_modified(then))
+        .expect("the modification time is set");
+}
+
+#[test]
+fn nvs_ext_test_runs_the_projects_tests_with_the_built_file_loaded() {
+    let dir = tested_project("ext-test-runs", "0.0");
+    let (out, err, code) = nvs_in(&dir, &["ext", "test"]);
+    assert_eq!(code, Some(0), "the test passes: {out}{err}");
+    assert!(out.contains("0 failed, 1 passed"), "{out}{err}");
+
+    // The project directory is an argument, and a failing test fails the command.
+    std::fs::write(dir.join("tests/GeoTest.nvs"), geo_test("1.5")).expect("the test is written");
+    let parent = dir.parent().expect("the scratch folder has a parent");
+    let name = dir
+        .file_name()
+        .expect("a name")
+        .to_string_lossy()
+        .into_owned();
+    let (out, err, code) = nvs_in(parent, &["ext", "test", &name]);
+    assert_eq!(code, Some(1), "the test fails: {out}{err}");
+    assert!(out.contains("1 failed, 0 passed"), "{out}{err}");
+}
+
+#[test]
+fn nvs_ext_test_reads_no_nvs_toml_and_grants_nothing() {
+    let dir = tested_project("ext-test-no-config", "0.0");
+    let before = listed(&dir);
+    let (out, err, code) = nvs_in(&dir, &["ext", "test"]);
+    assert_eq!(code, Some(0), "{out}{err}");
+    assert_eq!(listed(&dir), before, "`test` writes no `nvs.toml`");
+
+    // An `nvs.toml` beside the project that would refuse any run that read it.
+    std::fs::write(
+        dir.join("nvs.toml"),
+        "[[extension]]\npath = 'geo.nvsx'\nsha256 = \"00\"\ngrants = { read = ['.'] }\n",
+    )
+    .expect("the configuration is written");
+    let (out, err, code) = nvs_in(&dir, &["ext", "test"]);
+    assert_eq!(code, Some(0), "`./nvs.toml` is not read: {out}{err}");
+    assert!(out.contains("0 failed, 1 passed"), "{out}{err}");
+}
+
+#[test]
+fn nvs_ext_test_refuses_a_built_file_older_than_its_module() {
+    let dir = tested_project("ext-test-stale", "0.0");
+    touch_after(&dir.join("geo.wasm"), &dir.join("geo.nvsx"), 60);
+    let (out, err, code) = nvs_in(&dir, &["ext", "test"]);
+    assert_eq!(code, Some(1), "a stale build is refused: {out}{err}");
+    assert!(!out.contains("passed"), "no test ran: {out}");
+    assert!(err.contains("geo.wasm"), "the newer input is named: {err}");
+    assert!(err.contains("nvs ext build"), "the fix is named: {err}");
+
+    // A source file the build packs counts as an input too.
+    let dir = tested_project("ext-test-stale-source", "0.0");
+    touch_after(&dir.join("nvs/Format.nvs"), &dir.join("geo.nvsx"), 60);
+    let (_, err, code) = nvs_in(&dir, &["ext", "test"]);
+    assert_eq!(code, Some(1), "{err}");
+    assert!(err.contains("Format.nvs"), "{err}");
+}
+
+#[test]
+fn nvs_ext_test_refuses_a_config_whose_entry_pin_differs() {
+    let dir = tested_project("ext-test-pin", "0.0");
+    let wrong = "0".repeat(64);
+    std::fs::write(
+        dir.join("ci.toml"),
+        format!("[[extension]]\npath = 'geo.nvsx'\nsha256 = \"{wrong}\"\n"),
+    )
+    .expect("the configuration is written");
+    let (out, err, code) = nvs_in(&dir, &["ext", "test", "--config", "ci.toml"]);
+    assert_eq!(code, Some(1), "a differing pin is refused: {out}{err}");
+    assert!(!out.contains("passed"), "no test ran: {out}");
+    assert!(err.contains(&wrong), "the configured pin is named: {err}");
+    let pin = nvs_ext::load::pin(&std::fs::read(dir.join("geo.nvsx")).expect("the file"));
+    assert!(err.contains(&pin), "the built file's pin is named: {err}");
+
+    // The same entry with the right pin runs the tests.
+    std::fs::write(
+        dir.join("ci.toml"),
+        format!("[[extension]]\npath = 'geo.nvsx'\nsha256 = \"{pin}\"\n"),
+    )
+    .expect("the configuration is written");
+    let (out, err, code) = nvs_in(&dir, &["ext", "test", "--config", "ci.toml"]);
+    assert_eq!(code, Some(0), "{out}{err}");
+    assert!(out.contains("0 failed, 1 passed"), "{out}{err}");
 }

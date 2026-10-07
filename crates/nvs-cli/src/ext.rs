@@ -1,10 +1,9 @@
 //! `nvs ext` — `rule:packaging/nvs-ext-is-the-authoring-tool`: the one tool an extension author
 //! needs beside their own language's compiler, as six subcommands over one project layout.
 //!
-//! **What exists.** The command and its six subcommands parse, and each one is dispatched here.
-//! A subcommand whose work is not built yet prints that to standard error and exits non-zero,
-//! so a script that calls it fails rather than reading an empty success. A project's `nvsx.toml`
-//! is read into its manifest by [`nvsx_toml`], whose module doc is the file's reference.
+//! **What exists.** The command and its six subcommands, each dispatched here. A project's
+//! `nvsx.toml` is read into its manifest by [`nvsx_toml`], whose module doc is the file's
+//! reference.
 //!
 //! **`nvs ext new`** writes a Rust or C project from the templates [`new`]'s module doc
 //! describes, with the `nvs:ext` world's WIT copied from this binary under `wit/deps/`.
@@ -24,6 +23,15 @@
 //! file carries is printed with its control characters and its text-reordering Unicode marks
 //! escaped as `\u{..}`, so a file read before it is trusted cannot drive the terminal. Errors, on
 //! every subcommand, are escaped the same way.
+//!
+//! **`nvs ext test`** runs the `#[Test]` methods of every `.nvs` file under the project's `tests`
+//! folder as one program, the way `nvs test <dir>` does, with the `.nvsx` `build` writes in the
+//! extension set. It refuses a file older than any input `build` reads, so a test never runs
+//! against a stale build. The tree is `crate::config::extension_test_tree`'s: the shipped
+//! defaults, or the files `--config` names, and never `./nvs.toml`. With no `--config` the file
+//! is added by an entry pinning its own digest and granting nothing. A configuration that lists
+//! the file keeps its entry and its grants, and one whose entry pins another digest is refused,
+//! naming both, before anything compiles.
 //!
 //! **`nvs ext verify`** runs the loader boot uses on the file under an entry pinning its own
 //! digest and granting nothing. That loader compiles the component and never instantiates it, so
@@ -67,13 +75,16 @@ use nvs_ext::source::SourceFile;
 
 use crate::ExtCommand;
 
-/// Runs one `nvs ext` subcommand.
-pub(crate) fn run(command: ExtCommand) -> ExitCode {
+/// Runs one `nvs ext` subcommand. `config` is the run's `--config` list, which only `test` reads.
+pub(crate) fn run(command: ExtCommand, config: &[PathBuf]) -> ExitCode {
     match command {
         ExtCommand::New { lang, dir } => answer(new::new(lang, &dir)),
         ExtCommand::Build { project } => answer(build(&project)),
         ExtCommand::Inspect { file, source } => answer(inspect(&file, source)),
-        ExtCommand::Test { .. } => unbuilt("test"),
+        ExtCommand::Test { project } => match test(&project, config) {
+            Ok(code) => code,
+            Err(err) => answer(Err(err)),
+        },
         ExtCommand::Verify { file } => answer(verify(&file)),
         ExtCommand::Pin { file } => answer(pin_entry(&file)),
     }
@@ -141,6 +152,81 @@ fn load(path: &Path, bytes: &[u8]) -> Result<Extension, String> {
             bytes,
         )
         .map_err(|refused| refused.to_string())
+}
+
+/// `nvs ext test`: the `#[Test]` methods under the project's `tests` folder, run with the built
+/// `.nvsx` loaded under its own pin, once the file is checked to be newer than every input
+/// `build` read.
+fn test(dir: &Path, config: &[PathBuf]) -> Result<ExitCode, String> {
+    let project = nvsx_toml::read(dir)?;
+    let manifest = Manifest::parse(&project.manifest).map_err(|err| err.0)?;
+    let file = dir.join(format!("{}.nvsx", file_stem(&manifest.class)));
+    let file = std::path::absolute(&file)
+        .map_err(|err| format!("{}: cannot be made absolute: {err}", file.display()))?;
+    let bytes = std::fs::read(&file).map_err(|err| {
+        format!(
+            "{}: cannot be read: {err}. Run `nvs ext build` first.",
+            file.display()
+        )
+    })?;
+    fresh(&file, dir, &project)?;
+    let tests = dir.join("tests");
+    let program = match crate::Program::named_by(&tests) {
+        Ok(Some(program)) => program,
+        Ok(None) => {
+            return Err(format!("{}: holds no `.nvs` test file", tests.display()));
+        }
+        Err(err) => return Err(err),
+    };
+    let tree = match crate::config::extension_test_tree(config, &tests, &file, &pin(&bytes)) {
+        Ok(tree) => tree,
+        Err(code) => return Ok(code),
+    };
+    Ok(crate::run_program_tests(
+        &program,
+        &tree,
+        crate::runner::Format::Human,
+        None,
+        crate::runner::Flags {
+            update: false,
+            list: false,
+        },
+        &crate::coverage::Requested::default(),
+    ))
+}
+
+/// Refuses `file` when any input `build` read is newer than it: `nvsx.toml`, the module, the
+/// top-level `.wit` files and the source files.
+fn fresh(file: &Path, dir: &Path, project: &nvsx_toml::Project) -> Result<(), String> {
+    let modified = |path: &Path| {
+        std::fs::metadata(path)
+            .and_then(|meta| meta.modified())
+            .map_err(|err| format!("{}: cannot be read: {err}", path.display()))
+    };
+    let built = modified(file)?;
+    let mut inputs = vec![dir.join("nvsx.toml"), project.module.clone()];
+    inputs.extend(
+        wit_files(&project.wit)?
+            .into_iter()
+            .map(|(name, _)| project.wit.join(name)),
+    );
+    if let Some(folder) = &project.source {
+        inputs.extend(
+            source_files(folder)?
+                .into_iter()
+                .map(|source| folder.join(source.path)),
+        );
+    }
+    for input in inputs {
+        if modified(&input)? > built {
+            return Err(format!(
+                "{}: is older than {}. Run `nvs ext build` again.",
+                file.display(),
+                input.display()
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// The bytes of the `.nvsx` at `file`, or an error naming it.
@@ -391,11 +477,4 @@ fn source_files(folder: &Path) -> Result<Vec<SourceFile>, String> {
 fn read_text(path: &Path) -> Result<String, String> {
     std::fs::read_to_string(path)
         .map_err(|err| format!("{}: cannot be read: {err}", path.display()))
-}
-
-/// The answer of a subcommand this binary does not implement yet: one line on standard error and
-/// a failing exit, so nothing mistakes it for a success.
-fn unbuilt(subcommand: &str) -> ExitCode {
-    eprintln!("error: `nvs ext {subcommand}` is not available in this version of `nvs`.");
-    ExitCode::FAILURE
 }
