@@ -5,8 +5,9 @@
 //! tests run under an ordinary `cargo test` in this directory. The WIT glue in `guest` is compiled
 //! only for a wasm target, and maps each export onto the core and the core's types onto WIT's.
 //!
-//! `info`, `run`, `variants` and `compare` are the exports that are implemented; `compare` is
-//! its module's doc. `run` starts from an
+//! `info`, `run`, `variants`, `compare`, `hash`, `placeholder` and `palette` are the exports
+//! that are implemented; `compare`, `hash` and `summary` are their modules' docs. `run` starts
+//! from an
 //! [`Input`] — encoded bytes it decodes (`decode`'s module doc), a blank canvas or RGBA8 rows —
 //! runs the plan's pixel steps on the frame in order (`ops`'s module doc), and returns the pixels,
 //! their size or the encoded file (`encode`'s module doc); `variants` makes the frame once and
@@ -30,6 +31,7 @@ mod encode;
 pub mod hash;
 mod info;
 pub mod ops;
+pub mod summary;
 mod webp;
 
 pub use decode::{DEFAULT_MAX_PIXELS, Pixels, decode, sniff};
@@ -674,12 +676,25 @@ mod guest {
             crate::hash::hash(&data, kind).map_err(error)
         }
 
-        fn placeholder(_data: Vec<u8>, _kind: PlaceholderKind) -> Result<String, Error> {
-            missing("placeholder")
+        fn placeholder(data: Vec<u8>, kind: PlaceholderKind) -> Result<String, Error> {
+            let kind = match kind {
+                PlaceholderKind::BlurHash => crate::summary::Kind::BlurHash,
+                PlaceholderKind::ThumbHash => crate::summary::Kind::ThumbHash,
+            };
+            crate::summary::placeholder(&data, kind).map_err(error)
         }
 
-        fn palette(_data: Vec<u8>, _count: u64) -> Result<Vec<Color>, Error> {
-            missing("palette")
+        fn palette(data: Vec<u8>, count: u64) -> Result<Vec<Color>, Error> {
+            let colours = crate::summary::palette(&data, count).map_err(error)?;
+            Ok(colours
+                .into_iter()
+                .map(|[r, g, b, a]| Color {
+                    r: r.into(),
+                    g: g.into(),
+                    b: b.into(),
+                    alpha: f64::from(a) / 255.0,
+                })
+                .collect())
         }
 
         fn qr(_data: String, _options: QrOptions) -> Result<Vec<u8>, Error> {
