@@ -5,15 +5,14 @@ Every goal on the chain, in the order the loop walks them, with the stages of ea
 goals, which are off the chain. `bun nv render` writes this file from `data/chain.json` and
 `data/goals/`: change those, never this file.
 
-The chain holds 5 goals. 0 are walked, `ext-grants` is live at 1 of 5, and 4 are ahead.
+The chain holds 4 goals. 0 are walked, `ext-tooling` is live at 1 of 4, and 3 are ahead.
 
 The loop runs a goal's own record and no check of any other goal. A walked goal whose record keeps no
 checks and no stages is read in its prose.
 
 | # | Goal | What it builds | State | Milestone | Stages |
 |--:|---|---|---|---|---|
-| 1 | [`ext-grants`](goals/ext-grants.md) | a guest reaches only the files and hosts all three parties grant | **live**, pinned last | M9 | **2** the empty WASI · **3** the grant · **4** files · **5** outbound HTTP · **6** the adversarial suite and the feature proofs |
-| 2 | [`ext-tooling`](goals/ext-tooling.md) | `nvs ext` builds, inspects, tests and pins an extension, and a bundle carries one | ahead, pinned last | M9 | **2** `new`, `build` and `nvsx.toml` · **3** `inspect`, `verify` and `pin` · **4** `test` · **5** a bundle carries its extensions · **6** the CI job · **7** the help and the feature proofs |
-| 3 | [`ext-image`](goals/ext-image.md) | `Novis\Image` is built into every binary: it decodes, transforms and encodes inside the sandbox, under the pixel cap | ahead, pinned last | M9 | **2** the build · **3** decode, and the cap · **4** the pipeline · **5** the benchmark · **6** the feature proofs |
-| 4 | [`ext-image-analysis`](goals/ext-image-analysis.md) | `Novis\Image` compares, hashes, summarises and draws: comparison, perceptual hashes, placeholders, palette, QR codes and text | ahead, pinned last | M9 | **2** comparison · **3** hashes, placeholders, palette · **4** QR codes · **5** text · **6** the feature proofs |
-| 5 | [`ext-intl`](goals/ext-intl.md) | `Novis\Intl` is built into every binary: ICU4X with every CLDR locale, batch-shaped, over `Core\Time` values | ahead, pinned last | M9 | **2** the record and `wit/intl.wit` · **3** collation, and the component is built in · **4** numbers and plural rules · **5** dates and times, relative time, lists · **6** segmentation and locale negotiation · **7** the growth, and a bundle · **8** the feature proofs |
+| 1 | [`ext-tooling`](goals/ext-tooling.md) | `nvs ext` builds, inspects, tests and pins an extension, and a bundle carries one | **live**, pinned last | M9 | **2** `new`, `build` and `nvsx.toml` · **3** `inspect`, `verify` and `pin` · **4** `test` · **5** a bundle carries its extensions · **6** the CI job · **7** the help and the feature proofs |
+| 2 | [`ext-image`](goals/ext-image.md) | `Novis\Image` is built into every binary: it decodes, transforms and encodes inside the sandbox, under the pixel cap | ahead, pinned last | M9 | **2** the build · **3** decode, and the cap · **4** the pipeline · **5** the benchmark · **6** the feature proofs |
+| 3 | [`ext-image-analysis`](goals/ext-image-analysis.md) | `Novis\Image` compares, hashes, summarises and draws: comparison, perceptual hashes, placeholders, palette, QR codes and text | ahead, pinned last | M9 | **2** comparison · **3** hashes, placeholders, palette · **4** QR codes · **5** text · **6** the feature proofs |
+| 4 | [`ext-intl`](goals/ext-intl.md) | `Novis\Intl` is built into every binary: ICU4X with every CLDR locale, batch-shaped, over `Core\Time` values | ahead, pinned last | M9 | **2** the record and `wit/intl.wit` · **3** collation, and the component is built in · **4** numbers and plural rules · **5** dates and times, relative time, lists · **6** segmentation and locale negotiation · **7** the growth, and a bundle · **8** the feature proofs |

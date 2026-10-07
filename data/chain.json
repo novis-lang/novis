@@ -1,7 +1,6 @@
 {
-  "live": "ext-grants",
+  "live": "ext-tooling",
   "goals": [
-    "ext-grants",
     "ext-tooling",
     "ext-image",
     "ext-image-analysis",
