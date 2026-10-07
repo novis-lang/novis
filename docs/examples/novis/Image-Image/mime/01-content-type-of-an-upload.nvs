@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to find the `Content-Type` of an uploaded image from its bytes.
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Format;
+
+// These PNG bytes replace a file that a user uploaded.
+bytes $upload = Image::create(40, 20, Color::hex("#336699"))->format(Format::Png)->encode();
+
+// `Image::info` reads the format. This prints Content-Type: image/png.
+var $info = Image::info($upload);
+echo "Content-Type: ", Image::mime($info->format), "\n";

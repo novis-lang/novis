@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to accept only some types of image, using their MIME types.
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Format;
+
+class Upload {
+    public static function accepted(bytes $upload): bool
+    {
+        string $type = Image::mime(Image::info($upload)->format);
+        // The site accepts JPEG and WebP photos. Every other type returns false.
+        return match ($type) {
+            "image/jpeg", "image/webp" => true,
+            default => false,
+        };
+    }
+}
+
+Image $photo = Image::create(16, 16, Color::hex("#cc6633"));
+
+// This prints true for the WebP file and false for the GIF file.
+echo Upload::accepted($photo->format(Format::Webp)->encode()) ? "true" : "false", "\n";
+echo Upload::accepted($photo->format(Format::Gif)->encode()) ? "true" : "false", "\n";
