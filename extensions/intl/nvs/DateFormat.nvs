@@ -1,0 +1,42 @@
+<?nvs
+namespace Novis\Intl;
+
+/// Writes dates and times the way a language and region write them. Each method takes a whole
+/// list and a locale tag, such as `"de"` or `"en-GB"`, and formats the whole list in one call.
+final class DateFormat
+{
+    /// `DateFormat::dateTimes` returns each date and time as the clock shows it in its own time
+    /// zone. Set `zone` to show the zone: `ZoneStyle::Offset` shows "GMT+2".
+    public static function dateTimes(array<Core\Time\DateTime> $values, string $locale, ?{length?: Length, seconds?: bool, zone?: ZoneStyle} $options = null): array<string>
+    {
+        array<{year: int, month: int, day: int, hour: int, minute: int, second: int, nanos: int, offsetSeconds: int, zone: string}> $fields = [];
+        foreach ($values as Core\Time\DateTime $value) {
+            $fields[] = {
+                year: $value->format("u") as int,
+                month: $value->format("M") as int,
+                day: $value->format("d") as int,
+                hour: $value->format("H") as int,
+                minute: $value->format("m") as int,
+                second: $value->format("s") as int,
+                nanos: $value->format("SSSSSSSSS") as int,
+                offsetSeconds: $value->zone()->offsetAt($value->toInstant())->toSeconds(),
+                zone: $value->format("VV"),
+            };
+        }
+        return Icu::formatDateTimes($fields, $locale, $options ?? {});
+    }
+
+    /// `DateFormat::dates` returns each calendar date. `Length::Short` writes "3/1/26" in
+    /// English, and `Length::Long` writes "March 1, 2026". The default is `Length::Medium`.
+    public static function dates(array<Core\Time\Date> $values, string $locale, ?{length?: Length} $options = null): array<string>
+    {
+        return Icu::formatDates($values, $locale, $options?->length ?? Length::Medium);
+    }
+
+    /// `DateFormat::times` returns each time of day, with hours and minutes. Set `seconds` to
+    /// `true` to show the seconds too.
+    public static function times(array<Core\Time\TimeOfDay> $values, string $locale, ?{seconds?: bool} $options = null): array<string>
+    {
+        return Icu::formatTimes($values, $locale, $options ?? {});
+    }
+}

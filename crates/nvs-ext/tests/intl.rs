@@ -3,7 +3,8 @@
 //! `[[extension]]` entry, a sort of 10,000 strings is one crossing, its sort keys order as its
 //! collator does, and the order is the locale's. A batch of numbers is formatted in one crossing in
 //! all four styles, and its plural categories agree with `Core\Cldr`'s on that member's whole
-//! roster.
+//! roster. A date and time is formatted from the local fields and the offset the host sent, in its
+//! locale, and the guest carries no time-zone database.
 
 use std::future::Future;
 use std::pin::pin;
@@ -509,5 +510,226 @@ fn plural_rules_agree_with_core_cldr_on_its_whole_roster() {
         disagreements.is_empty(),
         "`Novis\\Intl` and `Core\\Cldr` disagree:\n{}",
         disagreements.join("\n")
+    );
+}
+
+/// The `local-date-time` record of a `Core\Time\DateTime` the host placed in `zone` at
+/// `offset_seconds`, at 15:05:09 on `day` July 2026.
+fn local(day: i64, offset_seconds: i64, zone: &str) -> Value {
+    let fields = [
+        ("year", 2026),
+        ("month", 7),
+        ("day", day),
+        ("hour", 15),
+        ("minute", 5),
+        ("second", 9),
+        ("nanos", 0),
+        ("offsetSeconds", offset_seconds),
+    ];
+    let mut record: Vec<(Key, Value)> = fields
+        .into_iter()
+        .map(|(name, value)| (Key::String(name.to_owned()), Value::Int(value)))
+        .collect();
+    record.push((
+        Key::String("zone".to_owned()),
+        Value::String(zone.to_owned()),
+    ));
+    Value::Array(record)
+}
+
+/// An options shape with `fields` set and every other field absent.
+fn shape(fields: &[(&str, Value)]) -> Value {
+    Value::Array(
+        fields
+            .iter()
+            .map(|(name, value)| (Key::String((*name).to_owned()), value.clone()))
+            .collect(),
+    )
+}
+
+/// `method` called with `values`, `locale` and `last`, its strings in order.
+fn written(
+    request: &Request,
+    extension: &Extension,
+    method: &str,
+    values: Vec<Value>,
+    locale: &str,
+    last: Value,
+) -> Vec<String> {
+    let args = vec![list(values), Value::String(locale.to_owned()), last];
+    let result = block_on(request.call_values(extension, method, args))
+        .unwrap_or_else(|failure| panic!("`{method}` answers: {failure:?}"));
+    items(result.expect("the method returns a value"))
+        .into_iter()
+        .map(|text| match text {
+            Value::String(text) => text,
+            other => panic!("a string was expected, not {other:?}"),
+        })
+        .collect()
+}
+
+fn core(class: &str, fields: &[(&str, i64)]) -> Value {
+    Value::Core {
+        class: class.to_owned(),
+        fields: fields
+            .iter()
+            .map(|(name, value)| ((*name).to_owned(), Value::Int(*value)))
+            .collect(),
+    }
+}
+
+#[test]
+fn a_core_time_value_formats_in_its_zone_and_locale() {
+    let (date_times, zoned, dates, times, crossings) = run(|request, extension| {
+        let before = request.crossings();
+        let values = || {
+            vec![
+                local(14, 7200, "Europe/Vienna"),
+                local(15, -14400, "America/New_York"),
+            ]
+        };
+        let date_times = [
+            written(
+                request,
+                extension,
+                "formatDateTimes",
+                values(),
+                "en",
+                shape(&[]),
+            ),
+            written(
+                request,
+                extension,
+                "formatDateTimes",
+                values(),
+                "de",
+                shape(&[]),
+            ),
+        ];
+        let zoned = [
+            ("Offset", "en"),
+            ("Location", "en"),
+            ("Generic", "en"),
+            ("Generic", "de"),
+        ]
+        .map(|(style, locale)| {
+            let options = shape(&[
+                ("zone", Value::Case(style.to_owned())),
+                ("seconds", Value::Bool(true)),
+            ]);
+            written(
+                request,
+                extension,
+                "formatDateTimes",
+                values(),
+                locale,
+                options,
+            )
+        });
+        let date = core(
+            "Core\\Time\\Date",
+            &[("year", 2026), ("month", 3), ("day", 1)],
+        );
+        let dates = ["Short", "Medium", "Long"].map(|length| {
+            let length = Value::Case(length.to_owned());
+            written(
+                request,
+                extension,
+                "formatDates",
+                vec![date.clone()],
+                "en-US",
+                length,
+            )
+        });
+        let time = core(
+            "Core\\Time\\TimeOfDay",
+            &[("hour", 21), ("minute", 30), ("second", 15), ("nanos", 0)],
+        );
+        let times = [("en-US", false), ("de", true), ("ja", false)].map(|(locale, seconds)| {
+            let options = shape(&[("seconds", Value::Bool(seconds))]);
+            written(
+                request,
+                extension,
+                "formatTimes",
+                vec![time.clone()],
+                locale,
+                options,
+            )
+        });
+        (
+            date_times,
+            zoned,
+            dates,
+            times,
+            request.crossings() - before,
+        )
+    });
+    assert_eq!(crossings, 12, "one crossing per batch");
+    assert_eq!(
+        date_times,
+        [
+            [
+                "Jul 14, 2026, 3:05\u{202f}PM",
+                "Jul 15, 2026, 3:05\u{202f}PM"
+            ],
+            ["14.07.2026, 15:05", "15.07.2026, 15:05"],
+        ]
+    );
+    assert_eq!(
+        zoned,
+        [
+            [
+                "Jul 14, 2026, 3:05:09\u{202f}PM GMT+2",
+                "Jul 15, 2026, 3:05:09\u{202f}PM GMT-4"
+            ],
+            [
+                "Jul 14, 2026, 3:05:09\u{202f}PM Austria Time",
+                "Jul 15, 2026, 3:05:09\u{202f}PM New York Time"
+            ],
+            [
+                "Jul 14, 2026, 3:05:09\u{202f}PM Central European Time",
+                "Jul 15, 2026, 3:05:09\u{202f}PM Eastern Time"
+            ],
+            [
+                "14.07.2026, 15:05:09 Mitteleuropäische Zeit",
+                "15.07.2026, 15:05:09 Nordamerikanische Ostküstenzeit"
+            ],
+        ]
+    );
+    assert_eq!(dates, [["3/1/26"], ["Mar 1, 2026"], ["March 1, 2026"]]);
+    assert_eq!(times, [["9:30\u{202f}PM"], ["21:30:15"], ["21:30"]]);
+}
+
+#[test]
+fn the_guest_carries_no_time_zone_database() {
+    // The guest writes the offset the host sent. A guest that looked the zone up would write
+    // `GMT+2` for Vienna in July whatever the host said.
+    let offsets = run(|request, extension| {
+        let options = shape(&[("zone", Value::Case("Offset".to_owned()))]);
+        written(
+            request,
+            extension,
+            "formatDateTimes",
+            vec![
+                local(14, 7200, "Europe/Vienna"),
+                local(14, 3600, "Europe/Vienna"),
+                local(14, 19800, "Europe/Vienna"),
+            ],
+            "en",
+            options,
+        )
+    });
+    assert_eq!(
+        offsets,
+        [
+            "Jul 14, 2026, 3:05\u{202f}PM GMT+2",
+            "Jul 14, 2026, 3:05\u{202f}PM GMT+1",
+            "Jul 14, 2026, 3:05\u{202f}PM GMT+5:30",
+        ]
+    );
+    // A compiled tz database is a run of TZif files, each starting with this magic.
+    assert!(
+        !INTL.windows(4).any(|bytes| bytes == b"TZif"),
+        "the intl component carries a TZif file"
     );
 }

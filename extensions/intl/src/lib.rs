@@ -8,14 +8,16 @@
 //!
 //! ICU4X is pinned at one version in `Cargo.toml`, with `compiled_data`: the data is baked into
 //! the wasm, and nothing is read at run time. The implemented exports are `collate-order` and
-//! `sort-keys` (`collation`'s module doc), `format-numbers` (`numbers`'s) and `plural-categories`
-//! (`plurals`'s); every other export returns `runtime`.
+//! `sort-keys` (`collation`'s module doc), `format-numbers` (`numbers`'s), `plural-categories`
+//! (`plurals`'s), and `format-date-times`, `format-dates` and `format-times` (`dates`'s); every
+//! other export returns `runtime`.
 //!
 //! A locale is a BCP 47 tag that [`locale`] parses for every export. A malformed tag is
 //! `Invalid` and names the tag. A well-formed tag with no data of its own falls back along CLDR's
 //! chain inside ICU4X, down to the root locale.
 
 pub mod collation;
+pub mod dates;
 pub mod numbers;
 pub mod plurals;
 
@@ -48,6 +50,7 @@ mod guest {
         CaseFirst, CollateOptions, CompactDisplay, CurrencyDisplay, Date, DateTimeOptions, Error,
         Guest, Length, ListOptions, LocalDateTime, NumberOptions, NumberStyle, PluralCategory,
         PluralKind, RelativeItem, RelativeOptions, Service, Strength, TimeOfDay, TimeOptions, Word,
+        ZoneStyle,
     };
 
     struct Component;
@@ -83,6 +86,31 @@ mod guest {
             }),
             numeric: options.numeric,
             ignore_punctuation: options.ignore_punctuation,
+        }
+    }
+
+    fn length(length: Length) -> crate::dates::Length {
+        match length {
+            Length::Short => crate::dates::Length::Short,
+            Length::Medium => crate::dates::Length::Medium,
+            Length::Long => crate::dates::Length::Long,
+        }
+    }
+
+    fn date(date: &Date) -> crate::dates::Date {
+        crate::dates::Date {
+            year: date.year,
+            month: date.month,
+            day: date.day,
+        }
+    }
+
+    fn time_of_day(time: &TimeOfDay) -> crate::dates::TimeOfDay {
+        crate::dates::TimeOfDay {
+            hour: time.hour,
+            minute: time.minute,
+            second: time.second,
+            nanos: time.nanos,
         }
     }
 
@@ -162,27 +190,58 @@ mod guest {
         }
 
         fn format_date_times(
-            _values: Vec<LocalDateTime>,
-            _locale: String,
-            _options: DateTimeOptions,
+            values: Vec<LocalDateTime>,
+            locale: String,
+            options: DateTimeOptions,
         ) -> Result<Vec<String>, Error> {
-            not_implemented("format-date-times")
+            use crate::dates::ZoneStyle as Z;
+            let values: Vec<crate::dates::LocalDateTime> = values
+                .into_iter()
+                .map(|value| crate::dates::LocalDateTime {
+                    date: crate::dates::Date {
+                        year: value.year,
+                        month: value.month,
+                        day: value.day,
+                    },
+                    time: crate::dates::TimeOfDay {
+                        hour: value.hour,
+                        minute: value.minute,
+                        second: value.second,
+                        nanos: value.nanos,
+                    },
+                    offset_seconds: value.offset_seconds,
+                    zone: value.zone,
+                })
+                .collect();
+            let options = crate::dates::DateTimeOptions {
+                length: options.length.map(length),
+                seconds: options.seconds,
+                zone: options.zone.map(|zone| match zone {
+                    ZoneStyle::None => Z::None,
+                    ZoneStyle::Offset => Z::Offset,
+                    ZoneStyle::Location => Z::Location,
+                    ZoneStyle::Generic => Z::Generic,
+                }),
+            };
+            crate::dates::format_date_times(&values, &locale, options).map_err(error)
         }
 
         fn format_dates(
-            _values: Vec<Date>,
-            _locale: String,
-            _length: Length,
+            values: Vec<Date>,
+            locale: String,
+            at: Length,
         ) -> Result<Vec<String>, Error> {
-            not_implemented("format-dates")
+            let values: Vec<crate::dates::Date> = values.iter().map(date).collect();
+            crate::dates::format_dates(&values, &locale, length(at)).map_err(error)
         }
 
         fn format_times(
-            _values: Vec<TimeOfDay>,
-            _locale: String,
-            _options: TimeOptions,
+            values: Vec<TimeOfDay>,
+            locale: String,
+            options: TimeOptions,
         ) -> Result<Vec<String>, Error> {
-            not_implemented("format-times")
+            let values: Vec<crate::dates::TimeOfDay> = values.iter().map(time_of_day).collect();
+            crate::dates::format_times(&values, &locale, options.seconds).map_err(error)
         }
 
         fn format_relative(

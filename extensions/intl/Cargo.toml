@@ -19,6 +19,8 @@ icu_decimal = "2.3"
 # `serde` compiles the rule parser in, for the languages `plurals.rs` carries rules for itself.
 icu_plurals = { version = "2.3", features = ["serde"] }
 icu_datetime = "2.3"
+# The ISO calendar a date crosses in, which `icu_datetime` names but does not re-export.
+icu_calendar = "2.3"
 icu_list = "2.3"
 icu_segmenter = "2.3"
 icu_locale = "2.3"
