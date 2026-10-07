@@ -149,6 +149,7 @@ fn gradient() -> Vec<u8> {
     std::fs::read(&path).unwrap_or_else(|err| panic!("{}: {err}", path.display()))
 }
 
+// covers: Novis\Image\Image::compare
 #[test]
 fn an_image_compared_with_itself_is_identical_with_an_ssim_of_one_in_one_call() {
     let (host, extension) = setup();
@@ -266,6 +267,7 @@ fn distance(a: &[u8], b: &[u8]) -> u32 {
     a.iter().zip(b).map(|(a, b)| (a ^ b).count_ones()).sum()
 }
 
+// covers: Novis\Image\Image::hash
 #[test]
 fn each_hash_kind_returns_a_hash_of_its_own_length() {
     let (host, extension) = setup();
@@ -410,6 +412,7 @@ fn thumbhash_average(hash: &str) -> [f64; 3] {
 const RED: [u8; 4] = [255, 0, 0, 255];
 const BLUE: [u8; 4] = [0, 0, 255, 255];
 
+// covers: Novis\Image\Image::placeholder
 #[test]
 fn a_blurhash_placeholder_decodes_to_the_image_average_colour() {
     let (host, extension) = setup();
@@ -443,6 +446,7 @@ fn a_thumbhash_placeholder_decodes_to_the_image_average_colour() {
     }
 }
 
+// covers: Novis\Image\Image::palette
 #[test]
 fn the_palette_of_a_two_colour_image_returns_those_two_colours() {
     let (host, extension) = setup();
@@ -520,6 +524,7 @@ fn read_qr(request: &Request, extension: &Extension, png: &[u8]) -> (String, usi
     (content, meta.version.0)
 }
 
+// covers: Novis\Image\QrCode::render
 #[test]
 fn a_qr_code_renders_and_decodes_back_to_its_data() {
     let (host, extension) = setup();
@@ -730,6 +735,7 @@ fn ink_box(rgba: &[u8], width: u64, inked: impl Fn(&[u8]) -> bool) -> Option<(u6
     found
 }
 
+// covers: Novis\Image\Image::text
 #[test]
 fn text_renders_latin_with_the_font_given_as_bytes() {
     let (host, extension) = setup();
@@ -770,6 +776,7 @@ fn text_renders_latin_with_the_font_given_as_bytes() {
     );
 }
 
+// covers: Novis\Image\Image::measureText
 #[test]
 fn measure_text_matches_the_box_text_draws() {
     let (host, extension) = setup();
