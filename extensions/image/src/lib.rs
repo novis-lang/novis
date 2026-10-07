@@ -21,7 +21,8 @@
 //! decoded. So is the size of every frame the plan and each overlay row makes, from the source's
 //! size and `ops::size`, up to the first step whose size depends on the pixels: a plan that grows
 //! its frame past the cap returns `Runtime` before its first step runs, not after its last one
-//! under the cap. An encoded source's size is its header's. A `text` step and a `text` source return `runtime` naming what is missing.
+//! under the cap. An encoded source's size is its header's, and a `text` source's is its laid-out
+//! box (`text`'s module doc, which says what the `text` step draws too).
 
 mod avif;
 pub mod compare;
@@ -32,6 +33,7 @@ mod info;
 pub mod ops;
 pub mod qr;
 pub mod summary;
+pub mod text;
 mod webp;
 
 pub use decode::{DEFAULT_MAX_PIXELS, Pixels, decode, sniff};
@@ -67,7 +69,7 @@ pub struct Encoding {
 /// encoded, and what `run` returns.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Plan<'a> {
-    pub steps: Vec<Op>,
+    pub steps: Vec<Op<'a>>,
     pub overlays: Vec<Overlay<'a>>,
     pub encoding: Encoding,
     pub output: Output,
@@ -78,7 +80,7 @@ pub struct Plan<'a> {
 pub struct Overlay<'a> {
     pub input: Input<'a>,
     pub cap: u64,
-    pub steps: Vec<Op>,
+    pub steps: Vec<Op<'a>>,
 }
 
 /// `Invalid` unless every `composite` step in `steps` names a row before `rows`, and the draws
@@ -142,6 +144,8 @@ pub enum Input<'a> {
         height: u64,
         rgba: &'a [u8],
     },
+    /// Text set in a font, on a transparent canvas the size of its box.
+    Text(text::Layout<'a>),
 }
 
 /// Runs `plan` on `input` under `cap` pixels and returns its output. A format the component does
@@ -158,7 +162,7 @@ pub fn run(input: &Input<'_>, cap: u64, plan: &Plan<'_>) -> Result<Vec<u8>, Erro
 pub fn variants(input: &Input<'_>, cap: u64, plans: &[Plan<'_>]) -> Result<Vec<Vec<u8>>, Error> {
     let format = match *input {
         Input::Encoded { data, .. } => sniff(data)?,
-        Input::Canvas { .. } | Input::Pixels { .. } => Format::Png,
+        Input::Canvas { .. } | Input::Pixels { .. } | Input::Text(_) => Format::Png,
     };
     for plan in plans {
         let target = plan.encoding.format.unwrap_or(format);
@@ -200,6 +204,7 @@ fn known_size(input: &Input<'_>, cap: u64) -> Option<(u32, u32)> {
         Input::Canvas { width, height, .. } | Input::Pixels { width, height, .. } => {
             (width, height)
         }
+        Input::Text(layout) => text::measure(&layout).ok()?,
         Input::Encoded {
             data, auto_orient, ..
         } => {
@@ -289,6 +294,7 @@ fn frame(input: &Input<'_>, cap: u64) -> Result<Pixels, Error> {
                 exif: None,
             })
         }
+        Input::Text(layout) => text::render(&layout, [0, 0, 0, 255], cap),
     }
 }
 
@@ -362,8 +368,9 @@ mod guest {
     });
 
     use exports::nvs::image::codec::{
-        Axis, Blend, Color, CompareOptions, Diff, Error, Filter, Fit, Format, Gravity, Guest,
-        HashKind, ImageInfo, Output, PlaceholderKind, Plan, QrLevel, QrOptions, Source, Step,
+        Align, Axis, Blend, Color, CompareOptions, Diff, Error, Filter, Fit, Format, Gravity,
+        Guest, HashKind, ImageInfo, Output, PlaceholderKind, Plan, QrLevel, QrOptions, Source,
+        Step,
     };
 
     use crate::ops::{self, Op};
@@ -430,12 +437,6 @@ mod guest {
         .collect()
     }
 
-    fn missing<T>(export: &str) -> Result<T, Error> {
-        Err(Error::Runtime(format!(
-            "`{export}` is not available in this build of the image component"
-        )))
-    }
-
     fn color(color: &Color) -> Result<[u8; 4], Error> {
         ops::color(color.r, color.g, color.b, color.alpha).map_err(error)
     }
@@ -468,8 +469,25 @@ mod guest {
                 },
                 crate::DEFAULT_MAX_PIXELS,
             ),
-            Source::Text(_) => return missing("a `text` source"),
+            Source::Text(text) => (
+                crate::Input::Text(crate::text::Layout {
+                    text: &text.text,
+                    font: &text.font,
+                    size: text.size,
+                    max_width: text.max_width,
+                    align: text.align.map(align).unwrap_or_default(),
+                }),
+                crate::DEFAULT_MAX_PIXELS,
+            ),
         })
+    }
+
+    fn align(align: Align) -> crate::text::Align {
+        match align {
+            Align::Left => crate::text::Align::Left,
+            Align::Center => crate::text::Align::Center,
+            Align::Right => crate::text::Align::Right,
+        }
     }
 
     fn gravity(gravity: Gravity) -> ops::Gravity {
@@ -488,7 +506,7 @@ mod guest {
 
     /// The pixel step `step` sets, or `None` for a `format`, a `metadata` or a
     /// `grayscale(false)` step.
-    fn op(step: &Step) -> Result<Option<Op>, Error> {
+    fn op(step: &Step) -> Result<Option<Op<'_>>, Error> {
         let op = if let Some(resize) = &step.resize {
             Op::Resize(ops::Resize {
                 width: resize.width,
@@ -568,13 +586,27 @@ mod guest {
             Op::Gamma(gamma)
         } else if let Some(tint) = &step.tint {
             Op::Tint(color(tint)?)
+        } else if let Some(text) = &step.text {
+            Op::Text(crate::text::Text {
+                layout: crate::text::Layout {
+                    text: &text.text,
+                    font: &text.font,
+                    size: text.size,
+                    max_width: text.max_width,
+                    align: text.align.map(align).unwrap_or_default(),
+                },
+                color: color(&text.color)?,
+                gravity: text.gravity.map(gravity).unwrap_or_default(),
+                x: text.x,
+                y: text.y,
+            })
         } else {
             return Ok(None);
         };
         Ok(Some(op))
     }
 
-    /// `plan` as the codec core runs it. A `text` step returns `runtime` naming what is missing.
+    /// `plan` as the codec core runs it.
     fn plan(plan: &Plan) -> Result<crate::Plan<'_>, Error> {
         let (steps, encoding) = self::steps(&plan.steps)?;
         let overlays = plan
@@ -601,7 +633,7 @@ mod guest {
 
     /// The pixel steps of `list` in order, and the encoding its `format` and `metadata` steps
     /// set. An overlay's list is read the same way, and its encoding is not used.
-    fn steps(list: &[Step]) -> Result<(Vec<Op>, crate::Encoding), Error> {
+    fn steps(list: &[Step]) -> Result<(Vec<Op<'_>>, crate::Encoding), Error> {
         let mut encoding = crate::Encoding::default();
         let mut steps = Vec::with_capacity(list.len());
         for step in list {
@@ -618,7 +650,6 @@ mod guest {
                         encoding.keep_metadata = options.keep;
                     }
                 }
-                ["text"] => return missing("the `text` step"),
                 [_] => steps.extend(op(step)?),
                 set => {
                     return Err(Error::Invalid(format!(

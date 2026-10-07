@@ -24,6 +24,11 @@ Its colour profile is not a file here. `image_pipeline.rs` writes a small CMYK p
 so no third-party profile and no redistribution licence is involved, and inserts it into
 `cmyk.jpg` as an APP2 segment.
 
+`DancingScript-Regular.ttf` is the font the text tests draw in. It is Dancing Script 1.002, a
+Latin TrueType font that kerns through both a `kern` table and `GPOS`, copied unchanged from the
+`macroquad` crate's examples. It is under the SIL Open Font License 1.1, which
+`DancingScript-OFL.txt` beside it holds with the font's copyright.
+
 Inputs that are broken on purpose, such as a header declaring more pixels than the cap or an EXIF
 block with a malformed IFD, are built by the test itself, so they are not files here. So are the
 tagged JPEGs: `image_pipeline.rs` inserts an EXIF block it writes, with an orientation of 6 or a

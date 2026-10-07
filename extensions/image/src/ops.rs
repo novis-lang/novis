@@ -166,7 +166,7 @@ pub struct Resize {
 
 /// One pixel step. A colour is straight-alpha RGBA8.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Op {
+pub enum Op<'a> {
     Resize(Resize),
     Crop {
         x: u64,
@@ -196,6 +196,8 @@ pub enum Op {
     Contrast(f64),
     Gamma(f64),
     Tint([u8; 4]),
+    /// Text drawn over the frame, as `crate::text`'s module doc says.
+    Text(crate::text::Text<'a>),
 }
 
 /// The colour `r`, `g`, `b` with `alpha` from 0.0 to 1.0, as RGBA8. A channel over 255 or an
@@ -263,6 +265,7 @@ pub fn check(op: &Op) -> Result<(), Error> {
         Op::Brightness(value) => bounded("brightness", value, 0.0, false),
         Op::Contrast(value) => bounded("contrast", value, 0.0, false),
         Op::Gamma(value) => bounded("gamma", value, 0.0, true),
+        Op::Text(text) => crate::text::check(&text.layout),
     }
 }
 
@@ -351,6 +354,7 @@ pub fn apply(pixels: &mut Pixels, op: Op, cap: u64) -> Result<(), Error> {
             }
             Ok(())
         }
+        Op::Text(text) => crate::text::draw(pixels, text, cap),
     }
 }
 
@@ -891,7 +895,7 @@ mod tests {
         pixels.rgba[from..from + 4].try_into().unwrap()
     }
 
-    fn sized(width: Option<u64>, height: Option<u64>, fit: Fit) -> Op {
+    fn sized(width: Option<u64>, height: Option<u64>, fit: Fit) -> Op<'static> {
         Op::Resize(Resize {
             width,
             height,
