@@ -17,6 +17,24 @@
 //! the `sha256` line an `[[extension]]` entry pins it with. The packer and the loader own what
 //! they check, a WASI preview 1 module among them.
 //!
+//! **`nvs ext inspect`** reads the file's two sections and compiles nothing, so it answers for a
+//! file that does not load too: the class, interface, world and `sha256`, the I/O the manifest
+//! requests, each method's signature and help, the consts, the settings block and the source
+//! paths, and with `--source` each source file's text under a `--- <path>` line. Every string the
+//! file carries is printed with its control characters and its text-reordering Unicode marks
+//! escaped as `\u{..}`, so a file read before it is trusted cannot drive the terminal. Errors, on
+//! every subcommand, are escaped the same way.
+//!
+//! **`nvs ext verify`** runs the loader boot uses on the file under an entry pinning its own
+//! digest and granting nothing. That loader compiles the component and never instantiates it, so
+//! no guest code runs. Of boot's refusals, two depend on the configuration and not on the file:
+//! a pin that differs, and a class another entry already declares. Every other one is made here.
+//!
+//! **`nvs ext pin`** runs the same checks first and prints nothing for a file that fails them. It
+//! prints `[[extension]]`, `path` and `sha256`, and never `grants`: what a file may reach is the
+//! operator's to write after reading `inspect`. `path` is the file's absolute path, because a
+//! relative one resolves against the configuration file it is pasted into, which `pin` cannot know.
+//!
 //! **`nvs ext` never writes an `nvs.toml`.** It is not a project command in `initializes`'s
 //! sense: `nvs ext test` runs with no configuration unless `--config` names one, so an extension
 //! is tested with no grant, and the other subcommands read a project or a `.nvsx` and no
@@ -28,6 +46,7 @@
 //!   working directory, the way `cargo` does, so the common case is the bare command.
 //! - `inspect`, `verify` and `pin` take a `.nvsx` path and never a project, because each answers a
 //!   question about a file that may have come from anywhere.
+//! - `pin` refuses a file that does not load rather than printing an entry boot would refuse.
 //! - `build` writes the `.nvsx` beside `nvsx.toml`, named for the last segment of the class in
 //!   kebab case (`Shop\GeoTools` is `geo-tools.nvsx`). One fixed place per project is what
 //!   `nvs ext test` finds without a flag, and the name is the one a configuration's `path` reads.
@@ -41,7 +60,7 @@ mod nvsx_toml;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use nvs_ext::load::{Entry, pin};
+use nvs_ext::load::{Entry, Extension, pin};
 use nvs_ext::manifest::Manifest;
 use nvs_ext::pack::{Inputs, pack};
 use nvs_ext::source::SourceFile;
@@ -53,10 +72,10 @@ pub(crate) fn run(command: ExtCommand) -> ExitCode {
     match command {
         ExtCommand::New { lang, dir } => answer(new::new(lang, &dir)),
         ExtCommand::Build { project } => answer(build(&project)),
-        ExtCommand::Inspect { .. } => unbuilt("inspect"),
+        ExtCommand::Inspect { file, source } => answer(inspect(&file, source)),
         ExtCommand::Test { .. } => unbuilt("test"),
-        ExtCommand::Verify { .. } => unbuilt("verify"),
-        ExtCommand::Pin { .. } => unbuilt("pin"),
+        ExtCommand::Verify { file } => answer(verify(&file)),
+        ExtCommand::Pin { file } => answer(pin_entry(&file)),
     }
 }
 
@@ -65,7 +84,8 @@ fn answer(result: Result<(), String>) -> ExitCode {
     match result {
         Ok(()) => ExitCode::SUCCESS,
         Err(err) => {
-            eprintln!("error: {err}");
+            let err: Vec<String> = err.lines().map(escaped).collect();
+            eprintln!("error: {}", err.join("\n"));
             ExitCode::FAILURE
         }
     }
@@ -99,23 +119,205 @@ fn build(dir: &Path) -> Result<(), String> {
 
     let manifest = Manifest::parse(&project.manifest).map_err(|err| err.0)?;
     let out = dir.join(format!("{}.nvsx", file_stem(&manifest.class)));
-    let sha256 = pin(&bytes);
-    crate::extensions::loader()?
-        .load_bytes(
-            &Entry {
-                path: out.clone(),
-                sha256: sha256.clone(),
-                memory: None,
-                grants: nvs_config::extension::Granted::default(),
-            },
-            &bytes,
-        )
-        .map_err(|refused| refused.to_string())?;
+    let extension = load(&out, &bytes)?;
     std::fs::write(&out, &bytes)
         .map_err(|err| format!("{}: cannot be written: {err}", out.display()))?;
     println!("{}", out.display());
-    println!("sha256 = \"{sha256}\"");
+    println!("sha256 = \"{}\"", extension.sha256);
     Ok(())
+}
+
+/// `bytes`, the file at `path`, loaded by the loader boot uses under an entry pinning their own
+/// digest and granting nothing. Loading compiles the component and never instantiates it.
+fn load(path: &Path, bytes: &[u8]) -> Result<Extension, String> {
+    crate::extensions::loader()?
+        .load_bytes(
+            &Entry {
+                path: path.to_path_buf(),
+                sha256: pin(bytes),
+                memory: None,
+                grants: nvs_config::extension::Granted::default(),
+            },
+            bytes,
+        )
+        .map_err(|refused| refused.to_string())
+}
+
+/// The bytes of the `.nvsx` at `file`, or an error naming it.
+fn read_nvsx(file: &Path) -> Result<Vec<u8>, String> {
+    std::fs::read(file).map_err(|err| format!("{}: cannot be read: {err}", file.display()))
+}
+
+/// `nvs ext verify`: every check boot runs on `file`, and one line saying it passed.
+fn verify(file: &Path) -> Result<(), String> {
+    load(file, &read_nvsx(file)?)?;
+    println!(
+        "{}: passes every check loading it runs",
+        escaped(&file.display().to_string())
+    );
+    Ok(())
+}
+
+/// `nvs ext pin`: the `[[extension]]` entry for `file`, printed once the file passes every load
+/// check. The entry has no `grants`.
+fn pin_entry(file: &Path) -> Result<(), String> {
+    let extension = load(file, &read_nvsx(file)?)?;
+    let path = std::path::absolute(file)
+        .map_err(|err| format!("{}: cannot be made absolute: {err}", file.display()))?;
+    println!("[[extension]]");
+    println!("path   = {}", toml_string(&path.display().to_string()));
+    println!("sha256 = \"{}\"", extension.sha256);
+    Ok(())
+}
+
+/// `text` as a TOML basic string: quoted, with `\`, `"` and every control character escaped.
+fn toml_string(text: &str) -> String {
+    let mut out = String::with_capacity(text.len() + 2);
+    out.push('"');
+    for ch in text.chars() {
+        match ch {
+            '\\' => out.push_str("\\\\"),
+            '"' => out.push_str("\\\""),
+            ch if ch.is_control() => out.push_str(&format!("\\u{:04X}", u32::from(ch))),
+            ch => out.push(ch),
+        }
+    }
+    out.push('"');
+    out
+}
+
+/// `nvs ext inspect`: what `file` declares and the I/O it requests, read from its two sections
+/// without compiling the component. `source` prints every source file's text as well.
+fn inspect(file: &Path, source: bool) -> Result<(), String> {
+    let bytes = read_nvsx(file)?;
+    let refuse = |reason: String| format!("{}: {reason}", file.display());
+    let sections = nvs_ext::section::read(&bytes).map_err(|err| refuse(err.0))?;
+    let manifest = sections
+        .manifest
+        .ok_or_else(|| refuse("the file has no `nvs.manifest` section".to_owned()))?;
+    let manifest = Manifest::parse(manifest).map_err(|err| refuse(err.0))?;
+    let files = match sections.source {
+        Some(section) => {
+            nvs_ext::source::Source::parse(section)
+                .map_err(|err| refuse(err.0))?
+                .files
+        }
+        None => Vec::new(),
+    };
+    print!("{}", describe(&manifest, &pin(&bytes), &files, source));
+    Ok(())
+}
+
+/// The text `nvs ext inspect` prints for `manifest`. Every string the file carries goes through
+/// [`escaped`], so a file cannot write a control character to the terminal.
+fn describe(manifest: &Manifest, sha256: &str, files: &[SourceFile], source: bool) -> String {
+    use std::fmt::Write as _;
+    let mut out = String::new();
+    let e = escaped;
+    let _ = writeln!(out, "class      {}", e(&manifest.class));
+    let _ = writeln!(out, "interface  {}", e(&manifest.interface));
+    let _ = writeln!(out, "world      nvs:ext@{}", manifest.world);
+    let _ = writeln!(out, "sha256     {sha256}");
+    if let Some(memory) = manifest.memory {
+        let _ = writeln!(out, "memory     {memory} bytes");
+    }
+
+    let requests = &manifest.requests;
+    let _ = writeln!(out, "\nrequests");
+    if requests.read.is_empty() && requests.write.is_empty() && requests.connect.is_empty() {
+        let _ = writeln!(out, "  none");
+    }
+    for (kind, list) in [
+        ("read", &requests.read),
+        ("write", &requests.write),
+        ("connect", &requests.connect),
+    ] {
+        if !list.is_empty() {
+            let list: Vec<String> = list.iter().map(|item| e(item)).collect();
+            let _ = writeln!(out, "  {kind:<8} {}", list.join(", "));
+        }
+    }
+
+    let _ = writeln!(out, "\nmethods");
+    for method in &manifest.methods {
+        let params: Vec<String> = method
+            .params
+            .iter()
+            .map(|param| match &param.default {
+                Some(default) => format!("{} ${} = {default}", param.ty, param.name),
+                None => format!("{} ${}", param.ty, param.name),
+            })
+            .collect();
+        let tainted = if method.source { "tainted " } else { "" };
+        let signature = format!(
+            "{}({}): {tainted}{}",
+            method.name,
+            params.join(", "),
+            method.returns
+        );
+        let _ = writeln!(out, "  {}", e(&signature));
+        let sinks: Vec<String> = method
+            .params
+            .iter()
+            .filter(|param| param.sink)
+            .map(|param| format!("${}", param.name))
+            .collect();
+        if !sinks.is_empty() {
+            let _ = writeln!(out, "      refuses tainted {}", e(&sinks.join(", ")));
+        }
+        if let Some(help) = &method.help {
+            let _ = writeln!(out, "      {}", e(help));
+        }
+    }
+    if !manifest.consts.is_empty() {
+        let _ = writeln!(out, "\nconsts");
+        for constant in &manifest.consts {
+            let line = format!("{}: {} = {}", constant.name, constant.ty, constant.value);
+            let _ = writeln!(out, "  {}", e(&line));
+        }
+    }
+    if let Some(settings) = &manifest.settings {
+        let _ = writeln!(out, "\nsettings   [ext.{}]", e(&settings.name));
+        for key in &settings.keys {
+            let line = format!("{}: {} = {}", key.name, key.ty.name(), key.default);
+            let _ = writeln!(out, "  {}", e(&line));
+        }
+    }
+
+    let _ = writeln!(out, "\nsource");
+    if files.is_empty() {
+        let _ = writeln!(out, "  none");
+    }
+    for file in files {
+        let _ = writeln!(out, "  {}", e(&file.path));
+    }
+    if source {
+        for file in files {
+            let _ = writeln!(out, "\n--- {}", e(&file.path));
+            for line in file.text.lines() {
+                let _ = writeln!(out, "{}", e(line));
+            }
+        }
+    }
+    out
+}
+
+/// `text` with every character that changes how a terminal shows the rest escaped as `\u{..}`:
+/// the control characters, line breaks among them, and the Unicode marks that reorder text.
+fn escaped(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for ch in text.chars() {
+        let reorders = matches!(
+            ch,
+            '\u{061C}' | '\u{200E}' | '\u{200F}' | '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}'
+        );
+        if (ch.is_control() && ch != '\t') || reorders {
+            out.push_str(&format!("\\u{{{:x}}}", u32::from(ch)));
+        } else {
+            out.push(ch);
+        }
+    }
+    out
 }
 
 /// The file name `class` is written under: its last segment in kebab case.

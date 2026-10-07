@@ -1562,7 +1562,8 @@ runs every load refusal above, each naming the entry's path (`crates/nvs-ext/tes
 stops the boot or refuses the whole reload with the previous set live, naming its file and line
 (`E0652`, `crates/nvs-cli/tests/live_config.rs`), and stores each compiled component in the
 artifact cache. No named type (an enum, a `Core` value class, a union, a `resource`) passes its
-export check, and `nvs ext pin` does not exist.
+export check. `nvs ext pin` prints an entry `nvs config check` accepts, for a file that loads
+(`crates/nvs-cli/tests/ext_command.rs`).
 
 <sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`](config.md#config-lists-are-arrays-and-repeated-records-are-arrays-of-tables), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-extension-package-carries-two-payloads`](packaging.md#packaging-an-extension-package-carries-two-payloads), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0003](../decisions/0003.md), [0064](../decisions/0064.md), [0078](../decisions/0078.md), [0246](../decisions/0246.md).</sub>
 
@@ -1887,8 +1888,12 @@ the project, runs every load check and writes the `.nvsx` beside `nvsx.toml`, pr
 pin; it refuses a WASI preview 1 module naming `wasm32-wasip2`. `nvs ext new` writes the Rust or C
 template into a new or empty folder, with the world's WIT copied from the binary under `wit/deps/`,
 and `rust-toolchain.toml` lists `wasm32-wasip2`. The Rust template builds, but the module Rust's
-standard library makes imports `wasi:cli/terminal-*`, which the loader refuses. Each other subcommand
-says it is not available and exits non-zero (`crates/nvs-cli/tests/ext_command.rs`). The packer is: `nvs_ext::pack` takes a component, or
+standard library makes imports `wasi:cli/terminal-*`, which the loader refuses. `nvs ext inspect`
+prints the manifest, the I/O it requests and the source paths, and with `--source` the source, every
+string from the file with its control characters escaped; `nvs ext verify` runs boot's loader on a file
+under its own pin and instantiates nothing; `nvs ext pin` prints the entry with its absolute `path` and
+no `grants`, and only for a file that loads. `nvs ext test` says it is not available and exits
+non-zero (`crates/nvs-cli/tests/ext_command.rs`). The packer is: `nvs_ext::pack` takes a component, or
 a core module with the author's WIT, plus a manifest and source files, refuses a source path that leaves
 the project, and writes a `.nvsx` that loads, the same bytes each time (`crates/nvs-ext/tests/pack.rs`).
 

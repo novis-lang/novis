@@ -37,4 +37,5 @@ runs every load refusal above, each naming the entry's path (`crates/nvs-ext/tes
 stops the boot or refuses the whole reload with the previous set live, naming its file and line
 (`E0652`, `crates/nvs-cli/tests/live_config.rs`), and stores each compiled component in the
 artifact cache. No named type (an enum, a `Core` value class, a union, a `resource`) passes its
-export check, and `nvs ext pin` does not exist.
+export check. `nvs ext pin` prints an entry `nvs config check` accepts, for a file that loads
+(`crates/nvs-cli/tests/ext_command.rs`).

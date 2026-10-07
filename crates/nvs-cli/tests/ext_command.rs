@@ -49,12 +49,7 @@ fn ext_help_lists_the_six_subcommands() {
 #[test]
 fn an_unbuilt_subcommand_says_so_and_exits_non_zero() {
     let dir = nvs_repo::scratch("ext-command-unbuilt");
-    let calls: [(&str, &[&str]); 4] = [
-        ("inspect", &["ext", "inspect", "geo.nvsx"]),
-        ("test", &["ext", "test"]),
-        ("verify", &["ext", "verify", "geo.nvsx"]),
-        ("pin", &["ext", "pin", "geo.nvsx"]),
-    ];
+    let calls: [(&str, &[&str]); 1] = [("test", &["ext", "test"])];
     for (subcommand, args) in calls {
         let (out, err, code) = nvs_in(&dir, args);
         assert_eq!(code, Some(1), "`nvs ext {subcommand}` fails: {err}");
@@ -422,4 +417,282 @@ fn nvs_ext_build_prints_the_path_and_the_pin_of_what_it_wrote() {
         .expect("the scratch directory is readable")
         .count();
     assert_eq!(left, 0, "nothing is written where the command runs");
+}
+
+/// [`NVSX_TOML`] with a request for files and for one host.
+fn requesting() -> String {
+    format!("{NVSX_TOML}\n[requests]\nread = [\"data/geo/\"]\nconnect = [\"tiles.example.com\"]\n")
+}
+
+/// The names of the files in `dir`, sorted.
+fn listed(dir: &Path) -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir(dir)
+        .expect("the directory is readable")
+        .map(|entry| {
+            entry
+                .expect("an entry is readable")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect();
+    names.sort();
+    names
+}
+
+#[test]
+fn nvs_ext_inspect_prints_the_manifest_and_the_io_it_requests() {
+    let dir = project("ext-inspect", &requesting(), &component());
+    let bytes = built(&dir);
+    let before = listed(&dir);
+    let (out, err, code) = nvs_in(&dir, &["ext", "inspect", "geo.nvsx"]);
+    assert_eq!(code, Some(0), "`nvs ext inspect` succeeds: {err}");
+    for expected in [
+        "class      Shop\\Geo",
+        "interface  shop:geo/api",
+        "world      nvs:ext@1.0.0",
+        &format!("sha256     {}", nvs_ext::load::pin(&bytes)),
+        "  read     data/geo/",
+        "  connect  tiles.example.com",
+        "  distanceKm(string $from, bool $round): float",
+        "      The distance to a place, in kilometres.",
+        "  Format.nvs",
+        "  Geo/Units.nvs",
+    ] {
+        assert!(
+            out.lines().any(|line| line == expected),
+            "`{expected}` is printed: {out}"
+        );
+    }
+    assert!(
+        !out.contains("KM_PER_MILE"),
+        "the source text is printed only with `--source`: {out}"
+    );
+    assert_eq!(listed(&dir), before, "`inspect` writes nothing");
+
+    let bare = project("ext-inspect-bare", NVSX_TOML, &component());
+    built(&bare);
+    let (out, err, code) = nvs_in(&bare, &["ext", "inspect", "geo.nvsx"]);
+    assert_eq!(code, Some(0), "{err}");
+    assert!(
+        out.contains("requests\n  none\n"),
+        "a file that requests nothing says so: {out}"
+    );
+}
+
+#[test]
+fn nvs_ext_inspect_source_prints_every_source_file_under_its_path() {
+    let dir = project("ext-inspect-source", NVSX_TOML, &component());
+    built(&dir);
+    let (out, err, code) = nvs_in(&dir, &["ext", "inspect", "--source", "geo.nvsx"]);
+    assert_eq!(code, Some(0), "`nvs ext inspect --source` succeeds: {err}");
+    for (path, text) in SOURCE {
+        assert!(
+            out.contains(&format!("\n--- {path}\n{text}")),
+            "`{path}` is printed under its path: {out}"
+        );
+    }
+    assert!(
+        !out.contains("Not Novis source."),
+        "a file that was not packed is not printed: {out}"
+    );
+}
+
+#[test]
+fn nvs_ext_inspect_escapes_control_characters_from_the_file() {
+    let toml = NVSX_TOML.replacen("in kilometres.", "in \\u001b[2Jkilometres.\\u202e", 1);
+    let dir = project("ext-inspect-escapes", &toml, &component());
+    std::fs::write(
+        dir.join("nvs/Format.nvs"),
+        "namespace Shop\\Geo;\n// \u{1b}]0;title\u{7}\rover\n",
+    )
+    .expect("the file is written");
+    built(&dir);
+    let (out, err, code) = nvs_in(&dir, &["ext", "inspect", "--source", "geo.nvsx"]);
+    assert_eq!(code, Some(0), "{err}");
+    for raw in ['\u{1b}', '\u{7}', '\r', '\u{202e}'] {
+        assert!(
+            !out.contains(raw),
+            "{raw:?} from the file reaches the terminal: {out:?}"
+        );
+    }
+    assert!(out.contains("in \\u{1b}[2Jkilometres.\\u{202e}"), "{out}");
+    assert!(out.contains("// \\u{1b}]0;title\\u{7}\\u{d}over"), "{out}");
+}
+
+#[test]
+fn nvs_ext_verify_passes_a_file_boot_would_load() {
+    let dir = project("ext-verify-passes", NVSX_TOML, &component());
+    built(&dir);
+    let (out, err, code) = nvs_in(&dir, &["ext", "verify", "geo.nvsx"]);
+    assert_eq!(code, Some(0), "`nvs ext verify` succeeds: {err}");
+    assert_eq!(out, "geo.nvsx: passes every check loading it runs\n");
+}
+
+/// A manifest for [`component`], with `world` and `class` as given.
+fn manifest(world: &str, class: &str, params: &str) -> String {
+    format!(
+        r#"{{"manifest": 1, "world": "{world}", "class": "{class}", "interface": "shop:geo/api",
+"methods": [{{"name": "distanceKm", "params": [{params}], "returns": "float"}}]}}"#
+    )
+}
+
+/// `wasm`, packed by the packer `nvs ext build` uses with `manifest` and no source.
+fn packed(wasm: &[u8], manifest: &str) -> Vec<u8> {
+    nvs_ext::pack::pack(&nvs_ext::pack::Inputs {
+        wasm,
+        wit: &[("geo.wit", GEO_WIT)],
+        manifest: manifest.as_bytes(),
+        files: &[],
+    })
+    .expect("the packer takes it")
+}
+
+#[test]
+fn nvs_ext_verify_names_every_refusal_boot_would_make() {
+    const PARAMS: &str = r#"{"name": "from", "type": "string"}, {"name": "round", "type": "bool"}"#;
+    let outside = wat::parse_str(
+        r#"(component
+  (import "wasi:cli/terminal-input@0.2.9" (instance))
+  (instance $api)
+  (export "shop:geo/api" (instance $api)))"#,
+    )
+    .expect("the test component compiles");
+    let cases: [(&str, Vec<u8>, &str); 6] = [
+        (
+            "not-wasm.nvsx",
+            b"not wasm".to_vec(),
+            "not a valid component",
+        ),
+        ("bare.nvsx", component(), "no `nvs.manifest` section"),
+        (
+            "newer.nvsx",
+            packed(&component(), &manifest("2.0.0", "Shop\\\\Geo", PARAMS)),
+            "nvs:ext@2.0.0",
+        ),
+        (
+            "outside.nvsx",
+            packed(&outside, &manifest("1.0.0", "Shop\\\\Geo", "")),
+            "`wasi:cli/terminal-input@0.2.9`",
+        ),
+        (
+            "reserved.nvsx",
+            packed(&component(), &manifest("1.0.0", "Novis\\\\Geo", PARAMS)),
+            "is under `Novis\\`",
+        ),
+        (
+            "mismatch.nvsx",
+            packed(
+                &component(),
+                &manifest(
+                    "1.0.0",
+                    "Shop\\\\Geo",
+                    r#"{"name": "from", "type": "string"}"#,
+                ),
+            ),
+            "shop:geo/api#distance-km",
+        ),
+    ];
+    let dir = nvs_repo::scratch("ext-verify-refusals");
+    for (file, bytes, reason) in cases {
+        std::fs::write(dir.join(file), bytes).expect("the file is written");
+        let (out, err, code) = nvs_in(&dir, &["ext", "verify", file]);
+        assert_eq!(code, Some(1), "`{file}` fails: {err}");
+        assert!(out.is_empty(), "nothing goes to standard output: {out}");
+        assert!(err.contains(file), "the file is named: {err}");
+        assert!(err.contains(reason), "`{file}`: `{reason}` is named: {err}");
+    }
+}
+
+#[test]
+fn nvs_ext_verify_instantiates_nothing() {
+    // A core module whose start function traps: instantiating the component would fail.
+    let trapping = wat::parse_str(
+        r#"(component
+  (import "nvs:ext/types@1.0.0" (instance $types
+    (type $e (variant (case "invalid" string) (case "parse" string) (case "runtime" string)))
+    (export "error" (type (eq $e)))))
+  (alias export $types "error" (type $error))
+  (core module $m
+    (memory (export "memory") 1)
+    (func $trap unreachable)
+    (start $trap)
+    (func (export "realloc") (param i32 i32 i32 i32) (result i32) i32.const 8)
+    (func (export "distance-km") (param i32 i32 i32) (result i32) i32.const 16))
+  (core instance $i (instantiate $m))
+  (alias core export $i "memory" (core memory $mem))
+  (alias core export $i "realloc" (core func $realloc))
+  (func $f (param "from" string) (param "round" bool) (result (result f64 (error $error)))
+    (canon lift (core func $i "distance-km") (memory $mem) (realloc $realloc)))
+  (instance $api (export "distance-km" (func $f)))
+  (export "shop:geo/api" (instance $api)))"#,
+    )
+    .expect("the test component compiles");
+    let dir = project("ext-verify-instantiates-nothing", NVSX_TOML, &trapping);
+    built(&dir);
+    let (out, err, code) = nvs_in(&dir, &["ext", "verify", "geo.nvsx"]);
+    assert_eq!(code, Some(0), "no guest code ran: {err}");
+    assert!(out.contains("passes"), "{out}");
+}
+
+#[test]
+fn nvs_ext_pin_prints_an_entry_nvs_config_check_accepts() {
+    let dir = project("ext-pin", NVSX_TOML, &component());
+    let bytes = built(&dir);
+    let (out, err, code) = nvs_in(&dir, &["ext", "pin", "geo.nvsx"]);
+    assert_eq!(code, Some(0), "`nvs ext pin` succeeds: {err}");
+    let lines: Vec<_> = out.lines().collect();
+    assert_eq!(lines.len(), 3, "{out}");
+    assert_eq!(lines[0], "[[extension]]");
+    assert_eq!(
+        lines[2],
+        format!("sha256 = \"{}\"", nvs_ext::load::pin(&bytes))
+    );
+
+    // Pasted into a configuration somewhere else, the entry still names the file.
+    let config = nvs_repo::scratch("ext-pin-config");
+    std::fs::write(config.join("nvs.toml"), &out).expect("the configuration is written");
+    let (_, err, code) = nvs_in(&config, &["config", "check"]);
+    assert_eq!(code, Some(0), "`nvs config check` accepts the entry: {err}");
+    let table: toml::Table = toml::from_str(&out).expect("the entry is TOML");
+    let entry = &table["extension"].as_array().expect("an array of tables")[0];
+    let path = entry["path"].as_str().expect("`path` is a string");
+    assert!(Path::new(path).is_absolute(), "{path}");
+    nvs_ext::load::Loader::new(&wasmtime::Engine::default())
+        .load(&nvs_ext::load::Entry {
+            path: path.into(),
+            sha256: entry["sha256"]
+                .as_str()
+                .expect("`sha256` is a string")
+                .into(),
+            memory: None,
+            grants: nvs_config::extension::Granted::default(),
+        })
+        .expect("the entry loads its file");
+
+    std::fs::write(dir.join("broken.nvsx"), b"not wasm").expect("the file is written");
+    let (out, err, code) = nvs_in(&dir, &["ext", "pin", "broken.nvsx"]);
+    assert_eq!(
+        code,
+        Some(1),
+        "a file that does not load is not pinned: {err}"
+    );
+    assert!(out.is_empty(), "no entry is printed: {out}");
+}
+
+#[test]
+fn nvs_ext_pin_never_writes_a_grant() {
+    let dir = project("ext-pin-no-grant", &requesting(), &component());
+    built(&dir);
+    let before = listed(&dir);
+    let (out, err, code) = nvs_in(&dir, &["ext", "pin", "geo.nvsx"]);
+    assert_eq!(code, Some(0), "{err}");
+    for requested in ["grants", "data/geo/", "tiles.example.com"] {
+        assert!(!out.contains(requested), "`{requested}` is printed: {out}");
+    }
+    assert_eq!(
+        listed(&dir),
+        before,
+        "`pin` writes nothing, `nvs.toml` least of all"
+    );
 }
