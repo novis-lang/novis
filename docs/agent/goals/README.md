@@ -46,6 +46,7 @@ two that share a crate are one.
 | [ext-image](ext-image.md) | M9, no record — ADR 0120 and ADR 0247 — `position: last` | **`extensions/image`** (new), `nvs-ext`'s build script, CI's libwebp check — `Novis\Image` built in: decode, transform and encode under the pixel cap, and the guest-against-native numbers committed |
 | [ext-image-analysis](ext-image-analysis.md) | M9, no record — ADR 0120 §§ 8–9 — `position: last` | `extensions/image` — compare, hashes, placeholders, palette, QR codes and text |
 | [ext-intl](ext-intl.md) | M9, one new record — the intl API — `position: last` | **`extensions/intl`** (new, ICU4X) — `Novis\Intl` built in, batch-shaped, with every CLDR locale, and the binary's growth measured |
+| [ldap](ldap.md) | M8, one new record — the `Core\Ldap` API — `position: last` | **`crates/nvs-ldap`** (new), `crates/nvs-stdlib/src/ldap/` (new), `nvs-config`, `tests/db/compose.yaml` — `Core\Ldap` over LDAPS and StartTLS with simple bind only, an immutable filter builder that encodes straight to BER, typed AD values, writes and passwords, `authenticate`, sort, VLV, deleted objects, DirSync and the Global Catalog, tested against Samba AD |
 
 ## The chain contract
 

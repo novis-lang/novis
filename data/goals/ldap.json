@@ -1,0 +1,505 @@
+{
+  "title": "`Core\\Ldap`: a native LDAPv3 client over LDAPS and StartTLS, with a filter builder and typed Active Directory values",
+  "milestone": "M8",
+  "position": "last",
+  "files": [],
+  "context": {
+    "modules": [
+      "crates/nvs-host/src/tls.rs",
+      "crates/nvs-host/src/net.rs",
+      "crates/nvs-stdlib/src/db/pool.rs",
+      "crates/nvs-stdlib/src/db/registry.rs",
+      "crates/nvs-stdlib/src/registry.rs",
+      "crates/nvs-config/src/tree.rs",
+      "crates/nvs-config/src/capability.rs"
+    ],
+    "rules": [
+      "core-classes/db-crate-boundary",
+      "core-classes/db-capabilities",
+      "security/db-pool-reset-is-a-boundary",
+      "security/tainted-qualifier"
+    ],
+    "adrs": [
+      "0051 §3"
+    ],
+    "shapes": [
+      "A commit message"
+    ],
+    "playbook": [
+      "Tooling > the end",
+      "Tooling > one call reads",
+      "Tooling > a commit message",
+      "Tooling > a [context]*",
+      "Tooling > another agent",
+      "Running things > target/release/nvs.exe is"
+    ],
+    "plan": [
+      "Open now",
+      "Blocking"
+    ],
+    "milestones": []
+  },
+  "stages": [
+    {
+      "number": 2,
+      "title": "the record",
+      "summary": "Writes the `Core\\Ldap` record and the rule fragments it creates, from the goal's standing decisions.",
+      "context": {
+        "rules": [
+          "core-classes/db-one-api",
+          "security/launderers-are-sink-named",
+          "security/sink-predicate",
+          "core-api/options-bag",
+          "core-api/one-paradigm-per-operation",
+          "core-api/tier-roster"
+        ],
+        "adrs": [
+          "0051 §2"
+        ],
+        "shapes": [
+          "A decision record",
+          "A rule fragment"
+        ]
+      }
+    },
+    {
+      "number": 3,
+      "title": "the wire, and a directory to test against",
+      "summary": "Builds `crates/nvs-ldap`: LDAPv3 over LDAPS and StartTLS, simple bind, unbind, paged search and typed result codes, and adds a Samba AD domain controller to the test servers.",
+      "context": {
+        "rules": [
+          "concurrency/one-scheduler",
+          "security/ldap-empty-password-is-refused"
+        ],
+        "adrs": [],
+        "shapes": []
+      }
+    },
+    {
+      "number": 4,
+      "title": "`Core\\Ldap`: connect, open, search, read",
+      "summary": "Registers `Core\\Ldap` with `connect` and `open`, the `[ldap.<name>]` block and its grants, the pool, `search` and `read` with raw entry readers, and `Ldap\\LdapError`.",
+      "context": {
+        "rules": [
+          "core-classes/db-connection-is-named",
+          "security/net-address-policy",
+          "config/a-secret-is-a-file-whose-content-is-the-value",
+          "core-classes/db-error",
+          "security/ldap-pool-is-bound-as-its-block"
+        ],
+        "adrs": [],
+        "shapes": [
+          "A `Core` member",
+          "A `.nvst` test case"
+        ]
+      }
+    },
+    {
+      "number": 5,
+      "title": "the filter builder and `Dn`",
+      "summary": "Adds `Ldap\\Filter` and `Ldap\\Dn`, and the AD matching rules under `Ldap\\Ad`.",
+      "context": {
+        "rules": [
+          "core-classes/ldap-filter-is-a-value",
+          "core-classes/ldap-dn-is-the-launderer",
+          "security/unclassified-parameter-refuses-tainted"
+        ],
+        "adrs": [],
+        "shapes": [
+          "A `Core` member",
+          "A `.nvst` test case"
+        ]
+      }
+    },
+    {
+      "number": 6,
+      "title": "typed values",
+      "summary": "Reads the schema once per pool, types each attribute from it plus a fixed table of names, and merges ranged attributes.",
+      "context": {
+        "rules": [
+          "core-classes/db-column-types",
+          "core-classes/ldap-value-types"
+        ],
+        "adrs": [],
+        "shapes": [
+          "A `Core` member",
+          "A `.nvst` test case"
+        ]
+      }
+    },
+    {
+      "number": 7,
+      "title": "writes and passwords",
+      "summary": "Adds `add`, an atomic `modify` over an ordered list of changes, `delete`, `rename`, `compare`, `whoami`, `setPassword` and `changePassword`.",
+      "context": {
+        "rules": [
+          "security/secret-qualifier"
+        ],
+        "adrs": [],
+        "shapes": [
+          "A `Core` member",
+          "A `.nvst` test case"
+        ]
+      }
+    },
+    {
+      "number": 8,
+      "title": "`authenticate` and AD's reasons",
+      "summary": "Adds `authenticate(login, secret password)` on its own connection and maps AD's bind sub-codes to error kinds, with no-such-user and wrong-password as one kind.",
+      "context": {
+        "rules": [
+          "security/ldap-pool-is-bound-as-its-block",
+          "core-classes/db-error"
+        ],
+        "adrs": [],
+        "shapes": [
+          "A `.nvst` test case"
+        ]
+      }
+    },
+    {
+      "number": 9,
+      "title": "the AD extras",
+      "summary": "Adds server-side sort and VLV, deleted objects, DirSync incremental sync and the read-only Global Catalog, each as a named option or member.",
+      "context": {
+        "rules": [
+          "core-api/one-paradigm-per-operation"
+        ],
+        "adrs": [],
+        "shapes": [
+          "A `.nvst` test case"
+        ]
+      }
+    },
+    {
+      "number": 10,
+      "title": "the feature proofs",
+      "summary": "Writes the feature proofs for every `Core\\Ldap` member the record named.",
+      "context": {
+        "rules": [
+          "testing/feature-proofs",
+          "core-api/reference-card",
+          "testing/hostile-case-contract"
+        ],
+        "adrs": [],
+        "shapes": [
+          "Feature proofs — an example, an attack, a bench, a `covers:` marker"
+        ],
+        "playbook": [
+          "Tooling > `bun nv proofs --verify --group`"
+        ]
+      }
+    }
+  ],
+  "checks": [
+    {
+      "id": "ldap-the-record-creates-its-five-fragments",
+      "kind": "command",
+      "stage": 2,
+      "name": "rulebook: the `Core\\Ldap` record created its five fragments",
+      "argv": [
+        "bun",
+        "nv",
+        "brief",
+        "--where",
+        "ldap"
+      ],
+      "want": [
+        "rule:core-classes/ldap-filter-is-a-value",
+        "rule:core-classes/ldap-dn-is-the-launderer",
+        "rule:security/ldap-empty-password-is-refused",
+        "rule:core-classes/ldap-value-types",
+        "rule:security/ldap-pool-is-bound-as-its-block"
+      ]
+    },
+    {
+      "id": "nvs-runtime-no-tokio-with-nvs-ldap-in-the-graph",
+      "kind": "cargo-named",
+      "stage": 3,
+      "name": "nvs-runtime (no crate of ours depends on tokio, with `nvs-ldap` and its codec in the graph)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-runtime",
+        "--test",
+        "manifest_policy"
+      ],
+      "tests": [
+        "tokio_appears_in_neither_the_manifest_nor_the_lockfile"
+      ]
+    },
+    {
+      "id": "nvs-ldap-binds-and-pages-over-tls",
+      "kind": "cargo-named",
+      "stage": 3,
+      "name": "nvs-ldap (LDAPS and StartTLS bind, an empty password and a cleartext bind refused in the client, paging holds one page, a reference is returned and not followed)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-ldap",
+        "--test",
+        "samba"
+      ],
+      "tests": [
+        "an_ldaps_simple_bind_and_whoami_succeed",
+        "starttls_upgrades_the_connection_then_binds",
+        "an_empty_password_is_refused_before_a_byte_is_sent",
+        "a_simple_bind_without_tls_is_refused_in_the_client",
+        "a_search_pages_past_a_thousand_entries_holding_one_page",
+        "a_continuation_reference_is_returned_and_not_followed"
+      ]
+    },
+    {
+      "id": "nvs-stdlib-ldap-connect-open-and-search",
+      "kind": "cargo-named",
+      "stage": 4,
+      "name": "nvs-stdlib (`connect` and `open` need their grants, `open` passes the address policy, a pooled connection stays bound as its block, names match without case, a hit limit throws)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-stdlib",
+        "--test",
+        "ldap"
+      ],
+      "tests": [
+        "connect_reads_its_block_and_needs_the_ldap_connect_grant",
+        "open_needs_the_ldap_open_grant_and_passes_the_address_policy",
+        "a_pooled_connection_is_always_bound_as_its_block",
+        "an_attribute_name_matches_without_case_and_keeps_the_servers_case",
+        "a_size_limit_the_server_hit_throws"
+      ]
+    },
+    {
+      "id": "ldap-connect-and-search-run",
+      "kind": "nvs-suite",
+      "stage": 4,
+      "name": "`Core\\Ldap` connects to a config block, searches and reads, and throws without its grant",
+      "args": [
+        "test",
+        "tests/conformance/"
+      ],
+      "cases": [
+        "tests/conformance/core/ldap-connect-and-search.nvst",
+        "tests/conformance/core/ldap-connect-without-a-grant-throws.nvst"
+      ]
+    },
+    {
+      "id": "nvs-stdlib-ldap-filters-and-dns",
+      "kind": "cargo-named",
+      "stage": 5,
+      "name": "nvs-stdlib (a filter encodes to BER with no text step, a tainted value cannot change its structure, `Dn` escapes and round-trips, nested `memberOf` uses the in-chain rule)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-stdlib",
+        "--test",
+        "ldap"
+      ],
+      "tests": [
+        "a_filter_encodes_to_ber_with_no_text_step",
+        "a_tainted_value_cannot_change_a_filters_structure",
+        "dn_escapes_each_value_and_round_trips",
+        "ad_member_of_nested_uses_the_in_chain_rule"
+      ]
+    },
+    {
+      "id": "ldap-filters-and-dns-run",
+      "kind": "nvs-suite",
+      "stage": 5,
+      "name": "filters match what they say, `Filter::parse` does not compile with a tainted string, and `Dn` is built from parts",
+      "args": [
+        "test",
+        "tests/conformance/"
+      ],
+      "cases": [
+        "tests/conformance/core/ldap-filter-builder-matches.nvst",
+        "tests/conformance/core/ldap-filter-parse-refuses-tainted.nvst",
+        "tests/conformance/core/ldap-dn-from-parts.nvst"
+      ]
+    },
+    {
+      "id": "nvs-stdlib-ldap-typed-values",
+      "kind": "cargo-named",
+      "stage": 6,
+      "name": "nvs-stdlib (GUID, SID, FILETIME, intervals, GeneralizedTime and flags read typed, unnamed bits are kept, a ranged list is merged, the schema is read once per pool)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-stdlib",
+        "--test",
+        "ldap"
+      ],
+      "tests": [
+        "object_guid_reads_as_a_uuid_with_ads_byte_order",
+        "object_sid_reads_as_its_s_1_5_21_text",
+        "a_filetime_of_zero_or_max_reads_as_null",
+        "a_negative_interval_reads_as_a_duration",
+        "generalized_time_reads_as_an_instant",
+        "account_flags_keep_the_bits_they_do_not_name",
+        "a_ranged_member_list_is_merged_to_its_end",
+        "the_schema_is_read_once_per_pool"
+      ]
+    },
+    {
+      "id": "ldap-typed-values-run",
+      "kind": "nvs-suite",
+      "stage": 6,
+      "name": "AD values read as `Uuid`, `Sid`, `Instant`, `Duration` and flag objects",
+      "args": [
+        "test",
+        "tests/conformance/"
+      ],
+      "cases": [
+        "tests/conformance/core/ldap-typed-values.nvst",
+        "tests/conformance/core/ldap-account-flags.nvst"
+      ]
+    },
+    {
+      "id": "nvs-stdlib-ldap-writes-and-passwords",
+      "kind": "cargo-named",
+      "stage": 7,
+      "name": "nvs-stdlib (`modify` is one request, typed values round-trip, passwords use `unicodePwd` on an encrypted connection only, a policy refusal is its own kind, `compare` returns a bool)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-stdlib",
+        "--test",
+        "ldap"
+      ],
+      "tests": [
+        "modify_applies_its_changes_in_one_request",
+        "typed_values_round_trip_through_a_write",
+        "set_password_and_change_password_use_unicode_pwd",
+        "a_password_write_on_an_unencrypted_connection_is_refused",
+        "a_password_policy_refusal_is_its_own_kind",
+        "compare_returns_a_bool_and_throws_on_error"
+      ]
+    },
+    {
+      "id": "ldap-writes-run",
+      "kind": "nvs-suite",
+      "stage": 7,
+      "name": "add, modify, delete and rename an entry, and set a password",
+      "args": [
+        "test",
+        "tests/conformance/"
+      ],
+      "cases": [
+        "tests/conformance/core/ldap-add-modify-delete-rename.nvst",
+        "tests/conformance/core/ldap-set-password.nvst"
+      ]
+    },
+    {
+      "id": "nvs-stdlib-ldap-authenticate",
+      "kind": "cargo-named",
+      "stage": 8,
+      "name": "nvs-stdlib (`authenticate` binds on its own connection, no-such-user and a wrong password are one kind, AD's sub-codes map to kinds, no message carries the password)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-stdlib",
+        "--test",
+        "ldap"
+      ],
+      "tests": [
+        "authenticate_binds_on_its_own_connection_and_closes_it",
+        "no_such_user_and_a_wrong_password_are_one_kind",
+        "ad_bind_sub_codes_map_to_kinds",
+        "an_errors_message_never_carries_the_password"
+      ]
+    },
+    {
+      "id": "ldap-authenticate-run",
+      "kind": "nvs-suite",
+      "stage": 8,
+      "name": "`authenticate` accepts the right password and throws `InvalidCredentials` for a wrong one",
+      "args": [
+        "test",
+        "tests/conformance/"
+      ],
+      "cases": [
+        "tests/conformance/core/ldap-authenticate.nvst",
+        "tests/conformance/core/ldap-authenticate-wrong-password.nvst"
+      ]
+    },
+    {
+      "id": "nvs-stdlib-ldap-ad-extras",
+      "kind": "cargo-named",
+      "stage": 9,
+      "name": "nvs-stdlib (sort and a VLV window, deleted objects, DirSync since a cookie, a write to a Global Catalog block throws before it is sent)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-stdlib",
+        "--test",
+        "ldap"
+      ],
+      "tests": [
+        "sort_and_a_vlv_window_return_the_requested_slice",
+        "show_deleted_finds_a_deleted_entry",
+        "dirsync_returns_only_what_changed_since_its_cookie",
+        "a_write_to_a_global_catalog_block_throws_before_it_is_sent"
+      ]
+    },
+    {
+      "id": "ldap-sync-run",
+      "kind": "nvs-suite",
+      "stage": 9,
+      "name": "incremental sync returns only what changed since the stored cookie",
+      "args": [
+        "test",
+        "tests/conformance/"
+      ],
+      "cases": [
+        "tests/conformance/core/ldap-sync-cookie.nvst"
+      ]
+    },
+    {
+      "id": "dossier-the-whole-roster-owes-nothing-with-core-ldap",
+      "kind": "command",
+      "stage": 10,
+      "name": "proofs: the whole roster owes nothing with `Core\\Ldap` in it",
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--gate"
+      ],
+      "want": [
+        "nothing owed in the whole roster"
+      ]
+    },
+    {
+      "id": "dossier-core-ldap-carries-plain-comments",
+      "kind": "command",
+      "stage": 10,
+      "name": "proofs: the `Core\\Ldap` programs carry comments inside the plain-comment bounds",
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--comments",
+        "docs/examples/core/Ldap",
+        "tests/hostile/core/Ldap",
+        "benches/members/core/Ldap"
+      ],
+      "want": [
+        "each inside the bounds"
+      ]
+    }
+  ],
+  "env": {
+    "valgrind": {
+      "skip": [
+        "examples/fatal.nvs",
+        "examples/uncaught.nvs",
+        "examples/cache-shared-socket.nvs",
+        "examples/queue-sqlite.nvs",
+        "examples/cache-shared-tls.nvs"
+      ]
+    },
+    "wsl": {
+      "targetDir": "/var/tmp/nvs-target-wsl"
+    }
+  }
+}

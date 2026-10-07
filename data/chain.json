@@ -3,6 +3,7 @@
   "goals": [
     "ext-image",
     "ext-image-analysis",
-    "ext-intl"
+    "ext-intl",
+    "ldap"
   ]
 }

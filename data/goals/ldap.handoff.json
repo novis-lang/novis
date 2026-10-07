@@ -1,0 +1,32 @@
+{
+  "state": "**Goal `ldap` — `Core\\Ldap`: a native LDAPv3 client over LDAPS and StartTLS, with a filter builder and typed Active Directory values — has just started; nothing of it has landed yet.** Stage 1's floor is whatever the chain carries.\n\nADR 0051 § 3 placed `ldap` as Native but unscheduled; this goal schedules it. The user made six calls when the goal was written, and the goal file's § *Standing decisions* holds them with the writer's own calls beside them: simple bind over TLS only and Kerberos declined for good, filters as immutable values, flag fields as readonly objects, both `connect` and `open`, a general LDAPv3 client with AD helpers, and all four AD extras. No session re-decides one.\n\nTwo facts about the tree as the goal was written. `ldap3` runs on tokio, which `crates/nvs-runtime/tests/manifest_policy.rs:148` keeps out, so the codec is borrowed sans-IO and the connection is ours over `nvs_host::net::NvsTcp` and `NvsTls` (`crates/nvs-host/src/tls.rs:224`). `smblds/smblds` (Samba 4.23.8) was run by hand without `--privileged` and answered LDAPS, AD's bind sub-codes and the nested-group rule; its own certificate names the random container id, so Stage 3 gives it a fixed hostname and the `certs` volume's leaf.",
+  "next": {
+    "stage": 2,
+    "title": "the record",
+    "files": [
+      "docs/decisions/",
+      "docs/rules/core-classes/",
+      "docs/rules/security/"
+    ],
+    "items": [
+      {
+        "done": false,
+        "text": "**The record** — one new record, its number checked against `docs/decisions/` right before it is written: every `Core\\Ldap` class, member and options shape, the `[ldap.<name>]` block and the `ldap.connect`/`ldap.open` grants, the type table, the error kinds, the pool and `authenticate`'s own connection, why the filter builder is `Core` against `rule:core-classes/db-one-api`, Kerberos and NTLM declined, and the tradeoffs."
+      },
+      {
+        "done": false,
+        "text": "**Its five fragments** under the ids the Stage 2 check reads: `core-classes/ldap-filter-is-a-value`, `core-classes/ldap-dn-is-the-launderer`, `security/ldap-empty-password-is-refused`, `core-classes/ldap-value-types`, `security/ldap-pool-is-bound-as-its-block`."
+      },
+      {
+        "done": false,
+        "text": "**The proofs checks the record makes possible** — one `bun nv proofs --verify --group '<class>'` check per class it names, and every class's `Ldap-*` directories on the `--comments` check, both in Stage 10 of `data/goals/ldap.json`."
+      }
+    ]
+  },
+  "backlog": [
+    "Stage 3: the `samba-ad` service in `tests/db/compose.yaml` (pinned by digest, fixed hostname, the `certs` leaf, ports 16389/16636), `env.docker` added to `data/goals/ldap.json` in the same slice, a CI step, then `crates/nvs-ldap` over a sans-IO codec with no tokio.",
+    "Stages 4 to 9: `Core\\Ldap` connect/open/search, the filter builder and `Dn`, typed values, writes and passwords, `authenticate`, the AD extras — all under `crates/nvs-stdlib/src/ldap/`, sharing `crates/nvs-stdlib/tests/ldap.rs`.",
+    "Stage 10: the feature proofs — `docs/agent/goals/ldap.md`.",
+    "A run against a Windows Server evaluation VM is the user's to do by hand; a gap it finds comes back as a backlog item here."
+  ]
+}
