@@ -1,0 +1,24 @@
+<?nvs
+// Shows how to write a caption at the bottom of a photo, in lines that fit its width.
+use Novis\Image\Color;
+use Novis\Image\Gravity;
+use Novis\Image\Image;
+
+require 'fonts/box-font.nvs';
+
+bytes $photo = Image::create(80, 60, Color::hex("#336699"))->encode();
+
+// `maxWidth` breaks the caption into lines at spaces.
+// `Gravity::South` puts the text at the bottom, in the middle.
+bytes $card = Image::open($photo)
+    ->text("New shoes in the shop", BoxFont::load(), {
+        size: 10.0,
+        color: Color::hex("#ffffff"),
+        gravity: Gravity::South,
+        maxWidth: 70,
+    })
+    ->encode();
+
+// The caption changes pixels, and the size of the photo stays the same. This prints 80 and true.
+echo Image::info($card)->width, "\n";
+echo Image::compare($photo, $card)->differingPixels > 0 ? "true" : "false", "\n";

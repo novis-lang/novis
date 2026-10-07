@@ -1,0 +1,20 @@
+<?nvs
+// Shows how `x` and `y` place the top-left corner of the line of text.
+use Novis\Image\Color;
+use Novis\Image\Image;
+
+require 'fonts/box-font.nvs';
+
+// Draws "S" in black at `x` 5 and `y` 2 on a white image.
+var $raw = Image::create(20, 20, Color::hex("#ffffff"))
+    ->text("S", BoxFont::load(), {size: 10.0, color: Color::hex("#000000"), x: 5, y: 2})
+    ->raw();
+
+// Finds the first black pixel. Each pixel is 4 bytes, red first.
+int $at = 0;
+while (Core\Encoding::toHex(Core\Bytes::slice($raw->pixels, $at * 4, 1)) == "ff") {
+    $at = $at + 1;
+}
+// The letter is a little lower than `y`, because its top is below the top of the line.
+// This prints 5 and 3.
+echo $at % 20, "\n", Core\Math::intDiv($at, 20), "\n";
