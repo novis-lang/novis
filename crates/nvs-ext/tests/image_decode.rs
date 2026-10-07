@@ -89,10 +89,7 @@ fn run(
     source: Value,
     plan: Value,
 ) -> Result<Vec<u8>, Failure> {
-    match block_on(request.call_values(extension, "run", vec![source, plan]))? {
-        Some(Value::Bytes(bytes)) => Ok(bytes),
-        other => panic!("`run` returned {other:?}"),
-    }
+    run_args(request, extension, vec![source, plan])
 }
 
 /// The width and height in the 16-byte header `raw` and `size` begin with.
@@ -277,6 +274,145 @@ fn an_image_over_max_pixels_is_refused_before_a_buffer_is_allocated() {
         meter.charged() < 64 << 20,
         "the refusal charged {} bytes",
         meter.charged()
+    );
+    block_on(request.end()).expect("the request ends");
+}
+
+/// `run`'s arguments as the host sends them under a request whose `[image] max_pixels` is
+/// `in_force`.
+fn capped(source: Value, plan: Value, in_force: u64) -> Vec<Value> {
+    let mut args = vec![source, plan];
+    nvs_ext::builtin::cap_pixels("Novis\\Image\\Codec", "run", &mut args, in_force);
+    args
+}
+
+fn run_args(
+    request: &Request,
+    extension: &Extension,
+    args: Vec<Value>,
+) -> Result<Vec<u8>, Failure> {
+    match block_on(request.call_values(extension, "run", args))? {
+        Some(Value::Bytes(bytes)) => Ok(bytes),
+        other => panic!("`run` returned {other:?}"),
+    }
+}
+
+/// The `maxPixels` the encoded source in `args` crosses with.
+fn cap_in(args: &[Value]) -> Option<Value> {
+    let Value::Array(fields) = &args[0] else {
+        panic!("a shape was expected")
+    };
+    fields
+        .iter()
+        .find(|(key, _)| *key == Key::String("maxPixels".to_owned()))
+        .map(|(_, value)| value.clone())
+}
+
+#[test]
+fn the_same_image_passes_when_the_cap_is_raised() {
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let extension = component(&host);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(30), None)));
+    // The fixture is 16 by 12, which is 192 pixels.
+    let refused = expect_error(run_args(
+        &request,
+        &extension,
+        capped(
+            encoded(fixture("gradient.png"), None),
+            plan(Vec::new(), "Size"),
+            191,
+        ),
+    ));
+    assert_eq!(
+        refused,
+        Error::Runtime(
+            "the image is 16x12, which is 192 pixels, over the cap of 191 pixels".to_owned()
+        )
+    );
+    let out = run_args(
+        &request,
+        &extension,
+        capped(
+            encoded(fixture("gradient.png"), None),
+            plan(Vec::new(), "Size"),
+            192,
+        ),
+    )
+    .expect("the same bytes decode under a cap of 192");
+    assert_eq!(size_of(&out), (16, 12));
+    block_on(request.end()).expect("the request ends");
+}
+
+#[test]
+fn a_call_may_lower_the_cap_and_never_raise_it() {
+    let source = |cap| encoded(fixture("gradient.png"), cap);
+    let size = || plan(Vec::new(), "Size");
+    // A call that names no cap gets the one in force, and one that names a lower cap keeps it.
+    assert_eq!(
+        cap_in(&capped(source(None), size(), 1000)),
+        Some(Value::Uint(1000))
+    );
+    assert_eq!(
+        cap_in(&capped(source(Some(50)), size(), 1000)),
+        Some(Value::Uint(50))
+    );
+    // A call that names a higher cap gets the one in force.
+    assert_eq!(
+        cap_in(&capped(source(Some(1 << 40)), size(), 1000)),
+        Some(Value::Uint(1000))
+    );
+    // An overlay's source is held to the same cap.
+    let overlay = shape(vec![
+        ("source", source(Some(1 << 40))),
+        ("steps", Value::Array(Vec::new())),
+    ]);
+    let mut args = capped(
+        source(None),
+        shape(vec![
+            ("steps", Value::Array(Vec::new())),
+            ("overlays", Value::Array(vec![(Key::Int(0), overlay)])),
+            ("output", Value::Case("Size".to_owned())),
+        ]),
+        1000,
+    );
+    let Value::Array(plan_fields) = &mut args[1] else {
+        panic!()
+    };
+    let Value::Array(overlays) = &plan_fields[1].1 else {
+        panic!()
+    };
+    let Value::Array(overlay) = &overlays[0].1 else {
+        panic!()
+    };
+    assert_eq!(cap_in(&[overlay[0].1.clone()]), Some(Value::Uint(1000)));
+    // Another class's call is left alone.
+    let mut other = vec![source(Some(1 << 40)), size()];
+    nvs_ext::builtin::cap_pixels("Shop\\Codec", "run", &mut other, 1000);
+    assert_eq!(cap_in(&other), Some(Value::Uint(1 << 40)));
+
+    // In the guest: a call asking for more than the cap in force is refused at that cap.
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let extension = component(&host);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(30), None)));
+    let refused = expect_error(run_args(
+        &request,
+        &extension,
+        capped(source(Some(1 << 40)), size(), 100),
+    ));
+    assert_eq!(
+        refused,
+        Error::Runtime(
+            "the image is 16x12, which is 192 pixels, over the cap of 100 pixels".to_owned()
+        )
+    );
+    let refused = expect_error(run_args(
+        &request,
+        &extension,
+        capped(source(Some(100)), size(), 1 << 30),
+    ));
+    assert!(
+        matches!(&refused, Error::Runtime(m) if m.ends_with("over the cap of 100 pixels")),
+        "{refused:?}"
     );
     block_on(request.end()).expect("the request ends");
 }

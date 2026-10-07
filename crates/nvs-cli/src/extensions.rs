@@ -68,7 +68,9 @@
 //! component that declares it: the first such call makes the process's loader, placed in the
 //! artifact cache of the configuration it runs under, and compiles that component, once per
 //! process. A tree with no `[[extension]]` is an empty set, so `nvs run` and `nvs test` always
-//! install a [`Calls`].
+//! install a [`Calls`]. Before a call crosses, `nvs_ext::builtin::cap_pixels` clamps an image
+//! call's sources to the `[image] max_pixels` of the request's snapshot
+//! (`rule:core-classes/image-pixel-cap`).
 //!
 //! What it spends: each loaded component's compiled code, once per process and shared by every
 //! core, and during a reload the old set and the new one together until the swap. On disk, one
@@ -580,11 +582,15 @@ impl nvs_runtime::extension::Extensions for Calls {
                 .ok_or_else(|| refused("the extension is not loaded".to_owned()))?
                 .map_err(&refused)?,
         };
-        let args = args
+        let mut args = args
             .iter()
             .map(|arg| crossed(*arg))
             .collect::<Result<Vec<_>, _>>()
             .map_err(refused)?;
+        let in_force = ctx
+            .config()
+            .map_or(nvs_config::image::DEFAULT, nvs_config::image::in_force);
+        nvs_ext::builtin::cap_pixels(class, method, &mut args, in_force);
         let (request, spent) = self.request(ctx)?;
         spent.enter(ctx);
         let called = drive(request.call_values(extension, method, args), || {
