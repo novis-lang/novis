@@ -81,7 +81,8 @@ One file set: `docs/decisions/` (the record), `docs/rules/core-classes/` (its fr
   `security/ldap-empty-password-is-refused`, `security/ldap-cleartext-bind-is-granted-per-host`,
   `core-classes/ldap-value-types` (the type table) and `security/ldap-pool-is-bound-as-its-block` (the
   pool and `authenticate`'s own connection). Each
-  fragment's `because` names the record.
+  fragment's `because` names the record. `bun nv brief --where` prints rules in chapter order, and
+  `security` comes before `core-classes`, so the check's `want` lists the three `security` ids first.
 - Its last item adds, to this goal's Stage 10 in `data/goals/ldap.json`, one `bun nv proofs --verify
   --group '<class>'` check per class it names, and every class's `Ldap-*` directories to the
   `--comments` check. A check is added, never removed.

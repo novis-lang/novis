@@ -207,12 +207,12 @@
         "ldap"
       ],
       "want": [
-        "rule:core-classes/ldap-filter-is-a-value",
-        "rule:core-classes/ldap-dn-is-the-launderer",
+        "rule:security/ldap-pool-is-bound-as-its-block",
         "rule:security/ldap-empty-password-is-refused",
         "rule:security/ldap-cleartext-bind-is-granted-per-host",
-        "rule:core-classes/ldap-value-types",
-        "rule:security/ldap-pool-is-bound-as-its-block"
+        "rule:core-classes/ldap-filter-is-a-value",
+        "rule:core-classes/ldap-dn-is-the-launderer",
+        "rule:core-classes/ldap-value-types"
       ]
     },
     {
@@ -623,6 +623,12 @@
     }
   ],
   "env": {
+    "docker": {
+      "compose": "tests/db/compose.yaml",
+      "services": [
+        "samba-ad"
+      ]
+    },
     "valgrind": {
       "skip": [
         "examples/fatal.nvs",
