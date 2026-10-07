@@ -1,0 +1,32 @@
+<?nvs
+// Shows the length of each `HashKind`, and how a hash finds a smaller copy of an image.
+use Novis\Image\Axis;
+use Novis\Image\HashKind;
+use Novis\Image\Image;
+
+// A pattern of 4 by 4 grey pixels, made 64 by 64 pixels wide.
+Image $photo = Image::fromRaw({
+    width: 4,
+    height: 4,
+    pixels: Core\Encoding::fromHex(
+        "202020ffe0e0e0ff606060ffa0a0a0ff" .
+        "909090ff303030ffd0d0d0ff505050ff" .
+        "f0f0f0ff707070ff101010ffc0c0c0ff" .
+        "404040ffb0b0b0ff808080ff000000ff"
+    ),
+})->resize({ width: 64, height: 64 });
+
+// The copy is the same image at 40 by 40 pixels. The other image is the photo mirrored.
+bytes $original = $photo->encode();
+bytes $copy = $photo->resize({ width: 40, height: 40 })->encode();
+bytes $other = $photo->flip(Axis::Horizontal)->encode();
+
+array<HashKind> $kinds = [HashKind::Perceptual, HashKind::Difference, HashKind::Average];
+
+// `hashDistance` counts the bits that differ. It is 0 for the copy with every kind.
+foreach ($kinds as HashKind $kind) {
+    bytes $hash = Image::hash($original, $kind);
+    uint $nearCopy = Image::hashDistance($hash, Image::hash($copy, $kind));
+    uint $notCopy = Image::hashDistance($hash, Image::hash($other, $kind));
+    echo Core\Bytes::length($hash), " bytes, copy ", $nearCopy, ", other image ", $notCopy, "\n";
+}
