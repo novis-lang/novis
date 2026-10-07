@@ -1,0 +1,18 @@
+<?nvs
+// Shows how `tolerance` ignores small changes, and how `render` returns a picture of the changes.
+use Novis\Image\Color;
+use Novis\Image\Image;
+
+// The second image has one corner square in a slightly different blue.
+Image $before = Image::create(32, 32, Color::hex("#2563eb"));
+Image $after = $before->composite(Image::create(8, 8, Color::hex("#2865ee")), { x: 0, y: 0 });
+
+// With no tolerance, the 64 pixels of the square count as different.
+var $exact = Image::compare($before, $after, { render: true });
+echo $exact->differingPixels, " pixels differ, largest delta ", $exact->maxDelta, "\n";
+
+// `diff` is a PNG file that shows those pixels in red.
+echo "diff image: ", Image::info($exact->diff ?? "" as bytes)->width, " pixels wide\n";
+
+// A tolerance of 5 is larger than every delta, so no pixel counts as different.
+echo Image::compare($before, $after, { tolerance: 5 })->differingPixels, " pixels differ\n";
