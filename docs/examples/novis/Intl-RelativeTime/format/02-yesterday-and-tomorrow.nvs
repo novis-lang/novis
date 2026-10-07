@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to write words such as "yesterday" instead of "1 day ago".
+use Novis\Intl\Numeric;
+use Novis\Intl\RelativeTime;
+use Novis\Intl\TimeUnit;
+
+var $days = [
+    {count: -1, unit: TimeUnit::Day},
+    {count: 0, unit: TimeUnit::Day},
+    {count: 1, unit: TimeUnit::Day},
+];
+
+// By default, every item has a number. This prints 1 day ago | in 0 days | in 1 day.
+echo Core\Str::join(RelativeTime::format($days, "en"), " | "), "\n";
+
+// `Numeric::Auto` uses a word where English has one. This prints yesterday | today | tomorrow.
+echo Core\Str::join(RelativeTime::format($days, "en", {numeric: Numeric::Auto}), " | "), "\n";

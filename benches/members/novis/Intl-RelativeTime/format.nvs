@@ -1,0 +1,25 @@
+<?nvs
+// Writes a short list of comment ages for English, as a page does before it shows when each comment was written.
+// bench: iterations 1000
+// bench: complexity constant
+use Novis\Intl\RelativeTime;
+use Novis\Intl\TimeUnit;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<array<{count: int, unit: TimeUnit}>> $lists = [
+            [{count: -3, unit: TimeUnit::Day}, {count: -1, unit: TimeUnit::Hour}, {count: -20, unit: TimeUnit::Minute}],
+            [{count: -1, unit: TimeUnit::Year}, {count: -2, unit: TimeUnit::Week}, {count: 5, unit: TimeUnit::Second}],
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            array<string> $written = RelativeTime::format($lists[$total % 2], "en");
+            $total = $total + Core\Str::length($written[0]) % 3;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1000), "\n";

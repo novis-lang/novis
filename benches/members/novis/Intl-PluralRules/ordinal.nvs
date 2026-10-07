@@ -1,0 +1,28 @@
+<?nvs
+// Gives the place category of a short list of numbers for English, as a ranking page does before it writes "1st".
+// bench: iterations 1000
+// bench: complexity constant
+use Novis\Intl\PluralRules;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<array<int|float|decimal>> $lists = [
+            [1, 2, 3, 4, 11],
+            [22, 13, 101, 5, 33],
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            array<Core\Cldr\PluralCategory> $categories = PluralRules::ordinal($lists[$total % 2], "en");
+            if ($categories[0] == Core\Cldr\PluralCategory::One) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 3;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1000), "\n";

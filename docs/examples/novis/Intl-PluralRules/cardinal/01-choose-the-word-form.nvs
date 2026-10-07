@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to choose between "file" and "files" for each count.
+use Novis\Intl\PluralRules;
+
+array<int|float|decimal> $counts = [1, 2, 0];
+array<Core\Cldr\PluralCategory> $categories = PluralRules::cardinal($counts, "en");
+
+// In English, only `One` takes the singular word.
+// This prints 1 file, 2 files and 0 files.
+for (int $i = 0; $i < 3; $i++) {
+    string $word = $categories[$i] == Core\Cldr\PluralCategory::One ? "file" : "files";
+    echo $counts[$i], " ", $word, "\n";
+}

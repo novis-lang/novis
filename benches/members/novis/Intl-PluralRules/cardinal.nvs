@@ -1,0 +1,28 @@
+<?nvs
+// Gives the plural category of a short list of counts for Russian, as a page does before it chooses each word.
+// bench: iterations 1000
+// bench: complexity constant
+use Novis\Intl\PluralRules;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<array<int|float|decimal>> $lists = [
+            [1, 3, 5, 21, 0],
+            [2, 11, 101, 1.5, 7],
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            array<Core\Cldr\PluralCategory> $categories = PluralRules::cardinal($lists[$total % 2], "ru");
+            if ($categories[0] == Core\Cldr\PluralCategory::One) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 3;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1000), "\n";

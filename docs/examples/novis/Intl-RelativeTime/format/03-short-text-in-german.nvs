@@ -1,0 +1,16 @@
+<?nvs
+// Shows the same times in German, in the long and in the short width.
+use Novis\Intl\RelativeTime;
+use Novis\Intl\TimeUnit;
+use Novis\Intl\Width;
+
+var $times = [
+    {count: 2, unit: TimeUnit::Hour},
+    {count: -5, unit: TimeUnit::Minute},
+];
+
+// This prints in 2 Stunden | vor 5 Minuten.
+echo Core\Str::join(RelativeTime::format($times, "de"), " | "), "\n";
+
+// This prints in 2 Std. | vor 5 Min.
+echo Core\Str::join(RelativeTime::format($times, "de", {width: Width::Short}), " | "), "\n";

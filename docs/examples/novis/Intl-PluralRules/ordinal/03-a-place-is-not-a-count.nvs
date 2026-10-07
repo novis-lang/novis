@@ -1,0 +1,11 @@
+<?nvs
+// Shows that the same number can have one category as a count and another as a place.
+use Novis\Intl\PluralRules;
+
+array<int|float|decimal> $numbers = [2];
+
+// As a count, 2 is `Other`, as in "2 files". This prints true.
+echo PluralRules::cardinal($numbers, "en")[0] == Core\Cldr\PluralCategory::Other ? "true" : "false", "\n";
+
+// As a place, 2 is `Two`, as in "2nd". This prints true.
+echo PluralRules::ordinal($numbers, "en")[0] == Core\Cldr\PluralCategory::Two ? "true" : "false", "\n";

@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to write when each comment on a page was written.
+use Novis\Intl\RelativeTime;
+use Novis\Intl\TimeUnit;
+
+// A negative count is in the past.
+var $ages = [
+    {count: -3, unit: TimeUnit::Day},
+    {count: -1, unit: TimeUnit::Hour},
+    {count: -20, unit: TimeUnit::Minute},
+];
+
+// This prints 3 days ago | 1 hour ago | 20 minutes ago.
+echo Core\Str::join(RelativeTime::format($ages, "en"), " | "), "\n";

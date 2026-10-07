@@ -284,6 +284,7 @@ fn plurals(
         .collect()
 }
 
+// covers: Novis\Intl\NumberFormat::decimal, Novis\Intl\NumberFormat::percent, Novis\Intl\NumberFormat::currency, Novis\Intl\NumberFormat::compact
 #[test]
 fn decimal_percent_currency_and_compact_format_by_locale() {
     run(|request, extension| {
@@ -428,6 +429,7 @@ fn a_batch_of_numbers_formats_in_one_crossing() {
     assert_eq!(formatted[4_999], "184,963.99");
 }
 
+// covers: Novis\Intl\PluralRules::cardinal, Novis\Intl\PluralRules::ordinal
 #[test]
 fn plural_and_ordinal_categories_of_a_batch() {
     let (english, russian, ordinals, crossings) = run(|request, extension| {
@@ -741,6 +743,7 @@ fn relative(count: i64, unit: &str) -> Value {
     ])
 }
 
+// covers: Novis\Intl\RelativeTime::format
 #[test]
 fn relative_time_formats_past_and_future() {
     let (written_out, crossings) = run(|request, extension| {

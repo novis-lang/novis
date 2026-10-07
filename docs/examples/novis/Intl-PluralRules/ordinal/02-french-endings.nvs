@@ -1,0 +1,14 @@
+<?nvs
+// Shows the endings of a place in French, which has two of them.
+use Novis\Intl\PluralRules;
+
+array<int|float|decimal> $places = [1, 2, 3];
+array<Core\Cldr\PluralCategory> $categories = PluralRules::ordinal($places, "fr");
+
+// In French, only 1 is `One`. This prints 1er 2e 3e.
+array<string> $written = [];
+for (int $i = 0; $i < 3; $i++) {
+    string $ending = $categories[$i] == Core\Cldr\PluralCategory::One ? "er" : "e";
+    $written[] = "{$places[$i]}{$ending}";
+}
+echo Core\Str::join($written, " "), "\n";

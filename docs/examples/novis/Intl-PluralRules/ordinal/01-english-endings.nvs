@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to write the English ending of a place, such as "1st" or "22nd".
+use Novis\Intl\PluralRules;
+
+array<int|float|decimal> $places = [1, 2, 3, 4, 11, 22];
+array<Core\Cldr\PluralCategory> $categories = PluralRules::ordinal($places, "en");
+
+// Each category has its own ending. This prints 1st 2nd 3rd 4th 11th 22nd.
+array<string> $written = [];
+for (int $i = 0; $i < 6; $i++) {
+    string $ending = match ($categories[$i]) {
+        Core\Cldr\PluralCategory::One => "st",
+        Core\Cldr\PluralCategory::Two => "nd",
+        Core\Cldr\PluralCategory::Few => "rd",
+        default => "th",
+    };
+    $written[] = "{$places[$i]}{$ending}";
+}
+echo Core\Str::join($written, " "), "\n";

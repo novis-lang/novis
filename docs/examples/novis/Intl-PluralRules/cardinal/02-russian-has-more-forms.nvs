@@ -1,0 +1,17 @@
+<?nvs
+// Shows that Russian needs three forms of a word where English needs two.
+use Novis\Intl\PluralRules;
+
+array<int|float|decimal> $counts = [1, 3, 5, 21];
+array<Core\Cldr\PluralCategory> $categories = PluralRules::cardinal($counts, "ru");
+
+// Each category has its own form of the word for "file".
+// This prints 1 файл, 3 файла, 5 файлов and 21 файл.
+for (int $i = 0; $i < 4; $i++) {
+    string $word = match ($categories[$i]) {
+        Core\Cldr\PluralCategory::One => "файл",
+        Core\Cldr\PluralCategory::Few => "файла",
+        default => "файлов",
+    };
+    echo $counts[$i], " ", $word, "\n";
+}

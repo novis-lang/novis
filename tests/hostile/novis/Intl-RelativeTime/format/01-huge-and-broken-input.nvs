@@ -1,0 +1,56 @@
+<?nvs
+// Attack: a request formats very large lists, extreme counts and broken locale tags as relative
+// times. Each call should return a list or throw an error, and the server keeps running.
+// hostile: timeout-ms 20000
+use Novis\Intl\Numeric;
+use Novis\Intl\RelativeTime;
+use Novis\Intl\TimeUnit;
+use Novis\Intl\Width;
+
+// 1. An empty list.
+try {
+    echo 'step 1 ran ', Core\Arr::count(RelativeTime::format([], 'de')), "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. Twenty thousand items in one call.
+try {
+    array<{count: int, unit: TimeUnit}> $many = [];
+    for (int $i = 0; $i < 20000; $i++) {
+        $many[] = { count: $i - 10000, unit: TimeUnit::Minute };
+    }
+    echo 'step 2 ran ', Core\Arr::count(RelativeTime::format($many, 'en', { numeric: Numeric::Auto })), "\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. The largest and the smallest counts.
+try {
+    var $extreme = [
+        { count: 9223372036854775807, unit: TimeUnit::Year },
+        { count: -9223372036854775807 - 1, unit: TimeUnit::Second },
+    ];
+    echo 'step 3 ran ', Core\Arr::count(RelativeTime::format($extreme, 'ar', { width: Width::Narrow })), "\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. A locale tag of ten thousand characters.
+try {
+    RelativeTime::format([{ count: 1, unit: TimeUnit::Day }], Core\Str::repeat('x-', 5000));
+    echo "step 4 ran\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}
+
+// 5. A bad locale tag a thousand times. Each call must still return or throw.
+uint $stopped = 0;
+for (int $j = 0; $j < 1000; $j++) {
+    try {
+        RelativeTime::format([{ count: -1, unit: TimeUnit::Day }], 'en_US!');
+    } catch (Throwable $e) {
+        $stopped = $stopped + 1;
+    }
+}
+echo 'step 5 stopped ', $stopped, "\n";

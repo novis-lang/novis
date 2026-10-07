@@ -1,0 +1,12 @@
+<?nvs
+// Shows that the digits a number shows change its category.
+use Novis\Intl\PluralRules;
+
+array<int|float|decimal> $sizes = [1, "1.0" as decimal];
+array<Core\Cldr\PluralCategory> $categories = PluralRules::cardinal($sizes, "en");
+
+// `1` is `One`, but `1.0` is `Other`. This prints 1 megabyte and 1.0 megabytes.
+for (int $i = 0; $i < 2; $i++) {
+    string $word = $categories[$i] == Core\Cldr\PluralCategory::One ? "megabyte" : "megabytes";
+    echo $sizes[$i], " ", $word, "\n";
+}
