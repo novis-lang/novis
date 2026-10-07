@@ -1,25 +1,25 @@
 {
-  "state": "**Goal `ext-image`, Stage 2 (the build): the image component is embedded, loads with no entry and no pin, compiles on first use, and its digest is in `env_hash`; nothing in `nvs serve` or `nvs run` loads it yet.** The design is settled by ADR 0120, ADR 0247 and the goal file's § *Standing decisions*; no session re-decides one.\n\n`nvs_ext::load::Loader::builtins` reads each built-in component's sections and world without compiling, and `Builtin::extension` compiles it once (through the loader's `ModuleCache`, keyed by the build-time digest) and runs checks 5 to 7 with `Novis\\` admitted. `load_bytes` and `Builtin::extension` share `Loader::check`. The packed image component passes every check as it is: `manifest.json` matched the export, and a real `info` call on a PNG returns its format and size (`crates/nvs-ext/tests/builtin.rs`, the four tests the record names, green).\n\n`nvs_config::cache::set_built_in` records the built-in digests once per process, and `env_hash` folds them; `nvs_ext::builtin::fold_into_env_hash` is called first thing in `crates/nvs-cli/src/main.rs` `main`. The check `two_builds_with_different_built_in_component_bytes_key_apart` is in `crates/nvs-config/src/cache.rs`'s test module.\n\nStill red in Stage 2: the conformance case, the `webp-lib` tool and its test, `--check-c-deps` for libwebp, and the attribution test.",
+  "state": "**Goal `ext-image`, Stage 2 (the build): the image component is embedded, typed into every compile, and callable with no `nvs.toml`; the libwebp leg is not started.** The design is settled by ADR 0120, ADR 0247 and the goal file's § *Standing decisions*; no session re-decides one.\n\n`nvs_ext::load::builtin_manifests` reads the built-in manifests without an engine, and `crates/nvs-cli/src/extensions.rs` `with_built_in` puts them in front of the entries' manifests in `front_end_in`, so every compile (run, test, serve, check, bundle) resolves `Novis\\Image\\Codec`. A call no loaded entry answers reaches `built_in`, which makes the loader once per process (in the artifact cache of the first caller's configuration) and runs `Builtin::extension`. `nvs run` and `nvs test`'s `#[Test]` suite now always install a `Calls`, over an empty set when there is no `[[extension]]`; `nvs serve` already installed one. How it works is the module doc of `crates/nvs-cli/src/extensions.rs` and the rule fragment's *Partly on disk*.\n\nGreen in Stage 2: `tests/conformance/novis/image-info-answers-with-no-configuration.nvst`, the four `crates/nvs-ext/tests/builtin.rs` tests, and the `env_hash` check. Still red: the `webp-lib` tool and its test, `--check-c-deps` for libwebp, and the attribution test.",
   "next": {
     "stage": 2,
     "title": "the build",
     "files": [
-      "crates/nvs-cli/src/extensions.rs",
-      "crates/nvs-ext/src/load.rs",
-      "tests/conformance/novis/"
+      "tools/nv/cmd/",
+      "tools/nv/test/",
+      "extensions/image/"
     ],
     "items": [
       {
         "done": false,
-        "text": "**`nvs serve` and `nvs run` load the built-in set** (`rule:packaging/the-first-party-components-are-built-in`) — the process loader `crates/nvs-cli/src/extensions.rs:225` calls `Loader::builtins` before any `[[extension]]` entry, and the compiler sees each `Builtin::manifest` beside the entries' manifests, so `use Novis\\Image\\Codec` resolves with no `nvs.toml`. A call reaches `Builtin::extension` (`crates/nvs-ext/src/load.rs:560`) and only then compiles."
+        "text": "**The libwebp tool** (`rule:packaging/a-prebuilt-wasm-library-is-rebuilt-in-ci`) — `tools/nv/cmd/webp-lib.ts` with `--check` (prints `libwebp: the committed library matches its recorded digest`), shaped like `tools/nv/cmd/gen-attribution.ts:274`; it builds under WSL with wasi-sdk into `extensions/image/` beside a `SOURCE.json` holding the source tarball's pinned digest and the library's digest. Whether wasi-sdk is installed under WSL on this machine is not checked; if it is not, name the install in the handoff."
       },
       {
         "done": false,
-        "text": "**The conformance case** — `tests/conformance/novis/image-info-answers-with-no-configuration.nvst`, once the compiler's manifest read `crates/nvs-cli/src/extensions.rs:198` carries the built-in manifests: a program with no `nvs.toml` calls `Novis\\Image\\Codec::info` (or `Novis\\Image\\Image::info` if the Novis source half exists by then) on PNG bytes it writes itself, and prints the width and height."
+        "text": "**The tool's test** — `tools/nv/test/webp-lib.test.ts`: a library whose bytes differ from its record fails the check, and a source tarball whose digest differs from the pin is refused (the record's `webp-lib-refuses-a-library-or-a-source-that-differs` names both test titles), shaped like `tools/nv/cmd/gen-attribution.ts:274`."
       },
       {
         "done": false,
-        "text": "**The libwebp tool** (`rule:packaging/a-prebuilt-wasm-library-is-rebuilt-in-ci`) — `tools/nv/cmd/webp-lib.ts` with `--check`, shaped like `tools/nv/cmd/gen-attribution.ts:274`, `tools/nv/test/webp-lib.test.ts`, then `bun nv gen-attribution --check-c-deps` and `tools/nv/test/attribution-extensions.test.ts`. A separate file set: take it in its own session."
+        "text": "**libwebp in the C-dependency ledger and the notice** (`rule:packaging/a-c-dependency-answers-two-questions`) — `bun nv gen-attribution --check-c-deps` names libwebp as `inside the image component`, and `tools/nv/test/attribution-extensions.test.ts` holds that the notice carries every crate the built-in components link and libwebp's licence; the ledger is read at `tools/nv/cmd/gen-attribution.ts:274`."
       }
     ]
   },
