@@ -2025,7 +2025,10 @@ source and call no export.
 
 **Not shipped.** The interface is written: `wit/image.wit` holds package `nvs:image@1.0.0`, its
 `codec` interface and the `image` world, and `crates/nvs-stdlib/tests/ext_world.rs` places every
-builder member. There is no component and no crate behind it.
+builder member. A plan's `step` is a WIT record with one optional field per operation, exactly one
+of them set, because the manifest tells a union's cases apart by their required keys and most steps
+have none: a step crosses as a Novis array keyed by its operation, `['resize' => [...]]`. The
+component's `run` takes a plan of `format` and `metadata` steps alone (`extensions/image/src/lib.rs`).
 
 <sub>See also [`core-classes/image-pixel-model`](core-classes.md#core-classes-image-pixel-model), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`core-classes/image-one-entry-point-per-job`](core-classes.md#core-classes-image-one-entry-point-per-job). Decided in [0120](../decisions/0120.md), [0063](../decisions/0063.md), [0003](../decisions/0003.md), [0276](../decisions/0276.md).</sub>
 
@@ -2075,7 +2078,9 @@ Every crate is pure Rust and on the licence allowlist, with exactly one C librar
 encoder — admitted because it runs only inside the sandbox. AVIF encoding costs seconds of CPU per
 image and is documented as queue work rather than a request-path call.
 
-**Not shipped.** No image component exists in the tree, so no format decodes.
+**Not shipped.** The image component's `run` decodes JPEG, PNG, WebP, GIF, AVIF and JPEG XL inside
+the guest and refuses to encode JPEG XL (`crates/nvs-ext/tests/image_decode.rs`). AVIF decodes
+through `rav1d` on one thread (`extensions/image/src/avif.rs`), and no format encodes.
 
 <sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap). Decided in [0120](../decisions/0120.md), [0051](../decisions/0051.md), [0128](../decisions/0128.md).</sub>
 
@@ -2109,7 +2114,9 @@ written it is `"24M"`, read in the size grammar every other key of the file uses
 pixels. `false` and zero are refused where they are written, because neither is a cap.
 
 **Not shipped.** The key is on disk (`nvs_config::image`, `crates/nvs-config/tests/directives.rs`),
-and the image component does not read it yet: its one export, `info`, decodes nothing.
+and the image component's `run` checks a header against a cap before it decodes
+(`crates/nvs-ext/tests/image_decode.rs`). The host does not pass the key's value in yet, so the cap is
+the call's `maxPixels` or `"24M"`, and nothing stops a call from raising it.
 
 <sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/spreadsheet-bulk-boundary`](core-classes.md#core-classes-spreadsheet-bulk-boundary). Decided in [0120](../decisions/0120.md), [0005](../decisions/0005.md), [0055](../decisions/0055.md), [0020](../decisions/0020.md), [0095](../decisions/0095.md), [0246](../decisions/0246.md).</sub>
 

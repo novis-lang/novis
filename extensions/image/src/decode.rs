@@ -11,10 +11,9 @@
 //! not parse, a malformed EXIF block and pixel data that ends early. The EXIF block is parsed in
 //! full, because the orientation an upright result needs is in it.
 //!
-//! JPEG, PNG, WebP and GIF decode through `image`; JPEG XL through `jxl-oxide`. Only the first frame
-//! of an animated input is decoded, so `frames` is `1` in the cap. AVIF's header is read for the
-//! cap, and its pixel data is not decoded yet: that returns `Runtime`. A CMYK JPEG XL returns
-//! `Runtime` too.
+//! JPEG, PNG, WebP and GIF decode through `image`; JPEG XL through `jxl-oxide`; AVIF through
+//! `rav1d` (`avif`'s module doc). Only the first frame of an animated input is decoded, so `frames`
+//! is `1` in the cap. A CMYK JPEG XL returns `Runtime`.
 
 use std::io::Cursor;
 
@@ -56,7 +55,7 @@ pub fn sniff(data: &[u8]) -> Result<Format, Error> {
 }
 
 /// `Runtime` when `width` by `height` is over `cap` pixels.
-fn check(width: u64, height: u64, cap: u64) -> Result<(), Error> {
+pub(crate) fn check(width: u64, height: u64, cap: u64) -> Result<(), Error> {
     let pixels = width.saturating_mul(height);
     if pixels > cap {
         return Err(Error::Runtime(format!(
@@ -96,21 +95,7 @@ pub fn decode(data: &[u8], cap: u64) -> Result<Pixels, Error> {
     }
     match format {
         Format::Jxl => decode_jxl(data, cap),
-        Format::Avif => {
-            let avif = avif_parse::read_avif(&mut Cursor::new(data))
-                .map_err(|err| Error::Parse(format!("the AVIF file does not parse: {err:?}")))?;
-            let meta = avif
-                .primary_item_metadata()
-                .map_err(|err| Error::Parse(format!("the AVIF file does not parse: {err:?}")))?;
-            check(
-                u64::from(meta.max_frame_width.get()),
-                u64::from(meta.max_frame_height.get()),
-                cap,
-            )?;
-            Err(Error::Runtime(
-                "AVIF decoding is not available in this build of the image component".to_string(),
-            ))
-        }
+        Format::Avif => crate::avif::decode(data, cap),
         _ => Err(Error::Invalid(format!(
             "{format:?} is not a format the image component decodes"
         ))),

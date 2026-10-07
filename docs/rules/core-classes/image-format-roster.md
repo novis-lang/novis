@@ -11,6 +11,6 @@ Every crate is pure Rust and on the licence allowlist, with exactly one C librar
 encoder — admitted because it runs only inside the sandbox. AVIF encoding costs seconds of CPU per
 image and is documented as queue work rather than a request-path call.
 
-**Not shipped.** The image component's `run` decodes JPEG, PNG, WebP, GIF and JPEG XL inside the
-guest and refuses to encode JPEG XL (`crates/nvs-ext/tests/image_decode.rs`). AVIF's header is read
-for the pixel cap and its pixels do not decode yet, and no format encodes.
+**Not shipped.** The image component's `run` decodes JPEG, PNG, WebP, GIF, AVIF and JPEG XL inside
+the guest and refuses to encode JPEG XL (`crates/nvs-ext/tests/image_decode.rs`). AVIF decodes
+through `rav1d` on one thread (`extensions/image/src/avif.rs`), and no format encodes.

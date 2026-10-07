@@ -11,6 +11,7 @@
 //! naming what is missing. Every other export returns `runtime` naming it, until the slice of goal
 //! `ext-image` that writes it lands.
 
+mod avif;
 mod decode;
 mod info;
 

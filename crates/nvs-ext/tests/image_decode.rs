@@ -2,9 +2,6 @@
 //! image component: `run` decodes each first-wave fixture under `extensions/image/fixtures/` in the
 //! guest, JPEG XL decodes and does not encode, a header over the cap is refused before a buffer is
 //! allocated, and bytes that are no image or carry a malformed IFD return `parse` rather than trap.
-//!
-//! AVIF is the first-wave format missing here: its pixel data does not decode yet
-//! (`extensions/image/src/decode.rs`), and it joins the roster test when it does.
 
 use std::future::Future;
 use std::pin::pin;
@@ -149,7 +146,7 @@ fn expect_error(result: Result<Vec<u8>, Failure>) -> Error {
 }
 
 #[test]
-fn every_first_wave_format_but_avif_decodes_its_fixture() {
+fn every_first_wave_format_decodes_its_fixture() {
     let host = Host::new(4, |_| Ok(())).expect("the host starts");
     let extension = component(&host);
     let request = host.request(Arc::new(Meter::new(Duration::from_secs(60), None)));
@@ -158,6 +155,7 @@ fn every_first_wave_format_but_avif_decodes_its_fixture() {
         "gradient.png",
         "gradient.webp",
         "gradient.gif",
+        "gradient.avif",
         "gradient.jxl",
     ] {
         let out = run(

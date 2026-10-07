@@ -1,21 +1,18 @@
 {
-  "state": "**Goal `ext-image`, Stage 3 (decode, and the cap) is in progress.** The design is settled by ADR 0120, ADR 0247 and the goal file's § *Standing decisions*; no session re-decides one.\n\nThe image component is embedded, typed into every compile and callable with no `nvs.toml` (`crates/nvs-cli/src/extensions.rs` module doc). `info` and `run` are implemented. `run` decodes JPEG, PNG, WebP, GIF and JPEG XL inside the guest and returns the RGBA8 pixels or the size, and refuses to encode JPEG XL. The cap is checked from the header first, bytes that are no image and a malformed EXIF IFD return `parse` (`extensions/image/src/decode.rs` module doc). `crates/nvs-ext/tests/image_decode.rs` pins all of it against the committed fixtures under `extensions/image/fixtures/` (their `README.md` says how they were made).\n\nA plan `step` is now a WIT record with one optional field per operation, exactly one set (`rule:core-classes/image-pipeline`). The manifest declares `run` with the whole plan type and a `Source` union. `variants` is not declared yet.\n\n**Not done:** AVIF pixels do not decode (its header is read for the cap; `rav1d` builds for `wasm32-wasip2` with its asm off, and it is not a dependency yet). So the roster test is named `every_first_wave_format_but_avif_decodes_its_fixture`, and the check `nvs-ext-every-first-wave-format-decodes` stays red until AVIF lands and the test takes its real name. The host does not pass `[image] max_pixels` in yet: the guest's cap is the call's `maxPixels`, or `\"24M\"`.",
+  "state": "**Goal `ext-image`, Stage 3 (decode, and the cap) is in progress.** The design is settled by ADR 0120, ADR 0247 and the goal file's § *Standing decisions*; no session re-decides one.\n\nThe image component is embedded, typed into every compile and callable with no `nvs.toml` (`crates/nvs-cli/src/extensions.rs` module doc). `info` and `run` are implemented. `run` decodes JPEG, PNG, WebP, GIF, AVIF and JPEG XL inside the guest and returns the RGBA8 pixels or the size, and refuses to encode JPEG XL. AVIF goes through `rav1d` on one thread with its asm off, plus a YUV-to-RGB conversion (`extensions/image/src/avif.rs` module doc). The cap is checked from the header first, and bytes that are no image and a malformed EXIF IFD return `parse` (`extensions/image/src/decode.rs` module doc). `crates/nvs-ext/tests/image_decode.rs` pins all of it against the committed fixtures under `extensions/image/fixtures/`, and `every_first_wave_format_decodes_its_fixture` now passes.\n\nA plan `step` is a WIT record with one optional field per operation, exactly one set (`rule:core-classes/image-pipeline`). `variants` is not declared yet.\n\n**Not done:** the host does not pass `[image] max_pixels` in yet: the guest's cap is the call's `maxPixels`, or `\"24M\"`, and a call can raise it.",
   "next": {
     "stage": 3,
     "title": "decode, and the cap",
     "files": [
-      "extensions/image/src/",
+      "crates/nvs-cli/src/extensions.rs",
+      "crates/nvs-ext/src/builtin.rs",
       "crates/nvs-ext/tests/image_decode.rs",
-      "crates/nvs-cli/src/extensions.rs"
+      "tests/conformance/novis/"
     ],
     "items": [
       {
         "done": false,
-        "text": "**AVIF decodes** (`rule:core-classes/image-format-roster`) — the AVIF arm at `extensions/image/src/decode.rs:99` hands `avif_parse`'s primary item (and its alpha item) to `rav1d` (`cargo add rav1d@1.1.0 --no-default-features -F bitdepth_8,bitdepth_16` in `extensions/image`). `rav1d` has only the C-shaped `dav1d_*` API (`dav1d_open`, `dav1d_data_wrap`, `dav1d_send_data`, `dav1d_get_picture`), so this is `unsafe` glue plus a YUV-to-RGB conversion: 4:2:0, 4:2:2 and 4:4:4, 8, 10 and 12 bits, BT.601 and BT.709, full and limited range, one thread. Then rename the test at `crates/nvs-ext/tests/image_decode.rs:146` to `every_first_wave_format_decodes_its_fixture` and add `gradient.avif` to its list."
-      },
-      {
-        "done": false,
-        "text": "**The cap reaches the guest** (`rule:core-classes/image-pixel-cap`) — the host's call path at `crates/nvs-cli/src/extensions.rs:565` sets the `Encoded` source's `maxPixels` of a built-in `Novis\\Image\\Codec::run` call to the smaller of the call's value and `nvs_config::image::in_force` (`crates/nvs-config/src/image.rs:59`). Put the clamp in `nvs_ext::builtin` as a pure function, so `image_decode.rs` can test it: `the_same_image_passes_when_the_cap_is_raised` and `a_call_may_lower_the_cap_and_never_raise_it`."
+        "text": "**The cap reaches the guest** (`rule:core-classes/image-pixel-cap`) — the host's call path at `crates/nvs-cli/src/extensions.rs:565` sets the `Encoded` source's `maxPixels` of a built-in `Novis\\Image\\Codec::run` call to the smaller of the call's value and `nvs_config::image::in_force` (`crates/nvs-config/src/image.rs:59`). Put the clamp in `nvs_ext::builtin` as a pure function, so `crates/nvs-ext/tests/image_decode.rs:151` can test it: `the_same_image_passes_when_the_cap_is_raised` and `a_call_may_lower_the_cap_and_never_raise_it`."
       },
       {
         "done": false,
@@ -27,6 +24,7 @@
     "Turning off wasmtime's default features would remove zstd, ittapi and gdbjit C code from the binary; the ledger rows in `tools/nv/cmd/gen-attribution.ts` `C_DEPENDENCIES` record them as unreachable meanwhile (`rule:packaging/a-c-dependency-answers-two-questions`).",
     "libwebp's source pin was taken from the tarball as downloaded; Google publishes a `.asc` signature beside it that no tool checks yet (`tools/nv/cmd/webp-lib.ts`).",
     "`info` reads `frames` as `1` and `exif` as `None`, and the cap counts one frame of an animated input (`extensions/image/src/info.rs`, `extensions/image/src/decode.rs` module docs).",
-    "A header whose buffer cannot fit in the 32-bit guest is refused with a message naming the cap but not the declared size, because the decoder refuses it before it reports one (`extensions/image/src/decode.rs`)."
+    "A header whose buffer cannot fit in the 32-bit guest is refused with a message naming the cap but not the declared size, because the decoder refuses it before it reports one (`extensions/image/src/decode.rs`).",
+    "AVIF's conversion samples chroma at the nearest site and ignores the container's `irot`/`imir` and `colr` boxes; Stage 4's orientation and ICC items own those (`extensions/image/src/avif.rs`)."
   ]
 }
