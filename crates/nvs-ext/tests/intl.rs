@@ -1,7 +1,9 @@
 //! The intl component as `nvs-ext` sees it (`rule:packaging/the-first-party-components-are-built-in`,
 //! `rule:core-classes/intl-batch-shape`): `Novis\Intl\Icu` is in the binary and answers with no
 //! `[[extension]]` entry, a sort of 10,000 strings is one crossing, its sort keys order as its
-//! collator does, and the order is the locale's.
+//! collator does, and the order is the locale's. A batch of numbers is formatted in one crossing in
+//! all four styles, and its plural categories agree with `Core\Cldr`'s on that member's whole
+//! roster.
 
 use std::future::Future;
 use std::pin::pin;
@@ -154,8 +156,9 @@ fn the_intl_component_is_built_in_and_answers_with_no_configuration() {
         }
         other => panic!("a malformed tag was not `invalid`: {other:?}"),
     }
-    match collate(&request, extension, "formatNumbers", &input, "en") {
-        Err(Failure::Error(Error::Runtime(_)) | Failure::Error(Error::Invalid(_))) => {}
+    let args = vec![strings(&input), Value::String("en".to_owned())];
+    match block_on(request.call_values(extension, "wordSegments", args)) {
+        Err(Failure::Error(Error::Runtime(_))) => {}
         other => panic!("an export not implemented yet answered: {other:?}"),
     }
     block_on(request.end()).expect("the request ends");
@@ -207,4 +210,305 @@ fn a_swedish_sort_puts_a_umlaut_after_z_and_a_german_sort_does_not() {
     let words = |order: Vec<usize>| -> Vec<&str> { order.iter().map(|&i| &*input[i]).collect() };
     assert_eq!(words(swedish), ["a", "z", "ä"]);
     assert_eq!(words(german), ["a", "ä", "z"]);
+}
+
+fn texts(numbers: &[&str]) -> Vec<String> {
+    numbers.iter().map(|n| (*n).to_owned()).collect()
+}
+
+/// The `number-options` record for `style`, with `fields` set and every other field `null`.
+fn number_options(style: &str, fields: &[(&str, Value)]) -> Value {
+    let names = [
+        "minFractionDigits",
+        "maxFractionDigits",
+        "grouping",
+        "currency",
+        "currencyDisplay",
+        "compactDisplay",
+    ];
+    let mut record = vec![(
+        Key::String("style".to_owned()),
+        Value::Case(style.to_owned()),
+    )];
+    for name in names {
+        let value = fields
+            .iter()
+            .find(|(field, _)| *field == name)
+            .map_or(Value::Null, |(_, value)| value.clone());
+        record.push((Key::String(name.to_owned()), value));
+    }
+    Value::Array(record)
+}
+
+/// `formatNumbers` over `numbers` in `locale` under `options`.
+fn format(
+    request: &Request,
+    extension: &Extension,
+    numbers: &[String],
+    locale: &str,
+    options: Value,
+) -> Vec<String> {
+    let args = vec![strings(numbers), Value::String(locale.to_owned()), options];
+    let result = block_on(request.call_values(extension, "formatNumbers", args))
+        .expect("`formatNumbers` answers");
+    items(result.expect("the method returns a value"))
+        .into_iter()
+        .map(|text| match text {
+            Value::String(text) => text,
+            other => panic!("a string was expected, not {other:?}"),
+        })
+        .collect()
+}
+
+/// `pluralCategories` over `numbers` in `locale`, each category by its case name.
+fn plurals(
+    request: &Request,
+    extension: &Extension,
+    numbers: &[String],
+    locale: &str,
+    kind: &str,
+) -> Vec<String> {
+    let args = vec![
+        strings(numbers),
+        Value::String(locale.to_owned()),
+        Value::Case(kind.to_owned()),
+    ];
+    let result = block_on(request.call_values(extension, "pluralCategories", args))
+        .expect("`pluralCategories` answers");
+    items(result.expect("the method returns a value"))
+        .into_iter()
+        .map(|category| match category {
+            Value::Case(name) => name,
+            other => panic!("a category was expected, not {other:?}"),
+        })
+        .collect()
+}
+
+#[test]
+fn decimal_percent_currency_and_compact_format_by_locale() {
+    run(|request, extension| {
+        let numbers = texts(&["1234567.891", "-0.0001", "19.90"]);
+        assert_eq!(
+            format(
+                request,
+                extension,
+                &numbers,
+                "en",
+                number_options("Decimal", &[])
+            ),
+            ["1,234,567.891", "0", "19.9"]
+        );
+        assert_eq!(
+            format(
+                request,
+                extension,
+                &numbers,
+                "de",
+                number_options("Decimal", &[])
+            ),
+            ["1.234.567,891", "0", "19,9"]
+        );
+        let two_digits = number_options(
+            "Decimal",
+            &[
+                ("minFractionDigits", Value::Uint(2)),
+                ("maxFractionDigits", Value::Uint(2)),
+                ("grouping", Value::Bool(false)),
+            ],
+        );
+        assert_eq!(
+            format(
+                request,
+                extension,
+                &texts(&["1234.5", "1.0E+3"]),
+                "en",
+                two_digits
+            ),
+            ["1234.50", "1000.00"]
+        );
+        assert_eq!(
+            format(
+                request,
+                extension,
+                &texts(&["0.25", "-0.125"]),
+                "en",
+                number_options("Percent", &[])
+            ),
+            ["25%", "-13%"]
+        );
+        let euro = |display: &str| {
+            number_options(
+                "Currency",
+                &[
+                    ("currency", Value::String("EUR".to_owned())),
+                    ("currencyDisplay", Value::Case(display.to_owned())),
+                ],
+            )
+        };
+        assert_eq!(
+            format(
+                request,
+                extension,
+                &texts(&["1234.5"]),
+                "de",
+                euro("Symbol")
+            ),
+            ["1.234,50\u{a0}€"]
+        );
+        assert_eq!(
+            format(request, extension, &texts(&["2"]), "en", euro("Name")),
+            ["2.00 euros"]
+        );
+        assert_eq!(
+            format(
+                request,
+                extension,
+                &texts(&["1234", "1500000"]),
+                "en",
+                number_options("Compact", &[])
+            ),
+            ["1.2K", "1.5M"]
+        );
+        let long = number_options(
+            "Compact",
+            &[("compactDisplay", Value::Case("Long".to_owned()))],
+        );
+        assert_eq!(
+            format(request, extension, &texts(&["1234"]), "de", long),
+            ["1,2 Tausend"]
+        );
+        // An option the style does not take is `invalid`, and so is a currency code that is not one.
+        for (options, what) in [
+            (
+                number_options("Compact", &[("grouping", Value::Bool(true))]),
+                "grouping",
+            ),
+            (
+                number_options(
+                    "Currency",
+                    &[("currency", Value::String("EURO".to_owned()))],
+                ),
+                "EURO",
+            ),
+        ] {
+            let args = vec![
+                strings(&texts(&["1"])),
+                Value::String("en".to_owned()),
+                options,
+            ];
+            match block_on(request.call_values(extension, "formatNumbers", args)) {
+                Err(Failure::Error(Error::Invalid(message))) => {
+                    assert!(message.contains(what), "{message}");
+                }
+                other => panic!("`{what}` was not `invalid`: {other:?}"),
+            }
+        }
+    });
+}
+
+#[test]
+fn a_batch_of_numbers_formats_in_one_crossing() {
+    let numbers: Vec<String> = (0..5_000)
+        .map(|i| format!("{}.{:02}", i * 37, i % 100))
+        .collect();
+    let (formatted, crossings) = run(|request, extension| {
+        let before = request.crossings();
+        let formatted = format(
+            request,
+            extension,
+            &numbers,
+            "en",
+            number_options("Decimal", &[]),
+        );
+        (formatted, request.crossings() - before)
+    });
+    assert_eq!(crossings, 1);
+    assert_eq!(formatted.len(), numbers.len());
+    assert_eq!(formatted[100], "3,700");
+    assert_eq!(formatted[4_999], "184,963.99");
+}
+
+#[test]
+fn plural_and_ordinal_categories_of_a_batch() {
+    let (english, russian, ordinals, crossings) = run(|request, extension| {
+        let before = request.crossings();
+        let english = plurals(
+            request,
+            extension,
+            &texts(&["1", "1.0", "2", "0"]),
+            "en",
+            "Cardinal",
+        );
+        let russian = plurals(
+            request,
+            extension,
+            &texts(&["1", "2", "5", "21", "1.5"]),
+            "ru",
+            "Cardinal",
+        );
+        let ordinals = plurals(
+            request,
+            extension,
+            &texts(&["1", "2", "3", "4", "11", "22"]),
+            "en",
+            "Ordinal",
+        );
+        (english, russian, ordinals, request.crossings() - before)
+    });
+    assert_eq!(crossings, 3, "one crossing per batch");
+    assert_eq!(english, ["One", "Other", "Other", "Other"]);
+    assert_eq!(russian, ["One", "Few", "Many", "One", "Other"]);
+    assert_eq!(ordinals, ["One", "Two", "Few", "Other", "Other", "Two"]);
+}
+
+#[test]
+#[ignore = "ICU4X's baked plural data lacks some of `Core\\Cldr`'s languages, and `Core\\Cldr` predates CLDR 46 on others; the `ext-intl` handoff owns the fix"]
+fn plural_rules_agree_with_core_cldr_on_its_whole_roster() {
+    let mut counts: Vec<String> = (0..=120).map(|n: u32| n.to_string()).collect();
+    for n in ["1000", "10000", "100000", "1000000", "1000001", "2000000"] {
+        counts.push(n.to_owned());
+    }
+    for n in [
+        "0.0", "0.1", "0.5", "1.0", "1.5", "2.0", "2.5", "3.4", "5.0", "10.1", "11.0", "21.0",
+        "1.25", "0.01", "100.25",
+    ] {
+        counts.push(n.to_owned());
+    }
+    let languages: Vec<&str> = nvs_stdlib::cldr::plural_languages().collect();
+    assert!(
+        languages.len() > 50,
+        "the roster is {} languages",
+        languages.len()
+    );
+    // One line per language and kind that disagrees, with its first three counts.
+    let disagreements = run(|request, extension| {
+        let mut disagreements = Vec::new();
+        for &language in &languages {
+            for (kind, ordinal) in [("Cardinal", false), ("Ordinal", true)] {
+                let intl = plurals(request, extension, &counts, language, kind);
+                let differ: Vec<String> = counts
+                    .iter()
+                    .zip(intl)
+                    .filter_map(|(count, intl)| {
+                        let cldr = nvs_stdlib::cldr::plural_category_name(count, language, ordinal)
+                            .expect("`Core\\Cldr` carries every language on its roster");
+                        (intl != cldr).then(|| format!("{count}: {intl} != {cldr}"))
+                    })
+                    .collect();
+                if !differ.is_empty() {
+                    disagreements.push(format!(
+                        "{language} {kind}, {} count(s): {}",
+                        differ.len(),
+                        differ[..differ.len().min(3)].join(", ")
+                    ));
+                }
+            }
+        }
+        disagreements
+    });
+    assert!(
+        disagreements.is_empty(),
+        "`Novis\\Intl` and `Core\\Cldr` disagree:\n{}",
+        disagreements.join("\n")
+    );
 }

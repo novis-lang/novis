@@ -2971,6 +2971,50 @@ fn ordinal_rules_for(subtag: &str, member: &str) -> Result<OrdinalSet, Fault> {
     rules_for(subtag, member).map(|_| OrdinalSet::Unmarked)
 }
 
+/// Every language subtag the cardinal roster carries, in [`RULES`]' order: the languages on
+/// which `Novis\Intl\PluralRules` is held to agree with this module
+/// (`crates/nvs-ext/tests/intl.rs`).
+pub fn plural_languages() -> impl Iterator<Item = &'static str> {
+    RULES.iter().map(|(subtag, _)| *subtag)
+}
+
+/// The case name — `Zero` to `Other` — of the category `subtag` puts `count` in, through the
+/// members' own rules: the cardinal ones, or with `ordinal` the ordinal ones. `count` is decimal
+/// text with no exponent, whose fraction digits are the ones it shows, as a `decimal`'s are.
+/// `None` for text that is not such a number, or a language neither table carries.
+pub fn plural_category_name(count: &str, subtag: &str, ordinal: bool) -> Option<&'static str> {
+    let digits = count.strip_prefix('-').unwrap_or(count);
+    let (whole, fraction) = digits.split_once('.').unwrap_or((digits, ""));
+    let decimal = |text: &str| text.bytes().all(|b| b.is_ascii_digit());
+    if whole.is_empty() || !decimal(whole) || !decimal(fraction) {
+        return None;
+    }
+    let operands = Operands {
+        i: whole.parse().ok()?,
+        v: u32::try_from(fraction.len()).ok()?,
+        f: if fraction.is_empty() {
+            0
+        } else {
+            fraction.parse().ok()?
+        },
+    };
+    let category = if ordinal {
+        ordinal_rules_for(subtag, ORDINAL_MEMBER)
+            .ok()?
+            .select(operands)
+    } else {
+        rules_for(subtag, PLURAL_MEMBER).ok()?.select(operands)
+    };
+    Some(match category {
+        Category::Zero => "Zero",
+        Category::One => "One",
+        Category::Two => "Two",
+        Category::Few => "Few",
+        Category::Many => "Many",
+        Category::Other => "Other",
+    })
+}
+
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "nvs_core_cldr_plural_category" => (nvs_core_cldr_plural_category as *const ()).cast(),

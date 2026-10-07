@@ -221,6 +221,8 @@ Conventions the whole file uses:
 | [`Novis\Image\QrCode`](#core-novis-image-qrcode) |  |
 | [`Novis\Image\Codec`](#core-novis-image-codec) |  |
 | [`Novis\Intl\Collator`](#core-novis-intl-collator) |  |
+| [`Novis\Intl\NumberFormat`](#core-novis-intl-numberformat) |  |
+| [`Novis\Intl\PluralRules`](#core-novis-intl-pluralrules) |  |
 | [`Novis\Intl\Icu`](#core-novis-intl-icu) |  |
 | [`Core` enums](#core-enums) | every enum a member takes, with its cases |
 
@@ -26945,6 +26947,100 @@ order `sort` gives their strings. You can store a key in a column and sort rows 
 
 **Returns** `array<bytes>`
 
+<a id="core-novis-intl-numberformat"></a>
+### `Novis\Intl\NumberFormat`
+
+Keywords: decimal, percent, currency, compact
+
+| Member | Signature |
+|---|---|
+| [`Novis\Intl\NumberFormat::decimal`](#core-novis-intl-numberformat-decimal) | `decimal(array<int\|float\|decimal> $numbers, string $locale, ?DigitOptions $options = null): array<string>` |
+| [`Novis\Intl\NumberFormat::percent`](#core-novis-intl-numberformat-percent) | `percent(array<int\|float\|decimal> $numbers, string $locale, ?DigitOptions $options = null): array<string>` |
+| [`Novis\Intl\NumberFormat::currency`](#core-novis-intl-numberformat-currency) | `currency(array<int\|float\|decimal> $amounts, string $currency, string $locale, ?{display?: CurrencyDisplay} $options = null): array<string>` |
+| [`Novis\Intl\NumberFormat::compact`](#core-novis-intl-numberformat-compact) | `compact(array<int\|float\|decimal> $numbers, string $locale, ?{display?: CompactDisplay} $options = null): array<string>` |
+
+<a id="core-novis-intl-numberformat-decimal"></a>
+#### `Novis\Intl\NumberFormat::decimal`
+
+```nvs skip
+Novis\Intl\NumberFormat::decimal(array<int|float|decimal> $numbers, string $locale, ?DigitOptions $options = null): array<string>
+```
+
+`NumberFormat::decimal` returns each number with the locale's separators, and by default up
+to 3 fraction digits. A float that is not finite throws a `RuntimeError`.
+
+**Returns** `array<string>`
+
+<a id="core-novis-intl-numberformat-percent"></a>
+#### `Novis\Intl\NumberFormat::percent`
+
+```nvs skip
+Novis\Intl\NumberFormat::percent(array<int|float|decimal> $numbers, string $locale, ?DigitOptions $options = null): array<string>
+```
+
+`NumberFormat::percent` returns each number as a percentage. The number `0.25` is
+25 percent. By default it shows no fraction digits.
+
+**Returns** `array<string>`
+
+<a id="core-novis-intl-numberformat-currency"></a>
+#### `Novis\Intl\NumberFormat::currency`
+
+```nvs skip
+Novis\Intl\NumberFormat::currency(array<int|float|decimal> $amounts, string $currency, string $locale, ?{display?: CurrencyDisplay} $options = null): array<string>
+```
+
+`NumberFormat::currency` returns each amount as money in `$currency`, a three-letter code
+such as `"EUR"`. The amount is rounded to the digits the currency uses, such as 2 for euros.
+
+**Returns** `array<string>`
+
+<a id="core-novis-intl-numberformat-compact"></a>
+#### `Novis\Intl\NumberFormat::compact`
+
+```nvs skip
+Novis\Intl\NumberFormat::compact(array<int|float|decimal> $numbers, string $locale, ?{display?: CompactDisplay} $options = null): array<string>
+```
+
+`NumberFormat::compact` returns each number in a short form, such as "1.2K" or
+"1.2 thousand" in English.
+
+**Returns** `array<string>`
+
+<a id="core-novis-intl-pluralrules"></a>
+### `Novis\Intl\PluralRules`
+
+Keywords: cardinal, ordinal
+
+| Member | Signature |
+|---|---|
+| [`Novis\Intl\PluralRules::cardinal`](#core-novis-intl-pluralrules-cardinal) | `cardinal(array<int\|float\|decimal> $numbers, string $locale): array<Core\Cldr\PluralCategory>` |
+| [`Novis\Intl\PluralRules::ordinal`](#core-novis-intl-pluralrules-ordinal) | `ordinal(array<int\|float\|decimal> $numbers, string $locale): array<Core\Cldr\PluralCategory>` |
+
+<a id="core-novis-intl-pluralrules-cardinal"></a>
+#### `Novis\Intl\PluralRules::cardinal`
+
+```nvs skip
+Novis\Intl\PluralRules::cardinal(array<int|float|decimal> $numbers, string $locale): array<Core\Cldr\PluralCategory>
+```
+
+`PluralRules::cardinal` returns the category for counting, as in "3 files". The digits a
+number shows count: in English, `1` is `One` and `1.0` is `Other`.
+
+**Returns** `array<Core\Cldr\PluralCategory>`
+
+<a id="core-novis-intl-pluralrules-ordinal"></a>
+#### `Novis\Intl\PluralRules::ordinal`
+
+```nvs skip
+Novis\Intl\PluralRules::ordinal(array<int|float|decimal> $numbers, string $locale): array<Core\Cldr\PluralCategory>
+```
+
+`PluralRules::ordinal` returns the category for a place, as in "3rd". In English, `1` is
+`One`, `2` is `Two`, `3` is `Few` and `4` is `Other`.
+
+**Returns** `array<Core\Cldr\PluralCategory>`
+
 <a id="core-novis-intl-icu"></a>
 ### `Novis\Intl\Icu`
 
@@ -26954,7 +27050,7 @@ Keywords: collateOrder, sortKeys, formatNumbers, pluralCategories, formatDateTim
 |---|---|
 | [`Novis\Intl\Icu::collateOrder`](#core-novis-intl-icu-collateorder) | `collateOrder(array<string> $strings, string $locale, {strength?: Strength, caseFirst?: CaseFirst, numeric?: bool, ignorePunctuation?: bool} $options): array<uint>` |
 | [`Novis\Intl\Icu::sortKeys`](#core-novis-intl-icu-sortkeys) | `sortKeys(array<string> $strings, string $locale, {strength?: Strength, caseFirst?: CaseFirst, numeric?: bool, ignorePunctuation?: bool} $options): array<bytes>` |
-| [`Novis\Intl\Icu::formatNumbers`](#core-novis-intl-icu-formatnumbers) | `formatNumbers(array<string> $numbers, string $locale, {style: NumberStyle, minFractionDigits?: uint, maxFractionDigits?: uint, grouping?: bool, currency?: string, currencyDisplay?: CurrencyDisplay, compactDisplay?: CompactDisplay} $options): array<string>` |
+| [`Novis\Intl\Icu::formatNumbers`](#core-novis-intl-icu-formatnumbers) | `formatNumbers(array<string> $numbers, string $locale, {style: NumberStyle, minFractionDigits: ?uint, maxFractionDigits: ?uint, grouping: ?bool, currency: ?string, currencyDisplay: ?CurrencyDisplay, compactDisplay: ?CompactDisplay} $options): array<string>` |
 | [`Novis\Intl\Icu::pluralCategories`](#core-novis-intl-icu-pluralcategories) | `pluralCategories(array<string> $numbers, string $locale, PluralKind $kind): array<PluralCategory>` |
 | [`Novis\Intl\Icu::formatDateTimes`](#core-novis-intl-icu-formatdatetimes) | `formatDateTimes(array<{year: int, month: int, day: int, hour: int, minute: int, second: int, nanos: int, offsetSeconds: int, zone: string}> $values, string $locale, {length?: Length, seconds?: bool, zone?: ZoneStyle} $options): array<string>` |
 | [`Novis\Intl\Icu::formatDates`](#core-novis-intl-icu-formatdates) | `formatDates(array<Core\Time\Date> $values, string $locale, Length $length): array<string>` |
@@ -27004,7 +27100,7 @@ Returns one sort key for each string. Two keys compare byte by byte in the same 
 #### `Novis\Intl\Icu::formatNumbers`
 
 ```nvs skip
-Novis\Intl\Icu::formatNumbers(array<string> $numbers, string $locale, {style: NumberStyle, minFractionDigits?: uint, maxFractionDigits?: uint, grouping?: bool, currency?: string, currencyDisplay?: CurrencyDisplay, compactDisplay?: CompactDisplay} $options): array<string>
+Novis\Intl\Icu::formatNumbers(array<string> $numbers, string $locale, {style: NumberStyle, minFractionDigits: ?uint, maxFractionDigits: ?uint, grouping: ?bool, currency: ?string, currencyDisplay: ?CurrencyDisplay, compactDisplay: ?CompactDisplay} $options): array<string>
 ```
 
 Formats numbers, each given as its decimal text, in the style and locale you give.
@@ -27013,7 +27109,7 @@ Formats numbers, each given as its decimal text, in the style and locale you giv
 |---|---|---|
 | `$numbers` | `array<string>` |  |
 | `$locale` | `string` |  |
-| `$options` | `{style: NumberStyle, minFractionDigits?: uint, maxFractionDigits?: uint, grouping?: bool, currency?: string, currencyDisplay?: CurrencyDisplay, compactDisplay?: CompactDisplay}` |  |
+| `$options` | `{style: NumberStyle, minFractionDigits: ?uint, maxFractionDigits: ?uint, grouping: ?bool, currency: ?string, currencyDisplay: ?CurrencyDisplay, compactDisplay: ?CompactDisplay}` |  |
 
 **Returns** `array<string>`
 

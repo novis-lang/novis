@@ -1,29 +1,33 @@
 {
-  "state": "**Goal `ext-intl` — Stage 3 is on disk: the intl component is built in, and collation works end to end.** `extensions/intl/` is its own workspace with ICU4X 2.3 (`icu_experimental` pinned `=0.6.0`), built for `wasm32-wasip2` by `crates/nvs-ext/build.rs` and embedded as `nvs_ext::builtin::INTL` with its digest folded into `env_hash`. Its manifest class `Novis\\Intl\\Icu` declares all thirteen § 9 exports and the enums of ADR 0277 § 1, plus `NumberStyle`, `PluralKind` and `PluralCategory`, which only the WIT has. `collateOrder` and `sortKeys` are implemented (`extensions/intl/src/collation.rs`'s module doc); the other eleven return `runtime`. `Novis\\Intl\\Collator` is the first Novis-half class. `crates/nvs-ext/tests/intl.rs` and the three Stage 3 cases under `tests/conformance/novis/intl-*` pass.\n\nSettled this session, against ADR 0277's *not checked* items: `icu_collator` 2.3 writes sort keys itself (`write_sort_key_to`), so § 3's fallback is not needed. `collate-order` returns, for each sorted place, the index of the input string, and the WIT doc now says so. Still open: which locale set `compiled_data` bakes in (§ 10) and which `Core\\Time` accessors give a `DateTime`'s offset (§ 6). The wasm is about 1.4 MB with collation alone, because LTO drops the data no export uses yet.\n\nEvery options parameter in 0277 § 1 is written `= {}`, which does not compile; the Novis half writes `?T $options = null` (playbook, *Writing Novis itself*).",
+  "state": "**Goal `ext-intl` — Stage 4 is on disk except one check: numbers and plural rules work end to end, and the plural agreement with `Core\\Cldr` fails.** `format-numbers` (`extensions/intl/src/numbers.rs`) and `plural-categories` (`extensions/intl/src/plurals.rs`) are implemented; each module doc owns its behaviour. `icu_experimental` 0.6.0 has percent and currency formatters but no compact one; `icu_decimal` 2.3 has `CompactDecimalFormatter`, so compact uses that. `Novis\\Intl\\NumberFormat` and `Novis\\Intl\\PluralRules` are the Novis half. The manifest's `formatNumbers` options are now `field: ?T` rather than `field?: T`, because a record literal cannot pass `null` to an optional field (the image manifest does the same). Both Stage 4 cases pass, and three of the four Stage 4 `nvs-ext` tests pass.\n\n`plural_rules_agree_with_core_cldr_on_its_whole_roster` (`crates/nvs-ext/tests/intl.rs`) is written and `#[ignore]`d. Run it with `cargo test --test intl -- --ignored`, and it lists each language and kind that disagree. There are two causes. (1) ICU4X's baked plural data (`icu_plurals_data` 2.3) has no rules for about 45 languages that `Core\\Cldr`'s roster carries (`asa`, `bem`, `gv`, `kw`, `prg`, `shi` and others), so ICU4X falls back to `Other`. `mo` and `sh` are deprecated aliases that ICU4X does not canonicalize. (2) `Core\\Cldr` predates CLDR 46 on a few rules: `ro` 101 is `Few` now, and `is`, `gd` ordinal, `kw` ordinal, `lij` ordinal and `scn` changed. `az` ordinal differs only on fractions. ADR 0277 § 5 assumed ICU4X carries every language on the roster, and that is not true.",
   "next": {
     "stage": 4,
-    "title": "numbers and plural rules",
-    "files": [],
-    "note": "one file set: `extensions/intl/src/lib.rs`, `extensions/intl/src/numbers.rs` (new), `extensions/intl/nvs/NumberFormat.nvs` and `extensions/intl/nvs/PluralRules.nvs` (new), `crates/nvs-ext/tests/intl.rs`.",
+    "title": "numbers and plural rules, the agreement",
+    "files": [
+      "crates/nvs-stdlib/src/cldr.rs",
+      "extensions/intl/src/plurals.rs",
+      "extensions/intl/Cargo.toml",
+      "crates/nvs-ext/tests/intl.rs"
+    ],
     "items": [
       {
         "done": false,
-        "text": "**Numbers** — `rule:core-classes/intl-batch-shape`, ADR 0277 § 4: `format-numbers` (`wit/intl.wit:198`) over `icu_decimal` and `icu_experimental`'s percent, currency and compact formatters, replacing the stub at `extensions/intl/src/lib.rs:104`. A number crosses as its decimal text. Check first which formatters `icu_experimental` 0.6.0 has, and write a missing display case from the locale's data rather than dropping it. Then `Novis\\Intl\\NumberFormat`'s four members, which write each number as its decimal text and throw `RuntimeError` on a float that is not finite."
+        "text": "**Bring `Core\\Cldr` up to the CLDR version ICU4X 2.3 ships** — `rule:programs/framework-core-half`, ADR 0277 § 5: fix the stale rows the ignored test names (`ro`, `is`, `gd`, `kw`, `lij`, `scn`, and `az` ordinals on fractions) in `crates/nvs-stdlib/src/cldr.rs:2315` and the ordinal table at `crates/nvs-stdlib/src/cldr.rs:2740`. Each is a correction toward CLDR, with a `.nvst` row for each one."
       },
       {
         "done": false,
-        "text": "**Plural rules** — ADR 0277 § 4 and § 5: `plural-categories` (`wit/intl.wit:200`) over `icu_plurals`, replacing the stub at `extensions/intl/src/lib.rs:112`, and `Novis\\Intl\\PluralRules::cardinal` and `::ordinal`, which map each case by name to `Core\\Cldr\\PluralCategory`. The Stage 4 test holds them in agreement with `Core\\Cldr` over its whole roster, `RULES` at `crates/nvs-stdlib/src/cldr.rs:2315`."
+        "text": "**Give the guest plural rules for every language on the roster** — ADR 0277 § 5: recommended path is baking `PluralsCardinalV1` and `PluralsOrdinalV1` for CLDR's full locale set with `icu4x-datagen` into `extensions/intl/` and loading them through `try_new_cardinal_unstable` at `extensions/intl/src/plurals.rs:31`. The rules are a few KB. Canonicalize the tag first (`mo` becomes `ro`, `sh` becomes `sr-Latn`). If datagen cannot run here (it needs the CLDR JSON), say `BLOCKED` with the choice: narrow the agreement to the languages ICU4X carries, or vendor the data."
       },
       {
         "done": false,
-        "text": "**The Stage 4 cases** — `tests/conformance/novis/intl-numbers-format-by-locale.nvst`, and the `nvs-ext` tests the Stage 4 check in `data/goals/ext-intl.json` names, added to `crates/nvs-ext/tests/intl.rs:1`."
+        "text": "**Remove the `#[ignore]`** at `crates/nvs-ext/tests/intl.rs:465` once the test passes, which closes the Stage 4 check."
       }
     ]
   },
   "backlog": [
-    "Stage 5, dates, relative time and lists: the open § 6 question is which `Core\\Time` accessors give the offset (`rule:core-classes/intl-host-converts-time`).",
-    "Stage 6, segmentation and negotiation: `word-segments`, `sentence-segments`, `negotiate`, `resolve-locales` (ADR 0277 § 8).",
-    "Stage 7: the measured size, and the locale set `compiled_data` bakes in, go in `extensions/intl/src/lib.rs`'s module doc (ADR 0277 § 10).",
-    "`Collator`'s `about.md` should say that a sort key is valid only for the version of Novis that made it (ADR 0277 § 3). It is not in the class comment, because that comment has a two-line limit."
+    "Stage 5, dates, relative time and lists: `extensions/intl/src/lib.rs` stubs, ADR 0277 § 6 (`Core\\Time` offset accessors are still not checked).",
+    "`NumberFormat` and `PluralRules` still owe their feature proofs (Stage 8, `bun nv proofs --id 'Novis\\Intl\\NumberFormat'`).",
+    "ADR 0277 § 10: which locale set `compiled_data` bakes in is now partly answered: plural data lacks about 45 roster languages. Record the full answer with the measured size in Stage 7.",
+    "The `[context]` manifest did not carry ADR 0277 § 5, which this stage reads. Add it to `adrs` for Stage 4."
   ]
 }
