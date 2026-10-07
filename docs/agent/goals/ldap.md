@@ -30,7 +30,7 @@ $dir->authenticate($login, $password);              // throws Ldap\LdapError wit
 ```
 
 Its scope is the list in § *Standing decisions* and nothing more: simple bind over LDAPS or StartTLS,
-paged search, the filter builder and `Dn`, typed values from the schema, writes and passwords,
+or over plain `ldap://` where the operator grants that host, paged search, the filter builder and `Dn`, typed values from the schema, writes and passwords,
 `authenticate`, and the AD extras the user named. Kerberos and NTLM are not in it and never will be.
 
 ## Why here
@@ -75,11 +75,12 @@ One file set: `docs/decisions/` (the record), `docs/rules/core-classes/` (its fr
   is a BER structure, not text. A builder that encodes straight to BER is the protocol's own shape, and
   it is the only form in which a filter carries `tainted` values safely, as `Core\Db`'s bound parameters
   do. So no filter escaper exists. The record does not edit `db-one-api`, which is about SQL.
-- **Fragments**, at least these five, under these ids, which the Stage 2 check reads:
+- **Fragments**, at least these six, under these ids, which the Stage 2 check reads:
   `core-classes/ldap-filter-is-a-value` (the builder and its sink split),
   `core-classes/ldap-dn-is-the-launderer` (`rule:security/launderers-are-sink-named`),
-  `security/ldap-empty-password-is-refused`, `core-classes/ldap-value-types` (the type table) and
-  `security/ldap-pool-is-bound-as-its-block` (the pool and `authenticate`'s own connection). Each
+  `security/ldap-empty-password-is-refused`, `security/ldap-cleartext-bind-is-granted-per-host`,
+  `core-classes/ldap-value-types` (the type table) and `security/ldap-pool-is-bound-as-its-block` (the
+  pool and `authenticate`'s own connection). Each
   fragment's `because` names the record.
 - Its last item adds, to this goal's Stage 10 in `data/goals/ldap.json`, one `bun nv proofs --verify
   --group '<class>'` check per class it names, and every class's `Ldap-*` directories to the
@@ -115,8 +116,15 @@ Two file sets, in this order. The test server: `tests/db/compose.yaml`, `.github
 - **A simple bind with an empty password is refused before a byte is sent** (RFC 4513 § 5.1.2). AD
   answers it as a successful anonymous bind. Samba answers it `invalidCredentials`, so the test asserts
   the refusal happens in the client, not at the server.
-- **A simple bind on a connection that is not encrypted is refused in the client.** Plain `ldap://`
-  exists only to run StartTLS.
+- **A simple bind on a connection that is not encrypted needs two things**, and the client checks both
+  before the password is sent. The block or `Settings` says `tls = "none"`, and the host is on the
+  operator's `[capabilities.ldap] cleartext` list. That list is a host list like `tls.insecure` and
+  `net.downgrade`, and `true` is not a spelling it has. Without both, plain `ldap://` only runs
+  StartTLS. A controller that refuses the bind (`strongerAuthRequired`, 8) throws the kind
+  `EncryptionRequired`. Password writes stay encrypted-only (Stage 7).
+- **The test server allows a cleartext bind** (`ldap server require strong auth = no`, the image's
+  `INSECURE_LDAP`), so the granted path is tested end to end. The `EncryptionRequired` mapping is a unit
+  test over a recorded response.
 - **Paging** sends the paged-results control on every search and follows the cookie. A search returns
   pages lazily and never holds more than one page.
 - **Referrals and continuation references** are returned as data, never followed.
@@ -134,11 +142,13 @@ and `CAPABILITIES` rows), `crates/nvs-config/src/tree.rs`, `crates/nvs-config/sr
 `tests/conformance/core/`.
 
 - **Config** follows `[db.<name>]`: `url` (a list, tried in order), `base`, `user`, `password` or
-  `password_file`, `tls_ca_file`, `timeout`, `pool`. Every struct is `deny_unknown_fields`. The
+  `password_file`, `tls` (`"required"` by default, or `"none"` under the cleartext grant), `tls_ca_file`,
+  `timeout`, `pool`. Every struct is `deny_unknown_fields`. The
   password is a config secret (`rule:config/a-secret-is-a-file-whose-content-is-the-value`).
 - **Grants** follow `rule:core-classes/db-capabilities`: `ldap.connect` by block name, pre-approved
   against the address policy, and `ldap.open` for a program-supplied host. That host refuses `tainted`
-  and passes `rule:security/net-address-policy`.
+  and passes `rule:security/net-address-policy`. `ldap.cleartext` is a host list (Stage 3) that both
+  `connect` and `open` are checked against.
 - **The pool** follows `rule:security/db-pool-reset-is-a-boundary`: per core, keyed by every credential
   and the config generation. A pooled connection is always bound as the block's own identity.
 - **Entries**: `dn()`, `has`, `string`, `strings`, `bytes`, and `toArray`. An attribute name is matched
@@ -263,7 +273,7 @@ One file set: `docs/examples/core/Ldap*/`, `tests/hostile/core/Ldap*/`, `benches
   three examples, one bench with its growth, one attack and its help in the binary. `bun nv proofs --id
   '<member>'` prints what is owed.
 - **The attacks**: filter injection through every builder function, a DN injection through `Dn`, an
-  empty password, a bind over plain `ldap://`, a server that answers a search with a million entries
+  empty password, a bind over plain `ldap://` to a host the cleartext grant does not name, a server that answers a search with a million entries
   under a small memory cap, a `member` range that never ends, a server that never answers, and a
   continuation reference to another host.
 - **Pinned by** the Stage 10 checks, and by the per-class checks Stage 2's record added.
@@ -271,8 +281,13 @@ One file set: `docs/examples/core/Ldap*/`, `tests/hostile/core/Ldap*/`, `benches
 ## Standing decisions
 
 - **The user's calls, as instructions.**
-  - Simple bind over LDAPS or StartTLS only. Kerberos, NTLM and every SASL mechanism are declined for
-    good. The record says so, and no session re-proposes them.
+  - Simple bind only. Kerberos, NTLM and every SASL mechanism are declined for good. The record says
+    so, and no session re-proposes them.
+  - A simple bind over LDAPS or StartTLS by default. A bind over plain `ldap://` is allowed only where
+    the block or `Settings` says `tls = "none"` and the host is on `[capabilities.ldap] cleartext`, a
+    host list in the shape of `tls.insecure` and `net.downgrade`. Some controllers accept it, and the
+    operator decides per host. The record states the cost: the password and every answer cross the
+    network readable and changeable.
   - The filter builder is immutable filter values combined with `all`, `any` and `not`. Base,
     attributes and paging are search options. There is one spelling, and there is no fluent chain.
   - AD's flag fields are readonly objects with one `bool` per flag. No general flag-set type is added

@@ -15,7 +15,7 @@
       },
       {
         "done": false,
-        "text": "**Its five fragments** under the ids the Stage 2 check reads: `core-classes/ldap-filter-is-a-value`, `core-classes/ldap-dn-is-the-launderer`, `security/ldap-empty-password-is-refused`, `core-classes/ldap-value-types`, `security/ldap-pool-is-bound-as-its-block`."
+        "text": "**Its six fragments** under the ids the Stage 2 check reads: `core-classes/ldap-filter-is-a-value`, `core-classes/ldap-dn-is-the-launderer`, `security/ldap-empty-password-is-refused`, `security/ldap-cleartext-bind-is-granted-per-host` (`tls = \"none\"` in the block or `Settings` plus the host on `[capabilities.ldap] cleartext`, in the shape of `tls.insecure`), `core-classes/ldap-value-types`, `security/ldap-pool-is-bound-as-its-block`."
       },
       {
         "done": false,

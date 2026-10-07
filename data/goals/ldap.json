@@ -69,7 +69,9 @@
       "context": {
         "rules": [
           "concurrency/one-scheduler",
-          "security/ldap-empty-password-is-refused"
+          "security/ldap-empty-password-is-refused",
+          "security/ldap-cleartext-bind-is-granted-per-host",
+          "security/tls-trust-is-relaxed-only-under-a-host-grant"
         ],
         "adrs": [],
         "shapes": []
@@ -193,10 +195,10 @@
   ],
   "checks": [
     {
-      "id": "ldap-the-record-creates-its-five-fragments",
+      "id": "ldap-the-record-creates-its-six-fragments",
       "kind": "command",
       "stage": 2,
-      "name": "rulebook: the `Core\\Ldap` record created its five fragments",
+      "name": "rulebook: the `Core\\Ldap` record created its six fragments",
       "argv": [
         "bun",
         "nv",
@@ -208,6 +210,7 @@
         "rule:core-classes/ldap-filter-is-a-value",
         "rule:core-classes/ldap-dn-is-the-launderer",
         "rule:security/ldap-empty-password-is-refused",
+        "rule:security/ldap-cleartext-bind-is-granted-per-host",
         "rule:core-classes/ldap-value-types",
         "rule:security/ldap-pool-is-bound-as-its-block"
       ]
@@ -232,7 +235,7 @@
       "id": "nvs-ldap-binds-and-pages-over-tls",
       "kind": "cargo-named",
       "stage": 3,
-      "name": "nvs-ldap (LDAPS and StartTLS bind, an empty password and a cleartext bind refused in the client, paging holds one page, a reference is returned and not followed)",
+      "name": "nvs-ldap (LDAPS and StartTLS bind, an empty password refused in the client, a cleartext bind only under the host grant and the block's ask, a refused one is `EncryptionRequired`, paging holds one page, a reference is returned and not followed)",
       "args": [
         "test",
         "-p",
@@ -244,7 +247,9 @@
         "an_ldaps_simple_bind_and_whoami_succeed",
         "starttls_upgrades_the_connection_then_binds",
         "an_empty_password_is_refused_before_a_byte_is_sent",
-        "a_simple_bind_without_tls_is_refused_in_the_client",
+        "a_cleartext_bind_to_a_host_off_the_grant_is_refused_in_the_client",
+        "a_cleartext_bind_under_the_grant_and_the_blocks_ask_succeeds",
+        "a_controller_refusing_a_cleartext_bind_is_encryption_required",
         "a_search_pages_past_a_thousand_entries_holding_one_page",
         "a_continuation_reference_is_returned_and_not_followed"
       ]
