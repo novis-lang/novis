@@ -12,7 +12,8 @@
 //!   one this host implements, and the manifest must name that version. The author's own WIT
 //!   package, which defines the interface, is an input. The module's exports follow the canonical
 //!   ABI's names (`shop:geo/api#distance-km`, `cabi_realloc`), as every bindings generator writes
-//!   them.
+//!   them. A module importing WASI preview 1 (`wasi_snapshot_preview1`) is refused naming
+//!   `wasm32-wasip2`, the target that builds against the world's WASI 0.2.
 //! - **The manifest** is parsed to check it and then written byte for byte, so `nvs ext inspect`
 //!   prints what the author's tool wrote.
 //! - **The source files** are checked with [`is_relative_source_path`] and written as the
@@ -133,6 +134,11 @@ pub fn pack(inputs: &Inputs<'_>) -> Result<Vec<u8>, Malformed> {
         }
         inputs.wasm.to_vec()
     } else if Parser::is_core_wasm(inputs.wasm) {
+        if let Some(module) = preview_1_import(inputs.wasm)? {
+            return Err(malformed(format!(
+                "the module imports `{module}`, so it was built for WASI preview 1; build it for `wasm32-wasip2`"
+            )));
+        }
         componentize(inputs.wasm, inputs.wit, &manifest)?
     } else {
         return Err(malformed(
@@ -182,6 +188,23 @@ fn componentize(
                 "the module does not componentize against the world: {err:#}"
             ))
         })
+}
+
+/// The WASI preview 1 module the core module `module` imports from, if it imports from one.
+fn preview_1_import(module: &[u8]) -> Result<Option<&str>, Malformed> {
+    let unreadable =
+        |err: wasmparser::BinaryReaderError| malformed(format!("the module does not read: {err}"));
+    for payload in Parser::new(0).parse_all(module) {
+        if let wasmparser::Payload::ImportSection(reader) = payload.map_err(unreadable)? {
+            for import in reader.into_imports() {
+                let import = import.map_err(unreadable)?;
+                if matches!(import.module, "wasi_snapshot_preview1" | "wasi_unstable") {
+                    return Ok(Some(import.module));
+                }
+            }
+        }
+    }
+    Ok(None)
 }
 
 /// The WIT package `files` make, `whose` naming it in an error.

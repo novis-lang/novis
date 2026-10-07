@@ -64,8 +64,9 @@ nvs-host.workspace = true
 nvs-server.workspace = true
 # `rule:packaging/extension-loading-is-root-controlled`'s load, at boot and at
 # every reload (`src/extensions.rs`): the loader and the engine it compiles into.
-# The packer stays off, because nothing here builds a `.nvsx`.
-nvs-ext = { workspace = true, features = ["engine"] }
+# `nvs ext build` (`src/ext.rs`) packs a `.nvsx` with the packer and checks it
+# with that loader.
+nvs-ext = { workspace = true, features = ["engine", "pack"] }
 wasmtime.workspace = true
 # `rule:config/one-local-control-socket`'s framing, on the client's half of it:
 # `nvs ctl` sends the request `nvs-server` answers, and the workspace manifest's

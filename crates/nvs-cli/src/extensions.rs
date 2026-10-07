@@ -209,8 +209,9 @@ pub(crate) fn install(set: Set) {
     *LIVE.lock().unwrap_or_else(PoisonError::into_inner) = Some(Arc::new(set));
 }
 
-/// The loader, made on the first call.
-fn loader() -> Result<&'static Loader, String> {
+/// The loader, made on the first call. `nvs ext build` checks what it packs with this one, so a
+/// file it writes passed the checks boot makes.
+pub(crate) fn loader() -> Result<&'static Loader, String> {
     if let Some(loader) = LOADER.get() {
         return Ok(loader);
     }

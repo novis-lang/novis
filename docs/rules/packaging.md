@@ -1882,8 +1882,10 @@ Rust and C are the two templates because they are the two languages the first-pa
 target work by hand. The packer behind `nvs ext build` is the same code the binary's own build uses for
 the built-in components ([`packaging/the-first-party-components-are-built-in`](packaging.md#packaging-the-first-party-components-are-built-in)).
 
-**Not on disk.** `nvs ext` and its six subcommands parse, and each one says it is not available
-and exits non-zero (`crates/nvs-cli/tests/ext_command.rs`). The packer is: `nvs_ext::pack` takes a component, or
+**Not on disk.** `nvs ext` and its six subcommands parse. `nvs ext build` reads `nvsx.toml`, packs
+the project, runs every load check and writes the `.nvsx` beside `nvsx.toml`, printing its path and
+pin; it refuses a WASI preview 1 module naming `wasm32-wasip2`. Each other subcommand says it is not
+available and exits non-zero (`crates/nvs-cli/tests/ext_command.rs`). The packer is: `nvs_ext::pack` takes a component, or
 a core module with the author's WIT, plus a manifest and source files, refuses a source path that leaves
 the project, and writes a `.nvsx` that loads, the same bytes each time (`crates/nvs-ext/tests/pack.rs`).
 
