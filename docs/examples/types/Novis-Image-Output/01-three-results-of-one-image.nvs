@@ -1,0 +1,22 @@
+<?nvs
+// Shows the three results `Codec::run` can return for the same image.
+use Novis\Image\Codec;
+use Novis\Image\Output;
+
+// A PNG image of 3 by 2 pixels.
+bytes $png = Core\Encoding::fromHex(
+    "89504e470d0a1a0a0000000d49484452000000030000000208060000009d74661a"
+    . "0000000b49444154789c6360c00500001a0001bc3ce0410000000049454e44ae426082"
+);
+
+array<Output> $outputs = [Output::Encoded, Output::Raw, Output::Size];
+
+// `Encoded` returns the image file. `Raw` returns the size and then 4 bytes for each pixel.
+// `Size` returns only the width and the height. This prints 94, 40 and 16.
+foreach ($outputs as Output $output) {
+    bytes $result = Codec::run(
+        {data: $png, autoOrient: true, toSrgb: true},
+        {steps: [], overlays: [], output: $output}
+    );
+    echo Core\Bytes::length($result), " bytes\n";
+}

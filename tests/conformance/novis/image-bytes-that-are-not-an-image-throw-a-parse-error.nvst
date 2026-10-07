@@ -2,6 +2,7 @@
 Bytes that are not an image in a format the image component reads throw `ParseError`, and the next call still decodes: rule:core-classes/image-pixel-cap
 --FILE--
 <?nvs
+// covers: Novis\Image\Output
 use Novis\Image\Codec;
 use Novis\Image\Output;
 

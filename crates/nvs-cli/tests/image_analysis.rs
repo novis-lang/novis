@@ -1,6 +1,7 @@
 //! The Novis-source members of `Novis\Image` that call no export —
-//! `Image::hashDistance` and `Font::fromBytes` — run through the built binary
-//! with no `nvs.toml`, as `rule:core-classes/image-pipeline` places them.
+//! `Image::hashDistance`, `Image::mime`, `Image::extension`, `Font::fromBytes`
+//! and `new Diff` — run through the built binary with no `nvs.toml`, as
+//! `rule:core-classes/image-pipeline` places them.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -90,4 +91,44 @@ echo Check::font("00010000"), "\n";
         out,
         "font 12\nfont 12\nfont 12\nfont 12\nParseError\nParseError\n"
     );
+}
+
+/// `mime` and `extension` give every `Format` case its own MIME type and its
+/// file extension without the dot.
+// covers: Novis\Image\Image::mime, Novis\Image\Image::extension
+#[test]
+fn mime_and_extension_name_every_format() {
+    let out = run(
+        "mime-and-extension",
+        r##"
+use Novis\Image\Format;
+
+array<Format> $formats = [Format::Jpeg, Format::Png, Format::Webp, Format::Gif, Format::Avif, Format::Jxl, Format::Svg, Format::Pdf];
+foreach ($formats as Format $format) {
+    echo Image::mime($format), " ", Image::extension($format), "\n";
+}
+"##,
+    );
+    assert_eq!(
+        out,
+        "image/jpeg jpg\nimage/png png\nimage/webp webp\nimage/gif gif\n\
+         image/avif avif\nimage/jxl jxl\nimage/svg+xml svg\napplication/pdf pdf\n"
+    );
+}
+
+/// `new Diff` keeps the five values it is given, so a program can build the
+/// result `Image::compare` returns, for example in a test of its own.
+// covers: Novis\Image\Diff::constructor
+#[test]
+fn a_diff_keeps_the_five_values_it_is_made_from() {
+    let out = run(
+        "diff-constructor",
+        r##"
+use Novis\Image\Diff;
+
+Diff $diff = new Diff(false, 3, 40, 0.75, null);
+echo $diff->identical ? "same" : "differ", " ", $diff->differingPixels, " ", $diff->maxDelta, " ", $diff->ssim, " ", $diff->diff == null ? "no diff" : "a diff", "\n";
+"##,
+    );
+    assert_eq!(out, "differ 3 40 0.75 no diff\n");
 }
