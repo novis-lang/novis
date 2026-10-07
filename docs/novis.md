@@ -26282,7 +26282,7 @@ new Novis\Image\Diff(bool $identical, uint $differingPixels, uint $maxDelta, flo
 <a id="core-novis-image-image"></a>
 ### `Novis\Image\Image`
 
-Keywords: image, gd, imagick, imagecreatefromstring, imagecopyresampled, imagejpeg, imagepng, imagewebp, getimagesize, thumbnail, resize, crop, rotate, convert, jpeg, png, webp, open, create, fromRaw, info, mime, extension, resize, crop, trim, rotate, flip, composite, flatten, sharpen, blur, grayscale, brightness, contrast, gamma, tint, format, metadata, encode, raw, variants, compare, hash, hashDistance
+Keywords: image, gd, imagick, imagecreatefromstring, imagecopyresampled, imagejpeg, imagepng, imagewebp, getimagesize, thumbnail, resize, crop, rotate, convert, jpeg, png, webp, open, create, fromRaw, info, mime, extension, resize, crop, trim, rotate, flip, composite, flatten, sharpen, blur, grayscale, brightness, contrast, gamma, tint, format, metadata, encode, raw, variants, compare, hash, hashDistance, placeholder, palette
 
 `Novis\Image\Image` is an image and a list of steps to run on it. Each step method, such as
 `resize`, `crop` or `format`, returns a new `Image` and does not change the old one. No pixel is
@@ -26341,6 +26341,8 @@ image/jpeg 6x4
 | [`Novis\Image\Image::compare`](#core-novis-image-image-compare) | `compare(bytes\|Image $a, bytes\|Image $b, ?{tolerance?: uint, render?: bool} $options = null): Diff` |
 | [`Novis\Image\Image::hash`](#core-novis-image-image-hash) | `hash(bytes $data, HashKind $kind): bytes` |
 | [`Novis\Image\Image::hashDistance`](#core-novis-image-image-hashdistance) | `hashDistance(bytes $a, bytes $b): uint` |
+| [`Novis\Image\Image::placeholder`](#core-novis-image-image-placeholder) | `placeholder(bytes $data, PlaceholderKind $kind): string` |
+| [`Novis\Image\Image::palette`](#core-novis-image-image-palette) | `palette(bytes $data, uint $count = 5): array<Color>` |
 
 <a id="core-novis-image-image-open"></a>
 #### `Novis\Image\Image::open`
@@ -26667,10 +26669,34 @@ Two hashes of different lengths throw a `LogicError`.
 
 **Returns** `uint`
 
+<a id="core-novis-image-image-placeholder"></a>
+#### `Novis\Image\Image::placeholder`
+
+```nvs skip
+Novis\Image\Image::placeholder(bytes $data, PlaceholderKind $kind): string
+```
+
+`Image::placeholder` returns a short text that a web page can draw as a blurred preview of the image.
+Its average colour is the average colour of the image.
+
+**Returns** `string`
+
+<a id="core-novis-image-image-palette"></a>
+#### `Novis\Image\Image::palette`
+
+```nvs skip
+Novis\Image\Image::palette(bytes $data, uint $count = 5): array<Color>
+```
+
+`Image::palette` returns at most `count` main colours of the image, the most common first.
+Transparent pixels are not counted. A `count` above 256 throws a `LogicError`.
+
+**Returns** `array<Color>`
+
 <a id="core-novis-image-codec"></a>
 ### `Novis\Image\Codec`
 
-Keywords: info, run, variants, compare, hash
+Keywords: info, run, variants, compare, hash, placeholder, palette
 
 | Member | Signature |
 |---|---|
@@ -26679,6 +26705,8 @@ Keywords: info, run, variants, compare, hash
 | [`Novis\Image\Codec::variants`](#core-novis-image-codec-variants) | `variants(Source $source, array<{steps: array<{resize?: {width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool}, crop?: {x: uint, y: uint, width: uint, height: uint}, trim?: {threshold?: float}, rotate?: {degrees: float, background: ?{r: uint, g: uint, b: uint, alpha: float}}, flip?: Axis, composite?: {overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend}, flatten?: {r: uint, g: uint, b: uint, alpha: float}, sharpen?: {sigma?: float}, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: {r: uint, g: uint, b: uint, alpha: float}, text?: {text: string, font: bytes, size: float, color: {r: uint, g: uint, b: uint, alpha: float}, gravity?: Gravity, x?: int, y?: int, maxWidth?: uint, align?: Align}, format?: {format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint}, metadata?: {keep: bool}}>, overlays: array<{source: Source, steps: array<{resize?: {width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool}, crop?: {x: uint, y: uint, width: uint, height: uint}, trim?: {threshold?: float}, rotate?: {degrees: float, background: ?{r: uint, g: uint, b: uint, alpha: float}}, flip?: Axis, composite?: {overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend}, flatten?: {r: uint, g: uint, b: uint, alpha: float}, sharpen?: {sigma?: float}, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: {r: uint, g: uint, b: uint, alpha: float}, text?: {text: string, font: bytes, size: float, color: {r: uint, g: uint, b: uint, alpha: float}, gravity?: Gravity, x?: int, y?: int, maxWidth?: uint, align?: Align}, format?: {format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint}, metadata?: {keep: bool}}>}>, output: Output}> $plans): array<bytes>` |
 | [`Novis\Image\Codec::compare`](#core-novis-image-codec-compare) | `compare(bytes $a, bytes $b, {tolerance: ?uint, render: bool} $options): {identical: bool, differingPixels: uint, maxDelta: uint, ssim: float, diff: ?bytes}` |
 | [`Novis\Image\Codec::hash`](#core-novis-image-codec-hash) | `hash(bytes $data, HashKind $kind): bytes` |
+| [`Novis\Image\Codec::placeholder`](#core-novis-image-codec-placeholder) | `placeholder(bytes $data, PlaceholderKind $kind): string` |
+| [`Novis\Image\Codec::palette`](#core-novis-image-codec-palette) | `palette(bytes $data, uint $count): array<{r: uint, g: uint, b: uint, alpha: float}>` |
 
 <a id="core-novis-image-codec-info"></a>
 #### `Novis\Image\Codec::info`
@@ -26759,6 +26787,38 @@ Decodes an encoded image and returns its hash. Similar images have hashes that d
 | `$kind` | `HashKind` |  |
 
 **Returns** `bytes`
+
+<a id="core-novis-image-codec-placeholder"></a>
+#### `Novis\Image\Codec::placeholder`
+
+```nvs skip
+Novis\Image\Codec::placeholder(bytes $data, PlaceholderKind $kind): string
+```
+
+Decodes an encoded image and returns a short text that a web page can draw as a blurred preview of it.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$data` | `bytes` |  |
+| `$kind` | `PlaceholderKind` |  |
+
+**Returns** `string`
+
+<a id="core-novis-image-codec-palette"></a>
+#### `Novis\Image\Codec::palette`
+
+```nvs skip
+Novis\Image\Codec::palette(bytes $data, uint $count): array<{r: uint, g: uint, b: uint, alpha: float}>
+```
+
+Decodes an encoded image and returns at most `count` of its main colours, the most common first.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$data` | `bytes` |  |
+| `$count` | `uint` |  |
+
+**Returns** `array<{r: uint, g: uint, b: uint, alpha: float}>`
 
 <a id="core-enums"></a>
 ### `Core` enums
@@ -27295,6 +27355,14 @@ What `Codec::run` returns: the encoded file, the RGBA8 pixels, or the size alone
 #### `Novis\Image\HashKind`
 
 The kind of hash `Image::hash` returns. A `Perceptual` hash is 8 bytes, a `Difference` hash is 16 bytes and an `Average` hash is 32 bytes.
+
+| Case | Meaning |
+|---|---|
+
+<a id="enum-novis-image-placeholderkind"></a>
+#### `Novis\Image\PlaceholderKind`
+
+The kind of placeholder `Image::placeholder` returns. A `BlurHash` is 28 characters. A `ThumbHash` is base64 text and also keeps transparency.
 
 | Case | Meaning |
 |---|---|

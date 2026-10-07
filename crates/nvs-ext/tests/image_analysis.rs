@@ -6,7 +6,10 @@
 //! of the frames' size with the differing pixel in red. `hash` returns 8, 16 or 32 bytes for
 //! `Perceptual`, `Difference` and `Average` whatever the image's size, and a copy at half the
 //! size hashes within an eighth of the bits of its source. `hashDistance` is Novis source and
-//! is pinned under `tests/conformance/novis/`. The inputs are built here from
+//! is pinned under `tests/conformance/novis/`. A `BlurHash` and a `ThumbHash` placeholder decode
+//! to the image's average colour, in linear light and in sRGB. `palette` of two flat colours
+//! returns those colours, most frequent first, and never more than `count`; a `count` above 256
+//! returns `invalid`. The inputs are built here or read from
 //! `extensions/image/fixtures/gradient.png`.
 
 use std::future::Future;
@@ -322,5 +325,151 @@ fn a_resized_copy_hashes_within_a_small_distance_of_its_source() {
             near <= bits / 8,
             "{kind}: the copy is {near} of {bits} bits away"
         );
+    }
+}
+
+/// A `width` by `height` image whose left `left` columns are `a` and the rest `b`, as PNG.
+fn two_colours(
+    request: &Request,
+    extension: &Extension,
+    (width, height, left): (u64, u64, u64),
+    a: [u8; 4],
+    b: [u8; 4],
+) -> Vec<u8> {
+    let mut pixels = Vec::new();
+    for _ in 0..height {
+        for x in 0..width {
+            pixels.extend_from_slice(if x < left { &a } else { &b });
+        }
+    }
+    png(request, extension, width, height, &pixels)
+}
+
+fn placeholder(request: &Request, extension: &Extension, data: &[u8], kind: &str) -> String {
+    let args = vec![Value::Bytes(data.to_vec()), Value::Case(kind.to_owned())];
+    match block_on(request.call_values(extension, "placeholder", args)) {
+        Ok(Some(Value::String(text))) => text,
+        other => panic!("`placeholder` returned {other:?}"),
+    }
+}
+
+fn palette(
+    request: &Request,
+    extension: &Extension,
+    data: &[u8],
+    count: u64,
+) -> Result<Vec<[f64; 4]>, Failure> {
+    let args = vec![Value::Bytes(data.to_vec()), Value::Uint(count)];
+    let Some(Value::Array(colours)) = block_on(request.call_values(extension, "palette", args))?
+    else {
+        panic!("`palette` returns an array")
+    };
+    Ok(colours
+        .iter()
+        .map(|(_, colour)| {
+            ["r", "g", "b", "alpha"].map(|name| match field(colour, name) {
+                Value::Uint(channel) => channel as f64,
+                Value::Float(alpha) => alpha,
+                other => panic!("`{name}` is {other:?}"),
+            })
+        })
+        .collect())
+}
+
+/// The sRGB colour a BlurHash decodes to on average: its first component, four base-83 digits.
+fn blurhash_average(hash: &str) -> [u64; 3] {
+    const DIGITS: &str =
+        "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz#$%*+,-.:;=?@[]^_{|}~";
+    let n = hash[2..6]
+        .chars()
+        .fold(0u64, |n, c| n * 83 + DIGITS.find(c).unwrap() as u64);
+    [n >> 16, (n >> 8) & 255, n & 255]
+}
+
+/// The sRGB colour a ThumbHash decodes to on average, from its header, each channel 0 to 255.
+fn thumbhash_average(hash: &str) -> [f64; 3] {
+    const DIGITS: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let n = hash[..4].chars().fold(0u32, |n, c| {
+        n << 6 | u32::try_from(DIGITS.find(c).unwrap()).unwrap()
+    });
+    let header = (n >> 16) | (n & 0xff00) | ((n & 0xff) << 16);
+    let l = f64::from(header & 63) / 63.0;
+    let p = f64::from((header >> 6) & 63) / 31.5 - 1.0;
+    let q = f64::from((header >> 12) & 63) / 31.5 - 1.0;
+    let b = l - 2.0 / 3.0 * p;
+    let r = (3.0 * l - b + q) / 2.0;
+    [r, r - q, b].map(|c| c.clamp(0.0, 1.0) * 255.0)
+}
+
+const RED: [u8; 4] = [255, 0, 0, 255];
+const BLUE: [u8; 4] = [0, 0, 255, 255];
+
+#[test]
+fn a_blurhash_placeholder_decodes_to_the_image_average_colour() {
+    let (host, extension) = setup();
+    let request = request(&host);
+    let plain = two_colours(&request, &extension, (30, 20, 30), [40, 80, 120, 255], RED);
+    let hash = placeholder(&request, &extension, &plain, "BlurHash");
+    assert_eq!(hash.len(), 28, "{hash}");
+    assert_eq!(blurhash_average(&hash), [40, 80, 120]);
+    // BlurHash averages in linear light: half pure red and half pure blue is 188, not 128.
+    let halves = two_colours(&request, &extension, (60, 40, 30), RED, BLUE);
+    let [r, g, b] = blurhash_average(&placeholder(&request, &extension, &halves, "BlurHash"));
+    assert!(
+        r.abs_diff(188) <= 1 && g == 0 && b.abs_diff(188) <= 1,
+        "{r}, {g}, {b}"
+    );
+}
+
+#[test]
+fn a_thumbhash_placeholder_decodes_to_the_image_average_colour() {
+    let (host, extension) = setup();
+    let request = request(&host);
+    let colour = [40, 80, 120, 255];
+    let plain = two_colours(&request, &extension, (30, 20, 30), colour, RED);
+    let halves = two_colours(&request, &extension, (60, 40, 30), RED, BLUE);
+    for (data, average) in [(plain, [40.0, 80.0, 120.0]), (halves, [127.5, 0.0, 127.5])] {
+        let found = thumbhash_average(&placeholder(&request, &extension, &data, "ThumbHash"));
+        assert!(
+            found.iter().zip(average).all(|(f, a)| (f - a).abs() <= 3.0),
+            "{found:?} is not {average:?}"
+        );
+    }
+}
+
+#[test]
+fn the_palette_of_a_two_colour_image_returns_those_two_colours() {
+    let (host, extension) = setup();
+    let request = request(&host);
+    let data = two_colours(
+        &request,
+        &extension,
+        (40, 30, 10),
+        [220, 20, 60, 255],
+        [30, 60, 200, 255],
+    );
+    let found = palette(&request, &extension, &data, 5).expect("`palette` succeeds");
+    assert_eq!(
+        found,
+        [[30.0, 60.0, 200.0, 1.0], [220.0, 20.0, 60.0, 1.0]],
+        "blue covers three quarters of the image, so it is first"
+    );
+}
+
+#[test]
+fn palette_returns_at_most_count_colours() {
+    let (host, extension) = setup();
+    let request = request(&host);
+    let data = gradient();
+    for count in [0, 1, 3, 5, 256] {
+        let found = palette(&request, &extension, &data, count).expect("`palette` succeeds");
+        assert!(found.len() as u64 <= count, "{count}: {}", found.len());
+        assert_eq!(found.is_empty(), count == 0, "{count}");
+    }
+    match palette(&request, &extension, &data, 257) {
+        Err(Failure::Error(Error::Invalid(message))) => {
+            assert!(message.contains("257"), "{message}");
+        }
+        other => panic!("a count of 257 returned {other:?}"),
     }
 }

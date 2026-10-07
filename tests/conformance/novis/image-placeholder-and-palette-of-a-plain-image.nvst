@@ -1,0 +1,34 @@
+--TEST--
+`Novis\Image\Image::placeholder` of a plain image gives each `PlaceholderKind` its fixed text, `palette` of it returns its one colour, a transparent image has no palette, and a `count` above 256 throws a `LogicError` — rule:core-classes/image-one-entry-point-per-job
+--FILE--
+<?nvs
+// covers: Novis\Image\Image::placeholder, Novis\Image\Image::palette, Novis\Image\PlaceholderKind
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\PlaceholderKind;
+
+var $plain = Image::create(60, 40, Color::hex("#2050c0"))->encode();
+
+// The characters 3 to 6 of a BlurHash are its average colour, so they are the same for every image of this colour.
+echo Image::placeholder($plain, PlaceholderKind::BlurHash), "\n";
+echo Image::placeholder($plain, PlaceholderKind::ThumbHash), "\n";
+
+foreach (Image::palette($plain) as Color $colour) {
+    echo $colour->r, " ", $colour->g, " ", $colour->b, " ", $colour->alpha, "\n";
+}
+
+// Transparent pixels are not counted, so a transparent image has no colours.
+var $clear = Image::create(10, 10, Color::rgba(0, 0, 0, 0.0))->encode();
+echo Core\Arr::count(Image::palette($clear)), " colours\n";
+
+try {
+    Image::palette($plain, 257);
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+--EXPECT--
+L33wY{kbfQkbp3fRfQfRfQfQfQfQ
+2aMBBYAPSGyJeHiIh3iHd/SIBql3
+32 80 192 1
+0 colours
+a palette has at most 256 colours, and 257 were asked for

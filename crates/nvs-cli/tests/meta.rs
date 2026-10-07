@@ -270,7 +270,15 @@ fn meta_lists_the_built_in_components_classes_and_enums() {
     assert_eq!(names(r"Novis\Image\Color"), ["rgba", "hex"]);
     assert_eq!(
         names(r"Novis\Image\Codec"),
-        ["info", "run", "variants", "compare", "hash"]
+        [
+            "info",
+            "run",
+            "variants",
+            "compare",
+            "hash",
+            "placeholder",
+            "palette"
+        ]
     );
     assert_eq!(
         member(&document, r"Novis\Image\Codec", "info")["kind"],
