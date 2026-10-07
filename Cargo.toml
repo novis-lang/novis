@@ -24,8 +24,11 @@ members = ["crates/*", "benches/*"]
 # `[patch.crates-io]` table at the end of this file). A path dependency inside
 # the workspace directory would otherwise become a member, and this repository's
 # lints, formatter and tests would run over somebody else's code.
+# `extensions/` holds the crates of the components built into every binary. They
+# are compiled for `wasm32-wasip2` by a build script, never for the host as
+# members (`rule:packaging/the-first-party-components-are-built-in`).
 exclude = ["benches/userland", "benches/members", "benches/serve", "benches/proxied",
-           "benches/results", "benches/scaling", "vendor"]
+           "benches/results", "benches/scaling", "vendor", "extensions"]
 
 # ---------------------------------------------------------------------------
 # Shared package metadata. Every crate inherits these with `x.workspace = true`.

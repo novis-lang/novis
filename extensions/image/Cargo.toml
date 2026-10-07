@@ -1,0 +1,30 @@
+[package]
+name = "nvs-image"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+description = "The image component built into every `nvs` binary: `nvs:image/codec`, compiled for `wasm32-wasip2`"
+
+# `cdylib` is the wasm file the build packs; `rlib` lets the codec core's tests
+# run on the host, where the WIT glue is not compiled.
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "webp"] }
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+wit-bindgen = "0.62"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
+
+# This crate is not a member of the repository's workspace (its `exclude` names
+# `extensions`), and this table makes it a workspace of its own, so `cargo`
+# never resolves it for the host as part of the tree's ordinary build.
+[workspace]

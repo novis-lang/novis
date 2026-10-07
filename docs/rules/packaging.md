@@ -1423,7 +1423,9 @@ A build script compiles their Rust crates, under `extensions/` and outside the w
 ([`packaging/nvs-ext-is-the-authoring-tool`](packaging.md#packaging-nvs-ext-is-the-authoring-tool)). `rust-toolchain.toml` lists the target. The one C
 library is prebuilt ([`packaging/a-prebuilt-wasm-library-is-rebuilt-in-ci`](packaging.md#packaging-a-prebuilt-wasm-library-is-rebuilt-in-ci)).
 
-**Not on disk.** Neither component exists.
+**Not on disk.** The image crate is `extensions/image/`, excluded from the workspace, and builds for
+`wasm32-wasip2` with `simd128` on. Its one implemented export is `info`; the others return `runtime`.
+No build script packs or embeds it, and the intl crate does not exist.
 
 <sub>See also [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`packaging/three-tiers`](packaging.md#packaging-three-tiers), [`core-api/tier-roster`](core-api.md#core-api-tier-roster). Decided in [0247](../decisions/0247.md).</sub>
 
