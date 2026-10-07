@@ -174,7 +174,9 @@
       "Bash(target/covws/x86_64-pc-windows-msvc/debug/nvs:*)",
       "Bash(target/release/nvs.exe:*)",
       "Bash(./target/release/nvs.exe:*)",
-      "PowerShell(bun test:*)"
+      "PowerShell(bun test:*)",
+      "Bash(bun nv ext-templates:*)",
+      "PowerShell(bun nv ext-templates:*)"
     ]
   }
 }
