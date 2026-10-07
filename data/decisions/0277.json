@@ -1,0 +1,14 @@
+{
+  "title": "`Novis\\Intl` is eight classes, one per job, whose every member formats a whole list in one locale in one call",
+  "status": "accepted",
+  "scope": "The API of the intl component [0247](0247.md) § 5 builds into every binary: its classes, members and options shapes, the exports of `wit/intl.wit`, what a malformed and an unsupported locale do, how a `Core\\Time` value reaches the guest, and how it relates to `Core\\Cldr`. Not in scope: message formatting, which § 5 leaves out; how the component is built, embedded and loaded, which is [0247](0247.md)'s; and the value table every export is written in, which is [0246](0246.md)'s.",
+  "dependsOn": [
+    "0247",
+    "0051",
+    "0246",
+    "0120",
+    "0063"
+  ],
+  "dependsOnText": "[0247](0247.md) § 5 (the scope), [0051](0051.md) § 3 (the batch shape), [0246](0246.md) § 1 (the value table), [0120](0120.md) § 1 (the split between a manifest class and Novis source), [0063](0063.md) (no ambient state, one paradigm per operation).",
+  "validatedBy": "`crates/nvs-stdlib/tests/ext_world.rs`: `wit/intl.wit` resolves against the `nvs:ext` world in the value table's types alone, and every export but `negotiate` takes a list and returns a list."
+}

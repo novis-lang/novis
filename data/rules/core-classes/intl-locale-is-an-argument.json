@@ -1,0 +1,13 @@
+{
+  "title": "A `Novis\\Intl` locale is always an argument: a malformed tag throws, and an unknown one falls back along CLDR's chain",
+  "status": "designed",
+  "because": [
+    "0277"
+  ],
+  "seeAlso": [
+    "core-api/no-ambient-state",
+    "core-classes/intl-roster",
+    "security/no-cross-request-state"
+  ],
+  "guardedBy": []
+}

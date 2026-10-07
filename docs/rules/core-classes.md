@@ -3,7 +3,7 @@
 
 # The Core classes
 
-*21 of 87 rules below are **designed** rather than shipped, and are marked where they appear.*
+*25 of 91 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="core-classes-cli-arguments"></a>
 
@@ -2219,6 +2219,110 @@ text and what the box is, and `Image::text`, `Image::measureText` and `Font::fro
 checks only the file's first four bytes and calls no export. SVG is not.
 
 <sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed). Decided in [0120](../decisions/0120.md), [0079](../decisions/0079.md), [0095](../decisions/0095.md).</sub>
+
+<a id="core-classes-intl-roster"></a>
+
+## `Novis\Intl` is eight classes, one per job, over one manifest class, and message formatting is not in it  *(designed — not yet in the compiler)*
+
+`rule:core-classes/intl-roster`
+
+The intl component's classes are `Collator`, `NumberFormat`, `PluralRules`, `DateFormat`,
+`RelativeTime`, `ListFormat`, `Segmenter` and `Locale`, all under `Novis\Intl` and written in Novis
+source over one manifest class, `Novis\Intl\Icu`, whose static methods are the exports of
+`nvs:intl/icu` in `wit/intl.wit`.
+
+| Class | Members |
+|---|---|
+| `Collator` | `sort`, `sortKeys` — the strings in the locale's order, or one byte key per string that orders the same way |
+| `NumberFormat` | `decimal`, `percent`, `currency`, `compact` |
+| `PluralRules` | `cardinal`, `ordinal` — each returns `Core\Cldr\PluralCategory` |
+| `DateFormat` | `dateTimes`, `dates`, `times` — over `Core\Time\DateTime`, `Date` and `TimeOfDay` |
+| `RelativeTime` | `format` — a count and a `TimeUnit`, negative in the past |
+| `ListFormat` | `join` — "and", "or" and unit lists |
+| `Segmenter` | `words`, `sentences` |
+| `Locale` | `negotiate`, `resolve` |
+
+Their signatures, options shapes and enums are ADR 0277 § 1's table. No member reaches another's job,
+and there is no per-value member beside a batch one ([`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation)).
+Message formatting is not in the roster until ICU4X's MessageFormat 2 is stable, and grapheme
+segmentation, case mapping and normalization stay in `Core\Str`.
+
+`Core\Cldr::pluralCategory` and `ordinalCategory` stay in Tier 0 beside `PluralRules`. On a bare
+language tag from `Core\Cldr`'s roster the two return the same category for every number; `PluralRules`
+also reads a region, so `pt-PT` may differ from `Core\Cldr`'s `pt`.
+
+**Not on disk.** The component crate `extensions/intl/` and its Novis half do not exist; `wit/intl.wit`
+is the interface they will export.
+
+<sub>See also [`core-classes/intl-batch-shape`](core-classes.md#core-classes-intl-batch-shape), [`core-classes/intl-locale-is-an-argument`](core-classes.md#core-classes-intl-locale-is-an-argument), [`core-classes/intl-host-converts-time`](core-classes.md#core-classes-intl-host-converts-time), [`packaging/the-first-party-components-are-built-in`](packaging.md#packaging-the-first-party-components-are-built-in), [`programs/framework-core-half`](programs.md#programs-framework-core-half). Decided in [0277](../decisions/0277.md).</sub>
+
+<a id="core-classes-intl-batch-shape"></a>
+
+## Every `Novis\Intl` member but `Locale::negotiate` takes a list and returns a list, in one locale and one crossing  *(designed — not yet in the compiler)*
+
+`rule:core-classes/intl-batch-shape`
+
+Every `Novis\Intl` member except `Locale::negotiate` takes a list and returns a list of the same length
+in the same order, and makes exactly one host-to-guest call. A single value is a list of one, at the
+same one call, so sorting 10,000 names or formatting a page of prices costs one crossing and one copy
+each way ([`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost)).
+
+One call has one locale. A program whose rows carry different locales makes one call per locale.
+
+`negotiate` is the one exception, because its input is one `Accept-Language` header from one request.
+
+The interface holds the shape: every export of `nvs:intl/icu` but `negotiate` takes a `list` as its
+first parameter and returns a `list`, and `crates/nvs-stdlib/tests/ext_world.rs` fails naming an export
+that does not. `Collator::sort`'s export returns the strings' positions, so only numbers cross back.
+
+<sub>See also [`core-classes/intl-roster`](core-classes.md#core-classes-intl-roster), [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), [`packaging/a-value-crosses-as-its-wit-type`](packaging.md#packaging-a-value-crosses-as-its-wit-type). Decided in [0277](../decisions/0277.md).</sub>
+
+<a id="core-classes-intl-locale-is-an-argument"></a>
+
+## A `Novis\Intl` locale is always an argument: a malformed tag throws, and an unknown one falls back along CLDR's chain  *(designed — not yet in the compiler)*
+
+`rule:core-classes/intl-locale-is-an-argument`
+
+Every `Novis\Intl` member takes its locale as a BCP 47 tag argument. There is no default locale, no
+setting that holds one and no `[intl]` configuration block ([`core-api/no-ambient-state`](core-api.md#core-api-no-ambient-state)).
+
+- **A malformed tag** throws `LogicError` naming it, cut to its first 64 characters. A locale is the
+  program's own data, so a bad one is a bug.
+- **A well-formed tag with no data** falls back along CLDR's chain — `de-AT` to `de`, and at last to
+  the root locale — and formats. It never throws.
+- **`Locale::resolve`** returns, for each tag and a `Service`, the locale whose data answers: `de` for
+  `de-XX`, `und` where only the root does. Coverage differs between services, so the service is an
+  argument.
+- **A `-u-` keyword that an option also names** — `ks`, `kf` or `kn` beside `strength`, `caseFirst`
+  or `numeric` — throws `LogicError`, so no option has two spellings. A keyword no option names, such
+  as `co`, `nu`, `ca` or `hc`, is read from the tag.
+
+`Locale::negotiate` never throws for its header: an empty, malformed or unmatched `Accept-Language`
+returns the default, and only its first 32 ranges are read. A malformed tag among the offered locales
+or the default throws `LogicError`, because those are the program's.
+
+<sub>See also [`core-api/no-ambient-state`](core-api.md#core-api-no-ambient-state), [`core-classes/intl-roster`](core-classes.md#core-classes-intl-roster), [`security/no-cross-request-state`](security.md#security-no-cross-request-state). Decided in [0277](../decisions/0277.md).</sub>
+
+<a id="core-classes-intl-host-converts-time"></a>
+
+## A `Core\Time\DateTime` reaches the intl guest as local fields, an offset and a zone id, and the guest has no time-zone database  *(designed — not yet in the compiler)*
+
+`rule:core-classes/intl-host-converts-time`
+
+`DateFormat::dateTimes` converts each `Core\Time\DateTime` in Novis, with `Core\Time`, to the record
+`local-date-time` of `wit/intl.wit` — year, month, day, hour, minute, second, nanoseconds, the UTC
+offset in seconds and the IANA zone id — and the guest formats those fields. `Core\Time` owns the
+time-zone database, and the binary carries one.
+
+`DateFormat::dates` and `times` cross as `nvs:ext/types`' `date` and `time-of-day` records, which are
+local fields already. An `Instant` is placed in its zone with `Core\Time` first; there is no member that
+takes an `Instant` and a `Zone`.
+
+The guest names a zone from its id and offset: `ZoneStyle::Offset`, `Location` or `Generic`. A zone's
+specific daylight-time name is not offered. The calendar is the locale's, selected by a tag's `-u-ca-`
+keyword; the fields cross as ISO fields and the guest converts them.
+
+<sub>See also [`core-classes/intl-roster`](core-classes.md#core-classes-intl-roster), [`packaging/a-value-crosses-as-its-wit-type`](packaging.md#packaging-a-value-crosses-as-its-wit-type). Decided in [0277](../decisions/0277.md).</sub>
 
 <a id="core-classes-pdf-render-has-no-io"></a>
 

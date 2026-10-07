@@ -1,0 +1,12 @@
+{
+  "title": "A `Core\\Time\\DateTime` reaches the intl guest as local fields, an offset and a zone id, and the guest has no time-zone database",
+  "status": "designed",
+  "because": [
+    "0277"
+  ],
+  "seeAlso": [
+    "core-classes/intl-roster",
+    "packaging/a-value-crosses-as-its-wit-type"
+  ],
+  "guardedBy": []
+}
