@@ -277,7 +277,8 @@ fn meta_lists_the_built_in_components_classes_and_enums() {
             "compare",
             "hash",
             "placeholder",
-            "palette"
+            "palette",
+            "qr"
         ]
     );
     assert_eq!(

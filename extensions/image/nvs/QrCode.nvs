@@ -1,0 +1,17 @@
+<?nvs
+namespace Novis\Image;
+
+/// Makes QR codes: square images that a phone camera can read back to text.
+final class QrCode
+{
+    /// `QrCode::render` returns `data` as a square QR code image. By default it is a PNG of 256 by 256 pixels.
+    /// Data too long for the `level`, or a `size` too small for the code, throws a `LogicError`.
+    public static function render(string $data, ?{size?: uint, margin?: uint, level?: QrLevel, format?: Format} $options = null): bytes
+    {
+        ?uint $size = $options?->size ?? null;
+        ?uint $margin = $options?->margin ?? null;
+        ?QrLevel $level = $options?->level ?? null;
+        ?Format $format = $options?->format ?? null;
+        return Codec::qr($data, {size: $size, margin: $margin, level: $level, format: $format});
+    }
+}
