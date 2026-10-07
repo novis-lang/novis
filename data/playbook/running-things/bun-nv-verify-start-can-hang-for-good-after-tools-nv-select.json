@@ -1,0 +1,11 @@
+{
+  "lead": "`bun nv verify --start` can hang for good after `tools/nv/select/record.ts` logs \"its record could not be read ... Out of memory\".",
+  "body": "When the machine is short of memory, Bun fails to read the select records, and the background job then sits at 0 CPU on one step while `--wait` reports \"not finished\" every 600 s. Check that `verify-progress.json`'s `at` stops moving and that its `pid` uses no CPU. If both hold, stop that pid and run `bun nv bg bun nv verify` followed by `bun nv bg --wait <id>`.",
+  "files": [
+    "tools/nv/select/record.ts"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tools/nv/select/record.ts:could not be read"
+  }
+}
