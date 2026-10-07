@@ -1,0 +1,64 @@
+--TEST--
+An image whose header declares more pixels than the cap throws `RuntimeError` before it is decoded, and a call can lower the cap but not raise it: rule:core-classes/image-pixel-cap
+--FILE--
+<?nvs
+use Novis\Image\Codec;
+use Novis\Image\Output;
+
+// This PNG header says the image is 16384 by 16384 pixels.
+// The file is 62 bytes long, so it has almost no pixel data.
+bytes $bomb = Core\Encoding::fromHex(
+    "89504e470d0a1a0a0000000d4948445200004000000040000806000000a9c81084"
+    . "000000044944415478010000456a05430000000049454e44ae426082"
+);
+
+// A PNG of 3 by 2 pixels, which is 6 pixels.
+bytes $small = Core\Encoding::fromHex(
+    "89504e470d0a1a0a0000000d49484452000000030000000208060000009d74661a"
+    . "0000000b49444154789c6360c00500001a0001bc3ce0410000000049454e44ae426082"
+);
+
+// The default cap is 24M, which is 25165824 pixels. The header is over it.
+try {
+    Codec::run(
+        {data: $bomb, autoOrient: true, toSrgb: true},
+        {steps: [], overlays: [], output: Output::Raw}
+    );
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}
+
+// `maxPixels` can only lower the cap. A higher value still uses 24M.
+uint $higher = 1000000000;
+try {
+    Codec::run(
+        {data: $bomb, autoOrient: true, toSrgb: true, maxPixels: $higher},
+        {steps: [], overlays: [], output: Output::Raw}
+    );
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}
+
+// A lower value is used. The small image is over a cap of 5 pixels.
+uint $five = 5;
+try {
+    Codec::run(
+        {data: $small, autoOrient: true, toSrgb: true, maxPixels: $five},
+        {steps: [], overlays: [], output: Output::Size}
+    );
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}
+
+// With a cap of 6 pixels, the same image decodes.
+uint $six = 6;
+bytes $size = Codec::run(
+    {data: $small, autoOrient: true, toSrgb: true, maxPixels: $six},
+    {steps: [], overlays: [], output: Output::Size}
+);
+echo Core\Encoding::toHex($size), "\n";
+--EXPECT--
+the image is 16384x16384, which is 268435456 pixels, over the cap of 25165824 pixels
+the image is 16384x16384, which is 268435456 pixels, over the cap of 25165824 pixels
+the image is 3x2, which is 6 pixels, over the cap of 5 pixels
+00000000000000030000000000000002

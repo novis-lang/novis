@@ -1,30 +1,31 @@
 {
-  "state": "**Goal `ext-image`, Stage 3 (decode, and the cap) is in progress.** The design is settled by ADR 0120, ADR 0247 and the goal file's § *Standing decisions*; no session re-decides one.\n\nThe image component is embedded, typed into every compile and callable with no `nvs.toml` (`crates/nvs-cli/src/extensions.rs` module doc). `info` and `run` are implemented. `run` decodes JPEG, PNG, WebP, GIF, AVIF and JPEG XL inside the guest and returns the RGBA8 pixels or the size, and refuses to encode JPEG XL. AVIF goes through `rav1d` on one thread with its asm off, plus a YUV-to-RGB conversion (`extensions/image/src/avif.rs` module doc). The cap is checked from the header first, and bytes that are no image and a malformed EXIF IFD return `parse` (`extensions/image/src/decode.rs` module doc). `crates/nvs-ext/tests/image_decode.rs` pins all of it against the committed fixtures under `extensions/image/fixtures/`, and `every_first_wave_format_decodes_its_fixture` now passes.\n\nA plan `step` is a WIT record with one optional field per operation, exactly one set (`rule:core-classes/image-pipeline`). `variants` is not declared yet.\n\n**Not done:** the host does not pass `[image] max_pixels` in yet: the guest's cap is the call's `maxPixels`, or `\"24M\"`, and a call can raise it.",
+  "state": "**Goal `ext-image`, Stage 3 (decode, and the cap) is done on disk; Stage 4 (the pipeline) is next.** The design is settled by ADR 0120, ADR 0247 and the goal file's § *Standing decisions*; no session re-decides one.\n\nThe image component is embedded, typed into every compile and callable with no `nvs.toml` (`crates/nvs-cli/src/extensions.rs` module doc). `run` decodes JPEG, PNG, WebP, GIF, AVIF and JPEG XL inside the guest and returns the RGBA8 pixels or the size, and refuses to encode JPEG XL; no format encodes yet. The guest checks the header against the cap before it decodes (`extensions/image/src/decode.rs` module doc), and the host clamps every encoded source's `maxPixels`, the overlays' included, to `[image] max_pixels` before the call crosses (`nvs_ext::builtin::cap_pixels`). `crates/nvs-ext/tests/image_decode.rs` and the two `tests/conformance/novis/image-*` cases pin Stage 3.\n\nA plan `step` is a WIT record with one optional field per operation, exactly one set (`rule:core-classes/image-pipeline`). The guest's `run` honours only `format` and `metadata` steps, and `variants` returns `runtime`. The `Novis\\Image` builder (Novis source half) does not exist.",
   "next": {
-    "stage": 3,
-    "title": "decode, and the cap",
-    "files": [
-      "crates/nvs-cli/src/extensions.rs",
-      "crates/nvs-ext/src/builtin.rs",
-      "crates/nvs-ext/tests/image_decode.rs",
-      "tests/conformance/novis/"
-    ],
+    "stage": 4,
+    "title": "the pipeline",
+    "files": [],
+    "note": "one file set: `extensions/image/src/lib.rs`, `extensions/image/src/decode.rs`, a new `crates/nvs-ext/tests/image_pipeline.rs`, `extensions/image/fixtures/`.",
     "items": [
       {
         "done": false,
-        "text": "**The cap reaches the guest** (`rule:core-classes/image-pixel-cap`) — the host's call path at `crates/nvs-cli/src/extensions.rs:565` sets the `Encoded` source's `maxPixels` of a built-in `Novis\\Image\\Codec::run` call to the smaller of the call's value and `nvs_config::image::in_force` (`crates/nvs-config/src/image.rs:59`). Put the clamp in `nvs_ext::builtin` as a pure function, so `crates/nvs-ext/tests/image_decode.rs:151` can test it: `the_same_image_passes_when_the_cap_is_raised` and `a_call_may_lower_the_cap_and_never_raise_it`."
+        "text": "**Auto-orient and metadata stripped by default** (`rule:core-classes/image-correct-by-default`) — the guest's `run` at `extensions/image/src/lib.rs:168` applies the EXIF orientation when `autoOrient` is set and drops EXIF/GPS on encode unless `metadata({keep: true})`. Create `crates/nvs-ext/tests/image_pipeline.rs` (the goal's Stage 4 checks name that target), copying the helpers at `crates/nvs-ext/tests/image_decode.rs:16`, plus an orientation-6 JPEG fixture and a GPS-tagged one made by a generator, named in `extensions/image/fixtures/README.md`."
       },
       {
         "done": false,
-        "text": "**The bomb case** — `tests/conformance/novis/image-a-bomb-is-refused-before-it-is-decoded.nvst` and `tests/conformance/novis/image-bytes-that-are-not-an-image-throw-a-parse-error.nvst`, beside `tests/conformance/novis/image-info-answers-with-no-configuration.nvst:1`. Each calls `Codec::run` with a `Source` array and a plan of `['steps' => [], 'overlays' => [], 'output' => Output::Raw]`, and catches `RuntimeError` or `ParseError`."
+        "text": "**Encoders for the first wave** (`rule:core-classes/image-format-roster`) — every encoder writes a file its decoder reopens, lossy WebP through the linked libwebp; `extensions/image/src/lib.rs:176` is the step loop, and `crates/nvs-ext/tests/image_decode.rs:216` is the JPEG XL refusal the encoders sit beside."
+      },
+      {
+        "done": false,
+        "text": "**`variants` decodes once and runs each plan** (`rule:core-classes/image-pipeline`) — `extensions/image/src/lib.rs:209` returns `runtime` today; the fixture counts one host-to-guest call. The host already clamps each plan's overlays at `crates/nvs-ext/src/builtin.rs:34`."
+      },
+      {
+        "done": false,
+        "text": "**CMYK with an ICC profile to sRGB** (`rule:core-classes/image-correct-by-default`) — `moxcms` per the standing decisions, the profile's licence named in the fixtures README; anchor `extensions/image/src/decode.rs:25`; the source helper is `crates/nvs-ext/tests/image_decode.rs:56`."
       }
     ]
   },
   "backlog": [
-    "Turning off wasmtime's default features would remove zstd, ittapi and gdbjit C code from the binary; the ledger rows in `tools/nv/cmd/gen-attribution.ts` `C_DEPENDENCIES` record them as unreachable meanwhile (`rule:packaging/a-c-dependency-answers-two-questions`).",
-    "libwebp's source pin was taken from the tarball as downloaded; Google publishes a `.asc` signature beside it that no tool checks yet (`tools/nv/cmd/webp-lib.ts`).",
-    "`info` reads `frames` as `1` and `exif` as `None`, and the cap counts one frame of an animated input (`extensions/image/src/info.rs`, `extensions/image/src/decode.rs` module docs).",
-    "A header whose buffer cannot fit in the 32-bit guest is refused with a message naming the cap but not the declared size, because the decoder refuses it before it reports one (`extensions/image/src/decode.rs`).",
-    "AVIF's conversion samples chroma at the nearest site and ignores the container's `irot`/`imir` and `colr` boxes; Stage 4's orientation and ICC items own those (`extensions/image/src/avif.rs`)."
+    "The `Novis\\Image` builder and `tests/conformance/novis/image-a-pipeline-is-a-value-and-runs-at-its-terminal.nvst` — Stage 4's last check, after the guest pipeline (`rule:core-classes/image-pipeline`).",
+    "Stage 5's `image_guest` bench target and Stage 6's `nvs meta --json` and proofs checks — the goal record's own check list."
   ]
 }

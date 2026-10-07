@@ -23,5 +23,8 @@ pixels. `false` and zero are refused where they are written, because neither is 
 
 **Not shipped.** The key is on disk (`nvs_config::image`, `crates/nvs-config/tests/directives.rs`),
 and the image component's `run` checks a header against a cap before it decodes
-(`crates/nvs-ext/tests/image_decode.rs`). The host does not pass the key's value in yet, so the cap is
-the call's `maxPixels` or `"24M"`, and nothing stops a call from raising it.
+(`crates/nvs-ext/tests/image_decode.rs`). The host sets every encoded source's `maxPixels` to the
+smaller of the call's and the key's value in the request's snapshot before the call crosses
+(`nvs_ext::builtin::cap_pixels`), so a call lowers the cap and never raises it
+(`tests/conformance/novis/image-a-bomb-is-refused-before-it-is-decoded.nvst`). The
+`Novis\Image` builder that would pass a program's own `{maxPixels}` is not written.

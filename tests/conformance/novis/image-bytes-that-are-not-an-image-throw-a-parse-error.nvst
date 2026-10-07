@@ -1,0 +1,32 @@
+--TEST--
+Bytes that are not an image in a format the image component reads throw `ParseError`, and the next call still decodes: rule:core-classes/image-pixel-cap
+--FILE--
+<?nvs
+use Novis\Image\Codec;
+use Novis\Image\Output;
+
+// These bytes are the text "not an image".
+bytes $text = Core\Encoding::fromHex("6e6f7420616e20696d616765");
+
+try {
+    Codec::run(
+        {data: $text, autoOrient: true, toSrgb: true},
+        {steps: [], overlays: [], output: Output::Raw}
+    );
+} catch (ParseError $error) {
+    echo "ParseError: ", $error->message, "\n";
+}
+
+// A PNG of 3 by 2 pixels. The next call decodes it.
+bytes $png = Core\Encoding::fromHex(
+    "89504e470d0a1a0a0000000d49484452000000030000000208060000009d74661a"
+    . "0000000b49444154789c6360c00500001a0001bc3ce0410000000049454e44ae426082"
+);
+bytes $size = Codec::run(
+    {data: $png, autoOrient: true, toSrgb: true},
+    {steps: [], overlays: [], output: Output::Size}
+);
+echo Core\Encoding::toHex($size), "\n";
+--EXPECT--
+ParseError: the data is not an image in a format the image component reads
+00000000000000030000000000000002
