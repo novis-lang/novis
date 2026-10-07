@@ -179,6 +179,9 @@ mod tests {
     #[test]
     fn a_malformed_tag_is_invalid() {
         let err = order(&strings(&["a"]), "en_US!", &Options::default()).unwrap_err();
-        assert!(matches!(err, Error::Invalid(ref m) if m.contains("en_US!")), "{err:?}");
+        assert!(
+            matches!(err, Error::Invalid(ref m) if m.contains("en_US!")),
+            "{err:?}"
+        );
     }
 }

@@ -30,7 +30,7 @@
       "params": [
         {"name": "numbers", "type": "array<string>"},
         {"name": "locale", "type": "string"},
-        {"name": "options", "type": "{style: NumberStyle, minFractionDigits?: uint, maxFractionDigits?: uint, grouping?: bool, currency?: string, currencyDisplay?: CurrencyDisplay, compactDisplay?: CompactDisplay}"}
+        {"name": "options", "type": "{style: NumberStyle, minFractionDigits: ?uint, maxFractionDigits: ?uint, grouping: ?bool, currency: ?string, currencyDisplay: ?CurrencyDisplay, compactDisplay: ?CompactDisplay}"}
       ],
       "returns": "array<string>",
       "help": "Formats numbers, each given as its decimal text, in the style and locale you give."

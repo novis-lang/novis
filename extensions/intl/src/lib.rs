@@ -7,14 +7,17 @@
 //! onto the core and the core's types onto WIT's.
 //!
 //! ICU4X is pinned at one version in `Cargo.toml`, with `compiled_data`: the data is baked into
-//! the wasm, and nothing is read at run time. `collate-order` and `sort-keys` are the exports that
-//! are implemented (`collation`'s module doc); every other export returns `runtime`.
+//! the wasm, and nothing is read at run time. The implemented exports are `collate-order` and
+//! `sort-keys` (`collation`'s module doc), `format-numbers` (`numbers`'s) and `plural-categories`
+//! (`plurals`'s); every other export returns `runtime`.
 //!
 //! A locale is a BCP 47 tag that [`locale`] parses for every export. A malformed tag is
 //! `Invalid` and names the tag. A well-formed tag with no data of its own falls back along CLDR's
 //! chain inside ICU4X, down to the root locale.
 
 pub mod collation;
+pub mod numbers;
+pub mod plurals;
 
 use icu_locale::Locale;
 
@@ -42,9 +45,9 @@ mod guest {
     });
 
     use exports::nvs::intl::icu::{
-        CaseFirst, CollateOptions, Date, DateTimeOptions, Error, Guest, Length, ListOptions,
-        LocalDateTime, NumberOptions, PluralCategory, PluralKind, RelativeItem, RelativeOptions,
-        Service, Strength, TimeOfDay, TimeOptions, Word,
+        CaseFirst, CollateOptions, CompactDisplay, CurrencyDisplay, Date, DateTimeOptions, Error,
+        Guest, Length, ListOptions, LocalDateTime, NumberOptions, NumberStyle, PluralCategory,
+        PluralKind, RelativeItem, RelativeOptions, Service, Strength, TimeOfDay, TimeOptions, Word,
     };
 
     struct Component;
@@ -83,6 +86,31 @@ mod guest {
         }
     }
 
+    fn number_options(options: NumberOptions) -> crate::numbers::Options {
+        use crate::numbers::{CompactDisplay as C, CurrencyDisplay as D, Style as S};
+        crate::numbers::Options {
+            style: match options.style {
+                NumberStyle::Decimal => S::Decimal,
+                NumberStyle::Percent => S::Percent,
+                NumberStyle::Currency => S::Currency,
+                NumberStyle::Compact => S::Compact,
+            },
+            min_fraction_digits: options.min_fraction_digits,
+            max_fraction_digits: options.max_fraction_digits,
+            grouping: options.grouping,
+            currency: options.currency,
+            currency_display: options.currency_display.map(|display| match display {
+                CurrencyDisplay::Symbol => D::Symbol,
+                CurrencyDisplay::Narrow => D::Narrow,
+                CurrencyDisplay::Name => D::Name,
+            }),
+            compact_display: options.compact_display.map(|display| match display {
+                CompactDisplay::Short => C::Short,
+                CompactDisplay::Long => C::Long,
+            }),
+        }
+    }
+
     impl Guest for Component {
         fn collate_order(
             strings: Vec<String>,
@@ -102,19 +130,35 @@ mod guest {
         }
 
         fn format_numbers(
-            _numbers: Vec<String>,
-            _locale: String,
-            _options: NumberOptions,
+            numbers: Vec<String>,
+            locale: String,
+            options: NumberOptions,
         ) -> Result<Vec<String>, Error> {
-            not_implemented("format-numbers")
+            crate::numbers::format(&numbers, &locale, &number_options(options)).map_err(error)
         }
 
         fn plural_categories(
-            _numbers: Vec<String>,
-            _locale: String,
-            _kind: PluralKind,
+            numbers: Vec<String>,
+            locale: String,
+            kind: PluralKind,
         ) -> Result<Vec<PluralCategory>, Error> {
-            not_implemented("plural-categories")
+            use crate::plurals::{Category, Kind};
+            let kind = match kind {
+                PluralKind::Cardinal => Kind::Cardinal,
+                PluralKind::Ordinal => Kind::Ordinal,
+            };
+            let categories = crate::plurals::categories(&numbers, &locale, kind).map_err(error)?;
+            Ok(categories
+                .into_iter()
+                .map(|category| match category {
+                    Category::Zero => PluralCategory::Zero,
+                    Category::One => PluralCategory::One,
+                    Category::Two => PluralCategory::Two,
+                    Category::Few => PluralCategory::Few,
+                    Category::Many => PluralCategory::Many,
+                    Category::Other => PluralCategory::Other,
+                })
+                .collect())
         }
 
         fn format_date_times(

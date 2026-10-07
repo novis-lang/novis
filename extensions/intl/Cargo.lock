@@ -603,6 +603,7 @@ dependencies = [
 name = "nvs-intl"
 version = "0.1.0"
 dependencies = [
+ "fixed_decimal",
  "icu_collator",
  "icu_datetime",
  "icu_decimal",
@@ -610,6 +611,7 @@ dependencies = [
  "icu_list",
  "icu_locale",
  "icu_plurals",
+ "icu_provider",
  "icu_segmenter",
  "wit-bindgen",
 ]
