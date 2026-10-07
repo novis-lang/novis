@@ -1,25 +1,29 @@
 {
-  "state": "**Goal `ext-intl` — Stage 2 is on disk: ADR 0277 fixes the `Novis\\Intl` API and `wit/intl.wit` is its interface.** Nothing of the component itself exists yet: no `extensions/intl/`, no embedding, no Novis half.\n\nADR 0277 is the API's one record and the goal's one slot; it is taken, and no session opens another number. § 1 is the class table (eight job classes in Novis source over the manifest class `Novis\\Intl\\Icu`), § 9 the thirteen exports of `nvs:intl/icu`, and `rule:core-classes/intl-roster`, `intl-batch-shape`, `intl-locale-is-an-argument` and `intl-host-converts-time` are its fragments, all `designed`. `crates/nvs-stdlib/tests/ext_world.rs` holds the interface: the Stage 2 check's two tests are written there. Stage 8 in `data/goals/ext-intl.json` carries one `proofs --verify --group` check per class, `Icu` included.\n\nThree things 0277 leaves to the session that pins ICU4X, each written there as *not checked*: whether `icu_collator` writes sort keys itself (§ 3), which locale set `compiled_data` bakes in (§ 10), and which `Core\\Time` accessors give a `DateTime`'s offset (§ 6). The record's choices that differ from the goal prose: there is no `Instant`-plus-`Zone` member (`dateTimes` takes `DateTime`s), and `RelativeTime::format` takes a count and a unit, not a `Duration`.",
+  "state": "**Goal `ext-intl` — Stage 3 is on disk: the intl component is built in, and collation works end to end.** `extensions/intl/` is its own workspace with ICU4X 2.3 (`icu_experimental` pinned `=0.6.0`), built for `wasm32-wasip2` by `crates/nvs-ext/build.rs` and embedded as `nvs_ext::builtin::INTL` with its digest folded into `env_hash`. Its manifest class `Novis\\Intl\\Icu` declares all thirteen § 9 exports and the enums of ADR 0277 § 1, plus `NumberStyle`, `PluralKind` and `PluralCategory`, which only the WIT has. `collateOrder` and `sortKeys` are implemented (`extensions/intl/src/collation.rs`'s module doc); the other eleven return `runtime`. `Novis\\Intl\\Collator` is the first Novis-half class. `crates/nvs-ext/tests/intl.rs` and the three Stage 3 cases under `tests/conformance/novis/intl-*` pass.\n\nSettled this session, against ADR 0277's *not checked* items: `icu_collator` 2.3 writes sort keys itself (`write_sort_key_to`), so § 3's fallback is not needed. `collate-order` returns, for each sorted place, the index of the input string, and the WIT doc now says so. Still open: which locale set `compiled_data` bakes in (§ 10) and which `Core\\Time` accessors give a `DateTime`'s offset (§ 6). The wasm is about 1.4 MB with collation alone, because LTO drops the data no export uses yet.\n\nEvery options parameter in 0277 § 1 is written `= {}`, which does not compile; the Novis half writes `?T $options = null` (playbook, *Writing Novis itself*).",
   "next": {
-    "stage": 3,
-    "title": "collation, and the component is built in",
+    "stage": 4,
+    "title": "numbers and plural rules",
     "files": [],
-    "note": "one file set: `extensions/intl/` (new: `Cargo.toml`, `manifest.json`, `src/lib.rs`, `src/collation.rs`, `nvs/Collator.nvs`), `crates/nvs-ext/build.rs`, `crates/nvs-ext/src/builtin.rs`, `crates/nvs-ext/tests/intl.rs` (new).",
+    "note": "one file set: `extensions/intl/src/lib.rs`, `extensions/intl/src/numbers.rs` (new), `extensions/intl/nvs/NumberFormat.nvs` and `extensions/intl/nvs/PluralRules.nvs` (new), `crates/nvs-ext/tests/intl.rs`.",
     "items": [
       {
         "done": false,
-        "text": "**The crate and its embedding** — `rule:packaging/the-first-party-components-are-built-in`: `extensions/intl/` outside the workspace, ICU4X pinned (`icu_experimental` with `=`), built for `wasm32-wasip2` by the image's build script at `crates/nvs-ext/build.rs:116`, embedded beside `IMAGE` at `crates/nvs-ext/src/builtin.rs:18` with its digest folded in at `crates/nvs-ext/src/builtin.rs:99`. The manifest's one class is `Novis\\Intl\\Icu` with every § 9 export (the unimplemented ones return `runtime`, as the image's did), its enums named as ADR 0277 § 1 names them."
+        "text": "**Numbers** — `rule:core-classes/intl-batch-shape`, ADR 0277 § 4: `format-numbers` (`wit/intl.wit:198`) over `icu_decimal` and `icu_experimental`'s percent, currency and compact formatters, replacing the stub at `extensions/intl/src/lib.rs:104`. A number crosses as its decimal text. Check first which formatters `icu_experimental` 0.6.0 has, and write a missing display case from the locale's data rather than dropping it. Then `Novis\\Intl\\NumberFormat`'s four members, which write each number as its decimal text and throw `RuntimeError` on a float that is not finite."
       },
       {
         "done": false,
-        "text": "**Collation** — `rule:core-classes/intl-batch-shape`, ADR 0277 § 3: `collate-order` and `sort-keys` (`wit/intl.wit:190`) over `icu_collator`, dispatched beside the image's at `crates/nvs-ext/src/builtin.rs:35`, `Collator::sort` and `sortKeys` in `extensions/intl/nvs/`, and the locale handling of `rule:core-classes/intl-locale-is-an-argument` (malformed tag, fallback, the `-u-ks/kf/kn` clash) in `extensions/intl/src/lib.rs`, shared by every later export. The Stage 3 tests in `crates/nvs-ext/tests/intl.rs` and the three `tests/conformance/novis/intl-*.nvst` cases."
+        "text": "**Plural rules** — ADR 0277 § 4 and § 5: `plural-categories` (`wit/intl.wit:200`) over `icu_plurals`, replacing the stub at `extensions/intl/src/lib.rs:112`, and `Novis\\Intl\\PluralRules::cardinal` and `::ordinal`, which map each case by name to `Core\\Cldr\\PluralCategory`. The Stage 4 test holds them in agreement with `Core\\Cldr` over its whole roster, `RULES` at `crates/nvs-stdlib/src/cldr.rs:2315`."
+      },
+      {
+        "done": false,
+        "text": "**The Stage 4 cases** — `tests/conformance/novis/intl-numbers-format-by-locale.nvst`, and the `nvs-ext` tests the Stage 4 check in `data/goals/ext-intl.json` names, added to `crates/nvs-ext/tests/intl.rs:1`."
       }
     ]
   },
   "backlog": [
-    "Stage 4: numbers and plural rules (ADR 0277 § 4–5); the agreement test reads `crates/nvs-stdlib/src/cldr.rs:1625`.",
-    "Stage 5: dates, relative time, lists (ADR 0277 § 6); the Novis half converts a `DateTime` with `Core\\Time`.",
-    "Stage 6: segmentation, `Locale::negotiate` and `Locale::resolve` (ADR 0277 § 7–8).",
-    "Stage 0's two sentences: `rule:packaging/the-first-party-components-are-built-in`'s **Not on disk** and the `cldr.rs` module doc, rewritten when the behaviour lands."
+    "Stage 5, dates, relative time and lists: the open § 6 question is which `Core\\Time` accessors give the offset (`rule:core-classes/intl-host-converts-time`).",
+    "Stage 6, segmentation and negotiation: `word-segments`, `sentence-segments`, `negotiate`, `resolve-locales` (ADR 0277 § 8).",
+    "Stage 7: the measured size, and the locale set `compiled_data` bakes in, go in `extensions/intl/src/lib.rs`'s module doc (ADR 0277 § 10).",
+    "`Collator`'s `about.md` should say that a sort key is valid only for the version of Novis that made it (ADR 0277 § 3). It is not in the class comment, because that comment has a two-line limit."
   ]
 }
