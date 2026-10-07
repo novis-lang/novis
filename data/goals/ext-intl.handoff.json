@@ -1,26 +1,22 @@
 {
-  "state": "**Goal `ext-intl`: Stage 8, the feature proofs, is in progress.** Stages 1 to 7 are on disk: every export of `nvs:intl/icu` works, both components are embedded, and the growth test and the bundle test pass.\n\n`Novis\\Intl\\Collator`, `NumberFormat`, `PluralRules`, `RelativeTime`, `ListFormat` and `Segmenter` owe nothing: `bun nv proofs --verify --group '<Class>'` passes for each. Their Rust tests in `crates/nvs-ext/tests/intl.rs` carry `covers:` markers, and the existing `.nvst` cases credit the Novis side by a plain call.\n\nStill red: `Novis\\Intl\\DateFormat`, `Novis\\Intl\\Locale`, and `Novis\\Intl\\Icu`, the manifest class. The first two each have 1 of 2 cases (the Rust `covers:` marker is missing) and no about page, examples, attack or bench. The gate output names each owed path. `bun nv proofs --id` does not find a `Novis\\` feature in any quoting, so use the group gate.\n\n`--record-perf` refuses with \"the calibration did not measure anything\" when the machine is busy; running it again a minute later worked. A word-segmenting attack over a large Japanese text grows about linearly but took over 20s under parallel load, so keep attack inputs near tens of thousands of characters.",
+  "state": "**Goal `ext-intl`: Stage 8, the feature proofs, is in progress.** Stages 1 to 7 are on disk: every export of `nvs:intl/icu` works, both components are embedded, and the growth test and the bundle test pass.\n\nEvery `Novis\\Intl` job class owes nothing: `Collator`, `NumberFormat`, `PluralRules`, `DateFormat`, `RelativeTime`, `ListFormat`, `Segmenter` and `Locale`. The manifest class `Novis\\Intl\\Icu` owes nothing too: each member has an about page, a Rust `covers:` marker beside its job member's, and a plain call in `tests/conformance/novis/intl-icu-exports-answer-when-called-directly.nvst`. Its examples, attack and bench are skip entries in `data/proofs/policy.json` that name the job member wrapping each export one-to-one. `bun nv proofs --verify --group '<Class>'` passes for all nine.\n\nStill red: `bun nv proofs --gate` over the whole roster, 210 features. `Novis\\Intl` is 14 of them: the enums `Strength`, `CaseFirst`, `NumberStyle`, `CurrencyDisplay`, `CompactDisplay`, `PluralKind`, `PluralCategory`, `Length`, `ZoneStyle`, `TimeUnit`, `Width`, `Numeric`, `ListType` and `Service`, each owing about, examples and tests. The rest is outside this goal's scope: 182 stale perf figures (`Core\\BigInt`, `Core\\Uri`, `Core\\Time*`, `Core\\Http*`, `Core\\Crypto*`, `Core\\Random*`, `Core\\Uuid`), `Novis\\Image` members and `Output`, `ExtensionError`, `Core\\DeprecatedError` and three directives. `bun nv proofs --owed --limit 0` lists them.\n\n`--record-perf` refuses with \"the calibration did not measure anything\" when the machine is busy; running it again a minute later worked. A `Novis\\Intl` call costs 0.3 to 0.7 ms in its bench.",
   "next": {
     "stage": 8,
-    "title": "the feature proofs, one class at a time",
+    "title": "the feature proofs, the `Novis\\Intl` enums",
     "files": [],
-    "note": "each class is its own file set: `docs/examples/novis/Intl-<Class>/`, `tests/hostile/novis/Intl-<Class>/`, `benches/members/novis/Intl-<Class>/`, and a `// covers:` line above its Rust test. Copy the shape of `Intl-ListFormat`. After the benches, run `bun nv proofs --record-perf --group '<Class>'`, then `bun nv proofs --comments` over the three trees.",
+    "note": "one file set: the enum rows of `extensions/intl/manifest.json` and the `Intl-<Enum>` directories under `docs/examples/novis/`. The path an enum's proofs live at is not checked: `bun nv proofs --group` does not take an enum, so read it from `bun nv proofs --json`.",
     "items": [
       {
         "done": false,
-        "text": "**`Novis\\Intl\\DateFormat` and `Novis\\Intl\\Locale` owe nothing** (`rule:testing/feature-proofs`): `dateTimes`, `dates`, `times`, `negotiate` and `resolve`. Source halves `extensions/intl/nvs/DateFormat.nvs:1` and `extensions/intl/nvs/Locale.nvs:1`; Rust tests `crates/nvs-ext/tests/intl.rs:583` (date formats), `crates/nvs-ext/tests/intl.rs:958` (negotiate) and `crates/nvs-ext/tests/intl.rs:982` (`resolveLocales`)."
+        "text": "**The 14 `Novis\\Intl` enums owe nothing** (`rule:testing/feature-proofs`): an about page, three examples and a test from each side per enum. An enum is not attacked or benched. The enums are declared at `extensions/intl/manifest.json:137` (`Strength`) through `extensions/intl/manifest.json:150` (`Service`). Existing `.nvst` cases under `tests/conformance/novis/` use most of them, so a `covers:` line may be the whole test edit."
       },
       {
         "done": false,
-        "text": "**`Novis\\Intl\\Icu` owes nothing** (`rule:testing/feature-proofs`): the manifest class's members, which the job classes call. Decide per member whether a skip entry in `data/proofs/policy.json` with the reason \"the job classes call it, and their proofs cover it\" is right, or whether each owes its own proofs; `Novis\\Image\\Codec` is the precedent to check first. Anchor `extensions/intl/manifest.json:1`."
-      },
-      {
-        "done": false,
-        "text": "**The whole roster owes nothing** (`rule:testing/feature-proofs`): `bun nv proofs --gate` over every class, then `bun nv proofs --comments docs/examples/novis tests/hostile/novis benches/members/novis`. Anchor `tools/nv/cmd/proofs.ts:1`."
+        "text": "**The whole roster owes nothing** (`rule:testing/feature-proofs`): decide what of the other 196 owed features this goal must close, because the check `dossier-the-whole-roster-owes-nothing-with-novis-intl` runs `bun nv proofs --gate` over everything. The 182 stale perf figures are re-measured with `bun nv proofs --record-perf --group '<Class>'`, starting with `Core\\BigInt` from `crates/nvs-stdlib/src/bigint.rs:1`. The `Novis\\Image` and directive features have owner goals that are not checked yet."
       }
     ]
   },
   "backlog": [
-    "The driver also reported `nvtest:tools/nv/test/html-later-polyfill.test.ts` red as a selection miss; not looked at this session."
+    "`Novis\\Intl` calls cost 0.3 to 0.7 ms each in their benches (`docs/perf/members.ndjson`). Whether instantiation or the formatter's construction dominates is not checked; `rule:packaging/the-boundary-is-the-cost` owns the figure."
   ]
 }
