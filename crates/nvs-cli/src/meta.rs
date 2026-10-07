@@ -613,7 +613,7 @@ fn public_surface(mut class: Value) -> Value {
 }
 
 /// A component's export class: one `static` member per manifest method, its
-/// constants, and no card of its own, because a manifest has no field for one.
+/// constants, and the manifest's class `help` as the class's own card.
 fn manifest_class_json(manifest: &nvs_ext::manifest::Manifest) -> Value {
     let members: Vec<Value> = manifest
         .methods
@@ -673,6 +673,9 @@ fn manifest_class_json(manifest: &nvs_ext::manifest::Manifest) -> Value {
         .collect();
     let mut out = Map::new();
     out.insert("name".into(), Value::from(manifest.class.as_str()));
+    if let Some(help) = &manifest.help {
+        out.insert("doc".into(), json!({ "short": help }));
+    }
     out.insert("members".into(), Value::Array(members));
     put_values(&mut out, "constants", constants);
     Value::Object(out)

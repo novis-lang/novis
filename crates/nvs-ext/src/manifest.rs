@@ -9,6 +9,7 @@
 //!   "world": "1.0.0",
 //!   "class": "Shop\\Geo",
 //!   "interface": "shop:geo/api",
+//!   "help": "Distances between places on Earth.",
 //!   "methods": [{
 //!     "name": "distanceKm",
 //!     "params": [{"name": "from", "type": "string", "sink": true},
@@ -73,6 +74,9 @@ pub struct Manifest {
     pub class: String,
     /// The exported WIT interface the class maps, as `namespace:package/interface`.
     pub interface: String,
+    /// The class's card: what the class is for, which `nvs` shows beside its name.
+    #[serde(default)]
+    pub help: Option<String>,
     /// The class's methods, one per export.
     #[serde(default)]
     pub methods: Vec<Method>,

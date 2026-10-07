@@ -293,7 +293,8 @@ fn meta_lists_the_built_in_components_classes_and_enums() {
 
 /// A built-in member's card is its source's `///` run or its manifest's
 /// `help`, under `doc.short` as a `Core` member's is, and an enum's card is
-/// its manifest `help`. `every_member_carries_a_doc_key` above then holds every
+/// its manifest `help`. A class's card is its source's `///` run, or for the
+/// export class its manifest's class `help`. `every_member_carries_a_doc_key` above then holds every
 /// built-in member to a card too, because it walks the same `classes`.
 // covers: tools:cli/nvs-meta-json
 #[test]
@@ -317,14 +318,24 @@ fn a_built_in_member_carries_its_card() {
         )
     );
     assert!(short(core_enum(&document, r"Novis\Image\Fit")).is_some());
-    let class = document["classes"]
-        .as_array()
-        .expect("`classes` is an array")
-        .iter()
-        .find(|c| c["name"] == r"Novis\Image\Image")
-        .expect("Image is in the document")
-        .clone();
-    assert!(short(class).is_some(), "the class carries its own card");
+    let class = |name: &str| {
+        document["classes"]
+            .as_array()
+            .expect("`classes` is an array")
+            .iter()
+            .find(|c| c["name"] == name)
+            .unwrap_or_else(|| panic!("{name} is in the document"))
+            .clone()
+    };
+    assert!(
+        short(class(r"Novis\Image\Image")).is_some(),
+        "the class carries its own card"
+    );
+    assert!(
+        short(class(r"Novis\Image\Codec"))
+            .is_some_and(|card| card.starts_with("The functions that decode")),
+        "the export class carries its manifest's `help` as its card"
+    );
 }
 
 /// `--json` is required: a `meta` that prints nothing would be a subcommand

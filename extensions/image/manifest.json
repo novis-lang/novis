@@ -3,6 +3,7 @@
   "world": "1.0.0",
   "class": "Novis\\Image\\Codec",
   "interface": "nvs:image/codec",
+  "help": "The functions that decode, change and encode images. `Novis\\Image\\Image` calls them for you, so most programs use `Image` instead.",
   "methods": [
     {
       "name": "info",
