@@ -9,8 +9,9 @@
 //! ICU4X is pinned at one version in `Cargo.toml`, with `compiled_data`: the data is baked into
 //! the wasm, and nothing is read at run time. The implemented exports are `collate-order` and
 //! `sort-keys` (`collation`'s module doc), `format-numbers` (`numbers`'s), `plural-categories`
-//! (`plurals`'s), and `format-date-times`, `format-dates` and `format-times` (`dates`'s); every
-//! other export returns `runtime`.
+//! (`plurals`'s), `format-date-times`, `format-dates` and `format-times` (`dates`'s),
+//! `format-relative` (`relative`'s) and `format-lists` (`lists`'s); every other export returns
+//! `runtime`.
 //!
 //! A locale is a BCP 47 tag that [`locale`] parses for every export. A malformed tag is
 //! `Invalid` and names the tag. A well-formed tag with no data of its own falls back along CLDR's
@@ -18,8 +19,10 @@
 
 pub mod collation;
 pub mod dates;
+pub mod lists;
 pub mod numbers;
 pub mod plurals;
+pub mod relative;
 
 use icu_locale::Locale;
 
@@ -48,9 +51,9 @@ mod guest {
 
     use exports::nvs::intl::icu::{
         CaseFirst, CollateOptions, CompactDisplay, CurrencyDisplay, Date, DateTimeOptions, Error,
-        Guest, Length, ListOptions, LocalDateTime, NumberOptions, NumberStyle, PluralCategory,
-        PluralKind, RelativeItem, RelativeOptions, Service, Strength, TimeOfDay, TimeOptions, Word,
-        ZoneStyle,
+        Guest, Length, ListOptions, ListType, LocalDateTime, NumberOptions, NumberStyle, Numeric,
+        PluralCategory, PluralKind, RelativeItem, RelativeOptions, Service, Strength, TimeOfDay,
+        TimeOptions, TimeUnit, Width, Word, ZoneStyle,
     };
 
     struct Component;
@@ -94,6 +97,14 @@ mod guest {
             Length::Short => crate::dates::Length::Short,
             Length::Medium => crate::dates::Length::Medium,
             Length::Long => crate::dates::Length::Long,
+        }
+    }
+
+    fn width(width: Width) -> crate::relative::Width {
+        match width {
+            Width::Wide => crate::relative::Width::Wide,
+            Width::Short => crate::relative::Width::Short,
+            Width::Narrow => crate::relative::Width::Narrow,
         }
     }
 
@@ -245,19 +256,52 @@ mod guest {
         }
 
         fn format_relative(
-            _items: Vec<RelativeItem>,
-            _locale: String,
-            _options: RelativeOptions,
+            items: Vec<RelativeItem>,
+            locale: String,
+            options: RelativeOptions,
         ) -> Result<Vec<String>, Error> {
-            not_implemented("format-relative")
+            use crate::relative::{Numeric as N, Unit as U};
+            let items: Vec<crate::relative::Item> = items
+                .iter()
+                .map(|item| crate::relative::Item {
+                    count: item.count,
+                    unit: match item.unit {
+                        TimeUnit::Second => U::Second,
+                        TimeUnit::Minute => U::Minute,
+                        TimeUnit::Hour => U::Hour,
+                        TimeUnit::Day => U::Day,
+                        TimeUnit::Week => U::Week,
+                        TimeUnit::Month => U::Month,
+                        TimeUnit::Quarter => U::Quarter,
+                        TimeUnit::Year => U::Year,
+                    },
+                })
+                .collect();
+            let options = crate::relative::Options {
+                width: options.width.map(width),
+                numeric: options.numeric.map(|numeric| match numeric {
+                    Numeric::Always => N::Always,
+                    Numeric::Auto => N::Auto,
+                }),
+            };
+            crate::relative::format(&items, &locale, options).map_err(error)
         }
 
         fn format_lists(
-            _lists: Vec<Vec<String>>,
-            _locale: String,
-            _options: ListOptions,
+            lists: Vec<Vec<String>>,
+            locale: String,
+            options: ListOptions,
         ) -> Result<Vec<String>, Error> {
-            not_implemented("format-lists")
+            use crate::lists::ListType as L;
+            let options = crate::lists::Options {
+                list_type: options.type_.map(|list_type| match list_type {
+                    ListType::And => L::And,
+                    ListType::Or => L::Or,
+                    ListType::Unit => L::Unit,
+                }),
+                width: options.width.map(width),
+            };
+            crate::lists::format(&lists, &locale, options).map_err(error)
         }
 
         fn word_segments(_strings: Vec<String>, _locale: String) -> Result<Vec<Vec<Word>>, Error> {

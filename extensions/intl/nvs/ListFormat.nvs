@@ -1,0 +1,14 @@
+<?nvs
+namespace Novis\Intl;
+
+/// Joins the items of a list with the words a language uses, such as "Shop, Blog, and Wiki". The
+/// method takes many lists and a locale tag, such as `"de"`, and joins them all in one call.
+final class ListFormat
+{
+    /// `ListFormat::join` returns each list as one string, joined with "and" by default.
+    /// `ListType::Or` joins with "or". An empty list gives `""`.
+    public static function join(array<array<string>> $lists, string $locale, ?{type?: ListType, width?: Width} $options = null): array<string>
+    {
+        return Icu::formatLists($lists, $locale, $options ?? {});
+    }
+}

@@ -733,3 +733,99 @@ fn the_guest_carries_no_time_zone_database() {
         "the intl component carries a TZif file"
     );
 }
+
+/// The `relative-item` record of `count` `unit`s.
+fn relative(count: i64, unit: &str) -> Value {
+    shape(&[
+        ("count", Value::Int(count)),
+        ("unit", Value::Case(unit.to_owned())),
+    ])
+}
+
+#[test]
+fn relative_time_formats_past_and_future() {
+    let (written_out, crossings) = run(|request, extension| {
+        let before = request.crossings();
+        let items = || {
+            vec![
+                relative(-3, "Day"),
+                relative(2, "Hour"),
+                relative(-1, "Day"),
+                relative(1, "Year"),
+            ]
+        };
+        let written_out = [
+            ("en", "Always", "Wide"),
+            ("en", "Auto", "Wide"),
+            ("de", "Auto", "Wide"),
+            ("en", "Always", "Short"),
+        ]
+        .map(|(locale, numeric, width)| {
+            let options = shape(&[
+                ("numeric", Value::Case(numeric.to_owned())),
+                ("width", Value::Case(width.to_owned())),
+            ]);
+            written(
+                request,
+                extension,
+                "formatRelative",
+                items(),
+                locale,
+                options,
+            )
+        });
+        (written_out, request.crossings() - before)
+    });
+    assert_eq!(crossings, 4, "one crossing per batch");
+    assert_eq!(
+        written_out,
+        [
+            ["3 days ago", "in 2 hours", "1 day ago", "in 1 year"],
+            ["3 days ago", "in 2 hours", "yesterday", "next year"],
+            ["vor 3 Tagen", "in 2 Stunden", "gestern", "nächstes Jahr"],
+            ["3 days ago", "in 2 hr.", "1 day ago", "in 1 yr."],
+        ]
+    );
+}
+
+#[test]
+fn a_list_formats_with_its_locale_conjunction() {
+    let (joined, crossings) = run(|request, extension| {
+        let before = request.crossings();
+        let lists = || {
+            ["Shop", "Blog", "Wiki"]
+                .map(|item| Value::String(item.to_owned()))
+                .to_vec()
+        };
+        let joined = [
+            ("en", "And"),
+            ("de", "And"),
+            ("es", "And"),
+            ("en", "Or"),
+            ("fr", "Or"),
+        ]
+        .map(|(locale, list_type)| {
+            let options = shape(&[("type", Value::Case(list_type.to_owned()))]);
+            written(
+                request,
+                extension,
+                "formatLists",
+                vec![list(lists())],
+                locale,
+                options,
+            )
+        });
+        (joined, request.crossings() - before)
+    });
+    assert_eq!(crossings, 5, "one crossing per batch");
+    assert_eq!(
+        joined,
+        [
+            ["Shop, Blog, and Wiki"],
+            ["Shop, Blog und Wiki"],
+            ["Shop, Blog y Wiki"],
+            ["Shop, Blog, or Wiki"],
+            ["Shop, Blog ou Wiki"],
+        ]
+    );
+}

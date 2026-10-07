@@ -222,8 +222,10 @@ Conventions the whole file uses:
 | [`Novis\Image\Codec`](#core-novis-image-codec) |  |
 | [`Novis\Intl\Collator`](#core-novis-intl-collator) |  |
 | [`Novis\Intl\DateFormat`](#core-novis-intl-dateformat) |  |
+| [`Novis\Intl\ListFormat`](#core-novis-intl-listformat) |  |
 | [`Novis\Intl\NumberFormat`](#core-novis-intl-numberformat) |  |
 | [`Novis\Intl\PluralRules`](#core-novis-intl-pluralrules) |  |
+| [`Novis\Intl\RelativeTime`](#core-novis-intl-relativetime) |  |
 | [`Novis\Intl\Icu`](#core-novis-intl-icu) |  |
 | [`Core` enums](#core-enums) | every enum a member takes, with its cases |
 
@@ -26995,6 +26997,27 @@ Novis\Intl\DateFormat::times(array<Core\Time\TimeOfDay> $values, string $locale,
 
 **Returns** `array<string>`
 
+<a id="core-novis-intl-listformat"></a>
+### `Novis\Intl\ListFormat`
+
+Keywords: join
+
+| Member | Signature |
+|---|---|
+| [`Novis\Intl\ListFormat::join`](#core-novis-intl-listformat-join) | `join(array<array<string>> $lists, string $locale, ?{type?: ListType, width?: Width} $options = null): array<string>` |
+
+<a id="core-novis-intl-listformat-join"></a>
+#### `Novis\Intl\ListFormat::join`
+
+```nvs skip
+Novis\Intl\ListFormat::join(array<array<string>> $lists, string $locale, ?{type?: ListType, width?: Width} $options = null): array<string>
+```
+
+`ListFormat::join` returns each list as one string, joined with "and" by default.
+`ListType::Or` joins with "or". An empty list gives `""`.
+
+**Returns** `array<string>`
+
 <a id="core-novis-intl-numberformat"></a>
 ### `Novis\Intl\NumberFormat`
 
@@ -27088,6 +27111,27 @@ Novis\Intl\PluralRules::ordinal(array<int|float|decimal> $numbers, string $local
 `One`, `2` is `Two`, `3` is `Few` and `4` is `Other`.
 
 **Returns** `array<Core\Cldr\PluralCategory>`
+
+<a id="core-novis-intl-relativetime"></a>
+### `Novis\Intl\RelativeTime`
+
+Keywords: format
+
+| Member | Signature |
+|---|---|
+| [`Novis\Intl\RelativeTime::format`](#core-novis-intl-relativetime-format) | `format(array<{count: int, unit: TimeUnit}> $items, string $locale, ?{width?: Width, numeric?: Numeric} $options = null): array<string>` |
+
+<a id="core-novis-intl-relativetime-format"></a>
+#### `Novis\Intl\RelativeTime::format`
+
+```nvs skip
+Novis\Intl\RelativeTime::format(array<{count: int, unit: TimeUnit}> $items, string $locale, ?{width?: Width, numeric?: Numeric} $options = null): array<string>
+```
+
+`RelativeTime::format` returns each item as text. A negative `count` is in the past.
+`Numeric::Auto` writes words such as "yesterday", and `Width::Short` writes "in 2 hr.".
+
+**Returns** `array<string>`
 
 <a id="core-novis-intl-icu"></a>
 ### `Novis\Intl\Icu`

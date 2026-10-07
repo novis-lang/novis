@@ -1,0 +1,14 @@
+<?nvs
+namespace Novis\Intl;
+
+/// Writes an amount of time before or after now, such as "3 days ago", the way a language writes
+/// it. The method takes a whole list and a locale tag, such as `"de"`, and formats it in one call.
+final class RelativeTime
+{
+    /// `RelativeTime::format` returns each item as text. A negative `count` is in the past.
+    /// `Numeric::Auto` writes words such as "yesterday", and `Width::Short` writes "in 2 hr.".
+    public static function format(array<{count: int, unit: TimeUnit}> $items, string $locale, ?{width?: Width, numeric?: Numeric} $options = null): array<string>
+    {
+        return Icu::formatRelative($items, $locale, $options ?? {});
+    }
+}
