@@ -183,11 +183,23 @@ class Browser {
     return out;
   }
 
+  /** Ends Chromium and deletes its profile. `Browser.close` lets Chromium end its child processes,
+   *  which on Windows keep files in the profile open for a moment after the main process is killed,
+   *  so the delete is retried until they have exited. */
   async close() {
+    await Promise.race([this.send("Browser.close").catch(() => {}), Bun.sleep(2_000)]);
     this.ws.close();
     this.proc.kill();
     await this.proc.exited;
-    rmSync(this.profile, { recursive: true, force: true });
+    for (let tries = 1; ; tries++) {
+      try {
+        rmSync(this.profile, { recursive: true, force: true });
+        return;
+      } catch (err) {
+        if (tries >= 40) throw err;
+        await Bun.sleep(250);
+      }
+    }
   }
 }
 
@@ -197,7 +209,7 @@ for (const native of [true, false]) {
     beforeAll(async () => {
       browser = await Browser.launch(native);
     }, 60_000);
-    afterAll(() => browser?.close());
+    afterAll(() => browser?.close(), 30_000);
 
     test("the launch is the one it says: native patching applies the bare page, or leaves it alone", async () => {
       const bare = await browser.probe("/bare");
