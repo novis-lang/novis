@@ -25,25 +25,21 @@ pub struct Info {
     pub has_icc: bool,
 }
 
-/// Reads the header of `data`. A format the component does not decode returns `Invalid`; a
-/// header that does not parse returns `Parse`.
+/// Reads the header of `data`. Bytes in a format the component does not read, and a header that
+/// does not parse, return `Parse`.
 pub fn info(data: &[u8]) -> Result<Info, Error> {
-    let reader = ImageReader::new(Cursor::new(data))
+    let mut reader = ImageReader::new(Cursor::new(data))
         .with_guessed_format()
         .map_err(|err| Error::Runtime(err.to_string()))?;
+    reader.no_limits();
     let format = match reader.format() {
         Some(ImageFormat::Jpeg) => Format::Jpeg,
         Some(ImageFormat::Png) => Format::Png,
         Some(ImageFormat::WebP) => Format::Webp,
         Some(ImageFormat::Gif) => Format::Gif,
-        Some(other) => {
-            return Err(Error::Invalid(format!(
-                "{other:?} is not a format the image component reads"
-            )));
-        }
-        None => {
-            return Err(Error::Invalid(
-                "the data is not an image in a known format".to_string(),
+        _ => {
+            return Err(Error::Parse(
+                "the data is not an image in a format the image component reads".to_string(),
             ));
         }
     };
@@ -108,11 +104,8 @@ mod tests {
     }
 
     #[test]
-    fn bytes_that_are_no_image_are_invalid() {
-        assert!(matches!(
-            info(b"not an image at all"),
-            Err(Error::Invalid(_))
-        ));
+    fn bytes_that_are_no_image_do_not_parse() {
+        assert!(matches!(info(b"not an image at all"), Err(Error::Parse(_))));
     }
 
     #[test]

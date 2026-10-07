@@ -1,30 +1,32 @@
 {
-  "state": "**Goal `ext-image`, Stage 3 (decode, and the cap) is in progress.** The design is settled by ADR 0120, ADR 0247 and the goal file's § *Standing decisions*; no session re-decides one.\n\nThe image component is embedded, typed into every compile and callable with no `nvs.toml` (`crates/nvs-cli/src/extensions.rs` module doc). libwebp 1.6.0 is prebuilt into `extensions/image/libwebp/libwebp.a` and pinned by `SOURCE.json`; the image crate does not link it yet (Stage 4's lossy WebP encoder).\n\n`[image] max_pixels` is on disk: `System`, `Reload`, `\"24M\"` = 2²⁰·24 pixels in the size grammar, `false` and zero refused at boot (`nvs_config::image` module doc, `rule:core-classes/image-pixel-cap`). Nothing reads it at run time yet. The only export implemented is `info`; `run` and `variants` return `runtime`.",
+  "state": "**Goal `ext-image`, Stage 3 (decode, and the cap) is in progress.** The design is settled by ADR 0120, ADR 0247 and the goal file's § *Standing decisions*; no session re-decides one.\n\nThe image component is embedded, typed into every compile and callable with no `nvs.toml` (`crates/nvs-cli/src/extensions.rs` module doc). `info` and `run` are implemented. `run` decodes JPEG, PNG, WebP, GIF and JPEG XL inside the guest and returns the RGBA8 pixels or the size, and refuses to encode JPEG XL. The cap is checked from the header first, bytes that are no image and a malformed EXIF IFD return `parse` (`extensions/image/src/decode.rs` module doc). `crates/nvs-ext/tests/image_decode.rs` pins all of it against the committed fixtures under `extensions/image/fixtures/` (their `README.md` says how they were made).\n\nA plan `step` is now a WIT record with one optional field per operation, exactly one set (`rule:core-classes/image-pipeline`). The manifest declares `run` with the whole plan type and a `Source` union. `variants` is not declared yet.\n\n**Not done:** AVIF pixels do not decode (its header is read for the cap; `rav1d` builds for `wasm32-wasip2` with its asm off, and it is not a dependency yet). So the roster test is named `every_first_wave_format_but_avif_decodes_its_fixture`, and the check `nvs-ext-every-first-wave-format-decodes` stays red until AVIF lands and the test takes its real name. The host does not pass `[image] max_pixels` in yet: the guest's cap is the call's `maxPixels`, or `\"24M\"`.",
   "next": {
     "stage": 3,
     "title": "decode, and the cap",
     "files": [
       "extensions/image/src/",
-      "crates/nvs-ext/tests/",
-      "crates/nvs-ext/Cargo.toml"
+      "crates/nvs-ext/tests/image_decode.rs",
+      "crates/nvs-cli/src/extensions.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**Decode inside the guest, with the cap checked from the header first** (`rule:core-classes/image-format-roster`, `rule:core-classes/image-pixel-cap`) — `run` at `extensions/image/src/lib.rs:94` decodes every first-wave format and throws `RuntimeError` over the cap before a buffer is allocated, and `ParseError` for bytes that are no image or a malformed IFD. A new `[[test]] name = \"image_decode\"` in `crates/nvs-ext/Cargo.toml:82` with its fixtures, generated under `extensions/image/fixtures/`."
+        "text": "**AVIF decodes** (`rule:core-classes/image-format-roster`) — the AVIF arm at `extensions/image/src/decode.rs:99` hands `avif_parse`'s primary item (and its alpha item) to `rav1d` (`cargo add rav1d@1.1.0 --no-default-features -F bitdepth_8,bitdepth_16` in `extensions/image`). `rav1d` has only the C-shaped `dav1d_*` API (`dav1d_open`, `dav1d_data_wrap`, `dav1d_send_data`, `dav1d_get_picture`), so this is `unsafe` glue plus a YUV-to-RGB conversion: 4:2:0, 4:2:2 and 4:4:4, 8, 10 and 12 bits, BT.601 and BT.709, full and limited range, one thread. Then rename the test at `crates/nvs-ext/tests/image_decode.rs:146` to `every_first_wave_format_decodes_its_fixture` and add `gradient.avif` to its list."
       },
       {
         "done": false,
-        "text": "**The cap reaches the guest** (`rule:core-classes/image-pixel-cap`) — the host passes `nvs_config::image::in_force` (`crates/nvs-config/src/image.rs:59`) into the call, and a call's own `maxPixels` may only lower it; the test `an_image_over_max_pixels_is_refused_before_a_buffer_is_allocated` raises it and the same bytes pass."
+        "text": "**The cap reaches the guest** (`rule:core-classes/image-pixel-cap`) — the host's call path at `crates/nvs-cli/src/extensions.rs:565` sets the `Encoded` source's `maxPixels` of a built-in `Novis\\Image\\Codec::run` call to the smaller of the call's value and `nvs_config::image::in_force` (`crates/nvs-config/src/image.rs:59`). Put the clamp in `nvs_ext::builtin` as a pure function, so `image_decode.rs` can test it: `the_same_image_passes_when_the_cap_is_raised` and `a_call_may_lower_the_cap_and_never_raise_it`."
       },
       {
         "done": false,
-        "text": "**The bomb case** — `tests/conformance/novis/image-a-bomb-is-refused-before-it-is-decoded.nvst` and `tests/conformance/novis/image-bytes-that-are-not-an-image-throw-a-parse-error.nvst`, beside `tests/conformance/novis/image-info-answers-with-no-configuration.nvst:1`."
+        "text": "**The bomb case** — `tests/conformance/novis/image-a-bomb-is-refused-before-it-is-decoded.nvst` and `tests/conformance/novis/image-bytes-that-are-not-an-image-throw-a-parse-error.nvst`, beside `tests/conformance/novis/image-info-answers-with-no-configuration.nvst:1`. Each calls `Codec::run` with a `Source` array and a plan of `['steps' => [], 'overlays' => [], 'output' => Output::Raw]`, and catches `RuntimeError` or `ParseError`."
       }
     ]
   },
   "backlog": [
     "Turning off wasmtime's default features would remove zstd, ittapi and gdbjit C code from the binary; the ledger rows in `tools/nv/cmd/gen-attribution.ts` `C_DEPENDENCIES` record them as unreachable meanwhile (`rule:packaging/a-c-dependency-answers-two-questions`).",
-    "libwebp's source pin was taken from the tarball as downloaded; Google publishes a `.asc` signature beside it that no tool checks yet (`tools/nv/cmd/webp-lib.ts`)."
+    "libwebp's source pin was taken from the tarball as downloaded; Google publishes a `.asc` signature beside it that no tool checks yet (`tools/nv/cmd/webp-lib.ts`).",
+    "`info` reads `frames` as `1` and `exif` as `None`, and the cap counts one frame of an animated input (`extensions/image/src/info.rs`, `extensions/image/src/decode.rs` module docs).",
+    "A header whose buffer cannot fit in the 32-bit guest is refused with a message naming the cap but not the declared size, because the decoder refuses it before it reports one (`extensions/image/src/decode.rs`)."
   ]
 }

@@ -22,4 +22,6 @@ written it is `"24M"`, read in the size grammar every other key of the file uses
 pixels. `false` and zero are refused where they are written, because neither is a cap.
 
 **Not shipped.** The key is on disk (`nvs_config::image`, `crates/nvs-config/tests/directives.rs`),
-and the image component does not read it yet: its one export, `info`, decodes nothing.
+and the image component's `run` checks a header against a cap before it decodes
+(`crates/nvs-ext/tests/image_decode.rs`). The host does not pass the key's value in yet, so the cap is
+the call's `maxPixels` or `"24M"`, and nothing stops a call from raising it.

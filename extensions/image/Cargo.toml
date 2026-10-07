@@ -12,7 +12,10 @@ description = "The image component built into every `nvs` binary: `nvs:image/cod
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+avif-parse = "2.1"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "webp"] }
+jxl-oxide = { version = "0.12", default-features = false }
+kamadak-exif = "0.6"
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 wit-bindgen = "0.62"

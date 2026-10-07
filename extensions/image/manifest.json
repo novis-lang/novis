@@ -9,9 +9,33 @@
       "params": [{"name": "data", "type": "bytes"}],
       "returns": "{format: Format, width: uint, height: uint, hasAlpha: bool, frames: uint, orientation: uint, exif: ?array<string, string>, hasIcc: bool}",
       "help": "Reads the format, the size and the orientation of an encoded image from its header. No pixel is decoded."
+    },
+    {
+      "name": "run",
+      "params": [
+        {"name": "source", "type": "Source"},
+        {"name": "plan", "type": "{steps: array<{resize?: {width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool}, crop?: {x: uint, y: uint, width: uint, height: uint}, trim?: {threshold?: float}, rotate?: {degrees: float, background?: {r: uint, g: uint, b: uint, alpha: float}}, flip?: Axis, composite?: {overlay: uint, gravity?: Gravity, x?: int, y?: int, opacity?: float, blend?: Blend}, flatten?: {r: uint, g: uint, b: uint, alpha: float}, sharpen?: {sigma?: float}, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: {r: uint, g: uint, b: uint, alpha: float}, text?: {text: string, font: bytes, size: float, color: {r: uint, g: uint, b: uint, alpha: float}, gravity?: Gravity, x?: int, y?: int, maxWidth?: uint, align?: Align}, format?: {format: Format, quality?: uint, progressive?: bool, lossless?: bool, effort?: uint}, metadata?: {keep: bool}}>, overlays: array<{source: Source, steps: array<{resize?: {width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool}, crop?: {x: uint, y: uint, width: uint, height: uint}, trim?: {threshold?: float}, rotate?: {degrees: float, background?: {r: uint, g: uint, b: uint, alpha: float}}, flip?: Axis, composite?: {overlay: uint, gravity?: Gravity, x?: int, y?: int, opacity?: float, blend?: Blend}, flatten?: {r: uint, g: uint, b: uint, alpha: float}, sharpen?: {sigma?: float}, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: {r: uint, g: uint, b: uint, alpha: float}, text?: {text: string, font: bytes, size: float, color: {r: uint, g: uint, b: uint, alpha: float}, gravity?: Gravity, x?: int, y?: int, maxWidth?: uint, align?: Align}, format?: {format: Format, quality?: uint, progressive?: bool, lossless?: bool, effort?: uint}, metadata?: {keep: bool}}>}>, output: Output}"}
+      ],
+      "returns": "bytes",
+      "help": "Runs one image pipeline on a source and returns the result: the encoded file, the pixels, or the size."
     }
   ],
   "enums": [
-    {"name": "Format", "cases": ["Jpeg", "Png", "Webp", "Gif", "Avif", "Jxl", "Svg", "Pdf"]}
+    {"name": "Format", "cases": ["Jpeg", "Png", "Webp", "Gif", "Avif", "Jxl", "Svg", "Pdf"]},
+    {"name": "Gravity", "cases": ["Center", "North", "NorthEast", "East", "SouthEast", "South", "SouthWest", "West", "NorthWest"]},
+    {"name": "Fit", "cases": ["Cover", "Contain", "Fill", "Inside", "Outside"]},
+    {"name": "Filter", "cases": ["Nearest", "Bilinear", "CatmullRom", "Mitchell", "Lanczos3"]},
+    {"name": "Axis", "cases": ["Horizontal", "Vertical"]},
+    {"name": "Blend", "cases": ["Normal", "Multiply", "Screen", "Overlay", "Darken", "Lighten"]},
+    {"name": "Align", "cases": ["Left", "Center", "Right"]},
+    {"name": "Output", "cases": ["Encoded", "Raw", "Size"]}
+  ],
+  "unions": [
+    {"name": "Source", "cases": [
+      {"name": "Encoded", "shape": "{data: bytes, autoOrient: bool, toSrgb: bool, maxPixels?: uint, page?: uint, dpi?: float}"},
+      {"name": "Canvas", "shape": "{width: uint, height: uint, fill: {r: uint, g: uint, b: uint, alpha: float}}"},
+      {"name": "Pixels", "shape": "{width: uint, height: uint, pixels: bytes}"},
+      {"name": "Text", "shape": "{text: string, font: bytes, size: float, maxWidth?: uint, align?: Align}"}
+    ]}
   ]
 }

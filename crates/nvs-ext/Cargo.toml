@@ -84,6 +84,10 @@ name = "builtin"
 required-features = ["engine", "pack"]
 
 [[test]]
+name = "image_decode"
+required-features = ["engine", "pack"]
+
+[[test]]
 name = "cache"
 required-features = ["engine", "pack"]
 
