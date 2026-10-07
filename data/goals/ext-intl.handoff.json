@@ -1,29 +1,27 @@
 {
-  "state": "**Goal `ext-intl`: Stage 8, the feature proofs, is in progress.** Stages 1 to 7 are on disk: every export of `nvs:intl/icu` works, both components are embedded, and the growth test and the bundle test pass.\n\n`Novis\\Intl\\Collator` owes nothing. `sort` and `sortKeys` each have an about page, 3 examples, an attack, a bench with a recorded figure, and a Rust `covers:` marker. `sortKeys` also has its second `.nvst` case. `bun nv proofs --verify --group 'Novis\\Intl\\Collator'` passes.\n\nStill red: the seven other job classes and `Novis\\Intl\\Icu`, the manifest class. None of them has an about page, examples, an attack or a bench yet. Most have 1 of 2 cases. The gate output names each owed path. `bun nv proofs --id` does not find a `Novis\\` feature in any quoting, so use the group gate.",
+  "state": "**Goal `ext-intl`: Stage 8, the feature proofs, is in progress.** Stages 1 to 7 are on disk: every export of `nvs:intl/icu` works, both components are embedded, and the growth test and the bundle test pass.\n\n`Novis\\Intl\\Collator`, `Novis\\Intl\\NumberFormat` (all four members, `decimal` included), `Novis\\Intl\\PluralRules` and `Novis\\Intl\\RelativeTime` owe nothing: `bun nv proofs --verify --group '<Class>'` passes for each. Their Rust tests in `crates/nvs-ext/tests/intl.rs` carry `covers:` markers, and the existing `.nvst` cases credit the Novis side by a plain call.\n\nStill red: `Novis\\Intl\\ListFormat`, `Novis\\Intl\\Segmenter`, `Novis\\Intl\\DateFormat`, `Novis\\Intl\\Locale`, and `Novis\\Intl\\Icu`, the manifest class. Each has 1 of 2 cases (the Rust `covers:` marker is missing) and no about page, examples, attack or bench. The gate output names each owed path. `bun nv proofs --id` does not find a `Novis\\` feature in any quoting, so use the group gate.",
   "next": {
     "stage": 8,
     "title": "the feature proofs, one class at a time",
     "files": [],
-    "note": ". Each class is its own file set: `docs/examples/novis/Intl-<Class>/`, `tests/hostile/novis/Intl-<Class>/`, `benches/members/novis/Intl-<Class>/`, a new `tests/conformance/novis/intl-*.nvst`, and a `// covers:` line in `crates/nvs-ext/tests/intl.rs`. Copy the shape of `Intl-Collator`. After the benches, run `bun nv proofs --record-perf --group '<Class>'`. Then run `bun nv proofs --comments` over the new trees.",
+    "note": ". Each class is its own file set: `docs/examples/novis/Intl-<Class>/`, `tests/hostile/novis/Intl-<Class>/`, `benches/members/novis/Intl-<Class>/`, and a `// covers:` line above its Rust test. Copy the shape of `Intl-NumberFormat`. After the benches, run `bun nv proofs --record-perf --group '<Class>'`, then `bun nv proofs --comments` over the three trees.",
     "items": [
       {
         "done": false,
-        "text": "**`Novis\\Intl\\NumberFormat` owes nothing** (`rule:testing/feature-proofs`): `percent`, `currency` and `compact`, the same set each. Check whether `decimal` is on the roster too. Source half `extensions/intl/nvs/NumberFormat.nvs:1`, Rust test `crates/nvs-ext/tests/intl.rs:288`."
+        "text": "**`Novis\\Intl\\ListFormat` and `Novis\\Intl\\Segmenter` owe nothing** (`rule:testing/feature-proofs`): `join`, `words` and `sentences`. Source halves `extensions/intl/nvs/ListFormat.nvs:1` and `extensions/intl/nvs/Segmenter.nvs:1`; Rust tests `crates/nvs-ext/tests/intl.rs:795` and `crates/nvs-ext/tests/intl.rs:855`."
       },
       {
         "done": false,
-        "text": "**`Novis\\Intl\\PluralRules` and `Novis\\Intl\\RelativeTime` owe nothing** (`rule:testing/feature-proofs`): `cardinal`, `ordinal` and `format`. Source halves `extensions/intl/nvs/PluralRules.nvs:1` and `extensions/intl/nvs/RelativeTime.nvs:1`."
+        "text": "**`Novis\\Intl\\DateFormat` and `Novis\\Intl\\Locale` owe nothing** (`rule:testing/feature-proofs`): `dateTimes`, `dates`, `times`, `negotiate` and `resolve`. Source halves `extensions/intl/nvs/DateFormat.nvs:1` and `extensions/intl/nvs/Locale.nvs:1`; Rust tests `crates/nvs-ext/tests/intl.rs:585` and `crates/nvs-ext/tests/intl.rs:957`."
       },
       {
         "done": false,
-        "text": "**`Novis\\Intl\\ListFormat` and `Novis\\Intl\\Segmenter` owe nothing** (`rule:testing/feature-proofs`): `join`, `words` and `sentences`. Source halves `extensions/intl/nvs/ListFormat.nvs:1` and `extensions/intl/nvs/Segmenter.nvs:1`."
+        "text": "**`Novis\\Intl\\Icu` owes nothing** (`rule:testing/feature-proofs`): the manifest class's members, which the job classes call. Decide per member whether it owes its own proofs or a skip entry in `data/proofs/policy.json` naming the job class that carries them; the manifest is `extensions/intl/manifest.json:1`."
       }
     ]
   },
   "backlog": [
-    "`Novis\\Intl\\DateFormat` (`dateTimes`, `dates`, `times`) and `Novis\\Intl\\Locale` (`negotiate`, `resolve`) owe the full set: `extensions/intl/nvs/DateFormat.nvs`, `extensions/intl/nvs/Locale.nvs`.",
-    "`Novis\\Intl\\Icu` owes the set for `sentenceSegments`, `resolveLocales`, `negotiate` and the others. Each export may need a skip entry in `data/proofs/` that says the job classes call it (`rule:testing/feature-proofs`). See how `Novis\\Image\\Codec` closed its own.",
-    "The Collator benches record about 0.54 ms for a sort of 5 strings and 0.38 ms for 5 sort keys, both flat. That is far above the cost of one crossing (`rule:packaging/the-boundary-is-the-cost`). Find out whether the cost is the per-request instance or the guest's collator construction (`docs/perf/members.ndjson`).",
-    "Last: `bun nv proofs --gate` for the whole roster, and `bun nv proofs --comments` over all three `novis` trees."
+    "A five-number `NumberFormat`, `PluralRules` or `RelativeTime` call measures in the hundreds of microseconds (`docs/perf/members.ndjson`), far above the boundary's cost in `rule:packaging/the-boundary-is-the-cost`. One formatter is built per call (`extensions/intl/src/numbers.rs:1`); whether caching it per instance pays is not checked.",
+    "In a bench, a `? 1 : 3` ternary is `int` and does not add to a `uint` total (E0407); use an `if`."
   ]
 }
