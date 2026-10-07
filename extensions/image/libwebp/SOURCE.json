@@ -1,0 +1,22 @@
+{
+  "library": "libwebp.a",
+  "sha256": "31931d53836a99726472ed4f597a12639942012f54590f5508ffa8a7e6f4bf3e",
+  "source": {
+    "version": "1.6.0",
+    "url": "https://storage.googleapis.com/downloads.webmproject.org/releases/webp/libwebp-1.6.0.tar.gz",
+    "sha256": "e4ab7009bf0629fd11982d4c2aa83964cf244cffba7347ecd39019a9e38c4564",
+    "dir": "libwebp-1.6.0"
+  },
+  "toolchain": {
+    "version": "wasi-sdk 30.0",
+    "url": "https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-30/wasi-sdk-30.0-x86_64-linux.tar.gz",
+    "sha256": "0507679dff16814b74516cd969a9b16d2ced1347388024bc7966264648c78bfb",
+    "dir": "wasi-sdk-30.0-x86_64-linux"
+  },
+  "cflags": [
+    "--target=wasm32-wasip2",
+    "-O2",
+    "-DNDEBUG",
+    "-I."
+  ]
+}

@@ -1453,7 +1453,12 @@ wasi-sdk — while the committed bytes stay a function of reviewable source rath
 reviewer has to trust. The library runs only inside the sandbox, which is the condition under which
 [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions) admits it.
 
-**Not on disk.** There is no `extensions/` tree and no such tool.
+**Partly on disk.** `bun nv webp-lib` builds libwebp into `extensions/image/libwebp/libwebp.a`, and
+`SOURCE.json` beside it pins the source tarball and the wasi-sdk release by sha256 and records the
+library's own. The build runs on Linux, and under WSL on Windows, and refuses a tarball whose digest
+differs from its pin. `--check` holds the committed bytes to their digest, and CI's `webp-lib` job
+runs `--verify`, which rebuilds and compares (`tools/nv/test/webp-lib.test.ts`). The image crate
+does not link the library yet.
 
 <sub>See also [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions), [`packaging/the-first-party-components-are-built-in`](packaging.md#packaging-the-first-party-components-are-built-in). Decided in [0247](../decisions/0247.md).</sub>
 

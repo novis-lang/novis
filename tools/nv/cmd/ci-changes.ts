@@ -58,10 +58,12 @@ export const LANES: Record<string, string[]> = {
   probe: ["benches/abi-probe/", ".github/workflows/"],
   // What the `nvs ext new` templates are built from and loaded by: the extension host, the
   // `nvs ext` command and the templates it writes, the world's WIT, the tool that drives them and
-  // the toolchain that lists `wasm32-wasip2`. Gates `ext-templates`.
+  // the toolchain that lists `wasm32-wasip2`; and libwebp's prebuilt library with the tool that
+  // rebuilds it. Gates `ext-templates` and `webp-lib`.
   ext: [
     "crates/nvs-ext/", "crates/nvs-cli/src/ext.rs", "crates/nvs-cli/src/ext/", "crates/nvs-cli/templates/ext/",
     "wit/nvs-ext/", "tools/nv/cmd/ext-templates.ts", "rust-toolchain.toml", ".github/workflows/",
+    "extensions/image/libwebp/", "tools/nv/cmd/webp-lib.ts",
   ],
   // The VS Code client, and every crate with it: the protocol suite spawns the real `nvs lsp` and the
   // host suite points a throwaway profile at the binary the same run built
