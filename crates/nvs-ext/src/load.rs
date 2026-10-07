@@ -22,6 +22,12 @@
 //! [`Set::insert`] adds the last check, a class another extension of the set already declares, so
 //! the set's classes are unique and its hash does not depend on the entries' order.
 //!
+//! **A built-in component skips check 1 and the reserved half of check 6.** [`Loader::builtins`]
+//! reads each one's sections and checks its world, and compiles nothing. Its first
+//! [`Builtin::extension`] compiles it, under the digest `build.rs` took, and runs checks 5 to 7 with
+//! `Novis\` admitted, because the binary is its pin and `Novis\` is reserved for it. An
+//! `[[extension]]` entry declaring a `Novis\` class is still refused, so no entry can shadow one.
+//!
 //! **Which Novis types the check reads.** The structural ones: `bool`, `int`, `uint`, `float`,
 //! `string`, `bytes`, `array<T>`, `array<K, V>`, `?T`, a shape `{a: T, b?: U}` (its keys in
 //! kebab-case, an optional key an `option`), `mixed` as a `borrow` of a resource, and `void` as a
@@ -59,7 +65,7 @@
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use nvs_config::extension::Granted;
 use sha2::{Digest, Sha256};
@@ -371,34 +377,98 @@ impl Loader {
 
     /// The extension `entry` names, from the file's `bytes`.
     pub fn load_bytes(&self, entry: &Entry, bytes: &[u8]) -> Result<Extension, Refused> {
-        let refuse = |reason: String| refused(&entry.path, reason);
         let sha256 = pin(bytes);
         if !sha256.eq_ignore_ascii_case(&entry.sha256) {
-            return Err(refuse(format!(
-                "the file's sha256 is {sha256}, and the entry pins {}",
-                entry.sha256
-            )));
+            return Err(refused(
+                &entry.path,
+                format!(
+                    "the file's sha256 is {sha256}, and the entry pins {}",
+                    entry.sha256
+                ),
+            ));
         }
-        let component = self
-            .compile(&sha256, bytes)
-            .map_err(|err| refuse(format!("the file is not a valid component: {err:#}")))?;
-        let sections = section::read(bytes).map_err(|err| refuse(err.0))?;
-        let manifest = sections
-            .manifest
-            .ok_or_else(|| refuse("the component has no `nvs.manifest` section".to_owned()))?;
-        let manifest = Manifest::parse(manifest).map_err(|err| refuse(err.0))?;
-        let source = match sections.source {
-            Some(source) => Source::parse(source).map_err(|err| refuse(err.0))?,
-            None => Source {
-                source: crate::source::FORMAT,
-                files: Vec::new(),
-            },
-        };
+        let component = self.compile(&sha256, bytes).map_err(|err| {
+            refused(
+                &entry.path,
+                format!("the file is not a valid component: {err:#}"),
+            )
+        })?;
+        let (manifest, source) = sections(&entry.path, bytes)?;
+        self.check(&entry.path, &component, &manifest, &source, Reserve::Refuse)?;
+        Ok(Extension {
+            path: entry.path.clone(),
+            sha256,
+            memory: entry.memory,
+            grants: entry.grants.clone(),
+            component,
+            manifest,
+            source,
+        })
+    }
+
+    /// Every built-in component ([`crate::builtin`]), its sections read and its version checked,
+    /// and none of them compiled. [`Builtin::extension`] compiles one on its first call.
+    ///
+    /// # Errors
+    ///
+    /// The first built-in component whose sections do not read, or whose world this loader does
+    /// not implement. Either one is a broken build.
+    pub fn builtins(&self) -> Result<Vec<Builtin>, Refused> {
+        [(
+            "image",
+            crate::builtin::IMAGE,
+            &crate::builtin::IMAGE_SHA256,
+        )]
+        .into_iter()
+        .map(|(name, bytes, sha256)| self.builtin(name, bytes, sha256))
+        .collect()
+    }
+
+    /// The built-in component `name`, from the `bytes` the binary carries and the digest the build
+    /// took of them.
+    fn builtin(
+        &self,
+        name: &str,
+        bytes: &'static [u8],
+        sha256: &[u8; 32],
+    ) -> Result<Builtin, Refused> {
+        let path = PathBuf::from(format!("built-in {name}.nvsx"));
+        let (manifest, source) = sections(&path, bytes)?;
         if !self.admits(manifest.world) {
-            return Err(refuse(format!(
-                "it was built against the world nvs:ext@{}, and this host implements nvs:ext@{}",
-                manifest.world, self.world
-            )));
+            return Err(refused(&path, self.mismatch(manifest.world)));
+        }
+        Ok(Builtin {
+            path,
+            bytes,
+            sha256: hex(sha256),
+            manifest,
+            source,
+            loader: self.clone(),
+            extension: OnceLock::new(),
+        })
+    }
+
+    /// Why a component built against `built` does not load here.
+    fn mismatch(&self, built: WorldVersion) -> String {
+        format!(
+            "it was built against the world nvs:ext@{built}, and this host implements nvs:ext@{}",
+            self.world
+        )
+    }
+
+    /// Checks 4 to 7 of the module doc, over a compiled `component` and its sections. `reserve`
+    /// says whether the class may be under `Core\` or `Novis\`.
+    fn check(
+        &self,
+        path: &Path,
+        component: &Component,
+        manifest: &Manifest,
+        source: &Source,
+        reserve: Reserve,
+    ) -> Result<(), Refused> {
+        let refuse = |reason: String| refused(path, reason);
+        if !self.admits(manifest.world) {
+            return Err(refuse(self.mismatch(manifest.world)));
         }
         let ty = component.component_type();
         for (name, _) in ty.imports(&self.engine) {
@@ -409,10 +479,12 @@ impl Loader {
                 )));
             }
         }
-        if let Some(reason) = reserved(&manifest) {
+        if let Reserve::Refuse = reserve
+            && let Some(reason) = reserved(manifest)
+        {
             return Err(refuse(reason));
         }
-        if let Some(reason) = outside(&source, &manifest) {
+        if let Some(reason) = outside(source, manifest) {
             return Err(refuse(reason));
         }
         let interface = ty
@@ -443,22 +515,14 @@ impl Loader {
                 Some(ComponentItem::Resource(ty)) => Some(ty),
                 _ => None,
             };
-            check_signature(&manifest, method, &func, &resource).map_err(|reason| {
+            check_signature(manifest, method, &func, &resource).map_err(|reason| {
                 refuse(format!(
                     "the method `{}` does not match `{}#{export}`: {reason}",
                     method.name, manifest.interface
                 ))
             })?;
         }
-        Ok(Extension {
-            path: entry.path.clone(),
-            sha256,
-            memory: entry.memory,
-            grants: entry.grants.clone(),
-            component,
-            manifest,
-            source,
-        })
+        Ok(())
     }
 
     /// Whether a component built against `built` loads on this host: the same major, and a minor
@@ -483,6 +547,120 @@ impl Loader {
             });
         }
         WorldVersion::try_from(version.to_owned()).is_ok_and(|version| self.admits(version))
+    }
+}
+
+/// Whether a class under `Core\` or `Novis\` is refused: always for an `[[extension]]` entry, and
+/// never for a built-in component, whose classes are the ones `Novis\` is reserved for.
+#[derive(Clone, Copy)]
+enum Reserve {
+    Refuse,
+    Admit,
+}
+
+/// The manifest and the source a component's `bytes` carry, or why they do not read.
+fn sections(path: &Path, bytes: &[u8]) -> Result<(Manifest, Source), Refused> {
+    let refuse = |reason: String| refused(path, reason);
+    let sections = section::read(bytes).map_err(|err| refuse(err.0))?;
+    let manifest = sections
+        .manifest
+        .ok_or_else(|| refuse("the component has no `nvs.manifest` section".to_owned()))?;
+    let manifest = Manifest::parse(manifest).map_err(|err| refuse(err.0))?;
+    let source = match sections.source {
+        Some(source) => Source::parse(source).map_err(|err| refuse(err.0))?,
+        None => Source {
+            source: crate::source::FORMAT,
+            files: Vec::new(),
+        },
+    };
+    Ok((manifest, source))
+}
+
+/// One built-in component: its bytes, which the binary carries, its manifest and its source, and
+/// its compiled form once something calls it
+/// (`rule:packaging/the-first-party-components-are-built-in`).
+///
+/// It has no `[[extension]]` entry. The digest `build.rs` took is its pin and its cache key, so
+/// loading it hashes nothing. It has no `memory` ceiling of its own and no grants: the request's
+/// memory cap bounds it, and the empty grant gives it no file and no host.
+pub struct Builtin {
+    path: PathBuf,
+    bytes: &'static [u8],
+    sha256: String,
+    manifest: Manifest,
+    source: Source,
+    loader: Loader,
+    extension: OnceLock<Result<Extension, Refused>>,
+}
+
+impl fmt::Debug for Builtin {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Builtin")
+            .field("path", &self.path)
+            .field("class", &self.manifest.class)
+            .field("compiled", &self.extension.get().is_some())
+            .finish_non_exhaustive()
+    }
+}
+
+impl Builtin {
+    /// The class it declares and that class's signatures, read without compiling.
+    pub fn manifest(&self) -> &Manifest {
+        &self.manifest
+    }
+
+    /// The Novis source it carries.
+    pub fn source(&self) -> &Source {
+        &self.source
+    }
+
+    /// The digest of its bytes, taken when the binary was built: lower-case hexadecimal.
+    pub fn sha256(&self) -> &str {
+        &self.sha256
+    }
+
+    /// Whether [`Builtin::extension`] has run.
+    pub fn compiled(&self) -> bool {
+        self.extension.get().is_some()
+    }
+
+    /// The component as a loaded extension. The first call compiles it, or reads it from the
+    /// loader's cache, and runs every check an `[[extension]]` entry passes but the reserved
+    /// namespace. Every later call returns the same answer.
+    ///
+    /// # Errors
+    ///
+    /// Why the component does not load, which is a broken build.
+    pub fn extension(&self) -> Result<&Extension, &Refused> {
+        self.extension
+            .get_or_init(|| {
+                let component = self
+                    .loader
+                    .compile(&self.sha256, self.bytes)
+                    .map_err(|err| {
+                        refused(
+                            &self.path,
+                            format!("the file is not a valid component: {err:#}"),
+                        )
+                    })?;
+                self.loader.check(
+                    &self.path,
+                    &component,
+                    &self.manifest,
+                    &self.source,
+                    Reserve::Admit,
+                )?;
+                Ok(Extension {
+                    path: self.path.clone(),
+                    sha256: self.sha256.clone(),
+                    memory: None,
+                    grants: Granted::default(),
+                    component,
+                    manifest: self.manifest.clone(),
+                    source: self.source.clone(),
+                })
+            })
+            .as_ref()
     }
 }
 

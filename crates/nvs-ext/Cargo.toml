@@ -80,6 +80,10 @@ rcgen.workspace = true
 rustls.workspace = true
 
 [[test]]
+name = "builtin"
+required-features = ["engine", "pack"]
+
+[[test]]
 name = "cache"
 required-features = ["engine", "pack"]
 
