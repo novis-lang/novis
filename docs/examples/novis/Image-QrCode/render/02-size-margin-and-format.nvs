@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to set the size, the white border and the file format of a QR code.
+use Novis\Image\Format;
+use Novis\Image\Image;
+use Novis\Image\QrCode;
+use Novis\Image\QrLevel;
+
+// `margin` is the width of the white border, counted in squares of the code.
+// `level: QrLevel::High` lets a scanner read the code even when part of it is covered.
+bytes $code = QrCode::render("Shop order 1042", {
+    size: 120,
+    margin: 2,
+    level: QrLevel::High,
+    format: Format::Jpeg,
+});
+
+// This prints 120 by 120 pixels and the JPEG MIME type.
+var $info = Image::info($code);
+echo $info->width, " by ", $info->height, " pixels\n";
+echo Image::mime($info->format), "\n";

@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to make a QR code for a link with the default options.
+use Novis\Image\Image;
+use Novis\Image\QrCode;
+
+bytes $code = QrCode::render("https://example.com/orders/1042");
+
+// The result is a PNG file of 256 by 256 pixels.
+var $info = Image::info($code);
+echo $info->width, " by ", $info->height, " pixels\n";
+echo Image::mime($info->format), "\n";
