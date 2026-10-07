@@ -3,7 +3,8 @@
 //! with an EXIF orientation opens upright unless `autoOrient` is off, a re-encoded JPEG carries
 //! no EXIF block unless the plan keeps it, and every format the roster encodes writes a file the
 //! component reopens (`rule:core-classes/image-format-roster`). Pixel steps run in the order the
-//! plan lists them, and a CMYK input resizes after its conversion. `variants` decodes once and costs
+//! plan lists them, a `composite` step draws the overlay row it names, and a CMYK input resizes
+//! after its conversion. `variants` decodes once and costs
 //! one host-to-guest call whatever its number of plans, as `encode` costs one.
 //!
 //! The tagged inputs are built here from `extensions/image/fixtures/gradient.jpg`, by inserting
@@ -934,5 +935,209 @@ fn each_pixel_step_changes_a_known_pixel_as_documented() {
         1,
     );
     assert!(sharp[0] > 150, "{sharp:?}");
+    block_on(request.end()).expect("the request ends");
+}
+
+/// A list of `steps` as a plan or an overlay carries it.
+fn list(steps: Vec<Value>) -> Value {
+    Value::Array(
+        steps
+            .into_iter()
+            .enumerate()
+            .map(|(at, step)| (Key::Int(i64::try_from(at).unwrap()), step))
+            .collect(),
+    )
+}
+
+/// A plan of `steps` over `overlays`, returning the raw pixels.
+fn layered(steps: Vec<Value>, overlays: Vec<Value>) -> Value {
+    shape(vec![
+        ("steps", list(steps)),
+        ("overlays", list(overlays)),
+        ("output", Value::Case("Raw".to_owned())),
+    ])
+}
+
+/// The overlay row `source` with `steps`.
+fn overlay(source: Value, steps: Vec<Value>) -> Value {
+    shape(vec![("source", source), ("steps", list(steps))])
+}
+
+/// The step `composite` of overlay row `row`, with the options given and `null` for the rest.
+fn composite(row: u64, options: Vec<(&str, Value)>) -> Value {
+    let mut fields = vec![
+        ("overlay", Value::Uint(row)),
+        ("gravity", Value::Null),
+        ("x", Value::Null),
+        ("y", Value::Null),
+        ("opacity", Value::Null),
+        ("blend", Value::Null),
+    ];
+    for (name, value) in options {
+        let at = fields.iter().position(|(key, _)| *key == name).unwrap();
+        fields[at].1 = value;
+    }
+    shape(vec![("composite", shape(fields))])
+}
+
+/// A `composite` step draws its overlay row at `gravity` or at `x` and `y`, clipped to the frame,
+/// with `opacity` and `blend` as `extensions/image/src/ops.rs`'s module doc says; the row runs
+/// its own steps first; and a row that is not before the step, or an opacity over 1, throws
+/// before anything is decoded.
+// covers: Novis\Image\Image::composite
+#[test]
+fn composite_draws_its_overlay_row_where_and_how_the_step_says() {
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let extension = component(&host);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(60), None)));
+    let red = || canvas(4, 4, rgba(255, 0, 0, 1.0));
+    let blue = |size: u64| overlay(canvas(size, size, rgba(0, 0, 255, 1.0)), Vec::new());
+    let draw = |source: Value, steps: Vec<Value>, overlays: Vec<Value>| {
+        run(&request, &extension, source, layered(steps, overlays))
+    };
+
+    let centred = draw(red(), vec![composite(0, Vec::new())], vec![blue(2)]).unwrap();
+    assert_eq!(size_of(&centred), (4, 4));
+    assert_eq!(pixel(&centred, 0, 0), [255, 0, 0, 255]);
+    assert_eq!(pixel(&centred, 1, 1), [0, 0, 255, 255]);
+    assert_eq!(pixel(&centred, 2, 2), [0, 0, 255, 255]);
+    assert_eq!(pixel(&centred, 3, 3), [255, 0, 0, 255]);
+
+    let corner = draw(
+        red(),
+        vec![composite(
+            0,
+            vec![("gravity", Value::Case("SouthEast".to_owned()))],
+        )],
+        vec![blue(2)],
+    )
+    .unwrap();
+    assert_eq!(pixel(&corner, 1, 1), [255, 0, 0, 255]);
+    assert_eq!(pixel(&corner, 3, 3), [0, 0, 255, 255]);
+
+    // At -1, -1 only the overlay's bottom-right pixel lies inside the frame.
+    let clipped = draw(
+        red(),
+        vec![composite(
+            0,
+            vec![("x", Value::Int(-1)), ("y", Value::Int(-1))],
+        )],
+        vec![blue(2)],
+    )
+    .unwrap();
+    assert_eq!(pixel(&clipped, 0, 0), [0, 0, 255, 255]);
+    assert_eq!(pixel(&clipped, 1, 0), [255, 0, 0, 255]);
+    assert_eq!(pixel(&clipped, 0, 1), [255, 0, 0, 255]);
+
+    let half = draw(
+        red(),
+        vec![composite(0, vec![("opacity", Value::Float(0.5))])],
+        vec![blue(4)],
+    )
+    .unwrap();
+    assert!(
+        near(pixel(&half, 0, 0), [128, 0, 128]),
+        "{:?}",
+        pixel(&half, 0, 0)
+    );
+    assert_eq!(pixel(&half, 0, 0)[3], 255);
+
+    // Multiply of 128 grey under 255, 0, 0 is 128, 0, 0; Screen is 255, 128, 128.
+    let grey = || canvas(1, 1, rgba(128, 128, 128, 1.0));
+    let tinted = |blend: &str| {
+        let out = draw(
+            grey(),
+            vec![composite(0, vec![("blend", Value::Case(blend.to_owned()))])],
+            vec![overlay(canvas(1, 1, rgba(255, 0, 0, 1.0)), Vec::new())],
+        )
+        .unwrap();
+        pixel(&out, 0, 0)
+    };
+    assert!(
+        near(tinted("Multiply"), [128, 0, 0]),
+        "{:?}",
+        tinted("Multiply")
+    );
+    assert!(
+        near(tinted("Screen"), [255, 128, 128]),
+        "{:?}",
+        tinted("Screen")
+    );
+    assert!(
+        near(tinted("Darken"), [128, 0, 0]),
+        "{:?}",
+        tinted("Darken")
+    );
+    assert!(
+        near(tinted("Lighten"), [255, 128, 128]),
+        "{:?}",
+        tinted("Lighten")
+    );
+
+    // Over a transparent frame the overlay's own colour shows.
+    let empty = draw(
+        canvas(1, 1, rgba(0, 0, 0, 0.0)),
+        vec![composite(
+            0,
+            vec![("blend", Value::Case("Multiply".to_owned()))],
+        )],
+        vec![overlay(canvas(1, 1, rgba(0, 200, 0, 1.0)), Vec::new())],
+    )
+    .unwrap();
+    assert_eq!(pixel(&empty, 0, 0), [0, 200, 0, 255]);
+
+    // Row 1 resizes itself to 1 by 1 and draws row 0 over itself first.
+    let nested = draw(
+        red(),
+        vec![composite(
+            1,
+            vec![("x", Value::Int(0)), ("y", Value::Int(0))],
+        )],
+        vec![
+            overlay(canvas(1, 1, rgba(0, 255, 0, 1.0)), Vec::new()),
+            overlay(
+                canvas(2, 2, rgba(0, 0, 255, 1.0)),
+                vec![resize(1), composite(0, Vec::new())],
+            ),
+        ],
+    )
+    .unwrap();
+    assert_eq!(pixel(&nested, 0, 0), [0, 255, 0, 255]);
+    assert_eq!(pixel(&nested, 1, 0), [255, 0, 0, 255]);
+
+    let later = draw(red(), vec![composite(1, Vec::new())], vec![blue(2)]);
+    assert!(matches!(later, Err(Failure::Error(_))), "{later:?}");
+    let itself = draw(
+        red(),
+        vec![composite(0, Vec::new())],
+        vec![overlay(
+            canvas(1, 1, rgba(0, 0, 0, 1.0)),
+            vec![composite(0, Vec::new())],
+        )],
+    );
+    assert!(matches!(itself, Err(Failure::Error(_))), "{itself:?}");
+    let opaque = draw(
+        red(),
+        vec![composite(0, vec![("opacity", Value::Float(1.5))])],
+        vec![blue(2)],
+    );
+    assert!(matches!(opaque, Err(Failure::Error(_))), "{opaque:?}");
+
+    // Each row draws the row before it twice, so seven rows are 2^7 = 128 draws: over the limit.
+    let doubling: Vec<Value> = (0..7)
+        .map(|row| {
+            let steps = if row == 0 {
+                Vec::new()
+            } else {
+                vec![
+                    composite(row - 1, Vec::new()),
+                    composite(row - 1, Vec::new()),
+                ]
+            };
+            overlay(canvas(1, 1, rgba(0, 0, 0, 1.0)), steps)
+        })
+        .collect();
+    let bomb = draw(red(), vec![composite(6, Vec::new())], doubling);
+    assert!(matches!(bomb, Err(Failure::Error(_))), "{bomb:?}");
     block_on(request.end()).expect("the request ends");
 }

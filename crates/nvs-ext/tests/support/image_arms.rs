@@ -106,6 +106,7 @@ fn frame() -> Vec<u8> {
 pub(crate) fn native(job: Job, inputs: &Inputs) -> Vec<u8> {
     let raw = |steps| Plan {
         steps,
+        overlays: Vec::new(),
         encoding: Encoding::default(),
         output: Output::Raw,
     };

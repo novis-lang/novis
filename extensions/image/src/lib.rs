@@ -11,9 +11,13 @@
 //! their size or the encoded file (`encode`'s module doc); `variants` makes the frame once and
 //! runs each of its plans on a copy of it. A canvas or a pixel source has no input format, so an
 //! encoded output with no `format` step is PNG, and its size is held to the same pixel cap as a
-//! decode. A `composite` or `text` step, a `text` source and an overlay each return `runtime`
-//! naming what is missing. Every other export returns `runtime` naming it, until the slice of goal
-//! `ext-image` that writes it lands.
+//! decode. A `composite` step names a row of the plan's overlays, each a source and steps of its
+//! own: the row's frame is made and run when the step runs, and drawn over the frame
+//! (`ops::composite`). A row's own `composite` steps name only earlier rows, and one plan draws
+//! at most [`MAX_OVERLAY_DRAWS`] overlays counting every level, both checked before anything is
+//! decoded. A `text` step and a `text` source return `runtime` naming what is missing. Every
+//! other export returns `runtime` naming it, until the slice of goal `ext-image` that writes it
+//! lands.
 
 mod avif;
 mod decode;
@@ -26,6 +30,11 @@ pub use decode::{DEFAULT_MAX_PIXELS, Pixels, decode, sniff};
 pub use encode::{DEFAULT_JPEG_QUALITY, encode};
 pub use info::{Info, info};
 pub use ops::Op;
+
+/// The most overlays one plan draws, counting each draw of a row and every level inside it. An
+/// overlay drawn twice inside one drawn twice is four draws, so this bounds the work a plan of a
+/// few rows could otherwise double at every level.
+pub const MAX_OVERLAY_DRAWS: u64 = 64;
 
 /// What `run` returns, the WIT `output` enum.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -46,13 +55,61 @@ pub struct Encoding {
     pub keep_metadata: bool,
 }
 
-/// A plan without its overlays: the pixel steps in order, how the result is encoded, and what
-/// `run` returns.
+/// A plan: the pixel steps in order, the overlays its `composite` steps name, how the result is
+/// encoded, and what `run` returns.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Plan {
+pub struct Plan<'a> {
     pub steps: Vec<Op>,
+    pub overlays: Vec<Overlay<'a>>,
     pub encoding: Encoding,
     pub output: Output,
+}
+
+/// A row of a plan's overlays: a pipeline of its own, held to `cap` pixels.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Overlay<'a> {
+    pub input: Input<'a>,
+    pub cap: u64,
+    pub steps: Vec<Op>,
+}
+
+/// `Invalid` unless every `composite` step in `steps` names a row before `rows`, and the draws
+/// it makes; `draws[row]` is what drawing that row once costs.
+fn draws(steps: &[Op], rows: usize, draws: &[u64]) -> Result<u64, Error> {
+    let mut total = 0u64;
+    for op in steps {
+        ops::check(op)?;
+        if let Op::Composite(composite) = op {
+            let row = usize::try_from(composite.overlay)
+                .ok()
+                .filter(|&row| row < rows)
+                .ok_or_else(|| {
+                    Error::Invalid(format!(
+                        "`composite` names overlay {}, and only {rows} come before it",
+                        composite.overlay
+                    ))
+                })?;
+            total = total.saturating_add(draws[row]);
+        }
+    }
+    Ok(total)
+}
+
+/// `Invalid` when a step of `plan` or of one of its overlays is out of range, a `composite` step
+/// names a row that is not before it, or the plan draws more than [`MAX_OVERLAY_DRAWS`] overlays.
+fn check(plan: &Plan<'_>) -> Result<(), Error> {
+    let mut costs = Vec::with_capacity(plan.overlays.len());
+    for (row, overlay) in plan.overlays.iter().enumerate() {
+        let cost = draws(&overlay.steps, row, &costs)?.saturating_add(1);
+        costs.push(cost);
+    }
+    let total = draws(&plan.steps, plan.overlays.len(), &costs)?;
+    if total > MAX_OVERLAY_DRAWS {
+        return Err(Error::Invalid(format!(
+            "a plan draws at most {MAX_OVERLAY_DRAWS} overlays, counting the ones inside other overlays, and this one draws {total}"
+        )));
+    }
+    Ok(())
 }
 
 /// Where a pipeline starts: the WIT `source` cases this component runs.
@@ -81,7 +138,7 @@ pub enum Input<'a> {
 
 /// Runs `plan` on `input` under `cap` pixels and returns its output. A format the component does
 /// not encode and a step option out of range return `Invalid` before anything is decoded.
-pub fn run(input: &Input<'_>, cap: u64, plan: &Plan) -> Result<Vec<u8>, Error> {
+pub fn run(input: &Input<'_>, cap: u64, plan: &Plan<'_>) -> Result<Vec<u8>, Error> {
     let mut outs = variants(input, cap, std::slice::from_ref(plan))?;
     Ok(outs.pop().unwrap_or_default())
 }
@@ -90,7 +147,7 @@ pub fn run(input: &Input<'_>, cap: u64, plan: &Plan) -> Result<Vec<u8>, Error> {
 /// in order. Every plan is checked before anything is decoded. Each plan but the last works on
 /// its own copy of the frame, so a call holds two frames at once, and a step that builds its
 /// result beside the frame holds a third while it runs.
-pub fn variants(input: &Input<'_>, cap: u64, plans: &[Plan]) -> Result<Vec<Vec<u8>>, Error> {
+pub fn variants(input: &Input<'_>, cap: u64, plans: &[Plan<'_>]) -> Result<Vec<Vec<u8>>, Error> {
     let format = match *input {
         Input::Encoded { data, .. } => sniff(data)?,
         Input::Canvas { .. } | Input::Pixels { .. } => Format::Png,
@@ -104,7 +161,7 @@ pub fn variants(input: &Input<'_>, cap: u64, plans: &[Plan]) -> Result<Vec<Vec<u
                 "{target:?} is a format the image component decodes and does not encode"
             )));
         }
-        plan.steps.iter().try_for_each(ops::check)?;
+        check(plan)?;
     }
     let Some((last, rest)) = plans.split_last() else {
         return Ok(Vec::new());
@@ -179,10 +236,8 @@ fn frame(input: &Input<'_>, cap: u64) -> Result<Pixels, Error> {
 
 /// `pixels` after `plan`'s steps, returned as its output: encoded in the plan's format, or else
 /// `input`'s, or as the size header with or without the RGBA8 rows behind it.
-fn finish(mut pixels: Pixels, input: Format, plan: &Plan, cap: u64) -> Result<Vec<u8>, Error> {
-    for op in &plan.steps {
-        ops::apply(&mut pixels, *op, cap)?;
-    }
+fn finish(mut pixels: Pixels, input: Format, plan: &Plan<'_>, cap: u64) -> Result<Vec<u8>, Error> {
+    steps(&mut pixels, &plan.steps, &plan.overlays, cap)?;
     let output = plan.output;
     if output == Output::Encoded {
         return encode(pixels, plan.encoding.format.unwrap_or(input), plan.encoding);
@@ -194,6 +249,28 @@ fn finish(mut pixels: Pixels, input: Format, plan: &Plan, cap: u64) -> Result<Ve
         out.extend_from_slice(&pixels.rgba);
     }
     Ok(out)
+}
+
+/// Runs `steps` on `pixels` under `cap`. A `composite` step makes its row of `overlays` from the
+/// row's source, runs the row's steps with the rows before it, and draws the result.
+fn steps(
+    pixels: &mut Pixels,
+    steps: &[Op],
+    overlays: &[Overlay<'_>],
+    cap: u64,
+) -> Result<(), Error> {
+    for op in steps {
+        let Op::Composite(composite) = *op else {
+            ops::apply(pixels, *op, cap)?;
+            continue;
+        };
+        let row = usize::try_from(composite.overlay).expect("`check` held the row to the table");
+        let overlay = &overlays[row];
+        let mut layer = frame(&overlay.input, overlay.cap)?;
+        self::steps(&mut layer, &overlay.steps, &overlays[..row], overlay.cap)?;
+        ops::composite(pixels, &layer, composite);
+    }
+    Ok(())
 }
 
 /// The formats of the WIT `format` enum.
@@ -227,8 +304,8 @@ mod guest {
     });
 
     use exports::nvs::image::codec::{
-        Axis, Color, CompareOptions, Diff, Error, Filter, Fit, Format, Gravity, Guest, HashKind,
-        ImageInfo, Output, PlaceholderKind, Plan, QrOptions, Source, Step,
+        Axis, Blend, Color, CompareOptions, Diff, Error, Filter, Fit, Format, Gravity, Guest,
+        HashKind, ImageInfo, Output, PlaceholderKind, Plan, QrOptions, Source, Step,
     };
 
     use crate::ops::{self, Op};
@@ -383,6 +460,22 @@ mod guest {
                 Axis::Horizontal => ops::Axis::Horizontal,
                 Axis::Vertical => ops::Axis::Vertical,
             })
+        } else if let Some(composite) = &step.composite {
+            Op::Composite(ops::Composite {
+                overlay: composite.overlay,
+                gravity: composite.gravity.map(gravity).unwrap_or_default(),
+                x: composite.x,
+                y: composite.y,
+                opacity: composite.opacity.unwrap_or(1.0),
+                blend: match composite.blend.unwrap_or(Blend::Normal) {
+                    Blend::Normal => ops::Blend::Normal,
+                    Blend::Multiply => ops::Blend::Multiply,
+                    Blend::Screen => ops::Blend::Screen,
+                    Blend::Overlay => ops::Blend::Overlay,
+                    Blend::Darken => ops::Blend::Darken,
+                    Blend::Lighten => ops::Blend::Lighten,
+                },
+            })
         } else if let Some(background) = &step.flatten {
             Op::Flatten(color(background)?)
         } else if let Some(sharpen) = &step.sharpen {
@@ -410,15 +503,37 @@ mod guest {
         Ok(Some(op))
     }
 
-    /// `plan` as the codec core runs it. A `composite` or `text` step and any overlay return
-    /// `runtime` naming what is missing.
-    fn plan(plan: &Plan) -> Result<crate::Plan, Error> {
-        if !plan.overlays.is_empty() {
-            return missing("an overlay");
-        }
+    /// `plan` as the codec core runs it. A `text` step returns `runtime` naming what is missing.
+    fn plan(plan: &Plan) -> Result<crate::Plan<'_>, Error> {
+        let (steps, encoding) = self::steps(&plan.steps)?;
+        let overlays = plan
+            .overlays
+            .iter()
+            .map(|overlay| {
+                let (input, cap) = input(&overlay.source)?;
+                let (steps, _) = self::steps(&overlay.steps)?;
+                Ok(crate::Overlay { input, cap, steps })
+            })
+            .collect::<Result<Vec<_>, Error>>()?;
+        let output = match plan.output {
+            Output::Encoded => crate::Output::Encoded,
+            Output::Raw => crate::Output::Raw,
+            Output::Size => crate::Output::Size,
+        };
+        Ok(crate::Plan {
+            steps,
+            overlays,
+            encoding,
+            output,
+        })
+    }
+
+    /// The pixel steps of `list` in order, and the encoding its `format` and `metadata` steps
+    /// set. An overlay's list is read the same way, and its encoding is not used.
+    fn steps(list: &[Step]) -> Result<(Vec<Op>, crate::Encoding), Error> {
         let mut encoding = crate::Encoding::default();
-        let mut steps = Vec::with_capacity(plan.steps.len());
-        for step in &plan.steps {
+        let mut steps = Vec::with_capacity(list.len());
+        for step in list {
             match operations(step).as_slice() {
                 ["format"] => {
                     if let Some(options) = &step.format {
@@ -441,9 +556,7 @@ mod guest {
                         encoding.keep_metadata = options.keep;
                     }
                 }
-                [operation @ ("composite" | "text")] => {
-                    return missing(&format!("the `{operation}` step"));
-                }
+                ["text"] => return missing("the `text` step"),
                 [_] => steps.extend(op(step)?),
                 set => {
                     return Err(Error::Invalid(format!(
@@ -453,16 +566,7 @@ mod guest {
                 }
             }
         }
-        let output = match plan.output {
-            Output::Encoded => crate::Output::Encoded,
-            Output::Raw => crate::Output::Raw,
-            Output::Size => crate::Output::Size,
-        };
-        Ok(crate::Plan {
-            steps,
-            encoding,
-            output,
-        })
+        Ok((steps, encoding))
     }
 
     impl Guest for Component {

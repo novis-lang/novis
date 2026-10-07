@@ -29,10 +29,20 @@
 //! - `grayscale` is the Rec. 709 luma of the sRGB values. `tint` multiplies each colour channel
 //!   by the tint's, as much as the tint's alpha says. `flatten` composites the frame onto the
 //!   background's colour and leaves it opaque; the background's own alpha is not read.
+//! - `composite` draws an overlay's frame over the frame, clipped to it. `x` and `y` are the
+//!   overlay's top-left corner, either may be negative, and an axis without one is placed at
+//!   `gravity` (default `Center`). `opacity` (0 to 1, default 1) scales the overlay's alpha.
+//!   `blend` mixes each colour channel `b` below with `s` above, all from 0 to 1: `Normal` is `s`,
+//!   `Multiply` is `b·s`, `Screen` is `b + s − b·s`, `Overlay` is `2·b·s` where `b ≤ 0.5` and
+//!   `1 − 2·(1 − b)·(1 − s)` elsewhere, `Darken` the smaller and `Lighten` the larger. The mixed
+//!   colour then goes over the frame by source-over (the W3C compositing model), so where the
+//!   frame is transparent the overlay's own colour shows, and the alpha is `a + b·(1 − a)`. The
+//!   overlay is its own pipeline, made by the plan (`crate::variants`).
 //!
 //! Memory: `resize`, `rotate`, `crop` and `trim` build the result beside the frame, and `blur`
-//! and `sharpen` hold one intermediate frame, so a step holds at most two frames at once. The
-//! rest work in place.
+//! and `sharpen` hold one intermediate frame, so a step holds at most two frames at once.
+//! `composite` holds the overlay's frame beside the frame, and an overlay that composites
+//! another holds one frame more per level. The rest work in place.
 
 use fast_image_resize as fr;
 
@@ -104,6 +114,44 @@ pub enum Axis {
     Vertical,
 }
 
+/// How a `composite` mixes the overlay's colour with the frame's.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Blend {
+    #[default]
+    Normal,
+    Multiply,
+    Screen,
+    Overlay,
+    Darken,
+    Lighten,
+}
+
+impl Blend {
+    /// The mixed channel for `below` under `above`, each from 0 to 1.
+    fn mix(self, below: f32, above: f32) -> f32 {
+        match self {
+            Blend::Normal => above,
+            Blend::Multiply => below * above,
+            Blend::Screen => below + above - below * above,
+            Blend::Overlay if below <= 0.5 => 2.0 * below * above,
+            Blend::Overlay => 1.0 - 2.0 * (1.0 - below) * (1.0 - above),
+            Blend::Darken => below.min(above),
+            Blend::Lighten => below.max(above),
+        }
+    }
+}
+
+/// A `composite` step: where the plan's overlay row `overlay` is drawn, and how.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct Composite {
+    pub overlay: u64,
+    pub gravity: Gravity,
+    pub x: Option<i64>,
+    pub y: Option<i64>,
+    pub opacity: f64,
+    pub blend: Blend,
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Resize {
     pub width: Option<u64>,
@@ -132,6 +180,8 @@ pub enum Op {
         background: [u8; 4],
     },
     Flip(Axis),
+    /// Run by the plan, which makes the overlay's frame and hands it to [`composite`].
+    Composite(Composite),
     Flatten([u8; 4]),
     Sharpen {
         sigma: f64,
@@ -198,6 +248,13 @@ pub fn check(op: &Op) -> Result<(), Error> {
             format!("`trim` needs a threshold of 0 to 255, and was given {threshold}"),
         )),
         Op::Trim { .. } => Ok(()),
+        Op::Composite(composite) if !(0.0..=1.0).contains(&composite.opacity) => {
+            Err(Error::Invalid(format!(
+                "`composite` needs an opacity of 0 to 1, and was given {}",
+                composite.opacity
+            )))
+        }
+        Op::Composite(_) => Ok(()),
         Op::Rotate { degrees, .. } => bounded("rotate", degrees, f64::MIN, false),
         Op::Sharpen { sigma } => bounded("sharpen", sigma, 0.0, true),
         Op::Blur { sigma } => bounded("blur", sigma, 0.0, true),
@@ -244,6 +301,9 @@ pub fn apply(pixels: &mut Pixels, op: Op, cap: u64) -> Result<(), Error> {
             flip(pixels, axis);
             Ok(())
         }
+        Op::Composite(_) => Err(Error::Invalid(
+            "a `composite` step runs only inside a plan, which has its overlays".to_owned(),
+        )),
         Op::Flatten(background) => {
             for px in pixels.rgba.chunks_exact_mut(4) {
                 let alpha = f32::from(px[3]) / 255.0;
@@ -293,6 +353,52 @@ pub fn apply(pixels: &mut Pixels, op: Op, cap: u64) -> Result<(), Error> {
                 }
             }
             Ok(())
+        }
+    }
+}
+
+/// Draws `overlay` over `pixels` where `options` places it, clipped to `pixels`.
+pub fn composite(pixels: &mut Pixels, overlay: &Pixels, options: Composite) {
+    let (share_x, share_y) = options.gravity.shares();
+    let at = |given: Option<i64>, size: u32, inner: u32, share: f64| {
+        given.unwrap_or_else(|| ((f64::from(size) - f64::from(inner)) * share).round() as i64)
+    };
+    let left = at(options.x, pixels.width, overlay.width, share_x);
+    let top = at(options.y, pixels.height, overlay.height, share_y);
+    let opacity = options.opacity as f32;
+    let width = usize::try_from(pixels.width).expect("a u32 fits in a usize");
+    let inner = usize::try_from(overlay.width).expect("a u32 fits in a usize");
+    for (row, line) in overlay.rgba.chunks_exact(inner * 4).enumerate() {
+        let Ok(y) = u32::try_from(top + row as i64) else {
+            continue;
+        };
+        if y >= pixels.height {
+            break;
+        }
+        for (column, above) in line.chunks_exact(4).enumerate() {
+            let Ok(x) = u32::try_from(left + column as i64) else {
+                continue;
+            };
+            if x >= pixels.width {
+                break;
+            }
+            let at = (y as usize * width + x as usize) * 4;
+            let below = &mut pixels.rgba[at..at + 4];
+            let a = f32::from(above[3]) / 255.0 * opacity;
+            let b = f32::from(below[3]) / 255.0;
+            let out = a + b * (1.0 - a);
+            if out == 0.0 {
+                below.fill(0);
+                continue;
+            }
+            for c in 0..3 {
+                let s = f32::from(above[c]) / 255.0;
+                let d = f32::from(below[c]) / 255.0;
+                let mixed = options.blend.mix(d, s);
+                let premultiplied = a * (1.0 - b) * s + a * b * mixed + (1.0 - a) * b * d;
+                below[c] = to_u8(premultiplied / out * 255.0);
+            }
+            below[3] = to_u8(out * 255.0);
         }
     }
 }
