@@ -5,12 +5,14 @@
 //! tests run under an ordinary `cargo test` in this directory. The WIT glue in `guest` is compiled
 //! only for a wasm target, and maps each export onto the core and the core's types onto WIT's.
 //!
-//! `info`, `run` and `variants` are the exports that are implemented. `run` decodes encoded bytes
-//! (`decode`'s module doc), runs the plan's pixel steps on the frame in order (`ops`'s module
-//! doc), and returns the pixels, their size or the encoded file (`encode`'s module doc);
-//! `variants` decodes once and runs each of its plans on a copy of that frame. A `composite` or
-//! `text` step, a source other than encoded bytes and an overlay each return `runtime` naming
-//! what is missing. Every other export returns `runtime` naming it, until the slice of goal
+//! `info`, `run` and `variants` are the exports that are implemented. `run` starts from an
+//! [`Input`] — encoded bytes it decodes (`decode`'s module doc), a blank canvas or RGBA8 rows —
+//! runs the plan's pixel steps on the frame in order (`ops`'s module doc), and returns the pixels,
+//! their size or the encoded file (`encode`'s module doc); `variants` makes the frame once and
+//! runs each of its plans on a copy of it. A canvas or a pixel source has no input format, so an
+//! encoded output with no `format` step is PNG, and its size is held to the same pixel cap as a
+//! decode. A `composite` or `text` step, a `text` source and an overlay each return `runtime`
+//! naming what is missing. Every other export returns `runtime` naming it, until the slice of goal
 //! `ext-image` that writes it lands.
 
 mod avif;
@@ -53,35 +55,40 @@ pub struct Plan {
     pub output: Output,
 }
 
-/// Runs `plan` on the encoded `data`: decodes it under `cap` pixels, applying the EXIF
-/// orientation when `auto_orient` is set and converting an embedded ICC profile to sRGB when
-/// `to_srgb` is, runs the plan's steps, and returns its output. A format the component does not
-/// encode and a step option out of range return `Invalid` before anything is decoded.
-pub fn run(
-    data: &[u8],
-    cap: u64,
-    auto_orient: bool,
-    to_srgb: bool,
-    plan: &Plan,
-) -> Result<Vec<u8>, Error> {
-    let mut outs = variants(data, cap, auto_orient, to_srgb, std::slice::from_ref(plan))?;
+/// Where a pipeline starts: the WIT `source` cases this component runs.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Input<'a> {
+    /// Encoded bytes, decoded with the EXIF orientation applied when `auto_orient` is set and an
+    /// embedded ICC profile converted to sRGB when `to_srgb` is.
+    Encoded {
+        data: &'a [u8],
+        auto_orient: bool,
+        to_srgb: bool,
+    },
+    /// A blank canvas in one colour.
+    Canvas { width: u64, height: u64, fill: [u8; 4] },
+    /// RGBA8 rows, four bytes per pixel.
+    Pixels { width: u64, height: u64, rgba: &'a [u8] },
+}
+
+/// Runs `plan` on `input` under `cap` pixels and returns its output. A format the component does
+/// not encode and a step option out of range return `Invalid` before anything is decoded.
+pub fn run(input: &Input<'_>, cap: u64, plan: &Plan) -> Result<Vec<u8>, Error> {
+    let mut outs = variants(input, cap, std::slice::from_ref(plan))?;
     Ok(outs.pop().unwrap_or_default())
 }
 
-/// Runs each of `plans` as `run` does, on one decode of `data`, and returns their outputs in
-/// order. Every plan is checked before anything is decoded. Each plan but the last works on its
-/// own copy of the frame, so a call holds two frames at once, and a step that builds its result
-/// beside the frame holds a third while it runs.
-pub fn variants(
-    data: &[u8],
-    cap: u64,
-    auto_orient: bool,
-    to_srgb: bool,
-    plans: &[Plan],
-) -> Result<Vec<Vec<u8>>, Error> {
-    let input = sniff(data)?;
+/// Runs each of `plans` as `run` does, on one frame made from `input`, and returns their outputs
+/// in order. Every plan is checked before anything is decoded. Each plan but the last works on
+/// its own copy of the frame, so a call holds two frames at once, and a step that builds its
+/// result beside the frame holds a third while it runs.
+pub fn variants(input: &Input<'_>, cap: u64, plans: &[Plan]) -> Result<Vec<Vec<u8>>, Error> {
+    let format = match *input {
+        Input::Encoded { data, .. } => sniff(data)?,
+        Input::Canvas { .. } | Input::Pixels { .. } => Format::Png,
+    };
     for plan in plans {
-        let target = plan.encoding.format.unwrap_or(input);
+        let target = plan.encoding.format.unwrap_or(format);
         if plan.output == Output::Encoded
             && matches!(target, Format::Jxl | Format::Svg | Format::Pdf)
         {
@@ -94,13 +101,72 @@ pub fn variants(
     let Some((last, rest)) = plans.split_last() else {
         return Ok(Vec::new());
     };
-    let pixels = decode(data, cap, auto_orient, to_srgb)?;
+    let pixels = frame(input, cap)?;
     let mut outs = Vec::with_capacity(plans.len());
     for plan in rest {
-        outs.push(finish(pixels.clone(), input, plan, cap)?);
+        outs.push(finish(pixels.clone(), format, plan, cap)?);
     }
-    outs.push(finish(pixels, input, last, cap)?);
+    outs.push(finish(pixels, format, last, cap)?);
     Ok(outs)
+}
+
+/// The frame `input` starts from, held to `cap` pixels. A canvas or a pixel source with no pixel
+/// returns `Invalid`, and so does a pixel source whose rows are not `width` by `height` by four
+/// bytes.
+fn frame(input: &Input<'_>, cap: u64) -> Result<Pixels, Error> {
+    let size = |width: u64, height: u64| -> Result<(u32, u32, usize), Error> {
+        if width == 0 || height == 0 {
+            return Err(Error::Invalid(format!(
+                "an image of {width}x{height} has no pixel"
+            )));
+        }
+        decode::check(width, height, cap)?;
+        let too_big = || Error::Invalid(format!("an image of {width}x{height} is too big"));
+        let w = u32::try_from(width).map_err(|_| too_big())?;
+        let h = u32::try_from(height).map_err(|_| too_big())?;
+        let count = usize::try_from(width * height).map_err(|_| too_big())?;
+        Ok((w, h, count))
+    };
+    match *input {
+        Input::Encoded {
+            data,
+            auto_orient,
+            to_srgb,
+        } => decode(data, cap, auto_orient, to_srgb),
+        Input::Canvas {
+            width,
+            height,
+            fill,
+        } => {
+            let (width, height, count) = size(width, height)?;
+            Ok(Pixels {
+                width,
+                height,
+                rgba: fill.repeat(count),
+                exif: None,
+            })
+        }
+        Input::Pixels {
+            width,
+            height,
+            rgba,
+        } => {
+            let (w, h, count) = size(width, height)?;
+            if rgba.len() / 4 != count || rgba.len() % 4 != 0 {
+                return Err(Error::Invalid(format!(
+                    "{} bytes are not the RGBA8 rows of an image of {width}x{height}, which are {} bytes",
+                    rgba.len(),
+                    count.saturating_mul(4)
+                )));
+            }
+            Ok(Pixels {
+                width: w,
+                height: h,
+                rgba: rgba.to_vec(),
+                exif: None,
+            })
+        }
+    }
 }
 
 /// `pixels` after `plan`'s steps, returned as its output: encoded in the plan's format, or else
@@ -216,6 +282,38 @@ mod guest {
 
     fn color(color: &Color) -> Result<[u8; 4], Error> {
         ops::color(color.r, color.g, color.b, color.alpha).map_err(error)
+    }
+
+    /// The core's input for `source`, and the pixel cap it is held to: the source's own
+    /// `max-pixels` for encoded bytes, and the default for a canvas or pixels.
+    fn input(source: &Source) -> Result<(crate::Input<'_>, u64), Error> {
+        Ok(match source {
+            Source::Encoded(source) => (
+                crate::Input::Encoded {
+                    data: &source.data,
+                    auto_orient: source.auto_orient,
+                    to_srgb: source.to_srgb,
+                },
+                source.max_pixels.unwrap_or(crate::DEFAULT_MAX_PIXELS),
+            ),
+            Source::Canvas(canvas) => (
+                crate::Input::Canvas {
+                    width: canvas.width,
+                    height: canvas.height,
+                    fill: color(&canvas.fill)?,
+                },
+                crate::DEFAULT_MAX_PIXELS,
+            ),
+            Source::Pixels(pixels) => (
+                crate::Input::Pixels {
+                    width: pixels.width,
+                    height: pixels.height,
+                    rgba: &pixels.pixels,
+                },
+                crate::DEFAULT_MAX_PIXELS,
+            ),
+            Source::Text(_) => return missing("a `text` source"),
+        })
     }
 
     fn gravity(gravity: Gravity) -> ops::Gravity {
@@ -375,28 +473,15 @@ mod guest {
         }
 
         fn run(source: Source, plan: Plan) -> Result<Vec<u8>, Error> {
-            let Source::Encoded(source) = source else {
-                return missing("a source other than encoded bytes");
-            };
             let plan = self::plan(&plan)?;
-            let cap = source.max_pixels.unwrap_or(crate::DEFAULT_MAX_PIXELS);
-            crate::run(&source.data, cap, source.auto_orient, source.to_srgb, &plan).map_err(error)
+            let (input, cap) = input(&source)?;
+            crate::run(&input, cap, &plan).map_err(error)
         }
 
         fn variants(source: Source, plans: Vec<Plan>) -> Result<Vec<Vec<u8>>, Error> {
-            let Source::Encoded(source) = source else {
-                return missing("a source other than encoded bytes");
-            };
             let plans = plans.iter().map(plan).collect::<Result<Vec<_>, _>>()?;
-            let cap = source.max_pixels.unwrap_or(crate::DEFAULT_MAX_PIXELS);
-            crate::variants(
-                &source.data,
-                cap,
-                source.auto_orient,
-                source.to_srgb,
-                &plans,
-            )
-            .map_err(error)
+            let (input, cap) = input(&source)?;
+            crate::variants(&input, cap, &plans).map_err(error)
         }
 
         fn compare(_a: Vec<u8>, _b: Vec<u8>, _options: CompareOptions) -> Result<Diff, Error> {

@@ -239,7 +239,13 @@ fn jpeg_xl_decodes_and_does_not_encode() {
     );
     let to_jxl = shape(vec![(
         "format",
-        shape(vec![("format", Value::Case("Jxl".to_owned()))]),
+        shape(vec![
+            ("format", Value::Case("Jxl".to_owned())),
+            ("quality", Value::Null),
+            ("progressive", Value::Null),
+            ("lossless", Value::Null),
+            ("effort", Value::Null),
+        ]),
     )]);
     let refused = expect_error(run(
         &request,

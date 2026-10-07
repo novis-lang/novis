@@ -90,16 +90,19 @@ fn plan(steps: Vec<Value>, output: &str) -> Value {
     ])
 }
 
-/// The step `format(Format::<format>, {...})`, with `quality` and `lossless` when they are given.
+/// The step `format(Format::<format>, {...})`, with `quality` and `lossless` when they are given
+/// and `null` when they are not.
 fn format_step(format: &str, quality: Option<u64>, lossless: Option<bool>) -> Value {
-    let mut options = vec![("format", Value::Case(format.to_owned()))];
-    if let Some(quality) = quality {
-        options.push(("quality", Value::Uint(quality)));
-    }
-    if let Some(lossless) = lossless {
-        options.push(("lossless", Value::Bool(lossless)));
-    }
-    shape(vec![("format", shape(options))])
+    shape(vec![(
+        "format",
+        shape(vec![
+            ("format", Value::Case(format.to_owned())),
+            ("quality", quality.map_or(Value::Null, Value::Uint)),
+            ("progressive", Value::Null),
+            ("lossless", lossless.map_or(Value::Null, Value::Bool)),
+            ("effort", Value::Null),
+        ]),
+    )])
 }
 
 /// The `Format` case `file` is in, read from its signature.
@@ -170,7 +173,10 @@ fn resize(width: u64) -> Value {
 fn rotate(degrees: f64) -> Value {
     shape(vec![(
         "rotate",
-        shape(vec![("degrees", Value::Float(degrees))]),
+        shape(vec![
+            ("degrees", Value::Float(degrees)),
+            ("background", Value::Null),
+        ]),
     )])
 }
 
