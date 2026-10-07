@@ -215,6 +215,7 @@ Conventions the whole file uses:
 | [`Core\Queue\Id`](#core-core-queue-id) |  |
 | [`Core\Queue\Stats`](#core-core-queue-stats) |  |
 | [`Novis\Image\Color`](#core-novis-image-color) |  |
+| [`Novis\Image\Diff`](#core-novis-image-diff) |  |
 | [`Novis\Image\Image`](#core-novis-image-image) | open, resize, crop and convert images, with nothing decoded until the result is written |
 | [`Novis\Image\Codec`](#core-novis-image-codec) |  |
 | [`Core` enums](#core-enums) | every enum a member takes, with its cases |
@@ -26260,10 +26261,28 @@ The `#` is optional. Any other text throws a `LogicError`.
 
 **Returns** `Color`
 
+<a id="core-novis-image-diff"></a>
+### `Novis\Image\Diff`
+
+Keywords: constructor
+
+| Member | Signature |
+|---|---|
+| [`Novis\Image\Diff::constructor`](#core-novis-image-diff-constructor) | `constructor(bool $identical, uint $differingPixels, uint $maxDelta, float $ssim, ?bytes $diff)` |
+
+<a id="core-novis-image-diff-constructor"></a>
+#### `Novis\Image\Diff::constructor`
+
+```nvs skip
+new Novis\Image\Diff(bool $identical, uint $differingPixels, uint $maxDelta, float $ssim, ?bytes $diff)
+```
+
+`new Diff` makes a result from its five values. `Image::compare` makes one for you.
+
 <a id="core-novis-image-image"></a>
 ### `Novis\Image\Image`
 
-Keywords: image, gd, imagick, imagecreatefromstring, imagecopyresampled, imagejpeg, imagepng, imagewebp, getimagesize, thumbnail, resize, crop, rotate, convert, jpeg, png, webp, open, create, fromRaw, info, mime, extension, resize, crop, trim, rotate, flip, composite, flatten, sharpen, blur, grayscale, brightness, contrast, gamma, tint, format, metadata, encode, raw, variants
+Keywords: image, gd, imagick, imagecreatefromstring, imagecopyresampled, imagejpeg, imagepng, imagewebp, getimagesize, thumbnail, resize, crop, rotate, convert, jpeg, png, webp, open, create, fromRaw, info, mime, extension, resize, crop, trim, rotate, flip, composite, flatten, sharpen, blur, grayscale, brightness, contrast, gamma, tint, format, metadata, encode, raw, variants, compare
 
 `Novis\Image\Image` is an image and a list of steps to run on it. Each step method, such as
 `resize`, `crop` or `format`, returns a new `Image` and does not change the old one. No pixel is
@@ -26319,6 +26338,7 @@ image/jpeg 6x4
 | [`Novis\Image\Image->encode`](#core-novis-image-image-encode) | `encode(): bytes` |
 | [`Novis\Image\Image->raw`](#core-novis-image-image-raw) | `raw(): Raw` |
 | [`Novis\Image\Image->variants`](#core-novis-image-image-variants) | `variants(array<Variant> $set): array<bytes>` |
+| [`Novis\Image\Image::compare`](#core-novis-image-image-compare) | `compare(bytes\|Image $a, bytes\|Image $b, ?{tolerance?: uint, render?: bool} $options = null): Diff` |
 
 <a id="core-novis-image-image-open"></a>
 #### `Novis\Image\Image::open`
@@ -26609,16 +26629,29 @@ An entry may resize the image and choose its own format and quality.
 
 **Returns** `array<bytes>`
 
+<a id="core-novis-image-image-compare"></a>
+#### `Novis\Image\Image::compare`
+
+```nvs skip
+Novis\Image\Image::compare(bytes|Image $a, bytes|Image $b, ?{tolerance?: uint, render?: bool} $options = null): Diff
+```
+
+`Image::compare` compares two images of the same size and returns a `Diff`. Other sizes throw a `LogicError`.
+A pixel differs when its delta is above `tolerance`, which is 0 by default.
+
+**Returns** `Diff`
+
 <a id="core-novis-image-codec"></a>
 ### `Novis\Image\Codec`
 
-Keywords: info, run, variants
+Keywords: info, run, variants, compare
 
 | Member | Signature |
 |---|---|
 | [`Novis\Image\Codec::info`](#core-novis-image-codec-info) | `info(bytes $data): {format: Format, width: uint, height: uint, hasAlpha: bool, frames: uint, orientation: uint, exif: ?array<string, string>, hasIcc: bool}` |
 | [`Novis\Image\Codec::run`](#core-novis-image-codec-run) | `run(Source $source, {steps: array<{resize?: {width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool}, crop?: {x: uint, y: uint, width: uint, height: uint}, trim?: {threshold?: float}, rotate?: {degrees: float, background: ?{r: uint, g: uint, b: uint, alpha: float}}, flip?: Axis, composite?: {overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend}, flatten?: {r: uint, g: uint, b: uint, alpha: float}, sharpen?: {sigma?: float}, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: {r: uint, g: uint, b: uint, alpha: float}, text?: {text: string, font: bytes, size: float, color: {r: uint, g: uint, b: uint, alpha: float}, gravity?: Gravity, x?: int, y?: int, maxWidth?: uint, align?: Align}, format?: {format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint}, metadata?: {keep: bool}}>, overlays: array<{source: Source, steps: array<{resize?: {width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool}, crop?: {x: uint, y: uint, width: uint, height: uint}, trim?: {threshold?: float}, rotate?: {degrees: float, background: ?{r: uint, g: uint, b: uint, alpha: float}}, flip?: Axis, composite?: {overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend}, flatten?: {r: uint, g: uint, b: uint, alpha: float}, sharpen?: {sigma?: float}, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: {r: uint, g: uint, b: uint, alpha: float}, text?: {text: string, font: bytes, size: float, color: {r: uint, g: uint, b: uint, alpha: float}, gravity?: Gravity, x?: int, y?: int, maxWidth?: uint, align?: Align}, format?: {format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint}, metadata?: {keep: bool}}>}>, output: Output} $plan): bytes` |
 | [`Novis\Image\Codec::variants`](#core-novis-image-codec-variants) | `variants(Source $source, array<{steps: array<{resize?: {width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool}, crop?: {x: uint, y: uint, width: uint, height: uint}, trim?: {threshold?: float}, rotate?: {degrees: float, background: ?{r: uint, g: uint, b: uint, alpha: float}}, flip?: Axis, composite?: {overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend}, flatten?: {r: uint, g: uint, b: uint, alpha: float}, sharpen?: {sigma?: float}, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: {r: uint, g: uint, b: uint, alpha: float}, text?: {text: string, font: bytes, size: float, color: {r: uint, g: uint, b: uint, alpha: float}, gravity?: Gravity, x?: int, y?: int, maxWidth?: uint, align?: Align}, format?: {format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint}, metadata?: {keep: bool}}>, overlays: array<{source: Source, steps: array<{resize?: {width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool}, crop?: {x: uint, y: uint, width: uint, height: uint}, trim?: {threshold?: float}, rotate?: {degrees: float, background: ?{r: uint, g: uint, b: uint, alpha: float}}, flip?: Axis, composite?: {overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend}, flatten?: {r: uint, g: uint, b: uint, alpha: float}, sharpen?: {sigma?: float}, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: {r: uint, g: uint, b: uint, alpha: float}, text?: {text: string, font: bytes, size: float, color: {r: uint, g: uint, b: uint, alpha: float}, gravity?: Gravity, x?: int, y?: int, maxWidth?: uint, align?: Align}, format?: {format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint}, metadata?: {keep: bool}}>}>, output: Output}> $plans): array<bytes>` |
+| [`Novis\Image\Codec::compare`](#core-novis-image-codec-compare) | `compare(bytes $a, bytes $b, {tolerance: ?uint, render: bool} $options): {identical: bool, differingPixels: uint, maxDelta: uint, ssim: float, diff: ?bytes}` |
 
 <a id="core-novis-image-codec-info"></a>
 #### `Novis\Image\Codec::info`
@@ -26666,6 +26699,23 @@ Decodes a source once and runs each pipeline on it. Returns one result per pipel
 | `$plans` | `array<{steps: array<{resize?: {width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool}, crop?: {x: uint, y: uint, width: uint, height: uint}, trim?: {threshold?: float}, rotate?: {degrees: float, background: ?{r: uint, g: uint, b: uint, alpha: float}}, flip?: Axis, composite?: {overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend}, flatten?: {r: uint, g: uint, b: uint, alpha: float}, sharpen?: {sigma?: float}, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: {r: uint, g: uint, b: uint, alpha: float}, text?: {text: string, font: bytes, size: float, color: {r: uint, g: uint, b: uint, alpha: float}, gravity?: Gravity, x?: int, y?: int, maxWidth?: uint, align?: Align}, format?: {format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint}, metadata?: {keep: bool}}>, overlays: array<{source: Source, steps: array<{resize?: {width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool}, crop?: {x: uint, y: uint, width: uint, height: uint}, trim?: {threshold?: float}, rotate?: {degrees: float, background: ?{r: uint, g: uint, b: uint, alpha: float}}, flip?: Axis, composite?: {overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend}, flatten?: {r: uint, g: uint, b: uint, alpha: float}, sharpen?: {sigma?: float}, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: {r: uint, g: uint, b: uint, alpha: float}, text?: {text: string, font: bytes, size: float, color: {r: uint, g: uint, b: uint, alpha: float}, gravity?: Gravity, x?: int, y?: int, maxWidth?: uint, align?: Align}, format?: {format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint}, metadata?: {keep: bool}}>}>, output: Output}>` |  |
 
 **Returns** `array<bytes>`
+
+<a id="core-novis-image-codec-compare"></a>
+#### `Novis\Image\Codec::compare`
+
+```nvs skip
+Novis\Image\Codec::compare(bytes $a, bytes $b, {tolerance: ?uint, render: bool} $options): {identical: bool, differingPixels: uint, maxDelta: uint, ssim: float, diff: ?bytes}
+```
+
+Decodes two encoded images of the same size and compares their pixels. Two images of different sizes throw a `LogicError`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$a` | `bytes` |  |
+| `$b` | `bytes` |  |
+| `$options` | `{tolerance: ?uint, render: bool}` |  |
+
+**Returns** `{identical: bool, differingPixels: uint, maxDelta: uint, ssim: float, diff: ?bytes}`
 
 <a id="core-enums"></a>
 ### `Core` enums

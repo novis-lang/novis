@@ -1,34 +1,35 @@
 {
-  "state": "**Goal `ext-image-analysis` — `Novis\\Image` compares, hashes, summarises and draws — has just started; nothing of it has landed yet.** Stage 1's floor is whatever the chain carries; after goal `goal-closeout` that is nothing.\n\nThe design is ADR 0120 §§ 8 and 9, and the goal file's § *Standing decisions* answers every call a session meets, the crates included. No session re-decides one.\n\nWhat goal `ext-image` left and this goal stands on: the crate `extensions/image/` and its build and embedding, the builder source in `extensions/image/nvs/`, every decoder and encoder, the pixel cap, the per-instance crossing counter, the roster's `novis/` paths, and `docs/reference/novis/Image.md`. Goal `ext-design`'s `wit/image.wit` already declares the `compare`, `hash`, `placeholder`, `palette` and `qr` exports, and its test list says where `hashDistance` and `measureText` run: read that list before Stage 3 and Stage 5. `crates/nvs-ext` did not exist when the goal was written, so the goal's `context` names no module in it: add the files you read with `bun nv goal context --add`.",
+  "state": "**Goal `ext-image-analysis` — `Novis\\Image` compares, hashes, summarises and draws. Stage 2, comparison, is on disk; Stages 3 to 5 are not.**\n\nThe design is ADR 0120 §§ 8 and 9, and the goal file's § *Standing decisions* answers every call a session meets, the crates included. No session re-decides one.\n\nComparison: the component's `compare` export (`extensions/image/src/compare.rs`, whose module doc defines the delta, the SSIM and the rendered diff), the manifest's `Codec::compare`, `Image::compare` and `Diff` (`extensions/image/nvs/`), the host checks in `crates/nvs-ext/tests/image_analysis.rs` (ADR 0120 *Verification*'s compare fixture, the size refusal, `tolerance`, `render`) and `tests/conformance/novis/image-compare-counts-the-pixels-that-differ.nvst`. `rule:core-classes/image-one-entry-point-per-job`'s *Not shipped* paragraph says what is on disk. The component's own unit tests run with `cargo test --lib` inside `extensions/image/`, a workspace of its own.\n\n`crates/nvs-ext` did not exist when the goal was written, so the goal's `context` names no module in it: add the files you read with `bun nv goal context --add`.",
   "next": {
-    "stage": 2,
-    "title": "comparison",
+    "stage": 3,
+    "title": "hashes, placeholders, palette",
     "files": [
-      "extensions/image/src/compare.rs",
+      "extensions/image/src/lib.rs",
+      "extensions/image/src/hash.rs",
+      "extensions/image/Cargo.toml",
+      "extensions/image/manifest.json",
       "extensions/image/nvs/Image.nvs",
-      "extensions/image/nvs/Diff.nvs",
       "crates/nvs-ext/tests/image_analysis.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**The `compare` export** (`rule:core-classes/image-one-entry-point-per-job`, ADR 0120 § 8) — `extensions/image/src/compare.rs`: decode both, a size mismatch is `err(invalid(…))` naming both sizes, then `identical`, `differingPixels` over `tolerance`, `maxDelta`, an SSIM written in the component (`dssim` is AGPL), and a PNG marking the differing pixels with `render`."
+        "text": "**The `hash` export** (`rule:core-classes/image-one-entry-point-per-job`, ADR 0120 § 8) — new `extensions/image/src/hash.rs` wired in at `extensions/image/src/lib.rs:666`: `Perceptual`, `Difference` and `Average`, each a hash of a fixed length, through `image_hasher` or the goal's fallback when it does not build for `wasm32-wasip2`; follow `compare.rs`'s split of a core function over `Pixels` with host unit tests."
       },
       {
         "done": false,
-        "text": "**The builder member and `Diff`** — `Image::compare(bytes|Image $a, bytes|Image $b, {tolerance?, render?}): Diff` in `extensions/image/nvs/Image.nvs`; an `Image` argument is run to PNG by its own pipeline first; `Diff` in `extensions/image/nvs/Diff.nvs` has readonly properties."
+        "text": "**`Image::hash`, `Image::hashDistance`, `HashKind`** — `extensions/image/nvs/Image.nvs:295` beside `compare`, a `hash` entry in `extensions/image/manifest.json`; `hashDistance` runs where `wit/image.wit`'s test list places it, and hashes of two lengths throw a `LogicError`."
       },
       {
         "done": false,
-        "text": "**The Stage 2 checks** — `crates/nvs-ext/tests/image_analysis.rs` (the compare fixture of ADR 0120 *Verification*, then the refusal, `render`, `tolerance` and the run-once test), with images built by `create` and `encode` rather than fixture files; and the three cases under `tests/conformance/novis/`."
+        "text": "**The hash checks** — `crates/nvs-ext/tests/image_analysis.rs:196`, after the compare checks: a fixed length per kind, distance 0 for one image, small for a resized copy."
       }
     ]
   },
   "backlog": [
-    "Stage 3: hashes, placeholders and palette — `extensions/image/src/hash.rs`, `placeholder.rs`, `palette.rs`, `HashKind.nvs`, `PlaceholderKind.nvs`; shares `Image.nvs` and `image_analysis.rs` with Stage 2.",
-    "Stage 4: `QrCode::render` — `extensions/image/src/qr.rs`, `QrCode.nvs`, `QrLevel.nvs`; `rqrr` as a dev-dependency of `nvs-ext`.",
-    "Stage 5: text — `extensions/image/src/text.rs`, `Font.nvs`, `Align.nvs`, the OFL fixture font under `extensions/image/fixtures/font/`.",
-    "Stage 6: the feature proofs for every member this goal added — `docs/agent/goals/ext-image-analysis.md`.",
-    "When this goal's last check goes green the driver takes goal `ext-intl`."
+    "`placeholder` and `palette` exports (goal Stage 3, `extensions/image/src/lib.rs:670`), after the hashes.",
+    "QR codes (goal Stage 4), text and `measureText` (goal Stage 5).",
+    "`Image::compare`'s feature proofs: `bun nv proofs --id 'Novis\\Image\\Image::compare'` names what it owes (`rule:testing/feature-proofs`); not checked this session.",
+    "Builder doc comments in `extensions/image/nvs/Image.nvs` from goal `ext-image` exceed `bun nv proofs --comments`' two-line bound at lines 55, 118 and 158."
   ]
 }
