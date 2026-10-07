@@ -1,26 +1,29 @@
 {
-  "state": "**Goal `ext-intl`, Stage 4: one check is left. The plural agreement test with `Core\\Cldr` still fails, now only because ICU4X has no data for some languages.** `format-numbers` (`extensions/intl/src/numbers.rs`) and `plural-categories` (`extensions/intl/src/plurals.rs`) are implemented, and both Stage 4 cases pass. `Core\\Cldr` now follows CLDR 46 for `ro` cardinal, `is` cardinal, `scn` cardinal and ordinal (new `OrdinalSet::Ligurian`), the `gd` ordinal (new `OrdinalSet::ScottishGaelic`), the `lij` ordinal and the `az` ordinal on fractions (it reads `i`). `tests/conformance/core/cldr-plural-and-ordinal-rules-follow-current-cldr.nvst` pins one row for each.\n\n`plural_rules_agree_with_core_cldr_on_its_whole_roster` (`crates/nvs-ext/tests/intl.rs`) is still `#[ignore]`d. Run it with `cargo test --test intl -- --ignored plural_rules_agree`. Every line it prints now has the same cause: ICU4X's baked plural data (`icu_plurals_data` 2.3) has no rules for about 70 languages on `Core\\Cldr`'s roster, so it returns `Other`. These include `asa`, `bem`, `gv`, `kw` (cardinal *and* ordinal, so `kw` was never a stale `Core\\Cldr` row), `prg`, `shi`, `tl`, `tzm` and `yi`. `mo` and `sh` are deprecated aliases that ICU4X does not canonicalize. ADR 0277 § 5 assumed ICU4X carries every language on the roster, and that is not true.",
+  "state": "**Goal `ext-intl`: Stage 4 is closed, and Stage 5 (dates, relative time, lists) is next.** `format-numbers` (`extensions/intl/src/numbers.rs`) and `plural-categories` (`extensions/intl/src/plurals.rs`) are implemented. `plural_rules_agree_with_core_cldr_on_its_whole_roster` (`crates/nvs-ext/tests/intl.rs`) runs and passes, so `Novis\\Intl\\PluralRules` agrees with `Core\\Cldr` on every language of its roster. The languages ICU4X's compiled data has no plural rules for are CLDR 46 rule strings in `plurals.rs` (`CARDINAL`, `ORDINAL`), parsed through `icu_plurals`' `serde` feature, and `mo`, `sh` and `tl` are read as `ro`, `sr` and `fil`. The module doc owns the details. This added 51,173 bytes to the guest wasm (3,230,540 to 3,281,713).\n\nThe exports `format-date-times`, `format-dates`, `format-times`, `format-relative`, `format-lists`, `word-segments`, `sentence-segments`, `resolve-locales` and `negotiate` still return `runtime`. `extensions/intl/nvs/` has `Collator`, `NumberFormat` and `PluralRules` and none of the other job classes.",
   "next": {
-    "stage": 4,
-    "title": "numbers and plural rules, the agreement",
-    "files": [
-      "extensions/intl/src/plurals.rs",
-      "extensions/intl/Cargo.toml",
-      "crates/nvs-ext/tests/intl.rs"
-    ],
+    "stage": 5,
+    "title": "dates and times, relative time, lists",
+    "files": [],
+    "note": "one file set: `extensions/intl/src/lib.rs`, a new `extensions/intl/src/dates.rs` (and `relative.rs` / `lists.rs` beside it), `extensions/intl/nvs/`, `crates/nvs-ext/tests/intl.rs`.",
     "items": [
       {
         "done": false,
-        "text": "**Give the guest plural rules for every language on the roster.** Owned by ADR 0277 § 5. The recommended path is baking `PluralsCardinalV1` and `PluralsOrdinalV1` for the missing locales with full CLDR coverage (icu4x-datagen at the pinned version), in `extensions/intl/Cargo.toml:19` and at the constructor in `extensions/intl/src/plurals.rs:32`. Map `mo` to `ro` and `sh` to `sr-Latn` before the lookup. Record the size it adds."
+        "text": "**Implement `format-date-times`, `format-dates` and `format-times`** over `icu_datetime`, from the local fields the host sends, with no time-zone database in the guest. Owned by ADR 0277 § 6 and § 9. The exports are at `extensions/intl/src/lib.rs:164`, `extensions/intl/src/lib.rs:172` and `extensions/intl/src/lib.rs:180`. Write `extensions/intl/nvs/DateFormat.nvs`, which converts a `Core\\Time` value to local fields. The tests `a_core_time_value_formats_in_its_zone_and_locale` and `the_guest_carries_no_time_zone_database` go in `crates/nvs-ext/tests/intl.rs:464`."
       },
       {
         "done": false,
-        "text": "**Remove the `#[ignore]`** at `crates/nvs-ext/tests/intl.rs:465` once the test passes. That closes the Stage 4 check."
+        "text": "**Implement `format-relative` and `format-lists`** at `extensions/intl/src/lib.rs:188` and `extensions/intl/src/lib.rs:196` (relative time is in `icu_experimental`, list formatting in `icu_list`). Write `RelativeTime.nvs` and `ListFormat.nvs`. The tests are `relative_time_formats_past_and_future` and `a_list_formats_with_its_locale_conjunction`. Owned by ADR 0277 § 1 and § 9."
+      },
+      {
+        "done": false,
+        "text": "**Write the two Stage 5 cases**: `tests/conformance/novis/intl-dates-format-in-their-zone-and-locale.nvst` and `tests/conformance/novis/intl-relative-time-and-lists.nvst`. Use `tests/conformance/novis/intl-numbers-format-by-locale.nvst:1` as the shape."
       }
     ]
   },
   "backlog": [
-    "Stage 5: `DateFormat`, `RelativeTime` and `ListFormat`, with the `nvs-ext-dates-relative-time-and-lists` check and two `.nvst` cases (`docs/agent/goals/ext-intl.md`).",
-    "Stage 6: segmentation and locale negotiation (`docs/agent/goals/ext-intl.md`)."
+    "Stage 6: `word-segments`, `sentence-segments`, `negotiate`, `resolve-locales` (ADR 0277 § 9).",
+    "Stage 7: each component's module doc states its embedded size, and a bundle calls both components (`crates/nvs-cli/tests/bundle.rs`).",
+    "Stage 8: the feature proofs for every `Novis\\Intl` class (`bun nv proofs --owed`).",
+    "`rule:packaging/the-first-party-components-are-built-in` still says only `collateOrder` and `sortKeys` are implemented. Rewrite that sentence when Stage 5 lands."
   ]
 }

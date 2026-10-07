@@ -462,7 +462,6 @@ fn plural_and_ordinal_categories_of_a_batch() {
 }
 
 #[test]
-#[ignore = "ICU4X's baked plural data lacks some of `Core\\Cldr`'s languages, and `Core\\Cldr` predates CLDR 46 on others; the `ext-intl` handoff owns the fix"]
 fn plural_rules_agree_with_core_cldr_on_its_whole_roster() {
     let mut counts: Vec<String> = (0..=120).map(|n: u32| n.to_string()).collect();
     for n in ["1000", "10000", "100000", "1000000", "1000001", "2000000"] {
