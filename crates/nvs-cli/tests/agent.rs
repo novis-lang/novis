@@ -401,6 +401,46 @@ fn a_keyword_no_member_is_named_for_is_found_by_its_heading_and_shown_as_its_sec
     );
 }
 
+/// Every `nvs ext` subcommand is reached by the words its user types as the
+/// command's own line, whose card is its `--help` text, and by the CLI chapter's
+/// section that documents it (`rule:packaging/nvs-ext-is-the-authoring-tool`).
+// covers: tools:cli/nvs-ext-new-and-nvs-ext-build
+// covers: tools:cli/nvs-ext-inspect-nvs-ext-verify-and-nvs-ext-pin
+// covers: tools:cli/nvs-ext-test
+#[test]
+fn nvs_agent_find_reaches_every_nvs_ext_command() {
+    for subcommand in ["new", "build", "inspect", "test", "verify", "pin"] {
+        let words = format!("nvs ext {subcommand}");
+        let (out, _, ok) = agent(&["find", &words]);
+        assert!(ok, "`nvs agent find {words}` succeeds");
+        let command = format!("command: {words}");
+        assert!(
+            out.lines().any(|line| line == command),
+            "`{command}` is found: {out}"
+        );
+        let (card, _, ok) = agent(&["show", &words]);
+        assert!(ok, "`nvs agent show {words}` succeeds");
+        assert!(
+            card.lines().count() > 2,
+            "the command's card carries its help: {card}"
+        );
+
+        // A heading is found by its id, which writes the words with dashes.
+        let (out, _, ok) = agent(&["find", &words.replace(' ', "-")]);
+        assert!(ok, "`nvs agent find` succeeds on the heading id");
+        let section = out
+            .lines()
+            .find(|line| line.starts_with("cli#") && line.contains(&words))
+            .unwrap_or_else(|| panic!("a CLI chapter section names `{words}`: {out}"));
+        let (text, _, ok) = agent(&["show", symbol_of(section)]);
+        assert!(ok, "the section's symbol resolves");
+        assert!(
+            text.contains(&format!("    {words}")),
+            "the section shows how `{words}` is written: {text}"
+        );
+    }
+}
+
 /// A chapter's own name resolves too, and answers with where to go next instead
 /// of with the whole chapter: its summary, and the line of every heading in it.
 #[test]

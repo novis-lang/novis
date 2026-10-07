@@ -23,8 +23,9 @@ fn nvs_in(dir: &Path, args: &[&str]) -> (String, String, Option<i32>) {
 }
 
 /// `nvs ext --help` lists every subcommand, and `nvs --help` lists `ext`.
+// covers: tools:cli/nvs-ext-new-and-nvs-ext-build
 #[test]
-fn ext_help_lists_the_six_subcommands() {
+fn nvs_ext_help_lists_all_six_commands() {
     let dir = nvs_repo::scratch("ext-command-help");
     let (out, err, code) = nvs_in(&dir, &["ext", "--help"]);
     assert_eq!(code, Some(0), "`nvs ext --help` succeeds: {err}");
@@ -120,6 +121,7 @@ fn assert_the_binarys_own_world(dir: &Path) {
     );
 }
 
+// covers: tools:cli/nvs-ext-new-and-nvs-ext-build
 #[test]
 fn nvs_ext_new_writes_a_rust_project_with_the_binarys_own_world() {
     let dir = new_project("ext-new-rust", "rust");
@@ -297,6 +299,7 @@ fn refused(dir: &Path) -> String {
     err
 }
 
+// covers: tools:cli/nvs-ext-new-and-nvs-ext-build
 #[test]
 fn nvs_ext_build_packs_a_component_its_manifest_and_its_source_into_one_file() {
     let dir = project("ext-build-component", NVSX_TOML, &component());
@@ -316,6 +319,7 @@ fn nvs_ext_build_packs_a_component_its_manifest_and_its_source_into_one_file() {
     assert_eq!(files, [SOURCE[1], SOURCE[0]], "every `.nvs` file, sorted");
 }
 
+// covers: tools:cli/nvs-ext-new-and-nvs-ext-build
 #[test]
 fn nvs_ext_build_componentizes_a_core_module() {
     let dir = project("ext-build-core", NVSX_TOML, &core_module());
@@ -370,6 +374,7 @@ fn nvs_ext_build_refuses_a_preview_1_module_naming_wasm32_wasip2() {
     );
 }
 
+// covers: tools:cli/nvs-ext-new-and-nvs-ext-build
 #[test]
 fn nvs_ext_build_prints_the_path_and_the_pin_of_what_it_wrote() {
     let dir = project("ext-build-prints", NVSX_TOML, &component());
@@ -418,6 +423,7 @@ fn listed(dir: &Path) -> Vec<String> {
     names
 }
 
+// covers: tools:cli/nvs-ext-inspect-nvs-ext-verify-and-nvs-ext-pin
 #[test]
 fn nvs_ext_inspect_prints_the_manifest_and_the_io_it_requests() {
     let dir = project("ext-inspect", &requesting(), &component());
@@ -526,6 +532,7 @@ fn packed(wasm: &[u8], manifest: &str) -> Vec<u8> {
     .expect("the packer takes it")
 }
 
+// covers: tools:cli/nvs-ext-inspect-nvs-ext-verify-and-nvs-ext-pin
 #[test]
 fn nvs_ext_verify_names_every_refusal_boot_would_make() {
     const PARAMS: &str = r#"{"name": "from", "type": "string"}, {"name": "round", "type": "bool"}"#;
@@ -613,6 +620,7 @@ fn nvs_ext_verify_instantiates_nothing() {
     assert!(out.contains("passes"), "{out}");
 }
 
+// covers: tools:cli/nvs-ext-inspect-nvs-ext-verify-and-nvs-ext-pin
 #[test]
 fn nvs_ext_pin_prints_an_entry_nvs_config_check_accepts() {
     let dir = project("ext-pin", NVSX_TOML, &component());
@@ -658,6 +666,7 @@ fn nvs_ext_pin_prints_an_entry_nvs_config_check_accepts() {
     assert!(out.is_empty(), "no entry is printed: {out}");
 }
 
+// covers: tools:cli/nvs-ext-inspect-nvs-ext-verify-and-nvs-ext-pin
 #[test]
 fn nvs_ext_pin_never_writes_a_grant() {
     let dir = project("ext-pin-no-grant", &requesting(), &component());
@@ -715,6 +724,7 @@ fn touch_after(path: &Path, file: &Path, seconds: u64) {
         .expect("the modification time is set");
 }
 
+// covers: tools:cli/nvs-ext-test
 #[test]
 fn nvs_ext_test_runs_the_projects_tests_with_the_built_file_loaded() {
     let dir = tested_project("ext-test-runs", "0.0");
@@ -735,6 +745,7 @@ fn nvs_ext_test_runs_the_projects_tests_with_the_built_file_loaded() {
     assert!(out.contains("1 failed, 0 passed"), "{out}{err}");
 }
 
+// covers: tools:cli/nvs-ext-test
 #[test]
 fn nvs_ext_test_reads_no_nvs_toml_and_grants_nothing() {
     let dir = tested_project("ext-test-no-config", "0.0");
@@ -754,6 +765,7 @@ fn nvs_ext_test_reads_no_nvs_toml_and_grants_nothing() {
     assert!(out.contains("0 failed, 1 passed"), "{out}{err}");
 }
 
+// covers: tools:cli/nvs-ext-test
 #[test]
 fn nvs_ext_test_refuses_a_built_file_older_than_its_module() {
     let dir = tested_project("ext-test-stale", "0.0");

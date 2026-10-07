@@ -323,6 +323,10 @@ total: 420 MB
   has none.
 - Files reached only through `autoload` at run time, or opened with `Core\IO`, are not in the
   bundle: it carries the static `require` graph and nothing else.
+- Each `.nvsx` file that the build's configuration lists under `[[extension]]` goes into the
+  bundle, with its `sha256` and its `grants`. The bundle checks each `sha256` when it starts and
+  loads these extensions before the ones in `./nvs.toml`. A file that does not match its `sha256`
+  stops the build.
 
 # nvs build --openapi
 
@@ -399,6 +403,101 @@ app.0.root                      = "."
 limits.hard.memory              = "512M"
 limits.memory                   = "256M"
 ```
+
+# nvs ext new and nvs ext build
+
+    nvs ext new --lang rust|c <dir>
+    nvs ext build [project]
+
+An extension is a `.nvsx` file. It is a WebAssembly component that adds one class to Novis. You
+write the code in Rust, C or another language that compiles to WebAssembly. `nvs ext` is the tool
+for the steps around your compiler. It has six commands: `new`, `build`, `inspect`, `test`,
+`verify` and `pin`.
+
+`nvs ext new` creates a project in `<dir>`. The folder must not exist, or must be empty. The project
+has an `nvsx.toml`, the WIT files of the `nvs:ext` world under `wit/deps/`, the code of one
+function, a test for it, and a README that says how to build it. `--lang rust` builds with `cargo`
+for the target `wasm32-wasip2`. `--lang c` builds with wasi-sdk and `wit-bindgen`, which you
+install yourself.
+
+```text
+$ nvs ext new --lang rust greeting
+greeting
+$ cd greeting
+$ cargo build --release --target wasm32-wasip2
+$ nvs ext build
+greeting.nvsx
+sha256 = "9f2c...e41a"
+```
+
+`nvs ext build` makes the `.nvsx` file from the wasm file your compiler wrote. The project folder
+is the working directory unless you name one.
+
+- `nvsx.toml` describes the class: its name, the WIT interface it exports, the path of the wasm
+  file, and each method's signature and help. A signature is written in Novis, such as
+  `distanceKm(string $from, string $to): float`.
+- The wasm file may be a core module or a component. A WASI preview 1 module does not build. Build
+  for `wasm32-wasip2` instead.
+- The `.nvs` files in the project's `source` folder go into the `.nvsx` file too. One `sha256`
+  covers the code and the source.
+- The command checks that the result loads, and only then writes it. The file is written beside
+  `nvsx.toml`. Its name is the last part of the class name: `Shop\GeoTools` gives `geo-tools.nvsx`.
+  The command prints the path and the `sha256` line for your configuration.
+- The same project always gives the same bytes.
+
+# nvs ext inspect, nvs ext verify and nvs ext pin
+
+    nvs ext inspect <file> [--source]
+    nvs ext verify <file>
+    nvs ext pin <file>
+
+These three commands read a `.nvsx` file. Use them before you load a file that somebody else
+built. None of them runs code from the file.
+
+- `nvs ext inspect` prints the class, the interface, the world version and the `sha256`. Under
+  `requests` it prints the folders the extension wants to read or write and the hosts it wants to
+  connect to. Then it prints each method's signature and help, the constants, the settings block
+  and the paths of the Novis source files. `--source` also prints the text of each source file. It
+  works for a file that does not load, too. Control characters in the file's text are printed as
+  `\u{..}`, so the file cannot change your terminal.
+- `nvs ext verify` runs every check that loading the file runs, and prints
+  `<file>: passes every check loading it runs`. If a check fails, it prints the error and exits with
+  status `1`.
+- `nvs ext pin` runs the same checks. Then it prints the `[[extension]]` entry for the file, ready
+  to copy into `nvs.toml`. `path` is the absolute path of the file. The entry has no `grants`. You
+  add the folders and hosts you allow yourself, after you read `nvs ext inspect`.
+
+```text
+$ nvs ext pin greeting.nvsx
+[[extension]]
+path   = "/home/dev/greeting/greeting.nvsx"
+sha256 = "9f2c...e41a"
+```
+
+# nvs ext test
+
+    nvs ext test [project] [--config <file>]
+
+Runs the `#[Test]` methods of every `.nvs` file in the project's `tests` folder, as `nvs test` does.
+The `.nvsx` file that `nvs ext build` wrote is loaded, so the tests can call its class.
+
+```text
+$ nvs ext build
+greeting.nvsx
+sha256 = "9f2c...e41a"
+$ nvs ext test
+  GreetingTest
+    ✓ helloGreetsByName                0.4 ms
+
+  0 failed, 1 passed, 0 skipped, 0 flaky in 1 ms
+```
+
+- The command does not read `./nvs.toml`. Without `--config`, the extension gets no folders and no
+  hosts. Name a configuration with `--config` to test with the grants it gives.
+- If the configuration lists the `.nvsx` file with another `sha256`, the command stops with an
+  error that names both values.
+- If a file of the project changed after the last `nvs ext build`, the command stops with an error.
+  Run `nvs ext build` again first.
 
 # nvs info
 
