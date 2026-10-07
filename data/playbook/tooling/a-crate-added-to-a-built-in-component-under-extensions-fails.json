@@ -1,0 +1,12 @@
+{
+  "lead": "A crate added to a built-in component under `extensions/` fails `nv selftest`",
+  "body": "until `bun nv gen-attribution` rewrites `THIRD-PARTY-LICENSES.txt`, because `tools/nv/test/attribution-extensions.test.ts` checks the notice against the component's `wasm32-wasip2` graph. Run it right after the lockfile changes, before `bun nv verify`. A licence it names as having no policy is a question for the user, unless the crate is outside that graph.",
+  "files": [
+    "tools/nv/test/attribution-extensions.test.ts",
+    "THIRD-PARTY-LICENSES.txt"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tools/nv/test/attribution-extensions.test.ts:wasm32-wasip2"
+  }
+}
