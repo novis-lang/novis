@@ -790,6 +790,7 @@ fn relative_time_formats_past_and_future() {
     );
 }
 
+// covers: Novis\Intl\ListFormat::join
 #[test]
 fn a_list_formats_with_its_locale_conjunction() {
     let (joined, crossings) = run(|request, extension| {
@@ -850,6 +851,7 @@ fn segments(
         .collect()
 }
 
+// covers: Novis\Intl\Segmenter::words, Novis\Intl\Segmenter::sentences
 #[test]
 fn word_and_sentence_segments_of_a_batch_of_strings() {
     let (words, sentences, crossings) = run(|request, extension| {

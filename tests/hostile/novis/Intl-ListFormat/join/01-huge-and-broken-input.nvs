@@ -1,0 +1,55 @@
+<?nvs
+// Attack: a request joins very large lists, very long items and broken locale tags. Each call
+// should return a list or throw an error, and the server keeps running.
+// hostile: timeout-ms 20000
+use Novis\Intl\ListFormat;
+use Novis\Intl\ListType;
+
+// 1. No lists, and a list with no items.
+try {
+    echo 'step 1 ran ', Core\Arr::count(ListFormat::join([], 'en')), ' ', Core\Str::length(ListFormat::join([[]], 'en')[0]), "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. One list with twenty thousand items.
+try {
+    array<string> $items = [];
+    for (int $i = 0; $i < 20000; $i++) {
+        $items[] = 'item';
+    }
+    echo 'step 2 ran ', Core\Str::length(ListFormat::join([$items], 'fr', { type: ListType::Or })[0]), "\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. Twenty thousand lists in one call.
+try {
+    array<array<string>> $lists = [];
+    for (int $k = 0; $k < 20000; $k++) {
+        $lists[] = ['Shop', 'Blog'];
+    }
+    echo 'step 3 ran ', Core\Arr::count(ListFormat::join($lists, 'ar')), "\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. Items of one million characters, and items that look like the list's own pattern.
+try {
+    string $long = Core\Str::repeat('x', 1000000);
+    array<string> $joined = ListFormat::join([[$long, $long], ['{0}', '{1}', ', and ']], 'en');
+    echo 'step 4 ran ', Core\Str::length($joined[0]), "\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}
+
+// 5. A bad locale tag a thousand times. Each call must still return or throw.
+uint $stopped = 0;
+for (int $j = 0; $j < 1000; $j++) {
+    try {
+        ListFormat::join([['Shop']], 'en_US!');
+    } catch (Throwable $e) {
+        $stopped = $stopped + 1;
+    }
+}
+echo 'step 5 stopped ', $stopped, "\n";

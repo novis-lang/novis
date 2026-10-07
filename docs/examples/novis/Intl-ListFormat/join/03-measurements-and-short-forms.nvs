@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to join measurements, and how to use the shorter forms of a list.
+use Novis\Intl\ListFormat;
+use Novis\Intl\ListType;
+use Novis\Intl\Width;
+
+// `ListType::Unit` joins parts of one measurement, with no "and". This prints 3 kg, 200 g.
+echo ListFormat::join([["3 kg", "200 g"]], "en", {type: ListType::Unit})[0], "\n";
+
+// `Width::Narrow` leaves out the commas too. This prints 1 h 5 min 3 s.
+echo ListFormat::join([["1 h", "5 min", "3 s"]], "en", {type: ListType::Unit, width: Width::Narrow})[0], "\n";
+
+// `Width::Short` uses "&" in English. This prints Shop, Blog, & Wiki.
+echo ListFormat::join([["Shop", "Blog", "Wiki"]], "en", {width: Width::Short})[0], "\n";
