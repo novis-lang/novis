@@ -2998,6 +2998,7 @@ name = "nvs-image"
 version = "0.1.0"
 dependencies = [
  "avif-parse",
+ "color_quant",
  "fast_image_resize",
  "image",
  "jxl-oxide",
