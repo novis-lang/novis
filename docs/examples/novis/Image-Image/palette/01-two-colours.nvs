@@ -1,0 +1,13 @@
+<?nvs
+// Shows the colours `Image::palette` finds in an image with two colours.
+use Novis\Image\Color;
+use Novis\Image\Image;
+
+// A blue image of 60 by 60 pixels with an orange square of 20 by 20 pixels on it.
+Image $square = Image::create(20, 20, Color::hex("#f97316"));
+bytes $photo = Image::create(60, 60, Color::hex("#2563eb"))->composite($square, { x: 20, y: 20 })->encode();
+
+// Blue covers more pixels, so it comes first.
+foreach (Image::palette($photo, 2) as Color $colour) {
+    echo $colour->r, " ", $colour->g, " ", $colour->b, "\n";
+}

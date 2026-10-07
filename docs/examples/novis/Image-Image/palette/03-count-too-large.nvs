@@ -1,0 +1,13 @@
+<?nvs
+// Shows the error `Image::palette` throws for a `count` above 256.
+use Novis\Image\Color;
+use Novis\Image\Image;
+
+bytes $photo = Image::create(16, 16, Color::hex("#2563eb"))->encode();
+
+// 1000 colours is more than 256, so this throws a `LogicError`.
+try {
+    echo Core\Arr::count(Image::palette($photo, 1000)), "\n";
+} catch (LogicError $e) {
+    echo "LogicError: ", $e->message, "\n";
+}

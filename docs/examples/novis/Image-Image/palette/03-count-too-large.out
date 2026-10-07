@@ -1,0 +1,1 @@
+LogicError: a palette has at most 256 colours, and 1000 were asked for
