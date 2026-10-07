@@ -1,22 +1,20 @@
 {
-  "state": "**Goal `ext-image`: Stages 2 to 5 are done on disk, and Stage 6 (the feature proofs) is in progress.** ADR 0120, ADR 0247 and the goal file's § *Standing decisions* settle the design, and no session re-decides it.\n\nThe component is embedded and callable with no `nvs.toml` (`crates/nvs-cli/src/extensions.rs` module doc). The `Novis\\Image` builder is Novis source in `extensions/image/nvs/`, and `rule:core-classes/image-pipeline`'s fragment says what it has and lacks. `nvs meta --json` lists the built-in classes, the roster gives a `Novis\\` member the path `novis/<tail>/<member>`, and `docs/reference/novis/Image-Image.md` is the class intro.\n\nTests are closed for every `Novis\\Image\\Image` and `Novis\\Image\\Codec` member. **13 `Image` members owe nothing**, and `bun nv proofs --verify --only` passes for each: `resize`, `crop`, `trim`, `rotate`, `flip`, `flatten`, `sharpen`, `blur`, `grayscale`, `brightness`, `contrast`, `gamma`, `tint`. Each has an `about.md` and three examples under `docs/examples/novis/Image-Image/<member>/`, one attack under `tests/hostile/novis/Image-Image/<member>/`, a bench at `benches/members/novis/Image-Image/<member>.nvs` and a figure in `docs/perf/members.ndjson`.\n\n**The acceptance check cannot pass as written:** `dossier-novis-image-pipeline` names `Novis\\Image\\Image::composite`, which the builder does not have (`rule:core-classes/image-pipeline` lists it as missing, and the guest's `run` skips `composite`), so `--only` refuses the whole list. Either `composite` is built (goal file's builder item names it) or it leaves the check; see the next group's last item.",
+  "state": "**Goal `ext-image`: Stages 2 to 5 are done on disk, and Stage 6 (the feature proofs) is in progress.** ADR 0120, ADR 0247 and the goal file's § *Standing decisions* settle the design, and no session re-decides it.\n\nThe component is embedded and callable with no `nvs.toml` (`crates/nvs-cli/src/extensions.rs` module doc). The `Novis\\Image` builder is Novis source in `extensions/image/nvs/`, and `rule:core-classes/image-pipeline`'s fragment says what it has and lacks. `nvs meta --json` lists the built-in classes, the roster gives a `Novis\\` member the path `novis/<tail>/<member>`, and `docs/reference/novis/Image-Image.md` is the class intro.\n\n**Every `Novis\\Image\\Image` member the builder has owes nothing** (22 members), and `bun nv proofs --verify --only` passes for each. Each has an `about.md` and three examples under `docs/examples/novis/Image-Image/<member>/`, one attack under `tests/hostile/novis/Image-Image/<member>/`, a bench at `benches/members/novis/Image-Image/<member>.nvs` and a figure in `docs/perf/members.ndjson`. What is left of the acceptance check is `Color`, `Codec`, the six enums and `composite`.\n\n**The acceptance check cannot pass as written:** `dossier-novis-image-pipeline` names `Novis\\Image\\Image::composite`, which the builder does not have (`rule:core-classes/image-pipeline` lists it as missing, and the guest's `run` skips `composite`), so `--only` refuses the whole list. Either `composite` is built or it leaves the check; see the next group's last item.",
   "next": {
     "stage": 6,
     "title": "the feature proofs, the programs",
     "files": [
-      "docs/examples/novis/Image-Image/",
-      "tests/hostile/novis/Image-Image/",
-      "benches/members/novis/Image-Image/",
+      "extensions/image/nvs/Color.nvs",
+      "extensions/image/manifest.json",
+      "docs/examples/novis/",
+      "tests/hostile/novis/",
+      "benches/members/novis/",
       "docs/perf/members.ndjson"
     ],
     "items": [
       {
         "done": false,
-        "text": "**About, three examples, one attack and one bench for each remaining `Novis\\Image\\Image` member** (`open`, `create`, `fromRaw`, `info`, `format`, `metadata`, `encode`, `variants`, `raw`), per `rule:testing/feature-proofs`, copying the shape of `docs/examples/novis/Image-Image/crop/` and `benches/members/novis/Image-Image/crop.nvs`. Tests are already done. Read one pixel with `Core\\Bytes::unpack(Core\\Bytes::slice($raw->pixels, 0, 4), \"C4\")`; build bytes with `'text' as bytes` or `Core\\Encoding::fromHex`; a `foreach` over an array literal needs a typed `array<T>` variable first; `/` on `uint` gives a float. Per batch: `bun nv try` the programs, `bun nv proofs --bless` the examples, `bun nv proofs --record-perf --no-callgrind --only <ids>`, then `bun nv proofs --verify --only <ids>`. Anchor: `extensions/image/nvs/Image.nvs:52`."
-      },
-      {
-        "done": false,
-        "text": "**`Novis\\Image\\Color::rgba` and `::hex`, and the six enums**: Color owes a Rust-side `covers:` test (`rgba` also a second case) and the full proofs; the enums owe what `bun nv proofs --id 'Novis\\Image\\Fit'` prints. Anchor: `extensions/image/nvs/Color.nvs:19`."
+        "text": "**`Novis\\Image\\Color::rgba` and `::hex`, and the six enums**: Color owes a Rust-side `covers:` test (`rgba` also a second case) and the full proofs; the enums owe what `bun nv proofs --id 'Novis\\Image\\Fit'` prints. Copy the shape of `docs/examples/novis/Image-Image/raw/`. A variable declared inside one `try` block clashes with the same name in the next one, so each step of an attack uses its own names or a helper class (`tests/hostile/novis/Image-Image/metadata/01-broken-exif-blocks.nvs`). Anchor: `extensions/image/nvs/Color.nvs:19`."
       },
       {
         "done": false,
@@ -30,6 +28,8 @@
   },
   "backlog": [
     "`Image::mime` and `Image::extension` are builder members the check does not name; `bun nv proofs --id` says what they owe (`rule:testing/feature-proofs`).",
-    "The growth of several benches reads `unclear` at 256 iterations of a 4x4 image; `bun nv scaling` owns the ramp (`rule:testing/feature-proofs`)."
+    "The growth of several benches reads `unclear` at 256 iterations of a 4x4 image; `bun nv scaling` owns the ramp (`rule:testing/feature-proofs`).",
+    "`format`'s `progressive` and `effort` options are accepted and no encoder reads them (`extensions/image/src/encode.rs` module doc); `docs/examples/novis/Image-Image/format/about.md` says so, and wiring them changes that page.",
+    "`Image::info` returned `exif: null` for a JPEG whose EXIF block has only an orientation tag, and the WIT `exif` is `list<tuple<string, string>>` while the Novis `Info` shape says `?array<string>` (`wit/image.wit:104`, `extensions/image/nvs/Image.nvs:42`); whether the two agree is not checked."
   ]
 }
