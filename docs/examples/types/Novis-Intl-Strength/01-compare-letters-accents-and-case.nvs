@@ -1,0 +1,15 @@
+<?nvs
+// Shows how each `Strength` changes which names count as equal when they are sorted.
+use Novis\Intl\Collator;
+use Novis\Intl\Strength;
+
+array<string> $names = ["resume", "Résumé", "résumé", "Resume"];
+
+// `Primary` compares letters only, so all four names are equal and keep their order.
+echo Core\Str::join(Collator::sort($names, "en", {strength: Strength::Primary}), ", "), "\n";
+
+// `Secondary` also compares accents, so the names without accents come first.
+echo Core\Str::join(Collator::sort($names, "en", {strength: Strength::Secondary}), ", "), "\n";
+
+// `Tertiary` also compares case. This is the default.
+echo Core\Str::join(Collator::sort($names, "en", {strength: Strength::Tertiary}), ", "), "\n";

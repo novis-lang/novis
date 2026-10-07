@@ -1,0 +1,11 @@
+<?nvs
+// Shows the three ways `CurrencyDisplay` writes the currency of a price.
+use Novis\Intl\CurrencyDisplay;
+use Novis\Intl\NumberFormat;
+
+array<float> $prices = [19.9];
+
+// This prints "US$19.90", "$19.90" and "19.90 US dollars" in English for Canada.
+echo NumberFormat::currency($prices, "USD", "en-CA", {display: CurrencyDisplay::Symbol})[0], "\n";
+echo NumberFormat::currency($prices, "USD", "en-CA", {display: CurrencyDisplay::Narrow})[0], "\n";
+echo NumberFormat::currency($prices, "USD", "en-CA", {display: CurrencyDisplay::Name})[0], "\n";

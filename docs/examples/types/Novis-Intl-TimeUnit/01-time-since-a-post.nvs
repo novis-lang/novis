@@ -1,0 +1,13 @@
+<?nvs
+// Shows the age of three posts, each with its own `TimeUnit`.
+use Novis\Intl\RelativeTime;
+use Novis\Intl\TimeUnit;
+
+// A negative count is in the past. A positive count is in the future.
+array<string> $ages = RelativeTime::format([
+    {count: -5, unit: TimeUnit::Minute},
+    {count: -2, unit: TimeUnit::Week},
+    {count: 1, unit: TimeUnit::Quarter},
+], "en");
+
+echo Core\Str::join($ages, "\n"), "\n";

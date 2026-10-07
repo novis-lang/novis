@@ -1,0 +1,12 @@
+<?nvs
+// Shows how each `ListType` joins the same three items in English.
+use Novis\Intl\ListFormat;
+use Novis\Intl\ListType;
+
+array<array<string>> $lists = [["tea", "coffee", "water"]];
+
+echo ListFormat::join($lists, "en", {type: ListType::And})[0], "\n";
+echo ListFormat::join($lists, "en", {type: ListType::Or})[0], "\n";
+
+// `Unit` joins amounts, such as the parts of a length.
+echo ListFormat::join([["5 feet", "11 inches"]], "en", {type: ListType::Unit})[0], "\n";

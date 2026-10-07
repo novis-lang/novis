@@ -2,6 +2,7 @@
 A `Core\Time\DateTime` formats as its own zone's clock shows it, in the locale's words, and a date and a time of day format alone: rule:core-classes/intl-host-converts-time rule:core-classes/intl-batch-shape
 --FILE--
 <?nvs
+// covers: Novis\Intl\Length, Novis\Intl\ZoneStyle
 use Novis\Intl\DateFormat;
 use Novis\Intl\Length;
 use Novis\Intl\ZoneStyle;

@@ -1,0 +1,11 @@
+<?nvs
+// Shows one date written with each `Length`, in English for the United States.
+use Novis\Intl\DateFormat;
+use Novis\Intl\Length;
+
+array<Core\Time\Date> $dates = [Core\Time\Date::at(2026, 3, 1)];
+
+// `Medium` is the default.
+echo DateFormat::dates($dates, "en-US", {length: Length::Short})[0], "\n";
+echo DateFormat::dates($dates, "en-US", {length: Length::Medium})[0], "\n";
+echo DateFormat::dates($dates, "en-US", {length: Length::Long})[0], "\n";

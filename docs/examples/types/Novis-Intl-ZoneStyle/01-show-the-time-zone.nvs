@@ -1,0 +1,11 @@
+<?nvs
+// Shows the four ways `ZoneStyle` writes the time zone of a meeting time.
+use Novis\Intl\DateFormat;
+use Novis\Intl\ZoneStyle;
+
+array<Core\Time\DateTime> $meeting = [Core\Time::at(2026, 7, 14, Core\Time\Zone::of("Europe/Vienna"), {hour: 15, minute: 0})];
+
+array<ZoneStyle> $styles = [ZoneStyle::None, ZoneStyle::Offset, ZoneStyle::Location, ZoneStyle::Generic];
+foreach ($styles as ZoneStyle $style) {
+    echo DateFormat::dateTimes($meeting, "en", {zone: $style})[0], "\n";
+}

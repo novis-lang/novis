@@ -1,0 +1,13 @@
+<?nvs
+// Shows which locale gives the data for each tag, using `Service` to name the data.
+use Novis\Intl\Locale;
+use Novis\Intl\Service;
+
+// A tag with no data of its own uses a more general locale.
+// "und" means that no locale has data, so the root rules are used.
+array<string> $tags = ["de-AT", "zz"];
+
+echo Core\Str::join(Locale::resolve($tags, Service::Dates), " | "), "\n";
+
+// German for Austria has its own number rules, but uses the German dates.
+echo Core\Str::join(Locale::resolve($tags, Service::Numbers), " | "), "\n";

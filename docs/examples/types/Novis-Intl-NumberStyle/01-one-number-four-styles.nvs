@@ -1,0 +1,22 @@
+<?nvs
+// Shows the four `NumberStyle` cases, each writing the same number in German.
+use Novis\Intl\Icu;
+use Novis\Intl\NumberStyle;
+
+// Most programs call the `NumberFormat` methods, which choose the style for you.
+// `Icu::formatNumbers` takes the style directly. Its options name every field.
+array<NumberStyle> $styles = [NumberStyle::Decimal, NumberStyle::Percent, NumberStyle::Currency, NumberStyle::Compact];
+foreach ($styles as NumberStyle $style) {
+    // Only the `Currency` style takes a currency code.
+    ?string $currency = $style == NumberStyle::Currency ? "EUR" : null;
+    array<string> $text = Icu::formatNumbers(["1234567.5"], "de", {
+        style: $style,
+        minFractionDigits: null,
+        maxFractionDigits: null,
+        grouping: null,
+        currency: $currency,
+        currencyDisplay: null,
+        compactDisplay: null,
+    });
+    echo $text[0], "\n";
+}

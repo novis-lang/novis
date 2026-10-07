@@ -2,6 +2,8 @@
 `Novis\Intl\Collator` sorts by the locale's order, its options change the order, and its sort keys order as `sort` does: rule:core-classes/intl-batch-shape
 --FILE--
 <?nvs
+// covers: Novis\Intl\Strength, Novis\Intl\CaseFirst
+use Novis\Intl\CaseFirst;
 use Novis\Intl\Collator;
 use Novis\Intl\Strength;
 
@@ -16,6 +18,11 @@ echo Core\Str::join(Collator::sort(["10", "9", "1"], "en", {numeric: true}), " "
 
 // With `Primary` strength, case does not count, so equal strings keep their order.
 echo Core\Str::join(Collator::sort(["b", "B", "a", "A"], "en", {strength: Strength::Primary}), " "), "\n";
+
+// `CaseFirst::Upper` puts each uppercase letter before its lowercase one. `Lower` and `Off` keep English's order.
+echo Core\Str::join(Collator::sort(["a", "A", "b", "B"], "en", {caseFirst: CaseFirst::Upper}), " "), "\n";
+echo Core\Str::join(Collator::sort(["A", "a", "B", "b"], "en", {caseFirst: CaseFirst::Lower}), " "), "\n";
+echo Core\Str::join(Collator::sort(["A", "a", "B", "b"], "en", {caseFirst: CaseFirst::Off}), " "), "\n";
 
 // This sorts the names, and then gets a key for each sorted name.
 // Each key compares less than or equal to the next one.
@@ -34,6 +41,9 @@ a z ä
 a ä z
 1 10 9
 1 9 10
+a A b B
+A a B b
+a A b B
 a A b B
 asa Åsa emile Émile zoe Zoë
 5 of 5

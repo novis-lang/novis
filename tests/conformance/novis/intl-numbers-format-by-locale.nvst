@@ -2,6 +2,7 @@
 `Novis\Intl\NumberFormat` writes decimals, percentages, money and compact numbers by the locale's rules, and a float that is not finite throws: rule:core-classes/intl-batch-shape
 --FILE--
 <?nvs
+// covers: Novis\Intl\CurrencyDisplay, Novis\Intl\CompactDisplay
 use Novis\Intl\CompactDisplay;
 use Novis\Intl\CurrencyDisplay;
 use Novis\Intl\NumberFormat;

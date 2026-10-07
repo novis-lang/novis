@@ -1,0 +1,17 @@
+<?nvs
+// Shows the difference between `Numeric::Always` and `Numeric::Auto` for nearby days.
+use Novis\Intl\Numeric;
+use Novis\Intl\RelativeTime;
+use Novis\Intl\TimeUnit;
+
+array<{count: int, unit: TimeUnit}> $days = [
+    {count: -1, unit: TimeUnit::Day},
+    {count: 0, unit: TimeUnit::Day},
+    {count: 1, unit: TimeUnit::Day},
+];
+
+// `Always` is the default and always writes a number.
+echo Core\Str::join(RelativeTime::format($days, "en", {numeric: Numeric::Always}), " | "), "\n";
+
+// `Auto` writes a word where the language has one.
+echo Core\Str::join(RelativeTime::format($days, "en", {numeric: Numeric::Auto}), " | "), "\n";

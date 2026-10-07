@@ -2,6 +2,7 @@
 A relative time is in the past for a negative count and in the future for a positive one, and a list is joined with the locale's words: rule:core-classes/intl-batch-shape rule:core-classes/intl-roster
 --FILE--
 <?nvs
+// covers: Novis\Intl\TimeUnit, Novis\Intl\Width, Novis\Intl\Numeric, Novis\Intl\ListType
 use Novis\Intl\ListFormat;
 use Novis\Intl\ListType;
 use Novis\Intl\Numeric;

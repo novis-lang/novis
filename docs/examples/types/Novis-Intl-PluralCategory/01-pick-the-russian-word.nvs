@@ -1,0 +1,18 @@
+<?nvs
+// Shows how a program picks the right Russian word for "file" from each `PluralCategory`.
+use Novis\Intl\Icu;
+use Novis\Intl\PluralCategory;
+use Novis\Intl\PluralKind;
+
+array<string> $counts = ["1", "3", "5", "21"];
+array<PluralCategory> $categories = Icu::pluralCategories($counts, "ru", PluralKind::Cardinal);
+
+// Russian uses three forms for whole numbers: `One`, `Few` and `Many`.
+for (uint $i = 0; $i < 4; $i++) {
+    string $word = match ($categories[$i]) {
+        PluralCategory::One => "файл",
+        PluralCategory::Few => "файла",
+        PluralCategory::Zero, PluralCategory::Two, PluralCategory::Many, PluralCategory::Other => "файлов",
+    };
+    echo $counts[$i], " ", $word, "\n";
+}

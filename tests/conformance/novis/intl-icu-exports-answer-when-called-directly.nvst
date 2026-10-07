@@ -2,9 +2,11 @@
 Each export of the manifest class `Novis\Intl\Icu` answers when a program calls it directly, with the same records the job classes build: rule:core-classes/intl-batch-shape
 --FILE--
 <?nvs
+// covers: Novis\Intl\NumberStyle, Novis\Intl\PluralKind, Novis\Intl\PluralCategory, Novis\Intl\Service
 use Novis\Intl\Icu;
 use Novis\Intl\Length;
 use Novis\Intl\NumberStyle;
+use Novis\Intl\PluralCategory;
 use Novis\Intl\PluralKind;
 use Novis\Intl\Service;
 use Novis\Intl\TimeUnit;
@@ -20,6 +22,23 @@ echo Core\Arr::count(Icu::sortKeys(["b", "a"], "sv", {})) as string, "\n";
 // Numbers cross as decimal text, and the options record names every field.
 echo Core\Str::join(Icu::formatNumbers(["1234.5", "-0.25"], "de", {style: NumberStyle::Decimal, minFractionDigits: null, maxFractionDigits: null, grouping: null, currency: null, currencyDisplay: null, compactDisplay: null}), " | "), "\n";
 echo Core\Arr::count(Icu::pluralCategories(["1", "2", "5"], "ru", PluralKind::Cardinal)) as string, "\n";
+
+// `pluralCategories` returns the manifest's own `PluralCategory`, for counting and for places.
+array<PluralKind> $kinds = [PluralKind::Cardinal, PluralKind::Ordinal];
+foreach ($kinds as PluralKind $kind) {
+    array<string> $names = [];
+    foreach (Icu::pluralCategories(["1", "2", "3", "5"], "en", $kind) as PluralCategory $category) {
+        $names[] = match ($category) {
+            PluralCategory::Zero => "Zero",
+            PluralCategory::One => "One",
+            PluralCategory::Two => "Two",
+            PluralCategory::Few => "Few",
+            PluralCategory::Many => "Many",
+            PluralCategory::Other => "Other",
+        };
+    }
+    echo Core\Str::join($names, " "), "\n";
+}
 
 // A date and time crosses as local fields, an offset and a zone id.
 echo Core\Str::join(Icu::formatDateTimes([{year: 2026, month: 3, day: 1, hour: 21, minute: 30, second: 0, nanos: 0, offsetSeconds: 3600, zone: "Europe/Vienna"}], "de", {}), " | "), "\n";
@@ -39,6 +58,8 @@ echo Icu::negotiate("de-AT, en;q=0.5", ["en", "de"], "en"), "\n";
 2
 1.234,5 | -0,25
 3
+One Other Other Other
+One Two Few Other
 01.03.2026, 21:30
 March 1, 2026
 21:30

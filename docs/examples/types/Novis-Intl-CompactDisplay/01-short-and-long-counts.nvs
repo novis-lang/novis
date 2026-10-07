@@ -1,0 +1,12 @@
+<?nvs
+// Shows a follower count written short and long with `CompactDisplay`.
+use Novis\Intl\CompactDisplay;
+use Novis\Intl\NumberFormat;
+
+array<int> $followers = [1200, 3400000];
+
+// `Short` is the default and fits a small label.
+echo Core\Str::join(NumberFormat::compact($followers, "en", {display: CompactDisplay::Short}), " | "), "\n";
+
+// `Long` writes the word in full.
+echo Core\Str::join(NumberFormat::compact($followers, "en", {display: CompactDisplay::Long}), " | "), "\n";

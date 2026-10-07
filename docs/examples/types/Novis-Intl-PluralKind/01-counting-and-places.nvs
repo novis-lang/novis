@@ -1,0 +1,30 @@
+<?nvs
+// Shows the two `PluralKind` cases: one for counting items, one for places in a race.
+use Novis\Intl\Icu;
+use Novis\Intl\PluralCategory;
+use Novis\Intl\PluralKind;
+
+class Category {
+    public static function name(PluralCategory $category): string {
+        return match ($category) {
+            PluralCategory::Zero => "zero",
+            PluralCategory::One => "one",
+            PluralCategory::Two => "two",
+            PluralCategory::Few => "few",
+            PluralCategory::Many => "many",
+            PluralCategory::Other => "other",
+        };
+    }
+}
+
+array<string> $numbers = ["1", "2", "3", "4"];
+array<PluralKind> $kinds = [PluralKind::Cardinal, PluralKind::Ordinal];
+
+// For counting, English has "1 item" and "2 items". For places, it has "1st", "2nd", "3rd" and "4th".
+foreach ($kinds as PluralKind $kind) {
+    array<string> $names = [];
+    foreach (Icu::pluralCategories($numbers, "en", $kind) as PluralCategory $category) {
+        $names[] = Category::name($category);
+    }
+    echo Core\Str::join($names, " "), "\n";
+}

@@ -1,0 +1,13 @@
+<?nvs
+// Shows how `Width` makes a relative time and a list shorter, for a small screen.
+use Novis\Intl\ListFormat;
+use Novis\Intl\RelativeTime;
+use Novis\Intl\TimeUnit;
+use Novis\Intl\Width;
+
+array<Width> $widths = [Width::Wide, Width::Short, Width::Narrow];
+foreach ($widths as Width $width) {
+    string $age = RelativeTime::format([{count: -3, unit: TimeUnit::Month}], "en", {width: $width})[0];
+    string $list = ListFormat::join([["Shop", "Blog", "Wiki"]], "en", {width: $width})[0];
+    echo $age, " | ", $list, "\n";
+}
