@@ -14,9 +14,15 @@
 //! JPEG, PNG, WebP and GIF decode through `image`; JPEG XL through `jxl-oxide`; AVIF through
 //! `rav1d` (`avif`'s module doc). Only the first frame of an animated input is decoded, so `frames`
 //! is `1` in the cap. A CMYK JPEG XL returns `Runtime`.
+//!
+//! **Auto-orient** (`rule:core-classes/image-correct-by-default`) applies the EXIF orientation to
+//! the formats `image` decodes, and resets the tag to `1` in the EXIF block `Pixels` carries, so a
+//! kept block does not turn the image a second time. AVIF and JPEG XL return their frame as
+//! `rav1d` and `jxl-oxide` give it, with no EXIF block.
 
 use std::io::Cursor;
 
+use image::metadata::Orientation;
 use image::{DynamicImage, ImageDecoder, ImageFormat, ImageReader, Limits};
 use jxl_oxide::{JxlImage, PixelFormat};
 
@@ -31,6 +37,9 @@ pub struct Pixels {
     pub width: u32,
     pub height: u32,
     pub rgba: Vec<u8>,
+    /// The input's raw EXIF block, from the TIFF header on, for an encoder that keeps metadata.
+    /// When the orientation was applied to the pixels, the block's orientation tag says `1`.
+    pub exif: Option<Vec<u8>>,
 }
 
 /// The format `data` is in, read from its first bytes. Bytes in no format the roster decodes
@@ -77,10 +86,10 @@ fn image_format(format: Format) -> Option<ImageFormat> {
 }
 
 /// Parses the raw EXIF block `exif` in full. A malformed one returns `Parse`.
-pub(crate) fn check_exif(exif: Option<Vec<u8>>) -> Result<(), Error> {
+fn check_exif(exif: Option<&[u8]>) -> Result<(), Error> {
     match exif {
         Some(raw) if !raw.is_empty() => exif::Reader::new()
-            .read_raw(raw)
+            .read_raw(raw.to_vec())
             .map(|_| ())
             .map_err(|err| Error::Parse(format!("the EXIF block is malformed: {err}"))),
         _ => Ok(()),
@@ -88,10 +97,11 @@ pub(crate) fn check_exif(exif: Option<Vec<u8>>) -> Result<(), Error> {
 }
 
 /// Decodes `data` to RGBA8, refusing an image over `cap` pixels before a buffer is allocated.
-pub fn decode(data: &[u8], cap: u64) -> Result<Pixels, Error> {
+/// With `auto_orient`, the EXIF orientation is applied to the pixels.
+pub fn decode(data: &[u8], cap: u64, auto_orient: bool) -> Result<Pixels, Error> {
     let format = sniff(data)?;
     if let Some(known) = image_format(format) {
-        return decode_with_image(data, known, cap);
+        return decode_with_image(data, known, cap, auto_orient);
     }
     match format {
         Format::Jxl => decode_jxl(data, cap),
@@ -102,7 +112,12 @@ pub fn decode(data: &[u8], cap: u64) -> Result<Pixels, Error> {
     }
 }
 
-fn decode_with_image(data: &[u8], format: ImageFormat, cap: u64) -> Result<Pixels, Error> {
+fn decode_with_image(
+    data: &[u8],
+    format: ImageFormat,
+    cap: u64,
+    auto_orient: bool,
+) -> Result<Pixels, Error> {
     let parse = |err: image::ImageError| Error::Parse(err.to_string());
     let mut reader = ImageReader::with_format(Cursor::new(data), format);
     reader.no_limits();
@@ -119,14 +134,29 @@ fn decode_with_image(data: &[u8], format: ImageFormat, cap: u64) -> Result<Pixel
     let mut limits = Limits::no_limits();
     limits.max_alloc = Some(cap.saturating_mul(8));
     decoder.set_limits(limits).map_err(parse)?;
-    check_exif(decoder.exif_metadata().map_err(parse)?)?;
-    let rgba = DynamicImage::from_decoder(decoder)
+    let mut exif = decoder
+        .exif_metadata()
         .map_err(parse)?
-        .into_rgba8();
+        .filter(|raw| !raw.is_empty());
+    check_exif(exif.as_deref())?;
+    let orientation = if auto_orient {
+        decoder.orientation().map_err(parse)?
+    } else {
+        Orientation::NoTransforms
+    };
+    let mut image = DynamicImage::from_decoder(decoder).map_err(parse)?;
+    if auto_orient {
+        image.apply_orientation(orientation);
+        if let Some(raw) = exif.as_mut() {
+            let _ = Orientation::remove_from_exif_chunk(raw);
+        }
+    }
+    let rgba = image.into_rgba8();
     Ok(Pixels {
-        width,
-        height,
+        width: rgba.width(),
+        height: rgba.height(),
         rgba: rgba.into_raw(),
+        exif,
     })
 }
 
@@ -172,6 +202,7 @@ fn decode_jxl(data: &[u8], cap: u64) -> Result<Pixels, Error> {
         width,
         height,
         rgba,
+        exif: None,
     })
 }
 
@@ -191,7 +222,7 @@ mod tests {
 
     #[test]
     fn a_png_decodes_to_rgba() {
-        let got = decode(&png(3, 2), DEFAULT_MAX_PIXELS).unwrap();
+        let got = decode(&png(3, 2), DEFAULT_MAX_PIXELS, true).unwrap();
         assert_eq!((got.width, got.height), (3, 2));
         assert_eq!(got.rgba.len(), 24);
         assert_eq!(&got.rgba[..4], &[200, 200, 200, 255]);
@@ -199,18 +230,18 @@ mod tests {
 
     #[test]
     fn an_image_over_the_cap_is_refused() {
-        let refused = decode(&png(10, 10), 99).unwrap_err();
+        let refused = decode(&png(10, 10), 99, true).unwrap_err();
         assert_eq!(
             refused,
             Error::Runtime(
                 "the image is 10x10, which is 100 pixels, over the cap of 99 pixels".to_string()
             )
         );
-        assert!(decode(&png(10, 10), 100).is_ok());
+        assert!(decode(&png(10, 10), 100, true).is_ok());
     }
 
     #[test]
     fn bytes_that_are_no_image_do_not_parse() {
-        assert!(matches!(decode(b"not an image", 100), Err(Error::Parse(_))));
+        assert!(matches!(decode(b"not an image", 100, true), Err(Error::Parse(_))));
     }
 }

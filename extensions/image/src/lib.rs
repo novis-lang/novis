@@ -6,16 +6,18 @@
 //! only for a wasm target, and maps each export onto the core and the core's types onto WIT's.
 //!
 //! `info` and `run` are the exports that are implemented. `run` decodes encoded bytes
-//! (`decode`'s module doc) and returns the pixels or their size. A step other than `format` and
-//! `metadata`, a source other than encoded bytes, an overlay, and encoding each return `runtime`
-//! naming what is missing. Every other export returns `runtime` naming it, until the slice of goal
-//! `ext-image` that writes it lands.
+//! (`decode`'s module doc) and returns the pixels, their size or the encoded file (`encode`'s
+//! module doc). A step other than `format` and `metadata`, a source other than encoded bytes and
+//! an overlay each return `runtime` naming what is missing. Every other export returns `runtime`
+//! naming it, until the slice of goal `ext-image` that writes it lands.
 
 mod avif;
 mod decode;
+mod encode;
 mod info;
 
 pub use decode::{DEFAULT_MAX_PIXELS, Pixels, decode, sniff};
+pub use encode::{DEFAULT_JPEG_QUALITY, encode};
 pub use info::{Info, info};
 
 /// What `run` returns, the WIT `output` enum.
@@ -26,38 +28,44 @@ pub enum Output {
     Size,
 }
 
-/// Runs a plan with no pixel step on the encoded `data`: decodes it under `cap` pixels, and returns
-/// `output`. `encode_as` is the plan's `format` step, if it has one. A format the component does
-/// not encode returns `Invalid` before anything is decoded.
+/// How an `encoded` output is written, read off the plan's `format` and `metadata` steps.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Encoding {
+    /// The `format` step's format. Without one, the output is in the input's format.
+    pub format: Option<Format>,
+    pub quality: Option<u64>,
+    pub lossless: Option<bool>,
+    /// Set by `metadata({keep: true})`. Without it, the output carries no metadata.
+    pub keep_metadata: bool,
+}
+
+/// Runs a plan with no pixel step on the encoded `data`: decodes it under `cap` pixels, applying
+/// the EXIF orientation when `auto_orient` is set, and returns `output`. A format the component
+/// does not encode returns `Invalid` before anything is decoded.
 pub fn run(
     data: &[u8],
     cap: u64,
-    encode_as: Option<Format>,
+    auto_orient: bool,
+    encoding: Encoding,
     output: Output,
 ) -> Result<Vec<u8>, Error> {
-    let input = sniff(data)?;
-    if output == Output::Encoded {
-        let target = encode_as.unwrap_or(input);
-        if matches!(target, Format::Jxl | Format::Svg | Format::Pdf) {
-            return Err(Error::Invalid(format!(
-                "{target:?} is a format the image component decodes and does not encode"
-            )));
-        }
+    let target = encoding.format.unwrap_or(sniff(data)?);
+    if output == Output::Encoded && matches!(target, Format::Jxl | Format::Svg | Format::Pdf) {
+        return Err(Error::Invalid(format!(
+            "{target:?} is a format the image component decodes and does not encode"
+        )));
     }
-    let pixels = decode(data, cap)?;
+    let pixels = decode(data, cap, auto_orient)?;
+    if output == Output::Encoded {
+        return encode(pixels, target, encoding);
+    }
     let mut out = Vec::with_capacity(16);
     out.extend_from_slice(&u64::from(pixels.width).to_be_bytes());
     out.extend_from_slice(&u64::from(pixels.height).to_be_bytes());
-    match output {
-        Output::Size => Ok(out),
-        Output::Raw => {
-            out.extend_from_slice(&pixels.rgba);
-            Ok(out)
-        }
-        Output::Encoded => Err(Error::Runtime(
-            "encoding is not available in this build of the image component".to_string(),
-        )),
+    if output == Output::Raw {
+        out.extend_from_slice(&pixels.rgba);
     }
+    Ok(out)
 }
 
 /// The formats of the WIT `format` enum.
@@ -172,22 +180,30 @@ mod guest {
             if !plan.overlays.is_empty() {
                 return missing("an overlay");
             }
-            let mut encode_as = None;
+            let mut encoding = crate::Encoding::default();
             for step in &plan.steps {
                 match operations(step).as_slice() {
                     ["format"] => {
-                        encode_as = step.format.as_ref().map(|options| match options.format {
-                            Format::Jpeg => crate::Format::Jpeg,
-                            Format::Png => crate::Format::Png,
-                            Format::Webp => crate::Format::Webp,
-                            Format::Gif => crate::Format::Gif,
-                            Format::Avif => crate::Format::Avif,
-                            Format::Jxl => crate::Format::Jxl,
-                            Format::Svg => crate::Format::Svg,
-                            Format::Pdf => crate::Format::Pdf,
-                        });
+                        if let Some(options) = &step.format {
+                            encoding.format = Some(match options.format {
+                                Format::Jpeg => crate::Format::Jpeg,
+                                Format::Png => crate::Format::Png,
+                                Format::Webp => crate::Format::Webp,
+                                Format::Gif => crate::Format::Gif,
+                                Format::Avif => crate::Format::Avif,
+                                Format::Jxl => crate::Format::Jxl,
+                                Format::Svg => crate::Format::Svg,
+                                Format::Pdf => crate::Format::Pdf,
+                            });
+                            encoding.quality = options.quality;
+                            encoding.lossless = options.lossless;
+                        }
                     }
-                    ["metadata"] => {}
+                    ["metadata"] => {
+                        if let Some(options) = &step.metadata {
+                            encoding.keep_metadata = options.keep;
+                        }
+                    }
                     [operation] => return missing(&format!("the `{operation}` step")),
                     set => {
                         return Err(Error::Invalid(format!(
@@ -203,7 +219,7 @@ mod guest {
                 Output::Size => crate::Output::Size,
             };
             let cap = source.max_pixels.unwrap_or(crate::DEFAULT_MAX_PIXELS);
-            crate::run(&source.data, cap, encode_as, output).map_err(error)
+            crate::run(&source.data, cap, source.auto_orient, encoding, output).map_err(error)
         }
 
         fn variants(_source: Source, _plans: Vec<Plan>) -> Result<Vec<Vec<u8>>, Error> {

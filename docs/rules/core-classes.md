@@ -2139,9 +2139,14 @@ frame or the raw channels.
 
 `encode` **strips metadata** — EXIF, XMP, IPTC, ICC — unless the plan explicitly kept it. Location
 data in a re-encoded upload is the leak this default closes; a program that wants the tags reads them
-from the header and stores them where it chooses.
+from the header and stores them where it chooses. A kept EXIF block whose orientation `open` applied
+is written with its orientation tag set to `1`, so a viewer does not turn the image a second time.
 
-**Not shipped.** No image component exists in the tree.
+**Not shipped.** The component's `run` applies the orientation of a JPEG, PNG or WebP input and
+re-encodes JPEG, PNG, lossless WebP and GIF with no metadata unless a `metadata` step keeps the EXIF
+block (`extensions/image/src/decode.rs`, `extensions/image/src/encode.rs`,
+`crates/nvs-ext/tests/image_pipeline.rs`). AVIF and JPEG XL inputs are not oriented, the ICC
+conversion does not exist, and the `Novis\Image` builder does not exist.
 
 <sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/image-one-entry-point-per-job`](core-classes.md#core-classes-image-one-entry-point-per-job). Decided in [0120](../decisions/0120.md).</sub>
 

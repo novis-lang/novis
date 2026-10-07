@@ -84,6 +84,7 @@ pub(crate) fn decode(data: &[u8], cap: u64) -> Result<Pixels, Error> {
         width,
         height,
         rgba,
+        exif: None,
     })
 }
 
