@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-ext/src/convert.rs",
+  "title": "A list of bytes crosses the guest boundary as one wasmtime `Val` per byte.",
+  "text": "`convert` lowers `Value::Bytes` to `Val::List` of `Val::U8` and lifts it back the same way, because the call bridge calls every export through wasmtime's dynamic `Func::call_async`. Each byte costs a whole `Val` on the host, so crossing costs tens of nanoseconds per byte. `benches/results/image-guest.json` shows it: the guest decodes a JPEG within a small factor of native, but returning the decoded pixels costs about ten times the decode. wasmtime also charges every `Val` a guest returns against its hostcall fuel, 128 MiB by default, so a `raw()` of an image over about one megapixel traps as `ExtensionError` today. Closing it means a bulk path for `list<u8>` in both directions, one copy of the bytes each way; whether wasmtime's dynamic API offers one, or the bridge needs typed calls for byte parameters and results, is not checked. With the host allocation matching the bytes, the hostcall fuel can be set to the request's memory ceiling rather than wasmtime's default. `crates/nvs-ext/tests/support/image_arms.rs` sizes its frame under the fuel until then.",
+  "milestone": "M9"
+}
