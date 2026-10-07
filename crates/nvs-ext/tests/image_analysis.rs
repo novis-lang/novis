@@ -11,8 +11,12 @@
 //! returns those colours, most frequent first, and never more than `count`; a `count` above 256
 //! returns `invalid`. A `qr` code reads back to its data through `rqrr` at every level, a higher
 //! level needing a version at least as big, and is a `size`-pixel square with a light margin; a
-//! `size` under the code's modules and data too long for its level return `invalid`. The inputs
-//! are built here or read from `extensions/image/fixtures/gradient.png`.
+//! `size` under the code's modules and data too long for its level return `invalid`. Text in
+//! the font given as bytes draws dark pixels on a canvas in one crossing, the `text` source's
+//! `size` output is exactly the box its `raw` output fills and a step's ink stays inside that box,
+//! `maxWidth` puts each word of two on its own line and never breaks a word, and a font cut off
+//! after its header returns `parse` from both the source and the step. The inputs are built here
+//! or read from `extensions/image/fixtures/`.
 
 use std::future::Future;
 use std::pin::pin;
@@ -593,5 +597,268 @@ fn qr_data_too_long_for_its_level_is_a_logic_error() {
             assert!(message.contains("2000"), "{message}");
         }
         other => panic!("2000 bytes at `High` returned {other:?}"),
+    }
+}
+
+fn font() -> Vec<u8> {
+    let path = nvs_repo::path("extensions/image/fixtures/DancingScript-Regular.ttf");
+    std::fs::read(&path).unwrap_or_else(|err| panic!("{}: {err}", path.display()))
+}
+
+/// `run` of `source` through `steps`, returning `output`.
+fn run_steps(
+    request: &Request,
+    extension: &Extension,
+    source: Value,
+    steps: Vec<Value>,
+    output: &str,
+) -> Result<Vec<u8>, Failure> {
+    let plan = shape(vec![
+        (
+            "steps",
+            Value::Array(
+                (0..)
+                    .zip(steps)
+                    .map(|(at, step)| (Key::Int(at), step))
+                    .collect(),
+            ),
+        ),
+        ("overlays", Value::Array(Vec::new())),
+        ("output", Value::Case(output.to_owned())),
+    ]);
+    match block_on(request.call_values(extension, "run", vec![source, plan]))? {
+        Some(Value::Bytes(bytes)) => Ok(bytes),
+        other => panic!("`run` returned {other:?}"),
+    }
+}
+
+/// The size header of a `size` or `raw` output, and the pixels behind it.
+fn header(out: &[u8]) -> (u64, u64, &[u8]) {
+    let word = |at: usize| u64::from_be_bytes(out[at..at + 8].try_into().unwrap());
+    (word(0), word(8), &out[16..])
+}
+
+/// A `text` source of `text` at 32 pixels, wrapped at `max_width` when there is one.
+fn text_source(text: &str, font: &[u8], max_width: Option<u64>) -> Value {
+    shape(vec![
+        ("text", Value::String(text.to_owned())),
+        ("font", Value::Bytes(font.to_vec())),
+        ("size", Value::Float(32.0)),
+        ("maxWidth", max_width.map_or(Value::Null, Value::Uint)),
+        ("align", Value::Null),
+    ])
+}
+
+/// The width and height `measureText` reads: a `text` source run to its `size` output.
+fn measure(
+    request: &Request,
+    extension: &Extension,
+    text: &str,
+    font: &[u8],
+    max_width: Option<u64>,
+) -> (u64, u64) {
+    let out = run_steps(
+        request,
+        extension,
+        text_source(text, font, max_width),
+        Vec::new(),
+        "Size",
+    )
+    .unwrap_or_else(|failure| panic!("measuring {text:?}: {failure:?}"));
+    assert_eq!(out.len(), 16, "`size` is the header alone");
+    let (width, height, _) = header(&out);
+    (width, height)
+}
+
+/// A white canvas of `width` by `height` with `text` drawn on it in black at `x`, `y`, as raw pixels.
+fn drawn(
+    request: &Request,
+    extension: &Extension,
+    text: &str,
+    font: &[u8],
+    at: (i64, i64),
+) -> Result<Vec<u8>, Failure> {
+    let white = shape(vec![
+        ("r", Value::Uint(255)),
+        ("g", Value::Uint(255)),
+        ("b", Value::Uint(255)),
+        ("alpha", Value::Float(1.0)),
+    ]);
+    let canvas = shape(vec![
+        ("width", Value::Uint(240)),
+        ("height", Value::Uint(100)),
+        ("fill", white),
+    ]);
+    let black = shape(vec![
+        ("r", Value::Uint(0)),
+        ("g", Value::Uint(0)),
+        ("b", Value::Uint(0)),
+        ("alpha", Value::Float(1.0)),
+    ]);
+    let step = shape(vec![(
+        "text",
+        shape(vec![
+            ("text", Value::String(text.to_owned())),
+            ("font", Value::Bytes(font.to_vec())),
+            ("size", Value::Float(32.0)),
+            ("color", black),
+            ("gravity", Value::Null),
+            ("x", Value::Int(at.0)),
+            ("y", Value::Int(at.1)),
+            ("maxWidth", Value::Null),
+            ("align", Value::Null),
+        ]),
+    )]);
+    run_steps(request, extension, canvas, vec![step], "Raw")
+}
+
+/// The smallest box holding every pixel of `rgba`, `width` wide, that `inked` picks.
+fn ink_box(rgba: &[u8], width: u64, inked: impl Fn(&[u8]) -> bool) -> Option<(u64, u64, u64, u64)> {
+    let mut found: Option<(u64, u64, u64, u64)> = None;
+    for (at, px) in rgba.chunks_exact(4).enumerate() {
+        if !inked(px) {
+            continue;
+        }
+        let (x, y) = (at as u64 % width, at as u64 / width);
+        found = Some(match found {
+            None => (x, y, x, y),
+            Some((left, top, right, bottom)) => {
+                (left.min(x), top.min(y), right.max(x), bottom.max(y))
+            }
+        });
+    }
+    found
+}
+
+#[test]
+fn text_renders_latin_with_the_font_given_as_bytes() {
+    let (host, extension) = setup();
+    let request = request(&host);
+    let font = font();
+    let out = drawn(&request, &extension, "Shop", &font, (10, 10)).expect("the `text` step runs");
+    assert_eq!(
+        request.crossings(),
+        1,
+        "the font and the text cross with the plan, in one call"
+    );
+    let (width, height, rgba) = header(&out);
+    assert_eq!(
+        (width, height),
+        (240, 100),
+        "the step keeps the frame's size"
+    );
+    let dark = rgba.chunks_exact(4).filter(|px| px[0] < 128).count();
+    assert!(dark > 100, "the text is drawn in black: {dark} dark pixels");
+    // The text source is the text alone, on a transparent canvas.
+    let out = run_steps(
+        &request,
+        &extension,
+        text_source("Blog", &font, None),
+        Vec::new(),
+        "Raw",
+    )
+    .expect("the `text` source runs");
+    let (_, _, rgba) = header(&out);
+    assert!(
+        rgba.chunks_exact(4).any(|px| px[3] == 0),
+        "the canvas is transparent"
+    );
+    assert!(
+        rgba.chunks_exact(4)
+            .any(|px| px[3] == 255 && px[..3] == [0, 0, 0]),
+        "the text is opaque black"
+    );
+}
+
+#[test]
+fn measure_text_matches_the_box_text_draws() {
+    let (host, extension) = setup();
+    let request = request(&host);
+    let font = font();
+    let (width, height) = measure(&request, &extension, "Shop and Blog", &font, None);
+    assert!(width > 0 && height >= 32, "{width}x{height}");
+    let out = run_steps(
+        &request,
+        &extension,
+        text_source("Shop and Blog", &font, None),
+        Vec::new(),
+        "Raw",
+    )
+    .unwrap();
+    let (raw_w, raw_h, rgba) = header(&out);
+    assert_eq!(
+        (raw_w, raw_h),
+        (width, height),
+        "the source is exactly the measured box"
+    );
+    let (left, top, right, bottom) =
+        ink_box(rgba, raw_w, |px| px[3] > 0).expect("the text has ink");
+    assert!(
+        left < width / 4 && right > width * 3 / 4,
+        "the ink spans the box: {left}..{right} of {width}"
+    );
+    assert!(top < height && bottom < height);
+    // Drawn as a step at 10, 10, every inked pixel lies inside the measured box placed there.
+    let out = drawn(&request, &extension, "Shop and Blog", &font, (10, 10)).unwrap();
+    let (canvas_w, _, rgba) = header(&out);
+    let (left, top, right, bottom) =
+        ink_box(rgba, canvas_w, |px| px[0] < 255).expect("the step draws");
+    assert!(left >= 10 && top >= 10, "{left}, {top}");
+    assert!(
+        right < 10 + width && bottom < 10 + height,
+        "{right}, {bottom} inside {width}x{height}"
+    );
+}
+
+#[test]
+fn max_width_wraps_at_a_word_boundary() {
+    let (host, extension) = setup();
+    let request = request(&host);
+    let font = font();
+    let (word, line) = measure(&request, &extension, "Shop", &font, None);
+    let (both, _) = measure(&request, &extension, "Shop Shop", &font, None);
+    assert!(
+        both > word * 2,
+        "two words on one line are wider than two words"
+    );
+    let (wrapped_w, wrapped_h) = measure(&request, &extension, "Shop Shop", &font, Some(word + 1));
+    assert_eq!(wrapped_w, word, "each line is one word");
+    assert!(
+        wrapped_h > line * 3 / 2,
+        "the text is two lines: {wrapped_h} against {line}"
+    );
+    // A word wider than `maxWidth` is a line of its own and is not broken.
+    let (narrow_w, narrow_h) = measure(&request, &extension, "Shop", &font, Some(1));
+    assert_eq!((narrow_w, narrow_h), (word, line));
+}
+
+#[test]
+fn a_font_with_malformed_tables_throws_parse_error_at_the_terminal() {
+    let (host, extension) = setup();
+    let request = request(&host);
+    // The header is a real TrueType header, and the tables it names are cut off.
+    let truncated = font()[..200].to_vec();
+    for (what, result) in [
+        (
+            "the source",
+            run_steps(
+                &request,
+                &extension,
+                text_source("Shop", &truncated, None),
+                Vec::new(),
+                "Size",
+            ),
+        ),
+        (
+            "the step",
+            drawn(&request, &extension, "Shop", &truncated, (0, 0)),
+        ),
+    ] {
+        match result {
+            Err(Failure::Error(Error::Parse(message))) => {
+                assert!(message.contains("200 bytes"), "{what}: {message}");
+            }
+            other => panic!("{what} with a truncated font returned {other:?}"),
+        }
     }
 }

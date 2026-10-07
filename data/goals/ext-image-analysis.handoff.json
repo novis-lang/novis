@@ -1,27 +1,28 @@
 {
-  "state": "**Goal `ext-image-analysis` — `Novis\\Image` compares, hashes, summarises and draws. Stages 2, 3 and 4 are on disk: comparison, hashing, placeholders, the palette and QR codes. Stages 5 (text) and 6 (the feature proofs) are not.**\n\nThe design is ADR 0120 §§ 8 and 9, and the goal file's § *Standing decisions* answers every call a session meets, the crates included. No session re-decides one.\n\nStage 4 on disk: the component's `qr` export over the `qrcode` crate (default features off), whose module doc `extensions/image/src/qr.rs` defines `size` (default 256), `margin` (default 4), the level (default `Medium`) and the format (default PNG); `QrCode::render` in `extensions/image/nvs/QrCode.nvs`, the manifest's `Codec::qr` and `QrLevel`; the four QR host checks in `crates/nvs-ext/tests/image_analysis.rs`, which read each code back with `rqrr` (a workspace dev-dependency, `image` feature off); and `tests/conformance/novis/image-a-qr-code-is-a-square-png.nvst`. `rule:core-classes/image-one-entry-point-per-job`'s *Not shipped* paragraph says what is on disk.\n\nThe component's own unit tests run with `cargo test --lib` inside `extensions/image/`, a workspace of its own. `cargo deny check licenses` passes with both new crates; `cargo deny check bans` fails on a `nvs-image` wildcard dev-dependency that was already there before this goal's QR slice.",
+  "state": "**Goal `ext-image-analysis` — `Novis\\Image` compares, hashes, summarises and draws. Stages 2 to 5 are on disk: comparison, hashing, placeholders, the palette, QR codes and text. Stage 6 (the feature proofs) is not.**\n\nThe design is ADR 0120 §§ 8 and 9, and the goal file's § *Standing decisions* answers every call a session meets, the crates included. No session re-decides one.\n\nStage 5 on disk: `extensions/image/src/text.rs` (module doc: size is the em in pixels, line height, `GPOS` `kern`-feature pair kerning read through `ttf-parser` with the `kern` table as fallback, `maxWidth` breaks at spaces and never inside a word, `align`, the box, the source drawn opaque black) is `Op::Text` and `Input::Text`; `Image::text`, `Image::measureText` (a `text` source run to the `size` output) and `Font::fromBytes` (checks the first four bytes in Novis) in `extensions/image/nvs/`; the manifest's text shapes are `x: ?T` per `rule:core-classes/image-pipeline`. The four host checks are in `crates/nvs-ext/tests/image_analysis.rs` over the fixture `extensions/image/fixtures/DancingScript-Regular.ttf` (OFL, beside its licence), and `tests/conformance/novis/image-font-from-bytes-refuses-bytes-that-are-not-a-font.nvst` pins the `ParseError`s. Both rule fragments' *Not shipped* paragraphs say what is on disk.\n\nThe component's own unit tests run with `cargo test --lib` inside `extensions/image/`, a workspace of its own. `cargo deny check bans` fails on a `nvs-image` wildcard dev-dependency that was already there before this goal; `cargo deny check licenses` was not re-run for `ab_glyph`, `ab_glyph_rasterizer`, `owned_ttf_parser` and `ttf-parser` (all Apache-2.0 or MIT, not checked).",
   "next": {
-    "stage": 5,
-    "title": "text",
+    "stage": 6,
+    "title": "the feature proofs",
     "files": [],
-    "note": "one file set: `extensions/image/src/lib.rs`, a new `extensions/image/src/text.rs`, `extensions/image/Cargo.toml`, `extensions/image/manifest.json`, `extensions/image/nvs/Image.nvs`, a new `extensions/image/nvs/Font.nvs`, and `crates/nvs-ext/tests/image_analysis.rs`.",
+    "note": "one file set: `docs/examples/types/Novis-Image-*/`, `docs/examples/` folders for the new `Image` members, `tests/hostile/`, `benches/members/`, read through `bun nv proofs --id '<feature>'`.",
     "items": [
       {
         "done": false,
-        "text": "**The `text` step and `text` source** (`rule:core-classes/image-one-entry-point-per-job`, `rule:core-classes/image-pipeline`, ADR 0120 § 9) — replace the `missing` arms at `extensions/image/src/lib.rs:471` and `extensions/image/src/lib.rs:621` with a new `text.rs` over `ab_glyph` (Latin only, kerning, `maxWidth` wraps at a word, `align`), its options at `wit/image.wit:204`; follow `qr.rs`'s split of a core function with host unit tests."
+        "text": "**The three enums' proofs** (`rule:testing/feature-proofs`) — `about.md` and one example each for `HashKind`, `PlaceholderKind` and `QrLevel`, the paths `bun nv proofs --id 'Novis\\Image\\QrLevel'` prints; the enums are declared at `extensions/image/manifest.json:88`."
       },
       {
         "done": false,
-        "text": "**`Image::text`, `Image::measureText` and `Font::fromBytes`** — beside `extensions/image/nvs/Image.nvs:329`; `Font::fromBytes` checks the header in Novis and throws `ParseError` on bytes that are no font (goal § *Standing decisions*)."
+        "text": "**The text members' proofs** (`rule:testing/feature-proofs`) — `Image::text`, `Image::measureText` and `Font::fromBytes` at `extensions/image/nvs/Image.nvs:244`, `extensions/image/nvs/Image.nvs:260` and `extensions/image/nvs/Font.nvs:17`; first check the roster in `tools/nv/proofs/roster.ts:1` now lists them, since the driver's last sweep said it did not."
       },
       {
         "done": false,
-        "text": "**The text checks** — the record's `nvs-ext` test `text_renders_latin_with_the_font_given_as_bytes` and its siblings in `crates/nvs-ext/tests/image_analysis.rs:1`, and the case `tests/conformance/novis/image-font-from-bytes-refuses-bytes-that-are-not-a-font.nvst`. A font fixture needs a permissive licence (OFL is not in `deny.toml`, which covers crates only; check the fixture's licence is acceptable before committing one)."
+        "text": "**The other members this goal added** — `compare`, `hash`, `hashDistance`, `placeholder`, `palette`, `QrCode::render`, whatever `bun nv proofs --owed` still names under `Novis\\Image`, beside `extensions/image/nvs/Image.nvs:295`."
       }
     ]
   },
   "backlog": [
-    "Stage 6, the feature proofs for every `Novis\\Image` member and enum this goal added (`bun nv proofs --owed`; the goal record's stage 6 checks).",
-    "`cargo deny check bans` fails on `nvs-image.workspace = true` in `crates/nvs-ext/Cargo.toml:83` being a wildcard (no `version`); a gap for whoever owns `deny.toml`."
+    "`cargo deny check licenses` over the text crates, and the pre-existing `nvs-image` wildcard dev-dependency `cargo deny check bans` names (`deny.toml`).",
+    "An example that draws text needs a font the program reads itself: an example or attack under `docs/examples/` has to ship one, and the fixture's OFL allows it (`extensions/image/fixtures/README.md`).",
+    "Complex shaping (`rustybuzz`) is a later wave per ADR 0120 § 9; the reference card for `Image::text` must say Latin only."
   ]
 }
