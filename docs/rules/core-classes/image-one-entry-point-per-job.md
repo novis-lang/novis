@@ -14,4 +14,8 @@ scripts and foreign objects are ignored, and where **no external reference is ev
 there is nothing in the guest to resolve it with. Rasterising is how an uploaded SVG is displayed
 safely; sanitising one would be the repair that is refused everywhere else.
 
-**Not shipped.** No image component exists in the tree.
+**Not shipped.** Comparison is on disk: the component's `compare` export, whose module doc
+`extensions/image/src/compare.rs` says what a delta is and how the SSIM and the rendered diff are
+made, and `Image::compare` returning a `Diff` in `extensions/image/nvs/`, which compares an `Image`
+with no `format` step as PNG so no lossy re-encode moves a pixel (`crates/nvs-ext/tests/image_analysis.rs`,
+`tests/conformance/novis/`). Hashing, placeholders, palette, text, QR codes and SVG are not.

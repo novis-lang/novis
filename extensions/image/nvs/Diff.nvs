@@ -1,0 +1,16 @@
+<?nvs
+namespace Novis\Image;
+
+/// The result of `Image::compare`. A delta is the largest difference in one channel, from 0 to 255.
+/// `ssim` is `1.0` for identical images. `diff` is a PNG with the differing pixels in red, or `null`.
+final class Diff
+{
+    /// `new Diff` makes a result from its five values. `Image::compare` makes one for you.
+    public function constructor(
+        public readonly bool $identical,
+        public readonly uint $differingPixels,
+        public readonly uint $maxDelta,
+        public readonly float $ssim,
+        public readonly ?bytes $diff,
+    ) {}
+}

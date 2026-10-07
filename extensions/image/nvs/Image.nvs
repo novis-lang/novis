@@ -290,6 +290,27 @@ final class Image
         return Codec::variants($this->source, $plans);
     }
 
+    /// `Image::compare` compares two images of the same size and returns a `Diff`. Other sizes throw a `LogicError`.
+    /// A pixel differs when its delta is above `tolerance`, which is 0 by default.
+    public static function compare(bytes|Image $a, bytes|Image $b, ?{tolerance?: uint, render?: bool} $options = null): Diff
+    {
+        ?uint $tolerance = $options?->tolerance ?? null;
+        bool $render = $options?->render ?? false;
+        var $found = Codec::compare(Image::bytesOf($a), Image::bytesOf($b), {tolerance: $tolerance, render: $render});
+        return new Diff($found->identical, $found->differingPixels, $found->maxDelta, $found->ssim, $found->diff);
+    }
+
+    private static function bytesOf(bytes|Image $image): bytes
+    {
+        if ($image is Image) {
+            if ($image->lastFormat() != null) {
+                return $image->encode();
+            }
+            return $image->format(Format::Png)->encode();
+        }
+        return $image as bytes;
+    }
+
     private function lastFormat(): ?Format
     {
         ?Format $found = null;

@@ -28,6 +28,16 @@
       ],
       "returns": "array<bytes>",
       "help": "Decodes a source once and runs each pipeline on it. Returns one result per pipeline, in the same order."
+    },
+    {
+      "name": "compare",
+      "params": [
+        {"name": "a", "type": "bytes"},
+        {"name": "b", "type": "bytes"},
+        {"name": "options", "type": "{tolerance: ?uint, render: bool}"}
+      ],
+      "returns": "{identical: bool, differingPixels: uint, maxDelta: uint, ssim: float, diff: ?bytes}",
+      "help": "Decodes two encoded images of the same size and compares their pixels. Two images of different sizes throw a `LogicError`."
     }
   ],
   "enums": [
