@@ -1,10 +1,11 @@
-# Every server a test needs, as one file: the five ADR 0067's *Verification* names, and the SMTP catcher
-# goal `core-part-ii`'s stage 9 points `Core\Mail` at.
+# Every server a test needs, as one file: the five ADR 0067's *Verification* names, the SMTP catcher
+# goal `core-part-ii`'s stage 9 points `Core\Mail` at, and the Samba AD domain controller `Core\Ldap`
+# is tested against.
 #
 # `bun nv loop` brings these up when a run starts and at every goal switch -- `docker compose -f
 # tests/db/compose.yaml up -d --wait <services>` -- from the live goal record's `env.docker`: goal
 # `core-part-ii` names `redis` and `mailpit`, goal `database` the five database servers, and goal
-# `server` reuses `postgres` and `redis` alone. `--wait` is why every service below
+# `server` reuses `postgres` and `redis` alone, and goal `ldap` names `samba-ad`. `--wait` is why every service below
 # carries a healthcheck: it makes "up" mean *healthy* rather than *started*, so a driver's first
 # connection is not racing the server's own initialisation.
 #
@@ -58,9 +59,11 @@ services:
   # `CA:FALSE` and `serverAuth` onto the issued certificate; without it the leaf has no SAN at all and
   # no client will match a hostname to it.
   #
-  # The guard file is the CA key, not the server key. A volume left over from the single self-signed
-  # certificate has `server.key` and no `ca.key`, so it re-issues both rather than preserving the shape
-  # that could not be verified.
+  # Two guards, one per certificate. The CA is made only when `ca.key` is missing, and making it deletes
+  # the leaf, so a volume left over from the single self-signed certificate re-issues both. The leaf is
+  # issued again whenever its SAN lacks `DNS:samba-ad`, the last name added to it, against the CA the
+  # volume already has: an anchor a developer copied out of the volume stays valid. Adding a name to the
+  # SAN means moving that check to the new name. The leaf keeps `server.key` when the volume has one.
   #
   # `chown 999` is not cosmetic. PostgreSQL refuses to start on a key with group or world access, and
   # both images run as uid 999, so the key is 0600 and owned by exactly that. The CA key stays root's:
@@ -76,25 +79,30 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - >
-        test -f /certs/ca.key ||
+        (test -f /certs/ca.key ||
         (openssl req -x509 -newkey rsa:2048 -nodes -days 3650
         -subj "/CN=Novis test CA"
         -addext "basicConstraints=critical,CA:TRUE"
         -addext "keyUsage=critical,keyCertSign,cRLSign"
         -keyout /certs/ca.key -out /certs/ca.crt
-        && openssl req -new -newkey rsa:2048 -nodes
+        && chmod 600 /certs/ca.key
+        && rm -f /certs/server.crt))
+        && ((test -f /certs/server.crt
+        && openssl x509 -in /certs/server.crt -noout -ext subjectAltName | grep -q DNS:samba-ad) ||
+        ((test -f /certs/server.key || openssl genrsa -out /certs/server.key 2048)
+        && openssl req -new -key /certs/server.key
         -subj "/CN=localhost"
         -addext "basicConstraints=critical,CA:FALSE"
         -addext "keyUsage=critical,digitalSignature,keyEncipherment"
         -addext "extendedKeyUsage=serverAuth"
-        -addext "subjectAltName=DNS:localhost,DNS:postgres,DNS:redis,IP:127.0.0.1"
-        -keyout /certs/server.key -out /certs/server.csr
+        -addext "subjectAltName=DNS:localhost,DNS:postgres,DNS:redis,DNS:samba-ad,IP:127.0.0.1"
+        -out /certs/server.csr
         && openssl x509 -req -in /certs/server.csr -days 3650
         -CA /certs/ca.crt -CAkey /certs/ca.key -CAcreateserial
         -copy_extensions copyall -out /certs/server.crt
         && chown 999:999 /certs/server.key /certs/server.crt /certs/ca.crt
-        && chmod 600 /certs/server.key /certs/ca.key
-        && chmod 644 /certs/server.crt /certs/ca.crt)
+        && chmod 600 /certs/server.key
+        && chmod 644 /certs/server.crt /certs/ca.crt))
         && cp -f /certs/server.key /certs/mssql.key
         && chown 10001:10001 /certs/mssql.key
         && chmod 600 /certs/mssql.key
@@ -341,6 +349,70 @@ services:
       timeout: 5s
       retries: 30
       start_period: 10s
+
+  # ---------------------------------------------------------------------------------------------------
+  # Samba as an Active Directory domain controller, which goal `ldap`'s `Core\Ldap` is tested against.
+  # The image is pinned by digest because it publishes `latest` only. The domain is `EXAMPLE.TEST`, so
+  # the base DN is `DC=example,DC=test`, and the administrator is
+  # `CN=Administrator,CN=Users,DC=example,DC=test` with the password below. Provisioning runs at every
+  # first boot and takes about half a minute, which is the `start_period`.
+  #
+  # `hostname` is fixed because Samba names the domain controller after it, and a random container id
+  # would change the DC's DN on every `up`. Samba's own certificate names that id too, so the
+  # `/entrypoint.d` script written below points it at the `certs` leaf, whose SAN has `samba-ad` and
+  # `localhost`. The script runs after provisioning and before Samba starts, which is the one moment
+  # `smb.conf` exists and is not yet read. Its `[global]` is a second one, appended: Samba merges them,
+  # and appending needs no edit of the provisioned file. The key is copied because Samba refuses a key
+  # file it does not own, and `server.key` is uid 999's.
+  #
+  # `INSECURE_LDAP` sets `ldap server require strong auth = no`, so a simple bind on 389 without TLS is
+  # accepted and `rule:security/ldap-cleartext-bind-is-granted-per-host`'s granted path can be tested.
+  # Without it Samba answers that bind `strongerAuthRequired`. The health check binds over LDAPS and
+  # verifies against `ca.crt` under the name `samba-ad`, so healthy means the leaf is the one served. It
+  # calls `/usr/bin/ldapsearch` by its path, because the image's `ldapsearch` on `PATH` is a wrapper
+  # that adds `-y /root/.ldappass`, which `-w` cannot be combined with.
+  # ---------------------------------------------------------------------------------------------------
+  samba-ad:
+    image: smblds/smblds@sha256:c9e6dedd718cc541ff5b14c7044fc14ce3d3a8789e4468552a9a17c24e118d62
+    hostname: samba-ad
+    depends_on:
+      certs:
+        condition: service_completed_successfully
+    environment:
+      REALM: EXAMPLE.TEST
+      DOMAIN: EXAMPLE
+      ADMINPASS: "Novis-test-1"
+      INSECURE_LDAP: "true"
+    entrypoint: ["/sbin/tini", "-g", "--", "/bin/sh", "-c"]
+    command:
+      - |
+        cat > /entrypoint.d/10-novis-tls <<'EOF'
+        #!/bin/sh
+        set -e
+        install -m 600 /certs/server.key /var/lib/samba/private/novis-tls.key
+        grep -q novis-tls.key /etc/samba/smb.conf || printf '%s\n' '[global]' \
+          'tls keyfile = /var/lib/samba/private/novis-tls.key' \
+          'tls certfile = /certs/server.crt' \
+          'tls cafile = /certs/ca.crt' >> /etc/samba/smb.conf
+        EOF
+        chmod 755 /entrypoint.d/10-novis-tls
+        exec /entrypoint.sh
+    ports:
+      - "127.0.0.1:16389:389"
+      - "127.0.0.1:16636:636"
+    volumes:
+      - certs:/certs:ro
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >
+          LDAPTLS_CACERT=/certs/ca.crt LDAPTLS_REQCERT=demand
+          /usr/bin/ldapsearch -H ldaps://samba-ad -x -D "CN=Administrator,CN=Users,DC=example,DC=test"
+          -w "Novis-test-1" -b "DC=example,DC=test" -s base -LLL dn | grep -q "^dn:"
+      interval: 5s
+      timeout: 10s
+      retries: 30
+      start_period: 60s
 
   # ---------------------------------------------------------------------------------------------------
   # Mailpit, the SMTP endpoint goal `core-part-ii`'s stage 9 points `Core\Mail` at. It is a catcher, not a relay: it
