@@ -1,0 +1,42 @@
+{
+  "state": "**Goal `pdf` — `Novis\\Pdf` built into every binary, and the image component's SVG and PDF decoding — has just started; nothing of it has landed yet.** Stage 1's floor is whatever the chain carries.\n\nADRs 0121 and 0128 and M17 Parts 1 and 2 planned this work unscheduled; this goal schedules it and changes several of their decisions. The user made fifteen calls when the goal was written, under one rule of theirs: every common case is in, an easy edge case is in, a hard edge case almost nobody needs is out. The goal file's § *Standing decisions* holds them with the writer's own calls beside them. No session re-decides one.\n\nFacts about the tree as the goal was written. `Novis\\` is reserved for built-in components (ADR 0247), so `Novis\\Pdf` is the third built-in and the record amends 0247's count. `Svg` and `Pdf` are only enum cases in the image component: `sniff` rejects both (`extensions/image/src/decode.rs:60`), and the WIT's `page` and `dpi` are dropped by the guest mapping (`extensions/image/src/lib.rs:446`) and absent from `Image::open` (`extensions/image/nvs/Image.nvs:61`). OFL-1.1, the Liberation fonts' licence, is in neither `deny.toml:38` nor `tools/nv/cmd/gen-attribution.ts:66`. No `cargo deny` runs over an extension's own `wasm32-wasip2` graph. `html5ever` is the patched copy at `vendor/html5ever` (`Cargo.toml:1151`), which an `extensions/pdf` workspace must point at itself. pdfium-in-wasm needs Emscripten, so `hayro` (0.8 when the goal was written) has no fallback.",
+  "next": {
+    "stage": 2,
+    "title": "the record, its fragments, `wit/pdf.wit` and the font licence",
+    "files": [
+      "docs/decisions/",
+      "docs/rules/core-classes/",
+      "docs/rules/packaging/",
+      "wit/pdf.wit",
+      "wit/image.wit"
+    ],
+    "items": [
+      {
+        "done": false,
+        "text": "**The record** — one new record, its number checked against `docs/decisions/` right before it is written: every `Novis\\Pdf` class, member and options shape, the new `Novis\\Image` members, the CSS subset as `extensions/pdf/subset.json`'s table, `Page` and `data-mark`, the eight table rules, the standards and Factur-X, the reader, `merge` and encryption, the error kinds, the tradeoffs, and the user's calls as decided. Its front matter amends ADRs 0121, 0128 and 0247; it records the headless-browser backend, form filling, signatures, PDF417 and Aztec as declined."
+      },
+      {
+        "done": false,
+        "text": "**The fragments** — the seven `pdf-*` fragments rewritten to the new decisions (the builder, the browser backend and the `data:` refusal gone; Factur-X the one attachment; reading and merging in `Novis\\Pdf`), and the seven new ids the Stage 2 checks read, listed in the goal's Stage 2. Then `docs/plan/m17.md` Parts 1 and 2 through a `## milestone: M17` wrap section."
+      },
+      {
+        "done": false,
+        "text": "**`wit/pdf.wit`** batch-shaped like `wit/intl.wit`, with the second pass for header and footer markup in it from the first write, and its two tests in `crates/nvs-stdlib/tests/ext_world.rs`; `wit/image.wit` gains the barcode export."
+      },
+      {
+        "done": false,
+        "text": "**The proofs checks the record makes possible** — one `bun nv proofs --verify --group '<class>'` check per class the record names, `Novis\\Pdf` and the new `Novis\\Image` members both, in Stage 16 of `data/goals/pdf.json`."
+      },
+      {
+        "done": false,
+        "text": "**The font licence and the deny check** — OFL-1.1 admitted for font data in `gen-attribution.ts`'s `PREFERENCE`, and a `cargo deny` over each component's own `wasm32-wasip2` graph with its check added to `data/goals/pdf.json`. These two share no files with the record and may be their own session."
+      }
+    ]
+  },
+  "backlog": [
+    "Stages 3 and 4: the image component's SVG and PDF decoding (the `hayro` prerequisites first), `harfrust` shaping and barcodes — all under `extensions/image/` and `crates/nvs-ext/tests/image_*.rs`.",
+    "Stages 5 to 13: `extensions/pdf/` built in, then the cascade, layout, pagination, header functions, tables, standards and existing PDFs — `docs/agent/goals/pdf.md`.",
+    "Stages 14 to 16: growth and benches, the editor's custom data, the feature proofs.",
+    "veraPDF as an external validator of PDF/A and PDF/UA output in CI is not in the acceptance; `krilla`'s own validation is. Adding it is the user's call."
+  ]
+}

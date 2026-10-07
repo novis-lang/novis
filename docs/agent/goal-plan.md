@@ -5,7 +5,7 @@ Every goal on the chain, in the order the loop walks them, with the stages of ea
 goals, which are off the chain. `bun nv render` writes this file from `data/chain.json` and
 `data/goals/`: change those, never this file.
 
-The chain holds 2 goals. 0 are walked, `ext-intl` is live at 1 of 2, and 1 are ahead.
+The chain holds 3 goals. 0 are walked, `ext-intl` is live at 1 of 3, and 2 are ahead.
 
 The loop runs a goal's own record and no check of any other goal. A walked goal whose record keeps no
 checks and no stages is read in its prose.
@@ -14,3 +14,4 @@ checks and no stages is read in its prose.
 |--:|---|---|---|---|---|
 | 1 | [`ext-intl`](goals/ext-intl.md) | `Novis\Intl` is built into every binary: ICU4X with every CLDR locale, batch-shaped, over `Core\Time` values | **live**, pinned last | M9 | **2** the record and `wit/intl.wit` · **3** collation, and the component is built in · **4** numbers and plural rules · **5** dates and times, relative time, lists · **6** segmentation and locale negotiation · **7** the growth, and a bundle · **8** the feature proofs |
 | 2 | [`ldap`](goals/ldap.md) | `Core\Ldap`: a native LDAPv3 client over LDAPS and StartTLS, with a filter builder and typed Active Directory values | ahead, pinned last | M8 | **2** the record · **3** the wire, and a directory to test against · **4** `Core\Ldap`: connect, open, search, read · **5** the filter builder and `Dn` · **6** typed values · **7** writes and passwords · **8** `authenticate` and AD's reasons · **9** the AD extras · **10** the feature proofs |
+| 3 | [`pdf`](goals/pdf.md) | `Novis\Pdf` is built into every binary: HTML and CSS to paginated PDF, tables that survive a page break, headers from a Novis function, and PDF and SVG as image sources | ahead, pinned last | M17 | **2** the record, its fragments, `wit/pdf.wit` and the font licence · **3** SVG and PDF open as images · **4** shaping and barcodes in `Novis\Image` · **5** the PDF component is built in · **6** the cascade · **7** text, blocks, lists and images · **8** flex, grid, floats and positioning · **9** pagination · **10** header and footer functions · **11** tables across pages · **12** standards, Factur-X and passwords · **13** existing PDFs: placing, merging and reading · **14** the growth, the benches and a bundle · **15** completion and hover in the editor · **16** the feature proofs |

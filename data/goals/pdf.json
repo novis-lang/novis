@@ -1,0 +1,815 @@
+{
+  "title": "`Novis\\Pdf` is built into every binary: HTML and CSS to paginated PDF, tables that survive a page break, headers from a Novis function, and PDF and SVG as image sources",
+  "milestone": "M17",
+  "position": "last",
+  "files": [],
+  "context": {
+    "modules": [
+      "crates/nvs-ext/build.rs",
+      "crates/nvs-ext/src/builtin.rs",
+      "crates/nvs-ext/src/load.rs",
+      "extensions/image/src/lib.rs",
+      "wit/image.wit"
+    ],
+    "rules": [
+      "packaging/the-first-party-components-are-built-in",
+      "packaging/the-boundary-is-the-cost",
+      "core-classes/pdf-render-has-no-io",
+      "core-classes/pdf-one-engine"
+    ],
+    "adrs": [
+      "0121 §2",
+      "0121 §4",
+      "0247 §1"
+    ],
+    "shapes": [
+      "A commit message"
+    ],
+    "playbook": [
+      "Tooling > the end",
+      "Tooling > one call reads",
+      "Tooling > a commit message",
+      "Tooling > a [context]*",
+      "Tooling > another agent",
+      "Tooling > a crate added to a built-in component",
+      "Running things > a new dependency owes three things",
+      "Running things > target/release/nvs.exe is"
+    ],
+    "plan": [
+      "Open now",
+      "Blocking"
+    ],
+    "milestones": [
+      "M17"
+    ]
+  },
+  "stages": [
+    {
+      "number": 2,
+      "title": "the record, its fragments, `wit/pdf.wit` and the font licence",
+      "summary": "Writes the `Novis\\Pdf` record from the goal's standing decisions, the fragments it creates and rewrites, the WIT interface the component exports, and admits the default fonts' licence.",
+      "context": {
+        "rules": [
+          "core-classes/pdf-css-subset",
+          "core-classes/pdf-output-is-inert",
+          "core-classes/pdf-page-is-an-image-source",
+          "core-classes/pdf-decode-refusals",
+          "packaging/pdf-decoding-ships-in-the-image-package",
+          "packaging/a-value-crosses-as-its-wit-type",
+          "core-api/options-bag",
+          "core-api/one-paradigm-per-operation",
+          "core-classes/html-template"
+        ],
+        "adrs": [
+          "0121 §3",
+          "0121 §5",
+          "0128 §5",
+          "0051 §3"
+        ],
+        "shapes": [
+          "A decision record",
+          "A rule fragment"
+        ]
+      }
+    },
+    {
+      "number": 3,
+      "title": "SVG and PDF open as images",
+      "summary": "`Novis\\Image` decodes SVG through `resvg` and rasterises a PDF page through `hayro`, with `page` and `dpi` passed from `Image::open` to the guest.",
+      "context": {
+        "rules": [
+          "core-classes/image-format-roster",
+          "core-classes/image-pixel-cap",
+          "core-classes/pdf-page-is-an-image-source",
+          "core-classes/pdf-decode-refusals"
+        ],
+        "adrs": [
+          "0128 §2",
+          "0128 §4"
+        ],
+        "shapes": [
+          "A `.nvst` test case"
+        ]
+      }
+    },
+    {
+      "number": 4,
+      "title": "shaping and barcodes in `Novis\\Image`",
+      "summary": "`Image::text` shapes with `harfrust`, and `Novis\\Image` renders 1D barcodes, DataMatrix, and QR codes as SVG.",
+      "context": {
+        "rules": [
+          "core-classes/image-one-entry-point-per-job"
+        ],
+        "adrs": [
+          "0120 §9"
+        ],
+        "shapes": [
+          "A `.nvst` test case"
+        ]
+      }
+    },
+    {
+      "number": 5,
+      "title": "the PDF component is built in",
+      "summary": "Builds `extensions/pdf` into every binary as the third component, and renders a paragraph of HTML to a byte-equal PDF with the default fonts and no grant.",
+      "context": {
+        "rules": [
+          "core-classes/pdf-output-is-inert",
+          "core-classes/html-parsing",
+          "packaging/a-wasm-module-cache-reuses-the-artifact-cache"
+        ],
+        "adrs": [
+          "0247 §4"
+        ],
+        "shapes": [
+          "A `.nvst` test case"
+        ]
+      }
+    },
+    {
+      "number": 6,
+      "title": "the cascade",
+      "summary": "Computes every element's style from `<style>` blocks and `style=\"\"` attributes, and reports every declaration it dropped.",
+      "context": {
+        "rules": [
+          "core-classes/pdf-css-subset"
+        ],
+        "adrs": [],
+        "shapes": []
+      }
+    },
+    {
+      "number": 7,
+      "title": "text, blocks, lists and images",
+      "summary": "Lays out block and inline content with `parley`, with every script, the font chain, hyphenation, lists, images and inline SVG.",
+      "context": {
+        "rules": [
+          "core-classes/pdf-css-subset"
+        ],
+        "adrs": [],
+        "shapes": []
+      }
+    },
+    {
+      "number": 8,
+      "title": "flex, grid, floats and positioning",
+      "summary": "Adds flex and grid through `taffy`, floats and `clear`, `relative`, `absolute` and `fixed` positioning with `z-index`, and 2D transforms.",
+      "context": {
+        "rules": [],
+        "adrs": [],
+        "shapes": []
+      }
+    },
+    {
+      "number": 9,
+      "title": "pagination",
+      "summary": "Breaks the laid-out document into pages under `@page`, with margin boxes, running elements, counters, page breaks, links, bookmarks and metadata.",
+      "context": {
+        "rules": [
+          "core-classes/pdf-output-is-inert"
+        ],
+        "adrs": [],
+        "shapes": []
+      }
+    },
+    {
+      "number": 10,
+      "title": "header and footer functions",
+      "summary": "`Document::header`, `::footer` and `::slots` take a Novis function that is called once per page with a `Page` value, and a second call places what it returns.",
+      "context": {
+        "rules": [
+          "packaging/a-fresh-instance-per-request",
+          "core-classes/html-template"
+        ],
+        "adrs": [],
+        "shapes": [
+          "A `.nvst` test case"
+        ],
+        "playbook": [
+          "Writing Novis > in extensions/intl/nvs/Collator.nvs"
+        ]
+      }
+    },
+    {
+      "number": 11,
+      "title": "tables across pages",
+      "summary": "A table keeps its columns, repeats its header and footer, never cuts a row through a line, closes its borders at every break and fills its running values.",
+      "context": {
+        "rules": [],
+        "adrs": [],
+        "shapes": [
+          "A `.nvst` test case"
+        ]
+      }
+    },
+    {
+      "number": 12,
+      "title": "standards, Factur-X and passwords",
+      "summary": "Output is always tagged; `standard` selects PDF/A-2b, PDF/A-3b or PDF/UA-1; `invoiceXml` embeds one Factur-X XML; `password` encrypts with AES-256.",
+      "context": {
+        "rules": [
+          "core-classes/pdf-output-is-inert"
+        ],
+        "adrs": [],
+        "shapes": [
+          "A `.nvst` test case"
+        ]
+      }
+    },
+    {
+      "number": 13,
+      "title": "existing PDFs: placing, merging and reading",
+      "summary": "A page of an existing PDF is placed like an image or as a page background, `Pages::merge` combines and reorders pages, and `Reader` returns a PDF's page count, metadata, attachments and text.",
+      "context": {
+        "rules": [
+          "core-classes/pdf-decode-refusals"
+        ],
+        "adrs": [],
+        "shapes": [
+          "A `.nvst` test case"
+        ]
+      }
+    },
+    {
+      "number": 14,
+      "title": "the growth, the benches and a bundle",
+      "summary": "Measures what the PDF component and the image second wave add to the binary, commits the render benchmarks, and proves a bundle calls all three components.",
+      "context": {
+        "rules": [
+          "packaging/a-nvsx-dependency-embeds-in-the-same-payload"
+        ],
+        "adrs": [
+          "0128 §4"
+        ],
+        "shapes": []
+      }
+    },
+    {
+      "number": 15,
+      "title": "completion and hover in the editor",
+      "summary": "VS Code completes and explains the PDF-specific HTML attributes and CSS inside every HTML region and html template, from data generated out of `extensions/pdf/subset.json`.",
+      "context": {
+        "rules": [
+          "ide/a-template-region-gets-the-editors-services-and-formatter",
+          "ide/completion-is-asked-where-a-spelling-ends"
+        ],
+        "adrs": [],
+        "shapes": []
+      }
+    },
+    {
+      "number": 16,
+      "title": "the feature proofs",
+      "summary": "Writes the feature proofs for every member the record named, in both components.",
+      "context": {
+        "rules": [
+          "testing/feature-proofs",
+          "core-api/reference-card",
+          "testing/hostile-case-contract"
+        ],
+        "adrs": [],
+        "shapes": [
+          "Feature proofs — an example, an attack, a bench, a `covers:` marker"
+        ],
+        "playbook": [
+          "Tooling > `bun nv proofs --verify --group`"
+        ]
+      }
+    }
+  ],
+  "checks": [
+    {
+      "id": "pdf-the-record-creates-its-fragments",
+      "kind": "command",
+      "stage": 2,
+      "name": "rulebook: the `Novis\\Pdf` record created its fragments",
+      "argv": [
+        "bun",
+        "nv",
+        "brief",
+        "--where",
+        "pdf"
+      ],
+      "want": [
+        "rule:core-classes/pdf-css-subset-table",
+        "rule:core-classes/pdf-tables-across-pages",
+        "rule:core-classes/pdf-header-is-a-page-function",
+        "rule:core-classes/pdf-factur-x-is-the-one-attachment",
+        "rule:core-classes/pdf-reader-and-merge",
+        "rule:core-classes/pdf-default-fonts"
+      ]
+    },
+    {
+      "id": "image-the-record-creates-the-barcode-roster",
+      "kind": "command",
+      "stage": 2,
+      "name": "rulebook: the record created the image component's barcode roster",
+      "argv": [
+        "bun",
+        "nv",
+        "brief",
+        "--where",
+        "barcode"
+      ],
+      "want": [
+        "rule:core-classes/image-barcode-roster"
+      ]
+    },
+    {
+      "id": "nvs-stdlib-the-pdf-interface-parses-against-the-world",
+      "kind": "cargo-named",
+      "stage": 2,
+      "name": "nvs-stdlib (`wit/pdf.wit` parses against the world in its types alone, and carries the second pass for header and footer markup)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-stdlib",
+        "--test",
+        "ext_world"
+      ],
+      "tests": [
+        "the_pdf_interface_parses_against_the_world_in_wit_types_alone",
+        "the_pdf_render_export_carries_a_second_pass_for_page_markup"
+      ]
+    },
+    {
+      "id": "nvs-ext-svg-and-pdf-decode-as-images",
+      "kind": "cargo-named",
+      "stage": 3,
+      "name": "nvs-ext (SVG decodes with no resource resolved, a PDF page rasterises at its dpi under the pixel cap, `info` counts pages without a pixel, and the bomb corpus ends in a throw or a contained trap)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-ext",
+        "--test",
+        "image_decode"
+      ],
+      "tests": [
+        "an_svg_decodes_and_an_external_href_throws",
+        "a_pdf_page_rasterises_at_the_requested_dpi",
+        "info_counts_pdf_pages_and_allocates_no_pixel",
+        "a_pdf_page_past_the_end_throws_naming_the_count",
+        "a_pdf_page_over_the_pixel_cap_is_refused_before_a_buffer",
+        "an_encrypted_pdf_throws_a_parse_error",
+        "an_unembedded_standard_font_renders_with_its_substitute",
+        "the_pdf_bomb_corpus_ends_in_a_throw_or_a_contained_trap",
+        "two_rasterisations_of_a_pdf_page_are_byte_equal"
+      ]
+    },
+    {
+      "id": "image-svg-and-pdf-open-as-images",
+      "kind": "nvs-suite",
+      "stage": 3,
+      "name": "`Image::open` opens an SVG and a chosen page of a PDF, and a page past the end throws",
+      "args": [
+        "test",
+        "tests/conformance/"
+      ],
+      "cases": [
+        "tests/conformance/novis/image-an-svg-opens-as-an-image.nvst",
+        "tests/conformance/novis/image-a-pdf-page-opens-as-an-image.nvst"
+      ]
+    },
+    {
+      "id": "nvs-ext-text-shapes-every-script",
+      "kind": "cargo-named",
+      "stage": 4,
+      "name": "nvs-ext (`Image::text` shapes Arabic, Hebrew and Devanagari through `harfrust`, and Latin text keeps its kerning)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-ext",
+        "--test",
+        "image_analysis"
+      ],
+      "tests": [
+        "text_shapes_arabic_right_to_left_with_joined_letters",
+        "text_shapes_devanagari_with_its_conjuncts",
+        "latin_text_keeps_its_kerning_under_the_shaper"
+      ]
+    },
+    {
+      "id": "nvs-ext-barcodes-read-back",
+      "kind": "cargo-named",
+      "stage": 4,
+      "name": "nvs-ext (every 1D symbology and DataMatrix reads back as the data written, QR renders as SVG, the EPC payload is the GiroCode layout, and a wrong check digit throws)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-ext",
+        "--test",
+        "image_barcode"
+      ],
+      "tests": [
+        "every_1d_symbology_reads_back_as_the_data_written",
+        "a_datamatrix_reads_back_as_the_data_written",
+        "a_qr_code_and_a_barcode_render_as_svg",
+        "an_epc_payload_is_the_girocode_layout",
+        "a_wrong_check_digit_throws_naming_it"
+      ]
+    },
+    {
+      "id": "image-a-barcode-renders",
+      "kind": "nvs-suite",
+      "stage": 4,
+      "name": "`Novis\\Image\\Barcode` renders a Code 128 and an EAN-13 as SVG, and a wrong check digit throws",
+      "args": [
+        "test",
+        "tests/conformance/"
+      ],
+      "cases": [
+        "tests/conformance/novis/image-a-barcode-renders-as-svg.nvst"
+      ]
+    },
+    {
+      "id": "nvs-ext-the-pdf-component-is-built-in",
+      "kind": "cargo-named",
+      "stage": 5,
+      "name": "nvs-ext (the PDF component is built in, renders with no configuration and no grant, resolves only the asset map and `data:`, writes byte-equal inert output, and holds the HTML element cap)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-ext",
+        "--test",
+        "pdf"
+      ],
+      "tests": [
+        "the_pdf_component_is_built_in_and_answers_with_no_configuration",
+        "a_render_needs_no_capability_grant",
+        "a_paragraph_renders_with_the_default_fonts",
+        "a_file_or_http_reference_throws_naming_it",
+        "a_name_missing_from_the_asset_map_throws",
+        "a_data_uri_image_renders",
+        "two_renders_of_equal_input_are_byte_equal",
+        "the_output_has_no_javascript_launch_or_open_action",
+        "html_nested_past_the_element_cap_throws_as_core_html_does"
+      ]
+    },
+    {
+      "id": "pdf-renders-with-no-configuration",
+      "kind": "nvs-suite",
+      "stage": 5,
+      "name": "`Novis\\Pdf` renders from a binary with no `nvs.toml`, and a missing asset throws",
+      "args": [
+        "test",
+        "tests/conformance/"
+      ],
+      "cases": [
+        "tests/conformance/novis/pdf-renders-with-no-configuration.nvst",
+        "tests/conformance/novis/pdf-a-missing-asset-throws.nvst"
+      ]
+    },
+    {
+      "id": "pdf-the-cascade-and-the-dropped-list",
+      "kind": "cargo-named",
+      "stage": 6,
+      "name": "extensions/pdf (the cascade decides computed styles, every property the subset table lists parses, and every other declaration is dropped and reported)",
+      "args": [
+        "test",
+        "--manifest-path",
+        "extensions/pdf/Cargo.toml",
+        "--test",
+        "css"
+      ],
+      "tests": [
+        "specificity_inheritance_and_important_decide_the_computed_style",
+        "var_and_calc_resolve",
+        "media_print_applies_and_screen_does_not",
+        "every_property_in_the_subset_table_parses",
+        "a_declaration_outside_the_subset_is_dropped_and_reported_with_its_position",
+        "a_clean_document_reports_nothing_dropped"
+      ]
+    },
+    {
+      "id": "pdf-text-blocks-lists-and-images",
+      "kind": "cargo-named",
+      "stage": 7,
+      "name": "extensions/pdf (text wraps, justifies, hyphenates and runs right to left, CJK breaks between ideographs, a missing glyph is reported, and lists, boxes, images and SVG lay out)",
+      "args": [
+        "test",
+        "--manifest-path",
+        "extensions/pdf/Cargo.toml",
+        "--test",
+        "layout"
+      ],
+      "tests": [
+        "text_wraps_and_justifies_inside_its_box",
+        "arabic_and_hebrew_lay_out_right_to_left",
+        "cjk_breaks_between_ideographs",
+        "hyphens_auto_breaks_by_the_language",
+        "a_missing_glyph_is_drawn_as_the_empty_box_and_reported_with_its_chain",
+        "a_font_face_from_the_asset_map_is_used_and_subset",
+        "arial_helvetica_times_and_courier_map_to_liberation",
+        "lists_and_counters_number_their_items",
+        "borders_radius_backgrounds_and_gradients_lay_out",
+        "an_inline_svg_is_vector_content_in_the_output"
+      ]
+    },
+    {
+      "id": "pdf-flex-grid-floats-and-positioning",
+      "kind": "cargo-named",
+      "stage": 8,
+      "name": "extensions/pdf (flex and grid place their items, a float wraps the text beside it, absolute and fixed position as CSS says, and a rotation is drawn)",
+      "args": [
+        "test",
+        "--manifest-path",
+        "extensions/pdf/Cargo.toml",
+        "--test",
+        "layout"
+      ],
+      "tests": [
+        "flex_lays_out_rows_and_columns",
+        "grid_places_items_in_tracks",
+        "flex_and_grid_break_only_between_items_and_rows",
+        "a_float_right_wraps_the_text_beside_it",
+        "absolute_positions_against_its_containing_block",
+        "fixed_repeats_on_every_page",
+        "a_rotated_transform_is_drawn_rotated"
+      ]
+    },
+    {
+      "id": "pdf-pagination",
+      "kind": "cargo-named",
+      "stage": 9,
+      "name": "extensions/pdf (`@page` sizes and margins, margin boxes print page X of Y, running elements repeat, breaks and orphans and widows hold, a table of contents settles, and links, bookmarks and metadata are written)",
+      "args": [
+        "test",
+        "--manifest-path",
+        "extensions/pdf/Cargo.toml",
+        "--test",
+        "paginate"
+      ],
+      "tests": [
+        "page_size_margins_and_first_left_right_blank",
+        "margin_boxes_print_page_x_of_y",
+        "a_running_element_repeats_on_every_page",
+        "break_before_after_and_inside_avoid_are_kept",
+        "orphans_and_widows_hold_lines_together",
+        "named_pages_switch_page_size",
+        "string_set_carries_the_chapter_title",
+        "target_counter_and_leader_build_a_table_of_contents",
+        "page_numbers_that_never_settle_throw",
+        "headings_become_bookmarks",
+        "internal_and_external_links_are_annotations",
+        "title_meta_and_lang_become_metadata"
+      ]
+    },
+    {
+      "id": "pdf-page-x-of-y-runs",
+      "kind": "nvs-suite",
+      "stage": 9,
+      "name": "a long document paginates under `@page` and prints its page count",
+      "args": [
+        "test",
+        "tests/conformance/"
+      ],
+      "cases": [
+        "tests/conformance/novis/pdf-a-long-document-paginates.nvst"
+      ]
+    },
+    {
+      "id": "nvs-ext-header-and-footer-functions",
+      "kind": "cargo-named",
+      "stage": 10,
+      "name": "nvs-ext (a header function runs once per page with its number, count and marks, costs two crossings, never moves the body, reports an overflow, and wins over a margin box)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-ext",
+        "--test",
+        "pdf"
+      ],
+      "tests": [
+        "a_header_function_runs_once_per_page_with_its_number_and_count",
+        "marks_on_a_page_and_up_to_it_reach_the_function",
+        "a_header_function_costs_two_crossings",
+        "a_header_never_moves_the_body",
+        "a_header_taller_than_its_margin_is_reported",
+        "a_function_header_wins_over_a_margin_box"
+      ]
+    },
+    {
+      "id": "pdf-a-footer-carries-a-running-total",
+      "kind": "nvs-suite",
+      "stage": 10,
+      "name": "a footer function prints a carried-forward total from the marks of every page so far",
+      "args": [
+        "test",
+        "tests/conformance/"
+      ],
+      "cases": [
+        "tests/conformance/novis/pdf-a-footer-carries-a-running-total.nvst"
+      ]
+    },
+    {
+      "id": "pdf-tables-across-pages",
+      "kind": "cargo-named",
+      "stage": 11,
+      "name": "extensions/pdf (the eight table rules: stable columns, repeated thead and tfoot with `data-repeat`, rows whole or split between lines, closed borders, no lone header, groups kept together, the caption once, and slots filled in place)",
+      "args": [
+        "test",
+        "--manifest-path",
+        "extensions/pdf/Cargo.toml",
+        "--test",
+        "tables"
+      ],
+      "tests": [
+        "column_widths_are_the_same_on_every_page",
+        "thead_and_tfoot_repeat_on_every_page",
+        "data_repeat_first_last_and_continued_rows",
+        "a_row_that_fits_is_never_split",
+        "a_row_taller_than_a_page_splits_between_lines",
+        "borders_are_closed_at_every_break",
+        "slice_restores_the_open_edge",
+        "a_header_is_never_alone_and_rows_obey_orphans_and_widows",
+        "a_tbody_and_a_rowspan_group_stay_together",
+        "the_caption_is_on_the_first_page_only",
+        "a_slot_in_a_continued_row_is_filled_without_moving_anything"
+      ]
+    },
+    {
+      "id": "pdf-an-invoice-table-carries-forward",
+      "kind": "nvs-suite",
+      "stage": 11,
+      "name": "an invoice table over three pages repeats its header, shows a carried-forward row where it goes on, and its total on the last page",
+      "args": [
+        "test",
+        "tests/conformance/"
+      ],
+      "cases": [
+        "tests/conformance/novis/pdf-an-invoice-table-carries-forward.nvst"
+      ]
+    },
+    {
+      "id": "nvs-ext-standards-factur-x-and-passwords",
+      "kind": "cargo-named",
+      "stage": 12,
+      "name": "nvs-ext (output is tagged, PDF/A-2b and 3b validate, PDF/UA-1 throws for a missing alt, Factur-X embeds one XML under PDF/A-3b only, and a password encrypts with AES-256 and stays byte-equal)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-ext",
+        "--test",
+        "pdf_standards"
+      ],
+      "tests": [
+        "output_is_tagged_by_default",
+        "pdf_a_2b_and_3b_validate",
+        "pdf_ua_1_throws_for_an_image_without_alt",
+        "factur_x_embeds_one_xml_under_pdf_a_3b",
+        "an_invoice_xml_outside_pdf_a_3b_throws",
+        "a_malformed_invoice_xml_throws",
+        "a_password_encrypts_with_aes_256_and_stays_byte_equal",
+        "a_password_with_a_pdf_a_standard_throws"
+      ]
+    },
+    {
+      "id": "pdf-an-e-invoice-renders",
+      "kind": "nvs-suite",
+      "stage": 12,
+      "name": "an invoice renders as PDF/A-3b with its Factur-X XML",
+      "args": [
+        "test",
+        "tests/conformance/"
+      ],
+      "cases": [
+        "tests/conformance/novis/pdf-an-e-invoice-renders-as-pdf-a-3b.nvst"
+      ]
+    },
+    {
+      "id": "nvs-ext-existing-pdfs",
+      "kind": "cargo-named",
+      "stage": 13,
+      "name": "nvs-ext (a PDF page is placed as vector content and as a page background, `merge` combines, selects and reorders, `Reader` returns pages, metadata, attachments and text, and an encrypted source throws)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-ext",
+        "--test",
+        "pdf_read"
+      ],
+      "tests": [
+        "a_pdf_page_in_an_img_is_placed_as_vector_content",
+        "a_pdf_letterhead_is_the_page_background",
+        "merge_combines_selects_and_reorders_pages",
+        "reader_counts_pages_and_reads_metadata",
+        "reader_returns_the_factur_x_attachment",
+        "reader_extracts_the_text_of_a_page",
+        "the_text_of_our_own_render_reads_back",
+        "an_encrypted_source_throws_in_merge_reader_and_placement"
+      ]
+    },
+    {
+      "id": "pdf-merge-and-read-run",
+      "kind": "nvs-suite",
+      "stage": 13,
+      "name": "two PDFs merge with a page list, and a received invoice's XML and text read back",
+      "args": [
+        "test",
+        "tests/conformance/"
+      ],
+      "cases": [
+        "tests/conformance/novis/pdf-merge-takes-chosen-pages.nvst",
+        "tests/conformance/novis/pdf-reader-returns-an-invoice-xml-and-text.nvst"
+      ]
+    },
+    {
+      "id": "nvs-ext-the-recorded-growth-is-the-embedded-size",
+      "kind": "cargo-named",
+      "stage": 14,
+      "name": "nvs-ext (each component's module doc states its embedded size, within 5% of the bytes the binary carries, the PDF component included)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-ext",
+        "--test",
+        "builtin"
+      ],
+      "tests": [
+        "the_recorded_growth_matches_the_embedded_components",
+        "the_pdf_component_is_one_of_three_built_in"
+      ]
+    },
+    {
+      "id": "nvs-cli-a-bundle-calls-all-three-built-in-components",
+      "kind": "cargo-named",
+      "stage": 14,
+      "name": "nvs-cli (a bundle built with `nvs build --compile` calls `Novis\\Image`, `Novis\\Intl` and `Novis\\Pdf` from a folder with no `nvs.toml`)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-cli",
+        "--test",
+        "bundle"
+      ],
+      "tests": [
+        "a_bundle_calls_all_three_built_in_components"
+      ]
+    },
+    {
+      "id": "vscode-pdf-custom-data-is-current",
+      "kind": "command",
+      "stage": 15,
+      "name": "editor: the HTML and CSS custom data are contributed, generated from `extensions/pdf/subset.json`, and complete `data-repeat`'s values",
+      "argv": [
+        "npm",
+        "--prefix",
+        "editors/vscode",
+        "run",
+        "test:headless"
+      ],
+      "want": [
+        "the PDF custom data is what the generator writes from the subset table",
+        "data-repeat completes every, first, last and continued",
+        "0 failing"
+      ]
+    },
+    {
+      "id": "dossier-the-whole-roster-owes-nothing-with-novis-pdf",
+      "kind": "command",
+      "stage": 16,
+      "name": "proofs: the whole roster owes nothing with `Novis\\Pdf` and the image second wave in it",
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--gate"
+      ],
+      "want": [
+        "nothing owed in the whole roster"
+      ]
+    },
+    {
+      "id": "dossier-novis-pdf-carries-plain-comments",
+      "kind": "command",
+      "stage": 16,
+      "name": "proofs: the `Novis\\` programs carry comments inside the plain-comment bounds",
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--comments",
+        "docs/examples/novis",
+        "tests/hostile/novis",
+        "benches/members/novis"
+      ],
+      "want": [
+        "each inside the bounds"
+      ]
+    }
+  ],
+  "env": {
+    "valgrind": {
+      "skip": [
+        "examples/fatal.nvs",
+        "examples/uncaught.nvs",
+        "examples/cache-shared-socket.nvs",
+        "examples/queue-sqlite.nvs",
+        "examples/cache-shared-tls.nvs"
+      ]
+    },
+    "wsl": {
+      "targetDir": "/var/tmp/nvs-target-wsl"
+    }
+  }
+}
