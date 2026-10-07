@@ -1,40 +1,29 @@
 {
-  "state": "**Goal `ext-image` — `Novis\\Image` is built into every binary: it decodes, transforms and encodes inside the sandbox, under the pixel cap — has just started; nothing of it has landed yet.** Stage 1's floor is whatever the chain carries; after goal `goal-closeout` that is nothing.\n\nThe design is settled: ADR 0120 is the component, ADR 0247 builds it in, and the goal file's § *Standing decisions* answers every call a session meets, the crates included. No session re-decides one.\n\nWhat the earlier M9 goals delivered and this goal stands on: `wit/image.wit` with the eight exports and its test list of where each builder member runs (goal `ext-design`), `crates/nvs-ext` with its loader, packer, instances, call bridge and failure mapping (goal `ext-host`), the registration layer and the source section (goal `ext-compiler`), and `nvs ext` (goal `ext-tooling`). Read what they left before writing: the packer's entry point and whether it compiles alone decide where the build script lives.\n\nThree facts about the tree as the goal was written. `rust-toolchain.toml:6` lists no `wasm32-wasip2`. `Cargo.toml:26`'s `exclude` names no `extensions/`, and a crate under the root that is not excluded joins the workspace and breaks `cargo`. `crates/nvs-config/src/cache.rs:170` (`env_hash_of`) folds the build stamp and the `[[extension]]` pins, and nothing else that is embedded. `crates/nvs-ext` did not exist when the goal was written, so the goal's `context` names no module in it: add the crate's files with `bun nv goal context --add` as the first session reads them.",
+  "state": "**Goal `ext-image`, Stage 2 (the build): the crate is on disk; nothing packs or embeds it yet.** The design is settled by ADR 0120, ADR 0247 and the goal file's § *Standing decisions*; no session re-decides one.\n\n`extensions/image/` is the crate `nvs-image`, its own workspace and excluded from the root one (`Cargo.toml:27`). Its codec core is plain Rust on `image` 0.25 (`jpeg`, `png`, `gif`, `webp` features), tested on the host with `cargo test --lib` run from that directory. The WIT glue (`extensions/image/src/lib.rs`, module `guest`) is `cfg(target_family = \"wasm\")` and resolves `wit/nvs-ext` then `wit/image.wit`, the same two pushes `crates/nvs-stdlib/tests/ext_world.rs:297` makes. `simd128` is on through `extensions/image/.cargo/config.toml`, which `cargo` reads only when run from that directory. `cargo build --release --target wasm32-wasip2` there builds a ~700 KB `nvs_image.wasm`, clippy-clean on both targets; `cargo deny --config ../../deny.toml check` passes. `rust-toolchain.toml` already listed `wasm32-wasip2`.\n\n`info` is the one implemented export. Its `frames` is fixed at `1` and its `exif` at `None` (module doc of `extensions/image/src/info.rs`). Every other export returns `runtime`.\n\nThe packer is not compilable alone: `crates/nvs-ext/src/pack.rs:33-36` reaches `manifest`, `section`, `source` and `crate::Malformed`, and `world_wit` (`pack.rs:83`) reads `world.rs`. So the goal's fallback applies to slice 2 unless the `#[path]` set stays small: a crate `crates/nvs-builtin` whose build script takes `nvs-ext` as a build-dependency. The standing decision pre-authorizes it; the commit says which was taken.",
   "next": {
     "stage": 2,
     "title": "the build",
-    "files": [
-      "Cargo.toml",
-      "rust-toolchain.toml",
-      "extensions/image/Cargo.toml",
-      "extensions/image/src/lib.rs",
-      "crates/nvs-ext/build.rs",
-      "crates/nvs-ext/src/builtin.rs",
-      "crates/nvs-config/src/cache.rs"
-    ],
+    "files": [],
+    "note": "one file set: `crates/nvs-ext/Cargo.toml`, `crates/nvs-ext/src/pack.rs`, the new build script (`crates/nvs-ext/build.rs` or `crates/nvs-builtin/build.rs`), `crates/nvs-ext/src/builtin.rs`, `crates/nvs-config/src/cache.rs`.",
     "items": [
       {
         "done": false,
-        "text": "**The crate** (`rule:packaging/the-first-party-components-are-built-in`) — `extensions/image/` outside the workspace (`Cargo.toml:26`'s `exclude` gains `\"extensions\"`), its codec core plain Rust that also builds for the host, the `wit-bindgen` glue for `wit/image.wit` under `cfg(target_family = \"wasm\")`, `simd128` on, and `info` as the first export. `rust-toolchain.toml:6`'s `targets` gains `\"wasm32-wasip2\"`."
+        "text": "**The build script** (`rule:packaging/the-first-party-components-are-built-in`) — builds `extensions/image` with `--release --target wasm32-wasip2` (cwd `extensions/image`, so `.cargo/config.toml` applies) into `target/ext/`, and packs it with `crates/nvs-ext/src/pack.rs:115` (`pack`). Decide `#[path]` versus the `crates/nvs-builtin` fallback first, from `crates/nvs-ext/src/pack.rs:33`. The image component needs an `nvsx.toml`-equivalent manifest for `Novis\\Image\\Codec`; the Rust template's `crates/nvs-cli/templates/ext/rust/nvsx.toml:1` is the shape."
       },
       {
         "done": false,
-        "text": "**The build script** — `crates/nvs-ext/build.rs` builds the crate with `--release --target wasm32-wasip2` into `target/ext/`, packs it with the packer's own source compiled in with `#[path]`, and writes the `.nvsx` and its sha256 to `OUT_DIR`, with `rerun-if-changed` for `extensions/image/` and `wit/`. The fallback crate `crates/nvs-builtin` is in the goal's § *Standing decisions*."
+        "text": "**The built-in set and its pin** — `crates/nvs-ext/src/builtin.rs` loads the embedded component before any `[[extension]]` entry, every load check applied, and `Novis\\` is reserved for it; its digest folds into `env_hash` at `crates/nvs-config/src/cache.rs:173` (`env_hash_of`)."
       },
       {
         "done": false,
-        "text": "**The built-in set and its pin** — `crates/nvs-ext/src/builtin.rs` loads the embedded component before any `[[extension]]` entry, with every load check run on it, compiled on first use (`rule:packaging/a-wasm-module-cache-reuses-the-artifact-cache`); its digest is passed into `crates/nvs-config/src/cache.rs:170`'s `env_hash_of` beside the build stamp."
-      },
-      {
-        "done": false,
-        "text": "**The Stage 2 Rust checks** — `crates/nvs-ext/tests/builtin.rs` (four tests, the `Novis\\` refusal among them), `two_builds_with_different_built_in_component_bytes_key_apart` in `nvs-config`, and the case `tests/conformance/novis/image-info-answers-with-no-configuration.nvst`, whose image is a PNG written inline with `Core\\Encoding::fromHex`."
+        "text": "**The Stage 2 Rust checks** — `crates/nvs-ext/tests/builtin.rs` (four tests, the `Novis\\` refusal among them), `two_builds_with_different_built_in_components_differ` beside `crates/nvs-config/src/cache.rs:173`."
       }
     ]
   },
   "backlog": [
-    "**Stage 2, libwebp** — its own file set: `tools/nv/cmd/webp-lib.ts` (registered in `tools/nv/main.ts`'s table beside `webcrypto-vectors`, line 72), `extensions/image/libwebp/`, `extensions/image/build.rs`, the `webp-lib` CI job beside `extension-sandbox` (`.github/workflows/ci.yml:252`) and its lane in `tools/nv/cmd/ci-changes.ts:41`; `tools/nv/test/webp-lib.test.ts`.",
-    "**Stage 2, the licences** — `tools/nv/cmd/gen-attribution.ts:216` reads `extensions/image/Cargo.toml`'s metadata too, libwebp in `C_DEPENDENCIES` at line 125, `cargo deny` over the extension in the `supply-chain` job (`.github/workflows/ci.yml:462`); `tools/nv/test/attribution-extensions.test.ts`.",
-    "Stages 3 to 6 — decode and the cap, the pipeline, the benchmark, the feature proofs: `docs/agent/goals/ext-image.md`.",
-    "When this goal's last check goes green the driver takes goal `ext-image-analysis`."
+    "`info`'s `frames` count for animated GIF, APNG and WebP, and its `exif` list (`kamadak-exif`, a standing decision) — `extensions/image/src/info.rs`.",
+    "The `extensions/image` crate has no CI leg yet: its host tests and its wasm build run only by hand — `rule:packaging/the-first-party-components-are-built-in`.",
+    "libwebp prebuilt by a `bun nv` tool — `rule:packaging/a-prebuilt-wasm-library-is-rebuilt-in-ci`.",
+    "`[context] modules` names nothing under `crates/nvs-ext` yet; add `pack.rs` and `builtin.rs` with `bun nv goal context --add` as slice 2 reads them."
   ]
 }
