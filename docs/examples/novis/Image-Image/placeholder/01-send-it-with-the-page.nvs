@@ -1,0 +1,12 @@
+<?nvs
+// Shows how a shop sends a placeholder with each product, so the page shows a preview at once.
+use Novis\Image\Color;
+use Novis\Image\Image;
+use Novis\Image\PlaceholderKind;
+
+// A green product photo of 120 by 80 pixels, encoded as PNG.
+bytes $photo = Image::create(120, 80, Color::hex("#16a34a"))->encode();
+
+// The page gets the image address and its placeholder together.
+string $placeholder = Image::placeholder($photo, PlaceholderKind::BlurHash);
+echo Core\Json::encode({ image: "/images/product-7.png", placeholder: $placeholder }), "\n";

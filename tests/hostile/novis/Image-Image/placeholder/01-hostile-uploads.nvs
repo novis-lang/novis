@@ -1,0 +1,39 @@
+<?nvs
+// Attack: a request asks for placeholders of empty, broken, tiny and very wide images.
+// Each attempt should return a text or throw an error, and the server keeps running.
+use Novis\Image\Image;
+use Novis\Image\PlaceholderKind;
+
+// 1. No bytes at all.
+try {
+    echo 'step 1 ran ', Image::placeholder('' as bytes, PlaceholderKind::BlurHash), "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. A real PNG file cut off after its first 40 bytes.
+try {
+    bytes $png = Image::create(64, 64)->encode();
+    bytes $half = Core\Bytes::slice($png, 0, 40);
+    echo 'step 2 ran ', Image::placeholder($half, PlaceholderKind::ThumbHash), "\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. A one-pixel image.
+try {
+    bytes $dot = Image::create(1, 1)->encode();
+    echo 'step 3 ran ', Core\Str::length(Image::placeholder($dot, PlaceholderKind::BlurHash)), "\n";
+    echo 'step 3 ran ', Core\Str::length(Image::placeholder($dot, PlaceholderKind::ThumbHash)), "\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. An image of 4000 by 1 pixels, which is very wide and very flat.
+try {
+    bytes $line = Image::create(4000, 1)->encode();
+    echo 'step 4 ran ', Core\Str::length(Image::placeholder($line, PlaceholderKind::BlurHash)), "\n";
+    echo 'step 4 ran ', Core\Str::length(Image::placeholder($line, PlaceholderKind::ThumbHash)), "\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}

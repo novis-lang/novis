@@ -1,0 +1,14 @@
+<?nvs
+// Shows how a shop makes a placeholder for every product photo when it saves them.
+use Novis\Image\Color;
+use Novis\Image\Image;
+use Novis\Image\PlaceholderKind;
+
+// Three product photos, one in each colour.
+array<string> $colours = ["#dc2626", "#16a34a", "#2563eb"];
+
+// Each photo gets its own text. Save it next to the photo.
+foreach ($colours as string $colour) {
+    bytes $photo = Image::create(80, 80, Color::hex($colour))->encode();
+    echo $colour, ": ", Image::placeholder($photo, PlaceholderKind::ThumbHash), "\n";
+}

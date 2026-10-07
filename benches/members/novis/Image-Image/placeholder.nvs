@@ -1,0 +1,24 @@
+<?nvs
+// Makes the placeholder text of a small encoded image, as a program does when it saves an upload.
+// bench: iterations 256
+// bench: complexity constant
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\PlaceholderKind;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        bytes $photo = Image::create(16, 16, Color::hex("#336699"))->encode();
+        array<PlaceholderKind> $kinds = [PlaceholderKind::BlurHash, PlaceholderKind::ThumbHash];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            string $text = Image::placeholder($photo, $kinds[$total % 2]);
+            $total = $total + Core\Str::length($text);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";
