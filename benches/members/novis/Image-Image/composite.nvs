@@ -1,0 +1,24 @@
+<?nvs
+// Draws a small logo on an image and reads its pixels, as a program does when it adds a watermark.
+// bench: iterations 256
+// bench: complexity constant
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Gravity;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Image $photo = Image::create(8, 8, Color::hex("#336699"));
+        Image $logo = Image::create(2, 2, Color::rgba(255, 255, 255, 0.5));
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            int $x = (($total + $i) % 6) as int;
+            $total = $total + $photo->composite($logo, {x: $x, y: 0})->raw()->width;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

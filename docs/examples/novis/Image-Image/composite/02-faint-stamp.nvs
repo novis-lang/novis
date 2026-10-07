@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to draw a half-transparent stamp at an exact position.
+use Novis\Image\Image;
+use Novis\Image\Color;
+
+Image $page = Image::create(100, 100, Color::hex("#ffffff"));
+Image $stamp = Image::create(30, 10, Color::hex("#ff0000"));
+
+// The top-left corner of the stamp is at x 5 and y 5.
+var $raw = $page->composite($stamp, {x: 5, y: 5, opacity: 0.5})->raw();
+
+// Half red and half white gives pink. This prints ff8080ff.
+int $offset = (5 * 100 + 5) * 4;
+echo Core\Encoding::toHex(Core\Bytes::slice($raw->pixels, $offset, 4)), "\n";
+
+// The first pixel is outside the stamp. This prints ffffffff.
+echo Core\Encoding::toHex(Core\Bytes::slice($raw->pixels, 0, 4)), "\n";

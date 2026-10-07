@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to put a small logo in the bottom-right corner of a photo.
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Gravity;
+
+Image $photo = Image::create(400, 300, Color::hex("#336699"));
+Image $logo = Image::create(40, 20, Color::hex("#ffffff"));
+
+var $raw = $photo->composite($logo, {gravity: Gravity::SouthEast})->raw();
+
+// The image keeps its size. This prints 400x300.
+echo $raw->width, "x", $raw->height, "\n";
+
+// The last pixel is in the logo. This prints ffffffff, which is white.
+echo Core\Encoding::toHex(Core\Bytes::slice($raw->pixels, -4)), "\n";

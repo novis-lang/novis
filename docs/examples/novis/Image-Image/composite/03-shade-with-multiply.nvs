@@ -1,0 +1,16 @@
+<?nvs
+// Shows how an overlay with its own steps darkens a picture with `Blend::Multiply`.
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Blend;
+
+Image $picture = Image::create(200, 100, Color::hex("#ffcc00"));
+
+// The overlay is a gray canvas. It is scaled to the size of the picture first.
+Image $shade = Image::create(20, 10, Color::hex("#808080"))->resize({width: 200, upscale: true});
+
+// Multiply makes each colour darker: 255 becomes 128, and 204 becomes 102.
+var $raw = $picture->composite($shade, {blend: Blend::Multiply})->raw();
+
+// This prints 806600ff.
+echo Core\Encoding::toHex(Core\Bytes::slice($raw->pixels, 0, 4)), "\n";
