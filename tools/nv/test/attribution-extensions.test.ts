@@ -18,7 +18,17 @@ function listed(): Set<string> {
 
 test("the notice carries every crate the built-in components link", () => {
   const r = Bun.spawnSync(
-    ["cargo", "metadata", "--format-version", "1", "--locked", "--manifest-path", join(ROOT, "extensions", "image", "Cargo.toml")],
+    [
+      "cargo",
+      "metadata",
+      "--format-version",
+      "1",
+      "--locked",
+      "--manifest-path",
+      join(ROOT, "extensions", "image", "Cargo.toml"),
+      "--filter-platform",
+      "wasm32-wasip2",
+    ],
     { cwd: ROOT },
   );
   expect(r.exitCode).toBe(0);

@@ -250,6 +250,10 @@ const C_DEPENDENCIES: Record<string, Entry> = {
 // with the binary, so the notice carries them.
 const BUILT_IN_COMPONENTS = [{ name: "image", manifest: "extensions/image/Cargo.toml" }];
 
+// The target every component is built for. Its graph is resolved for this target alone, because a
+// dependency behind another platform's `cfg`, or behind `cfg(fuzzing)`, is never linked.
+const COMPONENT_TARGET = "wasm32-wasip2";
+
 // The C libraries inside a built-in component, each prebuilt for wasm by its own `bun nv` tool
 // (`rule:packaging/a-prebuilt-wasm-library-is-rebuilt-in-ci`). Confined to wasm is the answer
 // `rule:packaging/a-c-dependency-answers-two-questions` gives a codec, so the record is the
@@ -292,9 +296,10 @@ interface Metadata {
 class Fatal extends Error {}
 
 /** `cargo metadata` for the workspace, or for the crate `manifest` names when it is given. */
-async function cargoMetadata(manifest?: string): Promise<Metadata> {
+async function cargoMetadata(manifest?: string, platform?: string): Promise<Metadata> {
   const at = manifest ? ["--manifest-path", join(ROOT, manifest)] : [];
-  const r = await runProc(["cargo", "metadata", "--format-version", "1", "--locked", ...at], { cwd: ROOT });
+  const on = platform ? ["--filter-platform", platform] : [];
+  const r = await runProc(["cargo", "metadata", "--format-version", "1", "--locked", ...at, ...on], { cwd: ROOT });
   if (r.code !== 0) throw new Fatal(`error: cargo metadata${manifest ? ` for ${manifest}` : ""} failed:\n${r.stderr.trim()}`);
   return JSON.parse(r.stdout) as Metadata;
 }
@@ -333,7 +338,7 @@ function cmp(a: string, b: string): number {
 async function allShippedPackages(meta: Metadata): Promise<Package[]> {
   const all = new Map(shippedPackages(meta).map((p) => [`${p.name} ${p.version}`, p]));
   for (const component of BUILT_IN_COMPONENTS) {
-    const own = await cargoMetadata(component.manifest);
+    const own = await cargoMetadata(component.manifest, COMPONENT_TARGET);
     for (const p of shippedPackages(own, own.workspace_members)) {
       if (!all.has(`${p.name} ${p.version}`)) all.set(`${p.name} ${p.version}`, p);
     }
