@@ -1,31 +1,35 @@
 {
-  "state": "**Goal `ext-image`: Stages 2 to 5 are done on disk, and Stage 6 (the feature proofs) is in progress.** ADR 0120, ADR 0247 and the goal file's § *Standing decisions* settle the design, and no session re-decides it.\n\nThe component is embedded and callable with no `nvs.toml` (`crates/nvs-cli/src/extensions.rs` module doc). The `Novis\\Image` builder is Novis source in `extensions/image/nvs/`, and `rule:core-classes/image-pipeline`'s fragment says what it has and lacks. Stage 5's figure is in `benches/results/image-guest.json` and `rule:packaging/the-boundary-is-the-cost`.\n\nStage 6, on disk: `nvs meta --json` lists the built-in classes and enums (`crates/nvs-cli/src/meta.rs` module doc). The proofs roster gives a `Novis\\` member the path `novis/<tail>/<member>` (`memberPath` in `tools/nv/proofs/roster.ts`; `tools/nv/test/roster-novis.test.ts`), and an enum keeps `types/Novis-Image-Fit`. `bun nv reference` reads a `Novis\\` class's intro from `docs/reference/novis/<tail>.md` (`docs/reference/README.md`), and `docs/reference/novis/Image-Image.md` is written.\n\nStill red, all Stage 6: the `Novis\\Image` proofs (`dossier-novis-image-pipeline`, `dossier-novis-image-carries-plain-comments`).",
+  "state": "**Goal `ext-image`: Stages 2 to 5 are done on disk, and Stage 6 (the feature proofs) is in progress.** ADR 0120, ADR 0247 and the goal file's § *Standing decisions* settle the design, and no session re-decides it.\n\nThe component is embedded and callable with no `nvs.toml` (`crates/nvs-cli/src/extensions.rs` module doc). The `Novis\\Image` builder is Novis source in `extensions/image/nvs/`, and `rule:core-classes/image-pipeline`'s fragment says what it has and lacks. `nvs meta --json` lists the built-in classes, the roster gives a `Novis\\` member the path `novis/<tail>/<member>`, and `docs/reference/novis/Image-Image.md` is the class intro.\n\nTests are closed for every `Novis\\Image\\Image` and `Novis\\Image\\Codec` member: `covers:` markers on the `tests/conformance/novis/` cases and on `crates/nvs-ext/tests/image_pipeline.rs`, whose `each_pixel_step_changes_a_known_pixel_as_documented` covers the steps no other Rust test ran. `Image::resize` owes nothing: `docs/examples/novis/Image-Image/resize/`, its attack and bench, and a figure in `docs/perf/members.ndjson`.\n\n**The acceptance check cannot pass as written:** `dossier-novis-image-pipeline` names `Novis\\Image\\Image::composite`, which the builder does not have (`rule:core-classes/image-pipeline` lists it as missing, and the guest's `run` skips `composite`), so `--only` refuses the whole list. Either `composite` is built (goal file's builder item names it) or it leaves the check; see the next group's last item.",
   "next": {
     "stage": 6,
     "title": "the feature proofs, the programs",
     "files": [
-      "docs/examples/novis/",
-      "tests/hostile/novis/",
-      "benches/members/novis/",
-      "data/proofs/policy.json"
+      "docs/examples/novis/Image-Image/",
+      "tests/hostile/novis/Image-Image/",
+      "benches/members/novis/Image-Image/",
+      "docs/perf/members.ndjson"
     ],
     "items": [
       {
         "done": false,
-        "text": "**The proofs for the `Novis\\Image\\Image` source members** (`open`, `create`, `fromRaw`, `info`, `resize`, `crop`, … `variants`, `raw`): `about.md`, three examples with `.out`, one attack, one bench each, per `rule:testing/feature-proofs`; `bun nv proofs --id 'Novis\\Image\\Image::resize'` prints the paths. Comments follow AGENTS.md § *Text an end user reads*, checked with `bun nv proofs --comments`. A 3x2 PNG as hex is in `tests/conformance/novis/image-a-pipeline-is-a-value-and-runs-at-its-terminal.nvst`. Anchor: `extensions/image/nvs/Image.nvs:8`."
+        "text": "**About, three examples, one attack and one bench for each remaining `Novis\\Image\\Image` member** (`open`, `create`, `fromRaw`, `info`, `crop`, `trim`, `rotate`, `flip`, `flatten`, `sharpen`, `blur`, `grayscale`, `brightness`, `contrast`, `gamma`, `tint`, `format`, `metadata`, `encode`, `variants`, `raw`), per `rule:testing/feature-proofs`, copying the shape of `docs/examples/novis/Image-Image/resize/` and `benches/members/novis/Image-Image/resize.nvs`. Tests are already done. Each member: `bun nv try` the programs, `bun nv proofs --bless` each example, `bun nv proofs --record-perf --only '<id>' --no-callgrind`, then `bun nv proofs --verify --only '<id>'`. Anchor: `extensions/image/nvs/Image.nvs:49`."
       },
       {
         "done": false,
-        "text": "**`Novis\\Image\\Color::rgba` and `::hex`, and the six enums**: the enums owe `about.md` and examples only. Anchor: `extensions/image/nvs/Color.nvs:8`."
+        "text": "**`Novis\\Image\\Color::rgba` and `::hex`, and the six enums**: Color owes a Rust-side `covers:` test (`rgba` also a second case) and the full proofs; the enums owe `about.md`, one example and one case each, under `docs/examples/types/Novis-Image-<Enum>/`. Anchor: `extensions/image/nvs/Color.nvs:8`."
       },
       {
         "done": false,
-        "text": "**`Novis\\Image\\Codec`'s members**: examples and bench are `skip` entries in `data/proofs/policy.json` with the reason as the value (goal file § *Stage 6*). `Codec` has no class card, so its members show a help gap in the roster; either the manifest gains a class `help` field (`crates/nvs-ext/src/manifest.rs`) or the help proof is a skip with its reason. Anchor: `crates/nvs-cli/src/meta.rs:617`."
+        "text": "**`Novis\\Image\\Codec`'s members, and its class card**: `nv proofs` says `Novis\\Image\\Codec` has no class card; it is the component's manifest-declared class, so find where the roster reads its card (`tools/nv/proofs/roster.ts`). Examples and bench may be `skip` entries in `data/proofs/policy.json` with the reason as the value. Anchor: `extensions/image/manifest.json:1`."
+      },
+      {
+        "done": false,
+        "text": "**`composite` in the acceptance check**: build `Image::composite` (builder in `extensions/image/nvs/Image.nvs:152`, the guest's `composite` step in `extensions/image/src/ops.rs`) or move it to the goal that builds it and drop it from `dossier-novis-image-pipeline` in `data/goals/ext-image.json`; the goal file's builder item lists it, so building it is the default."
       }
     ]
   },
   "backlog": [
-    "A manifest enum's card has a `short` only; per-case lines (`rule:core-api/reference-card`) need a manifest field for them (`crates/nvs-ext/src/manifest.rs`).",
-    "`docs/novis.md` files the `Novis\\` classes under Part B, \"The `Core` library\", with `core-` anchors (`tools/nv/cmd/reference.ts` `renderClass`); a Part of their own is a later polish."
+    "Enum case names cannot be printed (`$fit->name` does not exist), so an example labels a case with a `match`; `rule:enums/no-class-machinery` owns it.",
+    "`docs/perf/members.ndjson` records `growth: unclear` for the resize bench, because each operation is a guest call; read the record's `growth_notes` before calling it a regression."
   ]
 }
