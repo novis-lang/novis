@@ -1,27 +1,27 @@
 {
-  "state": "**Goal `ext-tooling` — `nvs ext` builds, inspects, tests and pins an extension, and a bundle carries one — Stages 2 to 5 are on disk; Stage 6 is next.** M9. No floor is carried: the suites, the `.nvst` trees and `nv verify` are the safety net, and goals `ext-host`, `ext-compiler` and `ext-grants`' tests stay green as tests of the tree.\n\nThe design is ADR 0246 § 10 and the user's, and the goal file's § *Standing decisions* answers every call a session meets. No record slot: a question the record leaves is settled under AGENTS.md's priority ordering and written in `crates/nvs-cli/src/ext.rs`'s module doc.\n\nOn disk: all six `nvs ext` subcommands (`crates/nvs-cli/src/ext.rs`'s module doc, tests in `crates/nvs-cli/tests/ext_command.rs`). `nvs build --compile` reads `--config`/`./nvs.toml`, types the program against its extension set and embeds each listed `.nvsx` with its entry; the bundle prepends those entries to the run's own tree and loads their bytes from the payload. The layout and what it spends are `crates/nvs-cli/src/bundle.rs`'s module doc § *The extensions it carries*; Stage 5's five tests are in `crates/nvs-cli/tests/bundle.rs` and pass.\n\nChecked by hand in an earlier session: the Rust template builds for `wasm32-wasip2`, and `nvs ext build` refuses it because Rust std imports `wasi:cli/terminal-*@0.2.9`, which `crates/nvs-ext/src/load.rs:404` refuses. The standing decision *A libc import outside the world is a refusing stub* says the host links these as stubs; nothing does yet, and Stage 6's template check needs it. Not checked: the C template (no wasi-sdk here).",
+  "state": "**Goal `ext-tooling` — `nvs ext` builds, inspects, tests and pins an extension, and a bundle carries one — Stages 2 to 6 are on disk; Stage 7 is next.** M9. No floor is carried: the suites, the `.nvst` trees and `nv verify` are the safety net, and goals `ext-host`, `ext-compiler` and `ext-grants`' tests stay green as tests of the tree.\n\nThe design is ADR 0246 § 10 and the user's, and the goal file's § *Standing decisions* answers every call a session meets. No record slot: a question the record leaves is settled under AGENTS.md's priority ordering and written in `crates/nvs-cli/src/ext.rs`'s module doc.\n\nOn disk: all six `nvs ext` subcommands (`crates/nvs-cli/src/ext.rs`'s module doc, tests in `crates/nvs-cli/tests/ext_command.rs`), and `nvs build --compile` embedding each listed `.nvsx` (`crates/nvs-cli/src/bundle.rs`'s module doc). The `wasi:cli/terminal-*` imports Rust's std makes link as refusing stubs (`STUBBED` in `crates/nvs-ext/src/wasi.rs`, admitted by `Loader::imports`). `bun nv ext-templates --lang rust|c` (`tools/nv/cmd/ext-templates.ts`) writes, builds, verifies, tests and calls each template; the `ext` lane and the `ext-templates` CI job run it on three platforms (`tools/nv/test/ext-templates.test.ts`).\n\nChecked here: the Rust leg passes end to end on Windows. Not checked: the C leg (no wasi-sdk or `wit-bindgen` on this box), and the CI job's wasi-sdk download URLs and `wit-bindgen-cli 0.62.0`, which only a CI run proves. Rust std imports nothing else outside the world (its component's import list was read by hand).",
   "next": {
-    "stage": 6,
-    "title": "the CI job",
+    "stage": 7,
+    "title": "the help and the feature proofs",
     "files": [],
-    "note": "one file set: `crates/nvs-ext/src/wasi.rs`, `crates/nvs-ext/src/load.rs`, `tools/nv/cmd/ci-changes.ts`, a new `tools/nv/cmd/ext-templates.ts`, `.github/workflows/ci.yml`.",
+    "note": "one file set: `docs/reference/tools/10-cli.md`, `crates/nvs-cli/src/agent.rs`, `crates/nvs-cli/tests/agent.rs`, and the proofs each feature owes.",
     "items": [
       {
         "done": false,
-        "text": "**A WASI import outside the world links as a refusing stub** — the loader's import check at `crates/nvs-ext/src/load.rs:404` (`imports` at `crates/nvs-ext/src/load.rs:470`) and the linked list `LINKED` at `crates/nvs-ext/src/wasi.rs:113`. Goal `ext-grants`' standing decision: every function returns its \"access denied\" error; `wasi:cli/terminal-*` is the case the Rust template hits. Without it `bun nv ext-templates --lang rust` cannot pass."
+        "text": "**`nvs agent find` reaches every `nvs ext` command, and `nvs ext --help` lists all six** — test `nvs_agent_find_reaches_every_nvs_ext_command` in `crates/nvs-cli/tests/agent.rs`; the CLI chapter `agent.rs` embeds is at `crates/nvs-cli/src/agent.rs:198`. `rule:packaging/nvs-ext-is-the-authoring-tool`."
       },
       {
         "done": false,
-        "text": "**`bun nv ext-templates --lang rust|c`** writes each template under `.agent-tmp/`, builds it for `wasm32-wasip2`, runs `nvs ext build`, `verify`, `test`, and calls it from a program; the C leg fails without wasi-sdk. `rule:packaging/nvs-ext-is-the-authoring-tool`; check `the Rust template ... [6 the CI job]` in `data/goals/ext-tooling.json`. Register beside `tools/nv/cmd/ci-changes.ts:41`'s neighbours in `tools/nv/main.ts`."
+        "text": "**The CLI chapter gains the three `nvs ext` sections** whose headings make the features `tools:cli/nvs-ext-new-and-nvs-ext-build`, `tools:cli/nvs-ext-inspect-nvs-ext-verify-and-nvs-ext-pin` and `tools:cli/nvs-ext-test` (`bun nv proofs --id` says none exists yet), beside `# nvs build --compile` at `docs/reference/tools/10-cli.md:298`. Text held to AGENTS.md § *Text an end user reads*."
       },
       {
         "done": false,
-        "text": "**The `ext` lane** in `LANES` at `tools/nv/cmd/ci-changes.ts:41`, covering `crates/nvs-ext/` and the templates' sources, and a CI job in `.github/workflows/ci.yml` gated on it running the tool on Linux, Windows and macOS. Checks `ci-changes: the ext lane exists ...` and `the CI job runs both templates ...`."
+        "text": "**Each of the four features' proofs** — `bun nv proofs --id '<feature>'` lists what each owes; check `proofs: the three nvs ext features ... [7 ...]` in `data/goals/ext-tooling.json`; `rule:testing/feature-proofs`. Anchor: `docs/reference/tools/10-cli.md:298`."
       }
     ]
   },
   "backlog": [
-    "Stage 7: `nvs agent find` reaches every `nvs ext` command and `nvs ext --help` lists all six (`crates/nvs-cli/tests/`), and the feature proofs of the three `nvs ext` features and `tools:cli/nvs-build-compile` (`bun nv proofs --id`).",
-    "`rule:packaging/a-nvsx-dependency-embeds-in-the-same-payload` stays `designed` until the built-in components exist; its *Not on disk* says what is."
+    "The C leg of `bun nv ext-templates` has never run; the first CI run of `ext-templates` is its proof (`tools/nv/cmd/ext-templates.ts`).",
+    "If wasi-libc's C template imports a WASI interface beyond `wasi:cli/terminal-*` outside the world, add it to `STUBBED` in `crates/nvs-ext/src/wasi.rs` with a refusing implementation."
   ]
 }
