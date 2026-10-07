@@ -1,23 +1,27 @@
 {
-  "state": "**Goal `ext-tooling` — `nvs ext` builds, inspects, tests and pins an extension, and a bundle carries one — Stages 2, 3 and 4 are on disk; Stage 5 is next.** M9. No floor is carried: the suites, the `.nvst` trees and `nv verify` are the safety net, and goals `ext-host`, `ext-compiler` and `ext-grants`' tests stay green as tests of the tree.\n\nThe design is ADR 0246 § 10 and the user's, and the goal file's § *Standing decisions* answers every call a session meets. No record slot: a question the record leaves is settled under AGENTS.md's priority ordering and written in `crates/nvs-cli/src/ext.rs`'s module doc.\n\nOn disk: all six `nvs ext` subcommands. `crates/nvs-cli/src/ext.rs`'s module doc says what each reads, prints and refuses. `nvs ext test` runs `tests/` as one program through `run_program_tests` in `crates/nvs-cli/src/main.rs` (shared with `nvs test`), under `crate::config::extension_test_tree`, which reads only `--config` files (else the shipped defaults) and adds the built file to the resolved *table*. The tests are in `crates/nvs-cli/tests/ext_command.rs`.\n\nChecked by hand in an earlier session: the Rust template builds for `wasm32-wasip2`, and `nvs ext build` refuses it because Rust std imports `wasi:cli/terminal-*@0.2.9`, which `crates/nvs-ext/src/load.rs:404` refuses. The standing decision *A libc import outside the world is a refusing stub* says the host links these as stubs; nothing does yet (Backlog), and Stage 6's template check needs it. Not checked: the C template (no wasi-sdk here).",
+  "state": "**Goal `ext-tooling` — `nvs ext` builds, inspects, tests and pins an extension, and a bundle carries one — Stages 2 to 5 are on disk; Stage 6 is next.** M9. No floor is carried: the suites, the `.nvst` trees and `nv verify` are the safety net, and goals `ext-host`, `ext-compiler` and `ext-grants`' tests stay green as tests of the tree.\n\nThe design is ADR 0246 § 10 and the user's, and the goal file's § *Standing decisions* answers every call a session meets. No record slot: a question the record leaves is settled under AGENTS.md's priority ordering and written in `crates/nvs-cli/src/ext.rs`'s module doc.\n\nOn disk: all six `nvs ext` subcommands (`crates/nvs-cli/src/ext.rs`'s module doc, tests in `crates/nvs-cli/tests/ext_command.rs`). `nvs build --compile` reads `--config`/`./nvs.toml`, types the program against its extension set and embeds each listed `.nvsx` with its entry; the bundle prepends those entries to the run's own tree and loads their bytes from the payload. The layout and what it spends are `crates/nvs-cli/src/bundle.rs`'s module doc § *The extensions it carries*; Stage 5's five tests are in `crates/nvs-cli/tests/bundle.rs` and pass.\n\nChecked by hand in an earlier session: the Rust template builds for `wasm32-wasip2`, and `nvs ext build` refuses it because Rust std imports `wasi:cli/terminal-*@0.2.9`, which `crates/nvs-ext/src/load.rs:404` refuses. The standing decision *A libc import outside the world is a refusing stub* says the host links these as stubs; nothing does yet, and Stage 6's template check needs it. Not checked: the C template (no wasi-sdk here).",
   "next": {
-    "stage": 5,
-    "title": "a bundle carries its extensions",
-    "files": [
-      "crates/nvs-cli/src/bundle.rs",
-      "crates/nvs-cli/tests/bundle.rs",
-      "crates/nvs-cli/src/config.rs"
-    ],
+    "stage": 6,
+    "title": "the CI job",
+    "files": [],
+    "note": "one file set: `crates/nvs-ext/src/wasi.rs`, `crates/nvs-ext/src/load.rs`, `tools/nv/cmd/ci-changes.ts`, a new `tools/nv/cmd/ext-templates.ts`, `.github/workflows/ci.yml`.",
     "items": [
       {
         "done": false,
-        "text": "**`nvs build --compile` embeds each `.nvsx` its configuration lists, with its pin** — `build` at `crates/nvs-cli/src/bundle.rs:164`, payload written by `write_bundle` at `crates/nvs-cli/src/bundle.rs:301` and read by `read_payload` at `crates/nvs-cli/src/bundle.rs:384`. The payload is `(String, String)` text today, so a `.nvsx`'s bytes need a binary entry. Embedded entries keep their `grants` as written and load before the run's own; `run` at `crates/nvs-cli/src/bundle.rs:108` loads them with no file beside the executable. `rule:packaging/a-nvsx-dependency-embeds-in-the-same-payload`; test `a_bundle_carrying_an_extension_calls_it_with_no_nvsx_beside_it` (`bun nv loop --list --stage 5`). The fixture pattern is `nvs_test_runs_a_test_that_calls_a_configured_extension` at `crates/nvs-cli/tests/test_command.rs:136`."
+        "text": "**A WASI import outside the world links as a refusing stub** — the loader's import check at `crates/nvs-ext/src/load.rs:404` (`imports` at `crates/nvs-ext/src/load.rs:470`) and the linked list `LINKED` at `crates/nvs-ext/src/wasi.rs:113`. Goal `ext-grants`' standing decision: every function returns its \"access denied\" error; `wasi:cli/terminal-*` is the case the Rust template hits. Without it `bun nv ext-templates --lang rust` cannot pass."
+      },
+      {
+        "done": false,
+        "text": "**`bun nv ext-templates --lang rust|c`** writes each template under `.agent-tmp/`, builds it for `wasm32-wasip2`, runs `nvs ext build`, `verify`, `test`, and calls it from a program; the C leg fails without wasi-sdk. `rule:packaging/nvs-ext-is-the-authoring-tool`; check `the Rust template ... [6 the CI job]` in `data/goals/ext-tooling.json`. Register beside `tools/nv/cmd/ci-changes.ts:41`'s neighbours in `tools/nv/main.ts`."
+      },
+      {
+        "done": false,
+        "text": "**The `ext` lane** in `LANES` at `tools/nv/cmd/ci-changes.ts:41`, covering `crates/nvs-ext/` and the templates' sources, and a CI job in `.github/workflows/ci.yml` gated on it running the tool on Linux, Windows and macOS. Checks `ci-changes: the ext lane exists ...` and `the CI job runs both templates ...`."
       }
     ]
   },
   "backlog": [
-    "The host links WASI interfaces outside the world (Rust std's `wasi:cli/terminal-*`) as refusing stubs — goal file § *Standing decisions*, `crates/nvs-ext/src/wasi.rs`; Stage 6's Rust template check fails until it lands.",
-    "Stage 6: `bun nv ext-templates` tool, the CI job and the `ext` lane in `tools/nv/cmd/ci-changes.ts`.",
-    "Stage 7: `nvs agent find` reaching every `nvs ext` command, and the feature proofs of the three `nvs ext` features and `nvs build --compile`."
+    "Stage 7: `nvs agent find` reaches every `nvs ext` command and `nvs ext --help` lists all six (`crates/nvs-cli/tests/`), and the feature proofs of the three `nvs ext` features and `tools:cli/nvs-build-compile` (`bun nv proofs --id`).",
+    "`rule:packaging/a-nvsx-dependency-embeds-in-the-same-payload` stays `designed` until the built-in components exist; its *Not on disk* says what is."
   ]
 }
