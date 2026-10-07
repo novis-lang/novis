@@ -28121,6 +28121,7 @@ the file by itself, or only at its next start. Only `[server] listen`, `socket_m
 | `cache.process` | operator only — a request cannot change it | at reload |
 | `control.socket` | operator only — a request cannot change it | at reload |
 | `io.temp_root` | operator only — a request cannot change it | at reload |
+| `image.max_pixels` | operator only — a request cannot change it | at reload |
 | `debug.keep_temporary` | operator only — a request cannot change it | at reload |
 | `debug.inline` | a request may only narrow it | at reload |
 | `server` | operator only — a request cannot change it | at reload |

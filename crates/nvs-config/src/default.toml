@@ -272,6 +272,19 @@
 
 
 # ----------------------------------------------------------------------------------------------
+# [image] — the most pixels `Novis\Image` decodes in one image
+# (`rule:core-classes/image-pixel-cap`).
+# ----------------------------------------------------------------------------------------------
+
+[image]
+# Before it decodes an image, `Novis\Image` reads the width and height from the file header.
+# An image with more pixels than this throws a `RuntimeError`, and nothing is decoded. For an
+# animation, every frame counts. `M` means 1,048,576 pixels, as it does for sizes in this file.
+# A call may set a lower cap for itself, never a higher one. `false` and `0` are not allowed.
+#max_pixels = "24M"                   # default
+
+
+# ----------------------------------------------------------------------------------------------
 # [debug] — the probe set, the inline-dump switch and the temporary-file switch.
 # ----------------------------------------------------------------------------------------------
 

@@ -298,6 +298,11 @@ const APPLY_PROOFS: &[(&str, &str, &str)] = &[
         "a_changed_temp_root_applies_to_the_next_temporary_directory",
     ),
     (
+        "image.max_pixels",
+        LIVE,
+        "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
+    ),
+    (
         "debug.keep_temporary",
         LIVE,
         "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
@@ -2968,6 +2973,40 @@ fn the_decompression_ceiling_is_the_operators_under_every_block_that_states_it()
         Some(Unit::Bytes),
         "the absolute half is not read as a size, so `\"64M\"` is not 64 MiB of output — a ceiling \
          on how much heap one archive may claim has to be the same quantity as the heap",
+    );
+}
+
+/// `rule:core-classes/image-pixel-cap`'s `[image]` block is the operator's and reloads. `System`
+/// on the decompression bound's grounds: a call lowers the cap through its own argument, so the
+/// only thing a request-set value could add is a higher cap, and a higher cap is the bomb the key
+/// stops. `Reload` because the caller reads it out of the snapshot its request cloned.
+///
+/// The row names the key, not the block, so the second half is that nothing blankets `[image]`:
+/// a key added there has no class until a rule argues one, and the cap is the only key the block
+/// takes.
+#[test]
+fn the_image_block_is_a_system_block_that_reloads() {
+    let cap = governing("image.max_pixels");
+    assert_eq!(
+        (cap.key, cap.class, cap.apply),
+        ("image.max_pixels", Class::System, Apply::Reload),
+        "`image.max_pixels` resolves through `{}` to {:?}/{:?}: `Runtime` lets a request raise \
+         the cap it decodes hostile uploads under, and `Boot` keeps a cap the operator lowered",
+        cap.key,
+        cap.class,
+        cap.apply,
+    );
+    assert!(!cap.class.settable_by_a_request());
+    for absent in ["image", "image.formats", "image.max_pixel"] {
+        assert!(
+            lookup(absent).is_none(),
+            "`{absent}` is governed by a row, so something blankets `[image]`",
+        );
+    }
+    assert_eq!(
+        keys_in("image"),
+        vec!["max_pixels".to_string()],
+        "`[image]` takes a key beyond the cap, and nothing in that block may grant anything",
     );
 }
 

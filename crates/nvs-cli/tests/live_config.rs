@@ -1758,6 +1758,7 @@ const REQUEST_READ: &[(&str, &str, &str)] = &[
     ("log.target", "\"stderr\"", "\"file:app.log\""),
     ("debug.inline", "false", "true"),
     ("errors.deprecated", "\"ignore\"", "\"throw\""),
+    ("image.max_pixels", "\"24M\"", "\"8M\""),
     (
         "http.client.proxy.url",
         "\"http://127.0.0.1:3128\"",

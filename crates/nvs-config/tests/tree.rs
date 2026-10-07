@@ -63,6 +63,7 @@ const BLOCKS: &[(&str, &str)] = &[
     ("[[server.mount]] entry", "[[server.mount]]\nprefix = \"/admin\"\nentry = \"Backoffice/public/index.nvs\"\nhost = \"admin.example.com\"\n"),
     ("[cache]", "[cache.local]\nmax_size = \"32M\"\n[cache.shared]\nurl = \"redis://cache.internal\"\ntimeout = \"5s\"\n"),
     ("[control]", "[control]\nsocket = \"/run/nvs/control.sock\"\n"),
+    ("[image]", "[image]\nmax_pixels = \"24M\"\n"),
     ("[opcache]", "[opcache]\nvalidate = \"mtime\"\nrevalidate_freq = \"2s\"\nsettle = \"1s\"\nfile_cache = true\nfile_cache_dir = \"/var/cache/nvs\"\nfile_cache_max_size = \"1G\"\nfile_cache_gc_probability = 1\nfile_cache_gc_divisor = 100\n"),
 ];
 
@@ -88,7 +89,7 @@ fn every_block_an_adr_writes_out_is_in_the_tree() {
     );
     assert_eq!(
         BLOCKS.len(),
-        33,
+        34,
         "a block was added to or removed from the sweep without the count moving",
     );
 }
@@ -405,4 +406,50 @@ fn a_duplicate_key_is_still_its_own_refusal_over_the_typed_tree() {
     let diagnostic = refusal("[limits]\nmemory = \"128M\"\nmemory = \"256M\"\n");
 
     assert_eq!(diagnostic.code, Some(code::E_DUPLICATE_DIRECTIVE));
+}
+
+/// `rule:core-classes/image-pixel-cap`'s `[image] max_pixels`, asserted on both sides of what it
+/// accepts. With nothing written it is `"24M"`, and a suffix reads as it reads in every other key
+/// of the file, so the default and the same value written out agree. `false` and zero parse as
+/// sizes and are no cap: each is refused where it is written, and neither reaches a reader as one.
+// covers: directive:image.max_pixels
+#[test]
+fn max_pixels_defaults_to_24m_and_takes_a_size_suffix() {
+    use nvs_config::image::{DEFAULT, max_pixels, validate};
+    let origins = std::collections::BTreeMap::new();
+
+    assert_eq!(DEFAULT, 24 * 1024 * 1024);
+    assert_eq!(max_pixels(&Config::default()), DEFAULT);
+    assert_eq!(max_pixels(&tree("[image]\n")), DEFAULT);
+    for (written, pixels) in [
+        ("\"24M\"", DEFAULT),
+        ("\"8M\"", 8 << 20),
+        ("\"512k\"", 512 << 10),
+        ("1000000", 1_000_000),
+    ] {
+        let config = tree(&format!("[image]\nmax_pixels = {written}\n"));
+        validate(&config, &origins)
+            .unwrap_or_else(|refused| panic!("`{written}` was refused: {}", refused.message));
+        assert_eq!(max_pixels(&config), pixels, "`max_pixels = {written}`");
+    }
+
+    for written in [
+        "false",
+        "\"false\"",
+        "0",
+        "\"0M\"",
+        "\"24 pixels\"",
+        "true",
+        "-1",
+    ] {
+        let config = tree(&format!("[image]\nmax_pixels = {written}\n"));
+        let refused = validate(&config, &origins)
+            .err()
+            .unwrap_or_else(|| panic!("`max_pixels = {written}` was accepted"));
+        assert_eq!(refused.code, Some(code::E_BAD_DIRECTIVE), "`{written}`");
+        assert_eq!(max_pixels(&config), DEFAULT, "`{written}` reached a reader");
+    }
+
+    let refused = refusal("[image]\nmax_pixels = \"24M\"\nformats = [\"jpeg\"]\n");
+    assert_eq!(refused.code, Some(code::E_BAD_DIRECTIVE));
 }

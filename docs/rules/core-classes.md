@@ -2104,7 +2104,12 @@ calling request's memory cap ([`packaging/a-guest-runs-under-the-requests-budget
 which outlives the request. There are no threads in a guest, so a bulk import parallelises across
 coroutines and cores rather than inside one call.
 
-**Not shipped.** No image component exists in the tree.
+The cap is `[image] max_pixels`, the block's only key. It is `System` and reloads, and with nothing
+written it is `"24M"`, read in the size grammar every other key of the file uses, so `M` is 2²⁰
+pixels. `false` and zero are refused where they are written, because neither is a cap.
+
+**Not shipped.** The key is on disk (`nvs_config::image`, `crates/nvs-config/tests/directives.rs`),
+and the image component does not read it yet: its one export, `info`, decodes nothing.
 
 <sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/spreadsheet-bulk-boundary`](core-classes.md#core-classes-spreadsheet-bulk-boundary). Decided in [0120](../decisions/0120.md), [0005](../decisions/0005.md), [0055](../decisions/0055.md), [0020](../decisions/0020.md), [0095](../decisions/0095.md), [0246](../decisions/0246.md).</sub>
 

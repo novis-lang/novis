@@ -17,4 +17,9 @@ calling request's memory cap (`rule:packaging/a-guest-runs-under-the-requests-bu
 which outlives the request. There are no threads in a guest, so a bulk import parallelises across
 coroutines and cores rather than inside one call.
 
-**Not shipped.** No image component exists in the tree.
+The cap is `[image] max_pixels`, the block's only key. It is `System` and reloads, and with nothing
+written it is `"24M"`, read in the size grammar every other key of the file uses, so `M` is 2²⁰
+pixels. `false` and zero are refused where they are written, because neither is a cap.
+
+**Not shipped.** The key is on disk (`nvs_config::image`, `crates/nvs-config/tests/directives.rs`),
+and the image component does not read it yet: its one export, `info`, decodes nothing.

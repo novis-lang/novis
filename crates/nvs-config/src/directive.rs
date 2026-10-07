@@ -222,6 +222,11 @@ pub const DIRECTIVES: &[Directive] = &[
     // so a new root applies to the next temporary directory. A directory made under the old root
     // is deleted by path when its script ends, so nothing live is left there.
     Directive { key: "io.temp_root", class: Class::System, apply: Apply::Reload },
+    // `rule:core-classes/image-pixel-cap`, on the decompression bound's grounds: a call lowers the
+    // cap through its own argument, so a request-set value could only move it up. `Reload` because
+    // the component's caller reads it from the snapshot its request cloned. The row names the key
+    // and not the block, so a second key in `[image]` has no row until a rule argues one.
+    Directive { key: "image.max_pixels", class: Class::System, apply: Apply::Reload },
     // `rule:core-classes/temporary-dir-sweep`. `System` because § 5 gives the key to the operator alone — a request that could
     // set it would be exempting its own files from cleanup, which is the hoarding that section
     // refuses — and `Reload` because it is read by the next script that ends and applying it

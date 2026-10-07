@@ -1,25 +1,25 @@
 {
-  "state": "**Goal `ext-image`, Stage 2 (the build) is done; Stage 3 (decode, and the cap) is next.** The design is settled by ADR 0120, ADR 0247 and the goal file's § *Standing decisions*; no session re-decides one.\n\nThe image component is embedded, typed into every compile and callable with no `nvs.toml` (`crates/nvs-cli/src/extensions.rs` module doc). libwebp 1.6.0 is prebuilt by `bun nv webp-lib` into `extensions/image/libwebp/libwebp.a`, and `SOURCE.json` beside it pins the source tarball and wasi-sdk 30 by sha256. The build is reproducible: two builds in different folders gave the same bytes. CI's `webp-lib` job runs `--verify`. The image crate does not link the library yet; that is Stage 4's lossy WebP encoder. `bun nv gen-attribution` now covers the image component's crates and libwebp, and the C-dependency ledger records wasmtime's default-feature C code (`tools/nv/cmd/gen-attribution.ts` `C_DEPENDENCIES`).\n\nThe only export implemented is `info`; `run` and `variants` return `runtime`.",
+  "state": "**Goal `ext-image`, Stage 3 (decode, and the cap) is in progress.** The design is settled by ADR 0120, ADR 0247 and the goal file's § *Standing decisions*; no session re-decides one.\n\nThe image component is embedded, typed into every compile and callable with no `nvs.toml` (`crates/nvs-cli/src/extensions.rs` module doc). libwebp 1.6.0 is prebuilt into `extensions/image/libwebp/libwebp.a` and pinned by `SOURCE.json`; the image crate does not link it yet (Stage 4's lossy WebP encoder).\n\n`[image] max_pixels` is on disk: `System`, `Reload`, `\"24M\"` = 2²⁰·24 pixels in the size grammar, `false` and zero refused at boot (`nvs_config::image` module doc, `rule:core-classes/image-pixel-cap`). Nothing reads it at run time yet. The only export implemented is `info`; `run` and `variants` return `runtime`.",
   "next": {
     "stage": 3,
     "title": "decode, and the cap",
     "files": [
       "extensions/image/src/",
       "crates/nvs-ext/tests/",
-      "crates/nvs-config/src/"
+      "crates/nvs-ext/Cargo.toml"
     ],
     "items": [
       {
         "done": false,
-        "text": "**The `[image]` block with `max_pixels`** (`rule:core-classes/image-pixel-cap`, `rule:config/every-block-is-argued-where-it-is-added`) — a `System` key that reloads, defaulting to 24M, beside `[limits]` at `crates/nvs-config/src/tree.rs:81` and its directive rows at `crates/nvs-config/src/directive.rs:91`; the test `the_image_block_is_a_system_block_that_reloads`."
+        "text": "**Decode inside the guest, with the cap checked from the header first** (`rule:core-classes/image-format-roster`, `rule:core-classes/image-pixel-cap`) — `run` at `extensions/image/src/lib.rs:94` decodes every first-wave format and throws `RuntimeError` over the cap before a buffer is allocated, and `ParseError` for bytes that are no image or a malformed IFD. A new `[[test]] name = \"image_decode\"` in `crates/nvs-ext/Cargo.toml:82` with its fixtures, generated under `extensions/image/fixtures/`."
       },
       {
         "done": false,
-        "text": "**Decode inside the guest, with the cap checked from the header first** (`rule:core-classes/image-format-roster`) — `run` at `extensions/image/src/lib.rs:94` decodes every first-wave format and throws `RuntimeError` over the cap before a buffer is allocated, and `ParseError` for bytes that are no image or a malformed IFD. A new `[[test]] name = \"image_decode\"` in `crates/nvs-ext/Cargo.toml:82` with its fixtures, generated under `extensions/image/fixtures/`."
+        "text": "**The cap reaches the guest** (`rule:core-classes/image-pixel-cap`) — the host passes `nvs_config::image::in_force` (`crates/nvs-config/src/image.rs:59`) into the call, and a call's own `maxPixels` may only lower it; the test `an_image_over_max_pixels_is_refused_before_a_buffer_is_allocated` raises it and the same bytes pass."
       },
       {
         "done": false,
-        "text": "**The bomb case** — `tests/conformance/novis/image-a-bomb-is-refused-before-it-is-decoded.nvst`, beside `tests/conformance/novis/image-info-answers-with-no-configuration.nvst:1`."
+        "text": "**The bomb case** — `tests/conformance/novis/image-a-bomb-is-refused-before-it-is-decoded.nvst` and `tests/conformance/novis/image-bytes-that-are-not-an-image-throw-a-parse-error.nvst`, beside `tests/conformance/novis/image-info-answers-with-no-configuration.nvst:1`."
       }
     ]
   },

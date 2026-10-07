@@ -94,6 +94,8 @@ pub struct Config {
     pub debug: Option<Debug>,
     /// `[io]` — the root the runtime creates temporary directories under (`rule:core-classes/temporary-dir-sweep`).
     pub io: Option<Io>,
+    /// `[image]` — the image component's pixel cap (`rule:core-classes/image-pixel-cap`).
+    pub image: Option<Image>,
     /// `[log]` — the handler ladder's rungs (`rule:errors/escalation-ladder`) and the record's shape (`rule:errors/diagnostic-record`).
     pub log: Option<Log>,
     /// `[errors]` — what a use of deprecated code does while it runs (`rule:errors/a-use-of-deprecated-code-may-log-or-throw`).
@@ -518,6 +520,14 @@ pub struct Io {
     /// `Reload`, per `crate::directive`'s `io.temp_root` row: a temporary directory is made under
     /// the root in the snapshot its request cloned, and deleted by path when its script ends.
     pub temp_root: Option<String>,
+}
+
+/// `[image]` — `rule:core-classes/image-pixel-cap`'s block, read by [`crate::image`].
+#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+#[serde(default, deny_unknown_fields)]
+pub struct Image {
+    /// The most pixels one image may declare before it is decoded; `"24M"` with nothing written.
+    pub max_pixels: Option<Setting>,
 }
 
 /// `[errors]` — `rule:errors/a-use-of-deprecated-code-may-log-or-throw`'s block, read by [`crate::errors`].

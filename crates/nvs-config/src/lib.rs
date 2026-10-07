@@ -72,6 +72,7 @@ pub mod export;
 pub mod extension;
 pub mod file;
 pub mod http;
+pub mod image;
 pub mod log;
 pub mod mode;
 pub mod mount;
