@@ -2269,6 +2269,7 @@ fn front_end_in(
         Some(config) => config::grants(config, path, init)?,
         None => (None, extensions),
     };
+    let extensions = extensions::with_built_in(extensions);
     let classes = nvs_types::ext_lib::hir_classes(&extensions);
 
     let core = nvs_stdlib::registry::link_targets();
@@ -3783,19 +3784,13 @@ fn run_program_tests(
         Ok(checked) => checked,
         Err(code) => return code,
     };
-    let calls = if config.extension.is_empty() {
-        None
-    } else {
-        match extensions::loaded(config, &tree.origins, &tree.sources) {
-            Ok(set) => Some(std::rc::Rc::new(extensions::Calls::new(set))),
-            Err(diagnostic) => return refuse(diagnostic),
-        }
+    let calls = match extensions::loaded(config, &tree.origins, &tree.sources) {
+        Ok(set) => std::rc::Rc::new(extensions::Calls::new(set)),
+        Err(diagnostic) => return refuse(diagnostic),
     };
-    let calling = calls.clone().map(|calls| {
-        nvs_runtime::extension::install(
-            calls as std::rc::Rc<dyn nvs_runtime::extension::Extensions>,
-        )
-    });
+    let calling = nvs_runtime::extension::install(
+        calls.clone() as std::rc::Rc<dyn nvs_runtime::extension::Extensions>
+    );
     // `--filter` reaches both suites, and means the same thing in each:
     // `runner::selected` owns the rule and why it is the `.nvst` tree's.
     let code = runner::run(checked, &tree.snapshot, format, filter, flags, coverage);

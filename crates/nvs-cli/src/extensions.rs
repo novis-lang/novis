@@ -62,6 +62,14 @@
 //! no component whose file did not change. A configuration with no file cache compiles every
 //! component at every boot and reload.
 //!
+//! **The built-in components are always present** (`rule:packaging/the-first-party-components-are-built-in`).
+//! [`with_built_in`] puts their manifests in front of the entries' at every compile, read once per
+//! process without an engine. A call whose class no loaded entry declares reaches the built-in
+//! component that declares it: the first such call makes the process's loader, placed in the
+//! artifact cache of the configuration it runs under, and compiles that component, once per
+//! process. A tree with no `[[extension]]` is an empty set, so `nvs run` and `nvs test` always
+//! install a [`Calls`].
+//!
 //! What it spends: each loaded component's compiled code, once per process and shared by every
 //! core, and during a reload the old set and the new one together until the swap. On disk, one
 //! entry per component file per build, under the cache's own size cap.
@@ -82,7 +90,7 @@ use nvs_ext::call::{
 };
 use nvs_ext::convert::{Key, Value as Crossed, fits};
 use nvs_ext::grants::Caller;
-use nvs_ext::load::{CacheKey, Entry, Loader, ModuleCache, Set};
+use nvs_ext::load::{Builtin, CacheKey, Entry, Extension as Loaded, Loader, ModuleCache, Set};
 use nvs_ext::manifest::Manifest;
 use nvs_ext::types::{CORE_CLASSES, CoreRecord, Field, NovisType};
 use nvs_runtime::{Ctx, Fault, HelperResult, NvsArray, NvsStr, SlotKey, Tag, ThrownClass, Value};
@@ -97,7 +105,8 @@ const SLOTS: u32 = 64;
 /// The CPU time a request with no `[limits] cpu_time` gives its guests.
 const UNCAPPED: Duration = Duration::from_secs(365 * 24 * 60 * 60);
 
-/// The process's one host, made by the first [`loaded`] that has an entry to load.
+/// The process's one host, made by the first [`loaded`] that has an entry to load, or by the first
+/// call into a built-in component.
 static HOST: OnceLock<Host> = OnceLock::new();
 
 /// The process's one loader, compiling into [`HOST`]'s engine.
@@ -105,6 +114,49 @@ static LOADER: OnceLock<Loader> = OnceLock::new();
 
 /// The set the configuration now serving loaded, which [`install`] replaces whole.
 static LIVE: Mutex<Option<Arc<Set>>> = Mutex::new(None);
+
+/// The built-in components' manifests, read on the first compile.
+static BUILT_IN_MANIFESTS: OnceLock<Vec<Manifest>> = OnceLock::new();
+
+/// The built-in components, made on the first call into one, or why the engine did not start.
+static BUILT_IN: OnceLock<Result<Vec<Builtin>, String>> = OnceLock::new();
+
+/// The built-in components' manifests, then `manifests`: every class a program is typed against
+/// (`rule:packaging/the-first-party-components-are-built-in`). An `[[extension]]` entry cannot
+/// declare a `Novis\` class, so no class appears twice.
+pub(crate) fn with_built_in(manifests: Vec<Manifest>) -> Vec<Manifest> {
+    let built_in = BUILT_IN_MANIFESTS.get_or_init(|| {
+        nvs_ext::load::builtin_manifests()
+            .unwrap_or_else(|refused| panic!("a built-in component does not read: {refused}"))
+    });
+    built_in.iter().cloned().chain(manifests).collect()
+}
+
+/// The built-in component declaring `class`, compiled on the first call into it. `config` places
+/// the compiled form in the artifact cache, when the first call has one. `None` when no built-in
+/// component declares `class`.
+fn built_in(class: &str, config: Option<&Config>) -> Option<Result<&'static Loaded, String>> {
+    let built_in = BUILT_IN.get_or_init(|| {
+        let loader = loader()?.clone();
+        let loader = match config.and_then(Modules::placed) {
+            Some(modules) => loader.with_cache(Arc::new(modules)),
+            None => loader,
+        };
+        loader.builtins().map_err(|refused| refused.reason)
+    });
+    let built_in = match built_in {
+        Ok(built_in) => built_in,
+        Err(reason) => return Some(Err(reason.clone())),
+    };
+    let builtin = built_in
+        .iter()
+        .find(|builtin| builtin.manifest().class == class)?;
+    Some(
+        builtin
+            .extension()
+            .map_err(|refused| refused.reason.clone()),
+    )
+}
 
 /// Every entry of `config`'s `[[extension]]` array, loaded into one set.
 ///
@@ -517,12 +569,17 @@ impl nvs_runtime::extension::Extensions for Calls {
                 format!("`{class}::{method}`: {reason}"),
             )
         };
-        let extension = self
+        let extension = match self
             .set
             .extensions()
             .iter()
             .find(|extension| extension.manifest.class == class)
-            .ok_or_else(|| refused("the extension is not loaded".to_owned()))?;
+        {
+            Some(extension) => extension,
+            None => built_in(class, ctx.config().map(|config| &config.snapshot().config))
+                .ok_or_else(|| refused("the extension is not loaded".to_owned()))?
+                .map_err(&refused)?,
+        };
         let args = args
             .iter()
             .map(|arg| crossed(*arg))

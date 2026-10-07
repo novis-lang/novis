@@ -1,0 +1,23 @@
+--TEST--
+`Novis\Image\Codec::info` reads a PNG header from a program with no `nvs.toml` and no `[[extension]]` entry: rule:packaging/the-first-party-components-are-built-in
+--FILE--
+<?nvs
+use Novis\Image\Codec;
+use Novis\Image\Format;
+
+// A PNG of 3 by 2 pixels with an alpha channel, written as hex.
+bytes $png = Core\Encoding::fromHex(
+    "89504e470d0a1a0a0000000d49484452000000030000000208060000009d74661a"
+    . "0000000b49444154789c6360c00500001a0001bc3ce0410000000049454e44ae426082"
+);
+
+var $info = Codec::info($png);
+echo $info->format == Format::Png ? "png" : "other", "\n";
+echo $info->width, "x", $info->height, "\n";
+echo $info->hasAlpha ? "alpha" : "opaque", "\n";
+echo $info->frames, "\n";
+--EXPECT--
+png
+3x2
+alpha
+1

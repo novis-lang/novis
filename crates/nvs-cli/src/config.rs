@@ -615,8 +615,9 @@ pub(crate) fn extension_set(
 }
 
 /// The extension set of the tree `config` and `entry` resolve, loaded, as the host a compiled
-/// call into one reaches (`crate::extensions::Calls`). `None` for a tree that does not resolve,
-/// which the boot that follows reports, and for one with no `[[extension]]`.
+/// call into one reaches (`crate::extensions::Calls`). A tree with no `[[extension]]` is an empty
+/// set, which still reaches the built-in components. `None` for a tree that does not resolve,
+/// which the boot that follows reports.
 ///
 /// # Errors
 ///
@@ -630,9 +631,6 @@ pub(crate) fn extension_calls(
     else {
         return Ok(None);
     };
-    if snapshot.config.extension.is_empty() {
-        return Ok(None);
-    }
     match crate::extensions::loaded(&snapshot.config, &origins, &sources) {
         Ok(set) => Ok(Some(crate::extensions::Calls::new(set))),
         Err(diagnostic) => {

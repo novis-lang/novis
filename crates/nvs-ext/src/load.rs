@@ -414,14 +414,10 @@ impl Loader {
     /// The first built-in component whose sections do not read, or whose world this loader does
     /// not implement. Either one is a broken build.
     pub fn builtins(&self) -> Result<Vec<Builtin>, Refused> {
-        [(
-            "image",
-            crate::builtin::IMAGE,
-            &crate::builtin::IMAGE_SHA256,
-        )]
-        .into_iter()
-        .map(|(name, bytes, sha256)| self.builtin(name, bytes, sha256))
-        .collect()
+        BUILTINS
+            .iter()
+            .map(|&(name, bytes, sha256)| self.builtin(name, bytes, sha256))
+            .collect()
     }
 
     /// The built-in component `name`, from the `bytes` the binary carries and the digest the build
@@ -662,6 +658,32 @@ impl Builtin {
             })
             .as_ref()
     }
+}
+
+/// Every built-in component: its name, the bytes the binary carries and the digest the build took.
+const BUILTINS: [(&str, &[u8], &[u8; 32]); 1] = [(
+    "image",
+    crate::builtin::IMAGE,
+    &crate::builtin::IMAGE_SHA256,
+)];
+
+/// The manifests of the built-in components, read without an engine and without compiling: what
+/// a compiler types a call into `Novis\` against, beside the manifests [`read_manifests`] reads.
+/// Each carries its source section's files in [`Manifest::source`].
+///
+/// # Errors
+///
+/// The first built-in component whose sections do not read, which is a broken build.
+pub fn builtin_manifests() -> Result<Vec<Manifest>, Refused> {
+    BUILTINS
+        .iter()
+        .map(|&(name, bytes, _)| {
+            let (mut manifest, source) =
+                sections(&PathBuf::from(format!("built-in {name}.nvsx")), bytes)?;
+            manifest.source = source.files;
+            Ok(manifest)
+        })
+        .collect()
 }
 
 /// The manifests of the extensions `entries` name, read without compiling a component.

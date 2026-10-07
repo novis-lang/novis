@@ -1428,9 +1428,12 @@ library is prebuilt ([`packaging/a-prebuilt-wasm-library-is-rebuilt-in-ci`](pack
 `crates/nvs-ext/build.rs` builds it into `target/ext/`, packs it with `extensions/image/manifest.json`
 and embeds it as `nvs_ext::builtin::IMAGE` with its digest. `nvs_ext::load::Loader::builtins` reads
 its manifest without compiling, and `Builtin::extension` compiles and checks it on first use
-(`crates/nvs-ext/tests/builtin.rs`). `nvs` folds the digest into `env_hash` at start. Neither `nvs
-serve` nor `nvs run` loads the built-in set yet, so no program can call `Novis\Image`. The loader
-refuses a `Novis\` class from every `[[extension]]` entry. The intl crate does not exist.
+(`crates/nvs-ext/tests/builtin.rs`). `nvs` folds the digest into `env_hash` at start. Every compile
+types a program against the built-in manifests beside the entries' (`nvs_ext::load::builtin_manifests`),
+and a call no `[[extension]]` entry answers reaches the built-in component, compiled on that first
+call (`crates/nvs-cli/src/extensions.rs`), so `Novis\Image\Codec::info` answers with no `nvs.toml`
+(`tests/conformance/novis/image-info-answers-with-no-configuration.nvst`). The loader refuses a
+`Novis\` class from every `[[extension]]` entry. The intl crate does not exist.
 
 <sub>See also [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`packaging/three-tiers`](packaging.md#packaging-three-tiers), [`core-api/tier-roster`](core-api.md#core-api-tier-roster). Decided in [0247](../decisions/0247.md).</sub>
 
