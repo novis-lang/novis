@@ -2147,11 +2147,16 @@ data in a re-encoded upload is the leak this default closes; a program that want
 from the header and stores them where it chooses. A kept EXIF block whose orientation `open` applied
 is written with its orientation tag set to `1`, so a viewer does not turn the image a second time.
 
-**Not shipped.** The component's `run` applies the orientation of a JPEG, PNG or WebP input and
-re-encodes JPEG, PNG, WebP, GIF and AVIF with no metadata unless a `metadata` step keeps the EXIF
-block, which an AVIF never carries (`extensions/image/src/decode.rs`, `extensions/image/src/encode.rs`,
-`crates/nvs-ext/tests/image_pipeline.rs`). AVIF and JPEG XL inputs are not oriented, the ICC
-conversion does not exist, and the `Novis\Image` builder does not exist.
+A profile that does not parse, or that is neither RGB nor CMYK, is ignored, as a browser ignores it:
+the pixels are kept as decoded. A CMYK JPEG is read as Adobe stores it, inverted, whether its scan
+is CMYK or YCCK.
+
+**Not shipped.** The component's `run` applies the orientation of a JPEG, PNG or WebP input,
+converts its RGB or CMYK profile to sRGB, and re-encodes JPEG, PNG, WebP, GIF and AVIF with no
+metadata unless a `metadata` step keeps the EXIF block, which an AVIF never carries
+(`extensions/image/src/decode.rs`, `extensions/image/src/encode.rs`,
+`crates/nvs-ext/tests/image_pipeline.rs`). AVIF and JPEG XL inputs are neither oriented nor
+converted, and the `Novis\Image` builder does not exist.
 
 <sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/image-one-entry-point-per-job`](core-classes.md#core-classes-image-one-entry-point-per-job). Decided in [0120](../decisions/0120.md).</sub>
 

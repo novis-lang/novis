@@ -59,10 +59,15 @@ fn shape(fields: Vec<(&str, Value)>) -> Value {
 
 /// An encoded source of `data`, opened with `autoOrient` set to `auto_orient`.
 fn encoded(data: Vec<u8>, auto_orient: bool) -> Value {
+    opened(data, auto_orient, true)
+}
+
+/// An encoded source of `data`, opened with `autoOrient` and `toSrgb` as given.
+fn opened(data: Vec<u8>, auto_orient: bool, to_srgb: bool) -> Value {
     shape(vec![
         ("data", Value::Bytes(data)),
         ("autoOrient", Value::Bool(auto_orient)),
-        ("toSrgb", Value::Bool(true)),
+        ("toSrgb", Value::Bool(to_srgb)),
     ])
 }
 
@@ -208,6 +213,116 @@ fn is_blue(rgba: [u8; 4]) -> bool {
     rgba[2] > 200 && rgba[0] < 60
 }
 
+/// Whether every colour channel of `rgba` is within 10 of `want`.
+fn near(rgba: [u8; 4], want: [u8; 3]) -> bool {
+    rgba.iter()
+        .zip(want)
+        .all(|(got, want)| got.abs_diff(want) <= 10)
+}
+
+/// The sRGB colour the test profile prints a corner of the CMYK cube as: the naive conversion,
+/// where each ink takes away its complement and black takes away everything, squeezed into
+/// 32..=223 so it can never be mistaken for the naive result itself.
+fn press(c: u8, m: u8, y: u8, k: u8) -> [u8; 3] {
+    let channel = |ink: u8| u8::try_from(32 + 191 * u32::from((1 - ink) * (1 - k))).unwrap();
+    [channel(c), channel(m), channel(y)]
+}
+
+/// The CIELAB value of the sRGB colour `rgb` under D50, the ICC profile connection space.
+fn lab(rgb: [u8; 3]) -> [f64; 3] {
+    let [r, g, b] = rgb.map(|value| {
+        let value = f64::from(value) / 255.0;
+        if value <= 0.040_45 {
+            value / 12.92
+        } else {
+            ((value + 0.055) / 1.055).powf(2.4)
+        }
+    });
+    let x = (0.436_074_7 * r + 0.385_064_9 * g + 0.143_080_4 * b) / 0.9642;
+    let y = 0.222_504_5 * r + 0.716_878_6 * g + 0.060_616_9 * b;
+    let z = (0.013_932_2 * r + 0.097_104_5 * g + 0.714_173_3 * b) / 0.8249;
+    let f = |t: f64| {
+        if t > (6.0f64 / 29.0).powi(3) {
+            t.cbrt()
+        } else {
+            t / (3.0 * (6.0f64 / 29.0).powi(2)) + 4.0 / 29.0
+        }
+    };
+    [
+        116.0 * f(y) - 16.0,
+        500.0 * (f(x) - f(y)),
+        200.0 * (f(y) - f(z)),
+    ]
+}
+
+/// A version 2 CMYK printer profile whose one tag, `A2B0`, is a lut16 table with two grid points
+/// per ink: each corner of the CMYK cube is `press`'s colour, as CIELAB in the version 2
+/// encoding, and the colours between are interpolated. The test writes it so that no fixture
+/// carries a profile somebody else made.
+fn cmyk_profile() -> Vec<u8> {
+    let mut lut = b"mft2\0\0\0\0".to_vec();
+    lut.extend_from_slice(&[4, 3, 2, 0]);
+    for row in 0..3 {
+        for column in 0..3 {
+            let one: u32 = if row == column { 0x1_0000 } else { 0 };
+            lut.extend_from_slice(&one.to_be_bytes());
+        }
+    }
+    lut.extend_from_slice(&2u16.to_be_bytes());
+    lut.extend_from_slice(&2u16.to_be_bytes());
+    for _ in 0..4 {
+        lut.extend_from_slice(&[0, 0, 0xff, 0xff]);
+    }
+    for corner in 0u8..16 {
+        let bit = |at: u8| (corner >> at) & 1;
+        let [l, a, b] = lab(press(bit(3), bit(2), bit(1), bit(0)));
+        for value in [l * 652.8, (a + 128.0) * 256.0, (b + 128.0) * 256.0] {
+            #[expect(
+                clippy::cast_sign_loss,
+                clippy::cast_possible_truncation,
+                reason = "the value is rounded and clamped to the range of a `u16` first"
+            )]
+            let value = value.round().clamp(0.0, 65535.0) as u16;
+            lut.extend_from_slice(&value.to_be_bytes());
+        }
+    }
+    for _ in 0..3 {
+        lut.extend_from_slice(&[0, 0, 0xff, 0xff]);
+    }
+    let lut_at = 128 + 4 + 12;
+    let size = u32::try_from(lut_at + lut.len()).unwrap();
+    let mut out = Vec::with_capacity(lut_at + lut.len());
+    out.extend_from_slice(&size.to_be_bytes());
+    out.extend_from_slice(&[0; 4]);
+    out.extend_from_slice(&0x0210_0000u32.to_be_bytes());
+    out.extend_from_slice(b"prtrCMYKLab ");
+    out.extend_from_slice(&[0; 12]);
+    out.extend_from_slice(b"acsp");
+    out.extend_from_slice(&[0; 28]);
+    for illuminant in [0x0000_f6d6u32, 0x0001_0000, 0x0000_d32d] {
+        out.extend_from_slice(&illuminant.to_be_bytes());
+    }
+    out.resize(128, 0);
+    out.extend_from_slice(&1u32.to_be_bytes());
+    out.extend_from_slice(b"A2B0");
+    out.extend_from_slice(&u32::try_from(lut_at).unwrap().to_be_bytes());
+    out.extend_from_slice(&u32::try_from(lut.len()).unwrap().to_be_bytes());
+    out.extend_from_slice(&lut);
+    out
+}
+
+/// `jpeg` with an APP2 segment carrying the ICC profile `profile` inserted after its start marker.
+fn with_icc(jpeg: &[u8], profile: &[u8]) -> Vec<u8> {
+    let mut payload = b"ICC_PROFILE\0\x01\x01".to_vec();
+    payload.extend_from_slice(profile);
+    let mut out = jpeg[..2].to_vec();
+    out.extend_from_slice(&[0xff, 0xe2]);
+    out.extend_from_slice(&u16::try_from(payload.len() + 2).unwrap().to_be_bytes());
+    out.extend_from_slice(&payload);
+    out.extend_from_slice(&jpeg[2..]);
+    out
+}
+
 /// One 12-byte IFD entry, big-endian, whose value or offset is `value`.
 fn entry(out: &mut Vec<u8>, tag: u16, kind: u16, count: u32, value: [u8; 4]) {
     out.extend_from_slice(&tag.to_be_bytes());
@@ -310,6 +425,66 @@ fn auto_orient_false_keeps_the_stored_orientation() {
     assert_eq!(size_of(&raw), (16, 12));
     assert!(is_red(pixel(&raw, 0, 0)), "{:?}", pixel(&raw, 0, 0));
     assert!(is_blue(pixel(&raw, 15, 11)), "{:?}", pixel(&raw, 15, 11));
+    block_on(request.end()).expect("the request ends");
+}
+
+/// `cmyk.jpg`, red ink over blue ink stored as Adobe stores CMYK, with `cmyk_profile` embedded.
+fn cmyk_with_profile() -> Vec<u8> {
+    with_icc(&fixture("cmyk.jpg"), &cmyk_profile())
+}
+
+#[test]
+fn a_cmyk_jpeg_with_a_profile_resizes_to_the_reference_colours_not_inverted() {
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let extension = component(&host);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(60), None)));
+    // The top half is magenta and yellow ink, the bottom half cyan and magenta. Through the
+    // profile they print as `press`'s red and blue. Read without Adobe's inversion, the top half
+    // would be cyan and black ink and print near black.
+    let raw = run(
+        &request,
+        &extension,
+        opened(cmyk_with_profile(), true, true),
+        plan(Vec::new(), "Raw"),
+    )
+    .expect("the CMYK JPEG decodes");
+    assert_eq!(size_of(&raw), (16, 16));
+    for (x, y) in [(0, 0), (15, 7)] {
+        let got = pixel(&raw, x, y);
+        assert!(near(got, press(0, 1, 1, 0)), "({x}, {y}) is {got:?}");
+    }
+    for (x, y) in [(0, 8), (15, 15)] {
+        let got = pixel(&raw, x, y);
+        assert!(near(got, press(1, 1, 0, 0)), "({x}, {y}) is {got:?}");
+    }
+    block_on(request.end()).expect("the request ends");
+}
+
+#[test]
+fn to_srgb_false_keeps_the_raw_channels() {
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let extension = component(&host);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(60), None)));
+    // Without the conversion the profile is not read, and the ink amounts give pure red and
+    // pure blue.
+    let raw = run(
+        &request,
+        &extension,
+        opened(cmyk_with_profile(), true, false),
+        plan(Vec::new(), "Raw"),
+    )
+    .expect("the CMYK JPEG decodes");
+    assert_eq!(size_of(&raw), (16, 16));
+    assert!(
+        near(pixel(&raw, 0, 0), [255, 0, 0]),
+        "{:?}",
+        pixel(&raw, 0, 0)
+    );
+    assert!(
+        near(pixel(&raw, 15, 15), [0, 0, 255]),
+        "{:?}",
+        pixel(&raw, 15, 15)
+    );
     block_on(request.end()).expect("the request ends");
 }
 

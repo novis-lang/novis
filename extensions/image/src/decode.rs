@@ -19,12 +19,25 @@
 //! the formats `image` decodes, and resets the tag to `1` in the EXIF block `Pixels` carries, so a
 //! kept block does not turn the image a second time. AVIF and JPEG XL return their frame as
 //! `rav1d` and `jxl-oxide` give it, with no EXIF block.
+//!
+//! **To sRGB** (`rule:core-classes/image-correct-by-default`) converts the pixels of an input whose
+//! embedded ICC profile is RGB or CMYK to sRGB through `moxcms`, for the formats `image` decodes. A
+//! CMYK or YCCK JPEG with a CMYK profile is decoded to its raw channels through `zune-jpeg`, read
+//! as Adobe stores them (inverted, so `255` is no ink), and converted from ink amounts. Without
+//! the option, or without a profile, a CMYK JPEG gets `zune-jpeg`'s conversion, which multiplies
+//! each channel by the black one. A profile that does not parse, that is neither RGB nor CMYK, or
+//! that `moxcms` cannot connect to sRGB is ignored, as a browser ignores it. The conversion holds
+//! a second frame beside the decoded one while it runs.
 
 use std::io::Cursor;
 
 use image::metadata::Orientation;
-use image::{DynamicImage, ImageDecoder, ImageFormat, ImageReader, Limits};
+use image::{DynamicImage, ImageDecoder, ImageFormat, ImageReader, Limits, RgbaImage};
 use jxl_oxide::{JxlImage, PixelFormat};
+use moxcms::{ColorProfile, DataColorSpace, Layout, TransformOptions};
+use zune_core::bytestream::ZCursor;
+use zune_core::colorspace::ColorSpace;
+use zune_core::options::DecoderOptions;
 
 use crate::{Error, Format};
 
@@ -97,11 +110,12 @@ fn check_exif(exif: Option<&[u8]>) -> Result<(), Error> {
 }
 
 /// Decodes `data` to RGBA8, refusing an image over `cap` pixels before a buffer is allocated.
-/// With `auto_orient`, the EXIF orientation is applied to the pixels.
-pub fn decode(data: &[u8], cap: u64, auto_orient: bool) -> Result<Pixels, Error> {
+/// With `auto_orient`, the EXIF orientation is applied to the pixels; with `to_srgb`, an embedded
+/// ICC profile is converted to sRGB.
+pub fn decode(data: &[u8], cap: u64, auto_orient: bool, to_srgb: bool) -> Result<Pixels, Error> {
     let format = sniff(data)?;
     if let Some(known) = image_format(format) {
-        return decode_with_image(data, known, cap, auto_orient);
+        return decode_with_image(data, known, cap, auto_orient, to_srgb);
     }
     match format {
         Format::Jxl => decode_jxl(data, cap),
@@ -117,6 +131,7 @@ fn decode_with_image(
     format: ImageFormat,
     cap: u64,
     auto_orient: bool,
+    to_srgb: bool,
 ) -> Result<Pixels, Error> {
     let parse = |err: image::ImageError| Error::Parse(err.to_string());
     let mut reader = ImageReader::with_format(Cursor::new(data), format);
@@ -144,7 +159,31 @@ fn decode_with_image(
     } else {
         Orientation::NoTransforms
     };
-    let mut image = DynamicImage::from_decoder(decoder).map_err(parse)?;
+    let profile = if to_srgb {
+        decoder
+            .icc_profile()
+            .map_err(parse)?
+            .and_then(|raw| ColorProfile::new_from_slice(&raw).ok())
+    } else {
+        None
+    };
+    let cmyk = profile
+        .as_ref()
+        .filter(|profile| format == ImageFormat::Jpeg && profile.color_space == DataColorSpace::Cmyk);
+    let rgba = match cmyk.and_then(|profile| cmyk_jpeg(data, profile).transpose()) {
+        Some(converted) => converted?,
+        None => {
+            let mut rgba = DynamicImage::from_decoder(decoder).map_err(parse)?.into_rgba8();
+            if let Some(profile) = profile.filter(|profile| profile.color_space == DataColorSpace::Rgb) {
+                if let Some(converted) = srgb(&profile, &rgba) {
+                    rgba = RgbaImage::from_raw(rgba.width(), rgba.height(), converted)
+                        .expect("the conversion keeps the frame's size");
+                }
+            }
+            rgba
+        }
+    };
+    let mut image = DynamicImage::ImageRgba8(rgba);
     if auto_orient {
         image.apply_orientation(orientation);
         if let Some(raw) = exif.as_mut() {
@@ -158,6 +197,79 @@ fn decode_with_image(
         rgba: rgba.into_raw(),
         exif,
     })
+}
+
+/// The four-channel `pixels` converted from `profile` to sRGB RGBA8: RGBA for an RGB profile, ink
+/// amounts for a CMYK one, whose result is opaque. `None` when `moxcms` cannot connect the profile
+/// to sRGB.
+fn srgb(profile: &ColorProfile, pixels: &[u8]) -> Option<Vec<u8>> {
+    let transform = profile
+        .create_transform_8bit(
+            Layout::Rgba,
+            &ColorProfile::new_srgb(),
+            Layout::Rgba,
+            TransformOptions::default(),
+        )
+        .ok()?;
+    let mut out = vec![0u8; pixels.len()];
+    transform.transform(pixels, &mut out).ok()?;
+    if profile.color_space == DataColorSpace::Cmyk {
+        for pixel in out.chunks_exact_mut(4) {
+            pixel[3] = 255;
+        }
+    }
+    Some(out)
+}
+
+/// The CMYK or YCCK JPEG `data` decoded to its raw channels and converted from `profile` to sRGB.
+/// `None` when the JPEG is not stored as CMYK or YCCK, or when the conversion is not possible, so
+/// the caller decodes it the ordinary way.
+fn cmyk_jpeg(data: &[u8], profile: &ColorProfile) -> Result<Option<RgbaImage>, Error> {
+    let parse = |err: zune_jpeg::errors::DecodeErrors| Error::Parse(err.to_string());
+    let options = DecoderOptions::default()
+        .set_strict_mode(false)
+        .set_max_width(usize::MAX)
+        .set_max_height(usize::MAX);
+    let mut decoder = zune_jpeg::JpegDecoder::new_with_options(ZCursor::new(data), options);
+    decoder.decode_headers().map_err(parse)?;
+    let stored = match decoder.input_colorspace() {
+        Some(stored @ (ColorSpace::CMYK | ColorSpace::YCCK)) => stored,
+        _ => return Ok(None),
+    };
+    let (width, height) = decoder.dimensions().expect("the headers were decoded");
+    decoder.set_options(options.jpeg_set_out_colorspace(stored));
+    let mut channels = decoder.decode().map_err(parse)?;
+    if channels.len() != width * height * 4 {
+        return Err(Error::Parse(
+            "the JPEG's pixel data is shorter than its header says".to_string(),
+        ));
+    }
+    // A YCCK JPEG encodes `255 - stored` for cyan, magenta and yellow as YCbCr, so converting
+    // that back to RGB gives their ink amounts directly. Black is stored as it is in CMYK.
+    for pixel in channels.chunks_exact_mut(4) {
+        if stored == ColorSpace::YCCK {
+            let (y, cb, cr) = (
+                f32::from(pixel[0]),
+                f32::from(pixel[1]) - 128.0,
+                f32::from(pixel[2]) - 128.0,
+            );
+            pixel[0] = (y + 1.402 * cr).round().clamp(0.0, 255.0) as u8;
+            pixel[1] = (y - 0.344_136 * cb - 0.714_136 * cr).round().clamp(0.0, 255.0) as u8;
+            pixel[2] = (y + 1.772 * cb).round().clamp(0.0, 255.0) as u8;
+        } else {
+            for channel in &mut pixel[..3] {
+                *channel = 255 - *channel;
+            }
+        }
+        pixel[3] = 255 - pixel[3];
+    }
+    let Some(rgba) = srgb(profile, &channels) else {
+        return Ok(None);
+    };
+    drop(channels);
+    let width = u32::try_from(width).expect("a JPEG is at most 65535 pixels wide");
+    let height = u32::try_from(height).expect("a JPEG is at most 65535 pixels high");
+    Ok(RgbaImage::from_raw(width, height, rgba))
 }
 
 fn decode_jxl(data: &[u8], cap: u64) -> Result<Pixels, Error> {
@@ -222,7 +334,7 @@ mod tests {
 
     #[test]
     fn a_png_decodes_to_rgba() {
-        let got = decode(&png(3, 2), DEFAULT_MAX_PIXELS, true).unwrap();
+        let got = decode(&png(3, 2), DEFAULT_MAX_PIXELS, true, true).unwrap();
         assert_eq!((got.width, got.height), (3, 2));
         assert_eq!(got.rgba.len(), 24);
         assert_eq!(&got.rgba[..4], &[200, 200, 200, 255]);
@@ -230,18 +342,18 @@ mod tests {
 
     #[test]
     fn an_image_over_the_cap_is_refused() {
-        let refused = decode(&png(10, 10), 99, true).unwrap_err();
+        let refused = decode(&png(10, 10), 99, true, true).unwrap_err();
         assert_eq!(
             refused,
             Error::Runtime(
                 "the image is 10x10, which is 100 pixels, over the cap of 99 pixels".to_string()
             )
         );
-        assert!(decode(&png(10, 10), 100, true).is_ok());
+        assert!(decode(&png(10, 10), 100, true, true).is_ok());
     }
 
     #[test]
     fn bytes_that_are_no_image_do_not_parse() {
-        assert!(matches!(decode(b"not an image", 100, true), Err(Error::Parse(_))));
+        assert!(matches!(decode(b"not an image", 100, true, true), Err(Error::Parse(_))));
     }
 }

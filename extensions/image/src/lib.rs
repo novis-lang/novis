@@ -42,16 +42,18 @@ pub struct Encoding {
 }
 
 /// Runs a plan with no pixel step on the encoded `data`: decodes it under `cap` pixels, applying
-/// the EXIF orientation when `auto_orient` is set, and returns `output`. A format the component
-/// does not encode returns `Invalid` before anything is decoded.
+/// the EXIF orientation when `auto_orient` is set and converting an embedded ICC profile to sRGB
+/// when `to_srgb` is, and returns `output`. A format the component does not encode returns
+/// `Invalid` before anything is decoded.
 pub fn run(
     data: &[u8],
     cap: u64,
     auto_orient: bool,
+    to_srgb: bool,
     encoding: Encoding,
     output: Output,
 ) -> Result<Vec<u8>, Error> {
-    let mut outs = variants(data, cap, auto_orient, &[(encoding, output)])?;
+    let mut outs = variants(data, cap, auto_orient, to_srgb, &[(encoding, output)])?;
     Ok(outs.pop().unwrap_or_default())
 }
 
@@ -62,6 +64,7 @@ pub fn variants(
     data: &[u8],
     cap: u64,
     auto_orient: bool,
+    to_srgb: bool,
     plans: &[(Encoding, Output)],
 ) -> Result<Vec<Vec<u8>>, Error> {
     let input = sniff(data)?;
@@ -76,7 +79,7 @@ pub fn variants(
     let Some(((encoding, output), rest)) = plans.split_last() else {
         return Ok(Vec::new());
     };
-    let pixels = decode(data, cap, auto_orient)?;
+    let pixels = decode(data, cap, auto_orient, to_srgb)?;
     let mut outs = Vec::with_capacity(plans.len());
     for (encoding, output) in rest {
         outs.push(finish(pixels.clone(), input, *encoding, *output)?);
@@ -258,7 +261,15 @@ mod guest {
             };
             let (encoding, output) = encoding(&plan)?;
             let cap = source.max_pixels.unwrap_or(crate::DEFAULT_MAX_PIXELS);
-            crate::run(&source.data, cap, source.auto_orient, encoding, output).map_err(error)
+            crate::run(
+                &source.data,
+                cap,
+                source.auto_orient,
+                source.to_srgb,
+                encoding,
+                output,
+            )
+            .map_err(error)
         }
 
         fn variants(source: Source, plans: Vec<Plan>) -> Result<Vec<Vec<u8>>, Error> {
@@ -267,7 +278,8 @@ mod guest {
             };
             let plans = plans.iter().map(encoding).collect::<Result<Vec<_>, _>>()?;
             let cap = source.max_pixels.unwrap_or(crate::DEFAULT_MAX_PIXELS);
-            crate::variants(&source.data, cap, source.auto_orient, &plans).map_err(error)
+            crate::variants(&source.data, cap, source.auto_orient, source.to_srgb, &plans)
+                .map_err(error)
         }
 
         fn compare(_a: Vec<u8>, _b: Vec<u8>, _options: CompareOptions) -> Result<Diff, Error> {
