@@ -1,27 +1,23 @@
 {
-  "state": "**Goal `ext-image`, Stage 4 (the pipeline) is under way.** The design is settled by ADR 0120, ADR 0247 and the goal file's § *Standing decisions*; no session re-decides one.\n\nThe image component is embedded, typed into every compile and callable with no `nvs.toml` (`crates/nvs-cli/src/extensions.rs` module doc). `run` and `variants` decode JPEG, PNG, WebP, GIF, AVIF and JPEG XL inside the guest under the cap (`extensions/image/src/decode.rs` module doc), apply the EXIF orientation when `autoOrient` is set, and encode JPEG, PNG, WebP, GIF and AVIF (`extensions/image/src/encode.rs` module doc). `variants` decodes once and runs each plan on a copy of the frame (`extensions/image/src/lib.rs` module doc). Metadata is dropped unless a `metadata({keep: true})` step keeps the EXIF block.\n\n`nvs_ext::call::Request::crossings` counts host-to-guest calls. `crates/nvs-ext/tests/image_pipeline.rs` has eight passing tests: orientation, GPS, the two encoder checks and the two crossing counts. Plans still honour only `format` and `metadata` steps, the ICC conversion does not exist, and the `Novis\\Image` builder (Novis source half) does not exist.",
+  "state": "**Goal `ext-image`, Stage 4 (the pipeline) is under way.** The design is settled by ADR 0120, ADR 0247 and the goal file's § *Standing decisions*; no session re-decides one.\n\nThe image component is embedded, typed into every compile and callable with no `nvs.toml` (`crates/nvs-cli/src/extensions.rs` module doc). `run` and `variants` decode JPEG, PNG, WebP, GIF, AVIF and JPEG XL inside the guest under the cap, apply the EXIF orientation when `autoOrient` is set, and convert an RGB or CMYK ICC profile to sRGB through `moxcms` when `toSrgb` is set (`extensions/image/src/decode.rs` module doc, `rule:core-classes/image-correct-by-default`). They encode JPEG, PNG, WebP, GIF and AVIF (`extensions/image/src/encode.rs` module doc). `variants` decodes once and runs each plan on a copy of the frame.\n\n`crates/nvs-ext/tests/image_pipeline.rs` has ten passing tests: orientation, GPS, the CMYK profile and `toSrgb: false`, the two encoder checks and the two crossing counts. The CMYK test writes its own profile and inserts it into `extensions/image/fixtures/cmyk.jpg` (a YCCK JPEG). Plans still honour only `format` and `metadata` steps, and the `Novis\\Image` builder (Novis source half) does not exist.",
   "next": {
     "stage": 4,
     "title": "the pipeline",
-    "files": [
-      "extensions/image/src/decode.rs",
-      "extensions/image/Cargo.toml",
-      "extensions/image/fixtures/",
-      "crates/nvs-ext/tests/image_pipeline.rs"
-    ],
+    "files": [],
+    "note": "one file set: `extensions/image/src/lib.rs`, a new `extensions/image/src/ops.rs`, `extensions/image/Cargo.toml`, `crates/nvs-ext/tests/image_pipeline.rs`.",
     "items": [
       {
         "done": false,
-        "text": "**CMYK with an ICC profile to sRGB** (`rule:core-classes/image-correct-by-default`) — `moxcms` per the standing decisions, applied in `extensions/image/src/decode.rs:1` after decode when `toSrgb` is set; the guest passes `source.to_srgb` from `extensions/image/src/lib.rs:255`. Needs a CMYK JPEG fixture whose profile allows redistribution, named in `extensions/image/fixtures/README.md`. Tests `a_cmyk_jpeg_with_a_profile_resizes_to_the_reference_colours_not_inverted` and `to_srgb_false_keeps_the_raw_channels`; check `moxcms` against `deny.toml` and that it builds for `wasm32-wasip2`."
+        "text": "**The pixel steps in the guest** (`rule:core-classes/image-pipeline`) — `resize` through `fast_image_resize`, then `crop`, `rotate`, `flip`, the adjustments; `encoding` in `extensions/image/src/lib.rs:198` returns `runtime` for every step but `format` and `metadata`, and `finish` at `extensions/image/src/lib.rs:93` is where a step list would run on the frame. Add a `resize` step to the CMYK test at `crates/nvs-ext/tests/image_pipeline.rs:430`, so its name is true."
       },
       {
         "done": false,
-        "text": "**The pixel steps in the guest** (`rule:core-classes/image-pipeline`) — `resize` through `fast_image_resize`, then `crop`, `rotate`, `flip`, the adjustments; `encoding` in `extensions/image/src/lib.rs:182` returns `runtime` for every step but `format` and `metadata`."
+        "text": "**The `Novis\\Image` builder, Novis source half** (`rule:core-classes/image-pipeline`) — the `.nvst` cases the goal record names under `tests/conformance/novis/`; the manifest is `extensions/image/manifest.json:1`."
       }
     ]
   },
   "backlog": [
-    "The `Novis\\Image` builder, Novis source half, and its `.nvst` cases under `tests/conformance/novis/` (`rule:core-classes/image-pipeline`).",
+    "A plain CMYK (Adobe transform 0) JPEG is converted by the branch in `extensions/image/src/decode.rs` that no test reaches: no tool here writes one (ImageMagick writes YCCK). Its inversion matches `zune-jpeg`'s own CMYK conversion.",
     "Stage 5: the `image_guest` bench test target in `nvs-ext` (goal `ext-image`'s record).",
     "Stage 6: `nvs meta --json` lists the built-in components' classes, and the proofs roster's `novis/` paths (`crates/nvs-cli/src/meta.rs`, `tools/nv/proofs/roster.ts`)."
   ]
