@@ -18,4 +18,8 @@ safely; sanitising one would be the repair that is refused everywhere else.
 `extensions/image/src/compare.rs` says what a delta is and how the SSIM and the rendered diff are
 made, and `Image::compare` returning a `Diff` in `extensions/image/nvs/`, which compares an `Image`
 with no `format` step as PNG so no lossy re-encode moves a pixel (`crates/nvs-ext/tests/image_analysis.rs`,
-`tests/conformance/novis/`). Hashing, placeholders, palette, text, QR codes and SVG are not.
+`tests/conformance/novis/`). Hashing is on disk too: the component's `hash` export, whose module
+doc `extensions/image/src/hash.rs` defines the three kinds, each its own fixed length so two kinds
+never compare, and is written in the component with no hashing crate linked; `Image::hash` and
+`HashKind`; and `Image::hashDistance` as Novis source, counting differing bits and throwing a
+`LogicError` for two lengths. Placeholders, palette, text, QR codes and SVG are not.

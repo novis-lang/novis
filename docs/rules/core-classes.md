@@ -2044,7 +2044,7 @@ every level, so a few rows that each draw the one before twice cannot double the
 rows and then the overlay to the table, renumbering the overlay's steps by the rows already there. `variants` decodes once and costs one host-to-guest call, counted by
 `nvs_ext::call::Request::crossings` (`crates/nvs-ext/tests/image_pipeline.rs`). The `Novis\Image`
 builder is Novis source in `extensions/image/nvs/`, packed into the component's `nvs.source`:
-`Image` with every member of 0120 § 2's table but `text`, `hash`, `placeholder` and
+`Image` with every member of 0120 § 2's table but `text`, `placeholder` and
 `palette`, and `Color` with `rgba` and `hex` and no named constants yet
 (`tests/conformance/novis/`). A canvas or pixel source is held to the default pixel cap, not the
 `[image]` one.
@@ -2203,7 +2203,11 @@ safely; sanitising one would be the repair that is refused everywhere else.
 `extensions/image/src/compare.rs` says what a delta is and how the SSIM and the rendered diff are
 made, and `Image::compare` returning a `Diff` in `extensions/image/nvs/`, which compares an `Image`
 with no `format` step as PNG so no lossy re-encode moves a pixel (`crates/nvs-ext/tests/image_analysis.rs`,
-`tests/conformance/novis/`). Hashing, placeholders, palette, text, QR codes and SVG are not.
+`tests/conformance/novis/`). Hashing is on disk too: the component's `hash` export, whose module
+doc `extensions/image/src/hash.rs` defines the three kinds, each its own fixed length so two kinds
+never compare, and is written in the component with no hashing crate linked; `Image::hash` and
+`HashKind`; and `Image::hashDistance` as Novis source, counting differing bits and throwing a
+`LogicError` for two lengths. Placeholders, palette, text, QR codes and SVG are not.
 
 <sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed). Decided in [0120](../decisions/0120.md), [0079](../decisions/0079.md), [0095](../decisions/0095.md).</sub>
 

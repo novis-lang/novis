@@ -300,6 +300,32 @@ final class Image
         return new Diff($found->identical, $found->differingPixels, $found->maxDelta, $found->ssim, $found->diff);
     }
 
+    /// `Image::hash` returns a short hash of an encoded image. Two similar images have similar hashes.
+    /// Each `HashKind` returns a hash of its own fixed length.
+    public static function hash(bytes $data, HashKind $kind): bytes
+    {
+        return Codec::hash($data, $kind);
+    }
+
+    /// `Image::hashDistance` returns how many bits differ between two hashes. A small number means similar images.
+    /// Two hashes of different lengths throw a `LogicError`.
+    public static function hashDistance(bytes $a, bytes $b): uint
+    {
+        uint $length = Core\Bytes::length($a);
+        if (Core\Bytes::length($b) != $length) {
+            throw new LogicError("the hashes are {$length} and " . Core\Bytes::length($b) . " bytes long, and `hashDistance` needs two hashes of the same kind");
+        }
+        uint $bits = 0;
+        for (int $at = 0; $at < $length; $at++) {
+            uint $differ = Core\Bytes::at($a, $at) ^ Core\Bytes::at($b, $at);
+            while ($differ > 0) {
+                $bits += $differ & 1;
+                $differ = $differ >> 1;
+            }
+        }
+        return $bits;
+    }
+
     private static function bytesOf(bytes|Image $image): bytes
     {
         if ($image is Image) {
