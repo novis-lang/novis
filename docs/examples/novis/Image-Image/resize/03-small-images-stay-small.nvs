@@ -1,0 +1,14 @@
+<?nvs
+// Shows that a small logo keeps its size unless you set `upscale`.
+use Novis\Image\Image;
+use Novis\Image\Color;
+
+Image $logo = Image::create(200, 100, Color::hex("#22aa55"));
+
+// The logo is smaller than 800 pixels, so this prints 200x100.
+var $kept = $logo->resize({width: 800})->raw();
+echo $kept->width, "x", $kept->height, "\n";
+
+// With `upscale: true`, the logo grows. This prints 800x400.
+var $grown = $logo->resize({width: 800, upscale: true})->raw();
+echo $grown->width, "x", $grown->height, "\n";

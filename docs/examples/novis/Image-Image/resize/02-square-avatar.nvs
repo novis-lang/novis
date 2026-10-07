@@ -1,0 +1,21 @@
+<?nvs
+// Shows how `fit` changes the result when a wide image goes into a square box.
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Fit;
+use Novis\Image\Format;
+
+Image $photo = Image::create(600, 400, Color::hex("#cc6633"));
+
+// `Cover` and `Contain` both return 128x128. `Inside` keeps the shape and returns 128x85.
+array<Fit> $fits = [Fit::Cover, Fit::Contain, Fit::Inside];
+foreach ($fits as Fit $fit) {
+    bytes $avatar = $photo->resize({width: 128, height: 128, fit: $fit})->format(Format::Png)->encode();
+    var $info = Image::info($avatar);
+    string $name = match ($fit) {
+        Fit::Cover => "Cover",
+        Fit::Contain => "Contain",
+        default => "Inside",
+    };
+    echo $name, ": ", $info->width, "x", $info->height, "\n";
+}
