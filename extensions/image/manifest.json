@@ -1,0 +1,17 @@
+{
+  "manifest": 1,
+  "world": "1.0.0",
+  "class": "Novis\\Image\\Codec",
+  "interface": "nvs:image/codec",
+  "methods": [
+    {
+      "name": "info",
+      "params": [{"name": "data", "type": "bytes"}],
+      "returns": "{format: Format, width: uint, height: uint, hasAlpha: bool, frames: uint, orientation: uint, exif: ?array<string, string>, hasIcc: bool}",
+      "help": "Reads the format, the size and the orientation of an encoded image from its header. No pixel is decoded."
+    }
+  ],
+  "enums": [
+    {"name": "Format", "cases": ["Jpeg", "Png", "Webp", "Gif", "Avif", "Jxl", "Svg", "Pdf"]}
+  ]
+}

@@ -24,6 +24,8 @@
 //!   Its module doc owns what each interface gives a guest, and which interfaces are linked.
 //! - `pack`, behind the `pack` feature, makes a `.nvsx` from a component or a core module, a
 //!   manifest and source files, the same bytes each time.
+//! - `builtin`, behind the `engine` feature, is the built-in components' `.nvsx` bytes and their
+//!   digest, which `build.rs` builds from `extensions/` and packs with `pack` compiled into itself.
 //!
 //! **The manifest model never links wasmtime.** The four modules above use `serde_json` and
 //! `wasmparser` and nothing of the engine, because the checker and the language server read
@@ -49,6 +51,8 @@
 //!   a newer host fails on its format number or on the key, never by being half-read.
 
 #[cfg(feature = "engine")]
+pub mod builtin;
+#[cfg(feature = "engine")]
 pub mod call;
 #[cfg(feature = "engine")]
 pub mod convert;
@@ -69,50 +73,7 @@ pub mod wasi;
 #[cfg(feature = "engine")]
 mod world;
 
-use std::fmt;
+mod common;
 
-/// Why a `.nvsx`'s sections or their payloads do not read, or why the packer cannot make one. The
-/// message names the part that is wrong, and the loader adds which entry it came from.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Malformed(pub String);
-
-impl fmt::Display for Malformed {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.0)
-    }
-}
-
-impl std::error::Error for Malformed {}
-
-/// The error for `message`.
-fn malformed(message: impl Into<String>) -> Malformed {
-    Malformed(message.into())
-}
-
-/// The WIT name of the Novis name `name`: kebab-case, so `distanceKm` and `distance_km` are both
-/// `distance-km`.
-fn kebab(name: &str) -> String {
-    let mut out = String::with_capacity(name.len() + 4);
-    for (i, c) in name.chars().enumerate() {
-        if c == '_' {
-            out.push('-');
-        } else if c.is_ascii_uppercase() {
-            if i > 0 && !out.ends_with('-') {
-                out.push('-');
-            }
-            out.push(c.to_ascii_lowercase());
-        } else {
-            out.push(c);
-        }
-    }
-    out
-}
-
-/// Whether `name` is a Novis identifier: a letter or `_`, then letters, digits and `_`.
-fn is_identifier(name: &str) -> bool {
-    let mut chars = name.chars();
-    chars
-        .next()
-        .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
-        && chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
-}
+pub use common::Malformed;
+use common::{is_identifier, kebab, malformed};

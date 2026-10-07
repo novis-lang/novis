@@ -1,6 +1,5 @@
 [package]
 name = "nvs-ext"
-build = "../../tools/build/tests_without_pdb.rs"
 description = "Novis extensions: the `.nvsx` manifest and section reader, and the wasmtime host that loads and runs a component"
 version.workspace = true
 edition.workspace = true
@@ -47,6 +46,16 @@ wasmtime = { workspace = true, optional = true }
 wasmtime-wasi-io = { workspace = true, optional = true }
 wit-component = { workspace = true, optional = true }
 wit-parser = { workspace = true, optional = true }
+
+[build-dependencies]
+# `build.rs` compiles the packer's source files into itself, so it takes their
+# dependencies, and `sha2` for the built-in components' pins.
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+wasmparser.workspace = true
+wit-component.workspace = true
+wit-parser.workspace = true
 
 [dev-dependencies]
 # The failure tests pin the class and limit names this crate hands the host to
