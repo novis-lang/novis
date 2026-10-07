@@ -1,23 +1,26 @@
 {
-  "state": "**Goal `ext-intl`: Stage 8, the feature proofs, is in progress.** Stages 1 to 7 are on disk, and every `Novis\\Intl` feature owes nothing: the nine classes and the 14 enums.\n\n`ExtensionError`, `Core\\DeprecatedError` and the directives `errors.deprecated`, `image.max_pixels` and `ext` now owe nothing. Their attacks and the `ext` example load the prebuilt test extension `tests/conformance/ext/fixtures/ledger.nvsx` through an `nvs.toml` in their own directory, with a path relative to that file.\n\nStill red: `bun nv proofs --gate`, now 9 of 1280 features, all `Novis\\Image`: `Diff::constructor`, `Image::mime`, `Image::extension`, `Codec::compare`, `::hash`, `::placeholder`, `::palette`, `::qr`, and the enum `Output`. A gap record does not satisfy the gate (`owed()` in `tools/nv/proofs/collect.ts:430`), so they are closed with proofs or skip entries. The by-hand image proof work last committed on 2026-10-07 20:43 (`9f61981b3`), and nothing on disk shows it is still going.",
+  "state": "**Goal `ext-intl`: Stage 8, the feature proofs, is in progress.** Stages 1 to 7 are on disk, and every `Novis\\Intl` feature owes nothing: the nine classes and the 14 enums.\n\nThe five `Novis\\Image\\Codec` exports `compare`, `hash`, `placeholder`, `palette` and `qr`, `Novis\\Image\\Diff::constructor` and the enum `Novis\\Image\\Output` now owe nothing. The exports and `new Diff` are excused from examples, hostile and perf by skip entries in `data/proofs/policy.json`, each naming the member that calls them. Their Rust tests are `covers:` lines in `crates/nvs-ext/tests/image_analysis.rs` and the new tests in `crates/nvs-cli/tests/image_analysis.rs`.\n\nStill red: `bun nv proofs --gate`, now 2 of 1280 features: `Novis\\Image\\Image::mime` and `Novis\\Image\\Image::extension`. Their tests are done (`crates/nvs-cli/tests/image_analysis.rs::mime_and_extension_name_every_format`, and conformance cases already call them). They owe an about page, three examples, one attack and one bench each. Both are pure Novis `match` functions over `Format` that call no export, so no skip entry fits them.",
   "next": {
     "stage": 8,
-    "title": "the feature proofs, the `Novis\\Image` remainder",
-    "files": [],
-    "note": "one file set: `data/proofs/policy.json`, `docs/examples/novis/Image-Codec/`, `docs/examples/novis/Image-Image/`, `docs/examples/novis/Image-Diff/`, `tests/hostile/novis/` and a `covers:` line each.",
+    "title": "the feature proofs, `Image::mime` and `Image::extension`",
+    "files": [
+      "docs/examples/novis/Image-Image/mime/",
+      "docs/examples/novis/Image-Image/extension/",
+      "tests/hostile/novis/Image-Image/",
+      "benches/members/novis/Image-Image/"
+    ],
     "items": [
       {
         "done": false,
-        "text": "**Close the five `Novis\\Image\\Codec` exports the way `Novis\\Intl\\Icu`'s were closed** (`rule:testing/feature-proofs`): an about page and the tests each, and a skip entry for examples, hostile and perf naming the `Image` member that calls the export, modelled on `data/proofs/policy.json:41`. The calling members are in `extensions/image/nvs/Image.nvs:326` (`compare`), `:336` (`hash`), `:362` (`placeholder`), `:369` (`palette`), and `extensions/image/nvs/QrCode.nvs`. Run `bun nv proofs --id 'Novis\\Image\\Codec::qr'` first for the exact list."
+        "text": "**Write the about page, three examples, an attack and a bench for `Image::mime`** (`rule:testing/feature-proofs`), at the paths `bun nv proofs --id 'Novis\\Image\\Image::mime'` prints. The member is `extensions/image/nvs/Image.nvs:92`. It maps the eight `Format` cases, for example `Format::Svg` to `image/svg+xml` and `Format::Pdf` to `application/pdf`. Bless each example with `bun nv proofs --bless`, and record the bench's figure so perf does not read `never measured`."
       },
       {
         "done": false,
-        "text": "**Write the proofs `Image::mime`, `Image::extension`, `Diff::constructor` and the enum `Output` owe** (`extensions/image/nvs/Image.nvs:92`, `:107`, `extensions/image/nvs/Diff.nvs`): `mime` and `extension` owe only a Rust test with a `covers:` marker beyond the about, examples, attack and bench."
+        "text": "**The same for `Image::extension`** (`extensions/image/nvs/Image.nvs:107`): `Format::Jpeg` gives `jpg`, and the others give their lower-case name. Then run `bun nv proofs --gate`, which should print `nothing owed in the whole roster`, and `bun nv proofs --comments docs/examples/novis tests/hostile/novis benches/members/novis`."
       }
     ]
   },
   "backlog": [
-    "If the by-hand image work is still landing when the next session starts (`git log -3 -- extensions/image`), the user decides who writes these nine. Otherwise the loop writes them.",
-    "The `ext` example uses the test fixture `Shop\\Ledger`, because no built-in extension declares settings. When one does, the example moves to it (`docs/examples/config/ext/`)."
+    "Once the gate is green, run each `bun nv proofs --verify --group 'Novis\\Intl\\…'` check in `data/goals/ext-intl.json` stage 8, then the goal's closing gates (`bun nv verify --doc`, `bun nv owners --closes ext-intl`) before writing `DONE`."
   ]
 }
