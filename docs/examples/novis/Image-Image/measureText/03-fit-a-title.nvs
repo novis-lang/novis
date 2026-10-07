@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to find the biggest font size at which a title fits in a banner.
+use Novis\Image\Image;
+
+require 'fonts/box-font.nvs';
+
+class Title {
+    // Starts at size 40.0 and makes the text smaller until it fits in `$width` pixels.
+    public static function fit(string $title, uint $width): float {
+        var $font = BoxFont::load();
+        float $size = 40.0;
+        while ($size > 4.0 && Image::measureText($title, $font, {size: $size})->width > $width) {
+            $size = $size - 2.0;
+        }
+        return $size;
+    }
+}
+
+// A banner is 120 pixels wide. This prints 40, 18 and 6.
+echo Title::fit("Shop", 120), "\n";
+echo Title::fit("Summer sale", 120), "\n";
+echo Title::fit("Free shipping on all orders", 120), "\n";

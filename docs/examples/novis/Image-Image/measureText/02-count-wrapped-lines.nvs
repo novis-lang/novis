@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to find how many lines a text needs in a box of a fixed width.
+use Novis\Image\Image;
+
+require 'fonts/box-font.nvs';
+
+var $font = BoxFont::load();
+// One line of this font at size 10.0 is 10 pixels high.
+uint $line = Image::measureText("Shop", $font, {size: 10.0})->height;
+
+// With `maxWidth`, lines break at spaces. This prints 1, 3 and 5.
+array<uint> $widths = [200, 60, 30];
+foreach ($widths as uint $width) {
+    var $box = Image::measureText("New shoes in the shop", $font, {size: 10.0, maxWidth: $width});
+    echo $box->height / $line, "\n";
+}
