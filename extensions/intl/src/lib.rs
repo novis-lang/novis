@@ -10,8 +10,9 @@
 //! the wasm, and nothing is read at run time. The implemented exports are `collate-order` and
 //! `sort-keys` (`collation`'s module doc), `format-numbers` (`numbers`'s), `plural-categories`
 //! (`plurals`'s), `format-date-times`, `format-dates` and `format-times` (`dates`'s),
-//! `format-relative` (`relative`'s) and `format-lists` (`lists`'s); every other export returns
-//! `runtime`.
+//! `format-relative` (`relative`'s), `format-lists` (`lists`'s), and `word-segments` and
+//! `sentence-segments` (`segments`'s), and `negotiate` and `resolve-locales` (`negotiate`'s). Every
+//! export is implemented.
 //!
 //! A locale is a BCP 47 tag that [`locale`] parses for every export. A malformed tag is
 //! `Invalid` and names the tag. A well-formed tag with no data of its own falls back along CLDR's
@@ -20,9 +21,11 @@
 pub mod collation;
 pub mod dates;
 pub mod lists;
+pub mod negotiate;
 pub mod numbers;
 pub mod plurals;
 pub mod relative;
+pub mod segments;
 
 use icu_locale::Locale;
 
@@ -64,12 +67,6 @@ mod guest {
             crate::Error::Parse(message) => Error::Parse(message),
             crate::Error::Runtime(message) => Error::Runtime(message),
         }
-    }
-
-    fn not_implemented<T>(export: &str) -> Result<T, Error> {
-        Err(Error::Runtime(format!(
-            "`{export}` is not available in this version of `Novis\\Intl`."
-        )))
     }
 
     fn collate_options(options: &CollateOptions) -> crate::collation::Options {
@@ -304,27 +301,49 @@ mod guest {
             crate::lists::format(&lists, &locale, options).map_err(error)
         }
 
-        fn word_segments(_strings: Vec<String>, _locale: String) -> Result<Vec<Vec<Word>>, Error> {
-            not_implemented("word-segments")
+        fn word_segments(strings: Vec<String>, locale: String) -> Result<Vec<Vec<Word>>, Error> {
+            let words = crate::segments::words(&strings, &locale).map_err(error)?;
+            Ok(words
+                .into_iter()
+                .map(|segments| {
+                    segments
+                        .into_iter()
+                        .map(|word| Word {
+                            text: word.text,
+                            word_like: word.word_like,
+                        })
+                        .collect()
+                })
+                .collect())
         }
 
         fn sentence_segments(
-            _strings: Vec<String>,
-            _locale: String,
+            strings: Vec<String>,
+            locale: String,
         ) -> Result<Vec<Vec<String>>, Error> {
-            not_implemented("sentence-segments")
+            crate::segments::sentences(&strings, &locale).map_err(error)
         }
 
-        fn resolve_locales(_tags: Vec<String>, _service: Service) -> Result<Vec<String>, Error> {
-            not_implemented("resolve-locales")
+        fn resolve_locales(tags: Vec<String>, service: Service) -> Result<Vec<String>, Error> {
+            use crate::negotiate::Service as S;
+            let service = match service {
+                Service::Collation => S::Collation,
+                Service::Numbers => S::Numbers,
+                Service::Plurals => S::Plurals,
+                Service::Dates => S::Dates,
+                Service::RelativeTime => S::RelativeTime,
+                Service::Lists => S::Lists,
+                Service::Segmentation => S::Segmentation,
+            };
+            crate::negotiate::resolve(&tags, service).map_err(error)
         }
 
         fn negotiate(
-            _accept_language: String,
-            _offered: Vec<String>,
-            _default: String,
+            accept_language: String,
+            offered: Vec<String>,
+            default: String,
         ) -> Result<String, Error> {
-            not_implemented("negotiate")
+            crate::negotiate::negotiate(&accept_language, &offered, &default).map_err(error)
         }
     }
 
