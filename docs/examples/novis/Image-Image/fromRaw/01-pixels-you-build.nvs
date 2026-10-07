@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to make an image from bytes that you write yourself.
+use Novis\Image\Image;
+use Novis\Image\Axis;
+
+// Two pixels in one row: red on the left, blue on the right. Each pixel is four bytes.
+bytes $pixels = Core\Encoding::fromHex("ff0000ff" . "0000ffff");
+Image $image = Image::fromRaw({width: 2, height: 1, pixels: $pixels});
+
+// After a horizontal flip, blue is on the left. This prints 0000ffffff0000ff.
+echo Core\Encoding::toHex($image->flip(Axis::Horizontal)->raw()->pixels), "\n";

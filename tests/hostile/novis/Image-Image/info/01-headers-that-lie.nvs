@@ -1,0 +1,57 @@
+<?nvs
+// Attack: a request sends file headers that are cut off, broken or claim a huge size.
+// Each attempt should return or throw an error, and the server keeps running.
+use Novis\Image\Color;
+use Novis\Image\Format;
+use Novis\Image\Image;
+
+// 1. No bytes at all.
+try {
+    Image::info('' as bytes);
+    echo "step 1 ran\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. Only the 8-byte signature of a PNG file.
+try {
+    Image::info(Core\Encoding::fromHex('89504e470d0a1a0a'));
+    echo "step 2 ran\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. A PNG header that claims a size of 2147483647 by 2147483647 pixels, with no pixels after it.
+try {
+    bytes $header = Core\Encoding::fromHex('89504e470d0a1a0a0000000d494844527fffffff7fffffff0806000000');
+    Image::info($header);
+    echo "step 3 ran\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. The start of a JPEG and then random bytes.
+try {
+    Image::info(Core\Encoding::fromHex('ffd8ffe0ffffffffffffffffffffffff'));
+    echo "step 4 ran\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}
+
+// 5. Every length of a real WebP file, from 0 bytes to the whole file.
+try {
+    bytes $webp = Image::create(8, 8, Color::hex('#ff0000'))->format(Format::Webp)->encode();
+    int $length = 0;
+    uint $read = 0;
+    while ($length <= Core\Bytes::length($webp)) {
+        try {
+            Image::info(Core\Bytes::slice($webp, 0, $length));
+            $read = $read + 1;
+        } catch (Throwable $e) {
+        }
+        $length = $length + 1;
+    }
+    echo 'step 5 ran ', $read > 0 ? 'some' : 'none', "\n";
+} catch (Throwable $e) {
+    echo "step 5 stopped\n";
+}

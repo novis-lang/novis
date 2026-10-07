@@ -1,0 +1,24 @@
+<?nvs
+// Starts an image from a few pixels in memory and reads them back, as a program does after it changes pixels itself.
+// bench: iterations 256
+// bench: complexity constant
+use Novis\Image\Image;
+use Novis\Image\Color;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        bytes $pixels = Image::create(4, 4, Color::hex("#336699"))->raw()->pixels;
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            bool $square = ($total + $i) % 2 == 0;
+            uint $width = $square ? 4 : 16;
+            uint $height = $square ? 4 : 1;
+            $total = $total + Image::fromRaw({width: $width, height: $height, pixels: $pixels})->raw()->width;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

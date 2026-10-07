@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to open the bytes of an uploaded file and read the size of the image.
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Format;
+
+// These PNG bytes replace a file that a user uploaded.
+bytes $upload = Image::create(300, 200, Color::hex("#336699"))->format(Format::Png)->encode();
+
+// `open` keeps the bytes. `raw` decodes them. This prints 300x200.
+var $pixels = Image::open($upload)->raw();
+echo $pixels->width, "x", $pixels->height, "\n";

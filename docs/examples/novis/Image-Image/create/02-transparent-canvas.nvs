@@ -1,0 +1,9 @@
+<?nvs
+// Shows that a canvas without a fill colour is transparent.
+use Novis\Image\Image;
+
+var $canvas = Image::create(16, 16)->raw();
+
+// Every byte of the first pixel is 0, so its alpha is 0. This prints 0 0 0 0.
+array<mixed> $pixel = Core\Bytes::unpack(Core\Bytes::slice($canvas->pixels, 0, 4), "C4");
+echo $pixel[0], " ", $pixel[1], " ", $pixel[2], " ", $pixel[3], "\n";

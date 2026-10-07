@@ -1,0 +1,22 @@
+<?nvs
+// Makes a small canvas and reads its pixels, as a program does when it draws a placeholder.
+// bench: iterations 256
+// bench: complexity constant
+use Novis\Image\Image;
+use Novis\Image\Color;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Color $fill = Color::hex("#336699");
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            uint $side = 2 + $total % 3;
+            $total = $total + Image::create($side, $side, $fill)->raw()->width;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

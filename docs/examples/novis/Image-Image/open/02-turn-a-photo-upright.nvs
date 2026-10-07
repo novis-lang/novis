@@ -1,0 +1,21 @@
+<?nvs
+// Shows how `open` turns a photo upright when the camera held it sideways.
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Format;
+
+// A 400 by 200 JPEG replaces a photo from a camera.
+bytes $jpeg = Image::create(400, 200, Color::hex("#336699"))->format(Format::Jpeg)->encode();
+
+// These bytes are an EXIF block with orientation 6. A camera writes this when it was turned sideways.
+bytes $exif = Core\Encoding::fromHex("ffe1002245786966000049492a0008000000010012010300010000000600000000000000");
+// The EXIF block goes right after the first two bytes of the JPEG.
+bytes $photo = Core\Bytes::join([Core\Bytes::slice($jpeg, 0, 2), $exif, Core\Bytes::slice($jpeg, 2)]);
+
+// By default, the image is turned upright. This prints 200x400.
+var $upright = Image::open($photo)->raw();
+echo $upright->width, "x", $upright->height, "\n";
+
+// With `autoOrient: false`, the pixels stay as they are stored. This prints 400x200.
+var $stored = Image::open($photo, {autoOrient: false})->raw();
+echo $stored->width, "x", $stored->height, "\n";

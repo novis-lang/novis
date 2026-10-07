@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to check the size of an upload before you decode it.
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Format;
+
+// A 2400 by 1600 JPEG replaces a photo that a user uploaded.
+bytes $upload = Image::create(2400, 1600, Color::hex("#336699"))->format(Format::Jpeg)->encode();
+
+// `info` reads only the start of the file. This prints "too wide: 2400".
+var $info = Image::info($upload);
+if ($info->width > 2000) {
+    echo "too wide: ", $info->width, "\n";
+} else {
+    echo "accepted\n";
+}

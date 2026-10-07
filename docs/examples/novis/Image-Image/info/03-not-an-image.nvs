@@ -1,0 +1,13 @@
+<?nvs
+// Shows the error that `Image::info` throws for bytes that are not an image.
+use Novis\Image\Image;
+
+// A text file uploaded as if it were an image.
+bytes $upload = "name,price\nshirt,20\n" as bytes;
+
+try {
+    Image::info($upload);
+    echo "an image\n";
+} catch (Throwable $e) {
+    echo "rejected: ", $e->message, "\n";
+}
