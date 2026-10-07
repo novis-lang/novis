@@ -66,9 +66,17 @@ pub enum Input<'a> {
         to_srgb: bool,
     },
     /// A blank canvas in one colour.
-    Canvas { width: u64, height: u64, fill: [u8; 4] },
+    Canvas {
+        width: u64,
+        height: u64,
+        fill: [u8; 4],
+    },
     /// RGBA8 rows, four bytes per pixel.
-    Pixels { width: u64, height: u64, rgba: &'a [u8] },
+    Pixels {
+        width: u64,
+        height: u64,
+        rgba: &'a [u8],
+    },
 }
 
 /// Runs `plan` on `input` under `cap` pixels and returns its output. A format the component does

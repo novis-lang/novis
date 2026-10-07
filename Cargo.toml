@@ -12,10 +12,9 @@ members = ["crates/*", "benches/*"]
 # `bun nv bench-load` verifies against. `benches/serve-probe/` next to it is a
 # crate and is not excluded: it is that leg's generator. `benches/proxied/` is compose files,
 # an nginx and a PHP configuration and a Dockerfile, for the same reason.
-# `benches/results/` is the one nothing in the repository creates: the loop's
-# acceptance sweep writes a `--record` row there and `.gitignore` covers it, so
-# it appears for the first time on a machine that has run the sweep and on no
-# other — which is a build that breaks for one person and nobody else.
+# `benches/results/` is JSON: the loop's acceptance sweep writes a `--record` row
+# there, which `.gitignore` covers, and the image component's guest-against-native
+# figures are committed there, so it is a directory of data and never a crate.
 # The failure is the whole workspace
 # rather than that one directory: `cargo` reads the glob before it reads a
 # crate, so a `.nvs` tree under `benches/` that is not listed here breaks every
@@ -74,6 +73,9 @@ nvs-stdlib = { path = "crates/nvs-stdlib", version = "0.0.1" }
 nvs-test = { path = "crates/nvs-test", version = "0.0.1" }
 # Dev-only: how a test reaches a file outside its own package, recorded for `bun nv verify`.
 nvs-repo = { path = "crates/nvs-repo", version = "0.0.1" }
+# Dev-only: the image component's codec core built for the host, the native arm `nvs-ext`'s
+# `image_guest` test and bench hold the guest against. Outside the workspace (`exclude` above).
+nvs-image = { path = "extensions/image" }
 # What an `nvs` process resolved and read, written when `NVS_FOOTPRINT_LOG` names a log.
 nvs-footprint = { path = "crates/nvs-footprint", version = "0.0.1" }
 nvs-lsp = { path = "crates/nvs-lsp", version = "0.0.1" }

@@ -78,6 +78,21 @@ toml.workspace = true
 # server end of its handshake, on the provider `nvs-host` already carries.
 rcgen.workspace = true
 rustls.workspace = true
+# The native arm of `image_guest`: the image component's codec core built for
+# the host, run on the same input and plan as the guest.
+nvs-image.workspace = true
+
+# Times both arms of `image_guest` in a release build and, with `--record`,
+# writes `benches/results/image-guest.json`. Its own loop rather than
+# criterion's, because the figure it commits is one median per arm.
+[[bench]]
+name = "image_guest"
+harness = false
+required-features = ["engine", "pack"]
+
+[[test]]
+name = "image_guest"
+required-features = ["engine", "pack"]
 
 [[test]]
 name = "builtin"

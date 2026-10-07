@@ -41,7 +41,8 @@ fn parse(what: impl std::fmt::Display) -> Error {
 
 /// Decodes the AVIF file `data` to RGBA8, refusing one over `cap` pixels before a buffer exists.
 pub(crate) fn decode(data: &[u8], cap: u64) -> Result<Pixels, Error> {
-    let avif = avif_parse::read_avif(&mut Cursor::new(data)).map_err(|err| parse(format!("{err:?}")))?;
+    let avif =
+        avif_parse::read_avif(&mut Cursor::new(data)).map_err(|err| parse(format!("{err:?}")))?;
     let meta = avif
         .primary_item_metadata()
         .map_err(|err| parse(format!("{err:?}")))?;
@@ -148,9 +149,7 @@ impl Picture {
         let context = match (opened.0, decoder.0) {
             (0, Some(context)) => context,
             _ => {
-                return Err(Error::Runtime(
-                    "the AVIF decoder did not start".to_string(),
-                ));
+                return Err(Error::Runtime("the AVIF decoder did not start".to_string()));
             }
         };
         let mut data = Data(Dav1dData::default());
@@ -167,7 +166,8 @@ impl Picture {
         loop {
             if data.0.sz > 0 {
                 // SAFETY: the context is open and `data.0` is the value `dav1d_data_create` wrote.
-                let sent = unsafe { dav1d_send_data(Some(context), Some(NonNull::from(&mut data.0))) };
+                let sent =
+                    unsafe { dav1d_send_data(Some(context), Some(NonNull::from(&mut data.0))) };
                 if sent.0 != 0 && sent.0 != EAGAIN {
                     return Err(parse(format!("the AV1 data was refused ({})", sent.0)));
                 }
@@ -201,7 +201,11 @@ impl Picture {
     }
 
     fn planes(&self) -> usize {
-        if self.0.p.layout == DAV1D_PIXEL_LAYOUT_I400 { 1 } else { 3 }
+        if self.0.p.layout == DAV1D_PIXEL_LAYOUT_I400 {
+            1
+        } else {
+            3
+        }
     }
 
     /// The horizontal and vertical chroma shifts.
@@ -215,7 +219,10 @@ impl Picture {
 
     /// The `(matrix, full range)` the sequence header declares.
     fn colour(&self) -> (u32, bool) {
-        let header = self.0.seq_hdr.expect("checked when the picture was decoded");
+        let header = self
+            .0
+            .seq_hdr
+            .expect("checked when the picture was decoded");
         // SAFETY: the sequence header lives as long as the picture that references it.
         let header = unsafe { header.as_ref() };
         (header.mtrx, header.color_range != 0)

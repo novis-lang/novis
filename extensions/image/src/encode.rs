@@ -32,7 +32,8 @@ const AVIF_SPEED: u8 = 7;
 
 /// `pixels` written as a `format` file, under the plan's `encoding`.
 pub fn encode(pixels: Pixels, format: Format, encoding: Encoding) -> Result<Vec<u8>, Error> {
-    let fail = |err: image::ImageError| Error::Runtime(format!("the {format:?} encoder failed: {err}"));
+    let fail =
+        |err: image::ImageError| Error::Runtime(format!("the {format:?} encoder failed: {err}"));
     let Pixels {
         width,
         height,

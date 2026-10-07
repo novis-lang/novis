@@ -27,8 +27,11 @@ pub fn lossy(rgba: &[u8], width: u32, height: u32, quality: u8) -> Result<Vec<u8
         fn WebPFree(ptr: *mut c_void);
     }
 
-    let too_large =
-        || Error::Runtime(format!("a {width} by {height} image is too large for a WebP file"));
+    let too_large = || {
+        Error::Runtime(format!(
+            "a {width} by {height} image is too large for a WebP file"
+        ))
+    };
     let columns = i32::try_from(width).map_err(|_| too_large())?;
     let rows = i32::try_from(height).map_err(|_| too_large())?;
     let stride = columns.checked_mul(4).ok_or_else(too_large)?;

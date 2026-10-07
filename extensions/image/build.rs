@@ -12,7 +12,8 @@ fn main() {
     if env::var("CARGO_CFG_TARGET_FAMILY").as_deref() != Ok("wasm") {
         return;
     }
-    let dir = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").expect("cargo sets it")).join("libwebp");
+    let dir =
+        PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").expect("cargo sets it")).join("libwebp");
     println!("cargo:rustc-link-search=native={}", dir.display());
     println!("cargo:rustc-link-lib=static=webp");
 }

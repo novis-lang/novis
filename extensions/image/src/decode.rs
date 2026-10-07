@@ -167,14 +167,18 @@ fn decode_with_image(
     } else {
         None
     };
-    let cmyk = profile
-        .as_ref()
-        .filter(|profile| format == ImageFormat::Jpeg && profile.color_space == DataColorSpace::Cmyk);
+    let cmyk = profile.as_ref().filter(|profile| {
+        format == ImageFormat::Jpeg && profile.color_space == DataColorSpace::Cmyk
+    });
     let rgba = match cmyk.and_then(|profile| cmyk_jpeg(data, profile).transpose()) {
         Some(converted) => converted?,
         None => {
-            let mut rgba = DynamicImage::from_decoder(decoder).map_err(parse)?.into_rgba8();
-            if let Some(profile) = profile.filter(|profile| profile.color_space == DataColorSpace::Rgb) {
+            let mut rgba = DynamicImage::from_decoder(decoder)
+                .map_err(parse)?
+                .into_rgba8();
+            if let Some(profile) =
+                profile.filter(|profile| profile.color_space == DataColorSpace::Rgb)
+            {
                 if let Some(converted) = srgb(&profile, &rgba) {
                     rgba = RgbaImage::from_raw(rgba.width(), rgba.height(), converted)
                         .expect("the conversion keeps the frame's size");
@@ -254,7 +258,9 @@ fn cmyk_jpeg(data: &[u8], profile: &ColorProfile) -> Result<Option<RgbaImage>, E
                 f32::from(pixel[2]) - 128.0,
             );
             pixel[0] = (y + 1.402 * cr).round().clamp(0.0, 255.0) as u8;
-            pixel[1] = (y - 0.344_136 * cb - 0.714_136 * cr).round().clamp(0.0, 255.0) as u8;
+            pixel[1] = (y - 0.344_136 * cb - 0.714_136 * cr)
+                .round()
+                .clamp(0.0, 255.0) as u8;
             pixel[2] = (y + 1.772 * cb).round().clamp(0.0, 255.0) as u8;
         } else {
             for channel in &mut pixel[..3] {
@@ -354,6 +360,9 @@ mod tests {
 
     #[test]
     fn bytes_that_are_no_image_do_not_parse() {
-        assert!(matches!(decode(b"not an image", 100, true, true), Err(Error::Parse(_))));
+        assert!(matches!(
+            decode(b"not an image", 100, true, true),
+            Err(Error::Parse(_))
+        ));
     }
 }
