@@ -17,7 +17,7 @@ import Path from '@components/home/Path.astro'
 import Cta from '@components/home/Cta.astro'
 
 <Hero>
-  <Snippet src="home/hello-request.nvs" />
+  <Snippet src="home/hello-request.nvs" output="http" />
 </Hero>
 
 <Facts />
@@ -30,14 +30,14 @@ import Cta from '@components/home/Cta.astro'
 <Bento>
   <Snippet src="home/checked-number.nvs" slot="conversion" />
   <Snippet src="home/unicode.nvs" slot="unicode" />
-  <Snippet src="home/json-response.nvs" slot="json" />
+  <Snippet src="home/json-response.nvs" output="http" slot="json" />
   <Snippet src="home/tasks.nvs" slot="tasks" />
 </Bento>
 
 <Isolation />
 
 <Library>
-  <Snippet src="guides/why-novis/one-library.nvs" />
+  <Snippet src="guides/why-novis/one-library.nvs" output="http" />
 </Library>
 
 <Tooling>
