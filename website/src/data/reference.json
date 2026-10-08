@@ -150,6 +150,42 @@
     },
     {
       "area": "config",
+      "slug": "errors",
+      "url": "/reference/config/errors/",
+      "title": "[errors]",
+      "group": "Blocks",
+      "intro": null,
+      "keys": [
+        {
+          "id": "directive:errors.deprecated",
+          "title": "errors.deprecated",
+          "examples": "config/errors-deprecated",
+          "key": "errors.deprecated",
+          "class": "Runtime",
+          "apply": "Reload"
+        }
+      ]
+    },
+    {
+      "area": "config",
+      "slug": "ext",
+      "url": "/reference/config/ext/",
+      "title": "[ext]",
+      "group": "Blocks",
+      "intro": null,
+      "keys": [
+        {
+          "id": "directive:ext",
+          "title": "ext",
+          "examples": "config/ext",
+          "key": "ext",
+          "class": "System",
+          "apply": "Reload"
+        }
+      ]
+    },
+    {
+      "area": "config",
       "slug": "extension",
       "url": "/reference/config/extension/",
       "title": "[extension]",
@@ -236,6 +272,24 @@
           "examples": "config/http-client-socket",
           "key": "http.client.socket",
           "class": "Runtime",
+          "apply": "Reload"
+        }
+      ]
+    },
+    {
+      "area": "config",
+      "slug": "image",
+      "url": "/reference/config/image/",
+      "title": "[image]",
+      "group": "Blocks",
+      "intro": null,
+      "keys": [
+        {
+          "id": "directive:image.max_pixels",
+          "title": "image.max_pixels",
+          "examples": "config/image-max_pixels",
+          "key": "image.max_pixels",
+          "class": "System",
           "apply": "Reload"
         }
       ]
@@ -702,6 +756,19 @@
     },
     {
       "area": "config",
+      "slug": "extension-grants-what-a-component-may-reach",
+      "url": "/reference/config/extension-grants-what-a-component-may-reach/",
+      "title": "Extension grants: what a component may reach",
+      "group": "Topics",
+      "intro": {
+        "id": "tools:config/extension-grants-what-a-component-may-reach",
+        "title": "Extension grants: what a component may reach",
+        "examples": "tools/config/extension-grants-what-a-component-may-reach"
+      },
+      "keys": []
+    },
+    {
+      "area": "config",
       "slug": "trust",
       "url": "/reference/config/trust/",
       "title": "Trust",
@@ -866,6 +933,45 @@
         "id": "tools:cli/nvs-config-check-and-nvs-config-dump",
         "title": "nvs config check and nvs config dump",
         "examples": "tools/cli/nvs-config-check-and-nvs-config-dump"
+      },
+      "keys": []
+    },
+    {
+      "area": "cli",
+      "slug": "nvs-ext-new-and-nvs-ext-build",
+      "url": "/reference/cli/nvs-ext-new-and-nvs-ext-build/",
+      "title": "nvs ext new and nvs ext build",
+      "group": "Commands",
+      "intro": {
+        "id": "tools:cli/nvs-ext-new-and-nvs-ext-build",
+        "title": "nvs ext new and nvs ext build",
+        "examples": "tools/cli/nvs-ext-new-and-nvs-ext-build"
+      },
+      "keys": []
+    },
+    {
+      "area": "cli",
+      "slug": "nvs-ext-inspect-nvs-ext-verify-and-nvs-ext-pin",
+      "url": "/reference/cli/nvs-ext-inspect-nvs-ext-verify-and-nvs-ext-pin/",
+      "title": "nvs ext inspect, nvs ext verify and nvs ext pin",
+      "group": "Commands",
+      "intro": {
+        "id": "tools:cli/nvs-ext-inspect-nvs-ext-verify-and-nvs-ext-pin",
+        "title": "nvs ext inspect, nvs ext verify and nvs ext pin",
+        "examples": "tools/cli/nvs-ext-inspect-nvs-ext-verify-and-nvs-ext-pin"
+      },
+      "keys": []
+    },
+    {
+      "area": "cli",
+      "slug": "nvs-ext-test",
+      "url": "/reference/cli/nvs-ext-test/",
+      "title": "nvs ext test",
+      "group": "Commands",
+      "intro": {
+        "id": "tools:cli/nvs-ext-test",
+        "title": "nvs ext test",
+        "examples": "tools/cli/nvs-ext-test"
       },
       "keys": []
     },

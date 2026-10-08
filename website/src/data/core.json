@@ -19899,6 +19899,151 @@
       "surfaceHtml": ""
     },
     {
+      "id": "Ldap",
+      "name": "Core\\Ldap",
+      "section": "",
+      "summary": "Opens a connection to an LDAP directory, such as Active Directory. The name of a directory in the server's configuration is enough, or the program can give the settings itself.",
+      "surface": "",
+      "adrs": [],
+      "enums": [],
+      "constants": [],
+      "members": [
+        {
+          "id": "Ldap.connect",
+          "name": "connect",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "connect(string $name): Core\\Ldap\\Connection",
+          "params": [
+            {
+              "kind": "param",
+              "name": "name",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Core\\Ldap\\Connection",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Opens the directory named by an <code>[ldap.&lt;name&gt;]</code> block in <code>nvs.toml</code>. A second call with the same name in one request returns the same connection. Needs the <code>ldap.connect</code> capability for that name.",
+            "params": [
+              {
+                "name": "name",
+                "descHtml": "The block to open: <code>&quot;corp&quot;</code> is <code>[ldap.corp]</code>."
+              }
+            ],
+            "returnHtml": "A <code>Core\\Ldap\\Connection</code>, bound as the block's <code>user</code>. It is closed when the request ends.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "<code>ldap.connect</code> does not grant <code>$name</code>, or no <code>[ldap.&lt;name&gt;]</code> block has that name."
+              },
+              {
+                "error": "IOError",
+                "descHtml": "This core already has the block's <code>pool.max</code> connections open, and none was free within the block's <code>timeout</code>."
+              },
+              {
+                "error": "Core\\Ldap\\LdapError",
+                "descHtml": "No URL in the block answered, or the server did not accept the block's user and password. <code>$kind</code> says why."
+              }
+            ]
+          },
+          "slug": "connect",
+          "url": "/reference/core/ldap/connect/",
+          "examples": "core/Ldap/connect"
+        },
+        {
+          "id": "Ldap.open",
+          "name": "open",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "open({url: string, user?: tainted string, password?: secret tainted string, tls?: Core\\Ldap\\Tls, timeout?: Core\\Time\\Duration} $settings): Core\\Ldap\\Connection",
+          "params": [
+            {
+              "kind": "param",
+              "name": "settings",
+              "type": "{url: string, user?: tainted string, password?: secret tainted string, tls?: Core\\Ldap\\Tls, timeout?: Core\\Time\\Duration}",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Core\\Ldap\\Connection",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Opens a directory at a URL the program gives. Needs the <code>ldap.open</code> capability for the URL's host. The host's address is also checked against the addresses no program may reach, such as private networks.",
+            "params": [
+              {
+                "name": "settings",
+                "descHtml": "The directory to open and the account to log in with.",
+                "shape": [
+                  {
+                    "key": "url",
+                    "type": "string",
+                    "descHtml": "One <code>ldaps://</code> or <code>ldap://</code> URL. It cannot be <code>tainted</code>, because the password is sent to this host."
+                  },
+                  {
+                    "key": "user",
+                    "type": "tainted string",
+                    "descHtml": "The account to log in as, as a DN, <code>user@example.test</code> or <code>EXAMPLE\\user</code>. Left out, the connection does not log in."
+                  },
+                  {
+                    "key": "password",
+                    "type": "secret tainted string",
+                    "descHtml": "The account's password. An empty password throws before anything is sent."
+                  },
+                  {
+                    "key": "tls",
+                    "type": "Tls",
+                    "descHtml": "<code>Tls::Required</code>, the default, encrypts the connection. <code>Tls::None</code> sends everything as plain text, and needs the host in <code>[capabilities.ldap] cleartext</code>."
+                  },
+                  {
+                    "key": "timeout",
+                    "type": "Duration",
+                    "descHtml": "How long one operation may take. Left out, it is 30 seconds."
+                  }
+                ]
+              }
+            ],
+            "returnHtml": "A <code>Core\\Ldap\\Connection</code>. It is closed when the request ends.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "<code>url</code> is not an <code>ldap://</code> or <code>ldaps://</code> URL, <code>ldap.open</code> does not grant its host, or the host's address is one no program may reach."
+              },
+              {
+                "error": "Core\\Ldap\\LdapError",
+                "descHtml": "The server did not answer, the connection is not encrypted and the host may not use plain text, or the server did not accept the user and password. <code>$kind</code> says why."
+              }
+            ]
+          },
+          "slug": "open",
+          "url": "/reference/core/ldap/open/",
+          "examples": "core/Ldap/open"
+        }
+      ],
+      "unparsed": [],
+      "implemented": true,
+      "slug": "ldap",
+      "url": "/reference/core/ldap/",
+      "summaryHtml": "<p>Opens a connection to an LDAP directory, such as Active Directory. The name of a directory in the server's configuration is enough, or the program can give the settings itself.</p>",
+      "surfaceHtml": ""
+    },
+    {
       "id": "Log",
       "name": "Core\\Log",
       "section": "16. Network, data and crypto",
@@ -23265,6 +23410,3254 @@
       "slug": "net-stream",
       "url": "/reference/core/net-stream/",
       "summaryHtml": "<p>A connection to one client or server, returned by <code>Core\\Net::connect</code>, <code>Core\\Net::connectLocal</code> and <code>Core\\Net\\Listener::accept</code>. <code>read</code> and <code>write</code> move bytes, and each waits no longer than its <code>$within</code>.</p>",
+      "surfaceHtml": ""
+    },
+    {
+      "id": "Novis.Image.Codec",
+      "name": "Novis\\Image\\Codec",
+      "section": "",
+      "summary": "The functions that decode, change and encode images. `Novis\\Image\\Image` calls them for you, so most programs use `Image` instead.",
+      "surface": "",
+      "adrs": [],
+      "enums": [],
+      "constants": [],
+      "members": [
+        {
+          "id": "Novis.Image.Codec.info",
+          "name": "info",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "info(bytes $data): {format: Format, width: uint, height: uint, hasAlpha: bool, frames: uint, orientation: uint, exif: ?array<string, string>, hasIcc: bool}",
+          "params": [
+            {
+              "kind": "param",
+              "name": "data",
+              "type": "bytes",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "{format: Format, width: uint, height: uint, hasAlpha: bool, frames: uint, orientation: uint, exif: ?array<string, string>, hasIcc: bool}",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Reads the format, the size and the orientation of an encoded image from its header. No pixel is decoded."
+          },
+          "slug": "info",
+          "url": "/reference/core/novis-image-codec/info/",
+          "examples": "core/Novis-Image-Codec/info"
+        },
+        {
+          "id": "Novis.Image.Codec.run",
+          "name": "run",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "run(Source $source, {steps: array<{resize?: {width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool}, crop?: {x: uint, y: uint, width: uint, height: uint}, trim?: {threshold?: float}, rotate?: {degrees: float, background: ?{r: uint, g: uint, b: uint, alpha: float}}, flip?: Axis, composite?: {overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend}, flatten?: {r: uint, g: uint, b: uint, alpha: float}, sharpen?: {sigma?: float}, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: {r: uint, g: uint, b: uint, alpha: float}, text?: {text: string, font: bytes, size: float, color: {r: uint, g: uint, b: uint, alpha: float}, gravity: ?Gravity, x: ?int, y: ?int, maxWidth: ?uint, align: ?Align}, format?: {format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint}, metadata?: {keep: bool}}>, overlays: array<{source: Source, steps: array<{resize?: {width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool}, crop?: {x: uint, y: uint, width: uint, height: uint}, trim?: {threshold?: float}, rotate?: {degrees: float, background: ?{r: uint, g: uint, b: uint, alpha: float}}, flip?: Axis, composite?: {overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend}, flatten?: {r: uint, g: uint, b: uint, alpha: float}, sharpen?: {sigma?: float}, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: {r: uint, g: uint, b: uint, alpha: float}, text?: {text: string, font: bytes, size: float, color: {r: uint, g: uint, b: uint, alpha: float}, gravity: ?Gravity, x: ?int, y: ?int, maxWidth: ?uint, align: ?Align}, format?: {format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint}, metadata?: {keep: bool}}>}>, output: Output} $plan): bytes",
+          "params": [
+            {
+              "kind": "param",
+              "name": "source",
+              "type": "Source",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "plan",
+              "type": "{steps: array<{resize?: {width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool}, crop?: {x: uint, y: uint, width: uint, height: uint}, trim?: {threshold?: float}, rotate?: {degrees: float, background: ?{r: uint, g: uint, b: uint, alpha: float}}, flip?: Axis, composite?: {overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend}, flatten?: {r: uint, g: uint, b: uint, alpha: float}, sharpen?: {sigma?: float}, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: {r: uint, g: uint, b: uint, alpha: float}, text?: {text: string, font: bytes, size: float, color: {r: uint, g: uint, b: uint, alpha: float}, gravity: ?Gravity, x: ?int, y: ?int, maxWidth: ?uint, align: ?Align}, format?: {format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint}, metadata?: {keep: bool}}>, overlays: array<{source: Source, steps: array<{resize?: {width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool}, crop?: {x: uint, y: uint, width: uint, height: uint}, trim?: {threshold?: float}, rotate?: {degrees: float, background: ?{r: uint, g: uint, b: uint, alpha: float}}, flip?: Axis, composite?: {overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend}, flatten?: {r: uint, g: uint, b: uint, alpha: float}, sharpen?: {sigma?: float}, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: {r: uint, g: uint, b: uint, alpha: float}, text?: {text: string, font: bytes, size: float, color: {r: uint, g: uint, b: uint, alpha: float}, gravity: ?Gravity, x: ?int, y: ?int, maxWidth: ?uint, align: ?Align}, format?: {format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint}, metadata?: {keep: bool}}>}>, output: Output}",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "bytes",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Runs one image pipeline on a source and returns the result: the encoded file, the pixels, or the size."
+          },
+          "slug": "run",
+          "url": "/reference/core/novis-image-codec/run/",
+          "examples": "core/Novis-Image-Codec/run"
+        },
+        {
+          "id": "Novis.Image.Codec.variants",
+          "name": "variants",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "variants(Source $source, array<{steps: array<{resize?: {width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool}, crop?: {x: uint, y: uint, width: uint, height: uint}, trim?: {threshold?: float}, rotate?: {degrees: float, background: ?{r: uint, g: uint, b: uint, alpha: float}}, flip?: Axis, composite?: {overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend}, flatten?: {r: uint, g: uint, b: uint, alpha: float}, sharpen?: {sigma?: float}, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: {r: uint, g: uint, b: uint, alpha: float}, text?: {text: string, font: bytes, size: float, color: {r: uint, g: uint, b: uint, alpha: float}, gravity: ?Gravity, x: ?int, y: ?int, maxWidth: ?uint, align: ?Align}, format?: {format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint}, metadata?: {keep: bool}}>, overlays: array<{source: Source, steps: array<{resize?: {width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool}, crop?: {x: uint, y: uint, width: uint, height: uint}, trim?: {threshold?: float}, rotate?: {degrees: float, background: ?{r: uint, g: uint, b: uint, alpha: float}}, flip?: Axis, composite?: {overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend}, flatten?: {r: uint, g: uint, b: uint, alpha: float}, sharpen?: {sigma?: float}, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: {r: uint, g: uint, b: uint, alpha: float}, text?: {text: string, font: bytes, size: float, color: {r: uint, g: uint, b: uint, alpha: float}, gravity: ?Gravity, x: ?int, y: ?int, maxWidth: ?uint, align: ?Align}, format?: {format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint}, metadata?: {keep: bool}}>}>, output: Output}> $plans): array<bytes>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "source",
+              "type": "Source",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "plans",
+              "type": "array<{steps: array<{resize?: {width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool}, crop?: {x: uint, y: uint, width: uint, height: uint}, trim?: {threshold?: float}, rotate?: {degrees: float, background: ?{r: uint, g: uint, b: uint, alpha: float}}, flip?: Axis, composite?: {overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend}, flatten?: {r: uint, g: uint, b: uint, alpha: float}, sharpen?: {sigma?: float}, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: {r: uint, g: uint, b: uint, alpha: float}, text?: {text: string, font: bytes, size: float, color: {r: uint, g: uint, b: uint, alpha: float}, gravity: ?Gravity, x: ?int, y: ?int, maxWidth: ?uint, align: ?Align}, format?: {format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint}, metadata?: {keep: bool}}>, overlays: array<{source: Source, steps: array<{resize?: {width?: uint, height?: uint, fit?: Fit, gravity?: Gravity, filter?: Filter, upscale?: bool}, crop?: {x: uint, y: uint, width: uint, height: uint}, trim?: {threshold?: float}, rotate?: {degrees: float, background: ?{r: uint, g: uint, b: uint, alpha: float}}, flip?: Axis, composite?: {overlay: uint, gravity: ?Gravity, x: ?int, y: ?int, opacity: ?float, blend: ?Blend}, flatten?: {r: uint, g: uint, b: uint, alpha: float}, sharpen?: {sigma?: float}, blur?: float, grayscale?: bool, brightness?: float, contrast?: float, gamma?: float, tint?: {r: uint, g: uint, b: uint, alpha: float}, text?: {text: string, font: bytes, size: float, color: {r: uint, g: uint, b: uint, alpha: float}, gravity: ?Gravity, x: ?int, y: ?int, maxWidth: ?uint, align: ?Align}, format?: {format: Format, quality: ?uint, progressive: ?bool, lossless: ?bool, effort: ?uint}, metadata?: {keep: bool}}>}>, output: Output}>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<bytes>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Decodes a source once and runs each pipeline on it. Returns one result per pipeline, in the same order."
+          },
+          "slug": "variants",
+          "url": "/reference/core/novis-image-codec/variants/",
+          "examples": "core/Novis-Image-Codec/variants"
+        },
+        {
+          "id": "Novis.Image.Codec.compare",
+          "name": "compare",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "compare(bytes $a, bytes $b, {tolerance: ?uint, render: bool} $options): {identical: bool, differingPixels: uint, maxDelta: uint, ssim: float, diff: ?bytes}",
+          "params": [
+            {
+              "kind": "param",
+              "name": "a",
+              "type": "bytes",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "b",
+              "type": "bytes",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "{tolerance: ?uint, render: bool}",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "{identical: bool, differingPixels: uint, maxDelta: uint, ssim: float, diff: ?bytes}",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Decodes two encoded images of the same size and compares their pixels. Two images of different sizes throw a <code>LogicError</code>."
+          },
+          "slug": "compare",
+          "url": "/reference/core/novis-image-codec/compare/",
+          "examples": "core/Novis-Image-Codec/compare"
+        },
+        {
+          "id": "Novis.Image.Codec.hash",
+          "name": "hash",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "hash(bytes $data, HashKind $kind): bytes",
+          "params": [
+            {
+              "kind": "param",
+              "name": "data",
+              "type": "bytes",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "kind",
+              "type": "HashKind",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "bytes",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Decodes an encoded image and returns its hash. Similar images have hashes that differ in few bits."
+          },
+          "slug": "hash",
+          "url": "/reference/core/novis-image-codec/hash/",
+          "examples": "core/Novis-Image-Codec/hash"
+        },
+        {
+          "id": "Novis.Image.Codec.placeholder",
+          "name": "placeholder",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "placeholder(bytes $data, PlaceholderKind $kind): string",
+          "params": [
+            {
+              "kind": "param",
+              "name": "data",
+              "type": "bytes",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "kind",
+              "type": "PlaceholderKind",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "string",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Decodes an encoded image and returns a short text that a web page can draw as a blurred preview of it."
+          },
+          "slug": "placeholder",
+          "url": "/reference/core/novis-image-codec/placeholder/",
+          "examples": "core/Novis-Image-Codec/placeholder"
+        },
+        {
+          "id": "Novis.Image.Codec.palette",
+          "name": "palette",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "palette(bytes $data, uint $count): array<{r: uint, g: uint, b: uint, alpha: float}>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "data",
+              "type": "bytes",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "count",
+              "type": "uint",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<{r: uint, g: uint, b: uint, alpha: float}>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Decodes an encoded image and returns at most <code>count</code> of its main colours, the most common first."
+          },
+          "slug": "palette",
+          "url": "/reference/core/novis-image-codec/palette/",
+          "examples": "core/Novis-Image-Codec/palette"
+        },
+        {
+          "id": "Novis.Image.Codec.qr",
+          "name": "qr",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "qr(string $data, {size: ?uint, margin: ?uint, level: ?QrLevel, format: ?Format} $options): bytes",
+          "params": [
+            {
+              "kind": "param",
+              "name": "data",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "{size: ?uint, margin: ?uint, level: ?QrLevel, format: ?Format}",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "bytes",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Returns a text as an encoded QR code image. Data too long for the level, or a size too small for the code, throws a <code>LogicError</code>."
+          },
+          "slug": "qr",
+          "url": "/reference/core/novis-image-codec/qr/",
+          "examples": "core/Novis-Image-Codec/qr"
+        }
+      ],
+      "unparsed": [],
+      "implemented": true,
+      "slug": "novis-image-codec",
+      "url": "/reference/core/novis-image-codec/",
+      "summaryHtml": "<p>The functions that decode, change and encode images. <code>Novis\\Image\\Image</code> calls them for you, so most programs use <code>Image</code> instead.</p>",
+      "surfaceHtml": ""
+    },
+    {
+      "id": "Novis.Image.Color",
+      "name": "Novis\\Image\\Color",
+      "section": "",
+      "summary": "A colour: red, green and blue from 0 to 255, and alpha from 0.0 (transparent) to 1.0 (opaque).",
+      "surface": "",
+      "adrs": [],
+      "enums": [],
+      "constants": [],
+      "members": [
+        {
+          "id": "Novis.Image.Color.rgba",
+          "name": "rgba",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "rgba(uint $r, uint $g, uint $b, float $alpha = 1.0): Color",
+          "params": [
+            {
+              "kind": "param",
+              "name": "r",
+              "type": "uint",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "g",
+              "type": "uint",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "b",
+              "type": "uint",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "alpha",
+              "type": "float",
+              "default": "1.0",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Color",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>Color::rgba</code> makes a colour from its channels. A channel above 255 throws a <code>LogicError</code>.\nSo does an alpha that is <code>NAN</code> or outside 0.0 to 1.0."
+          },
+          "slug": "rgba",
+          "url": "/reference/core/novis-image-color/rgba/",
+          "examples": "core/Novis-Image-Color/rgba"
+        },
+        {
+          "id": "Novis.Image.Color.hex",
+          "name": "hex",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "hex(string $hex): Color",
+          "params": [
+            {
+              "kind": "param",
+              "name": "hex",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Color",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>Color::hex</code> reads a colour written as <code>#rgb</code>, <code>#rgba</code>, <code>#rrggbb</code> or <code>#rrggbbaa</code>.\nThe <code>#</code> is optional. Any other text throws a <code>LogicError</code>."
+          },
+          "slug": "hex",
+          "url": "/reference/core/novis-image-color/hex/",
+          "examples": "core/Novis-Image-Color/hex"
+        }
+      ],
+      "unparsed": [],
+      "implemented": true,
+      "slug": "novis-image-color",
+      "url": "/reference/core/novis-image-color/",
+      "summaryHtml": "<p>A colour: red, green and blue from 0 to 255, and alpha from 0.0 (transparent) to 1.0 (opaque).</p>",
+      "surfaceHtml": ""
+    },
+    {
+      "id": "Novis.Image.Diff",
+      "name": "Novis\\Image\\Diff",
+      "section": "",
+      "summary": "The result of `Image::compare`. A delta is the largest difference in one channel, from 0 to 255.\n`ssim` is `1.0` for identical images. `diff` is a PNG with the differing pixels in red, or `null`.",
+      "surface": "",
+      "adrs": [],
+      "enums": [],
+      "constants": [],
+      "members": [
+        {
+          "id": "Novis.Image.Diff.constructor",
+          "name": "constructor",
+          "static": false,
+          "receiver": "diff",
+          "generics": null,
+          "signature": "constructor(bool $identical, uint $differingPixels, uint $maxDelta, float $ssim, ?bytes $diff): void",
+          "params": [
+            {
+              "kind": "param",
+              "name": "identical",
+              "type": "bool",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "differingPixels",
+              "type": "uint",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "maxDelta",
+              "type": "uint",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "ssim",
+              "type": "float",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "diff",
+              "type": "?bytes",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "void",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>new Diff</code> makes a result from its five values. <code>Image::compare</code> makes one for you."
+          },
+          "slug": "constructor",
+          "url": "/reference/core/novis-image-diff/constructor/",
+          "examples": "core/Novis-Image-Diff/constructor"
+        }
+      ],
+      "unparsed": [],
+      "implemented": true,
+      "slug": "novis-image-diff",
+      "url": "/reference/core/novis-image-diff/",
+      "summaryHtml": "<p>The result of <code>Image::compare</code>. A delta is the largest difference in one channel, from 0 to 255. <code>ssim</code> is <code>1.0</code> for identical images. <code>diff</code> is a PNG with the differing pixels in red, or <code>null</code>.</p>",
+      "surfaceHtml": ""
+    },
+    {
+      "id": "Novis.Image.Font",
+      "name": "Novis\\Image\\Font",
+      "section": "",
+      "summary": "A TrueType or OpenType font file that `Image::text` and `Image::measureText` draw with.\nYour program reads the file itself. There are no system fonts.",
+      "surface": "",
+      "adrs": [],
+      "enums": [],
+      "constants": [],
+      "members": [
+        {
+          "id": "Novis.Image.Font.fromBytes",
+          "name": "fromBytes",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "fromBytes(bytes $data): Font",
+          "params": [
+            {
+              "kind": "param",
+              "name": "data",
+              "type": "bytes",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Font",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>Font::fromBytes</code> makes a <code>Font</code> from the bytes of a <code>.ttf</code> or <code>.otf</code> file.\nBytes that do not start like a font file throw a <code>ParseError</code>.\nA font file with broken tables throws a <code>ParseError</code> when the image is drawn."
+          },
+          "slug": "frombytes",
+          "url": "/reference/core/novis-image-font/frombytes/",
+          "examples": "core/Novis-Image-Font/fromBytes"
+        }
+      ],
+      "unparsed": [],
+      "implemented": true,
+      "slug": "novis-image-font",
+      "url": "/reference/core/novis-image-font/",
+      "summaryHtml": "<p>A TrueType or OpenType font file that <code>Image::text</code> and <code>Image::measureText</code> draw with. Your program reads the file itself. There are no system fonts.</p>",
+      "surfaceHtml": ""
+    },
+    {
+      "id": "Novis.Image.Image",
+      "name": "Novis\\Image\\Image",
+      "section": "",
+      "summary": "An image and a list of steps to run on it. Each step method returns a new `Image`\nand leaves this one as it was. Nothing is decoded until `encode`, `variants` or `raw` runs.",
+      "surface": "",
+      "adrs": [],
+      "enums": [],
+      "constants": [],
+      "members": [
+        {
+          "id": "Novis.Image.Image.open",
+          "name": "open",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "open(bytes $data, ?{autoOrient?: bool, toSrgb?: bool, maxPixels?: uint} $options = null): Image",
+          "params": [
+            {
+              "kind": "param",
+              "name": "data",
+              "type": "bytes",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "?{autoOrient?: bool, toSrgb?: bool, maxPixels?: uint}",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Image",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>Image::open</code> starts from the bytes of an encoded image. It turns the image upright and\nconverts its colours to sRGB, unless <code>autoOrient</code> or <code>toSrgb</code> is <code>false</code>.\nBytes that are not an image throw an error when <code>encode</code>, <code>variants</code> or <code>raw</code> runs."
+          },
+          "slug": "open",
+          "url": "/reference/core/novis-image-image/open/",
+          "examples": "core/Novis-Image-Image/open"
+        },
+        {
+          "id": "Novis.Image.Image.create",
+          "name": "create",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "create(uint $width, uint $height, ?Color $fill = null): Image",
+          "params": [
+            {
+              "kind": "param",
+              "name": "width",
+              "type": "uint",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "height",
+              "type": "uint",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "fill",
+              "type": "?Color",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Image",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>Image::create</code> starts from a blank canvas. Without <code>$fill</code>, the canvas is transparent."
+          },
+          "slug": "create",
+          "url": "/reference/core/novis-image-image/create/",
+          "examples": "core/Novis-Image-Image/create"
+        },
+        {
+          "id": "Novis.Image.Image.fromRaw",
+          "name": "fromRaw",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "fromRaw(Raw $raw): Image",
+          "params": [
+            {
+              "kind": "param",
+              "name": "raw",
+              "type": "Raw",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Image",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>Image::fromRaw</code> starts from RGBA8 pixels, as <code>raw</code> returns them."
+          },
+          "slug": "fromraw",
+          "url": "/reference/core/novis-image-image/fromraw/",
+          "examples": "core/Novis-Image-Image/fromRaw"
+        },
+        {
+          "id": "Novis.Image.Image.info",
+          "name": "info",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "info(bytes $data): Info",
+          "params": [
+            {
+              "kind": "param",
+              "name": "data",
+              "type": "bytes",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Info",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>Image::info</code> reads the format, the size and the orientation from the header. No pixel is decoded."
+          },
+          "slug": "info",
+          "url": "/reference/core/novis-image-image/info/",
+          "examples": "core/Novis-Image-Image/info"
+        },
+        {
+          "id": "Novis.Image.Image.mime",
+          "name": "mime",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "mime(Format $format): string",
+          "params": [
+            {
+              "kind": "param",
+              "name": "format",
+              "type": "Format",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "string",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>Image::mime</code> returns the MIME type of a format, for example <code>image/webp</code>."
+          },
+          "slug": "mime",
+          "url": "/reference/core/novis-image-image/mime/",
+          "examples": "core/Novis-Image-Image/mime"
+        },
+        {
+          "id": "Novis.Image.Image.extension",
+          "name": "extension",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "extension(Format $format): string",
+          "params": [
+            {
+              "kind": "param",
+              "name": "format",
+              "type": "Format",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "string",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>Image::extension</code> returns the file extension of a format, without the dot, for example <code>jpg</code>."
+          },
+          "slug": "extension",
+          "url": "/reference/core/novis-image-image/extension/",
+          "examples": "core/Novis-Image-Image/extension"
+        },
+        {
+          "id": "Novis.Image.Image.resize",
+          "name": "resize",
+          "static": false,
+          "receiver": "image",
+          "generics": null,
+          "signature": "resize(Resize $options): Image",
+          "params": [
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "Resize",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Image",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>resize</code> scales the image. With only <code>width</code> or only <code>height</code>, the image keeps its proportions.\nWith both, <code>fit</code> decides how the image fills that size. The default is <code>Fit::Cover</code>.\nThe image does not grow larger than it is, unless <code>upscale</code> is <code>true</code>."
+          },
+          "slug": "resize",
+          "url": "/reference/core/novis-image-image/resize/",
+          "examples": "core/Novis-Image-Image/resize"
+        },
+        {
+          "id": "Novis.Image.Image.crop",
+          "name": "crop",
+          "static": false,
+          "receiver": "image",
+          "generics": null,
+          "signature": "crop({x: uint, y: uint, width: uint, height: uint} $box): Image",
+          "params": [
+            {
+              "kind": "param",
+              "name": "box",
+              "type": "{x: uint, y: uint, width: uint, height: uint}",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Image",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>crop</code> keeps only the box at <code>x</code> and <code>y</code>, with its <code>width</code> and <code>height</code>.\nThe box must lie inside the image."
+          },
+          "slug": "crop",
+          "url": "/reference/core/novis-image-image/crop/",
+          "examples": "core/Novis-Image-Image/crop"
+        },
+        {
+          "id": "Novis.Image.Image.trim",
+          "name": "trim",
+          "static": false,
+          "receiver": "image",
+          "generics": null,
+          "signature": "trim(?{threshold?: float} $options = null): Image",
+          "params": [
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "?{threshold?: float}",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Image",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>trim</code> removes the border that has the colour of the top-left pixel.\n<code>threshold</code> is how far a colour may differ and still count, from 0 to 255. The default is 10."
+          },
+          "slug": "trim",
+          "url": "/reference/core/novis-image-image/trim/",
+          "examples": "core/Novis-Image-Image/trim"
+        },
+        {
+          "id": "Novis.Image.Image.rotate",
+          "name": "rotate",
+          "static": false,
+          "receiver": "image",
+          "generics": null,
+          "signature": "rotate(float $degrees, ?{background?: Color} $options = null): Image",
+          "params": [
+            {
+              "kind": "param",
+              "name": "degrees",
+              "type": "float",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "?{background?: Color}",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Image",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>rotate</code> turns the image clockwise by <code>$degrees</code>. For an angle that is not a multiple of 90,\nthe image grows to fit the turned picture, and <code>background</code> fills the corners."
+          },
+          "slug": "rotate",
+          "url": "/reference/core/novis-image-image/rotate/",
+          "examples": "core/Novis-Image-Image/rotate"
+        },
+        {
+          "id": "Novis.Image.Image.flip",
+          "name": "flip",
+          "static": false,
+          "receiver": "image",
+          "generics": null,
+          "signature": "flip(Axis $axis): Image",
+          "params": [
+            {
+              "kind": "param",
+              "name": "axis",
+              "type": "Axis",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Image",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>flip(Axis::Horizontal)</code> swaps left and right. <code>flip(Axis::Vertical)</code> swaps top and bottom."
+          },
+          "slug": "flip",
+          "url": "/reference/core/novis-image-image/flip/",
+          "examples": "core/Novis-Image-Image/flip"
+        },
+        {
+          "id": "Novis.Image.Image.composite",
+          "name": "composite",
+          "static": false,
+          "receiver": "image",
+          "generics": null,
+          "signature": "composite(Image $overlay, ?{gravity?: Gravity, x?: int, y?: int, opacity?: float, blend?: Blend} $options = null): Image",
+          "params": [
+            {
+              "kind": "param",
+              "name": "overlay",
+              "type": "Image",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "?{gravity?: Gravity, x?: int, y?: int, opacity?: float, blend?: Blend}",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Image",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>composite</code> draws <code>$overlay</code> on top of this image, with all of the overlay's own steps.\n<code>gravity</code> places it, and the default is <code>Gravity::Center</code>. <code>x</code> and <code>y</code> place its top-left\ncorner in pixels instead, and may be negative. The parts outside this image are cut off.\n<code>opacity</code> is from 0.0 to 1.0, and the default is 1.0. <code>blend</code> mixes the colours, and the\ndefault is <code>Blend::Normal</code>. A <code>format</code> or <code>metadata</code> step of the overlay changes nothing."
+          },
+          "slug": "composite",
+          "url": "/reference/core/novis-image-image/composite/",
+          "examples": "core/Novis-Image-Image/composite"
+        },
+        {
+          "id": "Novis.Image.Image.flatten",
+          "name": "flatten",
+          "static": false,
+          "receiver": "image",
+          "generics": null,
+          "signature": "flatten(Color $background): Image",
+          "params": [
+            {
+              "kind": "param",
+              "name": "background",
+              "type": "Color",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Image",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>flatten</code> puts the image on a background of one colour. The result has no transparent pixels."
+          },
+          "slug": "flatten",
+          "url": "/reference/core/novis-image-image/flatten/",
+          "examples": "core/Novis-Image-Image/flatten"
+        },
+        {
+          "id": "Novis.Image.Image.sharpen",
+          "name": "sharpen",
+          "static": false,
+          "receiver": "image",
+          "generics": null,
+          "signature": "sharpen(?{sigma?: float} $options = null): Image",
+          "params": [
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "?{sigma?: float}",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Image",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>sharpen</code> makes edges clearer. A larger <code>sigma</code> sharpens wider edges. The default is 1."
+          },
+          "slug": "sharpen",
+          "url": "/reference/core/novis-image-image/sharpen/",
+          "examples": "core/Novis-Image-Image/sharpen"
+        },
+        {
+          "id": "Novis.Image.Image.blur",
+          "name": "blur",
+          "static": false,
+          "receiver": "image",
+          "generics": null,
+          "signature": "blur(float $sigma): Image",
+          "params": [
+            {
+              "kind": "param",
+              "name": "sigma",
+              "type": "float",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Image",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>blur</code> makes the image soft. A larger <code>$sigma</code> gives a stronger blur."
+          },
+          "slug": "blur",
+          "url": "/reference/core/novis-image-image/blur/",
+          "examples": "core/Novis-Image-Image/blur"
+        },
+        {
+          "id": "Novis.Image.Image.grayscale",
+          "name": "grayscale",
+          "static": false,
+          "receiver": "image",
+          "generics": null,
+          "signature": "grayscale(): Image",
+          "params": [],
+          "options": [],
+          "returnType": "Image",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>grayscale</code> removes the colours and keeps the light and dark of each pixel."
+          },
+          "slug": "grayscale",
+          "url": "/reference/core/novis-image-image/grayscale/",
+          "examples": "core/Novis-Image-Image/grayscale"
+        },
+        {
+          "id": "Novis.Image.Image.brightness",
+          "name": "brightness",
+          "static": false,
+          "receiver": "image",
+          "generics": null,
+          "signature": "brightness(float $amount): Image",
+          "params": [
+            {
+              "kind": "param",
+              "name": "amount",
+              "type": "float",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Image",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>brightness</code> multiplies every colour by <code>$amount</code>. 1.0 changes nothing, and 1.2 is 20% brighter."
+          },
+          "slug": "brightness",
+          "url": "/reference/core/novis-image-image/brightness/",
+          "examples": "core/Novis-Image-Image/brightness"
+        },
+        {
+          "id": "Novis.Image.Image.contrast",
+          "name": "contrast",
+          "static": false,
+          "receiver": "image",
+          "generics": null,
+          "signature": "contrast(float $amount): Image",
+          "params": [
+            {
+              "kind": "param",
+              "name": "amount",
+              "type": "float",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Image",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>contrast</code> moves every colour away from middle gray by <code>$amount</code>. 1.0 changes nothing.\nA value below 1.0 gives less contrast."
+          },
+          "slug": "contrast",
+          "url": "/reference/core/novis-image-image/contrast/",
+          "examples": "core/Novis-Image-Image/contrast"
+        },
+        {
+          "id": "Novis.Image.Image.gamma",
+          "name": "gamma",
+          "static": false,
+          "receiver": "image",
+          "generics": null,
+          "signature": "gamma(float $gamma): Image",
+          "params": [
+            {
+              "kind": "param",
+              "name": "gamma",
+              "type": "float",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Image",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>gamma</code> changes the middle tones and keeps black and white. 1.0 changes nothing.\nA value above 1.0 makes the middle tones lighter."
+          },
+          "slug": "gamma",
+          "url": "/reference/core/novis-image-image/gamma/",
+          "examples": "core/Novis-Image-Image/gamma"
+        },
+        {
+          "id": "Novis.Image.Image.tint",
+          "name": "tint",
+          "static": false,
+          "receiver": "image",
+          "generics": null,
+          "signature": "tint(Color $color): Image",
+          "params": [
+            {
+              "kind": "param",
+              "name": "color",
+              "type": "Color",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Image",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>tint</code> colours the image with <code>$color</code>. The alpha of <code>$color</code> is how strong the tint is."
+          },
+          "slug": "tint",
+          "url": "/reference/core/novis-image-image/tint/",
+          "examples": "core/Novis-Image-Image/tint"
+        },
+        {
+          "id": "Novis.Image.Image.text",
+          "name": "text",
+          "static": false,
+          "receiver": "image",
+          "generics": null,
+          "signature": "text(string $text, Font $font, {size: float, color: Color, gravity?: Gravity, x?: int, y?: int, maxWidth?: uint, align?: Align} $options): Image",
+          "params": [
+            {
+              "kind": "param",
+              "name": "text",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "font",
+              "type": "Font",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "{size: float, color: Color, gravity?: Gravity, x?: int, y?: int, maxWidth?: uint, align?: Align}",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Image",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>text</code> draws <code>$text</code> on the image with <code>$font</code>, in <code>color</code>. <code>size</code> is the font size in pixels.\n<code>x</code> and <code>y</code> place the top-left corner of the text. Without them, <code>gravity</code> places it, and\nthe default is <code>Gravity::Center</code>. With <code>maxWidth</code>, lines break at spaces to stay that wide.\n<code>align</code> sets how the lines line up, and the default is <code>Align::Left</code>. Only Latin text is supported."
+          },
+          "slug": "text",
+          "url": "/reference/core/novis-image-image/text/",
+          "examples": "core/Novis-Image-Image/text"
+        },
+        {
+          "id": "Novis.Image.Image.measureText",
+          "name": "measureText",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "measureText(string $text, Font $font, {size: float, maxWidth?: uint, align?: Align} $options): Size",
+          "params": [
+            {
+              "kind": "param",
+              "name": "text",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "font",
+              "type": "Font",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "{size: float, maxWidth?: uint, align?: Align}",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Size",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>Image::measureText</code> returns the <code>width</code> and <code>height</code> in pixels that <code>text</code> needs for the same text and options."
+          },
+          "slug": "measuretext",
+          "url": "/reference/core/novis-image-image/measuretext/",
+          "examples": "core/Novis-Image-Image/measureText"
+        },
+        {
+          "id": "Novis.Image.Image.format",
+          "name": "format",
+          "static": false,
+          "receiver": "image",
+          "generics": null,
+          "signature": "format(Format $format, ?{quality?: uint, progressive?: bool, lossless?: bool, effort?: uint} $options = null): Image",
+          "params": [
+            {
+              "kind": "param",
+              "name": "format",
+              "type": "Format",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "?{quality?: uint, progressive?: bool, lossless?: bool, effort?: uint}",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Image",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>format</code> sets the format that <code>encode</code> writes. Without it, the output has the format of the input."
+          },
+          "slug": "format",
+          "url": "/reference/core/novis-image-image/format/",
+          "examples": "core/Novis-Image-Image/format"
+        },
+        {
+          "id": "Novis.Image.Image.metadata",
+          "name": "metadata",
+          "static": false,
+          "receiver": "image",
+          "generics": null,
+          "signature": "metadata({keep: bool} $options): Image",
+          "params": [
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "{keep: bool}",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Image",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>metadata({keep: true})</code> keeps the EXIF data in the output. Without it, <code>encode</code> removes all metadata."
+          },
+          "slug": "metadata",
+          "url": "/reference/core/novis-image-image/metadata/",
+          "examples": "core/Novis-Image-Image/metadata"
+        },
+        {
+          "id": "Novis.Image.Image.encode",
+          "name": "encode",
+          "static": false,
+          "receiver": "image",
+          "generics": null,
+          "signature": "encode(): bytes",
+          "params": [],
+          "options": [],
+          "returnType": "bytes",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>encode</code> runs every step and returns the encoded file."
+          },
+          "slug": "encode",
+          "url": "/reference/core/novis-image-image/encode/",
+          "examples": "core/Novis-Image-Image/encode"
+        },
+        {
+          "id": "Novis.Image.Image.raw",
+          "name": "raw",
+          "static": false,
+          "receiver": "image",
+          "generics": null,
+          "signature": "raw(): Raw",
+          "params": [],
+          "options": [],
+          "returnType": "Raw",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>raw</code> runs every step and returns the pixels as RGBA8 rows, four bytes per pixel."
+          },
+          "slug": "raw",
+          "url": "/reference/core/novis-image-image/raw/",
+          "examples": "core/Novis-Image-Image/raw"
+        },
+        {
+          "id": "Novis.Image.Image.variants",
+          "name": "variants",
+          "static": false,
+          "receiver": "image",
+          "generics": null,
+          "signature": "variants(array<Variant> $set): array<bytes>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "set",
+              "type": "array<Variant>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<bytes>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>variants</code> decodes the image once and returns one encoded file per entry, in the same order.\nAn entry may resize the image and choose its own format and quality."
+          },
+          "slug": "variants",
+          "url": "/reference/core/novis-image-image/variants/",
+          "examples": "core/Novis-Image-Image/variants"
+        },
+        {
+          "id": "Novis.Image.Image.compare",
+          "name": "compare",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "compare(bytes|Image $a, bytes|Image $b, ?{tolerance?: uint, render?: bool} $options = null): Diff",
+          "params": [
+            {
+              "kind": "param",
+              "name": "a",
+              "type": "bytes|Image",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "b",
+              "type": "bytes|Image",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "?{tolerance?: uint, render?: bool}",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Diff",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>Image::compare</code> compares two images of the same size and returns a <code>Diff</code>. Other sizes throw a <code>LogicError</code>.\nA pixel differs when its delta is above <code>tolerance</code>, which is 0 by default."
+          },
+          "slug": "compare",
+          "url": "/reference/core/novis-image-image/compare/",
+          "examples": "core/Novis-Image-Image/compare"
+        },
+        {
+          "id": "Novis.Image.Image.hash",
+          "name": "hash",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "hash(bytes $data, HashKind $kind): bytes",
+          "params": [
+            {
+              "kind": "param",
+              "name": "data",
+              "type": "bytes",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "kind",
+              "type": "HashKind",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "bytes",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>Image::hash</code> returns a short hash of an encoded image. Two similar images have similar hashes.\nEach <code>HashKind</code> returns a hash of its own fixed length."
+          },
+          "slug": "hash",
+          "url": "/reference/core/novis-image-image/hash/",
+          "examples": "core/Novis-Image-Image/hash"
+        },
+        {
+          "id": "Novis.Image.Image.hashDistance",
+          "name": "hashDistance",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "hashDistance(bytes $a, bytes $b): uint",
+          "params": [
+            {
+              "kind": "param",
+              "name": "a",
+              "type": "bytes",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "b",
+              "type": "bytes",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "uint",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>Image::hashDistance</code> returns how many bits differ between two hashes. A small number means similar images.\nTwo hashes of different lengths throw a <code>LogicError</code>."
+          },
+          "slug": "hashdistance",
+          "url": "/reference/core/novis-image-image/hashdistance/",
+          "examples": "core/Novis-Image-Image/hashDistance"
+        },
+        {
+          "id": "Novis.Image.Image.placeholder",
+          "name": "placeholder",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "placeholder(bytes $data, PlaceholderKind $kind): string",
+          "params": [
+            {
+              "kind": "param",
+              "name": "data",
+              "type": "bytes",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "kind",
+              "type": "PlaceholderKind",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "string",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>Image::placeholder</code> returns a short text that a web page can draw as a blurred preview of the image.\nIts average colour is the average colour of the image."
+          },
+          "slug": "placeholder",
+          "url": "/reference/core/novis-image-image/placeholder/",
+          "examples": "core/Novis-Image-Image/placeholder"
+        },
+        {
+          "id": "Novis.Image.Image.palette",
+          "name": "palette",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "palette(bytes $data, uint $count = 5): array<Color>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "data",
+              "type": "bytes",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "count",
+              "type": "uint",
+              "default": "5",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<Color>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>Image::palette</code> returns at most <code>count</code> main colours of the image, the most common first.\nTransparent pixels are not counted. A <code>count</code> above 256 throws a <code>LogicError</code>."
+          },
+          "slug": "palette",
+          "url": "/reference/core/novis-image-image/palette/",
+          "examples": "core/Novis-Image-Image/palette"
+        }
+      ],
+      "unparsed": [],
+      "implemented": true,
+      "slug": "novis-image-image",
+      "url": "/reference/core/novis-image-image/",
+      "summaryHtml": "<p>An image and a list of steps to run on it. Each step method returns a new <code>Image</code> and leaves this one as it was. Nothing is decoded until <code>encode</code>, <code>variants</code> or <code>raw</code> runs.</p>",
+      "surfaceHtml": ""
+    },
+    {
+      "id": "Novis.Image.QrCode",
+      "name": "Novis\\Image\\QrCode",
+      "section": "",
+      "summary": "Makes QR codes: square images that a phone camera can read back to text.",
+      "surface": "",
+      "adrs": [],
+      "enums": [],
+      "constants": [],
+      "members": [
+        {
+          "id": "Novis.Image.QrCode.render",
+          "name": "render",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "render(string $data, ?{size?: uint, margin?: uint, level?: QrLevel, format?: Format} $options = null): bytes",
+          "params": [
+            {
+              "kind": "param",
+              "name": "data",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "?{size?: uint, margin?: uint, level?: QrLevel, format?: Format}",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "bytes",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>QrCode::render</code> returns <code>data</code> as a square QR code image. By default it is a PNG of 256 by 256 pixels.\nData too long for the <code>level</code>, or a <code>size</code> too small for the code, throws a <code>LogicError</code>."
+          },
+          "slug": "render",
+          "url": "/reference/core/novis-image-qrcode/render/",
+          "examples": "core/Novis-Image-QrCode/render"
+        }
+      ],
+      "unparsed": [],
+      "implemented": true,
+      "slug": "novis-image-qrcode",
+      "url": "/reference/core/novis-image-qrcode/",
+      "summaryHtml": "<p>Makes QR codes: square images that a phone camera can read back to text.</p>",
+      "surfaceHtml": ""
+    },
+    {
+      "id": "Novis.Intl.Collator",
+      "name": "Novis\\Intl\\Collator",
+      "section": "",
+      "summary": "Sorts strings by the rules of a language and region. Each method takes a whole list and\na locale tag, such as `\"de\"` or `\"sv-SE\"`, and sorts the whole list in one call.",
+      "surface": "",
+      "adrs": [],
+      "enums": [],
+      "constants": [],
+      "members": [
+        {
+          "id": "Novis.Intl.Collator.sort",
+          "name": "sort",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "sort(array<string> $strings, string $locale, ?CollateOptions $options = null): array<string>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "strings",
+              "type": "array<string>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "locale",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "?CollateOptions",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<string>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>Collator::sort</code> returns the strings sorted by the rules of <code>$locale</code>. Equal strings\nkeep their order. A locale tag that is not valid throws a <code>LogicError</code>."
+          },
+          "slug": "sort",
+          "url": "/reference/core/novis-intl-collator/sort/",
+          "examples": "core/Novis-Intl-Collator/sort"
+        },
+        {
+          "id": "Novis.Intl.Collator.sortKeys",
+          "name": "sortKeys",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "sortKeys(array<string> $strings, string $locale, ?CollateOptions $options = null): array<bytes>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "strings",
+              "type": "array<string>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "locale",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "?CollateOptions",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<bytes>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>Collator::sortKeys</code> returns one sort key for each string. Keys compare byte by byte in the\norder <code>sort</code> gives their strings. You can store a key in a column and sort rows by it."
+          },
+          "slug": "sortkeys",
+          "url": "/reference/core/novis-intl-collator/sortkeys/",
+          "examples": "core/Novis-Intl-Collator/sortKeys"
+        }
+      ],
+      "unparsed": [],
+      "implemented": true,
+      "slug": "novis-intl-collator",
+      "url": "/reference/core/novis-intl-collator/",
+      "summaryHtml": "<p>Sorts strings by the rules of a language and region. Each method takes a whole list and a locale tag, such as <code>&quot;de&quot;</code> or <code>&quot;sv-SE&quot;</code>, and sorts the whole list in one call.</p>",
+      "surfaceHtml": ""
+    },
+    {
+      "id": "Novis.Intl.DateFormat",
+      "name": "Novis\\Intl\\DateFormat",
+      "section": "",
+      "summary": "Writes dates and times the way a language and region write them. Each method takes a whole\nlist and a locale tag, such as `\"de\"` or `\"en-GB\"`, and formats the whole list in one call.",
+      "surface": "",
+      "adrs": [],
+      "enums": [],
+      "constants": [],
+      "members": [
+        {
+          "id": "Novis.Intl.DateFormat.dateTimes",
+          "name": "dateTimes",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "dateTimes(array<Core\\Time\\DateTime> $values, string $locale, ?{length?: Length, seconds?: bool, zone?: ZoneStyle} $options = null): array<string>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "values",
+              "type": "array<Core\\Time\\DateTime>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "locale",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "?{length?: Length, seconds?: bool, zone?: ZoneStyle}",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<string>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>DateFormat::dateTimes</code> returns each date and time as the clock shows it in its own time\nzone. Set <code>zone</code> to show the zone: <code>ZoneStyle::Offset</code> shows &quot;GMT+2&quot;."
+          },
+          "slug": "datetimes",
+          "url": "/reference/core/novis-intl-dateformat/datetimes/",
+          "examples": "core/Novis-Intl-DateFormat/dateTimes"
+        },
+        {
+          "id": "Novis.Intl.DateFormat.dates",
+          "name": "dates",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "dates(array<Core\\Time\\Date> $values, string $locale, ?{length?: Length} $options = null): array<string>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "values",
+              "type": "array<Core\\Time\\Date>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "locale",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "?{length?: Length}",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<string>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>DateFormat::dates</code> returns each calendar date. <code>Length::Short</code> writes &quot;3/1/26&quot; in\nEnglish, and <code>Length::Long</code> writes &quot;March 1, 2026&quot;. The default is <code>Length::Medium</code>."
+          },
+          "slug": "dates",
+          "url": "/reference/core/novis-intl-dateformat/dates/",
+          "examples": "core/Novis-Intl-DateFormat/dates"
+        },
+        {
+          "id": "Novis.Intl.DateFormat.times",
+          "name": "times",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "times(array<Core\\Time\\TimeOfDay> $values, string $locale, ?{seconds?: bool} $options = null): array<string>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "values",
+              "type": "array<Core\\Time\\TimeOfDay>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "locale",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "?{seconds?: bool}",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<string>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>DateFormat::times</code> returns each time of day, with hours and minutes. Set <code>seconds</code> to\n<code>true</code> to show the seconds too."
+          },
+          "slug": "times",
+          "url": "/reference/core/novis-intl-dateformat/times/",
+          "examples": "core/Novis-Intl-DateFormat/times"
+        }
+      ],
+      "unparsed": [],
+      "implemented": true,
+      "slug": "novis-intl-dateformat",
+      "url": "/reference/core/novis-intl-dateformat/",
+      "summaryHtml": "<p>Writes dates and times the way a language and region write them. Each method takes a whole list and a locale tag, such as <code>&quot;de&quot;</code> or <code>&quot;en-GB&quot;</code>, and formats the whole list in one call.</p>",
+      "surfaceHtml": ""
+    },
+    {
+      "id": "Novis.Intl.Icu",
+      "name": "Novis\\Intl\\Icu",
+      "section": "",
+      "summary": "The functions that sort, format and split text by the rules of a language and region. The other classes in `Novis\\Intl` call them for you, so most programs use those classes instead.",
+      "surface": "",
+      "adrs": [],
+      "enums": [],
+      "constants": [],
+      "members": [
+        {
+          "id": "Novis.Intl.Icu.collateOrder",
+          "name": "collateOrder",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "collateOrder(array<string> $strings, string $locale, {strength?: Strength, caseFirst?: CaseFirst, numeric?: bool, ignorePunctuation?: bool} $options): array<uint>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "strings",
+              "type": "array<string>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "locale",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "{strength?: Strength, caseFirst?: CaseFirst, numeric?: bool, ignorePunctuation?: bool}",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<uint>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Sorts strings by the rules of a locale. Returns the indexes of the strings in sorted order. Equal strings keep their order."
+          },
+          "slug": "collateorder",
+          "url": "/reference/core/novis-intl-icu/collateorder/",
+          "examples": "core/Novis-Intl-Icu/collateOrder"
+        },
+        {
+          "id": "Novis.Intl.Icu.sortKeys",
+          "name": "sortKeys",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "sortKeys(array<string> $strings, string $locale, {strength?: Strength, caseFirst?: CaseFirst, numeric?: bool, ignorePunctuation?: bool} $options): array<bytes>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "strings",
+              "type": "array<string>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "locale",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "{strength?: Strength, caseFirst?: CaseFirst, numeric?: bool, ignorePunctuation?: bool}",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<bytes>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Returns one sort key for each string. Two keys compare byte by byte in the same order as their strings sort in the locale."
+          },
+          "slug": "sortkeys",
+          "url": "/reference/core/novis-intl-icu/sortkeys/",
+          "examples": "core/Novis-Intl-Icu/sortKeys"
+        },
+        {
+          "id": "Novis.Intl.Icu.formatNumbers",
+          "name": "formatNumbers",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "formatNumbers(array<string> $numbers, string $locale, {style: NumberStyle, minFractionDigits: ?uint, maxFractionDigits: ?uint, grouping: ?bool, currency: ?string, currencyDisplay: ?CurrencyDisplay, compactDisplay: ?CompactDisplay} $options): array<string>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "numbers",
+              "type": "array<string>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "locale",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "{style: NumberStyle, minFractionDigits: ?uint, maxFractionDigits: ?uint, grouping: ?bool, currency: ?string, currencyDisplay: ?CurrencyDisplay, compactDisplay: ?CompactDisplay}",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<string>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Formats numbers, each given as its decimal text, in the style and locale you give."
+          },
+          "slug": "formatnumbers",
+          "url": "/reference/core/novis-intl-icu/formatnumbers/",
+          "examples": "core/Novis-Intl-Icu/formatNumbers"
+        },
+        {
+          "id": "Novis.Intl.Icu.pluralCategories",
+          "name": "pluralCategories",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "pluralCategories(array<string> $numbers, string $locale, PluralKind $kind): array<PluralCategory>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "numbers",
+              "type": "array<string>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "locale",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "kind",
+              "type": "PluralKind",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<PluralCategory>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Returns the plural category of each number, each given as its decimal text, in the locale."
+          },
+          "slug": "pluralcategories",
+          "url": "/reference/core/novis-intl-icu/pluralcategories/",
+          "examples": "core/Novis-Intl-Icu/pluralCategories"
+        },
+        {
+          "id": "Novis.Intl.Icu.formatDateTimes",
+          "name": "formatDateTimes",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "formatDateTimes(array<{year: int, month: int, day: int, hour: int, minute: int, second: int, nanos: int, offsetSeconds: int, zone: string}> $values, string $locale, {length?: Length, seconds?: bool, zone?: ZoneStyle} $options): array<string>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "values",
+              "type": "array<{year: int, month: int, day: int, hour: int, minute: int, second: int, nanos: int, offsetSeconds: int, zone: string}>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "locale",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "{length?: Length, seconds?: bool, zone?: ZoneStyle}",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<string>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Formats dates with times of day, each given as its local fields, its UTC offset and its time zone, in the locale."
+          },
+          "slug": "formatdatetimes",
+          "url": "/reference/core/novis-intl-icu/formatdatetimes/",
+          "examples": "core/Novis-Intl-Icu/formatDateTimes"
+        },
+        {
+          "id": "Novis.Intl.Icu.formatDates",
+          "name": "formatDates",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "formatDates(array<Core\\Time\\Date> $values, string $locale, Length $length): array<string>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "values",
+              "type": "array<Core\\Time\\Date>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "locale",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "length",
+              "type": "Length",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<string>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Formats calendar dates in the locale."
+          },
+          "slug": "formatdates",
+          "url": "/reference/core/novis-intl-icu/formatdates/",
+          "examples": "core/Novis-Intl-Icu/formatDates"
+        },
+        {
+          "id": "Novis.Intl.Icu.formatTimes",
+          "name": "formatTimes",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "formatTimes(array<Core\\Time\\TimeOfDay> $values, string $locale, {seconds?: bool} $options): array<string>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "values",
+              "type": "array<Core\\Time\\TimeOfDay>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "locale",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "{seconds?: bool}",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<string>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Formats times of day in the locale."
+          },
+          "slug": "formattimes",
+          "url": "/reference/core/novis-intl-icu/formattimes/",
+          "examples": "core/Novis-Intl-Icu/formatTimes"
+        },
+        {
+          "id": "Novis.Intl.Icu.formatRelative",
+          "name": "formatRelative",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "formatRelative(array<{count: int, unit: TimeUnit}> $items, string $locale, {width?: Width, numeric?: Numeric} $options): array<string>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "items",
+              "type": "array<{count: int, unit: TimeUnit}>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "locale",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "{width?: Width, numeric?: Numeric}",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<string>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Formats amounts of time before or after now, such as &quot;in 3 days&quot;. A negative count is in the past."
+          },
+          "slug": "formatrelative",
+          "url": "/reference/core/novis-intl-icu/formatrelative/",
+          "examples": "core/Novis-Intl-Icu/formatRelative"
+        },
+        {
+          "id": "Novis.Intl.Icu.formatLists",
+          "name": "formatLists",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "formatLists(array<array<string>> $lists, string $locale, {type?: ListType, width?: Width} $options): array<string>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "lists",
+              "type": "array<array<string>>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "locale",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "{type?: ListType, width?: Width}",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<string>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Joins the items of each list with the words of the locale, such as &quot;a, b and c&quot;."
+          },
+          "slug": "formatlists",
+          "url": "/reference/core/novis-intl-icu/formatlists/",
+          "examples": "core/Novis-Intl-Icu/formatLists"
+        },
+        {
+          "id": "Novis.Intl.Icu.wordSegments",
+          "name": "wordSegments",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "wordSegments(array<string> $strings, string $locale): array<array<{text: string, wordLike: bool}>>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "strings",
+              "type": "array<string>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "locale",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<array<{text: string, wordLike: bool}>>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Splits each string into words, spaces and punctuation. Joined again, the parts of a string are the string."
+          },
+          "slug": "wordsegments",
+          "url": "/reference/core/novis-intl-icu/wordsegments/",
+          "examples": "core/Novis-Intl-Icu/wordSegments"
+        },
+        {
+          "id": "Novis.Intl.Icu.sentenceSegments",
+          "name": "sentenceSegments",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "sentenceSegments(array<string> $strings, string $locale): array<array<string>>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "strings",
+              "type": "array<string>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "locale",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<array<string>>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Splits each string into sentences. Joined again, the sentences of a string are the string."
+          },
+          "slug": "sentencesegments",
+          "url": "/reference/core/novis-intl-icu/sentencesegments/",
+          "examples": "core/Novis-Intl-Icu/sentenceSegments"
+        },
+        {
+          "id": "Novis.Intl.Icu.resolveLocales",
+          "name": "resolveLocales",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "resolveLocales(array<string> $tags, Service $service): array<string>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "tags",
+              "type": "array<string>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "service",
+              "type": "Service",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<string>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Returns, for each locale tag, the locale whose data is used for the service. <code>und</code> means only the general rules are used."
+          },
+          "slug": "resolvelocales",
+          "url": "/reference/core/novis-intl-icu/resolvelocales/",
+          "examples": "core/Novis-Intl-Icu/resolveLocales"
+        },
+        {
+          "id": "Novis.Intl.Icu.negotiate",
+          "name": "negotiate",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "negotiate(string $acceptLanguage, array<string> $offered, string $default): string",
+          "params": [
+            {
+              "kind": "param",
+              "name": "acceptLanguage",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "offered",
+              "type": "array<string>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "default",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "string",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Returns the best of the offered locales for an <code>Accept-Language</code> header value. If no offered locale matches, it returns the default."
+          },
+          "slug": "negotiate",
+          "url": "/reference/core/novis-intl-icu/negotiate/",
+          "examples": "core/Novis-Intl-Icu/negotiate"
+        }
+      ],
+      "unparsed": [],
+      "implemented": true,
+      "slug": "novis-intl-icu",
+      "url": "/reference/core/novis-intl-icu/",
+      "summaryHtml": "<p>The functions that sort, format and split text by the rules of a language and region. The other classes in <code>Novis\\Intl</code> call them for you, so most programs use those classes instead.</p>",
+      "surfaceHtml": ""
+    },
+    {
+      "id": "Novis.Intl.ListFormat",
+      "name": "Novis\\Intl\\ListFormat",
+      "section": "",
+      "summary": "Joins the items of a list with the words a language uses, such as \"Shop, Blog, and Wiki\". The\nmethod takes many lists and a locale tag, such as `\"de\"`, and joins them all in one call.",
+      "surface": "",
+      "adrs": [],
+      "enums": [],
+      "constants": [],
+      "members": [
+        {
+          "id": "Novis.Intl.ListFormat.join",
+          "name": "join",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "join(array<array<string>> $lists, string $locale, ?{type?: ListType, width?: Width} $options = null): array<string>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "lists",
+              "type": "array<array<string>>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "locale",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "?{type?: ListType, width?: Width}",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<string>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>ListFormat::join</code> returns each list as one string, joined with &quot;and&quot; by default.\n<code>ListType::Or</code> joins with &quot;or&quot;. An empty list gives <code>&quot;&quot;</code>."
+          },
+          "slug": "join",
+          "url": "/reference/core/novis-intl-listformat/join/",
+          "examples": "core/Novis-Intl-ListFormat/join"
+        }
+      ],
+      "unparsed": [],
+      "implemented": true,
+      "slug": "novis-intl-listformat",
+      "url": "/reference/core/novis-intl-listformat/",
+      "summaryHtml": "<p>Joins the items of a list with the words a language uses, such as &quot;Shop, Blog, and Wiki&quot;. The method takes many lists and a locale tag, such as <code>&quot;de&quot;</code>, and joins them all in one call.</p>",
+      "surfaceHtml": ""
+    },
+    {
+      "id": "Novis.Intl.Locale",
+      "name": "Novis\\Intl\\Locale",
+      "section": "",
+      "summary": "Chooses a language for a request, and shows which language data a locale tag uses.",
+      "surface": "",
+      "adrs": [],
+      "enums": [],
+      "constants": [],
+      "members": [
+        {
+          "id": "Novis.Intl.Locale.negotiate",
+          "name": "negotiate",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "negotiate(string $acceptLanguage, array<string> $offered, string $default): string",
+          "params": [
+            {
+              "kind": "param",
+              "name": "acceptLanguage",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "offered",
+              "type": "array<string>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "default",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "string",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>Locale::negotiate</code> returns the best of <code>$offered</code> for an <code>Accept-Language</code> value. <code>&quot;de-AT&quot;</code>\nmatches <code>&quot;de&quot;</code>. An empty, malformed or unmatched value gives <code>$default</code> and does not throw."
+          },
+          "slug": "negotiate",
+          "url": "/reference/core/novis-intl-locale/negotiate/",
+          "examples": "core/Novis-Intl-Locale/negotiate"
+        },
+        {
+          "id": "Novis.Intl.Locale.resolve",
+          "name": "resolve",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "resolve(array<string> $tags, Service $service): array<string>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "tags",
+              "type": "array<string>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "service",
+              "type": "Service",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<string>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>Locale::resolve</code> returns, for each tag, the locale whose data is used for <code>$service</code>.\nFor <code>&quot;de-AT&quot;</code> with <code>Service::Lists</code> the result is <code>&quot;de&quot;</code>. <code>&quot;und&quot;</code> means only the general rules are used."
+          },
+          "slug": "resolve",
+          "url": "/reference/core/novis-intl-locale/resolve/",
+          "examples": "core/Novis-Intl-Locale/resolve"
+        }
+      ],
+      "unparsed": [],
+      "implemented": true,
+      "slug": "novis-intl-locale",
+      "url": "/reference/core/novis-intl-locale/",
+      "summaryHtml": "<p>Chooses a language for a request, and shows which language data a locale tag uses.</p>",
+      "surfaceHtml": ""
+    },
+    {
+      "id": "Novis.Intl.NumberFormat",
+      "name": "Novis\\Intl\\NumberFormat",
+      "section": "",
+      "summary": "Writes numbers the way a language and region write them. Each method takes a whole list and\na locale tag, such as `\"de\"` or `\"en-IN\"`, and formats the whole list in one call.",
+      "surface": "",
+      "adrs": [],
+      "enums": [],
+      "constants": [],
+      "members": [
+        {
+          "id": "Novis.Intl.NumberFormat.decimal",
+          "name": "decimal",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "decimal(array<int|float|decimal> $numbers, string $locale, ?DigitOptions $options = null): array<string>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "numbers",
+              "type": "array<int|float|decimal>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "locale",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "?DigitOptions",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<string>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>NumberFormat::decimal</code> returns each number with the locale's separators, and by default up\nto 3 fraction digits. A float that is not finite throws a <code>RuntimeError</code>."
+          },
+          "slug": "decimal",
+          "url": "/reference/core/novis-intl-numberformat/decimal/",
+          "examples": "core/Novis-Intl-NumberFormat/decimal"
+        },
+        {
+          "id": "Novis.Intl.NumberFormat.percent",
+          "name": "percent",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "percent(array<int|float|decimal> $numbers, string $locale, ?DigitOptions $options = null): array<string>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "numbers",
+              "type": "array<int|float|decimal>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "locale",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "?DigitOptions",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<string>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>NumberFormat::percent</code> returns each number as a percentage. The number <code>0.25</code> is\n25 percent. By default it shows no fraction digits."
+          },
+          "slug": "percent",
+          "url": "/reference/core/novis-intl-numberformat/percent/",
+          "examples": "core/Novis-Intl-NumberFormat/percent"
+        },
+        {
+          "id": "Novis.Intl.NumberFormat.currency",
+          "name": "currency",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "currency(array<int|float|decimal> $amounts, string $currency, string $locale, ?{display?: CurrencyDisplay} $options = null): array<string>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "amounts",
+              "type": "array<int|float|decimal>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "currency",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "locale",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "?{display?: CurrencyDisplay}",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<string>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>NumberFormat::currency</code> returns each amount as money in <code>$currency</code>, a three-letter code\nsuch as <code>&quot;EUR&quot;</code>. The amount is rounded to the digits the currency uses, such as 2 for euros."
+          },
+          "slug": "currency",
+          "url": "/reference/core/novis-intl-numberformat/currency/",
+          "examples": "core/Novis-Intl-NumberFormat/currency"
+        },
+        {
+          "id": "Novis.Intl.NumberFormat.compact",
+          "name": "compact",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "compact(array<int|float|decimal> $numbers, string $locale, ?{display?: CompactDisplay} $options = null): array<string>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "numbers",
+              "type": "array<int|float|decimal>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "locale",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "?{display?: CompactDisplay}",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<string>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>NumberFormat::compact</code> returns each number in a short form, such as &quot;1.2K&quot; or\n&quot;1.2 thousand&quot; in English."
+          },
+          "slug": "compact",
+          "url": "/reference/core/novis-intl-numberformat/compact/",
+          "examples": "core/Novis-Intl-NumberFormat/compact"
+        }
+      ],
+      "unparsed": [],
+      "implemented": true,
+      "slug": "novis-intl-numberformat",
+      "url": "/reference/core/novis-intl-numberformat/",
+      "summaryHtml": "<p>Writes numbers the way a language and region write them. Each method takes a whole list and a locale tag, such as <code>&quot;de&quot;</code> or <code>&quot;en-IN&quot;</code>, and formats the whole list in one call.</p>",
+      "surfaceHtml": ""
+    },
+    {
+      "id": "Novis.Intl.PluralRules",
+      "name": "Novis\\Intl\\PluralRules",
+      "section": "",
+      "summary": "Gives the plural category of numbers in a language. You use the category to choose the right\nform of a word, such as \"1 file\" or \"2 files\". Each method takes a whole list and a locale tag.",
+      "surface": "",
+      "adrs": [],
+      "enums": [],
+      "constants": [],
+      "members": [
+        {
+          "id": "Novis.Intl.PluralRules.cardinal",
+          "name": "cardinal",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "cardinal(array<int|float|decimal> $numbers, string $locale): array<Core\\Cldr\\PluralCategory>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "numbers",
+              "type": "array<int|float|decimal>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "locale",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<Core\\Cldr\\PluralCategory>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>PluralRules::cardinal</code> returns the category for counting, as in &quot;3 files&quot;. The digits a\nnumber shows count: in English, <code>1</code> is <code>One</code> and <code>1.0</code> is <code>Other</code>."
+          },
+          "slug": "cardinal",
+          "url": "/reference/core/novis-intl-pluralrules/cardinal/",
+          "examples": "core/Novis-Intl-PluralRules/cardinal"
+        },
+        {
+          "id": "Novis.Intl.PluralRules.ordinal",
+          "name": "ordinal",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "ordinal(array<int|float|decimal> $numbers, string $locale): array<Core\\Cldr\\PluralCategory>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "numbers",
+              "type": "array<int|float|decimal>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "locale",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<Core\\Cldr\\PluralCategory>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>PluralRules::ordinal</code> returns the category for a place, as in &quot;3rd&quot;. In English, <code>1</code> is\n<code>One</code>, <code>2</code> is <code>Two</code>, <code>3</code> is <code>Few</code> and <code>4</code> is <code>Other</code>."
+          },
+          "slug": "ordinal",
+          "url": "/reference/core/novis-intl-pluralrules/ordinal/",
+          "examples": "core/Novis-Intl-PluralRules/ordinal"
+        }
+      ],
+      "unparsed": [],
+      "implemented": true,
+      "slug": "novis-intl-pluralrules",
+      "url": "/reference/core/novis-intl-pluralrules/",
+      "summaryHtml": "<p>Gives the plural category of numbers in a language. You use the category to choose the right form of a word, such as &quot;1 file&quot; or &quot;2 files&quot;. Each method takes a whole list and a locale tag.</p>",
+      "surfaceHtml": ""
+    },
+    {
+      "id": "Novis.Intl.RelativeTime",
+      "name": "Novis\\Intl\\RelativeTime",
+      "section": "",
+      "summary": "Writes an amount of time before or after now, such as \"3 days ago\", the way a language writes\nit. The method takes a whole list and a locale tag, such as `\"de\"`, and formats it in one call.",
+      "surface": "",
+      "adrs": [],
+      "enums": [],
+      "constants": [],
+      "members": [
+        {
+          "id": "Novis.Intl.RelativeTime.format",
+          "name": "format",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "format(array<{count: int, unit: TimeUnit}> $items, string $locale, ?{width?: Width, numeric?: Numeric} $options = null): array<string>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "items",
+              "type": "array<{count: int, unit: TimeUnit}>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "locale",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "options",
+              "type": "?{width?: Width, numeric?: Numeric}",
+              "default": "null",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<string>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>RelativeTime::format</code> returns each item as text. A negative <code>count</code> is in the past.\n<code>Numeric::Auto</code> writes words such as &quot;yesterday&quot;, and <code>Width::Short</code> writes &quot;in 2 hr.&quot;."
+          },
+          "slug": "format",
+          "url": "/reference/core/novis-intl-relativetime/format/",
+          "examples": "core/Novis-Intl-RelativeTime/format"
+        }
+      ],
+      "unparsed": [],
+      "implemented": true,
+      "slug": "novis-intl-relativetime",
+      "url": "/reference/core/novis-intl-relativetime/",
+      "summaryHtml": "<p>Writes an amount of time before or after now, such as &quot;3 days ago&quot;, the way a language writes it. The method takes a whole list and a locale tag, such as <code>&quot;de&quot;</code>, and formats it in one call.</p>",
+      "surfaceHtml": ""
+    },
+    {
+      "id": "Novis.Intl.Segmenter",
+      "name": "Novis\\Intl\\Segmenter",
+      "section": "",
+      "summary": "Splits text into words or sentences, the way a language does. The methods take many strings\nand a locale tag, such as `\"ja\"`, and split them all in one call.",
+      "surface": "",
+      "adrs": [],
+      "enums": [],
+      "constants": [],
+      "members": [
+        {
+          "id": "Novis.Intl.Segmenter.words",
+          "name": "words",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "words(array<string> $strings, string $locale): array<array<{text: string, wordLike: bool}>>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "strings",
+              "type": "array<string>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "locale",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<array<{text: string, wordLike: bool}>>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>Segmenter::words</code> returns each string as a list of parts. <code>wordLike</code> is <code>true</code> for a word\nor a number, and <code>false</code> for spaces and punctuation. All parts joined give the string."
+          },
+          "slug": "words",
+          "url": "/reference/core/novis-intl-segmenter/words/",
+          "examples": "core/Novis-Intl-Segmenter/words"
+        },
+        {
+          "id": "Novis.Intl.Segmenter.sentences",
+          "name": "sentences",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "sentences(array<string> $strings, string $locale): array<array<string>>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "strings",
+              "type": "array<string>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "locale",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<array<string>>",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "<code>Segmenter::sentences</code> returns each string as a list of sentences. A sentence keeps the\nspaces after it. An empty string gives an empty list."
+          },
+          "slug": "sentences",
+          "url": "/reference/core/novis-intl-segmenter/sentences/",
+          "examples": "core/Novis-Intl-Segmenter/sentences"
+        }
+      ],
+      "unparsed": [],
+      "implemented": true,
+      "slug": "novis-intl-segmenter",
+      "url": "/reference/core/novis-intl-segmenter/",
+      "summaryHtml": "<p>Splits text into words or sentences, the way a language does. The methods take many strings and a locale tag, such as <code>&quot;ja&quot;</code>, and split them all in one call.</p>",
       "surfaceHtml": ""
     },
     {
