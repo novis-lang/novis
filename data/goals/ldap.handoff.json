@@ -1,32 +1,32 @@
 {
-  "state": "**Goal `ldap`, Stage 6 (typed values) in progress: item 1 of 3 done.** Stages 1 to 5 are done, and Stage 4 is done except for a CA that a program supplies. `nvs-config` reads `[ldap.<name>]` and `[capabilities.ldap]`. `crates/nvs-stdlib/src/ldap/mod.rs` opens connections and runs `who_am_i`, `search` and `read`.\n\n**On `main`**: `Ldap\\Connection::whoami`/`search`/`read`, `Ldap\\Entries`, `Ldap\\Entry`, `Ldap\\Scope`, `Ldap\\Settings`, `Ldap\\Filter`, `Ldap\\Dn`, `Ldap\\Ad`, and now `Ldap\\Sid` (`parse`, `toString`, `bytes`, `domain(): ?Sid`, `rid`) and `Entry`'s typed readers `uuid`, `sid`, `sids`, `instant`, `duration`. The decoders are `crates/nvs-ldap/src/value.rs`, so Rust tests reach them with no server. The Novis bodies are `crates/nvs-stdlib/src/ldap/sid.rs` and `crates/nvs-stdlib/src/ldap/value.rs`. `instant` picks FILETIME or GeneralizedTime by the value's form, not yet by the schema (item 3). `Entry::int` and `Entry::bool` are not written yet.\n\nServer cases reach `samba-ad` (`tests/db/compose.yaml`) at `ldaps://localhost:16636`, or over cleartext at `ldap://127.0.0.1:16389`. `CN=Users` holds exactly three users: `Administrator`, `Guest` and `krbtgt`. Guest and krbtgt are disabled. GUIDs, SIDs and times change each time the container is made, so a case asserts their shape (RID 500, version 4, the domain's SID), never the value. Samba's defaults are stable: `maxPwdAge` is `6w`, `lockoutDuration` is `30m`.",
+  "state": "**Goal `ldap`, Stage 6 (typed values) in progress: the flag readers are done, and `with`, the ranged merge, the schema and `int`/`bool` are open.** Stages 1 to 5 are done, and Stage 4 is done except for a CA that a program supplies. `nvs-config` reads `[ldap.<name>]` and `[capabilities.ldap]`. `crates/nvs-stdlib/src/ldap/mod.rs` opens connections and runs `who_am_i`, `search` and `read`.\n\n**On `main`**: `Ldap\\Connection::whoami`/`search`/`read`, `Ldap\\Entries`, `Ldap\\Entry`, `Ldap\\Scope`, `Ldap\\Settings`, `Ldap\\Filter`, `Ldap\\Dn`, `Ldap\\Ad`, `Ldap\\Sid`, and `Entry`'s typed readers `uuid`, `sid`, `sids`, `instant`, `duration`, `accountFlags`, `groupType`, `accountType`. `Ad\\AccountFlags` and `Ad\\GroupType` have one `bool` reader per flag and `bits()`; `Ad\\AccountType` is an enum. The flag tables are `crates/nvs-ldap/src/value.rs` (`ACCOUNT_FLAGS`, `GROUP_TYPE_FLAGS`), the bodies `crates/nvs-stdlib/src/ldap/flags.rs`. The readers are methods, not properties, because a `Core` instance has no property (`flags.rs`' module doc). `search` and `read` add `msDS-User-Account-Control-Computed` when `userAccountControl` is selected. `with({...})` and `mustChangePassword` are not written yet. `instant` picks FILETIME or GeneralizedTime by the value's form, not yet by the schema. `Entry::int` and `Entry::bool` are not written yet.\n\nServer cases reach `samba-ad` (`tests/db/compose.yaml`) at `ldaps://localhost:16636`. `CN=Users` holds exactly three users: `Administrator` (`userAccountControl` 512), `Guest` (66082) and `krbtgt`. Guest and krbtgt are disabled. `Domain Admins` is `groupType` -2147483646 and `CN=Administrators,CN=Builtin` is -2147483643. GUIDs, SIDs and times change each time the container is made, so a case asserts their shape, never the value.",
   "next": {
     "stage": 6,
     "title": "typed values",
     "files": [
       "crates/nvs-stdlib/src/ldap/registry.rs",
+      "crates/nvs-stdlib/src/ldap/flags.rs",
       "crates/nvs-stdlib/src/ldap/value.rs",
-      "crates/nvs-ldap/src/value.rs",
       "crates/nvs-stdlib/tests/ldap.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**`Ad\\AccountFlags` and `Ad\\GroupType`, readonly objects with one `bool` per flag, keeping unnamed bits, and `Entry::accountFlags`/`groupType`/`accountType`** (`rule:core-classes/ldap-value-types`, ADR 0278 §§ 1 and 8). Classes beside `AD` (`crates/nvs-stdlib/src/ldap/registry.rs:1414`), readers beside `nvs_core_ldap_entry_duration` (`crates/nvs-stdlib/src/ldap/value.rs:149`). Rust test `account_flags_keep_the_bits_they_do_not_name` after `crates/nvs-stdlib/tests/ldap.rs:771`; case `tests/conformance/core/ldap-account-flags.nvst`. Guest and krbtgt are disabled, so `disabled` is a flag a case can assert."
+        "text": "**`with({...})` on `Ad\\AccountFlags` and `Ad\\GroupType`, and `AccountFlags::mustChangePassword`** (`rule:core-classes/ldap-value-types`, ADR 0278 §§ 1 and 8). `with` takes one `?bool` option per settable flag (not `lockedOut` or `passwordExpired`), sets or clears only those bits, and keeps every other bit. No `Core` options bag has a `?bool` option with a `null` default yet, so check `CoreOption` first. Readers are `crates/nvs-stdlib/src/ldap/flags.rs:58`, rows after `crates/nvs-stdlib/src/ldap/registry.rs:1580`. `mustChangePassword` needs `pwdLastSet = 0`, so `search` would also request `pwdLastSet` beside the computed attribute (`crates/nvs-stdlib/src/ldap/search.rs:104`)."
       },
       {
         "done": false,
-        "text": "**Ranged attribute merge and the schema read once per pool** (`rule:core-classes/ldap-value-types`, ADR 0278 § 8). The search loop is `nvs_core_ldap_entries_advance` (`crates/nvs-stdlib/src/ldap/search.rs:370`), and an entry is built by `entry_value` (`crates/nvs-stdlib/src/ldap/search.rs:108`). Rust tests `a_ranged_member_list_is_merged_to_its_end` and `the_schema_is_read_once_per_pool`."
+        "text": "**Ranged attribute merge and the schema read once per pool** (`rule:core-classes/ldap-value-types`, ADR 0278 § 8). The search loop is `nvs_core_ldap_entries_advance` in `crates/nvs-stdlib/src/ldap/search.rs:1`; tests `a_ranged_member_list_is_merged_to_its_end` and `the_schema_is_read_once_per_pool` after `crates/nvs-stdlib/tests/ldap.rs:826`."
       },
       {
         "done": false,
-        "text": "**`Entry::int` and `Entry::bool`** (ADR 0278 § 1's roster, `TRUE`/`FALSE` in § 8's table). Readers beside the others in `crates/nvs-stdlib/src/ldap/value.rs:149`."
+        "text": "**`Entry::int` and `Entry::bool`** (ADR 0278 § 1's roster, `TRUE`/`FALSE` in § 8's table). Readers beside the others in `crates/nvs-stdlib/src/ldap/value.rs:160`."
       }
     ]
   },
   "backlog": [
-    "A CA a program supplies for `Ldap::open` (Stage 4 remainder, ADR 0278 § 2).",
-    "Stages 7 to 10: writes and passwords, `authenticate`, the AD extras, the feature proofs (`data/goals/ldap.json` checks).",
-    "`instant` and the other typed readers choose by the value's form. Once item 2 reads the schema, a reader may check the attribute's syntax too (`rule:core-classes/ldap-value-types`)."
+    "The rule fragment `docs/rules/core-classes/ldap-value-types` says \"one `bool` per flag\"; ADR 0278 § 8 writes `AccountFlags::$mustChangePassword` as a property. Readers are methods; say so in the fragment when `with` lands.",
+    "Stage 7 writes: a flag object is written back with `bits()`, so `modify` encodes it as that integer (ADR 0278 § 8).",
+    "The flag classes' feature proofs (`bun nv proofs --id 'Core\\Ldap\\Ad\\AccountFlags'`) are Stage 10's."
   ]
 }

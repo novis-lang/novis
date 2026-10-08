@@ -1,4 +1,4 @@
-//! `Ldap\Entry`'s typed readers: a GUID as a `Core\Uuid`, a SID as an `Ldap\Sid`, a FILETIME or a GeneralizedTime as an `Instant`, and an interval as a `Duration`
+//! `Ldap\Entry`'s typed readers: a GUID as a `Core\Uuid`, a SID as an `Ldap\Sid`, a FILETIME or a GeneralizedTime as an `Instant`, an interval as a `Duration`, and AD's flag fields and account type
 //!
 //! ADR 0278 § 8, `rule:core-classes/ldap-value-types`. Each reader finds the
 //! attribute's list as `string` does ([`super::search::values_named`]), reads
@@ -15,9 +15,10 @@ use std::time::{Duration, SystemTime};
 
 use nvs_runtime::{Fault, NvsArray, ThrownClass, Value};
 
-use super::ENTRY_NAME;
-use super::search::{only_value, values_named};
+use super::flags::{account_flags_value, group_type_value};
+use super::search::{only_value, values_named, values_of};
 use super::sid::sid_value;
+use super::{ACCOUNT_TYPE, ENTRY_NAME};
 
 /// The error for a value of `name` that is not in the form `member` reads.
 fn not_the_form(member: &str, name: &str, error: impl std::fmt::Display) -> Fault {
@@ -157,6 +158,65 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+/// The integer the one value of `name` is, read by `read`, or `None` when the
+/// entry has no value for it. For a reader with a fixed attribute.
+fn fixed_value<T>(
+    entry: Value,
+    name: &str,
+    member: &str,
+    read: impl Fn(&[u8]) -> Result<T, nvs_ldap::value::ValueError>,
+) -> Result<Option<T>, Fault> {
+    let Some(values) = values_of(entry, name, member)? else {
+        return Ok(None);
+    };
+    let value = only_value(&values, member, name)?;
+    read(value.as_bytes().unwrap_or_default())
+        .map(Some)
+        .map_err(|error| not_the_form(member, name, error))
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$entry->accountFlags(): ?Ad\AccountFlags` — `userAccountControl`, with
+    /// the computed attribute where the entry carries it. See [`super::flags`].
+    fn nvs_core_ldap_entry_account_flags(_ctx, args: [1]) {
+        let member = "accountFlags";
+        let read = nvs_ldap::value::flag_field;
+        let Some(bits) = fixed_value(args[0], "userAccountControl", member, read)? else {
+            return Ok(Value::null());
+        };
+        let computed = nvs_ldap::value::COMPUTED_ACCOUNT_CONTROL;
+        let computed = fixed_value(args[0], computed, member, read)?;
+        Ok(account_flags_value(bits, computed))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$entry->groupType(): ?Ad\GroupType` — `groupType`, signed as AD
+    /// writes it.
+    fn nvs_core_ldap_entry_group_type(_ctx, args: [1]) {
+        let read = nvs_ldap::value::flag_field;
+        Ok(fixed_value(args[0], "groupType", "groupType", read)?
+            .map_or_else(Value::null, group_type_value))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$entry->accountType(): ?Ad\AccountType` — `sAMAccountType`, as the
+    /// [`ACCOUNT_TYPE`] case [`nvs_ldap::value::AccountType`] names.
+    fn nvs_core_ldap_entry_account_type(_ctx, args: [1]) {
+        let read = nvs_ldap::value::account_type;
+        let Some(kind) = fixed_value(args[0], "sAMAccountType", "accountType", read)? else {
+            return Ok(Value::null());
+        };
+        let (_, ordinal) = ACCOUNT_TYPE
+            .cases
+            .iter()
+            .find(|(name, _)| *name == kind.name())
+            .expect("every `nvs_ldap::value::AccountType` names a case `ACCOUNT_TYPE` registers");
+        Ok(Value::int(*ordinal))
+    }
+}
+
 /// The address of one of this module's symbols, or `None` for a symbol that
 /// belongs to another module. See [`crate::address`].
 pub(super) fn address(symbol: &str) -> Option<*const u8> {
@@ -166,6 +226,13 @@ pub(super) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_ldap_entry_sids" => (nvs_core_ldap_entry_sids as *const ()).cast(),
         "nvs_core_ldap_entry_instant" => (nvs_core_ldap_entry_instant as *const ()).cast(),
         "nvs_core_ldap_entry_duration" => (nvs_core_ldap_entry_duration as *const ()).cast(),
+        "nvs_core_ldap_entry_account_flags" => {
+            (nvs_core_ldap_entry_account_flags as *const ()).cast()
+        }
+        "nvs_core_ldap_entry_group_type" => (nvs_core_ldap_entry_group_type as *const ()).cast(),
+        "nvs_core_ldap_entry_account_type" => {
+            (nvs_core_ldap_entry_account_type as *const ()).cast()
+        }
         _ => return None,
     })
 }

@@ -823,3 +823,63 @@ fn generalized_time_reads_as_an_instant() {
     assert_eq!(read.offset, 0, "AD writes UTC");
     assert!(read.year >= 2020, "{read:?}");
 }
+
+#[test]
+fn account_flags_keep_the_bits_they_do_not_name() {
+    use nvs_ldap::value::{
+        ACCOUNT_FLAGS, AccountType, GROUP_TYPE_FLAGS, ValueError, account_type, flag_field,
+        has_flag, named_bits,
+    };
+
+    let flag = |flags: &[nvs_ldap::value::Flag], name: &str| {
+        flags
+            .iter()
+            .find(|flag| flag.name == name)
+            .map_or_else(|| panic!("no flag `{name}`"), |flag| flag.bit)
+    };
+    // `PASSWD_CANT_CHANGE` (`0x40`) and `0x8000000` are named by no reader,
+    // and a value read with them keeps them.
+    let unnamed = 0x40 | 0x800_0000;
+    assert_eq!(named_bits(ACCOUNT_FLAGS) & unnamed, 0);
+    let bits = flag_field(format!("{}", 0x202 | unnamed).as_bytes()).expect("a flag field");
+    assert_eq!(bits, i64::from(0x202 | unnamed), "every bit is kept");
+    assert!(has_flag(bits, flag(ACCOUNT_FLAGS, "disabled")));
+    assert!(has_flag(bits, flag(ACCOUNT_FLAGS, "normalAccount")));
+    assert!(!has_flag(bits, flag(ACCOUNT_FLAGS, "lockedOut")));
+
+    // A security group is negative, because AD writes `groupType` signed.
+    let group = flag_field(b"-2147483646").expect("a group type");
+    assert!(has_flag(group, flag(GROUP_TYPE_FLAGS, "security")));
+    assert!(has_flag(group, flag(GROUP_TYPE_FLAGS, "global")));
+    assert!(!has_flag(group, flag(GROUP_TYPE_FLAGS, "universal")));
+    assert_eq!(flag_field(b"4294967295"), Ok(i64::from(u32::MAX)));
+    for wrong in [&b"4294967296"[..], b"-2147483649", b"0x2", b""] {
+        assert_eq!(flag_field(wrong), Err(ValueError::NotAFlagField));
+    }
+
+    assert_eq!(account_type(b"805306368"), Ok(AccountType::User));
+    assert_eq!(account_type(b"268435456"), Ok(AccountType::Group));
+    assert_eq!(account_type(b"7"), Err(ValueError::NotAnAccountType));
+
+    let Some(ca) = samba() else { return };
+    let mut ctx = ctx_over(&corp(&ca));
+    let key = ldap::connect(&mut ctx, "corp").expect("the block opens");
+    let guest = "CN=Guest,CN=Users,DC=example,DC=test";
+    let guest = flag_field(&admin_value(&mut ctx, key, guest, "userAccountControl"))
+        .expect("Guest has flags");
+    assert!(
+        has_flag(guest, flag(ACCOUNT_FLAGS, "disabled")),
+        "Guest is disabled: {guest}"
+    );
+    let admin = flag_field(&admin_value(&mut ctx, key, ADMIN, "userAccountControl"))
+        .expect("the administrator has flags");
+    assert!(!has_flag(admin, flag(ACCOUNT_FLAGS, "disabled")), "{admin}");
+    assert!(
+        has_flag(admin, flag(ACCOUNT_FLAGS, "normalAccount")),
+        "{admin}"
+    );
+    assert_eq!(
+        account_type(&admin_value(&mut ctx, key, ADMIN, "sAMAccountType")),
+        Ok(AccountType::User)
+    );
+}

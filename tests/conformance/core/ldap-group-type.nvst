@@ -1,0 +1,61 @@
+--TEST--
+A group's `groupType` reads as an `Ad\GroupType` with one `bool` reader per flag and its signed `bits()`, its `sAMAccountType` as `Group` or `Alias`, and a group has no `accountFlags()` — `rule:core-classes/ldap-value-types`
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+array<string> $dns = ["CN=Domain Admins,CN=Users,DC=example,DC=test", "CN=Administrators,CN=Builtin,DC=example,DC=test"];
+foreach ($dns as string $dn) {
+    ?Core\Ldap\Entry $group = $corp->read($dn, {select: ["groupType", "sAMAccountType", "userAccountControl"]});
+    ?Core\Ldap\Ad\GroupType $type = $group?->groupType();
+    if ($group == null || $type == null) {
+        echo $dn, ": no group type", "\n";
+        continue;
+    }
+    var $kind = $group->accountType();
+    echo $dn, "\n";
+    echo "  bits ", $type->bits(), "\n";
+    echo "  account type ", $kind == Core\Ldap\Ad\AccountType::Group ? "Group" : ($kind == Core\Ldap\Ad\AccountType::Alias ? "Alias" : "other"), "\n";
+    echo "  account flags ", $group->accountFlags() == null ? "null" : "not null", "\n";
+    echo "  system ", $type->system() ? "yes" : "no", "\n";
+    echo "  global ", $type->global() ? "yes" : "no", "\n";
+    echo "  domainLocal ", $type->domainLocal() ? "yes" : "no", "\n";
+    echo "  universal ", $type->universal() ? "yes" : "no", "\n";
+    echo "  appBasic ", $type->appBasic() ? "yes" : "no", "\n";
+    echo "  appQuery ", $type->appQuery() ? "yes" : "no", "\n";
+    echo "  security ", $type->security() ? "yes" : "no", "\n";
+}
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+base = "DC=example,DC=test"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+CN=Domain Admins,CN=Users,DC=example,DC=test
+  bits -2147483646
+  account type Group
+  account flags null
+  system no
+  global yes
+  domainLocal no
+  universal no
+  appBasic no
+  appQuery no
+  security yes
+CN=Administrators,CN=Builtin,DC=example,DC=test
+  bits -2147483643
+  account type Alias
+  account flags null
+  system yes
+  global no
+  domainLocal yes
+  universal no
+  appBasic no
+  appQuery no
+  security yes

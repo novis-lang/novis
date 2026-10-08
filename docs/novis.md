@@ -219,6 +219,8 @@ Conventions the whole file uses:
 | [`Core\Ldap\Dn`](#core-core-ldap-dn) |  |
 | [`Core\Ldap\Sid`](#core-core-ldap-sid) |  |
 | [`Core\Ldap\Ad`](#core-core-ldap-ad) |  |
+| [`Core\Ldap\Ad\AccountFlags`](#core-core-ldap-ad-accountflags) |  |
+| [`Core\Ldap\Ad\GroupType`](#core-core-ldap-ad-grouptype) |  |
 | [`Core\Queue`](#core-core-queue) |  |
 | [`Core\Queue\Id`](#core-core-queue-id) |  |
 | [`Core\Queue\Stats`](#core-core-queue-stats) |  |
@@ -26206,7 +26208,7 @@ Returns the URLs of other servers that the server named for this search. Novis d
 <a id="core-core-ldap-entry"></a>
 ### `Core\Ldap\Entry`
 
-Keywords: dn, has, string, strings, bytes, uuid, sid, sids, instant, duration, toArray
+Keywords: dn, has, string, strings, bytes, uuid, sid, sids, instant, duration, accountFlags, groupType, accountType, toArray
 
 | Member | Signature |
 |---|---|
@@ -26220,6 +26222,9 @@ Keywords: dn, has, string, strings, bytes, uuid, sid, sids, instant, duration, t
 | [`Core\Ldap\Entry->sids`](#core-core-ldap-entry-sids) | `sids(string $name): ?array<Core\Ldap\Sid>` |
 | [`Core\Ldap\Entry->instant`](#core-core-ldap-entry-instant) | `instant(string $name): ?Core\Time\Instant` |
 | [`Core\Ldap\Entry->duration`](#core-core-ldap-entry-duration) | `duration(string $name): ?Core\Time\Duration` |
+| [`Core\Ldap\Entry->accountFlags`](#core-core-ldap-entry-accountflags) | `accountFlags(): ?Core\Ldap\Ad\AccountFlags` |
+| [`Core\Ldap\Entry->groupType`](#core-core-ldap-entry-grouptype) | `groupType(): ?Core\Ldap\Ad\GroupType` |
+| [`Core\Ldap\Entry->accountType`](#core-core-ldap-entry-accounttype) | `accountType(): ?Core\Ldap\Ad\AccountType` |
 | [`Core\Ldap\Entry->toArray`](#core-core-ldap-entry-toarray) | `toArray(): array<array<tainted bytes>>` |
 
 <a id="core-core-ldap-entry-dn"></a>
@@ -26385,6 +26390,45 @@ Returns a length of time, such as `maxPwdAge` or `lockoutDuration`, as a `Core\T
 **Returns** `?Core\Time\Duration` — The duration, or `null` when the entry has no value for the attribute. It is also `null` when the number is `-9223372036854775808`. Active Directory uses that number for "never".
 
 **Throws** `LogicError` — The attribute has more than one value, or its value is not zero or a negative number, or it is longer than a `Duration` can be. The message names the attribute.
+
+<a id="core-core-ldap-entry-accountflags"></a>
+#### `Core\Ldap\Entry->accountFlags`
+
+```nvs skip
+$entry->accountFlags(): ?Core\Ldap\Ad\AccountFlags
+```
+
+Returns the account's `userAccountControl` as a `Core\Ldap\Ad\AccountFlags`. Select `userAccountControl` in the search. The search then also returns `msDS-User-Account-Control-Computed`, which says if the account is locked out or its password has expired.
+
+**Returns** `?Core\Ldap\Ad\AccountFlags` — The flags, or `null` when the entry has no `userAccountControl`, such as a group.
+
+**Throws** `LogicError` — The attribute has more than one value, or its value is not in the form this function reads. The message names the attribute.
+
+<a id="core-core-ldap-entry-grouptype"></a>
+#### `Core\Ldap\Entry->groupType`
+
+```nvs skip
+$entry->groupType(): ?Core\Ldap\Ad\GroupType
+```
+
+Returns the group's `groupType` as a `Core\Ldap\Ad\GroupType`.
+
+**Returns** `?Core\Ldap\Ad\GroupType` — The group type, or `null` when the entry has no `groupType`, such as a user.
+
+**Throws** `LogicError` — The attribute has more than one value, or its value is not in the form this function reads. The message names the attribute.
+
+<a id="core-core-ldap-entry-accounttype"></a>
+#### `Core\Ldap\Entry->accountType`
+
+```nvs skip
+$entry->accountType(): ?Core\Ldap\Ad\AccountType
+```
+
+Returns the entry's `sAMAccountType` as a `Core\Ldap\Ad\AccountType`, such as `AccountType::User`.
+
+**Returns** `?Core\Ldap\Ad\AccountType` — The account type, or `null` when the entry has no `sAMAccountType`.
+
+**Throws** `LogicError` — The attribute has more than one value, or its value is not in the form this function reads. The message names the attribute.
 
 <a id="core-core-ldap-entry-toarray"></a>
 #### `Core\Ldap\Entry->toArray`
@@ -26926,6 +26970,382 @@ Matches the entries where a number attribute has at least one of these bits set.
 **Returns** `Core\Ldap\Filter` — A `Core\Ldap\Filter`.
 
 **Throws** `LogicError` — `$attribute` is not an attribute name.
+
+<a id="core-core-ldap-ad-accountflags"></a>
+### `Core\Ldap\Ad\AccountFlags`
+
+Keywords: script, disabled, homeDirectoryRequired, lockedOut, passwordNotRequired, reversibleEncryption, temporaryDuplicateAccount, normalAccount, interdomainTrustAccount, workstationTrustAccount, serverTrustAccount, passwordNeverExpires, mnsLogonAccount, smartcardRequired, trustedForDelegation, notDelegated, useDesKeyOnly, noPreauthRequired, passwordExpired, trustedToAuthForDelegation, partialSecretsAccount, bits
+
+| Member | Signature |
+|---|---|
+| [`Core\Ldap\Ad\AccountFlags->script`](#core-core-ldap-ad-accountflags-script) | `script(): bool` |
+| [`Core\Ldap\Ad\AccountFlags->disabled`](#core-core-ldap-ad-accountflags-disabled) | `disabled(): bool` |
+| [`Core\Ldap\Ad\AccountFlags->homeDirectoryRequired`](#core-core-ldap-ad-accountflags-homedirectoryrequired) | `homeDirectoryRequired(): bool` |
+| [`Core\Ldap\Ad\AccountFlags->lockedOut`](#core-core-ldap-ad-accountflags-lockedout) | `lockedOut(): bool` |
+| [`Core\Ldap\Ad\AccountFlags->passwordNotRequired`](#core-core-ldap-ad-accountflags-passwordnotrequired) | `passwordNotRequired(): bool` |
+| [`Core\Ldap\Ad\AccountFlags->reversibleEncryption`](#core-core-ldap-ad-accountflags-reversibleencryption) | `reversibleEncryption(): bool` |
+| [`Core\Ldap\Ad\AccountFlags->temporaryDuplicateAccount`](#core-core-ldap-ad-accountflags-temporaryduplicateaccount) | `temporaryDuplicateAccount(): bool` |
+| [`Core\Ldap\Ad\AccountFlags->normalAccount`](#core-core-ldap-ad-accountflags-normalaccount) | `normalAccount(): bool` |
+| [`Core\Ldap\Ad\AccountFlags->interdomainTrustAccount`](#core-core-ldap-ad-accountflags-interdomaintrustaccount) | `interdomainTrustAccount(): bool` |
+| [`Core\Ldap\Ad\AccountFlags->workstationTrustAccount`](#core-core-ldap-ad-accountflags-workstationtrustaccount) | `workstationTrustAccount(): bool` |
+| [`Core\Ldap\Ad\AccountFlags->serverTrustAccount`](#core-core-ldap-ad-accountflags-servertrustaccount) | `serverTrustAccount(): bool` |
+| [`Core\Ldap\Ad\AccountFlags->passwordNeverExpires`](#core-core-ldap-ad-accountflags-passwordneverexpires) | `passwordNeverExpires(): bool` |
+| [`Core\Ldap\Ad\AccountFlags->mnsLogonAccount`](#core-core-ldap-ad-accountflags-mnslogonaccount) | `mnsLogonAccount(): bool` |
+| [`Core\Ldap\Ad\AccountFlags->smartcardRequired`](#core-core-ldap-ad-accountflags-smartcardrequired) | `smartcardRequired(): bool` |
+| [`Core\Ldap\Ad\AccountFlags->trustedForDelegation`](#core-core-ldap-ad-accountflags-trustedfordelegation) | `trustedForDelegation(): bool` |
+| [`Core\Ldap\Ad\AccountFlags->notDelegated`](#core-core-ldap-ad-accountflags-notdelegated) | `notDelegated(): bool` |
+| [`Core\Ldap\Ad\AccountFlags->useDesKeyOnly`](#core-core-ldap-ad-accountflags-usedeskeyonly) | `useDesKeyOnly(): bool` |
+| [`Core\Ldap\Ad\AccountFlags->noPreauthRequired`](#core-core-ldap-ad-accountflags-nopreauthrequired) | `noPreauthRequired(): bool` |
+| [`Core\Ldap\Ad\AccountFlags->passwordExpired`](#core-core-ldap-ad-accountflags-passwordexpired) | `passwordExpired(): bool` |
+| [`Core\Ldap\Ad\AccountFlags->trustedToAuthForDelegation`](#core-core-ldap-ad-accountflags-trustedtoauthfordelegation) | `trustedToAuthForDelegation(): bool` |
+| [`Core\Ldap\Ad\AccountFlags->partialSecretsAccount`](#core-core-ldap-ad-accountflags-partialsecretsaccount) | `partialSecretsAccount(): bool` |
+| [`Core\Ldap\Ad\AccountFlags->bits`](#core-core-ldap-ad-accountflags-bits) | `bits(): int` |
+
+<a id="core-core-ldap-ad-accountflags-script"></a>
+#### `Core\Ldap\Ad\AccountFlags->script`
+
+```nvs skip
+$accountFlags->script(): bool
+```
+
+Checks the bit `0x1`: a logon script runs.
+
+**Returns** `bool` — `true` when the bit is set, and `false` when it is not.
+
+<a id="core-core-ldap-ad-accountflags-disabled"></a>
+#### `Core\Ldap\Ad\AccountFlags->disabled`
+
+```nvs skip
+$accountFlags->disabled(): bool
+```
+
+Checks the bit `0x2`: the account is disabled, so nobody can log in with it.
+
+**Returns** `bool` — `true` when the bit is set, and `false` when it is not.
+
+<a id="core-core-ldap-ad-accountflags-homedirectoryrequired"></a>
+#### `Core\Ldap\Ad\AccountFlags->homeDirectoryRequired`
+
+```nvs skip
+$accountFlags->homeDirectoryRequired(): bool
+```
+
+Checks the bit `0x8`: the account needs a home directory.
+
+**Returns** `bool` — `true` when the bit is set, and `false` when it is not.
+
+<a id="core-core-ldap-ad-accountflags-lockedout"></a>
+#### `Core\Ldap\Ad\AccountFlags->lockedOut`
+
+```nvs skip
+$accountFlags->lockedOut(): bool
+```
+
+Checks the bit `0x10`: the account is locked out after too many wrong passwords. Active Directory computes this bit. It is read from `msDS-User-Account-Control-Computed` when the entry has it.
+
+**Returns** `bool` — `true` when the bit is set, and `false` when it is not.
+
+<a id="core-core-ldap-ad-accountflags-passwordnotrequired"></a>
+#### `Core\Ldap\Ad\AccountFlags->passwordNotRequired`
+
+```nvs skip
+$accountFlags->passwordNotRequired(): bool
+```
+
+Checks the bit `0x20`: the account may have an empty password.
+
+**Returns** `bool` — `true` when the bit is set, and `false` when it is not.
+
+<a id="core-core-ldap-ad-accountflags-reversibleencryption"></a>
+#### `Core\Ldap\Ad\AccountFlags->reversibleEncryption`
+
+```nvs skip
+$accountFlags->reversibleEncryption(): bool
+```
+
+Checks the bit `0x80`: the password is stored with an encryption that can be reversed.
+
+**Returns** `bool` — `true` when the bit is set, and `false` when it is not.
+
+<a id="core-core-ldap-ad-accountflags-temporaryduplicateaccount"></a>
+#### `Core\Ldap\Ad\AccountFlags->temporaryDuplicateAccount`
+
+```nvs skip
+$accountFlags->temporaryDuplicateAccount(): bool
+```
+
+Checks the bit `0x100`: the account is a local account for a user from another domain.
+
+**Returns** `bool` — `true` when the bit is set, and `false` when it is not.
+
+<a id="core-core-ldap-ad-accountflags-normalaccount"></a>
+#### `Core\Ldap\Ad\AccountFlags->normalAccount`
+
+```nvs skip
+$accountFlags->normalAccount(): bool
+```
+
+Checks the bit `0x200`: the account is an ordinary user account.
+
+**Returns** `bool` — `true` when the bit is set, and `false` when it is not.
+
+<a id="core-core-ldap-ad-accountflags-interdomaintrustaccount"></a>
+#### `Core\Ldap\Ad\AccountFlags->interdomainTrustAccount`
+
+```nvs skip
+$accountFlags->interdomainTrustAccount(): bool
+```
+
+Checks the bit `0x800`: the account is a trust with another domain.
+
+**Returns** `bool` — `true` when the bit is set, and `false` when it is not.
+
+<a id="core-core-ldap-ad-accountflags-workstationtrustaccount"></a>
+#### `Core\Ldap\Ad\AccountFlags->workstationTrustAccount`
+
+```nvs skip
+$accountFlags->workstationTrustAccount(): bool
+```
+
+Checks the bit `0x1000`: the account is a computer that is a domain member.
+
+**Returns** `bool` — `true` when the bit is set, and `false` when it is not.
+
+<a id="core-core-ldap-ad-accountflags-servertrustaccount"></a>
+#### `Core\Ldap\Ad\AccountFlags->serverTrustAccount`
+
+```nvs skip
+$accountFlags->serverTrustAccount(): bool
+```
+
+Checks the bit `0x2000`: the account is a domain controller.
+
+**Returns** `bool` — `true` when the bit is set, and `false` when it is not.
+
+<a id="core-core-ldap-ad-accountflags-passwordneverexpires"></a>
+#### `Core\Ldap\Ad\AccountFlags->passwordNeverExpires`
+
+```nvs skip
+$accountFlags->passwordNeverExpires(): bool
+```
+
+Checks the bit `0x10000`: the password never expires.
+
+**Returns** `bool` — `true` when the bit is set, and `false` when it is not.
+
+<a id="core-core-ldap-ad-accountflags-mnslogonaccount"></a>
+#### `Core\Ldap\Ad\AccountFlags->mnsLogonAccount`
+
+```nvs skip
+$accountFlags->mnsLogonAccount(): bool
+```
+
+Checks the bit `0x20000`: the account is an MNS logon account.
+
+**Returns** `bool` — `true` when the bit is set, and `false` when it is not.
+
+<a id="core-core-ldap-ad-accountflags-smartcardrequired"></a>
+#### `Core\Ldap\Ad\AccountFlags->smartcardRequired`
+
+```nvs skip
+$accountFlags->smartcardRequired(): bool
+```
+
+Checks the bit `0x40000`: the user must log in with a smart card.
+
+**Returns** `bool` — `true` when the bit is set, and `false` when it is not.
+
+<a id="core-core-ldap-ad-accountflags-trustedfordelegation"></a>
+#### `Core\Ldap\Ad\AccountFlags->trustedForDelegation`
+
+```nvs skip
+$accountFlags->trustedForDelegation(): bool
+```
+
+Checks the bit `0x80000`: a service on this account may act for any user it receives.
+
+**Returns** `bool` — `true` when the bit is set, and `false` when it is not.
+
+<a id="core-core-ldap-ad-accountflags-notdelegated"></a>
+#### `Core\Ldap\Ad\AccountFlags->notDelegated`
+
+```nvs skip
+$accountFlags->notDelegated(): bool
+```
+
+Checks the bit `0x100000`: no service may act for this user, even a trusted one.
+
+**Returns** `bool` — `true` when the bit is set, and `false` when it is not.
+
+<a id="core-core-ldap-ad-accountflags-usedeskeyonly"></a>
+#### `Core\Ldap\Ad\AccountFlags->useDesKeyOnly`
+
+```nvs skip
+$accountFlags->useDesKeyOnly(): bool
+```
+
+Checks the bit `0x200000`: Kerberos uses only DES keys for this account.
+
+**Returns** `bool` — `true` when the bit is set, and `false` when it is not.
+
+<a id="core-core-ldap-ad-accountflags-nopreauthrequired"></a>
+#### `Core\Ldap\Ad\AccountFlags->noPreauthRequired`
+
+```nvs skip
+$accountFlags->noPreauthRequired(): bool
+```
+
+Checks the bit `0x400000`: Kerberos gives a ticket for this account without first checking the password.
+
+**Returns** `bool` — `true` when the bit is set, and `false` when it is not.
+
+<a id="core-core-ldap-ad-accountflags-passwordexpired"></a>
+#### `Core\Ldap\Ad\AccountFlags->passwordExpired`
+
+```nvs skip
+$accountFlags->passwordExpired(): bool
+```
+
+Checks the bit `0x800000`: the password has expired. Active Directory computes this bit. It is read from `msDS-User-Account-Control-Computed` when the entry has it.
+
+**Returns** `bool` — `true` when the bit is set, and `false` when it is not.
+
+<a id="core-core-ldap-ad-accountflags-trustedtoauthfordelegation"></a>
+#### `Core\Ldap\Ad\AccountFlags->trustedToAuthForDelegation`
+
+```nvs skip
+$accountFlags->trustedToAuthForDelegation(): bool
+```
+
+Checks the bit `0x1000000`: a service on this account may act for a user without that user's password.
+
+**Returns** `bool` — `true` when the bit is set, and `false` when it is not.
+
+<a id="core-core-ldap-ad-accountflags-partialsecretsaccount"></a>
+#### `Core\Ldap\Ad\AccountFlags->partialSecretsAccount`
+
+```nvs skip
+$accountFlags->partialSecretsAccount(): bool
+```
+
+Checks the bit `0x4000000`: the account is a read-only domain controller.
+
+**Returns** `bool` — `true` when the bit is set, and `false` when it is not.
+
+<a id="core-core-ldap-ad-accountflags-bits"></a>
+#### `Core\Ldap\Ad\AccountFlags->bits`
+
+```nvs skip
+$accountFlags->bits(): int
+```
+
+Returns `userAccountControl` as the number Active Directory stored, such as `512`.
+
+**Returns** `int` — The number, with every bit. It does not include the bits Active Directory computes.
+
+<a id="core-core-ldap-ad-grouptype"></a>
+### `Core\Ldap\Ad\GroupType`
+
+Keywords: system, global, domainLocal, universal, appBasic, appQuery, security, bits
+
+| Member | Signature |
+|---|---|
+| [`Core\Ldap\Ad\GroupType->system`](#core-core-ldap-ad-grouptype-system) | `system(): bool` |
+| [`Core\Ldap\Ad\GroupType->global`](#core-core-ldap-ad-grouptype-global) | `global(): bool` |
+| [`Core\Ldap\Ad\GroupType->domainLocal`](#core-core-ldap-ad-grouptype-domainlocal) | `domainLocal(): bool` |
+| [`Core\Ldap\Ad\GroupType->universal`](#core-core-ldap-ad-grouptype-universal) | `universal(): bool` |
+| [`Core\Ldap\Ad\GroupType->appBasic`](#core-core-ldap-ad-grouptype-appbasic) | `appBasic(): bool` |
+| [`Core\Ldap\Ad\GroupType->appQuery`](#core-core-ldap-ad-grouptype-appquery) | `appQuery(): bool` |
+| [`Core\Ldap\Ad\GroupType->security`](#core-core-ldap-ad-grouptype-security) | `security(): bool` |
+| [`Core\Ldap\Ad\GroupType->bits`](#core-core-ldap-ad-grouptype-bits) | `bits(): int` |
+
+<a id="core-core-ldap-ad-grouptype-system"></a>
+#### `Core\Ldap\Ad\GroupType->system`
+
+```nvs skip
+$groupType->system(): bool
+```
+
+Checks the bit `0x1`: the system created the group.
+
+**Returns** `bool` — `true` when the bit is set, and `false` when it is not.
+
+<a id="core-core-ldap-ad-grouptype-global"></a>
+#### `Core\Ldap\Ad\GroupType->global`
+
+```nvs skip
+$groupType->global(): bool
+```
+
+Checks the bit `0x2`: the group is global. Its members are from its own domain.
+
+**Returns** `bool` — `true` when the bit is set, and `false` when it is not.
+
+<a id="core-core-ldap-ad-grouptype-domainlocal"></a>
+#### `Core\Ldap\Ad\GroupType->domainLocal`
+
+```nvs skip
+$groupType->domainLocal(): bool
+```
+
+Checks the bit `0x4`: the group is domain local. It is used only in its own domain.
+
+**Returns** `bool` — `true` when the bit is set, and `false` when it is not.
+
+<a id="core-core-ldap-ad-grouptype-universal"></a>
+#### `Core\Ldap\Ad\GroupType->universal`
+
+```nvs skip
+$groupType->universal(): bool
+```
+
+Checks the bit `0x8`: the group is universal. It can have members from any domain.
+
+**Returns** `bool` — `true` when the bit is set, and `false` when it is not.
+
+<a id="core-core-ldap-ad-grouptype-appbasic"></a>
+#### `Core\Ldap\Ad\GroupType->appBasic`
+
+```nvs skip
+$groupType->appBasic(): bool
+```
+
+Checks the bit `0x10`: the group is an application group.
+
+**Returns** `bool` — `true` when the bit is set, and `false` when it is not.
+
+<a id="core-core-ldap-ad-grouptype-appquery"></a>
+#### `Core\Ldap\Ad\GroupType->appQuery`
+
+```nvs skip
+$groupType->appQuery(): bool
+```
+
+Checks the bit `0x20`: the group is an application group whose members come from a query.
+
+**Returns** `bool` — `true` when the bit is set, and `false` when it is not.
+
+<a id="core-core-ldap-ad-grouptype-security"></a>
+#### `Core\Ldap\Ad\GroupType->security`
+
+```nvs skip
+$groupType->security(): bool
+```
+
+Checks the bit `0x80000000`: the group is a security group, which can be given permissions. Without it, the group is a distribution group, which is a mailing list.
+
+**Returns** `bool` — `true` when the bit is set, and `false` when it is not.
+
+<a id="core-core-ldap-ad-grouptype-bits"></a>
+#### `Core\Ldap\Ad\GroupType->bits`
+
+```nvs skip
+$groupType->bits(): int
+```
+
+Returns `groupType` as the number Active Directory stored. A security group's number is negative, such as `-2147483646`.
+
+**Returns** `int` — The number, with every bit.
 
 <a id="core-core-queue"></a>
 ### `Core\Queue`
@@ -28842,6 +29262,24 @@ How far below its `base` a search looks.
 | `Core\Ldap\Scope::Base` | Only the `base` entry itself. |
 | `Core\Ldap\Scope::OneLevel` | The entries directly below `base`, and not `base` itself. |
 | `Core\Ldap\Scope::Subtree` | `base` and every entry below it, at any depth. This is the default. |
+
+<a id="enum-core-ldap-ad-accounttype"></a>
+#### `Core\Ldap\Ad\AccountType`
+
+What kind of object an entry is, read from `sAMAccountType`.
+
+| Case | Meaning |
+|---|---|
+| `Core\Ldap\Ad\AccountType::Domain` | The domain itself. |
+| `Core\Ldap\Ad\AccountType::Group` | A global or universal security group. |
+| `Core\Ldap\Ad\AccountType::NonSecurityGroup` | A global or universal distribution group. |
+| `Core\Ldap\Ad\AccountType::Alias` | A domain local security group. |
+| `Core\Ldap\Ad\AccountType::NonSecurityAlias` | A domain local distribution group. |
+| `Core\Ldap\Ad\AccountType::User` | A user account. |
+| `Core\Ldap\Ad\AccountType::Machine` | A computer account. |
+| `Core\Ldap\Ad\AccountType::Trust` | A trust with another domain. |
+| `Core\Ldap\Ad\AccountType::AppBasicGroup` | An application group. |
+| `Core\Ldap\Ad\AccountType::AppQueryGroup` | An application group whose members come from a query. |
 
 <a id="enum-core-queue-state"></a>
 #### `Core\Queue\State`

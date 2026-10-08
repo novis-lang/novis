@@ -1,0 +1,68 @@
+--TEST--
+For every user and group under `CN=Users`, the flag readers of `Ad\AccountFlags` and `Ad\GroupType` agree with `bits()`, and `Ad::disabled()` finds exactly the users whose `disabled()` is true — `rule:core-classes/ldap-value-types`
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+int $users = 0;
+int $groups = 0;
+bool $agree = true;
+int $disabled = 0;
+foreach ($corp->search(Core\Ldap\Filter::present("objectClass"), {base: "CN=Users,DC=example,DC=test", scope: Core\Ldap\Scope::OneLevel, select: ["userAccountControl", "groupType"]}) as Core\Ldap\Entry $entry) {
+    ?Core\Ldap\Ad\AccountFlags $flags = $entry->accountFlags();
+    if ($flags != null) {
+        $users = $users + 1;
+        $disabled = $disabled + ($flags->disabled() ? 1 : 0);
+        // The sum of the bits each reader names. It must be the same as
+        // `bits()` with only the named bits kept.
+        int $sum = ($flags->script() ? 1 : 0) + ($flags->disabled() ? 2 : 0)
+            + ($flags->homeDirectoryRequired() ? 8 : 0) + ($flags->lockedOut() ? 16 : 0)
+            + ($flags->passwordNotRequired() ? 32 : 0) + ($flags->reversibleEncryption() ? 128 : 0)
+            + ($flags->temporaryDuplicateAccount() ? 256 : 0) + ($flags->normalAccount() ? 512 : 0)
+            + ($flags->interdomainTrustAccount() ? 2048 : 0) + ($flags->workstationTrustAccount() ? 4096 : 0)
+            + ($flags->serverTrustAccount() ? 8192 : 0) + ($flags->passwordNeverExpires() ? 65536 : 0)
+            + ($flags->mnsLogonAccount() ? 131072 : 0) + ($flags->smartcardRequired() ? 262144 : 0)
+            + ($flags->trustedForDelegation() ? 524288 : 0) + ($flags->notDelegated() ? 1048576 : 0)
+            + ($flags->useDesKeyOnly() ? 2097152 : 0) + ($flags->noPreauthRequired() ? 4194304 : 0)
+            + ($flags->passwordExpired() ? 8388608 : 0) + ($flags->trustedToAuthForDelegation() ? 16777216 : 0)
+            + ($flags->partialSecretsAccount() ? 67108864 : 0);
+        $agree = $agree && $sum == ($flags->bits() & 100614075);
+        $agree = $agree && $entry->groupType() == null;
+    }
+    ?Core\Ldap\Ad\GroupType $type = $entry->groupType();
+    if ($type != null) {
+        $groups = $groups + 1;
+        int $groupSum = ($type->system() ? 1 : 0) + ($type->global() ? 2 : 0)
+            + ($type->domainLocal() ? 4 : 0) + ($type->universal() ? 8 : 0)
+            + ($type->appBasic() ? 16 : 0) + ($type->appQuery() ? 32 : 0)
+            + ($type->security() ? 2147483648 : 0);
+        $agree = $agree && $groupSum == ($type->bits() & 2147483711);
+        $agree = $agree && $entry->accountFlags() == null;
+    }
+}
+echo "users: ", $users, "\n";
+echo "some groups: ", $groups > 0 ? "yes" : "no", "\n";
+echo "readers agree with bits: ", $agree ? "yes" : "no", "\n";
+echo "disabled by flag: ", $disabled, "\n";
+int $found = 0;
+foreach ($corp->search(Core\Ldap\Filter::all(Core\Ldap\Filter::equals("objectClass", "user"), Core\Ldap\Ad::disabled()), {base: "CN=Users,DC=example,DC=test", select: ["userAccountControl"]}) as var $user) {
+    $found = $found + (($user->accountFlags()?->disabled() ?? false) ? 1 : 0);
+}
+echo "disabled by filter: ", $found, "\n";
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+base = "DC=example,DC=test"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+users: 3
+some groups: yes
+readers agree with bits: yes
+disabled by flag: 2
+disabled by filter: 2

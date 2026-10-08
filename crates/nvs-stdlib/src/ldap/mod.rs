@@ -77,6 +77,7 @@ use nvs_config::capability::Scope;
 use nvs_runtime::{Ctx, Fault, Tag, ThrownClass, Value};
 
 mod dn;
+mod flags;
 mod registry;
 mod search;
 mod sid;
@@ -725,6 +726,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
             return search::address(symbol)
                 .or_else(|| dn::address(symbol))
                 .or_else(|| sid::address(symbol))
+                .or_else(|| flags::address(symbol))
                 .or_else(|| value::address(symbol));
         }
     })

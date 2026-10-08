@@ -1,4 +1,4 @@
-//! The value forms Active Directory sends that are not text: a GUID, a SID, a FILETIME, an interval and a GeneralizedTime
+//! The value forms Active Directory sends that are not text: a GUID, a SID, a FILETIME, an interval, a GeneralizedTime, a flag field and an account type
 //!
 //! ADR 0278 § 8, `rule:core-classes/ldap-value-types`. Each reader takes the
 //! bytes of one attribute value as the server sent them and returns the
@@ -18,6 +18,10 @@
 //!   `i64::MIN` means "never", and [`interval`] returns `None` for it.
 //! - A GeneralizedTime is RFC 4517 § 3.3.13's text, read by
 //!   [`generalized_time`] into civil fields and an offset.
+//! - A flag field is a 32-bit integer, unsigned for `userAccountControl`
+//!   and signed for `groupType`, read by [`flag_field`] as AD wrote it, so a
+//!   bit [`ACCOUNT_FLAGS`] or [`GROUP_TYPE_FLAGS`] does not name is kept.
+//!   `sAMAccountType` is one of the values [`account_type`] reads.
 
 use std::fmt;
 
@@ -37,6 +41,10 @@ pub enum ValueError {
     IntervalTooLong,
     /// Not RFC 4517's GeneralizedTime.
     NotAGeneralizedTime,
+    /// Not a decimal integer a 32-bit flag field holds.
+    NotAFlagField,
+    /// Not one of the `sAMAccountType` values AD defines.
+    NotAnAccountType,
 }
 
 impl fmt::Display for ValueError {
@@ -48,6 +56,8 @@ impl fmt::Display for ValueError {
             Self::NotAnInterval => "is not a length of time",
             Self::IntervalTooLong => "is a length of time longer than a `Duration` can be",
             Self::NotAGeneralizedTime => "is not a time",
+            Self::NotAFlagField => "is not a 32-bit number of flags",
+            Self::NotAnAccountType => "is not an account type",
         })
     }
 }
@@ -288,6 +298,244 @@ pub fn interval(value: &[u8]) -> Result<Option<i64>, ValueError> {
         .and_then(|ticks| ticks.checked_mul(100))
         .map(Some)
         .ok_or(ValueError::IntervalTooLong)
+}
+
+/// One bit a flag field names: the name of the `bool` reader for it, and the
+/// bit's value.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Flag {
+    /// The reader's name, such as `disabled`.
+    pub name: &'static str,
+    /// The bit, such as `0x2`.
+    pub bit: u32,
+}
+
+/// The bits of `userAccountControl` that `Ad\AccountFlags` names, in bit
+/// order. `PASSWD_CANT_CHANGE` (`0x40`) is not here: AD does not store it,
+/// so a value that has it keeps it as a bit no reader names.
+pub const ACCOUNT_FLAGS: &[Flag] = &[
+    Flag {
+        name: "script",
+        bit: 0x1,
+    },
+    Flag {
+        name: "disabled",
+        bit: 0x2,
+    },
+    Flag {
+        name: "homeDirectoryRequired",
+        bit: 0x8,
+    },
+    Flag {
+        name: "lockedOut",
+        bit: 0x10,
+    },
+    Flag {
+        name: "passwordNotRequired",
+        bit: 0x20,
+    },
+    Flag {
+        name: "reversibleEncryption",
+        bit: 0x80,
+    },
+    Flag {
+        name: "temporaryDuplicateAccount",
+        bit: 0x100,
+    },
+    Flag {
+        name: "normalAccount",
+        bit: 0x200,
+    },
+    Flag {
+        name: "interdomainTrustAccount",
+        bit: 0x800,
+    },
+    Flag {
+        name: "workstationTrustAccount",
+        bit: 0x1000,
+    },
+    Flag {
+        name: "serverTrustAccount",
+        bit: 0x2000,
+    },
+    Flag {
+        name: "passwordNeverExpires",
+        bit: 0x1_0000,
+    },
+    Flag {
+        name: "mnsLogonAccount",
+        bit: 0x2_0000,
+    },
+    Flag {
+        name: "smartcardRequired",
+        bit: 0x4_0000,
+    },
+    Flag {
+        name: "trustedForDelegation",
+        bit: 0x8_0000,
+    },
+    Flag {
+        name: "notDelegated",
+        bit: 0x10_0000,
+    },
+    Flag {
+        name: "useDesKeyOnly",
+        bit: 0x20_0000,
+    },
+    Flag {
+        name: "noPreauthRequired",
+        bit: 0x40_0000,
+    },
+    Flag {
+        name: "passwordExpired",
+        bit: 0x80_0000,
+    },
+    Flag {
+        name: "trustedToAuthForDelegation",
+        bit: 0x100_0000,
+    },
+    Flag {
+        name: "partialSecretsAccount",
+        bit: 0x400_0000,
+    },
+];
+
+/// The two [`ACCOUNT_FLAGS`] AD computes rather than stores, lockout and an
+/// expired password. They are read from [`COMPUTED_ACCOUNT_CONTROL`].
+pub const COMPUTED_ACCOUNT_FLAGS: u32 = 0x10 | 0x80_0000;
+
+/// The constructed attribute that carries [`COMPUTED_ACCOUNT_FLAGS`].
+pub const COMPUTED_ACCOUNT_CONTROL: &str = "msDS-User-Account-Control-Computed";
+
+/// The bits of `groupType` that `Ad\GroupType` names, in bit order.
+pub const GROUP_TYPE_FLAGS: &[Flag] = &[
+    Flag {
+        name: "system",
+        bit: 0x1,
+    },
+    Flag {
+        name: "global",
+        bit: 0x2,
+    },
+    Flag {
+        name: "domainLocal",
+        bit: 0x4,
+    },
+    Flag {
+        name: "universal",
+        bit: 0x8,
+    },
+    Flag {
+        name: "appBasic",
+        bit: 0x10,
+    },
+    Flag {
+        name: "appQuery",
+        bit: 0x20,
+    },
+    Flag {
+        name: "security",
+        bit: 0x8000_0000,
+    },
+];
+
+/// Every bit `flags` names, as one mask.
+#[must_use]
+pub fn named_bits(flags: &[Flag]) -> u32 {
+    flags.iter().fold(0, |mask, flag| mask | flag.bit)
+}
+
+/// A flag field's value as the integer AD wrote. `userAccountControl` is
+/// unsigned and `groupType` is signed, so `-2147483646` is a security group,
+/// and every value in either range is read unchanged.
+///
+/// # Errors
+///
+/// [`ValueError::NotAFlagField`] for a value that is not a decimal integer in
+/// `i32::MIN..=u32::MAX`.
+pub fn flag_field(value: &[u8]) -> Result<i64, ValueError> {
+    integer(value)
+        .filter(|bits| (i64::from(i32::MIN)..=i64::from(u32::MAX)).contains(bits))
+        .ok_or(ValueError::NotAFlagField)
+}
+
+/// Whether `bits`, as [`flag_field`] read it, has `flag` set.
+#[must_use]
+pub fn has_flag(bits: i64, flag: u32) -> bool {
+    bits & i64::from(flag) != 0
+}
+
+/// `sAMAccountType`'s values, as `Ad\AccountType` names them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AccountType {
+    /// `SAM_DOMAIN_OBJECT`, `0x0`.
+    Domain,
+    /// `SAM_GROUP_OBJECT`, `0x10000000`.
+    Group,
+    /// `SAM_NON_SECURITY_GROUP_OBJECT`, `0x10000001`.
+    NonSecurityGroup,
+    /// `SAM_ALIAS_OBJECT`, `0x20000000`, a domain-local security group.
+    Alias,
+    /// `SAM_NON_SECURITY_ALIAS_OBJECT`, `0x20000001`.
+    NonSecurityAlias,
+    /// `SAM_USER_OBJECT`, `0x30000000`.
+    User,
+    /// `SAM_MACHINE_ACCOUNT`, `0x30000001`.
+    Machine,
+    /// `SAM_TRUST_ACCOUNT`, `0x30000002`.
+    Trust,
+    /// `SAM_APP_BASIC_GROUP`, `0x40000000`.
+    AppBasicGroup,
+    /// `SAM_APP_QUERY_GROUP`, `0x40000001`.
+    AppQueryGroup,
+}
+
+impl AccountType {
+    /// Every type with the value AD writes for it.
+    pub const ALL: &[(Self, i64)] = &[
+        (Self::Domain, 0x0),
+        (Self::Group, 0x1000_0000),
+        (Self::NonSecurityGroup, 0x1000_0001),
+        (Self::Alias, 0x2000_0000),
+        (Self::NonSecurityAlias, 0x2000_0001),
+        (Self::User, 0x3000_0000),
+        (Self::Machine, 0x3000_0001),
+        (Self::Trust, 0x3000_0002),
+        (Self::AppBasicGroup, 0x4000_0000),
+        (Self::AppQueryGroup, 0x4000_0001),
+    ];
+
+    /// The case's name, as the registry's enum spells it.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Domain => "Domain",
+            Self::Group => "Group",
+            Self::NonSecurityGroup => "NonSecurityGroup",
+            Self::Alias => "Alias",
+            Self::NonSecurityAlias => "NonSecurityAlias",
+            Self::User => "User",
+            Self::Machine => "Machine",
+            Self::Trust => "Trust",
+            Self::AppBasicGroup => "AppBasicGroup",
+            Self::AppQueryGroup => "AppQueryGroup",
+        }
+    }
+}
+
+/// A `sAMAccountType` value as the type it names.
+///
+/// # Errors
+///
+/// [`ValueError::NotAnAccountType`] for a value that is not a decimal
+/// integer AD defines.
+pub fn account_type(value: &[u8]) -> Result<AccountType, ValueError> {
+    let read = integer(value).ok_or(ValueError::NotAnAccountType)?;
+    AccountType::ALL
+        .iter()
+        .find(|(_, written)| *written == read)
+        .map(|(kind, _)| *kind)
+        .ok_or(ValueError::NotAnAccountType)
 }
 
 /// A GeneralizedTime's civil fields as the text wrote them, and its offset.

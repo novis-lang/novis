@@ -101,6 +101,13 @@ fn selected(value: &Value, member: &str) -> Result<Vec<String>, Fault> {
         out.push(name);
         at = names.next_slot(slot + 1);
     }
+    // AD computes lockout and an expired password and returns them only
+    // when they are asked for, so `Entry::accountFlags` can read them.
+    let computed = nvs_ldap::value::COMPUTED_ACCOUNT_CONTROL;
+    let has = |wanted: &str| out.iter().any(|name| name.eq_ignore_ascii_case(wanted));
+    if has("userAccountControl") && !has(computed) {
+        out.push(computed.to_owned());
+    }
     Ok(out)
 }
 
@@ -129,11 +136,21 @@ pub(super) fn values_named<'a>(
     args: &'a [Value],
     member: &str,
 ) -> Result<(&'a str, Option<std::mem::ManuallyDrop<NvsArray>>), Fault> {
-    let receiver = crate::instance::receiver(args[0], &ENTRY, member)?;
     let name = args[1].as_text().ok_or_else(|| {
         // Unreachable from source: the parameter is a `string`.
         Fault::fatal(format!("{ENTRY_NAME}::{member} expected a `string` name"))
     })?;
+    Ok((name, values_of(args[0], name, member)?))
+}
+
+/// The list of values an `Ldap\Entry` has under `name`, found without case,
+/// or `None` when it has none.
+pub(super) fn values_of(
+    entry: Value,
+    name: &str,
+    member: &str,
+) -> Result<Option<std::mem::ManuallyDrop<NvsArray>>, Fault> {
+    let receiver = crate::instance::receiver(entry, &ENTRY, member)?;
     let held = crate::instance::slot(receiver, ENTRY_ATTRIBUTES_AT);
     let Some(array) = held.array_ptr() else {
         // Unreachable from source: only [`entry_value`] builds an entry.
@@ -149,7 +166,7 @@ pub(super) fn values_named<'a>(
         .and_then(|key| attributes.get(&key))
         .and_then(Value::array_ptr)
         .map(crate::arr::borrowed);
-    Ok((name, found))
+    Ok(found)
 }
 
 /// The one value a single-value reader returns, or the error for a list

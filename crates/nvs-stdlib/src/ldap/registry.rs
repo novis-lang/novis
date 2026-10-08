@@ -36,6 +36,15 @@ pub(crate) const AD_NAME: &str = r"Core\Ldap\Ad";
 /// `Core\Ldap\Sid`'s fully-qualified name.
 pub(crate) const SID_NAME: &str = r"Core\Ldap\Sid";
 
+/// `Core\Ldap\Ad\AccountFlags`' fully-qualified name.
+pub(crate) const ACCOUNT_FLAGS_NAME: &str = r"Core\Ldap\Ad\AccountFlags";
+
+/// `Core\Ldap\Ad\GroupType`'s fully-qualified name.
+pub(crate) const GROUP_TYPE_NAME: &str = r"Core\Ldap\Ad\GroupType";
+
+/// [`ACCOUNT_TYPE`]'s fully-qualified name.
+pub(crate) const ACCOUNT_TYPE_NAME: &str = r"Core\Ldap\Ad\AccountType";
+
 /// [`SCOPE`]'s fully-qualified name.
 pub(crate) const SCOPE_NAME: &str = r"Core\Ldap\Scope";
 
@@ -68,6 +77,10 @@ pub(super) const FILTER_BER_AT: usize = 0;
 pub(super) const DN_TEXT_AT: usize = 0;
 /// [`SID`]'s slot for its binary form, as [`nvs_ldap::Sid::to_bytes`] wrote it.
 pub(super) const SID_BYTES_AT: usize = 0;
+/// [`ACCOUNT_FLAGS`]' and [`GROUP_TYPE`]'s slot for the integer AD wrote.
+pub(super) const FLAGS_BITS_AT: usize = 0;
+/// [`ACCOUNT_FLAGS`]' slot for `msDS-User-Account-Control-Computed`, or `null`.
+pub(super) const FLAGS_COMPUTED_AT: usize = 1;
 
 /// ADR 0278 § 2's `Ldap\Settings`, the one shape `open` takes.
 ///
@@ -605,6 +618,33 @@ pub(crate) const ENTRY: CoreClass = CoreClass {
             doc: Some(&ENTRY_DURATION_DOC),
         },
         CoreMethod {
+            name: "accountFlags",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Instance(ACCOUNT_FLAGS_NAME)),
+            symbol: "nvs_core_ldap_entry_account_flags",
+            doc: Some(&ENTRY_ACCOUNT_FLAGS_DOC),
+        },
+        CoreMethod {
+            name: "groupType",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Instance(GROUP_TYPE_NAME)),
+            symbol: "nvs_core_ldap_entry_group_type",
+            doc: Some(&ENTRY_GROUP_TYPE_DOC),
+        },
+        CoreMethod {
+            name: "accountType",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Enum(ACCOUNT_TYPE_NAME)),
+            symbol: "nvs_core_ldap_entry_account_type",
+            doc: Some(&ENTRY_ACCOUNT_TYPE_DOC),
+        },
+        CoreMethod {
             name: "toArray",
             names: &[],
             params: &[],
@@ -742,6 +782,41 @@ const ENTRY_DURATION_DOC: MethodDoc = MethodDoc {
                number, or it is longer than a `Duration` can be. The message names the \
                attribute.",
     }],
+};
+
+/// The error [`ENTRY`]'s three AD readers throw, which read a fixed attribute.
+const ENTRY_AD_ERRORS: &[ErrorDoc] = &[ErrorDoc {
+    error: "LogicError",
+    desc: "The attribute has more than one value, or its value is not in the form this \
+           function reads. The message names the attribute.",
+}];
+
+/// `Ldap\Entry::accountFlags`' reference card — `rule:core-api/reference-card`.
+const ENTRY_ACCOUNT_FLAGS_DOC: MethodDoc = MethodDoc {
+    short: "Returns the account's `userAccountControl` as a `Core\\Ldap\\Ad\\AccountFlags`. \
+            Select `userAccountControl` in the search. The search then also returns \
+            `msDS-User-Account-Control-Computed`, which says if the account is locked out or \
+            its password has expired.",
+    params: &[],
+    ret: "The flags, or `null` when the entry has no `userAccountControl`, such as a group.",
+    errors: ENTRY_AD_ERRORS,
+};
+
+/// `Ldap\Entry::groupType`'s reference card — `rule:core-api/reference-card`.
+const ENTRY_GROUP_TYPE_DOC: MethodDoc = MethodDoc {
+    short: "Returns the group's `groupType` as a `Core\\Ldap\\Ad\\GroupType`.",
+    params: &[],
+    ret: "The group type, or `null` when the entry has no `groupType`, such as a user.",
+    errors: ENTRY_AD_ERRORS,
+};
+
+/// `Ldap\Entry::accountType`'s reference card — `rule:core-api/reference-card`.
+const ENTRY_ACCOUNT_TYPE_DOC: MethodDoc = MethodDoc {
+    short: "Returns the entry's `sAMAccountType` as a `Core\\Ldap\\Ad\\AccountType`, such as \
+            `AccountType::User`.",
+    params: &[],
+    ret: "The account type, or `null` when the entry has no `sAMAccountType`.",
+    errors: ENTRY_AD_ERRORS,
 };
 
 /// `Ldap\Entry::toArray`'s reference card — `rule:core-api/reference-card`.
@@ -1533,6 +1608,385 @@ const AD_BIT_OR_DOC: MethodDoc = MethodDoc {
     errors: FILTER_NAME_ERRORS,
 };
 
+/// A flag object's `bool` reader named `name`. The bit it reads is found by
+/// that name in `nvs_ldap::value`'s table, so the body is `super::flags`'.
+const fn flag_reader(
+    name: &'static str,
+    symbol: &'static str,
+    doc: &'static MethodDoc,
+) -> CoreMethod {
+    CoreMethod {
+        name,
+        names: &[],
+        params: &[],
+        defaults: &[],
+        return_ty: CoreTy::Bool,
+        symbol,
+        doc: Some(doc),
+    }
+}
+
+/// A flag reader's card, whose `short` says what the bit means.
+const fn flag_doc(short: &'static str) -> MethodDoc {
+    MethodDoc {
+        short,
+        params: &[],
+        ret: "`true` when the bit is set, and `false` when it is not.",
+        errors: &[],
+    }
+}
+
+/// `Ldap\Ad\AccountFlags`' class card — `rule:core-api/reference-card`.
+const ACCOUNT_FLAGS_CARD: ClassDoc = ClassDoc {
+    short: "The flags of a user or computer account, read from `userAccountControl`. Each flag \
+            is a function that returns a `bool`. `bits` returns the whole number, with every \
+            bit, also the bits no function names.",
+};
+
+/// ADR 0278 §§ 1 and 8's `Ldap\Ad\AccountFlags`: one reader per flag
+/// `nvs_ldap::value::ACCOUNT_FLAGS` names, in its order. `super::flags`' module
+/// doc says what its slots are.
+pub(crate) const ACCOUNT_FLAGS: CoreClass = CoreClass {
+    name: ACCOUNT_FLAGS_NAME,
+    doc: Some(&ACCOUNT_FLAGS_CARD),
+    methods: &[],
+    instance: &[
+        flag_reader(
+            "script",
+            "nvs_core_ldap_ad_account_flags_script",
+            &AF_SCRIPT_DOC,
+        ),
+        flag_reader(
+            "disabled",
+            "nvs_core_ldap_ad_account_flags_disabled",
+            &AF_DISABLED_DOC,
+        ),
+        flag_reader(
+            "homeDirectoryRequired",
+            "nvs_core_ldap_ad_account_flags_home_directory_required",
+            &AF_HOME_DIRECTORY_REQUIRED_DOC,
+        ),
+        flag_reader(
+            "lockedOut",
+            "nvs_core_ldap_ad_account_flags_locked_out",
+            &AF_LOCKED_OUT_DOC,
+        ),
+        flag_reader(
+            "passwordNotRequired",
+            "nvs_core_ldap_ad_account_flags_password_not_required",
+            &AF_PASSWORD_NOT_REQUIRED_DOC,
+        ),
+        flag_reader(
+            "reversibleEncryption",
+            "nvs_core_ldap_ad_account_flags_reversible_encryption",
+            &AF_REVERSIBLE_ENCRYPTION_DOC,
+        ),
+        flag_reader(
+            "temporaryDuplicateAccount",
+            "nvs_core_ldap_ad_account_flags_temporary_duplicate_account",
+            &AF_TEMPORARY_DUPLICATE_ACCOUNT_DOC,
+        ),
+        flag_reader(
+            "normalAccount",
+            "nvs_core_ldap_ad_account_flags_normal_account",
+            &AF_NORMAL_ACCOUNT_DOC,
+        ),
+        flag_reader(
+            "interdomainTrustAccount",
+            "nvs_core_ldap_ad_account_flags_interdomain_trust_account",
+            &AF_INTERDOMAIN_TRUST_ACCOUNT_DOC,
+        ),
+        flag_reader(
+            "workstationTrustAccount",
+            "nvs_core_ldap_ad_account_flags_workstation_trust_account",
+            &AF_WORKSTATION_TRUST_ACCOUNT_DOC,
+        ),
+        flag_reader(
+            "serverTrustAccount",
+            "nvs_core_ldap_ad_account_flags_server_trust_account",
+            &AF_SERVER_TRUST_ACCOUNT_DOC,
+        ),
+        flag_reader(
+            "passwordNeverExpires",
+            "nvs_core_ldap_ad_account_flags_password_never_expires",
+            &AF_PASSWORD_NEVER_EXPIRES_DOC,
+        ),
+        flag_reader(
+            "mnsLogonAccount",
+            "nvs_core_ldap_ad_account_flags_mns_logon_account",
+            &AF_MNS_LOGON_ACCOUNT_DOC,
+        ),
+        flag_reader(
+            "smartcardRequired",
+            "nvs_core_ldap_ad_account_flags_smartcard_required",
+            &AF_SMARTCARD_REQUIRED_DOC,
+        ),
+        flag_reader(
+            "trustedForDelegation",
+            "nvs_core_ldap_ad_account_flags_trusted_for_delegation",
+            &AF_TRUSTED_FOR_DELEGATION_DOC,
+        ),
+        flag_reader(
+            "notDelegated",
+            "nvs_core_ldap_ad_account_flags_not_delegated",
+            &AF_NOT_DELEGATED_DOC,
+        ),
+        flag_reader(
+            "useDesKeyOnly",
+            "nvs_core_ldap_ad_account_flags_use_des_key_only",
+            &AF_USE_DES_KEY_ONLY_DOC,
+        ),
+        flag_reader(
+            "noPreauthRequired",
+            "nvs_core_ldap_ad_account_flags_no_preauth_required",
+            &AF_NO_PREAUTH_REQUIRED_DOC,
+        ),
+        flag_reader(
+            "passwordExpired",
+            "nvs_core_ldap_ad_account_flags_password_expired",
+            &AF_PASSWORD_EXPIRED_DOC,
+        ),
+        flag_reader(
+            "trustedToAuthForDelegation",
+            "nvs_core_ldap_ad_account_flags_trusted_to_auth_for_delegation",
+            &AF_TRUSTED_TO_AUTH_FOR_DELEGATION_DOC,
+        ),
+        flag_reader(
+            "partialSecretsAccount",
+            "nvs_core_ldap_ad_account_flags_partial_secrets_account",
+            &AF_PARTIAL_SECRETS_ACCOUNT_DOC,
+        ),
+        CoreMethod {
+            name: "bits",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Int,
+            symbol: "nvs_core_ldap_ad_account_flags_bits",
+            doc: Some(&AF_BITS_DOC),
+        },
+    ],
+    slots: &["bits", "computed"],
+    constants: &[],
+};
+
+const AF_SCRIPT_DOC: MethodDoc = flag_doc("Checks the bit `0x1`: a logon script runs.");
+const AF_DISABLED_DOC: MethodDoc =
+    flag_doc("Checks the bit `0x2`: the account is disabled, so nobody can log in with it.");
+const AF_HOME_DIRECTORY_REQUIRED_DOC: MethodDoc =
+    flag_doc("Checks the bit `0x8`: the account needs a home directory.");
+const AF_LOCKED_OUT_DOC: MethodDoc = flag_doc(
+    "Checks the bit `0x10`: the account is locked out after too many wrong passwords. Active \
+     Directory computes this bit. It is read from `msDS-User-Account-Control-Computed` when the \
+     entry has it.",
+);
+const AF_PASSWORD_NOT_REQUIRED_DOC: MethodDoc =
+    flag_doc("Checks the bit `0x20`: the account may have an empty password.");
+const AF_REVERSIBLE_ENCRYPTION_DOC: MethodDoc = flag_doc(
+    "Checks the bit `0x80`: the password is stored with an encryption that can be reversed.",
+);
+const AF_TEMPORARY_DUPLICATE_ACCOUNT_DOC: MethodDoc = flag_doc(
+    "Checks the bit `0x100`: the account is a local account for a user from another domain.",
+);
+const AF_NORMAL_ACCOUNT_DOC: MethodDoc =
+    flag_doc("Checks the bit `0x200`: the account is an ordinary user account.");
+const AF_INTERDOMAIN_TRUST_ACCOUNT_DOC: MethodDoc =
+    flag_doc("Checks the bit `0x800`: the account is a trust with another domain.");
+const AF_WORKSTATION_TRUST_ACCOUNT_DOC: MethodDoc =
+    flag_doc("Checks the bit `0x1000`: the account is a computer that is a domain member.");
+const AF_SERVER_TRUST_ACCOUNT_DOC: MethodDoc =
+    flag_doc("Checks the bit `0x2000`: the account is a domain controller.");
+const AF_PASSWORD_NEVER_EXPIRES_DOC: MethodDoc =
+    flag_doc("Checks the bit `0x10000`: the password never expires.");
+const AF_MNS_LOGON_ACCOUNT_DOC: MethodDoc =
+    flag_doc("Checks the bit `0x20000`: the account is an MNS logon account.");
+const AF_SMARTCARD_REQUIRED_DOC: MethodDoc =
+    flag_doc("Checks the bit `0x40000`: the user must log in with a smart card.");
+const AF_TRUSTED_FOR_DELEGATION_DOC: MethodDoc = flag_doc(
+    "Checks the bit `0x80000`: a service on this account may act for any user it receives.",
+);
+const AF_NOT_DELEGATED_DOC: MethodDoc =
+    flag_doc("Checks the bit `0x100000`: no service may act for this user, even a trusted one.");
+const AF_USE_DES_KEY_ONLY_DOC: MethodDoc =
+    flag_doc("Checks the bit `0x200000`: Kerberos uses only DES keys for this account.");
+const AF_NO_PREAUTH_REQUIRED_DOC: MethodDoc = flag_doc(
+    "Checks the bit `0x400000`: Kerberos gives a ticket for this account without first \
+     checking the password.",
+);
+const AF_PASSWORD_EXPIRED_DOC: MethodDoc = flag_doc(
+    "Checks the bit `0x800000`: the password has expired. Active Directory computes this bit. \
+     It is read from `msDS-User-Account-Control-Computed` when the entry has it.",
+);
+const AF_TRUSTED_TO_AUTH_FOR_DELEGATION_DOC: MethodDoc = flag_doc(
+    "Checks the bit `0x1000000`: a service on this account may act for a user without that \
+     user's password.",
+);
+const AF_PARTIAL_SECRETS_ACCOUNT_DOC: MethodDoc =
+    flag_doc("Checks the bit `0x4000000`: the account is a read-only domain controller.");
+
+/// `Ldap\Ad\AccountFlags::bits`' reference card — `rule:core-api/reference-card`.
+const AF_BITS_DOC: MethodDoc = MethodDoc {
+    short: "Returns `userAccountControl` as the number Active Directory stored, such as `512`.",
+    params: &[],
+    ret: "The number, with every bit. It does not include the bits Active Directory computes.",
+    errors: &[],
+};
+
+/// `Ldap\Ad\GroupType`'s class card — `rule:core-api/reference-card`.
+const GROUP_TYPE_CARD: ClassDoc = ClassDoc {
+    short: "The type of a group, read from `groupType`. Each flag is a function that returns a \
+            `bool`. `bits` returns the whole number.",
+};
+
+/// ADR 0278 §§ 1 and 8's `Ldap\Ad\GroupType`: one reader per flag
+/// `nvs_ldap::value::GROUP_TYPE_FLAGS` names, in its order.
+pub(crate) const GROUP_TYPE: CoreClass = CoreClass {
+    name: GROUP_TYPE_NAME,
+    doc: Some(&GROUP_TYPE_CARD),
+    methods: &[],
+    instance: &[
+        flag_reader(
+            "system",
+            "nvs_core_ldap_ad_group_type_system",
+            &GT_SYSTEM_DOC,
+        ),
+        flag_reader(
+            "global",
+            "nvs_core_ldap_ad_group_type_global",
+            &GT_GLOBAL_DOC,
+        ),
+        flag_reader(
+            "domainLocal",
+            "nvs_core_ldap_ad_group_type_domain_local",
+            &GT_DOMAIN_LOCAL_DOC,
+        ),
+        flag_reader(
+            "universal",
+            "nvs_core_ldap_ad_group_type_universal",
+            &GT_UNIVERSAL_DOC,
+        ),
+        flag_reader(
+            "appBasic",
+            "nvs_core_ldap_ad_group_type_app_basic",
+            &GT_APP_BASIC_DOC,
+        ),
+        flag_reader(
+            "appQuery",
+            "nvs_core_ldap_ad_group_type_app_query",
+            &GT_APP_QUERY_DOC,
+        ),
+        flag_reader(
+            "security",
+            "nvs_core_ldap_ad_group_type_security",
+            &GT_SECURITY_DOC,
+        ),
+        CoreMethod {
+            name: "bits",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Int,
+            symbol: "nvs_core_ldap_ad_group_type_bits",
+            doc: Some(&GT_BITS_DOC),
+        },
+    ],
+    slots: &["bits"],
+    constants: &[],
+};
+
+const GT_SYSTEM_DOC: MethodDoc = flag_doc("Checks the bit `0x1`: the system created the group.");
+const GT_GLOBAL_DOC: MethodDoc =
+    flag_doc("Checks the bit `0x2`: the group is global. Its members are from its own domain.");
+const GT_DOMAIN_LOCAL_DOC: MethodDoc =
+    flag_doc("Checks the bit `0x4`: the group is domain local. It is used only in its own domain.");
+const GT_UNIVERSAL_DOC: MethodDoc =
+    flag_doc("Checks the bit `0x8`: the group is universal. It can have members from any domain.");
+const GT_APP_BASIC_DOC: MethodDoc =
+    flag_doc("Checks the bit `0x10`: the group is an application group.");
+const GT_APP_QUERY_DOC: MethodDoc = flag_doc(
+    "Checks the bit `0x20`: the group is an application group whose members come from a query.",
+);
+const GT_SECURITY_DOC: MethodDoc = flag_doc(
+    "Checks the bit `0x80000000`: the group is a security group, which can be given \
+     permissions. Without it, the group is a distribution group, which is a mailing list.",
+);
+
+/// `Ldap\Ad\GroupType::bits`' reference card — `rule:core-api/reference-card`.
+const GT_BITS_DOC: MethodDoc = MethodDoc {
+    short: "Returns `groupType` as the number Active Directory stored. A security group's \
+            number is negative, such as `-2147483646`.",
+    params: &[],
+    ret: "The number, with every bit.",
+    errors: &[],
+};
+
+/// ADR 0278 § 8's `Ldap\Ad\AccountType`, the registry half of
+/// [`nvs_ldap::value::AccountType`]. The values are declaration ordinals, and
+/// `super::value` joins the two halves by name.
+pub(crate) const ACCOUNT_TYPE: CoreEnum = CoreEnum {
+    name: ACCOUNT_TYPE_NAME,
+    cases: &[
+        ("Domain", 0),
+        ("Group", 1),
+        ("NonSecurityGroup", 2),
+        ("Alias", 3),
+        ("NonSecurityAlias", 4),
+        ("User", 5),
+        ("Machine", 6),
+        ("Trust", 7),
+        ("AppBasicGroup", 8),
+        ("AppQueryGroup", 9),
+    ],
+    doc: Some(&ACCOUNT_TYPE_DOC),
+};
+
+/// [`ACCOUNT_TYPE`]'s reference card — `rule:core-api/reference-card`.
+const ACCOUNT_TYPE_DOC: EnumDoc = EnumDoc {
+    short: "What kind of object an entry is, read from `sAMAccountType`.",
+    cases: &[
+        CaseDoc {
+            name: "Domain",
+            desc: "The domain itself.",
+        },
+        CaseDoc {
+            name: "Group",
+            desc: "A global or universal security group.",
+        },
+        CaseDoc {
+            name: "NonSecurityGroup",
+            desc: "A global or universal distribution group.",
+        },
+        CaseDoc {
+            name: "Alias",
+            desc: "A domain local security group.",
+        },
+        CaseDoc {
+            name: "NonSecurityAlias",
+            desc: "A domain local distribution group.",
+        },
+        CaseDoc {
+            name: "User",
+            desc: "A user account.",
+        },
+        CaseDoc {
+            name: "Machine",
+            desc: "A computer account.",
+        },
+        CaseDoc {
+            name: "Trust",
+            desc: "A trust with another domain.",
+        },
+        CaseDoc {
+            name: "AppBasicGroup",
+            desc: "An application group.",
+        },
+        CaseDoc {
+            name: "AppQueryGroup",
+            desc: "An application group whose members come from a query.",
+        },
+    ],
+};
+
 /// ADR 0278 § 5's `Ldap\Scope`. The values are declaration ordinals.
 pub(crate) const SCOPE: CoreEnum = CoreEnum {
     name: SCOPE_NAME,
@@ -1733,6 +2187,33 @@ const ERROR_KIND_DOC: EnumDoc = EnumDoc {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn every_flag_reader_names_a_bit_of_its_field_in_order() {
+        for (class, flags) in [
+            (&ACCOUNT_FLAGS, nvs_ldap::value::ACCOUNT_FLAGS),
+            (&GROUP_TYPE, nvs_ldap::value::GROUP_TYPE_FLAGS),
+        ] {
+            let readers: Vec<&str> = class
+                .instance
+                .iter()
+                .map(|row| row.name)
+                .filter(|name| *name != "bits")
+                .collect();
+            let named: Vec<&str> = flags.iter().map(|flag| flag.name).collect();
+            assert_eq!(readers, named, "{}", class.name);
+        }
+    }
+
+    #[test]
+    fn every_account_type_names_a_registered_case() {
+        let cases: Vec<&str> = ACCOUNT_TYPE.cases.iter().map(|(name, _)| *name).collect();
+        let kinds: Vec<&str> = nvs_ldap::value::AccountType::ALL
+            .iter()
+            .map(|(kind, _)| kind.name())
+            .collect();
+        assert_eq!(cases, kinds);
+    }
 
     /// Every [`nvs_ldap::Kind`], in § 10's order. The `match` below has no
     /// wildcard, so a kind added to that enum fails to compile here until it

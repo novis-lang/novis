@@ -1,0 +1,93 @@
+--TEST--
+An account's `userAccountControl` reads as an `Ad\AccountFlags` with one `bool` reader per flag, `bits()` returns the whole number, and `sAMAccountType` reads as an `Ad\AccountType` — `rule:core-classes/ldap-value-types`
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+array<string> $names = ["Administrator", "Guest"];
+foreach ($names as string $name) {
+    ?Core\Ldap\Entry $user = $corp->read(Core\Ldap\Dn::parse("CN=Users,DC=example,DC=test")->child("CN", $name), {select: ["userAccountControl", "sAMAccountType"]});
+    ?Core\Ldap\Ad\AccountFlags $flags = $user?->accountFlags();
+    if ($flags == null) {
+        echo $name, ": no flags", "\n";
+        continue;
+    }
+    echo $name, ": bits ", $flags->bits(), ", type ", $user?->accountType() == Core\Ldap\Ad\AccountType::User ? "User" : "not a user", "\n";
+    echo "  script ", $flags->script() ? "yes" : "no", "\n";
+    echo "  disabled ", $flags->disabled() ? "yes" : "no", "\n";
+    echo "  homeDirectoryRequired ", $flags->homeDirectoryRequired() ? "yes" : "no", "\n";
+    echo "  lockedOut ", $flags->lockedOut() ? "yes" : "no", "\n";
+    echo "  passwordNotRequired ", $flags->passwordNotRequired() ? "yes" : "no", "\n";
+    echo "  reversibleEncryption ", $flags->reversibleEncryption() ? "yes" : "no", "\n";
+    echo "  temporaryDuplicateAccount ", $flags->temporaryDuplicateAccount() ? "yes" : "no", "\n";
+    echo "  normalAccount ", $flags->normalAccount() ? "yes" : "no", "\n";
+    echo "  interdomainTrustAccount ", $flags->interdomainTrustAccount() ? "yes" : "no", "\n";
+    echo "  workstationTrustAccount ", $flags->workstationTrustAccount() ? "yes" : "no", "\n";
+    echo "  serverTrustAccount ", $flags->serverTrustAccount() ? "yes" : "no", "\n";
+    echo "  passwordNeverExpires ", $flags->passwordNeverExpires() ? "yes" : "no", "\n";
+    echo "  mnsLogonAccount ", $flags->mnsLogonAccount() ? "yes" : "no", "\n";
+    echo "  smartcardRequired ", $flags->smartcardRequired() ? "yes" : "no", "\n";
+    echo "  trustedForDelegation ", $flags->trustedForDelegation() ? "yes" : "no", "\n";
+    echo "  notDelegated ", $flags->notDelegated() ? "yes" : "no", "\n";
+    echo "  useDesKeyOnly ", $flags->useDesKeyOnly() ? "yes" : "no", "\n";
+    echo "  noPreauthRequired ", $flags->noPreauthRequired() ? "yes" : "no", "\n";
+    echo "  passwordExpired ", $flags->passwordExpired() ? "yes" : "no", "\n";
+    echo "  trustedToAuthForDelegation ", $flags->trustedToAuthForDelegation() ? "yes" : "no", "\n";
+    echo "  partialSecretsAccount ", $flags->partialSecretsAccount() ? "yes" : "no", "\n";
+}
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+base = "DC=example,DC=test"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+Administrator: bits 512, type User
+  script no
+  disabled no
+  homeDirectoryRequired no
+  lockedOut no
+  passwordNotRequired no
+  reversibleEncryption no
+  temporaryDuplicateAccount no
+  normalAccount yes
+  interdomainTrustAccount no
+  workstationTrustAccount no
+  serverTrustAccount no
+  passwordNeverExpires no
+  mnsLogonAccount no
+  smartcardRequired no
+  trustedForDelegation no
+  notDelegated no
+  useDesKeyOnly no
+  noPreauthRequired no
+  passwordExpired no
+  trustedToAuthForDelegation no
+  partialSecretsAccount no
+Guest: bits 66082, type User
+  script no
+  disabled yes
+  homeDirectoryRequired no
+  lockedOut no
+  passwordNotRequired yes
+  reversibleEncryption no
+  temporaryDuplicateAccount no
+  normalAccount yes
+  interdomainTrustAccount no
+  workstationTrustAccount no
+  serverTrustAccount no
+  passwordNeverExpires yes
+  mnsLogonAccount no
+  smartcardRequired no
+  trustedForDelegation no
+  notDelegated no
+  useDesKeyOnly no
+  noPreauthRequired no
+  passwordExpired no
+  trustedToAuthForDelegation no
+  partialSecretsAccount no

@@ -177,6 +177,14 @@ const REFUSED: &[(&str, &str)] = &[
         "Core\\Ldap\\Sid",
         "It is an account's identifier that a directory sends, and a guest opens no directory.",
     ),
+    (
+        "Core\\Ldap\\Ad\\AccountFlags",
+        "It is an account's flags that a directory sends, and a guest opens no directory.",
+    ),
+    (
+        "Core\\Ldap\\Ad\\GroupType",
+        "It is a group's flags that a directory sends, and a guest opens no directory.",
+    ),
     ("Core\\Db\\Write", REPORT),
     ("Core\\Db\\Column", REPORT),
     (

@@ -2443,6 +2443,8 @@ pub const CLASSES: &[CoreClass] = &[
     crate::ldap::DN,
     crate::ldap::SID,
     crate::ldap::AD,
+    crate::ldap::ACCOUNT_FLAGS,
+    crate::ldap::GROUP_TYPE,
     // `rule:concurrency/queue-four-members`'s durable background job, immediately after the database classes
     // because that is what it is made of: a job is a row in one of these connections,
     // which is the whole of why § 3's enqueue can commit with the write that caused
@@ -3156,6 +3158,7 @@ pub const ENUMS: &[CoreEnum] = &[
     crate::ldap::ERROR_KIND,
     crate::ldap::TLS,
     crate::ldap::SCOPE,
+    crate::ldap::ACCOUNT_TYPE,
     // `rule:concurrency/claiming-is-one-statement` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`'s job lifecycle, immediately after the database enums
     // for the reason [`crate::queue::CLASS`] sits after the database classes: a
     // job is a row, and this enum is one of that row's columns as well as what
