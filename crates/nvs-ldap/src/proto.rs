@@ -11,6 +11,8 @@
 //! can change the filter's structure whatever bytes it holds. [`Filter::to_text`]
 //! renders that form for a log, from the tree, and nothing sends it.
 
+use std::fmt;
+
 use crate::ber::{self, Reader, Writer, tag};
 use crate::error::{Error, Kind};
 
@@ -248,6 +250,23 @@ impl Filter {
         out
     }
 
+    /// The filter RFC 4515's text form writes, the way [`Filter::to_text`]
+    /// renders it: `parse` of that text is the same filter. Every attribute
+    /// and matching rule is checked by [`is_attribute_description`], and a
+    /// value's `\` and two hex digits are the byte they name.
+    ///
+    /// # Errors
+    ///
+    /// A [`TextError`] naming the character the text stops being a filter at.
+    pub fn parse(text: &str) -> Result<Self, TextError> {
+        let mut parser = TextParser { text, at: 0 };
+        let filter = parser.filter()?;
+        if parser.at < text.len() {
+            return Err(parser.error("there is text after the filter's last `)`"));
+        }
+        Ok(filter)
+    }
+
     fn write_text(&self, out: &mut String) {
         let each = |open: &str, all: &[Self], out: &mut String| {
             out.push_str(open);
@@ -316,6 +335,234 @@ impl Filter {
                 Ok(filter) => filter.write_text(out),
                 Err(_) => out.push_str("(?)"),
             },
+        }
+    }
+}
+
+/// Why [`Filter::parse`] could not read a filter, and where.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TextError {
+    /// The character the text stops being a filter at, counted from 1.
+    pub position: usize,
+    /// What is wrong there.
+    pub reason: &'static str,
+}
+
+impl fmt::Display for TextError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "at character {}, {}", self.position, self.reason)
+    }
+}
+
+impl std::error::Error for TextError {}
+
+/// RFC 4515 § 3's grammar, read left to right with no backtracking.
+struct TextParser<'a> {
+    text: &'a str,
+    at: usize,
+}
+
+impl<'a> TextParser<'a> {
+    fn peek(&self) -> Option<u8> {
+        self.text.as_bytes().get(self.at).copied()
+    }
+
+    fn error(&self, reason: &'static str) -> TextError {
+        self.error_at(self.at, reason)
+    }
+
+    fn error_at(&self, at: usize, reason: &'static str) -> TextError {
+        let before = self.text.get(..at).unwrap_or(self.text);
+        TextError {
+            position: before.chars().count() + 1,
+            reason,
+        }
+    }
+
+    fn expect(&mut self, byte: u8, reason: &'static str) -> Result<(), TextError> {
+        if self.peek() == Some(byte) {
+            self.at += 1;
+            Ok(())
+        } else {
+            Err(self.error(reason))
+        }
+    }
+
+    /// `filter = "(" filtercomp ")"`.
+    fn filter(&mut self) -> Result<Filter, TextError> {
+        self.expect(b'(', "a filter starts with `(`")?;
+        let filter = match self.peek() {
+            Some(b'&') => {
+                self.at += 1;
+                Filter::And(self.list()?)
+            }
+            Some(b'|') => {
+                self.at += 1;
+                Filter::Or(self.list()?)
+            }
+            Some(b'!') => {
+                self.at += 1;
+                Filter::Not(Box::new(self.filter()?))
+            }
+            _ => self.item()?,
+        };
+        self.expect(b')', "a filter ends with `)`")?;
+        Ok(filter)
+    }
+
+    /// `filterlist = 1*filter`.
+    fn list(&mut self) -> Result<Vec<Filter>, TextError> {
+        let mut all = Vec::new();
+        while self.peek() == Some(b'(') {
+            all.push(self.filter()?);
+        }
+        if all.is_empty() {
+            return Err(self.error("`&` and `|` are followed by one filter or more"));
+        }
+        Ok(all)
+    }
+
+    /// Everything up to the next character that ends a name.
+    fn word(&mut self) -> &'a str {
+        let start = self.at;
+        while let Some(b) = self.peek() {
+            if matches!(b, b'=' | b'~' | b'<' | b'>' | b':' | b'(' | b')' | b'*') {
+                break;
+            }
+            self.at += 1;
+        }
+        &self.text[start..self.at]
+    }
+
+    fn attribute(&self, at: usize, name: &str) -> Result<String, TextError> {
+        if is_attribute_description(name) {
+            Ok(name.to_owned())
+        } else {
+            Err(self.error_at(at, "this is not an attribute name"))
+        }
+    }
+
+    /// `item = simple / present / substring / extensible`.
+    fn item(&mut self) -> Result<Filter, TextError> {
+        let start = self.at;
+        let name = self.word();
+        if self.peek() == Some(b':') {
+            let attribute = if name.is_empty() {
+                None
+            } else {
+                Some(self.attribute(start, name)?)
+            };
+            return self.extensible(attribute);
+        }
+        let attribute = self.attribute(start, name)?;
+        let make: fn(String, Vec<u8>) -> Filter = match self.peek() {
+            Some(b'=') => {
+                self.at += 1;
+                return self.equality(attribute);
+            }
+            Some(b'~') => Filter::Approx,
+            Some(b'>') => Filter::GreaterOrEqual,
+            Some(b'<') => Filter::LessOrEqual,
+            _ => {
+                return Err(self.error("an attribute is followed by `=`, `~=`, `>=`, `<=` or `:`"));
+            }
+        };
+        self.at += 1;
+        self.expect(b'=', "`~`, `>` and `<` are followed by `=`")?;
+        Ok(make(attribute, self.whole_value()?))
+    }
+
+    /// What follows `attribute=`: a value, `*`, or parts joined by `*`.
+    fn equality(&mut self, attribute: String) -> Result<Filter, TextError> {
+        let mut parts = vec![self.value()?];
+        while self.peek() == Some(b'*') {
+            if parts.len() > 1 && parts.last().is_some_and(Vec::is_empty) {
+                return Err(self.error("two `*` have nothing between them"));
+            }
+            self.at += 1;
+            parts.push(self.value()?);
+        }
+        if parts.len() == 1 {
+            return Ok(Filter::Equal(attribute, parts.remove(0)));
+        }
+        if parts.len() == 2 && parts.iter().all(Vec::is_empty) {
+            return Ok(Filter::Present(attribute));
+        }
+        let last = parts.pop().filter(|part| !part.is_empty());
+        let initial = Some(parts.remove(0)).filter(|part| !part.is_empty());
+        Ok(Filter::Substrings {
+            attribute,
+            initial,
+            any: parts,
+            last,
+        })
+    }
+
+    /// `extensible`, from its first `:` to the end of its value.
+    fn extensible(&mut self, attribute: Option<String>) -> Result<Filter, TextError> {
+        let mut dn_attributes = false;
+        let mut rule = None;
+        loop {
+            self.expect(b':', "a matching rule is followed by `:=`")?;
+            if self.peek() == Some(b'=') {
+                self.at += 1;
+                break;
+            }
+            let start = self.at;
+            let word = self.word();
+            if word.eq_ignore_ascii_case("dn") && !dn_attributes && rule.is_none() {
+                dn_attributes = true;
+            } else if rule.is_none() && !word.contains(';') && is_attribute_description(word) {
+                rule = Some(word.to_owned());
+            } else {
+                return Err(self.error_at(start, "this is not `dn` or a matching rule"));
+            }
+        }
+        if attribute.is_none() && rule.is_none() {
+            return Err(self.error("a match with no attribute needs a matching rule"));
+        }
+        Ok(Filter::Extensible {
+            rule,
+            attribute,
+            value: self.whole_value()?,
+            dn_attributes,
+        })
+    }
+
+    /// A value that may not hold a `*`.
+    fn whole_value(&mut self) -> Result<Vec<u8>, TextError> {
+        let value = self.value()?;
+        if self.peek() == Some(b'*') {
+            return Err(self.error("a `*` in this value is written `\\2a`"));
+        }
+        Ok(value)
+    }
+
+    /// `valueencoding`, up to the `)` or `*` that ends it.
+    fn value(&mut self) -> Result<Vec<u8>, TextError> {
+        let mut out = Vec::new();
+        loop {
+            match self.peek() {
+                None | Some(b')' | b'*') => return Ok(out),
+                Some(b'(') => return Err(self.error("a `(` in a value is written `\\28`")),
+                Some(0) => return Err(self.error("a NUL byte in a value is written `\\00`")),
+                Some(b'\\') => {
+                    let hex = self
+                        .text
+                        .get(self.at + 1..self.at + 3)
+                        .filter(|hex| hex.bytes().all(|b| b.is_ascii_hexdigit()))
+                        .and_then(|hex| u8::from_str_radix(hex, 16).ok());
+                    let Some(byte) = hex else {
+                        return Err(self.error("a `\\` in a value is followed by two hex digits"));
+                    };
+                    out.push(byte);
+                    self.at += 3;
+                }
+                Some(byte) => {
+                    out.push(byte);
+                    self.at += 1;
+                }
+            }
         }
     }
 }
@@ -832,6 +1079,53 @@ mod tests {
              (sn~=Sm\u{ef}th\\0a\\ff)(memberOf:dn:1.2.840.113556.1.4.1941:=CN=Staff))"
         );
         assert!(Filter::from_ber(b"\x87\x02cn\x00").is_err());
+        assert_eq!(Filter::parse(&filter.to_text()).unwrap(), filter);
+    }
+
+    #[test]
+    fn filter_text_parses_to_the_tree_it_writes() {
+        assert_eq!(
+            Filter::parse("(cn=a*b**)"),
+            Err(TextError {
+                position: 9,
+                reason: "two `*` have nothing between them"
+            })
+        );
+        assert_eq!(
+            Filter::parse("(cn=*)").unwrap(),
+            Filter::Present("cn".into())
+        );
+        assert_eq!(
+            Filter::parse("(cn=)").unwrap(),
+            Filter::Equal("cn".into(), Vec::new())
+        );
+        assert_eq!(
+            Filter::parse("(:DN:2.5.13.5:=x)").unwrap(),
+            Filter::Extensible {
+                rule: Some("2.5.13.5".into()),
+                attribute: None,
+                value: b"x".to_vec(),
+                dn_attributes: true,
+            }
+        );
+        for (bad, position) in [
+            ("", 1),
+            ("cn=a", 1),
+            ("(cn=a", 6),
+            ("(cn=a))", 7),
+            ("(&)", 3),
+            ("(c n=a)", 2),
+            ("(cn=a(b)", 6),
+            ("(cn~=a*)", 7),
+            ("(cn=\\2)", 5),
+            ("(cn=\\zz)", 5),
+            ("(:=a)", 4),
+            ("(cn:x y:=a)", 5),
+            ("(cn<a)", 5),
+        ] {
+            let error = Filter::parse(bad).unwrap_err();
+            assert_eq!(error.position, position, "{bad}: {error}");
+        }
     }
 
     #[test]

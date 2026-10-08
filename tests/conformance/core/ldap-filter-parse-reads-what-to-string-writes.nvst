@@ -1,0 +1,36 @@
+--TEST--
+`Filter::parse` reads every form `toString` writes back as the same filter, so the text it renders is the text it was given, for each constructor, nesting, escapes and an extensible match — ADR 0278 § 6 and `rule:core-classes/ldap-filter-is-a-value`
+--FILE--
+<?nvs
+array<string> $texts = [
+    "(cn=Ann)",
+    "(cn=An*)",
+    "(cn=*nn)",
+    "(cn=*n*)",
+    "(cn=A*n*n)",
+    "(mail=*)",
+    "(uSNChanged>=100)",
+    "(uSNChanged<=200)",
+    "(sn~=Smith)",
+    "(cn=)",
+    "(&(objectClass=user)(|(cn=A*)(!(uSNChanged>=5))))",
+    "(cn=a\\2a\\28b\\29\\5cc)",
+    "(memberOf:1.2.840.113556.1.4.1941:=CN=Staff,DC=example,DC=test)",
+    "(cn:dn:2.5.13.5:=Ann)",
+    "(2.5.4.3;lang-en=Ann)",
+];
+int $same = 0;
+foreach ($texts as var $text) {
+    if (Core\Ldap\Filter::parse($text)->toString() == $text) {
+        $same = $same + 1;
+    } else {
+        echo "changed: ", $text, "\n";
+    }
+}
+echo "same: ", $same, " of ", Core\Arr::count($texts), "\n";
+
+// An escape may use capital hex digits. `toString` writes small ones.
+echo Core\Ldap\Filter::parse("(cn=\\2A)")->toString(), "\n";
+--EXPECT--
+same: 15 of 15
+(cn=\2a)

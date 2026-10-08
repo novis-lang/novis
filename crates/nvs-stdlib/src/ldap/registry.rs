@@ -649,8 +649,8 @@ const fn filter_compare(
     }
 }
 
-/// ADR 0278 § 6's `Ldap\Filter`, but for `parse`. `super::search`'s module
-/// doc says what its slot is.
+/// ADR 0278 § 6's `Ldap\Filter`. `super::search`'s module doc says what its
+/// slot is.
 pub(crate) const FILTER: CoreClass = CoreClass {
     name: FILTER_NAME,
     doc: Some(&FILTER_CARD),
@@ -717,6 +717,17 @@ pub(crate) const FILTER: CoreClass = CoreClass {
             return_ty: CoreTy::Instance(FILTER_NAME),
             symbol: "nvs_core_ldap_filter_not",
             doc: Some(&FILTER_NOT_DOC),
+        },
+        CoreMethod {
+            name: "parse",
+            names: &["text"],
+            // The server would read this text as a filter's structure, so it
+            // is a sink and refuses `tainted`.
+            params: &[CoreTy::Text(Qual::Sink)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(FILTER_NAME),
+            symbol: "nvs_core_ldap_filter_parse",
+            doc: Some(&FILTER_PARSE_DOC),
         },
     ],
     instance: &[CoreMethod {
@@ -896,6 +907,26 @@ const FILTER_NOT_DOC: MethodDoc = MethodDoc {
     }],
     ret: "A `Core\\Ldap\\Filter`.",
     errors: &[],
+};
+
+/// `Ldap\Filter::parse`'s reference card — `rule:core-api/reference-card`.
+const FILTER_PARSE_DOC: MethodDoc = MethodDoc {
+    short: "Reads LDAP filter text, such as `(&(objectClass=user)(cn=Ann))`, and returns the \
+            filter it describes. Use it for a filter that you wrote, for example in a \
+            configuration file.",
+    params: &[ParamDoc {
+        name: "text",
+        desc: "The filter text, as RFC 4515 writes it. It cannot be `tainted`. Build a filter \
+               from user input with `equals` and the other functions of this class.",
+        shape: &[],
+    }],
+    ret: "A `Core\\Ldap\\Filter`. Its `toString` returns text that `parse` reads back as the \
+          same filter.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The text is not a filter, or it has a name that is not an attribute name. The \
+               message gives the position of the first wrong character.",
+    }],
 };
 
 /// `Ldap\Filter->toString`'s reference card — `rule:core-api/reference-card`.

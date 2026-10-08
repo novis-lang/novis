@@ -1,0 +1,42 @@
+--TEST--
+`Filter::parse` throws `LogicError` for text that is not a filter, and the message names the first character that is wrong; an attribute name it reads is held to the same RFC 4512 check as `equals` — ADR 0278 § 6
+--FILE--
+<?nvs
+array<string> $bad = [
+    "cn=Ann",
+    "(cn=Ann",
+    "(cn=Ann))",
+    "(&)",
+    "(cn=a(b)",
+    "(cn~=a*)",
+    "(cn=a**b)",
+    "(cn=\\4)",
+    "(c n=Ann)",
+    "(1cn=Ann)",
+    "(:=Ann)",
+];
+int $thrown = 0;
+foreach ($bad as var $text) {
+    try {
+        Core\Ldap\Filter::parse($text);
+        echo "read: ", $text, "\n";
+    } catch (LogicError $notAFilter) {
+        $thrown = $thrown + 1;
+    }
+}
+echo "thrown: ", $thrown, " of ", Core\Arr::count($bad), "\n";
+
+try {
+    Core\Ldap\Filter::parse("(&(cn=Ann)(mail=*)");
+} catch (LogicError $notAFilter) {
+    echo $notAFilter->message, "\n";
+}
+try {
+    Core\Ldap\Filter::parse("(cn)(objectClass=*)");
+} catch (LogicError $notAFilter) {
+    echo $notAFilter->message, "\n";
+}
+--EXPECT--
+thrown: 11 of 11
+Core\Ldap\Filter::parse: the text stops being a filter at character 19: a filter ends with `)`
+Core\Ldap\Filter::parse: the text stops being a filter at character 4: an attribute is followed by `=`, `~=`, `>=`, `<=` or `:`

@@ -628,6 +628,29 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
+    /// `Ldap\Filter::parse(string $text): Filter` — RFC 4515 text an operator
+    /// wrote, read by [`nvs_ldap::Filter::parse`] and encoded now. The
+    /// parameter is a sink, so the text never came from a request.
+    fn nvs_core_ldap_filter_parse(_ctx, args: [1]) {
+        let member = r"Core\Ldap\Filter::parse";
+        let text = args[0].as_text().ok_or_else(|| {
+            // Unreachable from source: the parameter is a `string`.
+            Fault::fatal(format!("{member} expected a `string`"))
+        })?;
+        let filter = nvs_ldap::Filter::parse(text).map_err(|error| {
+            Fault::thrown_as(
+                ThrownClass::Logic,
+                format!(
+                    "{member}: the text stops being a filter at character {}: {}",
+                    error.position, error.reason
+                ),
+            )
+        })?;
+        Ok(filter_value(&filter))
+    }
+}
+
+nvs_runtime::nvs_helper! {
     /// `$filter->toString(): tainted string` — the RFC 4515 text of the
     /// encoding, rendered by [`nvs_ldap::Filter::to_text`]. Nothing sends it.
     fn nvs_core_ldap_filter_to_string(_ctx, args: [1]) {
@@ -679,6 +702,7 @@ pub(super) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_ldap_filter_any" => (nvs_core_ldap_filter_any as *const ()).cast(),
         "nvs_core_ldap_filter_not" => (nvs_core_ldap_filter_not as *const ()).cast(),
         "nvs_core_ldap_filter_to_string" => (nvs_core_ldap_filter_to_string as *const ()).cast(),
+        "nvs_core_ldap_filter_parse" => (nvs_core_ldap_filter_parse as *const ()).cast(),
         _ => return None,
     })
 }
