@@ -18,6 +18,11 @@
 //! the grant is configuration and this crate reads none: the endpoint carries
 //! the answer as [`Endpoint::cleartext_granted`].
 //!
+//! **A Global Catalog only reads.** A connection whose URL names port 3268 or
+//! 3269 ([`Url::is_global_catalog`]) refuses every write, a password write
+//! included, as [`Kind::ReadOnly`] before anything is sent. A search and a
+//! compare are sent as on any other connection.
+//!
 //! **A search holds one page.** [`Cursor`] asks for `page_size` entries with
 //! the paged results control, reads that page whole, hands it out one entry at
 //! a time, and only then asks for the next. The control is sent critical, so
@@ -132,6 +137,13 @@ impl Url {
             port,
         })
     }
+
+    /// Whether the URL names AD's Global Catalog: port 3268, or 3269 for its
+    /// TLS form. The catalog only reads.
+    #[must_use]
+    pub fn is_global_catalog(&self) -> bool {
+        matches!(self.port, 3268 | 3269)
+    }
 }
 
 /// Whether a connection uses TLS: `tls` in the `[ldap.<name>]` block.
@@ -222,6 +234,8 @@ pub struct Connection {
     next_id: i32,
     /// Whether a bind may be sent without TLS on this connection.
     cleartext_allowed: bool,
+    /// Whether the connection is to a Global Catalog, which no write is sent to.
+    read_only: bool,
     /// Whether the last operation sent on this connection has its answer.
     settled: bool,
     /// How many cursors have pages left on the server.
@@ -268,6 +282,7 @@ impl Connection {
             inbox: Vec::new(),
             next_id: 1,
             cleartext_allowed: plain,
+            read_only: url.is_global_catalog(),
             settled: true,
             paging: 0,
         };
@@ -320,6 +335,7 @@ impl Connection {
             inbox,
             next_id,
             cleartext_allowed,
+            read_only,
             settled,
             paging,
         } = self;
@@ -340,6 +356,7 @@ impl Connection {
             inbox,
             next_id,
             cleartext_allowed,
+            read_only,
             settled,
             paging,
         })
@@ -513,8 +530,10 @@ impl Connection {
         self.write(&proto::modify_request(dn, &changes), "the password change")
     }
 
-    /// Refuses a password write on a connection that is not a TLS session.
+    /// Refuses a password write to a Global Catalog, and on a connection that
+    /// is not a TLS session.
     fn password_write(&self, operation: &str) -> Result<(), Error> {
+        self.writable(operation)?;
         if self.is_encrypted() {
             return Ok(());
         }
@@ -550,8 +569,21 @@ impl Connection {
         }
     }
 
-    /// Sends one of the four writes and reads its result.
+    /// Refuses any write to a Global Catalog, before anything is sent.
+    fn writable(&self, operation: &str) -> Result<(), Error> {
+        if !self.read_only {
+            return Ok(());
+        }
+        Err(Error::new(
+            Kind::ReadOnly,
+            format!("{operation} was not sent, because a Global Catalog only reads"),
+        ))
+    }
+
+    /// Sends one of the four writes and reads its result, unless the
+    /// connection is to a Global Catalog.
     fn write(&mut self, op: &[u8], operation: &str) -> Result<(), Error> {
+        self.writable(operation)?;
         let answer = self.request(op, &[], operation)?;
         let Op::Written(result) = answer.op else {
             return Err(unexpected(operation));

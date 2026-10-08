@@ -6,8 +6,10 @@
 //! and the new parent only where it differs. [`set_password`] and
 //! [`change_password`] write AD's `unicodePwd` and are refused before
 //! anything is sent on a connection without TLS, whatever the cleartext
-//! grant says. [`compare`] lives here because it sends one value in the
-//! form a write does.
+//! grant says. Every write but [`compare`] throws `ReadOnly` before anything
+//! is sent on a connection to a Global Catalog, port 3268 or 3269 (ADR 0278
+//! § 11), which [`nvs_ldap::Connection`] checks because it holds the URL.
+//! [`compare`] lives here because it sends one value in the form a write does.
 //!
 //! **An `Ldap\Change` is a value**: its kind, its attribute and the `mixed`
 //! value it was given, unencoded. The value is encoded when `modify` sends it,

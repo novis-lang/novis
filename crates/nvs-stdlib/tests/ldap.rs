@@ -909,6 +909,14 @@ fn account_flags_keep_the_bits_they_do_not_name() {
 /// `answers[n]`, and returns its port and every byte it read.
 fn scripted(answers: Vec<Vec<u8>>) -> (u16, Arc<std::sync::Mutex<Vec<u8>>>) {
     let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a loopback port");
+    scripted_on(listener, answers)
+}
+
+/// [`scripted`] on a listener the caller bound.
+fn scripted_on(
+    listener: TcpListener,
+    answers: Vec<Vec<u8>>,
+) -> (u16, Arc<std::sync::Mutex<Vec<u8>>>) {
     let port = listener.local_addr().expect("its address").port();
     let read = Arc::new(std::sync::Mutex::new(Vec::new()));
     let kept = Arc::clone(&read);
@@ -1439,6 +1447,44 @@ fn a_password_write_on_an_unencrypted_connection_is_refused() {
             "{}",
             refused.message()
         );
+    }
+    assert!(
+        read.lock().expect("unpoisoned").is_empty(),
+        "nothing reached the peer"
+    );
+}
+
+#[test]
+fn a_write_to_a_global_catalog_block_throws_before_it_is_sent() {
+    // Port 3268 is the catalog, and 3269 its TLS form: either makes the block read-only.
+    let listener = [3268, 3269]
+        .into_iter()
+        .find_map(|port| TcpListener::bind((Ipv4Addr::LOCALHOST, port)).ok())
+        .expect("port 3268 or 3269 is free on loopback");
+    let (port, read) = scripted_on(listener, vec![written(1, 0x67, 0)]);
+    let mut ctx = ctx_over(&cleartext_corp(port));
+    let key = ldap::connect(&mut ctx, "corp").expect("the peer accepts");
+    let dn = format!("OU=Shop,{BASE}");
+    let attribute = nvs_ldap::Attribute {
+        name: "objectClass".to_owned(),
+        values: vec![b"organizationalUnit".to_vec()],
+    };
+    let change = nvs_ldap::Change {
+        kind: nvs_ldap::ChangeKind::Replace,
+        attribute: "description".to_owned(),
+        values: vec![b"Shop".to_vec()],
+    };
+    let refused = [
+        ldap::add(&mut ctx, key, &dn, &[attribute]),
+        ldap::modify(&mut ctx, key, &dn, &[change]),
+        ldap::delete(&mut ctx, key, &dn),
+        ldap::rename(&mut ctx, key, &dn, &format!("OU=Blog,{BASE}")),
+        ldap::set_password(&mut ctx, key, &dn, "Shop-Pass-1"),
+        ldap::change_password(&mut ctx, key, &dn, "Shop-Pass-1", "Shop-Pass-2"),
+    ];
+    for result in refused {
+        let message = result.expect_err("a Global Catalog only reads").message();
+        assert!(message.contains("ReadOnly"), "{message}");
     }
     assert!(
         read.lock().expect("unpoisoned").is_empty(),

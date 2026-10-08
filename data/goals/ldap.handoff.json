@@ -1,25 +1,28 @@
 {
-  "state": "**Goal `ldap`, Stage 9 (the AD extras) is under way**: sort with a VLV window, deleted objects and DirSync are on `main`. `sort_and_a_vlv_window_return_the_requested_slice`, `show_deleted_finds_a_deleted_entry` and `dirsync_returns_only_what_changed_since_its_cookie` pass against `samba-ad`, and so does `tests/conformance/core/ldap-sync-cookie.nvst`. Stages 1 to 5, 7 and 8 are done. Stage 4 is done except for a CA that a program supplies. Stage 6 is done except wiring the schema into the readers. Stage 9's Global Catalog is the one item left.\n\n**On `main`**: everything Stage 8 listed, sort and window, `showDeleted`, and now `Connection::changes(Filter, {base?, select?, cookie?}): Changes` with `Changes::cookie(): tainted bytes`. `crates/nvs-ldap/src/conn.rs`'s module doc (\"A sync pages by its own cookie\") says how `Cursor::changes` works and why it adds the filter's attributes and `isDeleted` to a non-empty select (Samba matches the filter against selected attributes only and sends a deletion only when `isDeleted` is selected). `crates/nvs-stdlib/src/ldap/search.rs`'s module doc says how `Ldap\\Changes` shares `Ldap\\Entries`' first three slots and one `advance`.\n\nServer cases reach `samba-ad` (`tests/db/compose.yaml`) at `ldaps://localhost:16636`, and plain LDAP at 16389. Write cases add and delete their own entries under names no other case uses: OUs `Shop`/`Blog`/`Store`/`Framework`/`Example`/`Catalog`/`Library`/`Gallery`/`Studio`/`Archive`/`Theater`/`Cinema`/`Garden` (cases) and `Museum`/`Harbor` (Rust) at the root, and each test user `CN=<name>,OU=<name>` in an OU of its own (`Team`, `Editors`, `Visitors`, `Members`, `Readers` in Rust; `Staff`, `Authors`, `Owners`, `Clients` in cases). Grep the name across `tests/conformance/core/ldap-*.nvst` and `crates/nvs-stdlib/tests/ldap.rs` before taking one. A deleted entry cannot be removed, so a test that deletes must not assume it is the only tombstone.",
+  "state": "**Goal `ldap`, Stage 9 (the AD extras) is done**: sort with a VLV window, deleted objects, DirSync and the Global Catalog are on `main`, and all four tests of `nvs-stdlib-ldap-ad-extras` pass (`a_write_to_a_global_catalog_block_throws_before_it_is_sent` runs against a scripted peer on loopback port 3268 or 3269, no Samba needed). Stages 1 to 5 and 7 to 9 are done. Stage 4 is done except for a CA that a program supplies. Stage 6 is done except wiring the schema into the readers. Stage 10, the feature proofs, is what the driver's red checks now name: every `Core\\Ldap*` member owes its `about.md`, three examples, an attack, a bench and a Rust `covers:` marker.\n\n**On `main`**: everything Stage 9 listed. `crates/nvs-ldap/src/conn.rs`'s module doc (\"A Global Catalog only reads\") says how the read-only check works: `Url::is_global_catalog` sets `Connection::read_only` at `open`, and `write` and `password_write` throw `Kind::ReadOnly` before anything is sent. A search and a compare still go through.\n\nServer cases reach `samba-ad` (`tests/db/compose.yaml`) at `ldaps://localhost:16636`, and plain LDAP at 16389. Write cases add and delete their own entries under names no other case uses: OUs `Shop`/`Blog`/`Store`/`Framework`/`Example`/`Catalog`/`Library`/`Gallery`/`Studio`/`Archive`/`Theater`/`Cinema`/`Garden` (cases) and `Museum`/`Harbor` (Rust) at the root, and each test user `CN=<name>,OU=<name>` in an OU of its own (`Team`, `Editors`, `Visitors`, `Members`, `Readers` in Rust; `Staff`, `Authors`, `Owners`, `Clients` in cases). Grep the name across `tests/conformance/core/ldap-*.nvst` and `crates/nvs-stdlib/tests/ldap.rs` before taking one. A deleted entry cannot be removed, so a test that deletes must not assume it is the only tombstone.",
   "next": {
-    "stage": 9,
-    "title": "the AD extras",
+    "stage": 10,
+    "title": "the feature proofs",
     "files": [
-      "crates/nvs-ldap/src/conn.rs",
-      "crates/nvs-stdlib/src/ldap/write.rs",
-      "crates/nvs-stdlib/src/ldap/mod.rs",
+      "docs/examples/core/Ldap/",
+      "tests/hostile/core/Ldap/",
+      "benches/members/core/Ldap/",
       "crates/nvs-stdlib/tests/ldap.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**A write to a Global Catalog block throws before it is sent** (ADR 0278 § 11): a URL on port 3268 or 3269 (`crates/nvs-ldap/src/conn.rs:79`) is read-only, checked at the top of the writes at `crates/nvs-stdlib/src/ldap/write.rs:59`, and throws `ReadOnly`. Closes `a_write_to_a_global_catalog_block_throws_before_it_is_sent`, the last test of `nvs-stdlib-ldap-ad-extras`."
+        "text": "**`Core\\Ldap::connect` and `Core\\Ldap::open` owe nothing** (`rule:testing/feature-proofs`): `about.md`, three examples, one attack and one bench each, and a `covers:` marker on a Rust test (the grant tests at `crates/nvs-stdlib/tests/ldap.rs:107` and `crates/nvs-stdlib/tests/ldap.rs:159`). Registry rows at `crates/nvs-stdlib/src/ldap/registry.rs:179`. `bun nv proofs --id 'Core\\Ldap::connect'` lists what is owed; every comment and `about.md` follows `AGENTS.md` § *Text an end user reads*, checked with `bun nv proofs --comments`."
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Ldap\\Connection`'s members owe nothing**, the same proofs, one member at a time, starting with the writes at `crates/nvs-stdlib/src/ldap/write.rs:59`; `bun nv proofs --owed` names them."
       }
     ]
   },
   "backlog": [
-    "Stage 10, the feature proofs for every `Core\\Ldap` class (`bun nv proofs --owed`), including `Core\\Ldap\\Changes`, owned by goal `ldap`.",
-    "Stage 4: a CA that a program supplies through `Settings` (ADR 0278 § 3).",
-    "Stage 6: wire the schema cache into the typed readers (ADR 0278 § 8).",
-    "A run against a Windows Server evaluation VM is the user's to do by hand (goal prose, standing decisions). It should also check that real AD returns a DirSync change whose filter attributes did not change, which Samba only does when they are selected."
+    "Stage 4: a CA that a program supplies to `Ldap::open` (ADR 0278 § 4).",
+    "Stage 6: wire the cached schema into the typed readers on `Ldap\\Entry` (`crates/nvs-stdlib/src/ldap/mod.rs` module doc).",
+    "The remaining classes' proofs: `Entries`, `Changes`, `Entry`, `Filter`, `Dn`, `Change`, `Sid`, `Ad`, `Ad\\AccountFlags`, `Ad\\GroupType` (`bun nv proofs --owed`)."
   ]
 }
