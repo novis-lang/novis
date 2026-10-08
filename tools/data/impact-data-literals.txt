@@ -46,6 +46,7 @@ crates/nvs-stdlib/src/zip.rs  "../../etc/passwd"  --  an entry name in an archiv
 crates/nvs-stdlib/src/zip.rs  "notes/../../etc/passwd"  --  an entry name in an archive built in memory, expected to be refused
 crates/nvs-stdlib/src/zip.rs  r"notes\..\..\etc\passwd"  --  an entry name in an archive built in memory, expected to be refused
 crates/nvs-test/src/case.rs  "../x.nvs"  --  a case file's auxiliary path the parser is expected to refuse
+crates/nvs-test/src/case.rs  "../../db/ca.crt\nnotes.txt\n"  --  a `--COPY--` section's text, parsed and compared as paths, never opened
 crates/nvs-stdlib/src/time.rs  "../../etc/passwd"  --  a time-zone name looked up in the zone database, expected to be refused
 crates/nvs-ext/tests/files.rs  "../other/secret.txt"  --  a path a guest opens under a preopen in a scratch folder, expected to be refused
 crates/nvs-ext/tests/files.rs  "sub/../../other/secret.txt"  --  a path a guest opens under a preopen in a scratch folder, expected to be refused
