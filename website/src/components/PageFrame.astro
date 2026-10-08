@@ -10,7 +10,8 @@
  * menu footer: the site navigation, the social icons, the theme switcher.
  * From 50rem up such a page is laid out as before, without a sidebar.
  *
- * Everything else is the default component as it is.
+ * The header bar is translucent glass with the signature gradient as its
+ * bottom hairline. Everything else is the default component as it is.
  */
 import MobileMenuToggle from 'virtual:starlight/components/MobileMenuToggle'
 import MobileMenuFooter from 'virtual:starlight/components/MobileMenuFooter'
@@ -48,12 +49,34 @@ const { hasSidebar } = Astro.locals.starlightRoute
       inset-block-start: 0;
       width: 100%;
       height: var(--sl-nav-height);
-      border-bottom: 1px solid var(--sl-color-hairline-shade);
+      border-bottom: 1px solid var(--nv-hairline);
       padding: var(--sl-nav-pad-y) var(--sl-nav-pad-x);
       /* Room for the menu button, which every page now has on a small
          screen — Starlight reserves it only under [data-has-sidebar]. */
       padding-inline-end: calc(var(--sl-nav-gap) + var(--sl-nav-pad-x) + var(--sl-menu-button-size));
-      background-color: var(--sl-color-bg-nav);
+      background-color: var(--nv-glass-solid);
+    }
+    /* The bar is glass: the page shows through it, blurred. This is the one
+       element on the site with a backdrop-filter, because the blur is
+       repainted on every scroll frame. A browser without it gets the solid
+       ground above. */
+    @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+      .header {
+        background-color: var(--nv-glass);
+        -webkit-backdrop-filter: blur(14px) saturate(160%);
+        backdrop-filter: blur(14px) saturate(160%);
+      }
+    }
+    /* The signature gradient as a hairline along the bottom edge. */
+    .header::after {
+      content: '';
+      position: absolute;
+      inset-inline: 0;
+      bottom: -1px;
+      height: 1px;
+      background: var(--nv-gradient-line);
+      opacity: 0.55;
+      pointer-events: none;
     }
 
     .sidebar-pane {

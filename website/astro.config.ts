@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import { defineConfig } from 'astro/config'
 import starlight from '@astrojs/starlight'
-import { SITE_URL, SITE_TITLE, SITE_DESCRIPTION, GITHUB_URL, DISCORD_URL, GITHUB_BRANCH, INSTALL } from './config/site.mjs'
+import { SITE_URL, SITE_TITLE, SITE_DESCRIPTION, GITHUB_URL, DISCORD_URL, INSTALL } from './config/site.mjs'
 import { baseLinks } from './config/base-links.mjs'
 import { externalLinks } from './config/external-links.mjs'
 
@@ -65,17 +65,20 @@ export default defineConfig({
       // website README's "Logo and favicon" section for the command.
       logo: { src: './media/novis-logo.png', alt: SITE_TITLE, replacesTitle: true },
       favicon: '/favicon.ico',
-      customCss: ['./src/styles/custom.css'],
+      // The two typefaces are self-hosted from npm, so a page makes no request to a font
+      // service. custom.css names them in --sl-font and --sl-font-mono.
+      customCss: [
+        '@fontsource-variable/plus-jakarta-sans',
+        '@fontsource-variable/jetbrains-mono',
+        './src/styles/custom.css',
+      ],
       routeMiddleware: './src/routeData.ts',
       social: [
         { icon: 'github', label: 'GitHub', href: GITHUB_URL },
         { icon: 'discord', label: 'Discord', href: DISCORD_URL },
       ],
-      editLink: {
-        // Handwritten docs pages get an edit link; generated pages opt out
-        // with `editUrl: false` in their frontmatter.
-        baseUrl: `${GITHUB_URL}/edit/${GITHUB_BRANCH}/website/`,
-      },
+      // No "Edit page" link: this is the product's website, and its pages are not edited by
+      // visitors. With `editLink` unset, Starlight renders none.
       // No "Last updated" stamp: it is the git commit date, and a page that is still correct
       // reads as stale the moment something near it is edited. `git log` is the changelog.
       lastUpdated: false,
@@ -88,29 +91,53 @@ export default defineConfig({
         MobileMenuFooter: './src/components/MobileMenuFooter.astro',
         // The mobile menu button on every page, sidebar or not.
         PageFrame: './src/components/PageFrame.astro',
-        // The two Starlight components that link off the site, with the
+        // The Starlight component that links off the site, with the
         // external-link rule applied — see config/external-links.mjs.
         SocialIcons: './src/components/SocialIcons.astro',
-        EditLink: './src/components/EditLink.astro',
       },
       expressiveCode: {
         shiki: {
           langs: [novisGrammar],
         },
         styleOverrides: {
-          // A code block's frame already follows the site's colors (Starlight
-          // hands Expressive Code its UI tokens), but the code surface itself
-          // comes from the syntax theme — a cold grey under a warm page. The
-          // value is --nv-code-bg in src/styles/custom.css, with the rest of
-          // the palette.
+          // Every value is a token from src/styles/custom.css, so a code block
+          // follows the palette and the theme. The code surface would otherwise
+          // come from the syntax theme.
           codeBackground: 'var(--nv-code-bg)',
+          codeFontFamily: 'var(--__sl-font-mono)',
+          uiFontFamily: 'var(--__sl-font)',
+          borderRadius: 'var(--nv-radius-lg)',
+          borderColor: 'var(--nv-hairline)',
+          focusBorder: 'var(--sl-color-accent)',
+          scrollbarThumbColor: 'var(--nv-hairline-strong)',
+          scrollbarThumbHoverColor: 'var(--sl-color-gray-4)',
+          frames: {
+            frameBoxShadowCssValue: 'none',
+            editorTabBarBackground: 'var(--nv-surface)',
+            editorTabBarBorderBottomColor: 'var(--nv-hairline)',
+            editorActiveTabBackground: 'var(--nv-code-bg)',
+            editorActiveTabForeground: 'var(--sl-color-white)',
+            editorActiveTabBorderColor: 'transparent',
+            editorActiveTabIndicatorTopColor: 'var(--sl-color-accent)',
+            editorActiveTabIndicatorBottomColor: 'transparent',
+            terminalTitlebarBackground: 'var(--nv-surface)',
+            terminalTitlebarForeground: 'var(--sl-color-gray-3)',
+            terminalTitlebarBorderBottomColor: 'var(--nv-hairline)',
+            terminalTitlebarDotsOpacity: '0.5',
+            terminalBackground: 'var(--nv-code-bg)',
+            inlineButtonBorder: 'var(--nv-hairline-strong)',
+            tooltipSuccessBackground: 'var(--sl-color-accent)',
+            tooltipSuccessForeground: 'white',
+          },
         },
       },
       head: [
-        // The palette's accent, as it appears in the light theme — the browser
-        // chrome sits above a light page. Kept in step with --nv-accent in
-        // src/styles/custom.css, which is where the palette lives.
-        { tag: 'meta', attrs: { name: 'theme-color', content: '#b20038' } },
+        // The browser chrome takes the page ground of each theme: --nv-ink and
+        // --nv-fog in src/styles/custom.css, as the browser computes them. A
+        // meta tag cannot read a CSS variable, so these two follow the palette
+        // by hand.
+        { tag: 'meta', attrs: { name: 'theme-color', content: '#0d0e1d', media: '(prefers-color-scheme: dark)' } },
+        { tag: 'meta', attrs: { name: 'theme-color', content: '#fafaff', media: '(prefers-color-scheme: light)' } },
         { tag: 'meta', attrs: { property: 'og:site_name', content: SITE_TITLE } },
       ],
       // One top-level group per area, labelled as AREAS and INSTALL in

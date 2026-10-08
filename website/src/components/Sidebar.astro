@@ -50,23 +50,32 @@ const { sidebar } = Astro.locals.starlightRoute
   }
   .nv-sidebar-filter input {
     width: 100%;
-    padding: 0.45rem 0.75rem;
+    min-height: 2.5rem;
+    padding: 0.45rem 0.85rem;
     font-size: var(--sl-text-sm);
     color: var(--sl-color-white);
-    background-color: var(--sl-color-black);
-    border: 1px solid var(--sl-color-gray-5);
-    border-radius: 0.5rem;
+    background-color: var(--nv-surface);
+    border: 1px solid var(--nv-hairline-strong);
+    border-radius: var(--nv-radius);
+    transition: border-color var(--nv-fast) var(--nv-ease);
+  }
+  .nv-sidebar-filter input::placeholder {
+    color: var(--sl-color-gray-3);
+  }
+  .nv-sidebar-filter input:hover {
+    border-color: var(--sl-color-gray-4);
   }
   .nv-sidebar-filter input:focus {
-    outline: 2px solid var(--sl-color-accent);
-    outline-offset: -1px;
+    border-color: var(--sl-color-accent);
+    outline: 2px solid color-mix(in oklab, var(--sl-color-accent) 35%, transparent);
+    outline-offset: 1px;
   }
   #nv-sidebar-tree :global(li[data-nv-hidden]) {
     display: none;
   }
   #nv-sidebar-tree :global(mark.nv-filter-match) {
-    background-color: var(--sl-color-accent-low);
-    color: inherit;
+    background-color: var(--nv-gold);
+    color: var(--nv-on-gold);
     border-radius: 0.15rem;
     padding-inline: 0.05em;
   }

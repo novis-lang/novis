@@ -18,16 +18,32 @@ import { withBase } from '~/lib/base'
 <Default><slot /></Default>
 
 <style>
+  /* Two columns of 44px tiles. */
   .nv-mobile-nav {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.75rem 1.25rem;
-    padding: 0.75rem var(--sl-sidebar-pad-x, 1rem);
-    border-top: 1px solid var(--sl-color-hairline);
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--nv-space-2);
+    padding-block: var(--nv-space-4);
+    border-top: 1px solid var(--nv-hairline);
   }
   .nv-mobile-nav a {
+    display: flex;
+    align-items: center;
+    min-height: 2.75rem;
+    padding-inline: var(--nv-space-4);
+    border: 1px solid var(--nv-hairline);
+    border-radius: var(--nv-radius);
+    background-color: var(--nv-surface);
     color: var(--sl-color-white);
-    font-weight: 600;
+    font-weight: 650;
     text-decoration: none;
+    transition:
+      background-color var(--nv-fast) var(--nv-ease),
+      border-color var(--nv-fast) var(--nv-ease);
+  }
+  .nv-mobile-nav a:hover,
+  .nv-mobile-nav a:active {
+    border-color: var(--sl-color-accent);
+    background-color: var(--nv-wash-soft);
   }
 </style>

@@ -3,14 +3,16 @@
  * Header override: the default Starlight header (the mark, search, social
  * icons, theme switch) plus the site navigation: the four areas from AREAS in
  * config/site.mjs, each with its subtitle on a second, smaller line, then
- * Install as a button, then Sponsoring.
+ * Install as the bar's one primary button, then Sponsoring.
  *
  * The mark comes from Starlight's `logo` option (see astro.config.ts) through
  * `<SiteTitle />`, replaces the wordmark and links to the home page. Its size
  * is set below, because the default suits a wide logo and not a square one.
  *
- * Layout follows the default component so the search stays centered over the
- * content column; the nav sits between the title and the search.
+ * Every item in the bar is centered on the bar's midline. As the window
+ * narrows, the parts that are also in the footer go first: the subtitles
+ * below 90rem, the social icons below 68rem, Sponsoring below 58rem. Below
+ * 50rem the whole navigation moves into the mobile menu.
  */
 import config from 'virtual:starlight/user-config'
 
@@ -51,7 +53,7 @@ const current = (href: string) => (pathname.startsWith(href) ? 'page' : undefine
       <a href={install.href} aria-current={current(install.href)} class="install">
         {install.label}
       </a>
-      <a href={sponsoring.href} aria-current={current(sponsoring.href)}>
+      <a href={sponsoring.href} aria-current={current(sponsoring.href)} class="sponsoring">
         {sponsoring.label}
       </a>
     </nav>
@@ -71,26 +73,22 @@ const current = (href: string) => (pathname.startsWith(href) ? 'page' : undefine
 <style>
   .header {
     display: flex;
-    gap: var(--sl-nav-gap);
+    gap: var(--nv-space-4);
     justify-content: space-between;
     align-items: center;
     height: 100%;
   }
 
-  /* The mark and the nav links are each centered in the bar. With the
-     wordmark hidden there is one text size in this row, so centering the
-     boxes is enough: the links share a baseline with each other, and the mark
-     sits on the bar's midline. */
   .start-group {
     --mark-size: 2rem;
     display: flex;
     align-items: center;
-    gap: calc(var(--sl-nav-gap) + 0.5rem);
+    gap: var(--nv-space-5);
     min-width: 0;
   }
   @media (max-width: 50rem) {
     .start-group {
-      --mark-size: 1.7rem;
+      --mark-size: 1.75rem;
     }
   }
 
@@ -111,6 +109,10 @@ const current = (href: string) => (pathname.startsWith(href) ? 'page' : undefine
     width: var(--mark-size);
     padding: 0.125rem;
     border-radius: 0.5rem;
+    transition: transform var(--nv-slow) var(--nv-ease);
+  }
+  .title-wrapper :global(.site-title:hover img) {
+    transform: rotate(-8deg) scale(1.05);
   }
   /* In the dark theme the mark stands on a white rounded tile, as it does on
      the home-screen icon; the padding above is what keeps the disc's edge off
@@ -121,47 +123,92 @@ const current = (href: string) => (pathname.startsWith(href) ? 'page' : undefine
   }
 
   .site-nav {
-    gap: 1.25rem;
+    gap: var(--nv-space-1);
     align-items: center;
   }
   .site-nav a {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 2.5rem;
+    padding: 0.25rem 0.7rem;
+    border-radius: var(--nv-radius);
     color: var(--sl-color-gray-2);
     font-size: var(--sl-text-sm);
-    font-weight: 600;
+    font-weight: 650;
+    line-height: 1.2;
     text-decoration: none;
     white-space: nowrap;
-    padding: 0.3rem 0.1rem;
-    border-bottom: 2px solid transparent;
-    transition: color 120ms ease;
+    transition:
+      color var(--nv-fast) var(--nv-ease),
+      background-color var(--nv-fast) var(--nv-ease);
   }
   .site-nav a:hover {
     color: var(--sl-color-white);
+    background-color: var(--nv-hover);
   }
-  .site-nav a[aria-current='page'] {
+  /* The current area: violet text and a short bar under it. */
+  .site-nav a:not(.install)::after {
+    content: '';
+    position: absolute;
+    inset-inline: 0.7rem;
+    bottom: 0;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--sl-color-accent);
+    transform: scaleX(0);
+    transition: transform var(--nv-slow) var(--nv-ease);
+  }
+  .site-nav a[aria-current='page']:not(.install) {
     color: var(--sl-color-text-accent);
-    border-bottom-color: var(--sl-color-text-accent);
   }
-  .site-nav a.area {
-    display: flex;
-    flex-direction: column;
-    line-height: 1.2;
+  .site-nav a[aria-current='page']:not(.install)::after {
+    transform: scaleX(1);
   }
   .site-nav .area-subtitle {
-    font-size: var(--sl-text-xs);
-    font-weight: 400;
+    display: none;
+    margin-top: 0.1rem;
+    font-size: var(--sl-text-2xs);
+    font-weight: 500;
     color: var(--sl-color-gray-3);
   }
-  .site-nav a.install {
-    padding: 0.35rem 0.9rem;
-    border: none;
-    border-radius: 999px;
-    background: var(--sl-color-accent);
-    color: var(--sl-color-black);
+  @media (min-width: 90rem) {
+    .site-nav .area-subtitle {
+      display: block;
+    }
+    .site-nav a {
+      min-height: 2.75rem;
+    }
   }
-  .site-nav a.install:hover,
-  .site-nav a.install[aria-current='page'] {
-    background: var(--sl-color-accent-high);
-    color: var(--sl-color-black);
+
+  /* Install: the one primary button in the bar. */
+  .site-nav a.install {
+    min-height: 2.25rem;
+    margin-inline: var(--nv-space-2);
+    padding: 0 1rem;
+    border: 1px solid color-mix(in oklab, var(--nv-crimson-fill) 80%, black);
+    border-radius: var(--nv-radius-pill);
+    background-color: var(--nv-crimson-fill);
+    background-image: linear-gradient(180deg, color-mix(in oklab, white 14%, transparent), transparent 70%);
+    color: white;
+    box-shadow:
+      inset 0 1px 0 color-mix(in oklab, white 22%, transparent),
+      0 4px 14px -6px color-mix(in oklab, var(--nv-crimson) 70%, transparent);
+    transition:
+      transform var(--nv-fast) var(--nv-ease),
+      box-shadow var(--nv-slow) var(--nv-ease);
+  }
+  .site-nav a.install:hover {
+    color: white;
+    transform: translateY(-1px);
+    box-shadow:
+      inset 0 1px 0 color-mix(in oklab, white 22%, transparent),
+      0 8px 20px -6px color-mix(in oklab, var(--nv-crimson) 80%, transparent);
+  }
+  .site-nav a.install:active {
+    transform: translateY(0);
+    background-image: none;
   }
 
   .search-wrapper {
@@ -170,14 +217,34 @@ const current = (href: string) => (pathname.startsWith(href) ? 'page' : undefine
     min-width: 0;
   }
 
-  .right-group,
+  .right-group {
+    gap: var(--nv-space-3);
+    align-items: center;
+  }
   .social-icons {
-    gap: 1rem;
+    gap: var(--nv-space-1);
     align-items: center;
   }
   .social-icons::after {
     content: '';
-    height: 2rem;
-    border-inline-end: 1px solid var(--sl-color-gray-5);
+    height: 1.5rem;
+    margin-inline-start: var(--nv-space-2);
+    border-inline-end: 1px solid var(--nv-hairline-strong);
+  }
+
+  @media (max-width: 68rem) {
+    .social-icons {
+      display: none;
+    }
+  }
+  @media (max-width: 58rem) {
+    .site-nav a.sponsoring {
+      display: none;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .title-wrapper :global(.site-title:hover img) {
+      transform: none;
+    }
   }
 </style>

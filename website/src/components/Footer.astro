@@ -1,12 +1,12 @@
 ---
 /**
- * Footer override: keeps Starlight's edit link and adds the site-wide
- * three-column footer below it. There are no previous and next links: a page
- * links to what comes next in its own text. There is no "last updated"
- * stamp -- see `lastUpdated` in astro.config.ts for why.
+ * Footer override: the site-wide footer, the project's name and one sentence
+ * beside three columns of links, on one grid. There is no edit link,
+ * no previous and next links and no "last updated" stamp: a page links to
+ * what comes next in its own text, and `editLink` and `lastUpdated` in
+ * astro.config.ts say why the other two are off.
  */
-import EditLink from 'virtual:starlight/components/EditLink'
-import { GITHUB_URL, DISCORD_URL, AREAS, INSTALL } from '@config/site.mjs'
+import { GITHUB_URL, GITHUB_BRANCH, DISCORD_URL, AREAS, INSTALL } from '@config/site.mjs'
 import { externalLinkAttrs } from '@config/external-links.mjs'
 import { withBase } from '~/lib/base'
 
@@ -31,19 +31,19 @@ const columns = [
     links: [
       { label: 'Impressum', href: withBase('/impressum/') },
       { label: 'Datenschutzerklärung', href: withBase('/datenschutz/') },
-      { label: 'License', href: `${GITHUB_URL}/blob/main/LICENSE` },
+      { label: 'License', href: `${GITHUB_URL}/blob/${GITHUB_BRANCH}/LICENSE` },
     ],
   },
 ]
 ---
 
 <footer class="sl-flex">
-  <div class="meta sl-flex">
-    <EditLink />
-  </div>
-
   <div class="site-footer">
     <div class="site-footer-grid">
+      <div class="site-footer-brand">
+        <p class="site-footer-name">Novis</p>
+        <p>A programming language for web servers and the command line. It is safe by default.</p>
+      </div>
       {
         columns.map((col) => (
           <div class="site-footer-col">
@@ -68,38 +68,73 @@ const columns = [
 <style>
   footer {
     flex-direction: column;
-    gap: 1.5rem;
   }
-  .meta {
-    gap: 0.75rem 3rem;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    margin-top: 3rem;
-    font-size: var(--sl-text-sm);
-    color: var(--sl-color-gray-3);
-  }
+
   .site-footer {
-    margin-top: 2rem;
-    border-top: 1px solid var(--sl-color-hairline);
-    padding-top: 2rem;
+    position: relative;
+    margin-top: var(--nv-space-8);
+    padding-top: var(--nv-space-6);
   }
+  /* The signature gradient as a hairline, fading out at both ends. */
+  .site-footer::before {
+    content: '';
+    position: absolute;
+    inset-inline: 0;
+    top: 0;
+    height: 1px;
+    background: var(--nv-gradient-line);
+    opacity: 0.6;
+    -webkit-mask: linear-gradient(90deg, transparent, black 15%, black 85%, transparent);
+    mask: linear-gradient(90deg, transparent, black 15%, black 85%, transparent);
+  }
+
   .site-footer-grid {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 2rem;
+    grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(0, 1fr));
+    gap: var(--nv-space-6) var(--nv-space-5);
   }
-  @media (max-width: 40rem) {
+  @media (max-width: 56rem) {
     .site-footer-grid {
-      grid-template-columns: 1fr;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .site-footer-brand {
+      grid-column: 1 / -1;
     }
   }
-  .site-footer-col h2 {
+  @media (max-width: 30rem) {
+    .site-footer-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  .site-footer-brand p {
+    margin: 0;
+    max-width: 22rem;
     font-size: var(--sl-text-sm);
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    line-height: 1.6;
     color: var(--sl-color-gray-3);
-    margin: 0 0 0.75rem;
+  }
+  .site-footer-brand .site-footer-name {
+    margin-bottom: var(--nv-space-2);
+    font-size: var(--sl-text-xl);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.2;
+    background: var(--nv-gradient);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+    width: fit-content;
+  }
+
+  .site-footer-col h2 {
+    margin: 0 0 var(--nv-space-3);
+    font-size: var(--sl-text-xs);
+    font-weight: 750;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--sl-color-white);
   }
   .site-footer-col ul {
     list-style: none;
@@ -107,21 +142,40 @@ const columns = [
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.4rem;
+    gap: var(--nv-space-1);
   }
   .site-footer-col a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2rem;
     color: var(--sl-color-gray-2);
     text-decoration: none;
     font-size: var(--sl-text-sm);
+    transition:
+      color var(--nv-fast) var(--nv-ease),
+      transform var(--nv-fast) var(--nv-ease);
   }
   .site-footer-col a:hover {
     color: var(--sl-color-text-accent);
+    transform: translateX(2px);
+  }
+  @media (max-width: 50rem) {
+    .site-footer-col a {
+      min-height: 2.75rem;
+    }
   }
   .site-footer-note {
-    margin-top: 2rem;
+    margin-top: var(--nv-space-6);
+    padding-top: var(--nv-space-4);
+    border-top: 1px solid var(--nv-hairline);
     font-size: var(--sl-text-xs);
     /* gray-3, not -4: the ramp's -4 step is a hairline tone, and this is the
        smallest running text on the site. */
     color: var(--sl-color-gray-3);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .site-footer-col a:hover {
+      transform: none;
+    }
   }
 </style>

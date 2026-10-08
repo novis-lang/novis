@@ -1,79 +1,88 @@
 /**
  * The Novis site theme.
  *
- * FOUR knobs: the palette block at the top of :root, taken from the logo.
- * Every other color on the site — the accent scale, the neutral ramp, every
- * badge, hairline, wash and callout — is color-mix()ed out of those four, so
- * re-tinting the site is still editing one block.
+ * THREE brand colors and two neutral ends, in the palette block at the top of
+ * :root. Every other color on the site is derived from them with color-mix()
+ * or relative oklch(), so re-tinting the site is editing that one block. A
+ * color literal belongs there and nowhere else.
  *
- *   --nv-accent  the mark's crimson. Links, active nav, focus rings, the one
- *                color allowed to shout.
- *   --nv-rose    the accent gone quiet, as --nv-quiet. The small annotations
- *                that sit beside something else: a comment in a signature, a
- *                chip, a hint.
- *   --nv-mist    near-white. What the accent lies on rather than a color of
- *                its own: the light theme's highlight ground, selected text.
- *   --nv-teal    the complement, and it does two jobs. Affirmative —
- *                "accepted", "proof", keywords in a signature, so approval
- *                never reads as an accent link — and, at a whisper, the tint
- *                of every neutral surface on the site.
+ *   --nv-crimson  the logo's base color. Primary buttons, the start of the
+ *                 signature gradient, brand moments. Never links or hovers.
+ *   --nv-violet   the interactive color. Links, the current sidebar item and
+ *                 header area, focus rings. Starlight's --sl-color-accent*
+ *                 scale is built from it, so Starlight's own links, tabs and
+ *                 badges follow.
+ *   --nv-gold     the highlight, used sparingly: <mark>, chips and count
+ *                 badges, the table of contents' current-item marker. As a
+ *                 fill it carries dark text; as text on the light theme it is
+ *                 darkened (--nv-gold-text).
+ *   --nv-ink / --nv-fog  the two ends of the neutral ramp: a deep blue-black
+ *                 and a near-white, both a few percent violet. Ink is the
+ *                 dark theme's ground and the light theme's text; fog is the
+ *                 reverse.
  *
- * The surfaces are the load-bearing part: page, panels, hairlines and body
- * text are one ramp of near-grey between --nv-ink and --nv-fog, and the ramp
- * leans cool because a ground tinted toward the accent stops reading as a
- * neutral carrying an accent and starts reading as a colored page.
+ * The signature gradient (--nv-gradient) runs crimson into violet. It paints
+ * large headings, the header's hairline, a hovered card's border and call-to-
+ * action bands, and never body text.
  *
- * The two themes light and darken the same four with color-mix(); the raw
- * accent is dark enough to read on the light ground (6.8:1) but not the dark one
- * (2.5:1), which is why the dark theme lifts it toward white and the light
- * theme uses it as drawn. Every token that carries text clears WCAG AA against
- * the surface it is painted on, in both themes — check a new one before adding
- * it. A hex literal belongs in the palette block below and nowhere else.
+ * Each theme lifts or darkens the brand colors by lightness alone, with
+ * oklch(from …): the dark theme raises violet to L 0.64 (borders, fills) and
+ * L 0.76 (text), the light theme uses violet as drawn for text and L 0.42 for
+ * text on a violet wash. The color-mix() values in front of each @supports
+ * block are the fallback for a browser without relative color syntax.
+ *
+ * Status colors (ok, warn, danger, and the asides) are Starlight's own green,
+ * orange, red and blue, so a "danger" in a signature matches a danger aside.
+ *
+ * Every token that carries text clears WCAG AA against the surface it is
+ * painted on, in both themes: 4.5:1 for text, 3:1 for borders and icons that
+ * carry meaning. Check a new token before adding it.
+ *
+ * Motion is transform, opacity and color only, and stops entirely under
+ * prefers-reduced-motion. The header is the one element with backdrop-filter.
  */
 
 :root {
   /* ------------------------------------------------------------ the palette */
-  --nv-accent: #b20038;
-  --nv-rose: #bd767a;
-  --nv-mist: #ffe4e4;
-  --nv-teal: #5abab6;
+  --nv-crimson: #b20038;
+  --nv-violet: #6542ed;
+  --nv-gold: #ffb703;
+  --nv-ink: color-mix(in oklab, var(--nv-violet) 5%, #090b14);
+  --nv-fog: color-mix(in oklab, var(--nv-violet) 3%, #ffffff);
 
-  /* Caution and danger: the two hues the palette does not carry and cannot
-     borrow. A warning that reads as the "accepted" tone is not a warning, and
-     a taint sink drawn in the accent's crimson is indistinguishable from a
-     link — so both sit far enough round the wheel from #b20038 to be read as
-     themselves. Each theme takes its --nv-warn / --nv-danger from these. */
-  --nv-caution: #d99b34;
-  --nv-alarm: #e8623f;
+  /* ---------------------------------------------------------------- scales */
+  --nv-space-1: 0.25rem;
+  --nv-space-2: 0.5rem;
+  --nv-space-3: 0.75rem;
+  --nv-space-4: 1rem;
+  --nv-space-5: 1.5rem;
+  --nv-space-6: 2rem;
+  --nv-space-7: 3rem;
+  --nv-space-8: 4rem;
+  --nv-space-9: 6rem;
 
-  /* The two ends the neutral ramp runs between, and every surface on the site
-     with them. Teal at a whisper — the page ground has to stay a grey that
-     merely leans cool, never a color: a body tinted toward the accent's warm
-     side reads as a colored page rather than a neutral one carrying an accent.
-     Ink is the dark theme's ground and the light theme's headings; fog is the
-     reverse. Both ramps run between exactly these two. */
-  --nv-ink: color-mix(in oklab, var(--nv-teal) 8%, #0f1113);
-  --nv-fog: color-mix(in oklab, var(--nv-teal) 6%, white);
+  --nv-radius-sm: 0.375rem;
+  --nv-radius: 0.625rem;
+  --nv-radius-lg: 1rem;
+  --nv-radius-pill: 999px;
+
+  --nv-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --nv-fast: 140ms;
+  --nv-slow: 260ms;
+
+  /* ----------------------------------------------------------------- fonts */
+  --sl-font: 'Plus Jakarta Sans Variable';
+  --sl-font-mono: 'JetBrains Mono Variable';
+  --sl-line-height: 1.7;
+  --sl-line-height-headings: 1.18;
+  --sl-text-code: 0.85rem;
+  --sl-text-code-sm: 0.82em;
+  --sl-content-gap-y: 1.125rem;
 
   /* --------------------------------- dark theme (Starlight's :root default) */
 
-  /* The accent has to gain lightness to be read here — #b20038 is 2.4:1 on the
-     ground — but mixing it toward white takes its chroma with it, and what
-     comes back is the rose rather than the accent. So the dark theme lifts
-     lightness alone and keeps the crimson's own chroma and hue: same color,
-     turned up. Below is the mix-toward-white fallback for a browser without
-     relative color syntax, overridden a few lines down by the real thing;
-     a custom property cannot fall back on its own, hence the @supports.
-     -low stays dark either way — Starlight uses it as the ink *on* an accent
-     background, and as the sidebar's current-page fill. */
-  --sl-color-accent-low: color-mix(in oklab, var(--nv-accent) 55%, black);
-  --sl-color-accent: color-mix(in oklab, var(--nv-accent) 85%, white);
-  --sl-color-accent-high: color-mix(in oklab, var(--nv-accent) 48%, white);
-
-  /* Neutral ramp: six steps of fog into ink, so every surface, hairline and
-     line of body text is the same barely-cool grey at a different lightness.
-     The steps land on Starlight's own lightnesses, which is what keeps the
-     stock contrast ratios. */
+  /* Neutral ramp: fog into ink in the steps Starlight's own grays use, which
+     is what keeps Starlight's contrast ratios. */
   --sl-color-white: var(--nv-fog);
   --sl-color-gray-1: color-mix(in oklab, var(--nv-fog) 92%, var(--nv-ink));
   --sl-color-gray-2: color-mix(in oklab, var(--nv-fog) 78%, var(--nv-ink));
@@ -82,56 +91,74 @@
   --sl-color-gray-5: color-mix(in oklab, var(--nv-fog) 19%, var(--nv-ink));
   --sl-color-gray-6: color-mix(in oklab, var(--nv-fog) 8%, var(--nv-ink));
   --sl-color-black: var(--nv-ink);
+  --sl-color-bg-sidebar: var(--sl-color-black);
+  --sl-color-hairline: var(--nv-hairline);
+  --sl-color-hairline-shade: var(--nv-hairline);
+  --sl-color-bg-inline-code: color-mix(in oklab, var(--nv-fog) 11%, var(--nv-ink));
 
-  /* Rose is the site's quiet voice: the small annotations that sit beside
-     something else — a comment in a signature, a chip, a "see also" hint. It
-     stays off the ramp on purpose. Warmed text over a cool ground reads as
-     deliberate; a whole ramp of it reads as a pink page. */
-  --nv-quiet: color-mix(in oklab, var(--nv-rose) 85%, var(--nv-fog));
+  /* Violet: -low is a dark fill, -accent draws borders and fills (3:1),
+     -high is link text (8.7:1 on the page). Fallback first. */
+  --sl-color-accent-low: color-mix(in oklab, var(--nv-violet) 42%, var(--nv-ink));
+  --sl-color-accent: color-mix(in oklab, var(--nv-violet) 78%, white);
+  --sl-color-accent-high: color-mix(in oklab, var(--nv-violet) 46%, white);
 
-  /* Washes: the accent at reading strength for a panel it must not compete
-     with. -soft carries an icon, -softer a whole block. */
-  --nv-accent-soft: color-mix(in oklab, var(--nv-accent) 22%, transparent);
-  --nv-accent-softer: color-mix(in oklab, var(--nv-accent) 11%, transparent);
+  /* Crimson for a button fill and for text; gold as text. */
+  --nv-crimson-fill: color-mix(in oklab, var(--nv-crimson) 92%, white);
+  --nv-crimson-text: color-mix(in oklab, var(--nv-crimson) 60%, white);
+  --nv-gold-text: var(--nv-gold);
+  --nv-on-gold: var(--nv-ink);
 
-  /* Semantics. Affirmative is the palette's teal; the other two read straight
-     off their base hues here, which the dark ground already suits. */
-  --nv-ok: var(--nv-teal);
-  --nv-warn: var(--nv-caution);
-  --nv-danger: var(--nv-alarm);
+  /* Gradient stops readable as large text on this ground (5.6:1, 7.4:1). */
+  --nv-grad-a: var(--nv-crimson-text);
+  --nv-grad-b: var(--sl-color-accent-high);
 
-  /* The ground under a code block — one step off the page, the way Starlight
-     sets it. Wired into Expressive Code by astro.config.ts. */
-  --nv-code-bg: color-mix(in oklab, var(--nv-fog) 10%, var(--nv-ink));
+  /* Surfaces, hairlines, glass. */
+  --nv-surface: color-mix(in oklab, var(--nv-fog) 4%, var(--nv-ink));
+  --nv-surface-2: color-mix(in oklab, var(--nv-fog) 8%, var(--nv-ink));
+  --nv-hairline: color-mix(in oklab, var(--nv-fog) 11%, var(--nv-ink));
+  --nv-hairline-strong: color-mix(in oklab, var(--nv-fog) 22%, var(--nv-ink));
+  --nv-glass: color-mix(in oklab, var(--nv-ink) 72%, transparent);
+  --nv-glass-solid: color-mix(in oklab, var(--nv-fog) 3%, var(--nv-ink));
+  --nv-wash: color-mix(in oklab, var(--sl-color-accent) 18%, transparent);
+  --nv-wash-soft: color-mix(in oklab, var(--sl-color-accent) 9%, transparent);
+  --nv-hover: color-mix(in oklab, var(--nv-fog) 7%, transparent);
 
-  /* Selected text: the accent's own dark end, which nothing else uses as a
-     background in this theme. */
-  --nv-selection: var(--sl-color-accent-low);
+  --nv-shadow-sm: 0 1px 2px color-mix(in oklab, black 45%, transparent);
+  --nv-shadow-md: 0 1px 2px color-mix(in oklab, black 35%, transparent),
+    0 8px 20px -6px color-mix(in oklab, black 55%, transparent);
+  --nv-shadow-lg: 0 2px 4px color-mix(in oklab, black 30%, transparent),
+    0 18px 40px -12px color-mix(in oklab, black 70%, transparent);
+  --nv-glow: 0 10px 30px -10px color-mix(in oklab, var(--sl-color-accent) 45%, transparent);
+
+  /* Annotations beside something else: a comment in a signature, a count. */
+  --nv-quiet: color-mix(in oklab, var(--sl-color-gray-3) 60%, var(--sl-color-accent-high));
+
+  /* Semantics, from Starlight's status hues so they match the asides. */
+  --nv-ok: var(--sl-color-green);
+  --nv-warn: var(--sl-color-orange);
+  --nv-danger: var(--sl-color-red);
+
+  /* The ground under a code block, wired into Expressive Code by
+     astro.config.ts. */
+  --nv-code-bg: color-mix(in oklab, var(--nv-fog) 5%, var(--nv-ink));
+
+  --nv-selection: color-mix(in oklab, var(--sl-color-accent) 45%, var(--nv-ink));
 }
 
-/* The dark theme's accent, properly. 0.68 is the lowest lightness that carries
-   accent-colored text at 4.5:1 on a panel (5.5:1 on the page); -accent only
-   draws borders, outlines and fills, which need 3:1, so it stays nearer the
-   crimson as drawn. The light theme is untouched — it needs no lift, and its
-   `[data-theme]` selector outranks this one anyway. */
 @supports (color: oklch(from white l c h)) {
   :root {
-    --sl-color-accent: oklch(from var(--nv-accent) 0.58 c h);
-    --sl-color-accent-high: oklch(from var(--nv-accent) 0.68 c h);
+    --sl-color-accent-low: oklch(from var(--nv-violet) 0.3 calc(c * 0.45) h);
+    --sl-color-accent: oklch(from var(--nv-violet) 0.64 calc(c * 0.8) h);
+    --sl-color-accent-high: oklch(from var(--nv-violet) 0.76 calc(c * 0.5) h);
+    --nv-crimson-fill: oklch(from var(--nv-crimson) 0.52 c h);
+    --nv-crimson-text: oklch(from var(--nv-crimson) 0.66 c h);
+    --nv-grad-b: oklch(from var(--nv-violet) 0.72 calc(c * 0.6) h);
   }
 }
 
 :root[data-theme='light'] {
-  /* The accent as drawn: 6.8:1 on the light ground, so links need no lift.
-     -low is mist itself — Starlight's palest accent step is exactly the
-     highlight ground mist was picked to be. */
-  --sl-color-accent-low: var(--nv-mist);
-  --sl-color-accent: var(--nv-accent);
-  --sl-color-accent-high: color-mix(in oklab, var(--nv-accent) 72%, black);
-
-  /* The same ramp, read from the other end: Starlight's light theme swaps
-     them, so gray-1 is the darkest here and the page ground is -black. Every
-     step is one the dark theme also uses. */
+  /* The same ramp read from the other end: Starlight's light theme swaps it,
+     so gray-1 is the darkest step and the page ground is -black. */
   --sl-color-white: var(--nv-ink);
   --sl-color-gray-1: color-mix(in oklab, var(--nv-fog) 8%, var(--nv-ink));
   --sl-color-gray-2: color-mix(in oklab, var(--nv-fog) 19%, var(--nv-ink));
@@ -141,33 +168,748 @@
   --sl-color-gray-6: color-mix(in oklab, var(--nv-fog) 92%, var(--nv-ink));
   --sl-color-gray-7: color-mix(in oklab, var(--nv-fog) 96%, var(--nv-ink));
   --sl-color-black: var(--nv-fog);
+  --sl-color-bg-inline-code: color-mix(in oklab, var(--nv-violet) 6%, var(--nv-fog));
 
-  /* Darkened to carry small text on a light ground; still legibly rose. */
-  --nv-quiet: color-mix(in oklab, var(--nv-rose) 78%, black);
+  /* Violet as drawn is link text here (5.7:1 on the page, 4.7:1 on the
+     darkest panel); -high is text on a violet wash (8.3:1). */
+  --sl-color-accent-low: color-mix(in oklab, var(--nv-violet) 10%, var(--nv-fog));
+  --sl-color-accent: var(--nv-violet);
+  --sl-color-accent-high: color-mix(in oklab, var(--nv-violet) 78%, black);
 
-  /* Thinner: the same wash reads twice as strong over a light ground. */
-  --nv-accent-soft: color-mix(in oklab, var(--nv-accent) 13%, transparent);
-  --nv-accent-softer: color-mix(in oklab, var(--nv-accent) 6%, transparent);
+  --nv-crimson-fill: var(--nv-crimson);
+  --nv-crimson-text: var(--nv-crimson);
+  --nv-gold-text: color-mix(in oklab, var(--nv-gold) 58%, black);
 
-  /* All three darkened to clear 4.5:1 on the light ground — a teal or an amber
-     bright enough for the dark ground is a pastel on this one. */
-  --nv-ok: color-mix(in oklab, var(--nv-teal) 62%, black);
-  --nv-warn: color-mix(in oklab, var(--nv-caution) 72%, black);
-  --nv-danger: color-mix(in oklab, var(--nv-alarm) 72%, black);
+  --nv-grad-a: var(--nv-crimson);
+  --nv-grad-b: var(--nv-violet);
 
-  --nv-code-bg: color-mix(in oklab, var(--nv-fog) 96%, var(--nv-ink));
-  --nv-selection: var(--nv-mist);
+  --nv-surface: color-mix(in oklab, white 70%, var(--nv-fog));
+  --nv-surface-2: color-mix(in oklab, var(--nv-violet) 3%, white);
+  --nv-hairline: color-mix(in oklab, var(--nv-ink) 10%, var(--nv-fog));
+  --nv-hairline-strong: color-mix(in oklab, var(--nv-ink) 20%, var(--nv-fog));
+  --nv-glass: color-mix(in oklab, var(--nv-fog) 74%, transparent);
+  --nv-glass-solid: var(--nv-fog);
+  --nv-wash: color-mix(in oklab, var(--nv-violet) 12%, transparent);
+  --nv-wash-soft: color-mix(in oklab, var(--nv-violet) 6%, transparent);
+  --nv-hover: color-mix(in oklab, var(--nv-ink) 5%, transparent);
+
+  --nv-shadow-sm: 0 1px 2px color-mix(in oklab, var(--nv-ink) 8%, transparent);
+  --nv-shadow-md: 0 1px 2px color-mix(in oklab, var(--nv-ink) 6%, transparent),
+    0 8px 20px -8px color-mix(in oklab, var(--nv-violet) 18%, transparent);
+  --nv-shadow-lg: 0 2px 4px color-mix(in oklab, var(--nv-ink) 6%, transparent),
+    0 20px 44px -16px color-mix(in oklab, var(--nv-violet) 26%, transparent);
+  --nv-glow: 0 10px 30px -12px color-mix(in oklab, var(--nv-violet) 40%, transparent);
+
+  --nv-quiet: color-mix(in oklab, var(--sl-color-gray-3) 60%, var(--sl-color-accent));
+
+  /* Starlight's light green, orange and red are fills; their -high steps are
+     the ones that carry text on a light ground. */
+  --nv-ok: var(--sl-color-green-high);
+  --nv-warn: var(--sl-color-orange-high);
+  --nv-danger: var(--sl-color-red-high);
+
+  --nv-code-bg: color-mix(in oklab, var(--nv-violet) 3%, white);
+  --nv-selection: color-mix(in oklab, var(--nv-violet) 22%, var(--nv-fog));
 }
 
-/* Mist's other job: the accent is a color to lie *under* text, never over it,
-   so the light theme selects in it and the dark theme in the accent's own
-   dark end. Both keep the page's own text color. */
+@supports (color: oklch(from white l c h)) {
+  :root[data-theme='light'] {
+    --sl-color-accent-low: oklch(from var(--nv-violet) 0.95 calc(c * 0.1) h);
+    --sl-color-accent-high: oklch(from var(--nv-violet) 0.42 c h);
+    --nv-gold-text: oklch(from var(--nv-gold) 0.5 calc(c * 0.6) h);
+  }
+}
+
+/* The signature gradient and the thin version that draws lines. */
+:root {
+  --nv-gradient: linear-gradient(110deg, var(--nv-grad-a) 0%, var(--nv-grad-b) 100%);
+  --nv-gradient-line: linear-gradient(
+    90deg,
+    var(--nv-crimson) 0%,
+    var(--sl-color-accent) 55%,
+    var(--nv-gold) 100%
+  );
+}
+
+/* ================================================================ base */
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  scrollbar-color: var(--nv-hairline-strong) transparent;
+}
+
+body {
+  font-feature-settings: 'ss01' off;
+}
+
 ::selection {
   background-color: var(--nv-selection);
   color: var(--sl-color-white);
 }
 
-/* Utility used by components. */
+:where(a, button, input, select, summary, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--sl-color-accent);
+  outline-offset: 2px;
+}
+
+/* Headings: tight tracking, firm weight. */
+.sl-markdown-content :is(h1, h2, h3, h4, h5, h6):not(:where(.not-content *)),
+.content-panel h1,
+.hero h1 {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+.content-panel h1 {
+  font-weight: 750;
+  letter-spacing: -0.028em;
+}
+.sl-markdown-content h2:not(:where(.not-content *)) {
+  letter-spacing: -0.024em;
+}
+.sl-markdown-content :is(h4, h5, h6):not(:where(.not-content *)) {
+  letter-spacing: -0.01em;
+}
+
+.sl-markdown-content :is(p, li):not(:where(.not-content *)) {
+  text-wrap: pretty;
+}
+
+/* Content links: violet, with an underline that firms up on hover. */
+.sl-markdown-content a:not(:where(.not-content *, .sl-link-button, .sl-anchor-link, .sl-link-card *, .nv-card, .nv-card *)) {
+  color: var(--sl-color-text-accent);
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-decoration-color: color-mix(in oklab, currentColor 40%, transparent);
+  text-underline-offset: 0.22em;
+  transition:
+    color var(--nv-fast) var(--nv-ease),
+    text-decoration-color var(--nv-fast) var(--nv-ease),
+    text-underline-offset var(--nv-fast) var(--nv-ease);
+}
+.sl-markdown-content a:not(:where(.not-content *, .sl-link-button, .sl-anchor-link, .sl-link-card *, .nv-card, .nv-card *)):hover {
+  color: var(--sl-color-text-accent);
+  text-decoration-color: currentColor;
+  text-underline-offset: 0.3em;
+}
+.sl-markdown-content :is(h1, h2, h3, h4, h5, h6) a:not(:where(.not-content *, .sl-anchor-link)) {
+  text-decoration-color: color-mix(in oklab, currentColor 25%, transparent);
+}
+
+/* The heading anchor link: hidden until its heading is hovered. */
+.sl-markdown-content .sl-anchor-link {
+  color: var(--sl-color-gray-4);
+  transition: color var(--nv-fast) var(--nv-ease);
+}
+.sl-markdown-content .sl-anchor-link:hover {
+  color: var(--sl-color-text-accent);
+}
+
+/* Inline code: a quiet chip. */
+.sl-markdown-content code:not(:where(.not-content *, pre code)) {
+  border: 1px solid var(--nv-hairline);
+  border-radius: var(--nv-radius-sm);
+  padding: 0.1em 0.38em;
+  font-size: var(--sl-text-code-sm);
+  color: var(--sl-color-white);
+}
+
+.sl-markdown-content mark:not(:where(.not-content *)),
+mark {
+  background-color: color-mix(in oklab, var(--nv-gold) 85%, transparent);
+  color: var(--nv-on-gold);
+  border-radius: 0.2em;
+  padding-inline: 0.15em;
+}
+
+kbd,
+.sl-markdown-content kbd:not(:where(.not-content *)) {
+  font-family: var(--__sl-font-mono);
+  font-size: 0.8em;
+  padding: 0.1em 0.45em;
+  border: 1px solid var(--nv-hairline-strong);
+  border-bottom-width: 2px;
+  border-radius: var(--nv-radius-sm);
+  background: var(--nv-surface-2);
+  color: var(--sl-color-white);
+}
+
+.sl-markdown-content hr:not(:where(.not-content *)) {
+  border: 0;
+  height: 1px;
+  margin-block: var(--nv-space-7);
+  background: linear-gradient(90deg, transparent, var(--nv-hairline-strong) 20%, var(--nv-hairline-strong) 80%, transparent);
+}
+
+.sl-markdown-content blockquote:not(:where(.not-content *)) {
+  border-inline-start: 3px solid transparent;
+  border-image: var(--nv-gradient) 1;
+  padding: var(--nv-space-1) 0 var(--nv-space-1) var(--nv-space-5);
+  color: var(--sl-color-gray-2);
+  font-style: italic;
+}
+
+/* Tables: a framed block with a tinted header row. */
+.sl-markdown-content table:not(:where(.not-content *)) {
+  border: 1px solid var(--nv-hairline);
+  border-radius: var(--nv-radius);
+  border-collapse: separate;
+  font-size: var(--sl-text-sm);
+  width: fit-content;
+  max-width: 100%;
+}
+.sl-markdown-content :is(th, td):not(:where(.not-content *)) {
+  border-bottom: 1px solid var(--nv-hairline);
+  padding: 0.6rem 0.9rem;
+}
+.sl-markdown-content :is(th:first-child, td:first-child):not(:where(.not-content *)) {
+  padding-inline-start: 0.9rem;
+}
+.sl-markdown-content :is(th:last-child, td:last-child):not(:where(.not-content *)) {
+  padding-inline-end: 0.9rem;
+}
+.sl-markdown-content tr:last-child > td:not(:where(.not-content *)) {
+  border-bottom: 0;
+}
+.sl-markdown-content th:not(:where(.not-content *)) {
+  background: var(--nv-surface-2);
+  font-weight: 650;
+  font-size: var(--sl-text-xs);
+  letter-spacing: 0.02em;
+}
+.sl-markdown-content tbody tr:not(:where(.not-content *)) {
+  transition: background-color var(--nv-fast) var(--nv-ease);
+}
+.sl-markdown-content tbody tr:not(:where(.not-content *)):hover {
+  background: var(--nv-wash-soft);
+}
+
+/* Details blocks. */
+.sl-markdown-content details:not(:where(.not-content *)) {
+  --sl-details-border-color: var(--nv-hairline-strong);
+  --sl-details-border-color--hover: var(--sl-color-accent);
+}
+
+/* Asides keep Starlight's status hues; only their shape changes. */
+.starlight-aside {
+  border: 1px solid color-mix(in oklab, var(--sl-color-asides-border) 30%, transparent);
+  border-inline-start: 3px solid var(--sl-color-asides-border);
+  border-radius: var(--nv-radius);
+  padding: var(--nv-space-4) var(--nv-space-5);
+}
+.starlight-aside__title {
+  font-size: var(--sl-text-base);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* Badges. */
+.sl-badge {
+  border-radius: var(--nv-radius-pill);
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+
+/* Code blocks: the frame comes from Expressive Code (astro.config.ts); this
+   adds the lift. */
+.expressive-code .frame {
+  box-shadow: var(--nv-shadow-md);
+}
+
+/* ======================================================= buttons */
+
+.sl-link-button,
+.nv-button {
+  font-weight: 650;
+  letter-spacing: -0.005em;
+  transition:
+    transform var(--nv-fast) var(--nv-ease),
+    background-color var(--nv-fast) var(--nv-ease),
+    border-color var(--nv-fast) var(--nv-ease),
+    color var(--nv-fast) var(--nv-ease),
+    box-shadow var(--nv-slow) var(--nv-ease);
+}
+.sl-link-button svg,
+.nv-button svg {
+  transition: transform var(--nv-fast) var(--nv-ease);
+}
+.sl-link-button:hover svg,
+.nv-button:hover svg {
+  transform: translateX(3px);
+}
+:dir(rtl) .sl-link-button:hover svg {
+  transform: translateX(-3px) scaleX(-1);
+}
+
+/* Primary: crimson with a soft top sheen. White text: 7.1:1 (light),
+   5.9:1 (dark). */
+.sl-link-button.primary,
+.nv-button-primary {
+  background-color: var(--nv-crimson-fill);
+  background-image: linear-gradient(180deg, color-mix(in oklab, white 14%, transparent), transparent 70%);
+  border-color: color-mix(in oklab, var(--nv-crimson-fill) 80%, black);
+  color: white;
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, white 22%, transparent),
+    0 6px 18px -8px color-mix(in oklab, var(--nv-crimson) 70%, transparent);
+}
+.sl-link-button.primary:hover,
+.nv-button-primary:hover {
+  color: white;
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, white 22%, transparent),
+    0 10px 26px -8px color-mix(in oklab, var(--nv-crimson) 80%, transparent);
+}
+.sl-link-button.primary:active,
+.nv-button-primary:active {
+  transform: translateY(0);
+  background-image: none;
+  box-shadow: inset 0 2px 4px color-mix(in oklab, black 25%, transparent);
+}
+
+.sl-link-button.secondary,
+.nv-button-secondary {
+  border-color: var(--nv-hairline-strong);
+  background-color: var(--nv-surface);
+  color: var(--sl-color-white);
+}
+.sl-link-button.secondary:hover,
+.nv-button-secondary:hover {
+  border-color: var(--sl-color-accent);
+  background-color: var(--nv-wash-soft);
+  color: var(--sl-color-white);
+  transform: translateY(-1px);
+}
+.sl-link-button.secondary:active,
+.nv-button-secondary:active {
+  transform: translateY(0);
+  background-color: var(--nv-wash);
+}
+
+.sl-link-button.minimal {
+  color: var(--sl-color-white);
+}
+.sl-link-button.minimal:hover {
+  color: var(--sl-color-text-accent);
+}
+
+/* ======================================================= sidebar */
+
+.sidebar-content {
+  --sl-sidebar-item-padding-inline: 0.75rem;
+}
+.sidebar-content ul ul {
+  border-inline-start-color: var(--nv-hairline);
+}
+/* A group at the top of the tree: a section heading. */
+.sidebar-content .top-level > li > details > summary .large {
+  font-size: var(--sl-text-sm);
+  font-weight: 750;
+  letter-spacing: -0.005em;
+  color: var(--sl-color-white);
+}
+.sidebar-content .top-level > li + li {
+  margin-top: var(--nv-space-2);
+}
+.sidebar-content summary {
+  border-radius: var(--nv-radius-sm);
+  transition: background-color var(--nv-fast) var(--nv-ease);
+}
+.sidebar-content summary:hover {
+  background-color: var(--nv-hover);
+}
+.sidebar-content .group-label {
+  font-weight: 650;
+  color: var(--sl-color-white);
+}
+.sidebar-content .caret {
+  color: var(--sl-color-gray-3);
+}
+.sidebar-content details[open] > summary .caret {
+  color: var(--sl-color-text-accent);
+}
+.sidebar-content a {
+  position: relative;
+  border-radius: var(--nv-radius-sm);
+  transition:
+    background-color var(--nv-fast) var(--nv-ease),
+    color var(--nv-fast) var(--nv-ease);
+}
+.sidebar-content a:hover {
+  background-color: var(--nv-hover);
+  color: var(--sl-color-white);
+}
+.sidebar-content a[aria-current='page'],
+.sidebar-content a[aria-current='page']:hover,
+.sidebar-content a[aria-current='page']:focus {
+  background-color: var(--nv-wash);
+  color: var(--sl-color-accent-high);
+  font-weight: 650;
+}
+:root[data-theme='light'] .sidebar-content a[aria-current='page'] {
+  color: var(--sl-color-accent-high);
+}
+.sidebar-content a[aria-current='page']::before {
+  content: '';
+  position: absolute;
+  inset-block: 0.35rem;
+  inset-inline-start: 0;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--sl-color-accent);
+}
+@media (max-width: 49.99rem) {
+  .sidebar-content a,
+  .sidebar-content summary {
+    min-height: 2.75rem;
+    display: flex;
+    align-items: center;
+  }
+}
+
+/* ================================================== header controls */
+
+/* The search button: a pill on the glass, violet on hover. */
+site-search button[data-open-modal] {
+  border-radius: var(--nv-radius-pill);
+  transition:
+    border-color var(--nv-fast) var(--nv-ease),
+    background-color var(--nv-fast) var(--nv-ease),
+    color var(--nv-fast) var(--nv-ease);
+}
+@media (min-width: 50rem) {
+  site-search button[data-open-modal] {
+    height: 2.5rem;
+    max-width: 18rem;
+    padding-inline: 0.9rem 0.45rem;
+    border-color: var(--nv-hairline-strong);
+    background-color: color-mix(in oklab, var(--sl-color-black) 55%, transparent);
+    color: var(--sl-color-gray-2);
+  }
+  site-search button[data-open-modal]:hover {
+    border-color: var(--sl-color-accent);
+    background-color: var(--nv-wash-soft);
+    color: var(--sl-color-white);
+  }
+  site-search button[data-open-modal] > kbd {
+    border: 1px solid var(--nv-hairline);
+    border-radius: var(--nv-radius-pill);
+    background-color: var(--nv-surface-2);
+    padding-block: 0.1rem;
+  }
+}
+site-search dialog {
+  border-radius: var(--nv-radius-lg);
+  border-color: var(--nv-hairline-strong);
+  background-color: var(--nv-glass-solid);
+}
+
+/* Social icons and the theme select: quiet until hovered. */
+.header .social-icons a {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  margin: 0;
+  padding: 0;
+  border-radius: var(--nv-radius);
+  color: var(--sl-color-gray-2);
+  transition:
+    color var(--nv-fast) var(--nv-ease),
+    background-color var(--nv-fast) var(--nv-ease);
+}
+.header .social-icons a:hover {
+  color: var(--sl-color-white);
+  background-color: var(--nv-hover);
+}
+starlight-theme-select label {
+  transition: color var(--nv-fast) var(--nv-ease);
+}
+starlight-theme-select select {
+  min-height: 2.25rem;
+  font-weight: 600;
+}
+
+/* ====================================================== mobile menu */
+
+/* A 44px tap target, as a rounded tile rather than Starlight's white disc. */
+:root {
+  --sl-menu-button-size: 2.75rem;
+}
+starlight-menu-button button {
+  border: 1px solid var(--nv-hairline-strong);
+  border-radius: var(--nv-radius);
+  background-color: var(--nv-surface-2);
+  color: var(--sl-color-white);
+  box-shadow: var(--nv-shadow-sm);
+  padding: 0.6rem;
+  transition:
+    background-color var(--nv-fast) var(--nv-ease),
+    border-color var(--nv-fast) var(--nv-ease),
+    transform var(--nv-fast) var(--nv-ease);
+}
+starlight-menu-button button:active {
+  transform: scale(0.94);
+}
+starlight-menu-button[aria-expanded='true'] button {
+  border-color: var(--sl-color-accent);
+  background-color: var(--sl-color-accent-low);
+  color: var(--sl-color-text-accent);
+  box-shadow: none;
+}
+:root[data-theme='light'] starlight-menu-button button {
+  background-color: var(--nv-surface);
+  color: var(--sl-color-white);
+}
+:root[data-theme='light'] starlight-menu-button[aria-expanded='true'] button {
+  background-color: var(--sl-color-accent-low);
+  color: var(--sl-color-accent-high);
+}
+
+/* ============================================ table of contents (right) */
+
+starlight-toc h2,
+.right-sidebar-panel h2 {
+  font-size: var(--sl-text-xs);
+  font-weight: 750;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--sl-color-gray-3);
+}
+starlight-toc a {
+  position: relative;
+  color: var(--sl-color-gray-3);
+  transition: color var(--nv-fast) var(--nv-ease);
+}
+starlight-toc a:hover {
+  color: var(--sl-color-white);
+}
+starlight-toc a[aria-current='true'] {
+  color: var(--sl-color-white);
+  font-weight: 600;
+}
+starlight-toc a[aria-current='true']::before {
+  content: '';
+  position: absolute;
+  inset-block: 0.3rem;
+  inset-inline-start: -0.15rem;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--nv-gold);
+}
+mobile-starlight-toc nav {
+  background-color: var(--nv-glass-solid);
+}
+
+/* ======================================================= cards */
+
+/* Shared card look: Starlight's Card and LinkCard, the landing cards, and
+   .nv-card for anything a page builds itself. */
+.card,
+.sl-link-card,
+.nv-card,
+.nv-feature {
+  position: relative;
+  border: 1px solid var(--nv-hairline);
+  border-radius: var(--nv-radius-lg);
+  background-color: var(--nv-surface);
+  box-shadow: var(--nv-shadow-sm);
+}
+.card {
+  padding: var(--nv-space-5);
+}
+.card .icon {
+  border-radius: var(--nv-radius-sm);
+}
+
+/* The hover state for a card that is a link: a gradient border fades in,
+   the card rises 2px and its arrow moves right. The border is a masked
+   pseudo-element, so only its opacity animates. */
+.sl-link-card,
+.nv-card-link,
+.nv-feature {
+  transition:
+    transform var(--nv-fast) var(--nv-ease),
+    box-shadow var(--nv-slow) var(--nv-ease),
+    background-color var(--nv-fast) var(--nv-ease);
+}
+.sl-link-card::after,
+.nv-card-link::after,
+.nv-feature::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: var(--nv-gradient-line);
+  -webkit-mask:
+    linear-gradient(black 0 0) content-box,
+    linear-gradient(black 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(black 0 0) content-box exclude,
+    linear-gradient(black 0 0);
+  opacity: 0;
+  transition: opacity var(--nv-slow) var(--nv-ease);
+  pointer-events: none;
+}
+.sl-link-card:hover,
+.nv-card-link:hover,
+.nv-feature:hover {
+  transform: translateY(-2px);
+  background-color: var(--nv-surface);
+  border-color: var(--nv-hairline);
+  box-shadow: var(--nv-shadow-md), var(--nv-glow);
+}
+.sl-link-card:hover::after,
+.nv-card-link:hover::after,
+.nv-feature:hover::after,
+.sl-link-card:focus-within::after,
+.nv-card-link:focus-visible::after {
+  opacity: 1;
+}
+.sl-link-card:active,
+.nv-card-link:active {
+  transform: translateY(0);
+}
+.sl-link-card {
+  padding: var(--nv-space-4) var(--nv-space-5);
+  align-items: center;
+}
+.sl-link-card .title {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.sl-link-card .icon {
+  color: var(--sl-color-gray-3);
+  transition:
+    transform var(--nv-fast) var(--nv-ease),
+    color var(--nv-fast) var(--nv-ease);
+}
+.sl-link-card:hover .icon {
+  color: var(--sl-color-text-accent);
+  transform: translateX(3px);
+}
+.sl-link-card a:focus-visible {
+  outline: none;
+}
+.sl-link-card:has(a:focus-visible) {
+  outline: 2px solid var(--sl-color-accent);
+  outline-offset: 2px;
+}
+
+/* ============================================ reusable page building blocks */
+
+/* A section of a landing page, with the vertical rhythm of the scale. */
+.nv-section {
+  margin-block: var(--nv-space-8);
+}
+.nv-section:first-child {
+  margin-block-start: 0;
+}
+@media (max-width: 49.99rem) {
+  .nv-section {
+    margin-block: var(--nv-space-7);
+  }
+}
+
+/* A small uppercase label above a heading. */
+.nv-eyebrow {
+  display: inline-block;
+  font-size: var(--sl-text-xs);
+  font-weight: 750;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--sl-color-text-accent);
+}
+
+/* Large heading text in the signature gradient. Both stops clear 4.5:1. */
+.nv-gradient-text,
+.hero h1 {
+  background: var(--nv-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+@media (forced-colors: active) {
+  .nv-gradient-text,
+  .hero h1 {
+    background: none;
+    color: CanvasText;
+    -webkit-text-fill-color: CanvasText;
+  }
+}
+
+/* A padded card; add .nv-card-link to an <a class="nv-card"> for the hover. */
+.nv-card {
+  display: block;
+  padding: var(--nv-space-5);
+  color: var(--sl-color-gray-2);
+  text-decoration: none;
+}
+a.nv-card:hover {
+  color: var(--sl-color-gray-2);
+}
+
+/* A translucent panel for a large block. No backdrop-filter: on a repeated
+   element it costs a blur per element per frame. */
+.nv-glass {
+  border: 1px solid color-mix(in oklab, var(--sl-color-white) 10%, transparent);
+  border-radius: var(--nv-radius-lg);
+  background:
+    linear-gradient(180deg, color-mix(in oklab, var(--sl-color-white) 5%, transparent), transparent),
+    color-mix(in oklab, var(--nv-surface) 70%, transparent);
+  box-shadow: var(--nv-shadow-md);
+}
+
+/* A call-to-action band in the signature gradient, with white text. */
+.nv-band {
+  border-radius: var(--nv-radius-lg);
+  padding: var(--nv-space-6);
+  background: linear-gradient(110deg, var(--nv-crimson) 0%, var(--nv-violet) 100%);
+  color: white;
+}
+.nv-band :is(h2, h3, p) {
+  color: white;
+}
+
+/* A gold chip for a count or "new". Dark text on gold: 11:1. */
+.nv-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  padding: 0.15em 0.6em;
+  border-radius: var(--nv-radius-pill);
+  font-size: var(--sl-text-xs);
+  font-weight: 700;
+  line-height: 1.5;
+  background: var(--nv-gold);
+  color: var(--nv-on-gold);
+}
+/* A neutral chip: a tag or a label. */
+.nv-chip-quiet {
+  background: var(--nv-wash);
+  color: var(--sl-color-text-accent);
+}
+
+/* A square tile for an icon in front of a heading. */
+.nv-icon-tile {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--nv-radius);
+  border: 1px solid color-mix(in oklab, var(--sl-color-accent) 30%, transparent);
+  background: var(--nv-wash);
+  color: var(--sl-color-text-accent);
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
@@ -183,16 +925,17 @@
 /* --------------------------------------------------------- method signature */
 
 .method-signature {
-  border: 1px solid var(--sl-color-hairline);
-  border-radius: 0.75rem;
+  border: 1px solid var(--nv-hairline);
+  border-radius: var(--nv-radius-lg);
   overflow: hidden;
-  margin-top: 1.5rem;
-  background-color: var(--sl-color-bg-nav);
+  margin-top: var(--nv-space-5);
+  background-color: var(--nv-surface);
+  box-shadow: var(--nv-shadow-sm);
 }
 .method-signature-decl-row {
-  padding: 0.9rem 1rem;
-  background-color: var(--nv-accent-softer);
-  border-bottom: 1px solid var(--sl-color-hairline);
+  padding: var(--nv-space-4) var(--nv-space-5);
+  background-color: var(--nv-wash-soft);
+  border-bottom: 1px solid var(--nv-hairline);
   overflow-x: auto;
 }
 /* The declaration in `nvs fmt`'s multi-line layout: one line per parameter,
@@ -203,13 +946,14 @@
   border: 0;
   background: none;
   font-size: var(--sl-text-sm);
-  line-height: 1.6;
+  line-height: 1.65;
 }
 .method-signature-decl > code {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
   column-gap: 1.5rem;
   background: none;
+  border: 0;
   padding: 0;
   font-size: inherit;
 }
@@ -229,6 +973,7 @@
 .method-signature-decl .sig-comment code {
   font-style: normal;
   background: none;
+  border: 0;
   padding: 0;
   color: var(--sl-color-gray-2);
 }
@@ -236,9 +981,11 @@
   color: inherit;
   text-decoration: none;
   border-bottom: 1px dotted color-mix(in oklab, currentColor 45%, transparent);
+  transition: border-color var(--nv-fast) var(--nv-ease);
 }
 .method-signature-decl .sig-link:hover {
   border-bottom-style: solid;
+  border-bottom-color: currentColor;
 }
 .method-signature-decl .sig-class {
   color: var(--sl-color-text-accent);
@@ -254,7 +1001,7 @@
   color: var(--sl-color-text-accent);
 }
 .method-signature-decl .sig-keyword {
-  color: var(--nv-ok);
+  color: var(--nv-crimson-text);
 }
 .method-signature-decl .sig-var {
   color: var(--sl-color-text);
@@ -286,14 +1033,14 @@
   /* The label column lines up with the tables' 30% name column above it. */
   grid-template-columns: calc(30% - 1rem) 1fr;
   gap: 1rem;
-  padding: 0.6rem 1rem;
+  padding: 0.65rem var(--nv-space-5);
   font-size: var(--sl-text-sm);
 }
 .method-signature-facts > div + div {
-  border-top: 1px solid color-mix(in oklab, var(--sl-color-hairline) 60%, transparent);
+  border-top: 1px solid var(--nv-hairline);
 }
 .method-signature-facts dt {
-  font-weight: 600;
+  font-weight: 650;
   color: var(--sl-color-white);
 }
 .method-signature-facts dd {
@@ -327,9 +1074,17 @@
   white-space: nowrap;
 }
 
-
-
 /* ------------------------------------------------------------ landing page */
+
+.hero h1 {
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  line-height: 1.05;
+}
+.hero .tagline {
+  color: var(--sl-color-gray-2);
+  text-wrap: pretty;
+}
 
 .nv-hero-code {
   text-align: start;
@@ -340,27 +1095,24 @@
 .nv-features {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
-  gap: 1rem;
-  margin-top: 2rem;
+  gap: var(--nv-space-4);
+  margin-top: var(--nv-space-6);
 }
 .nv-feature {
-  border: 1px solid var(--sl-color-hairline);
-  border-radius: 0.75rem;
-  padding: 1.25rem;
-  background-color: var(--sl-color-bg-nav);
+  padding: var(--nv-space-5);
 }
 .nv-feature h3 {
-  margin: 0 0 0.5rem;
+  margin: 0 0 var(--nv-space-2);
   font-size: var(--sl-text-lg);
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--nv-space-2);
 }
 .nv-feature p {
   margin: 0;
   color: var(--sl-color-gray-2);
   font-size: var(--sl-text-sm);
-  line-height: 1.6;
+  line-height: 1.65;
 }
 .nv-feature-icon {
   display: inline-flex;
@@ -368,8 +1120,30 @@
   height: 2rem;
   align-items: center;
   justify-content: center;
-  border-radius: 0.5rem;
-  background: var(--nv-accent-soft);
+  border-radius: var(--nv-radius-sm);
+  background: var(--nv-wash);
   color: var(--sl-color-text-accent);
   flex-shrink: 0;
+}
+
+/* ================================================================ motion */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .sl-link-button:hover,
+  .nv-button:hover,
+  .sl-link-card:hover,
+  .nv-card-link:hover,
+  .nv-feature:hover,
+  .sl-link-button:hover svg,
+  .sl-link-card:hover .icon {
+    transform: none;
+  }
 }

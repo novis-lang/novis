@@ -111,32 +111,45 @@ redirect.
 
 ## Theming
 
-Four knobs: the palette block at the top of `src/styles/custom.css`, taken from the logo.
-Every other color — the accent scale, the neutral ramp, every hairline, wash and callout —
-derives from those four via `color-mix()`, so re-tinting the site is still editing one
-block. A hex literal belongs in that block and nowhere else.
+Three brand colors and two neutral ends: the palette block at the top of
+`src/styles/custom.css`. Every other color derives from them with `color-mix()` or relative
+`oklch(from …)`, so re-tinting the site is editing that one block. A color literal belongs
+there and nowhere else. The one exception is the two `theme-color` meta tags in
+`astro.config.ts`, which cannot read a CSS variable and repeat the two page grounds.
 
 | | | Where it lands |
 | --- | --- | --- |
-| `--nv-accent` | `#b20038` | links, active nav, focus rings — the one color allowed to shout |
-| `--nv-rose` | `#bd767a` | as `--nv-quiet`: the small annotations beside something else — a comment in a signature, a chip, a hint |
-| `--nv-mist` | `#ffe4e4` | what the accent lies *on* — the light theme's highlight ground, selected text |
-| `--nv-teal` | `#5abab6` | affirmative ("accepted", "proof", keywords) and, at a whisper, the tint of every neutral surface |
+| `--nv-crimson` | `#b20038` | the logo's base color: primary buttons (the hero's primary action, the header's Install), the start of the signature gradient, brand moments. Never links or hovers |
+| `--nv-violet` | `#6542ed` | everything interactive: links, the current sidebar item and header area, focus rings. Starlight's `--sl-color-accent*` scale is built from it, so Starlight's own components follow |
+| `--nv-gold` | `#ffb703` | the highlight, used sparingly: `<mark>`, `.nv-chip`, the table of contents' current-item marker. As a fill it carries dark text (11:1) |
+| `--nv-ink`, `--nv-fog` | near `#090b14`, white | the neutral ramp's two ends, each a few percent violet: a deep blue-black and a near-white |
 
-Surfaces are the load-bearing part. Page, panels, hairlines and body text are one ramp of
-near-grey between `--nv-ink` and `--nv-fog`, both a few percent of teal, so the ground stays
-a grey that merely leans cool: tint it toward the accent instead and it stops reading as a
-neutral carrying an accent and starts reading as a colored page. The ramp's six steps land
-on Starlight's own lightnesses, which is what keeps the stock contrast ratios.
+The neutral ramp is fog mixed into ink in the steps Starlight's own grays use, mapped onto
+`--sl-color-white`, `-gray-1` to `-gray-7` and `-black`, which is what keeps Starlight's
+contrast ratios. The dark theme reads it from ink (the page ground) to fog (headings); the
+light theme reads it the other way round.
 
-The two themes lighten and darken the same four. The light theme uses the accent as drawn;
-the dark theme has to lift it (`#b20038` is 2.4:1 on that ground), but lifts **lightness
-alone** — `oklch(from var(--nv-accent) 0.68 c h)`, keeping the crimson's own chroma and hue,
-because mixing toward white takes the chroma with it and gives back the rose instead of the
-accent. Caution and danger (`--nv-warn`, `--nv-danger`) are the two
-semantics the palette cannot carry and are the only colors outside it — a taint sink drawn
-in the accent's crimson is indistinguishable from a link. Every text token clears WCAG AA
-against the surface it is painted on, in both themes; keep it that way when adding one.
+Each theme moves a brand color by **lightness alone**, keeping its hue:
+`oklch(from var(--nv-violet) 0.76 calc(c * 0.5) h)` is the dark theme's link color, because
+mixing toward white would also wash out the hue. The dark theme lifts violet to L 0.64 for
+borders and fills and L 0.76 for text, and crimson to L 0.66 for text; the light theme uses
+violet as drawn for text, L 0.42 for text on a violet wash, and gold at L 0.5 for text. Each
+relative color has a `color-mix()` fallback in front of an `@supports` block.
+
+Derived tokens a component reaches for: `--nv-surface` and `--nv-surface-2` (a card and a
+raised strip), `--nv-hairline` and `--nv-hairline-strong`, `--nv-wash` (a violet tint behind
+current or hovered items), `--nv-glass` (the header), `--nv-gradient` (crimson into violet,
+for large text) and `--nv-gradient-line` (crimson, violet, gold, for hairlines and hovered
+card borders), `--nv-shadow-sm/md/lg`, `--nv-quiet` (muted annotations), `--nv-code-bg`, and
+the spacing, radius and motion scales. Status colors — `--nv-ok`, `--nv-warn`,
+`--nv-danger` and the asides — are Starlight's own green, orange, red and blue.
+
+Every text token clears WCAG AA against the surface it is painted on, in both themes: 4.5:1
+for text, 3:1 for borders and icons that carry meaning. Compute the ratio before adding one.
+The header is the only element with `backdrop-filter`; motion is transform, opacity and color
+only, and stops under `prefers-reduced-motion`. The typefaces are Plus Jakarta Sans and
+JetBrains Mono, self-hosted from npm (`@fontsource-variable/*`), so no page requests a font
+service.
 
 ## Logo and favicon
 
