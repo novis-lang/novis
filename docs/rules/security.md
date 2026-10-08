@@ -939,8 +939,9 @@ system already uses on other axes, applied to a new one, and `secret` poisons in
 ([`security/secret-propagation`](security.md#security-secret-propagation)).
 
 **An encoder's result carries the text it encodes.** `Core\Json::encode` and `Core\Serialize::encode`
-write every string of the value they walk into their result, and JSON escaping leaves a `'` where it
-was, so the result is `tainted string` or `tainted bytes` when the value carries outside text anywhere:
+write every string of the value they walk into their result — JSON escaping leaves a `'` where it was,
+and `decode` rebuilds every object of the graph — so the result is `tainted string` or `tainted bytes`
+when the value carries outside text anywhere:
 a tainted atom, or `mixed`, `object`, `iterable` or an unresolved type parameter, at any depth of an
 array, a shape or an object's properties. An object is read through every class it can be at run
 time, the declared class and each concrete class extending or implementing it. A value that provably
@@ -1292,7 +1293,10 @@ with a written one.
 `Core\Taint::assertTrusted(tainted string, string $reason): string` is the one generic escape from the
 qualifier, for the case where the developer has validated the value themselves and needs to say so. It
 is modelled on this project's own `unsafe` policy: forbidden by default, rare, greppable, and carrying
-a written reason at the call site rather than a silent cast.
+a written reason at the call site rather than a silent cast. Its `bytes` form is a second member,
+`Core\Taint::assertTrustedBytes(tainted bytes, string $reason): bytes`, under the same rules, as
+`Core\Secret::revealBytes` is `reveal`'s; its case is a program decoding with `Core\Serialize::decode`
+the bytes it encoded itself ([`classes/serialize-is-a-closed-format`](classes.md#classes-serialize-is-a-closed-format)).
 
 It is the answer at every position that has no launderer *and cannot have one* — a metric label, whose
 hazard is unbounded cardinality rather than content ([`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted)); a

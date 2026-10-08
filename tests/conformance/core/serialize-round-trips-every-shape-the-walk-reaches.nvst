@@ -51,7 +51,9 @@ if (Core\Arr::count(Core\Arr::keys($hash)) == 2) {
 }
 // An object nested inside an array, which is where the walk's recursion and its
 // identity map meet.
-var $nested = Core\Serialize::decode(Core\Serialize::encode([new Leaf(4)])) as array<mixed>;
+// The leaf is a variable, so `encode` reads its class and answers plain `bytes`.
+Leaf $inner = new Leaf(4);
+var $nested = Core\Serialize::decode(Core\Serialize::encode([$inner])) as array<mixed>;
 Leaf $leaf = Core\Arr::first($nested) as Leaf;
 if ($leaf->n == 4) {
     $agree = $agree + 1;

@@ -8,8 +8,11 @@ default.
 
 `decode` is a `tainted` sink with no launderer. The rules above close code execution but not type
 confusion: a payload reconstructing a `User` with `isAdmin` set bypasses the constructor while
-satisfying every check. Bytes the program produced itself carry no qualifier and decode normally;
-bytes that arrived from outside are refused at compile time.
+satisfying every check. Bytes that arrived from outside are refused at compile time. `encode` is an
+encoder under `rule:security/taint-propagation`: over a value that provably carries no outside text it
+answers plain `bytes`, which decode normally, and over one that may it answers `tainted bytes`. A
+program decoding what it encoded itself says so once, with `Core\Taint::assertTrustedBytes`
+(`rule:security/assert-trusted`).
 
 No capability grant is required, because the closed format and the no-hook rule already remove what a
 grant would contain, and a hostile payload's cost is bounded by the same memory and CPU limits every

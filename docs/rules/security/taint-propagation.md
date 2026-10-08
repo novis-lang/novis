@@ -3,9 +3,10 @@ string member, an array of scalars — produces a tainted result. This is the po
 system already uses on other axes, applied to a new one, and `secret` poisons independently beside it
 (`rule:security/secret-propagation`).
 
-**An encoder's result carries the text it encodes.** `Core\Json::encode` writes every string of the
-value it walks into its result, and JSON escaping leaves a `'` where it was, so the result is
-`tainted string` when the value carries outside text anywhere:
+**An encoder's result carries the text it encodes.** `Core\Json::encode` and `Core\Serialize::encode`
+write every string of the value they walk into their result — JSON escaping leaves a `'` where it was,
+and `decode` rebuilds every object of the graph — so the result is `tainted string` or `tainted bytes`
+when the value carries outside text anywhere:
 a tainted atom, or `mixed`, `object`, `iterable` or an unresolved type parameter, at any depth of an
 array, a shape or an object's properties. An object is read through every class it can be at run
 time, the declared class and each concrete class extending or implementing it. A value that provably

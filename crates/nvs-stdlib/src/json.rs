@@ -380,7 +380,9 @@ const ENCODE_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "The JSON text.",
+    ret: "The JSON text. It is a `tainted string` when `$value` can contain text from outside \
+          the program. That is a `tainted` string, or a `mixed` or `object` value, anywhere \
+          inside it.",
     errors: &[ErrorDoc {
         error: "LogicError",
         desc: "`$value` holds something JSON cannot spell: a `NaN` or infinite `float`, a value \

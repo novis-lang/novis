@@ -151,8 +151,9 @@
 ///
 /// **With [`Self::Launder`], and with no sixth variant.**
 /// `rule:security/launderers-are-sink-named`
-/// 's `Core\Taint::assertTrusted(tainted string, string $reason): string` is
-/// the one launderer that names no single sink, and
+/// 's `Core\Taint::assertTrusted(tainted string, string $reason): string` —
+/// with its `bytes` row `assertTrustedBytes` — is the one launderer that names
+/// no single sink, and
 /// `rule:core-classes/db-capabilities` makes it the only way
 /// through `Settings.host`, which has no launderer of its own — so it earns a
 /// row, and it earns one before anything else it unblocks, because

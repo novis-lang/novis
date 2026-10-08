@@ -1243,8 +1243,8 @@ mod tests {
     /// `rule:security/launderers-are-sink-named`'s escape hatch, asked the way the test above asks `rule:core-classes/secret-reveal`'s: as a **closed set** rather than of the one row.
     ///
     /// [`Qual::Launder`] obliges a doc comment naming the sink the row launders
-    /// for, and `Core\Taint::assertTrusted` is the one row that names all of
-    /// them instead. `nvs_stdlib::registry`'s `Qual` doc comment argues why,
+    /// for, and `Core\Taint`'s two rows — `assertTrusted` and its `bytes` form
+    /// `assertTrustedBytes` — are the ones that name all of them instead. `nvs_stdlib::registry`'s `Qual` doc comment argues why,
     /// and holds that exception **on the roster rather than on the mark** —
     /// exactly as `Qual::Reveal`'s two-class roster is held rather than spelled
     /// into a variant. This is the `tainted` twin of that roster, and there is
@@ -1255,7 +1255,7 @@ mod tests {
     /// A doc comment cannot be read from here, so the property asserted is the
     /// structural one a general-purpose hatch has and a sink-named launderer
     /// does not: **its class is nothing else, and its answer is a plain
-    /// `string`.** `Core\Html`, `Core\Uri` and `Core\Regex` each launder for
+    /// `string` or plain `bytes`.** `Core\Html`, `Core\Uri` and `Core\Regex` each launder for
     /// the sink their other members are about, so a `Launder` row there is a
     /// member of a domain. `Core\Cli\Text` is the near miss the second half
     /// exists for — its whole roster is `Launder` rows, and they answer the
@@ -1264,7 +1264,7 @@ mod tests {
     /// `every_launderer_for_an_auto_escaping_sink_answers_a_carrier` is where
     /// that reading is argued, against `rule:security/launderer-answers-a-carrier`'s table).
     #[test]
-    fn the_launderer_that_names_no_sink_is_one_class_and_one_row() {
+    fn the_launderer_that_names_no_sink_is_one_class() {
         use std::collections::BTreeSet;
 
         let mut interner = TypeInterner::new();
@@ -1279,7 +1279,8 @@ mod tests {
                     .iter()
                     .flatten()
                     .any(|qual| matches!(qual, Qual::Launder));
-                if !launders || interner.describe(sig.return_ty) != "string" {
+                let plain = interner.describe(sig.return_ty);
+                if !launders || (plain != "string" && plain != "bytes") {
                     every_row_is_one = false;
                     break;
                 }
@@ -1293,8 +1294,11 @@ mod tests {
 
         assert_eq!(
             hatches,
-            BTreeSet::from([(r"Core\Taint", "assertTrusted")]),
-            "the roster of launderers that answer for every sink is closed at one — `rule:security/launderers-are-sink-named` \
+            BTreeSet::from([
+                (r"Core\Taint", "assertTrusted"),
+                (r"Core\Taint", "assertTrustedBytes"),
+            ]),
+            "the roster of launderers that answer for every sink is closed at one class —`rule:security/launderers-are-sink-named` \
              makes laundering sink-named and names a single exception, and a second class here is \
              the generic `sanitize()` that section exists to refuse"
         );

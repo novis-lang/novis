@@ -405,8 +405,9 @@ pub(crate) fn infer_static_call(
     // deliberately — a retrieval's and an enumeration's arguments are the
     // literals those folds require, so there is no argument left to carry a
     // qualifier by the time either answers.
-    // An encoder's result carries the outside text of the value it walks
-    // too. See [`encodes_outside_text`].
+    // An encoder's result — `Core\Json::encode`'s or `Core\Serialize::encode`'s
+    // — carries the outside text of the value it walks too. See
+    // [`encodes_outside_text`].
     let contagious = sig
         .as_ref()
         .is_some_and(|s| carries_contagion(s, &slots, &arg_types, env.interner))

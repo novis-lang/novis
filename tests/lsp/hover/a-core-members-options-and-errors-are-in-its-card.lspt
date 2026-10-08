@@ -19,7 +19,7 @@ Serializes `$value` as JSON text. It can be a scalar, an array, an anonymous obj
 - `pretty` — Indent the output across lines, as `JSON_PRETTY_PRINT` does; the default is one line.
 - `escapeUnicode` — Write every non-ASCII character as a `\uXXXX` escape, as `json_encode` does by default; the default here keeps UTF-8 as it is.
 
-**Returns** The JSON text.
+**Returns** The JSON text. It is a `tainted string` when `$value` can contain text from outside the program. That is a `tainted` string, or a `mixed` or `object` value, anywhere inside it.
 
 **Throws**
 

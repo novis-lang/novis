@@ -12,9 +12,12 @@
 //! code-execution class, but not type confusion — a payload that reconstructs a
 //! `User` with `isAdmin: true` satisfies every check the format makes. So the
 //! parameter is [`Qual::Sink`] and bytes that arrived from outside the process
-//! are refused *at compile time*, with no launderer anywhere. `encode`'s own
-//! result is [`Qual::Contagious`] by omission: bytes made from a tainted graph
-//! are still tainted, which is the ordinary rule and not a special case.
+//! are refused *at compile time*, with no sink-named launderer.
+//! `rule:security/taint-propagation`'s encoder rule decides `encode`'s own
+//! result at the call site: `tainted bytes` when the value may carry outside
+//! text anywhere in its graph, plain `bytes` when it provably does not. A
+//! program round-tripping its own tainted-typed value writes
+//! `Core\Taint::assertTrustedBytes` once, before `decode`.
 //!
 //! # Why the failure is a `ParseError` on the way in and a `LogicError` on the
 //! way out
@@ -89,7 +92,9 @@ const ENCODE_DOC: MethodDoc = MethodDoc {
                point to one object after `decode()`.",
         shape: &[],
     }],
-    ret: "The bytes. If `$value` is `tainted`, the bytes are also `tainted`.",
+    ret: "The bytes. They are `tainted` when `$value` can contain text from outside the program. \
+          That is a `tainted` string, or a `mixed` or `object` value, anywhere inside it. Then \
+          `decode()` needs `Core\\Taint::assertTrustedBytes` first.",
     errors: &[ErrorDoc {
         error: "LogicError",
         desc: "`$value` contains a callable, an open file or connection, or an object with a \
@@ -105,7 +110,8 @@ const DECODE_DOC: MethodDoc = MethodDoc {
             `tainted`, and a call with them does not compile.",
     params: &[ParamDoc {
         name: "payload",
-        desc: "The bytes that `encode()` returned.",
+        desc: "The bytes that `encode()` returned. If they are `tainted` and your program \
+               wrote them itself, call `Core\\Taint::assertTrustedBytes` on them first.",
         shape: &[],
     }],
     ret: "The value. An object in it is a new object of the class with the same name in this \

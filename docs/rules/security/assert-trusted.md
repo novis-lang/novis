@@ -1,7 +1,10 @@
 `Core\Taint::assertTrusted(tainted string, string $reason): string` is the one generic escape from the
 qualifier, for the case where the developer has validated the value themselves and needs to say so. It
 is modelled on this project's own `unsafe` policy: forbidden by default, rare, greppable, and carrying
-a written reason at the call site rather than a silent cast.
+a written reason at the call site rather than a silent cast. Its `bytes` form is a second member,
+`Core\Taint::assertTrustedBytes(tainted bytes, string $reason): bytes`, under the same rules, as
+`Core\Secret::revealBytes` is `reveal`'s; its case is a program decoding with `Core\Serialize::decode`
+the bytes it encoded itself (`rule:classes/serialize-is-a-closed-format`).
 
 It is the answer at every position that has no launderer *and cannot have one* — a metric label, whose
 hazard is unbounded cardinality rather than content (`rule:security/metric-label-refuses-tainted`); a

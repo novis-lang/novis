@@ -1,0 +1,21 @@
+<?nvs
+// Trusts bytes that the program encoded itself, as a program does before it reads them back with `Core\Serialize::decode`.
+// bench: iterations 2048
+// bench: allocations 0
+// bench: complexity constant
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        tainted bytes $saved = "a saved cart!" as tainted bytes;
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            bytes $mine = Core\Taint::assertTrustedBytes($saved, "this program encoded the cart");
+            $total = $total + Core\Bytes::length($mine) % ($i % 3 + 2);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2048), "\n";

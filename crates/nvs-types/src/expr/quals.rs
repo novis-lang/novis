@@ -1042,11 +1042,12 @@ pub(crate) fn reject_secret_encoded_argument(
     }
 }
 
-/// `rule:security/taint-propagation`'s encoder: `Core\Json::encode` writes
-/// every string of the value it walks into its result, and JSON escaping
-/// leaves a `'` where it was. So the result
-/// is `tainted` when the argument that filled the value parameter carries
-/// outside text anywhere, and plain when it provably does not.
+/// `rule:security/taint-propagation`'s encoders: `Core\Json::encode` and
+/// `Core\Serialize::encode` write every string of the value they walk into
+/// their result — JSON escaping leaves a `'` where it was, and the closed
+/// format rebuilds every object `decode` meets. So the result is `tainted`
+/// when the argument that filled the value parameter carries outside text
+/// anywhere, and plain when it provably does not.
 ///
 /// A call-site rule for [`reject_secret_encoded_argument`]'s reason: the
 /// member declares `mixed`, which a tainted value satisfies, so the argument's
@@ -1064,7 +1065,7 @@ pub(crate) fn encodes_outside_text(
     env: &mut Env<'_>,
 ) -> bool {
     let owner = qname.to_string();
-    if member != "encode" || owner != r"Core\Json" {
+    if member != "encode" || (owner != r"Core\Json" && owner != r"Core\Serialize") {
         return false;
     }
     let mut seen = FxHashSet::default();

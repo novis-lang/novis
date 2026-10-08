@@ -1,0 +1,22 @@
+<?nvs
+// Shows how a program reads back an object that it turned into bytes itself.
+
+class Draft {
+    public string $title;
+    public mixed $extra;
+    public function constructor(string $title, mixed $extra) {
+        $this->title = $title;
+        $this->extra = $extra;
+    }
+}
+
+// `$extra` is `mixed`, so it can contain outside text.
+// For this reason, `encode()` returns `tainted bytes`.
+tainted bytes $saved = Core\Serialize::encode(new Draft("Spring sale", 3));
+
+// This program wrote the bytes, so it trusts them. Then `decode()` accepts them.
+bytes $mine = Core\Taint::assertTrustedBytes($saved, "this program encoded the draft above");
+Draft $draft = Core\Serialize::decode($mine) as Draft;
+
+// This prints "Spring sale".
+echo $draft->title, "\n";

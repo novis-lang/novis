@@ -2501,6 +2501,7 @@ mod tests {
             (r"Core\Regex::quote", false),
             (r"Core\SignedCookie::open", false),
             (r"Core\Taint::assertTrusted", false),
+            (r"Core\Taint::assertTrustedBytes", false),
             (r"Core\Uri::encodeComponent", false),
             (r"Core\Uri::encodeFormValue", false),
             // The writing half of § 17 is a launderer once per member that puts
@@ -2525,7 +2526,9 @@ mod tests {
                 method.params.iter().any(|param| {
                     matches!(
                         param,
-                        CoreTy::Text(Qual::Launder) | CoreTy::Path(Qual::Launder)
+                        CoreTy::Text(Qual::Launder)
+                            | CoreTy::Blob(Qual::Launder)
+                            | CoreTy::Path(Qual::Launder)
                     )
                 })
             })

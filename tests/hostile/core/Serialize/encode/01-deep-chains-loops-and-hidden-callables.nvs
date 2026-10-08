@@ -61,8 +61,11 @@ Node $a = new Node(2);
 Node $b = new Node(3);
 $a->next = $b;
 $b->next = $a;
-Node $loop = Core\Serialize::decode(Core\Serialize::encode($self)) as Node;
-Node $pair = Core\Serialize::decode(Core\Serialize::encode($a)) as Node;
+// `$payload` is `mixed`, so the bytes are `tainted`. This program wrote them itself.
+bytes $selfBytes = Core\Taint::assertTrustedBytes(Core\Serialize::encode($self), 'this program encoded it');
+bytes $pairBytes = Core\Taint::assertTrustedBytes(Core\Serialize::encode($a), 'this program encoded it');
+Node $loop = Core\Serialize::decode($selfBytes) as Node;
+Node $pair = Core\Serialize::decode($pairBytes) as Node;
 echo 'step 3: ', $loop->next?->next?->id ?? 0, ' ', $pair->next?->next?->id ?? 0, "\n";
 
 // Step 4: an anonymous function is hidden at the end of a chain of 200 nodes.

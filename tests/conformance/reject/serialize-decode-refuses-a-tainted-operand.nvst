@@ -1,18 +1,18 @@
 --TEST--
-`Core\Serialize::decode`'s operand is a taint sink whatever route the bytes arrived by — a local, a concatenation, a member's return type, an array element, a repeated cast, or taint composed with `secret` — while untainted bytes decode — `rule:security/sink-predicate`, `rule:classes/serialize-is-a-closed-format`
+`Core\Serialize::decode`'s operand is a taint sink whatever route the bytes arrived by — a local, a concatenation, a member's return type, an array element, a repeated cast, taint composed with `secret`, or `encode` over a value that carries outside text — while untainted bytes decode — `rule:security/sink-predicate`, `rule:classes/serialize-is-a-closed-format`, `rule:security/taint-propagation`
 --FILE--
 <?nvs
 // `decode` names classes and rebuilds their declared properties, so an
 // attacker-chosen byte string picks which class the program is handed. `rule:security/sink-predicate`
 // therefore declares the parameter `bytes` under `Qual::Sink`, which makes
 // every refusal below an ordinary assignability failure rather than a rule of
-// the member's own — and that is the point being pinned: there is no launderer
-// in front of this sink, so nothing a caller can write in the argument position
-// gets past it.
+// the member's own — and that is the point being pinned: there is no
+// sink-named launderer in front of this sink, so the only way past is the
+// written `Core\Taint::assertTrustedBytes`, which none of the routes uses.
 //
-// The agreement shape (`docs/agent/conventions.md`): six routes, one question,
+// The agreement shape (`docs/agent/conventions.md`): seven routes, one question,
 // so a taint propagation that grew a hole in one of them fails here while the
-// other five still look right.
+// other six still look right.
 class Source {
     public static function payload(): tainted bytes {
         return "t" as bytes;
@@ -58,6 +58,12 @@ echo $e;
 // conversion through a parser that produces untainted output.
 mixed $f = Core\Serialize::decode($t as bytes as bytes);
 echo $f;
+
+// Round-tripped through `encode`: a `mixed` value may carry outside text, so
+// the encoder's result is `tainted bytes` and the sink refuses it.
+mixed $m = 1;
+mixed $g = Core\Serialize::decode(Core\Serialize::encode($m));
+echo $g;
 --EXPECT--
 
 --EXPECTF-ERROR--
@@ -73,5 +79,7 @@ error[E0401]: expected `bytes`, found `secret tainted bytes`
 %A
 error[E0401]: expected `bytes`, found `tainted bytes`
 %A
-error: aborting due to 6 errors
+error[E0401]: expected `bytes`, found `tainted bytes`
+%A
+error: aborting due to 7 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

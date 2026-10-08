@@ -1030,8 +1030,10 @@ refusing the qualifier closes the input side structurally rather than by advice.
 sink is not code execution but **type confusion** — a payload that reconstructs a `User` with
 `isAdmin: true`, bypassing the constructor — which is why contagion would be the wrong classification: the
 danger is the object graph itself, not a string that later reaches an output sink. Bytes the program
-serialized and stored are not `tainted` and decode normally; bytes that arrived from outside are refused,
-and no launderer exists for them today. The format is versioned, self-describing and Novis's own; it is not
+serialized from a value that provably carries no outside text are not `tainted` and decode normally;
+`encode` over a value that may carry it answers `tainted bytes`, which the program round-tripping its own
+value passes through `Core\Taint::assertTrustedBytes` once. Bytes that arrived from outside are refused,
+and no sink-named launderer exists for them. The format is versioned, self-describing and Novis's own; it is not
 compatible with PHP's, and there is no hook to customise it
 (`rule:classes/two-copy-depths`).
 
