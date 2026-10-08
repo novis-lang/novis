@@ -47,9 +47,12 @@
 //! A search holds one page of up to [`PAGE_SIZE`] entries by default, per
 //! search a request has open.
 //!
-//! A failure throws a `RuntimeError` naming the member and ADR 0278 § 10's kind,
-//! except [`nvs_ldap::Kind::Unavailable`] (`IOError`) and
-//! [`nvs_ldap::Kind::Timeout`] (`TimeoutError`). No message carries a password.
+//! **Every failure the directory or the wire reports is one `Ldap\LdapError`**
+//! (ADR 0278 § 10), built by [`fault_of`]: `$kind` is the [`ERROR_KIND`] case
+//! [`nvs_ldap::Kind`] names, and `$code` is the LDAP result code, or `null`
+//! where no server sent one. A pool with no free slot is an `IOError` and a
+//! malformed URL or DN is the program's own `LogicError` or `RuntimeError`, as
+//! for `Core\Db`. No message carries a password.
 
 use std::collections::BTreeMap;
 use std::net::{SocketAddr, ToSocketAddrs as _};
@@ -59,7 +62,11 @@ use std::time::{Duration, Instant};
 
 use nvs_config::Cap;
 use nvs_config::capability::Scope;
-use nvs_runtime::{Ctx, Fault, ThrownClass};
+use nvs_runtime::{Ctx, Fault, ThrownClass, Value};
+
+mod registry;
+
+pub(crate) use self::registry::*;
 
 /// `Core\Ldap::connect`, as its refusals spell it.
 pub const CONNECT: &str = r"Core\Ldap::connect";
@@ -133,16 +140,34 @@ pub struct Settings<'a> {
     pub timeout: Option<Duration>,
 }
 
-/// The throw an LDAP failure becomes, worded for `member`.
+/// The `Ldap\LdapError` an LDAP failure becomes, worded for `member`.
 #[must_use]
 pub fn fault_of(member: &str, error: &nvs_ldap::Error) -> Fault {
-    let kind = error.kind();
-    let message = format!("{member}: {}: {}", kind.name(), error.message());
-    match kind {
-        nvs_ldap::Kind::Unavailable => Fault::thrown_as(ThrownClass::Io, message),
-        nvs_ldap::Kind::Timeout => Fault::thrown_as(ThrownClass::Timeout, message),
-        _ => Fault::thrown(message),
+    let message = format!("{member}: {}: {}", error.kind().name(), error.message());
+    ldap_error(message, error)
+}
+
+/// An `Ldap\LdapError` with `message`, carrying `error`'s kind and, where a
+/// server sent one, its result code. A code the client found itself leaves
+/// `$code` unwritten, and an unwritten slot reads `null`.
+fn ldap_error(message: String, error: &nvs_ldap::Error) -> Fault {
+    let mut slots = vec![(nvs_runtime::LDAP_KIND_SLOT, error_kind_value(error.kind()))];
+    if let Some(code) = error.code() {
+        slots.push((nvs_runtime::LDAP_CODE_SLOT, Value::int(i64::from(code))));
     }
+    Fault::thrown_with_slots(ThrownClass::LdapError, message, slots)
+}
+
+/// An [`nvs_ldap::Kind`] as the [`ERROR_KIND`] case a program matches on,
+/// which at runtime is that case's ordinal. The two enums are joined by name,
+/// and `every_ldap_kind_names_a_registered_case` makes the `expect` unreachable.
+pub(crate) fn error_kind_value(kind: nvs_ldap::Kind) -> Value {
+    let (_, ordinal) = ERROR_KIND
+        .cases
+        .iter()
+        .find(|(name, _)| *name == kind.name())
+        .expect("every `nvs_ldap::Kind` names a case `ERROR_KIND` registers");
+    Value::int(*ordinal)
 }
 
 /// Whether `error` is the server refusing the credentials, which stops a
@@ -313,13 +338,11 @@ fn walk(
     let error = last.unwrap_or_else(|| {
         nvs_ldap::Error::new(nvs_ldap::Kind::Unavailable, "the block names no URL")
     });
-    Err(Fault::thrown_as(
-        ThrownClass::Io,
-        format!(
-            "{CONNECT}: no URL in `[ldap.{name}]` answered, and the last one said: {}",
-            error.message()
-        ),
-    ))
+    let message = format!(
+        "{CONNECT}: no URL in `[ldap.{name}]` answered, and the last one said: {}",
+        error.message()
+    );
+    Err(ldap_error(message, &error))
 }
 
 /// `Core\Ldap::open`'s body: dials the one URL `settings` names and returns the

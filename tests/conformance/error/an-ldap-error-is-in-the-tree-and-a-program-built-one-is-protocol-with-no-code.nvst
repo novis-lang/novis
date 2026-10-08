@@ -1,0 +1,38 @@
+--TEST--
+`Core\Ldap\LdapError` is a class in spec § 10's tree under `RuntimeError`, caught by its own name and its parent's and never by `Core\Db\DbError`, and one a program builds itself has the kind `Protocol` and a `null` code — ADR 0278 § 10
+--FILE--
+<?nvs
+// ADR 0278 § 10: one class for every LDAP failure, with the condition as `kind`.
+try {
+    throw new Core\Ldap\LdapError("the directory is down");
+} catch (Core\Ldap\LdapError $down) {
+    echo "own: ", $down->message, "\n";
+}
+
+// Under `RuntimeError`, beside `Core\Db\DbError` and not below it.
+try {
+    throw new Core\Ldap\LdapError("the bind was refused");
+} catch (Core\Db\DbError $db) {
+    echo "not reached\n";
+} catch (RuntimeError $refused) {
+    echo "parent: ", $refused->message, "\n";
+}
+
+// No server classified this error, so its kind is `Protocol`, the kind for a
+// result code no other kind covers, and there is no result code at all.
+Core\Ldap\LdapError $built = new Core\Ldap\LdapError("built by hand");
+echo $built->kind == Core\Ldap\ErrorKind::Protocol ? "kind: Protocol" : "kind: other", "\n";
+echo $built->code == null ? "code: null" : "code: set", "\n";
+
+// `$kind` is a closed enum, so a `match` names its cases.
+echo match ($built->kind) {
+    Core\Ldap\ErrorKind::InvalidCredentials => "a wrong login",
+    Core\Ldap\ErrorKind::Unavailable => "no server",
+    default => "something else",
+}, "\n";
+--EXPECT--
+own: the directory is down
+parent: the bind was refused
+kind: Protocol
+code: null
+something else

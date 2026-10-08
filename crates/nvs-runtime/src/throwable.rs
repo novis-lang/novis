@@ -244,6 +244,20 @@ pub const CONSTRAINT_SLOT: usize = KIND_SLOT + 3;
 /// `the_runtime_and_the_compiler_agree_on_every_throwable_slot`.
 pub const SQL_SLOT: usize = KIND_SLOT + 4;
 
+/// The slot `Core\Ldap\LdapError::$kind` occupies — ADR 0278 § 10's
+/// condition, which `nvs_stdlib::ldap::fault_of` fills.
+///
+/// Equal to [`KIND_SLOT`] for that constant's reason and not derived from it:
+/// the two classes are siblings. `nvs_hir::errors::LDAP_KIND_SLOT` is the
+/// compiler's copy, held to this one by `nvs-codegen`'s
+/// `the_runtime_and_the_compiler_agree_on_every_throwable_slot`.
+pub const LDAP_KIND_SLOT: usize = SLOT_COUNT;
+
+/// The slot `Core\Ldap\LdapError::$code` occupies — the LDAP result code a
+/// server sent, left unwritten (and so `null`) where the client found the
+/// failure itself. `nvs_hir::errors::LDAP_CODE_SLOT` is the compiler's copy.
+pub const LDAP_CODE_SLOT: usize = LDAP_KIND_SLOT + 1;
+
 /// The slot `Core\Db\RolledBack::$reason` occupies —
 /// `rule:core-classes/db-transactions`'s abandoned transaction,
 /// worded by the program that abandoned it.
@@ -343,8 +357,8 @@ pub enum ThrownClass {
     /// composite assertion, a retry wrapper or a test *of* an assertion can
     /// intercept one by name.
     ///
-    /// `Core\Test\Failure`, [`Self::CliNotInteractive`], [`Self::DbError`] and
-    /// [`Self::DbRolledBack`] are the entries in this roster whose names
+    /// `Core\Test\Failure`, [`Self::CliNotInteractive`], [`Self::DbError`],
+    /// [`Self::DbRolledBack`] and [`Self::LdapError`] are the entries in this roster whose names
     /// are namespaced; `nvs_hir::errors::TREE` says why they are classes in the
     /// tree rather than `nvs_stdlib::registry` rows, and nothing here has to
     /// care, the lookup below being by name either way.
@@ -379,6 +393,11 @@ pub enum ThrownClass {
     /// `nvs_ir::lower::exception`'s synthesized constructor does — there is no
     /// second field for a helper here to write.
     DbRolledBack,
+    /// `Core\Ldap\LdapError` — a directory refused an operation, or could not
+    /// be reached (ADR 0278 § 10). One class with a `kind` at
+    /// [`LDAP_KIND_SLOT`] and the result `code` at [`LDAP_CODE_SLOT`], for the
+    /// reason [`Self::DbError`] is one class.
+    LdapError,
     /// `Core\DeprecatedError` — a use of deprecated code under
     /// `[errors] deprecated = "throw"`
     /// (`rule:errors/a-use-of-deprecated-code-may-log-or-throw`). A
@@ -406,6 +425,7 @@ impl ThrownClass {
             Self::CliNotInteractive => "Core\\Cli\\NotInteractive",
             Self::DbError => "Core\\Db\\DbError",
             Self::DbRolledBack => "Core\\Db\\RolledBack",
+            Self::LdapError => "Core\\Ldap\\LdapError",
             Self::Deprecated => "Core\\DeprecatedError",
             Self::Extension => "ExtensionError",
         }
@@ -424,6 +444,7 @@ impl ThrownClass {
         Self::CliNotInteractive,
         Self::DbError,
         Self::DbRolledBack,
+        Self::LdapError,
         Self::Deprecated,
         Self::Extension,
     ];

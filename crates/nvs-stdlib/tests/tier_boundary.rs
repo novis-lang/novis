@@ -23,7 +23,8 @@
 //!
 //! [`registry::CLASSES`] is one of them and not both. The other is
 //! `nvs_hir::errors::TREE`, which carries `Core\Test\Failure`,
-//! `Core\Cli\NotInteractive`, `Core\Db\DbError` and `Core\Db\RolledBack` —
+//! `Core\Cli\NotInteractive`, `Core\Db\DbError`, `Core\Db\RolledBack` and
+//! `Core\Ldap\LdapError` —
 //! `Core` classes a program names in a `catch` and that have no registry row,
 //! for the reason that file's own module doc gives. A gate that read "in the
 //! `Core` namespace" as "in the registry"

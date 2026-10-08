@@ -14,6 +14,7 @@ Core\Cli\NotInteractive class
 Core\Db\DbError class
 Core\Db\RolledBack class
 Core\DeprecatedError class
+Core\Ldap\LdapError class
 Core\Test\Failure class
 ExtensionError class
 IOError class

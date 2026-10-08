@@ -1,5 +1,6 @@
 ---
 source: crates/nvs-ir/src/lower/tests.rs
+assertion_line: 2682
 expression: "print_program(&p, map.file(file))"
 ---
 fn G::upTo(classdesc, int) -> object {
@@ -182,6 +183,28 @@ fn Core\Db\RolledBack::constructor(object, string, tagged) -> void {
     field.set v0, Core\Db\RolledBack::location, v4
     retain v1
     field.set v0, Core\Db\RolledBack::reason, v1
+    release v1
+    release v2
+    release v0
+    return
+}
+
+fn Core\Ldap\LdapError::constructor(object, string, tagged) -> void {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; string
+    retain v1
+    field.set v0, Core\Ldap\LdapError::message, v1
+    v2 = param 2  ; tagged
+    retain v2
+    field.set v0, Core\Ldap\LdapError::previous, v2
+    v3 = array.new []  ; array
+    field.set v0, Core\Ldap\LdapError::backtrace, v3
+    v4 = const.str ""  ; string
+    field.set v0, Core\Ldap\LdapError::location, v4
+    v5 = const.int 20  ; enum:int
+    field.set v0, Core\Ldap\LdapError::kind, v5
     release v1
     release v2
     release v0

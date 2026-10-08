@@ -938,6 +938,15 @@ pub(crate) const KIND_FIELD: &str = "kind";
 /// pins the ordinal against that roster, being the one crate that can see both.
 pub(crate) const ERROR_KIND_OTHER: i64 = 10;
 
+/// `Core\Ldap\LdapError`, ADR 0278 § 10's one directory error, with a `kind`
+/// and a `?int` `code`. Restated here for [`PARSE_ERROR`]'s reason.
+pub(crate) const LDAP_ERROR: &str = "Core\\Ldap\\LdapError";
+
+/// The `Core\Ldap\ErrorKind::Protocol` ordinal — `nvs_stdlib::ldap::ERROR_KIND`
+/// is that roster's home, and `nvs_types::error_lib`'s
+/// `the_ldap_kind_property_names_a_registered_enum` pins this copy against it.
+pub(crate) const LDAP_KIND_PROTOCOL: i64 = 20;
+
 /// The Novis functions with no source text: one constructor per exception class
 /// that declares state of its own.
 ///
@@ -976,6 +985,10 @@ pub(crate) const ERROR_KIND_OTHER: i64 = 10;
 /// code table does not name, and a `DbError` a program constructed itself has
 /// no code table behind it at all. `nvs_stdlib::db`'s `statement_failure`
 /// overwrites the slot on the path that *does* have one.
+///
+/// `Core\Ldap\LdapError::$kind` starts at [`LDAP_KIND_PROTOCOL`] for the same
+/// reason: it is the kind `nvs_ldap` gives a result code it does not name.
+/// Its `code` is `?int` and is left unwritten, so it reads `null`.
 pub(crate) fn synthesized_exception_constructors() -> Vec<Function> {
     vec![
         exception_constructor(THROWABLE_ROOT, &[]),
@@ -985,6 +998,10 @@ pub(crate) fn synthesized_exception_constructors() -> Vec<Function> {
             &[(KIND_FIELD, ExtraInit::EnumCase(ERROR_KIND_OTHER))],
         ),
         exception_constructor(ROLLED_BACK, &[(REASON_FIELD, ExtraInit::Message)]),
+        exception_constructor(
+            LDAP_ERROR,
+            &[(KIND_FIELD, ExtraInit::EnumCase(LDAP_KIND_PROTOCOL))],
+        ),
     ]
 }
 

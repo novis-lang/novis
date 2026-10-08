@@ -123,6 +123,22 @@ fn own_properties(name: &str, interner: &mut TypeInterner) -> FxHashMap<String, 
                 // its caller passed, and the synthesized constructor writes
                 // the message into it (`nvs_ir::lower::exception`).
                 "reason" => interner.string(),
+                // `Core\Ldap\LdapError::$kind` — ADR 0278 § 10's `ErrorKind`,
+                // registered by `nvs_stdlib::ldap::ERROR_KIND`. The one property
+                // name two classes type differently, so it is matched on the
+                // class before the `kind` arm below takes `Core\Db\DbError`'s.
+                "kind" if name == LDAP_ERROR => {
+                    interner.enum_(QName::parse(LDAP_ERROR_KIND), EnumBacking::Int)
+                }
+                // `Core\Ldap\LdapError::$code` — the LDAP result code, `?int`
+                // because a failure the client found itself (a timeout, a server
+                // that never answered) has no code, and the unwritten slot reads
+                // `null`.
+                "code" => {
+                    let code = interner.int();
+                    let null = interner.null();
+                    interner.make_union([code, null])
+                }
                 // `Core\Db\DbError::$kind` — `rule:core-classes/db-error`'s normalised
                 // `ErrorKind`, which is a registered enum and not a string:
                 // the eleven conditions are a closed set the compiler can
@@ -185,6 +201,14 @@ fn own_properties(name: &str, interner: &mut TypeInterner) -> FxHashMap<String, 
 /// private — `the_kind_property_names_a_registered_enum` is what stops the two
 /// drifting.
 const ERROR_KIND: &str = r"Core\Db\ErrorKind";
+
+/// The class whose `kind` is [`LDAP_ERROR_KIND`] rather than [`ERROR_KIND`].
+const LDAP_ERROR: &str = r"Core\Ldap\LdapError";
+
+/// `Core\Ldap\LdapError::$kind`'s enum, by name — a second copy of
+/// `nvs_stdlib::ldap::ERROR_KIND_NAME`, for [`ERROR_KIND`]'s reason.
+/// `the_ldap_kind_property_names_a_registered_enum` holds the two together.
+const LDAP_ERROR_KIND: &str = r"Core\Ldap\ErrorKind";
 
 /// `type Core\Issue = {path: string, message: string}` —
 /// `rule:core-classes/derive-reports-every-field`'s one shape.
@@ -438,6 +462,49 @@ mod tests {
                 &graph
             )
             .is_none()
+        );
+    }
+
+    #[test]
+    fn the_ldap_kind_property_names_a_registered_enum() {
+        // `LDAP_ERROR_KIND` above, `nvs_stdlib::ldap`'s `ERROR_KIND_NAME`, and
+        // `nvs_ir::lower::exception`'s `LDAP_KIND_PROTOCOL` ordinal meet here,
+        // for `the_kind_property_names_a_registered_enum`'s reason.
+        let registered = nvs_stdlib::registry::ENUMS
+            .iter()
+            .find(|entry| entry.name == LDAP_ERROR_KIND)
+            .expect("`Core\\Ldap\\ErrorKind` is a registered enum");
+        assert_eq!(
+            registered
+                .cases
+                .iter()
+                .find(|(name, _)| *name == "Protocol"),
+            Some(&("Protocol", 20)),
+            "`nvs_ir::lower::exception::LDAP_KIND_PROTOCOL` restates this ordinal"
+        );
+
+        let mut interner = TypeInterner::new();
+        let mut table = SignatureTable::new();
+        seed(&mut table, &mut interner);
+        let graph = tree_graph();
+        let ldap = QName::parse(LDAP_ERROR);
+        let kind = resolve_property(&ldap, "kind", &table, &graph)
+            .expect("`kind` is LdapError's own property");
+        assert_eq!(
+            kind,
+            interner.enum_(QName::parse(LDAP_ERROR_KIND), EnumBacking::Int)
+        );
+        let code = resolve_property(&ldap, "code", &table, &graph)
+            .expect("`code` is LdapError's own property");
+        let int = interner.int();
+        let null = interner.null();
+        assert_eq!(code, interner.make_union([int, null]));
+        // `Core\Db\DbError::$kind` keeps its own enum.
+        let db = resolve_property(&QName::parse("Core\\Db\\DbError"), "kind", &table, &graph)
+            .expect("`kind` is DbError's own property");
+        assert_eq!(
+            db,
+            interner.enum_(QName::parse(ERROR_KIND), EnumBacking::Int)
         );
     }
 

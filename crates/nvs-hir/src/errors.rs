@@ -73,6 +73,12 @@
 /// and the `sql` the program wrote — so the class carries the root's own set,
 /// those, and a message that is what the server said.
 ///
+/// `Core\Ldap\LdapError` is the same shape for a directory: every failure
+/// `Core\Ldap` reports, as one class with a `kind` a program branches on and
+/// the LDAP result `code` beside it (ADR 0278 § 10). Its `kind` is a different
+/// enum from `Core\Db\DbError`'s, which is why `nvs_types::error_lib` types a
+/// property by its class and not by its name alone.
+///
 /// `Core\DeprecatedError` is what a use of deprecated code throws under
 /// `[errors] deprecated = "throw"`
 /// (`rule:errors/a-use-of-deprecated-code-may-log-or-throw`). Its parent is
@@ -114,6 +120,7 @@ pub const TREE: &[(&str, Option<&str>)] = &[
     ("Core\\Cli\\NotInteractive", Some("RuntimeError")),
     ("Core\\Db\\DbError", Some("RuntimeError")),
     ("Core\\Db\\RolledBack", Some("RuntimeError")),
+    ("Core\\Ldap\\LdapError", Some("RuntimeError")),
     ("Core\\DeprecatedError", Some("LogicError")),
     (FINISH_MARKER, None),
 ];
@@ -157,11 +164,12 @@ pub const BACKTRACE_SLOT: usize = 2;
 /// gives a `reason` — the string
 /// `rule:core-classes/db-transactions`'s `Transaction::rollBack`
 /// was called with, readable from the `catch` outside the transaction callable
-/// that the throw unwound. `Core\Db\DbError` is the last, which
+/// that the throw unwound. `Core\Db\DbError` is another, which
 /// `rule:core-classes/db-error` gives a normalised `kind`
 /// so that an application branches on the condition rather than on a vendor
 /// code, and beside it the raw `sqlState`, `driverCode` and `constraint` it was
-/// read off plus the `sql` that was refused. Every one of spec § 18's is here,
+/// read off plus the `sql` that was refused. `Core\Ldap\LdapError` is the
+/// last, with ADR 0278 § 10's `kind` and `code`. Every one of spec § 18's is here,
 /// and none of them could have been added without a type in
 /// `nvs_types::error_lib::own_properties`, which `panic!`s at seed time on a
 /// property it cannot type. That is a *narrowing* rule and not a queue: a row
@@ -177,6 +185,7 @@ pub const OWN_PROPERTIES: &[(&str, &[&str])] = &[
     ("ParseError", ISSUES),
     ("Core\\Db\\DbError", KIND),
     ("Core\\Db\\RolledBack", REASON),
+    ("Core\\Ldap\\LdapError", LDAP_KIND),
 ];
 
 /// `ParseError`'s own row of [`OWN_PROPERTIES`].
@@ -190,6 +199,10 @@ const KIND: &[&str] = &["kind", "sqlState", "driverCode", "constraint", "sql"];
 
 /// `Core\Db\RolledBack`'s own row of [`OWN_PROPERTIES`].
 const REASON: &[&str] = &["reason"];
+
+/// `Core\Ldap\LdapError`'s own row of [`OWN_PROPERTIES`]: the kind, then the
+/// result code. A property added later is appended, for [`KIND`]'s reason.
+const LDAP_KIND: &[&str] = &["kind", "code"];
 
 /// The slot `ParseError::$issues` occupies.
 ///
@@ -256,6 +269,20 @@ pub const CONSTRAINT_SLOT: usize = KIND_SLOT + 3;
 /// spelled, since § 7's `BEGIN`, `COMMIT` and `SAVEPOINT` are the runtime's own
 /// text. `nvs_runtime::SQL_SLOT` is the runtime's copy.
 pub const SQL_SLOT: usize = KIND_SLOT + 4;
+
+/// The slot `Core\Ldap\LdapError::$kind` occupies.
+///
+/// Equal to [`KIND_SLOT`] for that constant's reason and not derived from it:
+/// `Core\Ldap\LdapError` is another sibling under `RuntimeError`, so its first
+/// own slot lands right after [`PROPERTIES`] too.
+/// `ldap_error_s_own_slots_start_after_the_root_s` holds it, and
+/// `nvs_runtime::LDAP_KIND_SLOT` is the runtime's copy.
+pub const LDAP_KIND_SLOT: usize = PROPERTIES.len();
+
+/// The slot `Core\Ldap\LdapError::$code` occupies — the LDAP result code, or
+/// `null` where no server sent one. `nvs_runtime::LDAP_CODE_SLOT` is the
+/// runtime's copy.
+pub const LDAP_CODE_SLOT: usize = LDAP_KIND_SLOT + 1;
 
 /// `name`'s own instance properties, in slot order — empty for a class that
 /// declares none, and for a name that is not in [`TREE`] at all.
@@ -394,12 +421,24 @@ mod tests {
     }
 
     #[test]
-    fn only_the_root_parse_error_db_error_and_rolled_back_declare_anything_of_their_own() {
+    fn ldap_error_s_own_slots_start_after_the_root_s() {
+        // The sibling claim once more, for `rolled_back_s_own_slot_starts_after_the_root_s`'s reason.
+        let above = conforms_to("Core\\Ldap\\LdapError").expect("LdapError is in the tree");
+        let inherited: usize = above.iter().map(|name| own_properties(name).len()).sum();
+        assert_eq!(inherited, LDAP_KIND_SLOT);
+        assert_eq!(own_properties("Core\\Ldap\\LdapError"), &["kind", "code"]);
+        assert_eq!(inherited + 1, LDAP_CODE_SLOT);
+        assert_eq!(above, vec!["RuntimeError", "Throwable"]);
+    }
+
+    #[test]
+    fn only_the_root_parse_error_and_the_db_and_ldap_errors_declare_anything_of_their_own() {
         for (name, _) in TREE {
             let expected = *name == ROOT
                 || *name == "ParseError"
                 || *name == "Core\\Db\\DbError"
-                || *name == "Core\\Db\\RolledBack";
+                || *name == "Core\\Db\\RolledBack"
+                || *name == "Core\\Ldap\\LdapError";
             assert_eq!(declares_constructor(name), expected, "{name}");
         }
         for (name, _) in OWN_PROPERTIES {

@@ -134,6 +134,15 @@ class MyError extends IOError {
         .find(|c| c.label == "Core\\Db\\RolledBack")
         .expect("Core\\Db\\RolledBack should be in the class table");
     assert_eq!(rolled_back.fields[nvs_runtime::REASON_SLOT], "reason");
+    assert_eq!(nvs_hir::errors::LDAP_KIND_SLOT, nvs_runtime::LDAP_KIND_SLOT);
+    assert_eq!(nvs_hir::errors::LDAP_CODE_SLOT, nvs_runtime::LDAP_CODE_SLOT);
+    let ldap_error = program
+        .classes
+        .iter()
+        .find(|c| c.label == "Core\\Ldap\\LdapError")
+        .expect("Core\\Ldap\\LdapError should be in the class table");
+    assert_eq!(ldap_error.fields[nvs_runtime::LDAP_KIND_SLOT], "kind");
+    assert_eq!(ldap_error.fields[nvs_runtime::LDAP_CODE_SLOT], "code");
 }
 
 #[test]

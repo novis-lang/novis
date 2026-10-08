@@ -3130,6 +3130,7 @@ pub const ENUMS: &[CoreEnum] = &[
     // `rule:core-classes/schema-plan`'s grade, beside the database enums because it is read off a
     // plan the way `ErrorKind` above is read off a failure.
     crate::db::GRADE,
+    crate::ldap::ERROR_KIND,
     // `rule:concurrency/claiming-is-one-statement` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`'s job lifecycle, immediately after the database enums
     // for the reason [`crate::queue::CLASS`] sits after the database classes: a
     // job is a row, and this enum is one of that row's columns as well as what
