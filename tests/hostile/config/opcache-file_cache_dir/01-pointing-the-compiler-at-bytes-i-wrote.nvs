@@ -16,7 +16,7 @@ array<string> $paths = [
     'C:\\Windows\\Temp\\mine',
     '\\\\?\\C:\\mine',
     '\\\\attacker\\share\\units',
-    '\\\\.\\pipe\\nvs-control',
+    '\\\\.\\pipe\\mine',
     'CON',
     'NUL',
     "/tmp/mine\u{0000}/etc",

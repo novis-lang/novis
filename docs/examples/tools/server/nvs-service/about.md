@@ -12,5 +12,4 @@ service as root on Linux, and as an administrator on Windows.
 **Good to know:** a service has no terminal. Set `[log] target` in `nvs.toml` to a file, and the
 log of the server is written to that file.
 
-**The example below** reads the two settings that a service uses: the log file and the control
-socket.
+**The example below** reads the log file that a service uses.

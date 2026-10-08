@@ -10,6 +10,6 @@ requests at this much, and never let one have more than that. A budget with no c
 one a program may set freely, which is the right default for anything that does not threaten the
 host and the wrong one for anything that does.
 
-A ceiling can be lowered or raised while the server is running, by editing the file and reloading;
-it is never a value a request can move by any spelling. An application may be given a tighter
+You can lower or raise a ceiling while the server runs. Edit the file and save it, and the server
+applies it. A request can never change a ceiling. An application may be given a tighter
 ceiling of its own than the rest of the deployment gets.

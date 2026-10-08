@@ -52,9 +52,8 @@ foreach ($names as string $name) {
     }
 }
 
-// 5. Change the two settings that an installed service reads.
+// 5. Change the log file that an installed service writes to.
 echo 'move the log:    ', Core\Config::set('log.target', 'file:/tmp/attacker.log') ? 'accepted' : 'refused', "\n";
-echo 'move the socket: ', Core\Config::set('control.socket', '/tmp/attacker.sock') ? 'accepted' : 'refused', "\n";
 
 // 6. Start the installer 10000 times, under a different service name each time.
 uint $started = 0;
@@ -69,6 +68,5 @@ while ($i < 10000) {
 }
 echo 'installers started: ', $started, "\n";
 
-// 7. The two settings still have the values from `nvs.toml`.
-echo 'the log is still:    ', Core\Config::get('log.target') ?? 'not set', "\n";
-echo 'the socket is still: ', Core\Config::get('control.socket') ?? 'none', "\n";
+// 7. The log file is still the one from `nvs.toml`.
+echo 'the log is still: ', Core\Config::get('log.target') ?? 'not set', "\n";

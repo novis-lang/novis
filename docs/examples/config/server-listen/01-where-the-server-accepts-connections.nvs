@@ -10,4 +10,4 @@ echo 'listening on:            ', Core\Config::get('server.listen') ?? '127.0.0.
 // A program cannot change this setting. `Core\Config::set` returns `false`, so this prints `refused`.
 echo 'listen on every address: ', Core\Config::set('server.listen', '0.0.0.0:80') ? 'accepted' : 'refused', "\n";
 
-// A new value in the file takes effect after a restart. Until then, `nvs ctl status` shows it.
+// A new value in the file takes effect after a restart. Until then, the server writes it to its log.

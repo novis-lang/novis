@@ -5,8 +5,8 @@ programs. An account that can change the file can allow itself all of that. The 
 the compile cache, because Novis runs the compiled programs it finds there.
 
 A path passes the check when its owner is the account that runs `nvs` or an administrator, and no
-group of ordinary accounts can write to it. `nvs serve` and `nvs ctl reload` check every
-configuration file and the folder that contains it. When that check fails, the error is `E0607`.
+group of ordinary accounts can write to it. `nvs serve` checks every configuration file and its
+folder when it starts, and again after each save. When that check fails, the error is `E0607`.
 `nvs init` checks the folder it writes into and the folder one level up. Every command that
 compiles a program checks the cache folder in the same way. When that check fails, the command
 prints a `warning:` line and the program still runs.

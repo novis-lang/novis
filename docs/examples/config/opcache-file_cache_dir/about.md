@@ -8,9 +8,10 @@ A program cannot change this key, and it cannot turn the cache off. The server r
 code that it finds in this directory. A program that could change the directory could choose which
 code runs.
 
-**Good to know:** a running server applies a new directory at the next reload, and the next compile
-writes there. Programs that are already compiled keep running. If other accounts can write to the
-new directory, the server keeps the old directory. The reload then reports the key as not applied.
+**Good to know:** a running server applies a new directory when you save the file, and the next
+compile writes there. Programs that are already compiled keep running. If other accounts can write
+to the new directory, the server keeps the old directory. The server then writes to its log that the
+key was not applied.
 
 The example prints the cache settings and tries to change the directory. `Core\Config::set` returns
 `false`.

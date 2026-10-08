@@ -12,8 +12,8 @@ class Checks {
     public static function show(tainted string $file, tainted string $cache): void {
         tainted string $config = self::folderOf($file);
 
-        // `nvs serve` and `nvs ctl reload` check the file and the folder that contains it.
-        echo "nvs serve, nvs ctl reload:\n";
+        // `nvs serve` checks the file and the folder that contains it.
+        echo "nvs serve:\n";
         echo "  ", $file, "\n  ", $config, "\n";
 
         // `nvs init` checks the folder it writes the file into, and the folder one level up.

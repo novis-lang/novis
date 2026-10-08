@@ -1,3 +1,2 @@
 log target:             file:/srv/shop/logs/novis.log
-control socket:         /run/nvs/shop.sock
 changed by the program: no

@@ -1,3 +1,0 @@
-control socket: /run/nvs/control.sock
-reload command: nvs ctl reload --socket /run/nvs/control.sock
-changed by the program: no

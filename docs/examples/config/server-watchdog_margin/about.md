@@ -10,4 +10,5 @@ When the file does not set it, the margin is 5 seconds. The value is a duration,
 not start with either of them.
 
 The server reads this setting when it starts, so a new value takes effect only after a restart.
-Until then, `nvs ctl status` shows the new value. A program cannot change this setting.
+Until then, the server writes the new value to its log once, in a `configuration restart pending`
+line. A program cannot change this setting.

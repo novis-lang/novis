@@ -2,7 +2,3 @@
 # A service has no terminal, so the log of the server is a file.
 [log]
 target = "file:/srv/shop/logs/novis.log"
-
-# `nvs service status` connects to this socket.
-[control]
-socket = "/run/nvs/shop.sock"

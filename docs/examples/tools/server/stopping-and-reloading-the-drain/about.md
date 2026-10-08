@@ -8,7 +8,8 @@ code `going away`, so it can connect again. When every connection is closed, the
 A program reads the state with `Core\Server::isDraining()`, which returns `true` after the stop.
 A long request can test it and end early.
 
-**Good to know:** `nvs ctl reload` does not drain. It closes no connection, and a request that is
-running finishes with the configuration it started with.
+**Good to know:** when you save a configuration file, the server reads it again. It then closes the
+open connections in the same way, after their requests end. The server still accepts new connections, and
+`Core\Server::isDraining()` still returns `false`.
 
 **The example below** shows a loop that tests `Core\Server::isDraining()` before each step.

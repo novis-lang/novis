@@ -10,6 +10,6 @@ everything the host sends, so `keylog` is not allowed on a production host.
 Only the person who runs the server sets these keys. All requests use one HTTP client, so a program
 cannot change them.
 
-**Good to know:** a running server applies a change at the next reload, and new connections use
-it. If a file in `roots` contains no certificate, the old settings stay in use. The reload then
-reports the key as not applied.
+**Good to know:** a running server applies a change when you save the file, and new connections use
+it. If a file in `roots` contains no certificate, the old settings stay in use. The server then
+writes to its log that the key was not applied.

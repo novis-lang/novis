@@ -1,4 +1,4 @@
-nvs serve, nvs ctl reload:
+nvs serve:
   D:/srv/novis/config/nvs.toml
   D:/srv/novis/config
 nvs init:

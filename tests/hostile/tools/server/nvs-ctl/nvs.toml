@@ -1,3 +1,0 @@
-# The control socket of this server. The program gets no grant to connect to it or to write to it.
-[control]
-socket = "/run/nvs/control.sock"
