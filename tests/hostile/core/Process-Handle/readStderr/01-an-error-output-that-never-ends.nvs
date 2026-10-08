@@ -6,14 +6,14 @@
 
 class Attack
 {
-    // A program that writes the same line to its error output again and again, and never stops
-    // by itself. On Windows, `cmd.exe` runs a loop.
+    // A program that writes to its error output again and again, and never stops by itself.
+    // On Windows, `cmd.exe` writes its own file in a loop. An `echo` loop there is too slow.
     public static function endless(): Core\Process\Handle
     {
         if (Core\Path::SEPARATOR == "\\") {
             return Core\Process::spawn(
                 "C:\\Windows\\System32\\cmd.exe",
-                ['/c', 'for /l %i in (0,0,1) do @echo a line that repeats and repeats and repeats 1>&2'],
+                ['/c', 'for /l %i in (0,0,1) do @type C:\\Windows\\System32\\cmd.exe 1>&2'],
             );
         }
         return Core\Process::spawn('/bin/sh', ['-c', 'exec yes "a line that repeats and repeats and repeats" >&2']);

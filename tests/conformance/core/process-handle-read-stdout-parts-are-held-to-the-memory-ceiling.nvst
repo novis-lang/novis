@@ -8,12 +8,14 @@ A program that keeps every part `Core\Process\Handle::readStdout` returns is sto
 // read gave the request a credit of the whole read buffer and this loop ran past
 // any ceiling. The loop stops by itself at 64 MB kept, four times the ceiling,
 // so a red case fails with a line of output rather than taking the host with it.
+// On Windows the child types `cmd.exe` itself in an endless loop: an `echo` loop
+// writes a few kilobytes a second there, so it reaches no ceiling in 300 s.
 
 string $path = "/usr/bin/yes";
 array<string> $arguments = ["a line that repeats and repeats"];
 if (Core\Path::SEPARATOR == "\\") {
     $path = "C:\\Windows\\System32\\cmd.exe";
-    $arguments = ["/c", "for /l %i in (0,0,1) do @echo a line that repeats and repeats"];
+    $arguments = ["/c", "for /l %i in (0,0,1) do @type C:\\Windows\\System32\\cmd.exe"];
 }
 Core\Process\Handle $program = Core\Process::spawn($path, $arguments);
 

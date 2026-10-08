@@ -6,14 +6,14 @@
 
 class Attack
 {
-    // A program that prints the same line again and again, and never stops by itself.
-    // `/usr/bin/yes` does not exist on Windows, so `cmd.exe` runs a loop there.
+    // A program that prints the same bytes again and again, and never stops by itself.
+    // On Windows, `cmd.exe` prints its own file in a loop. An `echo` loop there is too slow.
     public static function endless(): Core\Process\Handle
     {
         if (Core\Path::SEPARATOR == "\\") {
             return Core\Process::spawn(
                 "C:\\Windows\\System32\\cmd.exe",
-                ['/c', 'for /l %i in (0,0,1) do @echo a line that repeats and repeats and repeats'],
+                ['/c', 'for /l %i in (0,0,1) do @type C:\\Windows\\System32\\cmd.exe'],
             );
         }
         return Core\Process::spawn('/usr/bin/yes', ['a line that repeats and repeats and repeats']);
