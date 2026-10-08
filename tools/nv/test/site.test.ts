@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import { builtUrls, DOCS, GUIDE_SECTIONS, guidesProblems, IN_DEPTH_SECTIONS, inDepthProblems, paragraphs, proseProblems, snippetRun, snippetShape, snippetVerdict, stamp, staleness, syntaxProblems, wrapProblems, type World } from "../cmd/site.ts";
+import { builtUrls, DOCS, errVerdict, FRONT_PAGE, GUIDE_SECTIONS, guidesProblems, IN_DEPTH_SECTIONS, inDepthProblems, paragraphs, parseRequest, proseProblems, serveRun, snippetOutputs, snippetRun, snippetShape, stamp, staleness, syntaxProblems, wrapProblems, type Served, type World } from "../cmd/site.ts";
 import type { Entry } from "../proofs/roster.ts";
 import { scratch, type Scratch } from "./scratch.ts";
 
@@ -99,7 +99,22 @@ describe("nv site --check snippets", () => {
       `${DOCS}/guides/a.mdx:5: an inline Novis code fence; use <Snippet src="..."/>`,
       `${DOCS}/guides/a.mdx: <Snippet src="guides/a/02-gone.nvs"/> names no file under website/snippets/`,
       "website/snippets/guides/b/01-unused.nvs: no page shows it",
-      "website/snippets/guides/b/01-unused.nvs: no .out or .err beside it",
+      "website/snippets/guides/b/01-unused.nvs: no .out, .http.out or .err beside it",
+    ]);
+  });
+
+  test("output=\"http\" needs a .http.out, takes no other value, and the front page needs it for every snippet with one", () => {
+    const root = site().root;
+    s.put(`${DOCS}/guides/a.mdx`, '---\ncovers: []\n---\n\n<Snippet src="guides/a/01-web.nvs" output="http" />\n<Snippet src="guides/a/02-cli.nvs" output="http" />\n<Snippet src="guides/a/02-cli.nvs" output="cli" />\n');
+    s.put(`${DOCS}/${FRONT_PAGE}`, '---\ncovers: []\n---\n\n<Snippet src="guides/a/01-web.nvs" slot="x" />\n<Snippet src="guides/a/02-cli.nvs" />\n');
+    s.put("website/snippets/guides/a/01-web.nvs", "<?nvs\necho 1;\n");
+    s.put("website/snippets/guides/a/01-web.http.out", "1\n");
+    s.put("website/snippets/guides/a/02-cli.nvs", "<?nvs\necho 2;\n");
+    s.put("website/snippets/guides/a/02-cli.out", "2\n");
+    expect(snippetShape(root).problems).toEqual([
+      `${DOCS}/guides/a.mdx: <Snippet src="guides/a/02-cli.nvs"/> has output="http", and the snippet has no .http.out`,
+      `${DOCS}/guides/a.mdx: <Snippet src="guides/a/02-cli.nvs"/> has output="cli", and the only value is "http"`,
+      `${DOCS}/${FRONT_PAGE}: <Snippet src="guides/a/01-web.nvs"/> needs output="http": the front page shows only what the server sends`,
     ]);
   });
 
@@ -114,7 +129,7 @@ describe("nv site --check snippets", () => {
     expect(snippetShape(root).problems).toEqual(["website/snippets/guides/a/02-both.nvs: both a .out and a .err beside it; keep one"]);
   });
 
-  test("a .err snippet is checked with `nvs check` in its own directory, and a .out snippet runs from the root", () => {
+  test("a .err snippet is checked in its own directory, and a snippet is run and served from the root", () => {
     const root = site().root;
     s.put("website/snippets/guides/a/nvs.toml", "");
     expect(snippetRun("website/snippets/guides/a/01-bad.nvs", "err", "nvs", root)).toEqual({ argv: ["nvs", "check", "01-bad.nvs"], cwd: join(root, "website/snippets/guides/a"), env: { NO_COLOR: "1" } });
@@ -122,23 +137,68 @@ describe("nv site --check snippets", () => {
       argv: ["nvs", "run", "--config", "website/snippets/guides/a/nvs.toml", "website/snippets/guides/a/02-ok.nvs"],
       cwd: root,
     });
+    expect(serveRun("website/snippets/guides/b/03-web.nvs", "nvs", 0, root)).toEqual({ argv: ["nvs", "serve", "website/snippets/guides/b/03-web.nvs", "--port", "0"], cwd: root });
+  });
+
+  test("a .nvsr is the request the server is sent, and a section a connection cannot carry is refused", () => {
+    const text = "--METHOD--\nPOST\n--PATH--\n/upload\n--QUERY--\na=1\n--HEADERS--\nHost: example.com\ncontent-type: multipart/form-data; boundary=b\n--BODY_CRLF--\n--b\n\nx\n--b--\n";
+    expect(parseRequest(text)).toEqual({ method: "POST", path: "/upload", query: "a=1", headers: [["host", "example.com"], ["content-type", "multipart/form-data; boundary=b"]], body: "--b\r\n\r\nx\r\n--b--\r\n" });
+    expect(parseRequest("--METHOD--\nGET\n--PATH--\n/\n--BODY--\n--PATH--\n")).toMatchObject({ path: "/", body: "--PATH--\n" });
+    expect(parseRequest("--METHOD--\nGET\n--PATH--\n/\n--CLIENT_IP--\n203.0.113.7\n")).toBe("`--CLIENT_IP--` is not something a real connection can send");
+    expect(parseRequest("--METHOD--\nGET\n")).toBe("a request states its `--METHOD--` and its `--PATH--`");
   });
 
   test("a .err matches the diagnostic, and a different one, a snippet that compiles and a crash are named", () => {
     const p = "website/snippets/guides/a/01-bad.nvs";
     const want = "error[E0402]: no variable `$nope`\n  --> 01-bad.nvs:2:6\n";
     const failed = (stderr: string, code = 1) => ({ code, stdout: "", stderr });
-    expect(snippetVerdict(p, "err", failed(want.replace(/\n/g, "\r\n") + "\n\n"), want)).toBeNull();
-    expect(snippetVerdict(p, "err", failed("error[E0402]: no variable `$other`\n"), want)).toBe(`${p}: \`nvs check\` reports something other than its .err`);
-    expect(snippetVerdict(p, "err", { code: 0, stdout: "no errors\n", stderr: "" }, want)).toBe(`${p}: compiles, and a snippet with a .err must not`);
-    expect(snippetVerdict(p, "err", failed("thread 'main' panicked\n", 101), want)).toBe(`${p}: \`nvs check\` exit 101: thread 'main' panicked`);
+    expect(errVerdict(p, failed(want.replace(/\n/g, "\r\n") + "\n\n"), want)).toBeNull();
+    expect(errVerdict(p, failed("error[E0402]: no variable `$other`\n"), want)).toBe(`${p}: \`nvs check\` reports something other than its .err`);
+    expect(errVerdict(p, { code: 0, stdout: "no errors\n", stderr: "" }, want)).toBe(`${p}: compiles, and a snippet with a .err must not`);
+    expect(errVerdict(p, failed("thread 'main' panicked\n", 101), want)).toBe(`${p}: \`nvs check\` exit 101: thread 'main' panicked`);
+  });
+});
+
+describe("nv site --check snippets: the command line and the server", () => {
+  const p = "website/snippets/guides/a/02-ok.nvs";
+  const ran = (stdout: string, code = 0, stderr = "") => ({ code, stdout, stderr });
+  const served = (body: string, status = 200): Served => ({ status, body, failure: null, started: true });
+  const files = (out: string | null, http: string | null) => ({ out, http });
+
+  test("a command-line snippet matches its .out, and a different output or a failed run is named", () => {
+    expect(snippetOutputs(p, false, ran("1\r\n"), served("1\n"), files("1\n", null))).toEqual({ owed: { out: "1\r\n", http: null }, problems: [] });
+    expect(snippetOutputs(p, false, ran("2\n"), served("2\n"), files("1\n", null)).problems).toEqual([`${p}: prints something other than its .out`]);
+    expect(snippetOutputs(p, false, ran("", 1, "error[E0402]: no variable\n"), null, files("1\n", null))).toEqual({ owed: null, problems: [`${p}: exit 1: error[E0402]: no variable`] });
   });
 
-  test("a .out matches what the snippet prints, and a different output or a failed run is named", () => {
-    const p = "website/snippets/guides/a/02-ok.nvs";
-    expect(snippetVerdict(p, "out", { code: 0, stdout: "1\r\n", stderr: "" }, "1\n")).toBeNull();
-    expect(snippetVerdict(p, "out", { code: 0, stdout: "2\n", stderr: "" }, "1\n")).toBe(`${p}: prints something other than its .out`);
-    expect(snippetVerdict(p, "out", { code: 1, stdout: "", stderr: "error[E0402]: no variable\n" }, "1\n")).toBe(`${p}: exit 1: error[E0402]: no variable`);
+  test("a web snippet is checked by the server's body, and a missing .http.out or a 5xx is named", () => {
+    const failing = ran("", 1, "error: no request\n");
+    expect(snippetOutputs(p, true, failing, served("product 7\n", 422), files(null, "product 7\n")).problems).toEqual([]);
+    expect(snippetOutputs(p, true, failing, served("product 7\n"), files(null, "product 8\n")).problems).toEqual([`${p}: \`nvs serve\` sends something other than its .http.out`]);
+    expect(snippetOutputs(p, true, failing, served("product 7\n"), files("product 7\n", null)).problems).toEqual([
+      `${p}: no .http.out beside it, and a snippet with a .nvsr shows the body \`nvs serve\` sends`,
+      `${p}: delete its .out: \`nvs run\` exits 1 without a request`,
+    ]);
+    expect(snippetOutputs(p, true, failing, served("oops", 500), files(null, "x")).problems).toEqual([`${p}: \`nvs serve\` answered 500: oops`]);
+  });
+
+  test("two different outputs need both files, in either kind of snippet", () => {
+    const cli = ran('{"a":1}\n');
+    const http = served("{&quot;a&quot;:1}\n");
+    expect(snippetOutputs(p, false, cli, http, files('{"a":1}\n', null)).problems).toEqual([`${p}: \`nvs run\` and \`nvs serve\` print different things, so the page shows both: write its .http.out`]);
+    expect(snippetOutputs(p, true, cli, http, files(null, "{&quot;a&quot;:1}\n")).problems).toEqual([`${p}: \`nvs run\` and \`nvs serve\` print different things, so the page shows both: write its .out`]);
+    expect(snippetOutputs(p, false, cli, http, files('{"a":1}\n', "{&quot;a&quot;:1}\n"))).toEqual({ owed: { out: '{"a":1}\n', http: "{&quot;a&quot;:1}\n" }, problems: [] });
+  });
+
+  test("two equal outputs are one file, and the second is named for deletion", () => {
+    expect(snippetOutputs(p, false, ran("1\n"), served("1\n"), files("1\n", "1\n")).problems).toEqual([`${p}: delete its .http.out: \`nvs serve\` sends the same as its .out`]);
+    expect(snippetOutputs(p, true, ran("1\n"), served("1\n"), files("1\n", "1\n")).problems).toEqual([`${p}: delete its .out: \`nvs run\` prints the same as its .http.out`]);
+  });
+
+  test("a server that does not apply to a command-line snippet needs no .http.out, and one that started and sent nothing is named", () => {
+    expect(snippetOutputs(p, false, ran("1\n"), served("error page", 500), files("1\n", null)).problems).toEqual([]);
+    expect(snippetOutputs(p, false, ran("1\n"), { status: 0, body: "", failure: "the server exited 1: error", started: false }, files("1\n", "x")).problems).toEqual([`${p}: delete its .http.out: \`nvs serve\` does not start with it`]);
+    expect(snippetOutputs(p, false, ran("1\n"), { status: 0, body: "", failure: "socket closed", started: true }, files("1\n", null)).problems).toEqual([`${p}: \`nvs serve\` started and sent no response: socket closed`]);
   });
 });
 

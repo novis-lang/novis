@@ -6,7 +6,9 @@
   ],
   "seeAlso": [
     "testing/examples-live-in-the-repository",
-    "testing/feature-proofs"
+    "testing/feature-proofs",
+    "tooling/echo-always-has-a-sink",
+    "core-classes/html-auto-escape"
   ],
   "guardedBy": [
     "tools/nv/test/site.test.ts",

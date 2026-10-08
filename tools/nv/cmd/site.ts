@@ -5,23 +5,40 @@
 //                                          page was reread against them
 //     bun nv site --check [PART...]        run the named parts, or all of them: `site <part>: ok` per
 //                                          part that passes, its problems and exit 1 for one that fails
-//     bun nv site --bless SNIPPET...       write each snippet's `.out` or `.err` from what the binary does,
-//                                          and show it
+//     bun nv site --bless SNIPPET...       write each snippet's `.out`, `.http.out` or `.err` from what the
+//                                          binary does and show it, and delete an output file it no longer
+//                                          needs
 //     bun nv site --build                  the Astro build, and `site: built` when it succeeds
 //
 // `--nvs PATH` names the binary that reads the roster and runs the snippets. Without it, the first built
 // of `target/release` and the `covws` debug build is used.
 //
 // **A snippet** is a `.nvs` file under `website/snippets/` that a page shows with `<Snippet src="..."/>`,
-// and beside it is exactly one of two files. A `.out` is what the snippet prints: `nvs run` from the
-// repository root, with the directory's `nvs.toml` as `--config` and the snippet's `.nvsr` as
-// `--request` when they exist, must exit 0 and print that file. A `.err` is the compiler's diagnostic for
-// a snippet that must not compile: `nvs check <name>.nvs`, run in the snippet's own directory with
-// `NO_COLOR=1`, must exit 1 and write that file to standard error. The bare file name keeps the path in
-// each diagnostic the same wherever the check runs, and `nvs check` runs nothing, so a `.err` snippet
-// that compiles by mistake has no effect. Both comparisons turn CRLF into LF and drop trailing white
-// space. `--bless` rewrites whichever of the two files is there, and for a new snippet writes a `.err`
-// when it does not compile and a `.out` when it does.
+// `src` first. Beside it is a `.err`, or one or both of `.out` and `.http.out`, and each is compared
+// with the real binary after CRLF becomes LF and trailing white space is dropped:
+//
+// - A `.err` is the diagnostic for a snippet that must not compile: `nvs check <name>.nvs`, run in the
+//   snippet's own directory with `NO_COLOR=1`, must exit 1 and write that file to standard error. The
+//   bare file name keeps each diagnostic's path the same wherever the check runs, and `nvs check` runs
+//   nothing, so a `.err` snippet that compiles by mistake has no effect.
+// - A `.out` is what `nvs run` prints, run from the repository root with the directory's `nvs.toml` as
+//   `--config` when there is one.
+// - A `.http.out` is the response body a real server sends: `nvs serve <snippet> --port 0` from the
+//   root, with the same `--config`, is sent one request on the port its `listening on` line names, and
+//   is stopped. The request is the snippet's `.nvsr` (method, path, query, headers and body; a section a
+//   real connection cannot carry is an error), or `PLAIN_GET` when it has none. With no `[server]`
+//   block every path runs the snippet. Status and headers are not compared, because the body is what a
+//   reader compares with the code.
+//
+// Which output files a snippet that compiles has is the divergence rule, `snippetOutputs`. A snippet
+// with a `.nvsr` is a web snippet: it has a `.http.out`, and a `.out` too only when `nvs run` exits 0
+// and prints something else. A snippet without one is a command-line snippet: `nvs run` must exit 0
+// and it has a `.out`, and a `.http.out` too only when the server answers 2xx with something else. So
+// two different outputs are always both shown, and two equal ones are one file. `<Snippet
+// output="http">` shows only the `.http.out`, and the front page, `FRONT_PAGE`, uses it for every
+// snippet that has one. Each snippet's two runs follow each other, and `SNIPPET_WIDTH` snippets run at
+// once. `--bless` writes the `.err` of a snippet that has one, or that has no file and does not
+// compile, and otherwise writes the output files the rule owes and deletes the one it does not.
 //
 // **A handwritten page** is every page under `website/src/content/docs/` that no renderer writes, which
 // is every page outside `reference/core/`. Its front matter carries `covers:`, a list of the proofs
@@ -44,8 +61,8 @@
 // footer has no prev/next, the Astro config has no redirect, and no page or sidebar entry links to a URL
 // `builtUrls` does not list), `snippets` (no handwritten page has an
 // inline Novis fence, every `<Snippet src="..."/>` names a file under `website/snippets/`, every snippet
-// is used, keeps the comment bounds of `bun nv proofs --comments`, has one `.out` or one `.err` and
-// matches it), `stale` (no page lacks `covers:`, no id is broken and no page is stale), `reference` (see
+// is used, keeps the comment bounds of `bun nv proofs --comments`, and has the files § *A snippet*
+// names, each matching), `stale` (no page lacks `covers:`, no id is broken and no page is stale), `reference` (see
 // `referenceProblems`), `syntax` (see `syntaxProblems`), `guides` (see `guidesProblems`), `in-depth`
 // (see `inDepthProblems`), `apps` (see `appsProblems`) and `prose` (the countable bounds of AGENTS.md
 // § *Text an end user reads* over every handwritten page's prose: no sentence over 25 words, no dash
@@ -54,7 +71,9 @@
 
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { request as httpRequest } from "node:http";
 import { createServer } from "node:net";
+import { availableParallelism } from "node:os";
 import { join, resolve } from "node:path";
 import { COVWS_TARGET, hostTriple } from "../lib/covws.ts";
 import { rel, ROOT } from "../lib/paths.ts";
@@ -466,7 +485,21 @@ function sidebarOrder(root: string, label: string, area: string, sections: strin
 }
 
 const FENCE_RE = /^\s*(?:```|~~~)\s*(?:novis|nvs)\b/;
-const SNIPPET_RE = /<Snippet\s+src=["']([^"']+)["']/g;
+/** A `<Snippet>` tag: its `src`, which is always its first attribute, and the rest of the tag. */
+const SNIPPET_RE = /<Snippet\s+src=["']([^"']+)["']([^>]*)>/g;
+/** The front page, under `DOCS`, which shows only what the server sends. */
+export const FRONT_PAGE = "index.mdx";
+
+/** What a snippet is compared with: `out` is what `nvs run` prints, `http` is the body `nvs serve`
+ * sends, and `err` is what `nvs check` reports. */
+export type SnippetKind = "out" | "http" | "err";
+const EXT: Record<SnippetKind, string> = { out: "out", http: "http.out", err: "err" };
+
+/** The file beside a snippet with the extension `ext`. */
+const beside = (p: string, ext: string) => p.replace(/\.nvs$/, `.${ext}`);
+/** The file beside a snippet that `kind` is compared with. */
+export const snippetFile = (p: string, kind: SnippetKind) => beside(p, EXT[kind]);
+const hasFile = (root: string, p: string, kind: SnippetKind) => existsSync(join(root, snippetFile(p, kind)));
 
 /** The problems `snippets` finds without running anything. */
 export function snippetShape(root: string = ROOT): { problems: string[]; snippets: string[] } {
@@ -477,98 +510,326 @@ export function snippetShape(root: string = ROOT): { problems: string[]; snippet
       if (FENCE_RE.test(line)) problems.push(`${DOCS}/${page.key}:${i + 1}: an inline Novis code fence; use <Snippet src="..."/>`);
     });
     for (const m of page.text.matchAll(SNIPPET_RE)) {
-      used.add(m[1]!);
-      if (!existsSync(join(root, SNIPPETS, m[1]!))) problems.push(`${DOCS}/${page.key}: <Snippet src="${m[1]}"/> names no file under ${SNIPPETS}/`);
+      const src = m[1]!;
+      used.add(src);
+      const at = `${DOCS}/${page.key}: <Snippet src="${src}"/>`;
+      if (!existsSync(join(root, SNIPPETS, src))) {
+        problems.push(`${at} names no file under ${SNIPPETS}/`);
+        continue;
+      }
+      const output = /\boutput=["']([^"']*)["']/.exec(m[2] ?? "")?.[1];
+      const http = hasFile(root, `${SNIPPETS}/${src}`, "http");
+      if (output !== undefined && output !== "http") problems.push(`${at} has output="${output}", and the only value is "http"`);
+      else if (output === "http" && !http) problems.push(`${at} has output="http", and the snippet has no .http.out`);
+      else if (page.key === FRONT_PAGE && http && output === undefined) problems.push(`${at} needs output="http": the front page shows only what the server sends`);
     }
   }
   const snippets = filesUnder(root, SNIPPETS).filter((p) => p.endsWith(".nvs"));
   for (const p of snippets) {
     if (!used.has(p.slice(SNIPPETS.length + 1))) problems.push(`${p}: no page shows it`);
-    const out = existsSync(join(root, beside(p, "out")));
-    const err = existsSync(join(root, beside(p, "err")));
-    if (out && err) problems.push(`${p}: both a .out and a .err beside it; keep one`);
-    else if (!out && !err) problems.push(`${p}: no .out or .err beside it`);
+    const [out, http, err] = (["out", "http", "err"] as const).map((k) => hasFile(root, p, k));
+    if (err && out) problems.push(`${p}: both a .out and a .err beside it; keep one`);
+    else if (err && http) problems.push(`${p}: both a .http.out and a .err beside it; keep one`);
+    else if (!out && !http && !err) problems.push(`${p}: no .out, .http.out or .err beside it`);
   }
   return { problems, snippets };
 }
 
-/** What a snippet is compared with: `out` is what `nvs run` prints, `err` is what `nvs check` reports. */
-export type SnippetKind = "out" | "err";
-
-/** The file beside a snippet with the extension `ext`. */
-const beside = (p: string, ext: string) => p.replace(/\.nvs$/, `.${ext}`);
-
-/** How one snippet of `kind` is run: the header's § *A snippet*. */
-export function snippetRun(p: string, kind: SnippetKind, nvs: string, root: string = ROOT): { argv: string[]; cwd: string; env?: Record<string, string> } {
+/** How one snippet is run on the command line, `out`, or checked, `err`: the header's § *A snippet*. */
+export function snippetRun(p: string, kind: "out" | "err", nvs: string, root: string = ROOT): { argv: string[]; cwd: string; env?: Record<string, string> } {
   const dir = p.slice(0, p.lastIndexOf("/"));
   if (kind === "err") return { argv: [nvs, "check", p.slice(dir.length + 1)], cwd: join(root, dir), env: { NO_COLOR: "1" } };
   const config = `${dir}/nvs.toml`;
-  const request = beside(p, "nvsr");
-  return { argv: [nvs, "run", ...(existsSync(join(root, config)) ? ["--config", config] : []), ...(existsSync(join(root, request)) ? ["--request", request] : []), p], cwd: root };
+  return { argv: [nvs, "run", ...(existsSync(join(root, config)) ? ["--config", config] : []), p], cwd: root };
 }
 
-/** The problem with one snippet's result, or null when it matches `want`, the text of its `.out` or `.err`. */
-export function snippetVerdict(p: string, kind: SnippetKind, result: { code: number; stdout: string; stderr: string }, want: string): string | null {
-  const norm = (s: string) => s.replace(/\r\n?/g, "\n").trimEnd();
-  const first = (s: string) => s.trim().split("\n")[0] ?? "";
-  if (kind === "out") {
-    if (result.code !== 0) return `${p}: exit ${result.code}: ${first(result.stderr)}`;
-    return norm(result.stdout) === norm(want) ? null : `${p}: prints something other than its .out`;
+/** How one snippet is served on `port`: the header's § *A snippet*. */
+export function serveRun(p: string, nvs: string, port: number, root: string = ROOT): { argv: string[]; cwd: string } {
+  const config = `${p.slice(0, p.lastIndexOf("/"))}/nvs.toml`;
+  return { argv: [nvs, "serve", ...(existsSync(join(root, config)) ? ["--config", config] : []), p, "--port", String(port)], cwd: root };
+}
+
+/** One HTTP request, as a snippet's `.nvsr` describes it. */
+export interface SnippetRequest {
+  method: string;
+  path: string;
+  query: string;
+  /** Lower-case names, in the file's order. */
+  headers: [string, string][];
+  /** Null when the file has no body section. */
+  body: string | null;
+}
+
+/** The request the server is sent for a snippet with no `.nvsr`: what a browser sends for
+ * `http://localhost:8000/`, the address `nvs serve` listens on when nothing else is set. */
+export const PLAIN_GET: SnippetRequest = { method: "GET", path: "/", query: "", headers: [["host", "localhost:8000"]], body: null };
+
+/**
+ * A `.nvsr` read the way `nvs-test`'s `request::read` reads it: `--NAME--` sections, and a body that is
+ * the rest of the file, with CRLF line endings under `--BODY_CRLF--`. A section a real connection cannot
+ * carry (`--CLIENT_IP--`, `--SCHEME--`, `--MOUNT--`) is an error, since the server decides those itself.
+ */
+export function parseRequest(text: string): SnippetRequest | string {
+  const lines = text.replace(/\r\n?/g, "\n").split(/(?<=\n)/);
+  const sections = new Map<string, string>();
+  let body: string | null = null;
+  let name: string | null = null;
+  for (let i = 0; i < lines.length; i++) {
+    const head = /^--([A-Z_]+)--\s*$/.exec(lines[i]!);
+    if (head && (head[1] === "BODY" || head[1] === "BODY_CRLF")) {
+      const rest = lines.slice(i + 1).join("");
+      body = head[1] === "BODY" ? rest : rest.replace(/\n/g, "\r\n");
+      break;
+    }
+    if (head) {
+      name = head[1]!;
+      if (!["METHOD", "PATH", "QUERY", "HEADERS"].includes(name)) return `\`--${name}--\` is not something a real connection can send`;
+      if (sections.has(name)) return `\`--${name}--\` appears twice`;
+      sections.set(name, "");
+    } else if (name === null) {
+      if (lines[i]!.trim() !== "") return `line ${i + 1}: text before \`--METHOD--\``;
+    } else sections.set(name, sections.get(name)! + lines[i]);
   }
-  if (result.code === 0) return `${p}: compiles, and a snippet with a .err must not`;
-  if (result.code !== 1) return `${p}: \`nvs check\` exit ${result.code}: ${first(result.stderr)}`;
-  return norm(result.stderr) === norm(want) ? null : `${p}: \`nvs check\` reports something other than its .err`;
+  const method = sections.get("METHOD")?.trim();
+  const path = sections.get("PATH")?.trim();
+  if (!method || !path) return "a request states its `--METHOD--` and its `--PATH--`";
+  const headers: [string, string][] = [];
+  for (const line of (sections.get("HEADERS") ?? "").split("\n").map((l) => l.trim())) {
+    if (line === "") continue;
+    const colon = line.indexOf(":");
+    if (colon <= 0) return `\`${line}\` is not a header field`;
+    headers.push([line.slice(0, colon).trim().toLowerCase(), line.slice(colon + 1).trim()]);
+  }
+  return { method, path, query: sections.get("QUERY")?.trim() ?? "", headers, body };
 }
 
-const runSnippet = (p: string, kind: SnippetKind, nvs: string) => {
+/** What `nvs run` did. */
+export interface Ran {
+  code: number;
+  stdout: string;
+  stderr: string;
+}
+
+/** What `nvs serve` sent: its status and body, or `failure`, why it sent nothing. `started` is whether
+ * the server accepted connections at all. */
+export interface Served {
+  status: number;
+  body: string;
+  failure: string | null;
+  started: boolean;
+}
+
+const same = (a: string, b: string) => a.replace(/\r\n?/g, "\n").trimEnd() === b.replace(/\r\n?/g, "\n").trimEnd();
+const firstLine = (s: string) => s.trim().split("\n")[0] ?? "";
+
+/**
+ * The divergence rule for a snippet that compiles. `owed` is the text its `.out` and its `.http.out` must
+ * have, and null for a file that must not exist; it is null as a whole when a context the snippet must run
+ * in failed. `problems` compares `files`, the text of each file or null where there is none, with it.
+ *
+ * A snippet with a `.nvsr` is a web snippet. Its `.http.out` is the body `nvs serve` sends, under any
+ * status below 500. Its `.out` is what `nvs run` prints, only when that run exits 0 and prints something
+ * else. A snippet without one is a command-line snippet. Its `.out` is what `nvs run` prints, which must
+ * exit 0. Its `.http.out` is the body for `PLAIN_GET`, only when the server starts, the status is 2xx
+ * and the body is something else; a server that started and then sent nothing is a problem. Two equal
+ * outputs are one file, so a page never shows the same text twice.
+ */
+export function snippetOutputs(p: string, web: boolean, cli: Ran, served: Served | null, files: { out: string | null; http: string | null }): { owed: { out: string | null; http: string | null } | null; problems: string[] } {
+  let out: string | null = null;
+  let http: string | null = null;
+  let noOut = "";
+  let noHttp = "";
+  if (web) {
+    if (served === null || served.failure !== null) return { owed: null, problems: [`${p}: \`nvs serve\` sent no response: ${served?.failure ?? "it was not started"}`] };
+    if (served.status >= 500) return { owed: null, problems: [`${p}: \`nvs serve\` answered ${served.status}: ${firstLine(served.body)}`] };
+    http = served.body;
+    if (cli.code !== 0) noOut = `\`nvs run\` exits ${cli.code} without a request`;
+    else if (same(cli.stdout, served.body)) noOut = "`nvs run` prints the same as its .http.out";
+    else out = cli.stdout;
+  } else {
+    if (cli.code !== 0) return { owed: null, problems: [`${p}: exit ${cli.code}: ${firstLine(cli.stderr)}`] };
+    out = cli.stdout;
+    if (served !== null && served.started && served.failure !== null) return { owed: null, problems: [`${p}: \`nvs serve\` started and sent no response: ${served.failure}`] };
+    if (served === null || served.failure !== null) noHttp = "`nvs serve` does not start with it";
+    else if (served.status < 200 || served.status > 299) noHttp = `\`nvs serve\` answered ${served.status}`;
+    else if (same(served.body, cli.stdout)) noHttp = "`nvs serve` sends the same as its .out";
+    else http = served.body;
+  }
+  const problems: string[] = [];
+  const differ = "`nvs run` and `nvs serve` print different things, so the page shows both:";
+  if (http !== null && files.http === null) problems.push(web ? `${p}: no .http.out beside it, and a snippet with a .nvsr shows the body \`nvs serve\` sends` : `${p}: ${differ} write its .http.out`);
+  if (out !== null && files.out === null) problems.push(web ? `${p}: ${differ} write its .out` : `${p}: no .out beside it`);
+  if (out === null && files.out !== null) problems.push(`${p}: delete its .out: ${noOut}`);
+  if (http === null && files.http !== null) problems.push(`${p}: delete its .http.out: ${noHttp}`);
+  if (out !== null && files.out !== null && !same(out, files.out)) problems.push(`${p}: prints something other than its .out`);
+  if (http !== null && files.http !== null && !same(http, files.http)) problems.push(`${p}: \`nvs serve\` sends something other than its .http.out`);
+  return { owed: { out, http }, problems };
+}
+
+/** The problem with a `.err` snippet's `nvs check`, or null when it matches `want`, the text of its `.err`. */
+export function errVerdict(p: string, result: Ran, want: string): string | null {
+  if (result.code === 0) return `${p}: compiles, and a snippet with a .err must not`;
+  if (result.code !== 1) return `${p}: \`nvs check\` exit ${result.code}: ${firstLine(result.stderr)}`;
+  return same(result.stderr, want) ? null : `${p}: \`nvs check\` reports something other than its .err`;
+}
+
+/** How long one snippet's run, or its server's start and response, may take. */
+const SNIPPET_MS = 60_000;
+
+const runSnippet = (p: string, kind: "out" | "err", nvs: string) => {
   const { argv, cwd, env } = snippetRun(p, kind, nvs);
-  return runProc(argv, { cwd, timeoutMs: 60_000, ...(env ? { env } : {}) });
+  return runProc(argv, { cwd, timeoutMs: SNIPPET_MS, ...(env ? { env } : {}) });
 };
+
+/** Sends `request` once to the server on `port`, and gives the status and body it answers with. */
+function send(port: number, request: SnippetRequest, timeoutMs: number): Promise<Omit<Served, "started">> {
+  const headers: Record<string, string> = {};
+  for (const [name, value] of request.headers) headers[name] = name in headers ? `${headers[name]}, ${value}` : value;
+  if (request.body !== null && !("content-length" in headers)) headers["content-length"] = String(Buffer.byteLength(request.body));
+  const path = request.query === "" ? request.path : `${request.path}?${request.query}`;
+  return new Promise((resolve) => {
+    const req = httpRequest({ host: "127.0.0.1", port, method: request.method, path, headers, timeout: timeoutMs }, (res) => {
+      const chunks: Buffer[] = [];
+      res.on("data", (c: Buffer) => chunks.push(c));
+      res.on("end", () => resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks).toString("utf8"), failure: null }));
+      res.on("error", (e) => resolve({ status: 0, body: "", failure: e.message }));
+    });
+    req.on("timeout", () => req.destroy(new Error(`no response within ${timeoutMs / 1000} s`)));
+    req.on("error", (e) => resolve({ status: 0, body: "", failure: e.message }));
+    if (request.body !== null) req.write(request.body);
+    req.end();
+  });
+}
+
+/**
+ * `nvs serve` started with the snippet as its one file and port 0, `request` sent once to the port its
+ * `listening on` line names, and the server stopped. The system picks the port as the server binds it,
+ * so servers started in parallel never meet on one, and the line is printed only after every file
+ * compiled and the socket is bound. With no `[server]` block the mode is production, so every path runs
+ * the snippet. A server that exits before that line is a failure with the end of its standard error.
+ */
+async function serveSnippet(p: string, request: SnippetRequest, nvs: string): Promise<Served> {
+  const { argv, cwd } = serveRun(p, nvs, 0);
+  const stop = new AbortController();
+  let bound: (port: number) => void = () => {};
+  const port = new Promise<number>((resolve) => (bound = resolve));
+  const onLine = (line: string, stream: "stdout" | "stderr") => {
+    const m = stream === "stdout" ? /^listening on http:\/\/127\.0\.0\.1:(\d+) /.exec(line) : null;
+    if (m) bound(Number(m[1]));
+  };
+  const server = runProc(argv, { cwd, signal: stop.signal, timeoutMs: SNIPPET_MS, onLine, env: { NOVIS_NO_INIT: "1" } });
+  const started = await Promise.race([port, server.then(() => null)]);
+  const served: Served = started === null ? { status: 0, body: "", failure: "", started: false } : { ...(await send(started, request, SNIPPET_MS)), started: true };
+  stop.abort();
+  const ran = await server;
+  const tail = ran.stderr.trim().split("\n").slice(-3).join(" / ");
+  if (served.started) return served.failure === null ? served : { ...served, failure: `${served.failure}; the server wrote: ${tail}` };
+  served.failure = ran.timedOut ? `it did not start within ${SNIPPET_MS / 1000} s` : `the server exited ${ran.code}: ${tail}`;
+  return served;
+}
+
+/** The text of each of a snippet's two output files, null where it has none. */
+const outputFiles = (p: string) => ({ out: hasFile(ROOT, p, "out") ? readAt(ROOT, snippetFile(p, "out")) : null, http: hasFile(ROOT, p, "http") ? readAt(ROOT, snippetFile(p, "http")) : null });
+
+/** A snippet that compiles, run in both contexts: `nvs run`, and `nvs serve` sent its `.nvsr` or
+ * `PLAIN_GET`. A command-line snippet whose `nvs run` fails is not served. */
+async function bothContexts(p: string, nvs: string): Promise<{ web: boolean; cli: Ran; served: Served | null } | string> {
+  const web = existsSync(join(ROOT, beside(p, "nvsr")));
+  const request = web ? parseRequest(readAt(ROOT, beside(p, "nvsr"))) : PLAIN_GET;
+  if (typeof request === "string") return `${beside(p, "nvsr")}: ${request}`;
+  const cli = await runSnippet(p, "out", nvs);
+  const served = web || cli.code === 0 ? await serveSnippet(p, request, nvs) : null;
+  return { web, cli, served };
+}
+
+/** Runs `job` over `items`, `width` at a time, and gives the results in the order of `items`. */
+async function inParallel<T, R>(items: T[], width: number, job: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await job(items[i]!);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(width, items.length) }, worker));
+  return results;
+}
+
+/** How many snippets run at once: half the cores, at most eight. Each one's command-line run and server
+ * run follow each other. */
+const SNIPPET_WIDTH = Math.max(1, Math.min(8, availableParallelism() >> 1));
 
 async function snippetProblems(nvs: string): Promise<string[]> {
   const { problems, snippets } = snippetShape();
-  for (const p of snippets) {
-    for (const c of commentProblems(p)) problems.push(`${p}:${c}`);
-    const out = existsSync(join(ROOT, beside(p, "out")));
-    const err = existsSync(join(ROOT, beside(p, "err")));
-    // A snippet with both files is already named by `snippetShape`, and neither file is the one to match.
-    if (out && err) continue;
-    const kind: SnippetKind = err ? "err" : "out";
-    const verdict = snippetVerdict(p, kind, await runSnippet(p, kind, nvs), readAt(ROOT, beside(p, kind)));
-    if (verdict) problems.push(verdict);
-  }
-  return problems;
+  const perSnippet = await inParallel(snippets, SNIPPET_WIDTH, async (p): Promise<string[]> => {
+    const found = commentProblems(p).map((c) => `${p}:${c}`);
+    const [out, http, err] = (["out", "http", "err"] as const).map((k) => hasFile(ROOT, p, k));
+    // A snippet `snippetShape` already named has no one file to match.
+    if ((err && (out || http)) || (!out && !http && !err)) return found;
+    if (err) {
+      const verdict = errVerdict(p, await runSnippet(p, "err", nvs), readAt(ROOT, snippetFile(p, "err")));
+      return verdict ? [...found, verdict] : found;
+    }
+    const ran = await bothContexts(p, nvs);
+    if (typeof ran === "string") return [...found, ran];
+    return [...found, ...snippetOutputs(p, ran.web, ran.cli, ran.served, outputFiles(p)).problems];
+  });
+  return [...problems, ...perSnippet.flat()];
 }
 
-/** `--bless`: each snippet's `.out` or `.err` written from what the binary does, and what was written. */
+/** Writes `text` to `dest` and shows it. */
+function blessWrite(dest: string, text: string): void {
+  const existed = existsSync(join(ROOT, dest));
+  writeFileSync(join(ROOT, dest), text);
+  console.log(`  ${existed ? "rewrote" : "wrote"}  ${dest}`);
+  for (const line of text.trimEnd().split("\n")) console.log(`      | ${line}`);
+}
+
+/** `--bless`: each snippet's `.out`, `.http.out` or `.err` written from what the binary does and shown,
+ * and an output file the divergence rule no longer needs deleted. */
 async function blessSnippets(nvs: string, paths: string[]): Promise<number> {
   let failed = false;
+  const fail = (why: string) => {
+    console.log(`  FAIL  ${why}`);
+    failed = true;
+  };
   for (const p of paths) {
     if (!p.startsWith(`${SNIPPETS}/`) || !p.endsWith(".nvs") || !existsSync(join(ROOT, p))) {
-      console.log(`  FAIL  ${p}: not a .nvs file under ${SNIPPETS}/`);
-      failed = true;
+      fail(`${p}: not a .nvs file under ${SNIPPETS}/`);
       continue;
     }
-    const has = (kind: SnippetKind) => existsSync(join(ROOT, beside(p, kind)));
-    if (has("out") && has("err")) {
-      console.log(`  FAIL  ${p}: both a .out and a .err beside it; delete the one that is wrong`);
-      failed = true;
+    const [out, http, err] = (["out", "http", "err"] as const).map((k) => hasFile(ROOT, p, k));
+    if (err && (out || http)) {
+      fail(`${p}: both a .err and an output file beside it; delete the one that is wrong`);
       continue;
     }
-    const kind: SnippetKind = has("err") ? "err" : has("out") ? "out" : (await runSnippet(p, "err", nvs)).code === 0 ? "out" : "err";
-    const result = await runSnippet(p, kind, nvs);
-    const text = (kind === "out" ? result.stdout : result.stderr).replace(/\r\n?/g, "\n");
-    const verdict = snippetVerdict(p, kind, result, text);
-    if (verdict) {
-      console.log(`  FAIL  ${verdict}`);
-      failed = true;
+    const lf = (s: string) => s.replace(/\r\n?/g, "\n");
+    if (err || (!out && !http && (await runSnippet(p, "err", nvs)).code !== 0)) {
+      const result = await runSnippet(p, "err", nvs);
+      const verdict = errVerdict(p, result, result.stderr);
+      if (verdict) fail(verdict);
+      else blessWrite(snippetFile(p, "err"), lf(result.stderr));
       continue;
     }
-    const dest = beside(p, kind);
-    const existed = has(kind);
-    writeFileSync(join(ROOT, dest), text);
-    console.log(`  ${existed ? "rewrote" : "wrote"}  ${dest}`);
-    for (const line of text.trimEnd().split("\n")) console.log(`      | ${line}`);
+    const ran = await bothContexts(p, nvs);
+    if (typeof ran === "string") {
+      fail(ran);
+      continue;
+    }
+    const { owed, problems } = snippetOutputs(p, ran.web, ran.cli, ran.served, { out: null, http: null });
+    if (owed === null) {
+      fail(problems[0]!);
+      continue;
+    }
+    for (const kind of ["out", "http"] as const) {
+      const want = owed[kind];
+      if (want !== null) blessWrite(snippetFile(p, kind), lf(want));
+      else if (hasFile(ROOT, p, kind)) {
+        rmSync(join(ROOT, snippetFile(p, kind)));
+        console.log(`  deleted  ${snippetFile(p, kind)}`);
+      }
+    }
   }
   if (!failed) console.log("nv site: read what was written; a blessed file is a claim, not a formality.");
   return failed ? 1 : 0;

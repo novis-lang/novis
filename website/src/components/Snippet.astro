@@ -1,26 +1,42 @@
 ---
 /**
- * One Novis program from website/snippets/, and either what it prints or the
- * compiler's error for it. A handwritten page shows Novis code only through
- * this component:
+ * One Novis program from website/snippets/, and what it prints, what a server
+ * sends for it, or the compiler's error for it. A handwritten page shows Novis
+ * code only through this component, and `src` is always its first attribute:
  *
  *   <Snippet src="syntax/match/01-basic.nvs" />
+ *   <Snippet src="home/hello-request.nvs" output="http" />
  *
- * A `.out` file beside the program is what it prints, shown as "Output". A
- * `.err` file beside it is the diagnostic `nvs check` reports for a program
- * that must not compile, shown as "Compiler error". `bun nv site --check
- * snippets` runs every snippet and checks it against whichever file it has;
- * `tools/nv/cmd/site.ts` says how.
+ * The files beside the program decide what is shown under it. `bun nv site
+ * --check snippets` checks every one of them against the real binary, and
+ * `tools/nv/cmd/site.ts` § *A snippet* says when each one exists:
+ *
+ * - `.out` alone is what `nvs run` prints, shown as "Output".
+ * - `.http.out` alone is the body `nvs serve` sends, shown as "Response from
+ *   nvs serve".
+ * - Both mean the command line and the server print different things, so both
+ *   are shown, the command line first, as "Output of nvs run" and "Response
+ *   from nvs serve".
+ * - `.err` is the diagnostic `nvs check` reports for a program that must not
+ *   compile, shown as "Compiler error".
+ *
+ * `output="http"` shows only the server's response, and is what the front page
+ * uses. It is an error on a snippet with no `.http.out`, and so is any other
+ * value.
  *
  * A snippet with a `.err` is wrapped in `<div data-snippet-kind="error">`, and
  * its diagnostic block in `<div data-snippet-part="diagnostic">`, so the theme
- * can style both. A snippet with a `.out` has no wrapper.
+ * can style both. An output block has no wrapper, because the front page's
+ * components style it as the code block's next sibling; it carries the class
+ * `snippet-cli` or `snippet-http` instead.
  */
 import { Code } from '@astrojs/starlight/components'
 
 interface Props {
   /** The path under website/snippets/. */
   src: string
+  /** "http" shows only what `nvs serve` sends. */
+  output?: 'http'
 }
 
 // The globs below are relative to this file, so their keys start with this prefix.
@@ -30,11 +46,17 @@ const sources = import.meta.glob('../../snippets/**/*.nvs', { query: '?raw', imp
 const outputs = import.meta.glob('../../snippets/**/*.out', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
 const errors = import.meta.glob('../../snippets/**/*.err', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
 
-const { src } = Astro.props
+const { src, output: only } = Astro.props
 const code = sources[`${ROOT}${src}`]
 if (code === undefined) throw new Error(`Snippet: no file website/snippets/${src}`)
-const output = outputs[`${ROOT}${src.replace(/\.nvs$/, '.out')}`]
-const error = errors[`${ROOT}${src.replace(/\.nvs$/, '.err')}`]
+if (only !== undefined && only !== 'http') throw new Error(`Snippet ${src}: output="${only}", and the only value is "http"`)
+const beside = (ext: string) => `${ROOT}${src.replace(/\.nvs$/, ext)}`
+const error = errors[beside('.err')]
+const http = outputs[beside('.http.out')]
+const cli = only === 'http' ? undefined : outputs[beside('.out')]
+if (only === 'http' && http === undefined) throw new Error(`Snippet ${src}: output="http", and there is no .http.out beside it`)
+const shown = (text: string | undefined): text is string => text !== undefined && text.trim() !== ''
+const cliTitle = http === undefined ? 'Output' : 'Output of nvs run'
 ---
 
 {
@@ -48,7 +70,8 @@ const error = errors[`${ROOT}${src.replace(/\.nvs$/, '.err')}`]
   ) : (
     <>
       <Code code={code.trimEnd()} lang="novis" />
-      {output !== undefined && output.trim() !== '' && <Code code={output.trimEnd()} lang="txt" title="Output" />}
+      {shown(cli) && <Code code={cli.trimEnd()} lang="txt" title={cliTitle} class="snippet-cli" />}
+      {shown(http) && <Code code={http.trimEnd()} lang="txt" title="Response from nvs serve" class="snippet-http" />}
     </>
   )
 }

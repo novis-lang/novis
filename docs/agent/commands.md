@@ -389,6 +389,14 @@ case trees, so the file follows the registry on every green run and a chapter ex
 longer agrees with fails the run. [docs/reference/README.md](../reference/README.md) is the format
 and the rules.
 
+```sh
+bun nv site --check snippets              # every website snippet against `nvs run`, a real `nvs serve` and `nvs check`
+bun nv site --bless website/snippets/home/hello-request.nvs   # write its .out / .http.out / .err from the binary
+```
+
+A website snippet's output files, and when the page shows both the command line's and the server's,
+are `rule:testing/website-pages-are-stamped`; `tools/nv/cmd/site.ts` § *A snippet* is the mechanism.
+
 ## Trying a snippet
 
 ```sh
