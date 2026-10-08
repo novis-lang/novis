@@ -1,28 +1,24 @@
 {
-  "state": "**Goal `ldap` — Stage 2 is done, and Stage 3's test server is on disk. No wire code or class has landed yet.** `docs/decisions/0278.md` is the design every later stage builds to: § 1 is the class and member roster, § 2 the `[ldap.<name>]` block, `Ldap\\Settings` and the three `[capabilities.ldap]` grants (`connect`, `open`, `cleartext`), § 5 search, § 8 the type table, § 10 the error kinds, § 11 the four AD extras. Read the section a stage needs, not the whole record.\n\nThe six fragments are `designed` with empty `guardedBy`. A stage that lands a guard adds the test path to the rule's JSON under `data/rules/` and flips `status` to `shipped`. The Stage 2 check's `want` now follows `brief --where`'s chapter order (security first), and it passes.\n\n`samba-ad` in `tests/db/compose.yaml` comes up healthy without `--privileged` (digest-pinned `smblds/smblds`, Samba 4.23.8). Its header comment owns the facts: realm `EXAMPLE.TEST`, base `DC=example,DC=test`, `CN=Administrator,CN=Users,DC=example,DC=test` / `Novis-test-1`, loopback 16389 (cleartext bind accepted) and 16636 (LDAPS, serving the `certs` leaf, whose SAN now has `samba-ad`). Checked by hand: a cleartext bind on 389 succeeds, and an empty-password bind returns `invalidCredentials` with `data 52e`. `env.docker` in `data/goals/ldap.json` names it, so the driver brings it up from now on. The Global Catalog ports 3268/3269 are not published yet.",
+  "state": "**Goal `ldap` — Stage 3 is on disk: `crates/nvs-ldap` binds, pages and refuses against Samba, and its eight `tests/samba.rs` cases pass with the server up.** `docs/decisions/0278.md` is the design every later stage builds to: § 1 the roster, § 2 the `[ldap.<name>]` block and the three `[capabilities.ldap]` grants, § 5 search, § 8 the type table, § 10 the error kinds, § 11 the AD extras.\n\nThe crate's module docs own how it works: `src/ber.rs` (the BER subset, written by hand, and why `rasn-ldap` was not taken), `src/proto.rs` (messages, controls, the `Filter` tree encoded with no text step), `src/conn.rs` (`Connection::open` refuses `Tls::None` without `Endpoint::cleartext_granted` before it dials, `bind` refuses an empty password before it writes, `Search` holds one page and keeps references unfollowed), `src/error.rs` (`Kind` is § 10 one for one, AD's `data` sub-codes included). The crate reads no configuration: the caller resolves the address and the grants.\n\nThe tests read `tests/db/ca.crt` and skip without it or without the server. CI's `database` job runs them with `NVS_LDAP_SAMBA=1`, which turns a skip into a failure, and `crates/nvs-ldap/` is on the `db` lane in `tools/nv/cmd/ci-changes.ts`.\n\nThe six fragments are still `designed`. The two security rules each have a config-read half (a block with a `user` and an empty password, the `cleartext` grant itself) that Stage 4 lands, so Stage 4 adds `crates/nvs-ldap/tests/samba.rs` to their `guardedBy` and flips them. The Global Catalog ports 3268/3269 are not published yet.",
   "next": {
-    "stage": 3,
-    "title": "the wire, and a directory to test against",
+    "stage": 4,
+    "title": "`Core\\Ldap`: connect, open, search, read",
     "files": [],
-    "note": "file set: the new crate `crates/nvs-ldap/`, root `Cargo.toml`, `deny.toml`, `.github/workflows/ci.yml`.",
+    "note": "one file set: `crates/nvs-config/src/tree.rs`, `crates/nvs-config/src/capability.rs`, the new `crates/nvs-stdlib/src/ldap/`, `crates/nvs-stdlib/Cargo.toml`.",
     "items": [
       {
         "done": false,
-        "text": "**`crates/nvs-ldap`, made by hand**: a sans-IO BER/LDAP codec (check that `rasn-ldap` pulls no tokio and no async runtime before adopting it; `ldap3` is out), simple bind, unbind and search over `NvsTcp`/`NvsTls` (`crates/nvs-host/src/tls.rs:224` `over`), StartTLS the way `Core\\Mail` upgrades. `rule:core-classes/db-crate-boundary`, `rule:concurrency/one-scheduler`, and the no-tokio check filed in `crates/nvs-runtime/tests/manifest_policy.rs:1`."
+        "text": "**The `[ldap.<name>]` block and `[capabilities.ldap]`'s three grants** (`connect`, `open`, `cleartext`), in `db.*`'s shape: `Database` at `crates/nvs-config/src/tree.rs:930` and `CapDb` at `crates/nvs-config/src/tree.rs:431` are the models, and `Cap::DbConnect` at `crates/nvs-config/src/capability.rs:151`. A block with a `user` and an empty password is refused when it is read. `rule:core-classes/db-capabilities`, `rule:security/ldap-empty-password-is-refused`, `rule:security/ldap-cleartext-bind-is-granted-per-host`, ADR 0278 § 2. Once this lands, both security rules' records under `data/rules/security/` get `crates/nvs-ldap/tests/samba.rs` and the config test in `guardedBy`, and `status` becomes `shipped`."
       },
       {
         "done": false,
-        "text": "**An empty password is refused before a byte is sent, and a cleartext bind needs `tls = \"none\"` and the host grant**; `strongerAuthRequired` maps to `EncryptionRequired` as a unit test over a recorded response. `rule:security/ldap-empty-password-is-refused`, `rule:security/ldap-cleartext-bind-is-granted-per-host`; the directory tests skip only when nothing listens on 16636, as `crates/nvs-stdlib/src/cache/redis.rs:1286` does."
-      },
-      {
-        "done": false,
-        "text": "**The CI `ldap` step**, moved here from the server slice because it has nothing to run until the crate's tests exist: `docker compose -f tests/db/compose.yaml up -d --wait samba-ad` and the crate's tests, in the `database` job beside `bun nv db-matrix --all` at `.github/workflows/ci.yml:347`, under a `changes` lane that covers `crates/nvs-ldap/`. `bun nv db-matrix --down` already takes `samba-ad` down with the rest (`tools/nv/cmd/db-matrix.ts:360`)."
+        "text": "**`Core\\Ldap::connect` and `::open`, `Connection::search` and `::read`**, over `nvs_ldap::Connection`: the `nvs-ldap` edge goes beside `nvs-db` at `crates/nvs-stdlib/Cargo.toml:68`, registry rows the way `crates/nvs-stdlib/src/db/registry.rs:1` declares `Core\\Db`'s, and the pool per `rule:security/db-pool-reset-is-a-boundary` (a connection whose `is_settled()` is false is closed, not pooled). `open` passes the address policy, `connect` does not. ADR 0278 § 4, § 5."
       }
     ]
   },
   "backlog": [
-    "Publish 3268/3269 on `samba-ad` when Stage 9's Global Catalog block needs them (`docs/decisions/0278.md` § 11).",
-    "Paging with the paged-results control, and referrals returned as data (goal Stage 3, `docs/agent/goals/ldap.md`).",
-    "A run against a Windows Server evaluation VM is the user's to do by hand (goal § *Standing decisions*)."
+    "The URL list's failover walk (ADR 0278 § 2) belongs to Stage 4's `connect`, over `nvs_ldap::Connection::open` per URL.",
+    "Ranged-attribute merging, sort with VLV, deleted objects and DirSync are Stages 6 and 9; `nvs_ldap::proto::Control` is where their controls go.",
+    "Publish Samba's Global Catalog ports 3268/3269 in `tests/db/compose.yaml` before Stage 9's Global Catalog check."
   ]
 }
