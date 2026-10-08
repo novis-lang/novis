@@ -162,6 +162,7 @@ const REFUSED: &[(&str, &str)] = &[
     ("Core\\Db\\Rows", REPORT),
     ("Core\\Db\\Stream", HANDLE),
     ("Core\\Db\\Row", REPORT),
+    ("Core\\Ldap\\Connection", HANDLE),
     ("Core\\Db\\Write", REPORT),
     ("Core\\Db\\Column", REPORT),
     (

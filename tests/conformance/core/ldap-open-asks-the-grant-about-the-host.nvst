@@ -1,0 +1,27 @@
+--TEST--
+Core\Ldap::open asks `ldap.open` about the URL's host before anything is resolved, so a host outside the grant throws `RuntimeError` — ADR 0278 § 2 and `rule:security/capability-question-is-grant-and-scope`
+--FILE--
+<?nvs
+// `ldap.open` grants hosts under `example.test`, and this host is not one.
+try {
+    var $other = Core\Ldap::open({url: "ldaps://directory.example.net"});
+    echo "opened", "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+// `*.example.test` matches at a label boundary, so the bare domain is not granted.
+try {
+    var $bare = Core\Ldap::open({url: "ldaps://example.test"});
+    echo "opened", "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+--FILE nvs.toml--
+[capabilities.ldap]
+open = ["*.example.test"]
+--EXPECT--
+Core\Ldap::open needs the capability `ldap.open` for directory.example.net, which is not granted
+help: grant it in nvs.toml under `[capabilities.ldap]`
+Core\Ldap::open needs the capability `ldap.open` for example.test, which is not granted
+help: grant it in nvs.toml under `[capabilities.ldap]`

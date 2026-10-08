@@ -1,0 +1,19 @@
+--TEST--
+Core\Ldap::open checks the address of a granted host, so a loopback host throws `RuntimeError` before anything is dialled — ADR 0278 § 2 and `rule:security/net-address-policy`
+--FILE--
+<?nvs
+// `127.0.0.1` is granted, but it is a loopback address, and no
+// program-supplied URL may reach one.
+try {
+    var $local = Core\Ldap::open({url: "ldaps://127.0.0.1", user: "cn=reader,dc=example,dc=test", password: "s3cret"});
+    echo "opened", "\n";
+} catch (Core\Ldap\LdapError $failed) {
+    echo "not reached: ", $failed->message, "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+--FILE nvs.toml--
+[capabilities.ldap]
+open = ["127.0.0.1"]
+--EXPECT--
+Core\Ldap::open refuses 127.0.0.1: it is loopback (127.0.0.0/8), which `net.internal` does not except

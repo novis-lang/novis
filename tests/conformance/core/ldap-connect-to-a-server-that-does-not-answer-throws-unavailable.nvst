@@ -1,0 +1,30 @@
+--TEST--
+Core\Ldap::connect to a block whose only URL does not answer throws `Core\Ldap\LdapError` with the kind `Unavailable` and a `null` code, because no server sent a result code — ADR 0278 § 2 and § 10
+--FILE--
+<?nvs
+// Nothing listens on port 1, so the only URL in the block does not answer.
+try {
+    var $corp = Core\Ldap::connect("corp");
+    echo "opened corp", "\n";
+} catch (Core\Ldap\LdapError $down) {
+    echo $down->kind == Core\Ldap\ErrorKind::Unavailable ? "kind: Unavailable" : "kind: other", "\n";
+    echo $down->code == null ? "code: null" : "code: set", "\n";
+}
+
+// The block is granted, so a second call tries the URL again and throws again.
+try {
+    var $again = Core\Ldap::connect("corp");
+    echo "opened corp", "\n";
+} catch (RuntimeError $failed) {
+    echo "again: ", $failed is Core\Ldap\LdapError ? "LdapError" : "other", "\n";
+}
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://127.0.0.1:1"
+--EXPECT--
+kind: Unavailable
+code: null
+again: LdapError

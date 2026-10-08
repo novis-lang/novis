@@ -62,7 +62,7 @@ use std::time::{Duration, Instant};
 
 use nvs_config::Cap;
 use nvs_config::capability::Scope;
-use nvs_runtime::{Ctx, Fault, ThrownClass, Value};
+use nvs_runtime::{Ctx, Fault, Tag, ThrownClass, Value};
 
 mod registry;
 
@@ -227,10 +227,10 @@ fn dial(
 ///
 /// # Errors
 ///
-/// A `RuntimeError` for a name outside `ldap.connect`, for a name with no block,
-/// and for a bind the server refused. An `IOError` when no URL in the block
-/// answered, naming the last failure, and when the pool's `max` is reached and
-/// no slot frees within `acquire`.
+/// A `RuntimeError` for a name outside `ldap.connect` and for a name with no
+/// block. An `Ldap\LdapError` for a bind the server refused, and for a block
+/// whose URLs did not answer, naming the last failure. An `IOError` when the
+/// pool's `max` is reached and no slot frees within the block's `timeout`.
 pub fn connect(ctx: &mut Ctx, name: &str) -> Result<u64, Fault> {
     nvs_runtime::capability::require(ctx, Cap::LdapConnect, Scope::Name(name), CONNECT)?;
     let memo = format!("ldap:{name}");
@@ -488,4 +488,99 @@ pub fn read(
         }
     }
     Ok(found)
+}
+
+/// A [`CONNECTION`] over the connection held under `key`.
+fn connection(key: u64) -> Value {
+    crate::instance::build(&CONNECTION, [Value::uint(key)])
+}
+
+/// An optional text field of `Ldap\Settings`, or `None` for the `null` an
+/// omitting call site passed.
+fn settings_text<'a>(args: &'a [Value], at: usize, key: &str) -> Result<Option<&'a str>, Fault> {
+    if matches!(args[at].tag(), Some(Tag::Null)) {
+        return Ok(None);
+    }
+    args[at].as_text().map(Some).ok_or_else(|| {
+        Fault::fatal(format!(
+            "{OPEN} expected a `string` for `{key}`, got tag {}",
+            args[at].tag_byte()
+        ))
+    })
+}
+
+/// `Ldap\Settings.tls`, where an absent value is `Tls::Required`.
+fn settings_tls(value: &Value) -> Result<nvs_config::ldap::Tls, Fault> {
+    match value.as_int() {
+        None | Some(0) => Ok(nvs_config::ldap::Tls::Required),
+        Some(1) => Ok(nvs_config::ldap::Tls::None),
+        Some(_) => Err(Fault::fatal(format!(
+            "{OPEN} expected a `{TLS_NAME}` case for `tls`, got tag {}",
+            value.tag_byte()
+        ))),
+    }
+}
+
+/// `Ldap\Settings.timeout`, or `None` where the program left it out.
+fn settings_timeout(args: &[Value]) -> Result<Option<Duration>, Fault> {
+    if matches!(args[TIMEOUT_ARG].tag(), Some(Tag::Null)) {
+        return Ok(None);
+    }
+    let nanos = crate::time::nanos_of(args, TIMEOUT_ARG, "timeout")?;
+    if nanos <= 0 {
+        return Err(Fault::thrown(format!(
+            "{OPEN}: `timeout` must be a positive duration, and this one is {nanos}ns"
+        )));
+    }
+    Ok(Some(Duration::from_nanos(nanos.unsigned_abs())))
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Ldap::connect(string $name): Ldap\Connection` — [`connect`] for a
+    /// Novis program.
+    fn nvs_core_ldap_connect(ctx, args: [1]) {
+        // Unreachable from source: the parameter is a `string` in `CLASS`.
+        let name = args[0]
+            .as_text()
+            .ok_or_else(|| {
+                Fault::fatal(format!(
+                    "{CONNECT} expected a `string` name, got tag {}",
+                    args[0].tag_byte()
+                ))
+            })?
+            .to_owned();
+        let key = connect(ctx, &name)?;
+        Ok(connection(key))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Ldap::open(Ldap\Settings $settings): Ldap\Connection` — [`open`]
+    /// for a Novis program, over the five slots [`SETTINGS`] flattens to.
+    fn nvs_core_ldap_open(ctx, args: [5]) {
+        // Unreachable from source: `url` is a required `string` field.
+        let url = settings_text(args, URL_ARG, "url")?.unwrap_or_default();
+        let user = settings_text(args, USER_ARG, "user")?;
+        let password = settings_text(args, PASSWORD_ARG, "password")?.unwrap_or_default();
+        let settings = Settings {
+            url,
+            user,
+            password: password.as_bytes(),
+            tls: settings_tls(&args[TLS_ARG])?,
+            tls_ca_file: None,
+            timeout: settings_timeout(args)?,
+        };
+        let key = open(ctx, &settings)?;
+        Ok(connection(key))
+    }
+}
+
+/// The address of one of this module's symbols, or `None` for a symbol that
+/// belongs to another domain. See [`crate::address`].
+pub(crate) fn address(symbol: &str) -> Option<*const u8> {
+    Some(match symbol {
+        "nvs_core_ldap_connect" => (nvs_core_ldap_connect as *const ()).cast(),
+        "nvs_core_ldap_open" => (nvs_core_ldap_open as *const ()).cast(),
+        _ => return None,
+    })
 }

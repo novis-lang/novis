@@ -399,6 +399,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| json::address(symbol))
         .or_else(|| jwe::address(symbol))
         .or_else(|| jwt::address(symbol))
+        .or_else(|| ldap::address(symbol))
         .or_else(|| log::address(symbol))
         .or_else(|| mail::address(symbol))
         .or_else(|| math::address(symbol))

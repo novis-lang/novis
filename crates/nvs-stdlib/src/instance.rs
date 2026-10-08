@@ -162,6 +162,7 @@ const HOST_HANDLE_CLASSES: &[&CoreClass] = &[
     // A streamed result set holds the connection's key to pull the next row;
     // `Core\Db\Rows` holds the rows themselves and crosses.
     &crate::db::STREAM,
+    &crate::ldap::CONNECTION,
 ];
 
 /// Every member compiled code reaches on a `Core` instance **by name** — one

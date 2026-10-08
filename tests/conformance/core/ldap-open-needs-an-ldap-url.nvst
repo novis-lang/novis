@@ -1,0 +1,25 @@
+--TEST--
+Core\Ldap::open throws `RuntimeError` for a `url` that is not `ldap://` or `ldaps://`, before it asks any grant — ADR 0278 § 2
+--FILE--
+<?nvs
+// An `https://` URL is not a directory URL.
+try {
+    var $web = Core\Ldap::open({url: "https://directory.example.test"});
+    echo "opened", "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+// A host with no scheme is not a URL either.
+try {
+    var $bare = Core\Ldap::open({url: "directory.example.test", tls: Core\Ldap\Tls::None});
+    echo "opened", "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+--FILE nvs.toml--
+[capabilities.ldap]
+open = ["*.example.test"]
+--EXPECT--
+Core\Ldap::open: `url` is not an `ldap://` or `ldaps://` URL
+Core\Ldap::open: `url` is not an `ldap://` or `ldaps://` URL

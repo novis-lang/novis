@@ -2420,6 +2420,11 @@ pub const CLASSES: &[CoreClass] = &[
     // and neither class is reachable except through that member.
     crate::db::PLAN,
     crate::db::STEP,
+    // ADR 0278's directory client, beside the database classes because it is
+    // opened the same two ways: a named block under `ldap.connect`, or a
+    // program's settings under `ldap.open`.
+    crate::ldap::CLASS,
+    crate::ldap::CONNECTION,
     // `rule:concurrency/queue-four-members`'s durable background job, immediately after the database classes
     // because that is what it is made of: a job is a row in one of these connections,
     // which is the whole of why § 3's enqueue can commit with the write that caused
@@ -3131,6 +3136,7 @@ pub const ENUMS: &[CoreEnum] = &[
     // plan the way `ErrorKind` above is read off a failure.
     crate::db::GRADE,
     crate::ldap::ERROR_KIND,
+    crate::ldap::TLS,
     // `rule:concurrency/claiming-is-one-statement` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`'s job lifecycle, immediately after the database enums
     // for the reason [`crate::queue::CLASS`] sits after the database classes: a
     // job is a row, and this enum is one of that row's columns as well as what
@@ -6415,6 +6421,8 @@ mod tests {
             crate::cli::STYLE_NAME,
             crate::db::IN_LIST_NAME,
             crate::db::STREAM_NAME,
+            // Memberless until `whoami`, `search` and `read` are registered.
+            crate::ldap::CONNECTION_NAME,
             crate::queue::ID_NAME,
             crate::request::BODY_STREAM_NAME,
             crate::request::FILES_NAME,
