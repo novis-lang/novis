@@ -67,6 +67,15 @@ describe("nv release manifest", () => {
     ]);
   });
 
+  test("a path under the workspace's `exclude` keeps its own version and is not a pin", () => {
+    const excluded = MANIFEST.replace('members = ["crates/*"]', 'members = ["crates/*"]\nexclude = ["extensions"]').replace(
+      "[profile.release]",
+      'nvs-ext-x = { path = "extensions/x", version = "0.4.0" }\n\n[profile.release]',
+    );
+    expect(pinProblems(excluded)).toEqual([]);
+    expect(bumpManifest(excluded, "0.1.0").text).toContain('nvs-ext-x = { path = "extensions/x", version = "0.4.0" }');
+  });
+
   test("a pin written as a table of its own is an error, not a release with a stale pin", () => {
     const dotted = MANIFEST + '\n[workspace.dependencies.nvs-c]\npath = "crates/nvs-c"\nversion = "0.0.1"\n';
     expect(() => bumpManifest(dotted, "0.1.0")).toThrow(/nvs-c/);

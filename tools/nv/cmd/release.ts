@@ -170,13 +170,19 @@ export function workspaceVersion(manifest: string): string {
   return version as string;
 }
 
-/** Every `[workspace.dependencies]` entry that has both a `path` and a `version`, with that version. */
+/**
+ * Every `[workspace.dependencies]` entry that has both a `path` and a `version`, with that version.
+ * A path under the workspace's `exclude` is a package with its own version, so it is not a pin.
+ */
 export function versionPins(manifest: string): [string, string][] {
-  const deps = table(table(table(parseToml(manifest)).workspace).dependencies);
+  const workspace = table(table(parseToml(manifest)).workspace);
+  const deps = table(workspace.dependencies);
+  const excluded = Array.isArray(workspace.exclude) ? workspace.exclude.filter((e) => typeof e === "string") : [];
+  const outside = (path: string) => excluded.some((e) => path === e || path.startsWith(`${e}/`));
   const pins: [string, string][] = [];
   for (const [name, spec] of Object.entries(deps)) {
     const t = table(spec);
-    if (typeof t.path === "string" && typeof t.version === "string") pins.push([name, t.version]);
+    if (typeof t.path === "string" && typeof t.version === "string" && !outside(t.path)) pins.push([name, t.version]);
   }
   return pins;
 }
