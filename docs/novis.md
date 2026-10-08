@@ -26131,7 +26131,7 @@ Keywords: whoami, authenticate, search, read, add, modify, delete, rename, setPa
 |---|---|
 | [`Core\Ldap\Connection->whoami`](#core-core-ldap-connection-whoami) | `whoami(): string` |
 | [`Core\Ldap\Connection->authenticate`](#core-core-ldap-connection-authenticate) | `authenticate(string $login, secret tainted string $password): void` |
-| [`Core\Ldap\Connection->search`](#core-core-ldap-connection-search) | `search(Core\Ldap\Filter $filter, {base?: Core\Ldap\Dn\|string, scope?: Core\Ldap\Scope, select?: array<string>, pageSize?: int, sizeLimit?: int, sort?: string, descending?: bool, offset?: int, window?: int}): Core\Ldap\Entries` |
+| [`Core\Ldap\Connection->search`](#core-core-ldap-connection-search) | `search(Core\Ldap\Filter $filter, {base?: Core\Ldap\Dn\|string, scope?: Core\Ldap\Scope, select?: array<string>, pageSize?: int, sizeLimit?: int, sort?: string, descending?: bool, offset?: int, window?: int, showDeleted?: bool}): Core\Ldap\Entries` |
 | [`Core\Ldap\Connection->read`](#core-core-ldap-connection-read) | `read(Core\Ldap\Dn\|string $dn, {select?: array<string>}): ?Core\Ldap\Entry` |
 | [`Core\Ldap\Connection->add`](#core-core-ldap-connection-add) | `add(Core\Ldap\Dn\|string $dn, array<mixed> $attributes): void` |
 | [`Core\Ldap\Connection->modify`](#core-core-ldap-connection-modify) | `modify(Core\Ldap\Dn\|string $dn, array<Core\Ldap\Change> $changes): void` |
@@ -26176,7 +26176,7 @@ Checks a user's login and password. It opens a new connection to the same server
 #### `Core\Ldap\Connection->search`
 
 ```nvs skip
-$connection->search(Core\Ldap\Filter $filter, {base?: Core\Ldap\Dn|string, scope?: Core\Ldap\Scope, select?: array<string>, pageSize?: int, sizeLimit?: int, sort?: string, descending?: bool, offset?: int, window?: int}): Core\Ldap\Entries
+$connection->search(Core\Ldap\Filter $filter, {base?: Core\Ldap\Dn|string, scope?: Core\Ldap\Scope, select?: array<string>, pageSize?: int, sizeLimit?: int, sort?: string, descending?: bool, offset?: int, window?: int, showDeleted?: bool}): Core\Ldap\Entries
 ```
 
 Finds the entries that match a filter. The server sends the entries in pages, and the next page is read when a `foreach` loop reaches it.
@@ -26193,6 +26193,7 @@ Finds the entries that match a filter. The server sends the entries in pages, an
 | `{descending: …}` | `bool` (default `false`) | `true` sorts from the largest value to the smallest. It needs `sort`. The default is `false`. |
 | `{offset: …}` | `int` (default `0`) | How many sorted entries the window skips. It needs `window`. The default is 0. |
 | `{window: …}` | `int` (default `0`) | How many sorted entries to return, starting after `offset`. It needs `sort`. With `{sort: 'cn', offset: 20, window: 10}`, the search returns entries 21 to 30. `total()` then returns how many entries there are in all. The default, 0, returns every entry. |
+| `{showDeleted: …}` | `bool` (default `false`) | `true` also finds deleted entries. Active Directory keeps a deleted entry for some time, with most of its attributes removed. `isDeleted()` checks whether an entry is one of them. The account needs the right to read deleted entries. The default is `false`. |
 
 **Returns** `Core\Ldap\Entries` — A `Core\Ldap\Entries`. Use it in a `foreach` loop to get each `Core\Ldap\Entry`.
 
@@ -26378,12 +26379,13 @@ Returns how many entries the whole sorted search found, when the search used the
 <a id="core-core-ldap-entry"></a>
 ### `Core\Ldap\Entry`
 
-Keywords: dn, has, string, strings, bytes, int, bool, uuid, sid, sids, instant, duration, accountFlags, groupType, accountType, toArray
+Keywords: dn, has, isDeleted, string, strings, bytes, int, bool, uuid, sid, sids, instant, duration, accountFlags, groupType, accountType, toArray
 
 | Member | Signature |
 |---|---|
 | [`Core\Ldap\Entry->dn`](#core-core-ldap-entry-dn) | `dn(): Core\Ldap\Dn` |
 | [`Core\Ldap\Entry->has`](#core-core-ldap-entry-has) | `has(string $name): bool` |
+| [`Core\Ldap\Entry->isDeleted`](#core-core-ldap-entry-isdeleted) | `isDeleted(): bool` |
 | [`Core\Ldap\Entry->string`](#core-core-ldap-entry-string) | `string(string $name): ?tainted string` |
 | [`Core\Ldap\Entry->strings`](#core-core-ldap-entry-strings) | `strings(string $name): ?array<tainted string>` |
 | [`Core\Ldap\Entry->bytes`](#core-core-ldap-entry-bytes) | `bytes(string $name): ?tainted bytes` |
@@ -26426,6 +26428,17 @@ Checks whether the entry has a value for an attribute.
 | `$name` | `string` (neutral) | The attribute's name, such as `mail`. Upper and lower case are the same. |
 
 **Returns** `bool` — `true` when the entry has the attribute, and `false` when it does not or the search did not select it.
+
+<a id="core-core-ldap-entry-isdeleted"></a>
+#### `Core\Ldap\Entry->isDeleted`
+
+```nvs skip
+$entry->isDeleted(): bool
+```
+
+Checks whether the entry is a deleted entry. Only a search with `showDeleted: true` finds deleted entries.
+
+**Returns** `bool` — `true` when the entry's `isDeleted` attribute is `TRUE`, and `false` otherwise.
 
 <a id="core-core-ldap-entry-string"></a>
 #### `Core\Ldap\Entry->string`
