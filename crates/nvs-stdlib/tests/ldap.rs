@@ -901,3 +901,220 @@ fn account_flags_keep_the_bits_they_do_not_name() {
         Ok(AccountType::User)
     );
 }
+
+/// A peer on loopback that answers the n-th whole message it reads with
+/// `answers[n]`, and returns its port and every byte it read.
+fn scripted(answers: Vec<Vec<u8>>) -> (u16, Arc<std::sync::Mutex<Vec<u8>>>) {
+    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a loopback port");
+    let port = listener.local_addr().expect("its address").port();
+    let read = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let kept = Arc::clone(&read);
+    thread::spawn(move || {
+        let Ok((mut stream, _)) = listener.accept() else {
+            return;
+        };
+        stream.set_read_timeout(Some(Duration::from_secs(10))).ok();
+        let mut answers = answers.into_iter();
+        let mut received = Vec::new();
+        let mut at = 0;
+        let mut chunk = [0u8; 4096];
+        loop {
+            while let Ok(Some((head, length))) = ber::header(&received[at..]) {
+                if received.len() < at + head + length {
+                    break;
+                }
+                at += head + length;
+                if let Some(answer) = answers.next() {
+                    stream.write_all(&answer).ok();
+                }
+            }
+            match stream.read(&mut chunk) {
+                Ok(0) | Err(_) => return,
+                Ok(count) => {
+                    received.extend_from_slice(&chunk[..count]);
+                    kept.lock()
+                        .expect("unpoisoned")
+                        .extend_from_slice(&chunk[..count]);
+                }
+            }
+        }
+    });
+    (port, read)
+}
+
+/// One search's answer under message `id`: an entry at `dn` with `attributes`,
+/// then a `SearchResultDone` with success and no paging cookie.
+fn one_entry(id: i64, dn: &str, attributes: &[(&str, &[&str])]) -> Vec<u8> {
+    let mut answer = Writer::new();
+    answer.constructed(tag::SEQUENCE, |msg| {
+        msg.integer(tag::INTEGER, id);
+        msg.constructed(0x64, |entry| {
+            entry.octets(tag::OCTET_STRING, dn.as_bytes());
+            entry.constructed(tag::SEQUENCE, |list| {
+                for (name, values) in attributes {
+                    list.constructed(tag::SEQUENCE, |attribute| {
+                        attribute.octets(tag::OCTET_STRING, name.as_bytes());
+                        attribute.constructed(tag::SET, |set| {
+                            for value in *values {
+                                set.octets(tag::OCTET_STRING, value.as_bytes());
+                            }
+                        });
+                    });
+                }
+            });
+        });
+    });
+    answer.constructed(tag::SEQUENCE, |msg| {
+        msg.integer(tag::INTEGER, id);
+        msg.constructed(0x65, |done| {
+            done.integer(tag::ENUMERATED, 0);
+            done.octets(tag::OCTET_STRING, b"");
+            done.octets(tag::OCTET_STRING, b"");
+        });
+    });
+    answer.into_bytes()
+}
+
+/// An anonymous `[ldap.corp]` block over plain LDAP to the peer on `port`,
+/// which the cleartext grant allows.
+fn cleartext_corp(port: u16) -> Arc<nvs_config::Snapshot> {
+    snapshot(
+        vec![(
+            "corp",
+            LdapDirectory {
+                url: Some(Setting::Text(format!("ldap://127.0.0.1:{port}"))),
+                tls: Some("none".to_owned()),
+                timeout: Some(Setting::Text("5s".to_owned())),
+                ..LdapDirectory::default()
+            },
+        )],
+        CapLdap {
+            connect: list(&["corp"]),
+            cleartext: list(&["127.0.0.1"]),
+            ..CapLdap::default()
+        },
+    )
+}
+
+#[test]
+fn a_ranged_member_list_is_merged_to_its_end() {
+    // A group whose `member` list is longer than one answer holds: the search
+    // returns the first two values as `member;range=0-1`, and each follow-up
+    // asks for the rest from where the last answer ended.
+    let group = "CN=Staff,DC=example,DC=test";
+    let (port, read) = scripted(vec![
+        one_entry(
+            1,
+            group,
+            &[("cn", &["Staff"]), ("member;range=0-1", &["CN=A", "CN=B"])],
+        ),
+        one_entry(2, group, &[("member;range=2-3", &["CN=C", "CN=D"])]),
+        one_entry(3, group, &[("member;range=4-*", &["CN=E"])]),
+    ]);
+    let mut ctx = ctx_over(&cleartext_corp(port));
+    let key = ldap::connect(&mut ctx, "corp").expect("the peer accepts");
+
+    let every = Filter::Present("objectClass".to_owned());
+    let mut entries =
+        ldap::search(&mut ctx, key, &everything(&every, 1000, 0)).expect("the search starts");
+    let entry = entries
+        .next(&mut ctx)
+        .expect("the ranges are fetched")
+        .expect("one entry");
+    let names: Vec<&str> = entry
+        .attributes
+        .iter()
+        .map(|attribute| attribute.name.as_str())
+        .collect();
+    assert_eq!(names, ["cn", "member"], "the list has its plain name");
+    let members: Vec<String> = entry
+        .get("member")
+        .expect("the merged list")
+        .iter()
+        .map(|value| String::from_utf8_lossy(value).into_owned())
+        .collect();
+    assert_eq!(members, ["CN=A", "CN=B", "CN=C", "CN=D", "CN=E"]);
+    assert!(entries.next(&mut ctx).expect("the search ends").is_none());
+
+    let sent = read.lock().expect("unpoisoned").clone();
+    let asked = |text: &str| {
+        sent.windows(text.len())
+            .any(|window| window == text.as_bytes())
+    };
+    assert!(asked("member;range=2-*") && asked("member;range=4-*"));
+    assert!(
+        ldap::held(&mut ctx, key, "test")
+            .expect("open")
+            .is_poolable(),
+        "every follow-up ran to its end, so the connection is settled"
+    );
+
+    // Samba returns a range when the request names one, so asking the
+    // built-in Administrators group for `member;range=0-0` makes the merge
+    // fetch the other members.
+    let Some(ca) = samba() else { return };
+    let mut ctx = ctx_over(&corp(&ca));
+    let key = ldap::connect(&mut ctx, "corp").expect("the block opens");
+    let administrators = "CN=Administrators,CN=Builtin,DC=example,DC=test";
+    let whole = ldap::read(&mut ctx, key, administrators, &["member"])
+        .expect("the read succeeds")
+        .expect("the group exists");
+    let ranged = ldap::read(&mut ctx, key, administrators, &["member;range=0-0"])
+        .expect("the read succeeds")
+        .expect("the group exists");
+    let names: Vec<&str> = ranged
+        .attributes
+        .iter()
+        .map(|attribute| attribute.name.as_str())
+        .collect();
+    assert_eq!(names, ["member"], "the merged list has its plain name");
+    assert!(whole.get("member").expect("members").len() > 1);
+    assert_eq!(ranged.get("member"), whole.get("member"));
+}
+
+#[test]
+fn the_schema_is_read_once_per_pool() {
+    let Some(ca) = samba() else { return };
+    let url = format!("ldaps://localhost:{LDAPS_PORT}");
+    let config = snapshot(
+        vec![
+            ("corp", block_at(&url, Some(&ca))),
+            ("staff", block_at(&url, Some(&ca))),
+        ],
+        CapLdap {
+            connect: list(&["corp", "staff"]),
+            ..CapLdap::default()
+        },
+    );
+
+    // Two requests at once hold two connections of the one pool, and the
+    // second finds the schema the first read.
+    let mut first = ctx_over(&config);
+    let mut second = ctx_over(&config);
+    let one = ldap::connect(&mut first, "corp").expect("the block opens");
+    let two = ldap::connect(&mut second, "corp").expect("the block opens again");
+    let read = ldap::schema(&mut first, one, "test").expect("the schema reads");
+    let found = ldap::schema(&mut second, two, "test").expect("the schema is found");
+    assert!(Arc::ptr_eq(&read, &found), "one pool reads its schema once");
+
+    use nvs_ldap::Syntax;
+    assert_eq!(read.syntax("pwdLastSet"), Syntax::LargeInteger);
+    assert_eq!(read.syntax("WHENCREATED"), Syntax::GeneralizedTime);
+    assert_eq!(read.syntax("isDeleted"), Syntax::Boolean);
+    assert_eq!(read.syntax("userAccountControl"), Syntax::Integer);
+    assert_eq!(read.syntax("cn"), Syntax::Other);
+
+    // A request after them takes a pooled connection and the same schema.
+    drop(first);
+    drop(second);
+    let mut later = ctx_over(&config);
+    let key = ldap::connect(&mut later, "corp").expect("the block opens");
+    let again = ldap::schema(&mut later, key, "test").expect("the schema is found");
+    assert!(Arc::ptr_eq(&read, &again));
+
+    // Another block is another pool, and reads its own.
+    let key = ldap::connect(&mut later, "staff").expect("the block opens");
+    let other = ldap::schema(&mut later, key, "test").expect("the schema reads");
+    assert!(!Arc::ptr_eq(&read, &other), "each pool reads its own");
+    assert_eq!(*read, *other, "the same server declares the same schema");
+}

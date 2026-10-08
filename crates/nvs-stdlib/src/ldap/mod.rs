@@ -53,11 +53,22 @@
 //! is the Novis half: the helpers for `Ldap\Connection`, `Ldap\Entries`,
 //! `Ldap\Entry` and `Ldap\Filter`.
 //!
+//! **The schema is read once per pool** (`rule:core-classes/ldap-value-types`).
+//! [`schema`] reads it with [`nvs_ldap::schema::read`] the first time a
+//! connection needs it, and keeps it for the block's pool on this core, keyed
+//! by the block's name and holding the generation-scoped pool key it was read
+//! under, so a reload that repoints the block reads it again and replaces it.
+//! It is immutable after: every connection of the pool shares the one
+//! [`nvs_ldap::Schema`]. An `open` connection has no pool and keeps the
+//! schema it read for its own life.
+//!
 //! **What it spends:** one socket and one TLS session per connection a request
 //! holds, and up to the block's `pool.idle` of them per core between requests.
 //! A search holds one page of up to [`PAGE_SIZE`] entries by default, per
 //! search a request has open, and an `Ldap\Entry` holds its attributes' values
-//! for as long as the program keeps it.
+//! for as long as the program keeps it, a ranged attribute merged whole. One
+//! schema per block per core, a map of every attribute type's names to its
+//! syntax, which is O(blocks) and not O(requests).
 //!
 //! **Every failure the directory or the wire reports is one `Ldap\LdapError`**
 //! (ADR 0278 § 10), built by [`fault_of`]: `$kind` is the [`ERROR_KIND`] case
@@ -66,7 +77,8 @@
 //! malformed URL or DN is the program's own `LogicError` or `RuntimeError`, as
 //! for `Core\Db`. No message carries a password.
 
-use std::collections::BTreeMap;
+use std::cell::RefCell;
+use std::collections::{BTreeMap, HashMap};
 use std::net::{SocketAddr, ToSocketAddrs as _};
 use std::path::Path;
 use std::sync::Arc;
@@ -124,6 +136,18 @@ pub struct Held {
     searches: BTreeMap<u64, nvs_ldap::Cursor>,
     /// The id the next parked search gets.
     next_search: u64,
+    /// The block's name and the pool key it was opened under, or `None` for
+    /// a connection `open` made, which has no pool.
+    pool: Option<(String, String)>,
+    /// The schema, once [`schema`] has read or found it for this connection.
+    schema: Option<Arc<nvs_ldap::Schema>>,
+}
+
+thread_local! {
+    /// The schema each block's pool on this core has read, by the block's
+    /// name, with the pool key it was read under.
+    static SCHEMAS: RefCell<HashMap<String, (String, Arc<nvs_ldap::Schema>)>> =
+        RefCell::new(HashMap::new());
 }
 
 impl Held {
@@ -135,6 +159,8 @@ impl Held {
             base: None,
             searches: BTreeMap::new(),
             next_search: 0,
+            pool: None,
+            schema: None,
         }
     }
 
@@ -342,6 +368,7 @@ pub fn connect(ctx: &mut Ctx, name: &str) -> Result<u64, Fault> {
     };
 
     let ticket = nvs_runtime::pool::Ticket::for_block(&snapshot, &memo, bounds);
+    let pool = (name.to_owned(), ticket.key.clone());
     let max = bounds.max;
     let full = |waited: &str| {
         Fault::thrown_as(
@@ -372,6 +399,7 @@ pub fn connect(ctx: &mut Ctx, name: &str) -> Result<u64, Fault> {
     // belongs to an `Ldap\Entries` that request freed.
     held.searches.clear();
     held.base.clone_from(&block.base);
+    held.pool = Some(pool);
     Ok(ctx.hold_open_connection(Some(memo), Some(lease), Box::new(held)))
 }
 
@@ -563,6 +591,47 @@ pub fn step(ctx: &mut Ctx, key: u64, id: u64) -> Result<Step, Fault> {
 /// [`held`]'s.
 pub fn references(ctx: &mut Ctx, key: u64, id: u64) -> Result<Option<Vec<String>>, Fault> {
     Ok(held(ctx, key, ENTRIES_MEMBER)?.references(id))
+}
+
+/// The schema of the server the connection held under `key` talks to, read
+/// the first time the connection's pool needs it and shared after.
+///
+/// # Errors
+///
+/// [`held`]'s, and every failure the server reports while it is read, which
+/// leaves nothing cached.
+pub fn schema(ctx: &mut Ctx, key: u64, member: &str) -> Result<Arc<nvs_ldap::Schema>, Fault> {
+    let held = held(ctx, key, member)?;
+    if let Some(schema) = &held.schema {
+        return Ok(Arc::clone(schema));
+    }
+    let cached = held.pool.as_ref().and_then(|(block, pool)| {
+        SCHEMAS.with(|schemas| {
+            schemas
+                .borrow()
+                .get(block)
+                .filter(|(read_under, _)| read_under == pool)
+                .map(|(_, schema)| Arc::clone(schema))
+        })
+    });
+    let schema = match cached {
+        Some(schema) => schema,
+        None => {
+            let read = Arc::new(
+                nvs_ldap::schema::read(held.ready()).map_err(|error| fault_of(member, &error))?,
+            );
+            if let Some((block, pool)) = &held.pool {
+                SCHEMAS.with(|schemas| {
+                    schemas
+                        .borrow_mut()
+                        .insert(block.clone(), (pool.clone(), Arc::clone(&read)));
+                });
+            }
+            read
+        }
+    };
+    held.schema = Some(Arc::clone(&schema));
+    Ok(schema)
 }
 
 /// The `base` of the block the connection held under `key` was opened from,

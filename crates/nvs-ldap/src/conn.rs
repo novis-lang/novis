@@ -542,6 +542,9 @@ pub struct Cursor {
     references: Vec<String>,
     pages: u32,
     state: Paging,
+    /// Whether a ranged attribute is fetched to its end before its entry is
+    /// returned, which is false only for [`crate::ranged`]'s own follow-ups.
+    whole: bool,
 }
 
 impl Cursor {
@@ -556,6 +559,16 @@ impl Cursor {
             references: Vec::new(),
             pages: 0,
             state: Paging::First,
+            whole: true,
+        }
+    }
+
+    /// [`Cursor::new`] for one step of [`crate::ranged::complete`], which
+    /// returns a ranged attribute as the server sent it.
+    pub(crate) fn single(request: &SearchRequest<'_>) -> Self {
+        Self {
+            whole: false,
+            ..Self::new(request)
         }
     }
 
@@ -598,10 +611,14 @@ impl Cursor {
     }
 
     /// The next entry, asking `connection` for the next page when this one is
-    /// used up, or `None` once the last page is.
+    /// used up, or `None` once the last page is. A ranged attribute in it is
+    /// fetched to its end first ([`crate::ranged`]).
     pub fn next(&mut self, connection: &mut Connection) -> Option<Result<Entry, Error>> {
         loop {
             if let Some(entry) = self.page.pop_front() {
+                if self.whole {
+                    return Some(crate::ranged::complete(connection, entry));
+                }
                 return Some(Ok(entry));
             }
             if self.state == Paging::Done {
