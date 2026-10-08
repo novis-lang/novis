@@ -1,6 +1,6 @@
 # The performance pass — what it found
 
-What goal `performance-pass` found, fixed and left for a decision. `bun nv scaling` is the tool, and
+What the performance pass found, fixed and left for a decision. `bun nv scaling` is the tool, and
 its module doc, [`tools/nv/cmd/scaling.ts`](../../tools/nv/cmd/scaling.ts), owns the ramp and the
 bounds; [`benches/scaling/README.md`](../../benches/scaling/README.md) says what a ladder is.
 

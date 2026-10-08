@@ -97,13 +97,13 @@ somebody has already followed.
 | done | [M5](plan/m5.md) | Concurrency and script isolates (~5 weeks) | ~3.5 |
 | done | [M6](plan/m6.md) | Config, limits, capabilities, disk cache (~3 weeks) | ~1 |
 | done | [M7](plan/m7.md) | Built-in HTTP server (~4 weeks) | ~2 |
-| done | [M8](plan/m8.md) | Stdlib and databases (~16 weeks) | ~6.5 |
-| goals `ext-design`, `ext-host`, `ext-compiler`, `ext-grants`, `ext-tooling`, `ext-image`, `ext-image-analysis`, `ext-intl` | [M9](plan/m9.md) | Extension system, and the `nvs:ext@1.0.0` world it freezes (not yet sized) | not estimated |
+| goal `ldap` | [M8](plan/m8.md) | Stdlib and databases (~16 weeks) | ~6.5 |
+| ongoing | [M9](plan/m9.md) | Extension system, and the `nvs:ext@1.0.0` world it freezes (not yet sized) | not estimated |
 | ongoing | [M10](plan/m10.md) | Developer tooling and IDE integration (~14 weeks; scope shifted by `rule:ide/every-feature-is-staged-behind-its-dependency`, net change undetermined) | ~8 |
 | ongoing | [M12](plan/m12.md) | Optimising JIT tier (ongoing) | measurement-bound |
 | backlog 4 | [M15](plan/m15.md) | Packages, the registry and the supply chain (~8 weeks) | ~3 + a calendar floor |
 | backlog 5 | [M16](plan/m16.md) | `nvs/web`, `nvs new`, and the framework (~12 weeks) | ~4 |
-| backlog 6 | [M17](plan/m17.md) | Document components: the image second wave, `nvs/pdf` and `nvs/spreadsheet` (not yet sized) | not estimated |
+| goals `pdf`, `spreadsheet` | [M17](plan/m17.md) | Document components: the image second wave, `nvs/pdf` and `nvs/spreadsheet` (not yet sized) | not estimated |
 
 **One milestone is not one block of schedule, which is why the cell holds a list.** M8's work is spread
 across a row of goals, and the goals tagged `post-parity` in the chain land in no milestone at all. A

@@ -272,7 +272,7 @@
           "Feature proofs — an example, an attack, a bench, a `covers:` marker"
         ],
         "playbook": [
-          "Tooling > `bun nv proofs --verify --group`"
+          "Tooling > `bun nv proofs --verify --group`*"
         ]
       }
     }

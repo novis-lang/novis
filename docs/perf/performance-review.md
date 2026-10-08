@@ -1,16 +1,16 @@
 # The performance pass — the code review
 
-Stage 4 of goal `performance-pass`: the code of every area in
-[`tools/nv/cmd/scaling.ts`](../../tools/nv/cmd/scaling.ts)'s `AREAS`, read for the shapes the goal
-lists. A ladder only finds what somebody made large, and this file is what reading the code found.
+The performance pass's Stage 4: the code of every area in
+[`tools/nv/cmd/scaling.ts`](../../tools/nv/cmd/scaling.ts)'s `AREAS`, read for work that grows faster
+than linear. A ladder only finds what somebody made large, and this file is what reading the code found.
 One read-only reviewer read each area. Each finding that grows is a gap record under
-[`data/gaps/`](../../data/gaps/) owned by `performance-pass`, and the record is its home: the cause at
-`file:line`, the ladder that would show it and the growth the fix should reach. A record says *from
-the Stage 4 review, not re-run* where the site was not read again by the session that wrote it.
+[`data/gaps/`](../../data/gaps/), and the record is its home: the cause at `file:line`, the ladder that
+would show it and the growth the fix should reach. A record says *from the Stage 4 review, not re-run*
+where the site was not read again by the session that wrote it.
 `bun nv scaling --areas --reviewed` checks that every area has a section here.
 
 A finding that is bounded by a small fixed ceiling, or that costs a constant factor, is named under
-*Bounded* and has no record, under the goal's no-micro-optimizations decision.
+*Bounded* and has no record: the pass fixed growth, not constant factors.
 
 ## compiler
 
