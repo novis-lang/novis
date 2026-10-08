@@ -479,96 +479,204 @@
       "kind": "command",
       "stage": 10,
       "name": "proofs: `Core\\Ldap` owes nothing, and its examples and attacks pass",
-      "argv": ["bun", "nv", "proofs", "--verify", "--group", "Core\\Ldap"],
-      "want": ["nothing owed in Core\\Ldap ("]
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--verify",
+        "--group",
+        "Core\\Ldap"
+      ],
+      "want": [
+        "nothing owed in Core\\Ldap ("
+      ]
     },
     {
       "id": "dossier-core-ldap-connection-owes-nothing",
       "kind": "command",
       "stage": 10,
       "name": "proofs: `Core\\Ldap\\Connection` owes nothing, and its examples and attacks pass",
-      "argv": ["bun", "nv", "proofs", "--verify", "--group", "Core\\Ldap\\Connection"],
-      "want": ["nothing owed in Core\\Ldap\\Connection ("]
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--verify",
+        "--group",
+        "Core\\Ldap\\Connection"
+      ],
+      "want": [
+        "nothing owed in Core\\Ldap\\Connection ("
+      ]
     },
     {
       "id": "dossier-core-ldap-entries-owes-nothing",
       "kind": "command",
       "stage": 10,
       "name": "proofs: `Core\\Ldap\\Entries` owes nothing, and its examples and attacks pass",
-      "argv": ["bun", "nv", "proofs", "--verify", "--group", "Core\\Ldap\\Entries"],
-      "want": ["nothing owed in Core\\Ldap\\Entries ("]
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--verify",
+        "--group",
+        "Core\\Ldap\\Entries"
+      ],
+      "want": [
+        "nothing owed in Core\\Ldap\\Entries ("
+      ]
     },
     {
       "id": "dossier-core-ldap-changes-owes-nothing",
       "kind": "command",
       "stage": 10,
       "name": "proofs: `Core\\Ldap\\Changes` owes nothing, and its examples and attacks pass",
-      "argv": ["bun", "nv", "proofs", "--verify", "--group", "Core\\Ldap\\Changes"],
-      "want": ["nothing owed in Core\\Ldap\\Changes ("]
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--verify",
+        "--group",
+        "Core\\Ldap\\Changes"
+      ],
+      "want": [
+        "nothing owed in Core\\Ldap\\Changes ("
+      ]
     },
     {
       "id": "dossier-core-ldap-entry-owes-nothing",
       "kind": "command",
       "stage": 10,
       "name": "proofs: `Core\\Ldap\\Entry` owes nothing, and its examples and attacks pass",
-      "argv": ["bun", "nv", "proofs", "--verify", "--group", "Core\\Ldap\\Entry"],
-      "want": ["nothing owed in Core\\Ldap\\Entry ("]
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--verify",
+        "--group",
+        "Core\\Ldap\\Entry"
+      ],
+      "want": [
+        "nothing owed in Core\\Ldap\\Entry ("
+      ]
     },
     {
       "id": "dossier-core-ldap-filter-owes-nothing",
       "kind": "command",
       "stage": 10,
       "name": "proofs: `Core\\Ldap\\Filter` owes nothing, and its examples and attacks pass",
-      "argv": ["bun", "nv", "proofs", "--verify", "--group", "Core\\Ldap\\Filter"],
-      "want": ["nothing owed in Core\\Ldap\\Filter ("]
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--verify",
+        "--group",
+        "Core\\Ldap\\Filter"
+      ],
+      "want": [
+        "nothing owed in Core\\Ldap\\Filter ("
+      ]
     },
     {
       "id": "dossier-core-ldap-dn-owes-nothing",
       "kind": "command",
       "stage": 10,
       "name": "proofs: `Core\\Ldap\\Dn` owes nothing, and its examples and attacks pass",
-      "argv": ["bun", "nv", "proofs", "--verify", "--group", "Core\\Ldap\\Dn"],
-      "want": ["nothing owed in Core\\Ldap\\Dn ("]
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--verify",
+        "--group",
+        "Core\\Ldap\\Dn"
+      ],
+      "want": [
+        "nothing owed in Core\\Ldap\\Dn ("
+      ]
     },
     {
       "id": "dossier-core-ldap-change-owes-nothing",
       "kind": "command",
       "stage": 10,
       "name": "proofs: `Core\\Ldap\\Change` owes nothing, and its examples and attacks pass",
-      "argv": ["bun", "nv", "proofs", "--verify", "--group", "Core\\Ldap\\Change"],
-      "want": ["nothing owed in Core\\Ldap\\Change ("]
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--verify",
+        "--group",
+        "Core\\Ldap\\Change"
+      ],
+      "want": [
+        "nothing owed in Core\\Ldap\\Change ("
+      ]
     },
     {
       "id": "dossier-core-ldap-sid-owes-nothing",
       "kind": "command",
       "stage": 10,
       "name": "proofs: `Core\\Ldap\\Sid` owes nothing, and its examples and attacks pass",
-      "argv": ["bun", "nv", "proofs", "--verify", "--group", "Core\\Ldap\\Sid"],
-      "want": ["nothing owed in Core\\Ldap\\Sid ("]
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--verify",
+        "--group",
+        "Core\\Ldap\\Sid"
+      ],
+      "want": [
+        "nothing owed in Core\\Ldap\\Sid ("
+      ]
     },
     {
       "id": "dossier-core-ldap-ad-owes-nothing",
       "kind": "command",
       "stage": 10,
       "name": "proofs: `Core\\Ldap\\Ad` owes nothing, and its examples and attacks pass",
-      "argv": ["bun", "nv", "proofs", "--verify", "--group", "Core\\Ldap\\Ad"],
-      "want": ["nothing owed in Core\\Ldap\\Ad ("]
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--verify",
+        "--group",
+        "Core\\Ldap\\Ad"
+      ],
+      "want": [
+        "nothing owed in Core\\Ldap\\Ad ("
+      ]
     },
     {
       "id": "dossier-core-ldap-ad-accountflags-owes-nothing",
       "kind": "command",
       "stage": 10,
       "name": "proofs: `Core\\Ldap\\Ad\\AccountFlags` owes nothing, and its examples and attacks pass",
-      "argv": ["bun", "nv", "proofs", "--verify", "--group", "Core\\Ldap\\Ad\\AccountFlags"],
-      "want": ["nothing owed in Core\\Ldap\\Ad\\AccountFlags ("]
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--verify",
+        "--group",
+        "Core\\Ldap\\Ad\\AccountFlags"
+      ],
+      "want": [
+        "nothing owed in Core\\Ldap\\Ad\\AccountFlags ("
+      ]
     },
     {
       "id": "dossier-core-ldap-ad-grouptype-owes-nothing",
       "kind": "command",
       "stage": 10,
       "name": "proofs: `Core\\Ldap\\Ad\\GroupType` owes nothing, and its examples and attacks pass",
-      "argv": ["bun", "nv", "proofs", "--verify", "--group", "Core\\Ldap\\Ad\\GroupType"],
-      "want": ["nothing owed in Core\\Ldap\\Ad\\GroupType ("]
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--verify",
+        "--group",
+        "Core\\Ldap\\Ad\\GroupType"
+      ],
+      "want": [
+        "nothing owed in Core\\Ldap\\Ad\\GroupType ("
+      ]
     },
     {
       "id": "dossier-core-ldap-carries-plain-comments",
