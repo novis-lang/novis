@@ -1,0 +1,555 @@
+{
+  "title": "There are no decision records: a rule says what is true, why, and what was declined",
+  "milestone": "M10",
+  "position": "last",
+  "files": [],
+  "context": {
+    "modules": [
+      "tools/nv/cmd/records.ts",
+      "tools/nv/cmd/rules.ts",
+      "tools/nv/schema/rule.ts",
+      "tools/nv/lib/prose.ts"
+    ],
+    "rules": [
+      "routing/a-match-is-not-invocable"
+    ],
+    "adrs": [],
+    "shapes": [
+      "A rule fragment",
+      "A code comment",
+      "A commit message"
+    ],
+    "playbook": [
+      "Tooling > the end",
+      "Tooling > one call reads",
+      "Tooling > a commit message",
+      "Tooling > another agent"
+    ],
+    "plan": [
+      "Open now",
+      "Blocking"
+    ],
+    "milestones": []
+  },
+  "stages": [
+    {
+      "number": 2,
+      "title": "the new rule shape, the merge tool and the pilot",
+      "summary": "Defines the Declined list and how a merged reason is written, builds `nv records --left`, deletes the summaries, and merges record 0199 as the worked example.",
+      "context": {
+        "rules": [
+          "routing/matching-is-not-dispatching",
+          "routing/the-servers-match-dispatches-nothing",
+          "routing/no-wildcard-verb",
+          "security/access-is-checked-for-presence-not-meaning"
+        ],
+        "adrs": [],
+        "shapes": [
+          "Citing a document"
+        ]
+      }
+    },
+    {
+      "number": 3,
+      "title": "the queued goals stop writing records",
+      "summary": "Merges the records the queued goals read, and rewrites `class-scoped-enums`, `pdf` and `spreadsheet` to write rule fragments instead of a record.",
+      "context": {
+        "rules": [],
+        "adrs": [],
+        "shapes": []
+      }
+    },
+    {
+      "number": 4,
+      "title": "the merge, records 0002 to 0039",
+      "summary": "Merges, re-cites and deletes every record in the range.",
+      "context": {
+        "rules": [],
+        "adrs": [],
+        "shapes": []
+      }
+    },
+    {
+      "number": 5,
+      "title": "the merge, records 0040 to 0079",
+      "summary": "Merges, re-cites and deletes every record in the range.",
+      "context": {
+        "rules": [],
+        "adrs": [],
+        "shapes": []
+      }
+    },
+    {
+      "number": 6,
+      "title": "the merge, records 0080 to 0119",
+      "summary": "Merges, re-cites and deletes every record in the range.",
+      "context": {
+        "rules": [],
+        "adrs": [],
+        "shapes": []
+      }
+    },
+    {
+      "number": 7,
+      "title": "the merge, records 0120 to 0159",
+      "summary": "Merges, re-cites and deletes every record in the range.",
+      "context": {
+        "rules": [],
+        "adrs": [],
+        "shapes": []
+      }
+    },
+    {
+      "number": 8,
+      "title": "the merge, records 0160 to 0199",
+      "summary": "Merges, re-cites and deletes every record in the range.",
+      "context": {
+        "rules": [],
+        "adrs": [],
+        "shapes": []
+      }
+    },
+    {
+      "number": 9,
+      "title": "the merge, records 0200 to 0239",
+      "summary": "Merges, re-cites and deletes every record in the range.",
+      "context": {
+        "rules": [],
+        "adrs": [],
+        "shapes": []
+      }
+    },
+    {
+      "number": 10,
+      "title": "the merge, records from 0240 on",
+      "summary": "Merges, re-cites and deletes every record left, including any that goal `ldap` wrote, and removes `docs/decisions/`.",
+      "context": {
+        "rules": [],
+        "adrs": [],
+        "shapes": []
+      }
+    },
+    {
+      "number": 11,
+      "title": "the start-of-project decisions",
+      "summary": "Merges `docs/adr/README.md` and `docs/adr/tooling-parity.md` into rules and deletes `docs/adr/`.",
+      "context": {
+        "rules": [],
+        "adrs": [],
+        "shapes": []
+      }
+    },
+    {
+      "number": 12,
+      "title": "the tools forget records",
+      "summary": "Removes `because`, the `adrs` context field, the record schema, the plan field, `nv records`, and every read, render and count of a record in the tools and the website.",
+      "context": {
+        "rules": [
+          "tooling/a-repository-fact-is-one-json-record"
+        ],
+        "adrs": [],
+        "shapes": []
+      }
+    },
+    {
+      "number": 13,
+      "title": "the process docs, and the guard",
+      "summary": "Rewrites every process sentence about records, deletes the record playbook bullets, and adds the `nv rules --check` guard that stops a record from coming back.",
+      "context": {
+        "rules": [
+          "tooling/the-chain-names-its-live-goal",
+          "tooling/a-repository-fact-is-one-json-record"
+        ],
+        "adrs": [],
+        "shapes": []
+      }
+    }
+  ],
+  "checks": [
+    {
+      "id": "decision-records-retired-the-pilot-rule-has-a-declined-list",
+      "kind": "command",
+      "stage": 2,
+      "name": "rulebook: the pilot rule carries its memory cost and its Declined list",
+      "argv": [
+        "bun",
+        "nv",
+        "peek",
+        "rule:routing/a-match-is-not-invocable"
+      ],
+      "want": [
+        "**Memory:**",
+        "**Declined:**"
+      ]
+    },
+    {
+      "id": "decision-records-retired-the-pilot-record-is-gone",
+      "kind": "command",
+      "stage": 2,
+      "name": "record 0199 is merged and deleted",
+      "argv": [
+        "git",
+        "ls-files",
+        "--error-unmatch",
+        "docs/decisions/0199.md"
+      ],
+      "want": [
+        "did not match"
+      ],
+      "exit": "nonzero"
+    },
+    {
+      "id": "decision-records-retired-the-summary-records-are-gone",
+      "kind": "command",
+      "stage": 2,
+      "name": "the decision summaries under data/decisions are deleted",
+      "argv": [
+        "git",
+        "ls-files",
+        "--error-unmatch",
+        "data/decisions"
+      ],
+      "want": [
+        "did not match"
+      ],
+      "exit": "nonzero"
+    },
+    {
+      "id": "decision-records-retired-the-summary-page-is-gone",
+      "kind": "command",
+      "stage": 2,
+      "name": "the generated docs/decisions.md is deleted",
+      "argv": [
+        "git",
+        "ls-files",
+        "--error-unmatch",
+        "docs/decisions.md"
+      ],
+      "want": [
+        "did not match"
+      ],
+      "exit": "nonzero"
+    },
+    {
+      "id": "decision-records-retired-nv-decisions-is-gone",
+      "kind": "command",
+      "stage": 2,
+      "name": "the `nv decisions` command is deleted",
+      "argv": [
+        "git",
+        "ls-files",
+        "--error-unmatch",
+        "tools/nv/cmd/decisions.ts"
+      ],
+      "want": [
+        "did not match"
+      ],
+      "exit": "nonzero"
+    },
+    {
+      "id": "decision-records-retired-the-queued-goal-records-read-no-record",
+      "kind": "command",
+      "stage": 3,
+      "name": "the queued goals' records slice no record and name no record shape",
+      "argv": [
+        "git",
+        "grep",
+        "-n",
+        "-E",
+        "\"adrs\": \\[$|\"A decision record\"|docs/decisions/",
+        "--",
+        "data/goals/class-scoped-enums.json",
+        "data/goals/pdf.json",
+        "data/goals/spreadsheet.json"
+      ],
+      "exit": "nonzero"
+    },
+    {
+      "id": "decision-records-retired-the-queued-goal-prose-writes-no-record",
+      "kind": "command",
+      "stage": 3,
+      "name": "the queued goals' prose cites no record and claims no record slot",
+      "argv": [
+        "git",
+        "grep",
+        "-n",
+        "-i",
+        "-E",
+        "ADR [0-9]{4}|record slot|docs/adr/|docs/decisions/",
+        "--",
+        "docs/agent/goals/class-scoped-enums.md",
+        "docs/agent/goals/pdf.md",
+        "docs/agent/goals/spreadsheet.md"
+      ],
+      "exit": "nonzero"
+    },
+    {
+      "id": "decision-records-retired-records-0002-to-0039-are-merged",
+      "kind": "command",
+      "stage": 4,
+      "name": "records 0002 to 0039 are merged and deleted",
+      "argv": [
+        "git",
+        "ls-files",
+        "--error-unmatch",
+        "docs/decisions/00[0-3]*"
+      ],
+      "want": [
+        "did not match"
+      ],
+      "exit": "nonzero"
+    },
+    {
+      "id": "decision-records-retired-records-0040-to-0079-are-merged",
+      "kind": "command",
+      "stage": 5,
+      "name": "records 0040 to 0079 are merged and deleted",
+      "argv": [
+        "git",
+        "ls-files",
+        "--error-unmatch",
+        "docs/decisions/00[4-7]*"
+      ],
+      "want": [
+        "did not match"
+      ],
+      "exit": "nonzero"
+    },
+    {
+      "id": "decision-records-retired-records-0080-to-0099-are-merged",
+      "kind": "command",
+      "stage": 6,
+      "name": "records 0080 to 0099 are merged and deleted",
+      "argv": [
+        "git",
+        "ls-files",
+        "--error-unmatch",
+        "docs/decisions/00[89]*"
+      ],
+      "want": [
+        "did not match"
+      ],
+      "exit": "nonzero"
+    },
+    {
+      "id": "decision-records-retired-records-0100-to-0119-are-merged",
+      "kind": "command",
+      "stage": 6,
+      "name": "records 0100 to 0119 are merged and deleted",
+      "argv": [
+        "git",
+        "ls-files",
+        "--error-unmatch",
+        "docs/decisions/01[01]*"
+      ],
+      "want": [
+        "did not match"
+      ],
+      "exit": "nonzero"
+    },
+    {
+      "id": "decision-records-retired-records-0120-to-0159-are-merged",
+      "kind": "command",
+      "stage": 7,
+      "name": "records 0120 to 0159 are merged and deleted",
+      "argv": [
+        "git",
+        "ls-files",
+        "--error-unmatch",
+        "docs/decisions/01[2-5]*"
+      ],
+      "want": [
+        "did not match"
+      ],
+      "exit": "nonzero"
+    },
+    {
+      "id": "decision-records-retired-records-0160-to-0199-are-merged",
+      "kind": "command",
+      "stage": 8,
+      "name": "records 0160 to 0199 are merged and deleted",
+      "argv": [
+        "git",
+        "ls-files",
+        "--error-unmatch",
+        "docs/decisions/01[6-9]*"
+      ],
+      "want": [
+        "did not match"
+      ],
+      "exit": "nonzero"
+    },
+    {
+      "id": "decision-records-retired-records-0200-to-0239-are-merged",
+      "kind": "command",
+      "stage": 9,
+      "name": "records 0200 to 0239 are merged and deleted",
+      "argv": [
+        "git",
+        "ls-files",
+        "--error-unmatch",
+        "docs/decisions/02[0-3]*"
+      ],
+      "want": [
+        "did not match"
+      ],
+      "exit": "nonzero"
+    },
+    {
+      "id": "decision-records-retired-every-record-is-merged",
+      "kind": "command",
+      "stage": 10,
+      "name": "every record is merged and docs/decisions is gone",
+      "argv": [
+        "git",
+        "ls-files",
+        "--error-unmatch",
+        "docs/decisions"
+      ],
+      "want": [
+        "did not match"
+      ],
+      "exit": "nonzero"
+    },
+    {
+      "id": "decision-records-retired-docs-adr-is-merged",
+      "kind": "command",
+      "stage": 11,
+      "name": "docs/adr is merged into rules and deleted",
+      "argv": [
+        "git",
+        "ls-files",
+        "--error-unmatch",
+        "docs/adr"
+      ],
+      "want": [
+        "did not match"
+      ],
+      "exit": "nonzero"
+    },
+    {
+      "id": "decision-records-retired-no-rule-has-because",
+      "kind": "command",
+      "stage": 12,
+      "name": "no rule record carries a `because` field",
+      "argv": [
+        "git",
+        "grep",
+        "-n",
+        "\"because\"",
+        "--",
+        "data/rules"
+      ],
+      "exit": "nonzero"
+    },
+    {
+      "id": "decision-records-retired-the-record-schema-is-gone",
+      "kind": "command",
+      "stage": 12,
+      "name": "the decision record schema is deleted",
+      "argv": [
+        "git",
+        "ls-files",
+        "--error-unmatch",
+        "tools/nv/schema/decision.ts"
+      ],
+      "want": [
+        "did not match"
+      ],
+      "exit": "nonzero"
+    },
+    {
+      "id": "decision-records-retired-nv-records-is-gone",
+      "kind": "command",
+      "stage": 12,
+      "name": "the `nv records` command is deleted",
+      "argv": [
+        "git",
+        "ls-files",
+        "--error-unmatch",
+        "tools/nv/cmd/records.ts"
+      ],
+      "want": [
+        "did not match"
+      ],
+      "exit": "nonzero"
+    },
+    {
+      "id": "decision-records-retired-no-schema-field-names-a-record",
+      "kind": "command",
+      "stage": 12,
+      "name": "no schema has the `adrs` context field or the ADR plan field",
+      "argv": [
+        "git",
+        "grep",
+        "-n",
+        "-E",
+        "adrs|adrSlicesLanded",
+        "--",
+        "tools/nv/schema"
+      ],
+      "exit": "nonzero"
+    },
+    {
+      "id": "decision-records-retired-agents-md-says-there-are-none",
+      "kind": "command",
+      "stage": 13,
+      "name": "AGENTS.md says there are no decision records",
+      "argv": [
+        "git",
+        "grep",
+        "-n",
+        "-F",
+        "There are no decision records",
+        "--",
+        "AGENTS.md"
+      ],
+      "want": [
+        "AGENTS.md:"
+      ]
+    },
+    {
+      "id": "decision-records-retired-the-guard-tests-pass",
+      "kind": "command",
+      "stage": 13,
+      "name": "the guard's tests show a record directory and each citation form failing the check",
+      "argv": [
+        "bun",
+        "test",
+        "./tools/nv/test/rules.test.ts"
+      ],
+      "want": [
+        " 0 fail"
+      ]
+    },
+    {
+      "id": "decision-records-retired-the-guard-is-green",
+      "kind": "command",
+      "stage": 13,
+      "name": "the tree holds no decision record and no citation of one",
+      "argv": [
+        "bun",
+        "nv",
+        "rules",
+        "--check"
+      ],
+      "want": [
+        "no decision record and no citation of one"
+      ]
+    }
+  ],
+  "env": {
+    "valgrind": {
+      "skip": [
+        "examples/fatal.nvs",
+        "examples/uncaught.nvs",
+        "examples/cache-shared-socket.nvs",
+        "examples/queue-sqlite.nvs",
+        "examples/cache-shared-tls.nvs"
+      ]
+    },
+    "wsl": {
+      "targetDir": "/var/tmp/nvs-target-wsl"
+    }
+  }
+}

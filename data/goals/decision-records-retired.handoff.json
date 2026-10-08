@@ -1,0 +1,46 @@
+{
+  "state": "**Goal `decision-records-retired` — there are no decision records: a rule says what is true, why, and what was declined — has just started; nothing of it has landed yet.** Stage 1's floor is whatever the chain carries.\n\nThe user asked for it on 2026-10-08 and placed it in front of goal `class-scoped-enums`. The user's calls: records go completely and never come back, the reasoning behind accepted and declined features is kept in the docs that already exist, a rule says what is implemented and what was explicitly declined, and a new decision becomes a goal or goes into the plan. The goal file's § *Standing decisions* holds those calls and the writer's own calls. No session re-decides one.\n\nFacts about the tree as the goal was written: 275 records in `docs/decisions/` (0025 and 0089 retired), 1,036 rules in 21 topics with every one naming a record in `because`, and about 600 files citing a record outside the record set. Declined reasoning sits in 251 `## Alternatives rejected` and 78 `## Options considered` sections. `crates/nvs-stdlib/src/reflect.rs:4883-4925` is a test that reads record 0019 at test time. A bare `NNNN §` pattern also matches RFC citations such as `3986 §`, so the citation pattern is `\\b0[0-9]{3} §`.",
+  "next": {
+    "stage": 2,
+    "title": "the new rule shape, the merge tool and the pilot",
+    "files": [
+      "docs/agent/conventions.md",
+      "tools/nv/cmd/records.ts",
+      "tools/nv/cmd/rules.ts",
+      "tools/nv/schema/rule.ts",
+      "tools/nv/lib/prose.ts",
+      "tools/nv/cmd/decisions.ts",
+      "tools/nv/main.ts",
+      "docs/rules/routing/",
+      "docs/rules/security/"
+    ],
+    "items": [
+      {
+        "done": false,
+        "text": "**The shape** — `docs/agent/conventions.md` § *A rule fragment* (`:395`) gains the `**Declined:**` block, the `**Memory:**` bullet and how a merged reason is written; something declined that no rule covers becomes a rule whose title says it does not exist."
+      },
+      {
+        "done": false,
+        "text": "**`because` may be empty** — `tools/nv/schema/rule.ts:22-26` and `tools/nv/cmd/rules.ts:183-186` stop refusing an empty list."
+      },
+      {
+        "done": false,
+        "text": "**The merge tool** — `bun nv records --left [<from>-<to> | adr]` groups the records left by topic with their rule ids and citing-file counts; `bun nv records --check` fails on a citation of a record not on disk, using the `DECISION` pattern in `tools/nv/lib/prose.ts:92-113` narrowed to `\\b0[0-9]{3} §`."
+      },
+      {
+        "done": false,
+        "text": "**The summaries go** — delete `tools/nv/cmd/decisions.ts` and its `main.ts:37` entry, `data/decisions/`, `docs/decisions.md` and `docs/agent/decisions-summary.md`."
+      },
+      {
+        "done": false,
+        "text": "**The pilot** — merge record 0199 into `routing/matching-is-not-dispatching`, `routing/a-match-is-not-invocable` and `security/access-is-checked-for-presence-not-meaning` as the goal file's example shows, move its three test paths into `guardedBy`, rewrite its citations, delete it, and run `bun nv rules --render`."
+      }
+    ]
+  },
+  "backlog": [
+    "Stage 3: merge 0051, 0120, 0121, 0123, 0128, 0166, 0190 and 0247, then rewrite goals `class-scoped-enums`, `pdf` and `spreadsheet` to write fragments and name rule ids.",
+    "Stages 4 to 10: merge every record by number range, rewrite each one's citations in the same slice, and delete it.",
+    "Stage 11: merge and delete `docs/adr/`.",
+    "Stages 12 and 13: the tools forget records, then the process docs and the `nv rules --check` guard."
+  ]
+}
