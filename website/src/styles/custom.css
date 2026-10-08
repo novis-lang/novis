@@ -261,8 +261,12 @@ html {
   scrollbar-color: var(--nv-hairline-strong) transparent;
 }
 
+/* JetBrains Mono joins pairs such as `|>`, `->` and `!=` into one symbol through its contextual
+   alternates. Code on this site shows each character the reader types, so contextual alternates
+   are off for every font; standard ligatures such as "fi" in body text stay on. */
 body {
   font-feature-settings: 'ss01' off;
+  font-variant-ligatures: no-contextual;
 }
 
 ::selection {
