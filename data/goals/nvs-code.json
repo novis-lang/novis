@@ -1,0 +1,250 @@
+{
+  "title": "`nvs code` answers questions about a project from the editor's own index: where a name is used, what it is, what implements it",
+  "milestone": "M10",
+  "position": "last",
+  "files": [],
+  "context": {
+    "modules": [
+      "crates/nvs-lsp/src/server.rs",
+      "crates/nvs-lsp/src/index.rs",
+      "crates/nvs-lsp/src/document.rs",
+      "crates/nvs-cli/src/agent.rs",
+      "crates/nvs-cli/src/meta.rs"
+    ],
+    "rules": [
+      "ide/five-features-are-one-reference-index",
+      "ide/one-server-two-thin-clients",
+      "tooling/an-agent-asks-the-binary"
+    ],
+    "adrs": [],
+    "shapes": [
+      "A commit message"
+    ],
+    "playbook": [
+      "Tooling > the end",
+      "Tooling > one call reads",
+      "Tooling > a commit message",
+      "Tooling > another agent",
+      "Tooling > a handoff item can name"
+    ],
+    "plan": [
+      "Open now",
+      "Blocking"
+    ],
+    "milestones": []
+  },
+  "stages": [
+    {
+      "number": 2,
+      "title": "the keystone: one workspace, and queries by name",
+      "summary": "Lets a caller outside the server build the workspace index once, for one question, and ask it by fully-qualified name, through the same functions the editor features read.",
+      "context": {
+        "rules": [
+          "ide/check-scope-defaults-to-the-workspace",
+          "ide/the-index-answers-the-cursor"
+        ],
+        "adrs": [],
+        "shapes": [],
+        "playbook": [
+          "Tooling > `nvs-lsp`'s one-construction-site",
+          "Writing a test case > a structural \"exactly one construction site\""
+        ]
+      }
+    },
+    {
+      "number": 3,
+      "title": "the command",
+      "summary": "Adds `nvs code` with its five verbs, their text and JSON output, its rule, and its help.",
+      "context": {
+        "rules": [
+          "ide/check-json-is-the-diagnostic-record-as-a-document",
+          "tooling/one-json-several-renderers",
+          "tooling/meta-json-takes-a-program"
+        ],
+        "adrs": [],
+        "shapes": [
+          "A rule fragment"
+        ]
+      }
+    },
+    {
+      "number": 4,
+      "title": "agents learn of it",
+      "summary": "Makes every agent that `nvs agent init` set up learn that `nvs code` exists, through the protocol text and the index.",
+      "context": {
+        "rules": [
+          "tooling/an-adapter-carries-protocol-and-never-language",
+          "tooling/a-primer-claim-is-executed",
+          "tooling/the-index-names-every-key-command-and-code"
+        ],
+        "adrs": [],
+        "shapes": [
+          "A rule fragment"
+        ]
+      }
+    },
+    {
+      "number": 5,
+      "title": "the feature proofs",
+      "summary": "Writes the `# nvs code` reference section and the feature proofs for `tools:cli/nvs-code`, and closes Stage 0.",
+      "context": {
+        "rules": [
+          "testing/feature-proofs",
+          "testing/one-slice-is-one-feature"
+        ],
+        "adrs": [],
+        "shapes": []
+      }
+    }
+  ],
+  "checks": [
+    {
+      "id": "nvs-lsp-a-one-shot-workspace-answers-by-name",
+      "kind": "cargo-named",
+      "stage": 2,
+      "name": "nvs-lsp (a one-shot workspace answers references, implementations, a declaration, an outline and inferred types by fully-qualified name, the way the editor does)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-lsp",
+        "--test",
+        "query"
+      ],
+      "tests": [
+        "references_by_name_are_the_ones_the_editor_lists",
+        "a_call_on_another_class_with_the_same_method_name_is_not_a_reference",
+        "an_autoloaded_class_is_resolved_in_a_one_shot_workspace",
+        "implementations_list_every_subtype_transitively_and_every_overrider",
+        "a_declaration_by_name_carries_its_kind_site_and_doc_comment",
+        "an_outline_lists_a_files_declarations_nested_by_owner_in_source_order",
+        "types_list_each_binding_in_a_line_range_with_its_inferred_type",
+        "an_unknown_name_gives_the_nearest_names"
+      ]
+    },
+    {
+      "id": "nvs-code-the-rule-exists",
+      "kind": "command",
+      "stage": 3,
+      "name": "rulebook: `nvs code` has its rule",
+      "argv": [
+        "bun",
+        "nv",
+        "peek",
+        "rule:tooling/nvs-code-answers-about-the-project"
+      ],
+      "want": [
+        "docs/rules/tooling/nvs-code-answers-about-the-project.md"
+      ]
+    },
+    {
+      "id": "nvs-cli-nvs-code-answers",
+      "kind": "cargo-named",
+      "stage": 3,
+      "name": "nvs-cli (`nvs code` prints references, cards, implementations, outlines and types as text and as JSON, and fails on an unknown name with the nearest ones)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-cli",
+        "--test",
+        "code"
+      ],
+      "tests": [
+        "refs_prints_the_declaration_first_then_each_use_with_its_position_and_line",
+        "refs_of_a_name_nothing_uses_prints_nothing_and_exits_zero",
+        "show_prints_the_signature_nvs_meta_writes_and_the_doc_comment",
+        "show_of_a_core_name_prints_the_card_nvs_agent_show_prints",
+        "an_unknown_name_fails_and_lists_the_nearest_names_with_their_backslashes",
+        "every_verb_json_follows_the_check_json_conventions",
+        "a_project_with_errors_still_answers_and_counts_them_on_stderr",
+        "the_project_is_the_nearest_nvs_toml_at_or_above_the_working_directory",
+        "a_position_is_one_based_and_counts_characters",
+        "control_characters_from_the_project_are_printed_escaped"
+      ]
+    },
+    {
+      "id": "nvs-cli-agents-learn-of-nvs-code",
+      "kind": "cargo-named",
+      "stage": 4,
+      "name": "nvs-cli (the agent protocol names `nvs code`, an older pointer is rewritten to say so, and the index lists the command and its verbs)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-cli",
+        "--test",
+        "agent"
+      ],
+      "tests": [
+        "the_protocol_names_nvs_code_for_questions_about_the_project",
+        "a_pointer_written_before_nvs_code_is_outdated_and_rewritten",
+        "the_index_lists_nvs_code_and_each_of_its_verbs"
+      ]
+    },
+    {
+      "id": "dossier-nvs-code-owes-nothing",
+      "kind": "command",
+      "stage": 5,
+      "name": "proofs: `tools:cli/nvs-code` owes nothing, and its example and attack pass",
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--verify",
+        "--only",
+        "tools:cli/nvs-code"
+      ],
+      "want": [
+        "nothing owed in 1 named feature(s)",
+        "proofs examples:",
+        "0 failed",
+        "proofs hostile:",
+        "0 failed"
+      ]
+    },
+    {
+      "id": "dossier-nvs-code-programs-carry-plain-comments",
+      "kind": "command",
+      "stage": 5,
+      "name": "proofs: the `nvs code` example and attack carry comments inside the plain-comment bounds",
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--comments",
+        "docs/examples/tools/cli/nvs-code",
+        "tests/hostile/tools/cli/nvs-code"
+      ],
+      "want": [
+        "each inside the bounds"
+      ]
+    },
+    {
+      "id": "dossier-the-whole-roster-owes-nothing-with-nvs-code",
+      "kind": "command",
+      "stage": 5,
+      "name": "proofs: the whole roster owes nothing with `nvs code` on it",
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--gate"
+      ],
+      "want": [
+        "nothing owed in the whole roster"
+      ]
+    }
+  ],
+  "env": {
+    "valgrind": {
+      "skip": [
+        "examples/fatal.nvs",
+        "examples/uncaught.nvs",
+        "examples/cache-shared-socket.nvs",
+        "examples/queue-sqlite.nvs",
+        "examples/cache-shared-tls.nvs"
+      ]
+    },
+    "wsl": {
+      "targetDir": "/var/tmp/nvs-target-wsl"
+    }
+  }
+}

@@ -4,6 +4,7 @@
     "ldap",
     "decision-records-retired",
     "class-scoped-enums",
+    "nvs-code",
     "pdf",
     "spreadsheet"
   ]
