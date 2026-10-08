@@ -94,8 +94,8 @@ payment in and out in public; we are paid from it by sending invoices and receip
 too.
 
 Whatever form the company takes, Novis is open source and always will be, it is under the MIT licence and
-always will be, and the open-source code is all of Novis — there is no paid edition. We may sell services
-around Novis one day, consulting for example, but a service never takes a feature away from the free Novis.
+always will be, and the open-source code is all of Novis — there is no paid edition or paywalls. We may sell additional services
+around Novis one day, consulting for example, but a service never takes a feature away from the free Novis just to make money out of it.
 And we do our best to keep Novis the best and simplest way to run the web applications of today and of
 the future.
 
