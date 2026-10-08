@@ -75,8 +75,9 @@ nvs-test = { path = "crates/nvs-test", version = "0.0.1" }
 # Dev-only: how a test reaches a file outside its own package, recorded for `bun nv verify`.
 nvs-repo = { path = "crates/nvs-repo", version = "0.0.1" }
 # Dev-only: the image component's codec core built for the host, the native arm `nvs-ext`'s
-# `image_guest` test and bench hold the guest against. Outside the workspace (`exclude` above).
-nvs-image = { path = "extensions/image", version = "0.1.0" }
+# `image_guest` test and bench hold the guest against. It is outside the workspace (`exclude`
+# above) and keeps its own version, so this entry has no version pin for `bun nv release` to bump.
+nvs-image = { path = "extensions/image" }
 # Dev-only: reads a QR code the image component drew back to its data, in `nvs-ext`'s
 # `image_analysis` test. Its `image` feature is off: the test hands it grey pixels.
 rqrr = { version = "0.11", default-features = false }
