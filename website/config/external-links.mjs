@@ -17,8 +17,8 @@
  *   object, and the unified pipeline still reads `markdown.rehypePlugins`.
  * - Component output never passes through the pipeline, so a component
  *   spreads `externalLinkAttrs(href)` onto the anchor it writes. The Starlight
- *   components that link out (SocialIcons, EditLink) are overridden in
- *   src/components/ to do the same. A JSX `<a>` written in an MDX page is a
+ *   component that links out (SocialIcons) is overridden in src/components/
+ *   to do the same. A JSX `<a>` written in an MDX page is a
  *   component too — the visitor sees only markdown-made elements and raw
  *   HTML — so it spreads the same helper (sponsoring.mdx does).
  *
@@ -39,7 +39,7 @@ const siteOrigin = new URL(SITE_URL).origin
 
 /**
  * Whether `href` is one of the project's own pages elsewhere — the
- * repository, anything under it (edit and blob links), the Discord invite.
+ * repository, anything under it (a blob link), the Discord invite.
  * @param {string} href
  * @returns {boolean}
  */
@@ -48,8 +48,7 @@ function isOwn(href) {
 }
 
 /**
- * Whether `href` points at another website. A `URL` counts as its string —
- * Starlight's route data carries the edit link as one.
+ * Whether `href` points at another website. A `URL` counts as its string.
  * @param {unknown} href
  * @returns {boolean}
  */

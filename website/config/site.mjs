@@ -10,7 +10,7 @@
 /** Canonical origin of the deployed site. Drives sitemap.xml, canonical URLs and Open Graph tags. */
 export const SITE_URL = 'https://novis-lang.org'
 
-/** Public repository. Drives the GitHub header icon, edit links and source cross-references. */
+/** Public repository. Drives the GitHub header icon and source cross-references. */
 export const GITHUB_URL = 'https://github.com/novis-lang/novis'
 
 /** Community server. Drives the Discord header icon. */

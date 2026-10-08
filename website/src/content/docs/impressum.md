@@ -3,7 +3,6 @@ title: Impressum
 covers: []
 description: Impressum und Offenlegung gemäß § 5 ECG und § 25 MedienG für die Novis-Projektwebsite.
 template: splash
-editUrl: false
 tableOfContents: false
 ---
 

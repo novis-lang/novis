@@ -10,7 +10,6 @@
  */
 import type { GetStaticPaths } from 'astro'
 import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro'
-import { GITHUB_URL, GITHUB_BRANCH } from '@config/site.mjs'
 import ClassOverview from '~/components/ClassOverview.astro'
 import MethodSignature from '~/components/MethodSignature.astro'
 import ParamDocs from '~/components/ParamDocs.astro'
@@ -44,7 +43,6 @@ const section = (slug: string, text: string, present: boolean) => {
 
 let title = cls.name
 let description = `Every method of ${cls.name}, with its signature.`
-let editUrl: string | false = false
 let body: string[] = []
 let related: string[] = []
 let show = { params: false, options: false, returns: false, errors: false, changes: false, examples: false, related: false }
@@ -53,7 +51,6 @@ if (member) {
   const about = aboutFor(member)
   title = `${cls.name}::${member.name}`
   description = about?.summary || member.doc?.shortHtml?.replace(/<[^>]+>/g, '') || description
-  if (about) editUrl = `${GITHUB_URL}/edit/${GITHUB_BRANCH}/${about.path}`
   body = about ? about.blocks : [member.doc?.shortHtml || member.notesHtml || ''].filter(Boolean)
   related = about?.related ?? []
   // The order of the calls is the order of the page, which the table of contents follows.
@@ -69,7 +66,7 @@ if (member) {
 }
 ---
 
-<StarlightPage frontmatter={{ title, description, editUrl }} headings={headings}>
+<StarlightPage frontmatter={{ title, description }} headings={headings}>
   {
     member ? (
       <>
