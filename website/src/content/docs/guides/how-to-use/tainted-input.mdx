@@ -9,6 +9,12 @@ import Snippet from '@components/Snippet.astro'
 A value that comes from outside the program is `tainted`. This includes the address, a form field,
 a header, a cookie and a JSON body. The type of such a value is `tainted string`, not `string`.
 
+- `Core\Request::query` and `Core\Request::post` return a `?tainted string`.
+- `Core\Request::queryArray` and `Core\Request::postArray` return an `array<tainted string>`.
+- `Core\Request::json` returns `mixed`. Text you convert from a `mixed` value with `as string` is
+  a `tainted string`.
+- In a `foreach` over such an array, the key is a `tainted string` too.
+
 The compiler checks every place where your code uses a tainted value. You cannot pass it where a plain `string` is
 needed, so it cannot reach SQL, a file name or HTML without a check.
 

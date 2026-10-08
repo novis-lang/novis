@@ -13,7 +13,8 @@ code. SQL injection, cross-site scripting and shell injection are all this one m
 
 In Novis, a value from a request is `tainted`. This includes a form field, a header, a cookie, the
 address and a JSON body. Its type is `tainted string`, and the compiler treats it as a different
-type from `string`.
+type from `string`. A JSON body has the type `mixed`, and text converted from a `mixed` value is
+also a `tainted string`.
 
 A database query, an HTML page and a shell command need a plain `string`. So a tainted value does
 not compile there. The error points at the value, before the program ever runs.
