@@ -7,7 +7,7 @@
 // *name*, and a name is the array key the pair is filed under, so it is a
 // `string` either way.
 class Shape {
-    public static function of(string $query): string {
+    public static function of(string $query): tainted string {
         return Core\Json::encode(Shape::textual(Core\Uri::parseQuery($query)));
     }
 

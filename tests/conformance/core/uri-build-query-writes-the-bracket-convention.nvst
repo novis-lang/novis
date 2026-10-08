@@ -13,7 +13,7 @@
 // walk. `buildQuery` itself takes the octets straight, which is what keeps the
 // two inverse.
 class Shape {
-    public static function of(string $query): string {
+    public static function of(string $query): tainted string {
         return Core\Json::encode(Shape::textual(Core\Uri::parseQuery($query)));
     }
 

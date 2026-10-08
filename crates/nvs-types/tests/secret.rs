@@ -374,3 +374,53 @@ fn a_secret_bound_as_a_database_parameter_is_still_accepted() {
     );
     assert!(!diags.has_errors(), "{diags:?}");
 }
+
+#[test]
+fn secret_spreads_through_a_nullable_or_union_operand() {
+    // `rule:security/secret-propagation`: `.`, interpolation and `.=` read
+    // `secret` off every member of a union, as they read `tainted`, so a
+    // `?secret string` poisons the result exactly as a `secret string` does.
+    let diags = check_src(
+        "<?nvs
+class P {
+    public static function a(?secret string $s): void { echo \"x\" . $s; }
+    public static function b(?secret string $s): void { echo \"x {$s}\"; }
+    public static function c(secret string|int $s): void { echo \"x\" . $s; }
+    public static function d(?secret string $s): void {
+        string $out = \"x\";
+        $out .= $s;
+    }
+}
+",
+    );
+    let output = diags
+        .iter()
+        .filter(|d| d.code == Some(code::E_SECRET_OUTPUT))
+        .count();
+    let mismatch = diags
+        .iter()
+        .filter(|d| d.code == Some(code::E_TYPE_MISMATCH))
+        .count();
+    assert_eq!((output, mismatch), (3, 1), "{diags:?}");
+}
+
+#[test]
+fn a_conversion_keeps_secret_through_a_nullable_or_array_operand() {
+    // `rule:security/secret-propagation`: `as string` and
+    // `as array<string>` keep `secret` from a `?secret string`, a
+    // `?secret tainted string` and an `array<secret string>`.
+    let diags = check_src(
+        "<?nvs
+class P {
+    public static function a(?secret string $s): string { return $s as string; }
+    public static function b(?secret tainted string $s): string { return $s as string; }
+    public static function c(array<secret string> $s): array<string> { return $s as array<string>; }
+}
+",
+    );
+    let refused = diags
+        .iter()
+        .filter(|d| d.code == Some(code::E_BAD_RETURN_TYPE))
+        .count();
+    assert_eq!(refused, 3, "{diags:?}");
+}

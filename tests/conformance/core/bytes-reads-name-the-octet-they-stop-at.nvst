@@ -29,7 +29,7 @@ final class Buf {
         return "n";
     }
 
-    public static function fields(bytes $b, string $format): string {
+    public static function fields(bytes $b, string $format): tainted string {
         try {
             return Core\Json::encode(Core\Bytes::unpack($b, $format));
         } catch (Throwable $e) {

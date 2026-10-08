@@ -3,7 +3,7 @@
 // `IOError`, `ParseError` and `TimeoutError` are kinds of `RuntimeError`.
 
 final class Feed {
-    public static function fetch(string $source): string {
+    public static function fetch(string $source): tainted string {
         if ($source == "slow") {
             throw new TimeoutError("the feed did not answer in time");
         }

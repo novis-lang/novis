@@ -136,6 +136,26 @@ pub(crate) fn carries_tainted(ty: TypeId, interner: &TypeInterner) -> bool {
     }
 }
 
+/// Whether `ty` carries `secret` anywhere it could be carried — the atom
+/// itself, an array's element, or any member of a union.
+///
+/// [`carries_tainted`]'s twin one axis over, and read for its reason: a `.`,
+/// an interpolation or an `as` conversion over a `?secret string` or a
+/// `secret string|int` sets the bit on its result. The answer decides whether
+/// to *set* the bit, so reaching too far only refuses at a sink.
+pub(crate) fn carries_secret(ty: TypeId, interner: &TypeInterner) -> bool {
+    if is_secret(ty, interner) {
+        return true;
+    }
+    match interner.get(ty) {
+        Ty::Array(elem) => carries_secret(*elem, interner),
+        Ty::Union(members) => members
+            .iter()
+            .any(|&member| carries_secret(member, interner)),
+        _ => false,
+    }
+}
+
 /// Whether text taken out of a value of type `ty` comes from `mixed` — the
 /// atom itself, an array's element, or any member of a union. Such text is
 /// `tainted` whatever it is converted, concatenated or narrowed to
@@ -470,6 +490,32 @@ pub(crate) fn unsecret(ty: TypeId, interner: &mut TypeInterner) -> TypeId {
     }
 }
 
+/// The same type with `secret` set wherever the type can carry it — the atom
+/// itself, an array's element, or every member of a union — and unchanged
+/// where it cannot. [`tainted_result`]'s twin one axis over: a conversion out
+/// of a `?secret string` or an `array<secret string>` keeps the bit across
+/// `as string`, `as ?string` and `as array<string>`.
+pub(crate) fn secret_result(ty: TypeId, interner: &mut TypeInterner) -> TypeId {
+    if let Some(is_bytes) = qualifiable_base(ty, interner) {
+        let tainted = is_tainted(ty, interner);
+        return qualified_scalar(is_bytes, tainted, true, interner);
+    }
+    match interner.get(ty).clone() {
+        Ty::Array(elem) => {
+            let elem = secret_result(elem, interner);
+            interner.array(elem)
+        }
+        Ty::Union(members) => {
+            let members: Vec<TypeId> = members
+                .iter()
+                .map(|&member| secret_result(member, interner))
+                .collect();
+            interner.make_union(members)
+        }
+        _ => ty,
+    }
+}
+
 /// The same type with `tainted` set wherever the type can carry it — the atom
 /// itself, an array's element, or every member of a union — and unchanged
 /// where it cannot.
@@ -585,9 +631,11 @@ pub(crate) fn admits_secret_argument(qual: Option<Qual>) -> bool {
 /// shape-proving conversions and must not silently launder; that would be
 /// exactly the bypass this whole mechanism exists to close.
 ///
-/// `tainted` is read off the operand with [`carries_tainted`]'s reach, so a
-/// `?tainted string` or an `array<tainted string>` keeps it across `as
-/// string` and `as array<string>`; `secret` is read off the atom alone.
+/// Both bits are read off the operand with [`carries_tainted`]'s and
+/// [`carries_secret`]'s reach, and set on the target with [`tainted_result`]'s
+/// and [`secret_result`]'s, so a `?tainted string`, a `?secret string` or an
+/// `array<secret string>` keeps its qualifier across `as string`, `as ?string`
+/// and `as array<string>`.
 ///
 /// An operand that [`carries_unchecked`] is the one source that *adds* a
 /// qualifier: text out of `mixed` is `tainted`, so the target is answered
@@ -606,14 +654,11 @@ pub(crate) fn apply_qualifier_conversion_rule(
     } else {
         to
     };
-    if !is_secret(from, interner) {
-        return to;
+    if carries_secret(from, interner) {
+        secret_result(to, interner)
+    } else {
+        to
     }
-    let Some(to_is_bytes) = qualifiable_base(to, interner) else {
-        return to;
-    };
-    let to_tainted = is_tainted(to, interner);
-    qualified_scalar(to_is_bytes, to_tainted, true, interner)
 }
 
 /// `rule:security/secret-sinks-refuse`: a `secret`-qualified value converted `as Core\Html\Markup`
@@ -995,6 +1040,183 @@ pub(crate) fn reject_secret_encoded_argument(
             ),
         );
     }
+}
+
+/// `rule:security/taint-propagation`'s encoder: `Core\Json::encode` writes
+/// every string of the value it walks into its result, and JSON escaping
+/// leaves a `'` where it was. So the result
+/// is `tainted` when the argument that filled the value parameter carries
+/// outside text anywhere, and plain when it provably does not.
+///
+/// A call-site rule for [`reject_secret_encoded_argument`]'s reason: the
+/// member declares `mixed`, which a tainted value satisfies, so the argument's
+/// own type is visible here and nowhere below. An array literal written at the
+/// call is read element by element ([`written_outside_text`]), because its
+/// type is `array<mixed>` whatever it holds, and the round trip of a literal
+/// the program wrote is the common case.
+pub(crate) fn encodes_outside_text(
+    qname: &QName,
+    member: &str,
+    args: &CallArgs,
+    slots: &[ArgSlot],
+    arg_types: &[TypeId],
+    scope: &LocalScope,
+    env: &mut Env<'_>,
+) -> bool {
+    let owner = qname.to_string();
+    if member != "encode" || owner != r"Core\Json" {
+        return false;
+    }
+    let mut seen = FxHashSet::default();
+    let CallArgs::List(list) = args else {
+        return arg_types
+            .iter()
+            .any(|&ty| walks_outside_text(ty, &mut seen, env));
+    };
+    list.iter()
+        .zip(slots)
+        .zip(arg_types)
+        .any(|((arg, &slot), &ty)| {
+            slot == ArgSlot::Param(0) && written_outside_text(&arg.value, ty, scope, &mut seen, env)
+        })
+}
+
+/// [`walks_outside_text`] for an argument as it is written: an array literal
+/// or an anonymous object written inline is read one key and one value at a
+/// time, and anything else by its type `ty`.
+fn written_outside_text(
+    at: &Expr,
+    ty: TypeId,
+    scope: &LocalScope,
+    seen: &mut FxHashSet<(QName, Vec<TypeId>)>,
+    env: &mut Env<'_>,
+) -> bool {
+    match &at.kind {
+        ExprKind::Paren(inner) => written_outside_text(inner, ty, scope, seen, env),
+        ExprKind::ArrayLiteral(_) | ExprKind::AnonObject(_) => {
+            element_outside_text(at, scope, seen, env)
+        }
+        _ => walks_outside_text(ty, seen, env),
+    }
+}
+
+/// One key or value of a literal [`written_outside_text`] reads. A scalar
+/// literal, a string without interpolation and a constant are the program's
+/// own text. A variable is read at the type the scope gives it. Any other
+/// expression has no type left to read here, so it counts as outside text.
+fn element_outside_text(
+    at: &Expr,
+    scope: &LocalScope,
+    seen: &mut FxHashSet<(QName, Vec<TypeId>)>,
+    env: &mut Env<'_>,
+) -> bool {
+    match &at.kind {
+        ExprKind::Null
+        | ExprKind::Bool(_)
+        | ExprKind::Int(_)
+        | ExprKind::Float(_)
+        | ExprKind::Duration(_)
+        | ExprKind::Str(_)
+        | ExprKind::ConstFetch(_)
+        | ExprKind::ClassConstAccess { .. } => false,
+        ExprKind::Paren(inner) => element_outside_text(inner, scope, seen, env),
+        ExprKind::ArrayLiteral(items) => items.iter().any(|item| {
+            item.key
+                .as_ref()
+                .is_some_and(|key| element_outside_text(key, scope, seen, env))
+                || element_outside_text(&item.value, scope, seen, env)
+        }),
+        ExprKind::AnonObject(fields) => fields
+            .iter()
+            .any(|field| element_outside_text(&field.value, scope, seen, env)),
+        ExprKind::Variable(span) => {
+            let name = strip_sigil(span_text(env.src, *span));
+            match scope.narrowed_ty(name).or_else(|| scope.declared_ty(name)) {
+                Some(ty) => walks_outside_text(ty, seen, env),
+                None => true,
+            }
+        }
+        _ => true,
+    }
+}
+
+/// Whether a value of type `ty`, walked the way an encoder walks it, can
+/// contain outside text: a `tainted` atom, or `mixed`, `object`, `iterable` or
+/// an unresolved type parameter, whose text is unchecked
+/// (`rule:security/taint-propagation`). It reaches every element, shape
+/// field, union member and object property; an array's keys are judged by
+/// its elements, as [`keys_from_outside`] judges them.
+fn walks_outside_text(
+    ty: TypeId,
+    seen: &mut FxHashSet<(QName, Vec<TypeId>)>,
+    env: &mut Env<'_>,
+) -> bool {
+    if is_tainted(ty, env.interner) {
+        return true;
+    }
+    match env.interner.get(ty).clone() {
+        Ty::Mixed | Ty::Object | Ty::Iterable | Ty::TypeVar(_) => true,
+        Ty::Array(elem) => walks_outside_text(elem, seen, env),
+        Ty::Shape(fields) => fields
+            .iter()
+            .any(|field| walks_outside_text(field.ty, seen, env)),
+        Ty::CoreShape(shape) => shape
+            .fields
+            .iter()
+            .any(|field| walks_outside_text(field.ty, seen, env)),
+        Ty::Union(members) | Ty::Intersection(members) => members
+            .iter()
+            .any(|&member| walks_outside_text(member, seen, env)),
+        Ty::Class(qname, args) => class_fields_outside(&qname, &args, seen, env),
+        _ => false,
+    }
+}
+
+/// [`walks_outside_text`] for an object: every property of every class the
+/// value can be at run time, which is `qname` and each concrete class that
+/// extends or implements it, with the properties each inherits. A property is
+/// read at its declared type, and `qname`'s own type arguments are put in. A
+/// class the program does not declare, such as a `Core` value class, has no
+/// properties here and is clean.
+fn class_fields_outside(
+    qname: &QName,
+    args: &[TypeId],
+    seen: &mut FxHashSet<(QName, Vec<TypeId>)>,
+    env: &mut Env<'_>,
+) -> bool {
+    let mut classes = nvs_hir::implementors(qname, env.graph);
+    if classes.is_empty() {
+        classes.push(qname.clone());
+    }
+    for class in classes {
+        let mut owner = Some(class);
+        while let Some(current) = owner {
+            let own_args = if &current == qname {
+                args.to_vec()
+            } else {
+                Vec::new()
+            };
+            if !seen.insert((current.clone(), own_args.clone())) {
+                break;
+            }
+            let declared: Vec<TypeId> = env
+                .signatures
+                .get(&current)
+                .map(|sig| sig.properties.values().copied().collect())
+                .unwrap_or_default();
+            for ty in declared {
+                let ty = crate::generics::with_class_args(&current, &own_args, ty, env.interner);
+                if walks_outside_text(ty, seen, env) {
+                    return true;
+                }
+            }
+            owner = env
+                .graph
+                .get(&current)
+                .and_then(|links| links.extends.first().cloned());
+        }
+    }
+    false
 }
 
 /// The same serialiser sink one member further on: `Core\Queue::push`'s

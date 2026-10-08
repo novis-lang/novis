@@ -24,7 +24,7 @@ var $needed = Schema::fromArray([
 string $stored = '{"tables":[{"name":"notes","columns":[{"name":"id","type":"int64","identity":true},{"name":"title","type":"text(200)"}],"primary_key":["id"]}]}';
 var $onFile = Schema::fromArray(Core\Json::decode($stored) as array<mixed>);
 
-string $wanted = Core\Json::encode($needed->toArray());
+var $wanted = Core\Json::encode($needed->toArray());
 
 // The file is missing the `written_at` column, so this prints
 // `the schema file is out of date` and then the text to save.

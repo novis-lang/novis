@@ -39,8 +39,8 @@ int $differ = 0;
 foreach ($pairs as array<array<mixed>> $pair) {
     array<mixed> $base = $pair["0"];
     array<mixed> $layer = $pair["1"];
-    string $shallow = Core\Json::encode(Core\Arr::overlay($base, $layer));
-    string $deep = Core\Json::encode(Core\Arr::overlayDeep($base, $layer));
+    tainted string $shallow = Core\Json::encode(Core\Arr::overlay($base, $layer));
+    tainted string $deep = Core\Json::encode(Core\Arr::overlayDeep($base, $layer));
     $rows = $rows + 1;
     if ($shallow == $deep) {
         $shape = $shape . "s";

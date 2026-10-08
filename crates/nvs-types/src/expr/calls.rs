@@ -405,9 +405,14 @@ pub(crate) fn infer_static_call(
     // deliberately — a retrieval's and an enumeration's arguments are the
     // literals those folds require, so there is no argument left to carry a
     // qualifier by the time either answers.
+    // An encoder's result carries the outside text of the value it walks
+    // too. See [`encodes_outside_text`].
     let contagious = sig
         .as_ref()
-        .is_some_and(|s| carries_contagion(s, &slots, &arg_types, env.interner));
+        .is_some_and(|s| carries_contagion(s, &slots, &arg_types, env.interner))
+        || resolved.as_ref().is_some_and(|(owner, name, _)| {
+            encodes_outside_text(owner, name, args, &slots, &arg_types, scope, env)
+        });
     // `rule:security/secret-sinks-refuse`'s debug-dump sink, at the one end where the qualifier is
     // still visible — both members declare `mixed`, so nothing below this
     // point can tell. See [`reject_secret_debug_argument`].

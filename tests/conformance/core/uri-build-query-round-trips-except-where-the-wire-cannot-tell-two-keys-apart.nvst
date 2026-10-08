@@ -28,7 +28,7 @@ array<string> $queries = [
 // through this walk. It converts leaves and nothing else, so the nesting and
 // the key order — which are what is being compared — are untouched.
 class Shape {
-    public static function of(string $query): string {
+    public static function of(string $query): tainted string {
         return Core\Json::encode(Shape::textual(Core\Uri::parseQuery($query)));
     }
 

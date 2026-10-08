@@ -639,6 +639,61 @@ fn join_over_plain_parts_and_a_plain_separator_answers_a_plain_string() {
 }
 
 #[test]
+fn an_encoded_value_carries_the_outside_text_it_contains() {
+    // `rule:security/taint-propagation`: `Core\Json::encode` writes every
+    // string the value holds into its result, and JSON escaping leaves a `'`
+    // where it was, so the result is
+    // `tainted` whenever the value carries outside text anywhere.
+    let diags = check_src(
+        "<?nvs
+class Leaf {
+    public tainted string $name = \"\";
+}
+class Clean {
+    public int $n = 0;
+}
+class P {
+    public static function sink(string $s): void {}
+
+    public static function a(tainted string $t): void { P::sink(Core\\Json::encode($t)); }
+    public static function b(array<tainted string> $t): void { P::sink(Core\\Json::encode($t)); }
+    public static function c(mixed $m): void { P::sink(Core\\Json::encode($m)); }
+    public static function d(?tainted string $t): void { P::sink(Core\\Json::encode($t)); }
+    public static function e({name: tainted string} $s): void { P::sink(Core\\Json::encode($s)); }
+    public static function f(Leaf $l): void { P::sink(Core\\Json::encode($l)); }
+    public static function g(tainted string $t): void { P::sink(Core\\Json::encode([\"q\" => $t])); }
+
+}
+",
+    );
+    let mismatches = diags
+        .iter()
+        .filter(|d| d.code == Some(code::E_TYPE_MISMATCH))
+        .count();
+    assert_eq!(mismatches, 7, "{diags:?}");
+}
+
+#[test]
+fn an_encoded_value_with_no_outside_text_is_plain() {
+    let diags = check_src(
+        "<?nvs
+class Clean {
+    public int $n = 0;
+    public string $label = \"\";
+}
+class P {
+    public static function sink(string $s): void {}
+    public static function a(array<int> $n): void { P::sink(Core\\Json::encode($n)); }
+    public static function b({n: int, label: string} $s): void { P::sink(Core\\Json::encode($s)); }
+    public static function c(Clean $c): void { P::sink(Core\\Json::encode($c)); }
+    public static function d(string $s): void { P::sink(Core\\Json::encode([\"a\" => 1, \"b\" => $s])); }
+}
+",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
 fn join_still_refuses_secret_parts() {
     let diags = check_in_method(
         "secret string $token = \"literal\";\n\

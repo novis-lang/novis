@@ -36,7 +36,7 @@ int $leaves = 0;
 int $oneStepEnough = 0;
 
 foreach ($rows as array<array<mixed>> $row) {
-    string $deep = Core\Json::encode(Core\Arr::flattenDeep($row));
+    tainted string $deep = Core\Json::encode(Core\Arr::flattenDeep($row));
     $seen = $seen + 1;
 
     // The fixed point itself: one more `flatten` before the deep walk changes

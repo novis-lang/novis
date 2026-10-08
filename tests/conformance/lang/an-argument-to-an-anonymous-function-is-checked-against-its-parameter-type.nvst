@@ -47,7 +47,7 @@ try {
 // `rule:types/conversion` makes `mixed` the one unchecked position, so a parameter
 // declared `mixed` records the nibble that admits every tag and neither
 // argument below is compared against anything.
-callable $describe = fn (mixed $m): string => Core\Json::encode($m);
+callable $describe = fn (mixed $m): tainted string => Core\Json::encode($m);
 echo $describe(7) as string, " ", $describe("x") as string, "\n";
 --EXPECT--
 kept 2 agree 2

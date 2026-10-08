@@ -35,9 +35,9 @@ final class Sweep {
     // `Core\Json::encode` renders them, which is the one spelling that covers
     // an int, a bool, a null, a float and a nested array alike.
     public static function same(string $name, mixed $packed, mixed $digits, mixed $named): int {
-        string $a = Core\Json::encode($packed);
-        string $b = Core\Json::encode($digits);
-        string $c = Core\Json::encode($named);
+        tainted string $a = Core\Json::encode($packed);
+        tainted string $b = Core\Json::encode($digits);
+        tainted string $c = Core\Json::encode($named);
         if ($a == $b && $a == $c) {
             return 1;
         }
@@ -46,8 +46,8 @@ final class Sweep {
     }
 
     public static function pair(string $name, mixed $packed, mixed $hashed): int {
-        string $a = Core\Json::encode($packed);
-        string $b = Core\Json::encode($hashed);
+        tainted string $a = Core\Json::encode($packed);
+        tainted string $b = Core\Json::encode($hashed);
         if ($a == $b) {
             return 1;
         }

@@ -938,6 +938,17 @@ string member, an array of scalars — produces a tainted result. This is the po
 system already uses on other axes, applied to a new one, and `secret` poisons independently beside it
 ([`security/secret-propagation`](security.md#security-secret-propagation)).
 
+**An encoder's result carries the text it encodes.** `Core\Json::encode` and `Core\Serialize::encode`
+write every string of the value they walk into their result, and JSON escaping leaves a `'` where it
+was, so the result is `tainted string` or `tainted bytes` when the value carries outside text anywhere:
+a tainted atom, or `mixed`, `object`, `iterable` or an unresolved type parameter, at any depth of an
+array, a shape or an object's properties. An object is read through every class it can be at run
+time, the declared class and each concrete class extending or implementing it. A value that provably
+carries none — an `array<int>`, a shape or an object whose fields are all clean, an array literal of
+the program's own values — encodes to the plain type. `Core\Uri::buildQuery` and
+`Core\Uri::withQueryParameter` percent-encode every byte that is not safe in a URL, as `encodeFormValue`
+does, and answer the plain type for that launderer's reason.
+
 **Text out of `mixed` is `tainted`.** `mixed` is where request input lands and the qualifier cannot be
 written on it ([`security/tainted-qualifier`](security.md#security-tainted-qualifier)), so every way text leaves it adds the bit: `as string`
 and `as ?string` answer `tainted string` and `?tainted string`, `as bytes` answers `tainted bytes`,
@@ -1493,7 +1504,11 @@ coverage gap relative to `tainted`, not an oversight.
 Any operation combining a `secret` operand with a non-`secret` one produces a `secret` result — the
 poisoning shape [`security/taint-propagation`](security.md#security-taint-propagation) defines, applied to this axis **independently**. A
 `secret tainted string` interpolated with a plain `string` stays `secret tainted string`; each axis
-tracks on its own.
+tracks on its own. The operand is read as far as `tainted` is read: a `?secret string`, a union with a
+`secret` member and an `array<secret string>` poison `.`, `.=` and interpolation exactly as a
+`secret string` does, and an `as` conversion out of one keeps the bit on the target —
+`?secret string as string` is `secret string`, `array<secret string> as array<string>` is
+`array<secret string>`.
 
 A successful checked `as` conversion **removes `secret`**, mirroring the `tainted` rule for grammar
 and implementation consistency rather than because the underlying justification transfers — it does

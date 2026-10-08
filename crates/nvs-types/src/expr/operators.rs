@@ -431,14 +431,15 @@ pub(crate) fn binary_result(
         // "poisoned" shape `rule:types/declaration` already uses for mixed-type arithmetic —
         // `tainted` and `secret` poison independently of each other. A `mixed`
         // operand poisons `tainted` too: text out of `mixed` is tainted. The
-        // `tainted` bit is read with `carries_tainted`'s reach, so a
-        // `?tainted string` operand — `Core\Request::query`'s, `header`'s —
-        // poisons exactly as a `tainted string` does.
+        // `tainted` and `secret` bits are read with `carries_tainted`'s and
+        // `carries_secret`'s reach, so a `?tainted string` operand —
+        // `Core\Request::query`'s, `header`'s — poisons exactly as a `tainted
+        // string` does, and a `?secret string` as a `secret string` does.
         BinaryOp::Concat => {
             let tainted = [lhs, rhs].iter().any(|&side| {
                 carries_tainted(side, env.interner) || carries_unchecked(side, env.interner)
             });
-            let secret = is_secret(lhs, env.interner) || is_secret(rhs, env.interner);
+            let secret = carries_secret(lhs, env.interner) || carries_secret(rhs, env.interner);
             qualified_scalar(false, tainted, secret, env.interner)
         }
         // `rule:core-classes/html-auto-escape`'s and `rule:tooling/styling-is-a-value-not-a-grammar`'s composition rules are ahead of the

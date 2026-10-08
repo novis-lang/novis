@@ -13,7 +13,7 @@
 // and the octets a leaf can carry are the neighbouring decoder cases' subject
 // rather than this one's. This case is about the *shape*.
 class Shape {
-    public static function of(string $query): string {
+    public static function of(string $query): tainted string {
         return Core\Json::encode(Shape::textual(Core\Uri::parseQuery($query)));
     }
 

@@ -31,7 +31,7 @@ class Bench {
         }
 
         Core\Html\Markup $list = Core\Html::join($items, "\n" as Core\Html\Markup);
-        string $page = Core\Html::toSource($list, "the product list") . "\n" . Core\Json::encode($products);
+        var $page = Core\Html::toSource($list, "the product list") . "\n" . Core\Json::encode($products);
         return Core\Str::length($page) as uint;
     }
 }

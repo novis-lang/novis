@@ -29,7 +29,7 @@ foreach ($described->attributes() as Core\Reflect\AttributeInfo $one) {
     // much a fact about the attach site as the value is.
     echo Core\Arr::count($one->fields()), "\n";
     foreach ($one->fields() as string $field) {
-        string $shown = "<no folded value>";
+        tainted string $shown = "<no folded value>";
         try {
             // Encoded rather than echoed so each value's *type* is asserted
             // beside it: an `int` that read back as text passes neither half.

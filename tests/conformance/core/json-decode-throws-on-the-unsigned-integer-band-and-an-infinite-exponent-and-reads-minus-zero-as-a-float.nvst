@@ -5,7 +5,7 @@ Core\Json::decode throws on an integer above `int`'s maximum up to the `u64` max
 // Every row decodes a document and encodes the result again. A thrown error
 // prints `refused`.
 final class Show {
-    public static function round(string $doc): string {
+    public static function round(string $doc): tainted string {
         try {
             return Core\Json::encode(Core\Json::decode($doc));
         } catch (Throwable $bad) {

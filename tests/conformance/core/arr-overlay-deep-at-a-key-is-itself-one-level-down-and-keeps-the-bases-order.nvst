@@ -26,7 +26,7 @@ array<array<array<mixed>>> $subs = [
     [["a" => 1, "b" => ["x" => 1]], ["b" => ["y" => 2], "a" => 5]],
 ];
 
-array<string> $answers = [];
+array<tainted string> $answers = [];
 string $shape = "";
 int $asked = 0;
 int $descentAgrees = 0;

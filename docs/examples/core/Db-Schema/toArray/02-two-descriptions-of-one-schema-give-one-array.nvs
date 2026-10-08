@@ -34,8 +34,8 @@ var $long = Schema::fromArray([
     ],
 ]);
 
-string $first = Core\Json::encode($short->toArray());
-string $second = Core\Json::encode($long->toArray());
+var $first = Core\Json::encode($short->toArray());
+var $second = Core\Json::encode($long->toArray());
 
 // Both arrays are the same, so this prints `the two descriptions agree`.
 if ($first == $second) {

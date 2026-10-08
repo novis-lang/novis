@@ -6,7 +6,7 @@
 
 class Bench {
     public static function run(uint $size): uint {
-        array<mixed> $orders = [];
+        array<{id: uint, name: string, paid: bool, items: array<uint>}> $orders = [];
         uint $i = 0;
         while ($i < $size) {
             $orders[] = {id: $i, name: "Ada", paid: $i % 2 == 0, items: [$i % 7, $i % 11]};

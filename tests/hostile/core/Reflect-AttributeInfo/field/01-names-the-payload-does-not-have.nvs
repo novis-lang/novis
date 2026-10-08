@@ -14,7 +14,7 @@ class Job
 
 class Probe
 {
-    public static function ask(Core\Reflect\AttributeInfo $attribute, string $name): string
+    public static function ask(Core\Reflect\AttributeInfo $attribute, string $name): tainted string
     {
         try {
             return Core\Json::encode($attribute->field($name));

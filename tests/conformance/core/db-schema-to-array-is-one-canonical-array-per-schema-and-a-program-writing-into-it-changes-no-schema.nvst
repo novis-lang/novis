@@ -22,7 +22,7 @@ var $short = Schema::fromArray([
         ],
     ],
 ]);
-string $canonical = Core\Json::encode($short->toArray());
+tainted string $canonical = Core\Json::encode($short->toArray());
 echo $canonical, "\n";
 
 // The same two tables, in the other order, with the keys in another order and

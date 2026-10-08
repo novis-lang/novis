@@ -15,9 +15,9 @@ A class that writes `Core\Json\Codec`'s `fromJson` and carries no `#[Json\Derive
 // instead, or that handed the member anything but the value at that position,
 // fails every line below rather than printing plausibly.
 class Version {
-    public string $text;
+    public tainted string $text;
 
-    public function constructor(string $text)
+    public function constructor(tainted string $text)
     {
         $this->text = $text;
     }
@@ -42,7 +42,7 @@ echo "scalar=", Core\Json::decodeAs<Version>("\"plain\"")->text,
 // element rather than the array — counted as well as printed, since a door
 // that handed over the whole array once would still print a plausible line.
 var $versions = Core\Json::decodeAs<array<Version>>("[1,\"two\",{\"three\":3}]");
-string $listed = "";
+tainted string $listed = "";
 int $elements = 0;
 foreach ($versions as Version $one) {
     $listed = $listed . $one->text . "|";
@@ -66,7 +66,7 @@ class Manifest {
 }
 
 var $manifest = Core\Json::decodeAs<Manifest>("{\"head\":{\"a\":1},\"rest\":[2,3]}");
-string $tail = "";
+tainted string $tail = "";
 foreach ($manifest->rest as Version $part) {
     $tail = $tail . $part->text . "|";
 }
