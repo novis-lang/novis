@@ -720,6 +720,11 @@ jobs:
         run: bun install --frozen-lockfile
       - name: Lint tables match the workspace
         run: bun nv lints --check
+      # A Windows child that writes with a `for /l` echo loop drains at a few kilobytes a second,
+      # so the case or attack waiting on it is killed at its deadline on every Windows run. The
+      # test's header says what to write instead.
+      - name: No Windows child writes with an echo loop
+        run: bun test tools/nv/test/no-echo-loop-child.test.ts
       - name: clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
       # Every `[`Foo::bar`]` in a doc comment resolves. This crate set states its
