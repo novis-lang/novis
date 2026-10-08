@@ -2215,7 +2215,7 @@ shape if it is ever added. What the printed unit contains is
 
 <a id="packaging-the-generated-unit-is-hardened"></a>
 
-## The generated unit carries the hardening block, `Type=notify`, `MemoryMax` from `[limits]`, and `AmbientCapabilities` only for a privileged port  *(designed — not yet in the compiler)*
+## The generated unit carries the hardening block, `ReadWritePaths` on exactly the install's write grants, `Type=notify`, `MemoryMax` from `[limits]`, and `AmbientCapabilities` only for a privileged port  *(designed — not yet in the compiler)*
 
 `rule:packaging/the-generated-unit-is-hardened`
 
@@ -2230,12 +2230,31 @@ User=nvs-web
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
+ReadWritePaths=-/usr/bin/.nvsdata/cache -/usr/bin/.nvsdata/tmp -/usr/bin/.nvsdata/lsp -/usr/bin/.nvsdata/logs
 PrivateTmp=true
 CapabilityBoundingSet=
 AmbientCapabilities=CAP_NET_BIND_SERVICE
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 SystemCallFilter=@system-service
 ```
+
+**`ReadWritePaths=` is the write half of the install's grant list, and nothing else.**
+`ProtectSystem=strict` leaves the service no writable path, so the unit names exactly the paths
+[`packaging/a-service-runs-as-a-virtual-account`](packaging.md#packaging-a-service-runs-as-a-virtual-account) grants read/write — the data folder's `cache/`,
+`tmp/`, `lsp/` and `logs/`, and a `file:` log directory, `[opcache] file_cache_dir` or `[io] temp_root`
+outside them — derived from the same list a Windows install applies as ACLs. The data folder and its
+`nvs.toml` stay read-only. Each path carries systemd's `-` prefix: a listed path missing at start fails
+the whole unit with `226/NAMESPACE`, while a skipped one leaves the server running with the one warning
+an unusable folder gets. A path is quoted where it has a space, a quote or a backslash, and a `%` is
+doubled, since systemd expands specifiers in a path setting.
+
+**`ProtectHome=true` unless the service needs a home directory.** `true` masks `/home`, `/root` and
+`/run/user` and every path under them, a `ReadWritePaths=` entry included — systemd drops a path nested
+under an inaccessible one. A unit whose binary, entry file or granted path is under one of them carries
+`ProtectHome=read-only` instead, which leaves those directories readable as their file permissions allow
+and lets `ReadWritePaths=` open the granted ones; every other unit keeps `true`. Refusing such an install
+was the alternative, and it would refuse the common case of a binary in a user's home for no write the
+service does not already hold.
 
 `AmbientCapabilities` is emitted **only** when the configured `[server] listen` addresses include a
 privileged port, so the ordinary case grants nothing at all. `MemoryMax` is derived from the config's
@@ -2256,7 +2275,7 @@ Socket activation — a privileged port with an empty capability set — is defe
 it changes how `nvs serve` acquires its listener, which makes it a server change the unit generator
 would simply follow.
 
-<sub>See also [`packaging/the-unit-is-printed-and-install-is-the-opt-in`](packaging.md#packaging-the-unit-is-printed-and-install-is-the-opt-in), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions), [`config/three-changeability-classes`](config.md#config-three-changeability-classes). Decided in [0093](../decisions/0093.md), [0097](../decisions/0097.md), [0051](../decisions/0051.md).</sub>
+<sub>See also [`packaging/the-unit-is-printed-and-install-is-the-opt-in`](packaging.md#packaging-the-unit-is-printed-and-install-is-the-opt-in), [`packaging/a-service-runs-as-a-virtual-account`](packaging.md#packaging-a-service-runs-as-a-virtual-account), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions), [`config/three-changeability-classes`](config.md#config-three-changeability-classes). Decided in [0093](../decisions/0093.md), [0097](../decisions/0097.md), [0051](../decisions/0051.md).</sub>
 
 <a id="packaging-a-bundle-may-not-install-itself"></a>
 

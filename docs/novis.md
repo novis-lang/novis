@@ -31600,6 +31600,7 @@ WatchdogSec=30
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
+ReadWritePaths=-/usr/local/bin/.nvsdata/cache -/usr/local/bin/.nvsdata/tmp -/usr/local/bin/.nvsdata/lsp -/usr/local/bin/.nvsdata/logs
 PrivateTmp=true
 CapabilityBoundingSet=
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
@@ -31611,6 +31612,13 @@ WantedBy=multi-user.target
 
 The `ExecReload` line is printed when the configuration sets `[control] socket`. On Linux,
 `install` writes this unit to `/etc/systemd/system/shop.service` and enables it.
+
+`ProtectSystem=strict` makes every file read-only for the service. `ReadWritePaths` lists the folders
+that the service can write: the `cache`, `tmp`, `lsp` and `logs` folders in the data folder, and a
+log, cache or temporary folder that the configuration names. The `-` before
+each path tells systemd to skip a folder that does not exist. If the `nvs` binary, the program or one
+of these folders is in `/home`, `/root` or `/run/user`, the unit has `ProtectHome=read-only`. With
+`ProtectHome=true` the service could not read or write there.
 
 **`start`** and **`stop`** send the request to the service manager. After a stop the server drains
 (§ *Stopping and reloading: the drain*). **`status`** prints the state that the service manager

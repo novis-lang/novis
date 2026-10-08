@@ -72,6 +72,18 @@
 //! one of them and touches nothing, which is § 5's whole design on Linux and
 //! its `--print` on Windows.
 //!
+//! **On Linux the grants are the unit's sandbox.** The unit runs under
+//! `ProtectSystem=strict`, which leaves the service no writable path at all,
+//! so its `ReadWritePaths=` is the write half of the same grant list a Windows
+//! install applies as ACLs ([`registration::grants`]), and nothing else is
+//! opened. `ProtectHome=true` masks `/home`, `/root` and `/run/user` so
+//! completely that a `ReadWritePaths=` under them is masked too — systemd drops
+//! every path under an inaccessible one — so a service whose binary, entry file
+//! or granted path is under a home directory gets `ProtectHome=read-only`
+//! instead, and every other unit keeps `true`. Refusing such an install was the
+//! other choice; it would refuse the common layout of a binary in a user's
+//! home, and `read-only` still leaves the service no write outside its grants.
+//!
 //! **Every verb is a plan of actions, and [`registration`] builds them.**
 //! `install`, `uninstall`, `start`, `stop` and `status` are each a pure
 //! function from a [`Plan`] to a list of [`registration::Action`]s — § 3's
@@ -250,6 +262,12 @@ pub(crate) struct Plan {
     /// Whether the stored `--config` is the data folder's own `nvs.toml`, so
     /// an install writes the shipped template there if it is missing.
     reads_data_config: bool,
+    /// [`Host::log_file`], whose directory § 4 grants read/write on.
+    log_file: Option<PathBuf>,
+    /// [`Host::cache_directory`], granted read/write.
+    cache_directory: Option<PathBuf>,
+    /// [`Host::temp_root`], granted read/write.
+    temp_root: Option<PathBuf>,
 }
 
 /// Whether a rendered unit is printed for review or written where the service
@@ -407,6 +425,9 @@ pub(crate) fn plan(request: &Request<'_>, host: &Host) -> Result<Plan, Diagnosti
         privileged_port: host.privileged_port,
         data: host.data_folder.clone(),
         reads_data_config,
+        log_file: host.log_file.clone(),
+        cache_directory: host.cache_directory.clone(),
+        temp_root: host.temp_root.clone(),
     })
 }
 
@@ -685,6 +706,9 @@ pub(crate) fn decode(line: &str) -> Vec<String> {
 /// grants nothing at all, and `MemoryMax` is derived from `[limits]` rather
 /// than invented.
 ///
+/// `ReadWritePaths=` is the write half of [`registration::grants`], and
+/// `ProtectHome=` is `read-only` only for a service that needs a home
+/// directory; the module doc says why each is what it is.
 pub(crate) fn unit(plan: &Plan) -> String {
     let exe = plan.exe.display();
     let mut out = String::new();
@@ -708,8 +732,27 @@ pub(crate) fn unit(plan: &Plan) -> String {
         out.push_str(&format!("MemoryMax={memory}\n"));
     }
     out.push_str("NoNewPrivileges=true\n");
+    let grants = registration::grants(plan);
+    let needs_a_home = grants
+        .iter()
+        .map(|(path, _)| path.as_path())
+        .chain([plan.exe.as_path()])
+        .chain(entry_file(&plan.argv).map(Path::new))
+        .any(under_a_home);
     out.push_str("ProtectSystem=strict\n");
-    out.push_str("ProtectHome=true\n");
+    if needs_a_home {
+        out.push_str("ProtectHome=read-only\n");
+    } else {
+        out.push_str("ProtectHome=true\n");
+    }
+    let writable: Vec<String> = grants
+        .iter()
+        .filter(|(_, write)| *write)
+        .map(|(path, _)| unit_path(path))
+        .collect();
+    if !writable.is_empty() {
+        out.push_str(&format!("ReadWritePaths={}\n", writable.join(" ")));
+    }
     out.push_str("PrivateTmp=true\n");
     out.push_str("CapabilityBoundingSet=\n");
     if plan.privileged_port {
@@ -721,6 +764,30 @@ pub(crate) fn unit(plan: &Plan) -> String {
     out.push_str("[Install]\n");
     out.push_str("WantedBy=multi-user.target\n");
     out
+}
+
+/// The directories `ProtectHome=true` hides from a service.
+const HOME_DIRECTORIES: [&str; 3] = ["/home", "/root", "/run/user"];
+
+/// Whether `path` lies under one of [`HOME_DIRECTORIES`].
+fn under_a_home(path: &Path) -> bool {
+    HOME_DIRECTORIES.iter().any(|home| path.starts_with(home))
+}
+
+/// One path of a `ReadWritePaths=` list, with the `-` prefix that skips it
+/// when it is missing: a listed path missing at start fails the whole unit
+/// with `226/NAMESPACE`, and a skipped one leaves the server running with the
+/// one warning any unusable folder gets. Every `%` is doubled, because systemd
+/// expands `%` specifiers in a path setting, and the word is quoted where it
+/// has a space, a quote or a backslash, which systemd's list parser would
+/// otherwise split or unescape.
+fn unit_path(path: &Path) -> String {
+    let word = format!("-{}", path.display()).replace('%', "%%");
+    if word.contains([' ', '\t', '"', '\'', '\\']) {
+        format!("\"{}\"", word.replace('\\', "\\\\").replace('"', "\\\""))
+    } else {
+        word
+    }
 }
 
 /// One word of a systemd `ExecStart`, quoted only where it has to be.
@@ -739,14 +806,6 @@ fn shell_word(word: &str) -> String {
 /// separate because the encodings are: `CommandLineToArgvW`'s backslash rule
 /// has nothing to do with systemd's, and one function serving both would be a
 /// third encoding neither platform reads.
-#[cfg_attr(
-    all(test, windows),
-    expect(
-        dead_code,
-        reason = "the applier that reads a unit back is `Systemd`, which on Windows only a case \
-                  could reach and a case drives the recording manager"
-    )
-)]
 fn shell_words(line: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut current = String::new();
@@ -1513,8 +1572,7 @@ pub(crate) mod registration {
         }
     }
 
-    /// The installer's own options that § 2 has nothing to refuse about, and
-    /// the two directories § 4 grants the service's identity access to.
+    /// The installer's own options that § 2 has nothing to refuse about.
     #[derive(Debug, Default)]
     pub(crate) struct Registration {
         /// § 4's `--start`.
@@ -1526,17 +1584,6 @@ pub(crate) mod registration {
         /// What an administrator reads beside the name. The service's own name,
         /// where the operator wrote nothing.
         pub(crate) description: Option<String>,
-        /// The file the named configuration's `[log] target` names, whose
-        /// **directory** is granted read/write: a process that may write the
-        /// file but not the directory cannot rotate it.
-        pub(crate) log_file: Option<PathBuf>,
-        /// `[opcache] file_cache_dir`, the artifact cache § 4 grants read/write
-        /// on. `[cache]` is `Core\Cache`'s two tiers and holds no directory at
-        /// all.
-        pub(crate) cache_directory: Option<PathBuf>,
-        /// `[io] temp_root`, the temporary-folder root § 4 grants read/write
-        /// on.
-        pub(crate) temp_root: Option<PathBuf>,
     }
 
     /// What the platform still holds about an installed service.
@@ -1746,7 +1793,7 @@ pub(crate) mod registration {
     #[derive(Clone, Copy)]
     struct Writable<'a> {
         /// The service's data folder: read on itself, read/write on its
-        /// `cache/`, `tmp/` and `lsp/`.
+        /// `cache/`, `tmp/`, `lsp/` and `logs/`.
         data_folder: Option<&'a Path>,
         /// The file of a `[log] target`, whose directory is the grant.
         log_file: Option<&'a Path>,
@@ -1756,15 +1803,31 @@ pub(crate) mod registration {
         temp_root: Option<&'a Path>,
     }
 
+    /// § 4's grant list for a checked plan, as `(path, write)` pairs: what an
+    /// install on Windows grants a named account, and what [`unit`](super::unit) opens with
+    /// `ReadWritePaths=`. One list, so the two platforms cannot drift apart.
+    pub(crate) fn grants(plan: &Plan) -> Vec<(PathBuf, bool)> {
+        granted(
+            &plan.argv,
+            Writable {
+                data_folder: plan.data.as_ref().map(nvs_config::data::Folder::root),
+                log_file: plan.log_file.as_deref(),
+                cache_directory: plan.cache_directory.as_deref(),
+                temp_root: plan.temp_root.as_deref(),
+            },
+        )
+    }
+
     /// § 4's grant list, closed: read on the service's data folder and on
     /// every configuration file the argv names, read/write on the data
-    /// folder's `cache/`, `tmp/` and `lsp/`, read/write on the log directory,
-    /// the artifact cache and the temporary-folder root, and nothing further.
+    /// folder's `cache/`, `tmp/`, `lsp/` and `logs/`, read/write on the log
+    /// directory, the artifact cache and the temporary-folder root, and
+    /// nothing further.
     ///
     /// **The service never gets write on its own configuration.** The data
     /// folder's grant is read, and that is all its `nvs.toml` inherits; the
-    /// write grants sit on the three subfolders and are inherited only inside
-    /// them. A path inside one of those three gets no grant of its own, since
+    /// write grants sit on the four subfolders and are inherited only inside
+    /// them. A path inside one of those four gets no grant of its own, since
     /// it already inherits read/write.
     ///
     /// Read off the stored argv rather than off the installer's own options, so
@@ -1835,13 +1898,7 @@ pub(crate) mod registration {
                 // The system account holds every one of these already, so the
                 // grants are for an account the operator named.
                 if !is_local_system(&account) {
-                    let writable = Writable {
-                        data_folder: plan.data.as_ref().map(nvs_config::data::Folder::root),
-                        log_file: registration.log_file.as_deref(),
-                        cache_directory: registration.cache_directory.as_deref(),
-                        temp_root: registration.temp_root.as_deref(),
-                    };
-                    for (path, write) in granted(&plan.argv, writable) {
+                    for (path, write) in grants(plan) {
                         out.push(Action::Grant {
                             account: account.clone(),
                             path,
@@ -3344,9 +3401,6 @@ pub(crate) fn install(
         restart: options.restart,
         depends_on: options.depends_on.to_vec(),
         description: options.description.map(str::to_owned),
-        log_file: host.log_file.clone(),
-        cache_directory: host.cache_directory.clone(),
-        temp_root: host.temp_root.clone(),
     };
     let performed = at_host(|site| {
         registration::install(
@@ -3656,8 +3710,10 @@ mod tests {
             from_a_bundle: false,
             memory_max: Some("512M".to_owned()),
             privileged_port: false,
-            log_file: None,
-            cache_directory: None,
+            // Both named, so § 4's grant list is exercised whole rather than
+            // in its empty case.
+            log_file: Some(PathBuf::from(absolute("log/web.log"))),
+            cache_directory: Some(PathBuf::from(absolute("cache"))),
             temp_root: None,
             // None, so an install a case performs creates no folder; the cases
             // about the data folder name one in a scratch directory.
@@ -4167,6 +4223,9 @@ mod tests {
                 privileged_port: false,
                 data: None,
                 reads_data_config: false,
+                log_file: None,
+                cache_directory: None,
+                temp_root: None,
             };
             let line = image_path(&plan);
 
@@ -4195,6 +4254,9 @@ mod tests {
             privileged_port: false,
             data: None,
             reads_data_config: false,
+            log_file: None,
+            cache_directory: None,
+            temp_root: None,
         };
         let text = unit(&plan);
         for line in [
@@ -4213,6 +4275,9 @@ mod tests {
             assert!(text.contains(line), "missing `{line}` in\n{text}");
         }
         assert!(text.contains(&format!("ExecStart={} serve", absolute("bin/nvs"))));
+        // No data folder and no configured path: nothing is granted write, so
+        // nothing is opened.
+        assert!(!text.contains("ReadWritePaths="), "{text}");
 
         // § 5's capability condition: nothing is granted unless a privileged
         // port is configured, asserted on both sides so a generator that
@@ -4317,13 +4382,134 @@ mod tests {
         nvs_repo::scratch(&format!("service-{case}"))
     }
 
-    /// An installer's options with both grantable directories named, so § 4's
-    /// grant list is exercised whole rather than in its empty case.
+    /// The installer's options an operator who named none of them gets.
     fn registration() -> registration::Registration {
-        registration::Registration {
+        registration::Registration::default()
+    }
+
+    /// The words of a unit's `ReadWritePaths=` line, read back the way
+    /// systemd's list parser reads them; empty when the unit has none.
+    fn opened(text: &str) -> Vec<String> {
+        text.lines()
+            .find_map(|line| line.strip_prefix("ReadWritePaths="))
+            .map(shell_words)
+            .unwrap_or_default()
+    }
+
+    /// A path as `ReadWritePaths=` names it, with the prefix that skips it
+    /// when it is missing.
+    fn skipped_if_missing(path: &Path) -> String {
+        format!("-{}", path.display())
+    }
+
+    /// `rule:packaging/the-generated-unit-is-hardened`: `ProtectSystem=strict`
+    /// leaves the service nothing writable, so `ReadWritePaths=` names exactly
+    /// the paths § 4's grant list marks read/write. The data folder itself and
+    /// its `nvs.toml` stay read-only.
+    #[test]
+    fn the_unit_opens_exactly_the_paths_the_grants_mark_writable() {
+        let bare = vec!["serve".to_owned(), absolute("app/index.nvs")];
+        let rendered = |host: &Host| unit(&plan(&request(&bare), host).expect("a plan"));
+        let data = nvs_config::data::Folder::new(PathBuf::from(absolute(".nvsdata")));
+        let subfolders = [data.cache(), data.tmp(), data.lsp_root(), data.logs()];
+
+        // The default data folder and nothing configured: its four subfolders.
+        let alone = Host {
+            log_file: None,
+            cache_directory: None,
+            ..host_with_data()
+        };
+        let words = opened(&rendered(&alone));
+        assert_eq!(
+            words,
+            subfolders.clone().map(|sub| skipped_if_missing(&sub))
+        );
+        assert!(!words.contains(&skipped_if_missing(data.root())));
+        assert!(!words.contains(&skipped_if_missing(&data.config_file())));
+
+        // A log folder outside the data folder is opened as well. A cache
+        // directory inside `cache/` is opened already, so it is not named.
+        let outside = Host {
             log_file: Some(PathBuf::from(absolute("log/web.log"))),
-            cache_directory: Some(PathBuf::from(absolute("cache"))),
-            ..registration::Registration::default()
+            cache_directory: Some(data.cache().join("compiled")),
+            ..host_with_data()
+        };
+        let mut expected = subfolders.map(|sub| skipped_if_missing(&sub)).to_vec();
+        expected.push(skipped_if_missing(Path::new(&absolute("log"))));
+        assert_eq!(opened(&rendered(&outside)), expected);
+
+        // A path with a space is quoted, and reads back whole.
+        let spaced = nvs_config::data::Folder::new(PathBuf::from(absolute("my data/.nvsdata")));
+        let host = Host {
+            data_folder: Some(spaced.clone()),
+            log_file: None,
+            cache_directory: None,
+            ..host()
+        };
+        let text = rendered(&host);
+        assert!(text.contains("ReadWritePaths=\"-"), "{text}");
+        assert_eq!(
+            opened(&text),
+            [
+                spaced.cache(),
+                spaced.tmp(),
+                spaced.lsp_root(),
+                spaced.logs()
+            ]
+            .map(|sub| skipped_if_missing(&sub))
+        );
+
+        // systemd expands `%` in a path setting, so a literal one is doubled.
+        assert_eq!(unit_path(Path::new("/srv/100%")), "-/srv/100%%");
+    }
+
+    /// `ProtectHome=true` masks every path under `/home`, `/root` and
+    /// `/run/user`, a `ReadWritePaths=` entry included. A unit whose binary,
+    /// entry file or granted path is under one of them gets
+    /// `ProtectHome=read-only`, and every other unit keeps `true`.
+    #[test]
+    fn a_unit_that_needs_a_home_directory_reads_it_and_every_other_unit_hides_it() {
+        let bare = vec!["serve".to_owned(), absolute("app/index.nvs")];
+        let protect = |host: &Host| {
+            let text = unit(&plan(&request(&bare), host).expect("a plan"));
+            let line = text
+                .lines()
+                .find(|line| line.starts_with("ProtectHome="))
+                .map(str::to_owned);
+            (line, opened(&text))
+        };
+
+        assert_eq!(
+            protect(&host_with_data()).0.as_deref(),
+            Some("ProtectHome=true")
+        );
+
+        let home = nvs_config::data::Folder::new(PathBuf::from("/home/someone/app/.nvsdata"));
+        let (line, words) = protect(&Host {
+            data_folder: Some(home.clone()),
+            ..host()
+        });
+        assert_eq!(line.as_deref(), Some("ProtectHome=read-only"));
+        assert!(
+            words.contains(&skipped_if_missing(&home.cache())),
+            "{words:?}"
+        );
+
+        let (line, _) = protect(&Host {
+            exe: PathBuf::from("/home/someone/bin/nvs"),
+            ..host_with_data()
+        });
+        assert_eq!(line.as_deref(), Some("ProtectHome=read-only"));
+
+        for (path, needs) in [
+            ("/home/someone/x", true),
+            ("/root/x", true),
+            ("/run/user/1000/x", true),
+            ("/homeless/x", false),
+            ("/run/x", false),
+            ("/srv/x", false),
+        ] {
+            assert_eq!(under_a_home(Path::new(path)), needs, "{path}");
         }
     }
 
@@ -4614,19 +4800,19 @@ mod tests {
         // nothing and so has nothing to revoke.
         let mut named = request(&argv);
         named.account = Some("EXAMPLE\\nvs-web");
-        let checked = plan(&named, &host_with_data()).expect("a plan");
-        let root = unit_root("uninstall");
-        let options = registration::Registration {
+        let host = Host {
             temp_root: Some(PathBuf::from(absolute("tmp"))),
-            ..registration()
+            ..host_with_data()
         };
+        let checked = plan(&named, &host).expect("a plan");
+        let root = unit_root("uninstall");
         let stored = registration::Stored {
             name: "web".to_owned(),
             argv: argv.clone(),
             account: "EXAMPLE\\nvs-web".to_owned(),
-            log_file: options.log_file.clone(),
-            cache_directory: options.cache_directory.clone(),
-            temp_root: options.temp_root.clone(),
+            log_file: host.log_file.clone(),
+            cache_directory: host.cache_directory.clone(),
+            temp_root: host.temp_root.clone(),
             data_folder: Some(PathBuf::from(absolute(".nvsdata"))),
             exe: Some(PathBuf::from(absolute("bin/nvs"))),
         };
@@ -4634,7 +4820,7 @@ mod tests {
         let installed = registration::install_actions(
             registration::Platform::Windows,
             &checked,
-            &options,
+            &registration(),
             &root,
         );
         let removed =
@@ -4757,26 +4943,26 @@ mod tests {
     }
 
     /// § 4's grants for a named account: read on the data folder and its
-    /// `nvs.toml`, read/write on `cache/`, `tmp/` and `lsp/` only, and a grant
-    /// of its own for a path the configuration names outside those three.
+    /// `nvs.toml`, read/write on `cache/`, `tmp/`, `lsp/` and `logs/` only, and
+    /// a grant of its own for a path the configuration names outside those four.
     #[test]
     fn the_data_folder_is_granted_and_its_nvs_toml_stays_read_only() {
         let bare = vec!["serve".to_owned(), absolute("app/index.nvs")];
         let mut named = request(&bare);
         named.account = Some("EXAMPLE\\nvs-web");
-        let checked = plan(&named, &host_with_data()).expect("a plan");
-        let options = registration::Registration {
+        let host = Host {
             log_file: Some(PathBuf::from(absolute("log/web.log"))),
             cache_directory: Some(PathBuf::from(absolute(".nvsdata/cache/compiled"))),
             temp_root: Some(PathBuf::from(absolute("tmp"))),
-            ..registration::Registration::default()
+            ..host_with_data()
         };
+        let checked = plan(&named, &host).expect("a plan");
         let data = |tail: &str| PathBuf::from(absolute(&format!(".nvsdata/{tail}")));
         let root = unit_root("grants");
         let granted: Vec<(PathBuf, bool)> = registration::install_actions(
             registration::Platform::Windows,
             &checked,
-            &options,
+            &registration(),
             &root,
         )
         .into_iter()

@@ -1,5 +1,5 @@
 {
-  "title": "The generated unit carries the hardening block, `Type=notify`, `MemoryMax` from `[limits]`, and `AmbientCapabilities` only for a privileged port",
+  "title": "The generated unit carries the hardening block, `ReadWritePaths` on exactly the install's write grants, `Type=notify`, `MemoryMax` from `[limits]`, and `AmbientCapabilities` only for a privileged port",
   "status": "designed",
   "because": [
     "0093",
@@ -8,6 +8,7 @@
   ],
   "seeAlso": [
     "packaging/the-unit-is-printed-and-install-is-the-opt-in",
+    "packaging/a-service-runs-as-a-virtual-account",
     "packaging/a-c-dependency-answers-two-questions",
     "config/three-changeability-classes"
   ],
