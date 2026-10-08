@@ -1,0 +1,38 @@
+--TEST--
+`Ad::bitAnd` and `Ad::bitOr` agree with `Filter::equals` on which attribute names RFC 4512 allows: both throw `LogicError` for the same four, and both accept a name, a name with an option and a numeric OID — ADR 0278 § 1 and § 5
+--FILE--
+<?nvs
+array<string> $bad = ["cn=x)(cn=*", "1cn", "", "cn;"];
+int $thrown = 0;
+foreach ($bad as var $name) {
+    try {
+        Core\Ldap\Ad::bitAnd($name, 2);
+    } catch (LogicError $notAName) {
+        $thrown = $thrown + 1;
+    }
+    try {
+        Core\Ldap\Ad::bitOr($name, 2);
+    } catch (LogicError $notAName) {
+        $thrown = $thrown + 1;
+    }
+}
+echo "thrown: ", $thrown, " of ", Core\Arr::count($bad) * 2, "\n";
+
+array<string> $good = ["userAccountControl", "cn;lang-en", "1.2.840.113556.1.4.8"];
+int $built = 0;
+foreach ($good as var $name) {
+    Core\Ldap\Ad::bitAnd($name, 2);
+    Core\Ldap\Ad::bitOr($name, 2);
+    $built = $built + 2;
+}
+echo "built: ", $built, " of ", Core\Arr::count($good) * 2, "\n";
+
+try {
+    Core\Ldap\Ad::bitAnd("userAccountControl)(objectClass=*", 2);
+} catch (LogicError $notAName) {
+    echo $notAName->message, "\n";
+}
+--EXPECT--
+thrown: 8 of 8
+built: 6 of 6
+Core\Ldap\Ad::bitAnd: `userAccountControl)(objectClass=*` is not an attribute name. A name starts with a letter and has only letters, digits and `-`, such as `sAMAccountName`

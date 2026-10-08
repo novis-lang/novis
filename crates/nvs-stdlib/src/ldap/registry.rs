@@ -30,6 +30,9 @@ pub(crate) const FILTER_NAME: &str = r"Core\Ldap\Filter";
 /// `Core\Ldap\Dn`'s fully-qualified name.
 pub(crate) const DN_NAME: &str = r"Core\Ldap\Dn";
 
+/// `Core\Ldap\Ad`'s fully-qualified name.
+pub(crate) const AD_NAME: &str = r"Core\Ldap\Ad";
+
 /// [`SCOPE`]'s fully-qualified name.
 pub(crate) const SCOPE_NAME: &str = r"Core\Ldap\Scope";
 
@@ -1155,6 +1158,149 @@ const DN_TO_STRING_DOC: MethodDoc = MethodDoc {
     ret: "The text. `Dn::parse` reads it back as the same DN. The text is `tainted`, because a \
           value in the DN may be.",
     errors: &[],
+};
+
+/// `Ldap\Ad`'s class card — `rule:core-api/reference-card`.
+const AD_CARD: ClassDoc = ClassDoc {
+    short: "Filters that only Active Directory understands: group membership through nested \
+            groups, enabled and disabled accounts, and a test of the bits in a flag attribute. \
+            Each function returns a `Core\\Ldap\\Filter`, which you can combine with the \
+            filters of that class.",
+};
+
+/// `memberOf`'s one option.
+const AD_MEMBER_OF_OPTIONS: &[CoreOption] = &[CoreOption {
+    name: "nested",
+    ty: CoreTy::Bool,
+    default: Const::Bool(false),
+}];
+
+/// The parameters of [`AD`]'s `bitAnd` and `bitOr`. The name is a sink, as
+/// every attribute name in a filter is.
+const AD_BITS: &[CoreTy] = &[CoreTy::Text(Qual::Sink), CoreTy::Int];
+
+/// ADR 0278 § 1's `Ldap\Ad`: AD's matching rules, as `Ldap\Filter` values.
+/// The bodies are `super::search`'s, beside the other filter constructors.
+pub(crate) const AD: CoreClass = CoreClass {
+    name: AD_NAME,
+    doc: Some(&AD_CARD),
+    methods: &[
+        CoreMethod {
+            name: "memberOf",
+            names: &["group"],
+            params: &[
+                CoreTy::Union(DN_OR_STRING),
+                CoreTy::Options(AD_MEMBER_OF_OPTIONS),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Instance(FILTER_NAME),
+            symbol: "nvs_core_ldap_ad_member_of",
+            doc: Some(&AD_MEMBER_OF_DOC),
+        },
+        CoreMethod {
+            name: "enabled",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Instance(FILTER_NAME),
+            symbol: "nvs_core_ldap_ad_enabled",
+            doc: Some(&AD_ENABLED_DOC),
+        },
+        CoreMethod {
+            name: "disabled",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Instance(FILTER_NAME),
+            symbol: "nvs_core_ldap_ad_disabled",
+            doc: Some(&AD_DISABLED_DOC),
+        },
+        CoreMethod {
+            name: "bitAnd",
+            names: &["attribute", "bits"],
+            params: AD_BITS,
+            defaults: &[],
+            return_ty: CoreTy::Instance(FILTER_NAME),
+            symbol: "nvs_core_ldap_ad_bit_and",
+            doc: Some(&AD_BIT_AND_DOC),
+        },
+        CoreMethod {
+            name: "bitOr",
+            names: &["attribute", "bits"],
+            params: AD_BITS,
+            defaults: &[],
+            return_ty: CoreTy::Instance(FILTER_NAME),
+            symbol: "nvs_core_ldap_ad_bit_or",
+            doc: Some(&AD_BIT_OR_DOC),
+        },
+    ],
+    instance: &[],
+    slots: &[],
+    constants: &[],
+};
+
+/// `Ldap\Ad::memberOf`'s reference card — `rule:core-api/reference-card`.
+const AD_MEMBER_OF_DOC: MethodDoc = MethodDoc {
+    short: "Matches the entries that are members of a group.",
+    params: &[
+        ParamDoc {
+            name: "group",
+            desc: "The group's DN. A string cannot be `tainted`. Build the DN with \
+                   `Core\\Ldap\\Dn::of` when a part of it comes from a user.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "nested",
+            desc: "With `true`, the filter also matches the members of a group that is itself \
+                   a member of the group, at any depth. The default is `false`, which matches \
+                   only the direct members.",
+            shape: &[],
+        },
+    ],
+    ret: "A `Core\\Ldap\\Filter`.",
+    errors: &[],
+};
+
+/// `Ldap\Ad::enabled`'s reference card — `rule:core-api/reference-card`.
+const AD_ENABLED_DOC: MethodDoc = MethodDoc {
+    short: "Matches the entries whose account is not disabled. It tests the bit with the value \
+            `2` in `userAccountControl`, and matches when that bit is not set.",
+    params: &[],
+    ret: "A `Core\\Ldap\\Filter`. An entry with no `userAccountControl`, such as a group, also \
+          matches. Combine it with a filter on `objectClass` to find only users.",
+    errors: &[],
+};
+
+/// `Ldap\Ad::disabled`'s reference card — `rule:core-api/reference-card`.
+const AD_DISABLED_DOC: MethodDoc = MethodDoc {
+    short: "Matches the entries whose account is disabled. It tests the bit with the value `2` \
+            in `userAccountControl`, and matches when that bit is set.",
+    params: &[],
+    ret: "A `Core\\Ldap\\Filter`.",
+    errors: &[],
+};
+
+/// The card shared by the `bits` parameter of [`AD`]'s `bitAnd` and `bitOr`.
+const AD_BITS_PARAM: ParamDoc = ParamDoc {
+    name: "bits",
+    desc: "The bits to test, as one number, such as `2 | 512`.",
+    shape: &[],
+};
+
+/// `Ldap\Ad::bitAnd`'s reference card — `rule:core-api/reference-card`.
+const AD_BIT_AND_DOC: MethodDoc = MethodDoc {
+    short: "Matches the entries where a number attribute has every one of these bits set.",
+    params: &[FILTER_ATTRIBUTE_PARAM, AD_BITS_PARAM],
+    ret: "A `Core\\Ldap\\Filter`.",
+    errors: FILTER_NAME_ERRORS,
+};
+
+/// `Ldap\Ad::bitOr`'s reference card — `rule:core-api/reference-card`.
+const AD_BIT_OR_DOC: MethodDoc = MethodDoc {
+    short: "Matches the entries where a number attribute has at least one of these bits set.",
+    params: &[FILTER_ATTRIBUTE_PARAM, AD_BITS_PARAM],
+    ret: "A `Core\\Ldap\\Filter`.",
+    errors: FILTER_NAME_ERRORS,
 };
 
 /// ADR 0278 § 5's `Ldap\Scope`. The values are declaration ordinals.

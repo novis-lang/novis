@@ -2441,6 +2441,7 @@ pub const CLASSES: &[CoreClass] = &[
     crate::ldap::ENTRY,
     crate::ldap::FILTER,
     crate::ldap::DN,
+    crate::ldap::AD,
     // `rule:concurrency/queue-four-members`'s durable background job, immediately after the database classes
     // because that is what it is made of: a job is a row in one of these connections,
     // which is the whole of why § 3's enqueue can commit with the write that caused

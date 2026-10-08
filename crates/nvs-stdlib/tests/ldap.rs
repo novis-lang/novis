@@ -501,6 +501,60 @@ fn a_tainted_value_cannot_change_a_filters_structure() {
 }
 
 #[test]
+fn ad_member_of_nested_uses_the_in_chain_rule() {
+    // `Ldap\Ad::memberOf($group, {nested: true})`: RFC 4511's extensible
+    // match, with AD's `LDAP_MATCHING_RULE_IN_CHAIN` and the DN as its value.
+    let rule = "1.2.840.113556.1.4.1941";
+    let staff = "CN=Staff,DC=example,DC=test";
+    let nested = |group: &str| Filter::Extensible {
+        rule: Some(rule.to_owned()),
+        attribute: Some("memberOf".to_owned()),
+        value: group.as_bytes().to_vec(),
+        dn_attributes: false,
+    };
+    let filter = nested(staff);
+    let mut expected = vec![0xa9, 0x40, 0x81, 0x17];
+    expected.extend_from_slice(rule.as_bytes());
+    expected.extend_from_slice(&[0x82, 0x08]);
+    expected.extend_from_slice(b"memberOf");
+    expected.extend_from_slice(&[0x83, 0x1b]);
+    expected.extend_from_slice(staff.as_bytes());
+    assert_eq!(filter.to_ber(), expected);
+    assert_eq!(
+        Filter::from_ber(&expected).expect("the encoding reads back"),
+        filter
+    );
+    assert_eq!(
+        filter.to_text(),
+        "(memberOf:1.2.840.113556.1.4.1941:=CN=Staff,DC=example,DC=test)"
+    );
+
+    let Some(ca) = samba() else { return };
+    let mut ctx = ctx_over(&corp(&ca));
+    let key = ldap::connect(&mut ctx, "corp").expect("the block opens");
+    let admin = ldap::read(&mut ctx, key, ADMIN, &["memberOf"])
+        .expect("the read succeeds")
+        .expect("the entry exists");
+    let group = admin
+        .get("memberOf")
+        .and_then(|groups| {
+            groups
+                .iter()
+                .find(|group| group.starts_with(b"CN=Domain Admins,"))
+        })
+        .map(|group| String::from_utf8(group.clone()).expect("a DN is UTF-8"))
+        .expect("the administrator is in `Domain Admins`");
+    let direct = Filter::Equal("memberOf".to_owned(), group.clone().into_bytes());
+    assert!(
+        found(&mut ctx, key, &direct).iter().any(|dn| dn == ADMIN),
+        "the direct form finds the administrator"
+    );
+    // The server accepts the rule. What it returns for it is the server's
+    // own evaluation, so only the request's success is asserted.
+    found(&mut ctx, key, &Filter::Encoded(nested(&group).to_ber()));
+}
+
+#[test]
 fn dn_escapes_each_value_and_round_trips() {
     let users = Dn::parse("CN=Users, DC=example, DC=test").expect("an operator's DN parses");
     assert_eq!(users.to_text(), "CN=Users,DC=example,DC=test");

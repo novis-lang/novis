@@ -1,0 +1,20 @@
+--TEST--
+Each `Ldap\Ad` filter is the extensible match AD defines, as `toString` shows: `memberOf` with `nested: true` uses rule `1.2.840.113556.1.4.1941`, `bitAnd` and `bitOr` use `.803` and `.804` with the number in decimal, and `enabled` is `disabled` reversed — ADR 0278 § 1 and `rule:core-classes/ldap-filter-is-a-value`
+--FILE--
+<?nvs
+var $staff = Core\Ldap\Dn::parse("CN=Staff,DC=example,DC=test");
+echo Core\Ldap\Ad::memberOf($staff)->toString(), "\n";
+echo Core\Ldap\Ad::memberOf($staff, {nested: true})->toString(), "\n";
+echo Core\Ldap\Ad::memberOf($staff, {nested: false})->toString(), "\n";
+echo Core\Ldap\Ad::enabled()->toString(), "\n";
+echo Core\Ldap\Ad::disabled()->toString(), "\n";
+echo Core\Ldap\Ad::bitAnd("groupType", 2147483648)->toString(), "\n";
+echo Core\Ldap\Ad::bitOr("userAccountControl", 2 | 16)->toString(), "\n";
+--EXPECT--
+(memberOf=CN=Staff,DC=example,DC=test)
+(memberOf:1.2.840.113556.1.4.1941:=CN=Staff,DC=example,DC=test)
+(memberOf=CN=Staff,DC=example,DC=test)
+(!(userAccountControl:1.2.840.113556.1.4.803:=2))
+(userAccountControl:1.2.840.113556.1.4.803:=2)
+(groupType:1.2.840.113556.1.4.803:=2147483648)
+(userAccountControl:1.2.840.113556.1.4.804:=18)

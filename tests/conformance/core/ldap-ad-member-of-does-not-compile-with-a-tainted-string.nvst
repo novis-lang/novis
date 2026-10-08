@@ -1,0 +1,18 @@
+--TEST--
+`Ad::memberOf` takes the group's DN, which the server reads as a path in the tree, so a `tainted` string does not compile there, and a DN the program wrote does — ADR 0278 § 1 and `rule:core-classes/ldap-dn-is-the-launderer`
+--FILE--
+<?nvs
+class Groups {
+    public static function members(tainted string $group): void {
+        var $written = Core\Ldap\Ad::memberOf("CN=Staff,DC=example,DC=test");
+        var $typed = Core\Ldap\Ad::memberOf($group, {nested: true});
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string|Core\Ldap\Dn`, found `tainted string`
+  --> case.nvs:5:45
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

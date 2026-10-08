@@ -1,4 +1,4 @@
-//! `Core\Ldap`'s reading half for a Novis program: `Ldap\Connection`'s `whoami`, `search` and `read`, the `Ldap\Entries` a search returns, the `Ldap\Entry` it yields, and the `Ldap\Filter` it takes
+//! `Core\Ldap`'s reading half for a Novis program: `Ldap\Connection`'s `whoami`, `search` and `read`, the `Ldap\Entries` a search returns, the `Ldap\Entry` it yields, and the `Ldap\Filter` it takes, with `Ldap\Ad`'s filters
 //!
 //! ADR 0278 §§ 1, 5 and 6. Every body here reads its arguments, calls the
 //! Rust half in [`super`], and builds what it returns.
@@ -666,6 +666,94 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+/// AD's in-chain matching rule, `LDAP_MATCHING_RULE_IN_CHAIN`: the attribute
+/// matches when the value is reached through any chain of links.
+const IN_CHAIN: &str = "1.2.840.113556.1.4.1941";
+/// AD's bitwise-and matching rule, `LDAP_MATCHING_RULE_BIT_AND`.
+const BIT_AND: &str = "1.2.840.113556.1.4.803";
+/// AD's bitwise-or matching rule, `LDAP_MATCHING_RULE_BIT_OR`.
+const BIT_OR: &str = "1.2.840.113556.1.4.804";
+/// `userAccountControl`'s `ACCOUNTDISABLE` bit.
+const ACCOUNT_DISABLED: i64 = 2;
+
+/// The filter applying AD's matching rule `rule` to `attribute` with `value`.
+fn matching(rule: &str, attribute: &str, value: &[u8]) -> nvs_ldap::Filter {
+    nvs_ldap::Filter::Extensible {
+        rule: Some(rule.to_owned()),
+        attribute: Some(attribute.to_owned()),
+        value: value.to_vec(),
+        dn_attributes: false,
+    }
+}
+
+/// The filter testing `bits` of `attribute` under `rule`, the number written
+/// in decimal as AD's bitwise rules read it.
+fn bits_filter(attribute: &str, rule: &str, bits: i64) -> nvs_ldap::Filter {
+    matching(rule, attribute, bits.to_string().as_bytes())
+}
+
+/// `bitAnd` or `bitOr`, by `rule`.
+fn bitwise(args: &[Value], member: &str, rule: &str) -> Result<Value, Fault> {
+    let attribute = attribute_arg(&args[0], member)?;
+    let bits = args[1].as_int().ok_or_else(|| {
+        // Unreachable from source: the parameter is an `int`.
+        Fault::fatal(format!("{member} expected an `int`"))
+    })?;
+    Ok(filter_value(&bits_filter(attribute, rule, bits)))
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Ldap\Ad::memberOf(Dn|string $group, {nested?}): Filter` — equality on
+    /// `memberOf`, or the in-chain rule on it when `nested` is `true`. The DN
+    /// is the value the server compares, so it is data in the encoding.
+    fn nvs_core_ldap_ad_member_of(_ctx, args: [2]) {
+        let member = r"Core\Ldap\Ad::memberOf";
+        let group = super::dn::dn_arg(args[0], member)?.ok_or_else(|| {
+            // Unreachable from source: the parameter is not nullable.
+            Fault::fatal(format!("{member} expected a group"))
+        })?;
+        let filter = if args[1].as_bool() == Some(true) {
+            matching(IN_CHAIN, "memberOf", group.as_bytes())
+        } else {
+            nvs_ldap::Filter::Equal("memberOf".to_owned(), group.into_bytes())
+        };
+        Ok(filter_value(&filter))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Ldap\Ad::enabled(): Filter` — `userAccountControl` without its
+    /// disabled bit.
+    fn nvs_core_ldap_ad_enabled(_ctx, _args: [0]) {
+        let disabled = bits_filter("userAccountControl", BIT_AND, ACCOUNT_DISABLED);
+        Ok(filter_value(&nvs_ldap::Filter::Not(Box::new(disabled))))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Ldap\Ad::disabled(): Filter` — `userAccountControl` with its disabled
+    /// bit set.
+    fn nvs_core_ldap_ad_disabled(_ctx, _args: [0]) {
+        Ok(filter_value(&bits_filter("userAccountControl", BIT_AND, ACCOUNT_DISABLED)))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Ldap\Ad::bitAnd(string $attribute, int $bits): Filter` — AD's
+    /// bitwise-and rule: every bit is set.
+    fn nvs_core_ldap_ad_bit_and(_ctx, args: [2]) {
+        bitwise(args, r"Core\Ldap\Ad::bitAnd", BIT_AND)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Ldap\Ad::bitOr(string $attribute, int $bits): Filter` — AD's
+    /// bitwise-or rule: at least one bit is set.
+    fn nvs_core_ldap_ad_bit_or(_ctx, args: [2]) {
+        bitwise(args, r"Core\Ldap\Ad::bitOr", BIT_OR)
+    }
+}
+
 /// The address of one of this module's symbols, or `None` for a symbol that
 /// belongs to another module. See [`crate::address`].
 pub(super) fn address(symbol: &str) -> Option<*const u8> {
@@ -700,6 +788,11 @@ pub(super) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_ldap_filter_not" => (nvs_core_ldap_filter_not as *const ()).cast(),
         "nvs_core_ldap_filter_to_string" => (nvs_core_ldap_filter_to_string as *const ()).cast(),
         "nvs_core_ldap_filter_parse" => (nvs_core_ldap_filter_parse as *const ()).cast(),
+        "nvs_core_ldap_ad_member_of" => (nvs_core_ldap_ad_member_of as *const ()).cast(),
+        "nvs_core_ldap_ad_enabled" => (nvs_core_ldap_ad_enabled as *const ()).cast(),
+        "nvs_core_ldap_ad_disabled" => (nvs_core_ldap_ad_disabled as *const ()).cast(),
+        "nvs_core_ldap_ad_bit_and" => (nvs_core_ldap_ad_bit_and as *const ()).cast(),
+        "nvs_core_ldap_ad_bit_or" => (nvs_core_ldap_ad_bit_or as *const ()).cast(),
         _ => return None,
     })
 }

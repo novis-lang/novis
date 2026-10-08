@@ -1,0 +1,53 @@
+--TEST--
+Each `Ldap\Ad` filter matches the accounts it says it matches on the test directory: `memberOf` finds the members of `Domain Admins`, the server accepts `nested: true`, `enabled` and `disabled` split the accounts by `userAccountControl`, and `bitAnd` and `bitOr` test its bits — ADR 0278 § 1 and `rule:core-classes/ldap-filter-is-a-value`
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+
+class Users {
+    // The accounts under `CN=Users` that `$filter` matches, sorted, by their DN's first part.
+    public static function matching(Core\Ldap\Connection $corp, Core\Ldap\Filter $filter): tainted string {
+        array<tainted string> $out = [];
+        var $entries = $corp->search(Core\Ldap\Filter::all(Core\Ldap\Filter::equals("objectClass", "user"), $filter), {
+            base: "CN=Users,DC=example,DC=test",
+            scope: Core\Ldap\Scope::OneLevel,
+            select: ["cn"],
+        });
+        foreach ($entries as Core\Ldap\Entry $entry) {
+            $out[] = Core\Str::before($entry->dn()->toString(), ",") ?? "";
+        }
+        tainted string $joined = "";
+        foreach (Core\Arr::sort($out) as tainted string $one) {
+            $joined = $joined == "" ? $one : $joined . " " . $one;
+        }
+        return $joined;
+    }
+}
+
+var $admins = Core\Ldap\Dn::parse("CN=Domain Admins,CN=Users,DC=example,DC=test");
+echo "memberOf: ", Users::matching($corp, Core\Ldap\Ad::memberOf($admins)), "\n";
+echo "memberOf, nested: ", Users::matching($corp, Core\Ldap\Ad::memberOf($admins, {nested: true})), "\n";
+echo "enabled: ", Users::matching($corp, Core\Ldap\Ad::enabled()), "\n";
+echo "disabled: ", Users::matching($corp, Core\Ldap\Ad::disabled()), "\n";
+// 2 is the bit for a disabled account, and 512 the bit for a normal account.
+echo "bitAnd 2|512: ", Users::matching($corp, Core\Ldap\Ad::bitAnd("userAccountControl", 2 | 512)), "\n";
+echo "bitOr 2|512: ", Users::matching($corp, Core\Ldap\Ad::bitOr("userAccountControl", 2 | 512)), "\n";
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+base = "DC=example,DC=test"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+memberOf: CN=Administrator
+memberOf, nested: CN=Administrator
+enabled: CN=Administrator
+disabled: CN=Guest CN=krbtgt
+bitAnd 2|512: CN=Guest CN=krbtgt
+bitOr 2|512: CN=Administrator CN=Guest CN=krbtgt

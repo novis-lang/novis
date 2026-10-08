@@ -1,0 +1,35 @@
+--TEST--
+`Ldap\Ad`'s filters agree with the ones they are built from: `memberOf` builds the same filter from a `Dn` and from the same DN as a string, a `Dn` from `Dn::of` carries a `tainted` name as one escaped value, `enabled` is `Filter::not` of `disabled`, and `bitAnd` and `bitOr` agree for a single bit — ADR 0278 § 1 and `rule:core-classes/ldap-dn-is-the-launderer`
+--FILE--
+<?nvs
+string $written = "CN=Staff,DC=example,DC=test";
+var $parsed = Core\Ldap\Dn::parse($written);
+echo "a Dn and a string agree: ",
+    Core\Ldap\Ad::memberOf($parsed, {nested: true})->toString() == Core\Ldap\Ad::memberOf($written, {nested: true})->toString()
+        ? "yes" : "no", "\n";
+
+// A name from a form can name a group through `child`. Its comma is part of the value.
+// `toString` writes each `\` of the DN as `\5c`.
+tainted string $typed = "Staff,DC=other";
+var $group = Core\Ldap\Dn::parse("DC=example,DC=test")->child("CN", $typed);
+echo Core\Ldap\Ad::memberOf($group)->toString(), "\n";
+
+echo "enabled is not disabled: ",
+    Core\Ldap\Ad::enabled()->toString() == Core\Ldap\Filter::not(Core\Ldap\Ad::disabled())->toString()
+        ? "yes" : "no", "\n";
+
+int $same = 0;
+array<int> $bits = [1, 2, 512, 65536];
+foreach ($bits as int $bit) {
+    tainted string $and = Core\Str::replace(Core\Ldap\Ad::bitAnd("userAccountControl", $bit)->toString(), ".803:", "");
+    tainted string $or = Core\Str::replace(Core\Ldap\Ad::bitOr("userAccountControl", $bit)->toString(), ".804:", "");
+    if ($and == $or) {
+        $same = $same + 1;
+    }
+}
+echo "one bit, same value: ", $same, " of 4\n";
+--EXPECT--
+a Dn and a string agree: yes
+(memberOf=CN=Staff\5c,DC\5c=other,DC=example,DC=test)
+enabled is not disabled: yes
+one bit, same value: 4 of 4
