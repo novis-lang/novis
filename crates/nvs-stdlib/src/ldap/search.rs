@@ -33,13 +33,21 @@
 //! **`showDeleted` adds `isDeleted` to a `select` that names attributes**,
 //! so `Entry::isDeleted` reads the attribute it is about whatever the program
 //! selected. An empty `select` already returns it.
+//!
+//! **`Ldap\Changes` is a search with a cookie in place of references and a
+//! total.** `changes` parks a DirSync cursor the way `search` parks a paged
+//! one, and its first three slots are `Ldap\Entries`' first three, so one
+//! `advance` serves both. Its fourth is the cookie, written when the walk
+//! ends; until then `cookie()` reads the parked cursor, which returns the
+//! cookie that covers every entry already read.
 
-use nvs_runtime::{Fault, NvsArray, NvsStr, ThrownClass, Value};
+use nvs_runtime::{Fault, NvsArray, NvsStr, ObjHeader, ThrownClass, Value};
 
 use super::{
-    CONNECTION, CONNECTION_HANDLE_AT, ENTRIES, ENTRIES_ENTRY_AT, ENTRIES_HANDLE_AT,
-    ENTRIES_REFERENCES_AT, ENTRIES_SEARCH_AT, ENTRIES_TOTAL_AT, ENTRY, ENTRY_ATTRIBUTES_AT,
-    ENTRY_DN_AT, ENTRY_NAME, FILTER, FILTER_BER_AT, READ, SEARCH, Step,
+    CHANGES, CHANGES_COOKIE_AT, CHANGES_MEMBER, CHANGES_SET, CONNECTION, CONNECTION_HANDLE_AT,
+    ENTRIES, ENTRIES_ENTRY_AT, ENTRIES_HANDLE_AT, ENTRIES_MEMBER, ENTRIES_REFERENCES_AT,
+    ENTRIES_SEARCH_AT, ENTRIES_TOTAL_AT, ENTRY, ENTRY_ATTRIBUTES_AT, ENTRY_DN_AT, ENTRY_NAME,
+    FILTER, FILTER_BER_AT, READ, SEARCH, Step,
 };
 use crate::registry::CoreClass;
 
@@ -49,6 +57,12 @@ pub(crate) const ENTRIES_ITERATE_SYMBOL: &str = "nvs_core_ldap_entries_iterate";
 pub(crate) const ENTRIES_ADVANCE_SYMBOL: &str = "nvs_core_ldap_entries_advance";
 /// `Ldap\Entries::current`'s symbol.
 pub(crate) const ENTRIES_CURRENT_SYMBOL: &str = "nvs_core_ldap_entries_current";
+/// `Ldap\Changes::iterate`'s symbol, which the dispatch roster names.
+pub(crate) const CHANGES_ITERATE_SYMBOL: &str = "nvs_core_ldap_changes_iterate";
+/// `Ldap\Changes::advance`'s symbol.
+pub(crate) const CHANGES_ADVANCE_SYMBOL: &str = "nvs_core_ldap_changes_advance";
+/// `Ldap\Changes::current`'s symbol.
+pub(crate) const CHANGES_CURRENT_SYMBOL: &str = "nvs_core_ldap_changes_current";
 
 /// `value` with a reference of its own, for a value read out of a slot or an
 /// array the receiver still holds.
@@ -366,6 +380,60 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+/// The `base` option, or the block's own `base` when it is `null`.
+fn base_arg(
+    ctx: &mut nvs_runtime::Ctx,
+    key: u64,
+    value: Value,
+    member: &str,
+) -> Result<String, Fault> {
+    match super::dn::dn_arg(value, member)? {
+        Some(base) => Ok(base),
+        None => super::base_of(ctx, key)?.ok_or_else(|| {
+            Fault::thrown_as(
+                ThrownClass::Logic,
+                format!(
+                    "{member}: the search has no `base`. Give one, such as \
+                     `{{base: 'DC=example,DC=test'}}`, or set `base` in the `[ldap]` block"
+                ),
+            )
+        }),
+    }
+}
+
+/// `advance()` on an `Ldap\Entries` or an `Ldap\Changes`, whose first three
+/// slots agree: it reads the next entry into the receiver, and `ended` writes
+/// what the walk returns at its end.
+fn advance_walk(
+    ctx: &mut nvs_runtime::Ctx,
+    walk: Value,
+    class: &CoreClass,
+    member_for_faults: &str,
+    ended: impl FnOnce(*mut ObjHeader, Vec<String>, Vec<u8>),
+) -> Result<Value, Fault> {
+    let member = nvs_runtime::sequence::ADVANCE;
+    let key = key_in(walk, class, ENTRIES_HANDLE_AT, member)?;
+    let id = key_in(walk, class, ENTRIES_SEARCH_AT, member)?;
+    let receiver = crate::instance::receiver(walk, class, member)?;
+    let next = super::step(ctx, key, id, member_for_faults);
+    // The entry the last step parked is freed here unless the loop
+    // body still holds it, so a walk holds one entry at a time.
+    let (parked, more) = match next {
+        Ok(Step::Entry(entry)) => (entry_value(entry), true),
+        Ok(Step::Ended(urls, cookie)) => {
+            ended(receiver, urls, cookie);
+            (Value::null(), false)
+        }
+        Ok(Step::Gone) => (Value::null(), false),
+        Err(fault) => {
+            crate::instance::set_slot(receiver, ENTRIES_ENTRY_AT, Value::null());
+            return Err(fault);
+        }
+    };
+    crate::instance::set_slot(receiver, ENTRIES_ENTRY_AT, parked);
+    Ok(Value::bool(more))
+}
+
 nvs_runtime::nvs_helper! {
     /// `$connection->search(Filter $filter, {base?, scope?, select?, pageSize?,
     /// sizeLimit?, sort?, descending?, offset?, window?, showDeleted?}):
@@ -374,18 +442,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_ldap_connection_search(ctx, args: [12]) {
         let key = key_in(args[0], &CONNECTION, CONNECTION_HANDLE_AT, "search")?;
         let filter = nvs_ldap::Filter::Encoded(ber_of(args[1], "search")?);
-        let base = match super::dn::dn_arg(args[2], SEARCH)? {
-            Some(base) => base,
-            None => super::base_of(ctx, key)?.ok_or_else(|| {
-                Fault::thrown_as(
-                    ThrownClass::Logic,
-                    format!(
-                        "{SEARCH}: the search has no `base`. Give one, such as \
-                         `{{base: 'DC=example,DC=test'}}`, or set `base` in the `[ldap]` block"
-                    ),
-                )
-            })?,
-        };
+        let base = base_arg(ctx, key, args[2], SEARCH)?;
         let scope = scope_of(&args[3])?;
         let select = selected(&args[4], SEARCH)?;
         let mut attributes: Vec<&str> = select.iter().map(String::as_str).collect();
@@ -436,6 +493,39 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
+    /// `$connection->changes(Filter $filter, {base?, select?, cookie?}):
+    /// Changes` — [`super::changes`], with the sync parked on the connection
+    /// for the `Ldap\Changes` it returns.
+    fn nvs_core_ldap_connection_changes(ctx, args: [5]) {
+        let key = key_in(args[0], &CONNECTION, CONNECTION_HANDLE_AT, "changes")?;
+        let filter = nvs_ldap::Filter::Encoded(ber_of(args[1], "changes")?);
+        let base = base_arg(ctx, key, args[2], CHANGES)?;
+        let select = selected(&args[3], CHANGES)?;
+        let attributes: Vec<&str> = select.iter().map(String::as_str).collect();
+        let cookie = args[4].as_bytes().unwrap_or_default();
+        let request = nvs_ldap::SearchRequest {
+            base: &base,
+            scope: nvs_ldap::Scope::Subtree,
+            filter: &filter,
+            attributes: &attributes,
+            page_size: super::PAGE_SIZE,
+            size_limit: 0,
+            time_limit: 0,
+            sort: None,
+            window: None,
+            show_deleted: false,
+        };
+        let changes = super::changes(ctx, key, &request, cookie)?;
+        let cookie = Value::bytes(NvsStr::new(changes.cookie()));
+        let id = changes.park(ctx)?;
+        Ok(crate::instance::build(
+            &CHANGES_SET,
+            [Value::uint(key), Value::uint(id), Value::null(), cookie],
+        ))
+    }
+}
+
+nvs_runtime::nvs_helper! {
     /// `$connection->read(Dn|string $dn, {select?}): ?Entry` —
     /// [`super::read`] for a Novis program.
     fn nvs_core_ldap_connection_read(ctx, args: [3]) {
@@ -464,31 +554,66 @@ nvs_runtime::nvs_helper! {
     /// the receiver, asking the server for the next page when this one is
     /// used up, and returns `false` after the last one.
     fn nvs_core_ldap_entries_advance(ctx, args: [1]) {
-        let member = nvs_runtime::sequence::ADVANCE;
-        let stepped = (|| {
-            let key = key_in(args[0], &ENTRIES, ENTRIES_HANDLE_AT, member)?;
-            let id = key_in(args[0], &ENTRIES, ENTRIES_SEARCH_AT, member)?;
-            let receiver = crate::instance::receiver(args[0], &ENTRIES, member)?;
-            let next = super::step(ctx, key, id);
-            // The entry the last step parked is freed here unless the loop
-            // body still holds it, so a walk holds one entry at a time.
-            let (parked, more) = match next {
-                Ok(Step::Entry(entry)) => (entry_value(entry), true),
-                Ok(Step::Ended(urls)) => {
-                    crate::instance::set_slot(receiver, ENTRIES_REFERENCES_AT, url_list(&urls));
-                    (Value::null(), false)
-                }
-                Ok(Step::Gone) => (Value::null(), false),
-                Err(fault) => {
-                    crate::instance::set_slot(receiver, ENTRIES_ENTRY_AT, Value::null());
-                    return Err(fault);
-                }
-            };
-            crate::instance::set_slot(receiver, ENTRIES_ENTRY_AT, parked);
-            Ok(Value::bool(more))
-        })();
+        let stepped = advance_walk(ctx, args[0], &ENTRIES, ENTRIES_MEMBER, |receiver, urls, _| {
+            crate::instance::set_slot(receiver, ENTRIES_REFERENCES_AT, url_list(&urls));
+        });
         crate::cursor::consume(args[0]);
         stepped
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Iterable<Ldap\Entry>::iterate()` on an `Ldap\Changes` — the receiver
+    /// itself, because the next entry may not have arrived yet.
+    fn nvs_core_ldap_changes_iterate(_ctx, args: [1]) {
+        crate::instance::receiver(args[0], &CHANGES_SET, nvs_runtime::sequence::ITERATE)?;
+        Ok(args[0])
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Iterator<Ldap\Entry>::advance(): bool` on an `Ldap\Changes` — reads
+    /// the next changed entry, asking the server for the next answer when
+    /// this one is used up, and keeps the last cookie when the sync ends.
+    fn nvs_core_ldap_changes_advance(ctx, args: [1]) {
+        let stepped = advance_walk(ctx, args[0], &CHANGES_SET, CHANGES_MEMBER, |receiver, _, cookie| {
+            crate::instance::set_slot(
+                receiver,
+                CHANGES_COOKIE_AT,
+                Value::bytes(NvsStr::new(&cookie)),
+            );
+        });
+        crate::cursor::consume(args[0]);
+        stepped
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Iterator<Ldap\Entry>::current(): Ldap\Entry` on an `Ldap\Changes` —
+    /// the entry the last `advance()` read.
+    fn nvs_core_ldap_changes_current(_ctx, args: [1]) {
+        let read = crate::instance::read_slot(
+            args,
+            &CHANGES_SET,
+            ENTRIES_ENTRY_AT,
+            nvs_runtime::sequence::CURRENT,
+        );
+        crate::cursor::consume(args[0]);
+        read
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$changes->cookie(): bytes` — the cookie the next `changes` starts
+    /// from: the parked sync's, which covers every entry read so far, or the
+    /// one the last `advance()` kept when the sync ended.
+    fn nvs_core_ldap_changes_cookie(ctx, args: [1]) {
+        let key = key_in(args[0], &CHANGES_SET, ENTRIES_HANDLE_AT, "cookie")?;
+        let id = key_in(args[0], &CHANGES_SET, ENTRIES_SEARCH_AT, "cookie")?;
+        match super::cookie(ctx, key, id)? {
+            Some(cookie) => Ok(Value::bytes(NvsStr::new(&cookie))),
+            None => crate::instance::read_slot(args, &CHANGES_SET, CHANGES_COOKIE_AT, "cookie"),
+        }
     }
 }
 
@@ -880,6 +1005,13 @@ pub(super) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_ldap_connection_whoami" => (nvs_core_ldap_connection_whoami as *const ()).cast(),
         "nvs_core_ldap_connection_search" => (nvs_core_ldap_connection_search as *const ()).cast(),
         "nvs_core_ldap_connection_read" => (nvs_core_ldap_connection_read as *const ()).cast(),
+        "nvs_core_ldap_connection_changes" => {
+            (nvs_core_ldap_connection_changes as *const ()).cast()
+        }
+        CHANGES_ITERATE_SYMBOL => (nvs_core_ldap_changes_iterate as *const ()).cast(),
+        CHANGES_ADVANCE_SYMBOL => (nvs_core_ldap_changes_advance as *const ()).cast(),
+        CHANGES_CURRENT_SYMBOL => (nvs_core_ldap_changes_current as *const ()).cast(),
+        "nvs_core_ldap_changes_cookie" => (nvs_core_ldap_changes_cookie as *const ()).cast(),
         ENTRIES_ITERATE_SYMBOL => (nvs_core_ldap_entries_iterate as *const ()).cast(),
         ENTRIES_ADVANCE_SYMBOL => (nvs_core_ldap_entries_advance as *const ()).cast(),
         ENTRIES_CURRENT_SYMBOL => (nvs_core_ldap_entries_current as *const ()).cast(),

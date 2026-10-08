@@ -214,6 +214,7 @@ Conventions the whole file uses:
 | [`Core\Ldap`](#core-core-ldap) |  |
 | [`Core\Ldap\Connection`](#core-core-ldap-connection) |  |
 | [`Core\Ldap\Entries`](#core-core-ldap-entries) |  |
+| [`Core\Ldap\Changes`](#core-core-ldap-changes) |  |
 | [`Core\Ldap\Entry`](#core-core-ldap-entry) |  |
 | [`Core\Ldap\Filter`](#core-core-ldap-filter) |  |
 | [`Core\Ldap\Change`](#core-core-ldap-change) |  |
@@ -26125,13 +26126,14 @@ Opens a directory at a URL the program gives. Needs the `ldap.open` capability f
 <a id="core-core-ldap-connection"></a>
 ### `Core\Ldap\Connection`
 
-Keywords: whoami, authenticate, search, read, add, modify, delete, rename, setPassword, changePassword, compare
+Keywords: whoami, authenticate, search, changes, read, add, modify, delete, rename, setPassword, changePassword, compare
 
 | Member | Signature |
 |---|---|
 | [`Core\Ldap\Connection->whoami`](#core-core-ldap-connection-whoami) | `whoami(): string` |
 | [`Core\Ldap\Connection->authenticate`](#core-core-ldap-connection-authenticate) | `authenticate(string $login, secret tainted string $password): void` |
 | [`Core\Ldap\Connection->search`](#core-core-ldap-connection-search) | `search(Core\Ldap\Filter $filter, {base?: Core\Ldap\Dn\|string, scope?: Core\Ldap\Scope, select?: array<string>, pageSize?: int, sizeLimit?: int, sort?: string, descending?: bool, offset?: int, window?: int, showDeleted?: bool}): Core\Ldap\Entries` |
+| [`Core\Ldap\Connection->changes`](#core-core-ldap-connection-changes) | `changes(Core\Ldap\Filter $filter, {base?: Core\Ldap\Dn\|string, select?: array<string>, cookie?: tainted bytes}): Core\Ldap\Changes` |
 | [`Core\Ldap\Connection->read`](#core-core-ldap-connection-read) | `read(Core\Ldap\Dn\|string $dn, {select?: array<string>}): ?Core\Ldap\Entry` |
 | [`Core\Ldap\Connection->add`](#core-core-ldap-connection-add) | `add(Core\Ldap\Dn\|string $dn, array<mixed> $attributes): void` |
 | [`Core\Ldap\Connection->modify`](#core-core-ldap-connection-modify) | `modify(Core\Ldap\Dn\|string $dn, array<Core\Ldap\Change> $changes): void` |
@@ -26198,6 +26200,26 @@ Finds the entries that match a filter. The server sends the entries in pages, an
 **Returns** `Core\Ldap\Entries` — A `Core\Ldap\Entries`. Use it in a `foreach` loop to get each `Core\Ldap\Entry`.
 
 **Throws** `LogicError` — A name in `select` or `sort` is not an attribute name, a number is out of range, `window`, `offset` or `descending` is given without the option it needs, the search has no `base`, or the connection is closed.; `Core\Ldap\LdapError` — The server returned an error, such as `NoSuchObject` for a `base` that does not exist. A search that finds more entries than `sizeLimit` throws `SizeLimitExceeded` in the loop.
+
+<a id="core-core-ldap-connection-changes"></a>
+#### `Core\Ldap\Connection->changes`
+
+```nvs skip
+$connection->changes(Core\Ldap\Filter $filter, {base?: Core\Ldap\Dn|string, select?: array<string>, cookie?: tainted bytes}): Core\Ldap\Changes
+```
+
+Finds the entries that changed since the last call, with Active Directory's DirSync. Store the `cookie()` of the result, and give it to the next call. That call returns only the entries that changed after it.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$filter` | `Core\Ldap\Filter` | Which entries to return, such as `Filter::equals('objectClass', 'user')`. |
+| `{base: …}` | `Core\Ldap\Dn\|string` (default `null`, sink) | The root of the domain, as a `Dn` or as text. Left out, it is the `base` of the `[ldap]` block. Active Directory throws an error for any other DN. Text cannot be `tainted`. |
+| `{select: …}` | `array<string>` (default `null`) | The attributes to watch, such as `['cn', 'mail']`. A changed entry has only the attributes that changed. The attributes `filter` uses and `isDeleted` are always watched too. Left out, every attribute is watched. |
+| `{cookie: …}` | `tainted bytes` (default `null`) | The `cookie()` of an earlier result. Left out, the result has every entry that matches `filter`. |
+
+**Returns** `Core\Ldap\Changes` — A `Core\Ldap\Changes`. Use it in a `foreach` loop to get each changed `Core\Ldap\Entry`. A deleted entry has `isDeleted()` set to `true`.
+
+**Throws** `LogicError` — A name in `select` is not an attribute name, there is no `base`, or the connection is closed.; `Core\Ldap\LdapError` — The server returned an error. A server without DirSync throws `Unsupported`.
 
 <a id="core-core-ldap-connection-read"></a>
 #### `Core\Ldap\Connection->read`
@@ -26375,6 +26397,28 @@ $entries->total(): ?int
 Returns how many entries the whole sorted search found, when the search used the `window` option. The server counts them, so you can show a page number such as "page 3 of 12".
 
 **Returns** `?int` — The number of entries, or `null` when the search did not use `window`.
+
+<a id="core-core-ldap-changes"></a>
+### `Core\Ldap\Changes`
+
+Keywords: cookie
+
+| Member | Signature |
+|---|---|
+| [`Core\Ldap\Changes->cookie`](#core-core-ldap-changes-cookie) | `cookie(): tainted bytes` |
+
+<a id="core-core-ldap-changes-cookie"></a>
+#### `Core\Ldap\Changes->cookie`
+
+```nvs skip
+$changes->cookie(): tainted bytes
+```
+
+Returns the cookie for the next call to `changes`. Store it, for example in a database, after the loop ends. If you stop the loop early, the cookie covers only the entries you read, so the next call returns the others again.
+
+**Returns** `tainted bytes` — The cookie. It is `tainted`, because the server sent it.
+
+**Throws** `LogicError` — The connection is closed.
 
 <a id="core-core-ldap-entry"></a>
 ### `Core\Ldap\Entry`

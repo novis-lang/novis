@@ -21,6 +21,9 @@ pub(crate) const TLS_NAME: &str = r"Core\Ldap\Tls";
 /// `Core\Ldap\Entries`' fully-qualified name.
 pub(crate) const ENTRIES_NAME: &str = r"Core\Ldap\Entries";
 
+/// `Core\Ldap\Changes`' fully-qualified name.
+pub(crate) const CHANGES_NAME: &str = r"Core\Ldap\Changes";
+
 /// `Core\Ldap\Entry`'s fully-qualified name.
 pub(crate) const ENTRY_NAME: &str = r"Core\Ldap\Entry";
 
@@ -72,6 +75,9 @@ pub(super) const ENTRIES_ENTRY_AT: usize = 2;
 pub(super) const ENTRIES_REFERENCES_AT: usize = 3;
 /// [`ENTRIES`]' slot for the count a window's answer carried, or `null`.
 pub(super) const ENTRIES_TOTAL_AT: usize = 4;
+/// [`CHANGES_SET`]' slot for the cookie, written when the sync ends. Its first
+/// three slots are [`ENTRIES`]' first three.
+pub(super) const CHANGES_COOKIE_AT: usize = 3;
 /// [`ENTRY`]'s DN slot.
 pub(super) const ENTRY_DN_AT: usize = 0;
 /// [`ENTRY`]'s slot for its attributes, keyed by name.
@@ -355,6 +361,30 @@ const SEARCH_OPTIONS: &[CoreOption] = &[
     },
 ];
 
+/// `changes`' options, ADR 0278 § 1's `ChangesOptions` in order. `base` and
+/// `select` are sinks, as `search`'s are. `cookie` is only sent back to the
+/// server, so a `tainted` one is accepted, and an option admits a qualifier
+/// only through its type.
+const CHANGES_OPTIONS: &[CoreOption] = &[
+    CoreOption {
+        name: "base",
+        ty: CoreTy::Union(DN_OR_STRING),
+        // The block's own `base`, which `changes` reads off the connection.
+        default: Const::Null,
+    },
+    CoreOption {
+        name: "select",
+        ty: CoreTy::Array(&CoreTy::Str),
+        default: Const::Null,
+    },
+    CoreOption {
+        name: "cookie",
+        ty: CoreTy::TaintedBytes,
+        // No cookie: every entry the filter matches.
+        default: Const::Null,
+    },
+];
+
 /// `read`'s one option.
 const READ_OPTIONS: &[CoreOption] = &[CoreOption {
     name: "select",
@@ -400,6 +430,18 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
             return_ty: CoreTy::Instance(ENTRIES_NAME),
             symbol: "nvs_core_ldap_connection_search",
             doc: Some(&SEARCH_DOC),
+        },
+        CoreMethod {
+            name: "changes",
+            names: &["filter"],
+            params: &[
+                CoreTy::Instance(FILTER_NAME),
+                CoreTy::Options(CHANGES_OPTIONS),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Instance(CHANGES_NAME),
+            symbol: "nvs_core_ldap_connection_changes",
+            doc: Some(&CHANGES_DOC),
         },
         CoreMethod {
             name: "read",
@@ -627,6 +669,54 @@ const SEARCH_DOC: MethodDoc = MethodDoc {
             desc: "The server returned an error, such as `NoSuchObject` for a `base` that does \
                    not exist. A search that finds more entries than `sizeLimit` throws \
                    `SizeLimitExceeded` in the loop.",
+        },
+    ],
+};
+
+/// `Ldap\Connection::changes`' reference card — `rule:core-api/reference-card`.
+const CHANGES_DOC: MethodDoc = MethodDoc {
+    short: "Finds the entries that changed since the last call, with Active Directory's \
+            DirSync. Store the `cookie()` of the result, and give it to the next call. That \
+            call returns only the entries that changed after it.",
+    params: &[
+        ParamDoc {
+            name: "filter",
+            desc: "Which entries to return, such as `Filter::equals('objectClass', 'user')`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "base",
+            desc: "The root of the domain, as a `Dn` or as text. Left out, it is the `base` of \
+                   the `[ldap]` block. Active Directory throws an error for any other DN. \
+                   Text cannot be `tainted`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "select",
+            desc: "The attributes to watch, such as `['cn', 'mail']`. A changed entry has only \
+                   the attributes that changed. The attributes `filter` uses and `isDeleted` \
+                   are always watched too. Left out, every attribute is watched.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "cookie",
+            desc: "The `cookie()` of an earlier result. Left out, the result has every entry \
+                   that matches `filter`.",
+            shape: &[],
+        },
+    ],
+    ret: "A `Core\\Ldap\\Changes`. Use it in a `foreach` loop to get each changed \
+          `Core\\Ldap\\Entry`. A deleted entry has `isDeleted()` set to `true`.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "A name in `select` is not an attribute name, there is no `base`, or the \
+                   connection is closed.",
+        },
+        ErrorDoc {
+            error: "Core\\Ldap\\LdapError",
+            desc: "The server returned an error. A server without DirSync throws \
+                   `Unsupported`.",
         },
     ],
 };
@@ -990,6 +1080,45 @@ pub(crate) const ENTRIES: CoreClass = CoreClass {
     ],
     slots: &[HANDLE_SLOT, "search", "entry", "references", "total"],
     constants: &[],
+};
+
+/// `Ldap\Changes`' class card — `rule:core-api/reference-card`.
+const CHANGES_CARD: ClassDoc = ClassDoc {
+    short: "The entries that changed since a cookie. A `foreach` loop gets them one at a time. \
+            After the loop, `cookie()` returns the cookie for the next call to `changes`.",
+};
+
+/// ADR 0278 § 11's `Ldap\Changes`: what `changes` returns, and its own
+/// iterator, as [`ENTRIES`] is. `super::search`'s module doc says what each
+/// slot is.
+pub(crate) const CHANGES_SET: CoreClass = CoreClass {
+    name: CHANGES_NAME,
+    doc: Some(&CHANGES_CARD),
+    methods: &[],
+    instance: &[CoreMethod {
+        name: "cookie",
+        names: &[],
+        params: &[],
+        defaults: &[],
+        return_ty: CoreTy::TaintedBytes,
+        symbol: "nvs_core_ldap_changes_cookie",
+        doc: Some(&CHANGES_COOKIE_DOC),
+    }],
+    slots: &[HANDLE_SLOT, "search", "entry", "cookie"],
+    constants: &[],
+};
+
+/// `Ldap\Changes::cookie`'s reference card — `rule:core-api/reference-card`.
+const CHANGES_COOKIE_DOC: MethodDoc = MethodDoc {
+    short: "Returns the cookie for the next call to `changes`. Store it, for example in a \
+            database, after the loop ends. If you stop the loop early, the cookie covers only \
+            the entries you read, so the next call returns the others again.",
+    params: &[],
+    ret: "The cookie. It is `tainted`, because the server sent it.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The connection is closed.",
+    }],
 };
 
 /// `Ldap\Entries::total`'s reference card — `rule:core-api/reference-card`.

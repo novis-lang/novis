@@ -1,0 +1,40 @@
+--TEST--
+`changes` throws `LogicError` for a `select` name RFC 4512 does not allow before anything is sent, and throws `Unsupported` for a `base` that is not the root of the domain — ADR 0278 § 11
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+var $units = Core\Ldap\Filter::equals("objectClass", "organizationalUnit");
+array<string> $bad = ["ou)(objectClass=*", "*", "1ou", ""];
+int $thrown = 0;
+foreach ($bad as var $name) {
+    try {
+        $corp->changes($units, {select: ["ou", $name]});
+    } catch (LogicError $notAName) {
+        $thrown = $thrown + 1;
+    }
+}
+echo "thrown: ", $thrown, " of ", Core\Arr::count($bad), "\n";
+
+// DirSync starts only at the root of a domain.
+try {
+    $corp->changes($units, {base: "CN=Users,DC=example,DC=test"});
+    echo "not the root: no error\n";
+} catch (Core\Ldap\LdapError $error) {
+    var $unsupported = $error->kind == Core\Ldap\ErrorKind::Unsupported;
+    echo "not the root: ", $unsupported ? "Unsupported" : "another kind", ", code ", $error->code, "\n";
+}
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+base = "DC=example,DC=test"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+thrown: 4 of 4
+not the root: Unsupported, code 53

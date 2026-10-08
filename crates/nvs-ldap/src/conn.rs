@@ -1,4 +1,4 @@
-//! One LDAP connection over the parking stream: LDAPS or StartTLS before a password is written, a simple bind, `whoami`, a paged search, the four writes, compare and an unbind
+//! One LDAP connection over the parking stream: LDAPS or StartTLS before a password is written, a simple bind, `whoami`, a paged search, a DirSync, the four writes, compare and an unbind
 //!
 //! The sequencing is this crate's own, as `rule:core-classes/db-crate-boundary`
 //! asks. One operation is outstanding at a time, so every answer must carry
@@ -40,6 +40,16 @@
 //! server cuts the slice out of the sorted result and the cursor reads it as
 //! its one and only page. The count the server sends back with it is
 //! [`Cursor::total`]. A sort with no window is sent with every page.
+//!
+//! **A sync pages by its own cookie.** [`Cursor::changes`] sends AD's DirSync
+//! control in place of the paged one, and each answer carries the cookie the
+//! next one is asked with. [`Cursor::cookie`] moves to an answer's cookie only
+//! once every entry of that answer has been returned, so a program that stores
+//! it after stopping early is sent the rest again, never skips it. The control
+//! is critical, so a server without DirSync refuses the search with
+//! `unavailableCriticalExtension`. Samba matches a DirSync filter against the
+//! selected attributes alone, so a sync that selects any adds the ones its
+//! filter tests.
 
 use std::collections::VecDeque;
 use std::io::{self, Read, Write};
@@ -691,6 +701,17 @@ enum Paging {
     Done,
 }
 
+/// How a [`Cursor`] asks for its next answer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Mode {
+    /// With the paged results control and the last page's cookie.
+    Paged,
+    /// Once, with the virtual list view control.
+    Window,
+    /// With the DirSync control and the last answer's cookie.
+    Sync,
+}
+
 /// A search the caller owns: one page of entries held, the next asked for
 /// when this one is used up.
 ///
@@ -701,8 +722,11 @@ pub struct Cursor {
     op: Vec<u8>,
     /// The sort, window and show deleted controls, sent with every page.
     extra: Vec<Control>,
-    /// Whether the search is one window rather than pages.
-    windowed: bool,
+    /// How the search asks for its next answer.
+    mode: Mode,
+    /// For a sync, the cookie the answer being handed out was asked with,
+    /// which [`Cursor::cookie`] returns until its last entry is.
+    resume: Vec<u8>,
     /// The count of the whole sorted result a window's answer carried.
     total: Option<u32>,
     page_size: u32,
@@ -733,7 +757,12 @@ impl Cursor {
         Self {
             op: proto::search_request(request),
             extra,
-            windowed: request.window.is_some(),
+            mode: if request.window.is_some() {
+                Mode::Window
+            } else {
+                Mode::Paged
+            },
+            resume: Vec::new(),
             total: None,
             page_size: request.page_size.max(1),
             cookie: Vec::new(),
@@ -742,6 +771,47 @@ impl Cursor {
             pages: 0,
             state: Paging::First,
             whole: true,
+        }
+    }
+
+    /// A DirSync search for `request`'s entries changed since `cookie`, or
+    /// for every entry when the cookie is empty. It asks with the cookie in
+    /// place of pages, and the server sends a new cookie with each answer.
+    #[must_use]
+    pub fn changes(request: &SearchRequest<'_>, cookie: &[u8]) -> Self {
+        let tested = request.filter.attributes();
+        let mut attributes = request.attributes.to_vec();
+        // Samba matches a DirSync filter against the selected attributes
+        // only, and sends a deletion only when `isDeleted` is selected, so
+        // each one the filter tests is selected too, and `isDeleted`.
+        if !attributes.is_empty() {
+            for name in tested.iter().map(String::as_str).chain(["isDeleted"]) {
+                if !attributes.iter().any(|had| had.eq_ignore_ascii_case(name)) {
+                    attributes.push(name);
+                }
+            }
+        }
+        Self {
+            mode: Mode::Sync,
+            cookie: cookie.to_vec(),
+            resume: cookie.to_vec(),
+            ..Self::new(&SearchRequest {
+                attributes: &attributes,
+                ..*request
+            })
+        }
+    }
+
+    /// The cookie a later sync starts from: the server's cookie for every
+    /// answer whose entries were all returned, so a sync that stops early
+    /// sends the rest again rather than skipping them. Empty for a search
+    /// that is not a sync.
+    #[must_use]
+    pub fn cookie(&self) -> &[u8] {
+        if self.page.is_empty() {
+            &self.cookie
+        } else {
+            &self.resume
         }
     }
 
@@ -834,8 +904,10 @@ impl Cursor {
     fn fetch(&mut self, connection: &mut Connection) -> Result<(), Error> {
         let id = connection.take_id();
         let mut controls = self.extra.clone();
-        if !self.windowed {
-            controls.push(Control::paged(self.page_size, &self.cookie));
+        match self.mode {
+            Mode::Paged => controls.push(Control::paged(self.page_size, &self.cookie)),
+            Mode::Window => {}
+            Mode::Sync => controls.push(Control::dir_sync(&self.cookie)),
         }
         connection.send(&proto::message(id, &self.op, &controls), "the search")?;
         connection.settled = false;
@@ -848,7 +920,19 @@ impl Cursor {
                     connection.settled = true;
                     self.pages += 1;
                     succeeded("the search", &result)?;
-                    if self.windowed {
+                    if self.mode == Mode::Sync {
+                        let (more, cookie) = incoming
+                            .controls
+                            .iter()
+                            .find(|control| control.oid == proto::DIR_SYNC)
+                            .ok_or_else(|| unexpected("the search"))?
+                            .dir_sync_answer()?;
+                        self.resume = std::mem::replace(&mut self.cookie, cookie);
+                        let next = if more { Paging::More } else { Paging::Done };
+                        self.move_to(connection, next);
+                        return Ok(());
+                    }
+                    if self.mode == Mode::Window {
                         let (total, code) = incoming
                             .controls
                             .iter()

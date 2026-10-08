@@ -165,6 +165,8 @@ const HOST_HANDLE_CLASSES: &[&CoreClass] = &[
     &crate::ldap::CONNECTION,
     // A search holds the connection's key, and reads its next page through it.
     &crate::ldap::ENTRIES,
+    // And a sync, which reads its next answer the same way.
+    &crate::ldap::CHANGES_SET,
 ];
 
 /// Every member compiled code reaches on a `Core` instance **by name** — one
@@ -296,6 +298,15 @@ const DISPATCH_ROSTER: &[(&str, &[(&str, &str)])] = &[
             (sequence::ITERATE, crate::ldap::ENTRIES_ITERATE_SYMBOL),
             (sequence::ADVANCE, crate::ldap::ENTRIES_ADVANCE_SYMBOL),
             (sequence::CURRENT, crate::ldap::ENTRIES_CURRENT_SYMBOL),
+        ],
+    ),
+    // And § 11's sync, whose next answer is asked for the same way.
+    (
+        crate::ldap::CHANGES_NAME,
+        &[
+            (sequence::ITERATE, crate::ldap::CHANGES_ITERATE_SYMBOL),
+            (sequence::ADVANCE, crate::ldap::CHANGES_ADVANCE_SYMBOL),
+            (sequence::CURRENT, crate::ldap::CHANGES_CURRENT_SYMBOL),
         ],
     ),
     // And spec § 12's walk over a CSV file's records, which makes the same

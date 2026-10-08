@@ -1,0 +1,17 @@
+--TEST--
+A sync cookie is bytes the server wrote, so `Changes::cookie()` returns `tainted bytes` and a plain `bytes` does not take it — ADR 0278 § 11 and `rule:security/tainted-qualifier`
+--FILE--
+<?nvs
+class Sync {
+    public static function cookieOf(Core\Ldap\Changes $changes): bytes {
+        bytes $cookie = $changes->cookie();
+        return $cookie;
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `bytes`, found `tainted bytes`
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -1961,3 +1961,67 @@ fn show_deleted_finds_a_deleted_entry() {
         "a tombstone is moved under `CN=Deleted Objects`: {moved}"
     );
 }
+
+/// The DNs of the OUs a DirSync from `cookie` returns, and the cookie it ends with.
+fn synced(ctx: &mut nvs_runtime::Ctx, key: u64, cookie: &[u8]) -> (Vec<String>, Vec<u8>) {
+    let units = Filter::Equal("objectClass".to_owned(), b"organizationalUnit".to_vec());
+    let mut changes = ldap::changes(
+        ctx,
+        key,
+        &SearchRequest {
+            attributes: &["ou"],
+            ..everything(&units, 1000, 0)
+        },
+        cookie,
+    )
+    .expect("the sync starts");
+    let mut found = Vec::new();
+    while let Some(entry) = changes.next(ctx).expect("the sync succeeds") {
+        found.push(entry.dn);
+    }
+    (found, changes.cookie().to_vec())
+}
+
+#[test]
+fn dirsync_returns_only_what_changed_since_its_cookie() {
+    let Some(ca) = samba() else { return };
+    let mut ctx = ctx_over(&corp(&ca));
+    let key = ldap::connect(&mut ctx, "corp").expect("the block opens");
+    let dn = format!("OU=Harbor,{BASE}");
+    let unchanged = format!("OU=Domain Controllers,{BASE}");
+    ldap::delete(&mut ctx, key, &dn).ok();
+
+    // An empty cookie returns every entry, and ends with a cookie.
+    let (every, cookie) = synced(&mut ctx, key, &[]);
+    assert!(every.contains(&unchanged), "{every:?}");
+    assert!(!cookie.is_empty(), "a sync ends with a cookie");
+
+    ldap::add(
+        &mut ctx,
+        key,
+        &dn,
+        &[nvs_ldap::Attribute {
+            name: "objectClass".to_owned(),
+            values: vec![b"organizationalUnit".to_vec()],
+        }],
+    )
+    .expect("the OU is added");
+    let (since, next) = synced(&mut ctx, key, &cookie);
+    assert!(since.contains(&dn), "the new OU is a change: {since:?}");
+    assert!(
+        !since.contains(&unchanged),
+        "an OU that did not change is not sent again: {since:?}"
+    );
+    let (after, _) = synced(&mut ctx, key, &next);
+    assert!(
+        !after.contains(&dn),
+        "the next cookie is past the change: {after:?}"
+    );
+    assert!(
+        ldap::held(&mut ctx, key, "test")
+            .expect("open")
+            .is_poolable(),
+        "a finished sync leaves the connection settled"
+    );
+    ldap::delete(&mut ctx, key, &dn).expect("the OU is deleted");
+}

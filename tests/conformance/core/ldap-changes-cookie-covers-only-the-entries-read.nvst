@@ -1,0 +1,35 @@
+--TEST--
+`Changes::cookie()` stays the cookie `changes` was given until every entry of the server's answer is read, so a loop that stops early does not skip entries, and it is a new cookie after the loop ends — ADR 0278 § 11
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+var $units = Core\Ldap\Filter::equals("objectClass", "organizationalUnit");
+
+// Without a cookie, the result has every OU, and the cookie starts empty.
+var $early = $corp->changes($units, {select: ["ou"]});
+echo "before the loop: ", Core\Bytes::length($early->cookie()), " bytes\n";
+foreach ($early as Core\Ldap\Entry $entry) {
+    break;
+}
+echo "after one entry: ", Core\Bytes::length($early->cookie()), " bytes\n";
+
+var $whole = $corp->changes($units, {select: ["ou"]});
+foreach ($whole as Core\Ldap\Entry $entry) {
+}
+echo "after the loop: ", Core\Bytes::length($whole->cookie()) > 0 ? "a new cookie" : "empty", "\n";
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+base = "DC=example,DC=test"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+before the loop: 0 bytes
+after one entry: 0 bytes
+after the loop: a new cookie

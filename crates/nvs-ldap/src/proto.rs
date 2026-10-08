@@ -32,6 +32,14 @@ pub const VLV_REQUEST: &str = "2.16.840.1.113730.3.4.9";
 pub const VLV_RESPONSE: &str = "2.16.840.1.113730.3.4.10";
 /// AD's show deleted objects control, which has no value.
 pub const SHOW_DELETED: &str = "1.2.840.113556.1.4.417";
+/// AD's DirSync control, sent with a search and sent back with its answer
+/// ([MS-ADTS] § 3.1.1.3.4.1.3).
+pub const DIR_SYNC: &str = "1.2.840.113556.1.4.841";
+/// DirSync's `LDAP_DIRSYNC_OBJECT_SECURITY` flag: the server returns what
+/// the account may read, so an account without the replication right can sync.
+const DIR_SYNC_OBJECT_SECURITY: i64 = 1;
+/// The most bytes of entries one DirSync answer carries.
+const DIR_SYNC_MAX_BYTES: i64 = 1 << 20;
 
 const BIND_REQUEST: u8 = 0x60;
 const BIND_RESPONSE: u8 = 0x61;
@@ -114,6 +122,45 @@ pub enum Filter {
 }
 
 impl Filter {
+    /// The names of the attributes the filter tests, each once, in the order
+    /// they first appear. An encoded filter that does not decode tests none.
+    #[must_use]
+    pub fn attributes(&self) -> Vec<String> {
+        fn walk(filter: &Filter, out: &mut Vec<String>) {
+            let name = match filter {
+                Filter::And(list) | Filter::Or(list) => {
+                    list.iter().for_each(|inner| walk(inner, out));
+                    return;
+                }
+                Filter::Not(inner) => return walk(inner, out),
+                Filter::Encoded(bytes) => {
+                    if let Ok(decoded) = Filter::from_ber(bytes) {
+                        walk(&decoded, out);
+                    }
+                    return;
+                }
+                Filter::Equal(name, _)
+                | Filter::GreaterOrEqual(name, _)
+                | Filter::LessOrEqual(name, _)
+                | Filter::Approx(name, _)
+                | Filter::Present(name)
+                | Filter::Substrings {
+                    attribute: name, ..
+                } => name,
+                Filter::Extensible { attribute, .. } => match attribute {
+                    Some(name) => name,
+                    None => return,
+                },
+            };
+            if !out.iter().any(|seen| seen.eq_ignore_ascii_case(name)) {
+                out.push(name.clone());
+            }
+        }
+        let mut out = Vec::new();
+        walk(self, &mut out);
+        out
+    }
+
     /// Writes the filter's BER encoding.
     pub fn encode(&self, out: &mut Writer) {
         match self {
@@ -752,6 +799,38 @@ impl Control {
         }
     }
 
+    /// The DirSync control asking for the entries changed since `cookie`. An
+    /// empty cookie asks for every entry.
+    #[must_use]
+    pub fn dir_sync(cookie: &[u8]) -> Self {
+        let mut value = Writer::new();
+        value.constructed(tag::SEQUENCE, |sync| {
+            sync.integer(tag::INTEGER, DIR_SYNC_OBJECT_SECURITY);
+            sync.integer(tag::INTEGER, DIR_SYNC_MAX_BYTES);
+            sync.octets(tag::OCTET_STRING, cookie);
+        });
+        Self {
+            oid: DIR_SYNC.to_owned(),
+            critical: true,
+            value: Some(value.into_bytes()),
+        }
+    }
+
+    /// Whether a DirSync answer has more entries to ask for, and the cookie
+    /// to ask with.
+    ///
+    /// # Errors
+    ///
+    /// [`Kind::Protocol`] for a value that is not the [MS-ADTS] shape.
+    pub fn dir_sync_answer(&self) -> Result<(bool, Vec<u8>), Error> {
+        let value = self.value.as_deref().unwrap_or_default();
+        let mut outer = Reader::new(value);
+        let mut seq = Reader::new(outer.expect(tag::SEQUENCE)?);
+        let more = ber::integer(seq.expect(tag::INTEGER)?)? != 0;
+        seq.expect(tag::INTEGER)?;
+        Ok((more, seq.expect(tag::OCTET_STRING)?.to_vec()))
+    }
+
     /// The `contentCount` and the result code of a virtual list view
     /// response control: how many entries the whole sorted result has, and
     /// 0 when the server built the window.
@@ -1276,6 +1355,38 @@ mod tests {
             ]),
         };
         assert_eq!(answer.window_total().unwrap(), (300, 0));
+    }
+
+    #[test]
+    fn a_filter_names_each_attribute_it_tests_once() {
+        let filter = Filter::And(vec![
+            Filter::Equal("objectClass".to_owned(), b"user".to_vec()),
+            Filter::Not(Box::new(Filter::Present("mail".to_owned()))),
+            Filter::Or(vec![Filter::Present("objectclass".to_owned())]),
+        ]);
+        let names = vec!["objectClass".to_owned(), "mail".to_owned()];
+        assert_eq!(filter.attributes(), names);
+        assert_eq!(Filter::Encoded(filter.to_ber()).attributes(), names);
+    }
+
+    #[test]
+    fn a_dir_sync_control_carries_its_cookie_and_its_answer_reads_back() {
+        let sync = Control::dir_sync(b"ck");
+        assert!(sync.critical);
+        assert_eq!(
+            sync.value.unwrap(),
+            [
+                0x30, 0x0C, 0x02, 0x01, 0x01, 0x02, 0x03, 0x10, 0x00, 0x00, 0x04, 0x02, b'c', b'k'
+            ]
+        );
+        let answer = Control {
+            oid: DIR_SYNC.to_owned(),
+            critical: false,
+            value: Some(vec![
+                0x30, 0x0A, 0x02, 0x01, 0x01, 0x02, 0x01, 0x00, 0x04, 0x02, b'n', b'x',
+            ]),
+        };
+        assert_eq!(answer.dir_sync_answer().unwrap(), (true, b"nx".to_vec()));
     }
 
     #[test]

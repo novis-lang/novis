@@ -1484,6 +1484,7 @@ mod tests {
     /// the entry it returned, and `has` returns a `bool`.
     /// `Core\Ldap\Entries::references` is on it too: a continuation reference
     /// is a URL the server chose, and following it is the program's decision.
+    /// `Core\Ldap\Changes::cookie` is too: the server wrote its bytes.
     /// `Core\Ldap\Filter::toString` is the filter's text for a log, and a value
     /// inside it may be `tainted`. `Core\Ldap\Dn`'s `toString` and `rdnValue`
     /// are on it for the same reason: `of` and `child` launder a value into a
@@ -1596,6 +1597,7 @@ mod tests {
                     "references",
                     "array<tainted string>".to_owned(),
                 ),
+                (r"Core\Ldap\Changes", "cookie", "tainted bytes".to_owned()),
                 (r"Core\Ldap\Filter", "toString", "tainted string".to_owned(),),
                 // A value in a DN may have come from a request.
                 (r"Core\Ldap\Dn", "rdnValue", "tainted string".to_owned()),

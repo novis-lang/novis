@@ -2438,6 +2438,7 @@ pub const CLASSES: &[CoreClass] = &[
     crate::ldap::CLASS,
     crate::ldap::CONNECTION,
     crate::ldap::ENTRIES,
+    crate::ldap::CHANGES_SET,
     crate::ldap::ENTRY,
     crate::ldap::FILTER,
     crate::ldap::CHANGE,
@@ -3776,6 +3777,11 @@ pub const ITERABLES: &[(&str, &CoreTy)] = &[
     // whatever the search selected.
     (
         crate::ldap::ENTRIES_NAME,
+        &CoreTy::Instance(crate::ldap::ENTRY_NAME),
+    ),
+    // And § 11's `changes(): Changes`, for the same reason.
+    (
+        crate::ldap::CHANGES_NAME,
         &CoreTy::Instance(crate::ldap::ENTRY_NAME),
     ),
     // `rule:http-server/an-upload-is-received-only-through-files`'s `files(): Iterable<Part>`. A concrete element again, and

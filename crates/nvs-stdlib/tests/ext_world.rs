@@ -164,6 +164,7 @@ const REFUSED: &[(&str, &str)] = &[
     ("Core\\Db\\Row", REPORT),
     ("Core\\Ldap\\Connection", HANDLE),
     ("Core\\Ldap\\Entries", HANDLE),
+    ("Core\\Ldap\\Changes", HANDLE),
     ("Core\\Ldap\\Entry", REPORT),
     (
         "Core\\Ldap\\Filter",

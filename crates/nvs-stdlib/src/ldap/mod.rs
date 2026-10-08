@@ -56,6 +56,7 @@
 //! reads the next entry, and a search leaves [`Held`] at its last entry or its
 //! first failure. At its last entry [`Step::Ended`] hands back its
 //! continuation references, which `Ldap\Entries` keeps for `references()`,
+//! and its sync cookie, which `Ldap\Changes` keeps for `cookie()`,
 //! so nothing of a finished search stays on a pooled connection. One the program stops reading stays until the request ends,
 //! and a pooled connection drops what is left before it is reused. `search.rs`
 //! is the Novis half: the helpers for `Ldap\Connection`, `Ldap\Entries`,
@@ -107,7 +108,8 @@ mod write;
 
 pub(crate) use self::registry::*;
 pub(crate) use self::search::{
-    ENTRIES_ADVANCE_SYMBOL, ENTRIES_CURRENT_SYMBOL, ENTRIES_ITERATE_SYMBOL,
+    CHANGES_ADVANCE_SYMBOL, CHANGES_CURRENT_SYMBOL, CHANGES_ITERATE_SYMBOL, ENTRIES_ADVANCE_SYMBOL,
+    ENTRIES_CURRENT_SYMBOL, ENTRIES_ITERATE_SYMBOL,
 };
 pub use self::write::{
     ADD, CHANGE_PASSWORD, COMPARE, DELETE, MODIFY, RENAME, SET_PASSWORD, add, change_password,
@@ -132,8 +134,14 @@ pub const SEARCH: &str = r"Core\Ldap\Connection::search";
 /// `Core\Ldap\Connection::read`, as its refusals spell it.
 pub const READ: &str = r"Core\Ldap\Connection::read";
 
+/// `Core\Ldap\Connection::changes`, as its refusals spell it.
+pub const CHANGES: &str = r"Core\Ldap\Connection::changes";
+
 /// `Core\Ldap\Entries`, as a failure reading its next page spells it.
 pub const ENTRIES_MEMBER: &str = r"Core\Ldap\Entries";
+
+/// `Core\Ldap\Changes`, as a failure reading its next answer spells it.
+pub const CHANGES_MEMBER: &str = r"Core\Ldap\Changes";
 
 /// How many entries one page of a search holds when the program does not say.
 pub const PAGE_SIZE: u32 = 1000;
@@ -216,12 +224,19 @@ impl Held {
         let ended = self.searches.remove(&id);
         match next {
             Some(Err(error)) => Err(error),
-            _ => Ok(Step::Ended(
-                ended
-                    .map(|cursor| cursor.references().to_vec())
-                    .unwrap_or_default(),
+            _ => Ok(ended.map_or_else(
+                || Step::Ended(Vec::new(), Vec::new()),
+                |cursor| Step::Ended(cursor.references().to_vec(), cursor.cookie().to_vec()),
             )),
         }
+    }
+
+    /// The cookie of the sync parked under `id`, or `None` when no search is
+    /// parked under it.
+    fn cookie(&self, id: u64) -> Option<Vec<u8>> {
+        self.searches
+            .get(&id)
+            .map(|cursor| cursor.cookie().to_vec())
     }
 
     /// The continuation references the search parked under `id` returned so
@@ -689,6 +704,13 @@ impl Entries {
         self.cursor.total()
     }
 
+    /// The cookie a later [`changes`] starts from, which covers every entry
+    /// [`Entries::next`] has returned. Empty for a search that is not a sync.
+    #[must_use]
+    pub fn cookie(&self) -> &[u8] {
+        self.cursor.cookie()
+    }
+
     /// Moves the search onto the connection it runs on and returns the id
     /// [`step`] reads it back by, which is what an `Ldap\Entries` carries:
     /// an object slot holds a `Value`, and a cursor is not one.
@@ -710,9 +732,10 @@ impl Entries {
 pub enum Step {
     /// The next entry.
     Entry(nvs_ldap::Entry),
-    /// The search ended, and these are the continuation references it
-    /// returned, none of them followed.
-    Ended(Vec<String>),
+    /// The search ended. These are the continuation references it returned,
+    /// none of them followed, and its sync cookie, empty for a search that
+    /// is not a sync.
+    Ended(Vec<String>, Vec<u8>),
     /// No search is parked under the id, because it ended or failed before.
     Gone,
 }
@@ -724,10 +747,20 @@ pub enum Step {
 ///
 /// [`held`]'s, a size or time limit the server hit, and every other failure
 /// the server reports.
-pub fn step(ctx: &mut Ctx, key: u64, id: u64) -> Result<Step, Fault> {
-    held(ctx, key, ENTRIES_MEMBER)?
+pub fn step(ctx: &mut Ctx, key: u64, id: u64, member: &str) -> Result<Step, Fault> {
+    held(ctx, key, member)?
         .advance(id)
-        .map_err(|error| fault_of(ENTRIES_MEMBER, &error))
+        .map_err(|error| fault_of(member, &error))
+}
+
+/// The cookie of the sync [`Entries::park`] parked under `id` on the
+/// connection held under `key`, or `None` when no search is parked under it.
+///
+/// # Errors
+///
+/// [`held`]'s.
+pub fn cookie(ctx: &mut Ctx, key: u64, id: u64) -> Result<Option<Vec<u8>>, Fault> {
+    Ok(held(ctx, key, CHANGES_MEMBER)?.cookie(id))
 }
 
 /// The continuation references the search parked under `id` on the
@@ -807,6 +840,27 @@ pub fn search(
     cursor
         .start(held(ctx, key, SEARCH)?.ready())
         .map_err(|error| fault_of(SEARCH, &error))?;
+    Ok(Entries { key, cursor })
+}
+
+/// `Core\Ldap\Connection::changes`' body: starts a DirSync for `request`'s
+/// entries changed since `cookie`, or for every entry when it is empty, and
+/// reads the first answer.
+///
+/// # Errors
+///
+/// [`held`]'s, `Unsupported` from a server without DirSync, and every other
+/// failure the server reports for the first answer.
+pub fn changes(
+    ctx: &mut Ctx,
+    key: u64,
+    request: &nvs_ldap::SearchRequest<'_>,
+    cookie: &[u8],
+) -> Result<Entries, Fault> {
+    let mut cursor = nvs_ldap::Cursor::changes(request, cookie);
+    cursor
+        .start(held(ctx, key, CHANGES)?.ready())
+        .map_err(|error| fault_of(CHANGES, &error))?;
     Ok(Entries { key, cursor })
 }
 

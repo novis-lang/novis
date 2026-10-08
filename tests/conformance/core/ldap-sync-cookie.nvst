@@ -1,0 +1,69 @@
+--TEST--
+`changes` with the `cookie()` of an earlier result returns only the entries that changed after it, a deleted entry among them with `isDeleted()` set, and the newest cookie returns none of them again — ADR 0278 § 11
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+var $dn = "OU=Garden,DC=example,DC=test";
+try {
+    $corp->delete($dn);
+} catch (Core\Ldap\LdapError $gone) {
+}
+
+class Seen {
+    public static function garden(Core\Ldap\Changes $changes): string {
+        string $found = "no";
+        foreach ($changes as Core\Ldap\Entry $entry) {
+            if (Core\Str::startsWith($entry->dn()->toString(), "OU=Garden")) {
+                $found = $entry->isDeleted() ? "deleted" : "live";
+            }
+        }
+        return $found;
+    }
+
+    public static function controllers(Core\Ldap\Changes $changes): string {
+        string $found = "no";
+        foreach ($changes as Core\Ldap\Entry $entry) {
+            if ($entry->dn()->toString() == "OU=Domain Controllers,DC=example,DC=test") {
+                $found = "yes";
+            }
+        }
+        return $found;
+    }
+}
+
+// Other cases change entries at the same time, so each line checks one entry by its DN.
+var $units = Core\Ldap\Filter::equals("objectClass", "organizationalUnit");
+var $first = $corp->changes($units, {select: ["ou"]});
+echo "first sync, Domain Controllers: ", Seen::controllers($first), "\n";
+
+$corp->add($dn, ["objectClass" => "organizationalUnit"]);
+var $added = $corp->changes($units, {select: ["ou"], cookie: $first->cookie()});
+echo "after add, Garden: ", Seen::garden($added), "\n";
+
+var $again = $corp->changes($units, {select: ["ou"], cookie: $added->cookie()});
+echo "same cookie again, Domain Controllers: ", Seen::controllers($again), "\n";
+
+$corp->delete($dn);
+var $removed = $corp->changes($units, {select: ["ou"], cookie: $again->cookie()});
+echo "after delete, Garden: ", Seen::garden($removed), "\n";
+
+var $last = $corp->changes($units, {select: ["ou"], cookie: $removed->cookie()});
+echo "newest cookie, Garden: ", Seen::garden($last), "\n";
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+base = "DC=example,DC=test"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+first sync, Domain Controllers: yes
+after add, Garden: live
+same cookie again, Domain Controllers: no
+after delete, Garden: deleted
+newest cookie, Garden: no
