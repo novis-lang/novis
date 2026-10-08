@@ -1,29 +1,26 @@
 {
-  "state": "**Goal `ldap`, Stage 5 in progress; Stage 4 done but for a program-supplied CA.** `nvs-config` reads `[ldap.<name>]` and `[capabilities.ldap]`. `crates/nvs-stdlib/src/ldap/mod.rs` opens connections (`connect`, `open`) and runs `who_am_i`, `search` and `read`.\n\n**On `main`**: `Ldap\\Connection::whoami`/`search`/`read`, `Ldap\\Entries` (iterable, `references()`), `Ldap\\Entry` (`dn`, `has`, `string`, `strings`, `bytes`, `toArray`), `Ldap\\Scope`, `Ldap\\Settings` (`url`, `user`, `password`, `tls`, `timeout`, `base`), and `Ldap\\Filter` whole: `equals`, `startsWith`, `endsWith`, `contains`, `present`, `atLeast`, `atMost`, `approx`, `all`, `any` (variadic, at least one), `not`, `parse` (a `Qual::Sink` text, so `tainted` does not compile) and `->toString()` (`tainted string`). Each member has at least three `.nvst` cases under `tests/conformance/core/ldap-*.nvst`. The Rust tests `a_filter_encodes_to_ber_with_no_text_step` and `a_tainted_value_cannot_change_a_filters_structure` pass against Samba.\n\n`nvs_ldap::Filter` has `from_ber`, `to_text` (RFC 4515) and `parse`, its inverse: `parse(f.to_text()) == f`, and a malformed text is a `nvs_ldap::TextError` with a 1-based character position. A filter's value is a `string` only; Stage 6 widens it to the typed values of `rule:core-classes/ldap-value-types`.\n\nServer cases reach `samba-ad` (`tests/db/compose.yaml`) at `ldaps://localhost:16636`, or over cleartext at `ldap://127.0.0.1:16389` for an `open` case, which writes `127.0.0.1`, not `localhost`. `CN=Users` holds exactly `Administrator`, `Guest` and `krbtgt`.\n\n`dn()` returns `string` until `Dn` exists.",
+  "state": "**Goal `ldap`, Stage 5 in progress; Stage 4 done but for a program-supplied CA.** `nvs-config` reads `[ldap.<name>]` and `[capabilities.ldap]`. `crates/nvs-stdlib/src/ldap/mod.rs` opens connections (`connect`, `open`) and runs `who_am_i`, `search` and `read`.\n\n**On `main`**: `Ldap\\Connection::whoami`/`search`/`read`, `Ldap\\Entries`, `Ldap\\Entry`, `Ldap\\Scope`, `Ldap\\Settings`, `Ldap\\Filter` whole (`parse` is a sink, `toString` is `tainted`), and now `Ldap\\Dn` whole: `parse` (a sink), `of` and `child` (`Qual::Launder` on the value), `parent(): ?Dn`, `rdnAttribute(): string`, `rdnValue(): tainted string`, `isWithin(Dn): bool`, `toString(): tainted string`. `Entry::dn()` returns a `Dn`, and `read`'s DN, `search`'s `base` and `Settings.base` are `Dn|string` with the `string` arm a sink. The type checker's help at a `tainted` DN names `Dn::of` (`carrier_help` in `crates/nvs-types/src/expr/args.rs`).\n\nADR 0278's `rdn(): {attribute, value}` is two readers, because a `Core` member cannot return a shape; `rule:core-classes/ldap-dn-is-the-launderer` says so. The text a `Dn` gives back is `tainted`, so a case that collects `$entry->dn()->toString()` uses `array<tainted string>`, and `Core\\Str::join` does not take one.\n\n`nvs_ldap::Dn` (`crates/nvs-ldap/src/dn.rs`) is RFC 4514's parser and escaper; its module doc says what it accepts. The Rust tests `a_filter_encodes_to_ber_with_no_text_step`, `a_tainted_value_cannot_change_a_filters_structure` and `dn_escapes_each_value_and_round_trips` pass against Samba.\n\nServer cases reach `samba-ad` (`tests/db/compose.yaml`) at `ldaps://localhost:16636`, or over cleartext at `ldap://127.0.0.1:16389` for an `open` case. `CN=Users` holds exactly `Administrator`, `Guest` and `krbtgt`.",
   "next": {
     "stage": 5,
     "title": "the filter builder and `Dn`",
     "files": [
       "crates/nvs-ldap/src/proto.rs",
-      "crates/nvs-stdlib/src/ldap/search.rs",
       "crates/nvs-stdlib/src/ldap/registry.rs",
+      "crates/nvs-stdlib/src/ldap/search.rs",
       "crates/nvs-stdlib/tests/ldap.rs",
       "tests/conformance/core/ldap-*.nvst"
     ],
     "items": [
       {
         "done": false,
-        "text": "**`Ldap\\Dn`: `parse`, `of`, `child`, `parent`, `rdn`, `isWithin`, `toString`, and `Entry::dn()` returning it** (ADR 0278 § 1, `rule:core-classes/ldap-dn-is-the-launderer`). The `dn` row is at `crates/nvs-stdlib/src/ldap/registry.rs:500` and its body at `crates/nvs-stdlib/src/ldap/search.rs:442`. Every DN parameter (`search`'s `base`, `read`'s DN) becomes `Dn|string` with the `string` arm refusing `tainted`. The RFC 4514 escaper and parser go in `nvs-ldap` beside `Filter::parse`'s `TextParser` (`crates/nvs-ldap/src/proto.rs:360`), and may reuse its `TextError`. Rust test `dn_escapes_each_value_and_round_trips`, acceptance case `tests/conformance/core/ldap-dn-from-parts.nvst`."
-      },
-      {
-        "done": false,
-        "text": "**`Ad::memberOf` with `nested`** uses the in-chain rule (`1.2.840.113556.1.4.1941`) as `nvs_ldap::Filter::Extensible` (`crates/nvs-ldap/src/proto.rs:82`). It takes a `Dn`, so it follows the item above. Rust test `ad_member_of_nested_uses_the_in_chain_rule` in `crates/nvs-stdlib/tests/ldap.rs:357`'s file."
+        "text": "**`Ldap\\Ad`: `memberOf(Dn|string, ?{nested: bool}): Filter`, `enabled()`, `disabled()`, `bitAnd(string, int)`, `bitOr(string, int)`** (ADR 0278 § 1 table, `rule:core-classes/ldap-filter-is-a-value`'s last sentence). `nested: true` is `nvs_ldap::Filter::Extensible` with rule `1.2.840.113556.1.4.1941` (`crates/nvs-ldap/src/proto.rs:82`); `bitAnd`/`bitOr` are `.803`/`.804`; `enabled`/`disabled` test `userAccountControl`'s bit 2. A new static class `AD` beside `FILTER` (`crates/nvs-stdlib/src/ldap/registry.rs:668`), bodies building with `filter_value` (`crates/nvs-stdlib/src/ldap/search.rs:195`), the DN read with `super::dn::dn_arg`, and `DN_OR_STRING` (`crates/nvs-stdlib/src/ldap/registry.rs:39`) for the parameter. Rust test `ad_member_of_nested_uses_the_in_chain_rule`; Samba returns nothing from the in-chain rule (ADR 0278 § 2), so the test checks the encoding and that the server accepts it. Three `.nvst` cases per member."
       }
     ]
   },
   "backlog": [
-    "`Ldap\\Settings` has no program-supplied CA, so `open` cannot use LDAPS to reach a server whose certificate needs a private CA. It must be `tlsCa: string` (PEM text) under a `[capabilities.tls] anchors` host grant, per `rule:security/tls-trust-is-relaxed-only-under-a-host-grant`. The dial is at `crates/nvs-stdlib/src/ldap/mod.rs:260`.",
-    "`Entries::total()` (ADR 0278 § 1) is not written. It needs a server that answers the VLV control, which is Stage 9.",
-    "`Filter::approx` is not matched against a server: Samba does not evaluate it (playbook, *Writing a test case*). The Windows Server run is the user's."
+    "Stage 5's `ldap-filters-and-dns-run` cases all pass now; only `ad_member_of_nested_uses_the_in_chain_rule` keeps the stage red (`data/goals/ldap.json`).",
+    "A program-supplied CA for `open` (`Settings.tls_ca_file` is `None` in `crates/nvs-stdlib/src/ldap/mod.rs`): Stage 4's one leftover, `docs/agent/goals/ldap.md`.",
+    "Stage 6 widens a filter's value to the typed values of `rule:core-classes/ldap-value-types`.",
+    "`rule:core-classes/ldap-dn-is-the-launderer` and `ldap-filter-is-a-value` are still `designed` in `data/rules/core-classes/`; mark them shipped with their guarding cases when Stage 5 closes."
   ]
 }
