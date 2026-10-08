@@ -59,7 +59,7 @@ accepts — anything else is `E0601`:
 | `[log]` | `handler`, `handler_reserve_memory`, `handler_reserve_time`, `target`, `format`, `level` |
 | `[http]` | `[http.errors] detail`; `[http.headers]`; `[http.cors]`; `[http.cookies]`; `[http.client]` |
 | `[server]`, `[[server.mount]]` | the web server's listen addresses, timeouts and mounts |
-| `[debug]`, `[metrics]`, `[trace]`, `[control]`, `[opcache]`, `[deferred]` | their named directives |
+| `[debug]`, `[metrics]`, `[trace]`, `[opcache]`, `[deferred]` | their named directives |
 | `[[extension]]`, `[[schedule]]` | extension paths; scheduled scripts |
 | `[ext.<name>]` | the settings of one extension. The extension's manifest lists the keys and their types. A key it does not list, or a block no loaded extension uses, stops the server from starting |
 

@@ -80,24 +80,6 @@
     },
     {
       "area": "config",
-      "slug": "control",
-      "url": "/reference/config/control/",
-      "title": "[control]",
-      "group": "Blocks",
-      "intro": null,
-      "keys": [
-        {
-          "id": "directive:control.socket",
-          "title": "control.socket",
-          "examples": "config/control-socket",
-          "key": "control.socket",
-          "class": "System",
-          "apply": "Reload"
-        }
-      ]
-    },
-    {
-      "area": "config",
       "slug": "debug",
       "url": "/reference/config/debug/",
       "title": "[debug]",
@@ -1037,19 +1019,6 @@
         "id": "tools:server/nvs-serve",
         "title": "nvs serve",
         "examples": "tools/server/nvs-serve"
-      },
-      "keys": []
-    },
-    {
-      "area": "cli",
-      "slug": "nvs-ctl",
-      "url": "/reference/cli/nvs-ctl/",
-      "title": "nvs ctl",
-      "group": "Server",
-      "intro": {
-        "id": "tools:server/nvs-ctl",
-        "title": "nvs ctl",
-        "examples": "tools/server/nvs-ctl"
       },
       "keys": []
     },

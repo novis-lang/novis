@@ -34,7 +34,7 @@ usually one file:
 Every subcommand also takes `--config <PATH>` (see `nvs run`) and `-h`/`--help`. Every operation is
 a subcommand: there is no `-i`, `-a`, `-r`, `-f` or lowercase `-v`.
 
-**In other chapters:** `nvs serve`, `nvs ctl` and `nvs service` are in
+**In other chapters:** `nvs serve` and `nvs service` are in
 [the server chapter](#tools-server); `nvs lsp` and `nvs lsp-test` are in
 [the editor chapter](#tools-editor).
 

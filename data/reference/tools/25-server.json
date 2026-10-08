@@ -1,7 +1,7 @@
 {
   "slug": "server",
   "title": "The HTTP server",
-  "summary": "`nvs serve`, the `[server]` block and its mounts, how a request finds the file that answers it, what a program reads about the door it came through, what reaches a running server, the drain, `nvs ctl` and `nvs service`",
+  "summary": "`nvs serve`, the `[server]` block and its mounts, how a request finds the file that answers it, what a program reads about the door it came through, what reaches a running server, the drain and `nvs service`",
   "keywords": [
     "nvs serve",
     "server",
@@ -43,8 +43,6 @@
     "drain_timeout",
     "graceful shutdown",
     "reload",
-    "nvs ctl",
-    "control socket",
     "nvs service",
     "service",
     "systemd",

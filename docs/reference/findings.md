@@ -153,7 +153,7 @@ rows whose owner is an item number, 31 to 35. An item's owner is the row it sits
       `tree.rs` says values are refused where sizes are parsed. *php-diff/config probes*
 - [x] **U10** The config trust rule (a file writable by another account is refused) is applied by
       neither `nvs run` nor `nvs config check` — `crates/nvs-cli/src/config.rs` reserves it for
-      `serve`/`ctl reload`, which do not exist. E0607/W1005 are unreachable in this binary.
+      `serve`, which does not exist. E0607/W1005 are unreachable in this binary.
 - [x] **U11** `password_file` is not materialized under `nvs run`: `Core\Config::get("db.main.password")`
       is `null`, and `config dump` shows the path rather than `<secret>` (secret.rs says `<secret>`).
       The both-set refusal E0608 does fire. The file *was* read — `Snapshot::retype` then rebuilt the
@@ -389,7 +389,7 @@ rows whose owner is an item number, 31 to 35. An item's owner is the row it sits
       and adding a member is a spec question rather than a finding.
 - [ ] **M6** `Core\Command::run`/`help`/`completions` (`rule:tooling/commands-are-compiled`) do not exist; the command table
       is built and checked, and `Core\Program::implementing` is the only reader.
-- [ ] **M7** `nvs serve`, `nvs fmt`, `nvs lsp`, `nvs ctl` are unrecognized subcommands.
+- [ ] **M7** `nvs serve`, `nvs fmt`, `nvs lsp` are unrecognized subcommands.
 - [x] **M8** `Core\Secret`, `Core\Taint`, `Core\Log`, `Core\Env`, `Core\Cli`, `Core\Request`,
       `Core\Server`, `Core\IO`, `Core\Html` resolved as names in diagnostics but had no registry rows.
       The name still resolves — nothing under `Core\` needs a declaration — but every member of one is

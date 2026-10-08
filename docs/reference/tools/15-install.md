@@ -91,7 +91,7 @@ This is what each command checks:
 
 | Command | Checks | If the check fails |
 |---|---|---|
-| `nvs serve`, `nvs ctl reload` | every configuration file, and the folder that contains it | the server does not start, or the reload is refused, with `E0607` |
+| `nvs serve`, at the start and at each reload | every configuration file, and the folder that contains it | the server does not start, or it keeps its configuration and logs `E0607` |
 | `nvs init` | the folder it writes into, **and the folder that contains that folder** | nothing is written and the exit status is `1` |
 | every command that compiles a program | the cache folder, **and the folder that contains it** | a `warning:` line when `file_cache_dir` is set. The program runs, and it is compiled again on every start |
 

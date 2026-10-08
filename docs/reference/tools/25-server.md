@@ -1,8 +1,8 @@
 ---
 id: server
 title: The HTTP server
-summary: `nvs serve`, the `[server]` block and its mounts, how a request finds the file that answers it, what a program reads about the door it came through, what reaches a running server, the drain, what happens when the client goes away, `nvs ctl` and `nvs service`
-keywords: nvs serve, server, HTTP, disconnect, client disconnect, client goes away, cancel_on_disconnect, disconnect_grace, ignore_user_abort, restart, restart required, deploy, hot reload, zero downtime, symlink, settle, revalidate_freq, listen, port, --listen, --port, [server], [[server.mount]], mount, prefix, host, scan, entry, origin, root, dispatch, static, static files, trusted_proxies, X-Forwarded-For, X-Forwarded-Proto, client IP, health_path, health check, max_in_flight, workers, timeout, drain, drain_timeout, graceful shutdown, reload, nvs ctl, control socket, nvs service, service, systemd, Windows service, Core\Request::mount, Core\Request\Mount, Core\Router::url, multi-tenant, subdirectory, virtual host, front controller, try_files, php -S, php-fpm, nginx, Apache, .htaccess, RewriteBase, SCRIPT_NAME, PATH_INFO, DocumentRoot
+summary: `nvs serve`, the `[server]` block and its mounts, how a request finds the file that answers it, what a program reads about the door it came through, what reaches a running server, the drain, what happens when the client goes away and `nvs service`
+keywords: nvs serve, server, HTTP, disconnect, client disconnect, client goes away, cancel_on_disconnect, disconnect_grace, ignore_user_abort, restart, restart required, deploy, hot reload, zero downtime, symlink, settle, revalidate_freq, listen, port, --listen, --port, [server], [[server.mount]], mount, prefix, host, scan, entry, origin, root, dispatch, static, static files, trusted_proxies, X-Forwarded-For, X-Forwarded-Proto, client IP, health_path, health check, max_in_flight, workers, timeout, drain, drain_timeout, graceful shutdown, reload, nvs service, service, systemd, Windows service, Core\Request::mount, Core\Request\Mount, Core\Router::url, multi-tenant, subdirectory, virtual host, front controller, try_files, php -S, php-fpm, nginx, Apache, .htaccess, RewriteBase, SCRIPT_NAME, PATH_INFO, DocumentRoot
 ---
 
 # nvs serve
@@ -233,18 +233,23 @@ A change that does not compile fails the requests that reach it, with its diagno
 does not serve the last version that compiled in its place. When the file is fixed, the next check
 finds the fix.
 
-**A configuration change.** The server checks its own configuration files every two seconds. A
-saved file is applied the same way `nvs ctl reload` applies it: the whole tree is read and checked
-first, and only then does the next request see it. A file that does not check is logged once, with
-its line, and the running configuration stays. `nvs ctl reload` applies a change at once.
+**A configuration change.** The server checks its own configuration files every two seconds. When
+you save a file, the server reads all of its configuration files again and checks them. Then the next
+request uses the new configuration. Every reload writes one `configuration reloaded` line to the log.
+Its `applied` field lists the keys that changed. Its `ignored` field lists the changed keys that need
+a restart. `invalidated` is the number of compiled program files that the server compiles again.
+
+A file with an error changes nothing. The server writes `configuration reload refused` to the log
+once, with the error and its line, and keeps the configuration it has. On Windows, a `PARAMCHANGE`
+from the service manager starts the same reload.
 
 **Four keys need a restart**: `[server] listen`, `[server] socket_mode`, `[server] workers` and
 `[server] watchdog_margin`. A port below 1024 needs a privilege the server gave up after it opened
 the socket. `socket_mode` is applied only when a socket is opened, and `workers` sets how many cores
 accept requests. `watchdog_margin` is how long a worker may stay past the deadline of its oldest
 request before the server reports that the worker has stopped. A changed one takes effect at the
-next start. Until then, the reload names it and logs it once with the running value and the new one,
-and `nvs ctl status` lists it. The shipped `nvs.toml` ends each of these four lines with
+next start. Until then, the server writes `configuration restart pending` to the log once, with the
+key, the running value and the new one. The shipped `nvs.toml` ends each of these four lines with
 `restart required`:
 
 ```toml
@@ -318,12 +323,11 @@ foreach ($orders as string $order) {
 }
 ```
 
-**A reload drains the connections that are open.** `nvs ctl reload` closes each connection
-that was opened before it, the same way a stop does. A request that is running finishes with the
-configuration it started with, and then its connection closes. The server still accepts new
-connections, and they use the new configuration. The health path still answers `200`,
-`Core\Server::isDraining()` still returns `false`, and `nvs ctl status` still prints
-`draining: false`.
+**A reload drains the connections that are open.** When the server applies a saved configuration
+file, it closes each connection that was opened before the reload, the same way a stop does. A
+request that is running finishes with the configuration it started with, and then its connection
+closes. The server still accepts new connections, and they use the new configuration. The health
+path still answers `200`, and `Core\Server::isDraining()` still returns `false`.
 
 <!-- src: `rule:concurrency/a-drain-closes-a-connection-cleanly`, `rule:config/the-config-is-an-immutable-snapshot`, `rule:http-server/health-path-is-off-and-checks-nothing` -->
 
@@ -361,87 +365,6 @@ a program cannot test whether its client has gone. These keys do not apply to an
 (`Core\Sse`) or a WebSocket.
 
 <!-- src: `rule:http-server/a-request-outlives-a-client-that-goes-away`, `rule:concurrency/cancellation-runs-no-user-code` -->
-
-# nvs ctl
-
-    nvs ctl reload [--socket <path>]
-    nvs ctl config [--socket <path>]
-    nvs ctl status [--socket <path>]
-
-`nvs ctl` sends one request to a running server and prints the answer. It reaches the server over
-the control socket, which `[control] socket` in the configuration names:
-
-```toml
-[control]
-socket = "/run/nvs/control.sock"      # on Windows a pipe name: '\\.\pipe\nvs-control'
-```
-
-A server has no control socket when the value is `false`, or when no `[control]` block is written.
-Only the account that runs the server can use the socket. It has no password and no network
-address. The server does not start when another account can write to the directory that contains
-the socket. No request runs code of your program.
-
-`nvs ctl` reads the name of the socket from `./nvs.toml`, or from the file that `--config` names.
-`--socket` gives the name directly, which selects one server when several run on a host. `nvs ctl`
-and the server must be the same version of `nvs`.
-
-**`status`** prints how many requests are running and whether the server is draining.
-`config_check` counts the checks that the server made of its own configuration files. A
-`restart pending` line follows for each key whose changed value waits for the next start:
-
-```text
-$ nvs ctl status
-in_flight: 3
-draining: false
-config_check: 412 passes, 412 stats, 1 paths
-restart pending: server.workers (running not written, written 2)
-```
-
-**`config`** prints every key that the server is running with, and the file that set it.
-`nvs config dump --origin` prints the same list from the files on disk. A difference between the
-two lists is a change that the server has not applied.
-
-```text
-$ nvs ctl config
-control.socket = "/run/nvs/control.sock"    /srv/shop/nvs.toml
-limits.memory  = "128M"                     /srv/shop/nvs.toml
-mode.default   = "production"               /srv/shop/nvs.toml
-```
-
-**`reload`** reads all configuration files again and applies the result at once. It prints an
-`applied:` line for each key that it changed. It prints an `ignored:` line for each changed key
-that it did not apply, such as a key that needs a restart. `invalidated:` is the number of
-compiled program files that the change made stale, and the server compiles them again. A mount
-`scan` is expanded again. The server also checks its files by itself every two seconds, and a
-change that it already applied is not listed.
-
-```text
-$ nvs ctl reload
-applied: limits.memory
-ignored: server.workers
-invalidated: 0
-```
-
-When a file has an error, `reload` applies nothing. It prints the error and exits with status `1`,
-and the server keeps the configuration it has:
-
-```text
-$ nvs ctl reload
-error: the server refused `POST /reload` with 409:
-error[E0601]: unclosed table, expected `]`
-  --> /srv/shop/nvs.toml:7:8
-  |
-7 | [limits
-  |        ^ here
-  = note: in `[limits`
-
-note: the running configuration is unchanged
-```
-
-A changed `[control] socket` moves the socket without a restart. The new socket answers before the
-old one closes.
-
-<!-- src: `rule:config/one-local-control-socket`, `rule:config/a-reload-names-what-it-could-not-apply`, `rule:config/ctl-config-reports-the-live-snapshot`, `rule:config/no-network-control-surface` -->
 
 # nvs service
 
@@ -512,7 +435,6 @@ After=network.target
 [Service]
 Type=notify
 ExecStart=/usr/local/bin/nvs serve /srv/shop/public/index.nvs --config /srv/shop/nvs.toml
-ExecReload=/usr/local/bin/nvs ctl reload --socket /run/nvs/control.sock
 WatchdogSec=30
 NoNewPrivileges=true
 ProtectSystem=strict
@@ -526,22 +448,19 @@ SystemCallFilter=@system-service
 WantedBy=multi-user.target
 ```
 
-The `ExecReload` line is printed when the configuration sets `[control] socket`. On Linux,
-`install` writes this unit to `/etc/systemd/system/shop.service` and enables it.
+On Linux, `install` writes this unit to `/etc/systemd/system/shop.service` and enables it. The unit
+has no reload command. The server applies a saved configuration file by itself.
 
 **`start`** and **`stop`** send the request to the service manager. After a stop the server drains
 (§ *Stopping and reloading: the drain*). **`status`** prints the state that the service manager
-reports, and then the lines of `nvs ctl status`:
+reports:
 
 ```text
 $ nvs service status shop
 active
-in_flight: 3
-draining: false
-config_check: 412 passes, 412 stats, 1 paths
 ```
 
-On Windows the first line is a state such as `running` or `stopped`. **`run`** runs the stored command in your
+On Windows the state is a word such as `running` or `stopped`. **`run`** runs the stored command in your
 terminal, so you can read what the server prints when it does not start as a service.
 **`uninstall`** removes the service and everything that `install` added.
 

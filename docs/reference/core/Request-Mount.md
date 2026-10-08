@@ -21,7 +21,7 @@ two usually cover the same tree, and reading one for the other is the mistake th
 prevent: what you learn here is routing, never policy.
 
 **The table expands at boot, not per request.** A `scan` glob is resolved against the disk once at
-startup — and again on `nvs ctl reload`, in development also under hot reload's revalidation — into
+startup — and again at each configuration reload, in development also under hot reload's revalidation — into
 ordinary mounts whose paths were each checked to lie inside `[server] root`. So a prefix reaching a
 program is a row an operator wrote, and no path is ever derived from a URL at request time.
 

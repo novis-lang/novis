@@ -78,7 +78,7 @@ A permission for one named account, for example your own, passes the check.
 
 | Command | Checks | If the check fails |
 |---|---|---|
-| `nvs serve`, `nvs ctl reload` | every configuration file, and its folder | the server does not start, and the error is `E0607` |
+| `nvs serve`, at the start and each time a configuration file is saved | every configuration file, and its folder | the error is `E0607`. At the start, the server does not start. After a save, the server keeps its current settings |
 | `nvs init` | the folder it writes into, and the folder above it | nothing is written, and the exit status is `1` |
 | every command that compiles a program | the cache folder, and the folder above it | a warning. The program runs, but it is compiled again every time |
 

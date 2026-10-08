@@ -41,6 +41,6 @@ export const CHANGED_BY: Record<string, string> = {
 
 /** What a change to a configuration key in the file needs before it is in force. */
 export const APPLIED_AT: Record<string, string> = {
-  Reload: 'A change in the file takes effect at the next `nvs ctl reload`.',
+  Reload: 'A change in the file takes effect a few seconds after you save it. The server does not restart.',
   Boot: 'A change in the file takes effect only when the server starts again.',
 }

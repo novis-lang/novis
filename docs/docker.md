@@ -197,9 +197,8 @@ Two things to know when a command *writes*:
 
 > **`nvs serve` installs no signal handler today, so there is no graceful drain.** In-flight
 > requests are cut when the process dies. This is a known gap, not a design choice:
-> `rule:config/no-network-control-surface` puts the drain behind the control
-> socket, and `rule:http-server/the-server-block-is-boot-class`'s `health_path` already answers `503` while draining — the machinery
-> is designed and not yet built.
+> `rule:http-server/the-server-block-is-boot-class`'s `health_path` already answers `503` while
+> draining — the machinery is designed and not yet built.
 
 That gap has a sharp edge in a container. The main process is pid 1, and the kernel discards any
 signal pid 1 has no handler for, so `SIGTERM` is not handled badly — it is **ignored**. A normal
@@ -216,7 +215,7 @@ the drain lands:
 - `docker run --init` makes `nvs` a child of an init process rather than pid 1, at which point
   `SIGTERM` terminates it normally. It is still not a *graceful* stop.
 
-When the control socket lands, `STOPSIGNAL` becomes `SIGTERM` and this section changes with it.
+When the drain lands, `STOPSIGNAL` becomes `SIGTERM` and this section changes with it.
 
 ## Verifying an image
 
