@@ -55,7 +55,7 @@
     "lang:classes/object-the-top-of-every-class-type": "73f013ceceb14939",
     "lang:classes/objects-are-handles": "cdafefedd67c6e81",
     "lang:classes/what-a-class-cannot-declare": "1f8b7b8ccf4b7aba",
-    "lang:expressions/is-new-clone-throw-print-exit-isset-empty": "d38a85827e7dfa05",
+    "lang:expressions/is-new-clone-throw-print-exit-isset-empty": "14e32bbf60f56171",
     "lang:types/callable-classes-object-shapes": "1e05f17eee622431"
   },
   "syntax/classes/properties.mdx": {
@@ -302,7 +302,7 @@
     "lang:types/qualifiers-tainted-and-secret": "4d9a603a542bc54e"
   },
   "syntax/values/union-types.mdx": {
-    "lang:types/mixed": "439a32c0e6f3d8e3",
+    "lang:types/mixed": "ec3d3184189db579",
     "lang:types/nullable-union-single-value-and-enum-case-types": "572dc4590c11810c",
     "lang:types/type-aliases": "26400907c53f9ddd"
   }
