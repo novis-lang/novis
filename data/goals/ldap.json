@@ -122,7 +122,10 @@
           "core-classes/db-column-types",
           "core-classes/ldap-value-types"
         ],
-        "adrs": [],
+        "adrs": [
+          "0278 §1",
+          "0278 §8"
+        ],
         "shapes": [
           "A `Core` member",
           "A `.nvst` test case"

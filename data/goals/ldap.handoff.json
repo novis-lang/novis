@@ -1,32 +1,32 @@
 {
-  "state": "**Goal `ldap`, Stage 5 done; Stage 6 (typed values) is next. Stage 4 is done except for a CA that a program supplies.** `nvs-config` reads `[ldap.<name>]` and `[capabilities.ldap]`. `crates/nvs-stdlib/src/ldap/mod.rs` opens connections (`connect`, `open`) and runs `who_am_i`, `search` and `read`.\n\n**On `main`**: `Ldap\\Connection::whoami`/`search`/`read`, `Ldap\\Entries`, `Ldap\\Entry`, `Ldap\\Scope`, `Ldap\\Settings`, `Ldap\\Filter` whole, `Ldap\\Dn` whole, and now `Ldap\\Ad`: `memberOf(Dn|string, {nested})`, `enabled`, `disabled`, `bitAnd`, `bitOr`. The `Ldap\\Ad` bodies sit in `crates/nvs-stdlib/src/ldap/search.rs` beside the other filter constructors. The rule OIDs are consts there. `enabled` is `not` of the `.803` test on `userAccountControl` bit 2. The Rust test `ad_member_of_nested_uses_the_in_chain_rule` passes against Samba, and Samba also evaluates the in-chain rule: `memberOf(Domain Admins, {nested: true})` finds `Administrator` (`tests/conformance/core/ldap-ad-filters-match-on-the-test-directory.nvst`).\n\nThe text a `Dn` gives back is `tainted`, so `Filter->toString` over it is `tainted` too. A case comparing such text binds it as `tainted string`.\n\nServer cases reach `samba-ad` (`tests/db/compose.yaml`) at `ldaps://localhost:16636`, or over cleartext at `ldap://127.0.0.1:16389` for an `open` case. `CN=Users` holds exactly three users: `Administrator`, `Guest` and `krbtgt`. Guest and krbtgt are disabled.",
+  "state": "**Goal `ldap`, Stage 6 (typed values) in progress: item 1 of 3 done.** Stages 1 to 5 are done, and Stage 4 is done except for a CA that a program supplies. `nvs-config` reads `[ldap.<name>]` and `[capabilities.ldap]`. `crates/nvs-stdlib/src/ldap/mod.rs` opens connections and runs `who_am_i`, `search` and `read`.\n\n**On `main`**: `Ldap\\Connection::whoami`/`search`/`read`, `Ldap\\Entries`, `Ldap\\Entry`, `Ldap\\Scope`, `Ldap\\Settings`, `Ldap\\Filter`, `Ldap\\Dn`, `Ldap\\Ad`, and now `Ldap\\Sid` (`parse`, `toString`, `bytes`, `domain(): ?Sid`, `rid`) and `Entry`'s typed readers `uuid`, `sid`, `sids`, `instant`, `duration`. The decoders are `crates/nvs-ldap/src/value.rs`, so Rust tests reach them with no server. The Novis bodies are `crates/nvs-stdlib/src/ldap/sid.rs` and `crates/nvs-stdlib/src/ldap/value.rs`. `instant` picks FILETIME or GeneralizedTime by the value's form, not yet by the schema (item 3). `Entry::int` and `Entry::bool` are not written yet.\n\nServer cases reach `samba-ad` (`tests/db/compose.yaml`) at `ldaps://localhost:16636`, or over cleartext at `ldap://127.0.0.1:16389`. `CN=Users` holds exactly three users: `Administrator`, `Guest` and `krbtgt`. Guest and krbtgt are disabled. GUIDs, SIDs and times change each time the container is made, so a case asserts their shape (RID 500, version 4, the domain's SID), never the value. Samba's defaults are stable: `maxPwdAge` is `6w`, `lockoutDuration` is `30m`.",
   "next": {
     "stage": 6,
     "title": "typed values",
     "files": [
-      "crates/nvs-stdlib/src/ldap/search.rs",
       "crates/nvs-stdlib/src/ldap/registry.rs",
-      "crates/nvs-stdlib/tests/ldap.rs",
-      "tests/conformance/core/ldap-typed-values.nvst"
+      "crates/nvs-stdlib/src/ldap/value.rs",
+      "crates/nvs-ldap/src/value.rs",
+      "crates/nvs-stdlib/tests/ldap.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**`Ldap\\Sid` and the typed `Entry` readers for GUID, SID, FILETIME, intervals and GeneralizedTime** (`rule:core-classes/ldap-value-types`, ADR 0278 § 8). The readers read the same lists as `values_named` (`crates/nvs-stdlib/src/ldap/search.rs:128`), and the rows go on `ENTRY` (`crates/nvs-stdlib/src/ldap/registry.rs:507`). Rust test `object_guid_reads_as_a_uuid_with_ads_byte_order` in `crates/nvs-stdlib/tests/ldap.rs:429`'s neighbourhood; case `tests/conformance/core/ldap-typed-values.nvst`."
+        "text": "**`Ad\\AccountFlags` and `Ad\\GroupType`, readonly objects with one `bool` per flag, keeping unnamed bits, and `Entry::accountFlags`/`groupType`/`accountType`** (`rule:core-classes/ldap-value-types`, ADR 0278 §§ 1 and 8). Classes beside `AD` (`crates/nvs-stdlib/src/ldap/registry.rs:1414`), readers beside `nvs_core_ldap_entry_duration` (`crates/nvs-stdlib/src/ldap/value.rs:149`). Rust test `account_flags_keep_the_bits_they_do_not_name` after `crates/nvs-stdlib/tests/ldap.rs:771`; case `tests/conformance/core/ldap-account-flags.nvst`. Guest and krbtgt are disabled, so `disabled` is a flag a case can assert."
       },
       {
         "done": false,
-        "text": "**`Ad\\AccountFlags` and `Ad\\GroupType`, readonly objects with one `bool` per flag, keeping unnamed bits** (`rule:core-classes/ldap-value-types`). Classes beside `AD` (`crates/nvs-stdlib/src/ldap/registry.rs:1184`)."
+        "text": "**Ranged attribute merge and the schema read once per pool** (`rule:core-classes/ldap-value-types`, ADR 0278 § 8). The search loop is `nvs_core_ldap_entries_advance` (`crates/nvs-stdlib/src/ldap/search.rs:370`), and an entry is built by `entry_value` (`crates/nvs-stdlib/src/ldap/search.rs:108`). Rust tests `a_ranged_member_list_is_merged_to_its_end` and `the_schema_is_read_once_per_pool`."
       },
       {
         "done": false,
-        "text": "**Ranged attribute merge and the schema read once per pool** (`rule:core-classes/ldap-value-types`, ADR 0278 § 8). The search loop is `nvs_core_ldap_entries_advance` (`crates/nvs-stdlib/src/ldap/search.rs:370`)."
+        "text": "**`Entry::int` and `Entry::bool`** (ADR 0278 § 1's roster, `TRUE`/`FALSE` in § 8's table). Readers beside the others in `crates/nvs-stdlib/src/ldap/value.rs:149`."
       }
     ]
   },
   "backlog": [
     "A CA a program supplies for `Ldap::open` (Stage 4 remainder, ADR 0278 § 2).",
     "Stages 7 to 10: writes and passwords, `authenticate`, the AD extras, the feature proofs (`data/goals/ldap.json` checks).",
-    "ADR 0278 § 8 is not in the Stage 6 `[context] adrs`. Add `0278 §8` there if the rule fragment is not enough."
+    "`instant` and the other typed readers choose by the value's form. Once item 2 reads the schema, a reader may check the attribute's syntax too (`rule:core-classes/ldap-value-types`)."
   ]
 }
