@@ -32,7 +32,14 @@
 //! over that file as if the operator had named it. An install that is not a
 //! dry run then creates the folder privately and writes the shipped template
 //! there if no file is there yet, and refuses with `E0653` when it cannot:
-//! that file is the service's whole configuration.
+//! that file is the service's whole configuration. With a `--config` named
+//! elsewhere, an unusable folder is only the warning every command prints,
+//! because the service still boots.
+//!
+//! **A service never gets write on its own configuration.** § 4's grants on
+//! the data folder are read on the folder and its `nvs.toml`, and read/write
+//! on `cache/`, `tmp/` and `lsp/` alone, each inherited only inside its own
+//! subfolder.
 //!
 //! **What counts as a path is a closed list, not a guess.** Every `--config`
 //! and `--data` value in the argv, the entry file `serve`/`run` names, and the
@@ -86,11 +93,11 @@
 //! ([`registration::Manager::stored`]): the argv out of § 3's `ImagePath` or
 //! the unit's `ExecStart`, and the account beside it. § 4's closing property is
 //! about the install that happened, and a second command line describes the one
-//! the operator believes happened. The directories § 4 grants read/write on
-//! are the residue — neither manager holds them, so they are derived again the
-//! way the install derived them: the data folder from the stored argv's
-//! `--data` or the binary's default, and the rest from the configuration the
-//! stored argv names.
+//! the operator believes happened. The directories § 4 grants on are the
+//! residue — neither manager holds them, so they are derived again the way the
+//! install derived them: the data folder from the stored argv's `--data` or
+//! the default folder of the binary the platform holds, and the rest from the
+//! configuration the stored argv names.
 //!
 //! # The manager is told what state this process is in
 //!
@@ -233,7 +240,7 @@ pub(crate) struct Plan {
     memory_max: Option<String>,
     privileged_port: bool,
     /// The service's data folder, which an install creates and § 4 grants
-    /// read/write on.
+    /// on. `None` once an install found it unusable, so nothing is granted.
     data: Option<nvs_config::data::Folder>,
     /// Whether the stored `--config` is the data folder's own `nvs.toml`, so
     /// an install writes the shipped template there if it is missing.
@@ -426,18 +433,30 @@ fn data_unusable(folder: Option<&Path>, reason: &str) -> Diagnostic {
 /// there is none yet. A file that is already there is the operator's, and is
 /// kept as it is.
 ///
+/// Returns whether the folder is usable. Where the stored `--config` names
+/// another file, an unusable folder is the one warning every command prints
+/// for it and `false`: the service still boots, without a compile cache, and
+/// the install grants nothing on the folder.
+///
 /// # Errors
 ///
-/// `E0653`, naming the folder and what failed.
-fn prepare_data(plan: &Plan) -> Result<(), Diagnostic> {
+/// `E0653`, naming the folder and what failed, when the stored `--config` is
+/// the folder's own `nvs.toml`: a service whose configuration cannot be read
+/// refuses to start at every boot.
+fn prepare_data(plan: &Plan) -> Result<bool, Diagnostic> {
     let Some(data) = &plan.data else {
-        return Ok(());
+        return Ok(false);
     };
-    data.prepare()
-        .map_err(|unusable| data_unusable(Some(data.root()), unusable.reason()))?;
+    if let Err(unusable) = data.prepare() {
+        if plan.reads_data_config {
+            return Err(data_unusable(Some(data.root()), unusable.reason()));
+        }
+        eprintln!("{}", unusable.warning());
+        return Ok(false);
+    }
     if plan.reads_data_config {
         let reason = match crate::config::write_default_in(data) {
-            Ok(_) | Err(crate::config::Declined::Exists) => return Ok(()),
+            Ok(_) | Err(crate::config::Declined::Exists) => return Ok(true),
             Err(crate::config::Declined::Untrusted(why)) => why.message().to_owned(),
             Err(crate::config::Declined::Unwritable(why)) => why,
         };
@@ -449,7 +468,7 @@ fn prepare_data(plan: &Plan) -> Result<(), Diagnostic> {
             ),
         ));
     }
-    Ok(())
+    Ok(true)
 }
 
 /// `E0630`, whose two rows share a message shape.
@@ -1539,8 +1558,11 @@ pub(crate) mod registration {
         pub(crate) cache_directory: Option<PathBuf>,
         /// The temporary-folder root it granted read/write on.
         pub(crate) temp_root: Option<PathBuf>,
-        /// The service's data folder, which it granted read/write on.
+        /// The service's data folder, which it granted on.
         pub(crate) data_folder: Option<PathBuf>,
+        /// The binary the service runs, read back with the argv, whose
+        /// default data folder is the one the install granted on.
+        pub(crate) exe: Option<PathBuf>,
     }
 
     /// One step a verb performs, in its platform's own terms.
@@ -1714,11 +1736,12 @@ pub(crate) mod registration {
             || account.eq_ignore_ascii_case(r".\LocalSystem")
     }
 
-    /// The directories § 4 grants read/write on, beside the configuration
-    /// files the stored argv names.
+    /// The directories § 4 grants on, beside the configuration files the
+    /// stored argv names.
     #[derive(Clone, Copy)]
     struct Writable<'a> {
-        /// The service's data folder.
+        /// The service's data folder: read on itself, read/write on its
+        /// `cache/`, `tmp/` and `lsp/`.
         data_folder: Option<&'a Path>,
         /// The file of a `[log] target`, whose directory is the grant.
         log_file: Option<&'a Path>,
@@ -1728,36 +1751,39 @@ pub(crate) mod registration {
         temp_root: Option<&'a Path>,
     }
 
-    /// § 4's grant list, closed: read/write on the service's data folder, read
-    /// on every configuration file the argv names, read/write on the log
-    /// directory, the artifact cache and the temporary-folder root, and
-    /// nothing further.
+    /// § 4's grant list, closed: read on the service's data folder and on
+    /// every configuration file the argv names, read/write on the data
+    /// folder's `cache/`, `tmp/` and `lsp/`, read/write on the log directory,
+    /// the artifact cache and the temporary-folder root, and nothing further.
     ///
-    /// A path inside the data folder is left out, because the folder's grant
-    /// is inherited by everything in it: its `nvs.toml`, and the cache and the
-    /// temporary root wherever the configuration names none.
+    /// **The service never gets write on its own configuration.** The data
+    /// folder's grant is read, and that is all its `nvs.toml` inherits; the
+    /// write grants sit on the three subfolders and are inherited only inside
+    /// them. A path inside one of those three gets no grant of its own, since
+    /// it already inherits read/write.
     ///
     /// Read off the stored argv rather than off the installer's own options, so
     /// an uninstall that has only the `ImagePath` to go on derives the same list
     /// the install granted.
     fn granted(argv: &[String], writable: Writable<'_>) -> Vec<(PathBuf, bool)> {
-        let outside = |path: &Path| {
-            writable
-                .data_folder
-                .is_none_or(|data| !path.starts_with(data))
-        };
+        let data = writable
+            .data_folder
+            .map(|root| nvs_config::data::Folder::new(root.to_path_buf()));
+        let subfolders: Vec<PathBuf> = data
+            .iter()
+            .flat_map(|data| [data.cache(), data.tmp(), data.lsp_root()])
+            .collect();
         let mut out: Vec<(PathBuf, bool)> = writable
             .data_folder
-            .map(|data| (data.to_path_buf(), true))
+            .map(|root| (root.to_path_buf(), false))
             .into_iter()
             .collect();
         out.extend(
             values_of(argv, "--config")
                 .into_iter()
-                .map(PathBuf::from)
-                .filter(|config| outside(config))
-                .map(|config| (config, false)),
+                .map(|config| (PathBuf::from(config), false)),
         );
+        out.extend(subfolders.iter().map(|sub| (sub.clone(), true)));
         // The directory and not the file: a process that may write the log but
         // not the directory holding it cannot rotate one.
         let log_directory = writable.log_file.and_then(Path::parent);
@@ -1765,7 +1791,7 @@ pub(crate) mod registration {
             .into_iter()
             .flatten()
         {
-            if outside(directory) {
+            if !subfolders.iter().any(|sub| directory.starts_with(sub)) {
                 out.push((directory.to_path_buf(), true));
             }
         }
@@ -2152,18 +2178,22 @@ pub(crate) mod registration {
         dry_run: bool,
         out: &mut dyn std::io::Write,
     ) -> Result<(), Refused> {
-        let checked = plan(request, host).map_err(Refused::Installer)?;
-        let actions = install_actions(site.platform, &checked, registration, site.unit_root);
+        let mut checked = plan(request, host).map_err(Refused::Installer)?;
         if dry_run {
             if let Some(data) = &checked.data {
                 writeln!(out, "create the data folder {}", data.root().display())
                     .map_err(Refused::Manager)?;
             }
+            let actions = install_actions(site.platform, &checked, registration, site.unit_root);
             return perform(&actions, site, true, out).map(drop);
         }
         // Before the manager is asked for anything: a service registered over
         // a configuration file that could not be written fails at every boot.
-        prepare_data(&checked).map_err(Refused::Installer)?;
+        // A folder that could not be made is granted nothing.
+        if !prepare_data(&checked).map_err(Refused::Installer)? {
+            checked.data = None;
+        }
+        let actions = install_actions(site.platform, &checked, registration, site.unit_root);
         match apply_all(&actions, site) {
             Ok(_) => Ok(()),
             Err((applied, error)) => Err(Refused::Manager(undone(
@@ -2265,14 +2295,17 @@ pub(crate) mod registration {
                 .expect("an installing delivery names a unit file");
             let text = std::fs::read_to_string(path)?;
             let mut argv = Vec::new();
+            let mut exe = None;
             // A unit with no `User=` runs as root, which is what the grants
             // were made to.
             let mut account = "root".to_owned();
             for line in text.lines() {
                 if let Some(command) = line.strip_prefix("ExecStart=") {
-                    // Past the first word, which is the binary the unit names
-                    // and the stored argv does not.
-                    argv = shell_words(command).into_iter().skip(1).collect();
+                    // The first word is the binary the unit names, and the
+                    // stored argv is the rest.
+                    let mut words = shell_words(command).into_iter();
+                    exe = words.next().map(PathBuf::from);
+                    argv = words.collect();
                 } else if let Some(user) = line.strip_prefix("User=") {
                     account = user.trim().to_owned();
                 }
@@ -2285,6 +2318,7 @@ pub(crate) mod registration {
                 cache_directory: None,
                 temp_root: None,
                 data_folder: None,
+                exe,
             })
         }
     }
@@ -2469,17 +2503,18 @@ pub(crate) mod registration {
 
             fn stored(&self, name: &str, _unit_root: &Path) -> std::io::Result<super::Stored> {
                 let (image_path, account) = configured(name)?;
-                let argv = crate::service::decode(&image_path);
+                // § 3 encodes the binary ahead of the stored argv.
+                let mut words = crate::service::decode(&image_path).into_iter();
+                let exe = words.next().map(std::path::PathBuf::from);
                 Ok(super::Stored {
                     name: name.to_owned(),
-                    // Past the first word: § 3 encodes this binary ahead of
-                    // the stored argv, and the argv is what was stored.
-                    argv: argv.into_iter().skip(1).collect(),
+                    argv: words.collect(),
                     account,
                     log_file: None,
                     cache_directory: None,
                     temp_root: None,
                     data_folder: None,
+                    exe,
                 })
             }
         }
@@ -3344,7 +3379,7 @@ pub(crate) fn uninstall(config: &[PathBuf], name: &str, dry_run: bool) -> ExitCo
         stored.log_file = host.log_file;
         stored.cache_directory = host.cache_directory;
         stored.temp_root = host.temp_root;
-        stored.data_folder = host.data_folder.map(|data| data.root().to_path_buf());
+        stored.data_folder = installed_data_folder(&stored, &host.exe);
         registration::uninstall(&stored, site, dry_run, &mut std::io::stdout())
     });
     match performed {
@@ -3356,6 +3391,15 @@ pub(crate) fn uninstall(config: &[PathBuf], name: &str, dry_run: bool) -> ExitCo
         }
         Err(refused) => report(refused, &mut sources),
     }
+}
+
+/// The data folder an installed service uses, for an uninstall to revoke
+/// what the install granted on it: the stored argv's `--data`, else the
+/// default folder of the binary the service runs. `uninstaller` stands in for
+/// that binary only where the platform held none.
+fn installed_data_folder(stored: &registration::Stored, uninstaller: &Path) -> Option<PathBuf> {
+    let exe = stored.exe.as_deref().unwrap_or(uninstaller);
+    data_folder(&stored.argv, exe).map(|data| data.root().to_path_buf())
 }
 
 /// `nvs service start <name>`.
@@ -3853,7 +3897,7 @@ mod tests {
         let scratch = nvs_repo::scratch_private("service-data");
         let unit = unit_root("data");
         let bare = vec!["serve".to_owned(), absolute("app/index.nvs")];
-        let install = |data: &Path, dry_run: bool| {
+        let install = |data: &Path, argv: &[String], dry_run: bool| {
             let manager = registration::Recording::default();
             let site = registration::Site {
                 platform: registration::Platform::Windows,
@@ -3865,14 +3909,10 @@ mod tests {
                 ..host()
             };
             let mut printed = Vec::new();
-            let done = registration::install(
-                &request(&bare),
-                &host,
-                &registration(),
-                &site,
-                dry_run,
-                &mut printed,
-            );
+            let mut named = request(argv);
+            named.account = Some("EXAMPLE\\nvs-web");
+            let done =
+                registration::install(&named, &host, &registration(), &site, dry_run, &mut printed);
             (
                 done,
                 manager.applied(),
@@ -3881,13 +3921,13 @@ mod tests {
         };
 
         let data = scratch.join("data");
-        let (done, applied, printed) = install(&data, true);
+        let (done, applied, printed) = install(&data, &bare, true);
         assert!(done.is_ok(), "{done:?}");
         assert!(applied.is_empty());
         assert!(printed.starts_with("create the data folder"), "{printed}");
         assert!(!data.exists(), "a dry run created {}", data.display());
 
-        let (done, applied, _) = install(&data, false);
+        let (done, applied, _) = install(&data, &bare, false);
         assert!(done.is_ok(), "{done:?}");
         assert!(!applied.is_empty());
         for sub in ["cache", "tmp", "lsp"] {
@@ -3901,7 +3941,7 @@ mod tests {
 
         // The operator's own file is kept.
         std::fs::write(&file, "# the operator's\n").expect("a file");
-        let (done, _, _) = install(&data, false);
+        let (done, _, _) = install(&data, &bare, false);
         assert!(done.is_ok(), "{done:?}");
         assert_eq!(
             std::fs::read_to_string(&file).expect("a file"),
@@ -3911,7 +3951,7 @@ mod tests {
         // A file where the folder should be cannot become one.
         let blocked = scratch.join("blocked");
         std::fs::write(&blocked, "").expect("a file");
-        let (done, applied, _) = install(&blocked, false);
+        let (done, applied, _) = install(&blocked, &bare, false);
         let Err(registration::Refused::Installer(refusal)) = done else {
             panic!("an unusable data folder was installed over: {done:?}")
         };
@@ -3922,6 +3962,20 @@ mod tests {
             refusal.message
         );
         assert!(applied.is_empty(), "the manager was asked: {applied:?}");
+
+        // With a `--config` named elsewhere the service still boots, so the
+        // same folder is a warning: the install goes ahead and grants nothing
+        // on the folder.
+        let (done, applied, _) = install(&blocked, &argv(), false);
+        assert!(done.is_ok(), "{done:?}");
+        assert!(!applied.is_empty());
+        assert!(
+            !applied.iter().any(|action| matches!(
+                action,
+                registration::Action::Grant { path, .. } if path.starts_with(&blocked)
+            )),
+            "{applied:?}"
+        );
     }
 
     /// `rule:packaging/the-installer-is-a-sink`, row 5 — and the refusal is by name, so an operator is not
@@ -4569,6 +4623,7 @@ mod tests {
             cache_directory: options.cache_directory.clone(),
             temp_root: options.temp_root.clone(),
             data_folder: Some(PathBuf::from(absolute(".nvsdata"))),
+            exe: Some(PathBuf::from(absolute("bin/nvs"))),
         };
 
         let installed = registration::install_actions(
@@ -4655,21 +4710,63 @@ mod tests {
         std::fs::remove_dir_all(&root).expect("a removed scratch directory");
     }
 
-    /// § 4's grants for a named account: read/write on the data folder, which
-    /// covers its `nvs.toml` and every folder in it, and a grant of its own
-    /// only for a path the configuration names outside it.
+    /// An uninstall revokes on the data folder of the binary the platform
+    /// holds for the service, not on the folder of the binary running the
+    /// uninstall. A stored `--data` is the folder whatever the binary.
     #[test]
-    fn the_data_folder_is_granted_and_covers_what_is_inside_it() {
+    fn an_uninstall_finds_the_data_folder_of_the_service_binary() {
+        let scratch = nvs_repo::scratch("service-installed-exe");
+        let installed = scratch.join("nvs");
+        std::fs::write(&installed, "").expect("a stand-in binary");
+        let uninstaller = std::env::current_exe().expect("this test's binary");
+        let stored = |argv: Vec<String>, exe: Option<PathBuf>| registration::Stored {
+            name: "web".to_owned(),
+            argv,
+            account: "EXAMPLE\\nvs-web".to_owned(),
+            log_file: None,
+            cache_directory: None,
+            temp_root: None,
+            data_folder: None,
+            exe,
+        };
+        let beside = |exe: &Path| {
+            nvs_config::trust::canonical(exe)
+                .expect("a canonical path")
+                .parent()
+                .expect("a folder")
+                .join(".nvsdata")
+        };
+
+        let found = installed_data_folder(&stored(argv(), Some(installed.clone())), &uninstaller);
+        assert_eq!(found, Some(beside(&installed)));
+        assert_ne!(found, Some(beside(&uninstaller)));
+
+        // A platform that held no binary leaves the uninstalling one's.
+        let found = installed_data_folder(&stored(argv(), None), &uninstaller);
+        assert_eq!(found, Some(beside(&uninstaller)));
+
+        let mut named = argv();
+        named.extend(["--data".to_owned(), absolute("srv/data")]);
+        let found = installed_data_folder(&stored(named, Some(installed)), &uninstaller);
+        assert_eq!(found, Some(PathBuf::from(absolute("srv/data"))));
+    }
+
+    /// § 4's grants for a named account: read on the data folder and its
+    /// `nvs.toml`, read/write on `cache/`, `tmp/` and `lsp/` only, and a grant
+    /// of its own for a path the configuration names outside those three.
+    #[test]
+    fn the_data_folder_is_granted_and_its_nvs_toml_stays_read_only() {
         let bare = vec!["serve".to_owned(), absolute("app/index.nvs")];
         let mut named = request(&bare);
         named.account = Some("EXAMPLE\\nvs-web");
         let checked = plan(&named, &host_with_data()).expect("a plan");
         let options = registration::Registration {
             log_file: Some(PathBuf::from(absolute("log/web.log"))),
-            cache_directory: Some(PathBuf::from(absolute(".nvsdata/cache"))),
+            cache_directory: Some(PathBuf::from(absolute(".nvsdata/cache/compiled"))),
             temp_root: Some(PathBuf::from(absolute("tmp"))),
             ..registration::Registration::default()
         };
+        let data = |tail: &str| PathBuf::from(absolute(&format!(".nvsdata/{tail}")));
         let root = unit_root("grants");
         let granted: Vec<(PathBuf, bool)> = registration::install_actions(
             registration::Platform::Windows,
@@ -4686,11 +4783,26 @@ mod tests {
         assert_eq!(
             granted,
             [
-                (PathBuf::from(absolute(".nvsdata")), true),
+                (PathBuf::from(absolute(".nvsdata")), false),
+                (data("nvs.toml"), false),
+                (data("cache"), true),
+                (data("tmp"), true),
+                (data("lsp"), true),
                 (PathBuf::from(absolute("log")), true),
                 (PathBuf::from(absolute("tmp")), true),
             ]
         );
+        // The service's own configuration is read-only for it: no write grant
+        // is on the file or on a folder it would inherit one from.
+        let config = data("nvs.toml");
+        for (path, write) in &granted {
+            assert!(
+                !(*write && config.starts_with(path)),
+                "{} gives write on {}",
+                path.display(),
+                config.display()
+            );
+        }
     }
 
     /// `rule:packaging/a-service-is-one-stored-argv`: the three thin verbs go

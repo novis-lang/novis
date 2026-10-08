@@ -144,7 +144,8 @@ impl Folder {
     }
 
     /// `lsp/`, which [`Folder::prepare`] creates; the versioned tree under it is the server's to write.
-    fn lsp_root(&self) -> PathBuf {
+    #[must_use]
+    pub fn lsp_root(&self) -> PathBuf {
         self.root.join("lsp")
     }
 

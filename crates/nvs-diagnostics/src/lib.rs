@@ -2982,17 +2982,16 @@ pub mod code {
     );
 
     /// `nvs service install` could not create or use the data folder of the
-    /// service it was asked to install: the folder, or a subfolder, could not
-    /// be created, it fails `rule:config/ownership-is-the-trust-boundary`'s
+    /// service it was asked to install, and that folder's `nvs.toml` is the
+    /// service's configuration: the folder, or a subfolder, could not be
+    /// created, it fails `rule:config/ownership-is-the-trust-boundary`'s
     /// check, or the shipped `nvs.toml` could not be written into it.
     ///
     /// A refusal rather than the one warning every other command gives for an
-    /// unusable data folder, because an install is the last moment anybody is
-    /// watching. When the stored argv names no `--config`, the installer
-    /// stores the folder's `nvs.toml` as the service's configuration, and a
-    /// service whose configuration cannot be read refuses to start at every
-    /// boot; when it names one, the service would still run with no compile
-    /// cache and no temporary folder, and nothing would say so but a log line.
+    /// unusable data folder, because a service whose configuration cannot be
+    /// read refuses to start at every boot. With a `--config` named elsewhere
+    /// the service still boots, so the installer prints that warning instead
+    /// and installs.
     pub const E_SERVICE_DATA_UNUSABLE: Code = Code::new("E0653").card(
         "`nvs service install` cannot create or use the data folder of the service. The message \
          shows the folder and the reason. Fix the folder, or add `--data <folder>` to the service \
