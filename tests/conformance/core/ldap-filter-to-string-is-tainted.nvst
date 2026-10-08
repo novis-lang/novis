@@ -1,0 +1,14 @@
+--TEST--
+`toString` returns a `tainted string`, because a value inside the filter may be, so it does not compile where a `string` is needed — ADR 0278 § 6 and `rule:security/tainted-qualifier`
+--FILE--
+<?nvs
+var $filter = Core\Ldap\Filter::not(Core\Ldap\Filter::present("mail"));
+string $text = $filter->toString();
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+  --> case.nvs:3:16
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

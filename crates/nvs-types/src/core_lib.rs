@@ -1482,6 +1482,8 @@ mod tests {
     /// the entry it returned, and `has` returns a `bool`.
     /// `Core\Ldap\Entries::references` is on it too: a continuation reference
     /// is a URL the server chose, and following it is the program's decision.
+    /// `Core\Ldap\Filter::toString` is the filter's text for a log, and a value
+    /// inside it may be `tainted`.
     /// All of them belong in this set for the reason the claims do: a member that
     /// promises `tainted` is invisible from every row but its own, so this is
     /// where a new arrival has to be looked at rather than waved through.
@@ -1588,6 +1590,7 @@ mod tests {
                     "references",
                     "array<tainted string>".to_owned(),
                 ),
+                (r"Core\Ldap\Filter", "toString", "tainted string".to_owned(),),
                 (
                     r"Core\Net\Datagram\Message",
                     "payload",

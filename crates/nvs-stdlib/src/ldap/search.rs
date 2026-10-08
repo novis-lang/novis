@@ -213,6 +213,59 @@ fn attribute_arg<'a>(value: &'a Value, member: &str) -> Result<&'a str, Fault> {
     Ok(name)
 }
 
+/// The value a `Ldap\Filter` constructor was given, as the bytes it encodes.
+fn value_arg<'a>(value: &'a Value, member: &str) -> Result<&'a [u8], Fault> {
+    value.as_str_bytes().ok_or_else(|| {
+        // Unreachable from source: the parameter is a `string`.
+        Fault::fatal(format!("{member} expected a `string` value"))
+    })
+}
+
+/// A part a substring filter is built from, which may not be empty: RFC 4511
+/// has no empty part, and `present` is the filter for any value at all.
+fn part_arg<'a>(value: &'a Value, member: &str) -> Result<&'a [u8], Fault> {
+    let part = value_arg(value, member)?;
+    if part.is_empty() {
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!("{member}: the value is empty. `present` matches every entry with a value"),
+        ));
+    }
+    Ok(part)
+}
+
+/// The BER a `Ldap\Filter` argument carries.
+fn ber_of(value: Value, member: &str) -> Result<Vec<u8>, Fault> {
+    let receiver = crate::instance::receiver(value, &FILTER, member)?;
+    let ber = crate::instance::slot(receiver, FILTER_BER_AT);
+    Ok(ber.as_bytes().unwrap_or_default().to_vec())
+}
+
+/// The filters `all` or `any` was given, at least one.
+fn filters_arg(value: &Value, member: &str) -> Result<Vec<nvs_ldap::Filter>, Fault> {
+    let Some(array) = value.array_ptr() else {
+        // Unreachable from source: a variadic tail arrives as an array.
+        return Err(Fault::fatal(format!(
+            "{member} expected an array of filters"
+        )));
+    };
+    let filters = crate::arr::borrowed(array);
+    let mut out = Vec::with_capacity(filters.count());
+    let mut at = filters.next_slot(0);
+    while let Some(slot) = at {
+        let filter = filters.value_at(slot).unwrap_or_else(Value::null);
+        out.push(nvs_ldap::Filter::Encoded(ber_of(filter, member)?));
+        at = filters.next_slot(slot + 1);
+    }
+    if out.is_empty() {
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!("{member}: there is no filter. Give one filter or more"),
+        ));
+    }
+    Ok(out)
+}
+
 /// The scope a `search` names, by the ordinal [`super::SCOPE`] gives it.
 fn scope_of(value: &Value) -> Result<nvs_ldap::Scope, Fault> {
     match value.as_int() {
@@ -258,9 +311,7 @@ nvs_runtime::nvs_helper! {
     /// the connection for the `Ldap\Entries` it returns.
     fn nvs_core_ldap_connection_search(ctx, args: [7]) {
         let key = key_in(args[0], &CONNECTION, CONNECTION_HANDLE_AT, "search")?;
-        let receiver = crate::instance::receiver(args[1], &FILTER, "search")?;
-        let ber = crate::instance::slot(receiver, FILTER_BER_AT);
-        let filter = nvs_ldap::Filter::Encoded(ber.as_bytes().unwrap_or_default().to_vec());
+        let filter = nvs_ldap::Filter::Encoded(ber_of(args[1], "search")?);
         let base = match optional_text(&args[2]) {
             Some(base) => base.to_owned(),
             None => super::base_of(ctx, key)?.ok_or_else(|| {
@@ -451,13 +502,138 @@ nvs_runtime::nvs_helper! {
     /// `Ldap\Filter::equals(string $attribute, tainted string $value): Filter`
     /// — RFC 4511's equality match, encoded now.
     fn nvs_core_ldap_filter_equals(_ctx, args: [2]) {
-        let member = r"Core\Ldap\Filter::equals";
-        let attribute = attribute_arg(&args[0], member)?;
-        let value = args[1].as_str_bytes().ok_or_else(|| {
-            // Unreachable from source: the parameter is a `string`.
-            Fault::fatal(format!("{member} expected a `string` value"))
-        })?;
-        Ok(filter_value(&nvs_ldap::Filter::Equal(attribute.to_owned(), value.to_vec())))
+        compared(args,r"Core\Ldap\Filter::equals", nvs_ldap::Filter::Equal)
+    }
+}
+
+/// A filter comparing the attribute in `args[0]` with the value in `args[1]`.
+fn compared(
+    args: &[Value],
+    member: &str,
+    make: fn(String, Vec<u8>) -> nvs_ldap::Filter,
+) -> Result<Value, Fault> {
+    let attribute = attribute_arg(&args[0], member)?;
+    let value = value_arg(&args[1], member)?;
+    Ok(filter_value(&make(attribute.to_owned(), value.to_vec())))
+}
+
+/// A substring filter on the attribute in `args[0]` whose one part, the value
+/// in `args[1]`, `place` puts at the start, in the middle or at the end.
+fn substring(args: &[Value], member: &str, place: Place) -> Result<Value, Fault> {
+    let attribute = attribute_arg(&args[0], member)?.to_owned();
+    let part = part_arg(&args[1], member)?.to_vec();
+    let filter = match place {
+        Place::Start => nvs_ldap::Filter::Substrings {
+            attribute,
+            initial: Some(part),
+            any: Vec::new(),
+            last: None,
+        },
+        Place::Middle => nvs_ldap::Filter::Substrings {
+            attribute,
+            initial: None,
+            any: vec![part],
+            last: None,
+        },
+        Place::End => nvs_ldap::Filter::Substrings {
+            attribute,
+            initial: None,
+            any: Vec::new(),
+            last: Some(part),
+        },
+    };
+    Ok(filter_value(&filter))
+}
+
+/// Where [`substring`] puts its one part.
+#[derive(Clone, Copy)]
+enum Place {
+    Start,
+    Middle,
+    End,
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Ldap\Filter::startsWith(string $attribute, tainted string $value): Filter`
+    /// — RFC 4511's substring match with an initial part.
+    fn nvs_core_ldap_filter_starts_with(_ctx, args: [2]) {
+        substring(args,r"Core\Ldap\Filter::startsWith", Place::Start)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Ldap\Filter::endsWith(string $attribute, tainted string $value): Filter`
+    /// — RFC 4511's substring match with a final part.
+    fn nvs_core_ldap_filter_ends_with(_ctx, args: [2]) {
+        substring(args,r"Core\Ldap\Filter::endsWith", Place::End)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Ldap\Filter::contains(string $attribute, tainted string $value): Filter`
+    /// — RFC 4511's substring match with one middle part.
+    fn nvs_core_ldap_filter_contains(_ctx, args: [2]) {
+        substring(args,r"Core\Ldap\Filter::contains", Place::Middle)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Ldap\Filter::atLeast(string $attribute, tainted string $value): Filter`
+    /// — RFC 4511's `greaterOrEqual`, by the attribute's own ordering rule.
+    fn nvs_core_ldap_filter_at_least(_ctx, args: [2]) {
+        compared(args,r"Core\Ldap\Filter::atLeast", nvs_ldap::Filter::GreaterOrEqual)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Ldap\Filter::atMost(string $attribute, tainted string $value): Filter`
+    /// — RFC 4511's `lessOrEqual`.
+    fn nvs_core_ldap_filter_at_most(_ctx, args: [2]) {
+        compared(args,r"Core\Ldap\Filter::atMost", nvs_ldap::Filter::LessOrEqual)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Ldap\Filter::approx(string $attribute, tainted string $value): Filter`
+    /// — RFC 4511's `approxMatch`, which the server defines.
+    fn nvs_core_ldap_filter_approx(_ctx, args: [2]) {
+        compared(args,r"Core\Ldap\Filter::approx", nvs_ldap::Filter::Approx)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Ldap\Filter::all(Filter ...$filters): Filter` — RFC 4511's `and`,
+    /// whose children are the encodings the arguments already carry.
+    fn nvs_core_ldap_filter_all(_ctx, args: [1]) {
+        let filters = filters_arg(&args[0], r"Core\Ldap\Filter::all")?;
+        Ok(filter_value(&nvs_ldap::Filter::And(filters)))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Ldap\Filter::any(Filter ...$filters): Filter` — RFC 4511's `or`.
+    fn nvs_core_ldap_filter_any(_ctx, args: [1]) {
+        let filters = filters_arg(&args[0], r"Core\Ldap\Filter::any")?;
+        Ok(filter_value(&nvs_ldap::Filter::Or(filters)))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Ldap\Filter::not(Filter $filter): Filter` — RFC 4511's `not`.
+    fn nvs_core_ldap_filter_not(_ctx, args: [1]) {
+        let inner = ber_of(args[0], r"Core\Ldap\Filter::not")?;
+        let filter = nvs_ldap::Filter::Not(Box::new(nvs_ldap::Filter::Encoded(inner)));
+        Ok(filter_value(&filter))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$filter->toString(): tainted string` — the RFC 4515 text of the
+    /// encoding, rendered by [`nvs_ldap::Filter::to_text`]. Nothing sends it.
+    fn nvs_core_ldap_filter_to_string(_ctx, args: [1]) {
+        let ber = ber_of(args[0], "toString")?;
+        let text = nvs_ldap::Filter::Encoded(ber).to_text();
+        Ok(Value::str(NvsStr::new(text.as_bytes())))
     }
 }
 
@@ -491,6 +667,18 @@ pub(super) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_ldap_entry_bytes" => (nvs_core_ldap_entry_bytes as *const ()).cast(),
         "nvs_core_ldap_filter_equals" => (nvs_core_ldap_filter_equals as *const ()).cast(),
         "nvs_core_ldap_filter_present" => (nvs_core_ldap_filter_present as *const ()).cast(),
+        "nvs_core_ldap_filter_starts_with" => {
+            (nvs_core_ldap_filter_starts_with as *const ()).cast()
+        }
+        "nvs_core_ldap_filter_ends_with" => (nvs_core_ldap_filter_ends_with as *const ()).cast(),
+        "nvs_core_ldap_filter_contains" => (nvs_core_ldap_filter_contains as *const ()).cast(),
+        "nvs_core_ldap_filter_at_least" => (nvs_core_ldap_filter_at_least as *const ()).cast(),
+        "nvs_core_ldap_filter_at_most" => (nvs_core_ldap_filter_at_most as *const ()).cast(),
+        "nvs_core_ldap_filter_approx" => (nvs_core_ldap_filter_approx as *const ()).cast(),
+        "nvs_core_ldap_filter_all" => (nvs_core_ldap_filter_all as *const ()).cast(),
+        "nvs_core_ldap_filter_any" => (nvs_core_ldap_filter_any as *const ()).cast(),
+        "nvs_core_ldap_filter_not" => (nvs_core_ldap_filter_not as *const ()).cast(),
+        "nvs_core_ldap_filter_to_string" => (nvs_core_ldap_filter_to_string as *const ()).cast(),
         _ => return None,
     })
 }

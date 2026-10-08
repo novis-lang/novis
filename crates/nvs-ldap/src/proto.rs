@@ -6,10 +6,10 @@
 //!
 //! **A [`Filter`] is encoded from its tree, with no text step.** RFC 4515's
 //! string form exists for people typing filters; a client that renders one and
-//! has the server parse it back is where filter injection comes from, and
-//! nothing here produces or reads that form. A value is an octet string inside
-//! the element its tree position names, so no value can change the filter's
-//! structure whatever bytes it holds.
+//! has the server parse it back is where filter injection comes from. A value
+//! is an octet string inside the element its tree position names, so no value
+//! can change the filter's structure whatever bytes it holds. [`Filter::to_text`]
+//! renders that form for a log, from the tree, and nothing sends it.
 
 use crate::ber::{self, Reader, Writer, tag};
 use crate::error::{Error, Kind};
@@ -151,6 +151,209 @@ impl Filter {
         let mut out = Writer::new();
         self.encode(&mut out);
         out.into_bytes()
+    }
+
+    /// The filter one [`Filter::to_ber`] encoding holds, read back as a tree.
+    /// An [`Filter::Encoded`] inside it comes back as the tree it encodes.
+    ///
+    /// # Errors
+    ///
+    /// [`Kind::Protocol`] for bytes that are not exactly one filter element.
+    pub fn from_ber(bytes: &[u8]) -> Result<Self, Error> {
+        let mut reader = Reader::new(bytes);
+        let filter = Self::from_element(reader.element()?)?;
+        if !reader.is_empty() {
+            return Err(bad_filter("bytes after the filter"));
+        }
+        Ok(filter)
+    }
+
+    fn from_element(element: ber::Tlv<'_>) -> Result<Self, Error> {
+        let list = |body: &[u8]| -> Result<Vec<Self>, Error> {
+            let mut reader = Reader::new(body);
+            let mut out = Vec::new();
+            while !reader.is_empty() {
+                out.push(Self::from_element(reader.element()?)?);
+            }
+            Ok(out)
+        };
+        let pair = |body: &[u8]| -> Result<(String, Vec<u8>), Error> {
+            let mut ava = Reader::new(body);
+            let attribute = text(ava.expect(tag::OCTET_STRING)?)?;
+            let value = ava.expect(tag::OCTET_STRING)?.to_vec();
+            Ok((attribute, value))
+        };
+        let body = element.body;
+        Ok(match element.tag {
+            0xa0 => Self::And(list(body)?),
+            0xa1 => Self::Or(list(body)?),
+            0xa2 => {
+                let mut inner = list(body)?;
+                match (inner.pop(), inner.is_empty()) {
+                    (Some(one), true) => Self::Not(Box::new(one)),
+                    _ => return Err(bad_filter("a `not` without exactly one filter")),
+                }
+            }
+            0xa3 => pair(body).map(|(a, v)| Self::Equal(a, v))?,
+            0xa4 => {
+                let mut sub = Reader::new(body);
+                let attribute = text(sub.expect(tag::OCTET_STRING)?)?;
+                let mut parts = Reader::new(sub.expect(tag::SEQUENCE)?);
+                let (mut initial, mut any, mut last) = (None, Vec::new(), None);
+                while !parts.is_empty() {
+                    let part = parts.element()?;
+                    match part.tag {
+                        0x80 => initial = Some(part.body.to_vec()),
+                        0x81 => any.push(part.body.to_vec()),
+                        0x82 => last = Some(part.body.to_vec()),
+                        _ => return Err(bad_filter("a substring part with an unknown tag")),
+                    }
+                }
+                Self::Substrings {
+                    attribute,
+                    initial,
+                    any,
+                    last,
+                }
+            }
+            0xa5 => pair(body).map(|(a, v)| Self::GreaterOrEqual(a, v))?,
+            0xa6 => pair(body).map(|(a, v)| Self::LessOrEqual(a, v))?,
+            0x87 => Self::Present(text(body)?),
+            0xa8 => pair(body).map(|(a, v)| Self::Approx(a, v))?,
+            0xa9 => {
+                let mut ext = Reader::new(body);
+                let rule = ext.optional(0x81)?.map(text).transpose()?;
+                let attribute = ext.optional(0x82)?.map(text).transpose()?;
+                let value = ext.expect(0x83)?.to_vec();
+                let dn_attributes = ext.optional(0x84)?.map(ber::boolean).transpose()?;
+                Self::Extensible {
+                    rule,
+                    attribute,
+                    value,
+                    dn_attributes: dn_attributes.unwrap_or(false),
+                }
+            }
+            _ => return Err(bad_filter("an element with an unknown tag")),
+        })
+    }
+
+    /// The filter in RFC 4515's text form, such as `(&(objectClass=user)(cn=a\2a))`.
+    /// A value's `*`, `(`, `)`, `\`, control characters and bytes that are not
+    /// UTF-8 are written as `\` and two hex digits, so the text is one line and
+    /// reads back as the same filter.
+    #[must_use]
+    pub fn to_text(&self) -> String {
+        let mut out = String::new();
+        self.write_text(&mut out);
+        out
+    }
+
+    fn write_text(&self, out: &mut String) {
+        let each = |open: &str, all: &[Self], out: &mut String| {
+            out.push_str(open);
+            all.iter().for_each(|f| f.write_text(out));
+            out.push(')');
+        };
+        match self {
+            Self::And(all) => each("(&", all, out),
+            Self::Or(any) => each("(|", any, out),
+            Self::Not(inner) => each("(!", std::slice::from_ref(&**inner), out),
+            Self::Equal(attribute, value) => text_assertion(out, attribute, "=", value),
+            Self::Substrings {
+                attribute,
+                initial,
+                any,
+                last,
+            } => {
+                out.push('(');
+                out.push_str(attribute);
+                out.push('=');
+                if let Some(initial) = initial {
+                    escaped(out, initial);
+                }
+                out.push('*');
+                for middle in any {
+                    escaped(out, middle);
+                    out.push('*');
+                }
+                if let Some(last) = last {
+                    escaped(out, last);
+                }
+                out.push(')');
+            }
+            Self::GreaterOrEqual(attribute, value) => text_assertion(out, attribute, ">=", value),
+            Self::LessOrEqual(attribute, value) => text_assertion(out, attribute, "<=", value),
+            Self::Present(attribute) => {
+                out.push('(');
+                out.push_str(attribute);
+                out.push_str("=*)");
+            }
+            Self::Approx(attribute, value) => text_assertion(out, attribute, "~=", value),
+            Self::Extensible {
+                rule,
+                attribute,
+                value,
+                dn_attributes,
+            } => {
+                out.push('(');
+                if let Some(attribute) = attribute {
+                    out.push_str(attribute);
+                }
+                if *dn_attributes {
+                    out.push_str(":dn");
+                }
+                if let Some(rule) = rule {
+                    out.push(':');
+                    out.push_str(rule);
+                }
+                out.push_str(":=");
+                escaped(out, value);
+                out.push(')');
+            }
+            // Only bytes [`Filter::to_ber`] wrote reach here, and those read
+            // back. Bytes that do not are written as `(?)`, which no filter is.
+            Self::Encoded(encoded) => match Self::from_ber(encoded) {
+                Ok(filter) => filter.write_text(out),
+                Err(_) => out.push_str("(?)"),
+            },
+        }
+    }
+}
+
+fn bad_filter(what: &str) -> Error {
+    Error::new(
+        Kind::Protocol,
+        format!("a filter's encoding is malformed: {what}"),
+    )
+}
+
+fn text_assertion(out: &mut String, attribute: &str, operator: &str, value: &[u8]) {
+    out.push('(');
+    out.push_str(attribute);
+    out.push_str(operator);
+    escaped(out, value);
+    out.push(')');
+}
+
+/// `value` as RFC 4515 § 3 writes an assertion value: UTF-8 as it is, and
+/// every byte that would end or open a filter, every control character and
+/// every byte that is not UTF-8 as `\` and two hex digits.
+fn escaped(out: &mut String, value: &[u8]) {
+    use std::fmt::Write as _;
+    for chunk in value.utf8_chunks() {
+        for c in chunk.valid().chars() {
+            if matches!(c, '*' | '(' | ')' | '\\') || c.is_control() {
+                let mut buf = [0; 4];
+                for byte in c.encode_utf8(&mut buf).bytes() {
+                    let _ = write!(out, "\\{byte:02x}");
+                }
+            } else {
+                out.push(c);
+            }
+        }
+        for byte in chunk.invalid() {
+            let _ = write!(out, "\\{byte:02x}");
+        }
     }
 }
 
@@ -597,6 +800,38 @@ mod tests {
         ] {
             assert!(!is_attribute_description(bad), "{bad}");
         }
+    }
+
+    #[test]
+    fn every_filter_reads_back_from_its_encoding_and_renders_as_rfc_4515() {
+        let filter = Filter::And(vec![
+            Filter::Or(vec![
+                Filter::Substrings {
+                    attribute: "cn".into(),
+                    initial: Some(b"a*".to_vec()),
+                    any: vec![b"(b)".to_vec()],
+                    last: Some(b"c\\".to_vec()),
+                },
+                Filter::Not(Box::new(Filter::Present("mail".into()))),
+            ]),
+            Filter::GreaterOrEqual("uSNChanged".into(), b"10".to_vec()),
+            Filter::LessOrEqual("uSNChanged".into(), b"20".to_vec()),
+            Filter::Approx("sn".into(), b"Sm\xc3\xafth\n\xff".to_vec()),
+            Filter::Extensible {
+                rule: Some("1.2.840.113556.1.4.1941".into()),
+                attribute: Some("memberOf".into()),
+                value: b"CN=Staff".to_vec(),
+                dn_attributes: true,
+            },
+        ]);
+        let read = Filter::from_ber(&filter.to_ber()).unwrap();
+        assert_eq!(read, filter);
+        assert_eq!(
+            Filter::Encoded(filter.to_ber()).to_text(),
+            "(&(|(cn=a\\2a*\\28b\\29*c\\5c)(!(mail=*)))(uSNChanged>=10)(uSNChanged<=20)\
+             (sn~=Sm\u{ef}th\\0a\\ff)(memberOf:dn:1.2.840.113556.1.4.1941:=CN=Staff))"
+        );
+        assert!(Filter::from_ber(b"\x87\x02cn\x00").is_err());
     }
 
     #[test]

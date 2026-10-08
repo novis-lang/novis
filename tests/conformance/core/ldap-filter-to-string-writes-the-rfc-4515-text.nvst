@@ -1,0 +1,39 @@
+--TEST--
+`toString` writes each `Filter` constructor as the RFC 4515 text it encodes, nests `all`, `any` and `not` as written, and writes a `*`, `(`, `)` or `\` in a value as an escape — ADR 0278 § 6 and `rule:core-classes/ldap-filter-is-a-value`
+--FILE--
+<?nvs
+echo Core\Ldap\Filter::equals("cn", "Ann")->toString(), "\n";
+echo Core\Ldap\Filter::startsWith("cn", "An")->toString(), "\n";
+echo Core\Ldap\Filter::endsWith("cn", "nn")->toString(), "\n";
+echo Core\Ldap\Filter::contains("cn", "n")->toString(), "\n";
+echo Core\Ldap\Filter::present("mail")->toString(), "\n";
+echo Core\Ldap\Filter::atLeast("uSNChanged", "100")->toString(), "\n";
+echo Core\Ldap\Filter::atMost("uSNChanged", "200")->toString(), "\n";
+echo Core\Ldap\Filter::approx("sn", "Smith")->toString(), "\n";
+echo Core\Ldap\Filter::all(Core\Ldap\Filter::present("mail"))->toString(), "\n";
+echo Core\Ldap\Filter::any(Core\Ldap\Filter::equals("cn", "Ann"), Core\Ldap\Filter::equals("cn", "Bob"))->toString(), "\n";
+echo Core\Ldap\Filter::not(Core\Ldap\Filter::present("mail"))->toString(), "\n";
+
+// Filters nest as deep as they are written.
+var $nested = Core\Ldap\Filter::all(
+    Core\Ldap\Filter::equals("objectClass", "user"),
+    Core\Ldap\Filter::any(Core\Ldap\Filter::startsWith("cn", "A"), Core\Ldap\Filter::not(Core\Ldap\Filter::atLeast("uSNChanged", "5"))),
+);
+echo $nested->toString(), "\n";
+
+// These four characters have a meaning in filter text, so each is escaped.
+echo Core\Ldap\Filter::equals("cn", "a*(b)\\c")->toString(), "\n";
+--EXPECT--
+(cn=Ann)
+(cn=An*)
+(cn=*nn)
+(cn=*n*)
+(mail=*)
+(uSNChanged>=100)
+(uSNChanged<=200)
+(sn~=Smith)
+(&(mail=*))
+(|(cn=Ann)(cn=Bob))
+(!(mail=*))
+(&(objectClass=user)(|(cn=A*)(!(uSNChanged>=5))))
+(cn=a\2a\28b\29\5cc)

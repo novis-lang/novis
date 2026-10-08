@@ -413,3 +413,89 @@ fn a_size_limit_the_server_hit_throws() {
         "the server finished the search, so the connection is settled"
     );
 }
+
+/// The DNs a subtree search from the domain root returns for `filter`.
+fn found(ctx: &mut nvs_runtime::Ctx, key: u64, filter: &Filter) -> Vec<String> {
+    let mut entries =
+        ldap::search(ctx, key, &everything(filter, 1000, 0)).expect("the search starts");
+    let mut dns = Vec::new();
+    while let Some(entry) = entries.next(ctx).expect("the search succeeds") {
+        dns.push(entry.dn);
+    }
+    dns
+}
+
+#[test]
+fn a_filter_encodes_to_ber_with_no_text_step() {
+    // `(&(objectClass=user)(sAMAccountName=Admin*))`, as RFC 4511 § 4.5.1
+    // encodes it: every byte below is a tag, a length, or a value's own byte.
+    let filter = Filter::And(vec![
+        Filter::Equal("objectClass".to_owned(), b"user".to_vec()),
+        Filter::Substrings {
+            attribute: "sAMAccountName".to_owned(),
+            initial: Some(b"Admin".to_vec()),
+            any: Vec::new(),
+            last: None,
+        },
+    ]);
+    let mut expected = vec![0xa0, 0x30, 0xa3, 0x13, 0x04, 0x0b];
+    expected.extend_from_slice(b"objectClass");
+    expected.extend_from_slice(&[0x04, 0x04]);
+    expected.extend_from_slice(b"user");
+    expected.extend_from_slice(&[0xa4, 0x19, 0x04, 0x0e]);
+    expected.extend_from_slice(b"sAMAccountName");
+    expected.extend_from_slice(&[0x30, 0x07, 0x80, 0x05]);
+    expected.extend_from_slice(b"Admin");
+    assert_eq!(filter.to_ber(), expected);
+    assert_eq!(
+        Filter::from_ber(&expected).expect("the encoding reads back"),
+        filter
+    );
+    // The text form is rendered from the tree for a log. A search sends the
+    // bytes above, never this.
+    assert_eq!(
+        filter.to_text(),
+        "(&(objectClass=user)(sAMAccountName=Admin*))"
+    );
+
+    let Some(ca) = samba() else { return };
+    let mut ctx = ctx_over(&corp(&ca));
+    let key = ldap::connect(&mut ctx, "corp").expect("the block opens");
+    assert_eq!(
+        found(&mut ctx, key, &Filter::Encoded(filter.to_ber())),
+        [ADMIN],
+        "the server reads the encoding as the filter it was built from"
+    );
+}
+
+#[test]
+fn a_tainted_value_cannot_change_a_filters_structure() {
+    // As RFC 4515 text, this value closes the equality filter and opens one
+    // that every entry matches. As a value, it is one octet string.
+    let hostile = b"*)(objectClass=*".to_vec();
+    let filter = Filter::And(vec![
+        Filter::Equal("objectClass".to_owned(), b"user".to_vec()),
+        Filter::Equal("sAMAccountName".to_owned(), hostile.clone()),
+    ]);
+    let Filter::And(parts) = Filter::from_ber(&filter.to_ber()).expect("reads back") else {
+        panic!("the outer element is still the `and`");
+    };
+    assert_eq!(parts.len(), 2, "the value added no filter");
+    assert_eq!(
+        parts[1],
+        Filter::Equal("sAMAccountName".to_owned(), hostile)
+    );
+    // The log text escapes it, so it reads back as the same one value.
+    assert_eq!(
+        filter.to_text(),
+        "(&(objectClass=user)(sAMAccountName=\\2a\\29\\28objectClass=\\2a))"
+    );
+
+    let Some(ca) = samba() else { return };
+    let mut ctx = ctx_over(&corp(&ca));
+    let key = ldap::connect(&mut ctx, "corp").expect("the block opens");
+    assert!(
+        found(&mut ctx, key, &filter).is_empty(),
+        "no account is named `*)(objectClass=*`, so nothing matches"
+    );
+}

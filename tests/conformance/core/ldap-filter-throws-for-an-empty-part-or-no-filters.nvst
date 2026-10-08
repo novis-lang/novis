@@ -1,0 +1,46 @@
+--TEST--
+`startsWith`, `endsWith` and `contains` throw `LogicError` for an empty value, `all` and `any` throw it with no filter, and every constructor that takes an attribute agrees with `equals` on which names it throws for — ADR 0278 § 6
+--FILE--
+<?nvs
+// An empty part would match every value, so the three substring constructors throw.
+int $empty = 0;
+try { Core\Ldap\Filter::startsWith("cn", ""); } catch (LogicError $e) { $empty = $empty + 1; }
+try { Core\Ldap\Filter::endsWith("cn", ""); } catch (LogicError $e) { $empty = $empty + 1; }
+try { Core\Ldap\Filter::contains("cn", ""); } catch (LogicError $e) { $empty = $empty + 1; }
+echo "empty values thrown: ", $empty, " of 3\n";
+try {
+    Core\Ldap\Filter::contains("cn", "");
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// `all` and `any` need one filter or more.
+try {
+    Core\Ldap\Filter::all();
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+try {
+    Core\Ldap\Filter::any();
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// Every constructor throws for the same names `equals` throws for.
+array<string> $bad = ["cn=x)(cn=*", "1cn", "", "cn;"];
+int $thrown = 0;
+foreach ($bad as var $name) {
+    try { Core\Ldap\Filter::startsWith($name, "x"); } catch (LogicError $e) { $thrown = $thrown + 1; }
+    try { Core\Ldap\Filter::endsWith($name, "x"); } catch (LogicError $e) { $thrown = $thrown + 1; }
+    try { Core\Ldap\Filter::contains($name, "x"); } catch (LogicError $e) { $thrown = $thrown + 1; }
+    try { Core\Ldap\Filter::atLeast($name, "x"); } catch (LogicError $e) { $thrown = $thrown + 1; }
+    try { Core\Ldap\Filter::atMost($name, "x"); } catch (LogicError $e) { $thrown = $thrown + 1; }
+    try { Core\Ldap\Filter::approx($name, "x"); } catch (LogicError $e) { $thrown = $thrown + 1; }
+}
+echo "bad names thrown: ", $thrown, " of ", Core\Arr::count($bad) * 6, "\n";
+--EXPECT--
+empty values thrown: 3 of 3
+Core\Ldap\Filter::contains: the value is empty. `present` matches every entry with a value
+Core\Ldap\Filter::all: there is no filter. Give one filter or more
+Core\Ldap\Filter::any: there is no filter. Give one filter or more
+bad names thrown: 24 of 24

@@ -1,0 +1,59 @@
+--TEST--
+Each `Filter` constructor but `approx`, which the Samba test server does not evaluate, matches the accounts it says it matches on the test directory, `all`, `any` and `not` combine them, and a `tainted` value with `*` in it matches only itself — ADR 0278 § 6 and `rule:core-classes/ldap-filter-is-a-value`
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+
+class Users {
+    // The accounts under `CN=Users` that `$filter` matches, sorted, by their DN's first part.
+    public static function matching(Core\Ldap\Connection $corp, Core\Ldap\Filter $filter): string {
+        array<string> $out = [];
+        var $entries = $corp->search(Core\Ldap\Filter::all(Core\Ldap\Filter::equals("objectClass", "user"), $filter), {
+            base: "CN=Users,DC=example,DC=test",
+            scope: Core\Ldap\Scope::OneLevel,
+            select: ["cn"],
+        });
+        foreach ($entries as Core\Ldap\Entry $entry) {
+            $out[] = Core\Str::before($entry->dn(), ",") ?? "";
+        }
+        return Core\Str::join(Core\Arr::sort($out), " ");
+    }
+}
+
+echo "startsWith: ", Users::matching($corp, Core\Ldap\Filter::startsWith("sAMAccountName", "Admin")), "\n";
+echo "endsWith: ", Users::matching($corp, Core\Ldap\Filter::endsWith("sAMAccountName", "tgt")), "\n";
+echo "contains: ", Users::matching($corp, Core\Ldap\Filter::contains("sAMAccountName", "ues")), "\n";
+echo "atLeast: ", Users::matching($corp, Core\Ldap\Filter::atLeast("primaryGroupID", "514")), "\n";
+echo "atMost: ", Users::matching($corp, Core\Ldap\Filter::atMost("primaryGroupID", "513")), "\n";
+echo "any: ", Users::matching($corp, Core\Ldap\Filter::any(
+    Core\Ldap\Filter::equals("sAMAccountName", "Guest"),
+    Core\Ldap\Filter::equals("sAMAccountName", "krbtgt"),
+)), "\n";
+echo "not: ", Users::matching($corp, Core\Ldap\Filter::not(Core\Ldap\Filter::startsWith("sAMAccountName", "Admin"))), "\n";
+
+// A value from a user is data. Its `*` is a normal character, so no account matches.
+tainted string $typed = "*";
+echo "a typed star: [", Users::matching($corp, Core\Ldap\Filter::startsWith("sAMAccountName", $typed)), "]\n";
+echo "a typed star, alone: [", Users::matching($corp, Core\Ldap\Filter::equals("sAMAccountName", $typed)), "]\n";
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+base = "DC=example,DC=test"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+startsWith: CN=Administrator
+endsWith: CN=krbtgt
+contains: CN=Guest
+atLeast: CN=Guest
+atMost: CN=Administrator CN=krbtgt
+any: CN=Guest CN=krbtgt
+not: CN=Guest CN=krbtgt
+a typed star: []
+a typed star, alone: []

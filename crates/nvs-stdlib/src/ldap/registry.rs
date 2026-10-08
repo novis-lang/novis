@@ -627,24 +627,50 @@ const FILTER_CARD: ClassDoc = ClassDoc {
             cannot change what the filter matches.",
 };
 
-/// ADR 0278 § 6's `Ldap\Filter`, as far as Stage 4 goes: `equals` and
-/// `present`. `super::search`'s module doc says what its slot is.
+/// The parameters of every [`FILTER`] row that compares an attribute with a
+/// value. The name is a sink, checked against RFC 4512. The value is data in
+/// the BER the filter is built into, so it may be `tainted`.
+const FILTER_COMPARE: &[CoreTy] = &[CoreTy::Text(Qual::Sink), CoreTy::Text(Qual::Neutral)];
+
+/// A [`FILTER`] row named `name` that compares an attribute with a value.
+const fn filter_compare(
+    name: &'static str,
+    symbol: &'static str,
+    doc: &'static MethodDoc,
+) -> CoreMethod {
+    CoreMethod {
+        name,
+        names: &["attribute", "value"],
+        params: FILTER_COMPARE,
+        defaults: &[],
+        return_ty: CoreTy::Instance(FILTER_NAME),
+        symbol,
+        doc: Some(doc),
+    }
+}
+
+/// ADR 0278 § 6's `Ldap\Filter`, but for `parse`. `super::search`'s module
+/// doc says what its slot is.
 pub(crate) const FILTER: CoreClass = CoreClass {
     name: FILTER_NAME,
     doc: Some(&FILTER_CARD),
     methods: &[
-        CoreMethod {
-            name: "equals",
-            names: &["attribute", "value"],
-            // The name is a sink, checked against RFC 4512. The value is
-            // data in the BER the filter is built into, so it may be
-            // `tainted`.
-            params: &[CoreTy::Text(Qual::Sink), CoreTy::Text(Qual::Neutral)],
-            defaults: &[],
-            return_ty: CoreTy::Instance(FILTER_NAME),
-            symbol: "nvs_core_ldap_filter_equals",
-            doc: Some(&FILTER_EQUALS_DOC),
-        },
+        filter_compare("equals", "nvs_core_ldap_filter_equals", &FILTER_EQUALS_DOC),
+        filter_compare(
+            "startsWith",
+            "nvs_core_ldap_filter_starts_with",
+            &FILTER_STARTS_WITH_DOC,
+        ),
+        filter_compare(
+            "endsWith",
+            "nvs_core_ldap_filter_ends_with",
+            &FILTER_ENDS_WITH_DOC,
+        ),
+        filter_compare(
+            "contains",
+            "nvs_core_ldap_filter_contains",
+            &FILTER_CONTAINS_DOC,
+        ),
         CoreMethod {
             name: "present",
             names: &["attribute"],
@@ -654,8 +680,55 @@ pub(crate) const FILTER: CoreClass = CoreClass {
             symbol: "nvs_core_ldap_filter_present",
             doc: Some(&FILTER_PRESENT_DOC),
         },
+        filter_compare(
+            "atLeast",
+            "nvs_core_ldap_filter_at_least",
+            &FILTER_AT_LEAST_DOC,
+        ),
+        filter_compare(
+            "atMost",
+            "nvs_core_ldap_filter_at_most",
+            &FILTER_AT_MOST_DOC,
+        ),
+        filter_compare("approx", "nvs_core_ldap_filter_approx", &FILTER_APPROX_DOC),
+        CoreMethod {
+            name: "all",
+            names: &["filters"],
+            params: &[CoreTy::Variadic(&CoreTy::Instance(FILTER_NAME))],
+            defaults: &[],
+            return_ty: CoreTy::Instance(FILTER_NAME),
+            symbol: "nvs_core_ldap_filter_all",
+            doc: Some(&FILTER_ALL_DOC),
+        },
+        CoreMethod {
+            name: "any",
+            names: &["filters"],
+            params: &[CoreTy::Variadic(&CoreTy::Instance(FILTER_NAME))],
+            defaults: &[],
+            return_ty: CoreTy::Instance(FILTER_NAME),
+            symbol: "nvs_core_ldap_filter_any",
+            doc: Some(&FILTER_ANY_DOC),
+        },
+        CoreMethod {
+            name: "not",
+            names: &["filter"],
+            params: &[CoreTy::Instance(FILTER_NAME)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(FILTER_NAME),
+            symbol: "nvs_core_ldap_filter_not",
+            doc: Some(&FILTER_NOT_DOC),
+        },
     ],
-    instance: &[],
+    instance: &[CoreMethod {
+        name: "toString",
+        names: &[],
+        params: &[],
+        defaults: &[],
+        // A value inside the filter may be `tainted`, so the text is.
+        return_ty: CoreTy::TaintedStr,
+        symbol: "nvs_core_ldap_filter_to_string",
+        doc: Some(&FILTER_TO_STRING_DOC),
+    }],
     slots: &["ber"],
     constants: &[],
 };
@@ -686,6 +759,44 @@ const FILTER_EQUALS_DOC: MethodDoc = MethodDoc {
     }],
 };
 
+/// The card shared by the `value` parameter of [`FILTER`]'s substring rows.
+const FILTER_PART_PARAM: ParamDoc = ParamDoc {
+    name: "value",
+    desc: "The text to look for. It may be `tainted`. A `*` in it is a normal character, and \
+           not a wildcard.",
+    shape: &[],
+};
+
+/// The errors of [`FILTER`]'s substring rows.
+const FILTER_PART_ERRORS: &[ErrorDoc] = &[ErrorDoc {
+    error: "LogicError",
+    desc: "`$attribute` is not an attribute name, or `$value` is empty.",
+}];
+
+/// `Ldap\Filter::startsWith`' reference card — `rule:core-api/reference-card`.
+const FILTER_STARTS_WITH_DOC: MethodDoc = MethodDoc {
+    short: "Matches the entries where a value of an attribute starts with this text.",
+    params: &[FILTER_ATTRIBUTE_PARAM, FILTER_PART_PARAM],
+    ret: "A `Core\\Ldap\\Filter`.",
+    errors: FILTER_PART_ERRORS,
+};
+
+/// `Ldap\Filter::endsWith`' reference card — `rule:core-api/reference-card`.
+const FILTER_ENDS_WITH_DOC: MethodDoc = MethodDoc {
+    short: "Matches the entries where a value of an attribute ends with this text.",
+    params: &[FILTER_ATTRIBUTE_PARAM, FILTER_PART_PARAM],
+    ret: "A `Core\\Ldap\\Filter`.",
+    errors: FILTER_PART_ERRORS,
+};
+
+/// `Ldap\Filter::contains`' reference card — `rule:core-api/reference-card`.
+const FILTER_CONTAINS_DOC: MethodDoc = MethodDoc {
+    short: "Matches the entries where a value of an attribute contains this text.",
+    params: &[FILTER_ATTRIBUTE_PARAM, FILTER_PART_PARAM],
+    ret: "A `Core\\Ldap\\Filter`.",
+    errors: FILTER_PART_ERRORS,
+};
+
 /// `Ldap\Filter::present`'s reference card — `rule:core-api/reference-card`.
 const FILTER_PRESENT_DOC: MethodDoc = MethodDoc {
     short: "Matches the entries that have any value for an attribute.",
@@ -695,6 +806,106 @@ const FILTER_PRESENT_DOC: MethodDoc = MethodDoc {
         error: "LogicError",
         desc: "`$attribute` is not an attribute name.",
     }],
+};
+
+/// The card shared by the `value` parameter of [`FILTER`]'s ordering rows.
+const FILTER_BOUND_PARAM: ParamDoc = ParamDoc {
+    name: "value",
+    desc: "The value to compare with. It may be `tainted`. The server compares by the \
+           attribute's own order, so `'10'` comes after `'9'` for a number.",
+    shape: &[],
+};
+
+/// The error of a [`FILTER`] row whose only check is the attribute name.
+const FILTER_NAME_ERRORS: &[ErrorDoc] = &[ErrorDoc {
+    error: "LogicError",
+    desc: "`$attribute` is not an attribute name.",
+}];
+
+/// `Ldap\Filter::atLeast`'s reference card — `rule:core-api/reference-card`.
+const FILTER_AT_LEAST_DOC: MethodDoc = MethodDoc {
+    short: "Matches the entries where a value of an attribute is equal to or greater than this \
+            value. LDAP has no \"greater than\" filter. Use `not` and `atMost` for it.",
+    params: &[FILTER_ATTRIBUTE_PARAM, FILTER_BOUND_PARAM],
+    ret: "A `Core\\Ldap\\Filter`.",
+    errors: FILTER_NAME_ERRORS,
+};
+
+/// `Ldap\Filter::atMost`'s reference card — `rule:core-api/reference-card`.
+const FILTER_AT_MOST_DOC: MethodDoc = MethodDoc {
+    short: "Matches the entries where a value of an attribute is equal to or less than this \
+            value. LDAP has no \"less than\" filter. Use `not` and `atLeast` for it.",
+    params: &[FILTER_ATTRIBUTE_PARAM, FILTER_BOUND_PARAM],
+    ret: "A `Core\\Ldap\\Filter`.",
+    errors: FILTER_NAME_ERRORS,
+};
+
+/// `Ldap\Filter::approx`' reference card — `rule:core-api/reference-card`.
+const FILTER_APPROX_DOC: MethodDoc = MethodDoc {
+    short: "Matches the entries where a value of an attribute is close to this value, such as a \
+            name that sounds the same. The server decides what is close.",
+    params: &[
+        FILTER_ATTRIBUTE_PARAM,
+        ParamDoc {
+            name: "value",
+            desc: "The value to compare with. It may be `tainted`.",
+            shape: &[],
+        },
+    ],
+    ret: "A `Core\\Ldap\\Filter`.",
+    errors: FILTER_NAME_ERRORS,
+};
+
+/// The error of [`FILTER`]'s `all` and `any`.
+const FILTER_LIST_ERRORS: &[ErrorDoc] = &[ErrorDoc {
+    error: "LogicError",
+    desc: "No filter is given.",
+}];
+
+/// `Ldap\Filter::all`'s reference card — `rule:core-api/reference-card`.
+const FILTER_ALL_DOC: MethodDoc = MethodDoc {
+    short: "Matches the entries that every one of the filters matches.",
+    params: &[ParamDoc {
+        name: "filters",
+        desc: "One filter or more.",
+        shape: &[],
+    }],
+    ret: "A `Core\\Ldap\\Filter`.",
+    errors: FILTER_LIST_ERRORS,
+};
+
+/// `Ldap\Filter::any`'s reference card — `rule:core-api/reference-card`.
+const FILTER_ANY_DOC: MethodDoc = MethodDoc {
+    short: "Matches the entries that at least one of the filters matches.",
+    params: &[ParamDoc {
+        name: "filters",
+        desc: "One filter or more.",
+        shape: &[],
+    }],
+    ret: "A `Core\\Ldap\\Filter`.",
+    errors: FILTER_LIST_ERRORS,
+};
+
+/// `Ldap\Filter::not`'s reference card — `rule:core-api/reference-card`.
+const FILTER_NOT_DOC: MethodDoc = MethodDoc {
+    short: "Matches the entries that the filter does not match.",
+    params: &[ParamDoc {
+        name: "filter",
+        desc: "The filter to reverse.",
+        shape: &[],
+    }],
+    ret: "A `Core\\Ldap\\Filter`.",
+    errors: &[],
+};
+
+/// `Ldap\Filter->toString`'s reference card — `rule:core-api/reference-card`.
+const FILTER_TO_STRING_DOC: MethodDoc = MethodDoc {
+    short: "Returns the filter as LDAP filter text, such as `(&(objectClass=user)(cn=Ann))`. \
+            Use it to write the filter to a log. A search does not use this text.",
+    params: &[],
+    ret: "The text. A `*`, `(`, `)` or `\\` in a value is written as `\\` and two hex digits. \
+          The text is `tainted`, because a value in the filter may be.",
+    errors: &[],
 };
 
 /// ADR 0278 § 5's `Ldap\Scope`. The values are declaration ordinals.

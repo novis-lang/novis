@@ -1,0 +1,24 @@
+--TEST--
+Every `Filter` constructor that takes a value accepts a `tainted` one, and a value written as filter text stays one value inside `all`, `any` and `not` — ADR 0278 § 6 and `rule:core-classes/ldap-filter-is-a-value`
+--FILE--
+<?nvs
+// As filter text, this value would end one filter and start another.
+tainted string $typed = "x)(objectClass=*";
+
+var $filter = Core\Ldap\Filter::not(Core\Ldap\Filter::any(
+    Core\Ldap\Filter::equals("cn", $typed),
+    Core\Ldap\Filter::startsWith("cn", $typed),
+    Core\Ldap\Filter::endsWith("cn", $typed),
+    Core\Ldap\Filter::contains("cn", $typed),
+    Core\Ldap\Filter::atLeast("cn", $typed),
+    Core\Ldap\Filter::atMost("cn", $typed),
+    Core\Ldap\Filter::approx("cn", $typed),
+));
+var $both = Core\Ldap\Filter::all($filter, Core\Ldap\Filter::not($filter));
+
+// Each value is escaped, so the text has one filter for each constructor.
+echo $filter->toString(), "\n";
+echo "not twice: ", Core\Str::startsWith($both->toString(), "(&(!(|(cn=x\\29\\28") ? "yes" : "no", "\n";
+--EXPECT--
+(!(|(cn=x\29\28objectClass=\2a)(cn=x\29\28objectClass=\2a*)(cn=*x\29\28objectClass=\2a)(cn=*x\29\28objectClass=\2a*)(cn>=x\29\28objectClass=\2a)(cn<=x\29\28objectClass=\2a)(cn~=x\29\28objectClass=\2a)))
+not twice: yes
