@@ -204,6 +204,18 @@
 # which is why they are named as hosts and the two keys above are named as blocks.
 #open = ["db.example.com:5432"]       # example
 
+[capabilities.ldap]
+# Which `[ldap.<name>]` blocks a program may open by name. A block named here was written by an
+# operator, so it is pre-approved against the denied address ranges.
+#connect = ["corp"]                   # example
+# Which hosts a program-supplied `Ldap\Settings` may reach. A `*.` entry matches every name under
+# it. These hosts are still checked against the address policy.
+#open = ["dc1.example.test"]          # example
+# The hosts a bind may reach over plain `ldap://` with no TLS, where the block or the settings also
+# say `tls = "none"`. On these hosts the password and every result cross the network readable and
+# changeable. There is no `true`: each host is named.
+#cleartext = ["dc1.example.test"]     # example
+
 [capabilities.mail]
 # Which `[mail.<name>]` blocks a program may send through, by name and never by host.
 #send = ["default"]                   # example
@@ -641,6 +653,43 @@
 
 
 # ----------------------------------------------------------------------------------------------
+# [ldap.<name>] — an operator-named directory. The name is the key and a `capabilities.ldap` grant
+# names it. Every pooled connection binds as the block's `user` for its whole life.
+# ----------------------------------------------------------------------------------------------
+
+[ldap.corp]
+# The servers, tried in order until one completes the TLS handshake and the bind. `ldaps://` starts
+# with TLS, and `ldap://` upgrades with StartTLS before the bind.
+#url = ["ldaps://dc1.example.test", "ldaps://dc2.example.test"]  # example
+# The DN a search starts under where the call names none.
+#base = "DC=example,DC=test"          # example
+# The account to bind as: a DN, `user@upn-suffix` or `DOMAIN\user`. With no `user` the bind is
+# anonymous. A `user` with an empty password does not start.
+#user = "svc-app@example.test"        # example
+#password = "s3cret"                  # example
+#password_file = "/run/secrets/ldap-corp"  # example
+# `"none"` sends the bind and every result with no TLS, over `ldap://` only, and only to a host on
+# `[capabilities.ldap] cleartext`.
+#tls = "required"                     # default
+# The PEM file of trust anchors the server's certificate is checked against. Written, it replaces
+# the bundled Mozilla set for this block. It is trust-checked at boot like `[db.<name>]`'s.
+#tls_ca_file = "/etc/ssl/corp-ca.pem"  # default: the bundled Mozilla set
+# How long one operation may take, the connect and the bind included. There is no unlimited value.
+#timeout = "30s"                      # default
+# `false` turns pooling off for this block. A table of bounds is the other shape, below.
+#pool = false                         # default: on
+
+#[ldap.corp.pool]
+# This header stays commented out, because `pool = false` above is the same key. The bounds are
+# `[db.<name>.pool]`'s: `max` connections per core, `idle` kept open, `lifetime` before a connection
+# is retired, and `acquire`, how long an acquire waits before it throws.
+#max = 16                             # default
+#idle = 2                             # default
+#lifetime = "30m"                     # default
+#acquire = "5s"                       # default
+
+
+# ----------------------------------------------------------------------------------------------
 # [mail.<name>] — an operator-named SMTP endpoint. The name is the key and a `capabilities.mail`
 # grant names it, so nothing a program writes can reach past this block.
 # ----------------------------------------------------------------------------------------------
@@ -836,6 +885,13 @@
 #schema = ["main"]                    # example
 #open = ["db.example.com:5432"]       # example
 
+#[schedule.grants.ldap]
+# Which `[ldap.<name>]` blocks this entry may open, which hosts it may reach with settings of its
+# own, and which hosts it may bind to with no TLS.
+#connect = ["corp"]                   # example
+#open = ["dc1.example.test"]          # example
+#cleartext = ["dc1.example.test"]     # example
+
 #[schedule.grants.mail]
 # Which `[mail.<name>]` blocks this entry may send through.
 #send = ["default"]                   # example
@@ -1007,6 +1063,13 @@
 #connect = ["main"]                   # example
 #schema = ["main"]                    # example
 #open = ["db.example.com:5432"]       # example
+
+#[app.capabilities.ldap]
+# Which `[ldap.<name>]` blocks this application may open, which hosts it may reach with settings of
+# its own, and which hosts it may bind to with no TLS.
+#connect = ["corp"]                   # example
+#open = ["dc1.example.test"]          # example
+#cleartext = ["dc1.example.test"]     # example
 
 #[app.capabilities.mail]
 # Which `[mail.<name>]` blocks this application may send through.

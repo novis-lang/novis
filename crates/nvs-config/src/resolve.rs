@@ -431,6 +431,8 @@ pub fn resolve(
     // `[db]` block is resolved against the file that wrote it, and only the merge knows which of
     // them won.
     crate::db::canonicalize(&mut resolved.config, &mut resolved.table, &origins, files)?;
+    // An `[ldap]` block's `tls_ca_file`, by the same check and for the same reason.
+    crate::ldap::canonicalize(&mut resolved.config, &mut resolved.table, &origins, files)?;
     // `[storage.<name>] root`, by the same rule and for the same reason as a `[db]` path.
     crate::db::canonicalize_storage(&mut resolved.config, &mut resolved.table, &origins);
     // `[http.client.tls] roots`, immediately after the `[db]` bundles and through the same check:
@@ -449,6 +451,10 @@ pub fn resolve(
     // `rule:security/db-pool-reset-is-a-boundary`'s pool bounds, in the same pass's second half: a `lifetime` that spells nothing
     // is a boot refusal naming its file, rather than the first acquire of the first request.
     crate::db::validate(&resolved.config, &origins)?;
+    // ADR 0278 § 2's `[ldap]` blocks, after § 7 has put each `password_file`'s value in place, so an
+    // empty password is refused here whichever spelling wrote it
+    // (`rule:security/ldap-empty-password-is-refused`).
+    crate::ldap::validate(&resolved.config, &origins)?;
     // `rule:core-classes/queue-storage-is-a-table`'s `[queue]`, immediately after the roster it names: whether `connection = "main"`
     // has a block to point at is a question only the merged `[db]` map can answer.
     crate::queue::validate(&resolved.config, &origins)?;

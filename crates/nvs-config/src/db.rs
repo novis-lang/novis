@@ -202,8 +202,20 @@ fn is_relative_file(written: &str) -> bool {
 /// A block the table does not hold is not an error to find: the typed tree is what says a `[db]`
 /// block exists, and a key written nowhere has nothing to resolve.
 fn rewrite(table: &mut toml::value::Table, name: &str, key: &str, value: &str) {
+    rewrite_in(table, "db", name, key, value);
+}
+
+/// [`rewrite`] for a block of another family, `<family>.<name>.<key>` — the `[ldap]` blocks'
+/// `tls_ca_file` is put back through it.
+pub(crate) fn rewrite_in(
+    table: &mut toml::value::Table,
+    family: &str,
+    name: &str,
+    key: &str,
+    value: &str,
+) {
     if let Some(block) = table
-        .get_mut("db")
+        .get_mut(family)
         .and_then(toml::Value::as_table_mut)
         .and_then(|blocks| blocks.get_mut(name))
         .and_then(toml::Value::as_table_mut)
@@ -309,12 +321,26 @@ pub fn pool_for(
     db: &Database,
     origins: &BTreeMap<String, Origin>,
 ) -> Result<PoolBounds, Diagnostic> {
-    let written = match db.pool.as_ref() {
+    pool_of(&format!("db.{name}"), db.pool.as_ref(), origins)
+}
+
+/// [`pool_for`] for any block that carries a [`Pool`], named by its dotted key — `db.main` or
+/// `ldap.corp` — so a refusal names the key the operator wrote.
+///
+/// # Errors
+///
+/// Exactly [`pool_for`]'s.
+pub fn pool_of(
+    block: &str,
+    pool: Option<&Pool>,
+    origins: &BTreeMap<String, Origin>,
+) -> Result<PoolBounds, Diagnostic> {
+    let written = match pool {
         None | Some(Pool::Switch(true)) => return Ok(PoolBounds::DEFAULT),
         Some(Pool::Switch(false)) => return Ok(PoolBounds::OFF),
         Some(Pool::Bounds(written)) => written,
     };
-    let key = |leaf: &str| format!("db.{name}.pool.{leaf}");
+    let key = |leaf: &str| format!("{block}.pool.{leaf}");
 
     let max = written.max.unwrap_or(PoolBounds::DEFAULT.max);
     if max == 0 {
@@ -466,7 +492,7 @@ pub fn slow_query_for(
 /// `help` is the caller's because the settings this reads are not one family: a pool bound is
 /// answered by `pool = false` and § 11's `slow_query` by leaving the key out, and a shared line
 /// would name the wrong escape for one of them.
-fn duration(
+pub(crate) fn duration(
     key: &str,
     written: Option<&Setting>,
     origins: &BTreeMap<String, Origin>,
@@ -497,7 +523,7 @@ fn duration(
 ///
 /// It is built here rather than through [`crate::value::Invalid`] because that type says *which
 /// unit* a value failed to be, and every value refused here is already the right unit.
-fn refuse(
+pub(crate) fn refuse(
     key: &str,
     what: &str,
     why: &str,

@@ -105,6 +105,9 @@ pub struct Config {
     /// `[db.<name>]` — one named connection per sub-table (`rule:core-classes/db-connection-is-named`), and the `pool = false`
     /// § 13 lets an operator write beside them rather than inside one.
     pub db: Databases,
+    /// `[ldap.<name>]` — one named directory per sub-table, bound as the block's own identity
+    /// (`rule:security/ldap-pool-is-bound-as-its-block`).
+    pub ldap: BTreeMap<String, LdapDirectory>,
     /// `[mail.<name>]` — one named SMTP endpoint per sub-table (`rule:programs/framework-core-half`).
     pub mail: BTreeMap<String, MailEndpoint>,
     /// `[storage.<name>]` — one named object-storage disk per sub-table (`rule:programs/framework-core-half`).
@@ -306,6 +309,9 @@ pub struct Capabilities {
     pub debug: Option<CapDebug>,
     /// `db.connect`, `db.open` and `db.schema` (`rule:core-classes/db-capabilities`).
     pub db: Option<CapDb>,
+    /// `ldap.connect`, `ldap.open` and `ldap.cleartext` (`rule:core-classes/db-capabilities`'s
+    /// shape, and `rule:security/ldap-cleartext-bind-is-granted-per-host`).
+    pub ldap: Option<CapLdap>,
     /// `mail.send` (`rule:programs/framework-core-half`).
     pub mail: Option<CapMail>,
     /// `cache.shared` (`rule:config/cache-shared-is-the-grant-over-the-configured-store`).
@@ -439,6 +445,23 @@ pub struct CapDb {
     /// a block and not an address; opening a connection is not permission to change what is behind
     /// it, so it does not follow from `connect`.
     pub schema: Option<Setting>,
+}
+
+/// The `ldap.*` grants — ADR 0278 § 2, in [`CapDb`]'s shape.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+#[serde(default, deny_unknown_fields)]
+pub struct CapLdap {
+    /// Which `[ldap.<name>]` blocks a program may open by name. An operator wrote every URL in one,
+    /// so they are pre-approved against `rule:security/net-address-policy`'s denied ranges.
+    pub connect: Option<Setting>,
+    /// Which hosts a program-supplied `Ldap\Settings` may reach, `*.` at a label boundary as
+    /// `db.open` takes it. These stay subject to that policy in full.
+    pub open: Option<Setting>,
+    /// The hosts a simple bind may cross plain `ldap://` to, where the block or the settings also say
+    /// `tls = "none"` (`rule:security/ldap-cleartext-bind-is-granted-per-host`). A host list in the
+    /// shape of `net.downgrade`, with no `true`: the password and every answer cross the network
+    /// readable and changeable, so the grant names each host that pays that.
+    pub cleartext: Option<Setting>,
 }
 
 /// One `[[extension]]` entry — `rule:packaging/extension-loading-is-root-controlled`.
@@ -818,7 +841,44 @@ pub struct CapQueue {
     pub purge: Option<Setting>,
 }
 
-/// One `[mail.<name>]` block — `rule:programs/framework-core-half`'s operator-named SMTP endpoint, whose shape is
+/// One `[ldap.<name>]` block — ADR 0278 § 2's operator-named directory, whose shape is
+/// [`Database`]'s and for the same reason: the name is the key, and the URL and the credential are
+/// the operator's alone.
+///
+/// The block is read here and judged in [`mod@crate::ldap`], which owns every rule about it: the URL
+/// list, the two `tls` words, the empty password refused at boot
+/// (`rule:security/ldap-empty-password-is-refused`), the timeout's default and the pool. The password
+/// is `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s kind of value, so
+/// `password_file` is beside it and [`mod@crate::secret`] owns the pair.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+#[serde(default, deny_unknown_fields)]
+pub struct LdapDirectory {
+    /// One `ldaps://` or `ldap://` URL, or a list of them tried in order until one completes the
+    /// TLS handshake and the bind.
+    pub url: Option<Setting>,
+    /// The DN a search starts under where the call names none.
+    pub base: Option<String>,
+    /// The DN, `user@upn-suffix` or `DOMAIN\user` every pooled connection binds as. Unset is an
+    /// anonymous bind.
+    pub user: Option<String>,
+    /// Its password, inline.
+    pub password: Option<String>,
+    /// The file whose whole content is the password, on [`Database::password_file`]'s footing.
+    pub password_file: Option<String>,
+    /// `"required"`, the default, or `"none"` — the second only for a host on
+    /// `[capabilities.ldap] cleartext`.
+    pub tls: Option<String>,
+    /// The PEM file of trust anchors the server's certificate is verified against, on
+    /// [`Database::tls_ca_file`]'s footing: it replaces the compiled-in set and is trust-checked at
+    /// boot.
+    pub tls_ca_file: Option<String>,
+    /// How long one operation may take, connect and bind included. A duration, finite, with a default.
+    pub timeout: Option<Setting>,
+    /// `[ldap.<name>.pool]`'s bounds or `pool = false`, read as a `[db]` block's [`Pool`] is.
+    pub pool: Option<Pool>,
+}
+
+/// One `[mail.<name>]` block —`rule:programs/framework-core-half`'s operator-named SMTP endpoint, whose shape is
 /// [`Database`]'s and for the same reason: the name is the key and the settings are the
 /// operator's alone, so nothing a program writes can reach past this struct.
 ///

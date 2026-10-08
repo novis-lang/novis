@@ -73,6 +73,7 @@ pub mod extension;
 pub mod file;
 pub mod http;
 pub mod image;
+pub mod ldap;
 pub mod log;
 pub mod mode;
 pub mod mount;

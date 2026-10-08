@@ -1,6 +1,6 @@
 {
   "title": "An LDAP bind without TLS needs `tls = \"none\"` in the block and the host on `[capabilities.ldap] cleartext`",
-  "status": "designed",
+  "status": "shipped",
   "because": [
     "0278"
   ],
@@ -9,5 +9,8 @@
     "security/ldap-empty-password-is-refused",
     "core-classes/db-capabilities"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-ldap/tests/samba.rs",
+    "crates/nvs-config/tests/ldap.rs"
+  ]
 }

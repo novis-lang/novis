@@ -182,6 +182,28 @@ pub const SECRETS: &[SecretPair] = &[
             }
         },
     },
+    // ADR 0278 § 2's directory credential: the account every pooled connection of the block binds
+    // as, for its whole life (`rule:security/ldap-pool-is-bound-as-its-block`).
+    SecretPair {
+        block: "ldap.*",
+        value: "password",
+        sites: |config| {
+            config
+                .ldap
+                .iter()
+                .map(|(name, ldap)| Site {
+                    name,
+                    file: ldap.password_file.as_deref(),
+                    inline: ldap.password.as_deref(),
+                })
+                .collect()
+        },
+        set: |config, name, value| {
+            if let Some(ldap) = config.ldap.get_mut(name) {
+                ldap.password = Some(value.to_owned());
+            }
+        },
+    },
     // `rule:programs/framework-core-half`'s SMTP endpoint, which holds a submission credential of exactly the kind above:
     // written by an operator into a named block, sent as `AUTH PLAIN` over `STARTTLS`, and delivered
     // to a container by the same injected file. `nvs_stdlib::mail` needs no code of its own to see

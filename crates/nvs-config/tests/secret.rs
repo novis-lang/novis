@@ -506,6 +506,31 @@ fn a_mail_endpoints_password_arrives_as_a_file_too() {
     );
 }
 
+/// `[ldap.<name>] password` is one of the registry's pairs, and an empty file is refused by § 7
+/// before the `[ldap]` check sees a `user` with nothing beside it
+/// (`rule:security/ldap-empty-password-is-refused`).
+#[test]
+fn a_directory_password_arrives_as_a_file_and_an_empty_one_is_refused() {
+    const LDAP_ROOT: &str = "[ldap.corp]\nurl = \"ldaps://dc1.example.test\"\nuser = \"svc@example.test\"\npassword_file = \"secrets/ldap\"\n";
+    let fs = Fake::with(&[
+        ("etc/nvs.toml", LDAP_ROOT),
+        ("etc/secrets/ldap", "dir-hunter2\n"),
+    ]);
+    let resolved = tree_of(&fs, "etc/nvs.toml");
+    assert_eq!(
+        resolved.config.ldap["corp"].password.as_deref(),
+        Some("dir-hunter2")
+    );
+    assert_eq!(resolved.secrets["ldap.corp.password"].value, "dir-hunter2");
+
+    let fs = Fake::with(&[("etc/nvs.toml", LDAP_ROOT), ("etc/secrets/ldap", "")]);
+    assert_eq!(
+        refusal(&fs, "etc/nvs.toml").code,
+        Some(code::E_BAD_SECRET_FILE),
+        "an empty file is § 7's refusal, which names the file",
+    );
+}
+
 /// § 7's one-of-the-pair rule is the registry's and not `[db]`'s: the same refusal, naming the block
 /// that actually set both.
 #[test]

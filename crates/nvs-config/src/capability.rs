@@ -30,7 +30,7 @@
 //! - **A bare `*` is not a spelling.** `true` is already "every host" — `Grant::Everything` — and
 //!   a grant reachable two ways is what `rule:core-api/shape-rules` R17 forbids. `*` alone therefore matches no host
 //!   at all, including a host literally named `*`, and so does `*.` with nothing after it.
-//! - **The wildcard is `db.open`'s alone**, which is [`Cap::takes_host_wildcard`]. `net.connect`'s
+//! - **The wildcard is `db.open`'s and `ldap.open`'s alone**, which is [`Cap::takes_host_wildcard`]. `net.connect`'s
 //!   grant is asked of a *name* and then `rule:http-server/allow-url-pins-the-address`
 //!   's door pins the address that name resolved to; a pattern there would widen the set of
 //!   names an attacker-influenced argument may reach without the operator having written any one of
@@ -161,6 +161,25 @@ pub enum Cap {
     /// catalog and asks nothing beyond the `db.connect` the program already holds; only applying one
     /// arrives here.
     DbSchema,
+    /// `ldap.connect` — which `[ldap.<name>]` blocks a program may open by name (ADR 0278 § 2).
+    ///
+    /// [`DbConnect`](Self::DbConnect)'s shape and its reasoning: every URL in a block was written by
+    /// an operator, so a block named here is pre-approved against
+    /// `rule:security/net-address-policy`'s denied ranges, where every directory controller lives.
+    LdapConnect,
+    /// `ldap.open` — which hosts a program-supplied `Ldap\Settings` may reach.
+    /// [`DbOpen`](Self::DbOpen)'s shape: a `*.` entry matches at a label boundary, and the address
+    /// the host resolves to is still asked the policy's question.
+    LdapOpen,
+    /// `ldap.cleartext` — the hosts a simple bind may cross plain `ldap://` to
+    /// (`rule:security/ldap-cleartext-bind-is-granted-per-host`).
+    ///
+    /// Asked at [`Scope::Host`] and only for a block or settings value that also says
+    /// `tls = "none"`, before the password is written. A host list with no `true`, the shape of
+    /// [`NetDowngrade`](Self::NetDowngrade) and [`TlsInsecure`](Self::TlsInsecure): the password and
+    /// every answer cross the network readable and changeable, so the grant names each host that
+    /// pays that.
+    LdapCleartext,
     /// `mail.send` — which `[mail.<name>]` blocks a program may send through (`rule:programs/framework-core-half`).
     ///
     /// Named by block and never by host, which is [`DbConnect`](Self::DbConnect)'s shape and ADR
@@ -345,6 +364,9 @@ impl Cap {
         Self::DbConnect,
         Self::DbOpen,
         Self::DbSchema,
+        Self::LdapConnect,
+        Self::LdapOpen,
+        Self::LdapCleartext,
         Self::MailSend,
         Self::CacheShared,
         Self::QueuePurge,
@@ -373,6 +395,9 @@ impl Cap {
             Self::DbConnect => "db.connect",
             Self::DbOpen => "db.open",
             Self::DbSchema => "db.schema",
+            Self::LdapConnect => "ldap.connect",
+            Self::LdapOpen => "ldap.open",
+            Self::LdapCleartext => "ldap.cleartext",
             Self::MailSend => "mail.send",
             Self::CacheShared => "cache.shared",
             Self::QueuePurge => "queue.purge",
@@ -419,16 +444,17 @@ impl Cap {
     /// Whether a grant entry for this capability may be written `*.suffix`, per the module doc's
     /// § *A `db.open` entry may be a `*.` wildcard*.
     ///
-    /// `db.open` alone. The knowledge lives here rather than in `host_granted` for the reason the
+    /// `db.open` and `ldap.open`, the two whose program-supplied targets a tenant-per-subdomain
+    /// deployment cannot enumerate. The knowledge lives here rather than in `host_granted` for the reason the
     /// module doc gives about [`name`](Self::name): a capability's properties are arms of this type,
     /// never a string compared in a second place.
     #[must_use]
     pub const fn takes_host_wildcard(self) -> bool {
-        matches!(self, Self::DbOpen)
+        matches!(self, Self::DbOpen | Self::LdapOpen)
     }
 
     /// Whether `true` is a spelling this capability's grant has at all — every capability's but the
-    /// six that name hosts a weakening applies to
+    /// seven that name hosts a weakening applies to
     /// (`rule:security/tls-trust-is-relaxed-only-under-a-host-grant`).
     ///
     /// A `true` written for one of those reads as [`Grant::Nothing`] rather than as everything,
@@ -449,6 +475,7 @@ impl Cap {
                 | Self::TlsPin
                 | Self::TlsAnyName
                 | Self::TlsInsecure
+                | Self::LdapCleartext
         )
     }
 
@@ -475,6 +502,9 @@ impl Cap {
             Self::DbConnect => caps.db.as_ref()?.connect.as_ref(),
             Self::DbOpen => caps.db.as_ref()?.open.as_ref(),
             Self::DbSchema => caps.db.as_ref()?.schema.as_ref(),
+            Self::LdapConnect => caps.ldap.as_ref()?.connect.as_ref(),
+            Self::LdapOpen => caps.ldap.as_ref()?.open.as_ref(),
+            Self::LdapCleartext => caps.ldap.as_ref()?.cleartext.as_ref(),
             Self::MailSend => caps.mail.as_ref()?.send.as_ref(),
             Self::CacheShared => caps.cache.as_ref()?.shared.as_ref(),
             Self::QueuePurge => caps.queue.as_ref()?.purge.as_ref(),
@@ -506,6 +536,9 @@ impl Cap {
             Self::DbConnect => caps.db.as_mut()?.connect.as_mut(),
             Self::DbOpen => caps.db.as_mut()?.open.as_mut(),
             Self::DbSchema => caps.db.as_mut()?.schema.as_mut(),
+            Self::LdapConnect => caps.ldap.as_mut()?.connect.as_mut(),
+            Self::LdapOpen => caps.ldap.as_mut()?.open.as_mut(),
+            Self::LdapCleartext => caps.ldap.as_mut()?.cleartext.as_mut(),
             Self::MailSend => caps.mail.as_mut()?.send.as_mut(),
             Self::CacheShared => caps.cache.as_mut()?.shared.as_mut(),
             Self::QueuePurge => caps.queue.as_mut()?.purge.as_mut(),
