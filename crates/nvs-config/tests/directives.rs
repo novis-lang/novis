@@ -110,8 +110,6 @@ fn reloadability_is_a_field_of_its_own_and_not_the_changeability_class() {
         "server.health_path",
         "server.trusted_proxies",
         "server.max_in_flight",
-        // A reload that moves it binds the new endpoint before the old one stops answering.
-        "control.socket",
     ] {
         let row = governing(key);
         assert_eq!(
@@ -286,11 +284,6 @@ const APPLY_PROOFS: &[(&str, &str, &str)] = &[
         "cache.process",
         LIVE,
         "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
-    ),
-    (
-        "control.socket",
-        LIVE,
-        "a_changed_control_socket_moves_the_control_endpoint",
     ),
     (
         "io.temp_root",
@@ -893,63 +886,6 @@ fn every_shared_tier_key_is_system_class_and_applied_at_reload() {
              (`rule:config/reloadability-is-its-own-field`)",
         );
     }
-}
-
-/// `rule:config/one-local-control-socket`: the one local door to a running server is the operator's,
-/// and a reload may move it.
-///
-/// `System` because the socket's owner and mode *are* the authentication, so a request able to write
-/// the key would be choosing where that door is and which account answers it — the registry's class
-/// is the only thing standing between a served request and that choice. `Reload` because a reload
-/// that renames it binds the new endpoint, under the boot's trust check, before the old one stops
-/// answering (`a_changed_control_socket_moves_the_control_endpoint` in `nvs-cli`'s `live_config`).
-///
-/// The last assertion is the one that distinguishes this row's *shape* from `[capabilities]`', and
-/// the registry states both. This row is keyed at the dotted key, so `[control]` has no blanket row
-/// and a second key added to the block is governed by nothing — which `Core\Config::set` reads as
-/// unwritable rather than as this row's class. A blanket `control` row would hand that future key
-/// `System` by accident, which is the right answer arrived at by not asking.
-// covers: directive:control.socket
-#[test]
-fn the_control_socket_is_one_system_key_a_reload_moves_and_its_block_has_no_row() {
-    let keys = keys_in("control");
-    assert_eq!(
-        keys.iter().map(String::as_str).collect::<Vec<_>>(),
-        ["socket"],
-        "`[control]` accepts {keys:?}, and there is one local endpoint by design: a second key \
-         joins this census in the commit that adds it, and needs a row of its own to be governed",
-    );
-
-    let row = governing("control.socket");
-    assert_eq!(
-        row.key, "control.socket",
-        "`control.socket` resolves through `{}`, so the block rather than the key is what the \
-         registry is stating something about",
-        row.key,
-    );
-    assert_eq!(
-        row.class,
-        Class::System,
-        "who owns the socket is the whole of its authentication, so where it lives is not a \
-         decision one served request may make (`rule:config/one-local-control-socket`)",
-    );
-    assert!(
-        !row.class.settable_by_a_request(),
-        "`Core\\Config::set(\"control.socket\", …)` has to refuse: a request that moved the door \
-         would be choosing which account answers the next administrative operation",
-    );
-    assert_eq!(
-        row.apply,
-        Apply::Reload,
-        "a reload binds the endpoint a new name addresses before it closes the old one \
-         (`rule:config/reloadability-is-its-own-field`)",
-    );
-
-    assert!(
-        lookup("control").is_none() && lookup("control.nvs_no_such_key").is_none(),
-        "a blanket `control` row would govern a key nobody has written a row for, and handing a \
-         future key `System` by accident is the right answer reached without asking",
-    );
 }
 
 /// `rule:core-classes/temporary-dir-sweep`: the one switch that stops the end-of-script sweep belongs to the
@@ -3530,7 +3466,7 @@ fn the_mode_ceiling_is_the_operators_half_of_a_block_with_no_blanket_over_it() {
 /// one costs, which is the question that decides whether `mode.default` can be one line.
 ///
 /// A mode is a shorthand for five defaults, so a `Boot` row among them would make the shorthand
-/// something a running host can only half-apply: `nvs ctl reload` over an edited `[mode] default`
+/// something a running host can only half-apply: a reload over an edited `[mode] default`
 /// would move four directives and name the fifth, and a request's own flip would silently be four
 /// fifths of a mode. Each row reads plausibly on its own line either way — the claim is that the six
 /// of them agree.

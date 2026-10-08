@@ -36,7 +36,7 @@
 //! here says which one this is. Integrity is enforced; confidentiality is advised.
 //!
 //! Cost: two `stat`s per file on Unix, two security-descriptor reads and one walk of each DACL on
-//! Windows, at boot and again at each `nvs ctl reload`, plus one more of either for each secret
+//! Windows, at boot and again at each reload, plus one more of either for each secret
 //! file's advisory. Nothing here runs per request. `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s artifact cache is the one caller
 //! outside boot — it checks its own directory once per process, which is why the Windows half is
 //! kept cheap enough to disappear beside the work around it.
@@ -130,18 +130,6 @@ pub fn check(path: &Path) -> Result<PathBuf, Untrusted> {
 #[must_use]
 pub fn exposure(path: &Path) -> Option<String> {
     platform::exposure(path)
-}
-
-/// This account's SID as SDDL spells it, or `None` if the token cannot be read.
-///
-/// [`mod@crate::control`] needs it to *build* a security descriptor rather than to read one, which
-/// is the one thing this module does not otherwise do; the SID lives here because the call that
-/// answers it is already here, under the same `#[expect]` and for the same reason. It is the SID and
-/// never the display name for § 6's reason: a name is localized and a rename does not move it.
-#[cfg(windows)]
-#[must_use]
-pub(crate) fn owner_sid() -> Option<String> {
-    platform::owner_sid()
 }
 
 #[cfg(unix)]
@@ -604,18 +592,6 @@ mod platform {
         let out = String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(text, len) });
         unsafe { LocalFree(text.cast()) };
         format!("`{out}`")
-    }
-
-    /// This process's own user SID in SDDL's spelling — [`super::owner_sid`]'s answer.
-    ///
-    /// [`sid_text`] is the shared half and it brackets its answer in backticks, because every other
-    /// caller is writing a sentence for an operator. A security descriptor is not a sentence, so
-    /// the brackets come off here rather than being made optional there.
-    pub(super) fn owner_sid() -> Option<String> {
-        let user = token_user().ok()?;
-        let text = sid_text(as_psid(&user));
-        let bare = text.trim_matches('`');
-        bare.starts_with("S-").then(|| bare.to_string())
     }
 
     /// A SID buffer as the pointer every one of these calls takes.

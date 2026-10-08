@@ -2614,19 +2614,6 @@ fill_wait = "5s"
 [cache.shared]
 url = "redis://127.0.0.1:16379"
 
-# The control surface, written as the one value that turns it off, which is what
-# this checkout already had: `nvs_config::control`'s `Address::of` reads an absent
-# `[control]` block and a `socket = false` to the same `Disabled`, so this line
-# creates nothing and changes nothing a fixture can observe. It is here to be
-# *read* — `docs/examples/config/control-socket/` is the website's page for the
-# directive, and `false` is the spelling a deployment uses to take a control
-# surface away again, which no page can show against a block nobody wrote. A path
-# here instead would create a socket on every `nvs serve` in this repository and
-# put the trust check on this working directory, which is the opposite of leaving
-# the tree as it was.
-[control]
-socket = false
-
 # The end-of-script sweep's one switch, written as the value an absent `[debug]`
 # block already means: `nvs_config::tree::Debug::keep_temporary` is `None` here
 # and `Some(false)` there, and `rule:core-classes/temporary-dir-sweep`'s sweep asks the same question

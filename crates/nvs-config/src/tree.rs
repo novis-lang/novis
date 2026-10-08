@@ -126,8 +126,6 @@ pub struct Config {
     pub server: Option<Server>,
     /// `[cache]` — the artifact cache's directory (ADRs 0042, 0078 § 2).
     pub cache: Option<Cache>,
-    /// `[control]` — the local control socket (`rule:config/one-local-control-socket`).
-    pub control: Option<Control>,
     /// `[opcache]` — revalidation and the file cache (`rule:config/an-edit-reaches-the-next-request-without-a-restart`, `rule:config/opcache-file-cache-directives-are-system`).
     pub opcache: Option<Opcache>,
     /// `[session]` — where `Core\Session`'s records live, and how long one survives (`rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`).
@@ -473,8 +471,8 @@ pub struct Extension {
     /// fail the whole file's parse.
     pub path: Option<String>,
     /// The file's SHA-256 as 64 hexadecimal digits. Required, refused like a missing `path`, and
-    /// re-verified against the file on every load and every `nvs ctl reload`; one mismatch
-    /// refuses the whole swap.
+    /// re-verified against the file on every load and every reload; one mismatch refuses the
+    /// whole swap.
     pub sha256: Option<String>,
     /// A ceiling on this extension's linear memory, a size like `[limits] memory`. Optional: the
     /// guest's limit is the least of what its request has left, this and the manifest's declared
@@ -1472,15 +1470,6 @@ pub struct Session {
     /// cookie's *attributes* are not here, because `rule:http-server/cookies-are-secure-httponly-and-lax` already fixes them for every cookie
     /// this server writes and a second spelling would be a way to weaken them.
     pub cookie: Option<String>,
-}
-
-/// `[control]` — `rule:config/one-local-control-socket`'s one local socket.
-#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
-#[serde(default, deny_unknown_fields)]
-pub struct Control {
-    /// A path, `\\.\pipe\nvs-control` on Windows, or `false` to disable. There is no TCP listener,
-    /// no token and no auth middleware: the socket's owner and mode are the authentication.
-    pub socket: Option<Setting>,
 }
 
 /// `[opcache]` — revalidation (`rule:config/opcache-revalidation-is-system-class`) and the file cache

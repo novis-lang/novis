@@ -1,21 +1,20 @@
-//! The running `nvs serve`, as the half
-//! [`nvs_server::control::Controlled`] asks a process for.
+//! The running `nvs serve`'s configuration reload: the process that publishes
+//! a tree the files hold now over the one it is serving, and the check that
+//! notices a saved file and asks for that publish.
 //!
-//! The control surface itself is `nvs-server`'s — which requests mean anything,
-//! what each answer says, and the one thread that accepts them. What is *here*
-//! is the four things only this binary holds: the roots the boot resolved and
-//! can resolve again, the unit cache the fleet shares, the valve the accept loop
-//! counts through, and this process's drain bit.
+//! What is here is the four things only this binary holds: the roots the boot
+//! resolved and can resolve again, the unit cache the fleet shares, the valve
+//! the accept loop counts through, and this process's drain bit.
 //!
 //! **A reload is one function**, and it is
-//! [`nvs_config::control::reload`]: this module resolves the tree exactly as the
-//! boot did and hands the result to it, so the control socket, `systemctl
-//! reload` and a service manager's `PARAMCHANGE` all end in the same publish and
-//! the same `rule:config/a-reload-names-what-it-could-not-apply` report. Nothing
-//! here decides what a `Boot` key does — [`nvs_config::Current::publish`] carries
-//! the running value back over the incoming tree, and what it reports is what
-//! [`Process::pending`] then remembers on the process's behalf, each key with
-//! the value in force and the value written. It is also where a service manager
+//! [`nvs_config::reload::reload`]: this module resolves the tree exactly as the
+//! boot did and hands the result to it, so the configuration check and a
+//! service manager's `PARAMCHANGE` end in the same publish and the same
+//! `rule:config/a-reload-names-what-it-could-not-apply` report. Nothing here
+//! decides what a `Boot` key does — [`nvs_config::Current::publish`] carries
+//! the running value back over the incoming tree, and each key it reports is
+//! logged once with the value in force and the value written, until the files
+//! hold a different value for it. It is also where a service manager
 //! is told a reload is happening and then that it is over
 //! ([`crate::service::State`]), for the same reason: one function, so one pair
 //! of transitions however the reload was asked for. One lock covers the whole
@@ -27,7 +26,7 @@
 //! of every path the serving tree was read from or probed
 //! ([`Snapshot::files`] and [`Snapshot::probed`]). A stamp that moved and then
 //! holds for one more check is a saved file, and [`Process::noticed`] resolves
-//! the tree again and publishes it through the same steps a pushed reload runs.
+//! the tree again and publishes it through the same steps every reload runs.
 //! A tree equal to the one serving publishes nothing, so a file saved with the
 //! same content does not start a new generation. A refusal is logged once per
 //! rendered diagnostic, so a broken file is reported when it is saved and not
@@ -35,19 +34,10 @@
 //! file, and this check has nothing to stat.
 //!
 //! **A reload re-reads the tree; it never writes one.** The boot may have been
-//! asked to create a default `nvs.toml` ([`crate::config::Init`]), and a control
-//! operation that did the same thing would be a file appearing on disk because
-//! somebody asked what the server was serving. So the resolve here is always
+//! asked to create a default `nvs.toml` ([`crate::config::Init`]), and a reload
+//! that did the same thing would be a file appearing on disk because a file
+//! next to it was saved. So the resolve here is always
 //! [`Init::Never`](crate::config::Init::Never).
-//!
-//! **`[control] socket` moves without a restart.** A reload that renames it
-//! binds the new endpoint, under the same directory check the boot runs, and
-//! starts its thread before the old one is told to stop ([`Door`]). The old
-//! thread reads that between clients, so a reload pushed over the old endpoint
-//! is still answered there. A new endpoint that cannot be created is logged by
-//! name with the reason, and the key keeps its running value and is reported
-//! as not applied while the rest of the tree is published
-//! ([`nvs_config::Current::publish_keeping`]). `false` closes the endpoint.
 //!
 //! **A reload that moves the queue workers asks their storage first.** Where
 //! the new tree's workers would claim out of a connection or a `[db.<name>]`
@@ -77,35 +67,31 @@
 //! read the process's drain, which only a stop begins.
 //!
 //! Cost, as `rule:programs/memory-priority` requires: one of these per process,
-//! holding the roots as written, the pending restart keys with their two values,
-//! and the last refusal the check logged. A reload holds one snapshot's worth of
-//! tree while it resolves and drops the previous one when the new one is
-//! published; requests already running keep theirs, which is
+//! holding the roots as written, the restart keys already logged with their two
+//! values, and the last refusal the check logged. A reload holds one snapshot's
+//! worth of tree while it resolves and drops the previous one when the new one
+//! is published; requests already running keep theirs, which is
 //! `rule:config/the-config-is-an-immutable-snapshot`'s own promise and bounds
 //! that hold at O(in-flight). The check is one thread per process, asleep
 //! between passes, and one `stat` per configuration file per [`CHECK`]. No
-//! request makes one. A moved control endpoint is one thread while it
-//! answers, and two for the moment between the new one starting and the old
-//! one ending.
+//! request makes one.
 //!
 //! # Known gaps
 //!
-//! Each gap is a record, and `bun nv gaps --module crates/nvs-cli/src/control.rs` lists them.
+//! Each gap is a record, and `bun nv gaps --module crates/nvs-cli/src/reload.rs` lists them.
 
 use std::collections::BTreeMap;
-use std::io;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, OnceLock, PoisonError, Weak};
+use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::time::{Duration, SystemTime};
 
+use nvs_config::reload::Report;
 use nvs_config::resolve::Origin;
 use nvs_config::snapshot::{AppBlocks, Current, Snapshot, value_at};
 use nvs_config::{Apply, DIRECTIVES};
 use nvs_diagnostics::{Diagnostic, Renderer, SourceMap};
 use nvs_render::{Level, Node, Record, Rendered, Scalar};
 use nvs_runtime::LogWriter;
-use nvs_server::control::{Address, Checked, Controlled, Endpoint, Pending, Report};
 use nvs_server::{Admission, Ceiling, Draining, Generations};
 
 use crate::script::Compiler;
@@ -120,10 +106,8 @@ static PROCESS: OnceLock<Arc<Process>> = OnceLock::new();
 /// Keeps `process` as this process's, for [`installed`].
 ///
 /// Installed once — a second call keeps the first, because `nvs serve` runs
-/// once per process. The process keeps a weak handle on itself too, which is
-/// what [`Process::open`] gives the thread of a control endpoint.
+/// once per process.
 pub(crate) fn install(process: Arc<Process>) {
-    drop(process.me.set(Arc::downgrade(&process)));
     drop(PROCESS.set(process));
 }
 
@@ -132,7 +116,19 @@ pub(crate) fn installed() -> Option<Arc<Process>> {
     PROCESS.get().cloned()
 }
 
-/// What `nvs serve` supplies to its control endpoint.
+/// A restart key the configuration files change and this process does not
+/// apply until it restarts — `rule:config/a-reload-names-what-it-could-not-apply`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Pending {
+    /// The dotted key, `server.workers`.
+    key: &'static str,
+    /// The value in force, as TOML, or `not written`.
+    running: String,
+    /// The value the files now hold, written the same way.
+    written: String,
+}
+
+/// The running `nvs serve`, as a reload needs it.
 pub(crate) struct Process {
     /// The published tree — what the accept loop hands a request at its start,
     /// and what a reload replaces whole.
@@ -159,12 +155,13 @@ pub(crate) struct Process {
     /// `Type=notify` unit is owed, from the one function every spelling of a
     /// reload ends in.
     notify: Notify,
-    /// Held for the whole of a reload, pushed or noticed, so the two publish
-    /// one at a time.
+    /// Held for the whole of a reload, whoever asked for it, so two reloads
+    /// publish one at a time.
     reloading: Mutex<()>,
     /// The `Boot` keys the last reload reported and left unapplied, each with
-    /// its two values. Empty until one has happened, which is the honest
-    /// answer: a process that has never reloaded has ignored nothing.
+    /// its two values, so a key is logged once for each value written to it.
+    /// Empty until one has happened: a process that has never reloaded has
+    /// ignored nothing.
     pending: Mutex<Vec<Pending>>,
     /// The refusal [`Process::noticed`] last logged, rendered. A publish
     /// clears it.
@@ -172,36 +169,6 @@ pub(crate) struct Process {
     /// The generation of the snapshot the last reload published, and the
     /// source map its origins point into. `None` until a reload publishes.
     sources: Mutex<Option<(u64, Arc<SourceMap>)>>,
-    /// This process, for the thread [`Process::open`] starts. Set by
-    /// [`install`].
-    me: OnceLock<Weak<Process>>,
-    /// The control endpoint answering now, or `None` where the tree names
-    /// none.
-    door: Mutex<Option<Door>>,
-    /// How many times [`Process::stamps`] took every stamp, and how many
-    /// `stat` calls it made, which `nvs ctl status` prints.
-    passes: AtomicU64,
-    stats: AtomicU64,
-}
-
-/// A control endpoint a thread is answering on: its name, and the bit that
-/// stops the thread once a reload has moved `[control] socket`.
-struct Door {
-    name: PathBuf,
-    retired: Arc<AtomicBool>,
-}
-
-/// What a reload does to the control endpoint, decided before the publish.
-enum Move {
-    /// `[control] socket` did not change.
-    Stay,
-    /// The tree now names no endpoint, so the running one is closed.
-    Close,
-    /// The endpoint the tree now names, already created.
-    Open(Endpoint),
-    /// The endpoint the tree now names could not be created, so the key keeps
-    /// its running value.
-    Keep,
 }
 
 /// What a reload does to the on-disk artifact cache, decided before the publish.
@@ -262,10 +229,6 @@ impl Process {
             pending: Mutex::new(Vec::new()),
             refused: Mutex::new(None),
             sources: Mutex::new(None),
-            me: OnceLock::new(),
-            door: Mutex::new(None),
-            passes: AtomicU64::new(0),
-            stats: AtomicU64::new(0),
         }
     }
 
@@ -289,65 +252,6 @@ impl Process {
     pub(crate) fn serving_rows(mut self, rows: Arc<crate::serve::mounts::Mounts>) -> Self {
         self.rows = Some(rows);
         self
-    }
-
-    /// Answers the control endpoint `endpoint` on a thread of its own, and
-    /// closes the one that was answering before it.
-    ///
-    /// # Errors
-    ///
-    /// The process was never [`install`]ed, or the thread could not be
-    /// started. The endpoint is closed, and the one that was answering still
-    /// is.
-    pub(crate) fn open(&self, endpoint: Endpoint) -> io::Result<()> {
-        let me = self
-            .me
-            .get()
-            .and_then(Weak::upgrade)
-            .ok_or_else(|| io::Error::other("the process was not installed"))?;
-        let retired = Arc::new(AtomicBool::new(false));
-        let door = Door {
-            name: endpoint.name().to_path_buf(),
-            retired: Arc::clone(&retired),
-        };
-        std::thread::Builder::new()
-            .name("nvs-control".to_owned())
-            .spawn(move || drop(nvs_server::control::serve(&endpoint, &*me, &retired)))?;
-        if let Some(old) = lock(&self.door).replace(door) {
-            retire(old);
-        }
-        Ok(())
-    }
-
-    /// What `next` does to the control endpoint. A new endpoint is created
-    /// here, before the publish, so one that cannot be created is known in
-    /// time to keep the key's running value.
-    ///
-    /// # Errors
-    ///
-    /// `E0629`, for a `[control] socket` that names no local endpoint. The
-    /// boot refuses the same value.
-    fn moving(&self, next: &Snapshot) -> Result<Move, Diagnostic> {
-        let wanted = Address::of(&next.config)?;
-        let running = Address::of(&self.current.load().config).ok();
-        if running.as_ref() == Some(&wanted) {
-            return Ok(Move::Stay);
-        }
-        let Address::Local(name) = wanted else {
-            return Ok(Move::Close);
-        };
-        Ok(
-            match nvs_server::control::bind(&name, nvs_server::control::boundary) {
-                Ok(endpoint) => Move::Open(endpoint),
-                Err(refusal) => {
-                    let config = nvs_config::Request::new(self.current.load());
-                    drop(
-                        LogWriter::resolve(Some(&config)).write(&unmoved(&name, refusal.message())),
-                    );
-                    Move::Keep
-                }
-            },
-        )
     }
 
     /// What `next` does to the on-disk artifact cache. The new cache is built
@@ -466,9 +370,9 @@ impl Process {
         )
         .map_err(|refusal| rendered(&refusal, &sources))?;
         capacity_of(&incoming, &origins).map_err(|refusal| rendered(&refusal, &sources))?;
-        // Before the control endpoint moves, so a refused tree has created
-        // nothing. Queue workers that would start on a new connection start
-        // only where its storage holds the queue's schema, as at boot.
+        // Before anything is built for the new tree, so a refused tree has
+        // created nothing. Queue workers that would start on a new connection
+        // start only where its storage holds the queue's schema, as at boot.
         if let Some(refusal) =
             crate::serve::queue_storage_refusal(&next.config, &self.current.load().config)
         {
@@ -479,15 +383,9 @@ impl Process {
         // running tree stays live.
         let extensions = crate::extensions::loaded(&next.config, &origins, &sources)
             .map_err(|refusal| rendered(&refusal, &sources))?;
-        let moved = self
-            .moving(&next)
-            .map_err(|refusal| rendered(&refusal, &sources))?;
         let recache = self.caching(&next);
         let retrust = self.trusting(&next);
         let mut keep: Vec<&str> = Vec::new();
-        if matches!(moved, Move::Keep) {
-            keep.push("control.socket");
-        }
         if matches!(recache, Recache::Keep) {
             keep.push("opcache.file_cache_dir");
         }
@@ -505,9 +403,7 @@ impl Process {
             .filter(|row| row.apply == Apply::Boot || keep.contains(&row.key))
             .map(|row| (row.key, shown(value_at(&next.table, row.key))))
             .collect();
-        // A refused publish drops a new endpoint here, and the old one is
-        // still answering.
-        let report = nvs_config::control::reload(
+        let report = nvs_config::reload::reload(
             &self.current,
             next,
             blocks,
@@ -522,20 +418,6 @@ impl Process {
         self.generations
             .retire_before(self.current.load().generation);
         crate::extensions::install(extensions);
-        // The new endpoint answers before the old one stops.
-        match moved {
-            Move::Open(endpoint) => {
-                if let Err(error) = self.open(endpoint) {
-                    eprintln!("error: the moved control endpoint's thread did not start: {error}");
-                }
-            }
-            Move::Close => {
-                if let Some(old) = lock(&self.door).take() {
-                    retire(old);
-                }
-            }
-            Move::Stay | Move::Keep => {}
-        }
         // After the publish, from the tree that is now serving: the report's
         // `invalidated` count was derived from the same comparison, so doing
         // this first would leave a window where the two disagree.
@@ -629,25 +511,20 @@ impl Process {
     /// Every path the serving tree was read from or probed, with its stamp now.
     ///
     /// Only [`check`] calls this, once before its thread starts and then once
-    /// per pass. Each call and each `stat` it makes is counted, so
-    /// `nvs ctl status` shows the calls growing with the passes and not with
-    /// the requests.
+    /// per pass, so the `stat` calls grow with the passes and never with the
+    /// requests.
     fn stamps(&self) -> Vec<(PathBuf, Stamp)> {
         let serving = self.current.load();
-        let taken: Vec<(PathBuf, Stamp)> = serving
+        serving
             .files
             .iter()
             .chain(&serving.probed)
             .map(|path| (path.clone(), stamp(path)))
-            .collect();
-        self.stats.fetch_add(taken.len() as u64, Ordering::Relaxed);
-        self.passes.fetch_add(1, Ordering::Relaxed);
-        taken
+            .collect()
     }
 
-    /// Writes what the reload did where `[log] target` says —
-    /// `rule:config/one-local-control-socket`'s "every reload is written to
-    /// `Core\Log` with its outcome".
+    /// Writes what the reload did where `[log] target` says: every reload is
+    /// written to `Core\Log` with its outcome.
     ///
     /// **Written from the tree that is now serving**, which is the new one after
     /// a publish and the old one after a refusal: either way it is the tree this
@@ -662,15 +539,14 @@ impl Process {
     ///
     /// The write's own failure is swallowed, per `rule:errors/engine-floor`: a
     /// full disk under the log target is not a reason to fail the reload that
-    /// already happened, and the answer the operator is holding says what it did
-    /// regardless.
+    /// already happened.
     fn logged(&self, outcome: &Result<Report, String>, changed: &[PathBuf]) {
         let config = nvs_config::Request::new(self.current.load());
         drop(LogWriter::resolve(Some(&config)).write(&record(outcome, changed)));
     }
 }
 
-impl Controlled for Process {
+impl crate::service::hosted::Running for Process {
     fn reload(&self) -> Result<Report, String> {
         let _one = lock(&self.reloading);
         self.notify.state(State::Reloading);
@@ -686,33 +562,8 @@ impl Controlled for Process {
         outcome
     }
 
-    fn snapshot(&self) -> Arc<Snapshot> {
-        self.current.load()
-    }
-
-    fn unapplied(&self) -> Vec<&'static str> {
-        lock(&self.pending).iter().map(|entry| entry.key).collect()
-    }
-
-    fn pending(&self) -> Vec<Pending> {
-        lock(&self.pending).clone()
-    }
-
-    fn checked(&self) -> Option<Checked> {
-        let serving = self.current.load();
-        Some(Checked {
-            passes: self.passes.load(Ordering::Relaxed),
-            stats: self.stats.load(Ordering::Relaxed),
-            paths: serving.files.len() + serving.probed.len(),
-        })
-    }
-
     fn in_flight(&self) -> usize {
         self.admission.in_flight()
-    }
-
-    fn draining(&self) -> bool {
-        self.draining.is_draining()
     }
 }
 
@@ -733,10 +584,10 @@ fn stamp(path: &Path) -> Stamp {
 /// the stamp of every path the serving tree read or probed, and hands a change
 /// that held for one more check to [`Process::noticed`].
 ///
-/// The thread is detached, like the control endpoint's: it has no end of its
-/// own, and the process ending is what stops it. A pass that panics is caught,
-/// and the next pass runs as usual. A thread that cannot be started is
-/// reported once, and then a saved file waits for `nvs ctl reload`.
+/// The thread is detached: it has no end of its own, and the process ending is
+/// what stops it. A pass that panics is caught, and the next pass runs as
+/// usual. A thread that cannot be started is reported once, and then a saved
+/// file is applied by the next start, or by a service manager's reload.
 pub(crate) fn check(process: &Arc<Process>) {
     let process = Arc::clone(process);
     // Taken here, before any listener exists, and not by the thread: a thread
@@ -814,45 +665,6 @@ fn same_tree(next: &Snapshot, serving: &Snapshot) -> bool {
             .all(|((key, origin), (was, then))| key == was && origin.path == then.path)
 }
 
-/// Stops the thread answering on `door`.
-///
-/// The bit is read between clients, so a client being answered now is
-/// answered first — which may be the reload that moved the endpoint. One
-/// connection of our own then wakes a thread parked in its accept. On Unix
-/// that connection waits in the backlog and returns at once, and the socket
-/// file is removed with it, under the reload's lock, so a reload that moves
-/// the endpoint back to this name cannot lose its new file. A Windows pipe
-/// busy with the reload's own client makes the connection wait, so it is made
-/// on a thread of its own and the reload's answer does not wait behind it.
-fn retire(door: Door) {
-    door.retired.store(true, Ordering::Release);
-    #[cfg(unix)]
-    {
-        drop(nvs_server::control::connect(&door.name));
-        drop(std::fs::remove_file(&door.name));
-    }
-    #[cfg(windows)]
-    drop(
-        std::thread::Builder::new()
-            .name("nvs-control-close".to_owned())
-            .spawn(move || drop(nvs_server::control::connect(&door.name))),
-    );
-}
-
-/// A moved `[control] socket` whose endpoint could not be created, as the
-/// record [`Process::moving`] writes: `Warn`, with the key, the name written
-/// and the reason.
-fn unmoved(name: &Path, reason: &str) -> Record {
-    let mut record = Record::at(Level::Warn);
-    record.envelope.message = Some(Rendered::new("configuration key not applied"));
-    record.envelope.fields = vec![
-        ("key".to_string(), text("control.socket")),
-        ("written".to_string(), text(&name.display().to_string())),
-        ("reason".to_string(), text(reason)),
-    ];
-    record
-}
-
 /// A moved `[opcache] file_cache_dir` the ownership check refused, as the
 /// record [`Process::caching`] writes: `Warn`, with the key, the directory
 /// written and the reason.
@@ -921,7 +733,7 @@ fn restart_pending(entry: &Pending) -> Record {
 /// lines with a span in it, and a message is a line.
 ///
 /// A reload the configuration check started also names the files whose stamps
-/// moved, in a `changed` field. A pushed reload has none.
+/// moved, in a `changed` field. A reload a service manager asked for has none.
 fn record(outcome: &Result<Report, String>, changed: &[PathBuf]) -> Record {
     match outcome {
         Ok(report) => {
@@ -979,12 +791,12 @@ fn names<'a>(keys: impl Iterator<Item = &'a str>) -> Node {
     Node::Sequence(keys.map(text).collect())
 }
 
-/// A refusal as the text that crosses the [`Controlled`] seam.
+/// A refusal as the text a reload returns and its log record carries.
 ///
 /// Rendered rather than summarised, because a malformed `nvs.toml` is a
-/// diagnostic with a span into a file and the operator reading the answer is the
-/// one who just edited that line. Colour is off: the answer is an HTTP body,
-/// and `nvs ctl` prints it to whatever the operator's terminal is.
+/// diagnostic with a span into a file and the operator reading the record is
+/// the one who just edited that line. Colour is off: the text is a field in a
+/// log record, not a write to a terminal.
 fn rendered(refusal: &Diagnostic, sources: &SourceMap) -> String {
     let mut out = Vec::new();
     drop(
@@ -999,9 +811,9 @@ fn rendered(refusal: &Diagnostic, sources: &SourceMap) -> String {
 mod tests {
     use super::*;
 
-    /// `rule:config/one-local-control-socket`'s "every reload is written to
-    /// `Core\Log` with its outcome": a reload that landed is one `Info` record
-    /// naming the three answers its report carries, each in a field.
+    /// Every reload is written to `Core\Log` with its outcome: a reload that
+    /// landed is one `Info` record naming the three answers its report carries,
+    /// each in a field.
     #[test]
     fn a_reload_that_landed_is_one_info_record_naming_what_it_did() {
         let written = record(
@@ -1041,7 +853,7 @@ mod tests {
     }
 
     /// A reload the configuration check started names the files whose stamps
-    /// moved, before the three answers a pushed reload's record carries.
+    /// moved, before the three answers every reload's record carries.
     #[test]
     fn a_noticed_reload_names_the_files_that_changed() {
         let written = record(

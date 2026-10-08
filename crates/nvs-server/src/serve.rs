@@ -579,8 +579,8 @@ impl Reply {
 /// bit a probe and an application both read.
 ///
 /// **A drain is begun by whatever is stopping, and the accept loop obeys it.**
-/// What stops a process is outside this crate — a terminating signal, a service
-/// manager, an operator on the control socket — so each of those writes this
+/// What stops a process is outside this crate — a terminating signal or a
+/// service manager — so each of those writes this
 /// bit, and every accept loop in the process reads it and stops accepting.
 /// [`serve_on_this_core`]'s `keep_serving` seam is the other direction, for a
 /// loop that ends on its own terms, and its tail writes the bit as well: a loop
@@ -733,9 +733,9 @@ pub struct Serving {
     /// core rather than resolved per connection, and never re-read under a
     /// request that has begun.
     ///
-    /// The holder rather than the snapshot, so that a reload published on the
-    /// control endpoint reaches the next request rather than the next start
-    /// (`rule:config/one-local-control-socket`). A request that has begun is
+    /// The holder rather than the snapshot, so that a reload published while
+    /// the server runs reaches the next request rather than the next start
+    /// (`rule:config/the-config-is-an-immutable-snapshot`). A request that has begun is
     /// unaffected either way: it holds the [`Arc`] it took, and the clone here
     /// is taken once at its start.
     current: Arc<nvs_config::Current>,
@@ -749,9 +749,9 @@ impl Serving {
     /// under, over a tree nothing publishes to.
     ///
     /// For a server whose configuration cannot move under it — every embedder
-    /// and every test that is about something else. A process with a control
-    /// endpoint takes [`live`](Self::live) instead, since the holder is the
-    /// thing the endpoint publishes into.
+    /// and every test that is about something else. A process that reloads its
+    /// configuration takes [`live`](Self::live) instead, since the holder is the
+    /// thing a reload publishes into.
     #[must_use]
     pub fn new(
         admission: Arc<Admission>,
@@ -2523,10 +2523,8 @@ impl Listening for nvs_host::NvsUnixListener {
 /// after each connection has been handed over — a server that runs until the
 /// process ends answers `ControlFlow::Continue(())` every time, and a test that
 /// wants one connection answers `Break`. It is a callback rather than a flag
-/// because what stops a server is a decision the caller owns
-/// (`rule:config/the-config-is-an-immutable-snapshot`'s
-/// control socket is one such caller) and this loop has no business polling for
-/// it.
+/// because what stops a server is a decision the caller owns, and this loop has
+/// no business polling for it.
 ///
 /// `admission` is shared with every other core rather than cloned per core,
 /// which is `rule:http-server/the-server-block-is-boot-class`'s "counted process-wide": a per-core share would let
@@ -2539,8 +2537,8 @@ impl Listening for nvs_host::NvsUnixListener {
 /// chose where a note goes is the one that owns writing it there.
 ///
 /// `draining` is read at the top of every pass and written by the tail. Read,
-/// because what stops a process — a terminating signal, an operator on the
-/// control socket — begins the drain from another thread entirely, and a loop
+/// because what stops a process — a terminating signal or a service manager —
+/// begins the drain from another thread entirely, and a loop
 /// parked in `accept` would otherwise find out when the next connection
 /// arrived: the wake registered for the loop's whole life is what ends that
 /// park, and [`nvs_host::wake_at_drain`] owns its contract. Written, because a
@@ -4495,7 +4493,7 @@ pub(crate) mod tests {
     }
 
     /// `rule:concurrency/connection-bounds-are-finite`'s
-    /// third bullet: a graceful shutdown and a `nvs ctl reload` "close
+    /// third bullet: a graceful shutdown and a reload "close
     /// connections with a defined code after a drain period, so a client's
     /// reconnect logic sees a clean close rather than a reset".
     ///
@@ -9537,8 +9535,8 @@ pub(crate) mod tests {
                     &wide_open(),
                     &draining,
                     |_note| {},
-                    // One more connection, and then the shutdown — which is the
-                    // seam `nvs ctl` will pull rather than a second mechanism.
+                    // One more connection, and then the shutdown, through the
+                    // same seam every stop takes.
                     || {
                         accepted.set(accepted.get() + 1);
                         if accepted.get() < 2 {

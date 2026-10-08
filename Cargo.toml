@@ -152,9 +152,8 @@ mio = { version = "1", features = ["os-poll", "net"] }
 # `itoa`, `smallvec`, `atomic-waker`, `want` and `try-lock` — all pure Rust and
 # all MIT. No `http2`: ADR 0097 § 1 dropped h2c, and that feature is the one
 # `h2` comes from. `client` is on for the one client in this tree that is not an
-# application's: `nvs ctl` is the other end of
-# `rule:config/one-local-control-socket`'s endpoint, and an operator surface
-# framed by a parser of ours would be a parser of ours to get right. What a
+# application's: `nvs-server`'s OTLP exporter posts to a collector, and an
+# exchange framed by a parser of ours would be a parser of ours to get right. What a
 # program makes outbound requests with is `Core\Http\Client`, which is `ureq`'s
 # and stays there.
 #
@@ -240,14 +239,10 @@ windows-sys = { version = "0.61", features = [
     # peak working set is what Windows keeps in its place. `crates/nvs-runtime/src/os.rs` is the one
     # caller, and it takes the `kernel32` entry point so that no import library is added with it.
     "Win32_System_ProcessStatus",
-    # `CreateNamedPipeW`: ADR 0078 § 3's control endpoint is a named pipe on Windows, created with
-    # a security descriptor of its own so that "mode 0600" holds where there is no mode.
-    # `crates/nvs-config/src/control.rs` is the one caller.
+    # `CreatePipe`: the anonymous pipe `crates/nvs-cli/src/dispatch.rs` creates is the one caller.
     "Win32_System_Pipes",
-    # `ConnectNamedPipe`, `ReadFile` and `WriteFile`: the same endpoint's accept and its duplex
-    # stream. Every one of the three names `OVERLAPPED` in its signature and is gated on this
-    # feature because of it, even though the control pipe is synchronous and passes a null pointer
-    # for it. `crates/nvs-config/src/control.rs` is the one caller.
+    # `IO_STATUS_BLOCK`: the out-parameter `NtCreateFile` fills in.
+    # `crates/nvs-runtime/src/beneath.rs` is the one caller.
     "Win32_System_IO",
     # `CreateServiceW`, `ChangeServiceConfig2W`, `ControlService` and `QueryServiceStatusEx`:
     # ADR 0093 § 3's registration is the SCM's own state and has no file to write, so installing a

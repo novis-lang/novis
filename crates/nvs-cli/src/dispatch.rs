@@ -27,8 +27,8 @@
 //! handler answers `STOP` and `PRESHUTDOWN` through [`hosted::answer`], which
 //! enters [`crate::stop::deliver_to`] — the one drain — and watches it on the
 //! manager's behalf, and `PARAMCHANGE` through the same function, which is
-//! the one reload (`crate::control`). The process both act on is what
-//! `nvs serve` installed ([`crate::control::installed`]); a control that
+//! the one reload (`crate::reload`). The process both act on is what
+//! `nvs serve` installed ([`crate::reload::installed`]); a control that
 //! arrives before the boot got that far begins the drain directly and
 //! reports it, since there is nothing in flight yet to count.
 //!
@@ -522,7 +522,7 @@ pub(crate) mod platform {
         let spawned = std::thread::Builder::new()
             .name("nvs-scm-control".to_owned())
             .spawn(move || {
-                let Some(process) = crate::control::installed() else {
+                let Some(process) = crate::reload::installed() else {
                     if asked == hosted::Asked::Stop {
                         crate::stop::deliver();
                     }

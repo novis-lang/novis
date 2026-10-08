@@ -36,7 +36,7 @@
 //! either changed, the pass expands the published tree at once
 //! ([`Rescan::rewritten`]), with no wait for `settle`, and renders a refusal
 //! against the source map that reload recorded
-//! (`crate::control::Process::sources_of`). After any expansion and after any
+//! (`crate::reload::Process::sources_of`). After any expansion and after any
 //! publish, each row takes the `[[app]] origin` of its own entry's snapshot in
 //! the set standing then (`super::fold_origins`, ADR 0271). A row the rescan
 //! adds is folded into that set as it is read. Either way the pass asks the
@@ -100,7 +100,7 @@ impl Mounts {
     }
 
     /// The entry file of every row standing now, which a reload folds before
-    /// it publishes (`crate::control`).
+    /// it publishes (`crate::reload`).
     pub(crate) fn entries(&self) -> Vec<PathBuf> {
         self.rows().1.iter().map(|row| row.entry.clone()).collect()
     }
@@ -441,7 +441,7 @@ impl Rescan {
     /// recorded yet is expanded on the next pass.
     fn rewritten(&mut self, serving: Arc<nvs_config::Snapshot>) -> bool {
         let Some(sources) =
-            crate::control::installed().and_then(|process| process.sources_of(serving.generation))
+            crate::reload::installed().and_then(|process| process.sources_of(serving.generation))
         else {
             return false;
         };

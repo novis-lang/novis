@@ -940,16 +940,6 @@
 
 
 # ----------------------------------------------------------------------------------------------
-# [control] — the one local control socket (`rule:config/one-local-control-socket`).
-# ----------------------------------------------------------------------------------------------
-
-[control]
-# A path, `\\.\pipe\nvs-control` on Windows, or `false` to disable. There is no TCP listener, no token
-# and no auth middleware: the socket's owner and mode are the authentication.
-#socket = "/run/novis/control.sock"   # default: off
-
-
-# ----------------------------------------------------------------------------------------------
 # [opcache] — when a source file is re-checked, and the on-disk artifact cache
 # (`rule:config/opcache-revalidation-is-system-class`). Every key is `System`.
 # ----------------------------------------------------------------------------------------------
@@ -1119,7 +1109,8 @@
 # The `.nvsx` file to load. Required.
 #path = "/srv/extensions/geo.nvsx"    # example
 # The SHA-256 of that file, as 64 hexadecimal digits. Required. The server checks it when it
-# starts and on every `nvs ctl reload`. If it does not match the file, nothing is loaded.
+# starts and each time it reloads its configuration. If it does not match the file, nothing is
+# loaded.
 #sha256 = "0000000000000000000000000000000000000000000000000000000000000000"  # example
 # The most linear memory this extension may use. Optional. Its request's own memory limit
 # still applies.

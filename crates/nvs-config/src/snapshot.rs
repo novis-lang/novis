@@ -107,7 +107,7 @@ pub struct Snapshot {
     ///
     pub blocks: Vec<PathBuf>,
     /// The whole `[[app]]` roster as written, which [`table`](Snapshot::table) does not carry for
-    /// [`config`](Snapshot::config)'s reason. [`control::reload`](crate::control::reload) compares
+    /// [`config`](Snapshot::config)'s reason. [`reload::reload`](crate::reload::reload) compares
     /// it as the one `app` leaf, so a reload that moves any block's key names `app` as applied.
     pub roster: Option<toml::Value>,
     /// Every file the tree was read from, in the order § 3 read them.
@@ -632,8 +632,8 @@ impl Current {
     /// [`publish`](Current::publish), which also carries the running value of each `Reload` row
     /// named in `keep`, and reports it beside the `Boot` rows it carried.
     ///
-    /// `keep` is for a key whose new resource could not be built, such as a control endpoint
-    /// whose directory fails the trust check. The key keeps its running value and is reported as
+    /// `keep` is for a key whose new resource could not be built, such as an artifact cache
+    /// directory that fails the trust check. The key keeps its running value and is reported as
     /// not applied, and the rest of the tree is published. One resource that cannot be built
     /// does not hold back an unrelated change.
     ///

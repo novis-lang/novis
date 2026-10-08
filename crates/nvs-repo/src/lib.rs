@@ -469,7 +469,7 @@ mod tests {
 
     #[test]
     fn a_socket_path_is_under_the_target_dir() {
-        let (dir, sock) = socket("control.sock");
+        let (dir, sock) = socket("serve.sock");
         assert!(sock.is_absolute(), "{}", sock.display());
         assert!(
             !sock
@@ -485,7 +485,7 @@ mod tests {
                 Path::new("target")
                     .join("test-scratch")
                     .join(dir.file_name().unwrap())
-                    .join("control.sock")
+                    .join("serve.sock")
             )
         );
         let kept = dir.to_path_buf();

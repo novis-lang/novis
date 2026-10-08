@@ -131,9 +131,7 @@ mod bundle;
 mod cache;
 mod check;
 mod config;
-mod control;
 mod coverage;
-mod ctl;
 #[cfg_attr(
     all(not(test), not(windows)),
     expect(
@@ -153,6 +151,7 @@ mod meta;
 mod openapi;
 mod peer;
 mod queue;
+mod reload;
 mod runner;
 mod schema;
 mod script;
@@ -680,26 +679,6 @@ enum Command {
         #[command(subcommand)]
         command: TmpCommand,
     },
-    /// Drive a running server over its control socket: reload it, read what it
-    /// is serving, or ask what it is doing.
-    ///
-    /// A namespace of its own because every other subcommand acts on files with
-    /// no server involved, and these three exist only where a long-running
-    /// process does.
-    // `rule:config/one-local-control-socket`'s client; see [`ctl`], whose module
-    // doc owns the drive and why an answer from another build is refused unread.
-    Ctl {
-        /// The endpoint to reach, which is how one of several servers on a host
-        /// is addressed.
-        ///
-        /// Read without resolving a tree at all, so a server whose configuration
-        /// has moved is still reachable by the name it is listening on. Absent,
-        /// the tree's `[control] socket` says where to look.
-        #[arg(long, value_name = "PATH", global = true)]
-        socket: Option<PathBuf>,
-        #[command(subcommand)]
-        command: CtlCommand,
-    },
     /// Installs, starts, stops and removes a Novis program that runs as a
     /// system service.
     ///
@@ -707,9 +686,8 @@ enum Command {
     /// when the computer starts.
     // A namespace of its own because every other subcommand acts on files with
     // no server involved, and these do not.
-    // `rule:packaging/a-service-is-one-stored-argv`, matching `nvs ctl`'s
-    // precedent; see [`service`], whose module doc owns how a verb reaches this
-    // machine's own service manager.
+    // `rule:packaging/a-service-is-one-stored-argv`; see [`service`], whose
+    // module doc owns how a verb reaches this machine's own service manager.
     Service {
         #[command(subcommand)]
         command: ServiceCommand,
@@ -1081,10 +1059,8 @@ enum ApiCommand {
 
 /// `nvs config`'s own subcommands.
 ///
-/// `rule:config/check-and-dump-audit-the-tree-offline` names `check`, `dump` and `ctl config`, and
-/// this enum holds the offline ones. `ctl config` belongs to the
-/// control socket `rule:config/one-local-control-socket`
-/// reserves and arrives with `nvs ctl`.
+/// `rule:config/check-and-dump-audit-the-tree-offline` names `check` and `dump`, and this enum
+/// holds both.
 #[derive(Subcommand)]
 enum ConfigCommand {
     /// Resolve the configuration tree and report what it holds, exiting
@@ -1240,30 +1216,6 @@ enum TmpCommand {
     },
 }
 
-/// `nvs ctl`'s own subcommands, which are
-/// `rule:config/one-local-control-socket`'s three operations and nothing else.
-///
-/// The roster is closed, and it is closed in [`nvs_server::control`] rather than
-/// here: the method and target each operation is performed with are that
-/// module's, and a surface that could be extended by adding a name here would be
-/// `rule:security/no-eval`'s door under another one. [`ctl`]'s module doc owns
-/// what this binary does with an answer.
-#[derive(Subcommand)]
-enum CtlCommand {
-    /// Re-read the whole configuration tree and publish it, printing what the
-    /// running process applied and what it could not.
-    Reload,
-    /// Print the configuration the running process is actually holding, each key
-    /// with the file it was written in.
-    ///
-    /// `nvs config dump --origin` reads the same tree from disk, so a difference
-    /// between the two is a reload that has not happened yet.
-    Config,
-    /// Report how many requests are in flight, and whether the process is
-    /// draining.
-    Status,
-}
-
 /// `nvs service`'s own subcommands, which are
 /// `rule:packaging/a-service-is-one-stored-argv`'s list.
 ///
@@ -1308,10 +1260,7 @@ enum ServiceCommand {
         /// The name of the service.
         name: String,
     },
-    /// Prints the state of the service. For a server, it also prints how many
-    /// requests are running, and whether the server is stopping.
-    // The server's half is read over the control socket its own configuration
-    // names.
+    /// Prints the state of the service.
     Status {
         /// The name of the service.
         name: String,
@@ -1326,8 +1275,6 @@ enum ServiceCommand {
     /// nothing.
     Unit {
         /// The name of the service. The operating system uses this name.
-        /// `nvs ctl --socket` also uses it to reach one server when several
-        /// are running.
         name: String,
         /// The account that the service runs as. The default is the local
         /// system account, `LocalSystem`. `SYSTEM` is another name for the
@@ -1414,8 +1361,6 @@ const SERVICE_INSTALL_EXAMPLE: &str = r#"Examples:
 #[derive(clap::Args)]
 struct ServiceInstall {
     /// The name of the service. The operating system uses this name.
-    /// `nvs ctl --socket` also uses it to reach one server when several are
-    /// running.
     name: String,
     /// The account that the service runs as. The default is the local system
     /// account, `LocalSystem`. `SYSTEM` is another name for the same account.
@@ -1811,14 +1756,6 @@ fn main() -> ExitCode {
         Command::Tmp {
             command: TmpCommand::Clean { dry_run },
         } => tmp::clean(&cli.config, dry_run),
-        Command::Ctl { socket, command } => {
-            let socket = socket.as_deref();
-            match command {
-                CtlCommand::Reload => ctl::reload(&cli.config, socket),
-                CtlCommand::Config => ctl::config(&cli.config, socket),
-                CtlCommand::Status => ctl::status(&cli.config, socket),
-            }
-        }
         Command::InstallService(args) => install_service(&cli.config, &args),
         Command::Service { command } => match command {
             ServiceCommand::Install(args) => install_service(&cli.config, &args),
@@ -1827,7 +1764,7 @@ fn main() -> ExitCode {
             }
             ServiceCommand::Start { name } => service::start(&name),
             ServiceCommand::Stop { name } => service::stop(&name),
-            ServiceCommand::Status { name } => service::status(&cli.config, &name),
+            ServiceCommand::Status { name } => service::status(&name),
             ServiceCommand::Run { name } => match service::stored_argv(&name) {
                 Ok(argv) => run_hosted(&argv),
                 Err(reported) => reported,

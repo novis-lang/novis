@@ -60,7 +60,7 @@ pub fn validate(
 /// The file entry `index` names, `written` as its `path`, made absolute against the file that
 /// wrote it — `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`.
 ///
-/// Asked by the loader rather than written back into the tree, so `nvs ctl config` and every
+/// Asked by the loader rather than written back into the tree, so `nvs config dump` and every
 /// listing show the path as it was written.
 #[must_use]
 pub fn file(index: usize, written: &str, origins: &BTreeMap<String, Origin>) -> PathBuf {

@@ -328,7 +328,7 @@ impl PeerSocket for Framed {
     ///
     /// **A drained server's connections are closed by their own loops, and not
     /// by the accept loop that spawned them.** § 7's third bullet asks a
-    /// shutdown and a `nvs ctl reload` to leave the peer "a clean close rather
+    /// shutdown and a reload to leave the peer "a clean close rather
     /// than a reset", and both ways of reaching one from outside are refused.
     /// Cancelling the connection isolate tears its task down at its next
     /// safepoint (`nvs_host::scheduler::cancel_task`), which is the path a

@@ -331,7 +331,7 @@ fn icacls(dir: &Path, edit: &[&str]) {
 ///
 /// The same outer folder fails the cache folder inside it, and that is a `warning:` and a program
 /// that still runs with nothing stored. `nvs run` reads its configuration out of a folder every
-/// account may write without a word, because only `nvs serve` and `nvs ctl reload` check the
+/// account may write without a word, because only `nvs serve` and its reloads check the
 /// configuration files.
 // covers: tools:install/what-novis-checks
 #[test]

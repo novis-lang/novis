@@ -62,7 +62,6 @@ const BLOCKS: &[(&str, &str)] = &[
     ("[[server.mount]]", "[[server.mount]]\nscan = \"*/public/index.nvs\"\nprefix = \"/{1}\"\norigin = \"https://{1}.example.com\"\n"),
     ("[[server.mount]] entry", "[[server.mount]]\nprefix = \"/admin\"\nentry = \"Backoffice/public/index.nvs\"\nhost = \"admin.example.com\"\n"),
     ("[cache]", "[cache.local]\nmax_size = \"32M\"\n[cache.shared]\nurl = \"redis://cache.internal\"\ntimeout = \"5s\"\n"),
-    ("[control]", "[control]\nsocket = \"/run/nvs/control.sock\"\n"),
     ("[image]", "[image]\nmax_pixels = \"24M\"\n"),
     ("[opcache]", "[opcache]\nvalidate = \"mtime\"\nrevalidate_freq = \"2s\"\nsettle = \"1s\"\nfile_cache = true\nfile_cache_dir = \"/var/cache/nvs\"\nfile_cache_max_size = \"1G\"\nfile_cache_gc_probability = 1\nfile_cache_gc_divisor = 100\n"),
 ];
@@ -89,7 +88,7 @@ fn every_block_an_adr_writes_out_is_in_the_tree() {
     );
     assert_eq!(
         BLOCKS.len(),
-        34,
+        33,
         "a block was added to or removed from the sweep without the count moving",
     );
 }

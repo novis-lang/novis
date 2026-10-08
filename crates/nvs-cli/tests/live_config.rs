@@ -1,14 +1,14 @@
 //! `rule:config/reloadability-is-its-own-field`, from outside the process: the
 //! built `nvs serve` over a program in a directory of its own, a changed
-//! `nvs.toml` and `nvs ctl reload`, and the answer a request gets afterwards.
+//! `nvs.toml`, and the answer a request gets afterwards.
 //!
-//! Every case goes through [`Server`], which is `live_edit.rs`'s harness with
-//! a control endpoint added. Its `nvs.toml` always names `[control] socket`, so
-//! [`Server::reload`] can rewrite the file and ask the running process to read
-//! it again. [`Server::save`] rewrites the file and asks nothing, because the
-//! server checks its own files. A reload is observed by polling: [`Server::awaits`] asks until the
-//! answer is the one wanted or [`BOUND`] runs out, and the failure message says
-//! what the last answer was.
+//! Every case goes through [`Server`], which is `live_edit.rs`'s harness for a
+//! configuration file. The server checks its own configuration files, so
+//! [`Server::reload`] rewrites `nvs.toml` and waits for the record the reload
+//! writes to standard error, and [`Server::save`] rewrites the file and waits
+//! for nothing. A reload is observed by polling: [`Server::awaits`] asks until
+//! the answer is the one wanted or [`BOUND`] runs out, and the failure message
+//! says what the last answer was.
 //!
 //! The program lives under `CARGO_TARGET_TMPDIR`, inside the build directory,
 //! and is removed when its [`Server`] is dropped.
@@ -35,7 +35,7 @@ const POLL: Duration = Duration::from_millis(50);
 /// configuration with nothing in it starts with.
 const PRODUCTION: &str = "[mode]\ndefault = \"production\"\n";
 
-/// The background check run every 100ms. [`controlled`] writes it unless the
+/// The background check run every 100ms. [`written`] writes it unless the
 /// case writes an `[opcache]` block of its own.
 const QUICK_CHECKS: &str = "[opcache]\nrevalidate_freq = \"100ms\"\n";
 
@@ -67,8 +67,6 @@ struct Server {
     child: Child,
     addr: SocketAddr,
     dir: PathBuf,
-    /// The control endpoint `nvs.toml` names.
-    socket: PathBuf,
     stderr: Arc<Mutex<String>>,
 }
 
@@ -128,8 +126,7 @@ impl Server {
         for (path, text) in files {
             write_file(&dir.join(path), text);
         }
-        let socket = endpoint(&dir, case);
-        write_file(&dir.join("nvs.toml"), &controlled(&socket, config));
+        write_file(&dir.join("nvs.toml"), &written(config));
         if !first.is_empty() {
             let ran = Command::new(env!("CARGO_BIN_EXE_nvs"))
                 .args(first)
@@ -206,7 +203,6 @@ impl Server {
             child,
             addr,
             dir,
-            socket,
             stderr,
         }
     }
@@ -314,28 +310,74 @@ impl Server {
     }
 
     /// Rewrites `nvs.toml` as [`Server::start`] wrote it, with `config` in
-    /// place of what it held, and runs `nvs ctl reload` against this server.
-    /// Returns what the reload printed.
+    /// place of what it held, and waits until the server has reloaded it.
+    /// Returns what the reload's record says it did, one line per key —
+    /// `applied: <key>` and `ignored: <key>` — and then `invalidated: <count>`.
+    ///
+    /// A `config` the server is already running publishes nothing and writes
+    /// no record, so a case never passes one here.
     ///
     /// # Panics
     ///
-    /// When the reload fails; the message carries what both processes wrote to
-    /// standard error.
+    /// When the server refuses the file, or writes no record within [`BOUND`];
+    /// the message carries what the server wrote to standard error.
     fn reload(&self, config: &str) -> String {
-        write_file(
-            &self.dir.join("nvs.toml"),
-            &controlled(&self.socket, config),
-        );
-        self.ctl("reload")
+        let from = self.said().len();
+        self.save(config);
+        self.reloaded_since(from).unwrap_or_else(|refusal| {
+            panic!(
+                "the reload was refused: {refusal}\nand the server wrote: {}",
+                self.said()
+            )
+        })
     }
 
-    /// Rewrites `nvs.toml` as [`Server::reload`] does, and runs nothing. The
-    /// server checks its own configuration files, so it reads the file itself.
+    /// Rewrites `nvs.toml` as [`Server::reload`] does, and waits until the
+    /// server refuses it. Returns the rendered refusal the record carries.
+    ///
+    /// # Panics
+    ///
+    /// When the server publishes the file, or writes no record within
+    /// [`BOUND`].
+    fn refused(&self, config: &str) -> String {
+        let from = self.said().len();
+        self.save(config);
+        match self.reloaded_since(from) {
+            Ok(report) => panic!(
+                "the reload was not refused: {report}\nand the server wrote: {}",
+                self.said()
+            ),
+            Err(refusal) => refusal,
+        }
+    }
+
+    /// Rewrites `nvs.toml` as [`Server::reload`] does, and waits for nothing.
+    /// The server checks its own configuration files, so it reads the file
+    /// itself.
     fn save(&self, config: &str) {
-        write_file(
-            &self.dir.join("nvs.toml"),
-            &controlled(&self.socket, config),
-        );
+        write_file(&self.dir.join("nvs.toml"), &written(config));
+    }
+
+    /// The first reload record the server wrote to standard error past its
+    /// first `from` bytes: the report, as [`Server::reload`] returns it, or the
+    /// refusal.
+    ///
+    /// # Panics
+    ///
+    /// When [`BOUND`] runs out first.
+    fn reloaded_since(&self, from: usize) -> Result<String, String> {
+        let started = Instant::now();
+        loop {
+            let said = self.said();
+            if let Some(outcome) = said[from..].lines().find_map(reload_record) {
+                return outcome;
+            }
+            assert!(
+                started.elapsed() < BOUND,
+                "no reload was logged within {BOUND:?}; the server wrote: {said}"
+            );
+            thread::sleep(POLL);
+        }
     }
 
     /// Waits until standard error contains `text`, and returns all of it.
@@ -357,47 +399,6 @@ impl Server {
             thread::sleep(POLL);
         }
     }
-
-    /// Runs `nvs ctl <request>` against this server and returns what it
-    /// printed.
-    ///
-    /// # Panics
-    ///
-    /// When the request fails; the message carries what both processes wrote
-    /// to standard error.
-    fn ctl(&self, request: &str) -> String {
-        self.ctl_on(&self.socket, request)
-    }
-
-    /// [`Server::ctl`] over the control endpoint `socket`.
-    ///
-    /// # Panics
-    ///
-    /// As [`Server::ctl`] does.
-    fn ctl_on(&self, socket: &Path, request: &str) -> String {
-        let ran = self.ctl_output(socket, request);
-        assert!(
-            ran.status.success(),
-            "`nvs ctl {request}` failed: {}\nand the server wrote: {}",
-            String::from_utf8_lossy(&ran.stderr),
-            self.stderr.lock().expect("no reader panicked")
-        );
-        String::from_utf8_lossy(&ran.stdout).into_owned()
-    }
-
-    /// Runs `nvs ctl <request>` over the control endpoint `socket`, and
-    /// returns how it ended, whether it succeeded or not.
-    fn ctl_output(&self, socket: &Path, request: &str) -> std::process::Output {
-        Command::new(env!("CARGO_BIN_EXE_nvs"))
-            .arg("ctl")
-            .arg("--socket")
-            .arg(socket)
-            .arg(request)
-            .current_dir(&self.dir)
-            .stdin(Stdio::null())
-            .output()
-            .expect("the `nvs` binary this test was built beside starts")
-    }
 }
 
 impl Drop for Server {
@@ -408,28 +409,32 @@ impl Drop for Server {
     }
 }
 
-/// The control endpoint one case's server creates: a socket in its directory
-/// on Unix, and a pipe name of its own on Windows.
-fn endpoint(dir: &Path, case: &str) -> PathBuf {
-    #[cfg(unix)]
-    {
-        let _ = case;
-        dir.join("control.sock")
+/// A reload's record, read out of one line the server wrote to standard error:
+/// the report, as [`Server::reload`] returns it, or the rendered refusal.
+/// `None` for any other line.
+fn reload_record(line: &str) -> Option<Result<String, String>> {
+    let record: serde_json::Value = serde_json::from_str(line).ok()?;
+    let message = record.get("msg")?.as_str()?;
+    let fields = record.get("fields")?;
+    if message.starts_with("configuration reload refused") {
+        return Some(Err(fields.get("refusal")?.as_str()?.to_owned()));
     }
-    #[cfg(windows)]
-    {
-        let _ = dir;
-        PathBuf::from(format!(
-            r"\\.\pipe\nvs-live-config-{}-{case}",
-            std::process::id()
-        ))
+    if message != "configuration reloaded" {
+        return None;
     }
+    let mut report = String::new();
+    for name in ["applied", "ignored"] {
+        for key in fields.get(name)?.as_array()? {
+            report.push_str(&format!("{name}: {}\n", key.as_str()?));
+        }
+    }
+    report.push_str(&format!("invalidated: {}\n", fields.get("invalidated")?));
+    Some(Ok(report))
 }
 
 /// `nvs.toml`: [`PRODUCTION`] where `config` has no `[mode]` block,
-/// [`QUICK_CHECKS`] where it has no `[opcache]` block, `[control] socket`
-/// naming `socket`, and then `config`.
-fn controlled(socket: &Path, config: &str) -> String {
+/// [`QUICK_CHECKS`] where it has no `[opcache]` block, and then `config`.
+fn written(config: &str) -> String {
     let mode = if config.contains("[mode]") {
         ""
     } else {
@@ -440,10 +445,7 @@ fn controlled(socket: &Path, config: &str) -> String {
     } else {
         QUICK_CHECKS
     };
-    format!(
-        "{mode}\n{checks}\n[control]\nsocket = '{}'\n\n{config}",
-        socket.display()
-    )
+    format!("{mode}\n{checks}\n{config}")
 }
 
 /// Makes `dir` writable by this account alone. `[opcache] file_cache_dir` is
@@ -686,9 +688,9 @@ fn a_changed_in_flight_ceiling_moves_the_admission_ceiling() {
 }
 
 /// Holds one request in flight under `roomy`, reloads `tight`, and expects the
-/// next request to be answered `503` and the reload to name `applied`. The held
-/// request keeps its place across both reloads, and a second reload back to
-/// `roomy` admits the next request again.
+/// next request to be answered `503` and the reload to name `applied`. The
+/// `503` shows that the held request kept its place in the count, and a second
+/// reload back to `roomy` admits the next request again.
 fn the_ceiling_follows(case: &str, roomy: &str, tight: &str, applied: &str) {
     let server = Server::start(case, roomy, &[("app.nvs", HOLDING)]);
     server.awaits("/", "the boot's program", |answer| {
@@ -704,14 +706,10 @@ fn the_ceiling_follows(case: &str, roomy: &str, tight: &str, applied: &str) {
             let _ = stream.read_to_end(&mut Vec::new());
         }
     });
-    let started = Instant::now();
-    while !server.ctl("status").contains("in_flight: 1\n") {
-        assert!(
-            started.elapsed() < BOUND,
-            "the held request was not in flight within {BOUND:?}"
-        );
-        thread::sleep(POLL);
-    }
+    // The held request sleeps for twenty seconds, and a saved file is read
+    // two to four seconds after it is written, so the request is in flight
+    // when the reload lands.
+    thread::sleep(POLL * 10);
 
     let report = server.reload(tight);
     assert!(
@@ -722,10 +720,6 @@ fn the_ceiling_follows(case: &str, roomy: &str, tight: &str, applied: &str) {
         answer.status == 503
     });
     assert_eq!(refused.header("retry-after"), Some("1"), "{refused:?}");
-    assert!(
-        server.ctl("status").contains("in_flight: 1\n"),
-        "the held request lost its place in the count"
-    );
 
     server.reload(roomy);
     server.awaits("/", "an admission at the raised ceiling", |answer| {
@@ -733,11 +727,11 @@ fn the_ceiling_follows(case: &str, roomy: &str, tight: &str, applied: &str) {
     });
 }
 
-/// A program that answers whether its server is draining, after five seconds
+/// A program that answers whether its server is draining, after ten seconds
 /// when the query says `hold=yes`.
 const PAUSING: &str = r#"<?nvs
 if (Core\Request::query("hold") == "yes") {
-    Core\Time::sleep(5s);
+    Core\Time::sleep(10s);
 }
 echo Core\Server::isDraining() ? "draining" : "serving";
 "#;
@@ -771,10 +765,10 @@ fn kept_alive(server: &Server) -> TcpStream {
 }
 
 /// A reload drains the connections the old tree accepted, and nothing else. A
-/// kept-alive connection with no request is closed. A request in flight when
-/// `nvs ctl reload` publishes a changed tree is answered. The reloaded health
-/// probe, `nvs ctl status` and `Core\Server::isDraining()` all report a
-/// server that is still accepting.
+/// kept-alive connection with no request is closed. A request in flight when a
+/// saved file publishes a changed tree is answered. The reloaded health probe
+/// and `Core\Server::isDraining()` both report a server that is still
+/// accepting.
 // covers: tools:server/stopping-and-reloading-the-drain
 #[test]
 fn a_reload_drains_the_connections_the_old_tree_accepted() {
@@ -786,14 +780,10 @@ fn a_reload_drains_the_connections_the_old_tree_accepted() {
 
     thread::scope(|scope| {
         let held = scope.spawn(|| server.get("/?hold=yes"));
-        let started = Instant::now();
-        while !server.ctl("status").contains("in_flight: 1\n") {
-            assert!(
-                started.elapsed() < BOUND,
-                "the held request was not in flight within {BOUND:?}"
-            );
-            thread::sleep(POLL);
-        }
+        // The held request sleeps for ten seconds, and a saved file is read
+        // two to four seconds after it is written, so the request is in
+        // flight when the reload lands.
+        thread::sleep(POLL * 10);
 
         // The probe's empty body is what tells it from the program, which
         // answers every path until the reload names this one.
@@ -806,14 +796,10 @@ fn a_reload_drains_the_connections_the_old_tree_accepted() {
             "the kept-alive connection the old tree accepted was not closed cleanly: \
              {closed:?}"
         );
+        // A draining server answers its health probe with `503`.
         server.awaits("/up", "the reloaded health path", |answer| {
             answer.status == 200 && answer.body.is_empty()
         });
-        let status = server.ctl("status");
-        assert!(
-            status.contains("draining: false\n"),
-            "the reload drained the server and not only its connections: {status}"
-        );
 
         let answer = held.join().expect("the held request's thread panicked");
         assert_eq!(
@@ -1088,19 +1074,10 @@ fn a_changed_queue_worker_count_starts_and_stops_workers_after_their_current_job
     finished(3, "the waiting job, claimed by a started worker");
 
     // `other.db` has no queue tables yet, so the reload is refused whole.
-    write_file(
-        &server.dir.join("nvs.toml"),
-        &controlled(&server.socket, &crew("other", 2)),
-    );
-    let refused = server.ctl_output(&server.socket, "reload");
-    let said = format!(
-        "{}{}",
-        String::from_utf8_lossy(&refused.stdout),
-        String::from_utf8_lossy(&refused.stderr)
-    );
+    let said = server.refused(&crew("other", 2));
     assert!(
-        !refused.status.success() && said.contains("is behind the queue's schema"),
-        "a reload onto a connection with no queue tables was not refused: {said}"
+        said.contains("is behind the queue's schema"),
+        "a reload onto a connection with no queue tables was not refused for its schema: {said}"
     );
 
     let migrated = Command::new(env!("CARGO_BIN_EXE_nvs"))
@@ -1114,7 +1091,8 @@ fn a_changed_queue_worker_count_starts_and_stops_workers_after_their_current_job
         "`nvs queue migrate --connection other` failed: {}",
         String::from_utf8_lossy(&migrated.stderr)
     );
-    server.ctl("reload");
+    // The same file saved again, which the server reads again.
+    server.reload(&crew("other", 2));
     server.logs("2 queue workers on `[db.jobs]` stop after the current job");
     server.logs("2 queue workers started on `[db.other]`");
     push();
@@ -1414,152 +1392,6 @@ fn a_changed_shared_store_takes_the_next_request_and_the_next_fleet_lease() {
     }
 }
 
-/// A second control endpoint for the server in `dir`: a socket beside the
-/// first on Unix, and a pipe name of its own on Windows.
-fn moved_endpoint(dir: &Path) -> PathBuf {
-    #[cfg(unix)]
-    {
-        dir.join("moved.sock")
-    }
-    #[cfg(windows)]
-    {
-        let _ = dir;
-        PathBuf::from(format!(
-            r"\\.\pipe\nvs-live-config-{}-moved",
-            std::process::id()
-        ))
-    }
-}
-
-/// `[control] socket` moves without a restart. A reload pushed over the old
-/// endpoint is answered there and names the key as applied. After it, the new
-/// endpoint answers `nvs ctl` and the old one does not. A name whose endpoint
-/// cannot be created is logged and named as not applied, and the endpoint in
-/// force keeps answering.
-// covers: tools:server/nvs-ctl
-#[test]
-fn a_changed_control_socket_moves_the_control_endpoint() {
-    let server = Server::start("moves", "", &[("app.nvs", PLAIN)]);
-    server.awaits("/", "the boot's answer", |answer| answer.status == 200);
-
-    let moved = moved_endpoint(&server.dir);
-    write_file(&server.dir.join("nvs.toml"), &controlled(&moved, ""));
-    let report = server.ctl("reload");
-    assert!(
-        report.contains("applied: control.socket\n"),
-        "the reload did not name `control.socket` as applied: {report}"
-    );
-    let status = server.ctl_on(&moved, "status");
-    assert!(
-        status.contains("in_flight:"),
-        "the moved endpoint did not answer `status`: {status}"
-    );
-    let started = Instant::now();
-    while server.ctl_output(&server.socket, "status").status.success() {
-        assert!(
-            started.elapsed() < BOUND,
-            "the old endpoint still answers after the reload moved it; the server wrote: {}",
-            server.said()
-        );
-        thread::sleep(POLL);
-    }
-
-    // A directory that does not exist, which no endpoint can be created in.
-    let missing = server.dir.join("missing").join("control.sock");
-    write_file(&server.dir.join("nvs.toml"), &controlled(&missing, ""));
-    let report = server.ctl_on(&moved, "reload");
-    assert!(
-        report.contains("ignored: control.socket\n"),
-        "the reload did not name `control.socket` as not applied: {report}"
-    );
-    let said = server.logs("configuration key not applied");
-    assert!(
-        said.contains("missing"),
-        "the record does not name the endpoint that was written: {said}"
-    );
-    let status = server.ctl_on(&moved, "status");
-    assert!(
-        status.contains("in_flight:"),
-        "the endpoint in force stopped answering after a move that failed: {status}"
-    );
-}
-
-/// `nvs ctl` from outside the process, one request after another. `config`
-/// lists a key the server runs with beside the file that wrote it. A `reload`
-/// over a file that does not parse fails: it prints the file and the line,
-/// says that the running configuration is unchanged, and `config` still lists
-/// the value from before. A `reload` over the repaired file is answered with
-/// its report, and `config` lists the new value. The same three requests sent
-/// to the HTTP port reach the program, as any other path does.
-// covers: tools:server/nvs-ctl
-#[test]
-fn nvs_ctl_reads_and_reloads_a_running_server_and_the_http_port_does_neither() {
-    const POLICY: &str = "http.headers.referrer_policy";
-    let server = Server::start(
-        "ctl",
-        "[http.headers]\nreferrer_policy = \"no-referrer\"\n",
-        &[("app.nvs", PLAIN)],
-    );
-    server.awaits("/", "the boot's answer", |answer| answer.status == 200);
-    let held = |listing: &str| {
-        listing
-            .lines()
-            .find(|line| line.starts_with(POLICY))
-            .unwrap_or_else(|| panic!("`nvs ctl config` does not list `{POLICY}`: {listing}"))
-            .to_owned()
-    };
-
-    let row = held(&server.ctl("config"));
-    assert!(
-        row.contains("\"no-referrer\"") && row.trim_end().ends_with("nvs.toml"),
-        "the row does not give the value and the file that wrote it: {row}"
-    );
-
-    server.save("[http.headers]\nreferrer_policy = \"same-ori");
-    let refused = server.ctl_output(&server.socket, "reload");
-    let said = String::from_utf8_lossy(&refused.stderr).into_owned();
-    assert!(
-        !refused.status.success() && refused.stdout.is_empty(),
-        "a reload over a file that does not parse was reported as done: {said}"
-    );
-    assert!(
-        said.contains("nvs.toml:"),
-        "the refusal does not name the file and the line: {said}"
-    );
-    assert!(
-        said.contains("note: the running configuration is unchanged"),
-        "the refusal does not say what the server runs with now: {said}"
-    );
-    let row = held(&server.ctl("config"));
-    assert!(
-        row.contains("\"no-referrer\""),
-        "a refused reload changed the running configuration: {row}"
-    );
-
-    let report = server.reload("[http.headers]\nreferrer_policy = \"same-origin\"\n");
-    assert!(
-        report.contains("invalidated: "),
-        "the reload over the repaired file printed no report: {report}"
-    );
-    let row = held(&server.ctl("config"));
-    assert!(
-        row.contains("\"same-origin\""),
-        "`nvs ctl config` does not list the reloaded value: {row}"
-    );
-
-    for (method, path, control) in [
-        ("POST", "/reload", "invalidated:"),
-        ("GET", "/config", POLICY),
-        ("GET", "/status", "in_flight:"),
-    ] {
-        let answer = server.send(method, path, &[]);
-        assert!(
-            !answer.body.contains(control),
-            "`{method} {path}` on the HTTP port was answered by the control endpoint: {answer:?}"
-        );
-    }
-}
-
 /// A stand-in OTLP collector on a loopback port of its own. It answers every
 /// request with `200` and keeps the request target of each.
 struct Collector {
@@ -1817,7 +1649,9 @@ fn every_request_read_directive_takes_the_reloaded_value_in_the_next_request() {
         assert!(!line.ends_with("=none"), "the boot did not set `{line}`");
     }
 
-    server.reload(&request_read(true));
+    // Saved and not reloaded: the reloaded `[log] target` is a file, so the
+    // reload's record is written there and not to standard error.
+    server.save(&request_read(true));
     let reloaded = server.awaits("/", "every reloaded value", |answer| {
         answer.status == 200
             && answer.body.lines().count() == REQUEST_READ.len()
@@ -2349,7 +2183,7 @@ fn times(said: &str, text: &str) -> usize {
 }
 
 /// The server checks its own configuration files: a saved `nvs.toml` reaches
-/// the next response with no `nvs ctl reload`, and the record the check writes
+/// the next response with nothing else done, and the record the check writes
 /// names the file that changed.
 #[test]
 fn a_saved_configuration_file_is_applied_without_a_reload() {
@@ -2366,6 +2200,11 @@ fn a_saved_configuration_file_is_applied_without_a_reload() {
     server.awaits("/", "the saved `Referrer-Policy`", |answer| {
         answer.status == 200 && answer.header("referrer-policy") == Some("same-origin")
     });
+    let said = server.logs("configuration reloaded");
+    assert!(
+        said.contains("\"changed\"") && said.contains("nvs.toml"),
+        "the record does not name the file that changed: {said}"
+    );
 }
 
 /// A file cut off in the middle of a line does not parse. The check logs it
@@ -2411,37 +2250,29 @@ fn a_half_written_configuration_file_is_logged_and_the_running_one_kept() {
 }
 
 /// A changed restart key is logged once, with the value in force and the
-/// value written, and `nvs ctl status` lists it until the file is changed
-/// back. A later save that changes another key does not log it again.
-// covers: tools:server/nvs-ctl
+/// value written. A later save that changes another key does not log it
+/// again. Once the file is changed back and the key changed once more, it is
+/// logged again.
 #[test]
-fn a_changed_restart_key_is_logged_as_pending_and_listed_by_ctl_status() {
+fn a_changed_restart_key_is_logged_once_as_pending() {
     const PENDING: &str = "configuration restart pending";
     let server = Server::start("pending", "", &[("app.nvs", PLAIN)]);
     server.awaits("/", "the boot's answer", |answer| answer.status == 200);
-    let status = server.ctl("status");
-    assert!(
-        !status.contains("restart pending"),
-        "a server nobody changed has a pending restart: {status}"
+    assert_eq!(
+        times(&server.said(), PENDING),
+        0,
+        "a server nobody changed has a pending restart: {}",
+        server.said()
     );
 
-    server.save("[server]\nworkers = 1\n");
+    server.reload("[server]\nworkers = 1\n");
     let said = server.logs(PENDING);
     assert!(
-        said.contains("not written"),
-        "the record does not give the running value: {said}"
-    );
-    let status = server.ctl("status");
-    let line = status
-        .lines()
-        .find(|line| line.starts_with("restart pending: server.workers"))
-        .unwrap_or_else(|| panic!("`nvs ctl status` does not list the key: {status}"));
-    assert!(
-        line.contains("running not written") && line.contains("written 1)"),
-        "the pending line does not give both values: {line}"
+        said.contains("server.workers") && said.contains("not written"),
+        "the record does not give the key and the running value: {said}"
     );
 
-    server.save("[server]\nworkers = 1\n\n[http.headers]\nreferrer_policy = \"same-origin\"\n");
+    server.reload("[server]\nworkers = 1\n\n[http.headers]\nreferrer_policy = \"same-origin\"\n");
     server.awaits("/", "the saved `Referrer-Policy`", |answer| {
         answer.header("referrer-policy") == Some("same-origin")
     });
@@ -2452,19 +2283,14 @@ fn a_changed_restart_key_is_logged_as_pending_and_listed_by_ctl_status() {
         server.said()
     );
 
-    server.save("[http.headers]\nreferrer_policy = \"same-origin\"\n");
-    let started = Instant::now();
-    loop {
-        let status = server.ctl("status");
-        if !status.contains("restart pending") {
-            break;
-        }
-        assert!(
-            started.elapsed() < BOUND,
-            "a key changed back is still pending: {status}"
-        );
-        thread::sleep(POLL);
-    }
+    server.reload("[http.headers]\nreferrer_policy = \"no-referrer\"\n");
+    server.reload("[server]\nworkers = 1\n\n[http.headers]\nreferrer_policy = \"no-referrer\"\n");
+    assert_eq!(
+        times(&server.said(), PENDING),
+        2,
+        "a key changed back and then changed again was not logged again: {}",
+        server.said()
+    );
 }
 
 /// A program that makes a temporary directory and prints its path.
@@ -2504,71 +2330,6 @@ fn a_changed_temp_root_applies_to_the_next_temporary_directory() {
         "/",
         "a temporary directory under the second root",
         |answer| answer.status == 200 && Path::new(answer.body.trim()).starts_with(&two),
-    );
-}
-
-/// The three counts on `nvs ctl status`'s `config_check:` line: the passes the
-/// configuration check has taken, the `stat` calls they made, and the paths
-/// each pass takes.
-fn check_counts(server: &Server) -> (u64, u64, u64) {
-    let status = server.ctl("status");
-    let line = status
-        .lines()
-        .find_map(|line| line.strip_prefix("config_check: "))
-        .unwrap_or_else(|| panic!("`nvs ctl status` has no `config_check:` line: {status}"));
-    let counts: Vec<u64> = line
-        .split(", ")
-        .map(|part| {
-            part.split(' ')
-                .next()
-                .and_then(|count| count.parse().ok())
-                .unwrap_or_else(|| panic!("`{part}` in `{line}` is not a count"))
-        })
-        .collect();
-    match counts[..] {
-        [passes, stats, paths] => (passes, stats, paths),
-        _ => panic!("`{line}` is not three counts"),
-    }
-}
-
-/// The configuration check runs on its own thread, and a request reads only
-/// the snapshot in force. Many requests between two readings of the counts
-/// add no pass and no `stat` call beyond what the time between them allows.
-#[test]
-fn watching_the_configuration_costs_no_request_a_filesystem_call() {
-    const REQUESTS: u64 = 200;
-    let server = Server::start("watched", "", &[("app.nvs", PLAIN)]);
-    server.awaits("/", "the boot's answer", |answer| answer.status == 200);
-    // One pass before the thread starts and one of its own: the check runs.
-    eventually(&server, "a pass of the configuration check", || {
-        check_counts(&server).0 >= 2
-    });
-    let (passes, stats, paths) = check_counts(&server);
-    assert!(paths >= 1, "the check takes no path, so it proves nothing");
-
-    let started = Instant::now();
-    for _ in 0..REQUESTS {
-        let answer = server.get("/");
-        assert_eq!(answer.status, 200, "a request failed: {answer:?}");
-    }
-    let took = started.elapsed();
-    let (passes_after, stats_after, _) = check_counts(&server);
-
-    // One pass every two seconds, and one more for a pass that was under way
-    // when the counts were read.
-    let allowed = took.as_secs() / 2 + 2;
-    let passed = passes_after - passes;
-    assert!(
-        passed <= allowed,
-        "{REQUESTS} requests in {took:?} came with {passed} passes of the check, and the time \
-         allows {allowed}"
-    );
-    let statted = stats_after - stats;
-    assert!(
-        statted <= (passed + 1) * paths,
-        "{REQUESTS} requests came with {statted} `stat` calls, and {passed} passes over {paths} \
-         paths make at most {}",
-        (passed + 1) * paths
     );
 }
 
@@ -2700,28 +2461,14 @@ fn policy(value: &str) -> String {
     format!("[http.headers]\nreferrer_policy = \"{value}\"\n")
 }
 
-/// The referrer policy the running configuration holds, as `nvs ctl config`
-/// lists it.
+/// The referrer policy the running configuration holds, as the next response
+/// carries it.
 fn running_policy(server: &Server) -> String {
-    let listing = server.ctl("config");
-    listing
-        .lines()
-        .find(|line| line.starts_with("http.headers.referrer_policy"))
-        .unwrap_or_else(|| panic!("`nvs ctl config` lists no referrer policy: {listing}"))
+    let answer = server.get("/");
+    answer
+        .header("referrer-policy")
+        .unwrap_or_else(|| panic!("the response carries no referrer policy: {answer:?}"))
         .to_owned()
-}
-
-/// Runs `nvs ctl reload` and returns its standard error, asserting it failed.
-fn refused_reload(server: &Server) -> String {
-    let ran = server.ctl_output(&server.socket, "reload");
-    let said = String::from_utf8_lossy(&ran.stderr).into_owned();
-    assert!(
-        !ran.status.success() && ran.stdout.is_empty(),
-        "the reload was reported as done: {}; the server wrote: {}",
-        String::from_utf8_lossy(&ran.stdout),
-        server.said()
-    );
-    said
 }
 
 /// The `invalidated` count a reload's report gives.
@@ -2745,10 +2492,7 @@ fn a_boot_with_an_extension_entry_that_does_not_load_refuses_to_start() {
         .join(format!("live-config-boot-refused-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     write_file(&dir.join("app.nvs"), PLAIN);
-    write_file(
-        &dir.join("nvs.toml"),
-        &controlled(&endpoint(&dir, "boot-refused"), &entry),
-    );
+    write_file(&dir.join("nvs.toml"), &written(&entry));
     let mut child = Command::new(env!("CARGO_BIN_EXE_nvs"))
         .args(["serve", "app.nvs", "--listen", "127.0.0.1:0"])
         .current_dir(&dir)
@@ -2811,18 +2555,21 @@ fn a_reload_whose_extension_pin_does_not_match_is_refused_whole_and_the_previous
     server.awaits("/", "the boot's answer", |answer| answer.body == "7 ok");
 
     shelf.put("ledger.nvsx", &extension("Shop\\Ledger"), &ledger);
-    server.save(&format!("{}\n{entry}", policy("same-origin")));
-    let said = refused_reload(&server);
+    let said = server.refused(&format!("{}\n{entry}", policy("same-origin")));
     assert!(
         said.contains("E0652") && said.contains("ledger.nvsx") && said.contains("sha256"),
         "the refusal does not name the code, the file and its digest: {said}"
     );
     assert!(
-        said.contains("note: the running configuration is unchanged"),
-        "the refusal does not say what the server runs with now: {said}"
+        server
+            .said()
+            .contains("configuration reload refused; the running configuration is unchanged"),
+        "the refusal does not say what the server runs with now: {}",
+        server.said()
     );
-    assert!(
-        running_policy(&server).contains("\"no-referrer\""),
+    assert_eq!(
+        running_policy(&server),
+        "no-referrer",
         "a refused reload changed the running configuration"
     );
     let answer = server.get("/");
@@ -2834,10 +2581,13 @@ fn a_reload_whose_extension_pin_does_not_match_is_refused_whole_and_the_previous
         server.said()
     );
 
+    // The extension file is not a configuration file, so the server reads
+    // the restored file when `nvs.toml` is saved again.
     shelf.put("ledger.nvsx", &ledger, &ledger);
-    server.ctl("reload");
-    assert!(
-        running_policy(&server).contains("\"same-origin\""),
+    server.reload(&format!("{}\n{entry}", policy("same-origin")));
+    assert_eq!(
+        running_policy(&server),
+        "same-origin",
         "the reload over the restored file was not published"
     );
 }
@@ -2866,29 +2616,29 @@ fn a_reload_whose_extension_settings_block_has_an_unknown_key_is_refused_whole()
     );
     server.awaits("/", "the boot's answer", |answer| answer.status == 200);
 
-    server.save(&format!(
+    let said = server.refused(&format!(
         "{}\n{entry}\n{}",
         policy("same-origin"),
         settings("colour = \"red\"")
     ));
-    let said = refused_reload(&server);
     assert!(
         said.contains("E0652") && said.contains("unknown key `colour`"),
         "the refusal does not name the code and the key: {said}"
     );
-    assert!(
-        running_policy(&server).contains("\"no-referrer\""),
+    assert_eq!(
+        running_policy(&server),
+        "no-referrer",
         "a refused reload changed the running configuration"
     );
 
-    server.save(&format!(
+    server.reload(&format!(
         "{}\n{entry}\n{}",
         policy("same-origin"),
         settings("unit = \"mi\"")
     ));
-    server.ctl("reload");
-    assert!(
-        running_policy(&server).contains("\"same-origin\""),
+    assert_eq!(
+        running_policy(&server),
+        "same-origin",
         "the reload with an admitted block was not published"
     );
 }
@@ -2911,11 +2661,10 @@ fn a_reload_with_one_bad_extension_entry_among_good_ones_is_refused_whole() {
 
     let second = shelf.put("blog.nvsx", &blog, &blog);
     let third = shelf.put("broken.nvsx", &broken, &broken);
-    server.save(&format!(
+    let said = server.refused(&format!(
         "{}\n{first}\n{second}\n{third}",
         policy("same-origin")
     ));
-    let said = refused_reload(&server);
     assert!(
         said.contains("E0652") && said.contains("broken.nvsx") && said.contains("nvs.toml:"),
         "the refusal does not name the code, the bad entry and its line: {said}"
@@ -2924,8 +2673,9 @@ fn a_reload_with_one_bad_extension_entry_among_good_ones_is_refused_whole() {
         !said.contains("blog.nvsx"),
         "the refusal names an entry that loads: {said}"
     );
-    assert!(
-        running_policy(&server).contains("\"no-referrer\""),
+    assert_eq!(
+        running_policy(&server),
+        "no-referrer",
         "a refused reload changed the running configuration"
     );
     let answer = server.get("/");

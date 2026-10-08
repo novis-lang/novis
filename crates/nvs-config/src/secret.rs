@@ -61,7 +61,7 @@
 //! rounds has to put the secrets back without re-reading a file.
 //!
 //! Cost: one trust check, one advisory and one whole-file read per secret file, plus a walk of
-//! [`SECRETS`] against the named blocks the tree has — at boot and again at each `nvs ctl reload`.
+//! [`SECRETS`] against the named blocks the tree has — at boot and again at each reload.
 //! Nothing here runs per request.
 //!
 //! [ADR 0067]: ../../../docs/decisions/0067.md

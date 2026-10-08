@@ -80,9 +80,8 @@ USER nonroot:nonroot
 # hang for the full 10-second timeout before Docker sent `SIGKILL` anyway.
 #
 # Asking for that `SIGKILL` immediately is the same ending without the wait. This is the honest
-# state of the runtime rather than a preference: ADR 0078 § 6 puts the graceful drain behind the
-# control socket, and ADR 0097 § 5's `health_path` already answers `503` while draining, so the
-# machinery is designed and unbuilt. **When it lands, this line becomes `SIGTERM`** and
+# state of the runtime rather than a preference: ADR 0097 § 5's `health_path` already answers
+# `503` while draining, so the machinery is designed and unbuilt. **When it lands, this line becomes `SIGTERM`** and
 # `docs/docker.md` § *Stopping a container* changes with it.
 STOPSIGNAL SIGKILL
 

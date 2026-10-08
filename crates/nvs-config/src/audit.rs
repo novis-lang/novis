@@ -1,22 +1,16 @@
-//! `rule:config/check-and-dump-audit-the-tree-offline`'s listing and
-//! `rule:config/ctl-config-reports-the-live-snapshot`'s: every key in force, one per line, in
-//! dotted-key order, beside the file each was written in.
+//! `rule:config/check-and-dump-audit-the-tree-offline`'s listing: every key in force, one per line,
+//! in dotted-key order, beside the file each was written in.
 //!
-//! **One renderer, two trees.** `nvs config dump --origin` reads the files on disk; `nvs ctl config`
-//! reads the snapshot a running process is serving. The second rule has an operator diff the two
-//! against each other, so a difference between them means a reload that has not happened, a file
-//! that changed since the last one, or a directory-mode change that will refuse the next one — and
-//! it means those things only while **one** function renders both. [`Audit`] is the borrowed view
-//! each side hands over: the merged table, where every leaf was written, what each override
-//! replaced, the secrets that are in force beside the table rather than in it, and the `Boot` keys a
-//! reload reported and left unapplied.
+//! [`Audit`] is the borrowed view `nvs config dump --origin` hands over: the merged table, where
+//! every leaf was written, what each override replaced, and the secrets that are in force beside the
+//! table rather than in it.
 //!
 //! The listing is the **merged table**, not the typed configuration, so a key no reader has a field
 //! for is still in force and still printed. That is what an audit needs, and it is the same table
 //! `rule:config/every-matching-app-block-applies-least-specific-first` layers `[[app]]` blocks over.
 //!
 //! Cost, as `rule:programs/memory-priority` requires: one `String` per audit, held for as long as it
-//! takes to print it or write it to a socket, plus the flattened key list it is built from. Nothing
+//! takes to print it, plus the flattened key list it is built from. Nothing
 //! is retained here and nothing is per request.
 
 use std::collections::BTreeMap;
@@ -24,7 +18,6 @@ use std::fmt::Write as _;
 
 use crate::resolve::{Origin, Override, Resolved};
 use crate::secret::Secret;
-use crate::snapshot::Snapshot;
 
 /// What `rule:config/check-and-dump-audit-the-tree-offline` renders a secret's value as. Never the
 /// content, and never a fixed-width mask that would say how long it is.
@@ -40,18 +33,10 @@ const RESOLVE_DIRECTIVE: &str = "http.client.proxy.resolve";
 /// id up, and a sentence here would be a second wording of a rule that has one home.
 const NARROWED_POLICY: &str = "rule:security/net-address-policy";
 
-/// What a row carries when the running value is not what the tree on disk now says.
-///
-/// `rule:config/ctl-config-reports-the-live-snapshot` asks for those keys by name, and this is where
-/// they go: on the row that holds the value still in force, so the listing is still one line per key
-/// and a diff against `nvs config dump --origin` lands on exactly the key that differs.
-const UNAPPLIED: &str = "(changed on disk; needs a restart)";
-
 /// The tree an audit is of, borrowed — `rule:config/check-and-dump-audit-the-tree-offline`.
 ///
-/// It is four borrows and not an owned copy because both callers already hold every part: an offline
-/// audit holds a [`Resolved`], a live one holds the [`Snapshot`] it is serving, and rendering reads
-/// each part once.
+/// It is four borrows and not an owned copy because the caller already holds every part in a
+/// [`Resolved`], and rendering reads each part once.
 #[derive(Clone, Copy, Debug)]
 pub struct Audit<'a> {
     /// The merged table, whose every leaf is a row.
@@ -63,9 +48,6 @@ pub struct Audit<'a> {
     /// The secrets in force, by the key each is the value of. Each is a row of its own, rendered
     /// [`REDACTED`] and naming the file its *value* came from.
     pub secrets: &'a BTreeMap<String, Secret>,
-    /// The `Boot` keys whose changed value the last reload reported and left unapplied. Empty for an
-    /// offline audit, which has no reload behind it to have reported anything.
-    pub unapplied: &'a [&'static str],
 }
 
 impl<'a> Audit<'a> {
@@ -77,24 +59,6 @@ impl<'a> Audit<'a> {
             origins: &resolved.origins,
             overrides: &resolved.overrides,
             secrets: &resolved.secrets,
-            unapplied: &[],
-        }
-    }
-
-    /// The tree a running process is actually serving — `nvs ctl config`'s half.
-    ///
-    /// `unapplied` is the caller's because the snapshot does not hold it: publishing carries every
-    /// running `Boot` value back over the incoming tree, so by the time a snapshot exists the change
-    /// that was refused is nowhere in it. The reload's own [`Report`](crate::control::Report) is
-    /// where it lives, and the process that took that reload is what remembers it.
-    #[must_use]
-    pub fn of_snapshot(snapshot: &'a Snapshot, unapplied: &'a [&'static str]) -> Self {
-        Self {
-            table: &snapshot.table,
-            origins: &snapshot.origins,
-            overrides: &snapshot.overrides,
-            secrets: &snapshot.secrets,
-            unapplied,
         }
     }
 
@@ -178,9 +142,6 @@ impl<'a> Audit<'a> {
                 if let Some(record) = overridden.get(key.as_str()) {
                     let _ = write!(line, " (overrides {})", record.replaced.path.display());
                 }
-                if self.unapplied.iter().any(|boot| *boot == key) {
-                    line.push_str(&format!(" {UNAPPLIED}"));
-                }
             }
             // The offline half of
             // `rule:http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`:
@@ -214,7 +175,7 @@ pub fn leaves(table: &toml::Table) -> Vec<(String, String)> {
 
 /// One row of the listing before it is laid out.
 struct Leaf {
-    /// The dotted key every lookup uses: [`Resolved::origins`], the secrets, the unapplied keys.
+    /// The dotted key every lookup uses: [`Resolved::origins`] and the secrets.
     key: String,
     /// The same key as the listing prints it, each segment through [`segment`].
     shown: String,
@@ -395,7 +356,6 @@ mod tests {
             origins: &origins,
             overrides: &[],
             secrets: &secrets,
-            unapplied: &[],
         };
 
         let listing = audit.render(false);
@@ -421,45 +381,6 @@ mod tests {
         assert!(
             !listing.lines().any(|line| line.starts_with("limits")),
             "no row reads as a limit: {listing}"
-        );
-    }
-
-    /// `rule:config/ctl-config-reports-the-live-snapshot`: a `Boot` key the last reload could not
-    /// apply is named on its own row, beside the value still in force — so the listing stays one
-    /// line per key and a diff against `nvs config dump --origin` lands on the key that differs.
-    #[test]
-    fn an_unapplied_boot_key_is_named_on_the_row_that_still_holds_the_running_value() {
-        let table: toml::Table = "[limits]\nmemory = \"128M\"\n"
-            .parse()
-            .expect("the fixture is valid TOML");
-        let origins = std::collections::BTreeMap::new();
-        let secrets = std::collections::BTreeMap::new();
-
-        let plain = Audit {
-            table: &table,
-            origins: &origins,
-            overrides: &[],
-            secrets: &secrets,
-            unapplied: &[],
-        };
-        assert_eq!(plain.render(true), "limits.memory = \"128M\"\n");
-
-        let after = Audit {
-            unapplied: &["limits.memory"],
-            ..plain
-        };
-        assert_eq!(
-            after.render(true),
-            format!(
-                "limits.memory = \"128M\" {UNAPPLIED}\n",
-                UNAPPLIED = super::UNAPPLIED
-            ),
-            "the running value is the one reported, and the row says the tree on disk disagrees",
-        );
-        assert_eq!(
-            after.render(false),
-            plain.render(false),
-            "and without the origin column there is no column for it to be in",
         );
     }
 }

@@ -49,9 +49,9 @@ nvs-types.workspace = true
 nvs-ir.workspace = true
 nvs-codegen.workspace = true
 nvs-runtime.workspace = true
-# The record a reload writes to `Core\Log` — `rule:config/one-local-control-socket`'s
-# last sentence. `control.rs` builds it and `nvs_runtime::LogWriter` routes it, so
-# this binary names the record model and never the directives behind the sink.
+# The record a reload writes to `Core\Log`. `reload.rs` builds it and
+# `nvs_runtime::LogWriter` routes it, so this binary names the record model and
+# never the directives behind the sink.
 nvs-render.workspace = true
 # `nvs run` executes its program inside a task rather than on the main thread's
 # stack, because ADR 0072 § 1's children are children *of the calling task* and
@@ -68,12 +68,6 @@ nvs-server.workspace = true
 # with that loader.
 nvs-ext = { workspace = true, features = ["engine", "pack"] }
 wasmtime.workspace = true
-# `rule:config/one-local-control-socket`'s framing, on the client's half of it:
-# `nvs ctl` sends the request `nvs-server` answers, and the workspace manifest's
-# comment above the `hyper` line is where taking the `client` feature for it is
-# argued. `src/ctl.rs` owns the drive, which is `nvs_server::control`'s loop from
-# the other end.
-hyper.workspace = true
 # The clock `nvs serve` hands ADR 0073 § 5's ticker. `nvs_server::tick_on_this_core`
 # takes one rather than reading the wall clock itself, so the instant a fire is
 # judged against arrives from the caller — and here the caller is the process,

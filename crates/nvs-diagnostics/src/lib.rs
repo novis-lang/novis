@@ -2235,7 +2235,7 @@ pub mod code {
     /// directory holding it, or the directory an absent `optional` include would
     /// appear in. Whoever can write one file in the tree can grant themselves
     /// every capability it carries, so this is a refusal to start rather than a
-    /// warning, and it is re-run on every `nvs ctl reload`.
+    /// warning, and it is re-run on every reload.
     pub const E_UNTRUSTED_CONFIG: Code = Code::new("E0607").card(
         "A configuration file is not safe to use. Another user owns it, or another user can change \
          the file or its directory. Change the owner or the permissions so that only you or an \
@@ -2605,31 +2605,9 @@ pub mod code {
          records half of them and `1.0` records every request.",
     );
 
-    /// `[control] socket` names something that would be reachable over a
-    /// network rather than a local endpoint.
-    ///
-    /// `rule:config/no-network-control-surface` has no TCP listener in it, in either direction of
-    /// configuration, and § 3's reasoning is why: the socket's owner and mode
-    /// *are* the authentication, so a control surface that arrives over a
-    /// network has no authentication at all. `socket = "127.0.0.1:9000"` is
-    /// the shape that says so out loud, and it is refused at boot rather than
-    /// read as the relative path a host and a port happen to spell — a file
-    /// called `127.0.0.1:9000` is a legal name on Unix, and creating one is
-    /// the reading that leaves an operator believing they bound a port.
-    ///
-    /// Every other value that names no local endpoint — a list, a float, a
-    /// bare `true` — is refused under this same code rather than a second one,
-    /// because the directive has exactly two legal shapes and one reason to
-    /// have them: a value that is not one local endpoint, and is not `false`,
-    /// leaves the operator believing they configured a control surface.
-    ///
-    /// Not `E0627`'s refusal reached from another direction: that one is an
-    /// exporter *sink* the tree does not know, and this one is a value the
-    /// tree understands perfectly and is not allowed to accept.
-    pub const E_NETWORK_CONTROL_SOCKET: Code = Code::new("E0629").card(
-        "`[control] socket` must be the path of a local socket, or `false`. A network address such \
-         as `127.0.0.1:9000` is not allowed, because the control socket has no password.",
-    );
+    // `E0629` is retired and is never reused: it refused a configuration
+    // directive that named a network address, and the server reads no such
+    // directive.
 
     /// `nvs service` was asked to store an argv that names something other
     /// than a server.

@@ -80,10 +80,7 @@
 //! shared by every request that runs it (`rule:security/isolate-shares-nothing`'s "shares immutable compiled code",
 //! which is [`crate::script`]'s cache and nothing else), plus whatever the accept
 //! loop holds per connection in flight. Nothing accumulates per request answered.
-//! One thread for the control endpoint where `[control] socket` names one, plus
-//! one answer's bytes while it is answering — one at a time for the whole
-//! process, since operations serialize there.
-//! One more thread again for the process, not one per core, and one watched
+//! One thread for the process, not one per core, and one watched
 //! entry per
 //! *running* core: [`nvs_host::Watchdog`], which every worker registers itself
 //! with once it holds a reactor and deregisters from when it ends. A stall
@@ -108,24 +105,15 @@
 //! `Ctx::cpu_limit` is the `[limits]` ceiling the tree wrote and
 //! `nvs_runtime::capability` answers with the grants a mounted entry asks for.
 //!
-//! **The holder is what makes a reload a reload.** `rule:config/one-local-control-socket`'s
-//! endpoint publishes into this one ([`crate::control`]), so an operator's
-//! `nvs ctl reload` is serving from the next request rather than from the next
-//! start; a request already running keeps the snapshot it took, and the boot's
+//! **The holder is what makes a reload a reload.** A reload publishes into this
+//! one ([`crate::reload`]), so a saved configuration file is serving from the
+//! next request rather than from the next start; a request already running
+//! keeps the snapshot it took, and the boot's
 //! own `Boot`-class reads above are never asked again. The `Core` each worker
 //! is handed carries the boot snapshot beside the holder, which arms the
 //! schedule roster and the queue workers on the core that ticks. Each of those
 //! then follows the holder: the ticker re-arms its roster, and the queue's
 //! [`crate::worker::Crew`] starts and stops workers.
-//!
-//! # Decision: the control endpoint is bound before any listener
-//!
-//! [`bind_sockets`] is the whole of the order and owns why. The short of it:
-//! `rule:config/one-local-control-socket` holds the endpoint's directory to the
-//! trust boundary every configuration file gets, and a start that had already
-//! bound its listeners when it discovered the directory was writable by another
-//! account would be a server answering requests on the way to refusing to
-//! start.
 //!
 
 use std::cell::Cell;
@@ -146,7 +134,6 @@ use nvs_diagnostics::{Diagnostics, SourceMap};
 use nvs_host::{Isolate, NvsListener, Output};
 use nvs_runtime::script::Program;
 use nvs_runtime::{Ctx, Inbound, OutputSink, TaskRoot, Value};
-use nvs_server::control::{Address, Endpoint};
 use nvs_server::{
     Admission, Arrived, Ceiling, Cors, Incoming, OnDisk, Origin, Reply, Request, Resolved, Secure,
     Serving, Table, Trusted, What,
@@ -235,7 +222,7 @@ pub(crate) fn run(
     };
     // `rule:http-server/admission-is-arithmetic-not-a-number`: the ceiling is the smaller of what the file asked for and
     // what this machine affords at the per-request cap, and a clamp is logged
-    // here and by each reload (`crate::control`), naming both directives and
+    // here and by each reload (`crate::reload`), naming both directives and
     // both numbers. Silently is what
     // that section rejected — the observed capacity of a small instance changes
     // with the arithmetic, and an operator surprised by that should be able to
@@ -285,15 +272,6 @@ pub(crate) fn run(
     // § 6's boot `Warn` below needs the address this process actually binds —
     // which the flags have not had their say over yet.
     let nobody_trusted = trusted.is_empty();
-    // `rule:config/one-local-control-socket`'s address, read here so that a
-    // value naming something a network could reach refuses the start before
-    // anything is compiled. A reload that moves it is `crate::control`'s. A tree that
-    // wrote no `[control]` block resolves to `Disabled`, which is no control
-    // surface at all rather than a default one.
-    let controlled = match nvs_server::control::Address::of(&snapshot.config) {
-        Ok(address) => address,
-        Err(diagnostic) => return report(diagnostic, &sources),
-    };
     let wanted = match addresses(&configured, listen, port) {
         Ok(wanted) => wanted,
         Err(refusal) => {
@@ -397,14 +375,14 @@ pub(crate) fn run(
     if let Some(note) = ceiling.clamp_note() {
         eprintln!("note: {note}");
     }
-    // Held beside the accept loop's copy because the control endpoint's
-    // `status` is this same count: the valve is where a request is admitted, so
+    // Held beside the accept loop's copy because a service manager's drain
+    // reports this same count: the valve is where a request is admitted, so
     // asking it is reading the number rather than keeping a second one
-    // (`crate::control`).
+    // (`crate::reload`).
     let admission = Arc::new(Admission::new(&ceiling));
     // `rule:config/the-config-is-an-immutable-snapshot`'s tree, in the holder a
     // reload publishes into. The accept loop takes its clone out of this at the
-    // start of every request, so a tree published on the control endpoint is
+    // start of every request, so a tree a reload published is
     // serving from the next request rather than from the next start; a request
     // already running keeps the one it took. It crosses to the loop rather than
     // through [`Isolate`] because `nvs-host` names no configuration crate at
@@ -490,19 +468,12 @@ pub(crate) fn run(
     // is what moves the pointer (`crate::script::watch`). Held for the run.
     let _watching = crate::script::watch(&compiler, Some(rescan));
 
-    // Every socket this process opens, in the one order [`bind_sockets`] owns:
-    // the control endpoint, then every address the set named — all of it before
-    // any worker exists. That second half is the rule's: a bind taken by the
-    // core that reached the entry would report one wrong address once per core,
-    // and would leave the process listening on whichever entries it got to
-    // first.
-    let (controlling, bound) = match bind_sockets(
-        &controlled,
-        &wanted,
-        socket_mode,
-        nvs_server::control::boundary,
-    ) {
-        Ok(both) => both,
+    // Every address the set named, bound before any worker exists. A bind
+    // taken by the core that reached the entry would report one wrong address
+    // once per core, and would leave the process listening on whichever
+    // entries it got to first.
+    let bound = match bind_all(&wanted, socket_mode) {
+        Ok(bound) => bound,
         Err(refusal) => {
             eprintln!("error: {refusal}");
             return ExitCode::FAILURE;
@@ -526,20 +497,11 @@ pub(crate) fn run(
     // is what an operator running this by hand has.
     let told = Notify::from_env();
     told.install();
-    // The endpoint's own thread, started before anything accepts so that the
-    // first thing an operator can ask this process is answerable. It is a
-    // thread and not a task on a core (`rule:concurrency/one-scheduler`), it
-    // answers one client at a time, and it runs no Novis code; what it is
-    // allowed to ask of this process is `crate::control::Process` and nothing
-    // wider. Detached, because it has no ending of its own — the process's
-    // drain is what stops it, and joining it here would be joining a thread
-    // parked in an accept.
-    // Built whether or not the tree named a control socket, because the
-    // socket is not its only caller: a service manager's stop and reload
-    // reach the same process through `crate::dispatch`, which takes it from
-    // where this installs it.
+    // The process a reload publishes through. The configuration check below
+    // and a service manager's stop and reload (`crate::dispatch`) reach the
+    // same process, which takes it from where this installs it.
     let host = Arc::new(
-        crate::control::Process::new(
+        crate::reload::Process::new(
             Arc::clone(&current),
             config.to_vec(),
             Arc::clone(&compiler),
@@ -550,20 +512,13 @@ pub(crate) fn run(
         .draining_through(serving.generations())
         .serving_rows(Arc::clone(&mounts)),
     );
-    crate::control::install(Arc::clone(&host));
-    // A saved configuration file reaches this process without anybody pushing
-    // it — `rule:config/the-config-is-an-immutable-snapshot`.
-    crate::control::check(&host);
-    if let Some(endpoint) = controlling {
-        println!("control endpoint on {}", endpoint.name().display());
-        if let Err(error) = host.open(endpoint) {
-            eprintln!("error: could not start the control endpoint's thread: {error}");
-            return ExitCode::FAILURE;
-        }
-    }
+    crate::reload::install(Arc::clone(&host));
+    // A saved configuration file reaches this process by itself —
+    // `rule:config/the-config-is-an-immutable-snapshot`.
+    crate::reload::check(&host);
     // `rule:observability/the-exporter-is-a-feature-and-core-metrics-is-not`'s
     // scrape endpoint, bound here rather than by the core that ends up serving
-    // it, for [`bind_sockets`]' own reason: an address the platform refuses is a
+    // it, for [`bind_all`]'s own reason: an address the platform refuses is a
     // start that fails, not one core quietly missing a listener. A tree naming
     // no Prometheus exporter binds nothing at all, which is [`scrape_socket`]'s
     // `None` and the cheapest reading of `exporter = false`.
@@ -1324,9 +1279,9 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
                 // of `rule:http-server/two-deployments-and-nothing-a-proxy-owns`'s
                 // deployments run until the process is asked to stop, and what
                 // asks is the drain the loop reads for itself — a terminating
-                // signal today (`crate::stop`), the control socket's own stop
-                // when it lands. The seam stays a seam for the caller that
-                // ends a loop on its own terms, which this one is not.
+                // signal (`crate::stop`) or a service manager's stop. The seam
+                // stays a seam for the caller that ends a loop on its own
+                // terms, which this one is not.
                 let served = nvs_server::serve_on_this_core(
                     &mut *listener,
                     &handler,
@@ -2312,52 +2267,10 @@ fn listening(bound: &[Socket], answering_with: &str, told: &Notify) {
     told.state(State::Ready);
 }
 
-/// Every socket the process opens, in the order it opens them: the control
-/// endpoint `controlled` names, then every address [`addresses`] gave.
-///
-/// **The order is the point of this function existing at all.**
-/// `rule:config/one-local-control-socket` puts the endpoint's directory under
-/// the same trust boundary a configuration file gets, and a boot that bound its
-/// listeners first would have a server answering requests out of a tree it is
-/// about to refuse to be controlled over. So the endpoint is created — and its
-/// directory refused — while nothing is listening, and a refusal leaves a
-/// process that never accepted anything rather than one that has to be stopped.
-///
-/// `guard` is the directory check rather than a call to
-/// [`nvs_server::control::boundary`] for the reason
-/// [`nvs_config::control::bind`] gives: production passes that function, and a
-/// test passes a verdict so the *order* is assertable on a platform whose
-/// filesystem cannot be put in the refused state.
-///
-/// # Errors
-///
-/// The refusal as one line — the endpoint's directory, the endpoint itself, or
-/// the first address the platform would not give.
-fn bind_sockets(
-    controlled: &Address,
-    wanted: &[Listen],
-    mode: u32,
-    guard: impl FnOnce(&Path) -> Result<(), nvs_config::trust::Untrusted>,
-) -> Result<(Option<Endpoint>, Vec<Socket>), String> {
-    let controlling = match controlled {
-        Address::Disabled => None,
-        Address::Local(name) => {
-            Some(nvs_server::control::bind(name, guard).map_err(|refusal| {
-                format!(
-                    "`[control] socket` names `{}`, and this process may not create it: {}",
-                    name.display(),
-                    refusal.message()
-                )
-            })?)
-        }
-    };
-    Ok((controlling, bind_all(wanted, mode)?))
-}
-
 /// One socket the boot bound, before any core has taken a handle on it.
 ///
-/// A `std` listener and not one of `nvs_host`'s: [`bind_sockets`]' order is the
-/// point of it existing, and that order runs before any core does, so each core
+/// A `std` listener and not one of `nvs_host`'s: [`bind_all`] binds every
+/// socket before any core runs, so each core
 /// takes its own handle on the descriptor afterwards ([`Self::try_clone`]) and
 /// turns it into a parking listener there ([`Self::accepting`]).
 ///
@@ -2655,9 +2568,8 @@ fn scrape_address(config: &nvs_config::Config) -> Result<Option<SocketAddr>, Str
 ///
 /// The same bind every `[server] listen` entry takes, so a refusal reads the
 /// same way whichever socket it was. The mode is the Unix-domain one and this
-/// entry is always a port: `rule:config/no-network-control-surface` keeps an
-/// operator surface local, and a scrape endpoint is read by a collector on the
-/// network rather than by an operator on this host.
+/// entry is always a port: a scrape endpoint is read by a collector on the
+/// network.
 ///
 /// # Errors
 ///
@@ -2794,21 +2706,20 @@ fn report(diagnostic: nvs_diagnostics::Diagnostic, sources: &SourceMap) -> ExitC
 #[cfg(test)]
 mod tests {
     use super::{
-        Address, Compiler, Ctx, Inbound, Isolate, Listen, Mounted, NoTable, Notify, Output,
-        OutputSink, Socket, SocketAddr, TaskRoot, Value, addresses, at_mount_origin, bind_all,
-        bind_sockets, compiled_under, exporter_not_built, fall_back_to, forgot_its_proxies,
-        handles_for, listening, one_mount, scrape_socket, sweep_orphans, table_for,
-        trace_collector, workers_for,
+        Compiler, Ctx, Inbound, Isolate, Listen, Mounted, NoTable, Notify, Output, OutputSink,
+        Socket, SocketAddr, TaskRoot, Value, addresses, at_mount_origin, bind_all, compiled_under,
+        exporter_not_built, fall_back_to, forgot_its_proxies, handles_for, listening, one_mount,
+        scrape_socket, sweep_orphans, table_for, trace_collector, workers_for,
     };
     use std::cell::Cell;
     use std::collections::BTreeMap;
     use std::io::{Read, Write};
     use std::num::NonZeroUsize;
     use std::ops::ControlFlow;
-    use std::path::{Path, PathBuf};
+    use std::path::PathBuf;
     use std::rc::Rc;
     use std::sync::Arc;
-    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::{Duration, Instant};
 
     fn tcp(written: &str) -> Listen {
@@ -4039,35 +3950,6 @@ mod tests {
         );
     }
 
-    /// The endpoint one case names, in the platform's own namespace, and what
-    /// keeps it there: a socket in `nvs_repo::socket`'s directory on Unix,
-    /// deleted when the guard drops, and a pipe name on Windows.
-    #[cfg(unix)]
-    fn control_endpoint(_case: &str) -> (nvs_repo::Scratch, PathBuf) {
-        nvs_repo::socket("control.sock")
-    }
-
-    #[cfg(windows)]
-    fn control_endpoint(case: &str) -> ((), PathBuf) {
-        let pipe = format!(r"\\.\pipe\nvs-serve-control-{}-{case}", std::process::id());
-        ((), PathBuf::from(pipe))
-    }
-
-    /// `rule:config/one-local-control-socket`'s address, as the tree a boot
-    /// reads it out of: `[control] socket` naming `at` and nothing else written
-    /// anywhere.
-    fn a_tree_naming(at: &Path) -> Address {
-        let config = nvs_config::tree::Config {
-            control: Some(nvs_config::tree::Control {
-                socket: Some(nvs_config::tree::Setting::Text(
-                    at.to_string_lossy().into_owned(),
-                )),
-            }),
-            ..nvs_config::tree::Config::default()
-        };
-        Address::of(&config).expect("a path names a local endpoint")
-    }
-
     /// An address on the loopback nothing is listening on, taken from the
     /// platform and given straight back so the boot under test is what binds it.
     fn a_free_address() -> SocketAddr {
@@ -4075,93 +3957,6 @@ mod tests {
             .expect("the loopback has a free port")
             .local_addr()
             .expect("a bound listener knows its own address")
-    }
-
-    /// § 3's order, asserted from inside the trust check: the guard runs while
-    /// the address `[server] listen` named is still free, so the endpoint an
-    /// operator drives this process over exists before anything could have
-    /// accepted a request.
-    ///
-    /// The listener is bound **after** the guard by the same call, so the flag
-    /// could only be false if the two steps were the other way round.
-    #[test]
-    fn serve_binds_the_control_socket_the_tree_names_before_any_listener_accepts() {
-        let (_dir, name) = control_endpoint("binds");
-        let wanted = a_free_address();
-        let free = Arc::new(AtomicBool::new(false));
-        let seen = Arc::clone(&free);
-        let (controlling, bound) = bind_sockets(
-            &a_tree_naming(&name),
-            &[Listen::Tcp(wanted)],
-            0o660,
-            move |_| {
-                seen.store(
-                    std::net::TcpListener::bind(wanted).is_ok(),
-                    Ordering::Relaxed,
-                );
-                Ok(())
-            },
-        )
-        .expect("a control endpoint and every listener the set named");
-
-        assert!(
-            free.load(Ordering::Relaxed),
-            "`{wanted}` was already bound when the control endpoint was created, so a listener \
-             was accepting before the endpoint existed"
-        );
-        let endpoint = controlling.expect("the tree named a control socket");
-        assert_eq!(endpoint.name(), name);
-        assert_eq!(bound.len(), 1);
-        assert_eq!(
-            bound[0].address(),
-            wanted,
-            "the listener the set named is bound as well as the endpoint"
-        );
-        nvs_config::control::connect(&name)
-            .expect("a client reaches the endpoint that was created");
-    }
-
-    /// § 3's directory rule: the boot is refused, and it is refused with
-    /// nothing created and nothing listening.
-    ///
-    /// The verdict stands in for the filesystem state — `nvs_config::control`'s
-    /// own cases take the real check, and a directory another account can write
-    /// is not a state every platform's test can be put in.
-    #[test]
-    fn serve_refuses_to_boot_when_the_control_sockets_directory_is_writable_by_another_account() {
-        let (_dir, name) = control_endpoint("untrusted");
-        let wanted = a_free_address();
-        let asked = name.clone();
-        let refusal = bind_sockets(
-            &a_tree_naming(&name),
-            &[Listen::Tcp(wanted)],
-            0o660,
-            move |at| {
-                assert_eq!(
-                    at, asked,
-                    "the guard is asked about the endpoint the tree named"
-                );
-                Err(nvs_config::trust::Untrusted::Unreadable(format!(
-                    "`{}` is writable by another account",
-                    at.display()
-                )))
-            },
-        )
-        .expect_err("a directory another account can write refuses the start");
-
-        assert!(
-            refusal.contains("writable by another account"),
-            "the refusal names the directory check that took it: {refusal}"
-        );
-        assert!(
-            nvs_config::control::connect(&name).is_err(),
-            "the refusal left a reachable control endpoint behind"
-        );
-        assert!(
-            std::net::TcpListener::bind(wanted).is_ok(),
-            "`{wanted}` was bound by a start that refused, so this process was serving requests \
-             on the way to failing"
-        );
     }
 
     /// How long the client below waits on a server that may already have
@@ -4440,13 +4235,13 @@ mod tests {
         assert!(refusal.contains("mounts nothing"), "{refusal}");
     }
 
-    /// A tree of this case's own on disk, and the [`crate::control::Process`]
+    /// A tree of this case's own on disk, and the [`crate::reload::Process`]
     /// serving it — the reload driven below is the real one, which re-resolves
     /// these files exactly as the boot that wrote them would.
     ///
     /// The drain is `Draining::detached` because this server's stopping is not
     /// this process's, and this process's is what the case stops afterwards.
-    fn a_server_over(case: &str, told: &Notify) -> crate::control::Process {
+    fn a_server_over(case: &str, told: &Notify) -> crate::reload::Process {
         let beside = std::env::current_exe().expect("the test binary knows its own path");
         let dir = beside
             .parent()
@@ -4470,7 +4265,7 @@ mod tests {
         let current = Arc::new(nvs_config::snapshot::Current::new(snapshot));
         let capacity = nvs_config::server::capacity_for(&current.load().config, &BTreeMap::new())
             .expect("a tree that named no ceiling has this machine's");
-        crate::control::Process::new(
+        crate::reload::Process::new(
             Arc::clone(&current),
             vec![root],
             Arc::new(Compiler::default()),
@@ -4484,8 +4279,8 @@ mod tests {
 
     /// The four states a `Type=notify` unit is owed, in the order a served life
     /// sends them and each taken from the call the process itself makes:
-    /// [`listening`] is the boot's last act, `Controlled::reload` is where every
-    /// spelling of a reload ends, and [`crate::stop::deliver`] is what a
+    /// [`listening`] is the boot's last act, `Running::reload` is where every
+    /// reload ends, and [`crate::stop::deliver`] is what a
     /// terminating signal ends in.
     ///
     /// **The manager is a recording sink rather than a datagram socket**,
@@ -4495,8 +4290,8 @@ mod tests {
     /// standing in.
     ///
     /// The reload is the real one over a real tree, so the pair around it is
-    /// the pair an operator's `systemctl reload` produces rather than two calls
-    /// a case made in the right order.
+    /// the pair a reload in a running server produces rather than two calls a
+    /// case made in the right order.
     #[test]
     fn sd_notify_messages_are_ready_then_reloading_and_ready_then_stopping() {
         let _in_turn = crate::stop::ONE_STOP_AT_A_TIME
@@ -4510,7 +4305,7 @@ mod tests {
         listening(&[Socket::Tcp(listener)], "app.nvs", &told);
 
         let process = a_server_over("sd-notify", &told);
-        nvs_server::control::Controlled::reload(&process)
+        crate::service::hosted::Running::reload(&process)
             .expect("the tree this case wrote reloads");
 
         // The stop a terminating signal's thread ends in, over a drain of this

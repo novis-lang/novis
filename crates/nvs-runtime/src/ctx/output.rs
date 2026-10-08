@@ -158,11 +158,10 @@ pub(super) enum LogTarget {
 /// same three directives resolved through the same readers, and a record
 /// rendered and written where they say.
 ///
-/// The control thread is what needs this.
-/// `rule:config/one-local-control-socket` has every reload written to
-/// `Core\Log` with its outcome, and the thread that performs one is answering
-/// an operator rather than serving a request, so there is no [`Ctx`] under it
-/// to have read `[log] target`, `level` and `format` already. It resolves them
+/// A configuration reload is what needs this. Every reload is written to
+/// `Core\Log` with its outcome, and the thread that performs one is not serving
+/// a request, so there is no [`Ctx`] under it to have read `[log] target`,
+/// `level` and `format` already. It resolves them
 /// here rather than reading them for itself, because a directive with a second
 /// reader is a directive two answers can be given for — which is the same
 /// argument [`Ctx::stamp_envelope`] makes about the envelope.

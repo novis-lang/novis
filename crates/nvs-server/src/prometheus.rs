@@ -70,10 +70,8 @@ const EXPOSITION: &str = "text/plain; version=0.0.4; charset=utf-8";
 /// **One at a time is the design and not a simplification.** A scrape is a
 /// request every fifteen seconds from one or two collectors, and it costs a
 /// copy of every core's series; serving two of them concurrently buys nothing
-/// and would put a second copy of the whole registry set in flight. The
-/// control endpoint serializes for a related reason
-/// (`rule:config/one-local-control-socket`), and this loop is the same shape
-/// with no thread of its own: it runs as a task on whichever core the boot gave
+/// and would put a second copy of the whole registry set in flight. This loop
+/// has no thread of its own: it runs as a task on whichever core the boot gave
 /// the listener to, and hands that core back at every park.
 ///
 /// **Nothing here counts a request.** The series a scrape reports are the
@@ -141,8 +139,8 @@ where
 
 /// Answers one connected collector, and returns when its connection is closed.
 ///
-/// `hyper` frames both halves, which is the argument `crate::control` and
-/// `crate::serve` both make: framing is where smuggling lives, and a parser of
+/// `hyper` frames both halves, which is the argument `crate::serve` makes:
+/// framing is where smuggling lives, and a parser of
 /// ours on a socket an operator can reach is a parser of ours to get right.
 /// Driven on this core's own stack through [`nvs_host::block_on`], so the park
 /// a slow collector causes hands the core back rather than holding it.

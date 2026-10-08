@@ -651,8 +651,7 @@ fn delivered(endpoint: &Endpoint, waits: Waits, body: Vec<u8>) -> Result<(), Str
 ///
 /// The connection and the request are two futures that only make progress
 /// beside each other — the dispatcher moves the bytes, the request is what waits
-/// on the answer — so they are polled in one place rather than spawned, exactly
-/// as `nvs ctl` does it on the other side of this crate. The body of the answer
+/// on the answer — so they are polled in one place rather than spawned. The body of the answer
 /// is not read: OTLP's is a status message, and the one thing this drain does
 /// with a rejection is count the spans it lost.
 ///
@@ -1294,10 +1293,9 @@ mod tests {
         (address, received)
     }
 
-    /// Drives `post` over a blocking socket on this thread, the way `nvs ctl`
-    /// drives its own exchange: there is no reactor here and nothing to wake
-    /// this loop but itself, so a poll that moved nothing sleeps a millisecond
-    /// and asks again.
+    /// Drives `post` over a non-blocking socket on this thread: there is no
+    /// reactor here and nothing to wake this loop but itself, so a poll that
+    /// moved nothing sleeps a millisecond and asks again.
     fn pushed(stream: TcpStream, authority: &str, target: &str, body: Vec<u8>) -> u16 {
         stream.set_nonblocking(true).expect("a non-blocking socket");
         let driven = Nonblocking::new(stream);

@@ -1646,7 +1646,7 @@ pub(crate) fn from_config(config: &nvs_config::Config) -> Option<Cache> {
 
 /// [`from_config`]'s answer with its one reported case left to the caller: the written
 /// `file_cache_dir` and why § 5 refused it. A reload reports that case differently from a boot,
-/// because a reload keeps the cache already in use (`crate::control`).
+/// because a reload keeps the cache already in use (`crate::reload`).
 ///
 /// # Errors
 ///

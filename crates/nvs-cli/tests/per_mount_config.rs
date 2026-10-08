@@ -3,8 +3,8 @@
 //! several entries, each with an `[[app]]` block of its own, and what a program
 //! under each mount reads back.
 //!
-//! Every case goes through [`Server`], `live_config.rs`'s harness without the
-//! control endpoint. It starts the built `nvs serve` over a fresh directory
+//! Every case goes through [`Server`], a harness shaped like `live_config.rs`'s.
+//! It starts the built `nvs serve` over a fresh directory
 //! whose `nvs.toml` writes `[server] root = "."`, one `[[server.mount]]` per
 //! entry and the case's own blocks, and names no file unless the case does.
 //! Each mount is `/<name>`, answered by `<name>/index.nvs`.

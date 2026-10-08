@@ -1,7 +1,7 @@
 //! `nvs config` — `rule:config/check-and-dump-audit-the-tree-offline`'s offline audit of the configuration tree, and
 //! the reader every caller in this binary resolves that tree through.
 //!
-//! § 9 puts `check` beside `dump` and `ctl config` for one stated reason: § 3's
+//! § 9 puts `check` beside `dump` for one stated reason: § 3's
 //! later-wins precedence "is only safe while it is auditable", so the reporting
 //! is part of that decision rather than tooling around it. [`check`] answers
 //! whether a tree resolves at all and what it holds in summary; [`dump`] answers
@@ -22,8 +22,8 @@
 //! green `nvs config check` that means neither is worse than one that does not
 //! claim to have looked.
 //!
-//! So the boundary is asserted where it can be answered — `nvs serve` and
-//! `nvs ctl reload`, through `nvs_config::resolve::Disk`, on the host and as the
+//! So the boundary is asserted where it can be answered — `nvs serve` and each
+//! reload it runs, through `nvs_config::resolve::Disk`, on the host and as the
 //! account that will serve — and `check` reports what is decidable offline:
 //! syntax, unknown keys, a duplicate key within one file, an include cycle, a
 //! missing include, and the precedence the tree flattens to.
@@ -49,7 +49,7 @@ use crate::render_diagnostics;
 /// that is the split itself rather than a weakening of the boundary:
 ///
 /// - § 6 defends a runtime that grants **configured capabilities to requests
-///   nobody at the keyboard wrote**. `nvs serve` and `nvs ctl reload` are that
+///   nobody at the keyboard wrote**. `nvs serve` and its reloads are that
 ///   runtime and they use `Disk`, which checks.
 /// - A `nvs run` has no such boundary to defend. The program is named on argv
 ///   and executed as the invoking account, and the configuration is `./nvs.toml`
@@ -352,7 +352,7 @@ pub(crate) fn boot_origins(
 /// asked it for. `nvs_host::tls::configure` reports `AlreadyExists` to a second
 /// call rather than replacing anything, and putting the call where a process is
 /// owned is what keeps it a single one. A reload replaces the client through
-/// `nvs_host::tls::install` instead, from `crate::control`.
+/// `nvs_host::tls::install` instead, from `crate::reload`.
 ///
 /// The block has already been checked — an empty `roots` (`E0638`), a floor
 /// this build cannot speak (`E0639`) and a `keylog` on a `production` host
@@ -411,7 +411,7 @@ fn relaxed_grants(snapshot: &nvs_config::Snapshot) -> Vec<String> {
 ///
 /// Split from [`install_tls_client`] so the reading can be asserted on its own,
 /// since installing changes the process's one client, and so a reload can build
-/// the client its tree names before it publishes (`crate::control`).
+/// the client its tree names before it publishes (`crate::reload`).
 pub(crate) fn policy_of(snapshot: &nvs_config::Snapshot) -> nvs_host::tls::ClientPolicy {
     let block = snapshot
         .config
@@ -826,9 +826,7 @@ pub(crate) fn check(config: &[PathBuf], paths: &[PathBuf]) -> ExitCode {
 /// full rather than summarized.
 ///
 /// What a row looks like and what each column means is
-/// [`nvs_config::audit`]'s, because `nvs ctl config` renders the same listing
-/// off the live snapshot and `rule:config/ctl-config-reports-the-live-snapshot`
-/// has an operator diff the two. What is decided *here* is only the stream:
+/// [`nvs_config::audit`]'s. What is decided *here* is only the stream:
 /// `--toml` is one canonical file for diffing two environments, so it carries
 /// the table and nothing else, while the listing carries the origin column an
 /// audit is read for.

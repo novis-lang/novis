@@ -103,7 +103,7 @@
 //! `rule:packaging/a-service-answers-its-manager`: a `STOP` or a `PRESHUTDOWN`
 //! enters [`crate::stop`]'s drain and is reported with a checkpoint that
 //! advances while requests finish, and a `PARAMCHANGE` enters
-//! [`crate::control`]'s one reload function. The dispatcher that hands it a
+//! [`crate::reload`]'s one reload function. The dispatcher that hands it a
 //! control — the SCM's own, which only a process that manager started has — is
 //! [`crate::dispatch`], and it reports through [`Supervisor`] like everything
 //! else here.
@@ -151,8 +151,8 @@ const VALUED: [&str; 3] = ["--config", "--listen", "--port"];
 
 /// What an operator asked to have stored, before § 2 has looked at any of it.
 pub(crate) struct Request<'a> {
-    /// The service's name — the same identity `nvs ctl --socket` addresses one
-    /// of several servers on a host by (§ 1).
+    /// The service's name, which the platform's service manager knows it by
+    /// (§ 1).
     pub(crate) name: &'a str,
     /// Everything to the right of `--`, stored untouched and never
     /// interpreted, which is what makes § 1's "every parameter is passable"
@@ -183,8 +183,6 @@ pub(crate) struct Host {
     /// Whether this binary is an `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host` bundle (`rule:programs/bundle-trust-domain`).
     ///
     pub(crate) from_a_bundle: bool,
-    /// `[control] socket`, for the unit's `ExecReload` (§ 5).
-    pub(crate) control_socket: Option<String>,
     /// `[limits] memory`, which § 5 derives `MemoryMax` from rather than
     /// inventing one.
     pub(crate) memory_max: Option<String>,
@@ -215,7 +213,6 @@ pub(crate) struct Plan {
     exe: PathBuf,
     argv: Vec<String>,
     account: Option<String>,
-    control_socket: Option<String>,
     memory_max: Option<String>,
     privileged_port: bool,
 }
@@ -372,7 +369,6 @@ pub(crate) fn plan(request: &Request<'_>, host: &Host) -> Result<Plan, Diagnosti
         exe: host.exe.clone(),
         argv: request.argv.to_vec(),
         account: request.account.map(str::to_owned),
-        control_socket: host.control_socket.clone(),
         memory_max: host.memory_max.clone(),
         privileged_port: host.privileged_port,
     })
@@ -583,9 +579,7 @@ pub(crate) fn decode(line: &str) -> Vec<String> {
 /// in that section: `AmbientCapabilities` is emitted **only** when the
 /// configured listen addresses include a privileged port, so the ordinary case
 /// grants nothing at all, and `MemoryMax` is derived from `[limits]` rather
-/// than invented. `ExecReload` is `rule:config/one-local-control-socket`'s control socket, so a unit
-/// generated for a server with no `[control] socket` carries no reload line
-/// rather than one that would fail.
+/// than invented.
 ///
 pub(crate) fn unit(plan: &Plan) -> String {
     let exe = plan.exe.display();
@@ -602,12 +596,6 @@ pub(crate) fn unit(plan: &Plan) -> String {
         out.push_str(&shell_word(word));
     }
     out.push('\n');
-    if let Some(socket) = &plan.control_socket {
-        out.push_str(&format!(
-            "ExecReload={exe} ctl reload --socket {}\n",
-            shell_word(socket)
-        ));
-    }
     out.push_str("WatchdogSec=30\n");
     if let Some(account) = &plan.account {
         out.push_str(&format!("User={account}\n"));
@@ -755,7 +743,7 @@ pub(crate) trait Supervisor: std::fmt::Debug + Send + Sync {
 /// The service manager this process reports to, or nobody.
 ///
 /// Cheap to clone and held by each half that has something to report — the boot
-/// here, the reload in [`crate::control`] and the stop in [`crate::stop`].
+/// here, the reload in [`crate::reload`] and the stop in [`crate::stop`].
 #[derive(Clone, Debug)]
 pub(crate) struct Notify(Option<Arc<dyn Supervisor>>);
 
@@ -846,9 +834,10 @@ pub(crate) fn recording() -> (Notify, Arc<std::sync::Mutex<Vec<&'static str>>>) 
 /// a hosted server answers with the operations it already has, *rather than a
 /// shim reporting what it can see from outside*. So a stop enters
 /// [`crate::stop::deliver_to`], the one drain a `SIGTERM` enters, and a
-/// `PARAMCHANGE` enters [`nvs_server::control::Controlled::reload`], the one
-/// reload every other spelling ends in ([`crate::control`]). What is left for
-/// this module is the mapping, and watching the drain on the manager's behalf.
+/// `PARAMCHANGE` enters [`crate::service::hosted::Running::reload`], the one
+/// reload the configuration check also ends in ([`crate::reload`]). What is
+/// left for this module is the mapping, and watching the drain on the
+/// manager's behalf.
 ///
 /// **The mapping is a value on both platforms.** A control arrives as one of
 /// the SCM's ABI numbers, and those are matched here rather than behind a `cfg`
@@ -871,8 +860,28 @@ pub(crate) fn recording() -> (Notify, Arc<std::sync::Mutex<Vec<&'static str>>>) 
 pub(crate) mod hosted {
     use std::time::{Duration, Instant};
 
+    use nvs_config::reload::Report;
     use nvs_server::Draining;
-    use nvs_server::control::Controlled;
+
+    /// What a service manager's control asks of the running server: the one
+    /// reload, and the in-flight count a drain reports to the manager.
+    ///
+    /// A trait so that a case drives [`answer`] with a recording process
+    /// rather than a running one; `nvs serve`'s is [`crate::reload::Process`].
+    pub(crate) trait Running {
+        /// Re-read the whole configuration tree and publish it.
+        ///
+        /// # Errors
+        ///
+        /// The refusal as text, already rendered. A malformed tree is reported
+        /// as a diagnostic against the files it was read from, and the
+        /// `SourceMap` those spans point into belongs to the reload that read
+        /// them — so what leaves it is the rendering and never the span.
+        fn reload(&self) -> Result<Report, String>;
+
+        /// Requests in flight across this process right now.
+        fn in_flight(&self) -> usize;
+    }
 
     /// `SERVICE_CONTROL_STOP`.
     const STOP: u32 = 0x0000_0001;
@@ -894,8 +903,7 @@ pub(crate) mod hosted {
         /// Drain: answer what was accepted, accept nothing further, and say so
         /// while it happens.
         Stop,
-        /// Re-read the configuration in-process, which `systemctl reload` is
-        /// the other spelling of.
+        /// Re-read the configuration in-process.
         Reload,
     }
 
@@ -972,7 +980,7 @@ pub(crate) mod hosted {
     /// rather than by anything that fast.
     pub(crate) fn answer(
         asked: Asked,
-        process: &dyn Controlled,
+        process: &dyn Running,
         draining: &Draining,
         manager: &dyn Reporting,
         pace: Pace,
@@ -999,7 +1007,7 @@ pub(crate) mod hosted {
     /// `drain_timeout` has closed what it was going to close, and a process
     /// reporting anything else would be one the machine waits out the rest of
     /// § 4's `PRESHUTDOWN` for before killing it anyway.
-    fn stop(process: &dyn Controlled, draining: &Draining, manager: &dyn Reporting, pace: Pace) {
+    fn stop(process: &dyn Running, draining: &Draining, manager: &dyn Reporting, pace: Pace) {
         crate::stop::deliver_to(draining);
         let began = Instant::now();
         let mut checkpoint = 0;
@@ -1552,10 +1560,7 @@ pub(crate) mod registration {
     /// The three verbs that act on an installed service rather than on its
     /// registration.
     ///
-    /// `rule:packaging/a-service-is-one-stored-argv` has `status` report what no
-    /// service manager knows — the in-flight request count and drain progress,
-    /// asked over the control socket. That half belongs to the subcommand;
-    /// here, `Status` is the manager's own answer and nothing more.
+    /// `Status` is the manager's own answer and nothing more.
     #[derive(Clone, Copy, PartialEq, Eq, Debug)]
     pub(crate) enum Control {
         /// Start it now.
@@ -3271,47 +3276,9 @@ pub(crate) fn stop(name: &str) -> ExitCode {
     answered(name, registration::Control::Stop)
 }
 
-/// `nvs service status <name>` — the manager's own answer, and then the one
-/// § 1 gives the verb its second spelling for: what no service manager knows,
-/// asked over the control socket the service's own configuration names.
-///
-/// That configuration is read out of the stored argv rather than out of this
-/// shell's `--config`, for the reason [`describe_host`] reads its three
-/// questions there: the tree this command is pointed at answers for this
-/// shell, and the question is about the service.
-pub(crate) fn status(config: &[PathBuf], name: &str) -> ExitCode {
-    let mut sources = SourceMap::new();
-    let asked = at_host(|site| {
-        let stored = held(site, name)?;
-        let answers = registration::control(registration::Control::Status, name, site)?;
-        Ok((stored, answers))
-    });
-    let (stored, answers) = match asked {
-        Ok(answered) => answered,
-        Err(refused) => return report(refused, &mut sources),
-    };
-    for answer in answers {
-        println!("{answer}");
-    }
-    crate::ctl::status(&service_configuration(&stored.argv, config), None)
-}
-
-/// The configuration whose `[control] socket` `nvs service status` asks: the
-/// one the **stored** argv names, and this shell's only where it names none.
-///
-/// Apart from [`status`] because it is the whole of what that verb adds to
-/// `nvs ctl status`, and a case can then assert which endpoint is chosen
-/// without a service manager holding a registration to read one out of.
-pub(crate) fn service_configuration(argv: &[String], fallback: &[PathBuf]) -> Vec<PathBuf> {
-    let named: Vec<PathBuf> = values_of(argv, "--config")
-        .into_iter()
-        .map(PathBuf::from)
-        .collect();
-    if named.is_empty() {
-        fallback.to_vec()
-    } else {
-        named
-    }
+/// `nvs service status <name>` — the manager's own answer.
+pub(crate) fn status(name: &str) -> ExitCode {
+    answered(name, registration::Control::Status)
 }
 
 /// `nvs service run <name>` — the argv the platform holds under `name`, so
@@ -3426,12 +3393,6 @@ fn describe_host(
         .and_then(toml::Value::as_table)
         .and_then(|log| log.get("target"))
         .and_then(toml::Value::as_str);
-    let control_socket = table
-        .get("control")
-        .and_then(toml::Value::as_table)
-        .and_then(|control| control.get("socket"))
-        .and_then(toml::Value::as_str)
-        .map(str::to_owned);
     let memory_max = table
         .get("limits")
         .and_then(toml::Value::as_table)
@@ -3452,7 +3413,6 @@ fn describe_host(
     Ok(Host {
         exe,
         from_a_bundle: crate::bundle::embedded().is_some(),
-        control_socket,
         memory_max,
         privileged_port: listen.is_some_and(privileged),
         log_file: target
@@ -3515,7 +3475,6 @@ mod tests {
         Host {
             exe: PathBuf::from(absolute("bin/nvs")),
             from_a_bundle: false,
-            control_socket: Some(absolute("run/control.sock")),
             memory_max: Some("512M".to_owned()),
             privileged_port: false,
             log_file: None,
@@ -3555,9 +3514,7 @@ mod tests {
     // covers: tools:server/nvs-service
     #[test]
     fn the_installer_refuses_a_subcommand_outside_the_serve_and_run_allowlist() {
-        for subcommand in [
-            "ast", "check", "test", "fmt", "info", "config", "ctl", "service",
-        ] {
+        for subcommand in ["ast", "check", "test", "fmt", "info", "config", "service"] {
             let mut argv = argv();
             argv[0] = subcommand.to_owned();
             let refusal = plan(&request(&argv), &host()).expect_err(subcommand);
@@ -3805,7 +3762,6 @@ mod tests {
                 exe: PathBuf::from(absolute("bin/nvs")),
                 argv: argv.clone(),
                 account: None,
-                control_socket: None,
                 memory_max: None,
                 privileged_port: false,
             };
@@ -3832,7 +3788,6 @@ mod tests {
             exe: PathBuf::from(absolute("bin/nvs")),
             argv: argv(),
             account: Some("nvs-web".to_owned()),
-            control_socket: Some(absolute("run/control.sock")),
             memory_max: Some("512M".to_owned()),
             privileged_port: false,
         };
@@ -3853,7 +3808,6 @@ mod tests {
             assert!(text.contains(line), "missing `{line}` in\n{text}");
         }
         assert!(text.contains(&format!("ExecStart={} serve", absolute("bin/nvs"))));
-        assert!(text.contains(" ctl reload --socket "));
 
         // § 5's capability condition: nothing is granted unless a privileged
         // port is configured, asserted on both sides so a generator that
@@ -4655,22 +4609,14 @@ mod tests {
         reloads: Mutex<usize>,
     }
 
-    impl nvs_server::control::Controlled for Hosted {
-        fn reload(&self) -> Result<nvs_server::control::Report, String> {
+    impl hosted::Running for Hosted {
+        fn reload(&self) -> Result<nvs_config::reload::Report, String> {
             *self.reloads.lock().unwrap_or_else(PoisonError::into_inner) += 1;
-            Ok(nvs_server::control::Report {
+            Ok(nvs_config::reload::Report {
                 applied: vec!["limits.memory".to_owned()],
                 ignored: vec!["server.listen"],
                 invalidated: 0,
             })
-        }
-
-        fn snapshot(&self) -> Arc<nvs_config::snapshot::Snapshot> {
-            Arc::new(nvs_config::snapshot::Snapshot::default())
-        }
-
-        fn unapplied(&self) -> Vec<&'static str> {
-            Vec::new()
         }
 
         fn in_flight(&self) -> usize {
@@ -4680,13 +4626,6 @@ mod tests {
             } else {
                 falling.remove(0)
             }
-        }
-
-        fn draining(&self) -> bool {
-            self.falling
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .is_empty()
         }
     }
 
@@ -4816,11 +4755,10 @@ mod tests {
 
     /// `rule:packaging/a-service-answers-its-manager`, row 2: a `PARAMCHANGE`
     /// is the configuration reload performed in-process, which is the standing
-    /// decision that a reload is **one** function — the control socket,
-    /// `systemctl reload` by `ExecReload`, and this all end in
-    /// [`nvs_server::control::Controlled::reload`].
+    /// decision that a reload is **one** function — the configuration check and
+    /// this both end in [`hosted::Running::reload`].
     ///
-    /// What that function reports is `crate::control`'s case and not this one.
+    /// What that function reports is `crate::reload`'s case and not this one.
     /// Asserted here instead: it was entered exactly once, nothing was drained
     /// on the way, and the manager was told nothing — the SCM has no state for
     /// a reload, and a service that reported `STOP_PENDING` over one would be

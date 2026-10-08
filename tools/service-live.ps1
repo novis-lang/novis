@@ -136,9 +136,7 @@ Set-Content -Path $Config -Encoding ascii -Value @(
     # Short, because the PowerShell that made the requests keeps their connections pooled, and
     # an idle keep-alive connection is closed at the drain period's end: with the default the
     # stop step takes the whole 30 s on a service that is doing nothing.
-    'drain_timeout = "3s"',
-    '[control]',
-    "socket = '\\.\pipe\$ServiceName-control'"
+    'drain_timeout = "3s"'
 )
 $Began = Get-Date
 Say "binary: $Exe"

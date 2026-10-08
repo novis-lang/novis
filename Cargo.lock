@@ -2869,7 +2869,6 @@ version = "0.0.1"
 dependencies = [
  "blake3",
  "clap",
- "hyper",
  "jiff",
  "libc",
  "memmap2",

@@ -4,9 +4,9 @@
 //!
 //! `SIGTERM` is what a service manager sends, `SIGINT` is a console's Ctrl-C,
 //! and `SIGHUP` is the terminal this process was started from going away. All
-//! three mean the same thing here, because the only other thing a signal could
-//! have meant is a reload — and a reload is `nvs ctl reload` over the control
-//! socket (`rule:config/one-local-control-socket`), never a signal. Windows has
+//! three mean the same thing here. The only other thing a signal could have
+//! meant is a reload, and a reload needs no signal: the server applies a saved
+//! configuration file by itself (`crate::reload`). Windows has
 //! no signals; its console control events are the same set of questions and get
 //! the same answer, and a service's stop arrives through the SCM instead —
 //! which [`crate::service::hosted`] turns into [`deliver_to`] below, so that

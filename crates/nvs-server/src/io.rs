@@ -1,7 +1,7 @@
 //! `hyper`'s two IO traits over each transport this server answers on: the
 //! parking stream a request arrives over, and — in [`Nonblocking`], whose own
-//! doc is the whole of it — the plain stream the control endpoint is answered
-//! on. Everything below is the first one.
+//! doc is the whole of it — a plain non-blocking stream driven off every core.
+//! Everything below is the first one.
 //!
 //! `rule:concurrency/one-future-per-connection`
 //! is this module's specification. The whole of the adapter is one sentence:
@@ -464,23 +464,20 @@ impl Write for ConnectionIo {
     }
 }
 
-/// `hyper`'s two IO traits over a plain non-blocking stream, which is the
-/// control endpoint's transport and nothing else.
+/// `hyper`'s two IO traits over a plain non-blocking stream, for an exchange
+/// driven on a thread of its own rather than on a core.
 ///
 /// Everything above is about a socket that must never block a core, and arms a
 /// reactor so that the `Pending` it answers is one somebody will end. This is
-/// the same sentence with the reactor taken out: `crate::control`'s endpoint is
-/// served on one thread of its own, off every core, and there is no reactor
-/// there to arm. So a syscall that would wait answers `Pending` with nothing
-/// arranged, and the loop that drives the connection —
-/// `crate::control::answer_connection` — is what decides when to ask again.
+/// the same sentence with the reactor taken out: off every core there is no
+/// reactor to arm. So a syscall that would wait answers `Pending` with nothing
+/// arranged, and the loop that drives the connection is what decides when to
+/// ask again — the OTLP exporter's cases drive `post` over one this way.
 ///
-/// **A stream that simply blocked instead would deadlock**, which is why the
-/// transport underneath is non-blocking at all: `hyper` polls for the next
-/// request *before* it writes the answer to the one it is holding, so a read
-/// that waited there would be waiting for a client that is waiting for that
-/// answer. `nvs_config::control`'s `Stream` is the half that answers
-/// `WouldBlock`, and its doc owns the platform spellings.
+/// **A stream that simply blocked instead could deadlock**, which is why the
+/// transport underneath is non-blocking at all: `hyper` may poll for the next
+/// message *before* it writes the one it is holding, so a read that waited
+/// there would be waiting for a peer that is waiting for that write.
 ///
 /// [`Nonblocking::moved`] is how the drive loop tells a connection that is
 /// waiting for its peer from one that is making progress, since every poll of a
@@ -491,8 +488,7 @@ impl Write for ConnectionIo {
 ///
 /// The read is the same zeroed-scratch copy `ConnectionIo`'s is, for the same
 /// reason: this crate forbids `unsafe`, and filling `hyper`'s uninitialised
-/// cursor directly is what that would take. A control message is a short head
-/// and a short body, so it is one pass.
+/// cursor directly is what that would take.
 #[derive(Debug)]
 pub struct Nonblocking<S> {
     /// The transport, which answers `WouldBlock` rather than waiting.
@@ -577,8 +573,7 @@ impl<S: io::Write + Unpin> Write for Nonblocking<S> {
         }
     }
 
-    /// Says the writing is finished; the close is the stream's own drop, which
-    /// for the control endpoint is what hands the next client its turn.
+    /// Says the writing is finished; the close is the stream's own drop.
     fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         self.poll_flush(cx)
     }
