@@ -87,6 +87,10 @@ pub enum Filter {
         /// Whether the entry's DN components are matched too.
         dn_attributes: bool,
     },
+    /// A filter already encoded by [`Filter::encode`], written out as it is.
+    /// `Core\Ldap\Filter` keeps its filter this way, so a search sends the
+    /// bytes it was built into.
+    Encoded(Vec<u8>),
 }
 
 impl Filter {
@@ -137,8 +141,45 @@ impl Filter {
                     ext.boolean(0x84, true);
                 }
             }),
+            Self::Encoded(encoded) => out.raw(encoded),
         }
     }
+
+    /// The filter's BER encoding, as [`Filter::Encoded`] keeps it.
+    #[must_use]
+    pub fn to_ber(&self) -> Vec<u8> {
+        let mut out = Writer::new();
+        self.encode(&mut out);
+        out.into_bytes()
+    }
+}
+
+/// Whether `name` is an attribute description as RFC 4512 § 2.5 writes one:
+/// a name (`cn`, `msDS-User-Account-Control-Computed`) or a numeric OID
+/// (`2.5.4.3`), then any number of `;option`s (`cn;lang-en`). An attribute
+/// name is sent as the program wrote it, so nothing else may reach the wire.
+#[must_use]
+pub fn is_attribute_description(name: &str) -> bool {
+    let mut parts = name.split(';');
+    let kind = parts.next().unwrap_or_default();
+    let keystring = |text: &str| {
+        let mut chars = text.chars();
+        chars.next().is_some_and(|c| c.is_ascii_alphabetic())
+            && chars.all(|c| c.is_ascii_alphanumeric() || c == '-')
+    };
+    let number = |text: &str| {
+        !text.is_empty()
+            && text.bytes().all(|b| b.is_ascii_digit())
+            && (text.len() == 1 || !text.starts_with('0'))
+    };
+    let numeric_oid = |text: &str| text.contains('.') && text.split('.').all(number);
+    (keystring(kind) || numeric_oid(kind))
+        && parts.all(|option| {
+            !option.is_empty()
+                && option
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '-')
+        })
 }
 
 fn assertion(out: &mut Writer, tag: u8, attribute: &str, value: &[u8]) {
@@ -538,5 +579,30 @@ mod tests {
             Op::SearchDone(LdapResult { code: 0, .. })
         ));
         assert_eq!(incoming.controls[0].paged_cookie().unwrap(), b"c");
+    }
+
+    #[test]
+    fn an_attribute_description_is_a_name_or_an_oid_with_options() {
+        for good in [
+            "cn",
+            "msDS-User-Account-Control-Computed",
+            "2.5.4.3",
+            "cn;lang-en",
+            "member;range=0-1499".split('=').next().unwrap(),
+        ] {
+            assert!(is_attribute_description(good), "{good}");
+        }
+        for bad in [
+            "", "1cn", "-cn", "c n", "cn)", "cn=*", "2.5..3", "2.05.4", "2", "cn;", "cn;a b",
+        ] {
+            assert!(!is_attribute_description(bad), "{bad}");
+        }
+    }
+
+    #[test]
+    fn an_encoded_filter_writes_the_bytes_it_was_built_into() {
+        let filter = Filter::Equal("cn".into(), b"*)(uid=*".to_vec());
+        let encoded = Filter::Encoded(filter.to_ber());
+        assert_eq!(encoded.to_ber(), filter.to_ber());
     }
 }

@@ -25,4 +25,4 @@ pub mod proto;
 
 pub use conn::{Connection, Cursor, Endpoint, Scheme, Search, Tls, Url};
 pub use error::{Error, Kind};
-pub use proto::{Attribute, Entry, Filter, Scope, SearchRequest};
+pub use proto::{Attribute, Entry, Filter, Scope, SearchRequest, is_attribute_description};
