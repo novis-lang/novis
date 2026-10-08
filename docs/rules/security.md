@@ -3,7 +3,7 @@
 
 # Security and isolation
 
-*21 of 94 rules below are **designed** rather than shipped, and are marked where they appear.*
+*19 of 94 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="security-isolate-shares-nothing"></a>
 
@@ -1357,7 +1357,7 @@ exist. The message never carries the password. Each login pays one TCP and TLS h
 
 <a id="security-ldap-empty-password-is-refused"></a>
 
-## A simple bind with an empty password is refused by the client before a byte is sent  *(designed — not yet in the compiler)*
+## A simple bind with an empty password is refused by the client before a byte is sent
 
 `rule:security/ldap-empty-password-is-refused`
 
@@ -1374,7 +1374,7 @@ empty field tells a caller nothing a wrong one does not.
 
 <a id="security-ldap-cleartext-bind-is-granted-per-host"></a>
 
-## An LDAP bind without TLS needs `tls = "none"` in the block and the host on `[capabilities.ldap] cleartext`  *(designed — not yet in the compiler)*
+## An LDAP bind without TLS needs `tls = "none"` in the block and the host on `[capabilities.ldap] cleartext`
 
 `rule:security/ldap-cleartext-bind-is-granted-per-host`
 
