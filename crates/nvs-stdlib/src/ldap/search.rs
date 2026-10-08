@@ -245,6 +245,27 @@ fn filter_value(filter: &nvs_ldap::Filter) -> Value {
     crate::instance::build(&FILTER, [Value::bytes(NvsStr::new(&filter.to_ber()))])
 }
 
+/// The `Ldap\Filter` `all`, `any` or `not` built, one level deeper than the
+/// filters it was given. A filter deeper than [`nvs_ldap::MAX_FILTER_DEPTH`]
+/// throws `LogicError`, so every filter a program holds can be read and
+/// written without exhausting the stack.
+fn nested_value(filter: &nvs_ldap::Filter, member: &str) -> Result<Value, Fault> {
+    let ber = filter.to_ber();
+    if nvs_ldap::Filter::depth_of(&ber).is_err() {
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "{member}: the filter would nest more than {} levels deep",
+                nvs_ldap::MAX_FILTER_DEPTH
+            ),
+        ));
+    }
+    Ok(crate::instance::build(
+        &FILTER,
+        [Value::bytes(NvsStr::new(&ber))],
+    ))
+}
+
 /// The attribute name a `Ldap\Filter` constructor was given, checked.
 fn attribute_arg<'a>(value: &'a Value, member: &str) -> Result<&'a str, Fault> {
     let name = value.as_text().ok_or_else(|| {
@@ -846,25 +867,26 @@ nvs_runtime::nvs_helper! {
     /// `Ldap\Filter::all(Filter ...$filters): Filter` — RFC 4511's `and`,
     /// whose children are the encodings the arguments already carry.
     fn nvs_core_ldap_filter_all(_ctx, args: [1]) {
-        let filters = filters_arg(&args[0], r"Core\Ldap\Filter::all")?;
-        Ok(filter_value(&nvs_ldap::Filter::And(filters)))
+        let member = r"Core\Ldap\Filter::all";
+        nested_value(&nvs_ldap::Filter::And(filters_arg(&args[0], member)?), member)
     }
 }
 
 nvs_runtime::nvs_helper! {
     /// `Ldap\Filter::any(Filter ...$filters): Filter` — RFC 4511's `or`.
     fn nvs_core_ldap_filter_any(_ctx, args: [1]) {
-        let filters = filters_arg(&args[0], r"Core\Ldap\Filter::any")?;
-        Ok(filter_value(&nvs_ldap::Filter::Or(filters)))
+        let member = r"Core\Ldap\Filter::any";
+        nested_value(&nvs_ldap::Filter::Or(filters_arg(&args[0], member)?), member)
     }
 }
 
 nvs_runtime::nvs_helper! {
     /// `Ldap\Filter::not(Filter $filter): Filter` — RFC 4511's `not`.
     fn nvs_core_ldap_filter_not(_ctx, args: [1]) {
-        let inner = ber_of(args[0], r"Core\Ldap\Filter::not")?;
+        let member = r"Core\Ldap\Filter::not";
+        let inner = ber_of(args[0], member)?;
         let filter = nvs_ldap::Filter::Not(Box::new(nvs_ldap::Filter::Encoded(inner)));
-        Ok(filter_value(&filter))
+        nested_value(&filter, member)
     }
 }
 

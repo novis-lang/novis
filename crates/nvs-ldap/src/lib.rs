@@ -36,8 +36,8 @@ pub use conn::{Connection, Cursor, Endpoint, Scheme, Search, Tls, Url};
 pub use dn::{Ava, Dn, PartError, Rdn};
 pub use error::{Error, Kind};
 pub use proto::{
-    Attribute, Change, ChangeKind, Entry, Filter, Scope, SearchRequest, Sort, TextError, Window,
-    is_attribute_description,
+    Attribute, Change, ChangeKind, Entry, Filter, MAX_FILTER_DEPTH, Scope, SearchRequest, Sort,
+    TextError, Window, is_attribute_description,
 };
 pub use schema::{Schema, Syntax};
 pub use value::{GeneralizedTime, Sid, SidTextError, ValueError};

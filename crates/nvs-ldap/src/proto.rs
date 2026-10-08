@@ -41,6 +41,14 @@ const DIR_SYNC_OBJECT_SECURITY: i64 = 1;
 /// The most bytes of entries one DirSync answer carries.
 const DIR_SYNC_MAX_BYTES: i64 = 1 << 20;
 
+/// How many levels of `and`, `or` and `not` one filter may nest. Reading and
+/// writing a filter recurse once per level, so the limit is what keeps a
+/// filter a program built in a loop from exhausting the thread's stack. No
+/// filter a person writes comes near it.
+pub const MAX_FILTER_DEPTH: usize = 100;
+/// What a filter nested past [`MAX_FILTER_DEPTH`] is told.
+const TOO_DEEP: &str = "filters nest more than 100 levels deep";
+
 const BIND_REQUEST: u8 = 0x60;
 const BIND_RESPONSE: u8 = 0x61;
 const UNBIND_REQUEST: u8 = 0x42;
@@ -228,19 +236,48 @@ impl Filter {
     /// [`Kind::Protocol`] for bytes that are not exactly one filter element.
     pub fn from_ber(bytes: &[u8]) -> Result<Self, Error> {
         let mut reader = Reader::new(bytes);
-        let filter = Self::from_element(reader.element()?)?;
+        let filter = Self::from_element(reader.element()?, 1)?;
         if !reader.is_empty() {
             return Err(bad_filter("bytes after the filter"));
         }
         Ok(filter)
     }
 
-    fn from_element(element: ber::Tlv<'_>) -> Result<Self, Error> {
+    /// How many levels of `and`, `or` and `not` one encoded filter nests, a
+    /// filter with none of them being 1. The walk reads headers and copies
+    /// nothing.
+    ///
+    /// # Errors
+    ///
+    /// [`Kind::Protocol`] for bytes that are not a filter, or for a filter
+    /// nested deeper than [`MAX_FILTER_DEPTH`], which the walk stops at.
+    pub fn depth_of(encoded: &[u8]) -> Result<usize, Error> {
+        fn walk(element: ber::Tlv<'_>, depth: usize) -> Result<usize, Error> {
+            if depth > MAX_FILTER_DEPTH {
+                return Err(bad_filter(TOO_DEEP));
+            }
+            if !matches!(element.tag, 0xa0..=0xa2) {
+                return Ok(depth);
+            }
+            let mut reader = Reader::new(element.body);
+            let mut deepest = depth;
+            while !reader.is_empty() {
+                deepest = deepest.max(walk(reader.element()?, depth + 1)?);
+            }
+            Ok(deepest)
+        }
+        walk(Reader::new(encoded).element()?, 1)
+    }
+
+    fn from_element(element: ber::Tlv<'_>, depth: usize) -> Result<Self, Error> {
+        if depth > MAX_FILTER_DEPTH {
+            return Err(bad_filter(TOO_DEEP));
+        }
         let list = |body: &[u8]| -> Result<Vec<Self>, Error> {
             let mut reader = Reader::new(body);
             let mut out = Vec::new();
             while !reader.is_empty() {
-                out.push(Self::from_element(reader.element()?)?);
+                out.push(Self::from_element(reader.element()?, depth + 1)?);
             }
             Ok(out)
         };
@@ -324,7 +361,11 @@ impl Filter {
     ///
     /// A [`TextError`] naming the character the text stops being a filter at.
     pub fn parse(text: &str) -> Result<Self, TextError> {
-        let mut parser = TextParser { text, at: 0 };
+        let mut parser = TextParser {
+            text,
+            at: 0,
+            depth: 0,
+        };
         let filter = parser.filter()?;
         if parser.at < text.len() {
             return Err(parser.error("there is text after the filter's last `)`"));
@@ -425,6 +466,8 @@ impl std::error::Error for TextError {}
 struct TextParser<'a> {
     text: &'a str,
     at: usize,
+    /// How many filters the one being read is inside, itself included.
+    depth: usize,
 }
 
 impl<'a> TextParser<'a> {
@@ -456,6 +499,11 @@ impl<'a> TextParser<'a> {
     /// `filter = "(" filtercomp ")"`.
     fn filter(&mut self) -> Result<Filter, TextError> {
         self.expect(b'(', "a filter starts with `(`")?;
+        self.depth += 1;
+        if self.depth > MAX_FILTER_DEPTH {
+            // At the `(` that opened the filter one level too deep.
+            return Err(self.error_at(self.at - 1, TOO_DEEP));
+        }
         let filter = match self.peek() {
             Some(b'&') => {
                 self.at += 1;
@@ -472,6 +520,7 @@ impl<'a> TextParser<'a> {
             _ => self.item()?,
         };
         self.expect(b')', "a filter ends with `)`")?;
+        self.depth -= 1;
         Ok(filter)
     }
 

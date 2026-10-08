@@ -1691,6 +1691,11 @@ that rule is about SQL. `Filter::parse` reads RFC 4515 text an operator wrote, a
 rules as filters: `memberOf` with `nested: true` (`1.2.840.113556.1.4.1941`), `bitAnd` and `bitOr`
 (`.803`, `.804`), `enabled` and `disabled`.
 
+**A filter nests at most 100 levels of `all`, `any` and `not`.** Reading and writing a filter recurse
+once per level, so a filter a request built in a loop would otherwise exhaust the thread's stack and
+take every request on the core down with it. The builder that would pass the limit throws
+`LogicError`, and so does `parse` at the `(` that does; no filter a person writes comes near it.
+
 <sub>See also [`core-classes/ldap-dn-is-the-launderer`](core-classes.md#core-classes-ldap-dn-is-the-launderer), [`core-classes/ldap-value-types`](core-classes.md#core-classes-ldap-value-types), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`security/sink-predicate`](security.md#security-sink-predicate). Decided in [0278](../decisions/0278.md).</sub>
 
 <a id="core-classes-ldap-dn-is-the-launderer"></a>

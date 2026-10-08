@@ -1776,7 +1776,8 @@ const FILTER_APPROX_DOC: MethodDoc = MethodDoc {
 /// The error of [`FILTER`]'s `all` and `any`.
 const FILTER_LIST_ERRORS: &[ErrorDoc] = &[ErrorDoc {
     error: "LogicError",
-    desc: "No filter is given.",
+    desc: "No filter is given, or the new filter has more than 100 levels of `all`, `any` and \
+           `not` inside each other.",
 }];
 
 /// `Ldap\Filter::all`'s reference card — `rule:core-api/reference-card`.
@@ -1812,7 +1813,11 @@ const FILTER_NOT_DOC: MethodDoc = MethodDoc {
         shape: &[],
     }],
     ret: "A `Core\\Ldap\\Filter`.",
-    errors: &[],
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The new filter has more than 100 levels of `all`, `any` and `not` inside each \
+               other.",
+    }],
 };
 
 /// `Ldap\Filter::parse`'s reference card — `rule:core-api/reference-card`.
@@ -1830,8 +1835,9 @@ const FILTER_PARSE_DOC: MethodDoc = MethodDoc {
           same filter.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "The text is not a filter, or it has a name that is not an attribute name. The \
-               message gives the position of the first wrong character.",
+        desc: "The text is not a filter, it has a name that is not an attribute name, or it has \
+               more than 100 levels of filters inside each other. The message gives the \
+               position of the first wrong character.",
     }],
 };
 
