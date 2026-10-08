@@ -190,4 +190,25 @@ describe("the readers a recorded run needs", () => {
       s.cleanup();
     }
   });
+
+  test("an object rebuilt while the map is open is looked up in its new build's map", async () => {
+    const s = scratch();
+    try {
+      const obj = join(s.root, "obj.bin");
+      const cm = new CovMap(join(s.root, "covmap"));
+      const cacheFile = (cm as unknown as { cacheFile(o: string): string }).cacheFile.bind(cm);
+      const build = async (content: string, name: string) => {
+        s.put("obj.bin", content);
+        s.put(`covmap/${cacheFile(obj).split(/[\\/]/).pop()}`, JSON.stringify({ [name]: ["src/a.rs", 1, 2] }));
+        await cm.ensure([obj], join(s.root, "unused.profdata"));
+      };
+      await build("first build", "_RNvCsOLD_3pkg3run");
+      expect(cm.get("_RNvCsOLD_3pkg3run")).toEqual(["src/a.rs", 1, 2]);
+      await build("the second, longer build", "_RNvCsNEW_3pkg3run");
+      expect(cm.get("_RNvCsNEW_3pkg3run")).toEqual(["src/a.rs", 1, 2]);
+      expect(cm.get("_RNvCsOLD_3pkg3run")).toBeUndefined();
+    } finally {
+      s.cleanup();
+    }
+  });
 });

@@ -114,10 +114,15 @@ export function parseExport(json: string): Record<string, CovLoc> {
 }
 
 /** Name to location for the objects an atom ran, each object's map cached on disk by its path, size and
- * modification time, and the last few in memory. A rebuilt object's new map replaces its old one, so
- * the cache holds one map per object path. */
+ * modification time, and the last few in memory under the identity of the file they were read from. A
+ * rebuilt object's new map replaces its old one, so the cache holds one map per object path.
+ *
+ * Another process can rebuild an object while a recorder is open, as a `cargo build` of `target/covws`
+ * does to its `nvs`, and a rebuild can name every function differently. So `ensure` checks the file
+ * each time and loads the map again when it changed: a map kept by path alone would leave every name
+ * of the new build unmapped, and every footprint recorded from then on would be `*`. */
 export class CovMap {
-  private maps = new Map<string, Map<string, CovLoc>>();
+  private maps = new Map<string, { id: string; map: Map<string, CovLoc> }>();
   private pending = new Map<string, Promise<Map<string, CovLoc>>>();
   private objects: string[] = [];
 
@@ -129,6 +134,12 @@ export class CovMap {
   private cacheFile(object: string): string {
     const st = statSync(object);
     return join(this.dir, `${digest(object, String(st.size), String(st.mtimeMs)).slice(0, 24)}.json`);
+  }
+
+  /** What tells one build of `object` from another: its size, modification time and file id. */
+  private identity(object: string): string {
+    const st = statSync(object);
+    return `${st.size} ${st.mtimeMs} ${st.ino}`;
   }
 
   private async load(object: string, profdata: string): Promise<Map<string, CovLoc>> {
@@ -171,25 +182,28 @@ export class CovMap {
 
   /** Makes `objects` the ones names are looked up in, in that order, exporting any not cached with
    * `profdata` as the profile `llvm-cov` asks for (any profile will do: every instrumented function of
-   * the object is listed, counted or not). */
+   * the object is listed, counted or not). An object whose file changed since its map was read has its
+   * map read again. */
   async ensure(objects: string[], profdata: string): Promise<void> {
     for (const object of objects) {
+      const id = this.identity(object);
       const held = this.maps.get(object);
-      if (held) {
-        // Taken out and put back, so the oldest in memory is always the first.
-        this.maps.delete(object);
+      // Taken out and put back, so the oldest in memory is always the first.
+      this.maps.delete(object);
+      if (held?.id === id) {
         this.maps.set(object, held);
         continue;
       }
-      let p = this.pending.get(object);
+      const key = `${object}\0${id}`;
+      let p = this.pending.get(key);
       if (!p) {
         p = this.load(object, profdata);
-        this.pending.set(object, p);
+        this.pending.set(key, p);
       }
       try {
-        this.maps.set(object, await p);
+        this.maps.set(object, { id, map: await p });
       } finally {
-        this.pending.delete(object);
+        this.pending.delete(key);
       }
     }
     this.objects = objects;
@@ -203,7 +217,7 @@ export class CovMap {
   /** Where `name` is, in the objects `ensure` named last, or in `objects` when given. */
   get(name: string, objects: string[] = this.objects): CovLoc | undefined {
     for (const o of objects) {
-      const loc = this.maps.get(o)?.get(name);
+      const loc = this.maps.get(o)?.map.get(name);
       if (loc) return loc;
     }
     return undefined;
