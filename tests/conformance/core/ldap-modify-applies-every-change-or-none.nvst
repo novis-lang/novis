@@ -3,20 +3,20 @@ A `modify` whose second change fails applies none of its changes, `removeAll` an
 --FILE--
 <?nvs
 var $corp = Core\Ldap::connect("corp");
-array<string> $leftovers = ["OU=Staff,DC=example,DC=test", "OU=Team,DC=example,DC=test"];
+array<string> $leftovers = ["OU=Gallery,DC=example,DC=test", "OU=Studio,DC=example,DC=test"];
 foreach ($leftovers as string $left) {
     try {
         $corp->delete($left);
     } catch (Core\Ldap\LdapError $gone) {
     }
 }
-$corp->add("OU=Staff,DC=example,DC=test", ["objectClass" => "organizationalUnit", "description" => "one"]);
-$corp->add("OU=Team,DC=example,DC=test", ["objectClass" => "organizationalUnit"]);
+$corp->add("OU=Gallery,DC=example,DC=test", ["objectClass" => "organizationalUnit", "description" => "one"]);
+$corp->add("OU=Studio,DC=example,DC=test", ["objectClass" => "organizationalUnit"]);
 
 // The entry has no value `absent`, so the second change fails, and the
 // first change is not applied either.
 try {
-    $corp->modify("OU=Staff,DC=example,DC=test", [
+    $corp->modify("OU=Gallery,DC=example,DC=test", [
         Core\Ldap\Change::add("description", "two"),
         Core\Ldap\Change::remove("description", "absent"),
     ]);
@@ -24,32 +24,32 @@ try {
 } catch (Core\Ldap\LdapError $refused) {
     echo "refused: ", $refused->kind == Core\Ldap\ErrorKind::ConstraintViolation ? "ConstraintViolation" : "other", "\n";
 }
-?Core\Ldap\Entry $shop = $corp->read("OU=Staff,DC=example,DC=test", {select: ["description"]});
+?Core\Ldap\Entry $shop = $corp->read("OU=Gallery,DC=example,DC=test", {select: ["description"]});
 var $before = $shop?->strings("description");
 echo "description: ", $before == null ? "null" : Core\Str::join($before, ", "), "\n";
 
-$corp->modify("OU=Staff,DC=example,DC=test", [
+$corp->modify("OU=Gallery,DC=example,DC=test", [
     Core\Ldap\Change::removeAll("description"),
     Core\Ldap\Change::replace("description", ["x", "y"]),
 ]);
-$shop = $corp->read("OU=Staff,DC=example,DC=test", {select: ["description"]});
+$shop = $corp->read("OU=Gallery,DC=example,DC=test", {select: ["description"]});
 var $after = $shop?->strings("description");
 echo "replaced: ", $after == null ? "null" : Core\Str::join($after, ", "), "\n";
 
 try {
-    $corp->add("OU=Team,DC=example,DC=test", ["objectClass" => "organizationalUnit"]);
+    $corp->add("OU=Studio,DC=example,DC=test", ["objectClass" => "organizationalUnit"]);
     echo "not reached", "\n";
 } catch (Core\Ldap\LdapError $taken) {
     echo "add: ", $taken->kind == Core\Ldap\ErrorKind::AlreadyExists ? "AlreadyExists" : "other", "\n";
 }
 try {
-    $corp->rename("OU=Staff,DC=example,DC=test", "OU=Team,DC=example,DC=test");
+    $corp->rename("OU=Gallery,DC=example,DC=test", "OU=Studio,DC=example,DC=test");
     echo "not reached", "\n";
 } catch (Core\Ldap\LdapError $taken) {
     echo "rename: ", $taken->kind == Core\Ldap\ErrorKind::AlreadyExists ? "AlreadyExists" : "other", "\n";
 }
-$corp->delete("OU=Staff,DC=example,DC=test");
-$corp->delete("OU=Team,DC=example,DC=test");
+$corp->delete("OU=Gallery,DC=example,DC=test");
+$corp->delete("OU=Studio,DC=example,DC=test");
 --COPY--
 ../../db/ca.crt
 --FILE nvs.toml--
