@@ -1,0 +1,11 @@
+{
+  "lead": "Samba AD does not evaluate an approximate match",
+  "body": ": a search whose filter holds `Filter::approx` fails with LDAP result 1 and `Indexed and full searches both failed!`, on any attribute. A server case that uses it throws instead of matching. Cover `approx` with offline cases (`toString`, the error paths), and leave the match to the by-hand run against Windows Server. `tests/conformance/core/ldap-filter-builder-matches.nvst` leaves it out for this reason.",
+  "files": [
+    "tests/conformance/core/ldap-filter-builder-matches.nvst"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tests/conformance/core/ldap-filter-builder-matches.nvst:approx"
+  }
+}

@@ -26269,12 +26269,22 @@ Returns every attribute of the entry as an array. Each key is an attribute name,
 <a id="core-core-ldap-filter"></a>
 ### `Core\Ldap\Filter`
 
-Keywords: equals, present
+Keywords: equals, startsWith, endsWith, contains, present, atLeast, atMost, approx, all, any, not, toString
 
 | Member | Signature |
 |---|---|
 | [`Core\Ldap\Filter::equals`](#core-core-ldap-filter-equals) | `equals(string $attribute, string $value): Core\Ldap\Filter` |
+| [`Core\Ldap\Filter::startsWith`](#core-core-ldap-filter-startswith) | `startsWith(string $attribute, string $value): Core\Ldap\Filter` |
+| [`Core\Ldap\Filter::endsWith`](#core-core-ldap-filter-endswith) | `endsWith(string $attribute, string $value): Core\Ldap\Filter` |
+| [`Core\Ldap\Filter::contains`](#core-core-ldap-filter-contains) | `contains(string $attribute, string $value): Core\Ldap\Filter` |
 | [`Core\Ldap\Filter::present`](#core-core-ldap-filter-present) | `present(string $attribute): Core\Ldap\Filter` |
+| [`Core\Ldap\Filter::atLeast`](#core-core-ldap-filter-atleast) | `atLeast(string $attribute, string $value): Core\Ldap\Filter` |
+| [`Core\Ldap\Filter::atMost`](#core-core-ldap-filter-atmost) | `atMost(string $attribute, string $value): Core\Ldap\Filter` |
+| [`Core\Ldap\Filter::approx`](#core-core-ldap-filter-approx) | `approx(string $attribute, string $value): Core\Ldap\Filter` |
+| [`Core\Ldap\Filter::all`](#core-core-ldap-filter-all) | `all(Core\Ldap\Filter ...$filters): Core\Ldap\Filter` |
+| [`Core\Ldap\Filter::any`](#core-core-ldap-filter-any) | `any(Core\Ldap\Filter ...$filters): Core\Ldap\Filter` |
+| [`Core\Ldap\Filter::not`](#core-core-ldap-filter-not) | `not(Core\Ldap\Filter $filter): Core\Ldap\Filter` |
+| [`Core\Ldap\Filter->toString`](#core-core-ldap-filter-tostring) | `toString(): tainted string` |
 
 <a id="core-core-ldap-filter-equals"></a>
 #### `Core\Ldap\Filter::equals`
@@ -26294,6 +26304,60 @@ Matches the entries where an attribute has this value.
 
 **Throws** `LogicError` — `$attribute` is not an attribute name.
 
+<a id="core-core-ldap-filter-startswith"></a>
+#### `Core\Ldap\Filter::startsWith`
+
+```nvs skip
+Core\Ldap\Filter::startsWith(string $attribute, string $value): Core\Ldap\Filter
+```
+
+Matches the entries where a value of an attribute starts with this text.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$attribute` | `string` (sink) | The attribute's name, such as `sAMAccountName`. It cannot be `tainted`. |
+| `$value` | `string` (neutral) | The text to look for. It may be `tainted`. A `*` in it is a normal character, and not a wildcard. |
+
+**Returns** `Core\Ldap\Filter` — A `Core\Ldap\Filter`.
+
+**Throws** `LogicError` — `$attribute` is not an attribute name, or `$value` is empty.
+
+<a id="core-core-ldap-filter-endswith"></a>
+#### `Core\Ldap\Filter::endsWith`
+
+```nvs skip
+Core\Ldap\Filter::endsWith(string $attribute, string $value): Core\Ldap\Filter
+```
+
+Matches the entries where a value of an attribute ends with this text.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$attribute` | `string` (sink) | The attribute's name, such as `sAMAccountName`. It cannot be `tainted`. |
+| `$value` | `string` (neutral) | The text to look for. It may be `tainted`. A `*` in it is a normal character, and not a wildcard. |
+
+**Returns** `Core\Ldap\Filter` — A `Core\Ldap\Filter`.
+
+**Throws** `LogicError` — `$attribute` is not an attribute name, or `$value` is empty.
+
+<a id="core-core-ldap-filter-contains"></a>
+#### `Core\Ldap\Filter::contains`
+
+```nvs skip
+Core\Ldap\Filter::contains(string $attribute, string $value): Core\Ldap\Filter
+```
+
+Matches the entries where a value of an attribute contains this text.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$attribute` | `string` (sink) | The attribute's name, such as `sAMAccountName`. It cannot be `tainted`. |
+| `$value` | `string` (neutral) | The text to look for. It may be `tainted`. A `*` in it is a normal character, and not a wildcard. |
+
+**Returns** `Core\Ldap\Filter` — A `Core\Ldap\Filter`.
+
+**Throws** `LogicError` — `$attribute` is not an attribute name, or `$value` is empty.
+
 <a id="core-core-ldap-filter-present"></a>
 #### `Core\Ldap\Filter::present`
 
@@ -26310,6 +26374,120 @@ Matches the entries that have any value for an attribute.
 **Returns** `Core\Ldap\Filter` — A `Core\Ldap\Filter`.
 
 **Throws** `LogicError` — `$attribute` is not an attribute name.
+
+<a id="core-core-ldap-filter-atleast"></a>
+#### `Core\Ldap\Filter::atLeast`
+
+```nvs skip
+Core\Ldap\Filter::atLeast(string $attribute, string $value): Core\Ldap\Filter
+```
+
+Matches the entries where a value of an attribute is equal to or greater than this value. LDAP has no "greater than" filter. Use `not` and `atMost` for it.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$attribute` | `string` (sink) | The attribute's name, such as `sAMAccountName`. It cannot be `tainted`. |
+| `$value` | `string` (neutral) | The value to compare with. It may be `tainted`. The server compares by the attribute's own order, so `'10'` comes after `'9'` for a number. |
+
+**Returns** `Core\Ldap\Filter` — A `Core\Ldap\Filter`.
+
+**Throws** `LogicError` — `$attribute` is not an attribute name.
+
+<a id="core-core-ldap-filter-atmost"></a>
+#### `Core\Ldap\Filter::atMost`
+
+```nvs skip
+Core\Ldap\Filter::atMost(string $attribute, string $value): Core\Ldap\Filter
+```
+
+Matches the entries where a value of an attribute is equal to or less than this value. LDAP has no "less than" filter. Use `not` and `atLeast` for it.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$attribute` | `string` (sink) | The attribute's name, such as `sAMAccountName`. It cannot be `tainted`. |
+| `$value` | `string` (neutral) | The value to compare with. It may be `tainted`. The server compares by the attribute's own order, so `'10'` comes after `'9'` for a number. |
+
+**Returns** `Core\Ldap\Filter` — A `Core\Ldap\Filter`.
+
+**Throws** `LogicError` — `$attribute` is not an attribute name.
+
+<a id="core-core-ldap-filter-approx"></a>
+#### `Core\Ldap\Filter::approx`
+
+```nvs skip
+Core\Ldap\Filter::approx(string $attribute, string $value): Core\Ldap\Filter
+```
+
+Matches the entries where a value of an attribute is close to this value, such as a name that sounds the same. The server decides what is close.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$attribute` | `string` (sink) | The attribute's name, such as `sAMAccountName`. It cannot be `tainted`. |
+| `$value` | `string` (neutral) | The value to compare with. It may be `tainted`. |
+
+**Returns** `Core\Ldap\Filter` — A `Core\Ldap\Filter`.
+
+**Throws** `LogicError` — `$attribute` is not an attribute name.
+
+<a id="core-core-ldap-filter-all"></a>
+#### `Core\Ldap\Filter::all`
+
+```nvs skip
+Core\Ldap\Filter::all(Core\Ldap\Filter ...$filters): Core\Ldap\Filter
+```
+
+Matches the entries that every one of the filters matches.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `...$filters` | `Core\Ldap\Filter` | One filter or more. |
+
+**Returns** `Core\Ldap\Filter` — A `Core\Ldap\Filter`.
+
+**Throws** `LogicError` — No filter is given.
+
+<a id="core-core-ldap-filter-any"></a>
+#### `Core\Ldap\Filter::any`
+
+```nvs skip
+Core\Ldap\Filter::any(Core\Ldap\Filter ...$filters): Core\Ldap\Filter
+```
+
+Matches the entries that at least one of the filters matches.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `...$filters` | `Core\Ldap\Filter` | One filter or more. |
+
+**Returns** `Core\Ldap\Filter` — A `Core\Ldap\Filter`.
+
+**Throws** `LogicError` — No filter is given.
+
+<a id="core-core-ldap-filter-not"></a>
+#### `Core\Ldap\Filter::not`
+
+```nvs skip
+Core\Ldap\Filter::not(Core\Ldap\Filter $filter): Core\Ldap\Filter
+```
+
+Matches the entries that the filter does not match.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$filter` | `Core\Ldap\Filter` | The filter to reverse. |
+
+**Returns** `Core\Ldap\Filter` — A `Core\Ldap\Filter`.
+
+<a id="core-core-ldap-filter-tostring"></a>
+#### `Core\Ldap\Filter->toString`
+
+```nvs skip
+$filter->toString(): tainted string
+```
+
+Returns the filter as LDAP filter text, such as `(&(objectClass=user)(cn=Ann))`. Use it to write the filter to a log. A search does not use this text.
+
+**Returns** `tainted string` — The text. A `*`, `(`, `)` or `\` in a value is written as `\` and two hex digits. The text is `tainted`, because a value in the filter may be.
 
 <a id="core-core-queue"></a>
 ### `Core\Queue`
