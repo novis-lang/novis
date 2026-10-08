@@ -1,0 +1,11 @@
+<?nvs
+// Shows the error `Core\Request::queryArray` throws for a name with two pairs of brackets.
+
+// In `/search?filter[color][dark]=navy`, "filter" has two pairs of brackets.
+// `queryArray` throws a `ParseError` for it. This prints the message of the error.
+try {
+    array<tainted string> $filter = Core\Request::queryArray("filter");
+    echo "filters: ", Core\Arr::count($filter), "\n";
+} catch (ParseError $error) {
+    echo $error->message, "\n";
+}

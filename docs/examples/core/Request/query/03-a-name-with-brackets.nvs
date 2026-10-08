@@ -1,0 +1,12 @@
+<?nvs
+// Shows what `Core\Request::query` returns for a parameter written with square brackets.
+
+// The address is `/products?tag[]=red&tag[]=new&sort=price`.
+// "sort" has no brackets, so this prints "sort: price".
+echo "sort: ", Core\Request::query("sort") ?? "none", "\n";
+
+// "tag" was sent with brackets, so `query` returns `null` for it. This prints "tag: none".
+echo "tag: ", Core\Request::query("tag") ?? "none", "\n";
+
+// `Core\Request::queryArray` returns the values of "tag". This prints "tags: 2".
+echo "tags: ", Core\Arr::count(Core\Request::queryArray("tag")), "\n";

@@ -1,0 +1,8 @@
+--METHOD--
+GET
+--PATH--
+/search
+--QUERY--
+tag[]=red&tag[]=new&color=blue
+--HEADERS--
+host: shop.example.com

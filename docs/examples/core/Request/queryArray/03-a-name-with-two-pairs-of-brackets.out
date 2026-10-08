@@ -1,0 +1,1 @@
+Core\Request::queryArray(): a value under this name has a second pair of brackets. Read nested values with `queryAs`

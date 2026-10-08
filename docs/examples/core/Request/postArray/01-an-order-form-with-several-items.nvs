@@ -1,8 +1,9 @@
 <?nvs
 // Shows how a shop reads an order form where the customer ticked several products.
 
-// The form sends `item[]=notebook&item[]=pen`. The `[]` puts every value in one list.
-array<tainted string> $items = Core\Request::post("item") as array<string>;
+// The form sends `item[]=notebook&item[]=pen`.
+// `postArray` returns every value of "item" as one list.
+array<tainted string> $items = Core\Request::postArray("item");
 
 // This prints "notebook" and "pen", and then "2 items".
 foreach ($items as tainted string $item) {

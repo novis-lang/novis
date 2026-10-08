@@ -1,0 +1,9 @@
+<?nvs
+// Shows what `Core\Request::postArray` returns for a field without brackets and for a missing field.
+
+// The form sends `item=pen&note=gift+wrap`. "item" has no brackets.
+// The result is a list with its one value. This prints "items: 1".
+echo "items: ", Core\Arr::count(Core\Request::postArray("item")), "\n";
+
+// The form has no field "coupon", so the result is an empty array. This prints "coupons: 0".
+echo "coupons: ", Core\Arr::count(Core\Request::postArray("coupon")), "\n";

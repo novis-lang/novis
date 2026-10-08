@@ -7,5 +7,5 @@ echo "newsletter: ", Core\Request::post("newsletter") == null ? "no" : "yes", "\
 
 // The field "comment" was sent with no text. The result is an empty string, not `null`.
 // This prints "comment is empty".
-tainted string $comment = Core\Request::post("comment") as string;
+?tainted string $comment = Core\Request::post("comment");
 echo $comment == "" ? "comment is empty\n" : "comment: " . $comment . "\n";

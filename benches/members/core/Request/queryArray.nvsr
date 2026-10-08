@@ -1,0 +1,8 @@
+--METHOD--
+GET
+--PATH--
+/products
+--QUERY--
+tag[]=red&tag[]=new&tag[]=sale&filter[color]=red&filter[size]=M&page=2&utm_source=newsletter
+--HEADERS--
+host: shop.example.com

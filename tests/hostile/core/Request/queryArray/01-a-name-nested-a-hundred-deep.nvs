@@ -1,0 +1,31 @@
+<?nvs
+// Attack: a client sends a name nested 100 levels deep, one name with many values, and strange names.
+// Each read should return an array or throw a `ParseError`, and the program should not crash.
+
+// 1. Reads the name nested 100 levels deep. This throws a `ParseError`.
+try {
+    array<tainted string> $deep = Core\Request::queryArray('deep');
+    echo 'not reached: ', Core\Arr::count($deep), "\n";
+} catch (ParseError $error) {
+    echo "deep: error\n";
+}
+
+// 2. Reads the name that has ten values, with and without a key.
+echo 'list: ', Core\Arr::count(Core\Request::queryArray('list')), "\n";
+
+// 3. Reads names that are empty, very long or made of brackets.
+array<string> $strange = ['', '[', ']', '[]', 'list[]', 'deep[a]', "\0", Core\Str::repeat('a', 1000000)];
+uint $found = 0;
+foreach ($strange as string $name) {
+    $found = $found + Core\Arr::count(Core\Request::queryArray($name));
+}
+echo 'strange values found: ', $found, "\n";
+
+// 4. Reads the list 2000 times. Every read returns the same values, and no memory is kept.
+uint $values = 0;
+uint $i = 0;
+while ($i < 2000) {
+    $values = $values + Core\Arr::count(Core\Request::queryArray('list'));
+    $i = $i + 1;
+}
+echo 'values read: ', $values, "\n";

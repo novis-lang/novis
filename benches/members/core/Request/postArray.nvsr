@@ -1,0 +1,9 @@
+--METHOD--
+POST
+--PATH--
+/order
+--HEADERS--
+host: shop.example.com
+content-type: application/x-www-form-urlencoded
+--BODY--
+item[]=notebook&item[]=pen&item[]=ruler&size[shirt]=M&size[hat]=L&note=gift+wrap&csrf=t0ken

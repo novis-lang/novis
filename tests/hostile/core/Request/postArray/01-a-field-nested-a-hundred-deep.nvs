@@ -1,0 +1,26 @@
+<?nvs
+// Attack: a client sends a form with a field nested 100 levels deep and a field with many values.
+// The deep field should throw a `ParseError` each time, and the program should not crash.
+
+// 1. Reads the deep field 2000 times. Every read throws, and no memory is kept.
+uint $failed = 0;
+uint $i = 0;
+while ($i < 2000) {
+    try {
+        array<tainted string> $deep = Core\Request::postArray('deep');
+        echo 'not reached: ', Core\Arr::count($deep), "\n";
+    } catch (ParseError $error) {
+        $failed = $failed + 1;
+    }
+    $i = $i + 1;
+}
+echo 'failed reads: ', $failed, "\n";
+
+// 2. Reads the field with many values 2000 times. Every read returns the same count.
+uint $values = 0;
+$i = 0;
+while ($i < 2000) {
+    $values = $values + Core\Arr::count(Core\Request::postArray('list'));
+    $i = $i + 1;
+}
+echo 'values read: ', $values, "\n";

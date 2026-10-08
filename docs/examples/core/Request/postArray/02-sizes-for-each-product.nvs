@@ -1,0 +1,8 @@
+<?nvs
+// Shows how to read form fields whose brackets contain a key, such as `size[shirt]=M`.
+
+// The form sends `size[shirt]=M&size[hat]=L`, so `postArray` returns the keys "shirt" and "hat".
+// This prints "shirt: M" and "hat: L".
+foreach (Core\Request::postArray("size") as string $product => tainted string $size) {
+    echo $product, ": ", $size, "\n";
+}
