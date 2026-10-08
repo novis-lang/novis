@@ -1,28 +1,28 @@
 {
-  "state": "**Goal `ldap`, Stage 9 (the AD extras) is done**: sort with a VLV window, deleted objects, DirSync and the Global Catalog are on `main`, and all four tests of `nvs-stdlib-ldap-ad-extras` pass (`a_write_to_a_global_catalog_block_throws_before_it_is_sent` runs against a scripted peer on loopback port 3268 or 3269, no Samba needed). Stages 1 to 5 and 7 to 9 are done. Stage 4 is done except for a CA that a program supplies. Stage 6 is done except wiring the schema into the readers. Stage 10, the feature proofs, is what the driver's red checks now name: every `Core\\Ldap*` member owes its `about.md`, three examples, an attack, a bench and a Rust `covers:` marker.\n\n**On `main`**: everything Stage 9 listed. `crates/nvs-ldap/src/conn.rs`'s module doc (\"A Global Catalog only reads\") says how the read-only check works: `Url::is_global_catalog` sets `Connection::read_only` at `open`, and `write` and `password_write` throw `Kind::ReadOnly` before anything is sent. A search and a compare still go through.\n\nServer cases reach `samba-ad` (`tests/db/compose.yaml`) at `ldaps://localhost:16636`, and plain LDAP at 16389. Write cases add and delete their own entries under names no other case uses: OUs `Shop`/`Blog`/`Store`/`Framework`/`Example`/`Catalog`/`Library`/`Gallery`/`Studio`/`Archive`/`Theater`/`Cinema`/`Garden` (cases) and `Museum`/`Harbor` (Rust) at the root, and each test user `CN=<name>,OU=<name>` in an OU of its own (`Team`, `Editors`, `Visitors`, `Members`, `Readers` in Rust; `Staff`, `Authors`, `Owners`, `Clients` in cases). Grep the name across `tests/conformance/core/ldap-*.nvst` and `crates/nvs-stdlib/tests/ldap.rs` before taking one. A deleted entry cannot be removed, so a test that deletes must not assume it is the only tombstone.",
+  "state": "**Goal `ldap`, Stage 10 (the feature proofs) is under way.** Stages 1 to 5 and 7 to 9 are done; Stage 4 lacks only a CA a program supplies, and Stage 6 lacks only wiring the schema into the readers. `Core\\Ldap` owes nothing: `connect` and `open` each have an `about.md`, three examples, an attack, a bench with a recorded figure, and a `covers:` marker on their grant tests in `crates/nvs-stdlib/tests/ldap.rs`.\n\n**How those proofs run with no server**, on `Core\\Mail::send`'s footing: the root `nvs.toml` has an `[ldap.corp]` block at `ldaps://127.0.0.1:1`, a closed port, and one `[[app]] entry` per proof program granting `ldap.connect = [\"corp\"]`, or `ldap.open = [\"127.0.0.1\"]` plus `net.internal`. Every dial ends in `LdapError` kind `Unavailable`; the benches measure the refusal of a name or host the grant does not hold. The `.nvst` cases that reach Samba write their own `[ldap.corp]` beside them.\n\n**The rest of Stage 10 splits in two.** The value classes (`Filter`, `Dn`, `Sid`, `Ad`, `Change`, and maybe `Ad\\AccountFlags` and `Ad\\GroupType`) can be built without a server, so their examples run as any other `Core` example does. `Connection`, `Entries`, `Entry` and `Changes` need a live connection, and no example can get one at a closed port: that needs a decision (see Backlog) before their proofs are written.\n\nServer cases reach `samba-ad` (`tests/db/compose.yaml`) at `ldaps://localhost:16636`, plain LDAP at 16389. Write cases use OU and user names no other case uses; grep `tests/conformance/core/ldap-*.nvst` and `crates/nvs-stdlib/tests/ldap.rs` before taking one.",
   "next": {
     "stage": 10,
-    "title": "the feature proofs",
-    "files": [
-      "docs/examples/core/Ldap/",
-      "tests/hostile/core/Ldap/",
-      "benches/members/core/Ldap/",
-      "crates/nvs-stdlib/tests/ldap.rs"
-    ],
+    "title": "the feature proofs, the value classes",
+    "files": [],
+    "note": "one file set: `crates/nvs-stdlib/src/ldap/registry.rs` (the cards), `docs/examples/core/Ldap-Filter/`, `docs/examples/core/Ldap-Dn/`, `tests/hostile/core/Ldap-Filter/`, `tests/hostile/core/Ldap-Dn/`, `benches/members/core/`, `crates/nvs-stdlib/tests/ldap.rs`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Ldap::connect` and `Core\\Ldap::open` owe nothing** (`rule:testing/feature-proofs`): `about.md`, three examples, one attack and one bench each, and a `covers:` marker on a Rust test (the grant tests at `crates/nvs-stdlib/tests/ldap.rs:107` and `crates/nvs-stdlib/tests/ldap.rs:159`). Registry rows at `crates/nvs-stdlib/src/ldap/registry.rs:179`. `bun nv proofs --id 'Core\\Ldap::connect'` lists what is owed; every comment and `about.md` follows `AGENTS.md` § *Text an end user reads*, checked with `bun nv proofs --comments`."
+        "text": "**`Core\\Ldap\\Filter`'s members owe nothing** (`rule:testing/feature-proofs`): `about.md`, three examples, one attack and one bench each, a `covers:` marker on a Rust test. Registry rows at `crates/nvs-stdlib/src/ldap/registry.rs:1560`. No server: a filter is a value, so `toString()` prints what was built. `bun nv proofs --id 'Core\\Ldap\\Filter::parse'` lists what one member owes; every comment and `about.md` follows `AGENTS.md` § *Text an end user reads*, checked with `bun nv proofs --comments`, and `bun nv proofs --record-perf --group 'Core\\Ldap\\Filter'` records the figures."
       },
       {
         "done": false,
-        "text": "**`Core\\Ldap\\Connection`'s members owe nothing**, the same proofs, one member at a time, starting with the writes at `crates/nvs-stdlib/src/ldap/write.rs:59`; `bun nv proofs --owed` names them."
+        "text": "**`Core\\Ldap\\Dn`'s members owe nothing**, the same proofs, registry rows at `crates/nvs-stdlib/src/ldap/registry.rs:1882`."
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Ldap\\Sid`, `Core\\Ldap\\Ad` and `Core\\Ldap\\Change` owe nothing**, if the first two leave room: rows at `crates/nvs-stdlib/src/ldap/registry.rs:2060`, `crates/nvs-stdlib/src/ldap/registry.rs:2186` and `crates/nvs-stdlib/src/ldap/registry.rs:967`."
       }
     ]
   },
   "backlog": [
-    "Stage 4: a CA that a program supplies to `Ldap::open` (ADR 0278 § 4).",
-    "Stage 6: wire the cached schema into the typed readers on `Ldap\\Entry` (`crates/nvs-stdlib/src/ldap/mod.rs` module doc).",
-    "The remaining classes' proofs: `Entries`, `Changes`, `Entry`, `Filter`, `Dn`, `Change`, `Sid`, `Ad`, `Ad\\AccountFlags`, `Ad\\GroupType` (`bun nv proofs --owed`)."
+    "**Decide how `Connection`, `Entries`, `Entry` and `Changes` examples get a live connection** (`rule:testing/feature-proofs`, `docs/examples/README.md` § *A grant the examples need*): an example must run with no network, so the choices are a `// requires:` marker in `tools/nv/proofs/run.ts:69` that runs it against `samba-ad` when the container is up, or a scripted loopback peer like the one `a_write_to_a_global_catalog_block_throws_before_it_is_sent` uses. Prefer the marker; it keeps the example a program a reader copies.",
+    "`Core\\Ldap\\Ad\\AccountFlags` and `Ad\\GroupType`: check whether `with` builds one without an `Entry`, which decides which half of Stage 10 they are in (`crates/nvs-stdlib/src/ldap/registry.rs:2346`, `:2642`).",
+    "A CA a program supplies to `Ldap::open` (Stage 4), and the schema wired into the readers (Stage 6) — the goal's prose owns both."
   ]
 }

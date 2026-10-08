@@ -1,0 +1,12 @@
+{
+  "lead": "`bun nv try` copies the program to `.agent-tmp/` before it runs it, so an `[[app]] entry = \"<path>\"` grant in `nvs.toml` never matches, and a program that needs one fails with \"not granted\".",
+  "body": "The `[[app]]` block is keyed on the entry file's own path. Run a proof program that needs a grant with `bun nv proofs --run --id '<feature>'` or `--bless <file>`, which run it in place; and write every file an `[[app]] entry` names before running anything, because one missing entry file fails every program's boot with `E0605`.",
+  "files": [
+    "nvs.toml",
+    "tools/nv/cmd/try.ts"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tools/nv/cmd/try.ts:try-"
+  }
+}
