@@ -1,0 +1,11 @@
+{
+  "lead": "A new example, attack or bench `.nvs` fails `nv verify` until `nvs fmt` has rewritten it.",
+  "body": "The fmt identity test in `crates/nvs-fmt/tests/identity.rs` treats every `.nvs` under the proof trees as corpus, and a file written by hand rarely has the canonical layout (single quotes, a class brace on its own line). Run `target/covws/x86_64-pc-windows-msvc/debug/nvs.exe fmt --no-init <dirs>` over the new directories before the first verify, then bless, so the `.out` files match what was formatted.",
+  "files": [
+    "crates/nvs-fmt/tests/identity.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-fmt/tests/identity.rs:the_identity_printer_reproduces_every_corpus_file"
+  }
+}

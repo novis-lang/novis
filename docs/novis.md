@@ -26883,7 +26883,7 @@ Matches the entries that every one of the filters matches.
 
 **Returns** `Core\Ldap\Filter` — A `Core\Ldap\Filter`.
 
-**Throws** `LogicError` — No filter is given.
+**Throws** `LogicError` — No filter is given, or the new filter has more than 100 levels of `all`, `any` and `not` inside each other.
 
 <a id="core-core-ldap-filter-any"></a>
 #### `Core\Ldap\Filter::any`
@@ -26900,7 +26900,7 @@ Matches the entries that at least one of the filters matches.
 
 **Returns** `Core\Ldap\Filter` — A `Core\Ldap\Filter`.
 
-**Throws** `LogicError` — No filter is given.
+**Throws** `LogicError` — No filter is given, or the new filter has more than 100 levels of `all`, `any` and `not` inside each other.
 
 <a id="core-core-ldap-filter-not"></a>
 #### `Core\Ldap\Filter::not`
@@ -26917,6 +26917,8 @@ Matches the entries that the filter does not match.
 
 **Returns** `Core\Ldap\Filter` — A `Core\Ldap\Filter`.
 
+**Throws** `LogicError` — The new filter has more than 100 levels of `all`, `any` and `not` inside each other.
+
 <a id="core-core-ldap-filter-parse"></a>
 #### `Core\Ldap\Filter::parse`
 
@@ -26932,7 +26934,7 @@ Reads LDAP filter text, such as `(&(objectClass=user)(cn=Ann))`, and returns the
 
 **Returns** `Core\Ldap\Filter` — A `Core\Ldap\Filter`. Its `toString` returns text that `parse` reads back as the same filter.
 
-**Throws** `LogicError` — The text is not a filter, or it has a name that is not an attribute name. The message gives the position of the first wrong character.
+**Throws** `LogicError` — The text is not a filter, it has a name that is not an attribute name, or it has more than 100 levels of filters inside each other. The message gives the position of the first wrong character.
 
 <a id="core-core-ldap-filter-tostring"></a>
 #### `Core\Ldap\Filter->toString`
