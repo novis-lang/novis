@@ -11,7 +11,6 @@
   "seeAlso": [
     "config/a-runtime-set-is-request-local",
     "config/reloadability-is-its-own-field",
-    "config/one-local-control-socket",
     "config/a-reload-names-what-it-could-not-apply",
     "config/later-wins-and-every-override-is-recorded",
     "config/ownership-is-the-trust-boundary"

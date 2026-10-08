@@ -8,7 +8,7 @@
   "seeAlso": [
     "config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults",
     "config/ownership-is-the-trust-boundary",
-    "config/one-local-control-socket"
+    "config/the-config-is-an-immutable-snapshot"
   ],
   "guardedBy": []
 }

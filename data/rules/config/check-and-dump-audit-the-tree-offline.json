@@ -7,7 +7,6 @@
   ],
   "seeAlso": [
     "config/later-wins-and-every-override-is-recorded",
-    "config/ctl-config-reports-the-live-snapshot",
     "config/the-ownership-check-runs-where-it-can-be-answered",
     "config/a-secret-is-a-file-whose-content-is-the-value"
   ],

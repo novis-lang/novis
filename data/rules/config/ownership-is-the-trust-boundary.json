@@ -10,8 +10,7 @@
     "config/optional-covers-absence-and-moves-the-check-to-the-directory",
     "config/any-file-in-the-tree-may-set-any-directive",
     "config/the-ownership-check-runs-where-it-can-be-answered",
-    "config/a-secret-file-is-checked-for-integrity-and-advised-on-exposure",
-    "config/one-local-control-socket"
+    "config/a-secret-file-is-checked-for-integrity-and-advised-on-exposure"
   ],
   "guardedBy": [
     "crates/nvs-config/tests/trust.rs",

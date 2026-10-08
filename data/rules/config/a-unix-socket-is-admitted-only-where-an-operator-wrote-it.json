@@ -10,8 +10,7 @@
     "config/unix-scheme-in-a-url-and-a-bare-path-in-a-host",
     "config/net-local-is-named-and-not-on-the-roster",
     "security/net-address-policy",
-    "security/outbound-url-is-a-sink",
-    "config/one-local-control-socket"
+    "security/outbound-url-is-a-sink"
   ],
   "guardedBy": []
 }

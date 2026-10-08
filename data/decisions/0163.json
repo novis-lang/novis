@@ -7,10 +7,9 @@
     "0092",
     "0041",
     "0040",
-    "0078",
     "0020"
   ],
-  "dependsOnText": "[0018](0018.md), whose probe word and named sinks are what produces the stream;\n[0092](0092.md), whose record model is what crosses to disk and already answers redaction, elision\nand cycles; [0041](0041.md), whose four event kinds and speedscope export are the artifacts this\nhands off rather than renders; [0040](0040.md), whose no-bespoke-UI principle this record bounds an\nexception to; [0078](0078.md), whose control-surface reasoning the network bind reuses;\n[0020](0020.md), whose log target is the second thing the service reads.",
+  "dependsOnText": "[0018](0018.md), whose probe word and named sinks are what produces the stream;\n[0092](0092.md), whose record model is what crosses to disk and already answers redaction, elision\nand cycles; [0041](0041.md), whose four event kinds and speedscope export are the artifacts this\nhands off rather than renders; [0040](0040.md), whose no-bespoke-UI principle this record bounds an\nexception to; [0020](0020.md), whose log target is the second thing the service reads.",
   "validatedBy": "the conformance and integration cases the five rules below name, landed by the\ngoals that carry them. Nothing holds this record on its own today, which is why every rule it\ncreates is `designed`.",
   "summary": {
     "group": "tooling",

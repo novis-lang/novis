@@ -2030,16 +2030,15 @@ interpreted, which is what makes every parameter `nvs` accepts passable. `--` is
 and Novis does not inherit. `nvs install-service` is accepted as a hidden alias for the muscle memory
 `mysqld --install` and `httpd -k install` built.
 
-The verbs are namespaced like `nvs ctl` because they act on a server rather than on files, and the name
-is positional and is the same identity `nvs ctl --socket` uses. `start`/`stop`/`status` are thin — the
-SCM directly on Windows, `systemctl` by argv with no shell on Linux
-([`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only)) — and earn their second spelling by reporting what no
-service manager knows: the in-flight request count, and drain progress during a stop, asked over the
-control socket ([`config/one-local-control-socket`](config.md#config-one-local-control-socket)).
+The verbs are a namespace of their own because they act on a server rather than on files, and the
+name is positional. `start`/`stop`/`status` are thin — the SCM directly on Windows, `systemctl` by argv
+with no shell on Linux ([`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only)) — and print the service manager's
+answer and nothing beside it. The drain progress a stop reports is the service's own, given to the
+manager ([`packaging/a-service-answers-its-manager`](packaging.md#packaging-a-service-answers-its-manager)).
 
 What that argv may name is [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink)'s closed list.
 
-<sub>See also [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink), [`packaging/the-argv-lives-in-imagepath`](packaging.md#packaging-the-argv-lives-in-imagepath), [`packaging/the-unit-is-printed-and-install-is-the-opt-in`](packaging.md#packaging-the-unit-is-printed-and-install-is-the-opt-in), [`config/one-local-control-socket`](config.md#config-one-local-control-socket), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only). Decided in [0093](../decisions/0093.md), [0078](../decisions/0078.md).</sub>
+<sub>See also [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink), [`packaging/the-argv-lives-in-imagepath`](packaging.md#packaging-the-argv-lives-in-imagepath), [`packaging/the-unit-is-printed-and-install-is-the-opt-in`](packaging.md#packaging-the-unit-is-printed-and-install-is-the-opt-in), [`packaging/a-service-answers-its-manager`](packaging.md#packaging-a-service-answers-its-manager), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only). Decided in [0093](../decisions/0093.md).</sub>
 
 <a id="packaging-the-installer-is-a-sink"></a>
 
@@ -2143,8 +2142,12 @@ reporting what it can see from outside:
 | Control | What the service does |
 |---|---|
 | stop (`SERVICE_CONTROL_STOP`, `systemctl stop`) | reports `STOP_PENDING` with a checkpoint that advances while requests drain, then `STOPPED` — a machine restart drains in-flight requests instead of killing them |
-| `SERVICE_CONTROL_PARAMCHANGE`, `systemctl reload` | performs the configuration reload in-process; the keys it could not apply are written to the event log **by name** ([`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply)) |
+| `SERVICE_CONTROL_PARAMCHANGE` | performs the configuration reload in-process; the keys it could not apply are written to the event log **by name** ([`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply)) |
 | `SERVICE_CONTROL_PRESHUTDOWN` | requested at install, because plain `SHUTDOWN` allows roughly five seconds and a drain needs more |
+
+A systemd unit has no reload command: the server reloads by itself when a configuration file is saved
+([`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot)), and tells the manager `RELOADING=1` and then
+`READY=1` around it.
 
 Failure actions are set at install — `--restart on-failure` by default, with a reset period — beside
 delayed auto-start (`--start`), dependencies (`--depends-on`, for a database that must come up first)
@@ -2199,7 +2202,6 @@ The generated unit carries what a hand-written one usually does not:
 [Service]
 Type=notify
 ExecStart=/usr/bin/nvs serve --config /etc/nvs/nvs.toml
-ExecReload=/usr/bin/nvs ctl reload --socket /run/nvs/control.sock
 WatchdogSec=30
 User=nvs-web
 NoNewPrivileges=true

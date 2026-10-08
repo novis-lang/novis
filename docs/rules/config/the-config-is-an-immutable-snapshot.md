@@ -12,15 +12,16 @@ contribute; validate the assembled registry; then compute `env_hash` and publish
 tree's ownership checks re-run on every file, so a file that became group-writable since boot refuses
 the swap and leaves the previous snapshot serving.
 
-**The server checks its own configuration files.** Every two seconds, one thread off the request
-path takes the stamp (`mtime` and size) of every path the serving tree read or probed: each root,
-each include, each included directory and each optional include that was absent. A stamp that moved
-and then holds for one more check is a saved file, and the tree is resolved and published by the
-same steps `nvs ctl reload` runs, under the same lock, so a noticed reload and a pushed one never
-interleave two snapshots. A tree equal to the one serving publishes nothing. A tree that does not
-validate is logged once for each distinct refusal, with its file and line, and the running
-configuration stays. `nvs ctl reload` remains, to apply a change at once. A server whose roots are
-the shipped defaults read no file, and has nothing to check.
+**The server checks its own configuration files, and a saved file is how a reload starts.** Every two
+seconds, one thread off the request path takes the stamp (`mtime` and size) of every path the serving
+tree read or probed: each root, each include, each included directory and each optional include that
+was absent. A stamp that moved and then holds for one more check is a saved file, and the tree is
+resolved and published under one lock, so two reloads never interleave two snapshots. A tree equal to
+the one serving publishes nothing. A tree that does not validate is logged once for each distinct
+refusal, with its file and line, and the running configuration stays. A Windows service manager's
+`PARAMCHANGE` runs the same reload under the same lock
+(`rule:packaging/a-service-answers-its-manager`). A server whose roots are the shipped defaults read
+no file, and has nothing to check.
 
 Cost: one `Arc` clone at request start and **no syscall** on the request path, and one `stat` per
 configuration path every two seconds on the checking thread. Two snapshots live during a swap, plus

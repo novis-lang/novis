@@ -8,10 +8,11 @@
   "seeAlso": [
     "config/reloadability-is-its-own-field",
     "config/the-config-is-an-immutable-snapshot",
-    "config/one-local-control-socket"
+    "packaging/a-service-answers-its-manager"
   ],
   "guardedBy": [
-    "crates/nvs-server/src/control.rs",
+    "crates/nvs-config/src/reload.rs",
+    "crates/nvs-cli/src/reload.rs",
     "crates/nvs-config/tests/snapshot.rs",
     "crates/nvs-cli/tests/live_config.rs"
   ]

@@ -8,7 +8,7 @@
   "seeAlso": [
     "config/two-modes-and-the-default-is-production",
     "config/the-mode-flag-wins-over-the-file",
-    "config/one-local-control-socket"
+    "config/the-config-is-an-immutable-snapshot"
   ],
   "guardedBy": [
     "tests/conformance/core/env-no-environment-variable-selects-the-run-mode.nvst"

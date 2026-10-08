@@ -8,6 +8,6 @@ Setting all three and asserting the mode is unchanged is a conformance case, not
 converted Laravel application's `APP_ENV` read arrives as an ordinary `Core\Env::get` and stays one:
 it is that application's own variable, not Novis's mode.
 
-The operator's runtime switch is a reload of the root-owned file over the local control socket
-(`rule:config/one-local-control-socket`), which swaps the whole snapshot with no restart and no
-control port — strictly more capable than editing an environment variable, and root-owned.
+The operator's runtime switch is saving the root-owned file, which the running server notices and
+publishes as a whole new snapshot with no restart (`rule:config/the-config-is-an-immutable-snapshot`)
+— strictly more capable than editing an environment variable, and root-owned.

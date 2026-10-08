@@ -1,4 +1,4 @@
-A graceful shutdown and a control-socket reload close connections with a defined code after a drain
+A graceful shutdown and a configuration reload close connections with a defined code after a drain
 period, so a client's reconnect logic sees a clean close rather than a reset. There is one mechanism
 behind both spellings, because there is one thing a stopping process and a reloading one both need.
 

@@ -8,8 +8,8 @@ The asymmetry is the address policy's own, read for what it is about. The denied
 keeps a *program-supplied* endpoint off the local machine, which is why loopback heads it. A
 program-supplied socket path is a way onto the local machine the table cannot see — there is no
 address to match — and the reachable set on an ordinary host is worse than loopback's: it includes
-this runtime's own `[control] socket`, a container daemon's socket and whatever else a distribution
-puts in `/run`. Admitting one would hand a program the exact capability the policy spends a resolution
+a container daemon's socket, a database's local socket and whatever else a distribution puts in
+`/run`. Admitting one would hand a program the exact capability the policy spends a resolution
 and a pin to deny.
 
 An operator-written endpoint is the case the policy already distinguishes, for the reason it already

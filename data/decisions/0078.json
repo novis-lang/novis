@@ -1,12 +1,12 @@
 {
-  "title": "`nvs.toml` reloads over a local control socket, and the extension set joins the compilation key",
+  "title": "`nvs.toml` is a snapshot replaced whole, reloadability is its own field, and the extension set joins the compilation key",
   "status": "accepted",
-  "scope": "the config snapshot and how it is replaced, the registry's reloadability field, the control\nsocket and `nvs ctl`, and the environment component of both compiled-unit cache keys. Not in scope: any\nnetwork-reachable control surface, which § 6 defers explicitly.",
+  "scope": "the config snapshot and how it is replaced, the registry's reloadability field, what a\nreload reports, and the environment component of both compiled-unit cache keys. Not in scope: what\nstarts a reload, which [0219](0219.md) decides.",
   "dependsOn": [],
   "validatedBy": "`crates/nvs-config/tests/snapshot.rs` —\n`env_hash_is_carried_by_both_cache_keys` holds § 4's claim that the two keys carry one value.",
   "summary": {
     "group": "tooling",
-    "headline": "Server config reloads over a local socket, and a request never sees it change",
-    "body": "The parsed configuration is one read-only snapshot; a request copies it when it starts and is\nunaffected by anything afterwards. `nvs ctl reload` re-reads `nvs.toml` through a local socket\nonly — no network port, token or TLS, because the socket's owner and permissions are the\nauthentication. The whole file is validated before anything is published, and a broken file\nleaves the running snapshot untouched. Every setting says whether it applies on reload or only\nat boot, and a reload names the boot-only settings it could not apply."
+    "headline": "Server config is one snapshot replaced whole, and no request sees it change",
+    "body": "The parsed configuration is one read-only snapshot; a request copies it when it starts and is\nunaffected by anything afterwards. A reload validates the whole tree before anything is\npublished, and a broken file leaves the running snapshot untouched. Every setting says whether\nit applies on reload or only at boot, and a reload names the boot-only settings it could not\napply. The extension set is part of every compiled unit's key, so changing it needs no restart."
   }
 }

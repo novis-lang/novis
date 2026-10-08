@@ -27,8 +27,7 @@ after the last of it ends. A `[[schedule]]` firing already in flight runs to com
 arms from the next tick. A queue worker a new `workers` or `connection` stops writes back the job it
 holds first, and the workers it starts claim on the new connection, whose storage the reload checks
 before it publishes, as the boot does. A new `opcache.file_cache_dir` takes the next compile, and a
-directory the ownership check refuses keeps the running one and is named, as a control socket that
-cannot be created is. A reload builds the outbound TLS client `[http.client.tls]` names, reading
+directory the ownership check refuses keeps the running one and is named in the log. A reload builds the outbound TLS client `[http.client.tls]` names, reading
 its anchor files again, and installs it only when its anchors, version floor or key log differ from
 the running client's. The next connection is judged by it, and the pool files every connection under
 the client that opened it, so no socket the old anchors accepted serves a later call. A block that

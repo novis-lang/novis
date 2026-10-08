@@ -5,8 +5,9 @@ it, whatever the file's own bits say. A failure is a refusal to start (`E0607`),
 the mode, and it is re-run on every reload.
 
 The configuration grants capabilities, so whoever can write any file in the tree can grant themselves
-every one of them. The cache directory and the control-socket directory already get this refusal; the
-file that grants `process.exec` cannot have less protection than the socket used to reload it.
+every one of them, and a running server publishes a saved file without a restart. The cache directory
+already gets this refusal, and a file that grants `process.exec` cannot have less protection than a
+directory of compiled code.
 
 **On Windows the equivalent is the DACL**: the owner is the runtime account, `BUILTIN\Administrators`
 or `NT AUTHORITY\SYSTEM`, and no *effective* write right — data, append, EA, attributes, `DELETE`,

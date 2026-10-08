@@ -800,6 +800,13 @@ so no request is charged or credited for them.
 nests deeper, the next element closes the current one and becomes its sibling. No content is lost.
 Because of this limit, a small hostile document cannot keep a CPU core busy.
 
+**Text taken out of `mixed` is tainted**
+
+Request fields, decoded JSON, session and cache entries arrive as `mixed`. Converting one to text,
+joining it into a string or testing it with `is string` now gives `tainted string`, so it cannot
+reach a query, a page or a command until it is checked. Converting to a number, a `bool` or an enum
+stays clean. A shape that receives the text is written `tainted {…}`.
+
 ## The standard library and runtime
 
 What is built in and how it behaves: the Core namespace's own conventions, the components that ship with it, and how the runtime serves a request.
@@ -1328,14 +1335,13 @@ the deployment with the shared store as the lock, or "host", once on every machi
 without a shared store refuses to boot. A missed fire is not caught up, and fleet scope means at
 most once, not exactly once.
 
-**Server config reloads over a local socket, and a request never sees it change**
+**Server config is one snapshot replaced whole, and no request sees it change**
 
 The parsed configuration is one read-only snapshot; a request copies it when it starts and is
-unaffected by anything afterwards. `nvs ctl reload` re-reads `nvs.toml` through a local socket only
-— no network port, token or TLS, because the socket's owner and permissions are the authentication.
-The whole file is validated before anything is published, and a broken file leaves the running
-snapshot untouched. Every setting says whether it applies on reload or only at boot, and a reload
-names the boot-only settings it could not apply.
+unaffected by anything afterwards. A reload validates the whole tree before anything is published,
+and a broken file leaves the running snapshot untouched. Every setting says whether it applies on
+reload or only at boot, and a reload names the boot-only settings it could not apply. The extension
+set is part of every compiled unit's key, so changing it needs no restart.
 
 **A package is its hash, the highest minimum wins, and nothing runs on install**
 

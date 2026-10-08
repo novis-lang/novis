@@ -1,7 +1,7 @@
 {
   "title": "An enum capture is spelled by a written backing value or else by its case name, an exporter brings no second registry, runtime or client, the drain is bounded by `[server] drain_timeout`, and `sendFile` takes the path alone",
   "status": "accepted",
-  "scope": "the four calls M7's server surface reaches that no rule currently states — which text an\nenum capture matches on, what an exporter may take off the shelf, what bounds the drain, and\n`Core\\Response::sendFile`'s parameter list. Not in scope: the trace push's own wire choices beyond the\ntransport it may not bring, which is the export stage's; `Core\\Metrics`'s member roster, which is\n`rule:observability/metrics-three-members`'s; the control endpoint's operations, which\n`rule:config/one-local-control-socket` already fixes.",
+  "scope": "the four calls M7's server surface reaches that no rule currently states — which text an\nenum capture matches on, what an exporter may take off the shelf, what bounds the drain, and\n`Core\\Response::sendFile`'s parameter list. Not in scope: the trace push's own wire choices beyond the\ntransport it may not bring, which is the export stage's; `Core\\Metrics`'s member roster, which is\n`rule:observability/metrics-three-members`'s.",
   "dependsOn": [
     "0004",
     "0077",

@@ -13,11 +13,10 @@ interpreted, which is what makes every parameter `nvs` accepts passable. `--` is
 and Novis does not inherit. `nvs install-service` is accepted as a hidden alias for the muscle memory
 `mysqld --install` and `httpd -k install` built.
 
-The verbs are namespaced like `nvs ctl` because they act on a server rather than on files, and the name
-is positional and is the same identity `nvs ctl --socket` uses. `start`/`stop`/`status` are thin — the
-SCM directly on Windows, `systemctl` by argv with no shell on Linux
-(`rule:core-classes/process-is-argv-only`) — and earn their second spelling by reporting what no
-service manager knows: the in-flight request count, and drain progress during a stop, asked over the
-control socket (`rule:config/one-local-control-socket`).
+The verbs are a namespace of their own because they act on a server rather than on files, and the
+name is positional. `start`/`stop`/`status` are thin — the SCM directly on Windows, `systemctl` by argv
+with no shell on Linux (`rule:core-classes/process-is-argv-only`) — and print the service manager's
+answer and nothing beside it. The drain progress a stop reports is the service's own, given to the
+manager (`rule:packaging/a-service-answers-its-manager`).
 
 What that argv may name is `rule:packaging/the-installer-is-a-sink`'s closed list.

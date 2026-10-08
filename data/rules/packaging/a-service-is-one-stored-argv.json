@@ -2,18 +2,16 @@
   "title": "`nvs service` is a namespace, and everything after a mandatory `--` is stored verbatim as the argv the service runs",
   "status": "shipped",
   "because": [
-    "0093",
-    "0078"
+    "0093"
   ],
   "seeAlso": [
     "packaging/the-installer-is-a-sink",
     "packaging/the-argv-lives-in-imagepath",
     "packaging/the-unit-is-printed-and-install-is-the-opt-in",
-    "config/one-local-control-socket",
+    "packaging/a-service-answers-its-manager",
     "core-classes/process-is-argv-only"
   ],
   "guardedBy": [
-    "crates/nvs-cli/src/service.rs",
-    "crates/nvs-cli/src/ctl.rs"
+    "crates/nvs-cli/src/service.rs"
   ]
 }

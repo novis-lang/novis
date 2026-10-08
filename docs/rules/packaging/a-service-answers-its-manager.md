@@ -4,8 +4,12 @@ reporting what it can see from outside:
 | Control | What the service does |
 |---|---|
 | stop (`SERVICE_CONTROL_STOP`, `systemctl stop`) | reports `STOP_PENDING` with a checkpoint that advances while requests drain, then `STOPPED` — a machine restart drains in-flight requests instead of killing them |
-| `SERVICE_CONTROL_PARAMCHANGE`, `systemctl reload` | performs the configuration reload in-process; the keys it could not apply are written to the event log **by name** (`rule:config/a-reload-names-what-it-could-not-apply`) |
+| `SERVICE_CONTROL_PARAMCHANGE` | performs the configuration reload in-process; the keys it could not apply are written to the event log **by name** (`rule:config/a-reload-names-what-it-could-not-apply`) |
 | `SERVICE_CONTROL_PRESHUTDOWN` | requested at install, because plain `SHUTDOWN` allows roughly five seconds and a drain needs more |
+
+A systemd unit has no reload command: the server reloads by itself when a configuration file is saved
+(`rule:config/the-config-is-an-immutable-snapshot`), and tells the manager `RELOADING=1` and then
+`READY=1` around it.
 
 Failure actions are set at install — `--restart on-failure` by default, with a reset period — beside
 delayed auto-start (`--start`), dependencies (`--depends-on`, for a database that must come up first)

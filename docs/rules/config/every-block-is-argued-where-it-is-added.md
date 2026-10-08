@@ -20,7 +20,6 @@ that adds the block, so a reader of `nvs.toml` has one place to start:
 | `[metrics]`, `[trace]` | the observability rules |
 | `[server]`, `[[server.mount]]` | `rule:routing/a-request-reads-its-mount` |
 | `[cache]`, `[opcache]` | the artifact cache and hot reload rules |
-| `[control]` | the control socket rules |
 | `[image]` | `rule:core-classes/image-pipeline` |
 | `[io]` | `rule:core-classes/temporary-dir-sweep` |
 | `[mail.<name>]`, `[storage.<name>]` | `rule:programs/framework-core-half` |

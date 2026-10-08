@@ -1,5 +1,5 @@
 `rule:config/later-wins-and-every-override-is-recorded` is only safe while it is auditable, so the
-reporting is part of the rule rather than tooling around it. `config` is a namespace beside `ctl` and
+reporting is part of the rule rather than tooling around it. `config` is a namespace beside
 `service`, and stays out of `nvs check`, which checks source.
 
 ```console
@@ -21,4 +21,4 @@ per key, with the file and line that set it and the one it overrode. A secret re
 names the file it came from, never the value, and `--toml` serializes the merged table whole. Both
 read without the ownership check
 (`rule:config/the-ownership-check-runs-where-it-can-be-answered`). What a reload actually published is
-`rule:config/ctl-config-reports-the-live-snapshot`.
+the record it writes to `Core\Log` (`rule:config/a-reload-names-what-it-could-not-apply`).

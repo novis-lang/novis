@@ -1,7 +1,7 @@
 {
   "title": "A service is one stored argv, and the installer that stores it is a sink",
   "status": "accepted",
-  "scope": "the `nvs service` namespace and what each verb does; the closed list of subcommands that may\nbe hosted; how an argv survives the Windows SCM's single-string `ImagePath`; the identity a service runs\nas and where its output goes; which service-manager control messages map onto which existing Novis\noperation; and why installing on Windows and generating a unit on Linux are deliberately not the same\ngesture. Not in scope: what `nvs serve` does, which is [0017](0017.md) and\n[0074](0074.md); the control socket's protocol and what `reload` means,\nwhich stay [0078](0078.md); periodic work, which is\n[0073](0073.md) and is not a service; and bundling a program into one file,\nwhich stays [0048](0048.md) — § 6 here is the boundary that ADR's § 1\nnamed and deferred.",
+  "scope": "the `nvs service` namespace and what each verb does; the closed list of subcommands that may\nbe hosted; how an argv survives the Windows SCM's single-string `ImagePath`; the identity a service runs\nas and where its output goes; which service-manager control messages map onto which existing Novis\noperation; and why installing on Windows and generating a unit on Linux are deliberately not the same\ngesture. Not in scope: what `nvs serve` does, which is [0017](0017.md) and\n[0074](0074.md); what a configuration reload means, which stays\n[0078](0078.md); periodic work, which is\n[0073](0073.md) and is not a service; and bundling a program into one file,\nwhich stays [0048](0048.md) — § 6 here is the boundary that ADR's § 1\nnamed and deferred.",
   "dependsOn": [],
   "summary": {
     "group": "tooling",

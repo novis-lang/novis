@@ -4,7 +4,6 @@ The generated unit carries what a hand-written one usually does not:
 [Service]
 Type=notify
 ExecStart=/usr/bin/nvs serve --config /etc/nvs/nvs.toml
-ExecReload=/usr/bin/nvs ctl reload --socket /run/nvs/control.sock
 WatchdogSec=30
 User=nvs-web
 NoNewPrivileges=true

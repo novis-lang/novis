@@ -969,7 +969,7 @@ connection never sees it.
 
 `rule:concurrency/a-drain-closes-a-connection-cleanly`
 
-A graceful shutdown and a control-socket reload close connections with a defined code after a drain
+A graceful shutdown and a configuration reload close connections with a defined code after a drain
 period, so a client's reconnect logic sees a clean close rather than a reset. There is one mechanism
 behind both spellings, because there is one thing a stopping process and a reloading one both need.
 
@@ -1390,7 +1390,7 @@ and claiming a job is taking new work — so a claimed job runs to completion ex
 request and an in-flight fire do, and nothing new is claimed after it begins. It is also what keeps
 the process able to end: the server's loop runs while anything is parked and a worker waiting for work
 is always parked, so a worker that ignored the drain would be a server nothing but killing the process
-could stop — which is the graceful shutdown a terminating signal, a control socket and a test harness
+could stop — which is the graceful shutdown a terminating signal, a service manager and a test harness
 each ask of one. The drain wakes a worker out of that wait, so a shutdown does not wait for it to run
 out ([`concurrency/a-push-wakes-an-idle-worker`](concurrency.md#concurrency-a-push-wakes-an-idle-worker)).
 
