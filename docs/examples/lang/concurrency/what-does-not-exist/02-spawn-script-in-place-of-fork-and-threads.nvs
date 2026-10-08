@@ -23,6 +23,6 @@ var $counted = await $file;
 var $built = await $method;
 
 int $orders = $counted->value as int;
-string $text = $built->value as string;
+tainted string $text = $built->value as string;
 echo "orders: ", $orders, "\n";
 echo "report: ", $text, "\n";

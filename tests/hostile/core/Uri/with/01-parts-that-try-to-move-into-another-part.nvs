@@ -7,7 +7,7 @@ class Swap
     public static function host(string $address, string $path): string
     {
         try {
-            mixed $host = Core\Uri::parse($address)->with({ path: $path })->host();
+            ?string $host =Core\Uri::parse($address)->with({ path: $path })->host();
             return $host == null ? 'no host' : $host as string;
         } catch (Throwable $e) {
             return 'error';

@@ -24,7 +24,7 @@ Core\Session::set('big', Core\Str::repeat('x', 1048576));
 uint $length = 0;
 uint $i = 0;
 while ($i < 500) {
-    string $read = Core\Session::get('big') as ?string ?? '';
+    tainted string $read =Core\Session::get('big') as ?string ?? '';
     $length = Core\Str::length($read);
     $i = $i + 1;
 }

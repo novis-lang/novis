@@ -14,7 +14,7 @@ class Humidity implements Reading {
 }
 
 class Report {
-    public static function line(mixed $reading): string {
+    public static function line(mixed $reading): tainted string {
         if ($reading is Temperature) {
             // Here `$reading` is a `Temperature`, so its property is readable.
             return "temperature " . $reading->celsius;

@@ -7,7 +7,7 @@ mixed $answer = "42";
 // `as` is the only conversion. It stands in for `(int)`, `intval` and the rest
 // of that family.
 int $count = $answer as int;
-string $label = $answer as string;
+tainted string $label = $answer as string;
 float $share = $answer as float;
 
 // The conversion is checked. A price with a fraction is not a whole number,

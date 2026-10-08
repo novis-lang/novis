@@ -39,7 +39,7 @@ $cache->put('big', Core\Str::repeat('y', 100000));
 uint $characters = 0;
 uint $round = 0;
 while ($round < 50000) {
-    string $copy = $cache->get('big') as string;
+    tainted string $copy =$cache->get('big') as string;
     $characters = $characters + Core\Str::length($copy);
     $round = $round + 1;
 }

@@ -20,7 +20,7 @@ class Bench {
         while ($i < $rounds) {
             // The octets read so far choose the column read next, so the loop
             // cannot be left out.
-            bytes $body = $row->bytes($columns[($total % 2) as int]) ?? '' as bytes;
+            tainted bytes $body =$row->bytes($columns[($total % 2) as int]) ?? '' as bytes;
             $total = $total + Core\Bytes::length($body);
             $i = $i + 1;
         }

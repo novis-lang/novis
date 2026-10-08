@@ -28,7 +28,7 @@ echo Check::link('https://example.com/a?id=7&_sig=' . Core\Str::repeat('A', 1000
 echo Check::link('https://example.com/a?id=7&_sig=' . Core\Str::repeat('%41', 1000000), $keys), "\n";
 
 // 4. The real token sent twice. Two tokens are not allowed, so this prints "error".
-string $twice = $good . '&_sig=' . (Core\Uri::parse($good)->queryParameter('_sig') as string);
+string $twice = $good . '&_sig=' . Core\Taint::assertTrusted(Core\Uri::parse($good)->queryParameter('_sig') as string, 'this program signed the link');
 echo Check::link($twice, $keys), "\n";
 
 // 5. The real token with 100000 extra parameters. This prints "error".
@@ -49,7 +49,7 @@ echo Check::link($good, $none), "\n";
 
 // 8. The real token with each of its first 2000 letters changed, one at a time.
 // Every changed token fails, so this prints 0.
-string $token = Core\Uri::parse($good)->queryParameter('_sig') as string;
+string $token = Core\Taint::assertTrusted(Core\Uri::parse($good)->queryParameter('_sig') as string, 'this program signed the link');
 string $base = 'https://example.com/a?id=7&_sig=';
 uint $accepted = 0;
 uint $i = 0;

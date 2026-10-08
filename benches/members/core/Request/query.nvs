@@ -11,7 +11,7 @@ class Bench {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            string $value = Core\Request::query($names[($total % 3) as int]) as string;
+            tainted string $value =Core\Request::query($names[($total % 3) as int]) as string;
             $total = $total + Core\Str::length($value);
             $i = $i + 1;
         }

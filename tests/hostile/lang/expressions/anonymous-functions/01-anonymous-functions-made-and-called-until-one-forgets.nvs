@@ -32,7 +32,7 @@ class Attack
 
     // 3. An anonymous function gets the wrong kind of value. The call throws
     // an error.
-    public static function refuse(callable $rule, mixed $value): string
+    public static function refuse(callable $rule, mixed $value): tainted string
     {
         return $rule($value) as string;
     }

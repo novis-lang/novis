@@ -40,7 +40,7 @@ class Till
     }
 
     // Each arm of `match (true)` uses the value as the kind that arm checked.
-    public static function describe(mixed $thing): string
+    public static function describe(mixed $thing): tainted string
     {
         return match (true) {
             $thing is Card => "a card, " . $thing->pay(),

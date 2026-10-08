@@ -41,7 +41,7 @@ echo ${${$name}}, "\n";
 // would ever write.
 mixed $raw = "7";
 int $deep = (int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)$raw;
-string $text = (string)(array)(object)(bool)(float)$raw;
+tainted string $text = (string)(array)(object)(bool)(float)$raw;
 
 // 4. The PHP functions with no free function behind them.
 eval("echo 1;");

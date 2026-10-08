@@ -63,7 +63,7 @@ string $numbers = '[' . Core\Str::repeat('7,', 199999) . '7]';
 if (Core\Arr::count(Core\Json::decode($numbers) as array<mixed>) != 200000) {
     throw new LogicError('the long list lost elements');
 }
-string $long = Core\Json::decode("\"" . Core\Str::repeat('x', 10000000) . "\"") as string;
+tainted string $long = Core\Json::decode("\"" . Core\Str::repeat('x', 10000000) . "\"") as string;
 if (Core\Str::length($long) != 10000000) {
     throw new LogicError('the long string was cut');
 }

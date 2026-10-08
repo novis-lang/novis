@@ -10,5 +10,5 @@ int $read = 0;
 while (Core\Request::post("p{$read}") != null) {
     $read = $read + 1;
 }
-string $q = Core\Request::post("q") as string;
+tainted string $q =Core\Request::post("q") as string;
 echo "fields: ", $read, " q: ", $q, "\n";

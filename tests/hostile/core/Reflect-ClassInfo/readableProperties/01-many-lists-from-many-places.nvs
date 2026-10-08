@@ -55,7 +55,7 @@ $forged[] = 'secret';
 var $described = Core\Reflect::forObject($vault);
 foreach ($forged as string $name) {
     try {
-        string $value = $described->get($vault, $name) as string;
+        tainted string $value = $described->get($vault, $name) as string;
         echo $name, '=', $value, "\n";
     } catch (RuntimeError $error) {
         echo $name, " cannot be read\n";

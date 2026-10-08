@@ -9,7 +9,7 @@ class Poke
 {
     // Each method checks the types of its arguments while the program runs.
     // If an operation is not allowed, the method catches the error and returns 'refused'.
-    public static function add(mixed $a, mixed $b): string
+    public static function add(mixed $a, mixed $b): tainted string
     {
         try {
             return ($a + $b) as string;
@@ -17,7 +17,7 @@ class Poke
             return 'refused';
         }
     }
-    public static function key(mixed $base, mixed $k): string
+    public static function key(mixed $base, mixed $k): tainted string
     {
         try {
             return $base[$k] as string;

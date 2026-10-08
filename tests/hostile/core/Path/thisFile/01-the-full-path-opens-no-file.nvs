@@ -25,7 +25,7 @@ try {
 }
 callable $file = fn(): string => Core\Path::thisFile();
 try {
-    echo Core\IO::read(($file() as ?string) ?? ''), "\n";
+    echo Core\IO::read(Core\Taint::assertTrusted(($file() as ?string) ?? '', 'the function returns Core\Path::thisFile()')), "\n";
 } catch (RuntimeError $error) {
     echo "2: throws\n";
 }

@@ -5,7 +5,7 @@ use Novis\Image\Gravity;
 use Novis\Image\Image;
 
 class FirstPixel {
-    public static function of(Image $image): string {
+    public static function of(Image $image): tainted string {
         array<mixed> $p = Core\Bytes::unpack(Core\Bytes::slice($image->raw()->pixels, 0, 4), "C4");
         return "{$p[0]} {$p[1]} {$p[2]}";
     }

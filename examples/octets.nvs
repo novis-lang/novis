@@ -38,7 +38,7 @@ echo 'decoded octets: ',
 // constraint, so it arrives as the octets themselves — identical to the buffer
 // above, which is what the comparison asserts.
 array<mixed> $query = Core\Uri::parseQuery('na%6de=%ff%fe%fd');
-bytes $value = $query['name'] as bytes;
+tainted bytes $value = $query['name'] as bytes;
 if (Core\Bytes::compare($value, $octets) == 0) {
     echo 'query name and value decode as octets too', "\n";
 }

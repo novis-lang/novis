@@ -85,7 +85,7 @@ try {
 // as a document regardless: a header is what a peer wrote, not what a body is.
 // A member that gated on the type would have thrown at the first reading, and
 // the mislabelled-but-valid document is exactly the case `post()` already reads.
-string $declared = Core\Request::header('content-type') as string;
+tainted string $declared = Core\Request::header('content-type') as string;
 if ($declared == 'text/plain') {
     echo "the declared content type is not consulted\n";
 }

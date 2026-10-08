@@ -14,7 +14,7 @@ class Bench
         while ($i < 64) {
             Core\Topic::publish("room:lobby", $line);
             ?Core\Socket\Message $message = $conn->receive();
-            string $posted = $message?->value() as string;
+            tainted string $posted =$message?->value() as string;
             $total = $total + Core\Str::length($posted) % 7 + 1;
             $i = $i + 1;
         }

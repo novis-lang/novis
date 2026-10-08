@@ -12,7 +12,7 @@ array<mixed> $lines = [
 decimal $total = 0.00;
 foreach ($lines as mixed $line) {
     try {
-        string $sku = $line["sku"] as string;
+        tainted string $sku =$line["sku"] as string;
         uint $quantity = $line["quantity"] as uint;
         decimal $price = $line["price"] as decimal;
         $total = $total + $price * $quantity;

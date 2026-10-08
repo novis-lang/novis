@@ -5,7 +5,7 @@
 // The entries are stored outside the record. So adding an entry is not a
 // change to the customer.
 final class Audit {
-    public static array<string> $entries = [];
+    public static array<tainted string> $entries = [];
 }
 
 class Customer implements PropertyObserver {
@@ -33,7 +33,7 @@ $ada->email = "ada.lovelace@example.com";
 $ada->orders = $ada->orders + 1;
 
 echo "fields changed, oldest first:\n";
-foreach (Audit::$entries as string $field) {
+foreach (Audit::$entries as tainted string $field) {
     echo "  ", $field, "\n";
 }
 echo "the record now: ", $ada->name, " <", $ada->email, "> ", $ada->orders, " orders\n";

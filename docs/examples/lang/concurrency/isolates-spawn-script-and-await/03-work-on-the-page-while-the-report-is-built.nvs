@@ -10,7 +10,7 @@ echo "<p>Numbers for last month.</p>\n";
 
 var $report = await $handle;
 if ($report->ok) {
-    string $line = $report->value as string;
+    tainted string $line = $report->value as string;
     echo "<p>", $line, "</p>\n";
 } else {
     echo "<p>The report is not ready.</p>\n";

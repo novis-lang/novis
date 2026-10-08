@@ -6,11 +6,11 @@
 class Form {
     // Each rule is given the value of its field and gives back an empty text
     // when the value is fine.
-    public static function check(array<string> $values, array<callable> $rules): array<string> {
-        array<string> $problems = [];
+    public static function check(array<string> $values, array<callable> $rules): array<tainted string> {
+        array<tainted string> $problems = [];
 
         foreach ($rules as string $field => callable $rule) {
-            string $message = $rule($values[$field] ?? "") as string;
+            tainted string $message = $rule($values[$field] ?? "") as string;
 
             if ($message != "") {
                 $problems = Core\Arr::append($problems, $field . ": " . $message);
@@ -48,6 +48,6 @@ array<string> $empty = [
 ];
 
 // This prints one line per field that failed its rule.
-foreach (Form::check($empty, $rules) as string $problem) {
+foreach (Form::check($empty, $rules) as tainted string $problem) {
     echo $problem, "\n";
 }
