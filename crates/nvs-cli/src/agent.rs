@@ -2331,10 +2331,7 @@ fn hook_in(dir: &Path, name: &str, payload: &str) -> ExitCode {
     let Ok(exe) = std::env::current_exe() else {
         return ExitCode::SUCCESS;
     };
-    let Ok(mut child) = std::process::Command::new(exe)
-        .args(["agent", "hook", name])
-        .current_dir(dir)
-        .env(HOOK_CHILD, "1")
+    let Ok(mut child) = hook_command(&exe, dir, name, nvs_config::data::current())
         .stdin(std::process::Stdio::piped())
         .spawn()
     else {
@@ -2345,6 +2342,26 @@ fn hook_in(dir: &Path, name: &str, payload: &str) -> ExitCode {
     }
     let _ = child.wait();
     ExitCode::SUCCESS
+}
+
+/// The command [`hook_in`] starts: `exe agent hook <name>` in `dir`. A data folder `--data` named
+/// is passed on as `--data` with its absolute path, so the copy reads the same folder as this
+/// process; the default folder is the copy's own default too, so nothing is added for it.
+fn hook_command(
+    exe: &Path,
+    dir: &Path,
+    name: &str,
+    data: Option<&nvs_config::data::Folder>,
+) -> std::process::Command {
+    let mut command = std::process::Command::new(exe);
+    if let Some(folder) = data.filter(|folder| !folder.is_default()) {
+        command.arg("--data").arg(folder.root());
+    }
+    command
+        .args(["agent", "hook", name])
+        .current_dir(dir)
+        .env(HOOK_CHILD, "1");
+    command
 }
 
 /// The text a hook gives back for `report` about the file `shown`.
@@ -2385,4 +2402,52 @@ fn under_cursor(payload: &Value) -> bool {
 /// Whether the project in the working directory carries Cursor's own hook.
 fn cursor_hooked() -> bool {
     matches!(CURSOR_HOOK.read(Path::new(".")), Ok(Some(doc)) if CURSOR_HOOK.carried(&doc))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::ffi::OsStr;
+    use std::path::{Path, PathBuf};
+
+    /// The copy of the hook gets the `--data` folder this process was given, and nothing when this
+    /// process uses the default folder beside the binary.
+    #[test]
+    fn the_hook_copy_reads_the_same_data_folder() {
+        let named = nvs_config::data::Folder::new(PathBuf::from("/srv/app/.nvsdata"));
+        let command = super::hook_command(
+            Path::new("nvs"),
+            Path::new("project"),
+            "claude-code",
+            Some(&named),
+        );
+        let args: Vec<&OsStr> = command.get_args().collect();
+        assert_eq!(
+            args,
+            [
+                OsStr::new("--data"),
+                named.root().as_os_str(),
+                OsStr::new("agent"),
+                OsStr::new("hook"),
+                OsStr::new("claude-code"),
+            ]
+        );
+
+        let default = nvs_config::data::Folder::beside_exe().expect("the test binary's folder");
+        assert!(default.is_default());
+        let command = super::hook_command(
+            Path::new("nvs"),
+            Path::new("project"),
+            "claude-code",
+            Some(&default),
+        );
+        let args: Vec<&OsStr> = command.get_args().collect();
+        assert_eq!(
+            args,
+            [
+                OsStr::new("agent"),
+                OsStr::new("hook"),
+                OsStr::new("claude-code")
+            ]
+        );
+    }
 }
