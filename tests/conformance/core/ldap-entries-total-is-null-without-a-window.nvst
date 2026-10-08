@@ -1,0 +1,39 @@
+--TEST--
+`Entries::total()` is `null` for a plain search, for a sorted search with no `window`, and for both again after the loop has read every entry: only a window asks the server for a count — ADR 0278 § 11
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+var $every = Core\Ldap\Filter::present("objectClass");
+var $base = "CN=Users,DC=example,DC=test";
+
+var $plain = $corp->search($every, {base: $base, scope: Core\Ldap\Scope::OneLevel});
+var $sorted = $corp->search($every, {base: $base, scope: Core\Ldap\Scope::OneLevel, sort: "cn"});
+echo "plain: ", $plain->total() == null ? "null" : "a number", "\n";
+echo "sorted: ", $sorted->total() == null ? "null" : "a number", "\n";
+
+int $read = 0;
+foreach ($plain as Core\Ldap\Entry $entry) {
+    $read = $read + 1;
+}
+foreach ($sorted as Core\Ldap\Entry $entry) {
+    $read = $read + 1;
+}
+echo "read some entries: ", $read > 0 ? "yes" : "no", "\n";
+echo "after the loop: ", $plain->total() == null && $sorted->total() == null ? "null" : "a number", "\n";
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+base = "DC=example,DC=test"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+plain: null
+sorted: null
+read some entries: yes
+after the loop: null

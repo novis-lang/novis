@@ -20,14 +20,22 @@
 //! connection's key, the id its search is parked under ([`super::step`]), the
 //! entry the last `advance()` read, and the continuation references, which
 //! the last `advance()` writes when the search ends. Until then the slot is
-//! `null`, and `references()` reads the parked search instead.
+//! `null`, and `references()` reads the parked search instead. Its fifth slot
+//! is `total()`: the count a window's answer carried, written once when the
+//! search starts, or `null` for a search with no window.
+//!
+//! **A window is two flat options, `offset` and `window`**, where ADR 0278
+//! § 1 wrote one `window: {offset, count}`: an option bag cannot hold a shape
+//! (`a_shape_is_only_ever_a_whole_parameter`), and two counts beside `sort`
+//! need no type of their own. `window` needs `sort`, and `offset` needs
+//! `window`; both are checked before anything is sent.
 
 use nvs_runtime::{Fault, NvsArray, NvsStr, ThrownClass, Value};
 
 use super::{
     CONNECTION, CONNECTION_HANDLE_AT, ENTRIES, ENTRIES_ENTRY_AT, ENTRIES_HANDLE_AT,
-    ENTRIES_REFERENCES_AT, ENTRIES_SEARCH_AT, ENTRY, ENTRY_ATTRIBUTES_AT, ENTRY_DN_AT, ENTRY_NAME,
-    FILTER, FILTER_BER_AT, READ, SEARCH, Step,
+    ENTRIES_REFERENCES_AT, ENTRIES_SEARCH_AT, ENTRIES_TOTAL_AT, ENTRY, ENTRY_ATTRIBUTES_AT,
+    ENTRY_DN_AT, ENTRY_NAME, FILTER, FILTER_BER_AT, READ, SEARCH, Step,
 };
 use crate::registry::CoreClass;
 
@@ -314,6 +322,37 @@ fn count_option(value: &Value, option: &str, least: u32) -> Result<u32, Fault> {
         })
 }
 
+/// The window `search`'s `offset` and `window` options ask for, or `None`
+/// when `window` is 0. A window, and `descending`, need `sort`, and `offset`
+/// needs a window.
+fn window_of(
+    sorted: bool,
+    descending: bool,
+    offset: u32,
+    count: u32,
+) -> Result<Option<nvs_ldap::Window>, Fault> {
+    let needs = |option: &str, needed: &str| {
+        Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!("{SEARCH}: `{option}` needs `{needed}`. Give both, or leave out `{option}`"),
+        ))
+    };
+    if descending && !sorted {
+        return needs("descending", "sort");
+    }
+    if count == 0 {
+        return if offset == 0 {
+            Ok(None)
+        } else {
+            needs("offset", "window")
+        };
+    }
+    if !sorted {
+        return needs("window", "sort");
+    }
+    Ok(Some(nvs_ldap::Window { offset, count }))
+}
+
 nvs_runtime::nvs_helper! {
     /// `$connection->whoami(): string` — [`super::who_am_i`] for a Novis program.
     fn nvs_core_ldap_connection_whoami(ctx, args: [1]) {
@@ -325,9 +364,10 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `$connection->search(Filter $filter, {base?, scope?, select?, pageSize?,
-    /// sizeLimit?}): Entries` — [`super::search`], with the search parked on
-    /// the connection for the `Ldap\Entries` it returns.
-    fn nvs_core_ldap_connection_search(ctx, args: [7]) {
+    /// sizeLimit?, sort?, descending?, offset?, window?}): Entries` —
+    /// [`super::search`], with the search parked on the connection for the
+    /// `Ldap\Entries` it returns.
+    fn nvs_core_ldap_connection_search(ctx, args: [11]) {
         let key = key_in(args[0], &CONNECTION, CONNECTION_HANDLE_AT, "search")?;
         let filter = nvs_ldap::Filter::Encoded(ber_of(args[1], "search")?);
         let base = match super::dn::dn_arg(args[2], SEARCH)? {
@@ -345,6 +385,16 @@ nvs_runtime::nvs_helper! {
         let scope = scope_of(&args[3])?;
         let select = selected(&args[4], SEARCH)?;
         let attributes: Vec<&str> = select.iter().map(String::as_str).collect();
+        let sorted = args[7].as_text().map(str::to_owned);
+        if let Some(name) = &sorted
+            && !nvs_ldap::is_attribute_description(name)
+        {
+            return Err(not_an_attribute(SEARCH, name));
+        }
+        let offset = count_option(&args[9], "offset", 0)?;
+        let count = count_option(&args[10], "window", 0)?;
+        let descending = args[8].as_bool() == Some(true);
+        let window = window_of(sorted.is_some(), descending, offset, count)?;
         let request = nvs_ldap::SearchRequest {
             base: &base,
             scope,
@@ -353,11 +403,20 @@ nvs_runtime::nvs_helper! {
             page_size: count_option(&args[5], "pageSize", 1)?,
             size_limit: count_option(&args[6], "sizeLimit", 0)?,
             time_limit: 0,
+            sort: sorted.as_deref().map(|attribute| nvs_ldap::Sort {
+                attribute,
+                descending,
+            }),
+            window,
         };
-        let id = super::search(ctx, key, &request)?.park(ctx)?;
+        let entries = super::search(ctx, key, &request)?;
+        let total = entries
+            .total()
+            .map_or_else(Value::null, |total| Value::int(i64::from(total)));
+        let id = entries.park(ctx)?;
         Ok(crate::instance::build(
             &ENTRIES,
-            [Value::uint(key), Value::uint(id), Value::null(), Value::null()],
+            [Value::uint(key), Value::uint(id), Value::null(), Value::null(), total],
         ))
     }
 }
@@ -446,6 +505,14 @@ nvs_runtime::nvs_helper! {
         let key = key_in(args[0], &ENTRIES, ENTRIES_HANDLE_AT, "references")?;
         let id = key_in(args[0], &ENTRIES, ENTRIES_SEARCH_AT, "references")?;
         Ok(url_list(&super::references(ctx, key, id)?.unwrap_or_default()))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$entries->total(): ?int` — how many entries the whole sorted result
+    /// has, which a search with a window reads from the server's answer.
+    fn nvs_core_ldap_entries_total(_ctx, args: [1]) {
+        crate::instance::read_slot(args, &ENTRIES, ENTRIES_TOTAL_AT, "total")
     }
 }
 
@@ -790,6 +857,7 @@ pub(super) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_ldap_entries_references" => {
             (nvs_core_ldap_entries_references as *const ()).cast()
         }
+        "nvs_core_ldap_entries_total" => (nvs_core_ldap_entries_total as *const ()).cast(),
         "nvs_core_ldap_entry_to_array" => (nvs_core_ldap_entry_to_array as *const ()).cast(),
         "nvs_core_ldap_entry_dn" => (nvs_core_ldap_entry_dn as *const ()).cast(),
         "nvs_core_ldap_entry_has" => (nvs_core_ldap_entry_has as *const ()).cast(),

@@ -24,6 +24,12 @@ pub const WHO_AM_I: &str = "1.3.6.1.4.1.4203.1.11.3";
 pub const NOTICE_OF_DISCONNECTION: &str = "1.3.6.1.4.1.1466.20036";
 /// The simple paged results control (RFC 2696).
 pub const PAGED_RESULTS: &str = "1.2.840.113556.1.4.319";
+/// The server side sort request control (RFC 2891).
+pub const SORT_REQUEST: &str = "1.2.840.113556.1.4.473";
+/// The virtual list view request control (draft-ietf-ldapext-ldapv3-vlv-09).
+pub const VLV_REQUEST: &str = "2.16.840.1.113730.3.4.9";
+/// The virtual list view response control a server sends back.
+pub const VLV_RESPONSE: &str = "2.16.840.1.113730.3.4.10";
 
 const BIND_REQUEST: u8 = 0x60;
 const BIND_RESPONSE: u8 = 0x61;
@@ -689,6 +695,88 @@ impl Control {
         seq.expect(tag::INTEGER)?;
         Ok(seq.expect(tag::OCTET_STRING)?.to_vec())
     }
+
+    /// The sort control on one key, `sort.attribute`, with the server's own
+    /// ordering rule for it.
+    #[must_use]
+    pub fn sort(sort: &Sort<'_>) -> Self {
+        let mut value = Writer::new();
+        value.constructed(tag::SEQUENCE, |keys| {
+            keys.constructed(tag::SEQUENCE, |key| {
+                key.octets(tag::OCTET_STRING, sort.attribute.as_bytes());
+                if sort.descending {
+                    // `reverseOrder [1] BOOLEAN DEFAULT FALSE`.
+                    key.boolean(0x81, true);
+                }
+            });
+        });
+        Self {
+            oid: SORT_REQUEST.to_owned(),
+            critical: true,
+            value: Some(value.into_bytes()),
+        }
+    }
+
+    /// The virtual list view control asking for `window.count` entries of the
+    /// sorted result, starting after the first `window.offset`.
+    #[must_use]
+    pub fn window(window: Window) -> Self {
+        let mut value = Writer::new();
+        value.constructed(tag::SEQUENCE, |vlv| {
+            vlv.integer(tag::INTEGER, 0);
+            vlv.integer(tag::INTEGER, i64::from(window.count.max(1)) - 1);
+            // `byOffset [0] SEQUENCE`: the offset counts from 1, and a
+            // `contentCount` of 0 says the client has no estimate of its own.
+            vlv.constructed(0xA0, |by_offset| {
+                by_offset.integer(tag::INTEGER, i64::from(window.offset) + 1);
+                by_offset.integer(tag::INTEGER, 0);
+            });
+        });
+        Self {
+            oid: VLV_REQUEST.to_owned(),
+            critical: true,
+            value: Some(value.into_bytes()),
+        }
+    }
+
+    /// The `contentCount` and the result code of a virtual list view
+    /// response control: how many entries the whole sorted result has, and
+    /// 0 when the server built the window.
+    ///
+    /// # Errors
+    ///
+    /// [`Kind::Protocol`] for a value that is not the draft's shape.
+    pub fn window_total(&self) -> Result<(u32, u32), Error> {
+        let value = self.value.as_deref().unwrap_or_default();
+        let mut outer = Reader::new(value);
+        let mut seq = Reader::new(outer.expect(tag::SEQUENCE)?);
+        seq.expect(tag::INTEGER)?;
+        let count = ber::integer(seq.expect(tag::INTEGER)?)?;
+        let code = ber::integer(seq.expect(tag::ENUMERATED)?)?;
+        let fit = |n: i64| {
+            u32::try_from(n).map_err(|_| Error::new(Kind::Protocol, "a VLV count out of range"))
+        };
+        Ok((fit(count)?, fit(code)?))
+    }
+}
+
+/// The one key a search is sorted on. AD sorts on one key only.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Sort<'a> {
+    /// The attribute the entries are sorted by.
+    pub attribute: &'a str,
+    /// Whether the largest value comes first.
+    pub descending: bool,
+}
+
+/// A slice of a sorted search, which the server cuts out and sends in one
+/// answer instead of pages.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Window {
+    /// How many entries of the sorted result come before the slice.
+    pub offset: u32,
+    /// How many entries the slice has.
+    pub count: u32,
 }
 
 /// An `LDAPMessage` with `op` as its operation, already encoded.
@@ -876,6 +964,11 @@ pub struct SearchRequest<'a> {
     pub size_limit: u32,
     /// The most seconds the server spends, or 0 for the server's own limit.
     pub time_limit: u32,
+    /// The key the server sorts the entries on, or `None` for its own order.
+    pub sort: Option<Sort<'a>>,
+    /// The slice of the sorted result to return in one answer, in place of
+    /// pages. The server refuses one without [`Self::sort`].
+    pub window: Option<Window>,
 }
 
 /// The `SearchRequest` operation, encoded once and sent again for every page.
@@ -1134,6 +1227,39 @@ mod tests {
     fn a_paged_control_round_trips_its_cookie() {
         let control = Control::paged(1000, b"next");
         assert_eq!(control.paged_cookie().unwrap(), b"next");
+    }
+
+    #[test]
+    fn sort_and_window_controls_encode_as_their_specs_write_them() {
+        let sort = Control::sort(&Sort {
+            attribute: "cn",
+            descending: true,
+        });
+        assert_eq!(
+            sort.value.unwrap(),
+            [
+                0x30, 0x09, 0x30, 0x07, 0x04, 0x02, b'c', b'n', 0x81, 0x01, 0xFF
+            ]
+        );
+        let window = Control::window(Window {
+            offset: 20,
+            count: 10,
+        });
+        assert_eq!(
+            window.value.unwrap(),
+            [
+                0x30, 0x0E, 0x02, 0x01, 0x00, 0x02, 0x01, 0x09, 0xA0, 0x06, 0x02, 0x01, 21, 0x02,
+                0x01, 0x00
+            ]
+        );
+        let answer = Control {
+            oid: VLV_RESPONSE.to_owned(),
+            critical: false,
+            value: Some(vec![
+                0x30, 0x0A, 0x02, 0x01, 21, 0x02, 0x02, 0x01, 0x2C, 0x0A, 0x01, 0x00,
+            ]),
+        };
+        assert_eq!(answer.window_total().unwrap(), (300, 0));
     }
 
     #[test]

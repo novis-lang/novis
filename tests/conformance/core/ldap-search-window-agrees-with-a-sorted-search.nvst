@@ -1,0 +1,71 @@
+--TEST--
+A `window` returns the slice of the same sorted search that pages return, in either order, and `total()` is the count of the whole sorted result; a search with no window has a `null` total, and `window`, `offset` and `descending` without the option each needs throw `LogicError` — ADR 0278 § 11
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+
+class Names {
+    public static function of(Core\Ldap\Entries $entries): array<tainted string> {
+        array<tainted string> $out = [];
+        foreach ($entries as Core\Ldap\Entry $entry) {
+            $out[] = $entry->dn()->toString();
+        }
+        return $out;
+    }
+}
+
+var $every = Core\Ldap\Filter::present("objectClass");
+var $base = "CN=Users,DC=example,DC=test";
+var $paged = $corp->search($every, {base: $base, scope: Core\Ldap\Scope::OneLevel, sort: "cn", pageSize: 2});
+echo "no window, no total: ", $paged->total() == null ? "yes" : "no", "\n";
+var $sorted = Names::of($paged);
+var $reversed = Names::of($corp->search($every, {base: $base, scope: Core\Ldap\Scope::OneLevel, sort: "cn", descending: true}));
+echo "descending is the reverse: ", $reversed == Core\Arr::reverse($sorted) ? "yes" : "no", "\n";
+
+var $window = $corp->search($every, {base: $base, scope: Core\Ldap\Scope::OneLevel, sort: "cn", offset: 2, window: 3});
+echo "total is the whole count: ", $window->total() == Core\Arr::count($sorted) ? "yes" : "no", "\n";
+echo "the window is the slice: ", Names::of($window) == Core\Arr::slice($sorted, 2, 3) ? "yes" : "no", "\n";
+var $last = $corp->search($every, {base: $base, scope: Core\Ldap\Scope::OneLevel, sort: "cn", descending: true, window: 1});
+echo "a descending window starts at the end: ", Names::of($last) == Core\Arr::slice($reversed, 0, 1) ? "yes" : "no", "\n";
+
+int $thrown = 0;
+try {
+    $corp->search($every, {base: $base, window: 3});
+} catch (LogicError $noSort) {
+    $thrown = $thrown + 1;
+}
+try {
+    $corp->search($every, {base: $base, sort: "cn", offset: 3});
+} catch (LogicError $noWindow) {
+    $thrown = $thrown + 1;
+}
+try {
+    $corp->search($every, {base: $base, descending: true});
+} catch (LogicError $noSort) {
+    $thrown = $thrown + 1;
+}
+try {
+    $corp->search($every, {base: $base, sort: "cn)(x"});
+} catch (LogicError $notAName) {
+    $thrown = $thrown + 1;
+}
+echo "thrown: ", $thrown, " of 4\n";
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+base = "DC=example,DC=test"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+no window, no total: yes
+descending is the reverse: yes
+total is the whole count: yes
+the window is the slice: yes
+a descending window starts at the end: yes
+thrown: 4 of 4

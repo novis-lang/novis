@@ -34,6 +34,12 @@
 //! not [settled](Connection::is_settled), and a cursor dropped before its last
 //! page leaves it that way, so a pool closes the connection rather than
 //! reusing it with the server still holding the search.
+//!
+//! **A window is one answer.** A search with a [`proto::Window`] sends the
+//! sort and virtual list view controls in place of the paged one, so the
+//! server cuts the slice out of the sorted result and the cursor reads it as
+//! its one and only page. The count the server sends back with it is
+//! [`Cursor::total`]. A sort with no window is sent with every page.
 
 use std::collections::VecDeque;
 use std::io::{self, Read, Write};
@@ -693,6 +699,12 @@ enum Paging {
 pub struct Cursor {
     /// The `SearchRequest`, encoded once.
     op: Vec<u8>,
+    /// The sort and window controls, sent with every page.
+    extra: Vec<Control>,
+    /// Whether the search is one window rather than pages.
+    windowed: bool,
+    /// The count of the whole sorted result a window's answer carried.
+    total: Option<u32>,
     page_size: u32,
     cookie: Vec<u8>,
     page: VecDeque<Entry>,
@@ -708,8 +720,18 @@ impl Cursor {
     /// A search for `request` that has sent nothing yet.
     #[must_use]
     pub fn new(request: &SearchRequest<'_>) -> Self {
+        let mut extra = Vec::new();
+        if let Some(sort) = &request.sort {
+            extra.push(Control::sort(sort));
+        }
+        if let Some(window) = request.window {
+            extra.push(Control::window(window));
+        }
         Self {
             op: proto::search_request(request),
+            extra,
+            windowed: request.window.is_some(),
+            total: None,
             page_size: request.page_size.max(1),
             cookie: Vec::new(),
             page: VecDeque::new(),
@@ -752,6 +774,14 @@ impl Cursor {
     #[must_use]
     pub fn is_finished(&self) -> bool {
         self.state == Paging::Done
+    }
+
+    /// How many entries the whole sorted result has, which the server sends
+    /// with a window's answer, or `None` for a search with no window or one
+    /// not started yet.
+    #[must_use]
+    pub fn total(&self) -> Option<u32> {
+        self.total
     }
 
     /// Asks for the first page now, if it has not been asked for, so a search
@@ -800,7 +830,10 @@ impl Cursor {
     /// Asks for the next page and reads it whole.
     fn fetch(&mut self, connection: &mut Connection) -> Result<(), Error> {
         let id = connection.take_id();
-        let controls = [Control::paged(self.page_size, &self.cookie)];
+        let mut controls = self.extra.clone();
+        if !self.windowed {
+            controls.push(Control::paged(self.page_size, &self.cookie));
+        }
         connection.send(&proto::message(id, &self.op, &controls), "the search")?;
         connection.settled = false;
         loop {
@@ -812,6 +845,27 @@ impl Cursor {
                     connection.settled = true;
                     self.pages += 1;
                     succeeded("the search", &result)?;
+                    if self.windowed {
+                        let (total, code) = incoming
+                            .controls
+                            .iter()
+                            .find(|control| control.oid == proto::VLV_RESPONSE)
+                            .ok_or_else(|| unexpected("the search"))?
+                            .window_total()?;
+                        // The window's own result code, which a server may
+                        // send beside a search that otherwise succeeded.
+                        succeeded(
+                            "the search",
+                            &LdapResult {
+                                code,
+                                diagnostic: String::new(),
+                                referrals: Vec::new(),
+                            },
+                        )?;
+                        self.total = Some(total);
+                        self.move_to(connection, Paging::Done);
+                        return Ok(());
+                    }
                     let cookie = incoming
                         .controls
                         .iter()

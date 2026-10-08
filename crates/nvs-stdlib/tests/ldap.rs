@@ -230,6 +230,8 @@ fn everything(filter: &Filter, page_size: u32, size_limit: u32) -> SearchRequest
         page_size,
         size_limit,
         time_limit: 0,
+        sort: None,
+        window: None,
     }
 }
 
@@ -1783,4 +1785,106 @@ fn an_errors_message_never_carries_the_password() {
         "{}",
         faults[3].message()
     );
+}
+
+/// The `ou` of each entry a one-level search below `base` returns, sorted by
+/// `sort` and cut to `window` when one is given, and the total the server sent.
+fn sorted_names(
+    ctx: &mut nvs_runtime::Ctx,
+    key: u64,
+    base: &str,
+    sort: nvs_ldap::Sort<'_>,
+    window: Option<nvs_ldap::Window>,
+) -> (Vec<String>, Option<u32>) {
+    let every = Filter::Present("objectClass".to_owned());
+    let mut entries = ldap::search(
+        ctx,
+        key,
+        &SearchRequest {
+            base,
+            scope: Scope::One,
+            filter: &every,
+            attributes: &["ou"],
+            page_size: 2,
+            size_limit: 0,
+            time_limit: 0,
+            sort: Some(sort),
+            window,
+        },
+    )
+    .expect("the search starts");
+    let total = entries.total();
+    let mut names = Vec::new();
+    while let Some(entry) = entries.next(ctx).expect("the search succeeds") {
+        let ou = entry.get("ou").expect("an OU has `ou`")[0].clone();
+        names.push(String::from_utf8(ou).expect("UTF-8"));
+    }
+    (names, total)
+}
+
+#[test]
+fn sort_and_a_vlv_window_return_the_requested_slice() {
+    let Some(ca) = samba() else { return };
+    let mut ctx = ctx_over(&corp(&ca));
+    let key = ldap::connect(&mut ctx, "corp").expect("the block opens");
+    let base = format!("OU=Archive,{BASE}");
+    let names = ["Delta", "Alpha", "Echo", "Charlie", "Bravo"];
+    for name in names {
+        ldap::delete(&mut ctx, key, &format!("OU={name},{base}")).ok();
+    }
+    ldap::delete(&mut ctx, key, &base).ok();
+    let unit = || {
+        vec![nvs_ldap::Attribute {
+            name: "objectClass".to_owned(),
+            values: vec![b"organizationalUnit".to_vec()],
+        }]
+    };
+    ldap::add(&mut ctx, key, &base, &unit()).expect("the OU is added");
+    for name in names {
+        ldap::add(&mut ctx, key, &format!("OU={name},{base}"), &unit()).expect("added");
+    }
+
+    // A sort with no window is sent with every page, here two entries to a page.
+    let up = nvs_ldap::Sort {
+        attribute: "ou",
+        descending: false,
+    };
+    assert_eq!(
+        sorted_names(&mut ctx, key, &base, up, None),
+        (
+            vec!["Alpha", "Bravo", "Charlie", "Delta", "Echo"]
+                .into_iter()
+                .map(str::to_owned)
+                .collect(),
+            None
+        )
+    );
+
+    // A window skips `offset` sorted entries, returns `count`, and carries the total.
+    let slice = |offset, count| Some(nvs_ldap::Window { offset, count });
+    let (window, total) = sorted_names(&mut ctx, key, &base, up, slice(1, 2));
+    assert_eq!(
+        (window, total),
+        (vec!["Bravo".into(), "Charlie".into()], Some(5))
+    );
+    let down = nvs_ldap::Sort {
+        attribute: "ou",
+        descending: true,
+    };
+    let (window, total) = sorted_names(&mut ctx, key, &base, down, slice(0, 2));
+    assert_eq!(
+        (window, total),
+        (vec!["Echo".into(), "Delta".into()], Some(5))
+    );
+    assert!(
+        ldap::held(&mut ctx, key, "test")
+            .expect("open")
+            .is_poolable(),
+        "a window is one answer, so the connection is settled after it"
+    );
+
+    for name in names {
+        ldap::delete(&mut ctx, key, &format!("OU={name},{base}")).expect("deleted");
+    }
+    ldap::delete(&mut ctx, key, &base).expect("the OU is deleted");
 }

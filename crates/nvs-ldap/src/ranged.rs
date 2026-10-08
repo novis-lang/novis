@@ -133,6 +133,8 @@ fn fetch(
         page_size: 1,
         size_limit: 0,
         time_limit: 0,
+        sort: None,
+        window: None,
     });
     let mut found = None;
     // A base search has one entry at most, and the loop runs to the end so

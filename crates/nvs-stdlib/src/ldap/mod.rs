@@ -682,6 +682,13 @@ impl Entries {
         self.cursor.references()
     }
 
+    /// How many entries the whole sorted result has, which a search with a
+    /// window knows from its first answer, or `None` for one without a window.
+    #[must_use]
+    pub fn total(&self) -> Option<u32> {
+        self.cursor.total()
+    }
+
     /// Moves the search onto the connection it runs on and returns the id
     /// [`step`] reads it back by, which is what an `Ldap\Entries` carries:
     /// an object slot holds a `Value`, and a cursor is not one.
@@ -824,6 +831,8 @@ pub fn read(
         page_size: 1,
         size_limit: 0,
         time_limit: 0,
+        sort: None,
+        window: None,
     });
     let conn = held(ctx, key, READ)?.ready();
     let mut found = None;

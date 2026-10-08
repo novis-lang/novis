@@ -70,6 +70,8 @@ pub(super) const ENTRIES_SEARCH_AT: usize = 1;
 pub(super) const ENTRIES_ENTRY_AT: usize = 2;
 /// [`ENTRIES`]' slot for the continuation references, filled when the search ends.
 pub(super) const ENTRIES_REFERENCES_AT: usize = 3;
+/// [`ENTRIES`]' slot for the count a window's answer carried, or `null`.
+pub(super) const ENTRIES_TOTAL_AT: usize = 4;
 /// [`ENTRY`]'s DN slot.
 pub(super) const ENTRY_DN_AT: usize = 0;
 /// [`ENTRY`]'s slot for its attributes, keyed by name.
@@ -288,10 +290,11 @@ const OPEN_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `search`'s options, ADR 0278 § 1's `SearchOptions` as far as Stage 4 goes.
+/// `search`'s options, ADR 0278 § 1's `SearchOptions` and § 11's sort and
+/// window, which `super::search`'s module doc says are two flat options.
 ///
-/// `base` and `select` are sinks: the base is a path the server walks, and
-/// an attribute name is sent as it is written.
+/// `base`, `select` and `sort` are sinks: the base is a path the server
+/// walks, and an attribute name is sent as it is written.
 const SEARCH_OPTIONS: &[CoreOption] = &[
     CoreOption {
         name: "base",
@@ -320,6 +323,28 @@ const SEARCH_OPTIONS: &[CoreOption] = &[
         name: "sizeLimit",
         ty: CoreTy::Int,
         // The server's own limit.
+        default: Const::Int(0),
+    },
+    CoreOption {
+        name: "sort",
+        ty: CoreTy::Text(Qual::Sink),
+        // The server's own order.
+        default: Const::Null,
+    },
+    CoreOption {
+        name: "descending",
+        ty: CoreTy::Bool,
+        default: Const::Bool(false),
+    },
+    CoreOption {
+        name: "offset",
+        ty: CoreTy::Int,
+        default: Const::Int(0),
+    },
+    CoreOption {
+        name: "window",
+        ty: CoreTy::Int,
+        // No window: the search reads pages.
         default: Const::Int(0),
     },
 ];
@@ -549,13 +574,39 @@ const SEARCH_DOC: MethodDoc = MethodDoc {
                    limit.",
             shape: &[],
         },
+        ParamDoc {
+            name: "sort",
+            desc: "The attribute the server sorts the entries by, such as `cn`. Left out, the \
+                   entries come in the server's own order.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "descending",
+            desc: "`true` sorts from the largest value to the smallest. It needs `sort`. The \
+                   default is `false`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "offset",
+            desc: "How many sorted entries the window skips. It needs `window`. The default is 0.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "window",
+            desc: "How many sorted entries to return, starting after `offset`. It needs `sort`. \
+                   With `{sort: 'cn', offset: 20, window: 10}`, the search returns entries 21 \
+                   to 30. `total()` then returns how many entries there are in all. The \
+                   default, 0, returns every entry.",
+            shape: &[],
+        },
     ],
     ret: "A `Core\\Ldap\\Entries`. Use it in a `foreach` loop to get each `Core\\Ldap\\Entry`.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "A name in `select` is not an attribute name, `pageSize` or `sizeLimit` is out \
-                   of range, the search has no `base`, or the connection is closed.",
+            desc: "A name in `select` or `sort` is not an attribute name, a number is out of \
+                   range, `window`, `offset` or `descending` is given without the option it \
+                   needs, the search has no `base`, or the connection is closed.",
         },
         ErrorDoc {
             error: "Core\\Ldap\\LdapError",
@@ -903,17 +954,38 @@ pub(crate) const ENTRIES: CoreClass = CoreClass {
     name: ENTRIES_NAME,
     doc: Some(&ENTRIES_CARD),
     methods: &[],
-    instance: &[CoreMethod {
-        name: "references",
-        names: &[],
-        params: &[],
-        defaults: &[],
-        return_ty: CoreTy::Array(&CoreTy::TaintedStr),
-        symbol: "nvs_core_ldap_entries_references",
-        doc: Some(&ENTRIES_REFERENCES_DOC),
-    }],
-    slots: &[HANDLE_SLOT, "search", "entry", "references"],
+    instance: &[
+        CoreMethod {
+            name: "references",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::TaintedStr),
+            symbol: "nvs_core_ldap_entries_references",
+            doc: Some(&ENTRIES_REFERENCES_DOC),
+        },
+        CoreMethod {
+            name: "total",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Int),
+            symbol: "nvs_core_ldap_entries_total",
+            doc: Some(&ENTRIES_TOTAL_DOC),
+        },
+    ],
+    slots: &[HANDLE_SLOT, "search", "entry", "references", "total"],
     constants: &[],
+};
+
+/// `Ldap\Entries::total`'s reference card — `rule:core-api/reference-card`.
+const ENTRIES_TOTAL_DOC: MethodDoc = MethodDoc {
+    short: "Returns how many entries the whole sorted search found, when the search used the \
+            `window` option. The server counts them, so you can show a page number such as \
+            \"page 3 of 12\".",
+    params: &[],
+    ret: "The number of entries, or `null` when the search did not use `window`.",
+    errors: &[],
 };
 
 /// `Ldap\Entries::references`' reference card — `rule:core-api/reference-card`.

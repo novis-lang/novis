@@ -1,0 +1,35 @@
+--TEST--
+`Entries::total()` is the count of the whole sorted result whatever the window is: it is the same for a window of one entry and for a window larger than the result, which returns exactly `total()` entries, and it does not change while the loop reads them — ADR 0278 § 11
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+var $every = Core\Ldap\Filter::present("objectClass");
+var $base = "CN=Users,DC=example,DC=test";
+
+var $one = $corp->search($every, {base: $base, scope: Core\Ldap\Scope::OneLevel, sort: "cn", window: 1});
+var $all = $corp->search($every, {base: $base, scope: Core\Ldap\Scope::OneLevel, sort: "cn", window: 100000});
+var $before = $all->total();
+echo "the same total: ", $one->total() == $before ? "yes" : "no", "\n";
+
+int $read = 0;
+foreach ($all as Core\Ldap\Entry $entry) {
+    $read = $read + 1;
+}
+echo "a large window returns total() entries: ", $before == $read ? "yes" : "no", "\n";
+echo "unchanged after the loop: ", $all->total() == $before ? "yes" : "no", "\n";
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+base = "DC=example,DC=test"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+the same total: yes
+a large window returns total() entries: yes
+unchanged after the loop: yes
