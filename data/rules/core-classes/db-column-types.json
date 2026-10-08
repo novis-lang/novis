@@ -23,6 +23,7 @@
     "tests/conformance/core/db-a-typed-row-throws-naming-the-column.nvst",
     "tests/conformance/core/db-column-type-is-a-case-and-not-a-vendor-name.nvst",
     "tests/conformance/core/db-a-sqlite-column-reads-back-as-the-type-its-schema-declared.nvst",
-    "tests/conformance/core/db-rows-answers-the-types-the-results-table-names.nvst"
+    "tests/conformance/core/db-rows-answers-the-types-the-results-table-names.nvst",
+    "tests/conformance/reject/db-row-text-readers-answer-tainted-text.nvst"
   ]
 }

@@ -1441,7 +1441,7 @@ pub(crate) const ROW: CoreClass = CoreClass {
             names: &["name"],
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
-            return_ty: CoreTy::Nullable(&CoreTy::Str),
+            return_ty: CoreTy::Nullable(&CoreTy::TaintedStr),
             symbol: "nvs_core_db_row_string",
             doc: Some(&ROW_STRING_DOC),
         },
@@ -1450,7 +1450,7 @@ pub(crate) const ROW: CoreClass = CoreClass {
             names: &["name"],
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
-            return_ty: CoreTy::Nullable(&CoreTy::Bytes),
+            return_ty: CoreTy::Nullable(&CoreTy::TaintedBytes),
             symbol: "nvs_core_db_row_bytes",
             doc: Some(&ROW_BYTES_DOC),
         },
@@ -2826,7 +2826,7 @@ pub(super) const ROW_BYTES_DOC: MethodDoc = MethodDoc {
         desc: "The column label, as the server described it.",
         shape: &[],
     }],
-    ret: "The octets, or `null` for a NULL column.",
+    ret: "The octets as `tainted bytes`, or `null` for a NULL column.",
     errors: &[ErrorDoc {
         error: "LogicError",
         desc: "The row has no column with that name, or the column is text rather than `bytes` — \
