@@ -443,7 +443,7 @@ jobs:
             wasi-sdk: arm64-macos
     env:
       WASI_SDK_VERSION: '25'
-      NVS_BIN: ${{ github.workspace }}/target/debug/nvs${{ runner.os == 'Windows' && '.exe' || '' }}
+      NVS_BIN: ${{ github.workspace }}/target/debug/nvs${{ matrix.os == 'windows-latest' && '.exe' || '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
