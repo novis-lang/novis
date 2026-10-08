@@ -5,8 +5,8 @@ the entry file" stands, and it is about discovery and lifetime rather than synta
 with `Cargo.toml` is not a collision; the name, the location and the owner all differ.
 
 Where the file *is* found is `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`:
-a `--config` list, else `./nvs.toml` in exactly one directory. That single-directory step is
-deliberately one step short of a walk, and the step is not taken. What makes a file in a working
-directory safe to read there is `rule:config/ownership-is-the-trust-boundary`, the resolved absolute
-path announced at boot, and the installer refusing a service whose configuration came from a working
-directory.
+a `--config` list, else `./nvs.toml` in exactly one directory, else the data folder's `nvs.toml`. That
+single-directory step is deliberately one step short of a walk, and the step is not taken. The data
+folder's file is Novis's own default, one per data folder and not per project. What makes a file in a
+working directory safe to read there is `rule:config/ownership-is-the-trust-boundary`, the resolved
+absolute path announced at boot, and the installer storing an absolute `--config` for every service.

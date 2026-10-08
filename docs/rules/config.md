@@ -3,7 +3,7 @@
 
 # Configuration
 
-*7 of 65 rules below are **designed** rather than shipped, and are marked where they appear.*
+*7 of 68 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="config-the-file-is-nvs-toml-and-it-is-toml"></a>
 
@@ -139,6 +139,7 @@ that adds the block, so a reader of `nvs.toml` has one place to start:
 | `[metrics]`, `[trace]` | the observability rules |
 | `[server]`, `[[server.mount]]` | [`routing/a-request-reads-its-mount`](routing.md#routing-a-request-reads-its-mount) |
 | `[cache]`, `[opcache]` | the artifact cache and hot reload rules |
+| `[control]` | the control socket rules |
 | `[image]` | [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline) |
 | `[io]` | [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep) |
 | `[mail.<name>]`, `[storage.<name>]` | [`programs/framework-core-half`](programs.md#programs-framework-core-half) |
@@ -163,17 +164,17 @@ the entry file" stands, and it is about discovery and lifetime rather than synta
 with `Cargo.toml` is not a collision; the name, the location and the owner all differ.
 
 Where the file *is* found is [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults):
-a `--config` list, else `./nvs.toml` in exactly one directory. That single-directory step is
-deliberately one step short of a walk, and the step is not taken. What makes a file in a working
-directory safe to read there is [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), the resolved absolute
-path announced at boot, and the installer refusing a service whose configuration came from a working
-directory.
+a `--config` list, else `./nvs.toml` in exactly one directory, else the data folder's `nvs.toml`. That
+single-directory step is deliberately one step short of a walk, and the step is not taken. The data
+folder's file is Novis's own default, one per data folder and not per project. What makes a file in a
+working directory safe to read there is [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), the resolved
+absolute path announced at boot, and the installer storing an absolute `--config` for every service.
 
-<sub>See also [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload). Decided in [0064](../decisions/0064.md), [0103](../decisions/0103.md), [0061](../decisions/0061.md).</sub>
+<sub>See also [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload). Decided in [0064](../decisions/0064.md), [0103](../decisions/0103.md), [0061](../decisions/0061.md), [0279](../decisions/0279.md).</sub>
 
 <a id="config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults"></a>
 
-## The root of the tree is every `--config` in order, else `./nvs.toml`, else the shipped defaults
+## The root of the tree is every `--config` in order, else `./nvs.toml`, else the data folder's `nvs.toml`, else the shipped defaults
 
 `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`
 
@@ -184,27 +185,35 @@ Four steps, first hit wins:
    is always a hard refusal — optionality is a property a file declares about *its* includes, never
    something argv can assert.
 2. `./nvs.toml` — **exactly one directory, never a walk upward.** Any explicit `--config` disables this
-   step entirely, so an operator naming files never gets a surprise merge with whatever is in the
-   working directory, even if every named file turns out to be missing.
-3. Otherwise the shipped defaults
+   step and the next entirely, so an operator naming files never gets a surprise merge with whatever is
+   in the working directory or the data folder, even if every named file turns out to be missing.
+3. `nvs.toml` in the **data folder** — `.nvsdata` beside the running binary, or the folder the global
+   `--data` flag names — if it exists. A process with no usable data folder skips this step.
+4. Otherwise the shipped defaults
    ([`config/no-configuration-file-is-a-complete-configuration`](config.md#config-no-configuration-file-is-a-complete-configuration)). A **project command** — `run`,
-   `serve`, `test`, `build` and `check` — first writes the shipped default file as `./nvs.toml`, the
-   file step 2 looks for, and then reads it. Every key in it is commented out, so it resolves to
-   exactly the shipped defaults. `--no-init`, or `NOVIS_NO_INIT` set to any value, turns the write
-   off, and every other command leaves the directory as it found it. A write the directory refuses
-   is no error: the run continues on the shipped defaults.
+   `serve`, `test`, `build` and `check` — first writes the shipped default file as the data folder's
+   `nvs.toml`, the file step 3 looks for, and then reads it. Every key in it is commented out, so it
+   resolves to exactly the shipped defaults. `--no-init`, or `NOVIS_NO_INIT` set to any value, turns
+   that one write off; the data folder itself is still created. A write the folder refuses is no
+   error: the run continues on the shipped defaults.
 
-There is no platform path, no build-time path and no lookup beside the binary: two implicit lookups
-are worse than one, and the deployments that want a fixed path run under a service manager, which
-carries `--config` anyway. `nvs config check` and `nvs config dump` take the same list positionally.
+**Novis never writes `./nvs.toml` on its own.** The working directory holds a file only when somebody
+put it there, or asked `nvs init` to write it. The language server's per-document lookup takes the
+same four steps with the document's folder in place of the working directory. `nvs config check` and
+`nvs config dump` take the `--config` list positionally.
+
+There is no platform path and no build-time path. The data folder is the one lookup beside the binary:
+it is a folder Novis creates private to its account ([`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary)),
+it comes after both explicit steps, and a deployment that wants a file of its own names it with
+`--config` or moves the folder with `--data`.
 
 What makes the working-directory step safe is [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), the
-announced path ([`config/the-resolved-root-is-announced-and-stored`](config.md#config-the-resolved-root-is-announced-and-stored)) and an installer that
-refuses a service whose configuration came from a working directory. What survives is one narrow case
-— an interactive `nvs serve` in a directory the runtime account can write — stated rather than
-defended: an operator who wants it closed passes `--config`.
+announced path ([`config/the-resolved-root-is-announced-and-stored`](config.md#config-the-resolved-root-is-announced-and-stored)) and an installer that always
+stores an absolute `--config` for a service ([`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink)). What survives
+is one narrow case — an interactive `nvs serve` in a directory the runtime account can write — stated
+rather than defended: an operator who wants it closed passes `--config`.
 
-<sub>See also [`config/no-configuration-file-is-a-complete-configuration`](config.md#config-no-configuration-file-is-a-complete-configuration), [`config/the-resolved-root-is-announced-and-stored`](config.md#config-the-resolved-root-is-announced-and-stored), [`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest), [`config/include-takes-a-path-or-a-dir`](config.md#config-include-takes-a-path-or-a-dir). Decided in [0103](../decisions/0103.md), [0064](../decisions/0064.md), [0093](../decisions/0093.md).</sub>
+<sub>See also [`config/no-configuration-file-is-a-complete-configuration`](config.md#config-no-configuration-file-is-a-complete-configuration), [`config/the-resolved-root-is-announced-and-stored`](config.md#config-the-resolved-root-is-announced-and-stored), [`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest), [`config/include-takes-a-path-or-a-dir`](config.md#config-include-takes-a-path-or-a-dir). Decided in [0103](../decisions/0103.md), [0064](../decisions/0064.md), [0093](../decisions/0093.md), [0279](../decisions/0279.md).</sub>
 
 <a id="config-no-configuration-file-is-a-complete-configuration"></a>
 
@@ -212,13 +221,14 @@ defended: an operator who wants it closed passes `--config`.
 
 `rule:config/no-configuration-file-is-a-complete-configuration`
 
-When no `--config` is given and no `./nvs.toml` exists, the host runs on the **shipped defaults**, and
+When no `--config` is given and neither `./nvs.toml` nor the data folder's `nvs.toml` exists, the host
+runs on the **shipped defaults**, and
 those are a complete and valid configuration rather than a failure to find one: capabilities
 deny-all, `[mode] default = "production"`, and every limit at its documented default. The boot log says
 so in one line. The documented default of `[limits] memory`, `cpu_time` and `wall_time` is no ceiling,
 under `nvs run` and `nvs serve` alike: a deployment that wants one writes it, and a program may narrow
-its own with `Core\Config::set`. They stay the configuration whenever a project command could not write `./nvs.toml`
-([`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults)).
+its own with `Core\Config::set`. They stay the configuration whenever a project command could not write the data folder's
+`nvs.toml` ([`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults)).
 
 Every reader has to answer on such a host. `Core\Config::get` is `null`, `all` is empty, `set` is
 `false` and `restore` does nothing — none of them throws, because "no configuration file anywhere" is
@@ -244,7 +254,7 @@ each of which is the same TOML key as the `pool = false` beside it and cannot be
 a key of the same name, which is the one arrangement where uncommenting the key alone would be
 accepted into the wrong block.
 
-<sub>See also [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set), [`config/two-modes-and-the-default-is-production`](config.md#config-two-modes-and-the-default-is-production). Decided in [0103](../decisions/0103.md), [0005](../decisions/0005.md), [0091](../decisions/0091.md).</sub>
+<sub>See also [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set), [`config/two-modes-and-the-default-is-production`](config.md#config-two-modes-and-the-default-is-production). Decided in [0103](../decisions/0103.md), [0005](../decisions/0005.md), [0091](../decisions/0091.md), [0279](../decisions/0279.md).</sub>
 
 <a id="config-the-resolved-root-is-announced-and-stored"></a>
 
@@ -268,12 +278,13 @@ info:   /srv/www/app/conf.d/10-limits.toml
 info:   /etc/nvs/local.toml
 ```
 
-The announcement is half of what makes the working-directory step of
-[`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults) safe: reading the wrong file
-is visible in one line rather than silent. Missing `./nvs.toml` prints the shipped-defaults line
-instead, and the resolved absolute path is logged in both cases.
+The announcement is half of what makes the two implicit steps of
+[`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults) safe — the working directory's
+`nvs.toml` and the data folder's: reading the wrong file is visible in one line rather than silent.
+When no step finds a file, the shipped-defaults line is printed instead, and the resolved absolute
+path is logged in every case.
 
-<sub>See also [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot). Decided in [0103](../decisions/0103.md), [0078](../decisions/0078.md).</sub>
+<sub>See also [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/one-local-control-socket`](config.md#config-one-local-control-socket). Decided in [0103](../decisions/0103.md), [0078](../decisions/0078.md), [0279](../decisions/0279.md).</sub>
 
 <a id="config-include-takes-a-path-or-a-dir"></a>
 
@@ -440,9 +451,8 @@ it, whatever the file's own bits say. A failure is a refusal to start (`E0607`),
 the mode, and it is re-run on every reload.
 
 The configuration grants capabilities, so whoever can write any file in the tree can grant themselves
-every one of them, and a running server publishes a saved file without a restart. The cache directory
-already gets this refusal, and a file that grants `process.exec` cannot have less protection than a
-directory of compiled code.
+every one of them. The cache directory and the control-socket directory already get this refusal; the
+file that grants `process.exec` cannot have less protection than the socket used to reload it.
 
 **On Windows the equivalent is the DACL**: the owner is the runtime account, `BUILTIN\Administrators`
 or `NT AUTHORITY\SYSTEM`, and no *effective* write right — data, append, EA, attributes, `DELETE`,
@@ -452,9 +462,16 @@ entry counts. Windows grants `Authenticated Users` modify rights by default on a
 root, so a configuration kept under such a path refuses until that inheritance is broken — that default
 *is* the hole this rule closes.
 
+**One directory is checked without its parent: the default data folder**, `.nvsdata` beside the
+running binary. Its parent is the binary's own directory, and an account that can write there can
+already replace the binary, so examining it guards nothing the binary does not — while on a stock
+Windows drive it would make the default folder unusable everywhere. A folder `--data` names, and every
+path the configuration names, keeps the full check, parent included. A file inside the data folder is
+checked as any file is, with the private data folder as its directory.
+
 Where the check runs is [`config/the-ownership-check-runs-where-it-can-be-answered`](config.md#config-the-ownership-check-runs-where-it-can-be-answered).
 
-<sub>See also [`config/optional-covers-absence-and-moves-the-check-to-the-directory`](config.md#config-optional-covers-absence-and-moves-the-check-to-the-directory), [`config/any-file-in-the-tree-may-set-any-directive`](config.md#config-any-file-in-the-tree-may-set-any-directive), [`config/the-ownership-check-runs-where-it-can-be-answered`](config.md#config-the-ownership-check-runs-where-it-can-be-answered), [`config/a-secret-file-is-checked-for-integrity-and-advised-on-exposure`](config.md#config-a-secret-file-is-checked-for-integrity-and-advised-on-exposure). Decided in [0103](../decisions/0103.md), [0042](../decisions/0042.md), [0078](../decisions/0078.md).</sub>
+<sub>See also [`config/optional-covers-absence-and-moves-the-check-to-the-directory`](config.md#config-optional-covers-absence-and-moves-the-check-to-the-directory), [`config/any-file-in-the-tree-may-set-any-directive`](config.md#config-any-file-in-the-tree-may-set-any-directive), [`config/the-ownership-check-runs-where-it-can-be-answered`](config.md#config-the-ownership-check-runs-where-it-can-be-answered), [`config/a-secret-file-is-checked-for-integrity-and-advised-on-exposure`](config.md#config-a-secret-file-is-checked-for-integrity-and-advised-on-exposure), [`config/one-local-control-socket`](config.md#config-one-local-control-socket). Decided in [0103](../decisions/0103.md), [0042](../decisions/0042.md), [0078](../decisions/0078.md), [0279](../decisions/0279.md).</sub>
 
 <a id="config-the-ownership-check-runs-where-it-can-be-answered"></a>
 
@@ -469,17 +486,21 @@ its own.
 `nvs run` executes a program the invoking account named, from a working directory that account chose,
 as that account: whoever can write its `./nvs.toml` can write the program, so the file adds no
 authority the check would take away, and the Windows default would otherwise refuse nearly every
-checkout. `nvs config check` and `nvs config dump` run on the auditing machine as the auditing account,
-where the check answers a different question than the one it exists for — it refuses trees the server
-would accept and passes trees the server would refuse, and a green result that means neither is worse
-than one that does not claim to have looked.
+checkout. The data folder's `nvs.toml` read at step 3 is the same account's file, in a folder Novis
+created private to it. `nvs config check` and `nvs config dump` run on the auditing machine as the
+auditing account, where the check answers a different question than the one it exists for — it
+refuses trees the server would accept and passes trees the server would refuse, and a green result
+that means neither is worse than one that does not claim to have looked.
+
+Two writes are checked even where the read is not: the data folder before anything is created in it,
+and the directory a project command or `nvs init` writes the shipped `nvs.toml` into.
 
 **What the exemption may never do is grant.** A capability or a `System` directive read through an
-unchecked file on the `run` path carries the invoking account's own authority and nothing more:
-`./nvs.toml` can grant a CLI program nothing it could not take for itself, and the rule that places
-the capability check is bound by that sentence.
+unchecked file on the `run` path carries the invoking account's own authority and nothing more: an
+`nvs.toml` can grant a CLI program nothing it could not take for itself, and the rule that places the
+capability check is bound by that sentence.
 
-<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/check-and-dump-audit-the-tree-offline`](config.md#config-check-and-dump-audit-the-tree-offline), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope). Decided in [0103](../decisions/0103.md), [0093](../decisions/0093.md).</sub>
+<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/check-and-dump-audit-the-tree-offline`](config.md#config-check-and-dump-audit-the-tree-offline), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope). Decided in [0103](../decisions/0103.md), [0093](../decisions/0093.md), [0279](../decisions/0279.md).</sub>
 
 <a id="config-optional-covers-absence-and-moves-the-check-to-the-directory"></a>
 
@@ -604,22 +625,22 @@ contribute; validate the assembled registry; then compute `env_hash` and publish
 tree's ownership checks re-run on every file, so a file that became group-writable since boot refuses
 the swap and leaves the previous snapshot serving.
 
-**The server checks its own configuration files, and a saved file is how a reload starts.** Every two
-seconds, one thread off the request path takes the stamp (`mtime` and size) of every path the serving
-tree read or probed: each root, each include, each included directory and each optional include that
-was absent. A stamp that moved and then holds for one more check is a saved file, and the tree is
-resolved and published under one lock, so two reloads never interleave two snapshots. A tree equal to
-the one serving publishes nothing. A tree that does not validate is logged once for each distinct
-refusal, with its file and line, and the running configuration stays. Nothing else starts a reload:
-no signal and no service manager's control ([`packaging/a-service-answers-its-manager`](packaging.md#packaging-a-service-answers-its-manager)). A server
-whose roots are the shipped defaults read no file, and has nothing to check.
+**The server checks its own configuration files.** Every two seconds, one thread off the request
+path takes the stamp (`mtime` and size) of every path the serving tree read or probed: each root,
+each include, each included directory and each optional include that was absent. A stamp that moved
+and then holds for one more check is a saved file, and the tree is resolved and published by the
+same steps `nvs ctl reload` runs, under the same lock, so a noticed reload and a pushed one never
+interleave two snapshots. A tree equal to the one serving publishes nothing. A tree that does not
+validate is logged once for each distinct refusal, with its file and line, and the running
+configuration stays. `nvs ctl reload` remains, to apply a change at once. A server whose roots are
+the shipped defaults read no file, and has nothing to check.
 
 Cost: one `Arc` clone at request start and **no syscall** on the request path, and one `stat` per
 configuration path every two seconds on the checking thread. Two snapshots live during a swap, plus
 one per in-flight request still holding an older one — kilobytes each, bounded by concurrency, never
 by reloads performed.
 
-<sub>See also [`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary). Decided in [0078](../decisions/0078.md), [0005](../decisions/0005.md), [0103](../decisions/0103.md), [0219](../decisions/0219.md), [0271](../decisions/0271.md).</sub>
+<sub>See also [`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/one-local-control-socket`](config.md#config-one-local-control-socket), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary). Decided in [0078](../decisions/0078.md), [0005](../decisions/0005.md), [0103](../decisions/0103.md), [0219](../decisions/0219.md), [0271](../decisions/0271.md).</sub>
 
 <a id="config-three-changeability-classes"></a>
 
@@ -665,7 +686,8 @@ introduces the directive. Stated once, so that no rule introducing a flag has to
 **There is no `--set <key>=<value>`.** It would be a second spelling for every directive in the
 format; it would put values into argv, which is world-readable through `ps` and `/proc/*/cmdline`, so a
 secret could be set there in a way [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary) has no equivalent of;
-and the ergonomic case for it disappeared when every project directory acquired a `./nvs.toml` for free.
+and the ergonomic case for it disappeared when every project command acquired an `nvs.toml` to edit
+for free, in the data folder, and `nvs init` wrote one into a project on request.
 
 A flag **replaces the global value**, and per-app blocks still layer over it. The whole stack,
 outermost first:
@@ -681,7 +703,7 @@ shipped defaults
 So `nvs serve --mode=development` on a mixed host does not drag an application that pins `production`
 along with it, and `[mode] ceiling` still bounds what any of them may select.
 
-<sub>See also [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set), [`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped). Decided in [0103](../decisions/0103.md), [0091](../decisions/0091.md), [0097](../decisions/0097.md), [0064](../decisions/0064.md).</sub>
+<sub>See also [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set), [`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped). Decided in [0103](../decisions/0103.md), [0091](../decisions/0091.md), [0097](../decisions/0097.md), [0064](../decisions/0064.md), [0279](../decisions/0279.md).</sub>
 
 <a id="config-reloadability-is-its-own-field"></a>
 
@@ -718,7 +740,8 @@ after the last of it ends. A `[[schedule]]` firing already in flight runs to com
 arms from the next tick. A queue worker a new `workers` or `connection` stops writes back the job it
 holds first, and the workers it starts claim on the new connection, whose storage the reload checks
 before it publishes, as the boot does. A new `opcache.file_cache_dir` takes the next compile, and a
-directory the ownership check refuses keeps the running one and is named in the log. A reload builds the outbound TLS client `[http.client.tls]` names, reading
+directory the ownership check refuses keeps the running one and is named, as a control socket that
+cannot be created is. A reload builds the outbound TLS client `[http.client.tls]` names, reading
 its anchor files again, and installs it only when its anchors, version floor or key log differ from
 the running client's. The next connection is judged by it, and the pool files every connection under
 the client that opened it, so no socket the old anchors accepted serves a later call. A block that
@@ -972,12 +995,10 @@ reload time, and the units that call it fail when a request next resolves them, 
 
 `rule:config/a-reload-names-what-it-could-not-apply`
 
-**Every reload is written to `Core\Log` with its outcome**, as one record under one fixed message whose
-fields name, in one place: the directives applied and now in force; the **`Boot` keys whose values
-changed and therefore did not take effect, each named individually**; and how many compiled units were
-invalidated, so an operator knows a recompile wave is coming. A reload the configuration check started
-also names the files whose stamps moved. A validation failure is one record carrying the offending
-line, under a message that states the running configuration is unchanged.
+The answer to a reload names, in one place: the directives applied and now in force; the **`Boot`
+keys whose values changed and therefore did not take effect, each named individually**; and how many
+compiled units were invalidated, so an operator knows a recompile wave is coming. A validation failure
+reports the offending line and states that the running configuration is unchanged.
 
 Naming the ignored `Boot` keys is the difference between a reload an operator can trust and one they
 have to guess about: silently ignoring a changed listen address is how a deployment ends up believing
@@ -988,15 +1009,92 @@ both.
 
 A pending restart is loud. The reload that first sees a written value of a `Boot` key logs the key
 with its running value and its written value, once for that written value and not once per reload.
-A file changed back to the running value ends the pending restart, so a later change to the key is
-logged again.
+`nvs ctl status` lists every pending key, one per line with both values, until the process restarts.
+A file changed back to the running value clears the entry.
 
 The unit count follows [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key): a changed `env_hash`
 invalidates every unit and an unchanged one invalidates none. What a reload cannot catch is an
 extension removed while source still references it — those units fail when next resolved
 ([`config/a-broken-edit-fails-the-requests-that-resolve-it`](config.md#config-a-broken-edit-fails-the-requests-that-resolve-it)).
 
-<sub>See also [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot), [`packaging/a-service-answers-its-manager`](packaging.md#packaging-a-service-answers-its-manager). Decided in [0078](../decisions/0078.md), [0219](../decisions/0219.md).</sub>
+<sub>See also [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot), [`config/one-local-control-socket`](config.md#config-one-local-control-socket). Decided in [0078](../decisions/0078.md), [0219](../decisions/0219.md).</sub>
+
+<a id="config-one-local-control-socket"></a>
+
+## The server is controlled over one local socket whose owner and mode are the authentication, and `nvs ctl` is its client
+
+`rule:config/one-local-control-socket`
+
+```toml
+[control]
+socket = "/run/nvs/control.sock"   # \\.\pipe\nvs-control on Windows; `false` disables
+```
+
+**Local socket only. There is no TCP listener, no token, no TLS and no auth middleware** — the
+socket's owner and mode are the authentication. It is created mode `0600` (a DACL naming this account
+on Windows), owned by the runtime's account, and **the server refuses to start if the directory
+holding it is writable by any other account**, the same trust check every configuration file gets.
+A tree that writes no `[control]` block gets no control surface at all. A reload that changes
+`socket` creates the new endpoint, under the same directory check, before the old one stops
+answering, and a reload pushed over the old one is answered there; `false` closes it. A new
+endpoint that cannot be created is logged by name with the reason, and the running one stays and
+is named as not applied. The socket exists only where
+a long-running server does; `nvs run` compiles one file and exits.
+
+The wire protocol is HTTP over that socket, not a bespoke line protocol: `curl --unix-socket` debugs
+it with no special tooling. **`nvs ctl` is the client**, a namespace of its own because every other
+subcommand acts on files with no server involved; `--socket` addresses one of several servers on a
+host. `reload` re-reads the whole configuration tree and publishes it; `ctl config` prints the live
+snapshot with each directive's origin. Operations serialize, so two reloads cannot interleave two
+snapshots. **No control operation runs user Novis code, ever** — one that could would be
+[`security/no-eval`](security.md#security-no-eval)'s door with a different name on it.
+
+The wire shape is unstable until 1.0: every response carries the server version, and `nvs ctl`
+refuses a mismatch. Every reload is written to `Core\Log` with its outcome.
+
+<sub>See also [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`config/no-network-control-surface`](config.md#config-no-network-control-surface), [`security/no-eval`](security.md#security-no-eval), [`config/ctl-config-reports-the-live-snapshot`](config.md#config-ctl-config-reports-the-live-snapshot), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary). Decided in [0078](../decisions/0078.md), [0103](../decisions/0103.md), [0042](../decisions/0042.md), [0219](../decisions/0219.md).</sub>
+
+<a id="config-no-network-control-surface"></a>
+
+## There is no network-reachable control surface, in either direction of configuration
+
+`rule:config/no-network-control-surface`
+
+There is no TCP listener, in either direction of configuration. `[control] socket` accepts a local
+endpoint or `false`, and a value that would be reached over a network — a URL, a host and a port, a
+bare port number — is refused at boot by name rather than bound. A remote control plane is reachable
+today by running `nvs ctl` over the operator's existing access path, SSH or the container runtime's
+exec, which every orchestrator already has.
+
+A network listener is the only part of the control design that would carry an authentication
+surface, and nothing yet needs one, so this is deferred rather than rejected. What it would take is
+already recorded: a second listener absent unless configured and never sharing the application
+listener; per-effect-class enablement (`observe` / `operate` / `lifecycle`) so a liveness probe cannot
+be handed `shutdown`; a token read from a file, refused at boot if absent; TLS required for any
+non-loopback bind; and `lifecycle` withheld from a network listener entirely.
+
+A control endpoint on the application listener is rejected outright: every path-normalization bug
+and proxy misconfiguration would become privilege escalation, and a reserved prefix would collide
+permanently with the compile-time route table.
+
+<sub>See also [`config/one-local-control-socket`](config.md#config-one-local-control-socket). Decided in [0078](../decisions/0078.md).</sub>
+
+<a id="config-ctl-config-reports-the-live-snapshot"></a>
+
+## `nvs ctl config` reports what the running process actually holds, including an optional include that appeared after boot
+
+`rule:config/ctl-config-reports-the-live-snapshot`
+
+`nvs ctl config --origin` answers the question the offline pair cannot: **what the running process
+actually holds** — what the last reload published, including an `optional` include that has appeared
+since boot, and every `Boot` key whose changed value was reported and left unapplied. It is the second
+operation on the control socket, which the reload rule reserved for exactly this kind of read.
+
+The output is `nvs config dump --origin`'s, taken from the live snapshot rather than from the files on
+disk, so the two can be diffed: a difference between them is a reload that has not happened, a file
+that changed since the last one, or a directory-mode change that will refuse the next one.
+
+<sub>See also [`config/check-and-dump-audit-the-tree-offline`](config.md#config-check-and-dump-audit-the-tree-offline), [`config/the-resolved-root-is-announced-and-stored`](config.md#config-the-resolved-root-is-announced-and-stored), [`config/one-local-control-socket`](config.md#config-one-local-control-socket), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply). Decided in [0103](../decisions/0103.md), [0078](../decisions/0078.md).</sub>
 
 <a id="config-check-and-dump-audit-the-tree-offline"></a>
 
@@ -1005,7 +1103,7 @@ extension removed while source still references it — those units fail when nex
 `rule:config/check-and-dump-audit-the-tree-offline`
 
 [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded) is only safe while it is auditable, so the
-reporting is part of the rule rather than tooling around it. `config` is a namespace beside
+reporting is part of the rule rather than tooling around it. `config` is a namespace beside `ctl` and
 `service`, and stays out of `nvs check`, which checks source.
 
 ```console
@@ -1027,9 +1125,9 @@ per key, with the file and line that set it and the one it overrode. A secret re
 names the file it came from, never the value, and `--toml` serializes the merged table whole. Both
 read without the ownership check
 ([`config/the-ownership-check-runs-where-it-can-be-answered`](config.md#config-the-ownership-check-runs-where-it-can-be-answered)). What a reload actually published is
-the record it writes to `Core\Log` ([`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply)).
+[`config/ctl-config-reports-the-live-snapshot`](config.md#config-ctl-config-reports-the-live-snapshot).
 
-<sub>See also [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/the-ownership-check-runs-where-it-can-be-answered`](config.md#config-the-ownership-check-runs-where-it-can-be-answered), [`config/a-secret-is-a-file-whose-content-is-the-value`](config.md#config-a-secret-is-a-file-whose-content-is-the-value). Decided in [0103](../decisions/0103.md), [0093](../decisions/0093.md).</sub>
+<sub>See also [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/ctl-config-reports-the-live-snapshot`](config.md#config-ctl-config-reports-the-live-snapshot), [`config/the-ownership-check-runs-where-it-can-be-answered`](config.md#config-the-ownership-check-runs-where-it-can-be-answered), [`config/a-secret-is-a-file-whose-content-is-the-value`](config.md#config-a-secret-is-a-file-whose-content-is-the-value). Decided in [0103](../decisions/0103.md), [0093](../decisions/0093.md).</sub>
 
 <a id="config-two-modes-and-the-default-is-production"></a>
 
@@ -1099,11 +1197,11 @@ Setting all three and asserting the mode is unchanged is a conformance case, not
 converted Laravel application's `APP_ENV` read arrives as an ordinary `Core\Env::get` and stays one:
 it is that application's own variable, not Novis's mode.
 
-The operator's runtime switch is saving the root-owned file, which the running server notices and
-publishes as a whole new snapshot with no restart ([`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot))
-— strictly more capable than editing an environment variable, and root-owned.
+The operator's runtime switch is a reload of the root-owned file over the local control socket
+([`config/one-local-control-socket`](config.md#config-one-local-control-socket)), which swaps the whole snapshot with no restart and no
+control port — strictly more capable than editing an environment variable, and root-owned.
 
-<sub>See also [`config/two-modes-and-the-default-is-production`](config.md#config-two-modes-and-the-default-is-production), [`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot). Decided in [0091](../decisions/0091.md), [0012](../decisions/0012.md).</sub>
+<sub>See also [`config/two-modes-and-the-default-is-production`](config.md#config-two-modes-and-the-default-is-production), [`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file), [`config/one-local-control-socket`](config.md#config-one-local-control-socket). Decided in [0091](../decisions/0091.md), [0012](../decisions/0012.md).</sub>
 
 <a id="config-a-mode-is-five-defaults"></a>
 
@@ -1693,8 +1791,8 @@ The asymmetry is the address policy's own, read for what it is about. The denied
 keeps a *program-supplied* endpoint off the local machine, which is why loopback heads it. A
 program-supplied socket path is a way onto the local machine the table cannot see — there is no
 address to match — and the reachable set on an ordinary host is worse than loopback's: it includes
-a container daemon's socket, a database's local socket and whatever else a distribution puts in
-`/run`. Admitting one would hand a program the exact capability the policy spends a resolution
+this runtime's own `[control] socket`, a container daemon's socket and whatever else a distribution
+puts in `/run`. Admitting one would hand a program the exact capability the policy spends a resolution
 and a pin to deny.
 
 An operator-written endpoint is the case the policy already distinguishes, for the reason it already
@@ -1704,7 +1802,7 @@ sockets on a host is open, distribution-specific and grows when anything is inst
 must enumerate what to refuse is wrong on the machine nobody tested. The grant a program-supplied
 path would need is [`config/net-local-is-named-and-not-on-the-roster`](config.md#config-net-local-is-named-and-not-on-the-roster).
 
-<sub>See also [`config/cache-shared-is-the-grant-over-the-configured-store`](config.md#config-cache-shared-is-the-grant-over-the-configured-store), [`config/unix-scheme-in-a-url-and-a-bare-path-in-a-host`](config.md#config-unix-scheme-in-a-url-and-a-bare-path-in-a-host), [`config/net-local-is-named-and-not-on-the-roster`](config.md#config-net-local-is-named-and-not-on-the-roster), [`security/net-address-policy`](security.md#security-net-address-policy), [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink). Decided in [0142](../decisions/0142.md), [0058](../decisions/0058.md).</sub>
+<sub>See also [`config/cache-shared-is-the-grant-over-the-configured-store`](config.md#config-cache-shared-is-the-grant-over-the-configured-store), [`config/unix-scheme-in-a-url-and-a-bare-path-in-a-host`](config.md#config-unix-scheme-in-a-url-and-a-bare-path-in-a-host), [`config/net-local-is-named-and-not-on-the-roster`](config.md#config-net-local-is-named-and-not-on-the-roster), [`security/net-address-policy`](security.md#security-net-address-policy), [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink), [`config/one-local-control-socket`](config.md#config-one-local-control-socket). Decided in [0142](../decisions/0142.md), [0058](../decisions/0058.md).</sub>
 
 <a id="config-unix-scheme-in-a-url-and-a-bare-path-in-a-host"></a>
 
@@ -1878,8 +1976,8 @@ from an operator's, so it keeps its own default under either mode.
 `rule:config/opcache-file-cache-directives-are-system`
 
 The on-disk artifact cache is governed by five directives in `[opcache]`: `file_cache` (bool, default
-on), `file_cache_dir` (a path, root-owned, defaulting to a fixed location inside the account running the
-compile), `file_cache_max_size`
+on), `file_cache_dir` (a path, root-owned, defaulting to `cache/` in the data folder, which Novis creates
+private to the account running the compile), `file_cache_max_size`
 (bytes), and the `file_cache_gc_probability` / `file_cache_gc_divisor` pair, a probability because
 eviction rides the cold-compile path at a small probability rather than costing a warm hit anything.
 
@@ -1899,7 +1997,7 @@ started is not re-checked mid-run, consistent with every other `System` directiv
 looks like on disk, how an entry is verified before it is mapped executable, and the refusal of a
 world-writable directory are the packaging chapter's; this rule is only the roster and its class.
 
-<sub>See also [`config/every-schedule-key-is-system`](config.md#config-every-schedule-key-is-system), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class). Decided in [0042](../decisions/0042.md), [0005](../decisions/0005.md), [0017](../decisions/0017.md), [0175](../decisions/0175.md).</sub>
+<sub>See also [`config/every-schedule-key-is-system`](config.md#config-every-schedule-key-is-system), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class). Decided in [0042](../decisions/0042.md), [0005](../decisions/0005.md), [0017](../decisions/0017.md), [0175](../decisions/0175.md), [0279](../decisions/0279.md).</sub>
 
 <a id="config-telemetry-and-update-endpoints-are-configuration"></a>
 

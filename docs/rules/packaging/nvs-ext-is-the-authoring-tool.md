@@ -27,7 +27,7 @@ string from the file with its control characters escaped; `nvs ext verify` runs 
 under its own pin and instantiates nothing; `nvs ext pin` prints the entry with its absolute `path` and
 no `grants`, and only for a file that loads. `nvs ext test` runs the `#[Test]` methods under the
 project's `tests` folder with the built file loaded, reads the files `--config` names and never
-`./nvs.toml`, grants nothing without one, and refuses a file older than any input of its build or one
+`./nvs.toml` or the data folder's, grants nothing without one, and refuses a file older than any input of its build or one
 a `--config` entry pins to another digest (`crates/nvs-cli/tests/ext_command.rs`). The packer is: `nvs_ext::pack` takes a component, or
 a core module with the author's WIT, plus a manifest and source files, refuses a source path that leaves
 the project, and writes a `.nvsx` that loads, the same bytes each time (`crates/nvs-ext/tests/pack.rs`).

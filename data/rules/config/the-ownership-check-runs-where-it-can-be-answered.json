@@ -3,7 +3,8 @@
   "status": "shipped",
   "because": [
     "0103",
-    "0093"
+    "0093",
+    "0279"
   ],
   "seeAlso": [
     "config/ownership-is-the-trust-boundary",

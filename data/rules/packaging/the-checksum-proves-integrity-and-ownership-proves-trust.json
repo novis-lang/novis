@@ -2,7 +2,8 @@
   "title": "The checksum answers corruption; a cache directory another account can write is refused at startup",
   "status": "shipped",
   "because": [
-    "0042"
+    "0042",
+    "0279"
   ],
   "seeAlso": [
     "config/ownership-is-the-trust-boundary",

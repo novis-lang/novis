@@ -14,7 +14,8 @@ info:   /srv/www/app/conf.d/10-limits.toml
 info:   /etc/nvs/local.toml
 ```
 
-The announcement is half of what makes the working-directory step of
-`rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` safe: reading the wrong file
-is visible in one line rather than silent. Missing `./nvs.toml` prints the shipped-defaults line
-instead, and the resolved absolute path is logged in both cases.
+The announcement is half of what makes the two implicit steps of
+`rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` safe — the working directory's
+`nvs.toml` and the data folder's: reading the wrong file is visible in one line rather than silent.
+When no step finds a file, the shipped-defaults line is printed instead, and the resolved absolute
+path is logged in every case.

@@ -230,14 +230,18 @@ place rather than in every call site that hand-wrote the loop.
 and the program names files inside it. There is no `temporaryFile`, because a program needing one
 temporary file needs somewhere to put the second.
 
-Every directory is created under one root the runtime owns — a configured path, else a private
-subdirectory of the platform temporary directory. Exclusive ownership of that root is the entire
-safety argument for the sweeps: the runtime never deletes anything it did not create, because nothing
-else writes there. Sweeping a shared `/tmp`, with anyone's symlinks and anyone's names, is the
-classic TOCTOU surface this forbids. The two test runners, `nvs test` over a `.nvst` tree and
-`nvs lsp-test`, have no script and no grant, and write their cases in a folder they create under the
-same root, with the same name. Each runner deletes its folder when the run ends, and a killed run's
-folder is an orphan like any other.
+Every directory is created under one root the runtime owns — `[io] temp_root`, else `tmp/` in the
+data folder, which Novis creates private to its account. Exclusive ownership of that root is the
+entire safety argument for the sweeps: the runtime never deletes anything it did not create, because
+nothing else writes there. Sweeping a shared `/tmp`, with anyone's symlinks and anyone's names, is the
+classic TOCTOU surface this forbids, and nothing in Novis reads the system temporary directory. With
+neither root — the key unset and no usable data folder — `temporaryDir` throws, and only for a program
+that calls it.
+
+The two test runners, `nvs test` over a `.nvst` tree and `nvs lsp-test`, have no script and no grant,
+and write their cases in a folder they create under the same root, with the same name. With no root
+they stop with one error naming `--data`, because there is nothing left to run. Each runner deletes
+its folder when the run ends, and a killed run's folder is an orphan like any other.
 
 The runtime keeps a per-script list of the paths it handed out and deletes each surviving entry when
 the script ends — after the exit queue on a CLI ending, after the after-response work on a request,
@@ -251,7 +255,7 @@ and there is no in-language setter, because a program that can exempt its own fi
 hoard them. The program's own `remove` and `removeDir` are unchanged and still throw: a deliberate
 action's failure is the program's to hear about.
 
-<sub>See also [`core-classes/temporary-dir-orphan-sweep`](core-classes.md#core-classes-temporary-dir-orphan-sweep), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`errors/propagation`](errors.md#errors-propagation). Decided in [0131](../decisions/0131.md), [0127](../decisions/0127.md), [0072](../decisions/0072.md), [0106](../decisions/0106.md), [0078](../decisions/0078.md), [0059](../decisions/0059.md), [0004](../decisions/0004.md).</sub>
+<sub>See also [`core-classes/temporary-dir-orphan-sweep`](core-classes.md#core-classes-temporary-dir-orphan-sweep), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`errors/propagation`](errors.md#errors-propagation). Decided in [0131](../decisions/0131.md), [0127](../decisions/0127.md), [0072](../decisions/0072.md), [0106](../decisions/0106.md), [0078](../decisions/0078.md), [0059](../decisions/0059.md), [0004](../decisions/0004.md), [0279](../decisions/0279.md).</sub>
 
 <a id="core-classes-temporary-dir-orphan-sweep"></a>
 

@@ -170,7 +170,8 @@ directory, or one not owned by the account the runtime process runs as, is refus
 same class of check `ssh` applies to `~/.ssh`, and it is [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary)
 applied to the cache directory. A directory that does not exist yet is checked at the nearest ancestor
 that does, because that is the shallowest directory an attacker would have to write in order to fill
-the slot the first store will create.
+the slot the first store will create. The default directory is `cache/` in the data folder, so its
+check stops at the private data folder and never reaches the binary's own directory above it.
 
 The check is done once, before anything is read from the directory, and never per entry: a `Cache`
 value is itself the evidence it passed. It is also a refusal to start, naming the path, rather than a
@@ -178,7 +179,7 @@ silent fall back to compiling every time — a bad entry is invisible, a breache
 Ownership that changes after the process started is not re-checked mid-run, consistent with every other
 `System`-class directive ([`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system)).
 
-<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system), [`packaging/an-artifact-is-verified-whole-before-a-page-is-executable`](packaging.md#packaging-an-artifact-is-verified-whole-before-a-page-is-executable). Decided in [0042](../decisions/0042.md).</sub>
+<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system), [`packaging/an-artifact-is-verified-whole-before-a-page-is-executable`](packaging.md#packaging-an-artifact-is-verified-whole-before-a-page-is-executable). Decided in [0042](../decisions/0042.md), [0279](../decisions/0279.md).</sub>
 
 <a id="packaging-a-bad-cache-entry-is-a-miss-never-an-error"></a>
 
@@ -1921,12 +1922,12 @@ string from the file with its control characters escaped; `nvs ext verify` runs 
 under its own pin and instantiates nothing; `nvs ext pin` prints the entry with its absolute `path` and
 no `grants`, and only for a file that loads. `nvs ext test` runs the `#[Test]` methods under the
 project's `tests` folder with the built file loaded, reads the files `--config` names and never
-`./nvs.toml`, grants nothing without one, and refuses a file older than any input of its build or one
+`./nvs.toml` or the data folder's, grants nothing without one, and refuses a file older than any input of its build or one
 a `--config` entry pins to another digest (`crates/nvs-cli/tests/ext_command.rs`). The packer is: `nvs_ext::pack` takes a component, or
 a core module with the author's WIT, plus a manifest and source files, refuses a source path that leaves
 the project, and writes a `.nvsx` that loads, the same bytes each time (`crates/nvs-ext/tests/pack.rs`).
 
-<sub>See also [`packaging/an-nvsx-is-one-file-carrying-its-manifest`](packaging.md#packaging-an-nvsx-is-one-file-carrying-its-manifest), [`packaging/extension-loading-is-root-controlled`](packaging.md#packaging-extension-loading-is-root-controlled). Decided in [0246](../decisions/0246.md).</sub>
+<sub>See also [`packaging/an-nvsx-is-one-file-carrying-its-manifest`](packaging.md#packaging-an-nvsx-is-one-file-carrying-its-manifest), [`packaging/extension-loading-is-root-controlled`](packaging.md#packaging-extension-loading-is-root-controlled). Decided in [0246](../decisions/0246.md), [0279](../decisions/0279.md).</sub>
 
 <a id="packaging-the-boundary-is-the-cost"></a>
 
@@ -2042,7 +2043,7 @@ What that argv may name is [`packaging/the-installer-is-a-sink`](packaging.md#pa
 
 <a id="packaging-the-installer-is-a-sink"></a>
 
-## The service installer fails closed: a closed `serve`/`run` allowlist, no relative path, no argv without `--config`, no password on a command line
+## The service installer fails closed: a closed `serve`/`run` allowlist, no relative path, no password on a command line, and an argv without `--config` stores the data folder's `nvs.toml`
 
 `rule:packaging/the-installer-is-a-sink`
 
@@ -2055,20 +2056,31 @@ removes it. So the default is refusal, and the allowlist is closed:
 | A subcommand other than `serve` or `run` | everything else exits at once — a crash loop, forever — or needs a terminal |
 | `--fault-inject`, on any subcommand | a hook that must never be reachable from a served request, now with a privileged account |
 | An argv this binary's own parser refuses — `serve` with no entry file, an option it does not have | it exits at once with a usage error written to a console that is not there, which is the first row's crash loop reached through an allowed subcommand |
-| Any relative path, in the argv or in the named configuration's `[log] target` file and `[opcache] file_cache_dir` | a Windows service starts in `System32`: a first-boot failure as an opaque SCM code, and for the configuration's two a log or a cache in a directory nobody chose, under a grant made against the installing shell's |
-| An argv with no `--config` | it would fall back to `./nvs.toml` ([`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults)), making the configuration a property of the starting directory; a service names it absolutely |
+| Any relative path: a `--config` or `--data` value, the entry file, or the `[log] target` file, `[opcache] file_cache_dir` or `[io] temp_root` of the configuration the service reads | a service starts in `System32` or `/`: a first-boot failure as an opaque service-manager code, and for the configuration's three a log, a cache or a temporary root in a directory nobody chose, under a grant made against the installing shell's |
+| A data folder the service cannot use, when the stored `--config` is that folder's own `nvs.toml` | that file is the service's whole configuration, so a service installed without it refuses to start at every boot |
 | An `--account` password on the command line | readable by other users; it is prompted, and is `secret` for its whole life ([`security/secret-qualifier`](security.md#security-secret-qualifier)) |
 | Running from a bundle | [`packaging/a-bundle-may-not-install-itself`](packaging.md#packaging-a-bundle-may-not-install-itself) |
+
+**An argv with no `--config` is completed, not refused.** The stored argv gets `--config` and the
+absolute path of the service's data folder's `nvs.toml` right after the subcommand, so a service never
+looks for `./nvs.toml` in the directory its manager starts it in
+([`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults)). The data folder is the
+argv's own `--data`, else `.nvsdata` beside the binary the service runs, and every check above runs
+over that file as if the operator had named it. An install that is not a dry run creates the folder
+privately and writes the shipped template there if no file is there yet, before the service manager is
+asked for anything. With a `--config` named elsewhere, an unusable data folder is the warning every
+command prints for it, the install proceeds, and nothing is granted on the folder.
 
 There is no row for where the service's output goes, and no `--log-file` option: a hosted process's
 stdout and stderr are the platform log's — the journal under systemd, the event log under the SCM
 ([`packaging/a-service-answers-its-manager`](packaging.md#packaging-a-service-answers-its-manager)) — so a refused compile leaves its diagnostic where an
 administrator looks without the installer being told a path.
 
-Every surviving path is canonicalized and stored absolute. Each refusal is an `E0630`, `E0631`, `E0633`
-or `E0634` diagnostic naming what was refused and why — rows that share a reason share a code — never
-a bare non-zero exit. The refusals run in front of `nvs service unit` too, so an operator learns what would
-have been refused without an elevated shell and without installing anything.
+Every surviving path is canonicalized and stored absolute. Each refusal is an `E0630`, `E0631`,
+`E0633`, `E0634` or `E0653` diagnostic naming what was refused and why — rows that share a reason share
+a code — never a bare non-zero exit. The refusals run in front of `nvs service unit` too, so an
+operator learns what would have been refused without an elevated shell and without installing
+anything.
 
 An install the service manager stops part way fails closed as well. The error names the step it
 stopped on, and the steps applied in front of it are undone last first, so a failed install leaves
@@ -2077,7 +2089,7 @@ a registration refused because the name is taken is followed by no deregistratio
 the service that holds the name. An undo that does not finish says what is left and that `nvs service
 uninstall` removes it.
 
-<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`packaging/a-bundle-may-not-install-itself`](packaging.md#packaging-a-bundle-may-not-install-itself). Decided in [0093](../decisions/0093.md), [0088](../decisions/0088.md), [0103](../decisions/0103.md), [0048](../decisions/0048.md), [0204](../decisions/0204.md).</sub>
+<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`packaging/a-bundle-may-not-install-itself`](packaging.md#packaging-a-bundle-may-not-install-itself). Decided in [0093](../decisions/0093.md), [0088](../decisions/0088.md), [0103](../decisions/0103.md), [0048](../decisions/0048.md), [0204](../decisions/0204.md), [0279](../decisions/0279.md).</sub>
 
 <a id="packaging-the-argv-lives-in-imagepath"></a>
 
@@ -2122,13 +2134,17 @@ nothing from it.
 `--account` takes another identity: `NT SERVICE\<name>`, the per-service virtual account the SCM
 creates and owns, with a per-service SID, no password to rotate or leak and no interactive logon; or a
 domain account, with the password prompted rather than taken from the command line
-([`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink)). For those, install grants the account read on the config
-and read/write on the cache and log directories, and nothing further; a cache or log directory that is
-not there is created by the install, because such an account holds nothing on the parent and so could
-never create it itself. An uninstall revokes the same entries, and reads a path that is no longer
-there as already revoked.
+([`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink)). For those, install grants the account **read** on the
+service's data folder, on its `nvs.toml` and on every `--config` file, and **read/write** on the data
+folder's `cache/`, `tmp/` and `lsp/` only, each inherited only inside its own subfolder; a log
+directory, `[opcache] file_cache_dir` or `[io] temp_root` outside those three gets its own read/write
+grant, and nothing further is granted. **The service account never writes its own configuration.** A
+directory the grant names that is not there is created by the install, because such an account holds
+nothing on the parent and so could never create it itself. An uninstall finds the data folder from the
+binary the platform holds for the service, revokes the same entries, and reads a path that is no
+longer there as already revoked.
 
-<sub>See also [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink), [`packaging/a-service-answers-its-manager`](packaging.md#packaging-a-service-answers-its-manager). Decided in [0093](../decisions/0093.md).</sub>
+<sub>See also [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink), [`packaging/a-service-answers-its-manager`](packaging.md#packaging-a-service-answers-its-manager). Decided in [0093](../decisions/0093.md), [0279](../decisions/0279.md).</sub>
 
 <a id="packaging-a-service-answers-its-manager"></a>
 

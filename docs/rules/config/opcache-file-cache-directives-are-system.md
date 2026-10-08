@@ -1,6 +1,6 @@
 The on-disk artifact cache is governed by five directives in `[opcache]`: `file_cache` (bool, default
-on), `file_cache_dir` (a path, root-owned, defaulting to a fixed location inside the account running the
-compile), `file_cache_max_size`
+on), `file_cache_dir` (a path, root-owned, defaulting to `cache/` in the data folder, which Novis creates
+private to the account running the compile), `file_cache_max_size`
 (bytes), and the `file_cache_gc_probability` / `file_cache_gc_divisor` pair, a probability because
 eviction rides the cold-compile path at a small probability rather than costing a warm hit anything.
 

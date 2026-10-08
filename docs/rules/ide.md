@@ -297,8 +297,8 @@ lends to, for the server and the command both.
 
 A `Core` class, enum, interface or compiler attribute is declared in a generated stub file, and a jump
 to one opens that file on the line of the declaration. The server writes one `.nvs` file per name, at
-the name's namespace path, under the directory `nvs.stubs.dir` names — or under this account's cache
-directory when no client named one, so a bare `nvs lsp` answers too — and `nvs stubs --out <dir>`
+the name's namespace path, under the directory `nvs.stubs.dir` names — or under `lsp/<version>/` in
+the data folder when no client named one, so a bare `nvs lsp` answers too — and `nvs stubs --out <dir>`
 writes the same tree from the same generator for any other reader. The tree is written once per
 render and again when a file is missing; nothing repairs a file in place.
 
@@ -319,7 +319,7 @@ way a `--FILE lib/user.nvs--` section's is. Real files rather than virtual docum
 location works unchanged in every client and a cursor inside a stub keeps every answer
 ([`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients)).
 
-<sub>See also [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`core-api/reference-card`](core-api.md#core-api-reference-card), [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace). Decided in [0214](../decisions/0214.md).</sub>
+<sub>See also [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`core-api/reference-card`](core-api.md#core-api-reference-card), [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace). Decided in [0214](../decisions/0214.md), [0279](../decisions/0279.md).</sub>
 
 <a id="ide-the-request-set-is-closed"></a>
 

@@ -4,7 +4,8 @@
   "because": [
     "0103",
     "0042",
-    "0078"
+    "0078",
+    "0279"
   ],
   "seeAlso": [
     "config/optional-covers-absence-and-moves-the-check-to-the-directory",

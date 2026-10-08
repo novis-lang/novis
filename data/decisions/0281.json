@@ -1,0 +1,12 @@
+{
+  "title": "Novis keeps its own files in one data folder, `.nvsdata` beside the binary unless `--data` names another, and its `nvs.toml` is the third step of the configuration lookup",
+  "status": "accepted",
+  "scope": "Where Novis keeps the files it makes for itself — the default configuration file, the compiled-code cache, the temporary-directory root and the language server's stub tree — how that folder is found, created and checked, where a project command's implicit `nvs.toml` goes, and what `nvs service install` stores, prepares and grants for it. Not in scope: the configuration keys that move each of those paths, which keep their meaning and only lose their old defaults; the file's syntax and the merge, which stay [0103](0103.md)'s and [0064](0064.md)'s.",
+  "dependsOn": [
+    "0103",
+    "0093",
+    "0004"
+  ],
+  "dependsOnText": "[0103](0103.md) (the configuration tree and the ownership check), [0093](0093.md) (the service installer), [0004](0004.md) (the priority ordering).",
+  "validatedBy": "`crates/nvs-config/tests/resolve.rs` (the four steps), the tests in `crates/nvs-config/src/data.rs` (location, private creation, the check), `crates/nvs-cli/tests/run_command.rs` and `crates/nvs-cli/tests/init.rs` (the implicit write lands in the data folder and never in the working directory), and the plan tests in `crates/nvs-cli/src/service.rs` (the stored `--config`, `E0631`, `E0653` and the grant list)."
+}

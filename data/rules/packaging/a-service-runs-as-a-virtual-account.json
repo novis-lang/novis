@@ -2,7 +2,8 @@
   "title": "A service's default identity is the local system account, and `--account` names any other, the per-service virtual account included",
   "status": "designed",
   "because": [
-    "0093"
+    "0093",
+    "0279"
   ],
   "seeAlso": [
     "packaging/the-installer-is-a-sink",

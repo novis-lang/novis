@@ -1,7 +1,7 @@
 A `Core` class, enum, interface or compiler attribute is declared in a generated stub file, and a jump
 to one opens that file on the line of the declaration. The server writes one `.nvs` file per name, at
-the name's namespace path, under the directory `nvs.stubs.dir` names — or under this account's cache
-directory when no client named one, so a bare `nvs lsp` answers too — and `nvs stubs --out <dir>`
+the name's namespace path, under the directory `nvs.stubs.dir` names — or under `lsp/<version>/` in
+the data folder when no client named one, so a bare `nvs lsp` answers too — and `nvs stubs --out <dir>`
 writes the same tree from the same generator for any other reader. The tree is written once per
 render and again when a file is missing; nothing repairs a file in place.
 

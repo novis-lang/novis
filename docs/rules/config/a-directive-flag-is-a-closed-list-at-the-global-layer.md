@@ -6,7 +6,8 @@ introduces the directive. Stated once, so that no rule introducing a flag has to
 **There is no `--set <key>=<value>`.** It would be a second spelling for every directive in the
 format; it would put values into argv, which is world-readable through `ps` and `/proc/*/cmdline`, so a
 secret could be set there in a way `rule:config/ownership-is-the-trust-boundary` has no equivalent of;
-and the ergonomic case for it disappeared when every project directory acquired a `./nvs.toml` for free.
+and the ergonomic case for it disappeared when every project command acquired an `nvs.toml` to edit
+for free, in the data folder, and `nvs init` wrote one into a project on request.
 
 A flag **replaces the global value**, and per-app blocks still layer over it. The whole stack,
 outermost first:

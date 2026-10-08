@@ -3,7 +3,8 @@
   "status": "designed",
   "because": [
     "0103",
-    "0078"
+    "0078",
+    "0279"
   ],
   "seeAlso": [
     "config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults",

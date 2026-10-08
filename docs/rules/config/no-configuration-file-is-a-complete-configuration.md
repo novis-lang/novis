@@ -1,10 +1,11 @@
-When no `--config` is given and no `./nvs.toml` exists, the host runs on the **shipped defaults**, and
+When no `--config` is given and neither `./nvs.toml` nor the data folder's `nvs.toml` exists, the host
+runs on the **shipped defaults**, and
 those are a complete and valid configuration rather than a failure to find one: capabilities
 deny-all, `[mode] default = "production"`, and every limit at its documented default. The boot log says
 so in one line. The documented default of `[limits] memory`, `cpu_time` and `wall_time` is no ceiling,
 under `nvs run` and `nvs serve` alike: a deployment that wants one writes it, and a program may narrow
-its own with `Core\Config::set`. They stay the configuration whenever a project command could not write `./nvs.toml`
-(`rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`).
+its own with `Core\Config::set`. They stay the configuration whenever a project command could not write the data folder's
+`nvs.toml` (`rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`).
 
 Every reader has to answer on such a host. `Core\Config::get` is `null`, `all` is empty, `set` is
 `false` and `restore` does nothing — none of them throws, because "no configuration file anywhere" is

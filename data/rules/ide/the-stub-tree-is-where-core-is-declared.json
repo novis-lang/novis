@@ -2,7 +2,8 @@
   "title": "A `Core` class, enum, interface or compiler attribute is declared in a generated stub file the server writes once per version, which is what a jump to a `Core` name opens, and which is read-only and never diagnosed",
   "status": "shipped",
   "because": [
-    "0214"
+    "0214",
+    "0279"
   ],
   "seeAlso": [
     "ide/one-server-two-thin-clients",

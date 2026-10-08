@@ -1,10 +1,11 @@
 {
-  "title": "The root of the tree is every `--config` in order, else `./nvs.toml`, else the shipped defaults",
+  "title": "The root of the tree is every `--config` in order, else `./nvs.toml`, else the data folder's `nvs.toml`, else the shipped defaults",
   "status": "shipped",
   "because": [
     "0103",
     "0064",
-    "0093"
+    "0093",
+    "0279"
   ],
   "seeAlso": [
     "config/no-configuration-file-is-a-complete-configuration",
