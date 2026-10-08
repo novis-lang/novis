@@ -25,7 +25,9 @@ shop/
 server sends every request to this one file. The file finds the route and calls your classes.
 
 Run the command from the `shop` folder. Novis reads `nvs.toml` from the folder you run `nvs` in.
-It does not look in the folder of the program.
+It does not look in the folder of the entry file. When the folder you run `nvs` in has no
+`nvs.toml`, Novis uses the one in its data folder, `.nvsdata` next to the `nvs` program. Read
+[Configuration](/guides/how-to-use/configuration/).
 
 ## Classes are found by their namespace
 

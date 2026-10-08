@@ -16,8 +16,9 @@ COPY --chmod=0755 nvs /usr/local/bin/nvs
 COPY . /app
 WORKDIR /app
 
-# A fixed account that is not root.
-RUN useradd --uid 65532 --no-create-home --shell /usr/sbin/nologin app
+# A fixed account that is not root, and the data folder that this account owns.
+RUN useradd --uid 65532 --no-create-home --shell /usr/sbin/nologin app \
+ && install -d -o app -g app -m 0700 /usr/local/bin/.nvsdata
 USER app
 
 EXPOSE 8000
@@ -46,12 +47,32 @@ host = "db"
 password_file = "/run/secrets/db-password"
 ```
 
+## The data folder
+
+`nvs` keeps its compile cache and its temporary files in a data folder. By default, this is
+`.nvsdata` next to the `nvs` program, here `/usr/local/bin/.nvsdata`. The account `app` cannot
+create a folder in `/usr/local/bin`, so the `RUN` line above creates it. Only `app` can open it.
+
+Without this folder, `nvs` prints a warning. It runs without the compile cache, and
+`Core\IO::temporaryDir` throws an error.
+
 ## Run it
 
 ```sh
 docker build -t shop .
 docker run -p 8000:8000 shop
 ```
+
+The data folder is inside the container. When you remove the container, the compile cache is
+deleted, and the next container compiles every program again. To keep the cache, mount a volume
+on the data folder:
+
+```sh
+docker run -p 8000:8000 -v shop-data:/usr/local/bin/.nvsdata shop
+```
+
+A new volume starts with the owner and the permissions of the folder in the image. You can also
+pass `--data` with the full path of another folder that `app` owns.
 
 Put a reverse proxy in front of the container for TLS. Read
 [Behind a reverse proxy](/guides/production/reverse-proxy/).

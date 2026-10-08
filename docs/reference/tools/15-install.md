@@ -19,9 +19,10 @@ it, and a relative path starts at the current folder.
 | `cache` | compiled programs | `[opcache] file_cache_dir` |
 | `tmp` | the folders that `Core\IO::temporaryDir` creates | `[io] temp_root` |
 | `lsp` | files for the editor | the editor's `nvs.stubs.dir` setting |
+| `logs` | `nvs.log`, the log of a service | `[log] target` |
 
 `nvs run`, `nvs serve`, `nvs test`, `nvs build`, `nvs check` and `nvs lsp` create the data folder
-and its three subfolders when they do not exist. When `nvs` creates the folder, only the account
+and its four subfolders when they do not exist. When `nvs` creates the folder, only the account
 that runs `nvs` can open it. On Windows, `Administrators` and `SYSTEM` can open it too. Other
 commands, such as `nvs config check`, never create it.
 

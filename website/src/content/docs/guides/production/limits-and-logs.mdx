@@ -44,14 +44,22 @@ forever.
 ## The log
 
 `[log] target` is where the server writes a failure, such as a request that went over a limit. It
-can be `stderr`, a file or `syslog`. When nothing is set, it is `stderr`:
+can be `stderr`, a file or `syslog`. When nothing is set, it is `stderr`. A server that runs as a
+service writes to `logs/nvs.log` in its data folder instead. Read
+[Run as a service](/guides/production/run-as-a-service/).
 
 ```toml
 [log]
 target = "file:/var/log/shop/nvs.log"
+max_size = "10M"
+keep = 5
 level = "info"
 format = "json"
 ```
+
+A log file never grows past `max_size`. When it reaches that size, Novis renames it to `nvs.log.1`
+and starts a new file. `keep` is the number of old files that are kept. When nothing is set,
+`max_size` is `10M` and `keep` is `5`.
 
 `level` is the lowest level that is written. `format` is `json` when nothing is set. Only the person
 who runs the server can change `target`. A program can change `level` and `format` for one request,

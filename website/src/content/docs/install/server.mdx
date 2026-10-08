@@ -1,17 +1,88 @@
 ---
 title: Install on a server
 covers: []
-description: The four folders a Novis server needs, the permissions Novis checks, and the commands that set them on Windows, Linux and macOS.
+description: The data folder where Novis keeps its own files, the folders a server needs, the permissions Novis checks, and the commands that set them on Windows, Linux and macOS.
 ---
 
 import { Tabs, TabItem } from '@astrojs/starlight/components'
 
-On your own computer, `nvs` runs from any folder. On a server, it needs four folders with the
-correct permissions. Novis checks some of these permissions and does not start if they are wrong.
+On your own computer, `nvs` runs from any folder. On a server, the folders it uses need the
+correct permissions. Novis checks some of these permissions. If they are wrong, the server does
+not start, or `nvs` prints a warning.
 
-## The four folders
+## The data folder
 
-The folders can have any names and be anywhere.
+Novis keeps its own files in one folder, the **data folder**. By default, this is the folder
+`.nvsdata` next to the `nvs` program. The option `--data <folder>` uses another folder. Every
+command accepts it. A relative path starts at the current folder.
+
+| In the data folder | Contains | The setting that moves it |
+|---|---|---|
+| `nvs.toml` | the configuration file `nvs` reads when the current folder has no `nvs.toml` | `--config` |
+| `cache` | compiled programs | `[opcache] file_cache_dir` |
+| `tmp` | the folders that `Core\IO::temporaryDir` creates | `[io] temp_root` |
+| `lsp` | files for the editor | the editor's `nvs.stubs.dir` setting |
+| `logs` | `nvs.log`, the log of a service | `[log] target` |
+
+`nvs run`, `nvs serve`, `nvs test`, `nvs build`, `nvs check` and `nvs lsp` create the data folder
+and its subfolders when they do not exist. Other commands, such as `nvs config check`, never create
+it. When `nvs` creates the folder, only the account that runs `nvs` can open it. On Windows,
+`Administrators` and `SYSTEM` can open it too.
+
+With the data folder, a server needs only one folder of its own:
+
+<Tabs syncKey="os">
+<TabItem label="Windows">
+```txt
+D:\srv\novis\nvs.exe
+D:\srv\novis\.nvsdata\nvs.toml
+D:\srv\novis\.nvsdata\cache\
+D:\srv\novis\.nvsdata\logs\
+```
+</TabItem>
+<TabItem label="Linux and macOS">
+```txt
+/opt/novis/nvs
+/opt/novis/.nvsdata/nvs.toml
+/opt/novis/.nvsdata/cache/
+/opt/novis/.nvsdata/logs/
+```
+</TabItem>
+</Tabs>
+
+Put the binary folder on the `PATH`. When `nvs` finds no configuration file, it writes
+`nvs.toml` into the data folder. In this file, every setting is present and commented out. Edit
+it there. You do not need `--config`:
+
+```sh
+nvs serve /srv/app/index.nvs
+```
+
+If the folder you start `nvs` in has its own `nvs.toml`, `nvs` reads that file. The file in the
+data folder is then not read.
+
+### When the data folder cannot be used
+
+If `nvs` cannot create or use the data folder, it prints one warning and keeps running:
+
+```txt
+warning: Novis cannot use its data folder `/usr/local/bin/.nvsdata`: ...
+```
+
+Programs then run without the compile cache, so they start more slowly. `Core\IO::temporaryDir`
+throws an error. This happens when `nvs` is in a folder that your account cannot write to, for
+example `/usr/local/bin`. Pass `--data` with a folder that only your account can change:
+
+```sh
+nvs --data /home/ana/.nvsdata run report.nvs
+```
+
+`nvs test` needs a folder for temporary files. Without a usable data folder and without
+`[io] temp_root`, it stops with an error.
+
+## Choose the folders yourself
+
+You can also choose each folder yourself. The folders can have any names and be anywhere.
 
 | Folder | Contains | Who writes to it | Who reads it |
 |---|---|---|---|
@@ -20,29 +91,8 @@ The folders can have any names and be anywhere.
 | cache | compiled programs | the account that runs `nvs` | the account that runs `nvs` |
 | logs | log files | the account that runs `nvs` | you decide |
 
-The simplest layout puts the other three folders inside the binary folder:
-
-<Tabs syncKey="os">
-<TabItem label="Windows">
-```txt
-D:\srv\novis\nvs.exe
-D:\srv\novis\config\nvs.toml
-D:\srv\novis\cache\
-D:\srv\novis\logs\
-```
-</TabItem>
-<TabItem label="Linux and macOS">
-```txt
-/opt/novis/nvs
-/opt/novis/config/nvs.toml
-/opt/novis/cache/
-/opt/novis/logs/
-```
-</TabItem>
-</Tabs>
-
-Put the binary folder on the `PATH`. `nvs init` writes a configuration file in which every
-setting is present and commented out. `--config` tells `nvs` where the file is:
+`nvs init` writes a configuration file in which every setting is present and commented out.
+`--config` tells `nvs` where the file is:
 
 ```sh
 nvs --config /opt/novis/config/nvs.toml init
@@ -80,12 +130,22 @@ A permission for one named account, for example your own, passes the check.
 |---|---|---|
 | `nvs serve`, at the start and each time a configuration file is saved | every configuration file, and its folder | the error is `E0607`. At the start, the server does not start. After a save, the server keeps its current settings |
 | `nvs init` | the folder it writes into, and the folder above it | nothing is written, and the exit status is `1` |
+| `nvs run`, `nvs serve`, `nvs test`, `nvs build`, `nvs check`, `nvs lsp` | the data folder. For a folder that `--data` names, also the folder above it | one warning. The command runs without the data folder |
 | every command that compiles a program | the cache folder, and the folder above it | a warning. The program runs, but it is compiled again every time |
 
 `nvs run`, `nvs check` and `nvs test` do not check the configuration files. The log folder is
 not checked.
 
+The default data folder, `.nvsdata` next to `nvs`, is checked alone. The folder above it is the
+folder of the `nvs` program, and Novis does not check that folder. An account that can change it
+can already replace `nvs` itself. So protect the binary folder, as the next section shows.
+
 ## Set the permissions
+
+These steps are for the folders you choose yourself. With the data folder, you only need to
+protect the binary folder (step 2 on Windows, the first two lines on Linux). `nvs` makes the data
+folder private when it creates it. `nvs service install --account` gives the service account its
+rights in the data folder. Read [Run as a service](/guides/production/run-as-a-service/).
 
 <Tabs syncKey="os">
 <TabItem label="Windows">
@@ -167,3 +227,4 @@ the folder you were working in. For example, if `D:\srv\novis\config` is correct
 | `Access is denied` or `Permission denied` | Your own account cannot write there. Use an administrator prompt or `sudo`. |
 | `... it already exists, and it is never overwritten` | `nvs init` found a file. Edit it, or delete it and run `nvs init` again. |
 | `warning: [opcache] file_cache_dir ... is not used` | Fix the named path. Until then, programs work and start more slowly. |
+| `warning: Novis cannot use its data folder ...` | Fix the named folder, or pass `--data` with a folder that only your account can change. Until then, programs run without the compile cache. |

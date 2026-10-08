@@ -7,11 +7,26 @@ description: What nvs.toml controls, how to start one, and how to check it befor
 All configuration is in one TOML file, `nvs.toml`. There are no environment variables and no
 command-line switches that change a setting. The settings in the file are the settings that apply.
 
+## Where nvs finds the file
+
+`nvs` uses the first of these that exists:
+
+1. the file that `--config` names. Then `nvs` reads no other `nvs.toml`.
+2. `nvs.toml` in the folder you run `nvs` in.
+3. `nvs.toml` in the data folder. This is the folder `.nvsdata` next to the `nvs` program, or the
+   folder that `--data` names.
+4. the built-in defaults. Nothing is limited, and nothing is allowed.
+
+When `nvs run`, `nvs serve`, `nvs test`, `nvs build` or `nvs check` finds no file, it writes
+`nvs.toml` into the data folder. It never writes into your project. `--no-init` stops it from
+writing the file.
+
 ## Start with nvs init
 
-`nvs init` writes an `nvs.toml` with every key, each one commented out. Each line ends with a
-short note. `# default` means Novis uses the value shown when the key is not set. Remove the `#`
-from a line to set that key.
+`nvs init` writes an `nvs.toml` into the folder you run it in, or to the path that `--config`
+names. Every key is in the file, and each one is commented out. Each line ends with a short note.
+`# default` means Novis uses the value shown when the key is not set. Remove the `#` from a line
+to set that key.
 
 ## What the file controls
 
