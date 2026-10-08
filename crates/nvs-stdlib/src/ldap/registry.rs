@@ -409,6 +409,28 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
             symbol: "nvs_core_ldap_connection_rename",
             doc: Some(&RENAME_DOC),
         },
+        CoreMethod {
+            name: "setPassword",
+            names: &["dn", "password"],
+            params: &[CoreTy::Union(DN_OR_STRING), CoreTy::SecretTaintedStr],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_ldap_connection_set_password",
+            doc: Some(&SET_PASSWORD_DOC),
+        },
+        CoreMethod {
+            name: "changePassword",
+            names: &["dn", "old", "new"],
+            params: &[
+                CoreTy::Union(DN_OR_STRING),
+                CoreTy::SecretTaintedStr,
+                CoreTy::SecretTaintedStr,
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_ldap_connection_change_password",
+            doc: Some(&CHANGE_PASSWORD_DOC),
+        },
     ],
     slots: &[HANDLE_SLOT],
     constants: &[],
@@ -609,6 +631,64 @@ const RENAME_DOC: MethodDoc = MethodDoc {
             desc: "The server returned an error, such as `NoSuchObject` or `AlreadyExists`.",
         },
     ],
+};
+
+/// The account parameter of `setPassword` and `changePassword`.
+const PASSWORD_DN_PARAM: ParamDoc = ParamDoc {
+    name: "dn",
+    desc: "The user account's DN, as a `Dn` or as text. Text cannot be `tainted`.",
+    shape: &[],
+};
+
+/// The errors `setPassword` and `changePassword` throw — `rule:core-api/reference-card`.
+const PASSWORD_ERRORS: &[ErrorDoc] = &[
+    ErrorDoc {
+        error: "LogicError",
+        desc: "`dn` is text that is not a DN, or the connection is closed.",
+    },
+    ErrorDoc {
+        error: "Core\\Ldap\\LdapError",
+        desc: "`$kind` is `EncryptionRequired` when the connection does not use TLS. Nothing is \
+               sent then. It is `PasswordPolicy` when the domain does not accept the new \
+               password, and another kind for any other error the server returns.",
+    },
+];
+
+/// `Ldap\Connection::setPassword`'s reference card — `rule:core-api/reference-card`.
+const SET_PASSWORD_DOC: MethodDoc = MethodDoc {
+    short: "Sets a new password for a user account, as an administrator does. It works only \
+            over TLS.",
+    params: &[
+        PASSWORD_DN_PARAM,
+        ParamDoc {
+            name: "password",
+            desc: "The new password.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing.",
+    errors: PASSWORD_ERRORS,
+};
+
+/// `Ldap\Connection::changePassword`'s reference card — `rule:core-api/reference-card`.
+const CHANGE_PASSWORD_DOC: MethodDoc = MethodDoc {
+    short: "Changes the password of a user account from `$old` to `$new`, as the user does. \
+            The server checks `$old` and the password history. It works only over TLS.",
+    params: &[
+        PASSWORD_DN_PARAM,
+        ParamDoc {
+            name: "old",
+            desc: "The password the account has now.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "new",
+            desc: "The new password.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing.",
+    errors: PASSWORD_ERRORS,
 };
 
 /// `Ldap\Change`'s class card — `rule:core-api/reference-card`.

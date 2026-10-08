@@ -452,6 +452,62 @@ impl Connection {
         )
     }
 
+    /// Resets the password of the account at `dn`, as an administrator does:
+    /// one Modify that replaces AD's `unicodePwd` with [`unicode_pwd`]'s form
+    /// of `password`.
+    ///
+    /// # Errors
+    ///
+    /// [`Kind::EncryptionRequired`] on a connection that is not a TLS
+    /// session, before anything is sent and whatever the cleartext grant
+    /// says. [`Kind::PasswordPolicy`] for a password the domain's policy
+    /// does not accept, and every other result but success.
+    pub fn set_password(&mut self, dn: &str, password: &str) -> Result<(), Error> {
+        self.password_write("the password reset")?;
+        let changes = [proto::Change {
+            kind: proto::ChangeKind::Replace,
+            attribute: "unicodePwd".to_owned(),
+            values: vec![unicode_pwd(password)],
+        }];
+        self.write(&proto::modify_request(dn, &changes), "the password reset")
+    }
+
+    /// Changes the password of the account at `dn`, as its owner does: one
+    /// Modify that removes `old` from `unicodePwd` and adds `new`, so the
+    /// server checks `old` and the password history.
+    ///
+    /// # Errors
+    ///
+    /// As [`Connection::set_password`], and [`Kind::ConstraintViolation`]
+    /// or [`Kind::InvalidCredentials`] for an `old` that is not the password.
+    pub fn change_password(&mut self, dn: &str, old: &str, new: &str) -> Result<(), Error> {
+        self.password_write("the password change")?;
+        let changes = [
+            proto::Change {
+                kind: proto::ChangeKind::Remove,
+                attribute: "unicodePwd".to_owned(),
+                values: vec![unicode_pwd(old)],
+            },
+            proto::Change {
+                kind: proto::ChangeKind::Add,
+                attribute: "unicodePwd".to_owned(),
+                values: vec![unicode_pwd(new)],
+            },
+        ];
+        self.write(&proto::modify_request(dn, &changes), "the password change")
+    }
+
+    /// Refuses a password write on a connection that is not a TLS session.
+    fn password_write(&self, operation: &str) -> Result<(), Error> {
+        if self.is_encrypted() {
+            return Ok(());
+        }
+        Err(Error::new(
+            Kind::EncryptionRequired,
+            format!("{operation} needs an encrypted connection, so the password was not sent"),
+        ))
+    }
+
     /// Whether the entry at `dn` has `value` under `attribute`, as the
     /// server's own matching rule for the attribute decides.
     ///
@@ -605,6 +661,21 @@ fn unexpected(operation: &str) -> Error {
         Kind::Protocol,
         format!("{operation}: the server answered with another operation"),
     )
+}
+
+/// `password` as AD stores it in `unicodePwd`: the text between double
+/// quotes, in UTF-16LE.
+#[must_use]
+pub fn unicode_pwd(password: &str) -> Vec<u8> {
+    let mut out = Vec::with_capacity((password.len() + 2) * 2);
+    for unit in "\""
+        .encode_utf16()
+        .chain(password.encode_utf16())
+        .chain("\"".encode_utf16())
+    {
+        out.extend_from_slice(&unit.to_le_bytes());
+    }
+    out
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -812,6 +883,12 @@ impl Iterator for Search<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_password_is_quoted_and_utf16le() {
+        assert_eq!(unicode_pwd("ab"), b"\"\0a\0b\0\"\0");
+        assert_eq!(unicode_pwd("é"), b"\"\0\xe9\0\"\0");
+    }
 
     #[test]
     fn a_url_names_its_scheme_host_and_port() {

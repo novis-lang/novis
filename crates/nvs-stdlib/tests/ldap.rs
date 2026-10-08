@@ -1304,3 +1304,165 @@ fn typed_values_round_trip_through_a_write() {
     );
     ldap::delete(&mut ctx, key, dn).expect("the entry is deleted");
 }
+
+/// A new, disabled user account `CN=<cn>,OU=<cn>` in an OU of its own, after
+/// deleting both where a run that stopped half-way left them behind. Not
+/// `CN=Users`, because other cases count the entries there.
+fn user(ctx: &mut nvs_runtime::Ctx, key: u64, cn: &str) -> String {
+    let dn = format!("CN={cn},OU={cn},{BASE}");
+    ldap::delete(ctx, key, &dn).ok();
+    ldap::delete(ctx, key, &format!("OU={cn},{BASE}")).ok();
+    ldap::add(
+        ctx,
+        key,
+        &format!("OU={cn},{BASE}"),
+        &[nvs_ldap::Attribute {
+            name: "objectClass".to_owned(),
+            values: vec![b"organizationalUnit".to_vec()],
+        }],
+    )
+    .expect("the OU is added");
+    ldap::add(
+        ctx,
+        key,
+        &dn,
+        &[
+            nvs_ldap::Attribute {
+                name: "objectClass".to_owned(),
+                values: vec![b"user".to_vec()],
+            },
+            nvs_ldap::Attribute {
+                name: "sAMAccountName".to_owned(),
+                values: vec![cn.as_bytes().to_vec()],
+            },
+        ],
+    )
+    .expect("the user is added");
+    dn
+}
+
+/// Deletes what [`user`] added.
+fn delete_user(ctx: &mut nvs_runtime::Ctx, key: u64, cn: &str) {
+    ldap::delete(ctx, key, &format!("CN={cn},OU={cn},{BASE}")).expect("the user is deleted");
+    ldap::delete(ctx, key, &format!("OU={cn},{BASE}")).expect("the OU is deleted");
+}
+
+/// Whether a bind as `dn` with `password` succeeds over LDAPS.
+fn binds(ca: &PathBuf, dn: &str, password: &str) -> Result<(), String> {
+    let mut block = block_at(&format!("ldaps://localhost:{LDAPS_PORT}"), Some(ca));
+    block.user = Some(dn.to_owned());
+    block.password = Some(password.to_owned());
+    let snapshot = snapshot(
+        vec![("staff", block)],
+        CapLdap {
+            connect: list(&["staff"]),
+            ..CapLdap::default()
+        },
+    );
+    let mut ctx = ctx_over(&snapshot);
+    let key = ldap::connect(&mut ctx, "staff").map_err(|fault| fault.message())?;
+    ldap::who_am_i(&mut ctx, key)
+        .map(|_| ())
+        .map_err(|fault| fault.message())
+}
+
+#[test]
+fn set_password_and_change_password_use_unicode_pwd() {
+    use nvs_ldap::conn::unicode_pwd;
+
+    assert_eq!(unicode_pwd("Ab1"), b"\"\0A\0b\x001\0\"\0");
+
+    let Some(ca) = samba() else { return };
+    let mut ctx = ctx_over(&corp(&ca));
+    let key = ldap::connect(&mut ctx, "corp").expect("the block opens");
+    let dn = user(&mut ctx, key, "Team");
+    let first = "Shop-first-Pass-7";
+    ldap::set_password(&mut ctx, key, &dn, first).expect("the reset is accepted");
+    ldap::modify(
+        &mut ctx,
+        key,
+        &dn,
+        &[nvs_ldap::Change {
+            kind: nvs_ldap::ChangeKind::Replace,
+            attribute: "userAccountControl".to_owned(),
+            values: vec![b"512".to_vec()],
+        }],
+    )
+    .expect("the account is enabled");
+    assert_eq!(binds(&ca, &dn, first), Ok(()));
+    // A password must be a day old before its owner changes it, unless the
+    // account is due to change it.
+    ldap::modify(
+        &mut ctx,
+        key,
+        &dn,
+        &[nvs_ldap::Change {
+            kind: nvs_ldap::ChangeKind::Replace,
+            attribute: "pwdLastSet".to_owned(),
+            values: vec![b"0".to_vec()],
+        }],
+    )
+    .expect("the account is due to change its password");
+
+    // The change needs the password the account has now.
+    let second = "Shop-second-Pass-8";
+    let wrong = ldap::change_password(&mut ctx, key, &dn, "Not-the-Pass-9", second)
+        .expect_err("the old password is wrong");
+    assert!(
+        !wrong.message().contains("Not-the-Pass-9") && !wrong.message().contains(second),
+        "{}",
+        wrong.message()
+    );
+    ldap::change_password(&mut ctx, key, &dn, first, second).expect("the change is accepted");
+    assert_eq!(binds(&ca, &dn, second), Ok(()));
+    delete_user(&mut ctx, key, "Team");
+}
+
+#[test]
+fn a_password_write_on_an_unencrypted_connection_is_refused() {
+    // The cleartext grant covers the peer, and the password is still not sent.
+    let (port, read) = scripted(vec![written(1, 0x67, 0)]);
+    let mut ctx = ctx_over(&cleartext_corp(port));
+    let key = ldap::connect(&mut ctx, "corp").expect("the peer accepts");
+    let dn = format!("CN=Staff,CN=Users,{BASE}");
+    let reset = ldap::set_password(&mut ctx, key, &dn, "Staff-Pass-1")
+        .expect_err("the connection is not encrypted");
+    let change = ldap::change_password(&mut ctx, key, &dn, "Staff-Pass-1", "Staff-Pass-2")
+        .expect_err("the connection is not encrypted");
+    for refused in [reset, change] {
+        assert!(
+            refused.message().contains("EncryptionRequired")
+                && !refused.message().contains("Staff-Pass"),
+            "{}",
+            refused.message()
+        );
+    }
+    assert!(
+        read.lock().expect("unpoisoned").is_empty(),
+        "nothing reached the peer"
+    );
+}
+
+#[test]
+fn a_password_policy_refusal_is_its_own_kind() {
+    assert_eq!(
+        nvs_ldap::Kind::of_result(
+            19,
+            "0000052D: Constraint violation - the password is too short"
+        ),
+        nvs_ldap::Kind::PasswordPolicy
+    );
+
+    let Some(ca) = samba() else { return };
+    let mut ctx = ctx_over(&corp(&ca));
+    let key = ldap::connect(&mut ctx, "corp").expect("the block opens");
+    let dn = user(&mut ctx, key, "Editors");
+    let refused =
+        ldap::set_password(&mut ctx, key, &dn, "a").expect_err("the password is too short");
+    assert!(
+        refused.message().contains("PasswordPolicy"),
+        "{}",
+        refused.message()
+    );
+    delete_user(&mut ctx, key, "Editors");
+}

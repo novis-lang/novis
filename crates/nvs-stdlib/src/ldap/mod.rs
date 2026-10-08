@@ -101,7 +101,10 @@ pub(crate) use self::registry::*;
 pub(crate) use self::search::{
     ENTRIES_ADVANCE_SYMBOL, ENTRIES_CURRENT_SYMBOL, ENTRIES_ITERATE_SYMBOL,
 };
-pub use self::write::{ADD, DELETE, MODIFY, RENAME, add, delete, modify, rename};
+pub use self::write::{
+    ADD, CHANGE_PASSWORD, DELETE, MODIFY, RENAME, SET_PASSWORD, add, change_password, delete,
+    modify, rename, set_password,
+};
 
 /// `Core\Ldap::connect`, as its refusals spell it.
 pub const CONNECT: &str = r"Core\Ldap::connect";

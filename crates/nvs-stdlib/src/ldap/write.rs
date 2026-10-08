@@ -1,9 +1,12 @@
-//! `Core\Ldap`'s writing half: `Ldap\Connection`'s `add`, `modify`, `delete` and `rename`, and the `Ldap\Change` values `modify` takes
+//! `Core\Ldap`'s writing half: `Ldap\Connection`'s `add`, `modify`, `delete`, `rename`, `setPassword` and `changePassword`, and the `Ldap\Change` values `modify` takes
 //!
 //! ADR 0278 §§ 1 and 9. [`modify`] sends one Modify request, so the server
 //! applies every change in order or none of them. [`rename`] reads both DNs
 //! and leaves [`nvs_ldap::Connection::rename`] to send the new first level,
-//! and the new parent only where it differs.
+//! and the new parent only where it differs. [`set_password`] and
+//! [`change_password`] write AD's `unicodePwd` and are refused before
+//! anything is sent on a connection without TLS, whatever the cleartext
+//! grant says.
 //!
 //! **An `Ldap\Change` is a value**: its kind, its attribute and the `mixed`
 //! value it was given, unencoded. The value is encoded when `modify` sends it,
@@ -38,6 +41,10 @@ pub const MODIFY: &str = r"Core\Ldap\Connection::modify";
 pub const DELETE: &str = r"Core\Ldap\Connection::delete";
 /// `Core\Ldap\Connection::rename`, as its errors spell it.
 pub const RENAME: &str = r"Core\Ldap\Connection::rename";
+/// `Core\Ldap\Connection::setPassword`, as its errors spell it.
+pub const SET_PASSWORD: &str = r"Core\Ldap\Connection::setPassword";
+/// `Core\Ldap\Connection::changePassword`, as its errors spell it.
+pub const CHANGE_PASSWORD: &str = r"Core\Ldap\Connection::changePassword";
 
 /// `Core\Ldap\Connection::modify`'s body: `changes` applied to the entry at
 /// `dn` in one request.
@@ -108,6 +115,40 @@ pub fn rename(ctx: &mut Ctx, key: u64, from: &str, to: &str) -> Result<(), Fault
         .ready()
         .rename(&from, &to)
         .map_err(|error| fault_of(RENAME, &error))
+}
+
+/// `Core\Ldap\Connection::setPassword`'s body: the password of the account
+/// at `dn` reset to `password`.
+///
+/// # Errors
+///
+/// [`held`]'s, `EncryptionRequired` on a connection without TLS before
+/// anything is sent, `PasswordPolicy` for a password the domain does not
+/// accept, and every other failure the server reports.
+pub fn set_password(ctx: &mut Ctx, key: u64, dn: &str, password: &str) -> Result<(), Fault> {
+    held(ctx, key, SET_PASSWORD)?
+        .ready()
+        .set_password(dn, password)
+        .map_err(|error| fault_of(SET_PASSWORD, &error))
+}
+
+/// `Core\Ldap\Connection::changePassword`'s body: the password of the
+/// account at `dn` changed from `old` to `new` in one request.
+///
+/// # Errors
+///
+/// As [`set_password`].
+pub fn change_password(
+    ctx: &mut Ctx,
+    key: u64,
+    dn: &str,
+    old: &str,
+    new: &str,
+) -> Result<(), Fault> {
+    held(ctx, key, CHANGE_PASSWORD)?
+        .ready()
+        .change_password(dn, old, new)
+        .map_err(|error| fault_of(CHANGE_PASSWORD, &error))
 }
 
 /// The error for a value [`encoded`] has no form for.
@@ -430,6 +471,39 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+nvs_runtime::nvs_helper! {
+    /// `$connection->setPassword(Dn|string $dn, secret tainted string $password): void`
+    /// — [`set_password`].
+    fn nvs_core_ldap_connection_set_password(ctx, args: [3]) {
+        let key = connection_key(args, "setPassword")?;
+        let dn = dn_at(args, 1, SET_PASSWORD)?;
+        let password = password_at(args, 2, SET_PASSWORD)?;
+        set_password(ctx, key, &dn, &password)?;
+        Ok(Value::null())
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$connection->changePassword(Dn|string $dn, secret tainted string $old,
+    /// secret tainted string $new): void` — [`change_password`].
+    fn nvs_core_ldap_connection_change_password(ctx, args: [4]) {
+        let key = connection_key(args, "changePassword")?;
+        let dn = dn_at(args, 1, CHANGE_PASSWORD)?;
+        let old = password_at(args, 2, CHANGE_PASSWORD)?;
+        let new = password_at(args, 3, CHANGE_PASSWORD)?;
+        change_password(ctx, key, &dn, &old, &new)?;
+        Ok(Value::null())
+    }
+}
+
+/// The password argument in `args[at]`.
+fn password_at(args: &[Value], at: usize, member: &str) -> Result<String, Fault> {
+    args[at].as_text().map(str::to_owned).ok_or_else(|| {
+        // Unreachable from source: the parameter is a `string`.
+        Fault::fatal(format!("{member} expected a `string` password"))
+    })
+}
+
 /// The address of one of this module's symbols, or `None` for a symbol that
 /// belongs to another module. See [`crate::address`].
 pub(super) fn address(symbol: &str) -> Option<*const u8> {
@@ -442,6 +516,12 @@ pub(super) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_ldap_connection_add" => (nvs_core_ldap_connection_add as *const ()).cast(),
         "nvs_core_ldap_connection_delete" => (nvs_core_ldap_connection_delete as *const ()).cast(),
         "nvs_core_ldap_connection_rename" => (nvs_core_ldap_connection_rename as *const ()).cast(),
+        "nvs_core_ldap_connection_set_password" => {
+            (nvs_core_ldap_connection_set_password as *const ()).cast()
+        }
+        "nvs_core_ldap_connection_change_password" => {
+            (nvs_core_ldap_connection_change_password as *const ()).cast()
+        }
         _ => return None,
     })
 }

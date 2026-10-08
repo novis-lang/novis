@@ -102,7 +102,12 @@ impl Kind {
             7 | 12 => Self::Unsupported,
             8 | 13 => Self::EncryptionRequired,
             10 => Self::Referral,
-            19 | 53 if ad_sub_code(diagnostic) == Some(0x52D) => Self::PasswordPolicy,
+            19 | 53
+                if leading_code(diagnostic) == Some(0x52D)
+                    || ad_sub_code(diagnostic) == Some(0x52D) =>
+            {
+                Self::PasswordPolicy
+            }
             // `noSuchAttribute` is a `remove` of a value the entry does not have.
             16 | 19 | 21 | 65 | 67 | 69 => Self::ConstraintViolation,
             20 | 68 => Self::AlreadyExists,
@@ -134,6 +139,17 @@ fn ad_sub_code(diagnostic: &str) -> Option<u32> {
         .split(|c: char| !c.is_ascii_hexdigit())
         .next()
         .filter(|digits| !digits.is_empty())?;
+    u32::from_str_radix(digits, 16).ok()
+}
+
+/// The Windows error code that opens a diagnostic, such as the `0000052D` of
+/// `0000052D: Constraint violation - check_password_restrictions: ...`, which
+/// is how AD and Samba say a password write broke the domain's policy.
+fn leading_code(diagnostic: &str) -> Option<u32> {
+    let (digits, _) = diagnostic.split_once(':')?;
+    if digits.len() != 8 || !digits.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return None;
+    }
     u32::from_str_radix(digits, 16).ok()
 }
 
@@ -234,6 +250,24 @@ mod tests {
             assert_eq!(Kind::of_result(49, &diagnostic), kind, "{sub}");
         }
         assert_eq!(Kind::of_result(49, ""), Kind::InvalidCredentials);
+    }
+
+    #[test]
+    fn a_password_policy_refusal_is_read_from_the_leading_code() {
+        for diagnostic in [
+            "0000052D: Constraint violation - check_password_restrictions: the password is too short.",
+            "0000052D: AtrErr: DSID-03191083, #1:",
+        ] {
+            assert_eq!(
+                Kind::of_result(19, diagnostic),
+                Kind::PasswordPolicy,
+                "{diagnostic}"
+            );
+        }
+        assert_eq!(
+            Kind::of_result(19, "00002082: AtrErr: DSID-03151E8A"),
+            Kind::ConstraintViolation
+        );
     }
 
     #[test]
