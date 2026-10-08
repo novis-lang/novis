@@ -1,7 +1,7 @@
 ---
 title: Novis
 covers: []
-description: Novis is a programming language for web servers and the command line. It is safe by default and compiled to machine code.
+description: Novis is a programming language for web applications and the command line. It is fast, secure by default and compiled to machine code.
 template: splash
 ---
 
@@ -17,7 +17,9 @@ import Path from '@components/home/Path.astro'
 import Cta from '@components/home/Cta.astro'
 
 <Hero>
-  <Snippet src="home/hello-request.nvs" output="http" />
+  <Snippet src="home/hero-html.nvs" output="http" slot="html" />
+  <Snippet src="home/hero-sql-error.nvs" slot="sql" />
+  <Snippet src="home/hero-secret-error.nvs" slot="secret" />
 </Hero>
 
 <Facts />
@@ -37,7 +39,7 @@ import Cta from '@components/home/Cta.astro'
 <Isolation />
 
 <Library>
-  <Snippet src="guides/why-novis/one-library.nvs" output="http" />
+  <Snippet src="home/library.nvs" output="http" />
 </Library>
 
 <Tooling>

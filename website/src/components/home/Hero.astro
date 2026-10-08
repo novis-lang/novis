@@ -1,8 +1,17 @@
 ---
 /**
- * The front page's hero: the page's one `<h1>`, the tagline, the two calls
- * to action, and a code window that holds the snippet passed in the default
- * slot. Two columns from 64rem, stacked below.
+ * The front page's hero: the page's one `<h1>` with the slogan as its second
+ * line, the tagline, the two calls to action, and a code window with three
+ * small web programs. The programs come in through the named slots `html`,
+ * `sql` and `secret`, because the site checker finds a page's snippets in the
+ * page itself. Two columns from 64rem, stacked below.
+ *
+ * The window is a tablist once the script below has run. Without the script
+ * the tablist stays hidden and the three panels are shown one under the
+ * other, each with its own label. With it, only the selected panel is shown,
+ * and the window is aligned to the top of its column, so the tabs stay where
+ * they are when the window's height changes. Arrow keys, Home and End move
+ * between the tabs.
  *
  * The `<h1>` carries Starlight's title id, so the skip link lands on it;
  * src/components/PageTitle.astro renders no other title on this page.
@@ -11,6 +20,14 @@
 import { Icon } from '@astrojs/starlight/components'
 import { INSTALL } from '@config/site.mjs'
 import { withBase } from '~/lib/base'
+
+// One entry per tab: the slot its snippet comes in through, the tab's label,
+// and the line under the snippet that says what happened.
+const panels = [
+  { slot: 'html', label: 'HTML', result: 'The script is escaped. Your code calls no escaping function.' },
+  { slot: 'sql', label: 'SQL', result: 'The compiler stops SQL injection before the program runs.' },
+  { slot: 'secret', label: 'Secrets', result: 'The compiler keeps the password out of the page.' },
+] as const
 ---
 
 <section class="home-hero not-content" aria-labelledby="_top">
@@ -19,15 +36,16 @@ import { withBase } from '~/lib/base'
   <div class="copy">
     <a class="pill" href={withBase('/guides/why-novis/')}>
       <span class="nv-chip">Why Novis?</span>
-      <span>See what the compiler checks for you</span>
+      <span class="pill-text">What the compiler checks</span>
       <Icon name="right-arrow" size="1rem" />
     </a>
     <h1 id="_top" data-page-title>
-      Web code that is <span class="nv-gradient-text">safe by default</span>
+      <span class="headline">The programming language for web applications.</span>
+      <span class="slogan nv-gradient-text">Fast. <span class="keep">Secure by default.</span></span>
     </h1>
     <p class="tagline">
-      Novis is a programming language for web servers and the command line. The compiler checks input from
-      outside. Every request runs on its own, and your code runs as machine code.
+      Novis is a programming language for web applications and the command line. It compiles your code to
+      machine code. The compiler checks every value that comes from outside.
     </p>
     <div class="actions">
       <a class="nv-button nv-button-primary" href={withBase(INSTALL.href)}>
@@ -47,23 +65,101 @@ import { withBase } from '~/lib/base'
   </div>
 
   <div class="stage">
-    <figure class="window">
+    <figure class="window" data-hero-tabs>
       <div class="bar">
         <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
-        <span class="file">hello.nvs</span>
-        <span class="request">GET /hello</span>
+        <div class="tabs" role="tablist" aria-label="What the compiler checks" hidden>
+          {
+            panels.map((p, i) => (
+              <button
+                type="button"
+                role="tab"
+                id={`hero-tab-${p.slot}`}
+                aria-controls={`hero-panel-${p.slot}`}
+                aria-selected={i === 0 ? 'true' : 'false'}
+                tabindex={i === 0 ? 0 : -1}
+              >
+                {p.label}
+              </button>
+            ))
+          }
+        </div>
+        <span class="server" aria-hidden="true">nvs serve</span>
       </div>
-      <div class="code">
-        <slot />
+      <div class="panels">
+        {
+          panels.map((p) => (
+            <div class="panel" id={`hero-panel-${p.slot}`}>
+              <p class="panel-label">{p.label}</p>
+              <div class="code">
+                {p.slot === 'html' && <slot name="html" />}
+                {p.slot === 'sql' && <slot name="sql" />}
+                {p.slot === 'secret' && <slot name="secret" />}
+              </div>
+              <p class="result">
+                <span class="result-icon">
+                  <Icon name="approve-check" size="0.9rem" />
+                </span>
+                {p.result}
+              </p>
+            </div>
+          ))
+        }
       </div>
-      <figcaption class="sr-only">A Novis program that answers a web request, and the HTML it sends.</figcaption>
+      <figcaption class="sr-only">
+        Three small Novis programs for a web server, with the response or the compiler error for each.
+      </figcaption>
     </figure>
-    <div class="badge" aria-hidden="true">
-      <span class="badge-icon"><Icon name="approve-check" size="1rem" /></span>
-      The script is escaped
-    </div>
   </div>
 </section>
+
+<script>
+  // Turns the stacked panels into tabs. Without this script all three stay visible.
+  for (const root of document.querySelectorAll<HTMLElement>('[data-hero-tabs]')) {
+    const list = root.querySelector<HTMLElement>('[role="tablist"]')
+    if (list === null) continue
+    const tabs = [...list.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
+    const panels = tabs.map((tab) => document.getElementById(tab.getAttribute('aria-controls') ?? ''))
+    if (panels.some((p) => p === null)) continue
+
+    const select = (index: number, focus: boolean) => {
+      tabs.forEach((tab, i) => {
+        const on = i === index
+        tab.setAttribute('aria-selected', String(on))
+        tab.tabIndex = on ? 0 : -1
+        const panel = panels[i] as HTMLElement
+        panel.toggleAttribute('data-inactive', !on)
+      })
+      if (focus) tabs[index]?.focus()
+    }
+
+    panels.forEach((panel, i) => {
+      const p = panel as HTMLElement
+      p.setAttribute('role', 'tabpanel')
+      p.setAttribute('aria-labelledby', tabs[i]?.id ?? '')
+      p.tabIndex = 0
+    })
+    tabs.forEach((tab, i) => tab.addEventListener('click', () => select(i, false)))
+    list.addEventListener('keydown', (event) => {
+      const current = tabs.indexOf(document.activeElement as HTMLButtonElement)
+      if (current < 0) return
+      const last = tabs.length - 1
+      const next =
+        event.key === 'ArrowRight' ? (current === last ? 0 : current + 1)
+        : event.key === 'ArrowLeft' ? (current === 0 ? last : current - 1)
+        : event.key === 'Home' ? 0
+        : event.key === 'End' ? last
+        : -1
+      if (next < 0) return
+      event.preventDefault()
+      select(next, true)
+    })
+
+    select(0, false)
+    list.hidden = false
+    root.setAttribute('data-tabs-ready', '')
+  }
+</script>
 
 <style>
   .home-hero {
@@ -76,8 +172,8 @@ import { withBase } from '~/lib/base'
   }
   @media (min-width: 64rem) {
     .home-hero {
-      grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.15fr);
-      gap: var(--nv-space-7);
+      grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+      gap: var(--nv-space-6);
       padding-block: var(--nv-space-8) var(--nv-space-7);
     }
   }
@@ -129,18 +225,22 @@ import { withBase } from '~/lib/base'
     font-size: var(--sl-text-sm);
     font-weight: 600;
     text-decoration: none;
+    white-space: nowrap;
     box-shadow: var(--nv-shadow-sm);
     transition:
       border-color var(--nv-fast) var(--nv-ease),
       color var(--nv-fast) var(--nv-ease),
       transform var(--nv-fast) var(--nv-ease);
   }
-  .pill .nv-chip {
-    flex-shrink: 0;
-    white-space: nowrap;
-  }
+  .pill .nv-chip,
   .pill svg {
     flex-shrink: 0;
+  }
+  .pill-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .pill svg {
     transition: transform var(--nv-fast) var(--nv-ease);
   }
   .pill:hover {
@@ -155,17 +255,26 @@ import { withBase } from '~/lib/base'
   }
 
   h1 {
+    display: flex;
+    flex-direction: column;
+    gap: 0.12em;
     margin: 0;
-    font-size: clamp(2.5rem, 1.6rem + 4vw, 4.25rem);
+    font-size: clamp(2.1rem, 1.5rem + 1.9vw, 3rem);
     font-weight: 800;
-    line-height: 1.04;
-    letter-spacing: -0.04em;
+    line-height: 1.06;
+    letter-spacing: -0.035em;
     color: var(--sl-color-white);
+  }
+  h1 > span {
     text-wrap: balance;
   }
-  h1 .nv-gradient-text {
+  .slogan {
     /* Room for descenders inside the clipped background. */
     padding-block-end: 0.06em;
+  }
+  /* The slogan breaks after "Fast." when it needs two lines. */
+  .slogan .keep {
+    display: inline-block;
   }
 
   .tagline {
@@ -204,8 +313,13 @@ import { withBase } from '~/lib/base'
 
   /* ------------------------------------------------------------ the window */
   .stage {
-    position: relative;
     min-width: 0;
+  }
+  @media (min-width: 64rem) {
+    .stage {
+      align-self: start;
+      margin-block-start: var(--nv-space-7);
+    }
   }
   .window {
     position: relative;
@@ -220,6 +334,7 @@ import { withBase } from '~/lib/base'
   .window::before {
     content: '';
     position: absolute;
+    z-index: 1;
     inset: 0 0 auto;
     height: 1px;
     background: var(--nv-gradient-line);
@@ -229,7 +344,8 @@ import { withBase } from '~/lib/base'
     display: flex;
     align-items: center;
     gap: var(--nv-space-3);
-    padding: 0.6rem 0.9rem;
+    min-height: 2.75rem;
+    padding: 0 0.9rem;
     border-bottom: 1px solid var(--nv-hairline);
     background: var(--nv-surface-2);
     font-family: var(--sl-font-mono);
@@ -238,6 +354,7 @@ import { withBase } from '~/lib/base'
   }
   .dots {
     display: inline-flex;
+    flex-shrink: 0;
     gap: 0.4rem;
   }
   .dots i {
@@ -252,17 +369,111 @@ import { withBase } from '~/lib/base'
   .dots i:nth-child(3) {
     background: var(--sl-color-accent);
   }
-  .file {
-    color: var(--sl-color-gray-2);
-    font-weight: 600;
-  }
-  .request {
+  .server {
     margin-inline-start: auto;
     padding: 0.1rem 0.5rem;
     border-radius: var(--nv-radius-pill);
     background: var(--nv-wash);
     color: var(--sl-color-text-accent);
     font-weight: 600;
+    white-space: nowrap;
+  }
+
+  /* The tabs sit in the bar; the selected one has the code's ground and an
+     accent line along its bottom edge. */
+  .tabs {
+    display: flex;
+    align-self: stretch;
+    gap: 0.15rem;
+    min-width: 0;
+  }
+  .tabs[hidden] {
+    display: none;
+  }
+  .tabs button {
+    position: relative;
+    padding: 0 0.75rem;
+    border: 0;
+    background: transparent;
+    color: var(--sl-color-gray-3);
+    font: inherit;
+    font-family: var(--sl-font);
+    font-size: var(--sl-text-sm);
+    font-weight: 650;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      color var(--nv-fast) var(--nv-ease),
+      background-color var(--nv-fast) var(--nv-ease);
+  }
+  .tabs button:hover {
+    color: var(--sl-color-white);
+    background: var(--nv-hover);
+  }
+  .tabs button[aria-selected='true'] {
+    color: var(--sl-color-white);
+    background: var(--nv-code-bg);
+  }
+  .tabs button[aria-selected='true']::after {
+    content: '';
+    position: absolute;
+    inset: auto 0.5rem 0;
+    height: 2px;
+    border-radius: 2px 2px 0 0;
+    background: var(--sl-color-accent);
+  }
+  .tabs button:focus-visible {
+    outline-offset: -2px;
+  }
+
+  /* Without the script: the panels one under the other, each with a label. */
+  .panel + .panel {
+    border-top: 1px solid var(--nv-hairline-strong);
+  }
+  .panel-label {
+    margin: 0;
+    padding: 0.5rem 0.9rem 0;
+    font-size: var(--sl-text-xs);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--sl-color-text-accent);
+  }
+
+  /* With the script: only the selected panel is shown. */
+  [data-tabs-ready] .panel {
+    border-top: 0;
+  }
+  [data-tabs-ready] .panel[data-inactive] {
+    display: none;
+  }
+  [data-tabs-ready] .panel-label {
+    display: none;
+  }
+  [data-tabs-ready] .panel:focus-visible {
+    outline-offset: -2px;
+  }
+
+  .result {
+    display: flex;
+    align-items: center;
+    gap: var(--nv-space-2);
+    margin: 0;
+    padding: 0.7rem 0.9rem;
+    border-top: 1px solid var(--nv-hairline);
+    background: color-mix(in oklab, var(--nv-ok) 8%, var(--nv-surface-2));
+    font-size: var(--sl-text-sm);
+    font-weight: 600;
+    line-height: 1.4;
+    color: var(--sl-color-white);
+  }
+  .result-icon {
+    display: inline-flex;
+    flex-shrink: 0;
+    padding: 0.2rem;
+    border-radius: 50%;
+    background: var(--nv-ok);
+    color: var(--sl-color-black);
   }
 
   /* The snippet inside: no frame of its own, the window is the frame. */
@@ -279,7 +490,12 @@ import { withBase } from '~/lib/base'
   .code :global(.expressive-code pre) {
     border: 0;
     border-radius: 0;
-    font-size: 0.8rem;
+    font-size: 0.75rem;
+  }
+  /* A diagnostic wraps its long lines, so the reader sees all of it. */
+  .code :global([data-snippet-part='diagnostic'] .expressive-code pre) {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
   .code :global(.expressive-code .frame.has-title .header) {
     border-radius: 0;
@@ -287,35 +503,15 @@ import { withBase } from '~/lib/base'
   .code :global(.expressive-code + .expressive-code .frame) {
     border-top: 1px solid var(--nv-hairline);
   }
-
-  .badge {
-    position: absolute;
-    inset-inline-start: -1.25rem;
-    inset-block-end: -1.25rem;
-    display: inline-flex;
-    align-items: center;
-    gap: var(--nv-space-2);
-    padding: 0.55rem 0.9rem 0.55rem 0.55rem;
-    border: 1px solid var(--nv-hairline-strong);
-    border-radius: var(--nv-radius-pill);
-    background: var(--nv-glass-solid);
-    box-shadow: var(--nv-shadow-md);
-    font-size: var(--sl-text-sm);
-    font-weight: 650;
-    color: var(--sl-color-white);
+  /* A compiler error keeps its red edge and tint, without the gap and the
+     rounded corners it has elsewhere. */
+  .code :global([data-snippet-part='diagnostic']) {
+    margin: 0;
+    border-top: 1px solid var(--nv-hairline);
   }
-  .badge-icon {
-    display: inline-flex;
-    padding: 0.25rem;
-    border-radius: 50%;
-    background: var(--nv-ok);
-    color: var(--sl-color-black);
-  }
-  @media (max-width: 63.99rem) {
-    .badge {
-      position: static;
-      margin-block-start: var(--nv-space-3);
-    }
+  .code :global([data-snippet-part='diagnostic'] .expressive-code .frame) {
+    border-radius: 0;
+    box-shadow: inset 3px 0 0 var(--nv-danger);
   }
 
   @media (max-width: 49.99rem) {
@@ -332,6 +528,9 @@ import { withBase } from '~/lib/base'
     .actions .nv-button {
       flex: 1 1 12rem;
       justify-content: center;
+    }
+    .server {
+      display: none;
     }
   }
 </style>

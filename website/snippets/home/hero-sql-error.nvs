@@ -1,0 +1,7 @@
+<?nvs
+// Text from a request is a `tainted string`. It cannot be
+// part of the text of a database query, so this program
+// does not compile. Send the value as a `?` parameter.
+var $db = Core\Db::connect("main");
+var $id = Core\Request::query("id");
+$db->query("select * from users where id = $id", []);
