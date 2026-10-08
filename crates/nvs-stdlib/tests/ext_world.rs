@@ -163,6 +163,12 @@ const REFUSED: &[(&str, &str)] = &[
     ("Core\\Db\\Stream", HANDLE),
     ("Core\\Db\\Row", REPORT),
     ("Core\\Ldap\\Connection", HANDLE),
+    ("Core\\Ldap\\Entries", HANDLE),
+    ("Core\\Ldap\\Entry", REPORT),
+    (
+        "Core\\Ldap\\Filter",
+        "It is the BER encoding the host sends to a directory, and a guest opens no directory.",
+    ),
     ("Core\\Db\\Write", REPORT),
     ("Core\\Db\\Column", REPORT),
     (
