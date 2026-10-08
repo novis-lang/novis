@@ -1,0 +1,21 @@
+<?nvs
+// Attack: a request value arrives as `mixed`, and the program takes its text out
+// in several ways and builds a regular expression from it. Text from a `mixed`
+// value is tainted, so the program should not compile.
+// hostile: expect-refusal
+
+mixed $q = Core\Request::query("q");
+
+// 1. Converts the value with `as string` and joins it into a pattern.
+Core\Regex::compile("^" . ($q as string) . "$");
+
+// 2. Joins the `mixed` value into the pattern directly.
+Core\Regex::compile("^" . $q);
+
+// 3. Puts the value into a string with `{…}`.
+Core\Regex::compile("^{$q}$");
+
+// 4. Tests the value with `is string` and uses it.
+if ($q is string) {
+    Core\Regex::compile($q);
+}

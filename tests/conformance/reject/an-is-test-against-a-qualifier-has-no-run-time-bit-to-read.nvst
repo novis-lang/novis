@@ -1,14 +1,17 @@
 --TEST--
-`is tainted string` and `is secret bytes` are refused, because both qualifiers are erased before codegen and no value carries one at run time (`rule:types/type-test`, `rule:security/tainted-qualifier`, `rule:security/secret-qualifier`)
+`is tainted string` and `is secret bytes` are refused, because both qualifiers are erased before codegen and no value carries one at run time; over a `mixed` subject `is secret bytes` is still refused (`rule:types/type-test`, `rule:security/tainted-qualifier`, `rule:security/secret-qualifier`, `rule:security/taint-propagation`)
 --FILE--
 <?nvs
 // The second of `rule:types/type-test`'s three refusals, and the one that is
 // not about the answer being knowable. `tainted` and `secret` are decided
 // where a value is declared and erased before codegen, so a tag comparison
 // has nothing to read — the question has no answer at all, which is why it
-// is refused where `is int` over an `int` local is not.
+// is refused where `is int` over an `int` local is not. Over a `mixed`
+// subject `tainted` is the answer text out of `mixed` gets anyway, so only
+// `secret` is refused there.
+string|int $v = "ab";
+echo $v is tainted string, "\n";
 mixed $m = "ab";
-echo $m is tainted string, "\n";
 echo $m is secret bytes, "\n";
 --EXPECT--
 

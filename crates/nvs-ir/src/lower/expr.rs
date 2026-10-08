@@ -5820,7 +5820,7 @@ impl<'a> Lowering<'a> {
         let Some(walk) = test_shape(shape, self.exprs, self.checked_types, self.enums) else {
             panic!(
                 "nvs-ir: `as {:?}` reached lowering with no run-time row — `nvs_types` records \
-                 a shape conversion only for a shape whose fields carry no qualifier, and every \
+                 a shape conversion only for a shape with no `secret` field, and every \
                  other field type has one",
                 self.checked_types.get(shape)
             );

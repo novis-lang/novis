@@ -24,28 +24,28 @@ error[E0711]: `mixed` cannot be converted to `object`
   |
 9 | object $o = $m as object;
   |             ^^^^^^^^^^^^ converted here
-  = help: `rule:types/conversion` has no checked row into this target, because nothing about it can be tested on the value at run time: convert to a declared class, a `Core` class with instances such as `Core\Time\Date`, or a shape such as `{id: int}` whose fields carry no qualifier — those are the checked ways out of `mixed`
+  = help: There is no checked conversion into this type, because it cannot be tested at run time. Convert to a declared class, a `Core` class such as `Core\Time\Date`, or a shape such as `{id: int}`. A shape cannot have a `secret` field here.
 
 error[E0711]: `mixed` cannot be converted to `callable`
    --> %s:10:15
    |
 10 | callable $c = $m as callable;
    |               ^^^^^^^^^^^^^^ converted here
-   = help: `rule:types/conversion` has no checked row into this target, because nothing about it can be tested on the value at run time: convert to a declared class, a `Core` class with instances such as `Core\Time\Date`, or a shape such as `{id: int}` whose fields carry no qualifier — those are the checked ways out of `mixed`
+   = help: There is no checked conversion into this type, because it cannot be tested at run time. Convert to a declared class, a `Core` class such as `Core\Time\Date`, or a shape such as `{id: int}`. A shape cannot have a `secret` field here.
 
 error[E0711]: `mixed` cannot be converted to `Core\Json`
    --> %s:13:1
    |
 13 | $m as Core\Json;
    | ^^^^^^^^^^^^^^^ converted here
-   = help: `rule:types/conversion` has no checked row into this target, because nothing about it can be tested on the value at run time: convert to a declared class, a `Core` class with instances such as `Core\Time\Date`, or a shape such as `{id: int}` whose fields carry no qualifier — those are the checked ways out of `mixed`
+   = help: There is no checked conversion into this type, because it cannot be tested at run time. Convert to a declared class, a `Core` class such as `Core\Time\Date`, or a shape such as `{id: int}`. A shape cannot have a `secret` field here.
 
 error[E0711]: `string` cannot be converted to `object`
    --> %s:17:13
    |
 17 | object $p = $s as object;
    |             ^^^^^^^^^^^^ converted here
-   = help: `rule:types/conversion` has no checked row into this target, because nothing about it can be tested on the value at run time: convert to a declared class, a `Core` class with instances such as `Core\Time\Date`, or a shape such as `{id: int}` whose fields carry no qualifier — those are the checked ways out of `mixed`
+   = help: There is no checked conversion into this type, because it cannot be tested at run time. Convert to a declared class, a `Core` class such as `Core\Time\Date`, or a shape such as `{id: int}`. A shape cannot have a `secret` field here.
 
 error: aborting due to 4 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.
