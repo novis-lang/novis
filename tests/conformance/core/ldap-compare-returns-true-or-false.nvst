@@ -1,0 +1,49 @@
+--TEST--
+`compare` returns `true` when the entry has the value and `false` when it does not, matches text by the attribute's rules so case does not count in `description`, and writes an `int` and a `Dn` the way a write does — ADR 0278 § 9
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+var $library = Core\Ldap\Dn::parse("OU=Library,DC=example,DC=test");
+var $admin = "CN=Administrator,CN=Users,DC=example,DC=test";
+
+// A run that stopped half-way leaves the entry behind.
+try {
+    $corp->delete($library);
+} catch (Core\Ldap\LdapError $gone) {
+}
+$corp->add($library, [
+    "objectClass" => "organizationalUnit",
+    "description" => "Books",
+    "gPOptions" => 1,
+    "managedBy" => $admin,
+]);
+
+// `description` ignores case when the server compares it.
+echo "Books: ", $corp->compare($library, "description", "Books") ? "true" : "false", "\n";
+echo "books: ", $corp->compare($library, "description", "books") ? "true" : "false", "\n";
+echo "Music: ", $corp->compare($library, "description", "Music") ? "true" : "false", "\n";
+
+// An `int` and a `Dn` are sent in the form a write uses.
+echo "gPOptions 1: ", $corp->compare($library, "gPOptions", 1) ? "true" : "false", "\n";
+echo "gPOptions 2: ", $corp->compare($library, "gPOptions", 2) ? "true" : "false", "\n";
+echo "managedBy: ", $corp->compare("OU=Library,DC=example,DC=test", "managedBy", Core\Ldap\Dn::parse($admin)) ? "true" : "false", "\n";
+
+$corp->delete($library);
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+Books: true
+books: true
+Music: false
+gPOptions 1: true
+gPOptions 2: false
+managedBy: true

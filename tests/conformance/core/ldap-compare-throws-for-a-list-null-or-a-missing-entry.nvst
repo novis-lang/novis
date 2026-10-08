@@ -1,0 +1,46 @@
+--TEST--
+`compare` takes exactly one value, so a list and `null` throw `LogicError` before anything is sent, and an entry that does not exist throws `Core\Ldap\LdapError` with the kind `NoSuchObject` — ADR 0278 § 9
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+var $admin = "CN=Administrator,CN=Users,DC=example,DC=test";
+
+try {
+    $corp->compare($admin, "objectClass", ["top", "user"]);
+    echo "list: not reached", "\n";
+} catch (LogicError $list) {
+    echo "list: LogicError", "\n";
+}
+
+try {
+    $corp->compare($admin, "objectClass", null);
+    echo "null: not reached", "\n";
+} catch (LogicError $none) {
+    echo "null: LogicError", "\n";
+}
+
+try {
+    $corp->compare("OU=Nowhere,DC=example,DC=test", "description", "Books");
+    echo "missing: not reached", "\n";
+} catch (Core\Ldap\LdapError $missing) {
+    echo "missing: ", $missing->kind == Core\Ldap\ErrorKind::NoSuchObject ? "NoSuchObject" : "other", "\n";
+}
+
+// The connection still works after each error.
+echo "user: ", $corp->compare($admin, "objectClass", "user") ? "true" : "false", "\n";
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+list: LogicError
+null: LogicError
+missing: NoSuchObject
+user: true

@@ -1466,3 +1466,61 @@ fn a_password_policy_refusal_is_its_own_kind() {
     );
     delete_user(&mut ctx, key, "Editors");
 }
+
+#[test]
+fn compare_returns_a_bool_and_throws_on_error() {
+    use nvs_ldap::proto;
+
+    // `compareTrue` (6) and `compareFalse` (5) are answers, and any other
+    // result is an error.
+    let dn = "OU=Catalog,DC=example,DC=test";
+    let (port, read) = scripted(vec![
+        written(1, 0x6f, 6),
+        written(2, 0x6f, 5),
+        written(3, 0x6f, 32),
+    ]);
+    let mut ctx = ctx_over(&cleartext_corp(port));
+    let key = ldap::connect(&mut ctx, "corp").expect("the peer accepts");
+    let compare = |ctx: &mut nvs_runtime::Ctx, key, value: &[u8]| {
+        ldap::compare(ctx, key, dn, "description", value).map_err(|fault| fault.message())
+    };
+    assert_eq!(compare(&mut ctx, key, b"one"), Ok(true));
+    assert_eq!(compare(&mut ctx, key, b"two"), Ok(false));
+    let missing = compare(&mut ctx, key, b"one").expect_err("the peer says there is no such entry");
+    assert!(missing.contains("NoSuchObject"), "{missing}");
+    let sent = read.lock().expect("unpoisoned").clone();
+    let first = proto::message(1, &proto::compare_request(dn, "description", b"one"), &[]);
+    assert_eq!(
+        &sent[..first.len()],
+        first.as_slice(),
+        "one request per compare"
+    );
+
+    let Some(ca) = samba() else { return };
+    let mut ctx = ctx_over(&corp(&ca));
+    let key = ldap::connect(&mut ctx, "corp").expect("the block opens");
+    ldap::delete(&mut ctx, key, dn).ok();
+    ldap::add(
+        &mut ctx,
+        key,
+        dn,
+        &[
+            nvs_ldap::Attribute {
+                name: "objectClass".to_owned(),
+                values: vec![b"organizationalUnit".to_vec()],
+            },
+            nvs_ldap::Attribute {
+                name: "description".to_owned(),
+                values: vec![b"Books".to_vec()],
+            },
+        ],
+    )
+    .expect("the entry is added");
+    // The server's matching rule for `description` ignores case.
+    assert_eq!(compare(&mut ctx, key, b"Books"), Ok(true));
+    assert_eq!(compare(&mut ctx, key, b"books"), Ok(true));
+    assert_eq!(compare(&mut ctx, key, b"Music"), Ok(false));
+    ldap::delete(&mut ctx, key, dn).expect("the entry is deleted");
+    let gone = compare(&mut ctx, key, b"Books").expect_err("the entry is gone");
+    assert!(gone.contains("NoSuchObject"), "{gone}");
+}

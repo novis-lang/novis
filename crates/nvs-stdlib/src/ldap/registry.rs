@@ -431,6 +431,19 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
             symbol: "nvs_core_ldap_connection_change_password",
             doc: Some(&CHANGE_PASSWORD_DOC),
         },
+        CoreMethod {
+            name: "compare",
+            names: &["dn", "attribute", "value"],
+            params: &[
+                CoreTy::Union(DN_OR_STRING),
+                CoreTy::Text(Qual::Sink),
+                CoreTy::Mixed,
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            symbol: "nvs_core_ldap_connection_compare",
+            doc: Some(&COMPARE_DOC),
+        },
     ],
     slots: &[HANDLE_SLOT],
     constants: &[],
@@ -689,6 +702,39 @@ const CHANGE_PASSWORD_DOC: MethodDoc = MethodDoc {
     ],
     ret: "Nothing.",
     errors: PASSWORD_ERRORS,
+};
+
+/// `Ldap\Connection::compare`'s reference card — `rule:core-api/reference-card`.
+const COMPARE_DOC: MethodDoc = MethodDoc {
+    short: "Checks whether an entry has a value. The server compares the value by the rules of \
+            the attribute, so `staff` matches `Staff` in a name.",
+    params: &[
+        WRITE_DN_PARAM,
+        ParamDoc {
+            name: "attribute",
+            desc: "The attribute's name, such as `department`. It cannot be `tainted`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "value",
+            desc: "One value, in any form a write accepts, such as a `string`, an `int` or a \
+                   `Dn`.",
+            shape: &[],
+        },
+    ],
+    ret: "`true` when the entry has the value, and `false` when it does not.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "`attribute` is not an attribute name, `value` is `null`, a list or has no \
+                   LDAP form, or the connection is closed.",
+        },
+        ErrorDoc {
+            error: "Core\\Ldap\\LdapError",
+            desc: "The server returned an error. `$kind` is `NoSuchObject` when there is no \
+                   entry with this DN.",
+        },
+    ],
 };
 
 /// `Ldap\Change`'s class card — `rule:core-api/reference-card`.

@@ -1,0 +1,37 @@
+--TEST--
+Over every value `read` returns for `objectClass`, `compare` returns `true`, and it returns `false` for a class the entry does not have — ADR 0278 § 9
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+var $admin = "CN=Administrator,CN=Users,DC=example,DC=test";
+?Core\Ldap\Entry $found = $corp->read($admin);
+if ($found == null) {
+    echo "no entry", "\n";
+} else {
+    Core\Ldap\Entry $entry = $found;
+    var $classes = $entry->strings("objectClass") ?? [];
+    int $disagree = 0;
+    foreach ($classes as tainted string $class) {
+        if (!$corp->compare($admin, "objectClass", $class)) {
+            $disagree = $disagree + 1;
+        }
+    }
+    echo "classes: ", Core\Arr::count($classes) > 1 ? "more than one" : "one or none", "\n";
+    echo "disagreements: ", $disagree, "\n";
+    echo "group: ", $corp->compare($admin, "objectClass", "group") ? "true" : "false", "\n";
+}
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+classes: more than one
+disagreements: 0
+group: false

@@ -102,8 +102,8 @@ pub(crate) use self::search::{
     ENTRIES_ADVANCE_SYMBOL, ENTRIES_CURRENT_SYMBOL, ENTRIES_ITERATE_SYMBOL,
 };
 pub use self::write::{
-    ADD, CHANGE_PASSWORD, DELETE, MODIFY, RENAME, SET_PASSWORD, add, change_password, delete,
-    modify, rename, set_password,
+    ADD, CHANGE_PASSWORD, COMPARE, DELETE, MODIFY, RENAME, SET_PASSWORD, add, change_password,
+    compare, delete, modify, rename, set_password,
 };
 
 /// `Core\Ldap::connect`, as its refusals spell it.
