@@ -1,27 +1,33 @@
 {
-  "state": "**Goal `ldap`, Stage 4.** `nvs-config` reads `[ldap.<name>]` and `[capabilities.ldap]` (`crates/nvs-config/src/ldap.rs`'s module doc). `crates/nvs-ldap/src/conn.rs` has an owned `Cursor`, and `crates/nvs-stdlib/src/ldap/mod.rs` opens connections (`connect`, `open`) and runs `who_am_i`, `search` (an owned `Entries`) and `read`. `nvs-stdlib-ldap-connect-open-and-search`'s five tests pass against `samba-ad`. `Core\\Ldap\\LdapError` carries `kind` and `code` (`?int`, `null` where no server sent one).\n\n**A Novis program can now call `Core\\Ldap::connect` and `Core\\Ldap::open`.** `crates/nvs-stdlib/src/ldap/registry.rs` registers `Core\\Ldap` (both members, with cards), `Ldap\\Connection` (one `handle` slot and no members yet), `Ldap\\Tls` and the `Ldap\\Settings` shape (`url`, `user`, `password`, `tls`, `timeout`; slots `URL_ARG`..`TIMEOUT_ARG`). The helpers `nvs_core_ldap_connect`/`nvs_core_ldap_open` and `ldap::address` sit at the end of `mod.rs`. Six server-free cases under `tests/conformance/core/ldap-connect-*` and `ldap-open-*` hold the floor of three per member; `ldap-connect-without-a-grant-throws.nvst` is one of the acceptance check's two cases.\n\n`Ldap\\Settings` still lacks ADR 0278 § 2's `base` (it needs `Dn`, Stage 5) and `tlsCaFile` (a program-supplied path sink, not decided). `rule:security/ldap-pool-is-bound-as-its-block` stays `designed` until a Novis case guards it.\n\n**A conformance case cannot reach Samba yet.** No `.nvst` in the tree talks to a container, so `ldap-connect-and-search.nvst` needs a way to name `samba-ad`'s URL and CA (an `--ENV--` section feeding `nvs.toml`, or a `--SKIPIF--` on the port). Find how `crates/nvs-test` expands `--ENV--` before writing it.",
+  "state": "**Goal `ldap`, Stage 4.** `nvs-config` reads `[ldap.<name>]` and `[capabilities.ldap]`. `crates/nvs-stdlib/src/ldap/mod.rs` opens connections (`connect`, `open`) and runs `who_am_i`, `search` and `read`. `Core\\Ldap::connect`/`open` are registered with six server-free cases. `nvs_ldap::Filter::Encoded` (a pre-encoded filter, written out as it is) and `nvs_ldap::is_attribute_description` (RFC 4512's name check) are on `main`.\n\n**The members are written and wait on branch `ldap-stage4-members`** (one commit on top of `cd9b49179`, stdlib files only). It registers `Ldap\\Connection::whoami`/`search`/`read`, `Ldap\\Entries` (its own iterator, in `DISPATCH_ROSTER`, `ITERABLES` and `HOST_HANDLE_CLASSES`), `Ldap\\Entry` (`dn`, `has`, `string`, `strings`, `bytes`), `Ldap\\Filter` (`equals`, `present`, one `ber` slot) and `Ldap\\Scope` (`Base`, `OneLevel`, `Subtree`). A search parks its cursor on `Held` under an id (`Entries::park`, `step`). The bodies are in the new `crates/nvs-stdlib/src/ldap/search.rs`. A probe against `samba-ad` printed the right `whoami`, DN, `string`, `strings`, `bytes`, a paged `OneLevel` walk, `read` returning `null` for a missing DN, and the attribute-name `LogicError`.\n\n**Why it is not on `main`:** `conformance_coverage.rs` needs three `.nvst` cases per new member (10 members), plus a case or an \"unreachable from source\" comment for every `Fault` site in `search.rs`. Most cases need `samba-ad`, and no `.nvst` can name its CA yet. `tests/db/ca.crt` is git-ignored and differs per volume, `tls_ca_file` resolves against the case's own `nvs.toml`, and the TLS roots are `webpki_roots` alone.\n\n`dn()` returns `string` until `Dn` exists (Stage 5). `toArray` and `Entries::references` are not written. `Ldap\\Settings` still lacks `base` and `tlsCaFile`.",
   "next": {
     "stage": 4,
     "title": "`Core\\Ldap`: connect, open, search, read",
     "files": [
-      "crates/nvs-stdlib/src/ldap/mod.rs",
-      "crates/nvs-stdlib/src/ldap/registry.rs",
-      "crates/nvs-stdlib/src/registry.rs",
-      "crates/nvs-stdlib/src/instance.rs"
+      "crates/nvs-test/src/case.rs",
+      "crates/nvs-test/src/run.rs",
+      "crates/nvs-stdlib/src/ldap/search.rs",
+      "tests/conformance/core/ldap-*.nvst"
     ],
     "items": [
       {
         "done": false,
-        "text": "**`Ldap\\Connection`'s members and `Ldap\\Entries`/`Ldap\\Entry`**: `whoami`, `search`, `read` on `CONNECTION` at `crates/nvs-stdlib/src/ldap/registry.rs:200`, an `Entries` class that is its own iterator (the `Core\\Db\\Stream` pattern at `crates/nvs-stdlib/src/db/stream.rs:81`: a `DISPATCH_ROSTER` row in `crates/nvs-stdlib/src/instance.rs:200`, an `ITERABLES` row in `crates/nvs-stdlib/src/registry.rs`, and the `HOST_HANDLE_CLASSES` row), `Entry` (`dn`, `has`, `string`, `strings`, `bytes`, `toArray`), and `Ldap\\Scope`. `Entries` needs somewhere to keep `nvs_stdlib::ldap::Entries` (`crates/nvs-stdlib/src/ldap/mod.rs:408`): park the cursor on `Held` keyed per search, the way `Core\\Db\\Stream` parks its cursor on the connection, since an object slot holds only a `Value`. `search` takes a `Filter`, so the smallest `Ldap\\Filter` (`equals`, `present`) comes with it. ADR 0278 § 1 and § 5. Each member needs three cases, and every case past `whoami` needs `samba-ad`."
+        "text": "**A `.nvst` case can copy a repository file next to itself**: a `--COPY--` section, one path per line relative to the case file, copied into the working directory before `--SKIPIF--`. A missing source skips the case and names the file. Model it on `--EXTENSION--` (`crates/nvs-test/src/case.rs:360` parses it, `crates/nvs-test/src/run.rs:366` writes it), and add its row to the section table in `crates/nvs-test/src/lib.rs:28`. A case then writes `../../db/ca.crt` and `tls_ca_file = \"ca.crt\"`. `rule:testing/feature-proofs`."
       },
       {
         "done": false,
-        "text": "**`tests/conformance/core/ldap-connect-and-search.nvst`** against `samba-ad`, once a case can name its URL and CA (see State). `--ENV--` is parsed at `crates/nvs-test/src/case.rs:607`."
+        "text": "**Land branch `ldap-stage4-members`** with `git cherry-pick ldap-stage4-members`, then delete the branch with `git branch -d`. Write the cases: three per member of `Ldap\\Connection`, `Ldap\\Entry` and `Ldap\\Filter`, the acceptance case `tests/conformance/core/ldap-connect-and-search.nvst`, and an assertion or an \"unreachable from source\" comment for each `Fault` site in `crates/nvs-stdlib/src/ldap/search.rs:68`. Server-free cases: a tainted DN or `base` does not compile, a tainted `select` name does not compile, `Filter::equals` accepts a tainted value, a bad attribute name throws `LogicError`. ADR 0278 § 1, § 5 and § 6."
+      },
+      {
+        "done": false,
+        "text": "**`Entry::toArray` and `Entries::references`** (ADR 0278 § 1 and § 5) in `crates/nvs-stdlib/src/ldap/search.rs` and `crates/nvs-stdlib/src/ldap/registry.rs:205`, each with three cases."
       }
     ]
   },
   "backlog": [
-    "`Ldap\\Settings.base` and `tlsCaFile` (ADR 0278 § 2), after `Dn` lands in Stage 5.",
-    "`Ldap\\Connection` is on the `HANDLES` list in `crates/nvs-stdlib/src/registry.rs`'s `a_class_with_slots_has_instance_members_and_the_reverse`. Take it off when its first member lands, or that test fails."
+    "`Ldap\\Settings.base` and `tlsCaFile` (ADR 0278 § 2), once `Dn` exists (Stage 5).",
+    "`Entry::dn()` becomes `Dn` in Stage 5, and `read` takes `Dn|string`.",
+    "`rule:security/ldap-pool-is-bound-as-its-block` stays `designed` until a Novis case guards it.",
+    "`SearchOptions.timeLimit` (a `Duration`) is not registered yet (ADR 0278 § 1)."
   ]
 }
