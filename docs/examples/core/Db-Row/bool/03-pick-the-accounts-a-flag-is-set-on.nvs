@@ -11,7 +11,7 @@ $db->execute(
 
 // `bool` reads a whole number column holding 0 or 1 as a truth value. An
 // account is added only when both flags are set.
-array<string> $send = [];
+array<tainted string> $send = [];
 foreach ($db->query('select email, newsletter, verified from accounts order by email', []) as Core\Db\Row $row) {
     if (($row->bool('newsletter') ?? false) && ($row->bool('verified') ?? false)) {
         $send[] = $row->string('email') ?? '';
@@ -19,7 +19,7 @@ foreach ($db->query('select email, newsletter, verified from accounts order by e
 }
 
 // This prints one address, `ana@example.com`.
-foreach ($send as string $address) {
+foreach ($send as tainted string $address) {
     echo $address, "\n";
 }
 

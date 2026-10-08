@@ -3,5 +3,5 @@
 // It prints a greeting for the name it was given.
 
 var $given = Core\Script::args();
-string $name = $given == null ? "everyone" : $given as string;
+tainted string $name = $given == null ? "everyone" : $given as string;
 echo "Hello, ", $name, "!\n";

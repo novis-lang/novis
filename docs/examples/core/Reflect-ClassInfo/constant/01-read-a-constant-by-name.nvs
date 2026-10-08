@@ -11,5 +11,5 @@ var $info = Core\Reflect::forObject(new Limits());
 // `constant` returns the value of the constant with that name.
 // The result has the type `mixed`, so `as` converts it. This prints "20 MB".
 int $size = $info->constant("MAX_UPLOAD_MB") as int;
-string $unit = $info->constant("UNIT") as string;
+tainted string $unit = $info->constant("UNIT") as string;
 echo $size, " ", $unit, "\n";

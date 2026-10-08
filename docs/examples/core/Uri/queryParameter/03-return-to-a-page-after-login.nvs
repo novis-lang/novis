@@ -2,12 +2,12 @@
 // Shows how a login page reads the page to return to, and accepts only a page on the same site.
 
 class Login {
-    public static function returnTo(string $request): string {
+    public static function returnTo(string $request): tainted string {
         mixed $next = Core\Uri::parse($request)->queryParameter("next");
         if ($next == null) {
             return "/";
         }
-        string $path = $next as string;
+        tainted string $path = $next as string;
         // A path on this site starts with one `/`. `//` or `https:` leads to another site.
         if (!Core\Str::startsWith($path, "/") || Core\Str::startsWith($path, "//")) {
             return "/";

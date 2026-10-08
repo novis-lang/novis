@@ -12,8 +12,8 @@ class ArticleController {
 }
 
 class Binding {
-    public static function describe(string $className, string $method): array<string> {
-        array<string> $lines = [];
+    public static function describe(string $className, string $method): array<tainted string> {
+        array<tainted string> $lines = [];
         var $info = Core\Reflect::forClass($className);
         if ($info == null) {
             return $lines;
@@ -30,6 +30,6 @@ class Binding {
 }
 
 // This prints one line for each parameter of `update`, in the order they are written.
-foreach (Binding::describe("ArticleController", "update") as string $line) {
+foreach (Binding::describe("ArticleController", "update") as tainted string $line) {
     echo $line, "\n";
 }

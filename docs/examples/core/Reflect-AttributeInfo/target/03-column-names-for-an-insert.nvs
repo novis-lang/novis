@@ -28,7 +28,11 @@ class Insert {
             if ($attribute->name() != "Column" || $attribute->target() == "") {
                 continue;
             }
-            $columns[] = $attribute->field("name") as string;
+            // The column name is written in this class, so the program can trust it.
+            $columns[] = Core\Taint::assertTrusted(
+                $attribute->field("name") as string,
+                "the column name is written in a `Column` attribute of this class",
+            );
             $placeholders[] = ":" . $attribute->target();
         }
         return "INSERT INTO " . $table . " (" . Core\Str::join($columns, ", ") . ") VALUES ("

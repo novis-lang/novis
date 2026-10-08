@@ -8,9 +8,9 @@ class Product {
 }
 
 class Fields {
-    public static function pick(Product $product, array<string> $asked): string {
+    public static function pick(Product $product, array<string> $asked): tainted string {
         var $info = Core\Reflect::forObject($product);
-        string $out = "";
+        tainted string $out = "";
         foreach ($asked as string $field) {
             // A field the class does not have is reported to the client, and nothing is read.
             if (!$info->hasProperty($field)) {

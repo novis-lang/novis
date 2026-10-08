@@ -11,7 +11,7 @@ var $row = $rows[0];
 // `get` returns the value the column holds, and its type is the column's own.
 // `as` turns that value into the type this line needs.
 ?int $seats = $row->get('seats') as ?int;
-?string $name = $row->get('name') as ?string;
+?tainted string $name = $row->get('name') as ?string;
 echo $name ?? '', ' has ', $seats ?? 0, " seats\n";
 
 $db->close();

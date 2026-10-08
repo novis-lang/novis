@@ -13,7 +13,7 @@ class Tasks {
 }
 
 class Runner {
-    public static function run(object $tasks, string $command): string {
+    public static function run(object $tasks, string $command): tainted string {
         var $info = Core\Reflect::forObject($tasks);
         // `hasMethod` checks the name first, so an unknown command gets a helpful message.
         if (!$info->hasMethod($command)) {

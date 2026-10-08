@@ -17,7 +17,7 @@ foreach ($known as string $status) {
 }
 
 foreach ($db->query('select status from orders', []) as Core\Db\Row $row) {
-    ?string $seen = $row->string('status');
+    ?tainted string $seen = $row->string('status');
     if ($seen == null) {
         continue;
     }

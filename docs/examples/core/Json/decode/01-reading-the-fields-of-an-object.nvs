@@ -8,7 +8,7 @@ string $text = "{\"name\":\"Ada\",\"age\":36,\"languages\":[\"English\",\"French
 var $person = Core\Json::decode($text) as array<mixed>;
 
 // `as` converts each field to the type you need.
-string $name = $person["name"] as string;
+tainted string $name = $person["name"] as string;
 int $age = $person["age"] as int;
 var $languages = $person["languages"] as array<mixed>;
 

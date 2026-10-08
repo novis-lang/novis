@@ -20,9 +20,9 @@ echo $heading, "\n";
 
 // This prints `1;buy milk;` and `2;call the plumber;`.
 foreach ($rows as Core\Db\Row $row) {
-    string $line = '';
+    tainted string $line = '';
     foreach ($columns as Core\Db\Column $cell) {
-        ?string $text = $row->get($cell->name()) as ?string;
+        ?tainted string $text = $row->get($cell->name()) as ?string;
         $line = $line . ($text ?? '') . ';';
     }
     echo $line, "\n";

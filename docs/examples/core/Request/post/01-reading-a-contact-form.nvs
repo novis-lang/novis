@@ -3,9 +3,9 @@
 
 // `Core\Request::post` returns the value of the field "email".
 // `%40` in the body is the character `@`, so this prints "email: ada@example.com".
-string $email = Core\Request::post("email") as string;
+tainted string $email = Core\Request::post("email") as string;
 echo "email: ", $email, "\n";
 
 // A `+` in the body is a space. This prints "message: Please call me".
-string $message = Core\Request::post("message") as string;
+tainted string $message = Core\Request::post("message") as string;
 echo "message: ", $message, "\n";

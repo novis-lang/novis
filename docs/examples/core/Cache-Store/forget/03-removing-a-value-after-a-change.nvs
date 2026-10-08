@@ -5,7 +5,7 @@
 class Articles {
     // A real program reads the database here. This example is given the title
     // the database holds, to keep the example short.
-    public static function titleOf(string $id, string $inDatabase): string {
+    public static function titleOf(string $id, string $inDatabase): tainted string {
         var $cache = Core\Cache::local();
         string $key = "article-" . $id;
 

@@ -19,7 +19,7 @@ foreach ($rows as Core\Db\Row $row) {
     foreach ($columns as Core\Db\Column $column) {
         // `string()` reads the column as text and gives `null` when the column
         // has no value. A column that may not be empty needs no such check.
-        ?string $cell = $row->string($column->name());
+        ?tainted string $cell = $row->string($column->name());
         if ($column->nullable() && $cell == null) {
             continue;
         }

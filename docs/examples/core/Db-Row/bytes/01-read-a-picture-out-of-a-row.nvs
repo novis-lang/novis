@@ -8,7 +8,7 @@ $db->execute('insert into pictures (name, body) values (?, ?), (?, ?)', ['logo',
 // `bytes` reads the named column as octets, and `Core\Bytes::length` counts
 // them. This prints `banner: 11` and `logo: 6`.
 foreach ($db->query('select name, body from pictures order by name', []) as Core\Db\Row $row) {
-    bytes $body = $row->bytes('body') ?? '' as bytes;
+    tainted bytes $body = $row->bytes('body') ?? '' as bytes;
     echo $row->string('name') ?? '', ': ', Core\Bytes::length($body), "\n";
 }
 

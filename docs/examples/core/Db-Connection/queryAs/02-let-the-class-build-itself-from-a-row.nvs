@@ -3,10 +3,10 @@
 // `queryAs` calls it for every row.
 
 class Price {
-    public string $label;
+    public tainted string $label;
     public int $cents;
 
-    public function constructor(string $label, int $cents)
+    public function constructor(tainted string $label, int $cents)
     {
         $this->label = $label;
         $this->cents = $cents;
@@ -16,8 +16,8 @@ class Price {
     // columns into the label, which a property named after a column cannot do.
     public static function fromRow(Core\Db\Row $row): static
     {
-        string $name = $row->string('name') ?? 'unknown';
-        string $size = $row->string('size') ?? '';
+        tainted string $name = $row->string('name') ?? 'unknown';
+        tainted string $size = $row->string('size') ?? '';
         int $cents = $row->int('cents') ?? 0;
         return new static($name . ' (' . $size . ')', $cents);
     }

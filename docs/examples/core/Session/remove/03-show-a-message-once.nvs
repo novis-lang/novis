@@ -3,8 +3,8 @@
 
 class Notice {
     // Reads the message and deletes it, so the next page does not show it again.
-    public static function take(): string {
-        string $text = (Core\Session::get("notice") ?? "") as string;
+    public static function take(): tainted string {
+        tainted string $text = (Core\Session::get("notice") ?? "") as string;
         Core\Session::remove("notice");
         return $text;
     }

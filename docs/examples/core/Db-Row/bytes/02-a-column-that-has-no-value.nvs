@@ -8,7 +8,7 @@ $db->execute('insert into people (name, picture) values (?, ?), (?, ?)', ['Ana',
 // `bytes` returns `null` for a column with no value, so your program can
 // choose what to show instead. This prints `Ana: 6` and `Bo: no picture`.
 foreach ($db->query('select name, picture from people order by name', []) as Core\Db\Row $row) {
-    ?bytes $picture = $row->bytes('picture');
+    ?tainted bytes $picture = $row->bytes('picture');
     echo $row->string('name') ?? '', ': ';
     if ($picture != null) {
         echo Core\Bytes::length($picture), "\n";

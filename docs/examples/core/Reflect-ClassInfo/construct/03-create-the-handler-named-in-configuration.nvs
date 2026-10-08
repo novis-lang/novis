@@ -26,7 +26,7 @@ class EmailNotifier {
 }
 
 class Notifiers {
-    public static function send(string $className, string $option, string $text): string {
+    public static function send(string $className, string $option, string $text): tainted string {
         var $info = Core\Reflect::forClass($className);
         // `forClass` returns `null` for a name that is not a class.
         if ($info == null) {

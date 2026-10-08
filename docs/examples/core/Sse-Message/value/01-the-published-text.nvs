@@ -7,8 +7,8 @@ Core\Topic::subscribe("chat");
 
 ?Core\Sse\Message $message = $sse->receive();
 if ($message != null) {
-    // `value()` returns what the publisher sent. Its type is `mixed`, so the program
-    // converts it to a string. This prints `anna: Hello, everyone!`.
-    string $text = $message->value() as string;
+    // `value()` returns what the publisher sent, as a `mixed` value. `as string` converts
+    // it to a `tainted string`. This prints `anna: Hello, everyone!`.
+    tainted string $text = $message->value() as string;
     echo $text, "\n";
 }

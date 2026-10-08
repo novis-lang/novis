@@ -8,7 +8,7 @@ $db->execute('create table orders (id integer primary key, city text not null, t
 $db->execute('insert into orders (city, total) values (?, ?)', ['Bremen', 1200]);
 $db->execute('insert into orders (city, total) values (?, ?)', ['Lisbon', 800]);
 
-array<string> $cities = [];
+array<tainted string> $cities = [];
 array<int> $totals = [];
 foreach ($db->query('select city, total from orders order by id', []) as Core\Db\Row $row) {
     $cities[] = $row->string('city') ?? '';

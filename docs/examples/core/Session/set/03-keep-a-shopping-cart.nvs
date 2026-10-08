@@ -5,7 +5,7 @@ Core\Session::start();
 
 // The cart is an array of product codes. On the first page there is no
 // cart yet, so `get()` returns `null` and `??` gives an empty array.
-array<string> $cart = (Core\Session::get("cart") ?? []) as array<string>;
+array<tainted string> $cart = (Core\Session::get("cart") ?? []) as array<string>;
 
 // The visitor adds two products. `set()` saves the whole cart again.
 $cart[] = "tea-100g";
@@ -13,7 +13,7 @@ $cart[] = "mug-blue";
 Core\Session::set("cart", $cart);
 
 // This prints the two product codes.
-array<string> $saved = (Core\Session::get("cart") ?? []) as array<string>;
-foreach ($saved as string $code) {
+array<tainted string> $saved = (Core\Session::get("cart") ?? []) as array<string>;
+foreach ($saved as tainted string $code) {
     echo "in the cart: ", $code, "\n";
 }

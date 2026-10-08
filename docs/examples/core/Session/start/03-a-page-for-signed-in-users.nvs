@@ -2,7 +2,7 @@
 // Shows the first lines of a page that only signed-in users may see.
 
 class Account {
-    public static function page(): string {
+    public static function page(): tainted string {
         // Every page that uses the session calls `start()` first.
         Core\Session::start();
 

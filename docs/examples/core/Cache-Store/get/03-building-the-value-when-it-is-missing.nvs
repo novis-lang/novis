@@ -3,7 +3,7 @@
 // when it is missing, and store what was built.
 
 class Menu {
-    public static function links(): array<string> {
+    public static function links(): array<tainted string> {
         var $cache = Core\Cache::local();
 
         // A value that is there is used as it is, and the work below is
@@ -29,9 +29,9 @@ class Menu {
 }
 
 // The first call builds the menu. This prints /shop.
-array<string> $first = Menu::links();
+array<tainted string> $first = Menu::links();
 echo $first["shop"], "\n";
 
 // The second call reads it from the store. This prints /contact.
-array<string> $second = Menu::links();
+array<tainted string> $second = Menu::links();
 echo $second["contact"], "\n";

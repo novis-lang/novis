@@ -3,10 +3,10 @@
 // `queryAs` calls it for every row of the transaction's own read.
 
 class Line {
-    public string $what;
+    public tainted string $what;
     public int $cents;
 
-    public function constructor(string $what, int $cents)
+    public function constructor(tainted string $what, int $cents)
     {
         $this->what = $what;
         $this->cents = $cents;
@@ -16,7 +16,7 @@ class Line {
     // columns into the text, which a property named after a column cannot do.
     public static function fromRow(Core\Db\Row $row): static
     {
-        string $item = $row->string('item') ?? 'unknown';
+        tainted string $item = $row->string('item') ?? 'unknown';
         int $count = $row->int('count') ?? 0;
         int $cents = $row->int('cents') ?? 0;
         return new static($count . ' x ' . $item, $count * $cents);

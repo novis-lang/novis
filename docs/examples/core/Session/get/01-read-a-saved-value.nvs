@@ -9,5 +9,5 @@ echo "language: ", Core\Session::get("language") ?? "en", "\n";
 
 // No value was saved under "currency", so `??` gives the default "EUR".
 // Write `??` before `as string`, because `null as string` is an empty string.
-string $currency = (Core\Session::get("currency") ?? "EUR") as string;
+tainted string $currency = (Core\Session::get("currency") ?? "EUR") as string;
 echo "currency: ", $currency, "\n";

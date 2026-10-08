@@ -3,7 +3,7 @@
 // kept in memory so that most requests do not build it.
 
 class Currencies {
-    public static function all(): array<string> {
+    public static function all(): array<tainted string> {
         var $cache = Core\Cache::local();
 
         // A hit returns the table, and the work below is skipped.
@@ -28,9 +28,9 @@ class Currencies {
 }
 
 // The first call builds the table. This prints Euro.
-array<string> $first = Currencies::all();
+array<tainted string> $first = Currencies::all();
 echo $first["EUR"], "\n";
 
 // The second call reads it from the cache. This prints US Dollar.
-array<string> $second = Currencies::all();
+array<tainted string> $second = Currencies::all();
 echo $second["USD"], "\n";

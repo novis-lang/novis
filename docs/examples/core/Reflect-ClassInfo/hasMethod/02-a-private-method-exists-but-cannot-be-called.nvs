@@ -12,7 +12,7 @@ class Account {
 }
 
 class Try {
-    public static function call(string $name): string {
+    public static function call(string $name): tainted string {
         var $info = Core\Reflect::forClass("Account");
         if ($info == null) {
             return "no class";

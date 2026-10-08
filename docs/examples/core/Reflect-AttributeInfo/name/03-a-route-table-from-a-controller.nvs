@@ -16,8 +16,8 @@ class UserController {
 }
 
 class Routes {
-    public static function of(string $className): array<string> {
-        array<string> $lines = [];
+    public static function of(string $className): array<tainted string> {
+        array<tainted string> $lines = [];
         var $info = Core\Reflect::forClass($className);
         if ($info == null) {
             return $lines;
@@ -26,8 +26,8 @@ class Routes {
             if ($attribute->name() != "Route") {
                 continue;
             }
-            string $method = $attribute->field("method") as string;
-            string $path = $attribute->field("path") as string;
+            tainted string $method = $attribute->field("method") as string;
+            tainted string $path = $attribute->field("path") as string;
             $lines[] = $method . " " . $path . " -> " . $className . "::" . $attribute->target();
         }
         return $lines;
@@ -35,6 +35,6 @@ class Routes {
 }
 
 // This prints one line for each route: the HTTP method, the path and the method that handles it.
-foreach (Routes::of("UserController") as string $line) {
+foreach (Routes::of("UserController") as tainted string $line) {
     echo $line, "\n";
 }

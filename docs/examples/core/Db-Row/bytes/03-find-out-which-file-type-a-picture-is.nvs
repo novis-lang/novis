@@ -14,7 +14,7 @@ $db->execute('insert into uploads (name, body) values (?, ?), (?, ?), (?, ?)', [
 // `bytes` reads the column as octets, and `Core\Bytes::startsWith` tests the
 // first of them. This prints `a: png`, `b: gif` and `c: unknown`.
 foreach ($db->query('select name, body from uploads order by name', []) as Core\Db\Row $row) {
-    bytes $body = $row->bytes('body') ?? '' as bytes;
+    tainted bytes $body = $row->bytes('body') ?? '' as bytes;
     string $type = 'unknown';
     if (Core\Bytes::startsWith($body, $png)) {
         $type = 'png';
