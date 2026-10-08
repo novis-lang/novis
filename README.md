@@ -86,14 +86,18 @@ hardware. Novis has a baseline that is paid every month.
 
 That is where sponsors come in — maybe you?! Sponsors help us cover those fixed costs. Novis is already run
 by a company: a sole proprietorship (*Einzelunternehmen*) in Austria, owned and run by Roland, the creator
-of Novis, and today a donation goes to it. When the team is bigger and sponsoring makes it possible, we will
-found a *FlexCo* named Novis-Lang — the *Flexible Kapitalgesellschaft*, a form of company Austria introduced
-in 2024 for startups and growing companies — so that we can employ people and rent an office. Sponsored
-money will be published transparently through the [Open Source Collective](https://opencollective.com/).
+of Novis. When the team is bigger and sponsoring makes it possible, we will found a *FlexCo* named
+Novis-Lang — the *Flexible Kapitalgesellschaft*, a form of company Austria introduced in 2024 for startups
+and growing companies — so that we can employ people and rent an office. Sponsor money will go through the
+[Open Source Collective](https://opencollective.com/), which keeps it for the project and shows every
+payment in and out in public; we are paid from it by sending invoices and receipts, and those are public
+too.
 
 Whatever form the company takes, Novis is open source and always will be, it is under the MIT licence and
-always will be, and we do our best to keep it the best and simplest way to run the web applications of
-today and of the future.
+always will be, and the open-source code is all of Novis — there is no paid edition. We may sell services
+around Novis one day, consulting for example, but a service never takes a feature away from the free Novis.
+And we do our best to keep Novis the best and simplest way to run the web applications of today and of
+the future.
 
 Novis-Lang® is a registered EU trademark.
 
