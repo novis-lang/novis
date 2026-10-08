@@ -140,10 +140,12 @@
 //! protect, unlike the config tree's cycle test, and an absent directory has no canonical spelling
 //! at all, so one rule covers both.
 //!
-//! A refusal is the caller's to report, and it is a refusal to start naming the path rather than a
-//! silent fall back to compiling every time. § 3's "invisible to the script" discipline is about a
-//! bad *entry*; a cache directory anyone can write is a breach of the boundary itself, and
-//! `rule:config/ownership-is-the-trust-boundary` answers that the same way wherever it appears.
+//! A refusal is the caller's to report, and it never stops the process: [`from_config`] answers
+//! [`None`], so the run compiles every unit, the fallback every miss already takes. A
+//! `file_cache_dir` somebody wrote and § 5 refused is named in one `warning:` per process, because
+//! § 3's "invisible to the script" discipline is about a bad *entry*, and a directory an operator
+//! chose that breaches the boundary is theirs to fix. A refused default directory prints nothing:
+//! nobody chose it.
 //!
 //! # § 6's eviction
 //!

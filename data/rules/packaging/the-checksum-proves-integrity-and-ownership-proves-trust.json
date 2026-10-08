@@ -1,5 +1,5 @@
 {
-  "title": "The checksum answers corruption; a cache directory another account can write is refused at startup",
+  "title": "The checksum answers corruption; a cache directory another account can write is never used",
   "status": "shipped",
   "because": [
     "0042",
