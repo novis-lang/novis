@@ -10,5 +10,7 @@ them and runs `bun nv site --stamp`, the same way it owes the feature's proofs. 
 before a merge.
 
 A stamp is written by whoever reread the page, never to quiet the check. Every snippet a page shows
-lives under `website/snippets/` beside its expected output, and runs in that same CI step, so no page
-carries Novis code that is not known to run.
+lives under `website/snippets/` beside exactly one of its expected output, a `.out` it must print with
+exit 0, or its expected diagnostic, a `.err` that `nvs check` must report for a program that does not
+compile. That same CI step checks every one, so no page carries Novis code that is not known to run,
+and no compiler error a page shows differs from the one the compiler prints.

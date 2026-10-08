@@ -5,10 +5,23 @@
 //                                          page was reread against them
 //     bun nv site --check [PART...]        run the named parts, or all of them: `site <part>: ok` per
 //                                          part that passes, its problems and exit 1 for one that fails
+//     bun nv site --bless SNIPPET...       write each snippet's `.out` or `.err` from what the binary does,
+//                                          and show it
 //     bun nv site --build                  the Astro build, and `site: built` when it succeeds
 //
 // `--nvs PATH` names the binary that reads the roster and runs the snippets. Without it, the first built
 // of `target/release` and the `covws` debug build is used.
+//
+// **A snippet** is a `.nvs` file under `website/snippets/` that a page shows with `<Snippet src="..."/>`,
+// and beside it is exactly one of two files. A `.out` is what the snippet prints: `nvs run` from the
+// repository root, with the directory's `nvs.toml` as `--config` and the snippet's `.nvsr` as
+// `--request` when they exist, must exit 0 and print that file. A `.err` is the compiler's diagnostic for
+// a snippet that must not compile: `nvs check <name>.nvs`, run in the snippet's own directory with
+// `NO_COLOR=1`, must exit 1 and write that file to standard error. The bare file name keeps the path in
+// each diagnostic the same wherever the check runs, and `nvs check` runs nothing, so a `.err` snippet
+// that compiles by mistake has no effect. Both comparisons turn CRLF into LF and drop trailing white
+// space. `--bless` rewrites whichever of the two files is there, and for a new snippet writes a `.err`
+// when it does not compile and a `.out` when it does.
 //
 // **A handwritten page** is every page under `website/src/content/docs/` that no renderer writes, which
 // is every page outside `reference/core/`. Its front matter carries `covers:`, a list of the proofs
@@ -31,8 +44,8 @@
 // footer has no prev/next, the Astro config has no redirect, and no page or sidebar entry links to a URL
 // `builtUrls` does not list), `snippets` (no handwritten page has an
 // inline Novis fence, every `<Snippet src="..."/>` names a file under `website/snippets/`, every snippet
-// is used, keeps the comment bounds of `bun nv proofs --comments`, and prints exactly its `.out` with
-// exit 0), `stale` (no page lacks `covers:`, no id is broken and no page is stale), `reference` (see
+// is used, keeps the comment bounds of `bun nv proofs --comments`, has one `.out` or one `.err` and
+// matches it), `stale` (no page lacks `covers:`, no id is broken and no page is stale), `reference` (see
 // `referenceProblems`), `syntax` (see `syntaxProblems`), `guides` (see `guidesProblems`), `in-depth`
 // (see `inDepthProblems`), `apps` (see `appsProblems`) and `prose` (the countable bounds of AGENTS.md
 // § *Text an end user reads* over every handwritten page's prose: no sentence over 25 words, no dash
@@ -42,9 +55,9 @@
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { COVWS_TARGET, hostTriple } from "../lib/covws.ts";
-import { ROOT } from "../lib/paths.ts";
+import { rel, ROOT } from "../lib/paths.ts";
 import { run as runProc } from "../lib/proc.ts";
 import { comparePaths } from "../lib/py.ts";
 import { commentProblems } from "../proofs/collect.ts";
@@ -52,7 +65,7 @@ import { ABOUT, EXAMPLES, examplesDir, implFile, metaJson, roster, RosterError, 
 import { DATA_FILE, renderWebsiteCore } from "../renderers/website-core.ts";
 import { REFERENCE_FILE, type Page as RefPage } from "../renderers/website-reference.ts";
 
-export const summary = "the website's stale guard, checks and build: nv site --stale | --stamp PAGE... | --check [PART...] | --build";
+export const summary = "the website's stale guard, checks and build: nv site --stale | --stamp PAGE... | --check [PART...] | --bless SNIPPET... | --build";
 
 export const DOCS = "website/src/content/docs";
 export const SNIPPETS = "website/snippets";
@@ -471,27 +484,94 @@ export function snippetShape(root: string = ROOT): { problems: string[]; snippet
   const snippets = filesUnder(root, SNIPPETS).filter((p) => p.endsWith(".nvs"));
   for (const p of snippets) {
     if (!used.has(p.slice(SNIPPETS.length + 1))) problems.push(`${p}: no page shows it`);
-    if (!existsSync(join(root, p.replace(/\.nvs$/, ".out")))) problems.push(`${p}: no .out beside it`);
+    const out = existsSync(join(root, beside(p, "out")));
+    const err = existsSync(join(root, beside(p, "err")));
+    if (out && err) problems.push(`${p}: both a .out and a .err beside it; keep one`);
+    else if (!out && !err) problems.push(`${p}: no .out or .err beside it`);
   }
   return { problems, snippets };
 }
+
+/** What a snippet is compared with: `out` is what `nvs run` prints, `err` is what `nvs check` reports. */
+export type SnippetKind = "out" | "err";
+
+/** The file beside a snippet with the extension `ext`. */
+const beside = (p: string, ext: string) => p.replace(/\.nvs$/, `.${ext}`);
+
+/** How one snippet of `kind` is run: the header's § *A snippet*. */
+export function snippetRun(p: string, kind: SnippetKind, nvs: string, root: string = ROOT): { argv: string[]; cwd: string; env?: Record<string, string> } {
+  const dir = p.slice(0, p.lastIndexOf("/"));
+  if (kind === "err") return { argv: [nvs, "check", p.slice(dir.length + 1)], cwd: join(root, dir), env: { NO_COLOR: "1" } };
+  const config = `${dir}/nvs.toml`;
+  const request = beside(p, "nvsr");
+  return { argv: [nvs, "run", ...(existsSync(join(root, config)) ? ["--config", config] : []), ...(existsSync(join(root, request)) ? ["--request", request] : []), p], cwd: root };
+}
+
+/** The problem with one snippet's result, or null when it matches `want`, the text of its `.out` or `.err`. */
+export function snippetVerdict(p: string, kind: SnippetKind, result: { code: number; stdout: string; stderr: string }, want: string): string | null {
+  const norm = (s: string) => s.replace(/\r\n?/g, "\n").trimEnd();
+  const first = (s: string) => s.trim().split("\n")[0] ?? "";
+  if (kind === "out") {
+    if (result.code !== 0) return `${p}: exit ${result.code}: ${first(result.stderr)}`;
+    return norm(result.stdout) === norm(want) ? null : `${p}: prints something other than its .out`;
+  }
+  if (result.code === 0) return `${p}: compiles, and a snippet with a .err must not`;
+  if (result.code !== 1) return `${p}: \`nvs check\` exit ${result.code}: ${first(result.stderr)}`;
+  return norm(result.stderr) === norm(want) ? null : `${p}: \`nvs check\` reports something other than its .err`;
+}
+
+const runSnippet = (p: string, kind: SnippetKind, nvs: string) => {
+  const { argv, cwd, env } = snippetRun(p, kind, nvs);
+  return runProc(argv, { cwd, timeoutMs: 60_000, ...(env ? { env } : {}) });
+};
 
 async function snippetProblems(nvs: string): Promise<string[]> {
   const { problems, snippets } = snippetShape();
   for (const p of snippets) {
     for (const c of commentProblems(p)) problems.push(`${p}:${c}`);
-    // An `nvs.toml` beside a snippet is its configuration, as it is beside a feature proof.
-    const config = join(p.slice(0, p.lastIndexOf("/")), "nvs.toml");
-    // A `.nvsr` beside a snippet is the request it answers, as it is beside an example.
-    const request = p.replace(/\.nvs$/, ".nvsr");
-    const argv = [nvs, "run", ...(existsSync(join(ROOT, config)) ? ["--config", config] : []), ...(existsSync(join(ROOT, request)) ? ["--request", request] : []), p];
-    const out = await runProc(argv, { cwd: ROOT, timeoutMs: 60_000 });
-    const want = readAt(ROOT, p.replace(/\.nvs$/, ".out"));
-    const norm = (s: string) => s.replace(/\r\n?/g, "\n").trimEnd();
-    if (out.code !== 0) problems.push(`${p}: exit ${out.code}: ${out.stderr.trim().split("\n")[0] ?? ""}`);
-    else if (norm(out.stdout) !== norm(want)) problems.push(`${p}: prints something other than its .out`);
+    const out = existsSync(join(ROOT, beside(p, "out")));
+    const err = existsSync(join(ROOT, beside(p, "err")));
+    // A snippet with both files is already named by `snippetShape`, and neither file is the one to match.
+    if (out && err) continue;
+    const kind: SnippetKind = err ? "err" : "out";
+    const verdict = snippetVerdict(p, kind, await runSnippet(p, kind, nvs), readAt(ROOT, beside(p, kind)));
+    if (verdict) problems.push(verdict);
   }
   return problems;
+}
+
+/** `--bless`: each snippet's `.out` or `.err` written from what the binary does, and what was written. */
+async function blessSnippets(nvs: string, paths: string[]): Promise<number> {
+  let failed = false;
+  for (const p of paths) {
+    if (!p.startsWith(`${SNIPPETS}/`) || !p.endsWith(".nvs") || !existsSync(join(ROOT, p))) {
+      console.log(`  FAIL  ${p}: not a .nvs file under ${SNIPPETS}/`);
+      failed = true;
+      continue;
+    }
+    const has = (kind: SnippetKind) => existsSync(join(ROOT, beside(p, kind)));
+    if (has("out") && has("err")) {
+      console.log(`  FAIL  ${p}: both a .out and a .err beside it; delete the one that is wrong`);
+      failed = true;
+      continue;
+    }
+    const kind: SnippetKind = has("err") ? "err" : has("out") ? "out" : (await runSnippet(p, "err", nvs)).code === 0 ? "out" : "err";
+    const result = await runSnippet(p, kind, nvs);
+    const text = (kind === "out" ? result.stdout : result.stderr).replace(/\r\n?/g, "\n");
+    const verdict = snippetVerdict(p, kind, result, text);
+    if (verdict) {
+      console.log(`  FAIL  ${verdict}`);
+      failed = true;
+      continue;
+    }
+    const dest = beside(p, kind);
+    const existed = has(kind);
+    writeFileSync(join(ROOT, dest), text);
+    console.log(`  ${existed ? "rewrote" : "wrote"}  ${dest}`);
+    for (const line of text.trimEnd().split("\n")) console.log(`      | ${line}`);
+  }
+  if (!failed) console.log("nv site: read what was written; a blessed file is a claim, not a formality.");
+  return failed ? 1 : 0;
 }
 
 /** The paragraphs of a page's prose: no front matter, code, imports, components, comments, tables or headings. */
@@ -824,6 +904,17 @@ export async function run(args: string[]): Promise<number> {
   if (mode === "--build") return build();
   const nvs = binary(explicit);
   try {
+    if (mode === "--bless") {
+      if (operands.length === 0) {
+        console.error("nv site: --bless needs at least one snippet");
+        return 2;
+      }
+      if (nvs === null) {
+        console.error("nv site: no `nvs` binary: build one, or pass --nvs");
+        return 1;
+      }
+      return await blessSnippets(nvs, operands.map((p) => rel(resolve(p))));
+    }
     if (mode === "--check") {
       const unknown = operands.filter((p) => !(PARTS as readonly string[]).includes(p));
       if (unknown.length) {

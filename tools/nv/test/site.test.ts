@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { builtUrls, DOCS, GUIDE_SECTIONS, guidesProblems, IN_DEPTH_SECTIONS, inDepthProblems, paragraphs, proseProblems, snippetShape, stamp, staleness, syntaxProblems, wrapProblems, type World } from "../cmd/site.ts";
+import { join } from "node:path";
+import { builtUrls, DOCS, GUIDE_SECTIONS, guidesProblems, IN_DEPTH_SECTIONS, inDepthProblems, paragraphs, proseProblems, snippetRun, snippetShape, snippetVerdict, stamp, staleness, syntaxProblems, wrapProblems, type World } from "../cmd/site.ts";
 import type { Entry } from "../proofs/roster.ts";
 import { scratch, type Scratch } from "./scratch.ts";
 
@@ -98,8 +99,46 @@ describe("nv site --check snippets", () => {
       `${DOCS}/guides/a.mdx:5: an inline Novis code fence; use <Snippet src="..."/>`,
       `${DOCS}/guides/a.mdx: <Snippet src="guides/a/02-gone.nvs"/> names no file under website/snippets/`,
       "website/snippets/guides/b/01-unused.nvs: no page shows it",
-      "website/snippets/guides/b/01-unused.nvs: no .out beside it",
+      "website/snippets/guides/b/01-unused.nvs: no .out or .err beside it",
     ]);
+  });
+
+  test("a snippet with a .err passes, and one with both a .out and a .err is named", () => {
+    const root = site().root;
+    s.put(`${DOCS}/guides/a.mdx`, '---\ncovers: []\n---\n\n<Snippet src="guides/a/01-bad.nvs" />\n<Snippet src="guides/a/02-both.nvs" />\n');
+    s.put("website/snippets/guides/a/01-bad.nvs", "<?nvs\necho $nope;\n");
+    s.put("website/snippets/guides/a/01-bad.err", "error[E0402]: no variable `$nope`\n");
+    s.put("website/snippets/guides/a/02-both.nvs", "<?nvs\necho 1;\n");
+    s.put("website/snippets/guides/a/02-both.out", "1\n");
+    s.put("website/snippets/guides/a/02-both.err", "error\n");
+    expect(snippetShape(root).problems).toEqual(["website/snippets/guides/a/02-both.nvs: both a .out and a .err beside it; keep one"]);
+  });
+
+  test("a .err snippet is checked with `nvs check` in its own directory, and a .out snippet runs from the root", () => {
+    const root = site().root;
+    s.put("website/snippets/guides/a/nvs.toml", "");
+    expect(snippetRun("website/snippets/guides/a/01-bad.nvs", "err", "nvs", root)).toEqual({ argv: ["nvs", "check", "01-bad.nvs"], cwd: join(root, "website/snippets/guides/a"), env: { NO_COLOR: "1" } });
+    expect(snippetRun("website/snippets/guides/a/02-ok.nvs", "out", "nvs", root)).toEqual({
+      argv: ["nvs", "run", "--config", "website/snippets/guides/a/nvs.toml", "website/snippets/guides/a/02-ok.nvs"],
+      cwd: root,
+    });
+  });
+
+  test("a .err matches the diagnostic, and a different one, a snippet that compiles and a crash are named", () => {
+    const p = "website/snippets/guides/a/01-bad.nvs";
+    const want = "error[E0402]: no variable `$nope`\n  --> 01-bad.nvs:2:6\n";
+    const failed = (stderr: string, code = 1) => ({ code, stdout: "", stderr });
+    expect(snippetVerdict(p, "err", failed(want.replace(/\n/g, "\r\n") + "\n\n"), want)).toBeNull();
+    expect(snippetVerdict(p, "err", failed("error[E0402]: no variable `$other`\n"), want)).toBe(`${p}: \`nvs check\` reports something other than its .err`);
+    expect(snippetVerdict(p, "err", { code: 0, stdout: "no errors\n", stderr: "" }, want)).toBe(`${p}: compiles, and a snippet with a .err must not`);
+    expect(snippetVerdict(p, "err", failed("thread 'main' panicked\n", 101), want)).toBe(`${p}: \`nvs check\` exit 101: thread 'main' panicked`);
+  });
+
+  test("a .out matches what the snippet prints, and a different output or a failed run is named", () => {
+    const p = "website/snippets/guides/a/02-ok.nvs";
+    expect(snippetVerdict(p, "out", { code: 0, stdout: "1\r\n", stderr: "" }, "1\n")).toBeNull();
+    expect(snippetVerdict(p, "out", { code: 0, stdout: "2\n", stderr: "" }, "1\n")).toBe(`${p}: prints something other than its .out`);
+    expect(snippetVerdict(p, "out", { code: 1, stdout: "", stderr: "error[E0402]: no variable\n" }, "1\n")).toBe(`${p}: exit 1: error[E0402]: no variable`);
   });
 });
 

@@ -1,12 +1,20 @@
 ---
 /**
- * One Novis program from website/snippets/ and what it prints. A handwritten
- * page shows Novis code only through this component:
+ * One Novis program from website/snippets/, and either what it prints or the
+ * compiler's error for it. A handwritten page shows Novis code only through
+ * this component:
  *
  *   <Snippet src="syntax/match/01-basic.nvs" />
  *
- * The output is the `.out` file beside the program. `bun nv site --check
- * snippets` runs every snippet and checks that it prints exactly that file.
+ * A `.out` file beside the program is what it prints, shown as "Output". A
+ * `.err` file beside it is the diagnostic `nvs check` reports for a program
+ * that must not compile, shown as "Compiler error". `bun nv site --check
+ * snippets` runs every snippet and checks it against whichever file it has;
+ * `tools/nv/cmd/site.ts` says how.
+ *
+ * A snippet with a `.err` is wrapped in `<div data-snippet-kind="error">`, and
+ * its diagnostic block in `<div data-snippet-part="diagnostic">`, so the theme
+ * can style both. A snippet with a `.out` has no wrapper.
  */
 import { Code } from '@astrojs/starlight/components'
 
@@ -20,12 +28,27 @@ const ROOT = '../../snippets/'
 
 const sources = import.meta.glob('../../snippets/**/*.nvs', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
 const outputs = import.meta.glob('../../snippets/**/*.out', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+const errors = import.meta.glob('../../snippets/**/*.err', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
 
 const { src } = Astro.props
 const code = sources[`${ROOT}${src}`]
 if (code === undefined) throw new Error(`Snippet: no file website/snippets/${src}`)
 const output = outputs[`${ROOT}${src.replace(/\.nvs$/, '.out')}`]
+const error = errors[`${ROOT}${src.replace(/\.nvs$/, '.err')}`]
 ---
 
-<Code code={code.trimEnd()} lang="novis" />
-{output !== undefined && output.trim() !== '' && <Code code={output.trimEnd()} lang="txt" title="Output" />}
+{
+  error !== undefined ? (
+    <div data-snippet-kind="error">
+      <Code code={code.trimEnd()} lang="novis" />
+      <div data-snippet-part="diagnostic">
+        <Code code={error.trimEnd()} lang="txt" title="Compiler error" />
+      </div>
+    </div>
+  ) : (
+    <>
+      <Code code={code.trimEnd()} lang="novis" />
+      {output !== undefined && output.trim() !== '' && <Code code={output.trimEnd()} lang="txt" title="Output" />}
+    </>
+  )
+}
