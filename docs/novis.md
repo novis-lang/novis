@@ -211,6 +211,8 @@ Conventions the whole file uses:
 | [`Core\Db\Schema`](#core-core-db-schema) |  |
 | [`Core\Db\Plan`](#core-core-db-plan) |  |
 | [`Core\Db\Plan\Step`](#core-core-db-plan-step) |  |
+| [`Core\Ldap`](#core-core-ldap) |  |
+| [`Core\Ldap\Connection`](#core-core-ldap-connection) |  |
 | [`Core\Queue`](#core-core-queue) |  |
 | [`Core\Queue\Id`](#core-core-queue-id) |  |
 | [`Core\Queue\Stats`](#core-core-queue-stats) |  |
@@ -26031,6 +26033,58 @@ Whether this step is a report — a table, column or key the database has and th
 
 **Returns** `bool` — `true` for a step no `apply` will ever run. Absence never destroys, because a database an application shares with a queue, a reporting view and whatever an operator put there is the ordinary case. A program that does want the drop runs this step's own `sql()`.
 
+<a id="core-core-ldap"></a>
+### `Core\Ldap`
+
+Keywords: connect, open
+
+| Member | Signature |
+|---|---|
+| [`Core\Ldap::connect`](#core-core-ldap-connect) | `connect(string $name): Core\Ldap\Connection` |
+| [`Core\Ldap::open`](#core-core-ldap-open) | `open({url: string, user?: tainted string, password?: secret tainted string, tls?: Core\Ldap\Tls, timeout?: Core\Time\Duration} $settings): Core\Ldap\Connection` |
+
+<a id="core-core-ldap-connect"></a>
+#### `Core\Ldap::connect`
+
+```nvs skip
+Core\Ldap::connect(string $name): Core\Ldap\Connection
+```
+
+Opens the directory named by an `[ldap.<name>]` block in `nvs.toml`. A second call with the same name in one request returns the same connection. Needs the `ldap.connect` capability for that name.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (sink) | The block to open: `"corp"` is `[ldap.corp]`. |
+
+**Returns** `Core\Ldap\Connection` — A `Core\Ldap\Connection`, bound as the block's `user`. It is closed when the request ends.
+
+**Throws** `RuntimeError` — `ldap.connect` does not grant `$name`, or no `[ldap.<name>]` block has that name.; `IOError` — This core already has the block's `pool.max` connections open, and none was free within the block's `timeout`.; `Core\Ldap\LdapError` — No URL in the block answered, or the server did not accept the block's user and password. `$kind` says why.
+
+<a id="core-core-ldap-open"></a>
+#### `Core\Ldap::open`
+
+```nvs skip
+Core\Ldap::open({url: string, user?: tainted string, password?: secret tainted string, tls?: Core\Ldap\Tls, timeout?: Core\Time\Duration} $settings): Core\Ldap\Connection
+```
+
+Opens a directory at a URL the program gives. Needs the `ldap.open` capability for the URL's host. The host's address is also checked against the addresses no program may reach, such as private networks.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$settings` | `{url: string, user?: tainted string, password?: secret tainted string, tls?: Core\Ldap\Tls, timeout?: Core\Time\Duration}` | The directory to open and the account to log in with. Keys: `url` (string) One `ldaps://` or `ldap://` URL. It cannot be `tainted`, because the password is sent to this host.; `user` (tainted string) The account to log in as, as a DN, `user@example.test` or `EXAMPLE\user`. Left out, the connection does not log in.; `password` (secret tainted string) The account's password. An empty password throws before anything is sent.; `tls` (Tls) `Tls::Required`, the default, encrypts the connection. `Tls::None` sends everything as plain text, and needs the host in `[capabilities.ldap] cleartext`.; `timeout` (Duration) How long one operation may take. Left out, it is 30 seconds. |
+
+**Returns** `Core\Ldap\Connection` — A `Core\Ldap\Connection`. It is closed when the request ends.
+
+**Throws** `RuntimeError` — `url` is not an `ldap://` or `ldaps://` URL, `ldap.open` does not grant its host, or the host's address is one no program may reach.; `Core\Ldap\LdapError` — The server did not answer, the connection is not encrypted and the host may not use plain text, or the server did not accept the user and password. `$kind` says why.
+
+<a id="core-core-ldap-connection"></a>
+### `Core\Ldap\Connection`
+
+Keywords: 
+
+| Member | Signature |
+|---|---|
+
 <a id="core-core-queue"></a>
 ### `Core\Queue`
 
@@ -27925,6 +27979,16 @@ Why an LDAP operation failed. `Core\Ldap\LdapError::$kind` is one of these, and 
 | `Core\Ldap\ErrorKind::Unavailable` | The server cannot be reached, or it closed the connection. |
 | `Core\Ldap\ErrorKind::Timeout` | The operation took longer than the connection's `timeout`. |
 | `Core\Ldap\ErrorKind::Protocol` | The server sent a message the LDAP protocol does not allow, or a result code no other kind covers. A `LdapError` you create yourself has this kind. |
+
+<a id="enum-core-ldap-tls"></a>
+#### `Core\Ldap\Tls`
+
+Whether a connection to a directory is encrypted.
+
+| Case | Meaning |
+|---|---|
+| `Core\Ldap\Tls::Required` | The connection is encrypted. An `ldaps://` URL starts with TLS, and an `ldap://` URL switches to TLS before it logs in. |
+| `Core\Ldap\Tls::None` | The connection is not encrypted. The password and every result cross the network as plain text. The host must be in `[capabilities.ldap] cleartext`. |
 
 <a id="enum-core-queue-state"></a>
 #### `Core\Queue\State`

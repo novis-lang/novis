@@ -1,29 +1,27 @@
 {
-  "state": "**Goal `ldap`, Stage 4.** `nvs-config` reads `[ldap.<name>]` and `[capabilities.ldap]` (`crates/nvs-config/src/ldap.rs`'s module doc). `crates/nvs-ldap/src/conn.rs` has an owned `Cursor`, and `crates/nvs-stdlib/src/ldap/mod.rs` opens connections (`connect`, `open`) and runs `who_am_i`, `search` (an owned `Entries`) and `read`. Both module docs own those rules. `nvs-stdlib-ldap-connect-open-and-search`'s five tests pass against `samba-ad`.\n\n`Core\\Ldap\\LdapError` is in the exception tree under `RuntimeError` with `kind` (`Core\\Ldap\\ErrorKind`, registered in `crates/nvs-stdlib/src/ldap/registry.rs`) and `code`. `fault_of` throws it for every LDAP failure, the URL walk's last failure included. `$code` is `?int`, not the record's `int`: a timeout or an unreachable server has no result code, so the slot stays `null` (the same reading as `Core\\Db\\DbError::$driverCode`). A program-built one starts at `Protocol`. `tests/conformance/error/an-ldap-error-is-in-the-tree-and-a-program-built-one-is-protocol-with-no-code.nvst` pins it.\n\nNothing else of `Core\\Ldap` is registered in `crates/nvs-stdlib/src/registry.rs`, so no Novis program can connect yet, and `ldap-connect-and-search-run`'s two `.nvst` cases are not written. `rule:security/ldap-pool-is-bound-as-its-block` stays `designed` until a Novis case guards it.",
+  "state": "**Goal `ldap`, Stage 4.** `nvs-config` reads `[ldap.<name>]` and `[capabilities.ldap]` (`crates/nvs-config/src/ldap.rs`'s module doc). `crates/nvs-ldap/src/conn.rs` has an owned `Cursor`, and `crates/nvs-stdlib/src/ldap/mod.rs` opens connections (`connect`, `open`) and runs `who_am_i`, `search` (an owned `Entries`) and `read`. `nvs-stdlib-ldap-connect-open-and-search`'s five tests pass against `samba-ad`. `Core\\Ldap\\LdapError` carries `kind` and `code` (`?int`, `null` where no server sent one).\n\n**A Novis program can now call `Core\\Ldap::connect` and `Core\\Ldap::open`.** `crates/nvs-stdlib/src/ldap/registry.rs` registers `Core\\Ldap` (both members, with cards), `Ldap\\Connection` (one `handle` slot and no members yet), `Ldap\\Tls` and the `Ldap\\Settings` shape (`url`, `user`, `password`, `tls`, `timeout`; slots `URL_ARG`..`TIMEOUT_ARG`). The helpers `nvs_core_ldap_connect`/`nvs_core_ldap_open` and `ldap::address` sit at the end of `mod.rs`. Six server-free cases under `tests/conformance/core/ldap-connect-*` and `ldap-open-*` hold the floor of three per member; `ldap-connect-without-a-grant-throws.nvst` is one of the acceptance check's two cases.\n\n`Ldap\\Settings` still lacks ADR 0278 § 2's `base` (it needs `Dn`, Stage 5) and `tlsCaFile` (a program-supplied path sink, not decided). `rule:security/ldap-pool-is-bound-as-its-block` stays `designed` until a Novis case guards it.\n\n**A conformance case cannot reach Samba yet.** No `.nvst` in the tree talks to a container, so `ldap-connect-and-search.nvst` needs a way to name `samba-ad`'s URL and CA (an `--ENV--` section feeding `nvs.toml`, or a `--SKIPIF--` on the port). Find how `crates/nvs-test` expands `--ENV--` before writing it.",
   "next": {
     "stage": 4,
     "title": "`Core\\Ldap`: connect, open, search, read",
     "files": [
       "crates/nvs-stdlib/src/ldap/mod.rs",
       "crates/nvs-stdlib/src/ldap/registry.rs",
-      "crates/nvs-stdlib/src/db/registry.rs",
-      "crates/nvs-stdlib/src/registry.rs"
+      "crates/nvs-stdlib/src/registry.rs",
+      "crates/nvs-stdlib/src/instance.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**The registry rows and helpers**: `Core\\Ldap::connect`/`open`, `Ldap\\Connection::search`/`read`/`whoami`, `Ldap\\Entries` (over `nvs_stdlib::ldap::Entries` at `crates/nvs-stdlib/src/ldap/mod.rs:410`, whose `next` takes the `Ctx`), `Ldap\\Entry` (`dn`, `has`, `string`, `strings`, `bytes`, `toArray`), `Ldap\\Settings`, `Ldap\\Tls`, `Ldap\\Scope`, with a reference card for each, in `crates/nvs-stdlib/src/ldap/registry.rs:1` beside `ERROR_KIND`. Follow the way `crates/nvs-stdlib/src/db/registry.rs:228` declares `Core\\Db::connect`. `search` takes a `Filter`, so this slice needs the smallest `Ldap\\Filter` (`equals`, `present`) from Stage 5. ADR 0278 § 3 and § 5."
+        "text": "**`Ldap\\Connection`'s members and `Ldap\\Entries`/`Ldap\\Entry`**: `whoami`, `search`, `read` on `CONNECTION` at `crates/nvs-stdlib/src/ldap/registry.rs:200`, an `Entries` class that is its own iterator (the `Core\\Db\\Stream` pattern at `crates/nvs-stdlib/src/db/stream.rs:81`: a `DISPATCH_ROSTER` row in `crates/nvs-stdlib/src/instance.rs:200`, an `ITERABLES` row in `crates/nvs-stdlib/src/registry.rs`, and the `HOST_HANDLE_CLASSES` row), `Entry` (`dn`, `has`, `string`, `strings`, `bytes`, `toArray`), and `Ldap\\Scope`. `Entries` needs somewhere to keep `nvs_stdlib::ldap::Entries` (`crates/nvs-stdlib/src/ldap/mod.rs:408`): park the cursor on `Held` keyed per search, the way `Core\\Db\\Stream` parks its cursor on the connection, since an object slot holds only a `Value`. `search` takes a `Filter`, so the smallest `Ldap\\Filter` (`equals`, `present`) comes with it. ADR 0278 § 1 and § 5. Each member needs three cases, and every case past `whoami` needs `samba-ad`."
       },
       {
         "done": false,
-        "text": "**The two Stage 4 cases**: `tests/conformance/core/ldap-connect-and-search.nvst` and `ldap-connect-without-a-grant-throws.nvst`, the second also catching `Core\\Ldap\\LdapError` by name where the grant is present and the server refuses. Anchor: `crates/nvs-stdlib/src/ldap/mod.rs:142` (`fault_of`). `rule:core-classes/db-capabilities` for the grant shape."
+        "text": "**`tests/conformance/core/ldap-connect-and-search.nvst`** against `samba-ad`, once a case can name its URL and CA (see State). `--ENV--` is parsed at `crates/nvs-test/src/case.rs:607`."
       }
     ]
   },
   "backlog": [
-    "`open` connections are not pooled. ADR 0278 § 4 keys that pool on every URL, the user, a password digest, the TLS mode and the CA file (`crates/nvs-stdlib/src/ldap/mod.rs` module doc).",
-    "The `ldap:` pool and memo prefix shares its namespace with a `[db.\"ldap:x\"]` block name. The downcast to `Held` keeps the two types apart, but a memo hit would throw \"closed\". Not checked whether any config rule forbids that name.",
-    "Ranged attributes (`member;range=0-1499`) are not merged yet; ADR 0278 § 5 puts it in Stage 6.",
-    "`Core\\Ldap\\LdapError` has no rule fragment yet; the goal's end moves ADR 0278 § 10 (with `$code` as `?int`) into one under `docs/rules/core-classes/`, beside `rule:core-classes/db-error`."
+    "`Ldap\\Settings.base` and `tlsCaFile` (ADR 0278 § 2), after `Dn` lands in Stage 5.",
+    "`Ldap\\Connection` is on the `HANDLES` list in `crates/nvs-stdlib/src/registry.rs`'s `a_class_with_slots_has_instance_members_and_the_reverse`. Take it off when its first member lands, or that test fails."
   ]
 }
