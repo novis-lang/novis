@@ -1,30 +1,25 @@
 {
-  "state": "**Goal `ldap`, Stage 9 (the AD extras) is under way**: sort with a VLV window and deleted objects are on `main`. `sort_and_a_vlv_window_return_the_requested_slice` and `show_deleted_finds_a_deleted_entry` pass against `samba-ad`. Stages 1 to 5, 7 and 8 are done. Stage 4 is done except for a CA that a program supplies. Stage 6 is done except wiring the schema into the readers. Stage 9's DirSync and the Global Catalog are not written.\n\n**On `main`**: everything Stage 8 listed, plus sort and window (`crates/nvs-ldap/src/conn.rs` module doc, \"A window is one answer\"; `crates/nvs-stdlib/src/ldap/search.rs` module doc for why the window is two flat options), and now `SearchRequest::show_deleted` with `Control::show_deleted` (`.417`, no value, critical) pushed in `Cursor::new`. `search` takes `showDeleted: bool` (its twelfth argument), and adds `isDeleted` to a non-empty `select` so `Ldap\\Entry::isDeleted(): bool` always reads it. `tests/conformance/core/ldap-show-deleted-finds-a-deleted-entry.nvst` pins it from Novis; its deleted entries accumulate across runs, so it counts them as \"at least one\".\n\nServer cases reach `samba-ad` (`tests/db/compose.yaml`) at `ldaps://localhost:16636`, and plain LDAP at 16389. Write cases add and delete their own entries under names no other case uses: OUs `Shop`/`Blog`/`Store`/`Framework`/`Example`/`Catalog`/`Library`/`Gallery`/`Studio`/`Archive`/`Theater`/`Cinema` (cases) and `Museum` (Rust) at the root, and each test user `CN=<name>,OU=<name>` in an OU of its own (`Team`, `Editors`, `Visitors`, `Members`, `Readers` in Rust; `Staff`, `Authors`, `Owners`, `Clients` in cases). Grep the name across `tests/conformance/core/ldap-*.nvst` and `crates/nvs-stdlib/tests/ldap.rs` before taking one. A deleted entry cannot be removed, so a test that deletes must not assume it is the only tombstone.",
+  "state": "**Goal `ldap`, Stage 9 (the AD extras) is under way**: sort with a VLV window, deleted objects and DirSync are on `main`. `sort_and_a_vlv_window_return_the_requested_slice`, `show_deleted_finds_a_deleted_entry` and `dirsync_returns_only_what_changed_since_its_cookie` pass against `samba-ad`, and so does `tests/conformance/core/ldap-sync-cookie.nvst`. Stages 1 to 5, 7 and 8 are done. Stage 4 is done except for a CA that a program supplies. Stage 6 is done except wiring the schema into the readers. Stage 9's Global Catalog is the one item left.\n\n**On `main`**: everything Stage 8 listed, sort and window, `showDeleted`, and now `Connection::changes(Filter, {base?, select?, cookie?}): Changes` with `Changes::cookie(): tainted bytes`. `crates/nvs-ldap/src/conn.rs`'s module doc (\"A sync pages by its own cookie\") says how `Cursor::changes` works and why it adds the filter's attributes and `isDeleted` to a non-empty select (Samba matches the filter against selected attributes only and sends a deletion only when `isDeleted` is selected). `crates/nvs-stdlib/src/ldap/search.rs`'s module doc says how `Ldap\\Changes` shares `Ldap\\Entries`' first three slots and one `advance`.\n\nServer cases reach `samba-ad` (`tests/db/compose.yaml`) at `ldaps://localhost:16636`, and plain LDAP at 16389. Write cases add and delete their own entries under names no other case uses: OUs `Shop`/`Blog`/`Store`/`Framework`/`Example`/`Catalog`/`Library`/`Gallery`/`Studio`/`Archive`/`Theater`/`Cinema`/`Garden` (cases) and `Museum`/`Harbor` (Rust) at the root, and each test user `CN=<name>,OU=<name>` in an OU of its own (`Team`, `Editors`, `Visitors`, `Members`, `Readers` in Rust; `Staff`, `Authors`, `Owners`, `Clients` in cases). Grep the name across `tests/conformance/core/ldap-*.nvst` and `crates/nvs-stdlib/tests/ldap.rs` before taking one. A deleted entry cannot be removed, so a test that deletes must not assume it is the only tombstone.",
   "next": {
     "stage": 9,
     "title": "the AD extras",
     "files": [
-      "crates/nvs-ldap/src/proto.rs",
       "crates/nvs-ldap/src/conn.rs",
-      "crates/nvs-stdlib/src/ldap/registry.rs",
-      "crates/nvs-stdlib/src/ldap/search.rs",
+      "crates/nvs-stdlib/src/ldap/write.rs",
+      "crates/nvs-stdlib/src/ldap/mod.rs",
       "crates/nvs-stdlib/tests/ldap.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**DirSync since a cookie** (ADR 0278 § 11): `changes(Filter, ?ChangesOptions): Changes` and `Changes::cookie()`, a `.841` control constant beside `VLV_RESPONSE` at `crates/nvs-ldap/src/proto.rs:32`, its response read the way the VLV response is found at `crates/nvs-ldap/src/conn.rs:855`, and `Unsupported` on a server without it. Closes `dirsync_returns_only_what_changed_since_its_cookie` and `tests/conformance/core/ldap-sync-cookie.nvst`."
-      },
-      {
-        "done": false,
-        "text": "**A write to a Global Catalog block throws before it is sent** (ADR 0278 § 11): a URL on port 3268 or 3269 (`crates/nvs-ldap/src/conn.rs:76`) is read-only, checked at the top of the writes at `crates/nvs-stdlib/src/ldap/write.rs:59`. Closes `a_write_to_a_global_catalog_block_throws_before_it_is_sent`."
+        "text": "**A write to a Global Catalog block throws before it is sent** (ADR 0278 § 11): a URL on port 3268 or 3269 (`crates/nvs-ldap/src/conn.rs:79`) is read-only, checked at the top of the writes at `crates/nvs-stdlib/src/ldap/write.rs:59`, and throws `ReadOnly`. Closes `a_write_to_a_global_catalog_block_throws_before_it_is_sent`, the last test of `nvs-stdlib-ldap-ad-extras`."
       }
     ]
   },
   "backlog": [
-    "Stage 10, the feature proofs for every `Core\\Ldap` class (`bun nv proofs --owed`), owned by goal `ldap`.",
+    "Stage 10, the feature proofs for every `Core\\Ldap` class (`bun nv proofs --owed`), including `Core\\Ldap\\Changes`, owned by goal `ldap`.",
     "Stage 4: a CA that a program supplies through `Settings` (ADR 0278 § 3).",
     "Stage 6: wire the schema cache into the typed readers (ADR 0278 § 8).",
-    "A run against a Windows Server evaluation VM is the user's to do by hand (goal prose, standing decisions)."
+    "A run against a Windows Server evaluation VM is the user's to do by hand (goal prose, standing decisions). It should also check that real AD returns a DirSync change whose filter attributes did not change, which Samba only does when they are selected."
   ]
 }
