@@ -219,7 +219,19 @@ fn write_default_at(target: &Path) -> Result<PathBuf, Declined> {
         )));
     };
     let dir = nvs_config::data::check(dir).map_err(Declined::Untrusted)?;
-    let path = dir.join(name);
+    write_template(dir.join(name))
+}
+
+/// [`write_default_at`] for `folder`'s `nvs.toml`, checked with [`nvs_config::data::Folder::check`]
+/// rather than with this process's own data folder in mind. The service installer writes the file
+/// a service will read, and that service's data folder need not be the installer's.
+pub(crate) fn write_default_in(folder: &nvs_config::data::Folder) -> Result<PathBuf, Declined> {
+    let dir = folder.check().map_err(Declined::Untrusted)?;
+    write_template(dir.join(nvs_config::resolve::LOCAL_FILE))
+}
+
+/// The template written at `path`, in a directory the caller has already checked.
+fn write_template(path: PathBuf) -> Result<PathBuf, Declined> {
     // `create_new` is the whole of never overwriting: the file is created by this call or it is not,
     // with no window between asking whether one exists and writing it, so a second `nvs` in the same
     // directory loses the race rather than landing on top of the winner.

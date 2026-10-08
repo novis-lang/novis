@@ -87,7 +87,18 @@ impl Folder {
     ///
     /// When the running binary's path cannot be read or canonicalized.
     pub fn beside_exe() -> std::io::Result<Self> {
-        let exe = trust::canonical(&std::env::current_exe()?)?;
+        Self::beside_binary(&std::env::current_exe()?)
+    }
+
+    /// The default folder of the binary at `exe`: `.nvsdata` in its directory, with symlinks
+    /// resolved. [`Folder::beside_exe`] is this for the running binary; the service installer asks
+    /// it about the binary a service will run.
+    ///
+    /// # Errors
+    ///
+    /// When `exe` cannot be canonicalized.
+    pub fn beside_binary(exe: &Path) -> std::io::Result<Self> {
+        let exe = trust::canonical(exe)?;
         let dir = exe.parent().ok_or_else(|| {
             std::io::Error::other(format!("`{}` has no parent folder", exe.display()))
         })?;

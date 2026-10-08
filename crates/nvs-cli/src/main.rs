@@ -1370,12 +1370,12 @@ const SERVICE_INSTALL_EXAMPLE: &str = r#"Examples:
         --depends-on postgresql
         -- serve D:\srv\shop\public\index.nvs --config D:\srv\shop\nvs.toml
 
-  Linux, as root:
+  Linux, as root, with the configuration file in the data folder:
 
     nvs service install shop
         --description "Shop web server"
         --depends-on postgresql.service
-        -- serve /srv/shop/public/index.nvs --config /srv/shop/nvs.toml
+        -- serve /srv/shop/public/index.nvs
 
   A configuration file with `[[server.mount]]` blocks, and no entry file:
 
@@ -1385,8 +1385,13 @@ const SERVICE_INSTALL_EXAMPLE: &str = r#"Examples:
   Everything before `--` is an option of the installer. Everything after `--` is
   the `nvs` command that the service runs. It must be `serve` or `run`.
 
-  Write every path in full. Name the configuration file with `--config`. Paths
-  inside the configuration file must be full too.
+  Write every path in full. Paths inside the configuration file must be full too.
+
+  Without `--config`, the service uses `nvs.toml` in its data folder. The data
+  folder is `.nvsdata` next to the `nvs` program. To use another folder, add
+  `--data` and the full path of the folder after `--`. The installer creates the
+  folder and the file if they do not exist. It also lets the service write to
+  the folder.
 
   The entry file is optional for `serve`. With no entry file, the service serves
   every file that the `[[server.mount]]` blocks in the configuration file mount.

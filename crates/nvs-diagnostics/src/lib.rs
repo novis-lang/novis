@@ -2626,21 +2626,21 @@ pub mod code {
          commands and the `--fault-inject` option are not allowed in a service.",
     );
 
-    /// A path in the argv `nvs service` was asked to store, or in one of its
-    /// own options, is relative — or the argv names no `--config` at all.
+    /// A path in the argv `nvs service` was asked to store is relative: a
+    /// `--config` or `--data` value, the entry file, or a `[log] target`
+    /// file, `[opcache] file_cache_dir` or `[io] temp_root` in the
+    /// configuration the service reads.
     ///
-    /// `rule:packaging/the-installer-is-a-sink`'s third and last-but-two rows, under one code because that
-    /// section says outright that they are the same failure: a service starts
-    /// in `System32` under a minimal environment, so a relative `--config` is
+    /// `rule:packaging/the-installer-is-a-sink`'s third row: a service starts
+    /// in `System32` or `/` under a minimal environment, so a relative path is
     /// a guaranteed first-boot failure surfacing as an opaque service-manager
-    /// error, and an argv with no `--config` at all falls back to
-    /// `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`
-    /// 's `./nvs.toml` — the same failure one step less visible, because it
-    /// makes the service's configuration a property of whatever directory the
-    /// manager happened to start it in.
+    /// error. An argv with no `--config` is not this code's to refuse: the
+    /// installer stores the absolute path of the data folder's `nvs.toml` in
+    /// it, so the manager's starting directory is never searched for one.
     pub const E_SERVICE_PATH_NOT_ABSOLUTE: Code = Code::new("E0631").card(
-        "Every path given to `nvs service` must be absolute, and the command must name a `--config` \
-         file. A service does not start in your current folder, so a relative path is not found.",
+        "Every path in the command that `nvs service` stores must be absolute. This includes the \
+         paths in its configuration file. A service does not start in your current folder, so a \
+         relative path is not found.",
     );
 
     /// An `--account` password was passed to `nvs service` on the command
@@ -2979,6 +2979,24 @@ pub mod code {
     pub const E_EXTENSION_NOT_LOADED: Code = Code::new("E0652").card(
         "An `[[extension]]` file does not load. The reason is in the message. The server does \
          not start, or a reload keeps the extensions it already has.",
+    );
+
+    /// `nvs service install` could not create or use the data folder of the
+    /// service it was asked to install: the folder, or a subfolder, could not
+    /// be created, it fails `rule:config/ownership-is-the-trust-boundary`'s
+    /// check, or the shipped `nvs.toml` could not be written into it.
+    ///
+    /// A refusal rather than the one warning every other command gives for an
+    /// unusable data folder, because an install is the last moment anybody is
+    /// watching. When the stored argv names no `--config`, the installer
+    /// stores the folder's `nvs.toml` as the service's configuration, and a
+    /// service whose configuration cannot be read refuses to start at every
+    /// boot; when it names one, the service would still run with no compile
+    /// cache and no temporary folder, and nothing would say so but a log line.
+    pub const E_SERVICE_DATA_UNUSABLE: Code = Code::new("E0653").card(
+        "`nvs service install` cannot create or use the data folder of the service. The message \
+         shows the folder and the reason. Fix the folder, or add `--data <folder>` to the service \
+         command with a folder that only administrators can change.",
     );
 
     // --- E07xx types, continued --------------------------------------------
