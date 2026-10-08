@@ -74,16 +74,11 @@ EXPOSE 8000
 # above the privileged range, so there is no step that needs to drop privileges later.
 USER nonroot:nonroot
 
-# **`nvs serve` installs no signal handler today**, and a container's main process is pid 1,
-# where the kernel discards any signal whose disposition is still the default. So a `SIGTERM`
-# from `docker stop` would be *ignored* — not "handled badly", ignored — and every stop would
-# hang for the full 10-second timeout before Docker sent `SIGKILL` anyway.
-#
-# Asking for that `SIGKILL` immediately is the same ending without the wait. This is the honest
-# state of the runtime rather than a preference: ADR 0097 § 5's `health_path` already answers
-# `503` while draining, so the machinery is designed and unbuilt. **When it lands, this line becomes `SIGTERM`** and
-# `docs/docker.md` § *Stopping a container* changes with it.
-STOPSIGNAL SIGKILL
+# `nvs serve` handles `SIGTERM` itself, also as pid 1: it accepts no new connections, finishes
+# the requests that are running, and exits. `[server] drain_timeout` (30s by default) bounds that
+# wait, so give the container a stop timeout a little longer than it. `docs/docker.md`
+# § *Stopping a container* has the settings.
+STOPSIGNAL SIGTERM
 
 # One binary, so one entry point, and every subcommand is reachable through it:
 # `docker run … novis:X.Y.Z run script.nvs`, `… test tests/`, `… --version`.
@@ -119,7 +114,7 @@ COPY bin/notices/ /usr/share/doc/novis/
 WORKDIR /app
 EXPOSE 8000
 USER nonroot:nonroot
-STOPSIGNAL SIGKILL
+STOPSIGNAL SIGTERM
 ENTRYPOINT ["nvs"]
 CMD ["serve", "/app/main.nvs", "--listen", "0.0.0.0:8000"]
 

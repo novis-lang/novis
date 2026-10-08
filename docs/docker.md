@@ -149,8 +149,8 @@ services:
     tmpfs: ["/tmp"]
     cap_drop: ["ALL"]
     security_opt: ["no-new-privileges:true"]
-    # See § Stopping a container. Nothing here drains, so waiting accomplishes nothing.
-    stop_grace_period: 1s
+    # A little longer than `[server] drain_timeout`, which is 30s by default. See § Stopping a container.
+    stop_grace_period: 35s
 
 volumes:
   novis-cache:
@@ -195,27 +195,34 @@ Two things to know when a command *writes*:
 
 ## Stopping a container
 
-> **`nvs serve` installs no signal handler today, so there is no graceful drain.** In-flight
-> requests are cut when the process dies. This is a known gap, not a design choice:
-> `rule:http-server/the-server-block-is-boot-class`'s `health_path` already answers `503` while
-> draining — the machinery is designed and not yet built.
+`docker stop` sends `SIGTERM` to `nvs serve`. Both images set `STOPSIGNAL SIGTERM`. When the
+server gets the signal, it does this:
 
-That gap has a sharp edge in a container. The main process is pid 1, and the kernel discards any
-signal pid 1 has no handler for, so `SIGTERM` is not handled badly — it is **ignored**. A normal
-image would hang for the full stop timeout on every `docker stop` and then be `SIGKILL`ed anyway.
+- It accepts no new connections.
+- If you set `[server] health_path`, that path returns `503`.
+- Each request that is running finishes, and its response is sent.
+- A connection with no request closes at once.
+- When every connection is closed, the process exits.
 
-Both images therefore set `STOPSIGNAL SIGKILL`, which is the same ending without the wait. Until
-the drain lands:
+`SIGINT` (Ctrl-C) and `SIGHUP` stop the server in the same way.
 
-- **Compose/Docker**: set `stop_grace_period: 1s`. Waiting achieves nothing.
-- **Kubernetes**: `terminationGracePeriodSeconds: 5`. The kubelet always sends `SIGTERM` first
-  and ignores `STOPSIGNAL`, so this is where the wait would otherwise be spent.
-- Drain at the layer above instead — a `preStop` hook that sleeps while the endpoint is removed
-  from the load balancer, or the proxy's own connection draining.
-- `docker run --init` makes `nvs` a child of an init process rather than pid 1, at which point
-  `SIGTERM` terminates it normally. It is still not a *graceful* stop.
+The server gives each open connection at most `[server] drain_timeout` to finish. The default is
+`30s`. Docker waits 10 seconds by default, and then it sends `SIGKILL`. Kubernetes waits 30
+seconds by default. Set the wait a little longer than `drain_timeout`:
 
-When the drain lands, `STOPSIGNAL` becomes `SIGTERM` and this section changes with it.
+- **Docker**: `docker stop -t 35 <container>`.
+- **Compose**: `stop_grace_period: 35s`.
+- **Kubernetes**: `terminationGracePeriodSeconds: 35`.
+
+To stop faster, set a shorter `drain_timeout`, and a wait a little longer than it:
+
+```toml
+[server]
+drain_timeout = "8s"
+```
+
+`nvs` is the first process in the container (pid 1). It handles `SIGTERM` itself, so you do not
+need `docker run --init`.
 
 ## Verifying an image
 
