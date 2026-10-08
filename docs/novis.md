@@ -26125,7 +26125,7 @@ Opens a directory at a URL the program gives. Needs the `ldap.open` capability f
 <a id="core-core-ldap-connection"></a>
 ### `Core\Ldap\Connection`
 
-Keywords: whoami, search, read, add, modify, delete, rename, setPassword, changePassword
+Keywords: whoami, search, read, add, modify, delete, rename, setPassword, changePassword, compare
 
 | Member | Signature |
 |---|---|
@@ -26138,6 +26138,7 @@ Keywords: whoami, search, read, add, modify, delete, rename, setPassword, change
 | [`Core\Ldap\Connection->rename`](#core-core-ldap-connection-rename) | `rename(Core\Ldap\Dn\|string $from, Core\Ldap\Dn\|string $to): void` |
 | [`Core\Ldap\Connection->setPassword`](#core-core-ldap-connection-setpassword) | `setPassword(Core\Ldap\Dn\|string $dn, secret tainted string $password): void` |
 | [`Core\Ldap\Connection->changePassword`](#core-core-ldap-connection-changepassword) | `changePassword(Core\Ldap\Dn\|string $dn, secret tainted string $old, secret tainted string $new): void` |
+| [`Core\Ldap\Connection->compare`](#core-core-ldap-connection-compare) | `compare(Core\Ldap\Dn\|string $dn, string $attribute, mixed $value): bool` |
 
 <a id="core-core-ldap-connection-whoami"></a>
 #### `Core\Ldap\Connection->whoami`
@@ -26299,6 +26300,25 @@ Changes the password of a user account from `$old` to `$new`, as the user does. 
 **Returns** `void` — Nothing.
 
 **Throws** `LogicError` — `dn` is text that is not a DN, or the connection is closed.; `Core\Ldap\LdapError` — `$kind` is `EncryptionRequired` when the connection does not use TLS. Nothing is sent then. It is `PasswordPolicy` when the domain does not accept the new password, and another kind for any other error the server returns.
+
+<a id="core-core-ldap-connection-compare"></a>
+#### `Core\Ldap\Connection->compare`
+
+```nvs skip
+$connection->compare(Core\Ldap\Dn|string $dn, string $attribute, mixed $value): bool
+```
+
+Checks whether an entry has a value. The server compares the value by the rules of the attribute, so `staff` matches `Staff` in a name.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$dn` | `Core\Ldap\Dn\|string` (sink) | The entry's DN, as a `Dn` or as text. Text cannot be `tainted`. Build a DN from user input with `Dn::of` or `child`. |
+| `$attribute` | `string` (sink) | The attribute's name, such as `department`. It cannot be `tainted`. |
+| `$value` | `mixed` | One value, in any form a write accepts, such as a `string`, an `int` or a `Dn`. |
+
+**Returns** `bool` — `true` when the entry has the value, and `false` when it does not.
+
+**Throws** `LogicError` — `attribute` is not an attribute name, `value` is `null`, a list or has no LDAP form, or the connection is closed.; `Core\Ldap\LdapError` — The server returned an error. `$kind` is `NoSuchObject` when there is no entry with this DN.
 
 <a id="core-core-ldap-entries"></a>
 ### `Core\Ldap\Entries`

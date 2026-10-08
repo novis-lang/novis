@@ -1,21 +1,26 @@
 {
-  "state": "**Goal `ldap`, Stage 7 (writes and passwords): `add`, `modify`, `delete`, `rename`, `setPassword`, `changePassword` and `Ldap\\Change` are on `main`, and `compare` is the stage's open item.** Stages 1 to 5 are done, and Stage 4 is done except for a CA that a program supplies. Stage 6 is done except wiring the schema into the readers. Of Stage 7's checks, every one passes against `samba-ad` except `compare_returns_a_bool_and_throws_on_error`, which is not written.\n\n**On `main`**: everything Stage 6 listed, plus `nvs_ldap::Connection::modify`/`add`/`delete`/`rename`/`compare`/`set_password`/`change_password`, `nvs_ldap::conn::unicode_pwd`, and `crate::ldap::write` (the Novis bodies and `encoded`, the value table). A password write on a connection without TLS is `EncryptionRequired` before a byte is sent. A result 19 or 53 whose diagnostic opens with `0000052D:` or carries `data 52D` is `PasswordPolicy`. `Connection::compare` exists on the wire and has no Novis member yet.\n\nServer cases reach `samba-ad` (`tests/db/compose.yaml`) at `ldaps://localhost:16636`, and plain LDAP at 16389. Write cases add and delete their own entries, and each case and test uses its own names because the cases run at the same time: OUs `Shop`/`Blog`/`Store`/`Framework`/`Example` at the root, and each test user `CN=<name>,OU=<name>` in an OU of its own (`Team`, `Editors` in Rust, `Staff`, `Authors` in cases), never under `CN=Users`, whose entries two cases count.",
+  "state": "**Goal `ldap`, Stage 7 (writes and passwords) is done**: `add`, `modify`, `delete`, `rename`, `setPassword`, `changePassword`, `compare` and `Ldap\\Change` are on `main`, and every Stage 7 check passes against `samba-ad`. Stages 1 to 5 are done. Stage 4 is done except for a CA that a program supplies. Stage 6 is done except wiring the schema into the readers. Stage 8 (`authenticate` and AD's reasons) is next, and none of it is written.\n\n**On `main`**: everything Stage 6 listed, plus `nvs_ldap::Connection::modify`/`add`/`delete`/`rename`/`compare`/`set_password`/`change_password`, `nvs_ldap::conn::unicode_pwd`, and `crate::ldap::write` (the Novis bodies, `encoded`, the value table, and `compare`, which sends one value in the form a write does and throws `LogicError` for `null` or a list). `Kind::of_result` already maps AD's 525 and 52e to `InvalidCredentials`.\n\nServer cases reach `samba-ad` (`tests/db/compose.yaml`) at `ldaps://localhost:16636`, and plain LDAP at 16389. Write cases add and delete their own entries, and each case and test uses its own names because the cases run at the same time: OUs `Shop`/`Blog`/`Store`/`Framework`/`Example`/`Catalog`/`Library`/`Gallery`/`Studio` at the root (grep the OU name across `tests/conformance/core/ldap-*.nvst` and `crates/nvs-stdlib/tests/ldap.rs` before taking one), and each test user `CN=<name>,OU=<name>` in an OU of its own (`Team`, `Editors` in Rust, `Staff`, `Authors` in cases), never under `CN=Users`, whose entries two cases count.",
   "next": {
-    "stage": 7,
-    "title": "writes and passwords",
+    "stage": 8,
+    "title": "`authenticate` and AD's reasons",
     "files": [
-      "crates/nvs-stdlib/src/ldap/write.rs",
+      "crates/nvs-stdlib/src/ldap/mod.rs",
       "crates/nvs-stdlib/src/ldap/registry.rs",
+      "crates/nvs-ldap/src/error.rs",
       "crates/nvs-stdlib/tests/ldap.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**`compare(Dn|string, string $attribute, mixed $value): bool`** (ADR 0278 § 9). `nvs_ldap::Connection::compare` at `crates/nvs-ldap/src/conn.rs:517` is written; the Novis body goes beside `nvs_core_ldap_connection_change_password` at `crates/nvs-stdlib/src/ldap/write.rs:489` and encodes the value with `encoded` at `crates/nvs-stdlib/src/ldap/write.rs:173`, and the row goes after `changePassword` at `crates/nvs-stdlib/src/ldap/registry.rs:422`. A list value is a `LogicError`: compare takes one value. Closes `compare_returns_a_bool_and_throws_on_error`, and needs three `.nvst` cases calling `->compare(`."
+        "text": "**`authenticate(tainted string $login, secret tainted string $password)`** (ADR 0278's member table, and the goal's standing decision that it binds on a fresh connection and closes it). The fresh connection is built the way `connect` at `crates/nvs-stdlib/src/ldap/mod.rs:337` builds one, from the receiver's endpoint, and the row goes after `whoami` at `crates/nvs-stdlib/src/ldap/registry.rs:344`. 525 and 52e are already one kind at `crates/nvs-ldap/src/error.rs:96`. Closes `authenticate_binds_on_its_own_connection_and_closes_it` and the cases `tests/conformance/core/ldap-authenticate.nvst` and `ldap-authenticate-wrong-password.nvst`; no message may carry the password."
       },
       {
         "done": false,
-        "text": "**The readers take the base type from the schema** (`rule:core-classes/ldap-value-types`), Stage 6's last item. `crate::ldap::schema` is at `crates/nvs-stdlib/src/ldap/mod.rs:609`; an `Ldap\\Entry` cannot reach its connection, so either it carries the key or `search` reads the schema when it builds the entry."
+        "text": "**AD's other sub-codes map to kinds** (530, 531, 532, 533, 701, 773, 775) in `Kind::of_result` at `crates/nvs-ldap/src/error.rs:96`, with the rest of `bun nv loop --list --stage 8`'s named tests."
+      },
+      {
+        "done": false,
+        "text": "**The readers take the base type from the schema** (`rule:core-classes/ldap-value-types`), Stage 6's last item. `crate::ldap::schema` is at `crates/nvs-stdlib/src/ldap/mod.rs:609`. An `Ldap\\Entry` cannot reach its connection, so either it carries the key or `search` reads the schema when it builds the entry."
       }
     ]
   },
