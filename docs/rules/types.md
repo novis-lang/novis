@@ -55,9 +55,9 @@ binding may have ([`types/arrays`](types.md#types-arrays)).
 The type is computed exactly as it is for any position with no expected type, and it is then fixed on
 the binding like a written one — [`types/declaration`](types.md#types-declaration)'s "no binding's type ever changes" is
 untouched. It is exact and honest: `var $n = 1;` gives `int`, `var $id = Core\Request::query('id');`
-gives `mixed`, and a `var` value binding over a `mixed` or `iterable` subject gives `mixed`, because
-that is what the source expression is. A qualifier on the element type, such as `tainted`, arrives on
-the binding with it. `inout var $v` binds at the element type itself, so its two sides declare the same
+gives `?tainted string`, `var $doc = Core\Request::json();` gives `mixed`, and a `var` value binding
+over a `mixed` or `iterable` subject gives `mixed`, because that is what the source expression is. A
+qualifier, such as `tainted`, arrives on the binding with the type it qualifies. `inout var $v` binds at the element type itself, so its two sides declare the same
 type by construction.
 
 A local's initializer is mandatory: `var $n;` is a parse error naming `=`. A `foreach` binding with
@@ -83,7 +83,7 @@ written type gets, with one addition, because the type it misses is not on the l
 then `$prices[] = 12.5;` names `array<int|float> $prices = [10, 20];`, the element type widened at
 the depth the write went through.
 
-<sub>See also [`types/declaration`](types.md#types-declaration), [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/arrays`](types.md#types-arrays). Decided in [0037](../decisions/0037.md), [0007](../decisions/0007.md), [0114](../decisions/0114.md), [0251](../decisions/0251.md), [0252](../decisions/0252.md).</sub>
+<sub>See also [`types/declaration`](types.md#types-declaration), [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/arrays`](types.md#types-arrays). Decided in [0037](../decisions/0037.md), [0007](../decisions/0007.md), [0114](../decisions/0114.md), [0251](../decisions/0251.md), [0252](../decisions/0252.md), [0279](../decisions/0279.md).</sub>
 
 <a id="types-grammar"></a>
 
@@ -830,15 +830,17 @@ path. That is dynamic typing at dynamic typing's cost, which is the right pressu
 the typed one. `Core\Reflect::typeOf` is the one type-introspection member, and it is meaningful only
 on a `mixed`, because the checker already knows every other case.
 
-`mixed` is where untrusted input lands, deliberately. `Core\Request::query()`/`::post()`,
-`Core\Server::*`, `Core\Script::args()` and `Core\Json::decode`'s result are `array<mixed>`, or return
-`mixed` per key, because input genuinely is untyped and pretending otherwise would be a lie in the
-type. What makes that safe is that text out of `mixed` is `tainted` ([`security/taint-propagation`](security.md#security-taint-propagation)),
-while a number, a `bool` or an enum is proven by its own conversion:
+`mixed` is where untyped input lands, deliberately. `Core\Request::json()`, `Core\Script::args()` and
+`Core\Json::decode`'s result are `mixed`, because a document genuinely is untyped and pretending
+otherwise would be a lie in the type. A request's query and form fields are not: they are text, and
+their accessors answer `?tainted string` and `array<tainted string>` ([`security/tainted-sources`](security.md#security-tainted-sources)).
+What makes `mixed` safe is that text out of it is `tainted` ([`security/taint-propagation`](security.md#security-taint-propagation)), while
+a number, a `bool` or an enum is proven by its own conversion:
 
 ```nvs
-uint $id = Core\Request::query('id') as uint;     // throws on "abc", on "-1", on "" — never quietly 0
-tainted string $q = Core\Request::query('q') as string;
+mixed $doc = Core\Request::json();
+uint $id = $doc['id'] as uint;                    // throws on "abc", on "-1", on "" — never quietly 0
+tainted string $q = $doc['q'] as string;
 ```
 
 `mixed` never absorbs implicitly in the other direction: `int $n = $m;` where `$m` is `mixed` is a
@@ -866,7 +868,7 @@ answered: `"7" as ?int` is `7`, because `string → int` is a conversion row, wh
 *is*.
 
 ```nvs
-mixed $m = Core\Request::query('id');
+mixed $m = Core\Request::json();
 if ($m is int) {
     // $m is an int here — no `as`, no throw path
 }

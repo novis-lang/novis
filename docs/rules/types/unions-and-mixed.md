@@ -12,15 +12,17 @@ path. That is dynamic typing at dynamic typing's cost, which is the right pressu
 the typed one. `Core\Reflect::typeOf` is the one type-introspection member, and it is meaningful only
 on a `mixed`, because the checker already knows every other case.
 
-`mixed` is where untrusted input lands, deliberately. `Core\Request::query()`/`::post()`,
-`Core\Server::*`, `Core\Script::args()` and `Core\Json::decode`'s result are `array<mixed>`, or return
-`mixed` per key, because input genuinely is untyped and pretending otherwise would be a lie in the
-type. What makes that safe is that text out of `mixed` is `tainted` (`rule:security/taint-propagation`),
-while a number, a `bool` or an enum is proven by its own conversion:
+`mixed` is where untyped input lands, deliberately. `Core\Request::json()`, `Core\Script::args()` and
+`Core\Json::decode`'s result are `mixed`, because a document genuinely is untyped and pretending
+otherwise would be a lie in the type. A request's query and form fields are not: they are text, and
+their accessors answer `?tainted string` and `array<tainted string>` (`rule:security/tainted-sources`).
+What makes `mixed` safe is that text out of it is `tainted` (`rule:security/taint-propagation`), while
+a number, a `bool` or an enum is proven by its own conversion:
 
 ```nvs
-uint $id = Core\Request::query('id') as uint;     // throws on "abc", on "-1", on "" — never quietly 0
-tainted string $q = Core\Request::query('q') as string;
+mixed $doc = Core\Request::json();
+uint $id = $doc['id'] as uint;                    // throws on "abc", on "-1", on "" — never quietly 0
+tainted string $q = $doc['q'] as string;
 ```
 
 `mixed` never absorbs implicitly in the other direction: `int $n = $m;` where `$m` is `mixed` is a

@@ -502,11 +502,17 @@ const QUERY_DOC: MethodDoc = MethodDoc {
     ret: "The parameter's value as a `tainted string`, or `null` when the query has no parameter \
           with this name. A name with square brackets, such as `tag[]=a`, also gives `null`. Read \
           those values with `queryArray`. Use `as` to convert the text, for example `as ?int`.",
-    errors: &[ErrorDoc {
-        error: "LogicError",
-        desc: "This program is not answering a request, or the query string has percent \
-               escapes that decode to bytes that are not UTF-8.",
-    }],
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "This program is not answering a request.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The query string has a percent escape that decodes to bytes that are not \
+                   UTF-8.",
+        },
+    ],
 };
 
 /// `Core\Request::queryArray`'s reference card — `rule:core-api/reference-card`.
@@ -524,8 +530,12 @@ const QUERY_ARRAY_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "This program is not answering a request, or the query string has percent \
-                   escapes that decode to bytes that are not UTF-8.",
+            desc: "This program is not answering a request.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The query string has a percent escape that decodes to bytes that are not \
+                   UTF-8.",
         },
         ErrorDoc {
             error: "ParseError",
@@ -839,20 +849,21 @@ const POST_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "This program is not answering a request, or this request's body has already \
-                   been read by `body` or `bodyStream` — those two hand the bytes over \
-                   uninterpreted and leave no fields behind. A body `files` is walking is the one \
-                   case this member joins rather than refuses.",
+            desc: "This program is not answering a request, or `body` or `bodyStream` already \
+                   read the body of this request. Calling `post` after `files()` is allowed.",
         },
         ErrorDoc {
             error: "ParseError",
-            desc: "The request declared a `multipart/form-data` body and then did not say how to \
-                   read one, or what arrived is not the body it declared, or a urlencoded field \
-                   holds percent escapes that decode to octets that are not UTF-8.",
+            desc: "The body is not the form it says it is, or a `multipart/form-data` body has \
+                   no boundary.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "A field has a percent escape that decodes to bytes that are not UTF-8.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The connection failed under the body, or the peer stopped short of the \
+            desc: "The connection failed while the body was read, or the body ended before the \
                    length it declared.",
         },
     ],
@@ -879,9 +890,13 @@ const POST_ARRAY_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "ParseError",
-            desc: "The body is not the form it says it is, a field has percent escapes that \
-                   decode to bytes that are not UTF-8, or a value under this name has a second \
-                   pair of brackets, such as `item[a][b]=c`. Read nested values with `postAs`.",
+            desc: "The body is not the form it says it is, or a value under this name has a \
+                   second pair of brackets, such as `item[a][b]=c`. Read nested values with \
+                   `postAs`.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "A field has a percent escape that decodes to bytes that are not UTF-8.",
         },
         ErrorDoc {
             error: "IOError",
@@ -6276,6 +6291,7 @@ mod tests {
     /// field is what consumed the uploads — so `files()` afterwards is refused
     /// rather than answered empty, which is all a drained walk could say.
     // covers: Core\Request::post
+    // covers: Core\Request::postArray
     #[test]
     fn post_reads_the_fields_a_files_walk_buffered() {
         let mut walked = uploading("multipart/form-data; boundary=X", Some(Chunks::of(MIXED)));

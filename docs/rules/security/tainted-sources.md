@@ -10,10 +10,15 @@ code is not tainted — three digits carry nothing a sink can misread. Values re
 database are `tainted` under the same standing rule, which is what closes stored injection by the same
 mechanism as reflected.
 
-Structured input stays `array<mixed>`, and a value read as `mixed` — a request field, a decoded
-document, a session or cache entry, a row's `get` — carries the qualifier the moment text is pulled out
-of it, because text out of `mixed` is `tainted` (`rule:security/taint-propagation`). A typed reader
-answers the tainted form itself: a row's `string` is `?tainted string` and its `bytes` is
-`?tainted bytes`. The list of sources being **enumerable** is what lets the qualifier attach itself
+**A request field is read as text, and typed at the accessor.** `Core\Request::query` and `::post`
+answer one field as `?tainted string` — `null` for a name that is absent and for one written with
+brackets — and `::queryArray` and `::postArray` answer a bracketed name's one level of values as
+`array<tainted string>`, keyed as the brackets keyed them, refusing a second level with a `ParseError`
+that names `queryAs`/`postAs`. A deeper shape is those two members' to validate into a written type,
+so no request accessor answers a field as `mixed`. A value that is `mixed` by nature — a decoded
+document such as `json()`, a session or cache entry, a row's `get` — carries the qualifier the moment
+text is pulled out of it, because text out of `mixed` is `tainted` (`rule:security/taint-propagation`).
+A typed reader answers the tainted form itself: a row's `string` is `?tainted string` and its `bytes`
+is `?tainted bytes`. The list of sources being **enumerable** is what lets the qualifier attach itself
 automatically, and is exactly what `secret` has no equivalent of
 (`rule:security/secret-has-no-ambient-source`).

@@ -7,9 +7,9 @@ binding may have (`rule:types/arrays`).
 The type is computed exactly as it is for any position with no expected type, and it is then fixed on
 the binding like a written one — `rule:types/declaration`'s "no binding's type ever changes" is
 untouched. It is exact and honest: `var $n = 1;` gives `int`, `var $id = Core\Request::query('id');`
-gives `mixed`, and a `var` value binding over a `mixed` or `iterable` subject gives `mixed`, because
-that is what the source expression is. A qualifier on the element type, such as `tainted`, arrives on
-the binding with it. `inout var $v` binds at the element type itself, so its two sides declare the same
+gives `?tainted string`, `var $doc = Core\Request::json();` gives `mixed`, and a `var` value binding
+over a `mixed` or `iterable` subject gives `mixed`, because that is what the source expression is. A
+qualifier, such as `tainted`, arrives on the binding with the type it qualifies. `inout var $v` binds at the element type itself, so its two sides declare the same
 type by construction.
 
 A local's initializer is mandatory: `var $n;` is a parse error naming `=`. A `foreach` binding with

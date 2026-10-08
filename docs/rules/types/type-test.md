@@ -12,7 +12,7 @@ answered: `"7" as ?int` is `7`, because `string → int` is a conversion row, wh
 *is*.
 
 ```nvs
-mixed $m = Core\Request::query('id');
+mixed $m = Core\Request::json();
 if ($m is int) {
     // $m is an int here — no `as`, no throw path
 }

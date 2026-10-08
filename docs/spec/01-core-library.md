@@ -935,14 +935,14 @@ is on it. The encoders are this class's two laundering rows and are unchanged.
 
 **`parseQuery` reads PHP's bracket convention in full**, and `buildQuery` writes it: `a[]=1&a[]=2` builds
 a list under the key `"a"`, `a[b]=c` builds a map, and the two nest to arbitrary depth. It is not a URL-spec
-feature, but it is how every PHP form posts, and reproducing it here is what lets `Core\Request::query`
-(§ 15) return the same shape from the same code rather than answering the question a second time. The
+feature, but it is how every PHP form posts, and reproducing it here is what lets `Core\Request::queryArray`
+and `::queryAs` (§ 15) read the same names from the same code rather than answering the question a second time. The
 cost is the return type: every value is a `bytes` **or** a nested `array<mixed>`, which is why the row above
 is `array<mixed>` rather than `array<bytes>` — the one place in Part I where a member's element type is not
 statable more precisely. A **name** is the array key the pair is placed under, so it is a `string` and a name
 whose escapes decode outside UTF-8 is refused; a value has no such refusal. What § 15 shares is the bracket
-walk and not the element type — `Core\Request::query` reads a served request's parameters as text at the
-door and keeps that refusal for a value too. A repeated key without brackets (`a=1&a=2`) keeps the last
+walk and not the element type — `Core\Request`'s field readers read a served request's parameters as text
+at the door and keep that refusal for a value too. A repeated key without brackets (`a=1&a=2`) keeps the last
 value, as PHP does.
 
 `Core\Validate` is what survives of `filter`: the genuine validators only. Its *sanitizing* filters are
@@ -1089,7 +1089,7 @@ No stream wrappers, no `php://`, no `phar://`, no user-registered protocols
 These replace PHP's superglobals (`rule:statements/no-host-populated-variables`); every value they return that
 originates outside the process is `tainted` (`rule:security/tainted-qualifier`).
 
-- `Core\Request`: `method`, `path`, `query`, `queryAs`, `post`, `postAs`, `body`, `bytes`, `json`, `jsonAs`, `bodyStream`,
+- `Core\Request`: `method`, `path`, `query`, `queryArray`, `queryAs`, `post`, `postArray`, `postAs`, `body`, `bytes`, `json`, `jsonAs`, `bodyStream`,
   `header`, `headers`, `cookie`,
   `files`, `clientIp`, `scheme`, `host`, `mount`, `route`, `isHead` — replacing `$_GET`, `$_POST`, `$_FILES`,
   `$_COOKIE`, `$_REQUEST`, `filter_input`. `path` is the request path with the matched mount's prefix
@@ -1107,9 +1107,16 @@ originates outside the process is `tainted` (`rule:security/tainted-qualifier`).
   `saveTo(string $path, {max?, overwrite?})` — there is no temp path, no `move_uploaded_file` and no `size`
   (`rule:http-server/an-upload-is-received-only-through-files`); a
   multipart form's non-file parts are buffered into `post()` as usual;
-  `post(string $name): mixed` reads one submitted field by name under `query`'s bracket convention, over
-  those buffered parts or over a urlencoded body, and reads to the **end** of the body, which is what
-  makes it answer every field rather than the ones that arrived before the part a `files` walk stopped
+  `query(string $name): ?tainted string` reads one query parameter by name, and `null` is both an absent
+  name and one written with brackets, whose values `queryArray(string $name): array<tainted string>` reads:
+  the one level the brackets build, keyed as they keyed it (`tag[]=a&tag[]=b` is `["a", "b"]`,
+  `filter[color]=red` is `["color" => "red"]`), a lone unbracketed value as a list of one, an absent name
+  as `[]`, and a second level of brackets as a `ParseError` naming `queryAs`
+  ([0279](../decisions/0279.md));
+  `post(string $name): ?tainted string` and `postArray(string $name): array<tainted string>` read a
+  submitted field the same two ways, over
+  those buffered parts or over a urlencoded body, and read to the **end** of the body, which is what
+  makes them answer every field rather than the ones that arrived before the part a `files` walk stopped
   on, so a handler wanting the uploads too takes `files()` first; and `bodyStream(): Iterable<tainted bytes>`
   is the raw-body alternative to `body`, carrying the qualifier `body` puts on the same octets.
   `json({maxDepth?: uint}): mixed` is `Core\Json::decode` over those same octets, carrying that
@@ -1128,7 +1135,7 @@ originates outside the process is `tainted` (`rule:security/tainted-qualifier`).
   reaches it, since neither `$_GET` nor `$_POST` has a public array spelling here — and with one it is the
   subtree that name reaches under the bracket convention. Each field converts with `as`, so a form's text
   fits a declared `int`, and a key `T` does not name is left behind. `body`,
-  `bytes`, `post`, `postAs`, `json` and `jsonAs` are **buffering** readers, which keep what they read and so may follow
+  `bytes`, `post`, `postArray`, `postAs`, `json` and `jsonAs` are **buffering** readers, which keep what they read and so may follow
   one another;
   `bodyStream` and `files` are **streaming** readers, each of which consumes the body and may only be the
   first reader of it, which is why a `post()` reading the fields a walk buffered is ordinary rather than
