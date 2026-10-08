@@ -72,7 +72,8 @@ use super::members::{
 };
 use super::operators::types_are_disjoint;
 use super::quals::{
-    carries_unchecked, fields_unchecked, reject_untainted_text_from_unchecked, tainted_result,
+    carries_unchecked, fields_unchecked, has_fields, reject_untainted_text_from_unchecked,
+    tainted_result,
 };
 
 /// Checks `inner is against`, answering `bool` — or the literal `true`/`false`
@@ -248,7 +249,9 @@ fn infer_against_class_ref(
 ///
 /// A `tainted` atom over a `subject` whose text is unchecked is not one of
 /// them: the qualifier there is the answer `rule:security/taint-propagation`
-/// gives anyway, so it is tested as its plain text.
+/// gives anyway, so it is tested as its plain text. The same holds for a
+/// `tainted {…}` shape over a subject with fields, whose class may fill a text
+/// field from a `mixed` or `tainted` one.
 fn reject_unanswerable_target(
     tested: TypeId,
     subject: TypeId,
@@ -267,7 +270,8 @@ fn reject_unanswerable_target(
         );
         return true;
     }
-    let secret_only = fields_unchecked(subject, env.interner);
+    let secret_only = fields_unchecked(subject, env.interner)
+        || (has_fields(subject, env.interner) && matches!(env.interner.get(tested), Ty::Shape(_)));
     if let Some(qualified) = qualified_atom(tested, secret_only, env) {
         let described = env.interner.describe(qualified);
         env.diags.report(

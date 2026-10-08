@@ -209,7 +209,7 @@ pub(crate) fn reject_untainted_text_from_unchecked(
     let unchecked = if binding {
         matches!(env.interner.get(from), Ty::Mixed | Ty::Iterable)
     } else {
-        fields_unchecked(from, env.interner)
+        fields_unchecked(from, env.interner) || untainted_field_from_outside(from, target, env)
     };
     let shape = untainted_shape_text(target, env.interner);
     let text = shape || (binding && crate::derive::unqualified_text(target, env.interner));
@@ -232,11 +232,78 @@ pub(crate) fn reject_untainted_text_from_unchecked(
         .with_primary(span, format!("this is `{written}`"))
         .with_help(
             "Text from a `mixed` value can come from outside the program, so it is tainted. \
+             The same is true for an object field that is `mixed` or tainted. \
              Write `tainted` before the type, as in `tainted string` or `tainted {name: string}`. \
              Then check or escape the text before you use it in a query, a page or a command.",
         ),
     );
     true
+}
+
+/// Whether a value of type `ty` has fields a shape target reads: a class, a
+/// shape, `object`, or a union with one of them. Over such a subject,
+/// `is tainted {…}` is admitted, because [`untainted_field_from_outside`] can
+/// ask for it there.
+pub(crate) fn has_fields(ty: TypeId, interner: &TypeInterner) -> bool {
+    match interner.get(ty) {
+        Ty::Class(..) | Ty::Shape(_) | Ty::Object => true,
+        Ty::Union(members) => members.iter().any(|&member| has_fields(member, interner)),
+        _ => false,
+    }
+}
+
+/// Whether a text field of the shape `target`, written without `tainted`,
+/// is filled from a field of `from` whose text is unchecked or `tainted`
+/// (`rule:security/taint-propagation`). `from` is a class, a shape, or a
+/// union of them; the field is the class's declared property of that name,
+/// with the class's type arguments put in, or the shape's field.
+///
+/// A field `from` does not declare is read from a subclass at run time, and
+/// its type is as unknown as an `object`'s, so it counts as unchecked. A
+/// nested shape field is asked again one level down.
+fn untainted_field_from_outside(from: TypeId, target: TypeId, env: &mut Env<'_>) -> bool {
+    let fields = match env.interner.get(target) {
+        Ty::Shape(fields) => fields.clone(),
+        Ty::Union(members) => {
+            let members = members.clone();
+            return members
+                .iter()
+                .any(|&member| untainted_field_from_outside(from, member, env));
+        }
+        _ => return false,
+    };
+    fields.iter().any(|field| {
+        crate::derive::unqualified_text(field.ty, env.interner)
+            && field_from_outside(from, &field.name, field.ty, env)
+    })
+}
+
+/// [`untainted_field_from_outside`] for one field `name` of `from`, which
+/// fills a target field of type `wanted`.
+fn field_from_outside(from: TypeId, name: &str, wanted: TypeId, env: &mut Env<'_>) -> bool {
+    let source = match env.interner.get(from).clone() {
+        Ty::Union(members) => {
+            return members
+                .iter()
+                .any(|&member| field_from_outside(member, name, wanted, env));
+        }
+        Ty::Class(qname, args) => {
+            let Some(declared) =
+                crate::signatures::resolve_property(&qname, name, env.signatures, env.graph)
+            else {
+                return true;
+            };
+            crate::generics::with_class_args(&qname, &args, declared, env.interner)
+        }
+        Ty::Shape(fields) => match fields.iter().find(|field| field.name == name) {
+            Some(field) => field.ty,
+            None => return true,
+        },
+        _ => return false,
+    };
+    fields_unchecked(source, env.interner)
+        || carries_tainted(source, env.interner)
+        || untainted_field_from_outside(source, wanted, env)
 }
 
 /// Whether `ty` carries `rule:security/secret-qualifier`'s `secret` qualifier — on its own or

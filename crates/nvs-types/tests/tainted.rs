@@ -525,6 +525,30 @@ fn a_shape_or_binding_receiving_text_out_of_mixed_must_be_written_tainted() {
 }
 
 #[test]
+fn a_shape_filled_from_an_objects_mixed_or_tainted_field_must_be_written_tainted() {
+    for (line, refused) in [
+        ("$p = ($this->loose as {n: string})->n;", true),
+        ("$p = ($this as {loose: string})->loose;", true),
+        ("$p = ($this as {held: string})->held;", true),
+        ("$p = ($this as {missing: string})->missing;", true),
+        ("$p = ($this as tainted {loose: string})->loose;", false),
+        ("$p = ($this as {plain: string})->plain;", false),
+        ("$p = ($this as {loose: int})->loose;", false),
+        ("if ($this is {loose: string}) {}", true),
+        ("if ($this is tainted {held: string}) {}", false),
+    ] {
+        let diags = check_src(&format!(
+            "<?nvs\nclass T {{\n  public mixed $loose = 1;\n  public tainted string $held = \"\";\n  \
+             public string $plain = \"\";\n  function m(): void {{\n{line}\n  }}\n}}\n"
+        ));
+        let got = diags
+            .iter()
+            .any(|d| d.code == Some(code::E_UNCHECKED_TEXT_NOT_TAINTED));
+        assert_eq!(got, refused, "{line}: {diags:?}");
+    }
+}
+
+#[test]
 fn a_nullable_or_union_operand_with_no_array_member_does_not_convert_to_an_array() {
     for (line, refused) in [
         ("?string $s = null;\n$a = $s as array<string>;", true),

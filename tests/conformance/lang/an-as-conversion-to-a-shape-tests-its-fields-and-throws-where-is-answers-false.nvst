@@ -98,7 +98,7 @@ try {
 
 // A field typed `mixed` only needs the key to be there.
 mixed $any = {w: "x"};
-echo ($any as {w: mixed}) is {w: string} ? "kept" : "lost", "\n";
+echo ($any as {w: mixed}) is tainted {w: string} ? "kept" : "lost", "\n";
 --EXPECT--
 2.5
 cannot convert a value of another type to `{left: float, top: float}`
