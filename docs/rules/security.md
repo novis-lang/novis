@@ -914,7 +914,8 @@ mechanism as reflected.
 **A request field is read as text, and typed at the accessor.** `Core\Request::query` and `::post`
 answer one field as `?tainted string` — `null` for a name that is absent and for one written with
 brackets — and `::queryArray` and `::postArray` answer a bracketed name's one level of values as
-`array<tainted string>`, keyed as the brackets keyed them, refusing a second level with a `ParseError`
+`array<tainted string>`, keyed as the brackets keyed them — so a `foreach` key over one is `tainted
+string` as well ([`security/taint-propagation`](security.md#security-taint-propagation)) — refusing a second level with a `ParseError`
 that names `queryAs`/`postAs`. A deeper shape is those two members' to validate into a written type,
 so no request accessor answers a field as `mixed`. A value that is `mixed` by nature — a decoded
 document such as `json()`, a session or cache entry, a row's `get` — carries the qualifier the moment
@@ -924,7 +925,7 @@ is `?tainted bytes`. The list of sources being **enumerable** is what lets the q
 automatically, and is exactly what `secret` has no equivalent of
 ([`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source)).
 
-<sub>See also [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables). Decided in [0024](../decisions/0024.md), [0012](../decisions/0012.md), [0058](../decisions/0058.md), [0067](../decisions/0067.md), [0279](../decisions/0279.md).</sub>
+<sub>See also [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables). Decided in [0024](../decisions/0024.md), [0012](../decisions/0012.md), [0058](../decisions/0058.md), [0067](../decisions/0067.md), [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
 
 <a id="security-taint-propagation"></a>
 
@@ -943,12 +944,19 @@ and `as ?string` answer `tainted string` and `?tainted string`, `as bytes` answe
 `as array<string>` answers `array<tainted string>`, `as secret string` answers `secret tainted string`,
 and a `.` or an interpolation with a `mixed` operand is tainted. `$m is string` narrows `$m` to
 `tainted string` on the true edge, and over a `mixed` subject `is tainted {…}` and `is tainted string`
-are admitted. The same holds for an `array<mixed>` operand and for a union with a `mixed` member. Where
-the text would land in a type the program *wrote* — a shape target of `as` or `is` over a `mixed` or
-`object` operand, or a `foreach` binding over a `mixed` or `iterable` subject — the qualifier is never
-added behind the declaration: a field or binding written without `tainted` is a diagnostic asking for
-`tainted {…}` or `tainted string`. A literal that was stored in `mixed` and is genuinely trusted is
-recovered with [`security/assert-trusted`](security.md#security-assert-trusted), or with the sink's own launderer.
+are admitted. The same holds for an `array<mixed>` operand and for a union with a `mixed` member.
+**The keys of such a value are outside text too**: a `foreach` key over a `mixed` or `iterable`
+subject, or over an array whose element type carries `tainted` or `mixed` anywhere — `queryArray`,
+`postArray`, `headers()`, a decoded `array<mixed>` — is `tainted string`, because an array's type says
+nothing of its keys and its elements are the evidence of where it was filled. An object's fields are
+read the same way: a shape target of `as` or `is` over a class takes each text field from the field of
+that name, so a field that is `mixed`, `object` or tainted, or one the class does not declare and only
+a subclass could, counts as outside text. Where the text would land in a type the program *wrote* — a
+shape target of `as` or `is` over a `mixed` or `object` operand or over such an object, or a `foreach`
+key or value binding — the qualifier is never added behind the declaration: a field or binding written
+without `tainted` is a diagnostic asking for `tainted {…}` or `tainted string`, and a `var` key takes
+`tainted string` itself. A literal that was stored in `mixed` and is genuinely trusted is recovered
+with [`security/assert-trusted`](security.md#security-assert-trusted), or with the sink's own launderer.
 
 A checked `as` conversion to a type that already throws on a malformed shape — `as uint`, `as int`,
 `as float`, `as bool`, an enum's backing type, a set of allowed values — **removes the qualifier on
@@ -963,7 +971,7 @@ whether the content is safe for a given sink, and a conversion that laundered he
 bypass of every rule below. All of it is decided while checking: no tag at run time, nothing on the
 request path.
 
-<sub>See also [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`types/conversion`](types.md#types-conversion), [`expressions/conversion-keeps-qualifiers`](expressions.md#expressions-conversion-keeps-qualifiers). Decided in [0024](../decisions/0024.md), [0007](../decisions/0007.md), [0066](../decisions/0066.md), [0279](../decisions/0279.md).</sub>
+<sub>See also [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`types/conversion`](types.md#types-conversion), [`expressions/conversion-keeps-qualifiers`](expressions.md#expressions-conversion-keeps-qualifiers). Decided in [0024](../decisions/0024.md), [0007](../decisions/0007.md), [0066](../decisions/0066.md), [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
 
 <a id="security-sink-predicate"></a>
 

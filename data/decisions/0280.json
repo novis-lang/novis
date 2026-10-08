@@ -1,0 +1,17 @@
+{
+  "title": "outside keys and an object's outside fields are `tainted`, and only an array converts to an array",
+  "status": "accepted",
+  "scope": "Three ways text from outside the program still reached a plain `string` after 0279: a `foreach` key, a shape target filled from an object's fields, and a nullable or union operand converted to an array. Not in scope: a key qualifier written on an array type, and a map nested in a `queryAs`/`postAs`/`jsonAs` target.",
+  "dependsOn": [
+    "0279",
+    "0053",
+    "0007"
+  ],
+  "dependsOnText": "[0279](0279.md) § 1 and § 3 — text out of `mixed` is `tainted`, and a written type says so itself; [0053](0053.md) — what a `foreach` binds; [0007](0007.md) — the conversion table.",
+  "validatedBy": "`tests/conformance/reject/a-foreach-key-from-outside-the-program-must-be-written-tainted.nvst`, `tests/conformance/reject/a-shape-filled-from-a-mixed-or-tainted-field-must-be-written-tainted.nvst`, `tests/conformance/reject/a-nullable-or-union-operand-with-no-array-member-does-not-convert-to-an-array.nvst` and `crates/nvs-types/tests/tainted.rs`.",
+  "summary": {
+    "group": "security",
+    "headline": "Keys and object fields from outside are tainted",
+    "body": "A `foreach` key over request data, a decoded document or an array of tainted values is now\n`tainted string`, so it cannot reach a query until it is checked. Converting an object to a shape\nreads each text field from the object's own field, and a `mixed` or tainted field needs\n`tainted {…}`. `?string as array<string>` no longer compiles."
+  }
+}

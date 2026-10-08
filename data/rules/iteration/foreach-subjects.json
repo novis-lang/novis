@@ -4,7 +4,8 @@
   "because": [
     "0053",
     "0007",
-    "0251"
+    "0251",
+    "0280"
   ],
   "seeAlso": [
     "iteration/two-interfaces",
@@ -16,6 +17,7 @@
     "tests/conformance/lang/a-foreach-key-binding-is-a-string-and-nothing-else.nvst",
     "tests/conformance/iter/foreach-over-an-iterable-object.nvst",
     "tests/conformance/iter/a-foreach-binding-written-var-takes-its-type-from-the-subject.nvst",
-    "crates/nvs-types/tests/foreach.rs"
+    "crates/nvs-types/tests/foreach.rs",
+    "tests/conformance/reject/a-foreach-key-from-outside-the-program-must-be-written-tainted.nvst"
   ]
 }

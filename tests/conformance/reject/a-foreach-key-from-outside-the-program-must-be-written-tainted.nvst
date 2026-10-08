@@ -1,0 +1,57 @@
+--TEST--
+a `foreach` key over `mixed`, or over an array whose values are tainted or `mixed`, can come from outside the program, so it binds as `tainted string` and a plain `string` key is refused — `rule:security/taint-propagation`, `rule:iteration/foreach-subjects`
+--FILE--
+<?nvs
+var $db = Core\Db::connect("main");
+
+// A plain `string` key over each kind of outside key is refused.
+foreach (Core\Request::json() as string $field => mixed $v) {
+}
+foreach (Core\Request::queryArray("filter") as string $name => tainted string $w) {
+}
+foreach (Core\Request::headers() as string $header => array<tainted string> $lines) {
+}
+array<mixed> $decoded = Core\Json::decode("{}") as array<mixed>;
+foreach ($decoded as string $key => mixed $x) {
+}
+
+// `var` takes `tainted string`, so the key cannot reach a query's text.
+foreach (Core\Request::queryArray("sort") as var $column => tainted string $y) {
+    $db->query("select * from items order by " . $column, []);
+}
+
+// Written `tainted string`, the key is accepted. A program's own keys stay `string`.
+foreach (Core\Request::queryArray("tag") as tainted string $tag => tainted string $z) {
+    echo $tag, "\n";
+}
+array<int> $counts = ["a" => 1];
+foreach ($counts as string $label => int $n) {
+    echo $label, "\n";
+}
+--FILE nvs.toml--
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0851]: this key can come from outside the program, so it must be `tainted string`
+  --> case.nvs:5:34
+%A
+error[E0851]: this key can come from outside the program, so it must be `tainted string`
+  --> case.nvs:7:48
+%A
+error[E0851]: this key can come from outside the program, so it must be `tainted string`
+  --> case.nvs:9:37
+%A
+error[E0851]: this key can come from outside the program, so it must be `tainted string`
+   --> case.nvs:12:22
+%A
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:17:16
+%A
+error: aborting due to 5 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

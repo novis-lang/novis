@@ -326,8 +326,21 @@ pub(crate) fn check_foreach_inout(
     }
 }
 
-/// Checks a `foreach` key binding: a cursor has no key at all, and an
-/// `array<T>`'s key is a `string` and nothing else.
+/// The type a `foreach` over `subject_ty` gives its key binding: `tainted
+/// string` where [`super::quals::keys_from_outside`] says the keys can come
+/// from outside the program, and `string` everywhere else. A `var` key takes
+/// it, and a written key is checked against it by [`check_foreach_key`].
+pub(crate) fn foreach_key_ty(subject_ty: TypeId, env: &mut Env<'_>) -> TypeId {
+    if super::quals::keys_from_outside(subject_ty, env.interner) {
+        env.interner.tainted_string()
+    } else {
+        env.interner.string()
+    }
+}
+
+/// Checks a `foreach` key binding: a cursor has no key at all, an
+/// `array<T>`'s key is a `string` and nothing else, and a key that can come
+/// from outside the program is written `tainted string`.
 ///
 /// # Why an array's key binding is exact
 ///
@@ -339,7 +352,17 @@ pub(crate) fn check_foreach_inout(
 /// be a widening if there were a second key type to widen over and is instead
 /// a binding at a representation the loop never produces — `rule:types/arrays`
 /// normalises `$a[8]` to `$a["8"]` at the *subscript*, and there is no
-/// conversion on the way back out.
+/// conversion on the way back out. `tainted string` is the same
+/// representation, so it is admitted over any array.
+///
+/// # Why an outside key is `tainted`
+///
+/// `given` is [`foreach_key_ty`]'s answer. Where it is `tainted string`, a key
+/// written as a plain `string` is [`code::E_UNCHECKED_TEXT_NOT_TAINTED`], the
+/// refusal a value binding over `mixed` gets: the binding is a type the
+/// program wrote, so the qualifier is not added behind it
+/// (`rule:security/taint-propagation`). A `mixed` or `iterable` subject is
+/// asked the same question, though it checks nothing else about the key.
 ///
 /// A cursor is the sharper case: `rule:iteration/two-interfaces` gives `Iterator<T>` exactly
 /// `advance()` and `current()`, so there is provably no key at all, and it
@@ -348,14 +371,20 @@ pub(crate) fn check_foreach_inout(
 /// A binding that declared no type is left alone — `nvs_syntax`'s parser
 /// already reported the omission, and the `mixed` its absence lowers to is an
 /// error-recovery placeholder rather than something the author wrote (see
-/// [`nvs_syntax::ast::ForeachBindingTy::Omitted`]). A `var` key is `string`
-/// by construction, so it passes.
+/// [`nvs_syntax::ast::ForeachBindingTy::Omitted`]). A `var` key is `given` by
+/// construction, so it passes.
 pub(crate) fn check_foreach_key(
     source: &ForeachSource,
+    given: TypeId,
     declared: TypeId,
     binding: &ForeachBinding,
     env: &mut Env<'_>,
 ) {
+    let string = env.interner.string();
+    if declared == string && given != string {
+        report_untainted_outside_key(declared, binding.span, env);
+        return;
+    }
     match *source {
         ForeachSource::Cursor { .. } => {
             env.diags.report(
@@ -374,21 +403,22 @@ pub(crate) fn check_foreach_key(
             if matches!(binding.ty, ForeachBindingTy::Omitted) {
                 return;
             }
-            let string = env.interner.string();
-            if declared != string {
+            let tainted = env.interner.tainted_string();
+            if declared != string && declared != tainted {
                 let got = env.interner.describe(declared);
+                let want = env.interner.describe(given);
                 env.diags.report(
                     Diagnostic::error(
                         code::E_FOREACH_KEY_TY,
-                        format!("an array's key binding is a `string`, not `{got}`"),
+                        format!("an array's key binding is a `{want}`, not `{got}`"),
                     )
                     .with_primary(binding.span, format!("this binds as `{got}`"))
-                    .with_help(
+                    .with_help(format!(
                         "`rule:types/arrays` gives an `array<T>` one stored key type — every key is a \
                          `string`, and `$a[8]` is normalised to `$a[\"8\"]` at the subscript \
-                         rather than converted — so write `string $k`, and convert inside the \
-                         body if the loop wants another type",
-                    ),
+                         rather than converted — so write `{want} $k`, and convert inside the \
+                         body if the loop wants another type"
+                    )),
                 );
             }
         }
@@ -396,6 +426,26 @@ pub(crate) fn check_foreach_key(
         // mistake, one diagnostic.
         ForeachSource::Unchecked => {}
     }
+}
+
+/// [`check_foreach_key`]'s refusal of a plain `string` key whose keys can come
+/// from outside the program.
+fn report_untainted_outside_key(declared: TypeId, span: Span, env: &mut Env<'_>) {
+    let written = env.interner.describe(declared);
+    env.diags.report(
+        Diagnostic::error(
+            code::E_UNCHECKED_TEXT_NOT_TAINTED,
+            format!(
+                "this key can come from outside the program, so it must be `tainted {written}`"
+            ),
+        )
+        .with_primary(span, format!("this is `{written}`"))
+        .with_help(
+            "The keys of a `mixed` value can come from outside the program. So can the keys of an \
+             array whose values are tainted or `mixed`. Write `tainted string $key`. Then check or \
+             escape the key before you use it in a query, a page or a command.",
+        ),
+    );
 }
 
 /// `rule:types/callable-values`/§ 3: a bare string or `[$obj, 'method']`-shaped array

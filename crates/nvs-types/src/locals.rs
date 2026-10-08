@@ -1378,8 +1378,8 @@ pub(crate) fn check_stmt(
         } => {
             // `rule:types/var-inference`: a bare literal under a `var` value
             // binding is that binding's initializer, so it is typed as a `var`
-            // local's literal is. A `var` key alone takes `string` whatever
-            // the elements are, and leaves the subject as it was.
+            // local's literal is. A `var` key alone takes the key type the
+            // subject gives, and leaves the subject as it was.
             let subject_ty = match (&value.ty, &subject.kind) {
                 (ForeachBindingTy::Var(_), ExprKind::ArrayLiteral(items)) => {
                     var_array_literal(items, subject, None, live, scope, ctx, env)
@@ -1389,9 +1389,11 @@ pub(crate) fn check_stmt(
             let source = crate::expr::foreach_source(subject_ty, subject.span, env);
             let mark = live.mark();
             if let Some(k) = key {
-                let string = env.interner.string();
-                let ty = foreach_binding_ty(k, string, ctx, env);
-                crate::expr::check_foreach_key(&source, ty, k, env);
+                // `rule:security/taint-propagation`: a key that can come from
+                // outside the program is `tainted string`.
+                let given = crate::expr::foreach_key_ty(subject_ty, env);
+                let ty = foreach_binding_ty(k, given, ctx, env);
+                crate::expr::check_foreach_key(&source, given, ty, k, env);
                 let name = strip_sigil(span_text(env.src, k.name)).to_owned();
                 declare_binding(scope, &name, ty, k.name, false, env);
                 live.insert(name);

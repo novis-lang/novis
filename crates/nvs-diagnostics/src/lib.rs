@@ -5440,9 +5440,10 @@ pub mod code {
     /// itself; a shape and a binding are declarations, so the program writes it.
     pub const E_UNCHECKED_TEXT_NOT_TAINTED: Code = Code::new("E0851").card(
         "Text that comes out of a `mixed` value is `tainted` (marked as coming from outside \
-         the program). A shape or a variable that gets this text must say so. Write \
-         `tainted string`, or write `tainted` before a shape, as in \
-         `$data as tainted {name: string}`.",
+         the program). The same is true for an object field that is `mixed` or tainted, and \
+         for the keys of an array whose values are tainted or `mixed`. A shape or a variable \
+         that gets this text must say so. Write `tainted string`, or write `tainted` before a \
+         shape, as in `$data as tainted {name: string}`.",
     );
 
     // --- E09xx internal ----------------------------------------------------

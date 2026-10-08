@@ -82,7 +82,10 @@ held so no later phase reports an undeclared counter on top of it.
 
 Anything else is a compile error at the subject. Only the array form binds a key — a cursor has no
 key to give ([`iteration/two-interfaces`](iteration.md#iteration-two-interfaces)), so a key binding over one is refused rather than
-filled with a counter, and an array's key binds as a string.
+filled with a counter, and an array's key binds as a string. Where the keys can come from outside the
+program — the array's element type carries `tainted` or `mixed`, or the subject is `mixed` — the key
+binds as `tainted string`, and a key written as a plain `string` there is refused
+([`security/taint-propagation`](security.md#security-taint-propagation)).
 
 Each of the three gives its value binding the element type `T`, which a written binding type is
 checked against and a `var` binding takes as its own ([`types/var-inference`](types.md#types-var-inference)).
@@ -92,7 +95,7 @@ An object becomes iterable by declaring one of the two interfaces at a concrete 
 interface that turns a subscript or a count into a method call
 ([`iteration/no-magic-collection-interfaces`](iteration.md#iteration-no-magic-collection-interfaces)).
 
-<sub>See also [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces), [`iteration/no-magic-collection-interfaces`](iteration.md#iteration-no-magic-collection-interfaces), [`iteration/generators`](iteration.md#iteration-generators). Decided in [0053](../decisions/0053.md), [0007](../decisions/0007.md), [0251](../decisions/0251.md).</sub>
+<sub>See also [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces), [`iteration/no-magic-collection-interfaces`](iteration.md#iteration-no-magic-collection-interfaces), [`iteration/generators`](iteration.md#iteration-generators). Decided in [0053](../decisions/0053.md), [0007](../decisions/0007.md), [0251](../decisions/0251.md), [0280](../decisions/0280.md).</sub>
 
 <a id="iteration-two-interfaces"></a>
 

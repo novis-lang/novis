@@ -525,6 +525,45 @@ fn a_shape_or_binding_receiving_text_out_of_mixed_must_be_written_tainted() {
 }
 
 #[test]
+fn a_foreach_key_from_outside_the_program_must_be_written_tainted() {
+    for (line, refused) in [
+        ("foreach ($m as string $k => mixed $v) {}", true),
+        ("foreach ($m as tainted string $k => mixed $v) {}", false),
+        ("foreach ($am as string $k => mixed $v) {}", true),
+        ("foreach ($ts as string $k => tainted string $v) {}", true),
+        (
+            "foreach ($ts as tainted string $k => tainted string $v) {}",
+            false,
+        ),
+        ("foreach ($ints as string $k => int $v) {}", false),
+        ("foreach ($ints as tainted string $k => int $v) {}", false),
+    ] {
+        let diags = check_in_method(&format!(
+            "mixed $m = 1;\narray<mixed> $am = [];\narray<tainted string> $ts = [];\n\
+             array<int> $ints = [];\n{line}\n"
+        ));
+        let got = diags
+            .iter()
+            .any(|d| d.code == Some(code::E_UNCHECKED_TEXT_NOT_TAINTED));
+        assert_eq!(got, refused, "{line}: {diags:?}");
+    }
+}
+
+#[test]
+fn a_var_key_over_outside_keys_is_tainted_and_over_the_programs_own_is_not() {
+    for (subject, refused) in [
+        ("array<tainted string> $a = [];", true),
+        ("array<int> $a = [];", false),
+    ] {
+        let diags = check_in_method(&format!(
+            "{subject}\nforeach ($a as var $k => var $v) {{\n    string $plain = $k;\n}}\n"
+        ));
+        let got = diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH));
+        assert_eq!(got, refused, "{subject}: {diags:?}");
+    }
+}
+
+#[test]
 fn a_shape_filled_from_an_objects_mixed_or_tainted_field_must_be_written_tainted() {
     for (line, refused) in [
         ("$p = ($this->loose as {n: string})->n;", true),

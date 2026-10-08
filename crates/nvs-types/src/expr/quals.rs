@@ -171,6 +171,25 @@ pub(crate) fn fields_unchecked(ty: TypeId, interner: &TypeInterner) -> bool {
     }
 }
 
+/// Whether the keys a `foreach` binds over a `subject` of type `ty` can come
+/// from outside the program, so the key binding is `tainted string`
+/// (`rule:security/taint-propagation`): a `mixed` or `iterable` subject, and
+/// an array whose element type carries `tainted` or `mixed` anywhere.
+///
+/// An array's type records no qualifier on its keys, so the element type is
+/// the evidence: `queryArray`'s `array<tainted string>`, `headers()`'s
+/// `array<array<tainted string>>` and a decoded `array<mixed>` were all keyed
+/// by the peer. An array the program filled with tainted values under its own
+/// literal keys is tainted here too. That only over-taints, which is
+/// [`carries_unchecked`]'s safe direction.
+pub(crate) fn keys_from_outside(ty: TypeId, interner: &TypeInterner) -> bool {
+    match interner.get(ty) {
+        Ty::Mixed | Ty::Iterable => true,
+        Ty::Array(elem) => carries_unchecked(*elem, interner) || carries_tainted(*elem, interner),
+        _ => false,
+    }
+}
+
 /// Whether `ty` names a shape with a text field written without `tainted` —
 /// at the top, inside an array's element, or as a union member. The shape's
 /// own fields are read by [`crate::derive::unqualified_text`], the question a

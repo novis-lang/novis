@@ -5,7 +5,8 @@
     "0024",
     "0007",
     "0066",
-    "0279"
+    "0279",
+    "0280"
   ],
   "seeAlso": [
     "security/tainted-qualifier",
@@ -17,6 +18,8 @@
     "crates/nvs-types/tests/tainted.rs",
     "tests/conformance/reject/tainted-and-secret-widen-but-never-narrow.nvst",
     "tests/conformance/reject/mixed-text-into-a-plain-type-is-refused.nvst",
-    "tests/conformance/lang/mixed-text-converts-to-the-tainted-form-and-a-number-stays-clean.nvst"
+    "tests/conformance/lang/mixed-text-converts-to-the-tainted-form-and-a-number-stays-clean.nvst",
+    "tests/conformance/reject/a-foreach-key-from-outside-the-program-must-be-written-tainted.nvst",
+    "tests/conformance/reject/a-shape-filled-from-a-mixed-or-tainted-field-must-be-written-tainted.nvst"
   ]
 }
