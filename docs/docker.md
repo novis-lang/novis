@@ -77,21 +77,36 @@ nvs serve /app/main.nvs --listen 0.0.0.0:8000
 (`rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 2). So a mounted tree's own
 configuration is found with nothing passed on the command line, and
 [docs/reference/tools/20-config.md](reference/tools/20-config.md) is the reference for what goes
-in it. With no `./nvs.toml`, step 3 reads `nvs.toml` in the data folder — `.nvsdata` beside the
-binary, which is `/usr/local/bin/.nvsdata` in this image, or the folder `--data` names. The
-`nonroot` account cannot create a folder in `/usr/local/bin`, so a container started without
-`--data` prints the unusable-data-folder warning, runs without a compile cache and has no root for
-`Core\IO::temporaryDir`; `--data` naming a writable volume, such as `/app/.nvsdata`, gives it all
-three. Two keys matter more in a container than outside one:
+in it. With no `./nvs.toml`, step 3 reads `nvs.toml` in the data folder.
+
+### The data folder
+
+`nvs` keeps its own files in the data folder, `.nvsdata` beside the binary: the compile cache in
+`cache/`, the folders `Core\IO::temporaryDir` makes in `tmp/`, editor stubs in `lsp/`, a service's
+log in `logs/`, and the `nvs.toml` the first run writes when it finds none. In both images that is
+**`/usr/local/bin/.nvsdata`**, and the image ships it already made: empty, owned by `nonroot`, mode
+`0700`. So the default command works as it is, with nothing passed.
+
+The folder is inside the container, so what `nvs` writes there is gone when the container is
+removed. Two ways to keep it:
+
+- **Mount a volume on `/usr/local/bin/.nvsdata`.** A named volume starts as a copy of the image's
+  folder, so it is owned by `nonroot` from the first run. A bind mount must be a host folder owned
+  by uid 65532 with no group or other write bit, or `nvs` prints its one warning and runs without
+  it.
+- **Pass `--data <full path>`** to put the whole folder somewhere else, such as a volume you
+  already mount.
+
+A container started with `--user` as another uid cannot use the image's folder, because `nonroot`
+owns it. It prints one warning, runs without a compile cache, and `Core\IO::temporaryDir` throws.
+Give it `--data` with a folder that uid owns.
+
+Two keys matter more in a container than outside one:
 
 ```toml
 [server]
 listen      = ["0.0.0.0:8000"]  # or pass --listen; see the warning above
 health_path = "/healthz"        # off by default, so no URL is silently reserved
-
-[opcache]
-file_cache_dir = "/var/cache/novis"  # optional; a writable volume here keeps compiled
-                                     # artifacts across restarts (`rule:packaging/an-artifact-is-one-immutable-content-addressed-file`)
 ```
 
 **Capabilities are denied by default and that does not change in a container.** A program that
@@ -149,22 +164,21 @@ services:
     ports: ["8000:8000"]
     volumes:
       - ./app:/app:ro
-      - novis-cache:/var/cache/novis
+      - novis-data:/usr/local/bin/.nvsdata
     read_only: true
-    tmpfs: ["/tmp"]
     cap_drop: ["ALL"]
     security_opt: ["no-new-privileges:true"]
     # A little longer than `[server] drain_timeout`, which is 30s by default. See § Stopping a container.
     stop_grace_period: 35s
 
 volumes:
-  novis-cache:
+  novis-data:
 ```
 
-`read_only` works because the process writes nothing outside `/tmp` unless you configure it to —
-`Core\IO::temporaryDir()` is what needs the `tmpfs`, and `[cache] dir` is what needs the volume.
-The container already runs as uid 65532; `cap_drop` and `no-new-privileges` cost nothing and are
-worth setting anyway.
+`read_only` works because the process writes nothing outside its data folder unless you configure
+it to, and the volume is the data folder: the compile cache, `Core\IO::temporaryDir()`'s folders
+and the first run's `nvs.toml` all land there and survive a restart. The container already runs as
+uid 65532; `cap_drop` and `no-new-privileges` cost nothing and are worth setting anyway.
 
 ## Using it as a CLI
 
@@ -193,7 +207,8 @@ Two things to know when a command *writes*:
 
 - **Mount read-write and match the uid.** The process is uid 65532, so a file it creates in a
   bind mount is owned by 65532 on the host. Add `--user "$(id -u):$(id -g)"` to get your own
-  ownership back; nothing in the image needs the `nonroot` account specifically.
+  ownership back, and with it `--data` naming a folder that uid owns, because the image's
+  `/usr/local/bin/.nvsdata` belongs to `nonroot` (§ *The data folder*).
 - **Arguments after the file go to the program**, not to `nvs`
   (`docker run … run script.nvs -- --flag`), which is `cargo run --`'s rule and is documented on
   `Core\Cli::arguments`.

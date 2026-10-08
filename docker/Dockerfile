@@ -27,6 +27,19 @@ ARG DEBIAN_BASE=debian:bookworm-slim
 # hand and never revisited stops taking them silently.
 
 # ---------------------------------------------------------------------------------------------
+# Stage `nvsdata` — one empty directory, and nothing else.
+# ---------------------------------------------------------------------------------------------
+# `nvs` keeps its compile cache, temporary files, editor stubs, default `nvs.toml` and a
+# service's logs in the data folder, `.nvsdata` beside the binary — `/usr/local/bin/.nvsdata`
+# in both images. `nonroot` cannot create a directory in `/usr/local/bin`, so the images ship it
+# already made, owned by `nonroot` and `0700`, the mode `nvs` gives a data folder it creates
+# itself. `WORKDIR` on `scratch` makes the directory without a `RUN`, so this stage executes
+# nothing and needs no QEMU; the two runtime stages copy it with their own `--chown`, which
+# resolves `nonroot` against their own `/etc/passwd`.
+FROM scratch AS nvsdata
+WORKDIR /.nvsdata
+
+# ---------------------------------------------------------------------------------------------
 # Stage `distroless` — the default image.
 # ---------------------------------------------------------------------------------------------
 # `cc` rather than `base` or `static`: a `x86_64-unknown-linux-gnu` build is dynamically linked
@@ -59,6 +72,7 @@ COPY --chmod=0755 bin/${TARGETARCH}/nvs /usr/local/bin/nvs
 # ADR 0065 puts the licence and the third-party notices beside every distributed binary, and an
 # image is a distribution like the archives are.
 COPY bin/notices/ /usr/share/doc/novis/
+COPY --from=nvsdata --chown=nonroot:nonroot --chmod=0700 /.nvsdata /usr/local/bin/.nvsdata
 
 # The convention the default command below rests on: mount your application at `/app`, with its
 # entry point at `/app/main.nvs`. It is also where `nvs` looks for `./nvs.toml` (ADR 0103 § 1
@@ -110,6 +124,7 @@ RUN groupadd --gid 65532 nonroot \
 
 COPY --chmod=0755 bin/${TARGETARCH}/nvs /usr/local/bin/nvs
 COPY bin/notices/ /usr/share/doc/novis/
+COPY --from=nvsdata --chown=nonroot:nonroot --chmod=0700 /.nvsdata /usr/local/bin/.nvsdata
 
 WORKDIR /app
 EXPOSE 8000
