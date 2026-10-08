@@ -3,7 +3,7 @@
   "status": "designed",
   "because": [
     "0093",
-    "0279"
+    "0281"
   ],
   "seeAlso": [
     "packaging/the-installer-is-a-sink",

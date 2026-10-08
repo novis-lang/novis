@@ -183,7 +183,7 @@ nothing of its own, because nobody chose it; an unusable data folder has its own
 Ownership that changes after the process started is not re-checked mid-run, consistent with every other
 `System`-class directive ([`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system)).
 
-<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system), [`packaging/an-artifact-is-verified-whole-before-a-page-is-executable`](packaging.md#packaging-an-artifact-is-verified-whole-before-a-page-is-executable). Decided in [0042](../decisions/0042.md), [0279](../decisions/0279.md).</sub>
+<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system), [`packaging/an-artifact-is-verified-whole-before-a-page-is-executable`](packaging.md#packaging-an-artifact-is-verified-whole-before-a-page-is-executable). Decided in [0042](../decisions/0042.md), [0281](../decisions/0281.md).</sub>
 
 <a id="packaging-a-bad-cache-entry-is-a-miss-never-an-error"></a>
 
@@ -1931,7 +1931,7 @@ a `--config` entry pins to another digest (`crates/nvs-cli/tests/ext_command.rs`
 a core module with the author's WIT, plus a manifest and source files, refuses a source path that leaves
 the project, and writes a `.nvsx` that loads, the same bytes each time (`crates/nvs-ext/tests/pack.rs`).
 
-<sub>See also [`packaging/an-nvsx-is-one-file-carrying-its-manifest`](packaging.md#packaging-an-nvsx-is-one-file-carrying-its-manifest), [`packaging/extension-loading-is-root-controlled`](packaging.md#packaging-extension-loading-is-root-controlled). Decided in [0246](../decisions/0246.md), [0279](../decisions/0279.md).</sub>
+<sub>See also [`packaging/an-nvsx-is-one-file-carrying-its-manifest`](packaging.md#packaging-an-nvsx-is-one-file-carrying-its-manifest), [`packaging/extension-loading-is-root-controlled`](packaging.md#packaging-extension-loading-is-root-controlled). Decided in [0246](../decisions/0246.md), [0281](../decisions/0281.md).</sub>
 
 <a id="packaging-the-boundary-is-the-cost"></a>
 
@@ -2097,7 +2097,7 @@ a registration refused because the name is taken is followed by no deregistratio
 the service that holds the name. An undo that does not finish says what is left and that `nvs service
 uninstall` removes it.
 
-<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`packaging/a-bundle-may-not-install-itself`](packaging.md#packaging-a-bundle-may-not-install-itself). Decided in [0093](../decisions/0093.md), [0088](../decisions/0088.md), [0103](../decisions/0103.md), [0048](../decisions/0048.md), [0204](../decisions/0204.md), [0279](../decisions/0279.md).</sub>
+<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`packaging/a-bundle-may-not-install-itself`](packaging.md#packaging-a-bundle-may-not-install-itself). Decided in [0093](../decisions/0093.md), [0088](../decisions/0088.md), [0103](../decisions/0103.md), [0048](../decisions/0048.md), [0204](../decisions/0204.md), [0281](../decisions/0281.md).</sub>
 
 <a id="packaging-the-argv-lives-in-imagepath"></a>
 
@@ -2161,7 +2161,7 @@ it. Every path the service reads is then owned by root or by itself and writable
 is what [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary) checks at boot. An uninstall gives each path back
 to root with the owner's bits of its mode only.
 
-<sub>See also [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink), [`packaging/a-service-answers-its-manager`](packaging.md#packaging-a-service-answers-its-manager). Decided in [0093](../decisions/0093.md), [0279](../decisions/0279.md).</sub>
+<sub>See also [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink), [`packaging/a-service-answers-its-manager`](packaging.md#packaging-a-service-answers-its-manager). Decided in [0093](../decisions/0093.md), [0281](../decisions/0281.md).</sub>
 
 <a id="packaging-a-service-answers-its-manager"></a>
 

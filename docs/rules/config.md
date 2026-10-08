@@ -170,7 +170,7 @@ folder's file is Novis's own default, one per data folder and not per project. W
 working directory safe to read there is [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), the resolved
 absolute path announced at boot, and the installer storing an absolute `--config` for every service.
 
-<sub>See also [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload). Decided in [0064](../decisions/0064.md), [0103](../decisions/0103.md), [0061](../decisions/0061.md), [0279](../decisions/0279.md).</sub>
+<sub>See also [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload). Decided in [0064](../decisions/0064.md), [0103](../decisions/0103.md), [0061](../decisions/0061.md), [0281](../decisions/0281.md).</sub>
 
 <a id="config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults"></a>
 
@@ -213,7 +213,7 @@ stores an absolute `--config` for a service ([`packaging/the-installer-is-a-sink
 is one narrow case — an interactive `nvs serve` in a directory the runtime account can write — stated
 rather than defended: an operator who wants it closed passes `--config`.
 
-<sub>See also [`config/no-configuration-file-is-a-complete-configuration`](config.md#config-no-configuration-file-is-a-complete-configuration), [`config/the-resolved-root-is-announced-and-stored`](config.md#config-the-resolved-root-is-announced-and-stored), [`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest), [`config/include-takes-a-path-or-a-dir`](config.md#config-include-takes-a-path-or-a-dir). Decided in [0103](../decisions/0103.md), [0064](../decisions/0064.md), [0093](../decisions/0093.md), [0279](../decisions/0279.md).</sub>
+<sub>See also [`config/no-configuration-file-is-a-complete-configuration`](config.md#config-no-configuration-file-is-a-complete-configuration), [`config/the-resolved-root-is-announced-and-stored`](config.md#config-the-resolved-root-is-announced-and-stored), [`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest), [`config/include-takes-a-path-or-a-dir`](config.md#config-include-takes-a-path-or-a-dir). Decided in [0103](../decisions/0103.md), [0064](../decisions/0064.md), [0093](../decisions/0093.md), [0281](../decisions/0281.md).</sub>
 
 <a id="config-no-configuration-file-is-a-complete-configuration"></a>
 
@@ -254,7 +254,7 @@ each of which is the same TOML key as the `pool = false` beside it and cannot be
 a key of the same name, which is the one arrangement where uncommenting the key alone would be
 accepted into the wrong block.
 
-<sub>See also [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set), [`config/two-modes-and-the-default-is-production`](config.md#config-two-modes-and-the-default-is-production). Decided in [0103](../decisions/0103.md), [0005](../decisions/0005.md), [0091](../decisions/0091.md), [0279](../decisions/0279.md).</sub>
+<sub>See also [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set), [`config/two-modes-and-the-default-is-production`](config.md#config-two-modes-and-the-default-is-production). Decided in [0103](../decisions/0103.md), [0005](../decisions/0005.md), [0091](../decisions/0091.md), [0281](../decisions/0281.md).</sub>
 
 <a id="config-the-resolved-root-is-announced-and-stored"></a>
 
@@ -284,7 +284,7 @@ The announcement is half of what makes the two implicit steps of
 When no step finds a file, the shipped-defaults line is printed instead, and the resolved absolute
 path is logged in every case.
 
-<sub>See also [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/one-local-control-socket`](config.md#config-one-local-control-socket). Decided in [0103](../decisions/0103.md), [0078](../decisions/0078.md), [0279](../decisions/0279.md).</sub>
+<sub>See also [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/one-local-control-socket`](config.md#config-one-local-control-socket). Decided in [0103](../decisions/0103.md), [0078](../decisions/0078.md), [0281](../decisions/0281.md).</sub>
 
 <a id="config-include-takes-a-path-or-a-dir"></a>
 
@@ -471,7 +471,7 @@ checked as any file is, with the private data folder as its directory.
 
 Where the check runs is [`config/the-ownership-check-runs-where-it-can-be-answered`](config.md#config-the-ownership-check-runs-where-it-can-be-answered).
 
-<sub>See also [`config/optional-covers-absence-and-moves-the-check-to-the-directory`](config.md#config-optional-covers-absence-and-moves-the-check-to-the-directory), [`config/any-file-in-the-tree-may-set-any-directive`](config.md#config-any-file-in-the-tree-may-set-any-directive), [`config/the-ownership-check-runs-where-it-can-be-answered`](config.md#config-the-ownership-check-runs-where-it-can-be-answered), [`config/a-secret-file-is-checked-for-integrity-and-advised-on-exposure`](config.md#config-a-secret-file-is-checked-for-integrity-and-advised-on-exposure), [`config/one-local-control-socket`](config.md#config-one-local-control-socket). Decided in [0103](../decisions/0103.md), [0042](../decisions/0042.md), [0078](../decisions/0078.md), [0279](../decisions/0279.md).</sub>
+<sub>See also [`config/optional-covers-absence-and-moves-the-check-to-the-directory`](config.md#config-optional-covers-absence-and-moves-the-check-to-the-directory), [`config/any-file-in-the-tree-may-set-any-directive`](config.md#config-any-file-in-the-tree-may-set-any-directive), [`config/the-ownership-check-runs-where-it-can-be-answered`](config.md#config-the-ownership-check-runs-where-it-can-be-answered), [`config/a-secret-file-is-checked-for-integrity-and-advised-on-exposure`](config.md#config-a-secret-file-is-checked-for-integrity-and-advised-on-exposure), [`config/one-local-control-socket`](config.md#config-one-local-control-socket). Decided in [0103](../decisions/0103.md), [0042](../decisions/0042.md), [0078](../decisions/0078.md), [0281](../decisions/0281.md).</sub>
 
 <a id="config-the-ownership-check-runs-where-it-can-be-answered"></a>
 
@@ -500,7 +500,7 @@ unchecked file on the `run` path carries the invoking account's own authority an
 `nvs.toml` can grant a CLI program nothing it could not take for itself, and the rule that places the
 capability check is bound by that sentence.
 
-<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/check-and-dump-audit-the-tree-offline`](config.md#config-check-and-dump-audit-the-tree-offline), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope). Decided in [0103](../decisions/0103.md), [0093](../decisions/0093.md), [0279](../decisions/0279.md).</sub>
+<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/check-and-dump-audit-the-tree-offline`](config.md#config-check-and-dump-audit-the-tree-offline), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope). Decided in [0103](../decisions/0103.md), [0093](../decisions/0093.md), [0281](../decisions/0281.md).</sub>
 
 <a id="config-optional-covers-absence-and-moves-the-check-to-the-directory"></a>
 
@@ -703,7 +703,7 @@ shipped defaults
 So `nvs serve --mode=development` on a mixed host does not drag an application that pins `production`
 along with it, and `[mode] ceiling` still bounds what any of them may select.
 
-<sub>See also [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set), [`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped). Decided in [0103](../decisions/0103.md), [0091](../decisions/0091.md), [0097](../decisions/0097.md), [0064](../decisions/0064.md), [0279](../decisions/0279.md).</sub>
+<sub>See also [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set), [`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped). Decided in [0103](../decisions/0103.md), [0091](../decisions/0091.md), [0097](../decisions/0097.md), [0064](../decisions/0064.md), [0281](../decisions/0281.md).</sub>
 
 <a id="config-reloadability-is-its-own-field"></a>
 
@@ -1997,7 +1997,7 @@ started is not re-checked mid-run, consistent with every other `System` directiv
 looks like on disk, how an entry is verified before it is mapped executable, and the refusal of a
 world-writable directory are the packaging chapter's; this rule is only the roster and its class.
 
-<sub>See also [`config/every-schedule-key-is-system`](config.md#config-every-schedule-key-is-system), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class). Decided in [0042](../decisions/0042.md), [0005](../decisions/0005.md), [0017](../decisions/0017.md), [0175](../decisions/0175.md), [0279](../decisions/0279.md).</sub>
+<sub>See also [`config/every-schedule-key-is-system`](config.md#config-every-schedule-key-is-system), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class). Decided in [0042](../decisions/0042.md), [0005](../decisions/0005.md), [0017](../decisions/0017.md), [0175](../decisions/0175.md), [0281](../decisions/0281.md).</sub>
 
 <a id="config-telemetry-and-update-endpoints-are-configuration"></a>
 

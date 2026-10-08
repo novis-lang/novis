@@ -319,7 +319,7 @@ way a `--FILE lib/user.nvs--` section's is. Real files rather than virtual docum
 location works unchanged in every client and a cursor inside a stub keeps every answer
 ([`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients)).
 
-<sub>See also [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`core-api/reference-card`](core-api.md#core-api-reference-card), [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace). Decided in [0214](../decisions/0214.md), [0279](../decisions/0279.md).</sub>
+<sub>See also [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`core-api/reference-card`](core-api.md#core-api-reference-card), [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace). Decided in [0214](../decisions/0214.md), [0281](../decisions/0281.md).</sub>
 
 <a id="ide-the-request-set-is-closed"></a>
 
