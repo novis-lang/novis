@@ -1,0 +1,35 @@
+{
+  "state": "**Goal `class-scoped-enums` — an enum is declared in the class that uses it, `Order::Status::Paid`, for programs and for every `Core` and built-in enum — has just started; nothing of it has landed yet.** Stage 1's floor is whatever the chain carries.\n\nThe user asked for it on 2026-10-08, settled the member's rules (no modifier, not inherited, no `self::`/`static::` spelling, one name per owner, class and interface bodies only), made it the default for programs, and asked for `Core` and the built-in components to follow the same rule because there is no release yet. The goal file's § *Standing decisions* holds those calls, the writer's own calls, and the full rename table. No session re-decides one.\n\nFacts about the tree as the goal was written. `class Order { enum Status { Open, Paid } }` gives ten diagnostics led by `E0101 expected a class member` (`crates/nvs-syntax/src/parser/decl.rs:1094`). `Order::Status::Paid` in value position parses as a nested `ClassConstAccess` and is refused with `E0309`/`E0496` by `is_written_class_side` (`crates/nvs-types/src/expr/members.rs:871`). A type atom takes one `::` segment (`crates/nvs-syntax/src/parser/ty.rs:561`). A class-scoped alias is keyed by `AliasKey::Member(owner, name)` (`crates/nvs-hir/src/aliases.rs:66`), which is the model for an owned enum's key. The 37 `Core` enums are `crates/nvs-stdlib/src/registry.rs:3075`, each a hand-written qualified string seeded by `QName::parse` at `crates/nvs-types/src/enums.rs:201`; the runtime finds an enum by its label string (`crates/nvs-runtime/src/object.rs:2620`).",
+  "next": {
+    "stage": 2,
+    "title": "the record and its fragments",
+    "files": [
+      "docs/decisions/",
+      "docs/rules/enums/",
+      "docs/rules/types/",
+      "docs/rules/statements/",
+      "docs/rules/ide/",
+      "docs/adr/README.md"
+    ],
+    "items": [
+      {
+        "done": false,
+        "text": "**The record** — one new record, its number checked against `docs/decisions/` right before it is written: the declaration sites, `Owner::Name` and `Owner::Name::Case` from anywhere and the bare name inside the owner, the refusals with their codes, no member import, the name a program sees (`Shop\\Order::Status`), the placement rule, the `Core` and built-in rename tables, and the tradeoffs. Its front matter amends ADR 0190 and creates the two fragments below."
+      },
+      {
+        "done": false,
+        "text": "**The fragments** — create `enums/class-scoped-enum` and `enums/an-enum-lives-in-the-class-that-uses-it`; rewrite `types/class-scoped-alias` § *A name is one thing*, `statements/an-enum-name-is-a-type-everywhere`, `enums/reflection` and `ide/the-stub-tree-is-where-core-is-declared`; rewrite the `docs/adr/README.md:342` paragraph so a class body is the one place besides file scope an enum may be declared."
+      },
+      {
+        "done": false,
+        "text": "**The stage contexts** — add `enums/class-scoped-enum` to the `context.rules` of Stages 3 to 6 and `enums/an-enum-lives-in-the-class-that-uses-it` to Stages 7 to 9 in `data/goals/class-scoped-enums.json`, now that both exist."
+      }
+    ]
+  },
+  "backlog": [
+    "Stage 3: the parser — the member arm, the two-`::` type atom, one diagnostic for a class in a class body and an enum in an enum body, the walker node.",
+    "Stages 4 to 6: names and the checker, lowering and the runtime name, the editor and the formatter.",
+    "Stages 7 and 8: every `Core` enum, then every built-in component enum, moved to its class by the goal's rename table.",
+    "Stages 9 and 10: the docs, examples and website put enums in classes by default, then the feature proofs and the Stage 0 search."
+  ]
+}

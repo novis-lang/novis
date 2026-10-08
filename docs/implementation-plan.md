@@ -16,9 +16,10 @@
 > what it is walking through instead. Dependencies: `regex` + `fancy-regex` and `jiff` are named by
 > the user; the rest the loop picks under `rule:packaging/a-c-dependency-answers-two-questions`.
 >
-> **Done:** **M0 through M8 are complete** — everything from project setup to the stdlib and the
-> five SQL drivers, which is the whole program ahead of the extension system, and M9 is the first
-> milestone with work still in front of it. `bun nv plan --past` is what says so, and it derives the
+> **Done:** **M0 through M8 are complete but M4** — everything from project setup to the stdlib and
+> the five SQL drivers, which is the whole program ahead of the extension system. Goal
+> `class-scoped-enums` reopens M4 for one language member, and M9 is the first later milestone with
+> work still in front of it. `bun nv plan --past` is what says so, and it derives the
 > answer rather than reading it: no goal on the chain carries a milestone, and no register still
 > tags an item to it. Each milestone file under [docs/plan/](plan/) states its own acceptance.
 >
@@ -91,7 +92,7 @@ somebody has already followed.
 | done | [M1](plan/m1.md) | Front end (~3 weeks) | 0.7 |
 | done | [M2](plan/m2.md) | HIR, types, IR (~4 weeks) | 1.5 |
 | done | [M3](plan/m3.md) | Baseline Cranelift backend → **Hello World** (~3 weeks) | 0.5 |
-| done | [M4](plan/m4.md) | Language completeness — a usable CLI language (~10 weeks) | ~3 |
+| goal `class-scoped-enums` | [M4](plan/m4.md) | Language completeness — a usable CLI language (~10 weeks) | ~3 |
 | done | [M4S](plan/m4s.md) | The `Core` API contract and its pure half (~5 weeks) | ~1.5 |
 | done | [M4B](plan/m4b.md) | Minimal `nvs-lsp`, syntax highlighting and the VS Code extension (~3 weeks) | ~1.5 |
 | done | [M5](plan/m5.md) | Concurrency and script isolates (~5 weeks) | ~3.5 |

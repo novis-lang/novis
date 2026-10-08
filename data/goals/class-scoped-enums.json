@@ -1,0 +1,490 @@
+{
+  "title": "An enum is declared in the class that uses it: `Order::Status::Paid`, for programs and for every `Core` and built-in enum",
+  "milestone": "M4",
+  "position": "last",
+  "files": [],
+  "context": {
+    "modules": [
+      "crates/nvs-syntax/src/parser/decl.rs",
+      "crates/nvs-syntax/src/parser/ty.rs",
+      "crates/nvs-syntax/src/ast.rs",
+      "crates/nvs-hir/src/aliases.rs",
+      "crates/nvs-hir/src/resolve.rs",
+      "crates/nvs-types/src/enums.rs",
+      "crates/nvs-types/src/lower.rs",
+      "crates/nvs-types/src/expr/members.rs"
+    ],
+    "rules": [
+      "types/class-scoped-alias",
+      "enums/declaration",
+      "enums/no-class-machinery",
+      "statements/an-enum-name-is-a-type-everywhere"
+    ],
+    "adrs": [
+      "0190"
+    ],
+    "shapes": [
+      "A commit message"
+    ],
+    "playbook": [
+      "Tooling > the end",
+      "Tooling > one call reads",
+      "Tooling > a commit message",
+      "Tooling > another agent"
+    ],
+    "plan": [
+      "Open now",
+      "Blocking"
+    ],
+    "milestones": []
+  },
+  "stages": [
+    {
+      "number": 2,
+      "title": "the record and its fragments",
+      "summary": "Writes the record from the goal's standing decisions and the fragments it creates and rewrites.",
+      "context": {
+        "rules": [
+          "types/grammar",
+          "types/enum-case-type",
+          "enums/reflection",
+          "ide/the-stub-tree-is-where-core-is-declared",
+          "statements/nothing-gets-a-second-name"
+        ],
+        "adrs": [],
+        "shapes": [
+          "A decision record",
+          "A rule fragment"
+        ]
+      }
+    },
+    {
+      "number": 3,
+      "title": "the parser",
+      "summary": "Parses an enum in a class or interface body and the two-`::` type and value forms, and refuses the declarations that stay refused with one diagnostic each.",
+      "context": {
+        "rules": [
+          "types/grammar"
+        ],
+        "adrs": [],
+        "shapes": [
+          "A diagnostic"
+        ],
+        "playbook": [
+          "Writing Novis > a new exprkind variant",
+          "Tooling > a node added to nvs_syntax::walk"
+        ]
+      }
+    },
+    {
+      "number": 4,
+      "title": "names and the checker",
+      "summary": "Gives an owned enum its own key, resolves both spellings in type and value position, and reports the refusals.",
+      "context": {
+        "rules": [
+          "types/enum-case-type",
+          "statements/nothing-gets-a-second-name"
+        ],
+        "adrs": [],
+        "shapes": [
+          "A `.nvst` test case",
+          "A diagnostic"
+        ]
+      }
+    },
+    {
+      "number": 5,
+      "title": "lowering, the runtime name, reflection and `nvs meta`",
+      "summary": "Carries an owned enum through to the program: its cases are integers, its name is the one a program sees, and every place that looks an enum up by name finds it.",
+      "context": {
+        "rules": [
+          "enums/reflection",
+          "enums/representation",
+          "routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name"
+        ],
+        "adrs": [],
+        "shapes": [
+          "A `.nvst` test case"
+        ],
+        "playbook": [
+          "Tooling > nvs-ir cannot name"
+        ]
+      }
+    },
+    {
+      "number": 6,
+      "title": "the editor and the formatter",
+      "summary": "Makes an owned enum a first-class citizen of the language server and `nvs fmt`.",
+      "context": {
+        "rules": [
+          "tooling/fmt-novis-constructs",
+          "tooling/fmt-never-reorders-members"
+        ],
+        "adrs": [],
+        "shapes": [],
+        "playbook": [
+          "Writing a test case > a go-to-definition",
+          "Tooling > a node added to nvs_syntax::walk"
+        ]
+      }
+    },
+    {
+      "number": 7,
+      "title": "every `Core` enum moves to the class that uses it",
+      "summary": "Applies the placement rule to the `Core` enums in the registry, with the goal's rename table, and everything that names them.",
+      "context": {
+        "rules": [
+          "core-api/no-mode-strings",
+          "core-api/reference-card"
+        ],
+        "adrs": [],
+        "shapes": [
+          "A `.nvst` test case"
+        ],
+        "playbook": [
+          "Writing Novis > the enum a core member returns",
+          "Writing Novis > widening a member's declared type"
+        ]
+      }
+    },
+    {
+      "number": 8,
+      "title": "the built-in components' enums move too",
+      "summary": "Applies the same rule to the enums the image and intl components declare in their manifests.",
+      "context": {
+        "rules": [],
+        "adrs": [],
+        "shapes": []
+      }
+    },
+    {
+      "number": 9,
+      "title": "the class body is where a program's enum goes",
+      "summary": "Makes an owned enum the default everywhere a reader learns the language: the reference chapters, the examples, the website and the templates.",
+      "context": {
+        "rules": [],
+        "adrs": [],
+        "shapes": []
+      }
+    },
+    {
+      "number": 10,
+      "title": "the feature proofs",
+      "summary": "Writes the feature proofs for `lang:enums/an-enum-inside-a-class` and closes Stage 0.",
+      "context": {
+        "rules": [
+          "testing/feature-proofs",
+          "testing/one-slice-is-one-feature"
+        ],
+        "adrs": [],
+        "shapes": []
+      }
+    }
+  ],
+  "checks": [
+    {
+      "id": "class-scoped-enums-the-record-creates-its-fragments",
+      "kind": "command",
+      "stage": 2,
+      "name": "rulebook: the record created the member's rule and the placement rule",
+      "argv": [
+        "bun",
+        "nv",
+        "peek",
+        "rule:enums/class-scoped-enum",
+        "rule:enums/an-enum-lives-in-the-class-that-uses-it"
+      ],
+      "want": [
+        "docs/rules/enums/class-scoped-enum.md",
+        "docs/rules/enums/an-enum-lives-in-the-class-that-uses-it.md"
+      ]
+    },
+    {
+      "id": "nvs-syntax-an-enum-is-a-class-member",
+      "kind": "cargo-named",
+      "stage": 3,
+      "name": "nvs-syntax (an enum parses in a class and an interface body, a type and a value reach a case through two `::`, and a class in a class body or an enum in an enum body is one diagnostic)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-syntax",
+        "--lib",
+        "parser::"
+      ],
+      "tests": [
+        "an_enum_is_a_member_of_a_class_body",
+        "an_enum_is_a_member_of_an_interface_body",
+        "a_modifier_in_front_of_a_member_enum_is_refused",
+        "a_class_or_interface_in_a_class_body_is_one_diagnostic",
+        "an_enum_in_an_enum_body_is_one_diagnostic",
+        "a_type_reaches_a_case_of_a_class_scoped_enum",
+        "an_expression_chains_two_double_colons_to_a_case",
+        "a_member_enum_is_walked_with_its_cases"
+      ]
+    },
+    {
+      "id": "class-scoped-enums-the-checker-resolves-both-spellings",
+      "kind": "nvs-suite",
+      "stage": 4,
+      "name": "an owned enum is reached from outside and inside its class, types every binding site, and is refused where the rule refuses it",
+      "args": [
+        "test",
+        "tests/conformance/"
+      ],
+      "cases": [
+        "tests/conformance/enum/a-class-scoped-enum-is-reached-from-outside-and-inside-its-class.nvst",
+        "tests/conformance/enum/a-class-scoped-enum-types-a-property-a-parameter-and-a-match.nvst",
+        "tests/conformance/enum/a-class-scoped-enum-case-is-a-narrowed-type.nvst",
+        "tests/conformance/enum/an-interface-owns-an-enum-too.nvst",
+        "tests/conformance/enum/a-class-scoped-enum-and-a-class-of-the-same-path-are-two-types.nvst",
+        "tests/conformance/reject/a-class-scoped-enum-takes-no-modifier.nvst",
+        "tests/conformance/reject/a-class-scoped-enum-is-not-inherited.nvst",
+        "tests/conformance/reject/a-class-scoped-enum-does-not-share-a-name-with-a-constant-or-an-alias.nvst",
+        "tests/conformance/reject/a-class-scoped-enum-is-not-imported-by-use.nvst",
+        "tests/conformance/reject/an-enum-is-not-declared-in-an-enum-body.nvst",
+        "tests/conformance/reject/a-class-is-not-declared-in-a-class-body.nvst"
+      ]
+    },
+    {
+      "id": "class-scoped-enums-the-name-a-program-sees",
+      "kind": "nvs-suite",
+      "stage": 5,
+      "name": "an owned enum reports its owner in its name, casts to and from its integer, and types a route capture",
+      "args": [
+        "test",
+        "tests/conformance/"
+      ],
+      "cases": [
+        "tests/conformance/enum/a-class-scoped-enum-names-itself-with-its-owner.nvst",
+        "tests/conformance/enum/a-class-scoped-enum-casts-from-an-integer-and-back.nvst",
+        "tests/conformance/core/router-a-capture-takes-a-class-scoped-enum.nvst"
+      ]
+    },
+    {
+      "id": "nvs-cli-meta-lists-an-owned-enum-under-its-owner",
+      "kind": "cargo-named",
+      "stage": 5,
+      "name": "nvs-cli (`nvs meta --json` lists an owned enum under its owner, with its cases)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-cli",
+        "--test",
+        "meta"
+      ],
+      "tests": [
+        "a_class_scoped_enum_is_listed_under_its_owner"
+      ]
+    },
+    {
+      "id": "class-scoped-enums-the-editor-knows-an-owned-enum",
+      "kind": "nvs-suite",
+      "stage": 6,
+      "name": "the language server outlines, completes, defines and hovers an owned enum from both spellings",
+      "args": [
+        "lsp-test",
+        "tests/lsp/"
+      ],
+      "cases": [
+        "tests/lsp/symbols/a-class-scoped-enum-nests-under-its-class.lspt",
+        "tests/lsp/completion/after-a-class-name-its-enum-is-offered.lspt",
+        "tests/lsp/completion/after-a-class-scoped-enum-its-cases-are-offered.lspt",
+        "tests/lsp/completion/inside-its-owner-a-class-scoped-enum-completes-bare.lspt",
+        "tests/lsp/definition/a-class-scoped-enum-case-jumps-to-its-declaration.lspt",
+        "tests/lsp/definition/a-bare-class-scoped-enum-jumps-to-its-declaration.lspt",
+        "tests/lsp/hover/a-class-scoped-enum-shows-its-owner.lspt"
+      ]
+    },
+    {
+      "id": "nvs-fmt-an-owned-enum-is-laid-out",
+      "kind": "cargo-named",
+      "stage": 6,
+      "name": "nvs-fmt (an owned enum is laid out as a file-scope enum and never moved)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-fmt",
+        "--test",
+        "novis_constructs"
+      ],
+      "tests": [
+        "a_class_scoped_enum_is_laid_out_like_a_file_scope_one"
+      ]
+    },
+    {
+      "id": "nvs-stdlib-every-core-enum-lives-with-its-class",
+      "kind": "cargo-named",
+      "stage": 7,
+      "name": "nvs-stdlib (every `Core` enum one class uses is owned by it, every owned enum is used by its owner, and no owned enum repeats its owner's word)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-stdlib",
+        "--test",
+        "enum_owners"
+      ],
+      "tests": [
+        "every_core_enum_one_class_uses_is_owned_by_it",
+        "every_owned_core_enum_is_used_by_its_owner",
+        "no_owned_core_enum_repeats_its_owners_word"
+      ]
+    },
+    {
+      "id": "nvs-lsp-a-core-enum-is-written-inside-its-class-stub",
+      "kind": "cargo-named",
+      "stage": 7,
+      "name": "nvs-lsp (the stub tree writes an owned `Core` enum inside its class's stub, and no file of its own)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-lsp",
+        "--lib",
+        "stubs::"
+      ],
+      "tests": [
+        "an_owned_core_enum_is_written_inside_its_class_stub"
+      ]
+    },
+    {
+      "id": "class-scoped-enums-a-core-enum-is-reached-through-its-class",
+      "kind": "nvs-suite",
+      "stage": 7,
+      "name": "a `Core` enum is reached through its class, and its old name does not resolve",
+      "args": [
+        "test",
+        "tests/conformance/"
+      ],
+      "cases": [
+        "tests/conformance/core/a-core-enum-is-reached-through-its-class.nvst",
+        "tests/conformance/reject/a-core-enum-is-not-reached-by-its-old-name.nvst"
+      ]
+    },
+    {
+      "id": "nvs-ext-a-component-enum-lives-with-its-class",
+      "kind": "cargo-named",
+      "stage": 8,
+      "name": "nvs-ext (a manifest enum names its owner, one class's enum is owned by it, and the owner is a class the manifest declares)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-ext",
+        "--test",
+        "manifest"
+      ],
+      "tests": [
+        "a_manifest_enum_is_keyed_under_its_owner",
+        "every_component_enum_one_class_uses_is_owned_by_it",
+        "an_enum_owner_the_manifest_does_not_declare_is_refused"
+      ]
+    },
+    {
+      "id": "class-scoped-enums-a-component-enum-is-reached-through-its-class",
+      "kind": "nvs-suite",
+      "stage": 8,
+      "name": "a built-in component's enum is reached through its class",
+      "args": [
+        "test",
+        "tests/conformance/"
+      ],
+      "cases": [
+        "tests/conformance/ext/a-component-enum-is-reached-through-its-class.nvst"
+      ]
+    },
+    {
+      "id": "dossier-the-enum-examples-run",
+      "kind": "command",
+      "stage": 9,
+      "name": "proofs: every `lang:enums` feature owes nothing, and its examples and attacks pass after the move to class bodies",
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--verify",
+        "--only",
+        "lang:enums/a-case-is-its-integer",
+        "lang:enums/a-union-of-cases-is-a-narrower-type",
+        "lang:enums/an-enum-as-a-type",
+        "lang:enums/comparing-cases",
+        "lang:enums/core-enums",
+        "lang:enums/declaring-an-enum",
+        "lang:enums/from-an-integer-back-to-a-case",
+        "lang:enums/match-and-switch-over-an-enum",
+        "lang:enums/what-an-enum-does-not-have"
+      ],
+      "want": [
+        "nothing owed in 9 named feature(s)",
+        "proofs examples:",
+        "0 failed",
+        "proofs hostile:",
+        "0 failed"
+      ]
+    },
+    {
+      "id": "dossier-the-enum-feature-owes-nothing",
+      "kind": "command",
+      "stage": 10,
+      "name": "proofs: `lang:enums/an-enum-inside-a-class` owes nothing, and its examples and attack pass",
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--verify",
+        "--only",
+        "lang:enums/an-enum-inside-a-class"
+      ],
+      "want": [
+        "nothing owed in 1 named feature(s)",
+        "proofs examples:",
+        "0 failed",
+        "proofs hostile:",
+        "0 failed"
+      ]
+    },
+    {
+      "id": "dossier-the-enum-programs-carry-plain-comments",
+      "kind": "command",
+      "stage": 10,
+      "name": "proofs: the enum examples, attacks and benches carry comments inside the plain-comment bounds",
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--comments",
+        "docs/examples/lang/enums",
+        "website/snippets/syntax/enums"
+      ],
+      "want": [
+        "each inside the bounds"
+      ]
+    },
+    {
+      "id": "dossier-the-whole-roster-owes-nothing-with-class-scoped-enums",
+      "kind": "command",
+      "stage": 10,
+      "name": "proofs: the whole roster owes nothing with every enum at its new place",
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--gate"
+      ],
+      "want": [
+        "nothing owed in the whole roster"
+      ]
+    }
+  ],
+  "env": {
+    "valgrind": {
+      "skip": [
+        "examples/fatal.nvs",
+        "examples/uncaught.nvs",
+        "examples/cache-shared-socket.nvs",
+        "examples/queue-sqlite.nvs",
+        "examples/cache-shared-tls.nvs"
+      ]
+    },
+    "wsl": {
+      "targetDir": "/var/tmp/nvs-target-wsl"
+    }
+  }
+}
