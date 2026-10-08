@@ -182,6 +182,7 @@ pub mod json;
 mod jwe;
 mod jwt;
 mod keyring;
+pub mod ldap;
 mod log;
 mod mail;
 pub mod math;

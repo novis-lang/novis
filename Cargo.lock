@@ -3214,6 +3214,7 @@ dependencies = [
  "nvs-ext",
  "nvs-footprint",
  "nvs-host",
+ "nvs-ldap",
  "nvs-render",
  "nvs-repo",
  "nvs-runtime",

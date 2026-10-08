@@ -302,7 +302,7 @@ mod column;
 mod execute;
 mod open;
 mod plan;
-mod pool;
+pub(crate) mod pool;
 mod registry;
 mod row;
 mod schema;

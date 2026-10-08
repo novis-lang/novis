@@ -119,7 +119,7 @@ pub(super) fn warm_connection(lease: &nvs_runtime::pool::Lease) -> Option<nvs_db
 /// do about either is the same, and § 8's `Db\DbError` is for a refusal the
 /// *server* made, which this is not. The one other ending is [`Ctx::cancel`]'s
 /// status for a task cancelled while it waited, which no `catch` sees.
-pub(super) fn wait_for_slot(
+pub(crate) fn wait_for_slot(
     ctx: &mut nvs_runtime::Ctx,
     ticket: nvs_runtime::pool::Ticket,
     full: &dyn Fn(&str) -> Fault,

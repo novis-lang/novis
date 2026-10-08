@@ -1422,6 +1422,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "nvs-ldap"
+version = "0.0.1"
+dependencies = [
+ "nvs-host",
+]
+
+[[package]]
 name = "nvs-render"
 version = "0.0.1"
 dependencies = [
@@ -1482,6 +1489,7 @@ dependencies = [
  "nvs-db",
  "nvs-footprint",
  "nvs-host",
+ "nvs-ldap",
  "nvs-render",
  "nvs-runtime",
  "nvs-syntax",
