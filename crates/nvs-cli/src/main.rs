@@ -299,6 +299,38 @@ fn prepare_data_folder() {
     }
 }
 
+/// Makes the data folder's `logs/nvs.log` the `[log] target` of every tree this
+/// process resolves that sets none — the default for a service.
+///
+/// With no usable data folder the target stays `stderr`, and
+/// [`prepare_data_folder`] has already printed the one warning that says why.
+/// A target written in the configuration always wins: `nvs_config::log`'s
+/// module doc owns that check.
+fn log_like_a_service() {
+    if let Some(folder) = nvs_config::data::current() {
+        // `false` only when a default was already set, and this runs once.
+        let _ = nvs_config::log::serve_into(&folder.service_log());
+    }
+}
+
+/// Whether a service manager started this process: systemd's `$NOTIFY_SOCKET`
+/// on Unix, which is also where `service::Notify::from_env` reports, and the
+/// SCM on Windows, known only once [`dispatch::serving`] runs the server.
+fn started_by_a_manager() -> bool {
+    #[cfg(unix)]
+    {
+        std::env::var_os("NOTIFY_SOCKET").is_some_and(|socket| !socket.is_empty())
+    }
+    #[cfg(windows)]
+    {
+        dispatch::hosted()
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        false
+    }
+}
+
 /// The project commands, which are the ones that write the shipped default file into the data
 /// folder when they resolve no tree: the commands that read a configuration **in order to execute
 /// something**.
@@ -1476,7 +1508,12 @@ fn serve_command(
     config: Vec<PathBuf>,
     init: config::Init,
 ) -> ExitCode {
-    let run = move || serve::run(file.as_deref(), listen.as_deref(), port, &config, init);
+    let run = move || {
+        if started_by_a_manager() {
+            log_like_a_service();
+        }
+        serve::run(file.as_deref(), listen.as_deref(), port, &config, init)
+    };
     #[cfg(windows)]
     let run = match dispatch::serving(Box::new(run)) {
         Ok(code) => return code,
@@ -1508,6 +1545,8 @@ fn run_hosted(argv: &[String]) -> ExitCode {
     if cli.command.as_ref().is_some_and(prepares) {
         prepare_data_folder();
     }
+    // The line runs as the service would, so it logs where the service does.
+    log_like_a_service();
     let no_init = std::env::var_os(config::NO_INIT);
     let init = config::init_gate(
         cli.command.as_ref().is_some_and(initializes),
@@ -1721,19 +1760,24 @@ fn main() -> ExitCode {
             peer,
             events,
             arguments,
-        } => run_run(
-            &file,
-            dump_ir,
-            dump_asm,
-            fault_inject,
-            count,
-            request.as_deref(),
-            peer.as_deref(),
-            events.as_deref(),
-            &cli.config,
-            arguments,
-            init,
-        ),
+        } => {
+            if started_by_a_manager() {
+                log_like_a_service();
+            }
+            run_run(
+                &file,
+                dump_ir,
+                dump_asm,
+                fault_inject,
+                count,
+                request.as_deref(),
+                peer.as_deref(),
+                events.as_deref(),
+                &cli.config,
+                arguments,
+                init,
+            )
+        }
         Command::Serve { file, listen, port } => {
             serve_command(file, listen, port, cli.config.clone(), init)
         }

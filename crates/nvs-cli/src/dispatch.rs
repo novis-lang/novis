@@ -231,6 +231,13 @@ pub(crate) fn serving(
     platform::serving(run)
 }
 
+/// Whether the SCM started this process: true from the moment the SCM calls
+/// the service's entry point, so the closure [`serving`] runs sees it.
+#[cfg(windows)]
+pub(crate) fn hosted() -> bool {
+    platform::NAME.get().is_some()
+}
+
 #[cfg(windows)]
 pub(crate) mod platform {
     //! The Windows layer: the connect, the handler, the status struct and the
@@ -288,7 +295,7 @@ pub(crate) mod platform {
 
     /// The service's name as the SCM spelled it, NUL-terminated, for the
     /// event-log source registered under it at install.
-    static NAME: OnceLock<Vec<u16>> = OnceLock::new();
+    pub(super) static NAME: OnceLock<Vec<u16>> = OnceLock::new();
 
     /// The status handle, which is the SCM's and outlives every report, and
     /// whether the *started* record was written yet.

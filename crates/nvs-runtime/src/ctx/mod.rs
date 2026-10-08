@@ -826,8 +826,9 @@ pub struct Ctx {
     /// file per record and count nothing.
     ///
     /// **What it spends:** one discriminant per context while the directive is
-    /// unset, and one `LogFile` — a path, a descriptor and two counters — for a
-    /// context that writes to a configured file. Nothing is O(records).
+    /// unset, and one `LogFile` handle for a context that writes to a configured
+    /// file; the file itself is shared by every context naming the same path.
+    /// Nothing is O(records).
     log: LogTarget,
     /// The quietest level `[log] level` writes — [`Self::write_log_record`]'s
     /// floor, resolved beside [`Self::log`] on the same first use because one

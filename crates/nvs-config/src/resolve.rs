@@ -460,6 +460,9 @@ pub fn resolve(
     // runs, and a fire or an escalation must run the file beside the configuration that named it.
     crate::schedule::anchor(&mut resolved.config, &mut resolved.table, &origins);
     crate::log::anchor(&mut resolved.config, &mut resolved.table, &origins);
+    // A service's default `[log] target`, before the check below reads the block: a tree no file
+    // gave a target writes to the data folder's log file under a service manager.
+    crate::log::service_default(&mut resolved.config, &mut resolved.table, &origins);
     // `rule:security/db-pool-reset-is-a-boundary`'s pool bounds, in the same pass's second half: a `lifetime` that spells nothing
     // is a boot refusal naming its file, rather than the first acquire of the first request.
     crate::db::validate(&resolved.config, &origins)?;

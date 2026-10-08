@@ -249,7 +249,12 @@
 #handler_reserve_memory = "16M"       # default
 #handler_reserve_time = "5s"          # default
 # Tier 4, the floor that is always there: `stderr`, `file:<path>` or `syslog`.
+# When this is not set, a service writes to `logs/nvs.log` in its data folder.
 #target = "stderr"                    # default
+# When a `file:` log reaches this size, Novis renames it to `<file>.1` and starts a new file.
+#max_size = "10M"                     # default
+# How many renamed log files Novis keeps. It deletes older ones. With `0`, it keeps none.
+#keep = 5                             # default
 # Which rendering the target emits — `rule:errors/renderings`' set minus the HTML one, which belongs
 # to a response and never to a destination. The mode picks this.
 #format = "json"                      # default: "json" in production, "text" in development
@@ -1080,6 +1085,8 @@
 #handler_reserve_memory = "16M"       # default
 #handler_reserve_time = "5s"          # default
 #target = "stderr"                    # default
+#max_size = "10M"                     # default
+#keep = 5                             # default
 #format = "json"                      # default: "json" in production, "text" in development
 #level = "Info"                       # default: "Info" in production, "Debug" in development
 

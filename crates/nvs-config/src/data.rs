@@ -3,8 +3,10 @@
 //! It is `.nvsdata` beside the running binary — [`std::env::current_exe`], canonicalized through
 //! [`trust::canonical`], its parent — unless the command line names another one, and a relative
 //! name resolves against the working directory like every other command-line path. Inside it are
-//! [`Folder::config_file`], [`Folder::cache`], [`Folder::tmp`] and [`Folder::lsp`]; each of those
-//! has a configuration key that moves it, and this module only owns the default.
+//! [`Folder::config_file`], [`Folder::cache`], [`Folder::tmp`], [`Folder::lsp`] and
+//! [`Folder::logs`]; each of those has a configuration key that moves it, and this module only owns
+//! the default. `logs/` is the default only for a service: `nvs_cli`'s hosted entry point reads it
+//! when the resolved tree sets no `[log] target`, and the command line keeps `stderr`.
 //!
 //! **One value per process.** The CLI names the folder once at startup through [`set`], and every
 //! reader asks [`current`]. A process that never set one — an in-process test, a library caller —
@@ -149,6 +151,18 @@ impl Folder {
         self.root.join("lsp")
     }
 
+    /// `logs/`: where a service writes `nvs.log` when its configuration sets no `[log] target`.
+    #[must_use]
+    pub fn logs(&self) -> PathBuf {
+        self.root.join("logs")
+    }
+
+    /// `logs/nvs.log`: the file a service's default `[log] target` names.
+    #[must_use]
+    pub fn service_log(&self) -> PathBuf {
+        self.logs().join("nvs.log")
+    }
+
     /// `rule:config/ownership-is-the-trust-boundary`'s check on the folder, and its canonical path:
     /// [`trust::check_alone`] for the default folder, [`trust::check`] for any other.
     ///
@@ -163,7 +177,7 @@ impl Folder {
         }
     }
 
-    /// Creates the folder and `cache/`, `tmp/` and `lsp/` in it, privately, and checks the folder
+    /// Creates the folder and `cache/`, `tmp/`, `lsp/` and `logs/` in it, privately, and checks the folder
     /// with [`Folder::check`]. Anything that already exists is left as it is.
     ///
     /// The check runs after the root exists and before anything is created inside it, so a folder
@@ -181,7 +195,7 @@ impl Folder {
         create_private_root(&self.root).map_err(|err| unusable(err.to_string()))?;
         self.check()
             .map_err(|why| unusable(why.message().to_owned()))?;
-        for sub in [self.cache(), self.tmp(), self.lsp_root()] {
+        for sub in [self.cache(), self.tmp(), self.lsp_root(), self.logs()] {
             create_private_root(&sub)
                 .map_err(|err| unusable(format!("{}: {err}", sub.display())))?;
         }
@@ -506,6 +520,8 @@ mod tests {
         assert_eq!(folder.cache(), root.join("cache"));
         assert_eq!(folder.tmp(), root.join("tmp"));
         assert_eq!(folder.lsp("1.2.3"), root.join("lsp").join("1.2.3"));
+        assert_eq!(folder.logs(), root.join("logs"));
+        assert_eq!(folder.service_log(), root.join("logs").join("nvs.log"));
     }
 
     /// The folder and the directory above it are both created here, because the trust check reads
@@ -526,6 +542,7 @@ mod tests {
             folder.cache(),
             folder.tmp(),
             folder.root().join("lsp"),
+            folder.root().join("logs"),
         ];
         for path in &made {
             assert!(path.is_dir(), "{} was created", path.display());

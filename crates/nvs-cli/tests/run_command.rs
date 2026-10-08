@@ -190,6 +190,92 @@ fn an_unusable_data_folder_warns_once_and_the_run_succeeds() {
     assert!(!dir.join("nvs.toml").exists(), "nothing is written instead");
 }
 
+/// A program that writes one log record and then one line of output.
+const LOGGING: &str =
+    "<?nvs\nCore\\Log::write(Core\\Log\\Level::Warn, \"logged\");\necho \"ran\", \"\\n\";\n";
+
+/// Runs [`LOGGING`] from `dir` with the data folder `data`. With `managed`,
+/// `$NOTIFY_SOCKET` is set, which is how systemd starts a service; without it,
+/// the variable is removed, which is how a terminal starts a command.
+fn run_logging(dir: &Path, data: &Path, managed: bool) -> Output {
+    fs::write(dir.join("main.nvs"), LOGGING).unwrap();
+    let mut command = Command::new(env!("CARGO_BIN_EXE_nvs"));
+    command
+        .arg("--data")
+        .arg(data)
+        .args(["run", "main.nvs"])
+        .current_dir(dir)
+        .env_remove("NOVIS_NO_INIT")
+        .env_remove("NOTIFY_SOCKET");
+    if managed {
+        command.env("NOTIFY_SOCKET", dir.join("no-manager.sock"));
+    }
+    command
+        .output()
+        .expect("the `nvs` binary this test was built beside runs")
+}
+
+/// A command run from a terminal keeps its log records off the data folder,
+/// whatever the configuration leaves unset: no `[log] target` writes no
+/// `logs/nvs.log`.
+// covers: tools:cli/nvs-run, directive:log.target
+#[test]
+fn a_command_line_run_with_no_log_target_writes_no_log_file() {
+    let dir = scratch("log-command-line");
+    let data = dir.join(".nvsdata");
+    let out = run_logging(&dir, &data, false);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        stdout.contains("logged"),
+        "the record is the program's output: {stdout}"
+    );
+    assert!(data.join("logs").is_dir(), "the folder is still created");
+    assert!(!data.join("logs").join("nvs.log").exists());
+}
+
+/// A run a service manager started, with no `[log] target`, writes its records
+/// to `logs/nvs.log` in the data folder. A target the configuration names wins,
+/// `stderr` included, and an unusable data folder leaves the records where a
+/// command line puts them.
+// covers: tools:cli/nvs-run, directive:log.target
+#[cfg(unix)]
+#[test]
+fn a_service_with_no_log_target_writes_to_the_data_folder() {
+    let dir = scratch("log-service");
+    let data = dir.join(".nvsdata");
+    let out = run_logging(&dir, &data, true);
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "ran\n");
+    let log = fs::read_to_string(data.join("logs").join("nvs.log")).expect("the service log");
+    assert!(log.contains("logged"), "{log}");
+
+    let named = scratch("log-service-named");
+    fs::write(named.join("nvs.toml"), "[log]\ntarget = \"stderr\"\n").unwrap();
+    let out = run_logging(&named, &named.join(".nvsdata"), true);
+    assert_eq!(out.status.code(), Some(0));
+    assert!(String::from_utf8_lossy(&out.stderr).contains("logged"));
+    assert!(!named.join(".nvsdata").join("logs").join("nvs.log").exists());
+
+    let blocked = scratch("log-service-unusable");
+    fs::write(blocked.join("blocked"), "").unwrap();
+    let out = run_logging(&blocked, &blocked.join("blocked").join("data"), true);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(out.status.code(), Some(0), "{stderr}");
+    assert!(stderr.contains("warning: Novis cannot use its data folder"));
+    assert!(String::from_utf8_lossy(&out.stdout).contains("logged"));
+}
+
 /// Every row of the *Exit status* table: `exit(n)` is `n`, `exit("message")`
 /// prints the message and is `0`, an uncaught throwable is `1` with its
 /// log record on standard error only, and a wrong command line is `2`.

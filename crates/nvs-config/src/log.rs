@@ -25,17 +25,115 @@
 //! it exists to write, and only in the deployments that had already gone wrong twice. Boot is where
 //! an operator is reading output and can fix the file.
 //!
+//! **A `file:` target's disk bound is here too**, for the same two readers: `[log] max_size` and
+//! `[log] keep` are refused at boot by [`validate`] and read at the sink through [`bounds`], and
+//! [`MAX_SIZE`] and [`KEEP`] are the defaults both use. `keep = 0` is allowed and means the full
+//! file is deleted when the next record would not fit, so the target holds at most `max_size`.
+//!
+//! **A service's default target is set here and nowhere else.** The CLI calls [`serve_into`] when
+//! the service manager started the process, and the resolve pass [`service_default`] writes
+//! `file:<that path>` into a tree whose global `[log]` block has no `target` from any file. The
+//! check reads the origins, so a `target = "stderr"` written out loud is kept. A process that never
+//! calls [`serve_into`] — every command-line run — keeps `stderr`.
+//!
 //! Cost: one match over a short string per `[log]` block in the merged tree, at boot and at reload,
 //! and nothing at all per record — the runtime resolves its target once per context.
 
 use std::collections::BTreeMap;
 use std::path::Path;
+use std::sync::OnceLock;
 
 use nvs_diagnostics::{Diagnostic, code};
 use nvs_render::Level;
 
 use crate::resolve::{Origin, origin_note};
-use crate::tree::{Config, Log};
+use crate::tree::{Config, Log, Setting};
+use crate::value::{Quantity, Unit, as_written};
+
+/// The size at which a `file:` target is renamed when `[log] max_size` is not written: 10 MiB.
+pub const MAX_SIZE: u64 = 10 * 1024 * 1024;
+
+/// How many renamed files a `file:` target keeps when `[log] keep` is not written, so the default
+/// target holds at most `(5 + 1) * 10 MiB` on disk.
+pub const KEEP: usize = 5;
+
+/// The written `max_size` and `keep` of the `[log]` block in force, as the sink's two bounds.
+///
+/// A value [`validate`] would refuse never boots, so the fallback to [`MAX_SIZE`] and [`KEEP`] is
+/// reached only by a caller configured by something other than a resolved tree.
+#[must_use]
+pub fn bounds(max_size: Option<&str>, keep: Option<&str>) -> (u64, usize) {
+    let max_size = max_size
+        .and_then(|written| {
+            Quantity::parse(
+                "log.max_size",
+                Unit::Bytes,
+                &Setting::Text(written.to_owned()),
+            )
+            .ok()
+        })
+        .and_then(|quantity| match quantity {
+            Quantity::Bytes(bytes) if bytes > 0 => Some(bytes),
+            _ => None,
+        })
+        .unwrap_or(MAX_SIZE);
+    let keep = keep
+        .and_then(|written| written.trim().parse::<usize>().ok())
+        .unwrap_or(KEEP);
+    (max_size, keep)
+}
+
+/// The `file:` target a service writes to when its configuration names none.
+static SERVICE_TARGET: OnceLock<String> = OnceLock::new();
+
+/// Makes `file` the default `[log] target` of every tree this process resolves from now on.
+///
+/// The CLI calls this once, before the first resolve, for a process the service manager started.
+/// Returns `false` and changes nothing when a default was already set.
+#[must_use]
+pub fn serve_into(file: &Path) -> bool {
+    SERVICE_TARGET
+        .set(format!("file:{}", file.display()))
+        .is_ok()
+}
+
+/// Writes the service's default target into the global `[log]` block when no file wrote one.
+///
+/// "No file wrote one" is read from `origins`, so a `target` the tree spells out, `stderr`
+/// included, is kept. The table is written as well as the typed tree, because the runtime reads
+/// the target out of the table. A process that never called [`serve_into`] is left untouched.
+pub fn service_default(
+    config: &mut Config,
+    table: &mut toml::value::Table,
+    origins: &BTreeMap<String, Origin>,
+) {
+    let Some(target) = SERVICE_TARGET.get() else {
+        return;
+    };
+    defaulted(config, table, origins, target);
+}
+
+/// [`service_default`] with the target handed in, so a test can check it without the process-wide
+/// value.
+fn defaulted(
+    config: &mut Config,
+    table: &mut toml::value::Table,
+    origins: &BTreeMap<String, Origin>,
+    target: &str,
+) {
+    if origins.contains_key("log.target")
+        || config.log.as_ref().is_some_and(|log| log.target.is_some())
+    {
+        return;
+    }
+    config.log.get_or_insert_with(Log::default).target = Some(target.to_owned());
+    let block = table
+        .entry("log")
+        .or_insert_with(|| toml::Value::Table(toml::value::Table::new()));
+    if let Some(block) = block.as_table_mut() {
+        block.insert("target".to_owned(), toml::Value::String(target.to_owned()));
+    }
+}
 
 /// One of `rule:errors/engine-floor`'s three destinations, as written.
 ///
@@ -197,7 +295,67 @@ fn block(log: &Log, prefix: &str, origins: &BTreeMap<String, Origin>) -> Result<
     if let Some(written) = log.format.as_deref() {
         formatted(written, &format!("{prefix}.format"), origins)?;
     }
+    if let Some(written) = log.max_size.as_ref() {
+        sized(written, &format!("{prefix}.max_size"), origins)?;
+    }
+    if let Some(written) = log.keep.as_ref() {
+        kept(written, &format!("{prefix}.keep"), origins)?;
+    }
     Ok(())
+}
+
+/// [`validate`]'s refusal for a `max_size` that is not a size above zero.
+///
+/// `false` and `0` are refused with the malformed values: a file target with no size limit is a
+/// log that can fill the disk, which `rule:http-server/the-floor-cannot-fill-the-disk` forbids.
+fn sized(
+    written: &Setting,
+    key: &str,
+    origins: &BTreeMap<String, Origin>,
+) -> Result<(), Diagnostic> {
+    if let Ok(Quantity::Bytes(bytes)) = Quantity::parse(key, Unit::Bytes, written)
+        && bytes > 0
+    {
+        return Ok(());
+    }
+    Err(Diagnostic::error(
+        code::E_BAD_DIRECTIVE,
+        format!(
+            "`[log] max_size` is `{}`, which is not a size above zero",
+            as_written(written)
+        ),
+    )
+    .with_note(format!(
+        "when the log file reaches this size, Novis renames it and starts a new file{}",
+        origin_note(origins.get(key))
+    ))
+    .with_help("write a size, such as `max_size = \"10M\"`".to_owned()))
+}
+
+/// [`validate`]'s refusal for a `keep` that is not a whole number of files.
+///
+/// `0` is allowed. `false` is refused: keeping every old file is the unbounded log this key exists
+/// to prevent.
+fn kept(
+    written: &Setting,
+    key: &str,
+    origins: &BTreeMap<String, Origin>,
+) -> Result<(), Diagnostic> {
+    if let Ok(Quantity::Count(_)) = Quantity::parse(key, Unit::Count, written) {
+        return Ok(());
+    }
+    Err(Diagnostic::error(
+        code::E_BAD_DIRECTIVE,
+        format!(
+            "`[log] keep` is `{}`, which is not a number of files",
+            as_written(written)
+        ),
+    )
+    .with_note(format!(
+        "Novis keeps this many old log files and deletes older ones. `0` keeps none{}",
+        origin_note(origins.get(key))
+    ))
+    .with_help("write a whole number, such as `keep = 5`".to_owned()))
 }
 
 /// [`validate`]'s refusal for one written value, under the key it was merged as.
@@ -331,6 +489,110 @@ mod tests {
             }),
             ..Config::default()
         }
+    }
+
+    /// A tree whose global `[log]` block names `max_size` and `keep` and nothing else.
+    fn bounded_tree(max_size: Setting, keep: Setting) -> Config {
+        Config {
+            log: Some(Log {
+                max_size: Some(max_size),
+                keep: Some(keep),
+                ..Log::default()
+            }),
+            ..Config::default()
+        }
+    }
+
+    /// A size above zero and any whole number of files boot, `keep = 0` among them. A zero size,
+    /// `false` in either key, a negative count and a word that is no size are each one refusal.
+    // covers: directive:log.max_size, directive:log.keep
+    #[test]
+    fn a_file_target_has_a_size_above_zero_and_a_whole_number_of_files() {
+        let text = |written: &str| Setting::Text(written.to_owned());
+        for (max_size, keep) in [
+            (text("10M"), Setting::Integer(5)),
+            (Setting::Integer(4096), Setting::Integer(0)),
+            (text("1G"), Setting::Integer(100)),
+        ] {
+            validate(&bounded_tree(max_size, keep), &BTreeMap::new())
+                .expect("a size above zero and a whole number of files boot");
+        }
+        for (max_size, keep, key) in [
+            (text("0"), Setting::Integer(5), "max_size"),
+            (Setting::Integer(0), Setting::Integer(5), "max_size"),
+            (Setting::Bool(false), Setting::Integer(5), "max_size"),
+            (text("ten megabytes"), Setting::Integer(5), "max_size"),
+            (text("10M"), Setting::Integer(-1), "keep"),
+            (text("10M"), Setting::Bool(false), "keep"),
+            (text("10M"), text("five"), "keep"),
+        ] {
+            let refused = validate(&bounded_tree(max_size, keep), &BTreeMap::new())
+                .expect_err("a bound that bounds nothing is refused");
+            assert_eq!(refused.code, Some(code::E_BAD_DIRECTIVE));
+            assert!(
+                refused.message.contains(&format!("`[log] {key}`")),
+                "{}",
+                refused.message
+            );
+        }
+    }
+
+    /// The sink's reader: the written values where they parse, the defaults where nothing was
+    /// written.
+    #[test]
+    fn the_bounds_are_the_written_values_or_ten_megabytes_and_five_files() {
+        assert_eq!(bounds(None, None), (MAX_SIZE, KEEP));
+        assert_eq!((MAX_SIZE, KEEP), (10 * 1024 * 1024, 5));
+        assert_eq!(bounds(Some("1M"), Some("0")), (1024 * 1024, 0));
+        assert_eq!(bounds(Some("4096"), Some("2")), (4096, 2));
+    }
+
+    /// A tree with no `[log] target` from any file takes the service's file, and a tree that wrote
+    /// one keeps it, `stderr` included.
+    #[test]
+    fn a_service_default_fills_only_a_target_no_file_wrote() {
+        let file = "file:/srv/.nvsdata/logs/nvs.log";
+
+        let mut config = Config::default();
+        let mut table = toml::value::Table::new();
+        defaulted(&mut config, &mut table, &BTreeMap::new(), file);
+        assert_eq!(
+            config.log.as_ref().and_then(|log| log.target.as_deref()),
+            Some(file)
+        );
+        assert_eq!(
+            table
+                .get("log")
+                .and_then(|log| log.get("target"))
+                .and_then(toml::Value::as_str),
+            Some(file),
+            "the runtime reads the target out of the table"
+        );
+
+        let mut config = global("stderr");
+        let mut table = toml::value::Table::new();
+        defaulted(&mut config, &mut table, &BTreeMap::new(), file);
+        assert_eq!(
+            config.log.as_ref().and_then(|log| log.target.as_deref()),
+            Some("stderr"),
+            "a target the tree wrote wins"
+        );
+        assert!(table.is_empty());
+
+        let origins = BTreeMap::from([(
+            "log.target".to_owned(),
+            Origin {
+                path: std::path::PathBuf::from("/srv/nvs.toml"),
+                source: nvs_diagnostics::SourceMap::new().add("/srv/nvs.toml", ""),
+            },
+        )]);
+        let mut config = Config::default();
+        let mut table = toml::value::Table::new();
+        defaulted(&mut config, &mut table, &origins, file);
+        assert!(
+            config.log.is_none(),
+            "an origin for the key means a file wrote it"
+        );
     }
 
     /// A tree whose global `[log]` block names `level` and nothing else.

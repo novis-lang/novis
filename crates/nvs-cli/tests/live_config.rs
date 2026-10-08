@@ -1597,6 +1597,8 @@ const REQUEST_READ: &[(&str, &str, &str)] = &[
     ("cache.process.fill_wait", "\"5s\"", "\"4s\""),
     ("log.handler", "\"jobs/one.nvs\"", "\"jobs/two.nvs\""),
     ("log.target", "\"stderr\"", "\"file:app.log\""),
+    ("log.max_size", "\"10M\"", "\"20M\""),
+    ("log.keep", "5", "3"),
     ("debug.inline", "false", "true"),
     ("errors.deprecated", "\"ignore\"", "\"throw\""),
     ("image.max_pixels", "\"24M\"", "\"8M\""),

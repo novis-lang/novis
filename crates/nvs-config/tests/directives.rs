@@ -422,6 +422,16 @@ const APPLY_PROOFS: &[(&str, &str, &str)] = &[
         "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
     ),
     (
+        "log.max_size",
+        LIVE,
+        "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
+    ),
+    (
+        "log.keep",
+        LIVE,
+        "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
+    ),
+    (
         "debug.inline",
         LIVE,
         "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
@@ -3300,6 +3310,58 @@ fn the_floors_destination_is_the_operators_and_a_value_naming_none_refuses_the_t
             "`{written}` names no destination and boots anyway, so the tree is green and the \
              records go wherever a value nobody resolved leads — which is discovered by a \
              deployment that has already failed twice",
+        );
+    }
+}
+
+/// `rule:http-server/the-floor-cannot-fill-the-disk`'s two bounds on a `file:` target: each is the
+/// operator's, in every block that can write it, and a value that bounds nothing never boots.
+// covers: directive:log.max_size, directive:log.keep
+#[test]
+fn the_log_files_bound_is_the_operators_and_a_value_that_bounds_nothing_refuses_the_tree() {
+    for key in ["max_size", "keep"] {
+        assert!(
+            keys_in("log").contains(&key.to_string()),
+            "`[log]` no longer accepts `{key}`"
+        );
+        for written in [
+            format!("log.{key}"),
+            format!("app.log.{key}"),
+            format!("app.0.log.{key}"),
+        ] {
+            let row = governing(&written);
+            assert!(
+                !row.class.settable_by_a_request(),
+                "`{written}` lands on `{}` at {:?}: a request that could raise it could fill the \
+                 disk the log is written to",
+                row.key,
+                row.class,
+            );
+        }
+    }
+    let refusal = |body: &str| {
+        let text = format!("[log]\ntarget = \"file:nvs.log\"\n{body}\n");
+        let mut sources = SourceMap::new();
+        let (_, parsed) = nvs_config::file::parse::<Config>(&mut sources, "nvs.toml", &text);
+        let config = parsed.unwrap_or_else(|err| panic!("{text}-- did not parse: {}", err.message));
+        nvs_config::log::validate(&config, &BTreeMap::new())
+            .err()
+            .map(|refused| refused.code.expect("a boot refusal carries its code"))
+    };
+    for body in ["max_size = \"10M\"\nkeep = 5", "max_size = 4096\nkeep = 0"] {
+        assert_eq!(refusal(body), None, "`{body}` is a bound and boots");
+    }
+    for body in [
+        "max_size = \"0\"",
+        "max_size = false",
+        "max_size = \"lots\"",
+        "keep = -1",
+        "keep = false",
+    ] {
+        assert_eq!(
+            refusal(body),
+            Some(code::E_BAD_DIRECTIVE),
+            "`{body}` bounds nothing and boots anyway"
         );
     }
 }

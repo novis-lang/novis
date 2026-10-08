@@ -176,7 +176,7 @@ pub(super) enum LogTarget {
 /// a record about a program that is not running.
 ///
 /// **What it spends** (`rule:programs/memory-priority`): one resolved sink per
-/// writer — a path, a descriptor and two counters where the target is a file —
+/// writer — a handle to the one shared file where the target is a file —
 /// and one `String` per record written. Nothing is O(records), and a process
 /// that never writes one holds a discriminant.
 #[derive(Debug)]
@@ -976,14 +976,24 @@ impl DeclaredHeaders {
 ///   test, in practice. It is not a diagnostic at the one moment the
 ///   engine has a failure to report; it is the unconfigured routing.
 fn log_target(config: Option<&nvs_config::Request>) -> LogTarget {
-    let Some(written) = config.and_then(|config| config.get("log.target")) else {
+    let Some((config, written)) =
+        config.and_then(|config| Some((config, config.get("log.target")?)))
+    else {
         return LogTarget::Unnamed;
     };
     match nvs_config::log::Target::of(&written) {
         Some(nvs_config::log::Target::Stderr) => LogTarget::Named(OutputSink::Stderr),
-        Some(nvs_config::log::Target::File(path)) => LogTarget::Named(OutputSink::File(
-            crate::logfile::LogFile::new(std::path::PathBuf::from(path)),
-        )),
+        Some(nvs_config::log::Target::File(path)) => {
+            let (max_size, keep) = nvs_config::log::bounds(
+                config.get("log.max_size").as_deref(),
+                config.get("log.keep").as_deref(),
+            );
+            LogTarget::Named(OutputSink::File(crate::logfile::LogFile::with_bounds(
+                std::path::PathBuf::from(path),
+                max_size,
+                keep,
+            )))
+        }
         Some(nvs_config::log::Target::Syslog) | None => LogTarget::Unnamed,
     }
 }

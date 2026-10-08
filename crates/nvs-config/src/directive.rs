@@ -186,6 +186,12 @@ pub const DIRECTIVES: &[Directive] = &[
     // resolved when a record is first written, so a new value is in force for the next context and
     // nothing is re-created. `nvs_runtime::Ctx::write_log_record` is its only reader.
     Directive { key: "log.target", class: Class::System, apply: Apply::Reload },
+    // The target's disk bound, `rule:http-server/the-floor-cannot-fill-the-disk`: `System` for the
+    // target's reason, because a request that could raise either could fill the disk the floor
+    // writes to. `Reload` because the bound is read where the target is, when a context first
+    // writes a record, so the next context writes under the new one.
+    Directive { key: "log.max_size", class: Class::System, apply: Apply::Reload },
+    Directive { key: "log.keep", class: Class::System, apply: Apply::Reload },
     // `[cache]`'s three tiers, one row each. The artifact cache's directory is written
     // `opcache.file_cache_dir` further down: no `[cache]` key is an artifact directory at all
     // (`docs/decisions/0175.md`). The only `Boot` rows are `[server]`'s, written with its block.

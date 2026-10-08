@@ -38,8 +38,8 @@
 //!
 //! **A service never gets write on its own configuration.** § 4's grants on
 //! the data folder are read on the folder and its `nvs.toml`, and read/write
-//! on `cache/`, `tmp/` and `lsp/` alone, each inherited only inside its own
-//! subfolder.
+//! on `cache/`, `tmp/`, `lsp/` and `logs/` alone, each inherited only inside
+//! its own subfolder.
 //!
 //! **What counts as a path is a closed list, not a guess.** Every `--config`
 //! and `--data` value in the argv, the entry file `serve`/`run` names, and the
@@ -54,11 +54,16 @@
 //! there is correct rather than a portability gap — a service is installed on
 //! the machine it will run on.
 //!
-//! **A `[log] target` of `stderr` is not a destination.** § 4's *Output* is
-//! explicit that a service has no console handle, so the process's stderr goes
-//! nowhere; only `file:<path>` and `syslog` satisfy § 2's fourth row, and
-//! reading `stderr` as satisfying it would let exactly the case that row exists
-//! to prevent through.
+//! **A service logs to its data folder unless the configuration says
+//! otherwise.** A process the manager starts with no `[log] target` in its
+//! configuration writes to `logs/nvs.log` in its data folder, under the
+//! `[log] max_size` and `[log] keep` bound every `file:` target has; the
+//! default is set by `main`'s `log_like_a_service` and applied by
+//! `nvs_config::log`. That is why `logs/` is in the grant above. A target the
+//! configuration names is used as written, `stderr` included: under a manager
+//! `stderr` is the journal or the Event Log, and nothing here refuses it. A
+//! `file:` target outside the data folder gets write on its directory, which
+//! rotation needs.
 //!
 //! # What is on disk, and what is not
 //!
@@ -1771,7 +1776,7 @@ pub(crate) mod registration {
             .map(|root| nvs_config::data::Folder::new(root.to_path_buf()));
         let subfolders: Vec<PathBuf> = data
             .iter()
-            .flat_map(|data| [data.cache(), data.tmp(), data.lsp_root()])
+            .flat_map(|data| [data.cache(), data.tmp(), data.lsp_root(), data.logs()])
             .collect();
         let mut out: Vec<(PathBuf, bool)> = writable
             .data_folder
@@ -3930,7 +3935,7 @@ mod tests {
         let (done, applied, _) = install(&data, &bare, false);
         assert!(done.is_ok(), "{done:?}");
         assert!(!applied.is_empty());
-        for sub in ["cache", "tmp", "lsp"] {
+        for sub in ["cache", "tmp", "lsp", "logs"] {
             assert!(data.join(sub).is_dir(), "{sub}");
         }
         let file = data.join("nvs.toml");
@@ -4788,6 +4793,7 @@ mod tests {
                 (data("cache"), true),
                 (data("tmp"), true),
                 (data("lsp"), true),
+                (data("logs"), true),
                 (PathBuf::from(absolute("log")), true),
                 (PathBuf::from(absolute("tmp")), true),
             ]

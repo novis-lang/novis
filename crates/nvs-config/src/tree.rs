@@ -576,6 +576,12 @@ pub struct Log {
     /// Tier 4, the floor: `stderr`, `file:<path>` or `syslog`, hardcoded in Rust and bounded
     /// against the disk it writes to.
     pub target: Option<String>,
+    /// The size at which a `file:` target is renamed to `<path>.1` and a new file started — a size
+    /// above zero, [`crate::log::MAX_SIZE`] when unwritten.
+    pub max_size: Option<Setting>,
+    /// How many renamed files are kept beside a `file:` target — a count, `0` included,
+    /// [`crate::log::KEEP`] when unwritten.
+    pub keep: Option<Setting>,
     /// Which rendering the target emits — `rule:errors/renderings`'s set **minus** the HTML one, since
     /// that one is a response's and never a destination's.
     pub format: Option<String>,
