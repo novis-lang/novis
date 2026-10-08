@@ -229,6 +229,15 @@ impl ExtensionFixture {
     }
 }
 
+/// One file a case's `--COPY--` section copies into the working directory.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CopiedFile {
+    /// The file to copy: the line the case wrote, joined onto its directory.
+    pub source: PathBuf,
+    /// The name it is copied to, which is the path's last segment.
+    pub name: String,
+}
+
 /// One parsed `.nvst` file.
 #[derive(Debug, Clone)]
 pub struct Case {
@@ -285,6 +294,9 @@ pub struct Case {
     /// `--EXTENSION--`, the fixture extensions the case loads, one name per
     /// line in the order they were written.
     pub extensions: Vec<ExtensionFixture>,
+    /// `--COPY--`, the repository files copied beside `--FILE--`, in the order
+    /// they were written.
+    pub copies: Vec<CopiedFile>,
     /// `--EXPECT--` or `--EXPECTF--`, matched against standard output.
     pub expect: Option<Expectation>,
     /// `--EXPECT-ERROR--` or `--EXPECTF-ERROR--`, matched against standard
@@ -349,6 +361,7 @@ const KNOWN: &[&str] = &[
     "CLEAN",
     "RUN",
     "EXTENSION",
+    "COPY",
 ];
 
 /// Where the fixture extensions sit, below some directory above the case.
@@ -405,6 +418,65 @@ fn extension_fixtures(
         });
     }
     Ok(fixtures)
+}
+
+/// Reads `--COPY--`'s paths, each relative to the directory `case` is in.
+///
+/// Unlike an auxiliary path, a copied one may climb with `..`: it names a file
+/// the repository already has, and only its last segment lands in the working
+/// directory. Whether the file exists is the runner's question, not this one's,
+/// because the files worth copying are the ones a checkout may not have.
+fn copied_files(
+    case: &Path,
+    section: Option<(usize, String)>,
+) -> Result<Vec<CopiedFile>, ParseError> {
+    let Some((line, body)) = section else {
+        return Ok(Vec::new());
+    };
+    let dir = case.parent().unwrap_or_else(|| Path::new(""));
+    let mut copies: Vec<CopiedFile> = Vec::new();
+    for raw in body.lines().map(str::trim).filter(|raw| !raw.is_empty()) {
+        if raw.contains('\\') {
+            return Err(err(
+                format!("`--COPY--` path `{raw}` separates with `\\`; write it with `/`"),
+                Some(line),
+            ));
+        }
+        if raw.starts_with('/') || raw.contains(':') {
+            return Err(err(
+                format!("`--COPY--` path `{raw}` is not relative to the case"),
+                Some(line),
+            ));
+        }
+        let name = raw.rsplit('/').next().unwrap_or(raw);
+        if raw.split('/').any(str::is_empty) || name == "." || name == ".." {
+            return Err(err(
+                format!("`--COPY--` path `{raw}` does not end in a file name"),
+                Some(line),
+            ));
+        }
+        if RESERVED_NAMES.contains(&name) {
+            return Err(err(
+                format!(
+                    "`--COPY--` path `{raw}` ends in `{name}`, the name the runner writes itself"
+                ),
+                Some(line),
+            ));
+        }
+        if copies.iter().any(|seen| seen.name == name) {
+            return Err(err(
+                format!("`--COPY--` copies two files named `{name}`"),
+                Some(line),
+            ));
+        }
+        copies.push(CopiedFile {
+            source: raw
+                .split('/')
+                .fold(dir.to_path_buf(), |path, part| path.join(part)),
+            name: name.to_owned(),
+        });
+    }
+    Ok(copies)
 }
 
 /// The one section name that takes an argument, and what the argument is.
@@ -535,6 +607,22 @@ pub fn parse(path: &Path, text: &str) -> Result<Case, ParseError> {
             format!(
                 "`--FILE {}--` is the file `--EXTENSION--` copies its fixture to",
                 clash.path
+            ),
+            None,
+        ));
+    }
+
+    let copies = copied_files(path, take("COPY"))?;
+    if let Some(clash) = copies.iter().find(|copy| {
+        aux.iter().any(|file| file.path == copy.name)
+            || extensions
+                .iter()
+                .any(|fixture| fixture.file_name() == copy.name)
+    }) {
+        return Err(err(
+            format!(
+                "`--COPY--` copies `{}` onto a file the case already writes",
+                clash.name
             ),
             None,
         ));
@@ -702,6 +790,7 @@ pub fn parse(path: &Path, text: &str) -> Result<Case, ParseError> {
         run,
         aux,
         extensions,
+        copies,
         expect,
         expect_error,
         clean: take("CLEAN")
@@ -1291,6 +1380,55 @@ hi
             .expect_err("an auxiliary file cannot take the fixture's name")
             .message
             .contains("`--EXTENSION--` copies")
+        );
+    }
+
+    #[test]
+    fn a_copy_section_resolves_against_the_case_and_lands_under_its_last_segment() {
+        let case = nvs_repo::path("tests/conformance/core/a.nvst");
+        let text =
+            |paths: &str| format!("--TEST--\nt\n--COPY--\n{paths}--FILE--\n<?nvs\n--EXPECT--\n");
+
+        let parsed = parse(&case, &text("../../db/ca.crt\nnotes.txt\n")).expect("it parses");
+        assert_eq!(
+            parsed.copies,
+            [
+                CopiedFile {
+                    source: nvs_repo::path("tests/conformance/core")
+                        .join("..")
+                        .join("..")
+                        .join("db")
+                        .join("ca.crt"),
+                    name: "ca.crt".to_owned(),
+                },
+                CopiedFile {
+                    source: nvs_repo::path("tests/conformance/core").join("notes.txt"),
+                    name: "notes.txt".to_owned(),
+                },
+            ]
+        );
+
+        for (paths, says) in [
+            ("..\\db\\ca.crt\n", "`/`"),
+            ("/etc/ca.crt\n", "not relative"),
+            ("C:/ca.crt\n", "not relative"),
+            ("../db/\n", "file name"),
+            ("../..\n", "file name"),
+            ("../case.nvs\n", "runner writes itself"),
+            ("a/ca.crt\nb/ca.crt\n", "two files named `ca.crt`"),
+        ] {
+            let refused = parse(&case, &text(paths)).expect_err(paths);
+            assert_eq!(refused.line, Some(3), "{paths}");
+            assert!(refused.message.contains(says), "{}", refused.message);
+        }
+        assert!(
+            parse(
+                &case,
+                &format!("{}--FILE ca.crt--\nx\n", text("../ca.crt\n"))
+            )
+            .expect_err("an auxiliary file cannot take a copy's name")
+            .message
+            .contains("onto a file the case already writes")
         );
     }
 

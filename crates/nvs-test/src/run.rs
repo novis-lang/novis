@@ -30,7 +30,7 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use crate::case::{Case, ExtensionFixture, Subcommand};
+use crate::case::{Case, CopiedFile, ExtensionFixture, Subcommand};
 use crate::expect::{matches, normalize, shown};
 
 /// How long one case's process may run before the runner gives up on it.
@@ -191,6 +191,11 @@ pub fn run_case(case: &Case, opts: &Options, workdir: &Path) -> Outcome {
     }
     if let Err(error) = write_extensions(workdir, &case.extensions) {
         return Outcome::Fail(vec![format!("--EXTENSION--: {error}")]);
+    }
+    match write_copies(workdir, &case.copies) {
+        Ok(Some(missing)) => return Outcome::Skip(missing),
+        Ok(None) => {}
+        Err(error) => return Outcome::Fail(vec![format!("--COPY--: {error}")]),
     }
 
     let record = recording(case, opts);
@@ -355,6 +360,26 @@ fn write_aux(workdir: &Path, relative: &str, body: &str) -> io::Result<()> {
         fs::create_dir_all(parent)?;
     }
     fs::write(target, body)
+}
+
+/// Copies each `--COPY--` file into `workdir` under its own name, or returns
+/// the skip reason naming the first source that is not there.
+///
+/// A missing source skips the case rather than failing it: the files worth
+/// copying are the ones a checkout makes for itself, such as the certificate
+/// a database container writes, and a machine without one has nothing to test.
+/// Nothing is copied unless every source exists.
+fn write_copies(workdir: &Path, copies: &[CopiedFile]) -> io::Result<Option<String>> {
+    if let Some(missing) = copies.iter().find(|copy| !copy.source.is_file()) {
+        return Ok(Some(format!(
+            "--COPY-- needs `{}`, which is not there",
+            missing.source.display()
+        )));
+    }
+    for copy in copies {
+        fs::copy(&copy.source, workdir.join(&copy.name))?;
+    }
+    Ok(None)
 }
 
 /// Copies each fixture into `workdir` and appends its pinned `[[extension]]`
@@ -629,6 +654,40 @@ mod tests {
                 "\n[[extension]]\npath = \"ledger.nvsx\"\nsha256 = \"{}\"\n",
                 ledger.sha256
             )
+        );
+    }
+
+    #[test]
+    fn a_copy_section_copies_every_file_or_skips_naming_the_missing_one() {
+        let source = nvs_repo::scratch("test-copy-source");
+        write_aux(&source, "ca.crt", "a certificate").expect("it writes");
+        let present = CopiedFile {
+            source: source.join("ca.crt"),
+            name: "ca.crt".to_owned(),
+        };
+        let absent = CopiedFile {
+            source: source.join("absent.crt"),
+            name: "absent.crt".to_owned(),
+        };
+
+        let root = nvs_repo::scratch("test-copy-new");
+        assert_eq!(
+            write_copies(&root, std::slice::from_ref(&present)).expect("it copies"),
+            None
+        );
+        assert_eq!(
+            fs::read_to_string(root.join("ca.crt")).expect("it is copied"),
+            "a certificate"
+        );
+
+        let skipped = nvs_repo::scratch("test-copy-skip");
+        let reason = write_copies(&skipped, &[present, absent])
+            .expect("a missing source is not an error")
+            .expect("it skips");
+        assert!(reason.contains("absent.crt"), "{reason}");
+        assert!(
+            !skipped.join("ca.crt").exists(),
+            "nothing is copied when a source is missing"
         );
     }
 
