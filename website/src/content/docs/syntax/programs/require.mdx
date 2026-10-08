@@ -20,6 +20,8 @@ The program below runs it and uses the value:
 - With a path in quotes, a missing file is a compile error. With a path built while the program
   runs, a missing file throws an error.
 - The value of `require` has the type `mixed`. Convert it with `as` to the type the file returns.
+- Text converted from a `mixed` value is tainted. So `as array<string>` gives an
+  `array<tainted string>`, as in the program above.
 - Classes, interfaces, enums and `type` aliases are shared. Each file can use the ones the other
   declares.
 - Variables are not shared. A `$config` in `config.nvs` is a different variable from the

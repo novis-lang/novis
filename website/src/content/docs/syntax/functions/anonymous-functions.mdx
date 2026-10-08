@@ -14,6 +14,8 @@ it calls itself.
 - `fn(...) => expression` returns the value of the expression.
 - `fn(...): int => { ... }` runs a block. The block uses `return`, and the return type is required.
 - Every parameter has a type.
+- A call through a `callable` variable returns `mixed`. Convert the result with `as`. Text
+  converted from `mixed` is a `tainted string`.
 - `fn` is the only way to write an anonymous function. `function () {}` does not compile.
 
 ## Recursion

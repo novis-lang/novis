@@ -27,6 +27,8 @@ Novis calls them after every read and every write of a property of the class.
 <Snippet src="syntax/property-hooks/02-observer.nvs" />
 
 - Each method gets the name of the property and its value.
+- The value has the type `mixed`. Text you build from it with `as string` or `.` is a
+  `tainted string`.
 - The observer cannot change the value. If `onPropertySet` throws an error, the write fails.
 - A class that does not implement `PropertyObserver` does not run any extra code.
 

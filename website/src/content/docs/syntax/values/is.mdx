@@ -28,8 +28,13 @@ These tests change the type in the same way:
 
 <Snippet src="syntax/is/02-match-true.nvs" />
 
-To test whether a `mixed` value is a number, convert it: `($value as ?int) != null`. There is no
-`is int`.
+`is` also tests for a type such as `int` or `string`. `$value is int` is `true` only when `$value`
+is an `int`. The string `"7"` is not an `int`. To accept `"7"` as a number, convert it:
+`($value as ?int) != null`.
+
+A `mixed` value may come from outside the program. So after `$value is string`, `$value` has the
+type `tainted string` (text that the program must not trust yet). See
+[Tainted input](/guides/how-to-use/tainted-input/).
 
 If you assign a new value to the variable inside the branch, the variable has its declared type again.
 

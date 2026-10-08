@@ -28,6 +28,7 @@ The result has four fields:
 
 - `with(...)` is optional. `output: "capture"` is the default. `output: "inherit"` prints the
   child's output directly, mixed with the parent's output.
+- `value` has the type `mixed`. Convert it with `as`. Text converted from it is a `tainted string`.
 - `output` is a `Core\Html\Markup` when the program writes HTML, and a `Core\Cli\Text` otherwise.
   To use it as a `string`, write `$result->output as string`.
 - `args:` copies one value into the child. The child reads it with `Core\Script::args()`.

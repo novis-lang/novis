@@ -26,7 +26,9 @@ or different:
 - There are no casts. The `as` operator converts a value, and it throws an error if that is not
   possible.
 - There are no functions such as `intval`, `gettype` or `is_int`. Use `as` to convert a value and
-  `is` to test its class.
+  `is` to test its type.
+- Text from outside the program is `tainted`. `as string` on a `mixed` value gives a
+  `tainted string`.
 - There are no global functions. Every built-in function is a method of a `Core` class, such as
   `Core\Arr::count`.
 - Options are one anonymous object at the end of a call: `{order: Core\Order::Asc}`.

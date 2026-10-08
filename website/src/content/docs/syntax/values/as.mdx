@@ -15,6 +15,17 @@ import Snippet from '@components/Snippet.astro'
 - The whole string must be a number. `" 42"`, `""` and `"12.0" as int` throw.
 - `as` comes before every other operator. `7 / 2 as int` is `7 / (2 as int)`.
 
+## Converting a mixed value to text
+
+A `mixed` value may come from outside the program, for example from a request. So text you take
+out of it is tainted (text that the program must not trust yet).
+
+- `$value as string` gives a `tainted string`, and `$value as ?string` gives a `?tainted string`.
+- `$value as array<string>` gives an `array<tainted string>`.
+- `$value as int`, `as float` and `as bool` give a plain `int`, `float` or `bool`.
+
+[Tainted input](/guides/how-to-use/tainted-input/) shows how to use tainted text safely.
+
 ## Use this when the conversion may fail
 
 `as ?T` gives `null` when the conversion is not possible.

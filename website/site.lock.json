@@ -65,7 +65,7 @@
   "syntax/classes/property-hooks.mdx": {
     "lang:classes/property-hooks": "8c5217027713ba4e",
     "lang:classes/propertyobserver": "4e8f9bfde3c2b73b",
-    "PropertyObserver": "fc09c9224ac182ba"
+    "PropertyObserver": "80600e979a7d8483"
   },
   "syntax/classes/standard-interfaces.mdx": {
     "Comparable": "391e6f137abae931",
@@ -81,7 +81,7 @@
   "syntax/concurrency/isolates.mdx": {
     "lang:concurrency/a-child-s-failure-is-a-value": "930f1cbe639c8e6e",
     "lang:concurrency/a-child-shares-nothing": "b67a4975e6cbc216",
-    "lang:concurrency/isolates-spawn-script-and-await": "21e745d2db6916e9"
+    "lang:concurrency/isolates-spawn-script-and-await": "2c6b6ad3eddf9f3e"
   },
   "syntax/concurrency/limits-and-errors.mdx": {
     "lang:concurrency/a-child-s-throw": "436f3216f2ebdc63",
@@ -91,7 +91,7 @@
     "lang:concurrency/core-task-all-a-fixed-set-of-tasks": "82fbb8e7aa0b738f",
     "lang:concurrency/core-task-map-one-task-per-element": "416509f4b453e81c",
     "lang:concurrency/no-colouring-i-o-just-waits": "44d588895d04b48c",
-    "lang:concurrency/what-does-not-exist": "1e7a7e0a9bec0eef"
+    "lang:concurrency/what-does-not-exist": "0eac691553f11c94"
   },
   "syntax/control-flow/break-continue-return.mdx": {
     "lang:statements/break-and-continue": "4c4dfd5abf6f8692",
@@ -145,7 +145,7 @@
     "IOError": "dcea56a0ab16c5c1",
     "lang:errors/constructing-and-subclassing": "728544e799ad3a70",
     "lang:errors/properties-not-accessors": "6c7355f56135af3a",
-    "lang:errors/the-throwable-tree": "9ab30ec08467d8ba",
+    "lang:errors/the-throwable-tree": "131de6f6dac10316",
     "LogicError": "cd5f4e4f9909071d",
     "ParseError": "745c7b0b84cecbaf",
     "RecursionError": "3cb3c356b0494e81",
@@ -169,7 +169,7 @@
     "lang:statements/try-catch-finally": "bcfe6b5f24665829"
   },
   "syntax/functions/anonymous-functions.mdx": {
-    "lang:expressions/anonymous-functions": "6da999dc6ec8017a"
+    "lang:expressions/anonymous-functions": "50529d0705e4f9aa"
   },
   "syntax/functions/calls.mdx": {
     "lang:expressions/calls": "f48b263308e48fa2"
@@ -211,11 +211,11 @@
     "lang:programs/namespaces-and-use": "40a919be9ee5a7dc"
   },
   "syntax/programs/require.mdx": {
-    "lang:programs/require-run-another-file-in-this-frame": "b945c2fece1f05eb"
+    "lang:programs/require-run-another-file-in-this-frame": "98d1a4cb56a45eeb"
   },
   "syntax/start-here.mdx": {
     "lang:programs/a-complete-program-annotated": "4125ead9d5e1ee0a",
-    "lang:types/what-does-not-exist": "0d72f5aacb5c679b"
+    "lang:types/what-does-not-exist": "a7033148ac6b1dad"
   },
   "syntax/testing/fixtures-and-assertions.mdx": {
     "lang:testing/assertions": "88f8814b01f452de",
@@ -234,7 +234,7 @@
   },
   "syntax/values/as.mdx": {
     "lang:types/the-conversion-operator-as": "9484356bedc326a2",
-    "lang:types/widening-without-as": "e529d28265d3af00"
+    "lang:types/widening-without-as": "e75a917435fa86d6"
   },
   "syntax/values/bool-and-null.mdx": {
     "lang:types/truthiness": "cde4ed2f260d7d7c"
@@ -285,7 +285,7 @@
     "lang:enums/what-an-enum-does-not-have": "1a593c3c2647e2dd"
   },
   "syntax/values/is.mdx": {
-    "lang:types/narrowing": "157c96628eff67c0"
+    "lang:types/narrowing": "ef73bd2a55f6926e"
   },
   "syntax/values/nullable.mdx": {
     "lang:types/nullable-union-single-value-and-enum-case-types": "572dc4590c11810c"
