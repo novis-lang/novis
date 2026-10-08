@@ -20,7 +20,15 @@ version = 2
 yanked = "deny"
 # No blanket ignores. An advisory that genuinely does not apply gets an entry
 # here with a comment explaining why, and a date to revisit.
-ignore = []
+ignore = [
+    # `paste` is unmaintained, not vulnerable. It is a proc-macro that `rav1d` and `rav1e` run at
+    # compile time inside the image extension, and it never sees program input. Revisit 2027-04-01.
+    { id = "RUSTSEC-2024-0436", reason = "compile-time proc-macro of the image extension's AV1 codecs" },
+    # `ttf-parser` is unmaintained, not vulnerable. The image extension parses fonts with it, and
+    # `ab_glyph` parses through it too, so leaving it means replacing the font stack. The extension
+    # runs in the wasm sandbox. Revisit 2027-04-01.
+    { id = "RUSTSEC-2026-0192", reason = "font parsing inside the sandboxed image extension; no maintained drop-in" },
+]
 
 # ---------------------------------------------------------------------------
 # Licences. Novis itself ships as MIT; anything we link must be compatible with
