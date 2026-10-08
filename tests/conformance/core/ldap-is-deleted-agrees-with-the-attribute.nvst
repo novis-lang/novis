@@ -1,0 +1,46 @@
+--TEST--
+Over every deleted entry a `showDeleted` search finds, `isDeleted()` agrees with `bool("isDeleted")`, and both are `true`, counted rather than read off one line — ADR 0278 § 11
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+var $dn = "OU=Cinema,DC=example,DC=test";
+try {
+    $corp->delete($dn);
+} catch (Core\Ldap\LdapError $gone) {
+}
+// This makes sure there is at least one deleted entry to find.
+$corp->add($dn, ["objectClass" => "organizationalUnit"]);
+$corp->delete($dn);
+
+int $found = 0;
+int $disagree = 0;
+int $live = 0;
+var $deleted = Core\Ldap\Filter::equals("isDeleted", "TRUE");
+foreach ($corp->search($deleted, {select: ["name"], showDeleted: true}) as Core\Ldap\Entry $entry) {
+    $found = $found + 1;
+    if ($entry->isDeleted() != ($entry->bool("isDeleted") ?? false)) {
+        $disagree = $disagree + 1;
+    }
+    if (!$entry->isDeleted()) {
+        $live = $live + 1;
+    }
+}
+echo "found some: ", $found >= 1 ? "yes" : "no", "\n";
+echo "disagree: ", $disagree, "\n";
+echo "not deleted: ", $live, "\n";
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+base = "DC=example,DC=test"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+found some: yes
+disagree: 0
+not deleted: 0

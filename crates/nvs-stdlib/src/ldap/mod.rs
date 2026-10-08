@@ -833,6 +833,7 @@ pub fn read(
         time_limit: 0,
         sort: None,
         window: None,
+        show_deleted: false,
     });
     let conn = held(ctx, key, READ)?.ready();
     let mut found = None;

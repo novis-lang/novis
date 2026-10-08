@@ -297,6 +297,7 @@ fn a_search_pages_past_a_thousand_entries_holding_one_page() {
         time_limit: 0,
         sort: None,
         window: None,
+        show_deleted: false,
     });
     let mut count = 0;
     let mut most_held = 0;
@@ -340,6 +341,7 @@ fn a_continuation_reference_is_returned_and_not_followed() {
         time_limit: 0,
         sort: None,
         window: None,
+        show_deleted: false,
     });
     let entries: Vec<_> = search
         .by_ref()

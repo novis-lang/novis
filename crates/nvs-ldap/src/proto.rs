@@ -30,6 +30,8 @@ pub const SORT_REQUEST: &str = "1.2.840.113556.1.4.473";
 pub const VLV_REQUEST: &str = "2.16.840.1.113730.3.4.9";
 /// The virtual list view response control a server sends back.
 pub const VLV_RESPONSE: &str = "2.16.840.1.113730.3.4.10";
+/// AD's show deleted objects control, which has no value.
+pub const SHOW_DELETED: &str = "1.2.840.113556.1.4.417";
 
 const BIND_REQUEST: u8 = 0x60;
 const BIND_RESPONSE: u8 = 0x61;
@@ -739,6 +741,17 @@ impl Control {
         }
     }
 
+    /// The control that makes a search include deleted entries, which AD
+    /// keeps as tombstones under `CN=Deleted Objects` until they expire.
+    #[must_use]
+    pub fn show_deleted() -> Self {
+        Self {
+            oid: SHOW_DELETED.to_owned(),
+            critical: true,
+            value: None,
+        }
+    }
+
     /// The `contentCount` and the result code of a virtual list view
     /// response control: how many entries the whole sorted result has, and
     /// 0 when the server built the window.
@@ -969,6 +982,9 @@ pub struct SearchRequest<'a> {
     /// The slice of the sorted result to return in one answer, in place of
     /// pages. The server refuses one without [`Self::sort`].
     pub window: Option<Window>,
+    /// Whether deleted entries are included, which AD allows an account
+    /// that can read `CN=Deleted Objects`.
+    pub show_deleted: bool,
 }
 
 /// The `SearchRequest` operation, encoded once and sent again for every page.

@@ -290,8 +290,9 @@ const OPEN_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `search`'s options, ADR 0278 § 1's `SearchOptions` and § 11's sort and
-/// window, which `super::search`'s module doc says are two flat options.
+/// `search`'s options, ADR 0278 § 1's `SearchOptions` and § 11's sort,
+/// window and deleted objects. `super::search`'s module doc says why the
+/// window is two flat options.
 ///
 /// `base`, `select` and `sort` are sinks: the base is a path the server
 /// walks, and an attribute name is sent as it is written.
@@ -346,6 +347,11 @@ const SEARCH_OPTIONS: &[CoreOption] = &[
         ty: CoreTy::Int,
         // No window: the search reads pages.
         default: Const::Int(0),
+    },
+    CoreOption {
+        name: "showDeleted",
+        ty: CoreTy::Bool,
+        default: Const::Bool(false),
     },
 ];
 
@@ -597,6 +603,14 @@ const SEARCH_DOC: MethodDoc = MethodDoc {
                    With `{sort: 'cn', offset: 20, window: 10}`, the search returns entries 21 \
                    to 30. `total()` then returns how many entries there are in all. The \
                    default, 0, returns every entry.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "showDeleted",
+            desc: "`true` also finds deleted entries. Active Directory keeps a deleted entry \
+                   for some time, with most of its attributes removed. `isDeleted()` checks \
+                   whether an entry is one of them. The account needs the right to read \
+                   deleted entries. The default is `false`.",
             shape: &[],
         },
     ],
@@ -1038,6 +1052,15 @@ pub(crate) const ENTRY: CoreClass = CoreClass {
             doc: Some(&ENTRY_HAS_DOC),
         },
         CoreMethod {
+            name: "isDeleted",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            symbol: "nvs_core_ldap_entry_is_deleted",
+            doc: Some(&ENTRY_IS_DELETED_DOC),
+        },
+        CoreMethod {
             name: "string",
             names: &["name"],
             params: &[CoreTy::Text(Qual::Neutral)],
@@ -1186,6 +1209,15 @@ const ENTRY_HAS_DOC: MethodDoc = MethodDoc {
     params: &[ATTRIBUTE_NAME_PARAM],
     ret: "`true` when the entry has the attribute, and `false` when it does not or the search \
           did not select it.",
+    errors: &[],
+};
+
+/// `Ldap\Entry::isDeleted`'s reference card — `rule:core-api/reference-card`.
+const ENTRY_IS_DELETED_DOC: MethodDoc = MethodDoc {
+    short: "Checks whether the entry is a deleted entry. Only a search with \
+            `showDeleted: true` finds deleted entries.",
+    params: &[],
+    ret: "`true` when the entry's `isDeleted` attribute is `TRUE`, and `false` otherwise.",
     errors: &[],
 };
 

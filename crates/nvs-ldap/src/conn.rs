@@ -699,7 +699,7 @@ enum Paging {
 pub struct Cursor {
     /// The `SearchRequest`, encoded once.
     op: Vec<u8>,
-    /// The sort and window controls, sent with every page.
+    /// The sort, window and show deleted controls, sent with every page.
     extra: Vec<Control>,
     /// Whether the search is one window rather than pages.
     windowed: bool,
@@ -726,6 +726,9 @@ impl Cursor {
         }
         if let Some(window) = request.window {
             extra.push(Control::window(window));
+        }
+        if request.show_deleted {
+            extra.push(Control::show_deleted());
         }
         Self {
             op: proto::search_request(request),

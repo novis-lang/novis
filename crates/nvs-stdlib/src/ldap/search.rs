@@ -29,6 +29,10 @@
 //! (`a_shape_is_only_ever_a_whole_parameter`), and two counts beside `sort`
 //! need no type of their own. `window` needs `sort`, and `offset` needs
 //! `window`; both are checked before anything is sent.
+//!
+//! **`showDeleted` adds `isDeleted` to a `select` that names attributes**,
+//! so `Entry::isDeleted` reads the attribute it is about whatever the program
+//! selected. An empty `select` already returns it.
 
 use nvs_runtime::{Fault, NvsArray, NvsStr, ThrownClass, Value};
 
@@ -364,10 +368,10 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `$connection->search(Filter $filter, {base?, scope?, select?, pageSize?,
-    /// sizeLimit?, sort?, descending?, offset?, window?}): Entries` —
-    /// [`super::search`], with the search parked on the connection for the
-    /// `Ldap\Entries` it returns.
-    fn nvs_core_ldap_connection_search(ctx, args: [11]) {
+    /// sizeLimit?, sort?, descending?, offset?, window?, showDeleted?}):
+    /// Entries` — [`super::search`], with the search parked on the connection
+    /// for the `Ldap\Entries` it returns.
+    fn nvs_core_ldap_connection_search(ctx, args: [12]) {
         let key = key_in(args[0], &CONNECTION, CONNECTION_HANDLE_AT, "search")?;
         let filter = nvs_ldap::Filter::Encoded(ber_of(args[1], "search")?);
         let base = match super::dn::dn_arg(args[2], SEARCH)? {
@@ -384,7 +388,16 @@ nvs_runtime::nvs_helper! {
         };
         let scope = scope_of(&args[3])?;
         let select = selected(&args[4], SEARCH)?;
-        let attributes: Vec<&str> = select.iter().map(String::as_str).collect();
+        let mut attributes: Vec<&str> = select.iter().map(String::as_str).collect();
+        let show_deleted = args[11].as_bool() == Some(true);
+        if show_deleted
+            && !attributes.is_empty()
+            && !attributes
+                .iter()
+                .any(|name| name.eq_ignore_ascii_case("isDeleted"))
+        {
+            attributes.push("isDeleted");
+        }
         let sorted = args[7].as_text().map(str::to_owned);
         if let Some(name) = &sorted
             && !nvs_ldap::is_attribute_description(name)
@@ -408,6 +421,7 @@ nvs_runtime::nvs_helper! {
                 descending,
             }),
             window,
+            show_deleted,
         };
         let entries = super::search(ctx, key, &request)?;
         let total = entries
@@ -539,6 +553,21 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_ldap_entry_has(_ctx, args: [2]) {
         let (_, values) = values_named(args, "has")?;
         Ok(Value::bool(values.is_some()))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$entry->isDeleted(): bool` — whether the entry's `isDeleted` is
+    /// `TRUE`, which only a tombstone's is.
+    fn nvs_core_ldap_entry_is_deleted(_ctx, args: [1]) {
+        let values = values_of(args[0], "isDeleted", "isDeleted")?;
+        let deleted = values.is_some_and(|values| {
+            values.count() == 1
+                && values
+                    .get_index(0)
+                    .is_some_and(|value| value.as_bytes() == Some(b"TRUE".as_slice()))
+        });
+        Ok(Value::bool(deleted))
     }
 }
 
@@ -861,6 +890,7 @@ pub(super) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_ldap_entry_to_array" => (nvs_core_ldap_entry_to_array as *const ()).cast(),
         "nvs_core_ldap_entry_dn" => (nvs_core_ldap_entry_dn as *const ()).cast(),
         "nvs_core_ldap_entry_has" => (nvs_core_ldap_entry_has as *const ()).cast(),
+        "nvs_core_ldap_entry_is_deleted" => (nvs_core_ldap_entry_is_deleted as *const ()).cast(),
         "nvs_core_ldap_entry_string" => (nvs_core_ldap_entry_string as *const ()).cast(),
         "nvs_core_ldap_entry_strings" => (nvs_core_ldap_entry_strings as *const ()).cast(),
         "nvs_core_ldap_entry_bytes" => (nvs_core_ldap_entry_bytes as *const ()).cast(),

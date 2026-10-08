@@ -1,0 +1,52 @@
+--TEST--
+`showDeleted` makes a search also find deleted entries, `isDeleted()` is `true` only for them, and a `select` that does not name `isDeleted` still gets it — ADR 0278 § 11
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+var $dn = "OU=Theater,DC=example,DC=test";
+try {
+    $corp->delete($dn);
+} catch (Core\Ldap\LdapError $gone) {
+}
+
+class Count {
+    public static function of(Core\Ldap\Entries $entries, bool $deleted): int {
+        int $count = 0;
+        foreach ($entries as Core\Ldap\Entry $entry) {
+            if ($entry->isDeleted() == $deleted) {
+                $count = $count + 1;
+            }
+        }
+        return $count;
+    }
+}
+
+// Every earlier run left a deleted `Theater` behind, so deleted entries are counted as "at least one".
+var $named = Core\Ldap\Filter::startsWith("name", "Theater");
+$corp->add($dn, ["objectClass" => "organizationalUnit"]);
+echo "live, plain search: ", Count::of($corp->search($named, {select: ["name"]}), false), "\n";
+echo "live, showDeleted: ", Count::of($corp->search($named, {select: ["name"], showDeleted: true}), false), "\n";
+
+$corp->delete($dn);
+echo "after delete, plain search: ", Count::of($corp->search($named, {select: ["name"]}), false), "\n";
+echo "after delete, showDeleted live: ", Count::of($corp->search($named, {select: ["name"], showDeleted: true}), false), "\n";
+var $deleted = Count::of($corp->search($named, {select: ["name"], showDeleted: true}), true);
+echo "after delete, showDeleted deleted: ", $deleted >= 1 ? "at least one" : "none", "\n";
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+base = "DC=example,DC=test"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+live, plain search: 1
+live, showDeleted: 1
+after delete, plain search: 0
+after delete, showDeleted live: 0
+after delete, showDeleted deleted: at least one

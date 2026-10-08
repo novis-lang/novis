@@ -233,6 +233,7 @@ fn base_values(
         time_limit: 0,
         sort: None,
         window: None,
+        show_deleted: false,
     });
     let mut values = Vec::new();
     // The loop runs to the end so the connection is settled when it returns.

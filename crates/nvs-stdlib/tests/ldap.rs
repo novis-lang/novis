@@ -232,6 +232,7 @@ fn everything(filter: &Filter, page_size: u32, size_limit: u32) -> SearchRequest
         time_limit: 0,
         sort: None,
         window: None,
+        show_deleted: false,
     }
 }
 
@@ -1810,6 +1811,7 @@ fn sorted_names(
             time_limit: 0,
             sort: Some(sort),
             window,
+            show_deleted: false,
         },
     )
     .expect("the search starts");
@@ -1887,4 +1889,75 @@ fn sort_and_a_vlv_window_return_the_requested_slice() {
         ldap::delete(&mut ctx, key, &format!("OU={name},{base}")).expect("deleted");
     }
     ldap::delete(&mut ctx, key, &base).expect("the OU is deleted");
+}
+
+/// The DNs and `isDeleted` values of the entries under the domain root whose
+/// `objectGUID` is `guid`, searched with and without the show deleted control.
+fn with_guid(
+    ctx: &mut nvs_runtime::Ctx,
+    key: u64,
+    guid: &[u8],
+    show_deleted: bool,
+) -> Vec<(String, bool)> {
+    let filter = Filter::Equal("objectGUID".to_owned(), guid.to_vec());
+    let mut entries = ldap::search(
+        ctx,
+        key,
+        &SearchRequest {
+            attributes: &["isDeleted"],
+            show_deleted,
+            ..everything(&filter, 1000, 0)
+        },
+    )
+    .expect("the search starts");
+    let mut found = Vec::new();
+    while let Some(entry) = entries.next(ctx).expect("the search succeeds") {
+        let deleted = entry
+            .get("isDeleted")
+            .is_some_and(|values| values.first().is_some_and(|value| value == b"TRUE"));
+        found.push((entry.dn.clone(), deleted));
+    }
+    found
+}
+
+#[test]
+fn show_deleted_finds_a_deleted_entry() {
+    let Some(ca) = samba() else { return };
+    let mut ctx = ctx_over(&corp(&ca));
+    let key = ldap::connect(&mut ctx, "corp").expect("the block opens");
+    let dn = format!("OU=Museum,{BASE}");
+    ldap::delete(&mut ctx, key, &dn).ok();
+    ldap::add(
+        &mut ctx,
+        key,
+        &dn,
+        &[nvs_ldap::Attribute {
+            name: "objectClass".to_owned(),
+            values: vec![b"organizationalUnit".to_vec()],
+        }],
+    )
+    .expect("the OU is added");
+    let read = ldap::read(&mut ctx, key, &dn, &["objectGUID"])
+        .expect("the read succeeds")
+        .expect("the OU exists");
+    let guid = read.get("objectGUID").expect("every entry has a GUID")[0].clone();
+    assert_eq!(
+        with_guid(&mut ctx, key, &guid, false),
+        vec![(dn.clone(), false)],
+        "a live entry is found with or without the control"
+    );
+
+    ldap::delete(&mut ctx, key, &dn).expect("the OU is deleted");
+    assert!(
+        with_guid(&mut ctx, key, &guid, false).is_empty(),
+        "a plain search does not see a tombstone"
+    );
+    let tombstones = with_guid(&mut ctx, key, &guid, true);
+    assert_eq!(tombstones.len(), 1, "{tombstones:?}");
+    let (moved, deleted) = &tombstones[0];
+    assert!(*deleted, "a tombstone has `isDeleted: TRUE`");
+    assert!(
+        moved.contains("CN=Deleted Objects"),
+        "a tombstone is moved under `CN=Deleted Objects`: {moved}"
+    );
 }

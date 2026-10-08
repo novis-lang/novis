@@ -1,0 +1,29 @@
+--TEST--
+`isDeleted()` is `false` for a live entry, whether its attributes were selected or not, and `read` does not add `isDeleted` to a `select` — ADR 0278 § 11
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+var $admin = "CN=Administrator,CN=Users,DC=example,DC=test";
+
+?Core\Ldap\Entry $named = $corp->read($admin, {select: ["cn"]});
+echo "selected cn, isDeleted: ", $named?->isDeleted() ? "true" : "false", "\n";
+echo "selected cn, has isDeleted: ", $named?->has("isDeleted") ? "yes" : "no", "\n";
+
+?Core\Ldap\Entry $every = $corp->read($admin);
+echo "every attribute, isDeleted: ", $every?->isDeleted() ? "true" : "false", "\n";
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+base = "DC=example,DC=test"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+selected cn, isDeleted: false
+selected cn, has isDeleted: no
+every attribute, isDeleted: false
