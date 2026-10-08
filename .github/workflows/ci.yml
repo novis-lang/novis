@@ -346,6 +346,16 @@ jobs:
       # runner the next job on it inherits.
       - name: The five drivers, and the three that answer over a socket too
         run: bun nv db-matrix --all
+      # `nvs-ldap` against the Samba domain controller in the same compose file. Its tests read the
+      # anchor at `tests/db/ca.crt`, copied out of the `certs` volume here, and `NVS_LDAP_SAMBA`
+      # makes a server they cannot reach a failure rather than a skip.
+      - name: The LDAP client against Samba AD
+        env:
+          NVS_LDAP_SAMBA: "1"
+        run: |
+          docker compose -f tests/db/compose.yaml up -d --wait samba-ad
+          docker compose -f tests/db/compose.yaml cp samba-ad:/certs/ca.crt tests/db/ca.crt
+          cargo test --test samba
       - name: Stop the servers
         if: always()
         run: bun nv db-matrix --down

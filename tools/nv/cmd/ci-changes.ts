@@ -94,8 +94,13 @@ export const LANES: Record<string, string[]> = {
   // The five-driver matrix against real servers: the harness that points each driver at a container,
   // the compose file those containers come from, and -- added by `dbLane` below -- every package
   // `bun nv db-matrix` runs the tests of and every package those are compiled against. Gates
-  // `database`, the one job that needs a daemon.
-  db: ["tests/db/", "tools/nv/cmd/db-matrix.ts", "Cargo.toml", "Cargo.lock", ".github/workflows/"],
+  // `database`, the one job that needs a daemon. `crates/nvs-ldap/` is listed by hand: the same job
+  // runs its tests against the compose file's `samba-ad`, outside the harness, and every crate it is
+  // compiled against is one `nvs-db` is compiled against too.
+  db: [
+    "tests/db/", "tools/nv/cmd/db-matrix.ts", "crates/nvs-ldap/", "Cargo.toml", "Cargo.lock",
+    ".github/workflows/",
+  ],
   // The slotted response's polyfill and trigger, the Chromium test that runs them, and the lockfile
   // that pins the Playwright release and so the browser it downloads. Gates `browser`.
   browser: [
