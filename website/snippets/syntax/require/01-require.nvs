@@ -2,6 +2,7 @@
 // This program runs the file config.nvs and uses the value it returns.
 
 // The value of `require` has the type `mixed`. `as` converts it to the type you need.
-array<string> $config = (require 'config.nvs') as array<string>;
+// Text that comes from a `mixed` value is tainted, so the result is `array<tainted string>`.
+array<tainted string> $config = (require 'config.nvs') as array<string>;
 
 echo $config["host"], ":", $config["port"], "\n";

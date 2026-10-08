@@ -2,8 +2,8 @@
 // This program reads two values from the address and uses them in a safe way.
 // The request is `GET /search?q=<b>tea</b>&page=2`.
 
-// A text value from the request is a `tainted string`.
-tainted string $search = Core\Request::query("q") as tainted string;
+// `query` returns a `tainted string`, or `null` if the address has no `q`.
+tainted string $search = Core\Request::query("q") ?? "";
 
 // `as ?int` checks the value and gives a plain `int`, or `null`.
 int $next = (Core\Request::query("page") as ?int ?? 1) + 1;

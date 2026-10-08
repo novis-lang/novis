@@ -2,8 +2,8 @@
 // This program reads database rows one page at a time.
 class Guests {
     // Returns the names on page `$page`. Each page has `$size` rows, and the first page is 1.
-    public static function page(Core\Db\Connection $db, uint $page, uint $size): array<string> {
-        array<string> $names = [];
+    public static function page(Core\Db\Connection $db, uint $page, uint $size): array<tainted string> {
+        array<tainted string> $names = [];
         // `limit` is the number of rows, and `offset` is the number of rows to skip.
         var $rows = $db->query("select name from guests order by id limit ? offset ?", [$size, ($page - 1) * $size]);
         foreach ($rows as Core\Db\Row $row) {
@@ -17,12 +17,12 @@ class Guests {
 var $db = Core\Db::connect("guests");
 $db->execute("create table guests (id integer primary key, name text not null)", []);
 array<string> $guests = ["Ada", "Bo", "Cem", "Dana", "Eli", "Fay", "Gus"];
-foreach ($guests as string $name) {
-    $db->execute("insert into guests (name) values (?)", [$name]);
+foreach ($guests as string $guest) {
+    $db->execute("insert into guests (name) values (?)", [$guest]);
 }
 
 // There are seven guests. Page 2 has the guests 4 to 6, so this prints Dana, Eli and Fay.
-foreach (Guests::page($db, 2, 3) as string $name) {
+foreach (Guests::page($db, 2, 3) as tainted string $name) {
     echo $name, "\n";
 }
 $db->close();

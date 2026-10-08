@@ -1,6 +1,6 @@
 <?nvs
 // This program puts text from a request into the text of a database query, so it does not compile.
-tainted string $name = Core\Request::query("name") as tainted string;
+tainted string $name = Core\Request::query("name") ?? "";
 var $db = Core\Db::connect("main");
 
 var $users = $db->query("select id from users where name = '" . $name . "'", []);

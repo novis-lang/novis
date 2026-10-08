@@ -24,7 +24,10 @@ and the program sets the status `404`.
 
 `Core\Request` has a method for each part of the request:
 
-- `Core\Request::query("page")` reads a parameter from the address.
+- `Core\Request::query("page")` reads a parameter from the address. It returns `null` if the
+  address has no `page`.
+- `Core\Request::queryArray("tag")` reads a parameter with brackets, such as `tag[]=a&tag[]=b`, as
+  an array.
 - `Core\Request::postAs<Contact>()` reads a form into an instance of your class.
 - `Core\Request::jsonAs<Order>()` reads a JSON body into an instance of your class.
 - `Core\Request::header("accept")` reads one header.
