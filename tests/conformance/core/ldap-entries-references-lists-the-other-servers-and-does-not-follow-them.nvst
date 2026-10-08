@@ -1,0 +1,38 @@
+--TEST--
+A search at the domain root returns the other naming contexts as continuation references: `references()` lists their URLs after the loop, and no entry from them is in the result — ADR 0278 § 5
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+var $entries = $corp->search(Core\Ldap\Filter::present("objectClass"), {
+    scope: Core\Ldap\Scope::OneLevel,
+    select: ["cn"],
+});
+array<string> $dns = [];
+foreach ($entries as Core\Ldap\Entry $entry) {
+    $dns[] = $entry->dn();
+}
+foreach ($entries->references() as tainted string $url) {
+    echo "reference: ", $url, "\n";
+}
+
+// The configuration partition is on the list above, so it is not an entry.
+echo "configuration is an entry: ", Core\Arr::contains($dns, "CN=Configuration,DC=example,DC=test") ? "yes" : "no", "\n";
+echo "users is an entry: ", Core\Arr::contains($dns, "CN=Users,DC=example,DC=test") ? "yes" : "no", "\n";
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+base = "DC=example,DC=test"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+reference: ldaps://example.test/CN=Configuration,DC=example,DC=test??base
+reference: ldaps://example.test/DC=DomainDnsZones,DC=example,DC=test??base
+reference: ldaps://example.test/DC=ForestDnsZones,DC=example,DC=test??base
+configuration is an entry: no
+users is an entry: yes

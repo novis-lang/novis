@@ -26044,7 +26044,7 @@ Keywords: connect, open
 | Member | Signature |
 |---|---|
 | [`Core\Ldap::connect`](#core-core-ldap-connect) | `connect(string $name): Core\Ldap\Connection` |
-| [`Core\Ldap::open`](#core-core-ldap-open) | `open({url: string, user?: tainted string, password?: secret tainted string, tls?: Core\Ldap\Tls, timeout?: Core\Time\Duration} $settings): Core\Ldap\Connection` |
+| [`Core\Ldap::open`](#core-core-ldap-open) | `open({url: string, user?: tainted string, password?: secret tainted string, tls?: Core\Ldap\Tls, timeout?: Core\Time\Duration, base?: string} $settings): Core\Ldap\Connection` |
 
 <a id="core-core-ldap-connect"></a>
 #### `Core\Ldap::connect`
@@ -26067,14 +26067,14 @@ Opens the directory named by an `[ldap.<name>]` block in `nvs.toml`. A second ca
 #### `Core\Ldap::open`
 
 ```nvs skip
-Core\Ldap::open({url: string, user?: tainted string, password?: secret tainted string, tls?: Core\Ldap\Tls, timeout?: Core\Time\Duration} $settings): Core\Ldap\Connection
+Core\Ldap::open({url: string, user?: tainted string, password?: secret tainted string, tls?: Core\Ldap\Tls, timeout?: Core\Time\Duration, base?: string} $settings): Core\Ldap\Connection
 ```
 
 Opens a directory at a URL the program gives. Needs the `ldap.open` capability for the URL's host. The host's address is also checked against the addresses no program may reach, such as private networks.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$settings` | `{url: string, user?: tainted string, password?: secret tainted string, tls?: Core\Ldap\Tls, timeout?: Core\Time\Duration}` | The directory to open and the account to log in with. Keys: `url` (string) One `ldaps://` or `ldap://` URL. It cannot be `tainted`, because the password is sent to this host.; `user` (tainted string) The account to log in as, as a DN, `user@example.test` or `EXAMPLE\user`. Left out, the connection does not log in.; `password` (secret tainted string) The account's password. An empty password throws before anything is sent.; `tls` (Tls) `Tls::Required`, the default, encrypts the connection. `Tls::None` sends everything as plain text, and needs the host in `[capabilities.ldap] cleartext`.; `timeout` (Duration) How long one operation may take. Left out, it is 30 seconds. |
+| `$settings` | `{url: string, user?: tainted string, password?: secret tainted string, tls?: Core\Ldap\Tls, timeout?: Core\Time\Duration, base?: string}` | The directory to open and the account to log in with. Keys: `url` (string) One `ldaps://` or `ldap://` URL. It cannot be `tainted`, because the password is sent to this host.; `user` (tainted string) The account to log in as, as a DN, `user@example.test` or `EXAMPLE\user`. Left out, the connection does not log in.; `password` (secret tainted string) The account's password. An empty password throws before anything is sent.; `tls` (Tls) `Tls::Required`, the default, encrypts the connection. `Tls::None` sends everything as plain text, and needs the host in `[capabilities.ldap] cleartext`.; `timeout` (Duration) How long one operation may take. Left out, it is 30 seconds.; `base` (string) The DN a search starts from when it does not give its own `base`. It cannot be `tainted`. |
 
 **Returns** `Core\Ldap\Connection` — A `Core\Ldap\Connection`. It is closed when the request ends.
 
@@ -26147,15 +26147,27 @@ Reads the one entry at a DN.
 <a id="core-core-ldap-entries"></a>
 ### `Core\Ldap\Entries`
 
-Keywords: 
+Keywords: references
 
 | Member | Signature |
 |---|---|
+| [`Core\Ldap\Entries->references`](#core-core-ldap-entries-references) | `references(): array<tainted string>` |
+
+<a id="core-core-ldap-entries-references"></a>
+#### `Core\Ldap\Entries->references`
+
+```nvs skip
+$entries->references(): array<tainted string>
+```
+
+Returns the URLs of other servers that the server named for this search. Novis does not connect to them. The URLs are `tainted`, because the server sent them.
+
+**Returns** `array<tainted string>` — The URLs in the order the server sent them. The list is complete after the loop ends, and it is empty when the server named no other server.
 
 <a id="core-core-ldap-entry"></a>
 ### `Core\Ldap\Entry`
 
-Keywords: dn, has, string, strings, bytes
+Keywords: dn, has, string, strings, bytes, toArray
 
 | Member | Signature |
 |---|---|
@@ -26164,6 +26176,7 @@ Keywords: dn, has, string, strings, bytes
 | [`Core\Ldap\Entry->string`](#core-core-ldap-entry-string) | `string(string $name): ?tainted string` |
 | [`Core\Ldap\Entry->strings`](#core-core-ldap-entry-strings) | `strings(string $name): ?array<tainted string>` |
 | [`Core\Ldap\Entry->bytes`](#core-core-ldap-entry-bytes) | `bytes(string $name): ?tainted bytes` |
+| [`Core\Ldap\Entry->toArray`](#core-core-ldap-entry-toarray) | `toArray(): array<array<tainted bytes>>` |
 
 <a id="core-core-ldap-entry-dn"></a>
 #### `Core\Ldap\Entry->dn`
@@ -26241,6 +26254,17 @@ Returns the one value of an attribute as bytes, exactly as the server sent it. U
 **Returns** `?tainted bytes` — The value, or `null` when the entry has no value for the attribute.
 
 **Throws** `LogicError` — The attribute has more than one value.
+
+<a id="core-core-ldap-entry-toarray"></a>
+#### `Core\Ldap\Entry->toArray`
+
+```nvs skip
+$entry->toArray(): array<array<tainted bytes>>
+```
+
+Returns every attribute of the entry as an array. Each key is an attribute name, written the way the server wrote it. Each value is a list of `tainted bytes`.
+
+**Returns** `array<array<tainted bytes>>` — The attributes, in the order the server sent them. The DN is not in the array, so use `dn` for it.
 
 <a id="core-core-ldap-filter"></a>
 ### `Core\Ldap\Filter`

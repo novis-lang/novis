@@ -164,6 +164,7 @@ fn open_needs_the_ldap_open_grant_and_passes_the_address_policy() {
         tls: nvs_config::ldap::Tls::Required,
         tls_ca_file: None,
         timeout: Some(Duration::from_secs(5)),
+        base: None,
     };
 
     let ungranted = snapshot(Vec::new(), CapLdap::default());

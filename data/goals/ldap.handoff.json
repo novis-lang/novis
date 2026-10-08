@@ -1,27 +1,31 @@
 {
-  "state": "**Goal `ldap`, Stage 4.** `nvs-config` reads `[ldap.<name>]` and `[capabilities.ldap]`. `crates/nvs-stdlib/src/ldap/mod.rs` opens connections (`connect`, `open`) and runs `who_am_i`, `search` and `read`. `nvs_ldap::Filter::Encoded` and `nvs_ldap::is_attribute_description` are on `main`.\n\n**The Stage 4 members are on `main`**: `Ldap\\Connection::whoami`/`search`/`read`, `Ldap\\Entries`, `Ldap\\Entry` (`dn`, `has`, `string`, `strings`, `bytes`), `Ldap\\Filter` (`equals`, `present`) and `Ldap\\Scope` (`Base`, `OneLevel`, `Subtree`). Each has at least three `.nvst` cases under `tests/conformance/core/ldap-*.nvst`. Six of those cases need no server. The others reach the `samba-ad` service in `tests/db/compose.yaml` at `ldaps://localhost:16636` as `CN=Administrator,CN=Users,DC=example,DC=test`. They are skipped through `--COPY--\\n../../db/ca.crt` where `tests/db/ca.crt` is absent. The acceptance case `ldap-connect-and-search.nvst` passes against it.\n\n`dn()` returns `string` until `Dn` exists (Stage 5). `toArray` and `Entries::references` are not written. `Ldap\\Settings` still lacks `base` and `tlsCaFile`, so `open` cannot reach a server whose certificate needs a private CA.",
+  "state": "**Goal `ldap`, Stage 4 done but for a program-supplied CA; Stage 5 is the driver's earliest red check.** `nvs-config` reads `[ldap.<name>]` and `[capabilities.ldap]`. `crates/nvs-stdlib/src/ldap/mod.rs` opens connections (`connect`, `open`) and runs `who_am_i`, `search` and `read`.\n\n**On `main`**: `Ldap\\Connection::whoami`/`search`/`read`, `Ldap\\Entries` (iterable, `references()`), `Ldap\\Entry` (`dn`, `has`, `string`, `strings`, `bytes`, `toArray`), `Ldap\\Filter` (`equals`, `present`), `Ldap\\Scope`, and `Ldap\\Settings` with `url`, `user`, `password`, `tls`, `timeout` and `base`. Each member has at least three `.nvst` cases under `tests/conformance/core/ldap-*.nvst`. Server cases reach `samba-ad` (`tests/db/compose.yaml`) at `ldaps://localhost:16636`, or over cleartext at `ldap://127.0.0.1:16389` for an `open` case. `open` pins one address, so an `open` case writes `127.0.0.1`, not `localhost`, which resolves to `::1` where the container does not listen.\n\n`references()` returns `array<tainted string>`, not the ADR table's `array<string>`: a URL the server chose is server data. A finished search hands its references to the `Ldap\\Entries` slot (`Step::Ended` in `mod.rs`), so nothing stays on a pooled connection.\n\n`dn()` returns `string` until `Dn` exists (Stage 5).",
   "next": {
-    "stage": 4,
-    "title": "`Core\\Ldap`: connect, open, search, read",
-    "files": [
-      "crates/nvs-stdlib/src/ldap/search.rs",
-      "crates/nvs-stdlib/src/ldap/registry.rs",
-      "crates/nvs-stdlib/src/ldap/mod.rs",
-      "tests/conformance/core/ldap-*.nvst"
-    ],
+    "stage": 5,
+    "title": "the filter builder and `Dn`",
+    "files": [],
+    "note": ": one file set: `crates/nvs-ldap/src/proto.rs`, `crates/nvs-stdlib/src/ldap/search.rs`, `crates/nvs-stdlib/src/ldap/registry.rs`, `crates/nvs-stdlib/tests/ldap.rs`, `tests/conformance/core/ldap-filter-*.nvst`.",
     "items": [
       {
         "done": false,
-        "text": "**`Entry::toArray` and `Entries::references`** (ADR 0278 § 1 and § 5). The `Entry` rows start at `crates/nvs-stdlib/src/ldap/registry.rs:465`, and the reader bodies at `crates/nvs-stdlib/src/ldap/search.rs:354`. `toArray`'s keys keep the server's spelling (the module doc at `crates/nvs-stdlib/src/ldap/search.rs:6`). Three cases each, against `samba-ad`, in the shape of `tests/conformance/core/ldap-entry-readers-agree-on-a-missing-attribute.nvst`."
+        "text": "**The rest of `Ldap\\Filter`: `startsWith`, `endsWith`, `contains`, `atLeast`, `atMost`, `approx`, `all`, `any`, `not`, `toString`** (ADR 0278 § 6, `rule:core-classes/ldap-filter-is-a-value`). The wire enum is at `crates/nvs-ldap/src/proto.rs:51` and its encoder at `crates/nvs-ldap/src/proto.rs:150`. The class row is at `crates/nvs-stdlib/src/ldap/registry.rs:632`, and the bodies follow `crates/nvs-stdlib/src/ldap/search.rs:453`. The Rust tests `a_filter_encodes_to_ber_with_no_text_step` and `a_tainted_value_cannot_change_a_filters_structure` go in `crates/nvs-stdlib/tests/ldap.rs:357`'s file. The acceptance case is `tests/conformance/core/ldap-filter-builder-matches.nvst`."
       },
       {
         "done": false,
-        "text": "**`Ldap\\Settings` gains `base` and `tlsCaFile`** (ADR 0278 § 2). The shape is at `crates/nvs-stdlib/src/ldap/registry.rs:59`, and its slot constants follow it. Then add a case where `Core\\Ldap::open` reaches `samba-ad` over LDAPS and `whoami` returns `u:EXAMPLE\\Administrator`."
+        "text": "**`Filter::parse`, which does not compile with a tainted string** (ADR 0278 § 6). The same rows at `crates/nvs-stdlib/src/ldap/registry.rs:632`. Acceptance case `tests/conformance/core/ldap-filter-parse-refuses-tainted.nvst`."
+      },
+      {
+        "done": false,
+        "text": "**`Ldap\\Dn`: `parse`, `of`, `child`, `parent`, `rdn`, `isWithin`, `toString`, and `Entry::dn()` returning it** (ADR 0278 § 1). The `dn` row is at `crates/nvs-stdlib/src/ldap/registry.rs:478`. Rust test `dn_escapes_each_value_and_round_trips`, acceptance case `tests/conformance/core/ldap-dn-from-parts.nvst`."
+      },
+      {
+        "done": false,
+        "text": "**`Ad::memberOf` with `nested`** uses the in-chain rule (`1.2.840.113556.1.4.1941`). Rust test `ad_member_of_nested_uses_the_in_chain_rule` in `crates/nvs-stdlib/tests/ldap.rs:357`'s file."
       }
     ]
   },
   "backlog": [
-    "Stage 5: `Filter::all`/`any`/`not`, the rest of the matches, `Filter::parse` and `Dn` (ADR 0278 § 5). `dn()` then returns `Dn`.",
-    "Stages 6 to 10 as `docs/agent/goals/ldap.md` orders them."
+    "`Ldap\\Settings` has no program-supplied CA, so `open` cannot use LDAPS to reach a server whose certificate needs a private CA. It must be `tlsCa: string` (PEM text) under a `[capabilities.tls] anchors` host grant, per `rule:security/tls-trust-is-relaxed-only-under-a-host-grant`. A `tlsCaFile` path would be a second way to write that option. The dial is at `crates/nvs-stdlib/src/ldap/mod.rs:260`.",
+    "`Entries::total()` (ADR 0278 § 1) is not written. It needs a server that answers the VLV control, which is Stage 9."
   ]
 }

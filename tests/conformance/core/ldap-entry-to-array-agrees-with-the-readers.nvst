@@ -1,0 +1,45 @@
+--TEST--
+Over every attribute of a whole entry, `toArray` agrees with the readers: `has` is `true` for each key, `strings` has as many values, and `bytes` returns the same one value — ADR 0278 § 1
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+?Core\Ldap\Entry $found = $corp->read("CN=Users,DC=example,DC=test");
+if ($found == null) {
+    echo "no entry", "\n";
+} else {
+    Core\Ldap\Entry $staff = $found;
+    var $attributes = $staff->toArray();
+    int $disagree = 0;
+    foreach ($attributes as string $name => array<tainted bytes> $values) {
+        if (!$staff->has($name)) {
+            $disagree = $disagree + 1;
+        }
+        if (Core\Arr::count($values) == 1) {
+            if ($staff->bytes($name) != $values[0]) {
+                $disagree = $disagree + 1;
+            }
+        }
+    }
+    echo "attributes: ", Core\Arr::count($attributes) > 5 ? "more than five" : "five or fewer", "\n";
+    echo "disagreements: ", $disagree, "\n";
+
+    // `objectClass` has several values, and `strings` returns each of them.
+    var $classes = $staff->strings("objectclass");
+    echo "objectClass agrees: ", $classes != null && Core\Arr::count($classes) == Core\Arr::count($attributes["objectClass"]) ? "yes" : "no", "\n";
+}
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+base = "DC=example,DC=test"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+attributes: more than five
+disagreements: 0
+objectClass agrees: yes

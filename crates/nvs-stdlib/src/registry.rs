@@ -6431,7 +6431,6 @@ mod tests {
             crate::cli::STYLE_NAME,
             crate::db::IN_LIST_NAME,
             crate::db::STREAM_NAME,
-            crate::ldap::ENTRIES_NAME,
             crate::ldap::FILTER_NAME,
             crate::queue::ID_NAME,
             crate::request::BODY_STREAM_NAME,

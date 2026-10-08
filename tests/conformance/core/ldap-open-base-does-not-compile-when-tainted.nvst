@@ -1,0 +1,16 @@
+--TEST--
+`Ldap\Settings.base` is where every search without its own `base` starts, so a `tainted` one does not compile, the same as `search`'s `base` option — ADR 0278 § 2 and `rule:security/tainted-qualifier`
+--FILE--
+<?nvs
+class Directory {
+    public static function at(tainted string $base): Core\Ldap\Connection {
+        return Core\Ldap::open({url: "ldaps://directory.example.test", base: $base});
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -1,0 +1,40 @@
+--TEST--
+A search under `CN=Users` names no other server, so `references()` is an empty list before the loop, after it, and after a second loop that finds nothing more — ADR 0278 § 5
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+var $entries = $corp->search(Core\Ldap\Filter::present("sAMAccountName"), {
+    base: "CN=Users,DC=example,DC=test",
+    scope: Core\Ldap\Scope::OneLevel,
+    select: ["sAMAccountName"],
+});
+echo "before the loop: ", Core\Arr::count($entries->references()), "\n";
+int $found = 0;
+foreach ($entries as Core\Ldap\Entry $entry) {
+    $found = $found + 1;
+}
+echo "found entries: ", $found > 0 ? "yes" : "no", "\n";
+echo "after the loop: ", Core\Arr::count($entries->references()), "\n";
+
+// The search has ended, so a second loop finds no entry and the list stays the same.
+foreach ($entries as Core\Ldap\Entry $entry) {
+    echo "an entry", "\n";
+}
+echo "after a second loop: ", Core\Arr::count($entries->references()), "\n";
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+base = "DC=example,DC=test"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+before the loop: 0
+found entries: yes
+after the loop: 0
+after a second loop: 0

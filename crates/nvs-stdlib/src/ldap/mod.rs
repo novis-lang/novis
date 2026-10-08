@@ -46,7 +46,9 @@
 //! holds a `Value`, so [`Entries::park`] moves the cursor into [`Held`] under
 //! an id, and `Ldap\Entries` carries the connection's key and that id. [`step`]
 //! reads the next entry, and a search leaves [`Held`] at its last entry or its
-//! first failure. One the program stops reading stays until the request ends,
+//! first failure. At its last entry [`Step::Ended`] hands back its
+//! continuation references, which `Ldap\Entries` keeps for `references()`,
+//! so nothing of a finished search stays on a pooled connection. One the program stops reading stays until the request ends,
 //! and a pooled connection drops what is left before it is reused. `search.rs`
 //! is the Novis half: the helpers for `Ldap\Connection`, `Ldap\Entries`,
 //! `Ldap\Entry` and `Ldap\Filter`.
@@ -138,16 +140,34 @@ impl Held {
         &mut self.conn
     }
 
-    /// The next entry of the search parked under `id`, or `None` after its
-    /// last one. A search that ended, or failed, is no longer parked.
-    fn advance(&mut self, id: u64) -> Option<Result<nvs_ldap::Entry, nvs_ldap::Error>> {
-        let cursor = self.searches.get_mut(&id)?;
+    /// What the search parked under `id` reads next. A search that ended, or
+    /// failed, is no longer parked.
+    fn advance(&mut self, id: u64) -> Result<Step, nvs_ldap::Error> {
+        let Some(cursor) = self.searches.get_mut(&id) else {
+            return Ok(Step::Gone);
+        };
         self.conn.set_deadline(Some(Instant::now() + self.timeout));
         let next = cursor.next(&mut self.conn);
-        if !matches!(next, Some(Ok(_))) {
-            self.searches.remove(&id);
+        if let Some(Ok(entry)) = next {
+            return Ok(Step::Entry(entry));
         }
-        next
+        let ended = self.searches.remove(&id);
+        match next {
+            Some(Err(error)) => Err(error),
+            _ => Ok(Step::Ended(
+                ended
+                    .map(|cursor| cursor.references().to_vec())
+                    .unwrap_or_default(),
+            )),
+        }
+    }
+
+    /// The continuation references the search parked under `id` returned so
+    /// far, or `None` when no search is parked under it.
+    fn references(&self, id: u64) -> Option<Vec<String>> {
+        self.searches
+            .get(&id)
+            .map(|cursor| cursor.references().to_vec())
     }
 }
 
@@ -183,6 +203,8 @@ pub struct Settings<'a> {
     pub tls_ca_file: Option<&'a Path>,
     /// How long one operation may take, or `None` for [`nvs_config::ldap::DEFAULT_TIMEOUT`].
     pub timeout: Option<Duration>,
+    /// Where a search that names no base starts, or `None` for none.
+    pub base: Option<&'a str>,
 }
 
 /// The `Ldap\LdapError` an LDAP failure becomes, worded for `member`.
@@ -312,6 +334,7 @@ pub fn connect(ctx: &mut Ctx, name: &str) -> Result<u64, Fault> {
         tls: nvs_config::ldap::tls_of(block),
         tls_ca_file: block.tls_ca_file.as_deref().map(Path::new),
         timeout: Some(timeout),
+        base: block.base.as_deref(),
     };
 
     let ticket = nvs_runtime::pool::Ticket::for_block(&snapshot, &memo, bounds);
@@ -416,8 +439,9 @@ pub fn open(ctx: &mut Ctx, settings: &Settings<'_>) -> Result<u64, Fault> {
     nvs_runtime::capability::require(ctx, Cap::LdapOpen, Scope::Host(&url.host), OPEN)?;
     let pinned = nvs_runtime::capability::pinned_address(ctx, &url.host, OPEN)?;
     let cleartext = cleartext_granted(ctx, settings.tls, &url.host);
-    let held = dial(&url, SocketAddr::new(pinned, url.port), settings, cleartext)
+    let mut held = dial(&url, SocketAddr::new(pinned, url.port), settings, cleartext)
         .map_err(|error| fault_of(OPEN, &error))?;
+    held.base = settings.base.map(str::to_owned);
     Ok(ctx.hold_open_connection(None, None, Box::new(held)))
 }
 
@@ -501,18 +525,40 @@ impl Entries {
     }
 }
 
-/// The next entry of the search [`Entries::park`] parked under `id` on the
-/// connection held under `key`, or `None` after its last one.
+/// What one [`step`] of a parked search read.
+#[derive(Debug)]
+pub enum Step {
+    /// The next entry.
+    Entry(nvs_ldap::Entry),
+    /// The search ended, and these are the continuation references it
+    /// returned, none of them followed.
+    Ended(Vec<String>),
+    /// No search is parked under the id, because it ended or failed before.
+    Gone,
+}
+
+/// What the search [`Entries::park`] parked under `id` on the connection held
+/// under `key` reads next.
 ///
 /// # Errors
 ///
 /// [`held`]'s, a size or time limit the server hit, and every other failure
 /// the server reports.
-pub fn step(ctx: &mut Ctx, key: u64, id: u64) -> Result<Option<nvs_ldap::Entry>, Fault> {
+pub fn step(ctx: &mut Ctx, key: u64, id: u64) -> Result<Step, Fault> {
     held(ctx, key, ENTRIES_MEMBER)?
         .advance(id)
-        .transpose()
         .map_err(|error| fault_of(ENTRIES_MEMBER, &error))
+}
+
+/// The continuation references the search parked under `id` on the
+/// connection held under `key` returned so far, or `None` when no search is
+/// parked under it.
+///
+/// # Errors
+///
+/// [`held`]'s.
+pub fn references(ctx: &mut Ctx, key: u64, id: u64) -> Result<Option<Vec<String>>, Fault> {
+    Ok(held(ctx, key, ENTRIES_MEMBER)?.references(id))
 }
 
 /// The `base` of the block the connection held under `key` was opened from,
@@ -645,8 +691,8 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Ldap::open(Ldap\Settings $settings): Ldap\Connection` — [`open`]
-    /// for a Novis program, over the five slots [`SETTINGS`] flattens to.
-    fn nvs_core_ldap_open(ctx, args: [5]) {
+    /// for a Novis program, over the six slots [`SETTINGS`] flattens to.
+    fn nvs_core_ldap_open(ctx, args: [6]) {
         // Unreachable from source: `url` is a required `string` field.
         let url = settings_text(args, URL_ARG, "url")?.unwrap_or_default();
         let user = settings_text(args, USER_ARG, "user")?;
@@ -658,6 +704,7 @@ nvs_runtime::nvs_helper! {
             tls: settings_tls(&args[TLS_ARG])?,
             tls_ca_file: None,
             timeout: settings_timeout(args)?,
+            base: settings_text(args, BASE_ARG, "base")?,
         };
         let key = open(ctx, &settings)?;
         Ok(connection(key))

@@ -1474,12 +1474,14 @@ mod tests {
     /// unconditional rather than contagious for `Core\Xml\Node`'s reason: an
     /// instance carries no qualifier for two members to pass one between, so
     /// `add` cannot hand `finish` anything.
-    /// `Core\Ldap\Entry`'s `string`, `strings` and `bytes` are the roster read
-    /// over a directory: an attribute value is whatever the account that last
-    /// wrote it put there, and a bound connection settles which server answered
-    /// and nothing about the text. Their siblings `dn()` and `has()` are the
-    /// deliberate absences: the DN is the server's own name for the entry it
-    /// returned, and `has` returns a `bool`.
+    /// `Core\Ldap\Entry`'s `string`, `strings`, `bytes` and `toArray` are the
+    /// roster read over a directory: an attribute value is whatever the account
+    /// that last wrote it put there, and a bound connection settles which
+    /// server answered and nothing about the text. Their siblings `dn()` and
+    /// `has()` are the deliberate absences: the DN is the server's own name for
+    /// the entry it returned, and `has` returns a `bool`.
+    /// `Core\Ldap\Entries::references` is on it too: a continuation reference
+    /// is a URL the server chose, and following it is the program's decision.
     /// All of them belong in this set for the reason the claims do: a member that
     /// promises `tainted` is invisible from every row but its own, so this is
     /// where a new arrival has to be looked at rather than waved through.
@@ -1575,6 +1577,16 @@ mod tests {
                     r"Core\Ldap\Entry",
                     "strings",
                     "null|array<tainted string>".to_owned(),
+                ),
+                (
+                    r"Core\Ldap\Entry",
+                    "toArray",
+                    "array<array<tainted bytes>>".to_owned(),
+                ),
+                (
+                    r"Core\Ldap\Entries",
+                    "references",
+                    "array<tainted string>".to_owned(),
                 ),
                 (
                     r"Core\Net\Datagram\Message",

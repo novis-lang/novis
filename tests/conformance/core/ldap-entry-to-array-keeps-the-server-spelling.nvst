@@ -1,0 +1,34 @@
+--TEST--
+`toArray` keys each attribute by the name the server sent, whatever case `select` used, holds every value of a list, and has no key for the DN — ADR 0278 § 1 and § 5
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+?Core\Ldap\Entry $admin = $corp->read("CN=Administrator,CN=Users,DC=example,DC=test", {
+    select: ["CN", "SAMACCOUNTNAME", "objectguid", "memberof"],
+});
+if ($admin == null) {
+    echo "no entry", "\n";
+} else {
+    foreach ($admin->toArray() as string $name => array<tainted bytes> $values) {
+        echo $name, ": ", Core\Arr::count($values), "\n";
+    }
+    echo "has a dn key: ", Core\Arr::hasKey($admin->toArray(), "dn") ? "yes" : "no", "\n";
+}
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+base = "DC=example,DC=test"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+cn: 1
+objectGUID: 1
+sAMAccountName: 1
+memberOf: 5
+has a dn key: no

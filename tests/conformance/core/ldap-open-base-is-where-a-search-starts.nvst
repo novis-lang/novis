@@ -1,0 +1,38 @@
+--TEST--
+A `base` in `Ldap\Settings` is where a search that names no `base` starts, and a search that names one starts there instead — ADR 0278 § 2 and § 5
+--FILE--
+<?nvs
+// This connection sends its password without TLS. Only the test server on
+// this machine may be reached that way, and the case is skipped where it is
+// not running.
+var $corp = Core\Ldap::open({
+    url: "ldap://127.0.0.1:16389",
+    user: "CN=Administrator,CN=Users,DC=example,DC=test",
+    password: "Novis-test-1",
+    tls: Core\Ldap\Tls::None,
+    base: "CN=Users,DC=example,DC=test",
+});
+var $users = $corp->search(Core\Ldap\Filter::present("objectClass"), {scope: Core\Ldap\Scope::Base, select: ["cn"]});
+foreach ($users as Core\Ldap\Entry $entry) {
+    echo "from settings: ", $entry->dn(), "\n";
+}
+var $builtin = $corp->search(Core\Ldap\Filter::present("objectClass"), {
+    base: "CN=Builtin,DC=example,DC=test",
+    scope: Core\Ldap\Scope::Base,
+    select: ["cn"],
+});
+foreach ($builtin as Core\Ldap\Entry $entry) {
+    echo "from the search: ", $entry->dn(), "\n";
+}
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+open = ["127.0.0.1"]
+cleartext = ["127.0.0.1"]
+
+[capabilities.net]
+internal = ["127.0.0.1"]
+--EXPECT--
+from settings: CN=Users,DC=example,DC=test
+from the search: CN=Builtin,DC=example,DC=test

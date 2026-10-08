@@ -1,0 +1,17 @@
+--TEST--
+A continuation reference is a URL the server chose, so `references()` returns `tainted string` values and a plain `array<string>` does not take them — ADR 0278 § 5 and `rule:security/tainted-qualifier`
+--FILE--
+<?nvs
+class Referrals {
+    public static function of(Core\Ldap\Entries $entries): array<string> {
+        array<string> $urls = $entries->references();
+        return $urls;
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `array<string>`, found `array<tainted string>`
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

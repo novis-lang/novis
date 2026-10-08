@@ -42,6 +42,8 @@ pub(super) const ENTRIES_HANDLE_AT: usize = 0;
 pub(super) const ENTRIES_SEARCH_AT: usize = 1;
 /// [`ENTRIES`]' slot for the entry the last `advance()` read.
 pub(super) const ENTRIES_ENTRY_AT: usize = 2;
+/// [`ENTRIES`]' slot for the continuation references, filled when the search ends.
+pub(super) const ENTRIES_REFERENCES_AT: usize = 3;
 /// [`ENTRY`]'s DN slot.
 pub(super) const ENTRY_DN_AT: usize = 0;
 /// [`ENTRY`]'s slot for its attributes, keyed by name.
@@ -55,7 +57,7 @@ pub(super) const FILTER_BER_AT: usize = 0;
 /// `rule:core-classes/db-capabilities` makes `Db\Settings.host` one, `user`
 /// accepts `tainted` as a length-framed protocol field, and `password` is
 /// `secret tainted string`. The ABI flattens the shape to one slot per field
-/// in this order, and [`URL_ARG`] and the four consts after it are those slots.
+/// in this order, and [`URL_ARG`] and the five consts after it are those slots.
 pub(super) const SETTINGS: &[&[CoreField]] = &[&[
     CoreField {
         name: "url",
@@ -84,6 +86,13 @@ pub(super) const SETTINGS: &[&[CoreField]] = &[&[
         ty: CoreTy::Instance(crate::time::DURATION_NAME),
         default: Some(Const::Null),
     },
+    CoreField {
+        name: "base",
+        // A sink, as `search`'s `base` option is: it is where every search
+        // that names no base starts.
+        ty: CoreTy::Text(Qual::Sink),
+        default: Some(Const::Null),
+    },
 ]];
 
 /// [`SETTINGS`]' `url` slot in `open`'s arguments.
@@ -96,6 +105,8 @@ pub(super) const PASSWORD_ARG: usize = 2;
 pub(super) const TLS_ARG: usize = 3;
 /// [`SETTINGS`]' `timeout` slot.
 pub(super) const TIMEOUT_ARG: usize = 4;
+/// [`SETTINGS`]' `base` slot.
+pub(super) const BASE_ARG: usize = 5;
 
 /// `Core\Ldap`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
@@ -210,6 +221,12 @@ const OPEN_DOC: MethodDoc = MethodDoc {
                 key: "timeout",
                 ty: "Duration",
                 desc: "How long one operation may take. Left out, it is 30 seconds.",
+            },
+            ShapeKeyDoc {
+                key: "base",
+                ty: "string",
+                desc: "The DN a search starts from when it does not give its own `base`. It \
+                       cannot be `tainted`.",
             },
         ],
     }],
@@ -435,9 +452,27 @@ pub(crate) const ENTRIES: CoreClass = CoreClass {
     name: ENTRIES_NAME,
     doc: Some(&ENTRIES_CARD),
     methods: &[],
-    instance: &[],
-    slots: &[HANDLE_SLOT, "search", "entry"],
+    instance: &[CoreMethod {
+        name: "references",
+        names: &[],
+        params: &[],
+        defaults: &[],
+        return_ty: CoreTy::Array(&CoreTy::TaintedStr),
+        symbol: "nvs_core_ldap_entries_references",
+        doc: Some(&ENTRIES_REFERENCES_DOC),
+    }],
+    slots: &[HANDLE_SLOT, "search", "entry", "references"],
     constants: &[],
+};
+
+/// `Ldap\Entries::references`' reference card — `rule:core-api/reference-card`.
+const ENTRIES_REFERENCES_DOC: MethodDoc = MethodDoc {
+    short: "Returns the URLs of other servers that the server named for this search. Novis does \
+            not connect to them. The URLs are `tainted`, because the server sent them.",
+    params: &[],
+    ret: "The URLs in the order the server sent them. The list is complete after the loop \
+          ends, and it is empty when the server named no other server.",
+    errors: &[],
 };
 
 /// `Ldap\Entry`'s class card — `rule:core-api/reference-card`.
@@ -506,6 +541,15 @@ pub(crate) const ENTRY: CoreClass = CoreClass {
             symbol: "nvs_core_ldap_entry_bytes",
             doc: Some(&ENTRY_BYTES_DOC),
         },
+        CoreMethod {
+            name: "toArray",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Array(&CoreTy::TaintedBytes)),
+            symbol: "nvs_core_ldap_entry_to_array",
+            doc: Some(&ENTRY_TO_ARRAY_DOC),
+        },
     ],
     slots: &["dn", "attributes"],
     constants: &[],
@@ -564,6 +608,16 @@ const ENTRY_BYTES_DOC: MethodDoc = MethodDoc {
         error: "LogicError",
         desc: "The attribute has more than one value.",
     }],
+};
+
+/// `Ldap\Entry::toArray`'s reference card — `rule:core-api/reference-card`.
+const ENTRY_TO_ARRAY_DOC: MethodDoc = MethodDoc {
+    short: "Returns every attribute of the entry as an array. Each key is an attribute name, \
+            written the way the server wrote it. Each value is a list of `tainted bytes`.",
+    params: &[],
+    ret: "The attributes, in the order the server sent them. The DN is not in the array, so use \
+          `dn` for it.",
+    errors: &[],
 };
 
 /// `Ldap\Filter`'s class card — `rule:core-api/reference-card`.

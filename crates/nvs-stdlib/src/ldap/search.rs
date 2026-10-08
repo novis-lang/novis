@@ -17,15 +17,17 @@
 //!
 //! **`Ldap\Entries` is its own iterator**, as `Core\Db\Stream` is, because the
 //! next entry may be on a page the server has not sent yet. It carries the
-//! connection's key, the id its search is parked under ([`super::step`]), and
-//! the entry the last `advance()` read.
+//! connection's key, the id its search is parked under ([`super::step`]), the
+//! entry the last `advance()` read, and the continuation references, which
+//! the last `advance()` writes when the search ends. Until then the slot is
+//! `null`, and `references()` reads the parked search instead.
 
 use nvs_runtime::{Fault, NvsArray, NvsStr, ThrownClass, Value};
 
 use super::{
     CONNECTION, CONNECTION_HANDLE_AT, ENTRIES, ENTRIES_ENTRY_AT, ENTRIES_HANDLE_AT,
-    ENTRIES_SEARCH_AT, ENTRY, ENTRY_ATTRIBUTES_AT, ENTRY_DN_AT, ENTRY_NAME, FILTER, FILTER_BER_AT,
-    READ, SEARCH,
+    ENTRIES_REFERENCES_AT, ENTRIES_SEARCH_AT, ENTRY, ENTRY_ATTRIBUTES_AT, ENTRY_DN_AT, ENTRY_NAME,
+    FILTER, FILTER_BER_AT, READ, SEARCH, Step,
 };
 use crate::registry::CoreClass;
 
@@ -185,6 +187,15 @@ fn text_value(value: Value, member: &str, name: &str) -> Result<Value, Fault> {
     Ok(Value::str(NvsStr::new(bytes)))
 }
 
+/// `urls` as an `array<string>`.
+fn url_list(urls: &[String]) -> Value {
+    let mut out = NvsArray::new();
+    for url in urls {
+        out.append(Value::str(NvsStr::new(url.as_bytes())));
+    }
+    Value::array(out)
+}
+
 /// A `Ldap\Filter` over `filter`'s encoding.
 fn filter_value(filter: &nvs_ldap::Filter) -> Value {
     crate::instance::build(&FILTER, [Value::bytes(NvsStr::new(&filter.to_ber()))])
@@ -277,7 +288,7 @@ nvs_runtime::nvs_helper! {
         let id = super::search(ctx, key, &request)?.park(ctx)?;
         Ok(crate::instance::build(
             &ENTRIES,
-            [Value::uint(key), Value::uint(id), Value::null()],
+            [Value::uint(key), Value::uint(id), Value::null(), Value::null()],
         ))
     }
 }
@@ -320,8 +331,12 @@ nvs_runtime::nvs_helper! {
             // The entry the last step parked is freed here unless the loop
             // body still holds it, so a walk holds one entry at a time.
             let (parked, more) = match next {
-                Ok(Some(entry)) => (entry_value(entry), true),
-                Ok(None) => (Value::null(), false),
+                Ok(Step::Entry(entry)) => (entry_value(entry), true),
+                Ok(Step::Ended(urls)) => {
+                    crate::instance::set_slot(receiver, ENTRIES_REFERENCES_AT, url_list(&urls));
+                    (Value::null(), false)
+                }
+                Ok(Step::Gone) => (Value::null(), false),
                 Err(fault) => {
                     crate::instance::set_slot(receiver, ENTRIES_ENTRY_AT, Value::null());
                     return Err(fault);
@@ -347,6 +362,29 @@ nvs_runtime::nvs_helper! {
         );
         crate::cursor::consume(args[0]);
         read
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$entries->references(): array<tainted string>` — the continuation
+    /// references the search returned, none of them followed: the list the
+    /// last `advance()` kept, or what the parked search has so far.
+    fn nvs_core_ldap_entries_references(ctx, args: [1]) {
+        let receiver = crate::instance::receiver(args[0], &ENTRIES, "references")?;
+        if crate::instance::slot(receiver, ENTRIES_REFERENCES_AT).array_ptr().is_some() {
+            return crate::instance::read_slot(args, &ENTRIES, ENTRIES_REFERENCES_AT, "references");
+        }
+        let key = key_in(args[0], &ENTRIES, ENTRIES_HANDLE_AT, "references")?;
+        let id = key_in(args[0], &ENTRIES, ENTRIES_SEARCH_AT, "references")?;
+        Ok(url_list(&super::references(ctx, key, id)?.unwrap_or_default()))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$entry->toArray(): array<array<tainted bytes>>` — the attributes
+    /// slot itself, keyed by each name as the server spelled it.
+    fn nvs_core_ldap_entry_to_array(_ctx, args: [1]) {
+        crate::instance::read_slot(args, &ENTRY, ENTRY_ATTRIBUTES_AT, "toArray")
     }
 }
 
@@ -442,6 +480,10 @@ pub(super) fn address(symbol: &str) -> Option<*const u8> {
         ENTRIES_ITERATE_SYMBOL => (nvs_core_ldap_entries_iterate as *const ()).cast(),
         ENTRIES_ADVANCE_SYMBOL => (nvs_core_ldap_entries_advance as *const ()).cast(),
         ENTRIES_CURRENT_SYMBOL => (nvs_core_ldap_entries_current as *const ()).cast(),
+        "nvs_core_ldap_entries_references" => {
+            (nvs_core_ldap_entries_references as *const ()).cast()
+        }
+        "nvs_core_ldap_entry_to_array" => (nvs_core_ldap_entry_to_array as *const ()).cast(),
         "nvs_core_ldap_entry_dn" => (nvs_core_ldap_entry_dn as *const ()).cast(),
         "nvs_core_ldap_entry_has" => (nvs_core_ldap_entry_has as *const ()).cast(),
         "nvs_core_ldap_entry_string" => (nvs_core_ldap_entry_string as *const ()).cast(),
