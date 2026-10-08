@@ -155,6 +155,7 @@ crates/             the Cargo workspace
   nvs-stdlib        every `Core` member, and the registry a call resolves against  [audited unsafe]
   nvs-db            the five SQL drivers: sans-IO codecs over nvs-host's streams
   nvs-ldap          the LDAP wire: a BER codec and a connection over nvs-host's streams
+  nvs-ext           extensions: the `.nvsx` reader and the wasmtime host that runs a component  [audited unsafe]
   nvs-config        the directive registry and the `nvs.toml` tree  [audited unsafe]
   nvs-server        the built-in HTTP server: a socket to a root isolate and back
   nvs-cli           the `nvs` binary  [audited unsafe]
@@ -172,6 +173,9 @@ benches/
   proxied           compose files, nginx and PHP configuration for the proxied comparison
 tests/              the case trees: conformance, differential, db, hostile, config
 examples/           `.nvs` programs the guard tests and the docs compile
+apps/               whole example apps in Novis, each with its own `nvs.toml` and tests
+extensions/         the built-in extensions, each a Rust crate compiled to a wasm component
+wit/                the `nvs:ext` WIT world an extension is written against, and its WASI deps
 fuzz/               cargo-fuzz targets
 vendor/             html5ever, patched and built in place of the crates.io release (ADR 0223)
 docker/             the container image
