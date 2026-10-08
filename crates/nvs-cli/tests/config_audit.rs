@@ -10,9 +10,12 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// `nvs <args...>` in `dir`, as `(stdout, stderr, exit code)`.
+/// `nvs <args...>` in `dir`, as `(stdout, stderr, exit code)`, with `dir/.nvsdata` as the data
+/// folder so no case reads the one beside the binary.
 fn nvs_in(dir: &Path, args: &[&str]) -> (String, String, Option<i32>) {
     let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(dir.join(".nvsdata"))
         .args(args)
         .current_dir(dir)
         .output()
@@ -226,6 +229,45 @@ fn a_directory_with_no_nvs_toml_is_a_tree_of_no_files() {
 
     let (out, err, code) = nvs_in(&dir, &["config", "dump"]);
     assert_eq!((code, out.as_str()), (Some(0), ""), "{err}");
+    assert!(
+        !dir.join(".nvsdata").exists(),
+        "an audit never creates the data folder"
+    );
+    drop(std::fs::remove_dir_all(&dir));
+}
+
+/// With no file named and no `./nvs.toml`, the data folder's `nvs.toml` is the tree, and a
+/// `./nvs.toml` beside it wins.
+// covers: tools:cli/nvs-config-check-and-nvs-config-dump
+#[test]
+fn the_data_folder_s_nvs_toml_is_read_when_the_directory_has_none() {
+    let dir = scratch("data-file");
+    std::fs::create_dir(dir.join(".nvsdata")).expect("the case's directory takes a folder");
+    std::fs::write(
+        dir.join(".nvsdata").join("nvs.toml"),
+        "[limits]\nmemory = \"64M\"\n",
+    )
+    .expect("the data folder takes a file");
+    let (out, err, code) = nvs_in(&dir, &["config", "check"]);
+    assert_eq!(
+        (code, out.as_str()),
+        (
+            Some(0),
+            "ok: 1 file, 1 directive set, 0 overrides, 0 warnings\n"
+        ),
+        "the data folder's file is read: {err}"
+    );
+
+    std::fs::write(dir.join("nvs.toml"), "").expect("the case's directory takes a file");
+    let (out, err, code) = nvs_in(&dir, &["config", "check"]);
+    assert_eq!(
+        (code, out.as_str()),
+        (
+            Some(0),
+            "ok: 1 file, 0 directives set, 0 overrides, 0 warnings\n"
+        ),
+        "`./nvs.toml` wins: {err}"
+    );
     drop(std::fs::remove_dir_all(&dir));
 }
 

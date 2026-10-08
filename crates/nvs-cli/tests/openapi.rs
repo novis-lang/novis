@@ -26,7 +26,11 @@ fn in_repo(relative: &str) -> String {
 
 /// `nvs build --openapi <file>`, as `(stdout, stderr, success)`.
 fn build(file: &str) -> (String, String, bool) {
+    let data = nvs_repo::scratch_private("nvsdata");
     let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(&*data)
+        .arg("--no-init")
         .args(["build", "--openapi", file])
         .output()
         .expect("the `nvs` binary this test was built beside runs");

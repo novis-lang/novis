@@ -1,5 +1,8 @@
-//! `nvs init` — `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 3's
-//! file, written because an operator asked for it rather than because a command resolved no tree.
+//! `nvs init` — `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 2's
+//! file, written because an operator asked for it. A project command that resolves no tree writes
+//! the same template into the data folder instead, never here; `run_command.rs` pins that half.
+//! Every command these cases run names a data folder of its own with `--data`, so none of them
+//! shares the one beside the binary.
 //!
 //! Through the built binary rather than by calling `config::init`, for the reason
 //! [`check_grants`](check_grants) already writes down: `nvs-cli` is a binary crate with no library
@@ -92,6 +95,8 @@ fn nvs_init_writes_to_the_one_path_config_names() {
         .arg(&named)
         .arg("init")
         .current_dir(&elsewhere)
+        .arg("--data")
+        .arg(elsewhere.join(".nvsdata"))
         .output()
         .expect("the binary under test runs");
     assert!(
@@ -117,6 +122,8 @@ fn nvs_init_writes_to_the_one_path_config_names() {
         .arg(dir.join("third.toml"))
         .arg("init")
         .current_dir(&elsewhere)
+        .arg("--data")
+        .arg(elsewhere.join(".nvsdata"))
         .output()
         .expect("the binary under test runs");
     assert!(
@@ -163,6 +170,8 @@ fn the_simplest_layout_is_written_by_init_and_one_run_from_elsewhere_uses_cache_
         // A recorded run of this test binary sets the switch, and this case is about the cache.
         command
             .current_dir(&elsewhere)
+            .arg("--data")
+            .arg(elsewhere.join(".nvsdata"))
             .env_remove("NOVIS_NO_FILE_CACHE");
         command
     };
@@ -349,6 +358,8 @@ fn nvs_init_and_the_cache_are_checked_one_folder_up_and_nvs_run_does_not_check_t
         // A recorded run of this test binary sets the switch, and half of this case is the cache.
         command
             .current_dir(&elsewhere)
+            .arg("--data")
+            .arg(elsewhere.join(".nvsdata"))
             .env_remove("NOVIS_NO_FILE_CACHE")
             .arg("--config")
             .arg(&target);
@@ -490,6 +501,8 @@ fn the_icacls_steps_turn_a_folder_every_account_may_change_into_one_nvs_init_wri
         // A recorded run of this test binary sets the switch, and the last step is the cache.
         command
             .current_dir(&elsewhere)
+            .arg("--data")
+            .arg(elsewhere.join(".nvsdata"))
             .env_remove("NOVIS_NO_FILE_CACHE")
             .arg("--config")
             .arg(&target);
@@ -653,6 +666,8 @@ fn each_refusal_names_a_path_and_the_tables_repair_is_the_whole_repair() {
         // A recorded run of this test binary sets the switch, and the last row is the cache.
         command
             .current_dir(&elsewhere)
+            .arg("--data")
+            .arg(elsewhere.join(".nvsdata"))
             .env_remove("NOVIS_NO_FILE_CACHE")
             .arg("--config")
             .arg(&target);

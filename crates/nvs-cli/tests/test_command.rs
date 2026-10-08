@@ -22,7 +22,10 @@ fn scratch(case: &str) -> PathBuf {
 
 /// Runs `nvs test` with `args` from `dir`.
 fn test_in(dir: &Path, args: &[&str]) -> Output {
+    let data = nvs_repo::scratch_private("nvsdata");
     Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(&*data)
         .arg("test")
         .args(args)
         .current_dir(dir)

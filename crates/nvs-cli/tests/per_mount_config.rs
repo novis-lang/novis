@@ -44,6 +44,8 @@ struct Server {
     child: Child,
     addr: SocketAddr,
     dir: PathBuf,
+    /// The private data folder `nvs serve` is given.
+    _data: nvs_repo::Scratch,
     stderr: Arc<Mutex<String>>,
 }
 
@@ -83,8 +85,9 @@ impl Server {
         }
         write_file(&dir.join("nvs.toml"), &configured(mounts, blocks));
 
+        let data = nvs_repo::scratch_private("nvsdata");
         let mut command = Command::new(env!("CARGO_BIN_EXE_nvs"));
-        command.arg("serve");
+        command.arg("--data").arg(&*data).arg("serve");
         if let Some(file) = named {
             command.arg(file);
         }
@@ -137,6 +140,7 @@ impl Server {
             child,
             addr,
             dir,
+            _data: data,
             stderr,
         }
     }

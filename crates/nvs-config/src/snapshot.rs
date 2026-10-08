@@ -59,7 +59,7 @@ static NEXT_GENERATION: AtomicU64 = AtomicU64::new(1);
 /// One entry file's effective configuration, immutable once built — `rule:config/the-config-is-an-immutable-snapshot`.
 ///
 /// [`Default`] is the configuration of a host with **no configuration file anywhere**, which
-/// `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 3 makes a valid state rather than an error: no directive set, no capability
+/// `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 4 makes a valid state rather than an error: no directive set, no capability
 /// granted, no entry file named. It is what an embedder that has built no tree holds and what a
 /// test that is about something else asks for, and it grants nothing — every capability question
 /// against it is a refusal, so it cannot be the shape a permission leaks through.

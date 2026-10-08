@@ -54,7 +54,9 @@ use crate::render_diagnostics;
 /// `nvs tmp clean [--dry-run]` — resolve the tree, walk the owned root, and
 /// report every entry whose owner is gone.
 pub(crate) fn clean(config: &[PathBuf], dry_run: bool) -> ExitCode {
-    match root(config) {
+    let missing = "error: there is no folder for temporary files. Set `[io] temp_root`, or pass \
+                   `--data <folder>`.";
+    match root(config, missing) {
         Ok(root) => clean_root(&root, dry_run, &mut std::io::stdout()),
         Err(code) => code,
     }
@@ -65,30 +67,43 @@ pub(crate) fn clean(config: &[PathBuf], dry_run: bool) -> ExitCode {
 /// The runner deletes it when it finishes, and a killed run's directory is
 /// what [`clean`] sweeps.
 ///
+/// A runner cannot run a case without that directory, so with no temporary
+/// root (the data folder is unusable and `[io] temp_root` is unset) it stops
+/// with one error naming `--data`. Every other command keeps running without
+/// the data folder.
+///
 /// # Errors
 ///
 /// The exit code to stop with, once the configuration's diagnostics or the
-/// create's error have been printed.
+/// error have been printed.
 pub(crate) fn runner_dir(config: &[PathBuf]) -> Result<PathBuf, ExitCode> {
-    let root = root(config)?;
+    const HELP: &str = "help: pass `--data <folder>` to use a folder that only your account can \
+                        change. You can also set `[io] temp_root`.";
+    let missing = format!(
+        "error: this command needs a folder for temporary files, and there is none.\n  {HELP}"
+    );
+    let root = root(config, &missing)?;
     nvs_runtime::capability::private_dir(&root).map_err(|error| {
-        eprintln!("error: could not create a directory for the cases: {error}");
+        eprintln!(
+            "error: could not create a folder for the test cases in `{}`: {error}\n  {HELP}",
+            root.display()
+        );
         ExitCode::FAILURE
     })
 }
 
 /// The temporary root `[io] temp_root` names in the configuration `config`
 /// resolves to, else the data folder's, with any diagnostic already printed.
-/// There is none when the key is unset and the binary's own path could not be
-/// read; that prints one error.
-fn root(config: &[PathBuf]) -> Result<PathBuf, ExitCode> {
+/// There is none when the key is unset and there is no usable data folder;
+/// that prints `missing`, the caller's one error.
+fn root(config: &[PathBuf], missing: &str) -> Result<PathBuf, ExitCode> {
     let files = LocalFiles;
     let mut sources = SourceMap::new();
     // `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`'s roots, resolved as `config check` resolves them and for the
     // same reason: this command reads one key and never boots anything, so it
     // wants the tree as written rather than a snapshot built against an entry.
     let resolved = working_directory().and_then(|cwd| {
-        let roots = nvs_config::resolve::roots(config, &cwd, &files);
+        let roots = crate::config::roots_in(config, &cwd);
         nvs_config::resolve::resolve(&roots, &mut sources, &files)
     });
     let resolved = match resolved {
@@ -101,10 +116,7 @@ fn root(config: &[PathBuf]) -> Result<PathBuf, ExitCode> {
         }
     };
     nvs_runtime::capability::temp_root(Some(&resolved.config)).ok_or_else(|| {
-        eprintln!(
-            "error: there is no folder for temporary files. Set `[io] temp_root`, or pass \
-             `--data <folder>`."
-        );
+        eprintln!("{missing}");
         ExitCode::FAILURE
     })
 }

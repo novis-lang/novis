@@ -39,10 +39,14 @@ fn fixture(name: &str, config: Option<&str>) -> nvs_repo::Scratch {
 }
 
 /// `nvs check case.nvs`, run *in* `dir` so `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 2 finds the
-/// fixture's own `nvs.toml` and no other.
+/// fixture's own `nvs.toml` and no other. The data folder is an empty one of the fixture's own and
+/// `--no-init` leaves it without a file, so step 3 finds nothing: a fixture with no `nvs.toml` is
+/// a check with no configuration at all.
 fn check(dir: &Path) -> Output {
     Command::new(env!("CARGO_BIN_EXE_nvs"))
-        .args(["check", "case.nvs"])
+        .arg("--data")
+        .arg(dir.join(".nvsdata"))
+        .args(["--no-init", "check", "case.nvs"])
         .current_dir(dir)
         .output()
         .expect("the `nvs` binary this test was built beside runs")

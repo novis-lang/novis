@@ -116,7 +116,7 @@ pub(crate) fn migrate(
     let mut sources = SourceMap::new();
     let named = named_roots(config, paths);
     let resolved = working_directory().and_then(|cwd| {
-        let roots = nvs_config::resolve::roots(&named, &cwd, &files);
+        let roots = crate::config::roots_in(&named, &cwd);
         nvs_config::resolve::resolve(&roots, &mut sources, &files)
     });
     let resolved = match resolved {

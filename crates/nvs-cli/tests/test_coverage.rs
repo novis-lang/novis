@@ -21,10 +21,14 @@ fn scratch(case: &str) -> PathBuf {
     dir
 }
 
-/// Runs `nvs test` with `args` from `dir`. `NOVIS_NO_INIT` keeps the run from writing the shipped
-/// `nvs.toml` into `dir`, so the only files a case finds afterwards are its own and the reports.
+/// Runs `nvs test` with `args` from `dir`. The data folder is a private scratch folder outside
+/// `dir`, and `NOVIS_NO_INIT` keeps the run from writing the shipped `nvs.toml` into it, so the
+/// only files a case finds in `dir` afterwards are its own and the reports.
 fn test_in(dir: &Path, args: &[&str]) -> Output {
+    let data = nvs_repo::scratch_private("nvsdata");
     Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(&*data)
         .arg("test")
         .args(args)
         .env("NOVIS_NO_INIT", "1")

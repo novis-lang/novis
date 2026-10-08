@@ -1014,7 +1014,10 @@ fn the_member_a_free_function_diagnostic_names_is_one_show_resolves() {
     }
     std::fs::write(dir.join("main.nvs"), program).expect("the program is written");
 
+    let data = nvs_repo::scratch_private("nvsdata");
     let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(&*data)
         .args(["check", "main.nvs"])
         .current_dir(&dir)
         .output()
@@ -2318,8 +2321,14 @@ fn hook_in(dir: &Path, env: &[(&str, &str)], agent: &str, payload: &str) -> (Str
     for var in AGENT_VARS {
         command.env_remove(var);
     }
+    // The data folder is a private scratch folder outside `dir`, because a test
+    // here asserts that the hook writes nothing into the project.
+    let data = nvs_repo::scratch_private("nvsdata");
     let mut child = command
         .envs(env.iter().copied())
+        .arg("--data")
+        .arg(&*data)
+        .arg("--no-init")
         .args(["agent", "hook", agent])
         .current_dir(dir)
         .stdin(Stdio::piped())

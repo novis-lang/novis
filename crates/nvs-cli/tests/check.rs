@@ -16,7 +16,11 @@ use serde_json::Value;
 
 /// `nvs check <args...> <path>`, as `(stdout, stderr, success)`.
 fn run_check(args: &[&str], path: &Path) -> (String, String, bool) {
+    let data = nvs_repo::scratch_private("nvsdata");
     let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(&*data)
+        .arg("--no-init")
         .arg("check")
         .args(args)
         .arg(path)
@@ -246,7 +250,11 @@ fn the_default_rendering_is_still_text() {
 
     // And it cannot share that output with the autoload map, which is the
     // other thing this command prints there.
+    let data = nvs_repo::scratch_private("nvsdata");
     let refused = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(&*data)
+        .arg("--no-init")
         .args(["check", "--json", "--autoload-map"])
         .arg(fixture("clean.nvs"))
         .output()

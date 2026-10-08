@@ -3317,11 +3317,8 @@ fn describe_host(
     let files = crate::config::LocalFiles;
     let roots = crate::config::named_roots(config, &named);
     let cwd = crate::config::working_directory()?;
-    let resolved = nvs_config::resolve::resolve(
-        &nvs_config::resolve::roots(&roots, &cwd, &files),
-        sources,
-        &files,
-    );
+    let resolved =
+        nvs_config::resolve::resolve(&crate::config::roots_in(&roots, &cwd), sources, &files);
     // An argv naming no `--config` is `E0631`'s to refuse, and what resolved in
     // its place is this shell's tree, whose faults are not the service's.
     let resolved = match resolved {

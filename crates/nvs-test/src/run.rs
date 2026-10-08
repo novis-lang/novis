@@ -412,6 +412,17 @@ fn write_extensions(workdir: &Path, fixtures: &[ExtensionFixture]) -> io::Result
     fs::write(config, text)
 }
 
+/// The data folder a case's `nvs` runs with: `<workdir>.nvsdata`, beside the working directory
+/// rather than in it, so the temporary root and the compile cache stay outside every path a case's
+/// `[capabilities.fs]` grants with `"."`. One per case, so no case reads the `nvs.toml`, compile
+/// cache or temporary files another case left; the runner deletes it with the working directory.
+#[must_use]
+pub fn data_folder(workdir: &Path) -> PathBuf {
+    let mut name = workdir.as_os_str().to_owned();
+    name.push(".nvsdata");
+    PathBuf::from(name)
+}
+
 /// Writes `source` into `workdir` as `name` and runs `nvs <sub>` on it.
 ///
 /// `sub` is [`Subcommand::args`]'s own list, so the two things that decide it
@@ -445,7 +456,12 @@ struct Invocation<'a> {
 
 fn run_nvs(opts: &Options, workdir: &Path, run: &Invocation<'_>) -> io::Result<Output> {
     fs::write(workdir.join(run.name), run.source)?;
-    let mut args: Vec<&OsStr> = run.sub.args().iter().map(AsRef::as_ref).collect();
+    // [`data_folder`], ahead of the subcommand, where a global option is always the binary's own.
+    let data = data_folder(workdir);
+    let mut args: Vec<&OsStr> = vec!["--data".as_ref(), data.as_os_str()];
+    for arg in run.sub.args() {
+        args.push(arg.as_ref());
+    }
     // Ahead of the file, because everything past the file is the program's
     // own: a `--request` written the other side of it would be handed to the
     // program as one of its arguments instead of read by `nvs run`.

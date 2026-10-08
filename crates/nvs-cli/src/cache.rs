@@ -1929,6 +1929,23 @@ mod tests {
         drop(fs::remove_dir_all(&dir));
     }
 
+    /// The default cache is `cache/` in the data folder, and the data folder beside the binary is
+    /// checked without the binary's directory. The cache's own check examines `cache/` and its
+    /// parent, the private data folder, so a binary's directory other accounts can change does
+    /// not cost the default folder its cache.
+    #[test]
+    fn the_default_cache_passes_when_the_binary_directory_is_open_to_others() {
+        let root = nvs_repo::scratch_private("default-cache");
+        let bin = root.join("bin");
+        fs::create_dir(&bin).expect("the binary's directory");
+        open_to_the_world(&bin);
+        let data = bin.join(nvs_config::data::NAME);
+        nvs_config::data::create_private_root(&data.join("cache")).expect("the data folder");
+
+        Cache::new(data.join("cache"), env())
+            .expect("the check stops at the private data folder above the cache");
+    }
+
     /// `rule:packaging/the-checksum-proves-integrity-and-ownership-proves-trust`, which is `rule:config/ownership-is-the-trust-boundary` applied to `opcache.file_cache_dir`: a directory another local
     /// account can write is refused once, at construction, rather than entry by entry — that
     /// principal can compute a valid header and checksum over bytes of their own choosing, so

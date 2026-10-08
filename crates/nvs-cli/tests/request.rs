@@ -27,8 +27,13 @@ fn fixtures() -> PathBuf {
 /// one, and hands back the whole result: one test wants the output and the
 /// other wants the refusal.
 fn run(request: Option<&str>) -> Output {
+    let data = nvs_repo::scratch_private("nvsdata");
     let mut command = Command::new(env!("CARGO_BIN_EXE_nvs"));
-    command.arg("run");
+    command
+        .arg("--data")
+        .arg(&*data)
+        .arg("--no-init")
+        .arg("run");
     if let Some(file) = request {
         command.arg("--request").arg(fixtures().join(file));
     }
@@ -77,8 +82,12 @@ fn a_run_without_a_request_file_answers_no_request() {
 /// Runs the event-stream fixture as the answer to the fixture request, with
 /// the events file beside it where `events` says so.
 fn stream(events: bool) -> Output {
+    let data = nvs_repo::scratch_private("nvsdata");
     let mut command = Command::new(env!("CARGO_BIN_EXE_nvs"));
     command
+        .arg("--data")
+        .arg(&*data)
+        .arg("--no-init")
         .arg("run")
         .arg("--request")
         .arg(fixtures().join("reads-the-request.nvsr"));

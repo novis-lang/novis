@@ -12,6 +12,12 @@
 //! withdraws it: from then on [`current`] is `None`, so nothing writes into a folder that could not
 //! be made or failed `rule:config/ownership-is-the-trust-boundary`'s check.
 //!
+//! **The default folder is checked alone.** A folder the command line names gets [`trust::check`],
+//! which examines the folder and the directory containing it. The default one gets
+//! [`trust::check_alone`]: its parent is the binary's own directory, and [`trust::check_alone`]'s
+//! doc owns why that directory is left out. [`check`] is the one place that choice is made for a
+//! directory something is about to write into.
+//!
 //! **Private creation is written once, here**, and the runtime's temporary directories use it too
 //! ([`create_private_root`], [`create_private_dir`]). On Unix every directory it creates is `0700`
 //! from the moment it exists. On Windows the topmost directory a [`create_private_root`] call creates
@@ -34,17 +40,31 @@ use crate::trust;
 /// The data folder's name beside the binary.
 pub const NAME: &str = ".nvsdata";
 
-/// One data folder, and the paths inside it. Nothing here touches the disk except [`Folder::prepare`].
+/// One data folder, and the paths inside it. Nothing here touches the disk except [`Folder::prepare`]
+/// and [`Folder::check`].
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Folder {
     root: PathBuf,
+    /// `true` for `.nvsdata` beside the binary, which [`Folder::check`] examines without its parent.
+    beside_binary: bool,
 }
 
 impl Folder {
-    /// The data folder at `root`, as given.
+    /// The data folder at `root`, as given: a folder the command line named, checked with its parent.
     #[must_use]
     pub fn new(root: PathBuf) -> Self {
-        Self { root }
+        Self {
+            root,
+            beside_binary: false,
+        }
+    }
+
+    /// The default folder, `.nvsdata` in `dir`, where `dir` is the running binary's directory.
+    fn beside(dir: &Path) -> Self {
+        Self {
+            root: dir.join(NAME),
+            beside_binary: true,
+        }
     }
 
     /// The folder the command line's `flag` names, resolved against `cwd` when it is relative, or
@@ -71,13 +91,19 @@ impl Folder {
         let dir = exe.parent().ok_or_else(|| {
             std::io::Error::other(format!("`{}` has no parent folder", exe.display()))
         })?;
-        Ok(Self::new(dir.join(NAME)))
+        Ok(Self::beside(dir))
     }
 
     /// The folder itself.
     #[must_use]
     pub fn root(&self) -> &Path {
         &self.root
+    }
+
+    /// Whether this is the default folder beside the binary, as opposed to one `--data` named.
+    #[must_use]
+    pub fn is_default(&self) -> bool {
+        self.beside_binary
     }
 
     /// `nvs.toml`: the configuration file read when the working directory has none.
@@ -111,8 +137,22 @@ impl Folder {
         self.root.join("lsp")
     }
 
+    /// `rule:config/ownership-is-the-trust-boundary`'s check on the folder, and its canonical path:
+    /// [`trust::check_alone`] for the default folder, [`trust::check`] for any other.
+    ///
+    /// # Errors
+    ///
+    /// The check's [`trust::Untrusted`].
+    pub fn check(&self) -> Result<PathBuf, trust::Untrusted> {
+        if self.beside_binary {
+            trust::check_alone(&self.root)
+        } else {
+            trust::check(&self.root)
+        }
+    }
+
     /// Creates the folder and `cache/`, `tmp/` and `lsp/` in it, privately, and checks the folder
-    /// with [`trust::check`]. Anything that already exists is left as it is.
+    /// with [`Folder::check`]. Anything that already exists is left as it is.
     ///
     /// The check runs after the root exists and before anything is created inside it, so a folder
     /// another account can write never gains subfolders from this call. It does not write
@@ -127,7 +167,8 @@ impl Folder {
             reason,
         };
         create_private_root(&self.root).map_err(|err| unusable(err.to_string()))?;
-        trust::check(&self.root).map_err(|why| unusable(why.message().to_owned()))?;
+        self.check()
+            .map_err(|why| unusable(why.message().to_owned()))?;
         for sub in [self.cache(), self.tmp(), self.lsp_root()] {
             create_private_root(&sub)
                 .map_err(|err| unusable(format!("{}: {err}", sub.display())))?;
@@ -208,9 +249,32 @@ pub fn current() -> Option<&'static Folder> {
     located().as_ref().ok()
 }
 
+/// [`Folder::config_file`] of [`current`]: the file step 3 of
+/// `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` reads, as
+/// [`crate::resolve::roots`] takes it. `None` exactly when [`current`] is.
+#[must_use]
+pub fn config_file() -> Option<PathBuf> {
+    current().map(Folder::config_file)
+}
+
 /// [`CURRENT`], computed on first use.
 fn located() -> &'static Result<Folder, String> {
     CURRENT.get_or_init(|| Folder::beside_exe().map_err(|err| err.to_string()))
+}
+
+/// The ownership check for `dir`, a directory something is about to write a file into: the
+/// process's own default data folder gets [`Folder::check`], so its parent is not examined, and
+/// every other directory gets [`trust::check`]. The paths are compared as spelled, so the same
+/// directory named another way takes the full check.
+///
+/// # Errors
+///
+/// The check's [`trust::Untrusted`].
+pub fn check(dir: &Path) -> Result<PathBuf, trust::Untrusted> {
+    match current() {
+        Some(folder) if folder.beside_binary && folder.root == dir => folder.check(),
+        _ => trust::check(dir),
+    }
 }
 
 /// [`Folder::prepare`] on this process's data folder. A failure withdraws the folder, so [`current`]
@@ -469,6 +533,65 @@ mod tests {
         for path in &made {
             assert_eq!(trust::exposure(path), None, "{} is private", path.display());
         }
+    }
+
+    /// Lets every signed-in account change `dir`: mode `0777` on Unix, and on Windows the grant a
+    /// drive's stock ACL gives `Authenticated Users` (`S-1-5-11`), inherited by what is created in it.
+    fn open_to_others(dir: &Path) {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+
+            std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o777)).unwrap();
+        }
+        #[cfg(windows)]
+        {
+            let granted = nvs_repo::spawn("icacls", &[])
+                .arg(dir)
+                .arg("/grant")
+                .arg("*S-1-5-11:(OI)(CI)(M)")
+                .output()
+                .expect("`icacls` ships with every supported Windows");
+            assert!(
+                granted.status.success(),
+                "{}",
+                String::from_utf8_lossy(&granted.stderr)
+            );
+        }
+    }
+
+    /// The default folder is checked without the binary's directory, which other accounts may
+    /// change here; the same folder named by `--data` is checked with it and is unusable. The
+    /// cache and temporary folders inside the default one pass the full check, because their
+    /// parent is the private data folder.
+    #[test]
+    fn the_default_folder_is_checked_without_its_parent_and_a_named_one_with_it() {
+        let dir = nvs_repo::scratch_private("data-default-trust");
+        let bin = dir.join("bin");
+        std::fs::create_dir(&bin).unwrap();
+        open_to_others(&bin);
+        trust::check(&bin).expect_err("the binary's directory fails the full check");
+
+        let default = Folder::beside(&bin);
+        assert!(default.is_default());
+        default
+            .prepare()
+            .expect("the default folder is checked by itself");
+        trust::check(&default.cache()).expect("the cache folder passes the full check");
+        trust::check(&default.tmp()).expect("and so does the temporary folder");
+
+        let named = Folder::new(bin.join(NAME));
+        assert!(!named.is_default());
+        let unusable = named
+            .prepare()
+            .expect_err("a folder `--data` names is checked with its parent");
+        assert!(
+            unusable
+                .reason()
+                .contains(&trust::canonical(&bin).unwrap().display().to_string()),
+            "the reason names the binary's directory: {}",
+            unusable.reason()
+        );
     }
 
     #[test]

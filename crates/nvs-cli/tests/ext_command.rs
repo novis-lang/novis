@@ -9,8 +9,15 @@ use std::process::Command;
 const SUBCOMMANDS: [&str; 6] = ["new", "build", "inspect", "test", "verify", "pin"];
 
 /// `nvs <args...>` run in `dir`, as `(stdout, stderr, exit code)`.
+///
+/// The data folder is a private scratch folder outside `dir`, because the tests
+/// here assert what each command writes into the directory it runs in.
 fn nvs_in(dir: &Path, args: &[&str]) -> (String, String, Option<i32>) {
+    let data = nvs_repo::scratch_private("nvsdata");
     let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(&*data)
+        .arg("--no-init")
         .args(args)
         .current_dir(dir)
         .output()

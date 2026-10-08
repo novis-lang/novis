@@ -25,7 +25,11 @@ fn scratch(name: &str) -> PathBuf {
 /// `nvs test <tree> <args...>`, as `(stdout, stderr, success)`, with the cases' working
 /// directories under `tmp`.
 fn nvs_test(args: &[&std::ffi::OsStr], tmp: &Path) -> (String, String, bool) {
+    let data = nvs_repo::scratch_private("nvsdata");
     let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(&*data)
+        .arg("--no-init")
         .arg("test")
         .arg(tree())
         .args(args)
@@ -124,7 +128,10 @@ fn a_program_takes_neither_a_case_list_nor_a_record_directory() {
     let dir = scratch("program");
     let program = dir.join("suite.nvs");
     std::fs::write(&program, "<?nvs\n").expect("the program is written");
+    let data = nvs_repo::scratch_private("nvsdata");
     let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(&*data)
         .arg("test")
         .arg(&program)
         .arg("--record")

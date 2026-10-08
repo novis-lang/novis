@@ -42,7 +42,10 @@ impl Project {
 
     /// Runs `nvs check` with `args` from the project directory.
     fn check(&self, args: &[&str]) -> Output {
+        let data = nvs_repo::scratch_private("nvsdata");
         Command::new(env!("CARGO_BIN_EXE_nvs"))
+            .arg("--data")
+            .arg(&*data)
             .arg("check")
             .args(args)
             .current_dir(&self.dir)

@@ -359,6 +359,7 @@ pub fn run(paths: &[PathBuf], opts: &Options, out: &mut dyn Write) -> io::Result
                         (Ok(()), Ok(case)) => run::run_case(case, opts, &workdir),
                     };
                     let _ = fs::remove_dir_all(&workdir);
+                    let _ = fs::remove_dir_all(run::data_folder(&workdir));
                     // The receiver is gone only when the report itself failed to write, and
                     // then there is nobody left to tell.
                     if tx.send((index, outcome)).is_err() {

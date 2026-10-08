@@ -180,48 +180,93 @@ fn memory(resolved: &Resolved) -> Option<&Setting> {
 }
 
 /// § 1's whole ladder: `--config` is repeatable and ordered, and **any** explicit `--config`
-/// disables the `./nvs.toml` step entirely — an operator naming files never gets a surprise merge
-/// with whatever is in the working directory — while a directory holding no file falls through to
-/// the shipped defaults rather than to a failure.
+/// disables the `./nvs.toml` and data-folder steps entirely — an operator naming files never gets a
+/// surprise merge with whatever is in the working directory or the data folder — while a directory
+/// holding no file falls through to the shipped defaults rather than to a failure.
 // covers: tools:config/the-file-and-where-it-is-read-from
 #[test]
 fn a_root_is_named_by_config_else_found_else_defaulted() {
     let fs = Fake::with(&[("app/nvs.toml", ""), ("etc/base.toml", "")]);
 
     assert_eq!(
-        roots(&[p("etc/base.toml"), p("app/nvs.toml")], Path::new(""), &fs),
+        roots(
+            &[p("etc/base.toml"), p("app/nvs.toml")],
+            Path::new(""),
+            None,
+            &fs
+        ),
         Roots::Files(vec![p("etc/base.toml"), p("app/nvs.toml")]),
         "the flags are the list, in the order given",
     );
     assert_eq!(
-        roots(&[], &p("app"), &fs),
+        roots(&[], &p("app"), None, &fs),
         Roots::Files(vec![p("app/nvs.toml")]),
         "with no flag, exactly this directory's file",
     );
     assert_eq!(
-        roots(&[p("etc/base.toml")], &p("app"), &fs),
+        roots(&[p("etc/base.toml")], &p("app"), None, &fs),
         Roots::Files(vec![p("app/etc/base.toml")]),
         "a flag disables step 2 even though `app/nvs.toml` is right there — and the flag itself \
          resolves against the working directory, because that is what a shell argument means (§ 5)",
     );
     assert_eq!(
-        roots(&[], &p("elsewhere"), &fs),
+        roots(&[], &p("elsewhere"), None, &fs),
         Roots::Defaults,
-        "step 3: no flag and no file here is a configuration, not a refusal",
+        "step 4: no flag and no file here is a configuration, not a refusal",
     );
 }
 
-/// § 1 steps 2 and 3: `./nvs.toml` is **exactly one directory, never a walk upward**, so a nested
+/// § 1 step 3: the data folder's `nvs.toml` is read when the working directory has none, the
+/// working directory's file wins when both exist, a named `--config` disables it as it disables
+/// step 2, and a data folder with no file, or no usable data folder, falls through to step 4.
+// covers: tools:config/the-file-and-where-it-is-read-from
+#[test]
+fn the_data_folder_s_file_is_read_when_the_working_directory_has_none() {
+    let fs = Fake::with(&[
+        ("app/nvs.toml", ""),
+        ("data/nvs.toml", ""),
+        ("etc/base.toml", ""),
+    ]);
+    let data = p("data/nvs.toml");
+
+    assert_eq!(
+        roots(&[], &p("elsewhere"), Some(&data), &fs),
+        Roots::Files(vec![p("data/nvs.toml")]),
+        "no file in the working directory: the data folder's file",
+    );
+    assert_eq!(
+        roots(&[], &p("app"), Some(&data), &fs),
+        Roots::Files(vec![p("app/nvs.toml")]),
+        "the working directory's file wins over the data folder's",
+    );
+    assert_eq!(
+        roots(&[p("etc/base.toml")], &p("elsewhere"), Some(&data), &fs),
+        Roots::Files(vec![p("elsewhere/etc/base.toml")]),
+        "a flag disables step 3 as it disables step 2",
+    );
+    assert_eq!(
+        roots(&[], &p("elsewhere"), Some(&p("empty/nvs.toml")), &fs),
+        Roots::Defaults,
+        "a data folder with no file is step 4",
+    );
+    assert_eq!(
+        roots(&[], &p("elsewhere"), None, &fs),
+        Roots::Defaults,
+        "and so is no usable data folder",
+    );
+}
+
+/// § 1 step 2: `./nvs.toml` is **exactly one directory, never a walk upward**, so a nested
 /// directory falls through to the shipped defaults rather than finding its parent's file.
 // covers: tools:config/the-file-and-where-it-is-read-from
 #[test]
 fn the_local_file_is_not_searched_for_upward() {
     let fs = Fake::with(&[("app/nvs.toml", "")]);
 
-    assert_eq!(roots(&[], &p("app/sub"), &fs), Roots::Defaults);
+    assert_eq!(roots(&[], &p("app/sub"), None, &fs), Roots::Defaults);
 }
 
-/// § 1 step 3: nothing found is a complete and valid configuration, not a failure.
+/// § 1 step 4: nothing found is a complete and valid configuration, not a failure.
 #[test]
 fn the_shipped_defaults_resolve_to_the_default_tree() {
     let mut sources = SourceMap::new();

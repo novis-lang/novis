@@ -91,38 +91,40 @@ pub(crate) fn working_directory() -> Result<PathBuf, Diagnostic> {
     })
 }
 
-/// Whether reaching step 3 of `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`
-/// writes step 2's file before resolving.
+/// Whether reaching step 4 of `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`
+/// writes step 3's file before resolving.
 ///
-/// The lookup itself is unchanged — still `./nvs.toml` in the working directory, still never a walk
-/// upward. What a project command adds is that arriving at step 3 creates the file step 2 looks for,
-/// in the one directory it already looks in, and then reads it. **Which commands those are is one
+/// The lookup itself is [`nvs_config::resolve::roots`]'s and does not change here. What a project
+/// command adds is that arriving at step 4 creates the data folder's `nvs.toml` — the file step 3
+/// looks for — and then reads it. **The working directory is never written to**: a file there is
+/// only ever one somebody put there, or `nvs init` wrote on request. **Which commands write is one
 /// table in [`crate::initializes`]**, so this type is what that table produces rather than a
 /// decision taken here: a subcommand's arm hands it down, and every path that never resolves a tree
 /// for a program to run on hands down [`Never`](Self::Never).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Init {
-    /// Write the shipped default file into the working directory and resolve that.
+    /// Write the shipped default file into the data folder and resolve that.
     Write,
-    /// Take step 3's shipped defaults and leave the directory as it was found.
+    /// Take step 4's shipped defaults and write nothing.
     Never,
 }
 
 /// The environment variable that disables the write, beside `--no-init`.
 ///
 /// A container image built by running the binary once must not bake in a configuration file nobody
-/// wrote, and the build step that runs it is usually not in a position to add a flag.
+/// wrote, and the build step that runs it is usually not in a position to add a flag. It disables
+/// the file only: the data folder and its subfolders are still created.
 pub(crate) const NO_INIT: &str = "NOVIS_NO_INIT";
 
 /// [`Init`] for this run: a project command writes unless something asked it not to.
 ///
 /// The variable disables on **presence**, whatever it is set to — `NO_COLOR`'s convention, and the
-/// fail-closed direction. A shell that exports it unconditionally then leaves the directory holding
-/// what it already held, where a `NOVIS_NO_INIT=0` that wrote after all would be a surprise nobody
-/// can see in the environment they set.
+/// fail-closed direction. A shell that exports it unconditionally then leaves the data folder
+/// without a file, where a `NOVIS_NO_INIT=0` that wrote after all would be a surprise nobody can
+/// see in the environment they set.
 ///
 /// A named `--config` is not tested here: naming files makes step 1 the answer whether or not they
-/// exist, so step 3 is never reached and there is nothing to gate.
+/// exist, so step 4 is never reached and there is nothing to gate.
 pub(crate) fn init_gate(project_command: bool, no_init: bool, environment: Option<&OsStr>) -> Init {
     if project_command && !no_init && environment.is_none() {
         Init::Write
@@ -131,15 +133,15 @@ pub(crate) fn init_gate(project_command: bool, no_init: bool, environment: Optio
     }
 }
 
-/// Why step 3's write did not happen.
+/// Why a write of the shipped default file did not happen.
 ///
-/// None of these is an error. The shipped defaults are a complete configuration
-/// (`rule:config/no-configuration-file-is-a-complete-configuration`), so a directory that would not
-/// take the file leaves the run exactly where it stood before this step existed — the artifact
-/// cache's discipline ([`crate::cache`] § 4), for its reason: a run that refused to start because it
-/// could not write a file nobody asked for would be a regression against every deployment that works
-/// today. What the reason buys is that the question can be *asked*: [`init`] renders it as the one
-/// line [`Self::note_about`] gives, because there an operator asked for the file and a silent failure
+/// None of these is an error for a project command. The shipped defaults are a complete
+/// configuration (`rule:config/no-configuration-file-is-a-complete-configuration`), so a folder that
+/// would not take the file leaves the run on them — the artifact cache's discipline
+/// ([`crate::cache`] § 4), for its reason: a run that refused to start because it could not write a
+/// file nobody asked for would be a regression against every deployment that works without one.
+/// What the reason buys is that the question can be *asked*: [`init`] renders it as the one line
+/// [`Self::note_about`] gives, because there an operator asked for the file and a silent failure
 /// would be the whole answer withheld. A run keeps it to itself until there is a boot line to carry
 /// it (`rule:config/the-resolved-root-is-announced-and-stored`).
 #[derive(Debug)]
@@ -148,12 +150,12 @@ pub(crate) enum Declined {
     /// would be one another local account can rewrite before `nvs serve` reads it back.
     Untrusted(nvs_config::trust::Untrusted),
     /// The directory already holds one, and an operator's own file outranks a template. Reaching
-    /// this from a project command means a concurrent `nvs` won the race between step 2's look and
-    /// this write, and nothing is wrong either way: the directory holds a tree, and it is the one
-    /// the next run reads at step 2.
+    /// this from a project command means a concurrent `nvs` won the race between step 3's look and
+    /// this write, and nothing is wrong either way: the folder holds a tree, and it is the one the
+    /// next run reads at step 3.
     Exists,
-    /// The filesystem refused — a read-only working directory, a full disk, or whatever else it
-    /// answered with, in its own words.
+    /// The filesystem refused — a read-only folder, a full disk, or whatever else it answered
+    /// with, in its own words.
     Unwritable(String),
 }
 
@@ -172,7 +174,7 @@ impl Declined {
     /// DACL or a mode that was read, and what stopped this one is whatever the reader said.
     ///
     /// `target` is the file that was to be written, named in full so that a note about a
-    /// `--config` path and one about the working directory's `nvs.toml` read the same way.
+    /// `--config` path and one about `./nvs.toml` read the same way.
     pub(crate) fn note_about(&self, target: &Path) -> String {
         let file = target.display();
         match self {
@@ -196,23 +198,19 @@ impl Declined {
     }
 }
 
-/// Step 3's write: the shipped default file into `dir`, under the name step 2 looks for, and the
-/// path it now holds — or the [`Declined`] reason it does not.
+/// The shipped default file written at `target` — the data folder's `nvs.toml` for a project
+/// command, `./nvs.toml` or the one `--config` path for [`init`] — and the path it now holds, or the
+/// [`Declined`] reason it does not.
 ///
 /// `rule:config/ownership-is-the-trust-boundary` is asked first and about the **directory**, because
 /// this is the one place in the binary that creates a file a later `nvs serve` will read as
 /// configuration: writing into a directory another local account can write manufactures exactly the
 /// surface that check exists to close, so refusing is the fail-closed direction and costs an
-/// operator one explicit write.
-fn write_default_file(dir: &Path) -> Result<PathBuf, Declined> {
-    write_default_at(&dir.join(nvs_config::resolve::LOCAL_FILE))
-}
-
-/// [`write_default_file`] at a stated path, which is what `nvs init --config <path>` names.
-///
-/// The ownership check is the same one and falls on the directory `target` will be created in. That
-/// directory has to exist: creating it here would create it with whatever the directory above it
-/// lets every child inherit, which is the state the check refuses.
+/// operator one explicit write. That directory has to exist: creating it here would create it with
+/// whatever the directory above it lets every child inherit, which is the state the check refuses.
+/// The data folder is created privately by `nvs_config::data::prepare` before any of this runs, and
+/// `nvs_config::data::check` is the check, so the default data folder is examined without the
+/// binary's directory above it.
 fn write_default_at(target: &Path) -> Result<PathBuf, Declined> {
     let (Some(dir), Some(name)) = (target.parent(), target.file_name()) else {
         return Err(Declined::Unwritable(format!(
@@ -220,7 +218,7 @@ fn write_default_at(target: &Path) -> Result<PathBuf, Declined> {
             target.display()
         )));
     };
-    let dir = nvs_config::trust::check(dir).map_err(Declined::Untrusted)?;
+    let dir = nvs_config::data::check(dir).map_err(Declined::Untrusted)?;
     let path = dir.join(name);
     // `create_new` is the whole of never overwriting: the file is created by this call or it is not,
     // with no window between asking whether one exists and writing it, so a second `nvs` in the same
@@ -245,20 +243,19 @@ fn write_default_at(target: &Path) -> Result<PathBuf, Declined> {
 
 /// `nvs init` — the same file, written because an operator asked for it.
 ///
-/// The write is [`write_default_file`]'s, so this is the file a project command would have created
-/// and the ownership check in front of it is the same check. **What differs is what a refusal
-/// means.** Nobody asked for the implicit write, so declining it is a note and the run carries on;
-/// this command exists only to produce the file, so a refusal is the answer to the question that was
-/// asked — an `error:` line and a non-zero exit, which is what a script that runs this can act on.
+/// The write is [`write_default_at`]'s, so this is the template a project command writes into the
+/// data folder and the ownership check in front of it is the same check. **What differs is what a
+/// refusal means.** Nobody asked for the implicit write, so declining it is silent and the run
+/// carries on; this command exists only to produce the file, so a refusal is the answer to the
+/// question that was asked — an `error:` line and a non-zero exit, which is what a script that runs
+/// this can act on.
 ///
 /// It is not a project command and is not in [`crate::initializes`]: it resolves no tree and runs
-/// nothing, so there is no step 3 to reach. It is instead where every refusal of the implicit write
-/// points.
+/// nothing, so there is no step 4 to reach.
 ///
-/// **Where it writes is `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`
-/// read backwards**: the file the next run will find. With no `--config` that is step 2's
-/// `nvs.toml` in this process's own working directory. With one it is that path, resolved against
-/// the working directory as step 1 resolves it, so `nvs init --config <path>` and
+/// **Where it writes is the project's own file**: with no `--config` that is step 2's `nvs.toml`
+/// in this process's working directory, never the data folder. With one it is that path, resolved
+/// against the working directory as step 1 resolves it, so `nvs init --config <path>` and
 /// `nvs serve --config <path>` name the same file. More than one is refused: the flag is
 /// repeatable because a tree may have several roots, and a template is one file.
 pub(crate) fn init(config: &[PathBuf]) -> ExitCode {
@@ -338,7 +335,16 @@ pub(crate) fn boot_origins(
     Diagnostic,
 > {
     let cwd = working_directory()?;
-    boot_in(&cwd, config, entry, sources, init)
+    let data = nvs_config::data::config_file();
+    boot_in(&cwd, data.as_deref(), config, entry, sources, init)
+}
+
+/// `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`'s roots for `cwd`, with
+/// this process's data folder as step 3 — what every command that reads a tree without booting a
+/// program resolves, and what [`grants`] asks before a write can change the answer.
+pub(crate) fn roots_in(config: &[PathBuf], cwd: &Path) -> nvs_config::Roots {
+    let data = nvs_config::data::config_file();
+    nvs_config::resolve::roots(config, cwd, data.as_deref(), &LocalFiles)
 }
 
 /// Builds the process's one outbound TLS client from `[http.client.tls]` and
@@ -426,13 +432,15 @@ pub(crate) fn policy_of(snapshot: &nvs_config::Snapshot) -> nvs_host::tls::Clien
     }
 }
 
-/// [`boot_origins`] against a stated directory rather than this process's own.
+/// [`boot_origins`] against a stated directory and data file rather than this process's own.
 ///
-/// The directory is a parameter because both halves of § 1 read it — step 2 looks for its
-/// `nvs.toml` and step 3's write creates one there — and a process has exactly one working
-/// directory, which is a fact about the process and not about the tree being resolved.
+/// Both are parameters because § 1 reads them — step 2 looks for `cwd`'s `nvs.toml`, step 3 for
+/// `data`, and step 4's write creates `data` — and a process has exactly one of each, which is a
+/// fact about the process and not about the tree being resolved. `data` is the data folder's
+/// `nvs.toml`, and `None` when there is no usable data folder.
 fn boot_in(
     cwd: &Path,
+    data: Option<&Path>,
     config: &[PathBuf],
     entry: Option<&Path>,
     sources: &mut SourceMap,
@@ -444,7 +452,7 @@ fn boot_in(
     ),
     Diagnostic,
 > {
-    let resolved = resolved_in(cwd, config, sources, init)?;
+    let resolved = resolved_in(cwd, data, config, sources, init)?;
     let snapshot = match entry {
         Some(entry) => nvs_config::Snapshot::build(&resolved, entry, &LocalFiles)?,
         None => nvs_config::Snapshot::host(&resolved, &LocalFiles)?,
@@ -470,7 +478,14 @@ pub(crate) fn boot_set(
     sources: &mut SourceMap,
     init: Init,
 ) -> Result<BootSet, Diagnostic> {
-    let resolved = resolved_in(&working_directory()?, config, sources, init)?;
+    let data = nvs_config::data::config_file();
+    let resolved = resolved_in(
+        &working_directory()?,
+        data.as_deref(),
+        config,
+        sources,
+        init,
+    )?;
     let snapshot = nvs_config::Snapshot::host(&resolved, &LocalFiles)?;
     Ok((
         snapshot,
@@ -479,34 +494,36 @@ pub(crate) fn boot_set(
     ))
 }
 
-/// The tree [`boot_in`] and [`boot_set`] build their snapshots from, in `cwd`.
+/// The tree [`boot_in`] and [`boot_set`] build their snapshots from, in `cwd`, with `data` as the
+/// data folder's `nvs.toml`.
 fn resolved_in(
     cwd: &Path,
+    data: Option<&Path>,
     config: &[PathBuf],
     sources: &mut SourceMap,
     init: Init,
 ) -> Result<nvs_config::resolve::Resolved, Diagnostic> {
     let files = LocalFiles;
-    // `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`: every `--config` in the order given, else `./nvs.toml`,
-    // else the shipped defaults. `roots` owns all three steps, so this call is
-    // the whole of the CLI's part in choosing what is read.
-    let mut roots = nvs_config::resolve::roots(config, cwd, &files);
-    // Step 3, reached by a project command: write step 2's file and then resolve the file just
-    // written, so what the run reads is what the directory now holds and what the next run will
-    // find at step 2. A write that does not happen changes nothing — `roots` still says
+    // `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`: every `--config` in
+    // the order given, else `./nvs.toml`, else the data folder's `nvs.toml`, else the shipped
+    // defaults. `roots` owns all four steps, so this call is the whole of the CLI's part in
+    // choosing what is read.
+    let mut roots = nvs_config::resolve::roots(config, cwd, data, &files);
+    // Step 4, reached by a project command: write step 3's file into the data folder and then
+    // resolve the file just written, so what the run reads is what the folder now holds and what
+    // the next run will find at step 3. Nothing is ever written into `cwd`. A write that does not
+    // happen — no usable data folder, or one that declines — changes nothing: `roots` still says
     // `Defaults` and the run takes them.
     //
     // The [`Declined`] reason is dropped here rather than printed, and that is where
     // `rule:config/the-resolved-root-is-announced-and-stored` lands once it ships: there is no boot
-    // line for this to join yet, and a run that printed one of its own would repeat it on every
-    // invocation in a directory that fails the ownership check — which is every checkout under a
-    // Windows drive root that grants `Authenticated Users` write. `nvs init` is where an operator
-    // asks this question, and it is where the answer is reported.
+    // line for this to join yet. An unusable data folder has already been reported, once, by the
+    // warning `nvs_config::data::prepare` gives the command.
     if init == Init::Write
         && matches!(roots, nvs_config::Roots::Defaults)
-        && write_default_file(cwd).is_ok()
+        && data.is_some_and(|data| write_default_at(data).is_ok())
     {
-        roots = nvs_config::resolve::roots(config, cwd, &files);
+        roots = nvs_config::resolve::roots(config, cwd, data, &files);
     }
     let mut resolved = nvs_config::resolve::resolve(&roots, sources, &files)?;
     crate::bundle::carry_extensions(&mut resolved);
@@ -530,7 +547,7 @@ fn resolved_in(
 /// and refusing it would make deny-by-default mean "deny with nothing written".
 /// **A file this very run wrote is that case and not the other one**, which is why the question
 /// below is asked of the roots as they were *found* rather than of the snapshot's file list: step
-/// 3's write manufactures a tree, and a program measured against a file created by the command
+/// 4's write manufactures a tree, and a program measured against a file created by the command
 /// measuring it is measured against nobody's decision. `nvs_config::default_file`'s own doc is the
 /// claim that keeps — a file in which nothing is uncommented resolves to what a host with no file
 /// at all resolves to, so writing one does not change the run that takes it.
@@ -567,7 +584,7 @@ pub(crate) fn grants(
     // about. A working directory that cannot be read answers "no tree" here and is reported as the
     // refusal it is a line later, by the resolve that hits the same failure.
     let found_a_tree = matches!(
-        working_directory().map(|cwd| nvs_config::resolve::roots(config, &cwd, &LocalFiles)),
+        working_directory().map(|cwd| roots_in(config, &cwd)),
         Ok(nvs_config::Roots::Files(_))
     );
     let refuse = |diagnostic: Diagnostic, sources: &SourceMap| {
@@ -688,10 +705,9 @@ pub(crate) fn extension_test_tree(
     let roots = if config.is_empty() {
         nvs_config::Roots::Defaults
     } else {
-        nvs_config::resolve::roots(
+        roots_in(
             config,
             &working_directory().map_err(|d| rendered(d, &sources))?,
-            &LocalFiles,
         )
     };
     let mut resolved = nvs_config::resolve::resolve(&roots, &mut sources, &LocalFiles)
@@ -755,8 +771,9 @@ fn rendered(diagnostic: Diagnostic, sources: &SourceMap) -> ExitCode {
 /// disables step 2 exactly as `--config` does, so an audit of `/etc/nvs` on a
 /// developer's machine never quietly merges the `./nvs.toml` beside the
 /// checkout. With none named, § 1's own search runs — step 2's `./nvs.toml`,
-/// else step 3's shipped defaults, which resolve and are reported as a tree of
-/// no files rather than as a failure to find one.
+/// else step 3's data-folder `nvs.toml`, else step 4's shipped defaults, which
+/// resolve and are reported as a tree of no files rather than as a failure to
+/// find one. Like every read-only command, it never creates the data folder.
 ///
 /// It stops at the **first** refusal, because that is what `resolve` reports:
 /// the tree is an ordered stream and a file that does not parse has no keys to
@@ -773,7 +790,7 @@ pub(crate) fn check(config: &[PathBuf], paths: &[PathBuf]) -> ExitCode {
     let mut sources = SourceMap::new();
     let named = named_roots(config, paths);
     let resolved = working_directory().and_then(|cwd| {
-        let roots = nvs_config::resolve::roots(&named, &cwd, &files);
+        let roots = roots_in(&named, &cwd);
         nvs_config::resolve::resolve(&roots, &mut sources, &files)
     });
     let resolved = match resolved {
@@ -835,7 +852,7 @@ pub(crate) fn dump(config: &[PathBuf], paths: &[PathBuf], origin: bool, as_toml:
     let mut sources = SourceMap::new();
     let named = named_roots(config, paths);
     let resolved = working_directory().and_then(|cwd| {
-        let roots = nvs_config::resolve::roots(&named, &cwd, &files);
+        let roots = roots_in(&named, &cwd);
         nvs_config::resolve::resolve(&roots, &mut sources, &files)
     });
     let resolved = match resolved {
@@ -900,14 +917,28 @@ mod tests {
 
     use nvs_diagnostics::SourceMap;
 
-    use super::{Declined, Init, boot_in, policy_of, relaxed_grants, write_default_file};
+    use super::{Declined, Init, boot_in, policy_of, relaxed_grants, write_default_at};
     use crate::testing::{open_to_the_world, refuse_new_files};
 
     /// A directory of this test's own, locked to this account, because
-    /// [`super::write_default_file`] runs `rule:config/ownership-is-the-trust-boundary`'s check on
+    /// [`super::write_default_at`] runs `rule:config/ownership-is-the-trust-boundary`'s check on
     /// the directory it writes into and on its parent.
     fn scratch(name: &str) -> nvs_repo::Scratch {
         nvs_repo::scratch_private(name)
+    }
+
+    /// A data folder inside `dir`, created the way the scratch directory was so it inherits the
+    /// same private permissions, and the `nvs.toml` path in it that step 3 reads and step 4 writes.
+    fn data_folder(dir: &std::path::Path) -> (PathBuf, PathBuf) {
+        let data = dir.join("data");
+        fs::create_dir(&data).expect("a scratch directory takes a folder");
+        let file = data.join("nvs.toml");
+        (data, file)
+    }
+
+    /// Whether a file a snapshot read is the one in [`data_folder`]'s folder.
+    fn in_data(file: &std::path::Path) -> bool {
+        file.parent().is_some_and(|parent| parent.ends_with("data"))
     }
 
     /// A program for the snapshot to be folded for: `Snapshot::build` examines its entry, so a
@@ -942,7 +973,7 @@ mod tests {
         .expect("a scratch directory takes a file");
 
         let mut sources = SourceMap::new();
-        let (snapshot, _) = boot_in(&dir, &[], Some(&entry), &mut sources, Init::Never)
+        let (snapshot, _) = boot_in(&dir, None, &[], Some(&entry), &mut sources, Init::Never)
             .expect("the tree names a readable bundle and a mode that allows a key log");
         let policy = policy_of(&snapshot);
 
@@ -984,7 +1015,7 @@ mod tests {
         .expect("a scratch directory takes a file");
 
         let mut sources = SourceMap::new();
-        let (snapshot, _) = boot_in(&dir, &[], Some(&entry), &mut sources, Init::Never)
+        let (snapshot, _) = boot_in(&dir, None, &[], Some(&entry), &mut sources, Init::Never)
             .expect("a tree that is one capability block resolves");
 
         assert_eq!(
@@ -998,29 +1029,40 @@ mod tests {
         );
     }
 
-    /// `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 3 for a
-    /// project command: the file is written into the one directory step 2 looks in, and the same
+    /// `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 4 for a
+    /// project command: the file is written into the data folder, where step 3 looks, and the same
     /// call then reads it back — so what the run holds is the tree on disk rather than the shipped
-    /// defaults that were about to answer.
+    /// defaults that were about to answer. The working directory is never written to.
     ///
-    /// The second assertion is the whole of "and then resolves it": a snapshot built from step 3's
+    /// The `files` assertion is the whole of "and then resolves it": a snapshot built from step 4's
     /// defaults reaches no files at all (`rule:config/no-configuration-file-is-a-complete-configuration`),
     /// so a `files` list naming the written path is the only thing that distinguishes a run that
     /// wrote and read from a run that wrote and carried on regardless.
     #[test]
-    fn a_run_in_a_directory_with_no_config_writes_one_and_then_resolves_it() {
+    fn a_run_with_no_config_writes_one_into_the_data_folder_and_then_resolves_it() {
         let dir = scratch("writes");
         let entry = entry(&dir);
-        let written = dir.join("nvs.toml");
-        assert!(!written.exists(), "the directory starts with no tree");
+        let (data, written) = data_folder(&dir);
+        assert!(!written.exists(), "the data folder starts with no tree");
 
         let mut sources = SourceMap::new();
-        let (snapshot, _) = boot_in(&dir, &[], Some(&entry), &mut sources, Init::Write)
-            .expect("the file this call writes is a file it can read");
+        let (snapshot, _) = boot_in(
+            &dir,
+            Some(&written),
+            &[],
+            Some(&entry),
+            &mut sources,
+            Init::Write,
+        )
+        .expect("the file this call writes is a file it can read");
 
         assert!(
             written.exists(),
-            "a project command with no tree writes one"
+            "a project command with no tree writes one into the data folder"
+        );
+        assert!(
+            !dir.join("nvs.toml").exists(),
+            "and never into the working directory"
         );
         assert_eq!(
             snapshot.files.len(),
@@ -1028,10 +1070,75 @@ mod tests {
             "the run resolved the file it just wrote, not the shipped defaults"
         );
         assert!(
-            snapshot.files[0].ends_with("nvs.toml"),
-            "the one file read is the one written: {:?}",
+            snapshot.files[0].ends_with("nvs.toml") && in_data(&snapshot.files[0]),
+            "the one file read is the one written into `{}`: {:?}",
+            data.display(),
             snapshot.files[0]
         );
+    }
+
+    /// Step 3 on its own: a data folder that already holds `nvs.toml` is read when the working
+    /// directory has none, and the working directory's file wins when it has one.
+    #[test]
+    fn the_data_folder_s_file_is_read_unless_the_working_directory_has_one() {
+        let dir = scratch("data-read");
+        let entry = entry(&dir);
+        let (_, data_file) = data_folder(&dir);
+        fs::write(&data_file, "[mode]\ndefault = \"development\"\n")
+            .expect("a scratch directory takes a file");
+
+        let mut sources = SourceMap::new();
+        let (snapshot, _) = boot_in(
+            &dir,
+            Some(&data_file),
+            &[],
+            Some(&entry),
+            &mut sources,
+            Init::Never,
+        )
+        .expect("the data folder's file resolves");
+        assert_eq!(snapshot.files.len(), 1, "{:?}", snapshot.files);
+        assert!(
+            in_data(&snapshot.files[0]),
+            "the data folder's file is the one read: {:?}",
+            snapshot.files[0]
+        );
+
+        fs::write(dir.join("nvs.toml"), "").expect("a scratch directory takes a file");
+        let mut sources = SourceMap::new();
+        let (snapshot, _) = boot_in(
+            &dir,
+            Some(&data_file),
+            &[],
+            Some(&entry),
+            &mut sources,
+            Init::Never,
+        )
+        .expect("the working directory's file resolves");
+        assert_eq!(snapshot.files.len(), 1, "{:?}", snapshot.files);
+        assert!(
+            !in_data(&snapshot.files[0]),
+            "the working directory's file wins: {:?}",
+            snapshot.files[0]
+        );
+    }
+
+    /// A process with no usable data folder writes nothing and runs on the shipped defaults: the
+    /// working directory is not a fallback for the write.
+    #[test]
+    fn no_data_folder_writes_nothing_and_takes_the_shipped_defaults() {
+        let dir = scratch("no-data");
+        let entry = entry(&dir);
+
+        let mut sources = SourceMap::new();
+        let (snapshot, _) = boot_in(&dir, None, &[], Some(&entry), &mut sources, Init::Write)
+            .expect("no data folder is still a run");
+
+        assert!(
+            !dir.join("nvs.toml").exists(),
+            "the working directory is not written to"
+        );
+        assert!(snapshot.files.is_empty(), "{:?}", snapshot.files);
     }
 
     /// The goal's first standing decision, on disk: every key is commented out, so the file a
@@ -1043,12 +1150,20 @@ mod tests {
     fn the_written_file_is_the_shipped_template_byte_for_byte() {
         let dir = scratch("template");
         let entry = entry(&dir);
+        let (_, data_file) = data_folder(&dir);
 
         let mut sources = SourceMap::new();
-        boot_in(&dir, &[], Some(&entry), &mut sources, Init::Write)
-            .expect("a tree it wrote itself");
+        boot_in(
+            &dir,
+            Some(&data_file),
+            &[],
+            Some(&entry),
+            &mut sources,
+            Init::Write,
+        )
+        .expect("a tree it wrote itself");
 
-        let written = fs::read(dir.join("nvs.toml")).expect("the write happened");
+        let written = fs::read(&data_file).expect("the write happened");
         assert_eq!(
             written,
             nvs_config::default_file().as_bytes(),
@@ -1056,25 +1171,56 @@ mod tests {
         );
     }
 
-    /// A file already in the directory is step 2's answer and is read, never replaced: the write
-    /// exists to create the file that is missing, and an operator's own `nvs.toml` being silently
-    /// overwritten by a `nvs run` would be the worst version of this stage.
+    /// A file already in the working directory is step 2's answer and is read, never replaced, and
+    /// the data folder gets no file either: the write exists to create the file that is missing,
+    /// and an operator's own `nvs.toml` being silently overwritten by a `nvs run` would be the
+    /// worst version of this stage. The same holds for a file already in the data folder.
     #[test]
     fn an_existing_nvs_toml_is_never_touched() {
         let dir = scratch("existing");
         let entry = entry(&dir);
+        let (_, data_file) = data_folder(&dir);
         let existing = dir.join("nvs.toml");
         let hand_written = "# an operator's own, and the only key it sets is none\n";
         fs::write(&existing, hand_written).expect("a scratch directory takes a file");
 
         let mut sources = SourceMap::new();
-        let (snapshot, _) = boot_in(&dir, &[], Some(&entry), &mut sources, Init::Write)
-            .expect("a comment-only file is a tree that resolves");
+        let (snapshot, _) = boot_in(
+            &dir,
+            Some(&data_file),
+            &[],
+            Some(&entry),
+            &mut sources,
+            Init::Write,
+        )
+        .expect("a comment-only file is a tree that resolves");
 
         assert_eq!(
             fs::read_to_string(&existing).expect("the file is still there"),
             hand_written,
             "the file in the directory is the one the operator wrote"
+        );
+        assert!(
+            !data_file.exists(),
+            "a tree was found, so the data folder gets no file"
+        );
+
+        fs::remove_file(&existing).expect("the scratch file goes");
+        fs::write(&data_file, hand_written).expect("a scratch directory takes a file");
+        let mut sources = SourceMap::new();
+        boot_in(
+            &dir,
+            Some(&data_file),
+            &[],
+            Some(&entry),
+            &mut sources,
+            Init::Write,
+        )
+        .expect("a comment-only file is a tree that resolves");
+        assert_eq!(
+            fs::read_to_string(&data_file).expect("the file is still there"),
+            hand_written,
+            "the data folder's file is the one the operator wrote"
         );
         assert_eq!(
             snapshot.files.len(),
@@ -1084,29 +1230,36 @@ mod tests {
         );
     }
 
-    /// A working directory any local account can write gets no file. Creating one there is what
-    /// `rule:config/ownership-is-the-trust-boundary` exists to stop — a `nvs serve` in that
-    /// directory reads its capability grants back out of a file anybody on the machine can rewrite
-    /// first — so [`super::write_default_file`] asks about the directory before it creates
-    /// anything, and refusing costs an operator one explicit `nvs init` instead.
+    /// A data folder any local account can write gets no file. Creating one there is what
+    /// `rule:config/ownership-is-the-trust-boundary` exists to stop — a `nvs serve` reads its
+    /// capability grants back out of a file anybody on the machine can rewrite first — so
+    /// [`super::write_default_at`] asks about the folder before it creates anything.
     ///
-    /// The run still starts, on step 3's shipped defaults, which reach no files at all
+    /// The run still starts, on step 4's shipped defaults, which reach no files at all
     /// (`rule:config/no-configuration-file-is-a-complete-configuration`): a declined write is
-    /// silent, so an empty `files` list is what separates this from the directory that was written
+    /// silent, so an empty `files` list is what separates this from the folder that was written
     /// to and read back.
     #[test]
-    fn a_working_directory_that_fails_the_ownership_check_is_not_written_to() {
+    fn a_data_folder_that_fails_the_ownership_check_is_not_written_to() {
         let dir = scratch("untrusted");
         let entry = entry(&dir);
-        open_to_the_world(&dir);
+        let (data, data_file) = data_folder(&dir);
+        open_to_the_world(&data);
 
         let mut sources = SourceMap::new();
-        let (snapshot, _) = boot_in(&dir, &[], Some(&entry), &mut sources, Init::Write)
-            .expect("a directory that may not be written into is still one to run in");
+        let (snapshot, _) = boot_in(
+            &dir,
+            Some(&data_file),
+            &[],
+            Some(&entry),
+            &mut sources,
+            Init::Write,
+        )
+        .expect("a folder that may not be written into is still no reason to stop");
 
         assert!(
-            !dir.join("nvs.toml").exists(),
-            "the directory another account can write is the one directory never written into"
+            !data_file.exists(),
+            "the folder another account can write is the one folder never written into"
         );
         assert!(
             snapshot.files.is_empty(),
@@ -1123,18 +1276,30 @@ mod tests {
     /// `rule:config/ownership-is-the-trust-boundary`'s check in front of it — the two are different
     /// reasons and the next case is the one that separates them.
     #[test]
-    fn a_read_only_working_directory_leaves_the_run_green_on_the_shipped_defaults() {
+    fn a_read_only_data_folder_leaves_the_run_green_on_the_shipped_defaults() {
         let dir = scratch("read-only");
         let entry = entry(&dir);
-        refuse_new_files(&dir);
+        let (data, data_file) = data_folder(&dir);
+        refuse_new_files(&data);
 
         let mut sources = SourceMap::new();
-        let (snapshot, _) = boot_in(&dir, &[], Some(&entry), &mut sources, Init::Write)
-            .expect("a directory that will not take the file is still one to run in");
+        let (snapshot, _) = boot_in(
+            &dir,
+            Some(&data_file),
+            &[],
+            Some(&entry),
+            &mut sources,
+            Init::Write,
+        )
+        .expect("a folder that will not take the file is still no reason to stop");
 
         assert!(
-            !dir.join("nvs.toml").exists(),
+            !data_file.exists(),
             "the write could not happen, and nothing pretended otherwise"
+        );
+        assert!(
+            !dir.join("nvs.toml").exists(),
+            "and nothing fell back to the working directory"
         );
         assert!(
             snapshot.files.is_empty(),
@@ -1154,7 +1319,7 @@ mod tests {
     fn a_declined_write_says_which_reason_applied() {
         let untrusted = scratch("reason-untrusted");
         open_to_the_world(&untrusted);
-        let breach = write_default_file(&untrusted)
+        let breach = write_default_at(&untrusted.join("nvs.toml"))
             .expect_err("a directory any local account can write is refused");
         assert!(
             matches!(breach, Declined::Untrusted(_)),
@@ -1174,7 +1339,7 @@ mod tests {
 
         let refusing = scratch("reason-unwritable");
         refuse_new_files(&refusing);
-        let refused = write_default_file(&refusing)
+        let refused = write_default_at(&refusing.join("nvs.toml"))
             .expect_err("a directory that takes no new file writes none");
         assert!(
             matches!(refused, Declined::Unwritable(_)),
@@ -1183,7 +1348,8 @@ mod tests {
 
         let occupied = scratch("reason-exists");
         fs::write(occupied.join("nvs.toml"), "").expect("a scratch directory takes a file");
-        let already = write_default_file(&occupied).expect_err("the file is already there");
+        let already =
+            write_default_at(&occupied.join("nvs.toml")).expect_err("the file is already there");
         assert!(
             matches!(already, Declined::Exists),
             "a file that is already there is its own reason: {already:?}"
@@ -1201,22 +1367,30 @@ mod tests {
         }
     }
 
-    /// Step 1's precedent, carried to step 3: an operator who named files never gets a surprise
-    /// write in the working directory, **even when every named file is missing**. Naming one makes
-    /// step 1 the answer whatever is on disk, so step 3 is not reached and there is nothing to
-    /// write — the refusal the run gets is the missing file's, and the directory is as it was.
+    /// Step 1's precedent, carried to step 4: an operator who named files never gets a surprise
+    /// write, **even when every named file is missing**. Naming one makes step 1 the answer
+    /// whatever is on disk, so step 4 is not reached and there is nothing to write — the refusal
+    /// the run gets is the missing file's, and both folders are as they were.
     #[test]
     fn a_config_flag_disables_the_write_even_when_every_named_file_is_missing() {
         let dir = scratch("named");
         let entry = entry(&dir);
+        let (_, data_file) = data_folder(&dir);
         let absent = dir.join("absent.toml");
 
         let mut sources = SourceMap::new();
-        boot_in(&dir, &[absent], Some(&entry), &mut sources, Init::Write)
-            .expect_err("a `--config` naming a file that does not exist is a hard refusal");
+        boot_in(
+            &dir,
+            Some(&data_file),
+            &[absent],
+            Some(&entry),
+            &mut sources,
+            Init::Write,
+        )
+        .expect_err("a `--config` naming a file that does not exist is a hard refusal");
 
         assert!(
-            !dir.join("nvs.toml").exists(),
+            !dir.join("nvs.toml").exists() && !data_file.exists(),
             "naming a tree disables the write, missing or not"
         );
     }

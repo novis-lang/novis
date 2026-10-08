@@ -67,6 +67,8 @@ struct Server {
     child: Child,
     addr: SocketAddr,
     dir: PathBuf,
+    /// The private data folder every `nvs` run of this server is given.
+    data: nvs_repo::Scratch,
     stderr: Arc<Mutex<String>>,
 }
 
@@ -127,8 +129,11 @@ impl Server {
             write_file(&dir.join(path), text);
         }
         write_file(&dir.join("nvs.toml"), &written(config));
+        let data = nvs_repo::scratch_private("nvsdata");
         if !first.is_empty() {
             let ran = Command::new(env!("CARGO_BIN_EXE_nvs"))
+                .arg("--data")
+                .arg(&*data)
                 .args(first)
                 .current_dir(&dir)
                 .stdin(Stdio::null())
@@ -143,6 +148,7 @@ impl Server {
         }
 
         let mut command = Command::new(env!("CARGO_BIN_EXE_nvs"));
+        command.arg("--data").arg(&*data);
         if elsewhere {
             let cwd = dir.join("elsewhere");
             std::fs::create_dir_all(&cwd).expect("the working directory is created");
@@ -203,6 +209,7 @@ impl Server {
             child,
             addr,
             dir,
+            data,
             stderr,
         }
     }
@@ -1081,6 +1088,8 @@ fn a_changed_queue_worker_count_starts_and_stops_workers_after_their_current_job
     );
 
     let migrated = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(&*server.data)
         .args(["queue", "migrate", "--connection", "other"])
         .current_dir(&server.dir)
         .stdin(Stdio::null())
@@ -2493,7 +2502,10 @@ fn a_boot_with_an_extension_entry_that_does_not_load_refuses_to_start() {
     let _ = std::fs::remove_dir_all(&dir);
     write_file(&dir.join("app.nvs"), PLAIN);
     write_file(&dir.join("nvs.toml"), &written(&entry));
+    let data = nvs_repo::scratch_private("nvsdata");
     let mut child = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(&*data)
         .args(["serve", "app.nvs", "--listen", "127.0.0.1:0"])
         .current_dir(&dir)
         .stdin(Stdio::null())

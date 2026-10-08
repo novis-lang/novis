@@ -247,11 +247,14 @@ fn nvs_check_never_reports_an_unformatted_file() {
     let (_, _, formatted) = fmt(&[std::ffi::OsStr::new("--check"), paths[0].as_os_str()]);
     assert!(!formatted, "the fixture is a file `nvs fmt` would rewrite");
 
+    let data = nvs_repo::scratch_private("nvsdata");
     let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
-        // Run from the fixture's own directory and write no `nvs.toml` into
-        // it: this asks what the *checker* says, not what a configuration
-        // tree beside it says.
+        // Run from the fixture's own directory with a private data folder of
+        // its own and no template written into it: this asks what the
+        // *checker* says, not what a configuration tree beside it says.
         .current_dir(&dir)
+        .arg("--data")
+        .arg(&*data)
         .args(["--no-init", "check"])
         .arg(&paths[0])
         .output()

@@ -27,7 +27,9 @@ fn scratch(name: &str) -> PathBuf {
 /// `nvs <global...> run main.nvs` in the fixture, with `env` added, asserting that it succeeds, and
 /// its standard error.
 fn run_with(global: &[&Path], env: &[(&str, &Path)]) -> String {
+    let data = nvs_repo::scratch_private("nvsdata");
     let mut command = Command::new(env!("CARGO_BIN_EXE_nvs"));
+    command.arg("--data").arg(&*data).arg("--no-init");
     for config in global {
         command.arg("--config").arg(config);
     }

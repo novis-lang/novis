@@ -45,7 +45,11 @@ fn bundle_of(entry: &str, name: &str) -> (nvs_repo::Scratch, PathBuf) {
     let dir = nvs_repo::scratch(&format!("bundle-{name}"));
     let exe = dir.join(if cfg!(windows) { "app.exe" } else { "app" });
 
+    let data = nvs_repo::scratch_private("nvsdata");
     let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(&*data)
+        .arg("--no-init")
         .args(["build", "--compile", entry, "-o"])
         .arg(&exe)
         .output()
@@ -206,7 +210,11 @@ fn a_bundled_class_is_reached_and_enumerated_through_an_autoload_root() {
     let bundled = nvs_repo::spawn(&exe, &[])
         .output()
         .expect("the bundle is an executable this host can run");
+    let data = nvs_repo::scratch_private("nvsdata");
     let interpreted = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(&*data)
+        .arg("--no-init")
         .args(["run", AUTOLOAD_APP])
         .output()
         .expect("the `nvs` binary this test was built beside runs");
@@ -254,7 +262,11 @@ fn a_bundled_executable_runs_identically_to_nvs_run() {
     let bundled = nvs_repo::spawn(&exe, &[])
         .output()
         .expect("the bundle is an executable this host can run");
+    let data = nvs_repo::scratch_private("nvsdata");
     let interpreted = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(&*data)
+        .arg("--no-init")
         .args(["run", APP])
         .output()
         .expect("the `nvs` binary this test was built beside runs");
@@ -333,7 +345,10 @@ struct Project {
 
 /// `nvs build --compile app.nvs` run in the project folder, writing the project's executable.
 fn build_in(project: &Project) -> std::process::Output {
+    let data = nvs_repo::scratch_private("nvsdata");
     Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(&*data)
         .args(["build", "--compile", "app.nvs", "-o"])
         .arg(&project.exe)
         .current_dir(&project.src)
@@ -385,7 +400,10 @@ fn a_bundled_extension_runs_identically_to_its_entry_under_nvs_run() {
     built(&project);
 
     let bundled = run_beside(&project);
+    let data = nvs_repo::scratch_private("nvsdata");
     let interpreted = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(&*data)
         .args(["run", "app.nvs"])
         .current_dir(&project.src)
         .output()

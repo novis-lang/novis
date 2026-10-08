@@ -25,7 +25,11 @@ fn fixture(name: &str) -> PathBuf {
 
 /// `nvs test --config <config> wire.nvs`, as `(report, success)`.
 fn run_under(config: &str) -> (String, bool) {
+    let data = nvs_repo::scratch_private("nvsdata");
     let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(&*data)
+        .arg("--no-init")
         .arg("test")
         .arg("--config")
         .arg(fixture(config))

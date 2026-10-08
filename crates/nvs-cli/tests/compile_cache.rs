@@ -41,7 +41,11 @@ fn private_scratch(name: &str) -> PathBuf {
 /// `nvs --config <config> run <program>`, as `(stdout, stderr)`, asserting
 /// that it succeeds.
 fn run(config: &Path, program: &Path) -> (String, String) {
+    let data = nvs_repo::scratch_private("nvsdata");
     let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(&*data)
+        .arg("--no-init")
         .arg("--config")
         .arg(config)
         .arg("run")
@@ -159,6 +163,8 @@ fn the_same_file_in_two_folders_is_two_cache_entries() {
         std::fs::create_dir(&home).expect("the program's folder");
         std::fs::write(home.join("main.nvs"), text).expect("the program is written");
         let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+            .arg("--data")
+            .arg(home.join(".nvsdata"))
             .arg("--config")
             .arg(&config)
             .arg("run")

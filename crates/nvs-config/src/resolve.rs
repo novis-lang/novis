@@ -152,7 +152,8 @@ pub trait Files {
     fn list(&self, dir: &Path) -> Result<Vec<PathBuf>, String>;
 
     /// Whether the path is there at all. Only [`Include::optional`](crate::tree::Include::optional)
-    /// and § 1's step 2 ask, and both of them treat absence as an answer rather than a failure.
+    /// and § 1's steps 2 and 3 ask, and all of them treat absence as an answer rather than a
+    /// failure.
     fn exists(&self, path: &Path) -> bool;
 
     /// Whether `path` is certainly not there, and so nothing below it is either: no such entry, or
@@ -352,40 +353,51 @@ pub struct Resolved {
     pub secrets: BTreeMap<String, Secret>,
 }
 
-/// What `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`'s four steps selected.
+/// What `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`'s steps selected.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Roots {
-    /// Step 1 or step 2: files to read, in order, each absolute.
+    /// Step 1, 2 or 3: files to read, in order, each absolute.
     Files(Vec<PathBuf>),
-    /// Step 3: the shipped defaults, which are a complete and valid configuration — capabilities
+    /// Step 4: the shipped defaults, which are a complete and valid configuration — capabilities
     /// deny-all, `[mode] default = "production"` — and so are [`Config::default`] plus the defaults
     /// each reader applies, not a failure to find anything.
     Defaults,
 }
 
-/// The file step 2 looks for in the working directory, and so the name anything writing one gives
-/// it: the lookup and the writer have to agree on the spelling or the file created is not the file
-/// found.
+/// The file step 2 looks for in the working directory and step 3 in the data folder, and so the
+/// name anything writing one gives it: the lookup and the writer have to agree on the spelling or
+/// the file created is not the file found.
 pub const LOCAL_FILE: &str = "nvs.toml";
 
-/// `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`: every `--config` in the order given, else `./nvs.toml`, else the shipped defaults.
+/// `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`: every `--config` in
+/// the order given, else `./nvs.toml`, else the data folder's `nvs.toml`, else the shipped defaults.
 ///
 /// `flags` are resolved against `cwd` because a path given on the command line means what a shell
-/// argument means (§ 5). **Any explicit `--config` disables step 2 entirely**, so an operator naming
-/// files never gets a surprise merge with whatever is in the working directory — which is why this
-/// does not probe `cwd` when `flags` is non-empty even if every one of them turns out to be missing.
-/// A `--config` naming a file that does not exist is a hard refusal, and it is [`resolve`]'s: this
-/// function reports what was *asked for*, and optionality is a property a file declares about its
-/// own includes and never something argv can assert.
-pub fn roots(flags: &[PathBuf], cwd: &Path, files: &dyn Files) -> Roots {
+/// argument means (§ 5). **Any explicit `--config` disables steps 2 and 3 entirely**, so an
+/// operator naming files never gets a surprise merge with whatever is in the working directory or
+/// the data folder — which is why this probes neither when `flags` is non-empty, even if every one
+/// of them turns out to be missing. A `--config` naming a file that does not exist is a hard
+/// refusal, and it is [`resolve`]'s: this function reports what was *asked for*, and optionality is
+/// a property a file declares about its own includes and never something argv can assert.
+///
+/// `data` is step 3's file — [`crate::data::Folder::config_file`] of the process's data folder, as
+/// [`crate::data::config_file`] gives it — and `None` when the process has no usable data folder,
+/// which skips step 3. It is a parameter rather than read here so this stays a function of its
+/// inputs, and a caller resolving for another directory (the language server, per document) asks
+/// the same question with the same answer.
+pub fn roots(flags: &[PathBuf], cwd: &Path, data: Option<&Path>, files: &dyn Files) -> Roots {
     if !flags.is_empty() {
         return Roots::Files(flags.iter().map(|flag| absolute(cwd, flag)).collect());
     }
+    // Exactly these two files, never a walk upward: what makes reading the wrong file a question
+    // about two paths rather than about an ancestry.
     let local = cwd.join(LOCAL_FILE);
     if files.exists(&local) {
-        // Exactly this directory, never a walk upward: what makes reading the wrong file a
-        // question about one path rather than about an ancestry.
         return Roots::Files(vec![normalize(&local)]);
+    }
+    // Already absolute: `crate::data::Folder::locate` resolved it against the working directory.
+    if let Some(data) = data.filter(|data| files.exists(data)) {
+        return Roots::Files(vec![normalize(data)]);
     }
     Roots::Defaults
 }

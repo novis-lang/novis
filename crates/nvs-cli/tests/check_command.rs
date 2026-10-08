@@ -22,7 +22,10 @@ fn scratch(case: &str) -> PathBuf {
 
 /// Runs `nvs check` with `args` from `dir`.
 fn check_in(dir: &Path, args: &[&str]) -> Output {
+    let data = nvs_repo::scratch_private("nvsdata");
     Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(&*data)
         .arg("check")
         .args(args)
         .current_dir(dir)
@@ -97,7 +100,10 @@ fn a_source_file_that_is_not_utf_8_is_e0006_at_its_first_bad_byte() {
     fs::write(dir.join("latin1.nvs"), bytes).unwrap();
 
     for command in [&["check"][..], &["ast"], &["fmt", "--check"]] {
+        let data = nvs_repo::scratch_private("nvsdata");
         let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+            .arg("--data")
+            .arg(&*data)
             .args(command)
             .arg("latin1.nvs")
             .current_dir(&dir)
@@ -193,7 +199,10 @@ fn nvs_check_never_instantiates_an_extension() {
     assert_eq!(good.status.code(), Some(0), "{stderr}");
     assert_eq!(String::from_utf8_lossy(&good.stdout), "no errors\n");
 
+    let data = nvs_repo::scratch_private("nvsdata");
     let run = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(&*data)
         .args(["run", "good.nvs"])
         .current_dir(&dir)
         .output()
@@ -256,7 +265,10 @@ fn check_count_prints_what_each_phase_produced() {
         "nothing is printed without the flag"
     );
 
+    let data = nvs_repo::scratch_private("nvsdata");
     let run = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(&*data)
         .args(["run", "--count", "small.nvs"])
         .current_dir(&dir)
         .output()

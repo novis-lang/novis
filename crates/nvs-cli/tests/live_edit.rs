@@ -52,6 +52,8 @@ struct Server {
     child: Child,
     addr: SocketAddr,
     dir: PathBuf,
+    /// The private data folder every `nvs` run of this server is given.
+    _data: nvs_repo::Scratch,
     stderr: Arc<Mutex<String>>,
 }
 
@@ -113,8 +115,11 @@ impl Server {
         for (link, target) in links {
             point(&dir.join(link), &dir.join(target));
         }
+        let data = nvs_repo::scratch_private("nvsdata");
         if !first.is_empty() {
             let ran = Command::new(env!("CARGO_BIN_EXE_nvs"))
+                .arg("--data")
+                .arg(&*data)
                 .args(first)
                 .current_dir(&dir)
                 .stdin(Stdio::null())
@@ -129,6 +134,8 @@ impl Server {
         }
 
         let mut child = Command::new(env!("CARGO_BIN_EXE_nvs"))
+            .arg("--data")
+            .arg(&*data)
             .arg("serve")
             .args(entry)
             .args(["--listen", "127.0.0.1:0"])
@@ -179,6 +186,7 @@ impl Server {
             child,
             addr,
             dir,
+            _data: data,
             stderr,
         }
     }

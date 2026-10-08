@@ -111,11 +111,28 @@ pub fn canonical(path: &Path) -> std::io::Result<PathBuf> {
 /// [`Untrusted`], which [`resolve`](crate::resolve) turns into `E0605` when the path could not be
 /// examined and `E0607` when it was and failed.
 pub fn check(path: &Path) -> Result<PathBuf, Untrusted> {
-    let canonical = canonical(path).map_err(|err| Untrusted::Unreadable(err.to_string()))?;
-    platform::check(&canonical).map_err(|why| why.about(&canonical))?;
+    let canonical = check_alone(path)?;
     if let Some(parent) = canonical.parent() {
         platform::check(parent).map_err(|why| why.about(parent))?;
     }
+    Ok(canonical)
+}
+
+/// [`check`] on `path` alone, with the directory that contains it left unexamined, and the
+/// canonical path it names.
+///
+/// One caller has a reason for this, and every other path the configuration names takes [`check`]:
+/// [`mod@crate::data`]'s default folder, `.nvsdata` beside the binary. Its parent is the binary's
+/// own directory, and an account that can write there can already replace the binary, so checking
+/// that directory guards nothing the binary itself does not — and on a Windows drive's stock ACL,
+/// which lets `Authenticated Users` modify, it would make the default folder unusable everywhere.
+///
+/// # Errors
+///
+/// As [`check`], about `path` only.
+pub fn check_alone(path: &Path) -> Result<PathBuf, Untrusted> {
+    let canonical = canonical(path).map_err(|err| Untrusted::Unreadable(err.to_string()))?;
+    platform::check(&canonical).map_err(|why| why.about(&canonical))?;
     Ok(canonical)
 }
 

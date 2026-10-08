@@ -29,7 +29,11 @@ fn fixtures() -> PathBuf {
 /// compiler refuses, and a program that does not compile has no run to observe.
 fn refusal(fixture: &str) -> String {
     let path = fixtures().join(fixture);
+    let data = nvs_repo::scratch_private("nvsdata");
     let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(&*data)
+        .arg("--no-init")
         .arg("check")
         .arg(&path)
         .output()
@@ -93,7 +97,11 @@ fn a_callable_typed_variable_is_refused_as_a_spawn_target() {
 /// asserts the denial instead of what the case is about.
 fn run(fixture: &str) -> String {
     let dir = fixtures();
+    let data = nvs_repo::scratch_private("nvsdata");
     let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(&*data)
+        .arg("--no-init")
         .arg("--config")
         .arg(dir.join("spawning.toml"))
         .arg("run")
@@ -139,7 +147,11 @@ fn spawn_script_binds_args_to_the_entrys_parameters_by_name() {
 /// where the spawn happens rather than where it is compiled.
 fn failing_run(fixture: &str) -> String {
     let dir = fixtures();
+    let data = nvs_repo::scratch_private("nvsdata");
     let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(&*data)
+        .arg("--no-init")
         .arg("--config")
         .arg(dir.join("spawning.toml"))
         .arg("run")

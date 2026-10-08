@@ -103,7 +103,10 @@ fn fixture(name: &str, program: &str) -> nvs_repo::Scratch {
 
 /// `nvs check <args...> case.nvs`, run *in* `dir`.
 fn check(dir: &Path, args: &[&str]) -> Output {
+    let data = nvs_repo::scratch_private("nvsdata");
     Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(&*data)
         .arg("check")
         .args(args)
         .arg("case.nvs")

@@ -774,9 +774,10 @@ pub fn analyse_file(documents: &Documents, path: &Path, version: i32) -> Option<
 /// instantiated (`rule:packaging/extension-calls-are-statically-typed`).
 ///
 /// The tree is the one `nvs check` reads when it is run in the document's directory: its
-/// `nvs.toml`, through the same reader with no ownership check, with the `[[app]]` blocks that
-/// match the document folded in. A document that is not on disk yet takes the host's tree. A
-/// directory with no `nvs.toml` is no set and costs one file test.
+/// `nvs.toml`, else the data folder's, through the same reader with no ownership check, with the
+/// `[[app]]` blocks that match the document folded in. A document that is not on disk yet takes
+/// the host's tree. A directory with no `nvs.toml` and a data folder with none is no set and
+/// costs two file tests. The server never writes a configuration file.
 ///
 /// A tree that does not resolve, and an entry that does not read, are no set here. `nvs check`
 /// reports both against the configuration file, and a diagnostic in the open document would put
@@ -788,7 +789,8 @@ fn extension_set(path: &Path) -> Vec<nvs_ext::manifest::Manifest> {
     let Some(dir) = path.parent() else {
         return Vec::new();
     };
-    let roots = roots(&[], dir, &Unowned);
+    let data = nvs_config::data::config_file();
+    let roots = roots(&[], dir, data.as_deref(), &Unowned);
     if !matches!(roots, nvs_config::Roots::Files(_)) {
         return Vec::new();
     }

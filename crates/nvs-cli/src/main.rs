@@ -199,7 +199,7 @@ const VERSION: &str = concat!(
 /// The environment variables `nvs` reads, which `nvs --help` lists below the options.
 const ENVIRONMENT: &str = "\
 Environment:
-  NOVIS_NO_INIT        Do not write a `nvs.toml` when there is none to read, as `--no-init` does.
+  NOVIS_NO_INIT        Do not create `nvs.toml` in the data folder, as `--no-init` does.
   NOVIS_NO_FILE_CACHE  Read and write no compiled artifact, so every program is compiled again.
   NVS_FOOTPRINT_LOG    Append each `Core` class looked up, file read, directory listed and path
                        tested to this file, one line each. Used to record what a test run needs.";
@@ -216,10 +216,14 @@ struct Cli {
     #[command(subcommand)]
     command: Option<Command>,
 
-    /// Reads this configuration file instead of `./nvs.toml`. Repeat the option
-    /// to read several files, in order.
+    /// Reads this configuration file. Repeat the option to read several files,
+    /// in order.
     ///
-    /// When you name a file, `nvs` does not look for `./nvs.toml`. A relative
+    /// Without this option, `nvs` reads `./nvs.toml`. If there is no
+    /// `./nvs.toml`, it reads `nvs.toml` in the data folder (see `--data`). If
+    /// there is neither, it uses the default settings.
+    ///
+    /// When you name a file, `nvs` does not read either `nvs.toml`. A relative
     /// path starts at the current folder. A file that does not exist is an
     /// error.
     ///
@@ -227,35 +231,82 @@ struct Cli {
     // Every `///` line above is printed under each subcommand's `--help`, so it
     // is written as `AGENTS.md` § *Text an end user reads* asks. Naming any file
     // disables the search, so a named tree is never merged with whatever is in
-    // the working directory. It is global because it selects the tree rather
-    // than the command: `run` resolves the snapshot its request reads, and
-    // `config check`/`config dump` audit the same files without running
-    // anything.
+    // the working directory or the data folder. It is global because it selects
+    // the tree rather than the command: `run` resolves the snapshot its request
+    // reads, and `config check`/`config dump` audit the same files without
+    // running anything.
     // `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`
     // step 1, and § 5 is the resolution against the working directory.
     #[arg(long, value_name = "PATH", global = true)]
     config: Vec<PathBuf>,
 
-    /// Does not create `nvs.toml` when there is none.
+    /// Does not create `nvs.toml` in the data folder.
     ///
-    /// Without this option, a project command that finds no configuration file
-    /// creates `nvs.toml` with the default settings in the current folder. With
-    /// this option, the folder does not change, and the command uses the same
-    /// default settings. Setting `NOVIS_NO_INIT` in the environment does the
-    /// same.
+    /// Without this option, `run`, `serve`, `test`, `build` and `check` create
+    /// `nvs.toml` in the data folder when they find no configuration file. The
+    /// file contains the default settings. With this option, no file is
+    /// created, and the command uses the same default settings. Setting
+    /// `NOVIS_NO_INIT` in the environment does the same.
     // `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`
-    // step 3; see [`config::init_gate`].
+    // step 4's write; see [`config::init_gate`]. It skips the file only: the
+    // data folder itself is still created.
     #[arg(long, global = true)]
     no_init: bool,
+
+    /// The folder where Novis keeps its own files: the default `nvs.toml`, the
+    /// compile cache, temporary files and editor files. The default is
+    /// `.nvsdata` beside the `nvs` program.
+    ///
+    /// A relative path starts at the current folder. If `nvs` cannot use the
+    /// folder, it prints a warning and runs without it.
+    ///
+    /// Every subcommand accepts this option.
+    // Read once, by [`set_data_folder`], before any command runs: the data
+    // folder is one value per process (`nvs_config::data`).
+    #[arg(long, value_name = "PATH", global = true)]
+    data: Option<PathBuf>,
 }
 
-/// The project commands, which are the ones that write the shipped default file when they resolve
-/// no tree: the commands that read a configuration **in order to execute something**.
+/// Names this process's data folder from `--data`, before anything reads it.
 ///
-/// Everything else leaves the directory alone. An audit that creates the file it is auditing
-/// reports on its own output, and an `nvs lsp` that writes into every folder an editor opens is a
-/// defect rather than a convenience. This table is the whole of that decision, so a sixth command
-/// joins it here with a sentence rather than by threading a flag through an arm.
+/// A relative path resolves against the working directory, like every other
+/// path on the command line. With no flag the folder is `.nvsdata` beside the
+/// binary, and a binary whose own path cannot be read sets nothing, which
+/// leaves `nvs_config::data::current` to report that it has none.
+fn set_data_folder(flag: Option<&std::path::Path>) {
+    let cwd = std::env::current_dir().unwrap_or_default();
+    if let Ok(folder) = nvs_config::data::Folder::locate(flag, &cwd) {
+        // `false` only when the folder was already set or read, and this runs
+        // before either can happen.
+        let _ = nvs_config::data::set(folder);
+    }
+}
+
+/// The commands that use the data folder, and so create it on startup: the
+/// project commands in [`initializes`], and `lsp`, which keeps its editor
+/// files there. Every other command only reads what is already there, so an
+/// audit or a status query never creates a folder.
+fn prepares(command: &Command) -> bool {
+    initializes(command) || matches!(command, Command::Lsp { .. })
+}
+
+/// Creates the data folder for a command in [`prepares`], or prints the one
+/// warning that says why it cannot be used. Never stops the command: without
+/// the folder it runs with no compile cache and on the shipped defaults.
+fn prepare_data_folder() {
+    if let Err(unusable) = nvs_config::data::prepare() {
+        eprintln!("{}", unusable.warning());
+    }
+}
+
+/// The project commands, which are the ones that write the shipped default file into the data
+/// folder when they resolve no tree: the commands that read a configuration **in order to execute
+/// something**.
+///
+/// Everything else writes no configuration file. An audit that creates the file it is auditing
+/// reports on its own output, and `nvs lsp` resolves a tree per document only to type extension
+/// calls. This table is the whole of that decision, so a sixth command joins it here with a
+/// sentence rather than by threading a flag through an arm.
 ///
 /// `nvs build` resolves no tree today and so reaches nothing to write; it is named because the
 /// answer for it is decided, not because it currently does anything.
@@ -629,14 +680,12 @@ enum Command {
     /// directory containing it must both pass the ownership check, because
     /// this is a file `nvs serve` will read as configuration.
     ///
-    /// The explicit door to the file a project command writes for itself when
-    /// it finds none, and where every refusal of that implicit write points: a
-    /// directory the ownership check rejects, or one an operator asked to be
-    /// left alone with `--no-init`. An existing file is never overwritten, and
-    /// asking for one that cannot be written is an error here rather than the
-    /// note it is on a run.
+    /// Use this to start a configuration for one project. An existing file is
+    /// never overwritten. If the file cannot be written, the command stops
+    /// with an error.
     // `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`
-    // step 3; see [`config::init`].
+    // step 2's file, written on request; see [`config::init`]. The implicit
+    // write a project command makes goes to the data folder instead.
     Init,
     /// Audit the configuration tree without running anything.
     ///
@@ -1071,12 +1120,12 @@ enum ConfigCommand {
     // What the audit deliberately does not assert is [`config`]'s own module
     // doc.
     Check {
-        /// The root files to read, in order — the same list `--config` takes,
-        /// given positionally. Naming one disables the search for `./nvs.toml`;
-        /// with none, `./nvs.toml` is read, and failing that the shipped
-        /// defaults.
+        /// The files to read, in order. This is the same list `--config` takes.
+        /// With no file named, `./nvs.toml` is read. If there is none, the data
+        /// folder's `nvs.toml` is read. If there is neither, the default
+        /// settings are used.
         // `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`
-        // steps 1 to 3.
+        // steps 1 to 4.
         files: Vec<PathBuf>,
     },
     /// Print every key in force, one per line, in dotted-key order.
@@ -1447,6 +1496,13 @@ fn run_hosted(argv: &[String]) -> ExitCode {
                 return ExitCode::FAILURE;
             }
         };
+    // The stored argv's own `--data`, and not the one `nvs service run` was
+    // given: the service's command line is the whole of what it runs with.
+    // `main` leaves the folder unset for this command so this is the one call.
+    set_data_folder(cli.data.as_deref());
+    if cli.command.as_ref().is_some_and(prepares) {
+        prepare_data_folder();
+    }
     let no_init = std::env::var_os(config::NO_INIT);
     let init = config::init_gate(
         cli.command.as_ref().is_some_and(initializes),
@@ -1598,7 +1654,21 @@ fn main() -> ExitCode {
         return ExitCode::FAILURE;
     };
 
-    // `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 3's gate,
+    // The data folder, named once before any command reads it. `nvs service run` is the one
+    // command that runs another command line, and [`run_hosted`] names it from that one.
+    if !matches!(
+        command,
+        Command::Service {
+            command: ServiceCommand::Run { .. }
+        }
+    ) {
+        set_data_folder(cli.data.as_deref());
+    }
+    if prepares(&command) {
+        prepare_data_folder();
+    }
+
+    // `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 4's gate,
     // decided once from [`initializes`] and handed down by the arms that resolve a tree.
     let no_init = std::env::var_os(config::NO_INIT);
     let init = config::init_gate(initializes(&command), cli.no_init, no_init.as_deref());
@@ -4027,7 +4097,8 @@ fn internal_error(message: impl Into<String>) -> Diagnostics {
 #[cfg(test)]
 mod tests {
     use super::{
-        Cli, Command, SERVICE_INSTALL_EXAMPLE, ServiceCommand, inbound_of, initializes, unaccepted,
+        Cli, Command, SERVICE_INSTALL_EXAMPLE, ServiceCommand, inbound_of, initializes, prepares,
+        unaccepted,
     };
     use clap::{CommandFactory as _, Parser as _};
 
@@ -4110,33 +4181,89 @@ mod tests {
         }
     }
 
-    /// The half of [`initializes`]'s table that writes nothing, read through the parser so the
-    /// case names the command line rather than a variant: `nvs config check` and `nvs config dump`
-    /// audit a tree, and an audit that creates the file it is auditing reports on its own output;
-    /// `nvs lsp` is started by an editor in every folder it opens, and one that wrote into each of
-    /// them is a defect rather than a convenience.
+    /// The half of [`initializes`]'s table that writes no configuration file, read through the
+    /// parser so the case names the command line rather than a variant: `nvs config check` and
+    /// `nvs config dump` audit a tree, and an audit that creates the file it is auditing reports
+    /// on its own output; `nvs lsp` resolves a tree per document and never writes one.
     ///
-    /// The project commands are asserted beside them, because the decision this pins is the
-    /// **split** — a table that silently lost a row would pass a case that only checked one side.
+    /// [`prepares`] is asserted beside it: the project commands and `nvs lsp` create the data
+    /// folder, and the read-only commands never do. The project commands are asserted too, because
+    /// the decision this pins is the **split** — a table that silently lost a row would pass a case
+    /// that only checked one side.
     #[test]
     fn config_check_and_dump_and_lsp_never_write() {
-        let writes = |argv: &[&str]| {
-            let cli = Cli::try_parse_from(argv).expect("the fixture is a command line `nvs` takes");
-            initializes(&cli.command.expect("a subcommand was named"))
+        let command = |argv: &[&str]| {
+            Cli::try_parse_from(argv)
+                .expect("the fixture is a command line `nvs` takes")
+                .command
+                .expect("a subcommand was named")
         };
+        let writes = |argv: &[&str]| initializes(&command(argv));
+        let creates = |argv: &[&str]| prepares(&command(argv));
 
         assert!(!writes(&["nvs", "config", "check"]));
         assert!(!writes(&["nvs", "config", "dump"]));
         assert!(!writes(&["nvs", "lsp"]));
-        // The explicit door writes the file itself and resolves no tree, so it reaches no step 3
+        // The explicit door writes the file itself and resolves no tree, so it reaches no step 4
         // to be a project command at.
         assert!(!writes(&["nvs", "init"]));
 
-        assert!(writes(&["nvs", "run", "app.nvs"]));
-        assert!(writes(&["nvs", "serve", "app.nvs"]));
-        assert!(writes(&["nvs", "test", "app.nvs"]));
-        assert!(writes(&["nvs", "build", "--openapi", "app.nvs"]));
-        assert!(writes(&["nvs", "check", "app.nvs"]));
+        for project in [
+            &["nvs", "run", "app.nvs"][..],
+            &["nvs", "serve", "app.nvs"],
+            &["nvs", "test", "app.nvs"],
+            &["nvs", "build", "--openapi", "app.nvs"],
+            &["nvs", "check", "app.nvs"],
+        ] {
+            assert!(writes(project), "{project:?}");
+            assert!(creates(project), "{project:?}");
+        }
+
+        assert!(creates(&["nvs", "lsp"]));
+        for read_only in [
+            &["nvs", "config", "check"][..],
+            &["nvs", "config", "dump"],
+            &["nvs", "tmp", "clean"],
+            &["nvs", "init"],
+            &["nvs", "service", "status", "shop"],
+        ] {
+            assert!(!creates(read_only), "{read_only:?}");
+        }
+    }
+
+    /// `--data` is global, so it parses before or after the subcommand, and a relative path
+    /// resolves against the working directory while an absolute one is kept as it is.
+    #[test]
+    fn the_data_flag_resolves_against_the_working_directory() {
+        let data = |argv: &[&str]| {
+            Cli::try_parse_from(argv)
+                .expect("the fixture is a command line `nvs` takes")
+                .data
+        };
+        let cwd = std::path::PathBuf::from(if cfg!(windows) { r"C:\work" } else { "/work" });
+        let absolute = cwd.join("elsewhere").join("data");
+
+        let before = data(&["nvs", "--data", "local", "run", "app.nvs"]);
+        assert_eq!(before.as_deref(), Some(std::path::Path::new("local")));
+        let after = data(&["nvs", "run", "--data", "local", "app.nvs"]);
+        assert_eq!(after, before, "the flag is global");
+        let located = nvs_config::data::Folder::locate(before.as_deref(), &cwd)
+            .expect("a named folder is always located");
+        assert_eq!(located.root(), cwd.join("local"));
+        assert_eq!(located.config_file(), cwd.join("local").join("nvs.toml"));
+
+        let named = data(&[
+            "nvs",
+            "--data",
+            absolute.to_str().expect("a UTF-8 fixture"),
+            "check",
+            "app.nvs",
+        ]);
+        let located = nvs_config::data::Folder::locate(named.as_deref(), &cwd)
+            .expect("a named folder is always located");
+        assert_eq!(located.root(), absolute, "an absolute path is kept");
+
+        assert_eq!(data(&["nvs", "run", "app.nvs"]), None, "no flag, no path");
     }
 
     /// One field line off the carrier, as text, so the assertions below read as

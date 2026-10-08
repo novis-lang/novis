@@ -23,7 +23,10 @@ fn run(case: &str, body: &str) -> String {
     let dir = scratch(case);
     let program = format!("<?nvs\nuse Novis\\Image\\Color;\n{body}");
     fs::write(dir.join("main.nvs"), program).unwrap();
+    let data = nvs_repo::scratch_private("nvsdata");
     let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(&*data)
         .args(["run", "main.nvs"])
         .current_dir(&dir)
         .output()

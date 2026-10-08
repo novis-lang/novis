@@ -12,7 +12,10 @@ use serde_json::Value;
 
 /// `nvs check <args...> <path>`, as `(stdout, stderr, success)`.
 fn run_check(args: &[&str], path: &Path) -> (String, String, bool) {
+    let data = nvs_repo::scratch_private("nvsdata");
     let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(&*data)
         .arg("--no-init")
         .arg("check")
         .args(args)
