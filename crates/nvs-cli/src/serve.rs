@@ -498,8 +498,8 @@ pub(crate) fn run(
     let told = Notify::from_env();
     told.install();
     // The process a reload publishes through. The configuration check below
-    // and a service manager's stop and reload (`crate::dispatch`) reach the
-    // same process, which takes it from where this installs it.
+    // and a service manager's stop (`crate::dispatch`) reach the same process,
+    // which takes it from where this installs it.
     let host = Arc::new(
         crate::reload::Process::new(
             Arc::clone(&current),
@@ -4235,13 +4235,14 @@ mod tests {
         assert!(refusal.contains("mounts nothing"), "{refusal}");
     }
 
-    /// A tree of this case's own on disk, and the [`crate::reload::Process`]
-    /// serving it — the reload driven below is the real one, which re-resolves
-    /// these files exactly as the boot that wrote them would.
+    /// A tree of this case's own on disk, the [`crate::reload::Process`]
+    /// serving it, and the path of its `nvs.toml` — the reload driven below is
+    /// the real one, which re-resolves these files exactly as the boot that
+    /// wrote them would.
     ///
     /// The drain is `Draining::detached` because this server's stopping is not
     /// this process's, and this process's is what the case stops afterwards.
-    fn a_server_over(case: &str, told: &Notify) -> crate::reload::Process {
+    fn a_server_over(case: &str, told: &Notify) -> (crate::reload::Process, std::path::PathBuf) {
         let beside = std::env::current_exe().expect("the test binary knows its own path");
         let dir = beside
             .parent()
@@ -4265,23 +4266,24 @@ mod tests {
         let current = Arc::new(nvs_config::snapshot::Current::new(snapshot));
         let capacity = nvs_config::server::capacity_for(&current.load().config, &BTreeMap::new())
             .expect("a tree that named no ceiling has this machine's");
-        crate::reload::Process::new(
+        let process = crate::reload::Process::new(
             Arc::clone(&current),
-            vec![root],
+            vec![root.clone()],
             Arc::new(Compiler::default()),
             Arc::new(nvs_server::Admission::new(&nvs_server::Ceiling::of(
                 &capacity,
             ))),
             nvs_server::Draining::detached(),
             told.clone(),
-        )
+        );
+        (process, root)
     }
 
     /// The four states a `Type=notify` unit is owed, in the order a served life
     /// sends them and each taken from the call the process itself makes:
-    /// [`listening`] is the boot's last act, `Running::reload` is where every
-    /// reload ends, and [`crate::stop::deliver`] is what a
-    /// terminating signal ends in.
+    /// [`listening`] is the boot's last act, `Process::noticed` is where the
+    /// configuration check starts every reload, and [`crate::stop::deliver`] is
+    /// what a terminating signal ends in.
     ///
     /// **The manager is a recording sink rather than a datagram socket**,
     /// because a case may not assume it is running under systemd — and on
@@ -4289,9 +4291,9 @@ mod tests {
     /// is still the protocol's own lines, so the seam is the only thing
     /// standing in.
     ///
-    /// The reload is the real one over a real tree, so the pair around it is
-    /// the pair a reload in a running server produces rather than two calls a
-    /// case made in the right order.
+    /// The reload is the real one over a real tree that was saved with a new
+    /// value, so the pair around it is the pair a reload in a running server
+    /// produces rather than two calls a case made in the right order.
     #[test]
     fn sd_notify_messages_are_ready_then_reloading_and_ready_then_stopping() {
         let _in_turn = crate::stop::ONE_STOP_AT_A_TIME
@@ -4304,9 +4306,10 @@ mod tests {
             std::net::TcpListener::bind(a_free_address()).expect("the loopback refused a listener");
         listening(&[Socket::Tcp(listener)], "app.nvs", &told);
 
-        let process = a_server_over("sd-notify", &told);
-        crate::service::hosted::Running::reload(&process)
-            .expect("the tree this case wrote reloads");
+        let (process, root) = a_server_over("sd-notify", &told);
+        std::fs::write(&root, "[limits]\nmemory = \"128M\"\n")
+            .expect("the tree this case wrote saves again");
+        process.noticed(std::slice::from_ref(&root));
 
         // The stop a terminating signal's thread ends in, over a drain of this
         // case's own: the process's bit is begun once for the life of a binary

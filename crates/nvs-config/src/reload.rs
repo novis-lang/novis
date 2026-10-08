@@ -2,8 +2,8 @@
 //! `rule:config/a-reload-names-what-it-could-not-apply`'s report of what that changed.
 //!
 //! **There is one reload function, and it is [`reload`].** A running server calls it when its own
-//! check sees a saved configuration file, and a service manager's reload request calls the same
-//! function. Resolving the tree again is the caller's, because the roots it booted on and the unit
+//! check sees a saved configuration file, and nothing else starts a reload. Resolving the tree
+//! again is the caller's, because the roots it booted on and the unit
 //! cache it holds are the caller's; what is here is the publish and the comparison that names what
 //! the publish did.
 //!

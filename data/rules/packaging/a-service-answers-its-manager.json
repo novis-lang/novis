@@ -1,5 +1,5 @@
 {
-  "title": "A stop drains, a `PARAMCHANGE` reloads, and the process's console and its lifecycle records go to the event log",
+  "title": "A stop drains, no control reloads, and the process's console and its lifecycle records go to the event log",
   "status": "shipped",
   "because": [
     "0093",
@@ -7,7 +7,6 @@
     "0204"
   ],
   "seeAlso": [
-    "config/a-reload-names-what-it-could-not-apply",
     "concurrency/a-drain-closes-a-connection-cleanly",
     "packaging/a-service-runs-as-a-virtual-account",
     "http-server/the-residue-is-one-named-fault-class"

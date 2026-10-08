@@ -24,17 +24,18 @@
 //! the thinnest layer there is: one struct into `SetServiceStatus`.
 //!
 //! **A drain a manager asked for is the same drain a signal begins.** The
-//! handler answers `STOP` and `PRESHUTDOWN` through [`hosted::answer`], which
+//! handler answers `STOP` and `PRESHUTDOWN` through [`hosted::stop`], which
 //! enters [`crate::stop::deliver_to`] — the one drain — and watches it on the
-//! manager's behalf, and `PARAMCHANGE` through the same function, which is
-//! the one reload (`crate::reload`). The process both act on is what
-//! `nvs serve` installed ([`crate::reload::installed`]); a control that
-//! arrives before the boot got that far begins the drain directly and
-//! reports it, since there is nothing in flight yet to count.
+//! manager's behalf. The process it counts in-flight requests over is what
+//! `nvs serve` installed ([`crate::reload::installed`]); a stop that arrives
+//! before the boot got that far begins the drain directly and reports it,
+//! since there is nothing in flight yet to count. The SCM is not told this
+//! service accepts `PARAMCHANGE`: a reload starts only when the server's own
+//! check notices a saved configuration file (`crate::reload`).
 //!
 //! What it spends: the dispatcher's own thread for the life of the process,
-//! one short-lived thread per control that starts a drain or a reload, and
-//! one status struct. Nothing per request.
+//! one short-lived thread per stop, and one status struct. Nothing per
+//! request.
 
 use std::process::ExitCode;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
@@ -58,7 +59,7 @@ pub(crate) enum Report {
     /// The boot is running; `wait_hint` is how long the manager should give
     /// it.
     StartPending { wait_hint: Duration },
-    /// Serving, and accepting a stop, a preshutdown and a parameter change.
+    /// Serving, and accepting a stop and a preshutdown.
     Running,
     /// The drain is running; `checkpoint` advances on every report and never
     /// repeats.
@@ -74,19 +75,20 @@ pub(crate) trait Reporter: std::fmt::Debug + Send + Sync {
     fn report(&self, report: Report);
 }
 
-/// Which record a moment is, for the event log: § 4's four lifecycle
-/// records, and the two streams a process with no console would otherwise
-/// write into nothing.
+/// Which record a moment is, for the event log: the three lifecycle records,
+/// and the two streams a process with no console would otherwise write into
+/// nothing.
 ///
 /// The ids are the message table's (`build/winres.rs`, `MESSAGE_IDS`), and
-/// every record's text is its one insertion string.
+/// every record's text is its one insertion string. Id 4 is in the table and
+/// no record here uses it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[cfg_attr(
     all(test, not(windows)),
     expect(
         dead_code,
         reason = "the cases construct the two records an exit code maps to; only Windows \
-                  writes the other four"
+                  writes the other three"
     )
 )]
 pub(crate) enum Lifecycle {
@@ -96,8 +98,6 @@ pub(crate) enum Lifecycle {
     Stopped,
     /// The service ended before it ever served.
     FailedToStart,
-    /// A `PARAMCHANGE` was answered with the in-process reload.
-    ReloadApplied,
     /// One line the server wrote to its standard output — what a terminal
     /// would have shown.
     Stdout,
@@ -251,11 +251,10 @@ pub(crate) mod platform {
     };
     use windows_sys::Win32::System::Pipes::CreatePipe;
     use windows_sys::Win32::System::Services::{
-        RegisterServiceCtrlHandlerExW, SERVICE_ACCEPT_PARAMCHANGE, SERVICE_ACCEPT_PRESHUTDOWN,
-        SERVICE_ACCEPT_STOP, SERVICE_CONTROL_INTERROGATE, SERVICE_RUNNING, SERVICE_START_PENDING,
-        SERVICE_STATUS, SERVICE_STATUS_HANDLE, SERVICE_STOP_PENDING, SERVICE_STOPPED,
-        SERVICE_TABLE_ENTRYW, SERVICE_WIN32_OWN_PROCESS, SetServiceStatus,
-        StartServiceCtrlDispatcherW,
+        RegisterServiceCtrlHandlerExW, SERVICE_ACCEPT_PRESHUTDOWN, SERVICE_ACCEPT_STOP,
+        SERVICE_CONTROL_INTERROGATE, SERVICE_RUNNING, SERVICE_START_PENDING, SERVICE_STATUS,
+        SERVICE_STATUS_HANDLE, SERVICE_STOP_PENDING, SERVICE_STOPPED, SERVICE_TABLE_ENTRYW,
+        SERVICE_WIN32_OWN_PROCESS, SetServiceStatus, StartServiceCtrlDispatcherW,
     };
 
     use super::{Lifecycle, Machine, Report, Reporter};
@@ -343,8 +342,7 @@ pub(crate) mod platform {
             }
             Report::Running => {
                 status.dwCurrentState = SERVICE_RUNNING;
-                status.dwControlsAccepted =
-                    SERVICE_ACCEPT_STOP | SERVICE_ACCEPT_PRESHUTDOWN | SERVICE_ACCEPT_PARAMCHANGE;
+                status.dwControlsAccepted = SERVICE_ACCEPT_STOP | SERVICE_ACCEPT_PRESHUTDOWN;
             }
             Report::StopPending { checkpoint } => {
                 status.dwCurrentState = SERVICE_STOP_PENDING;
@@ -494,52 +492,42 @@ pub(crate) mod platform {
         let Some(machine) = MACHINE.get() else {
             return ERROR_CALL_NOT_IMPLEMENTED;
         };
-        // `hosted::Asked::of` is the mapping the rule's table is held to; what
-        // it does not name is either the one control every service answers,
-        // by saying again what it last said, or one this service does not
+        // `hosted::stops` is the mapping the rule's table is held to; what it
+        // does not name is either the one control every service answers, by
+        // saying again what it last said, or one this service does not
         // implement.
-        match hosted::Asked::of(control) {
-            Some(asked) => {
-                answer(Arc::clone(machine), asked);
-                NO_ERROR
-            }
-            None if control == SERVICE_CONTROL_INTERROGATE => {
-                machine.interrogated();
-                NO_ERROR
-            }
-            None => ERROR_CALL_NOT_IMPLEMENTED,
+        if hosted::stops(control) {
+            stop(Arc::clone(machine));
+            NO_ERROR
+        } else if control == SERVICE_CONTROL_INTERROGATE {
+            machine.interrogated();
+            NO_ERROR
+        } else {
+            ERROR_CALL_NOT_IMPLEMENTED
         }
     }
 
-    /// Answers `asked` on a thread of its own, over the process `nvs serve`
-    /// installed.
+    /// Drains on a thread of its own, over the process `nvs serve` installed.
     ///
     /// A stop that arrives before the boot installed one begins the drain
     /// directly: there is nothing in flight to count, and the end of
-    /// [`service_main`] is what reports `Stopped`. A reload before then has
-    /// nothing to reload and is answered by doing nothing.
-    fn answer(machine: Arc<Machine>, asked: hosted::Asked) {
+    /// [`service_main`] is what reports `Stopped`.
+    fn stop(machine: Arc<Machine>) {
         let spawned = std::thread::Builder::new()
             .name("nvs-scm-control".to_owned())
             .spawn(move || {
                 let Some(process) = crate::reload::installed() else {
-                    if asked == hosted::Asked::Stop {
-                        crate::stop::deliver();
-                    }
+                    crate::stop::deliver();
                     return;
                 };
-                hosted::answer(
-                    asked,
+                hosted::stop(
                     &*process,
                     &nvs_server::Draining::process(),
                     &*machine,
                     STOP_PACE,
                 );
-                if asked == hosted::Asked::Reload {
-                    log(Lifecycle::ReloadApplied, "the configuration was reloaded");
-                }
             });
-        if spawned.is_err() && asked == hosted::Asked::Stop {
+        if spawned.is_err() {
             // No thread to watch the drain, so it is begun here and reported
             // once; the process's end reports the rest.
             crate::stop::deliver();
@@ -645,7 +633,7 @@ pub(crate) mod platform {
             Lifecycle::Started => (EVENTLOG_INFORMATION_TYPE, 1),
             Lifecycle::Stopped => (EVENTLOG_INFORMATION_TYPE, 2),
             Lifecycle::FailedToStart => (EVENTLOG_ERROR_TYPE, 3),
-            Lifecycle::ReloadApplied => (EVENTLOG_INFORMATION_TYPE, 4),
+
             Lifecycle::Stdout => (EVENTLOG_INFORMATION_TYPE, 5),
             Lifecycle::Stderr => (EVENTLOG_WARNING_TYPE, 6),
         };

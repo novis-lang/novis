@@ -2132,7 +2132,7 @@ there as already revoked.
 
 <a id="packaging-a-service-answers-its-manager"></a>
 
-## A stop drains, a `PARAMCHANGE` reloads, and the process's console and its lifecycle records go to the event log
+## A stop drains, no control reloads, and the process's console and its lifecycle records go to the event log
 
 `rule:packaging/a-service-answers-its-manager`
 
@@ -2142,12 +2142,12 @@ reporting what it can see from outside:
 | Control | What the service does |
 |---|---|
 | stop (`SERVICE_CONTROL_STOP`, `systemctl stop`) | reports `STOP_PENDING` with a checkpoint that advances while requests drain, then `STOPPED` — a machine restart drains in-flight requests instead of killing them |
-| `SERVICE_CONTROL_PARAMCHANGE` | performs the configuration reload in-process; the keys it could not apply are written to the event log **by name** ([`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply)) |
 | `SERVICE_CONTROL_PRESHUTDOWN` | requested at install, because plain `SHUTDOWN` allows roughly five seconds and a drain needs more |
 
-A systemd unit has no reload command: the server reloads by itself when a configuration file is saved
-([`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot)), and tells the manager `RELOADING=1` and then
-`READY=1` around it.
+No control from either manager starts a reload. The server reloads by itself when a configuration
+file is saved ([`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot)), and tells a systemd unit
+`RELOADING=1` and then `READY=1` around it. The SCM is never told the service accepts `PARAMCHANGE`,
+and a systemd unit has no reload command.
 
 Failure actions are set at install — `--restart on-failure` by default, with a reset period — beside
 delayed auto-start (`--start`), dependencies (`--depends-on`, for a database that must come up first)
@@ -2157,13 +2157,13 @@ and a description.
 into the Windows event log, one record per line, the way the journal takes a unit's stderr under
 systemd: a boot warning, a refused configuration's diagnostic and `Core\Log` written to `stderr` all
 land where an administrator looks first, with nothing to configure. Beside them go a small, fixed set
-of lifecycle records — started, stopped, failed to start, reload applied. Every record's text is its
-one insertion string, and `nvs.exe` carries the message table that renders it
+of lifecycle records — started, stopped, failed to start. Every record's text is its one insertion
+string, and `nvs.exe` carries the message table that renders it
 ([`packaging/the-windows-binary-says-what-it-is`](packaging.md#packaging-the-windows-binary-says-what-it-is)). The event-log source is registered at install
 and removed at uninstall, and `uninstall` leaves nothing behind: no registry key, no source, no unit
 file, no granted ACL.
 
-<sub>See also [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly), [`packaging/a-service-runs-as-a-virtual-account`](packaging.md#packaging-a-service-runs-as-a-virtual-account), [`http-server/the-residue-is-one-named-fault-class`](http-server.md#http-server-the-residue-is-one-named-fault-class). Decided in [0093](../decisions/0093.md), [0078](../decisions/0078.md), [0204](../decisions/0204.md).</sub>
+<sub>See also [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly), [`packaging/a-service-runs-as-a-virtual-account`](packaging.md#packaging-a-service-runs-as-a-virtual-account), [`http-server/the-residue-is-one-named-fault-class`](http-server.md#http-server-the-residue-is-one-named-fault-class). Decided in [0093](../decisions/0093.md), [0078](../decisions/0078.md), [0204](../decisions/0204.md).</sub>
 
 <a id="packaging-the-unit-is-printed-and-install-is-the-opt-in"></a>
 

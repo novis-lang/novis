@@ -610,10 +610,9 @@ tree read or probed: each root, each include, each included directory and each o
 was absent. A stamp that moved and then holds for one more check is a saved file, and the tree is
 resolved and published under one lock, so two reloads never interleave two snapshots. A tree equal to
 the one serving publishes nothing. A tree that does not validate is logged once for each distinct
-refusal, with its file and line, and the running configuration stays. A Windows service manager's
-`PARAMCHANGE` runs the same reload under the same lock
-([`packaging/a-service-answers-its-manager`](packaging.md#packaging-a-service-answers-its-manager)). A server whose roots are the shipped defaults read
-no file, and has nothing to check.
+refusal, with its file and line, and the running configuration stays. Nothing else starts a reload:
+no signal and no service manager's control ([`packaging/a-service-answers-its-manager`](packaging.md#packaging-a-service-answers-its-manager)). A server
+whose roots are the shipped defaults read no file, and has nothing to check.
 
 Cost: one `Arc` clone at request start and **no syscall** on the request path, and one `stat` per
 configuration path every two seconds on the checking thread. Two snapshots live during a swap, plus

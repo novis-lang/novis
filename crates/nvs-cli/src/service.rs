@@ -98,15 +98,15 @@
 //! not withhold it; the short of it is that a beat a live thread writes proves
 //! only that the process exists, which is not what the manager is asking.
 //!
-//! **And the manager's own controls are answered with the operations that
-//! already exist.** [`hosted`] is that half of
+//! **And the manager's own controls are answered with the drain that already
+//! exists.** [`hosted`] is that half of
 //! `rule:packaging/a-service-answers-its-manager`: a `STOP` or a `PRESHUTDOWN`
 //! enters [`crate::stop`]'s drain and is reported with a checkpoint that
-//! advances while requests finish, and a `PARAMCHANGE` enters
-//! [`crate::reload`]'s one reload function. The dispatcher that hands it a
-//! control — the SCM's own, which only a process that manager started has — is
-//! [`crate::dispatch`], and it reports through [`Supervisor`] like everything
-//! else here.
+//! advances while requests finish. No control starts a reload: the server's own
+//! configuration check is the one thing that does ([`crate::reload`]). The
+//! dispatcher that hands it a control — the SCM's own, which only a process
+//! that manager started has — is [`crate::dispatch`], and it reports through
+//! [`Supervisor`] like everything else here.
 //!
 //! **The protocol is written by hand.** `sd_notify` is one datagram of
 //! `NAME=value` lines to whatever `$NOTIFY_SOCKET` names, so what a crate for
@@ -826,25 +826,25 @@ pub(crate) fn recording() -> (Notify, Arc<std::sync::Mutex<Vec<&'static str>>>) 
     (Notify::to(Arc::new(Recorder(Arc::clone(&log)))), log)
 }
 
-/// What a service manager asks of a hosted server, answered with the operations
+/// What a service manager asks of a hosted server, answered with the drain
 /// this process already has.
 ///
 /// `rule:packaging/a-service-answers-its-manager`'s table is the whole of what
 /// is here, and the rule's own wording is why nothing in it is re-implemented:
 /// a hosted server answers with the operations it already has, *rather than a
 /// shim reporting what it can see from outside*. So a stop enters
-/// [`crate::stop::deliver_to`], the one drain a `SIGTERM` enters, and a
-/// `PARAMCHANGE` enters [`crate::service::hosted::Running::reload`], the one
-/// reload the configuration check also ends in ([`crate::reload`]). What is
-/// left for this module is the mapping, and watching the drain on the
-/// manager's behalf.
+/// [`crate::stop::deliver_to`], the one drain a `SIGTERM` enters, and what is
+/// left for this module is the mapping and watching that drain on the
+/// manager's behalf. No control here starts a reload: the server's own
+/// configuration check is the one thing that does ([`crate::reload`]), so a
+/// `PARAMCHANGE` is not a control this process accepts.
 ///
 /// **The mapping is a value on both platforms.** A control arrives as one of
 /// the SCM's ABI numbers, and those are matched here rather than behind a `cfg`
 /// for [`registration::Platform`]'s reason: a case that could only be written
-/// on the machine it describes is a case nobody runs, and a `PARAMCHANGE`
-/// mapped to the wrong operation is silent until an administrator reloads a
-/// machine somebody else owns.
+/// on the machine it describes is a case nobody runs, and a control mapped to
+/// the wrong operation is silent until an administrator stops a machine
+/// somebody else owns.
 ///
 /// What it spends, as `rule:programs/memory-priority` requires: one borrowed
 /// thread for the length of a drain, and no allocation — nothing per request
@@ -860,74 +860,44 @@ pub(crate) fn recording() -> (Notify, Arc<std::sync::Mutex<Vec<&'static str>>>) 
 pub(crate) mod hosted {
     use std::time::{Duration, Instant};
 
-    use nvs_config::reload::Report;
     use nvs_server::Draining;
 
-    /// What a service manager's control asks of the running server: the one
-    /// reload, and the in-flight count a drain reports to the manager.
+    /// What a drain reports to the manager about the running server.
     ///
-    /// A trait so that a case drives [`answer`] with a recording process
-    /// rather than a running one; `nvs serve`'s is [`crate::reload::Process`].
+    /// A trait so that a case drives [`stop`] with a recording process rather
+    /// than a running one; `nvs serve`'s is [`crate::reload::Process`].
     pub(crate) trait Running {
-        /// Re-read the whole configuration tree and publish it.
-        ///
-        /// # Errors
-        ///
-        /// The refusal as text, already rendered. A malformed tree is reported
-        /// as a diagnostic against the files it was read from, and the
-        /// `SourceMap` those spans point into belongs to the reload that read
-        /// them — so what leaves it is the rendering and never the span.
-        fn reload(&self) -> Result<Report, String>;
-
         /// Requests in flight across this process right now.
         fn in_flight(&self) -> usize;
     }
 
     /// `SERVICE_CONTROL_STOP`.
     const STOP: u32 = 0x0000_0001;
-    /// `SERVICE_CONTROL_PARAMCHANGE`.
-    const PARAMCHANGE: u32 = 0x0000_0006;
     /// `SERVICE_CONTROL_PRESHUTDOWN`, which § 4 asks for at install because
     /// plain `SHUTDOWN` allows roughly five seconds and a drain needs more.
     const PRESHUTDOWN: u32 = 0x0000_000F;
 
-    /// What a service manager asked for, and the whole set this process
-    /// answers.
+    /// Whether the control `code` asks this process to drain: answer what was
+    /// accepted, accept nothing further, and say so while it happens.
     ///
-    /// Two, where the rule's table has three rows: `PRESHUTDOWN` and `STOP` ask
-    /// this process for the same thing, and what differs between them — how
-    /// long the machine agrees to wait — is settled at install by
-    /// [`super::registration::Action::Preshutdown`] rather than here.
-    #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-    pub(crate) enum Asked {
-        /// Drain: answer what was accepted, accept nothing further, and say so
-        /// while it happens.
-        Stop,
-        /// Re-read the configuration in-process.
-        Reload,
-    }
-
-    impl Asked {
-        /// The control `code` names, or `None` where it names none.
-        ///
-        /// `None` is not a failure. The SCM sends `SERVICE_CONTROL_INTERROGATE`
-        /// to any service at all, and what a handler owes it is the status it
-        /// is already holding — so a caller's answer to everything outside this
-        /// set is to say again what it last said.
-        pub(crate) fn of(code: u32) -> Option<Self> {
-            match code {
-                STOP | PRESHUTDOWN => Some(Self::Stop),
-                PARAMCHANGE => Some(Self::Reload),
-                _ => None,
-            }
-        }
+    /// `STOP` and `PRESHUTDOWN` ask for the same thing, and what differs
+    /// between them — how long the machine agrees to wait — is settled at
+    /// install by [`super::registration::Action::Preshutdown`] rather than
+    /// here. They are the whole set this process answers with an operation.
+    ///
+    /// `false` is not a failure. The SCM sends `SERVICE_CONTROL_INTERROGATE`
+    /// to any service at all, and what a handler owes it is the status it is
+    /// already holding — so a caller's answer to everything outside this set
+    /// is to say again what it last said, or that it does not implement it.
+    pub(crate) fn stops(code: u32) -> bool {
+        matches!(code, STOP | PRESHUTDOWN)
     }
 
     /// One thing the service manager is told while a drain runs.
     ///
-    /// A reload has no member here, because the SCM has no state for one and
-    /// the pair a `Type=notify` unit is owed is reported by the reload function
-    /// itself ([`super::State`]) however the reload was asked for.
+    /// A reload has no member here: the SCM has no state for one, and the
+    /// reload function itself reports the pair a `Type=notify` unit is owed
+    /// ([`super::State`]).
     #[derive(Clone, Copy, PartialEq, Eq, Debug)]
     pub(crate) enum Progress {
         /// The drain is running. `checkpoint` is the number the SCM reads as
@@ -973,31 +943,12 @@ pub(crate) mod hosted {
         pub(crate) bound: Duration,
     }
 
-    /// Answer `asked`, over the process it is about.
+    /// The drain a stop asks for, over the process it is about, and the
+    /// manager watching it finish.
     ///
     /// Called on a thread of its own: the SCM ends a handler that does not
     /// return promptly, and a drain is bounded by `[server] drain_timeout`
     /// rather than by anything that fast.
-    pub(crate) fn answer(
-        asked: Asked,
-        process: &dyn Running,
-        draining: &Draining,
-        manager: &dyn Reporting,
-        pace: Pace,
-    ) {
-        match asked {
-            // Nothing is done with the outcome, and that is the rule's own
-            // arrangement rather than a dropped error: what a reload could not
-            // apply is named by the reload function's report
-            // (`rule:config/a-reload-names-what-it-could-not-apply`), and a
-            // second account of it here would be a second place for it to be
-            // wrong in.
-            Asked::Reload => drop(process.reload()),
-            Asked::Stop => stop(process, draining, manager, pace),
-        }
-    }
-
-    /// The drain, and the manager watching it finish.
     ///
     /// Entered through [`crate::stop::deliver_to`] rather than begun here, so
     /// that a stop arriving from the SCM is the same state machine a
@@ -1007,7 +958,12 @@ pub(crate) mod hosted {
     /// `drain_timeout` has closed what it was going to close, and a process
     /// reporting anything else would be one the machine waits out the rest of
     /// § 4's `PRESHUTDOWN` for before killing it anyway.
-    fn stop(process: &dyn Running, draining: &Draining, manager: &dyn Reporting, pace: Pace) {
+    pub(crate) fn stop(
+        process: &dyn Running,
+        draining: &Draining,
+        manager: &dyn Reporting,
+        pace: Pace,
+    ) {
         crate::stop::deliver_to(draining);
         let began = Instant::now();
         let mut checkpoint = 0;
@@ -4593,32 +4549,21 @@ mod tests {
         );
     }
 
-    /// The process a control is answered over: a count that falls the way a
-    /// drain makes one fall, and a reload that records having been entered.
+    /// The process a stop is answered over: a count that falls the way a
+    /// drain makes one fall.
     ///
     /// The count is a list rather than a request that really finishes, because
-    /// what the cases below are about is the sequence the manager is told —
-    /// a real drain would make that sequence a property of how fast this
-    /// machine happens to be.
-    #[derive(Debug, Default)]
+    /// what the case below is about is the sequence the manager is told — a
+    /// real drain would make that sequence a property of how fast this machine
+    /// happens to be.
+    #[derive(Debug)]
     struct Hosted {
         /// What `in_flight` answers, one call at a time, and `0` once the list
         /// is spent.
         falling: Mutex<Vec<usize>>,
-        /// How many times the one reload function was entered.
-        reloads: Mutex<usize>,
     }
 
     impl hosted::Running for Hosted {
-        fn reload(&self) -> Result<nvs_config::reload::Report, String> {
-            *self.reloads.lock().unwrap_or_else(PoisonError::into_inner) += 1;
-            Ok(nvs_config::reload::Report {
-                applied: vec!["limits.memory".to_owned()],
-                ignored: vec!["server.listen"],
-                invalidated: 0,
-            })
-        }
-
         fn in_flight(&self) -> usize {
             let mut falling = self.falling.lock().unwrap_or_else(PoisonError::into_inner);
             if falling.is_empty() {
@@ -4661,15 +4606,16 @@ mod tests {
         }
     }
 
-    /// `rule:packaging/a-service-answers-its-manager`, row 1 and row 3: a
-    /// machine restart drains in-flight requests instead of killing them, and
-    /// what keeps the machine waiting while that happens is a checkpoint the
-    /// SCM watches advance.
+    /// `rule:packaging/a-service-answers-its-manager`, both rows: a machine
+    /// restart drains in-flight requests instead of killing them, and what
+    /// keeps the machine waiting while that happens is a checkpoint the SCM
+    /// watches advance.
     ///
-    /// The control arrives as its ABI number rather than as [`hosted::Asked`],
-    /// because the mapping is half of what this case is about — `PRESHUTDOWN`
-    /// is the control § 4 pays for at install, and one read as "no operation"
-    /// would drain nothing at the only moment that row exists for.
+    /// The controls arrive as their ABI numbers, because the mapping is half of
+    /// what this case is about — `PRESHUTDOWN` is the control § 4 pays for at
+    /// install, and one read as "no operation" would drain nothing at the only
+    /// moment that row exists for. `PARAMCHANGE` is held to the other side: a
+    /// saved configuration file is what starts a reload, so no control does.
     ///
     /// The drain is `Draining::detached`: this server's stopping is not this
     /// process's, and the bit a terminating signal sets stays the case about
@@ -4690,31 +4636,34 @@ mod tests {
         assert_eq!(
             (
                 windows_sys::Win32::System::Services::SERVICE_CONTROL_STOP,
-                windows_sys::Win32::System::Services::SERVICE_CONTROL_PARAMCHANGE,
                 windows_sys::Win32::System::Services::SERVICE_CONTROL_PRESHUTDOWN,
             ),
-            (0x0000_0001, 0x0000_0006, 0x0000_000F),
+            (0x0000_0001, 0x0000_000F),
             "the SCM's own constants are not what `hosted` matches",
         );
-        assert_eq!(
-            hosted::Asked::of(0x0000_000F),
-            Some(hosted::Asked::Stop),
+        assert!(
+            hosted::stops(0x0000_0001),
+            "STOP is a control this process answers"
+        );
+        assert!(
+            hosted::stops(0x0000_000F),
             "PRESHUTDOWN is what § 4 asks for at install, and it means drain",
+        );
+        assert!(
+            !hosted::stops(0x0000_0006),
+            "PARAMCHANGE starts nothing: a saved configuration file is what starts a reload",
+        );
+        assert!(
+            !hosted::stops(0x0000_0004),
+            "INTERROGATE asks for no operation: a handler answers it with the status it holds",
         );
         let process = Hosted {
             falling: Mutex::new(vec![3, 2, 1, 0]),
-            reloads: Mutex::new(0),
         };
         let draining = nvs_server::Draining::detached();
         let manager = Watching::default();
 
-        hosted::answer(
-            hosted::Asked::of(0x0000_0001).expect("STOP is a control this process answers"),
-            &process,
-            &draining,
-            &manager,
-            at_once(),
-        );
+        hosted::stop(&process, &draining, &manager, at_once());
 
         assert!(
             draining.is_draining(),
@@ -4742,66 +4691,6 @@ mod tests {
                 hosted::Progress::Stopped,
             ],
             "the checkpoint advances on every report and the last word is STOPPED",
-        );
-        assert_eq!(
-            *process
-                .reloads
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner),
-            0,
-            "a stop re-read the configuration on its way out",
-        );
-    }
-
-    /// `rule:packaging/a-service-answers-its-manager`, row 2: a `PARAMCHANGE`
-    /// is the configuration reload performed in-process, which is the standing
-    /// decision that a reload is **one** function — the configuration check and
-    /// this both end in [`hosted::Running::reload`].
-    ///
-    /// What that function reports is `crate::reload`'s case and not this one.
-    /// Asserted here instead: it was entered exactly once, nothing was drained
-    /// on the way, and the manager was told nothing — the SCM has no state for
-    /// a reload, and a service that reported `STOP_PENDING` over one would be
-    /// telling the machine it was going away.
-    #[test]
-    fn service_run_turns_paramchange_into_the_reload() {
-        assert_eq!(
-            hosted::Asked::of(0x0000_0006),
-            Some(hosted::Asked::Reload),
-            "PARAMCHANGE is the reload's control",
-        );
-        assert_eq!(
-            hosted::Asked::of(0x0000_0004),
-            None,
-            "INTERROGATE asks for no operation: a handler answers it with the status it holds",
-        );
-        let process = Hosted::default();
-        let draining = nvs_server::Draining::detached();
-        let manager = Watching::default();
-
-        hosted::answer(
-            hosted::Asked::Reload,
-            &process,
-            &draining,
-            &manager,
-            at_once(),
-        );
-
-        assert_eq!(
-            *process
-                .reloads
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner),
-            1,
-            "a PARAMCHANGE did not end in the one reload function",
-        );
-        assert!(
-            !draining.is_draining(),
-            "a reload stopped the server it was supposed to re-configure",
-        );
-        assert!(
-            manager.reported().is_empty(),
-            "the manager was told about a reload it has no state for",
         );
     }
 }

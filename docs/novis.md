@@ -31612,8 +31612,8 @@ Its `applied` field lists the keys that changed. Its `ignored` field lists the c
 a restart. `invalidated` is the number of compiled program files that the server compiles again.
 
 A file with an error changes nothing. The server writes `configuration reload refused` to the log
-once, with the error and its line, and keeps the configuration it has. On Windows, a `PARAMCHANGE`
-from the service manager starts the same reload.
+once, with the error and its line, and keeps the configuration it has. A saved file is the only
+thing that starts a reload. No signal and no command from a service manager starts one.
 
 **Four keys need a restart**: `[server] listen`, `[server] socket_mode`, `[server] workers` and
 `[server] watchdog_margin`. A port below 1024 needs a privilege the server gave up after it opened

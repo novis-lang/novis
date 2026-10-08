@@ -8,8 +8,8 @@
 //!
 //! **A reload is one function**, and it is
 //! [`nvs_config::reload::reload`]: this module resolves the tree exactly as the
-//! boot did and hands the result to it, so the configuration check and a
-//! service manager's `PARAMCHANGE` end in the same publish and the same
+//! boot did and hands the result to it, so every reload the configuration
+//! check starts ends in the same publish and the same
 //! `rule:config/a-reload-names-what-it-could-not-apply` report. Nothing here
 //! decides what a `Boot` key does — [`nvs_config::Current::publish`] carries
 //! the running value back over the incoming tree, and each key it reports is
@@ -17,8 +17,9 @@
 //! hold a different value for it. It is also where a service manager
 //! is told a reload is happening and then that it is over
 //! ([`crate::service::State`]), for the same reason: one function, so one pair
-//! of transitions however the reload was asked for. One lock covers the whole
-//! of it, so two reloads never interleave two snapshots.
+//! of transitions for every reload. That pair reports a reload and never
+//! starts one; nothing outside this process starts one either. One lock covers
+//! the whole of it, so two reloads never interleave two snapshots.
 //!
 //! **The server checks its own configuration files** —
 //! `rule:config/the-config-is-an-immutable-snapshot`'s last paragraph. [`check`]
@@ -151,12 +152,11 @@ pub(crate) struct Process {
     /// a publish begins for every tree older than the one it published.
     generations: Arc<Generations>,
     /// Whatever started this process, told `RELOADING=1` and `READY=1` around
-    /// the reload below — the transitions `rule:packaging/the-generated-unit-is-hardened`'s
-    /// `Type=notify` unit is owed, from the one function every spelling of a
-    /// reload ends in.
+    /// every reload [`Process::noticed`] publishes — the transitions
+    /// `rule:packaging/the-generated-unit-is-hardened`'s `Type=notify` unit is
+    /// owed.
     notify: Notify,
-    /// Held for the whole of a reload, whoever asked for it, so two reloads
-    /// publish one at a time.
+    /// Held for the whole of a reload, so two reloads publish one at a time.
     reloading: Mutex<()>,
     /// The `Boot` keys the last reload reported and left unapplied, each with
     /// its two values, so a key is logged once for each value written to it.
@@ -478,7 +478,7 @@ impl Process {
     /// A refusal is logged
     /// unless it is the same rendered diagnostic this check logged last, which
     /// is a file saved again with the same fault.
-    fn noticed(&self, changed: &[PathBuf]) {
+    pub(crate) fn noticed(&self, changed: &[PathBuf]) {
         let _one = lock(&self.reloading);
         if self.draining.is_draining() {
             return;
@@ -547,21 +547,6 @@ impl Process {
 }
 
 impl crate::service::hosted::Running for Process {
-    fn reload(&self) -> Result<Report, String> {
-        let _one = lock(&self.reloading);
-        self.notify.state(State::Reloading);
-        let outcome = self.resolved().and_then(|tree| self.published(tree));
-        // `READY=1` whatever that outcome was, and `State::Reloading` owns why:
-        // a refused reload leaves this process serving the tree it already had,
-        // so a manager left in `reloading` over one would be reporting a state
-        // this process is not in.
-        self.notify.state(State::Ready);
-        // After the state, and from the tree now in force: a record written
-        // before the publish settled could name a target the reload replaced.
-        self.logged(&outcome, &[]);
-        outcome
-    }
-
     fn in_flight(&self) -> usize {
         self.admission.in_flight()
     }
@@ -587,7 +572,7 @@ fn stamp(path: &Path) -> Stamp {
 /// The thread is detached: it has no end of its own, and the process ending is
 /// what stops it. A pass that panics is caught, and the next pass runs as
 /// usual. A thread that cannot be started is reported once, and then a saved
-/// file is applied by the next start, or by a service manager's reload.
+/// file is applied by the next start.
 pub(crate) fn check(process: &Arc<Process>) {
     let process = Arc::clone(process);
     // Taken here, before any listener exists, and not by the thread: a thread
@@ -732,8 +717,8 @@ fn restart_pending(entry: &Pending) -> Record {
 /// A refusal's rendered diagnostic is a field for the same reason — it is many
 /// lines with a span in it, and a message is a line.
 ///
-/// A reload the configuration check started also names the files whose stamps
-/// moved, in a `changed` field. A reload a service manager asked for has none.
+/// A reload also names the files whose stamps moved, in a `changed` field,
+/// which is left out where that list is empty.
 fn record(outcome: &Result<Report, String>, changed: &[PathBuf]) -> Record {
     match outcome {
         Ok(report) => {
