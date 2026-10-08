@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to find the entries whose value is one of the values in a list.
+
+array<string> $offices = ['Vienna', 'Graz', 'Linz'];
+array<Core\Ldap\Filter> $parts = [];
+foreach ($offices as string $office) {
+    $parts[] = Core\Ldap\Filter::equals('l', $office);
+}
+// `...` passes the array as separate filters.
+// This prints (|(l=Vienna)(l=Graz)(l=Linz)).
+echo Core\Ldap\Filter::any(...$parts)->toString(), "\n";

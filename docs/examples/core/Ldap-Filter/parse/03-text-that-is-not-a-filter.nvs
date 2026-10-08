@@ -1,0 +1,10 @@
+<?nvs
+// Shows the error for text that is not a filter.
+
+try {
+    // The last `)` is missing.
+    Core\Ldap\Filter::parse('(&(objectClass=user)(mail=*)');
+} catch (LogicError $error) {
+    // The message names the position of the first wrong character, which is 29.
+    echo $error->message, "\n";
+}

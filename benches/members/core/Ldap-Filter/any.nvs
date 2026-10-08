@@ -1,0 +1,32 @@
+<?nvs
+// Measures how fast `Core\Ldap\Filter::any` combines two filters, as a login that may be a name or a mail address does.
+// bench: iterations 100000
+// bench: calls 0
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        // The count so far chooses the filters, so the loop cannot be left out.
+        array<Core\Ldap\Filter> $byName = [
+            Core\Ldap\Filter::equals('sAMAccountName', 'anna'),
+            Core\Ldap\Filter::equals('sAMAccountName', 'ben'),
+        ];
+        array<Core\Ldap\Filter> $byMail = [
+            Core\Ldap\Filter::equals('mail', 'anna@example.test'),
+            Core\Ldap\Filter::equals('mail', 'ben@example.test'),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            int $pick = ($total % 2) as int;
+            var $filter = Core\Ldap\Filter::any($byName[$pick], $byMail[$pick]);
+            $total = $total + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(100000), "\n";

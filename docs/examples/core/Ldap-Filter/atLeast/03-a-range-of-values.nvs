@@ -1,0 +1,9 @@
+<?nvs
+// Shows how to find the values between two limits, both limits included.
+
+var $filter = Core\Ldap\Filter::all(
+    Core\Ldap\Filter::atLeast('employeeNumber', '1000'),
+    Core\Ldap\Filter::atMost('employeeNumber', '1999'),
+);
+// This prints (&(employeeNumber>=1000)(employeeNumber<=1999)).
+echo $filter->toString(), "\n";

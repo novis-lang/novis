@@ -430,6 +430,7 @@ fn found(ctx: &mut nvs_runtime::Ctx, key: u64, filter: &Filter) -> Vec<String> {
     dns
 }
 
+// covers: Core\Ldap\Filter::all, Core\Ldap\Filter::startsWith, Core\Ldap\Filter::toString
 #[test]
 fn a_filter_encodes_to_ber_with_no_text_step() {
     // `(&(objectClass=user)(sAMAccountName=Admin*))`, as RFC 4511 § 4.5.1
@@ -473,6 +474,7 @@ fn a_filter_encodes_to_ber_with_no_text_step() {
     );
 }
 
+// covers: Core\Ldap\Filter::equals
 #[test]
 fn a_tainted_value_cannot_change_a_filters_structure() {
     // As RFC 4515 text, this value closes the equality filter and opens one
@@ -503,6 +505,82 @@ fn a_tainted_value_cannot_change_a_filters_structure() {
         found(&mut ctx, key, &filter).is_empty(),
         "no account is named `*)(objectClass=*`, so nothing matches"
     );
+}
+
+// covers: Core\Ldap\Filter::endsWith, Core\Ldap\Filter::contains, Core\Ldap\Filter::present
+// covers: Core\Ldap\Filter::atLeast, Core\Ldap\Filter::atMost, Core\Ldap\Filter::approx
+// covers: Core\Ldap\Filter::any, Core\Ldap\Filter::parse
+#[test]
+fn every_filter_kind_reads_back_from_the_text_it_writes() {
+    // One of each kind `Ldap\Filter` builds, with a value that needs escaping.
+    let name = || "cn".to_owned();
+    let filter = Filter::Or(vec![
+        Filter::Substrings {
+            attribute: name(),
+            initial: None,
+            any: Vec::new(),
+            last: Some(b"son)".to_vec()),
+        },
+        Filter::Substrings {
+            attribute: name(),
+            initial: None,
+            any: vec![b"a*b".to_vec()],
+            last: None,
+        },
+        Filter::Present("mail".to_owned()),
+        Filter::GreaterOrEqual("uSNChanged".to_owned(), b"100".to_vec()),
+        Filter::LessOrEqual("uSNChanged".to_owned(), b"200".to_vec()),
+        Filter::Approx("sn".to_owned(), b"Smith".to_vec()),
+    ]);
+    let text = filter.to_text();
+    assert_eq!(
+        text,
+        "(|(cn=*son\\29)(cn=*a\\2ab*)(mail=*)(uSNChanged>=100)(uSNChanged<=200)(sn~=Smith))"
+    );
+    // `parse` of the text is the filter it was written from, byte for byte.
+    let parsed = Filter::parse(&text).expect("the text reads back");
+    assert_eq!(parsed.to_ber(), filter.to_ber());
+}
+
+// covers: Core\Ldap\Filter::not, Core\Ldap\Filter::parse, Core\Ldap\Filter::toString
+#[test]
+fn a_filter_nests_at_most_max_filter_depth_levels() {
+    let nested = |levels: usize| {
+        let mut filter = Filter::Present("mail".to_owned());
+        for _ in 1..levels {
+            filter = Filter::Not(Box::new(Filter::Encoded(filter.to_ber())));
+        }
+        filter.to_ber()
+    };
+    let deepest = nested(nvs_ldap::MAX_FILTER_DEPTH);
+    assert_eq!(
+        Filter::depth_of(&deepest).expect("the limit itself is allowed"),
+        nvs_ldap::MAX_FILTER_DEPTH
+    );
+    let past = nested(nvs_ldap::MAX_FILTER_DEPTH + 1);
+    assert!(
+        Filter::depth_of(&past).is_err(),
+        "one level more is refused"
+    );
+    assert!(Filter::from_ber(&past).is_err(), "and does not decode");
+    // `toString` of such bytes writes `(?)` and does not recurse past the limit.
+    assert_eq!(Filter::Encoded(past).to_text(), "(?)");
+
+    // The text form has the same limit, and the error is at the `(` past it.
+    let text = |levels: usize| {
+        format!(
+            "{}(mail=*){}",
+            "(!".repeat(levels - 1),
+            ")".repeat(levels - 1)
+        )
+    };
+    let read = Filter::parse(&text(nvs_ldap::MAX_FILTER_DEPTH)).expect("the limit reads");
+    assert_eq!(read.to_ber(), deepest);
+    let error = Filter::parse(&text(nvs_ldap::MAX_FILTER_DEPTH + 1)).expect_err("past it");
+    assert_eq!(error.position, 2 * nvs_ldap::MAX_FILTER_DEPTH + 1);
+    // A text a hundred thousand levels deep stops at the same place.
+    let error = Filter::parse(&text(100_000)).expect_err("far past it");
+    assert_eq!(error.position, 2 * nvs_ldap::MAX_FILTER_DEPTH + 1);
 }
 
 #[test]

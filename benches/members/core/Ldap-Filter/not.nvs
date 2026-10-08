@@ -1,0 +1,28 @@
+<?nvs
+// Measures how fast `Core\Ldap\Filter::not` reverses a filter, as a program does to leave the computer accounts out.
+// bench: iterations 100000
+// bench: calls 0
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        // The count so far chooses the filter, so the loop cannot be left out.
+        array<Core\Ldap\Filter> $filters = [
+            Core\Ldap\Filter::equals('objectClass', 'computer'),
+            Core\Ldap\Filter::present('mail'),
+            Core\Ldap\Filter::atLeast('badPwdCount', '3'),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            var $filter = Core\Ldap\Filter::not($filters[($total % 3) as int]);
+            $total = $total + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(100000), "\n";

@@ -1,0 +1,2 @@
+(&(&(objectClass=user)(!(objectClass=computer)))(mail=*))
+(&(&(objectClass=user)(!(objectClass=computer)))(department=Sales))

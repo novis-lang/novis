@@ -1,0 +1,24 @@
+<?nvs
+// Measures how fast `Core\Ldap\Filter::atLeast` builds a filter, as a sync job does to find what changed since its last run.
+// bench: iterations 100000
+// bench: calls 0
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        // The count so far chooses the value, so the loop cannot be left out.
+        array<string> $bounds = ['100', '41251', '9000000'];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            var $filter = Core\Ldap\Filter::atLeast('uSNChanged', $bounds[($total % 3) as int]);
+            $total = $total + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(100000), "\n";

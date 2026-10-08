@@ -1,0 +1,9 @@
+<?nvs
+// Shows that a value with a `*` finds only that exact value.
+
+// Think of this text as a login name that somebody typed into a form.
+string $typed = 'ann*';
+var $filter = Core\Ldap\Filter::equals('sAMAccountName', $typed);
+// The `*` is part of the value and not a wildcard, so it is written as `\2a`.
+// This prints (sAMAccountName=ann\2a).
+echo $filter->toString(), "\n";

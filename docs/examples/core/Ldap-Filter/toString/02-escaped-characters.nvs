@@ -1,0 +1,8 @@
+<?nvs
+// Shows how special characters in a value are written in the text.
+
+// A `\` in Novis text is written as `\\`, so this value is a*(b)\c.
+var $filter = Core\Ldap\Filter::equals('cn', "a*(b)\\c");
+// `*`, `(`, `)` and `\` become `\2a`, `\28`, `\29` and `\5c`.
+// This prints (cn=a\2a\28b\29\5cc).
+echo $filter->toString(), "\n";

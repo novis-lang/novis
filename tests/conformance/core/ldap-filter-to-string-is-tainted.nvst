@@ -4,6 +4,7 @@
 <?nvs
 var $filter = Core\Ldap\Filter::not(Core\Ldap\Filter::present("mail"));
 string $text = $filter->toString();
+// covers: Core\Ldap\Filter::toString
 --EXPECT--
 
 --EXPECTF-ERROR--

@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to read a filter that an operator wrote as text.
+
+// The filter text is a constant that you wrote, so it is not `tainted`.
+class Settings
+{
+    public const string STAFF = '(&(objectClass=user)(memberOf=CN=Staff,OU=Groups,DC=example,DC=test))';
+}
+
+var $filter = Core\Ldap\Filter::parse(Settings::STAFF);
+// `toString` returns the same text.
+echo $filter->toString(), "\n";

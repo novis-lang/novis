@@ -1,0 +1,9 @@
+<?nvs
+// Shows how to write a filter to a log, so you can see what a search looked for.
+
+var $filter = Core\Ldap\Filter::all(
+    Core\Ldap\Filter::equals('objectClass', 'user'),
+    Core\Ldap\Filter::equals('sAMAccountName', 'anna'),
+);
+// This prints search: (&(objectClass=user)(sAMAccountName=anna)).
+echo 'search: ', $filter->toString(), "\n";

@@ -1,0 +1,29 @@
+<?nvs
+// Measures how fast `Core\Ldap\Filter::all` combines two filters, as a login page does to find one user account.
+// bench: iterations 100000
+// bench: calls 0
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        // The count so far chooses the second filter, so the loop cannot be left out.
+        var $users = Core\Ldap\Filter::equals('objectClass', 'user');
+        array<Core\Ldap\Filter> $logins = [
+            Core\Ldap\Filter::equals('sAMAccountName', 'anna'),
+            Core\Ldap\Filter::equals('sAMAccountName', 'ben'),
+            Core\Ldap\Filter::equals('mail', 'carla@example.test'),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            var $filter = Core\Ldap\Filter::all($users, $logins[($total % 3) as int]);
+            $total = $total + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(100000), "\n";

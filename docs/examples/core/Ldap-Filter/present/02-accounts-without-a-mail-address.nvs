@@ -1,0 +1,9 @@
+<?nvs
+// Shows how to find the user accounts that have no mail address.
+
+var $filter = Core\Ldap\Filter::all(
+    Core\Ldap\Filter::equals('objectClass', 'user'),
+    Core\Ldap\Filter::not(Core\Ldap\Filter::present('mail')),
+);
+// This prints (&(objectClass=user)(!(mail=*))).
+echo $filter->toString(), "\n";

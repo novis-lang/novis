@@ -1,0 +1,33 @@
+<?nvs
+// Attack: a name typed into a form is written as filter text, to widen a
+// search. Each value must stay one value, and nothing may crash.
+
+// 1. Values that would add a filter, if they were filter text.
+array<string> $values = ['*', 'Lee)(cn=*', '~=', '', "\x7f"];
+foreach ($values as string $value) {
+    try {
+        echo '1 ', Core\Ldap\Filter::approx('sn', $value)->toString(), "\n";
+    } catch (Throwable $error) {
+        echo "1 threw\n";
+    }
+}
+
+// 2. A value of one million characters.
+try {
+    var $long = Core\Ldap\Filter::approx('sn', Core\Str::repeat('é', 1000000));
+    echo '2 length: ', Core\Str::length($long->toString()), "\n";
+} catch (Throwable $error) {
+    echo "2 threw\n";
+}
+
+// 3. Attribute names that try to carry a comparison. Each one must throw an error.
+array<string> $names = ['', 'sn~', 'sn~=a)(cn', '~'];
+uint $refused = 0;
+foreach ($names as string $name) {
+    try {
+        Core\Ldap\Filter::approx($name, 'Lee');
+    } catch (LogicError $notAName) {
+        $refused = $refused + 1;
+    }
+}
+echo '3 refused: ', $refused, ' of ', Core\Arr::count($names), "\n";

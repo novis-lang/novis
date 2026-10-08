@@ -1,0 +1,6 @@
+<?nvs
+// Shows how to find a family name that may be written in a different way.
+
+var $filter = Core\Ldap\Filter::approx('sn', 'Smyth');
+// The server decides which names are close. This prints (sn~=Smyth).
+echo $filter->toString(), "\n";

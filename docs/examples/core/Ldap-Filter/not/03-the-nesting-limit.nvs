@@ -1,0 +1,15 @@
+<?nvs
+// Shows the limit on how deep filters can be put inside each other.
+
+var $filter = Core\Ldap\Filter::present('mail');
+int $levels = 1;
+try {
+    // Each `not` puts the filter one level deeper.
+    while (true) {
+        $filter = Core\Ldap\Filter::not($filter);
+        $levels = $levels + 1;
+    }
+} catch (LogicError $error) {
+    // The 101st level throws an error. This prints 100.
+    echo $levels, "\n";
+}

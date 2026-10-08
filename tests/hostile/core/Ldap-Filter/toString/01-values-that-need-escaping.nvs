@@ -1,0 +1,38 @@
+<?nvs
+// Attack: values full of characters that need escaping are written as text, to
+// make the text say something else. The text must read back as the same filter.
+
+// 1. Each value is written as text, and that text is read back.
+array<string> $values = ['*)(objectClass=*', "\\", "\\\\2a", "\x00\x01\x1f", '(((', ')))', "é\u{1F600}"];
+uint $same = 0;
+foreach ($values as string $value) {
+    try {
+        var $text = Core\Ldap\Filter::equals('cn', $value)->toString();
+        // The text is `tainted`. `parse` needs a plain string, so the test says it trusts this one.
+        string $checked = Core\Taint::assertTrusted($text, 'the text comes from toString');
+        if (Core\Ldap\Filter::parse($checked)->toString() == $text) {
+            $same = $same + 1;
+        }
+    } catch (Throwable $error) {
+        echo "1 threw\n";
+    }
+}
+echo '1 read back the same: ', $same, ' of ', Core\Arr::count($values), "\n";
+
+// 2. A value of one million characters that all need escaping. The text is three times as long.
+try {
+    var $long = Core\Ldap\Filter::equals('cn', Core\Str::repeat('*', 1000000))->toString();
+    echo '2 length: ', Core\Str::length($long), "\n";
+} catch (Throwable $error) {
+    echo "2 threw\n";
+}
+
+// 3. One filter written as text one hundred thousand times.
+var $filter = Core\Ldap\Filter::all(Core\Ldap\Filter::present('mail'), Core\Ldap\Filter::equals('cn', 'a)b'));
+uint $total = 0;
+uint $i = 0;
+while ($i < 100000) {
+    $total = $total + Core\Str::length($filter->toString());
+    $i = $i + 1;
+}
+echo '3 total: ', $total, "\n";

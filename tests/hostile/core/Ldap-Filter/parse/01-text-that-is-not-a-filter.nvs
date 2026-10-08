@@ -1,0 +1,57 @@
+<?nvs
+// Attack: a program reads filter text that is broken, very long, or nested one
+// hundred thousand levels deep. Each one must throw an error, and nothing may crash.
+// hostile: timeout-ms 60000
+
+// 1. Text that is not a filter.
+array<string> $bad = [
+    '',
+    '(',
+    ')',
+    '()',
+    '(&)',
+    '(|)',
+    '(!)',
+    '(cn=a',
+    '(cn=\\zz)',
+    '(cn=a)(cn=b)',
+    '(cn=a))',
+    "(cn=\x00)",
+    '((cn=a))',
+    '(=a)',
+    '(cn~=a*)',
+    '(:=a)',
+];
+uint $refused = 0;
+foreach ($bad as string $text) {
+    try {
+        Core\Ldap\Filter::parse($text);
+    } catch (LogicError $notAFilter) {
+        $refused = $refused + 1;
+    }
+}
+echo '1 refused: ', $refused, ' of ', Core\Arr::count($bad), "\n";
+
+// 2. `(!` one hundred thousand times. It must throw an error at the 101st level.
+try {
+    Core\Ldap\Filter::parse(Core\Str::repeat('(!', 100000) . '(cn=a)' . Core\Str::repeat(')', 100000));
+    echo "2 read\n";
+} catch (LogicError $tooDeep) {
+    echo "2 refused\n";
+}
+
+// 3. `(&` with one hundred thousand opening brackets and no closing ones.
+try {
+    Core\Ldap\Filter::parse(Core\Str::repeat('(&', 100000));
+    echo "3 read\n";
+} catch (LogicError $tooDeep) {
+    echo "3 refused\n";
+}
+
+// 4. A filter with one hundred thousand parts. It is allowed.
+try {
+    var $wide = Core\Ldap\Filter::parse('(|' . Core\Str::repeat('(cn=a*b*c)', 100000) . ')');
+    echo '4 length: ', Core\Str::length($wide->toString()), "\n";
+} catch (Throwable $error) {
+    echo "4 threw\n";
+}

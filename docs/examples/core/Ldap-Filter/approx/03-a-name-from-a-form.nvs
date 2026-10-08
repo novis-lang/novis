@@ -1,0 +1,8 @@
+<?nvs
+// Shows that a value with special characters stays one value.
+
+// Think of this text as a name that somebody typed into a form.
+string $typed = 'Lee)(cn=*';
+var $filter = Core\Ldap\Filter::approx('sn', $typed);
+// `(`, `)` and `*` are part of the value. This prints (sn~=Lee\29\28cn=\2a).
+echo $filter->toString(), "\n";

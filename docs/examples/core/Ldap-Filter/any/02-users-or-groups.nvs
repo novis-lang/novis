@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to find the users and the groups whose name starts with the same text.
+
+var $filter = Core\Ldap\Filter::all(
+    Core\Ldap\Filter::any(
+        Core\Ldap\Filter::equals('objectClass', 'user'),
+        Core\Ldap\Filter::equals('objectClass', 'group'),
+    ),
+    Core\Ldap\Filter::startsWith('cn', 'Sales'),
+);
+// This prints (&(|(objectClass=user)(objectClass=group))(cn=Sales*)).
+echo $filter->toString(), "\n";

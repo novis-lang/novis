@@ -23,6 +23,7 @@ echo $nested->toString(), "\n";
 
 // These four characters have a meaning in filter text, so each is escaped.
 echo Core\Ldap\Filter::equals("cn", "a*(b)\\c")->toString(), "\n";
+// covers: Core\Ldap\Filter::toString
 --EXPECT--
 (cn=Ann)
 (cn=An*)

@@ -1,0 +1,8 @@
+<?nvs
+// Shows that a `*` in the text does not match everything.
+
+string $typed = '*';
+var $filter = Core\Ldap\Filter::contains('displayName', $typed);
+// The `*` is a normal character, written as `\2a`. Only names with a `*` match.
+// This prints (displayName=*\2a*).
+echo $filter->toString(), "\n";
