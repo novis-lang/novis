@@ -471,14 +471,17 @@ pub(crate) fn binary_result(
         }
         BinaryOp::Eq | BinaryOp::NotEq => {
             reject_disjoint_equality(lhs, rhs, span, env);
-            // `rule:security/secret-comparison-is-constant-time`: two `secret` operands compare in constant time.
-            // Nothing about the *result* changes — it is a `bool` either way —
-            // so this records the fact for `nvs-ir` rather than returning a
-            // different type. It has to be recorded here because the qualifier
-            // does not survive `nvs_ir::ty::Ty`, which is § 1's promise that a
-            // `secret string` costs no representation; see
-            // `ExprInfo::SecretEquality`.
-            if is_secret(lhs, env.interner) || is_secret(rhs, env.interner) {
+            // `rule:security/secret-comparison-is-constant-time`: a comparison
+            // with a `secret` operand runs in constant time, and an operand
+            // carries `secret` when any member of its type does — a
+            // `?secret string` or a `secret string|int` holds the credential
+            // whenever it is not the other member. Nothing about the *result*
+            // changes — it is a `bool` either way — so this records the fact
+            // for `nvs-ir` rather than returning a different type. It has to be
+            // recorded here because the qualifier does not survive
+            // `nvs_ir::ty::Ty`, which is § 1's promise that a `secret string`
+            // costs no representation; see `ExprInfo::SecretEquality`.
+            if carries_secret(lhs, env.interner) || carries_secret(rhs, env.interner) {
                 env.exprs
                     .record(span, crate::expr_table::ExprInfo::SecretEquality);
             }

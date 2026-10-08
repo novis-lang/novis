@@ -6,7 +6,12 @@ is already known at the comparison, and the lowering picks the helper. Where exa
 (`rule:security/secret-propagation`), so the pair is `secret` and the rule applies. That includes the
 other side arriving as a `mixed` — a decoded request field, a header, a cache read — where the helper
 reads the tag: a `string` or `bytes` payload of the side's own tag is compared in constant time, and
-every other tag answers `false`, which is what the short-circuiting row answers for the same pair.
+every other tag answers `false`, which is what the short-circuiting row answers for the same pair. An
+operand is `secret` when any member of its type is — a `?secret string` or a `secret string|int` —
+since it holds the credential whenever it is not the other member; compared against a `string` or
+`bytes`, it takes the same helper. A pair where neither side is a plain `string` or `bytes` — a
+`?secret string` against a `mixed` or a `?string` — still takes the short-circuiting row, because the
+helper answers `false` for two `null`s.
 
 The gap it closes is narrow and real. Constant-time comparison is guaranteed inside the protocol
 roster, and a dedicated equality member is available to anyone who knows to reach for it — but a

@@ -3972,6 +3972,29 @@ bool $openly = $plain == $other;
     assert_eq!(text.matches("helper.identical").count(), 1, "{text}");
 }
 
+/// A `secret` that is one member of the operand's type — a `?secret string`, a
+/// `secret string|int` — is still a credential when it is there, so
+/// `rule:security/secret-comparison-is-constant-time` applies to the comparison
+/// exactly as it does to a bare `secret string`. Each pair below is compared
+/// against a plain `string`, and the unqualified nullable pair at the end
+/// still takes the ordinary row, so the count reads the checker's choice.
+#[test]
+fn a_nullable_or_union_secret_takes_the_constant_time_helper() {
+    let (f, map, file) = lower_script_src(
+        "<?nvs
+?secret string $token = \"a\";
+secret string|int $either = \"a\";
+string $given = \"b\";
+bool $nullable = $token == $given;
+bool $union = $given != $either;
+?string $plain = \"a\";
+bool $openly = $plain == $given;
+",
+    );
+    let text = print_function(&f, map.file(file));
+    assert_eq!(text.matches("helper.secret_eq").count(), 2, "{text}");
+}
+
 /// `rule:types/erased-member-access`'s deferral, one storage kind along from a member access: a
 /// `mixed` base defers *whether there is an array here* as well as which
 /// one, so a subscript through it reaches the helper pair that asks the
