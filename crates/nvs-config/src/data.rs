@@ -29,8 +29,15 @@
 //! service account, has to reach the subfolders, and a protected DACL on each of them would block
 //! it. A directory that already exists is never re-permissioned; [`prepare`] checks it instead.
 //!
+//! **The `nvs.toml` Novis writes here is refreshed while nobody has changed it.** It starts with
+//! [`mark`]'s line, which names the version that wrote it and a hash of the rest. The first
+//! [`config_file`] call in a process replaces a file whose rest still matches that hash with this
+//! version's [`config_template`], so a block a later version removed never stops it from starting.
+//! A file somebody changed fails the hash and is never touched again.
+//!
 //! Cost: one `current_exe` and one canonicalization per process, and at [`prepare`] one create
-//! attempt per folder plus the trust check's two reads. Nothing here runs per request except
+//! attempt per folder plus the trust check's two reads, and at the first [`config_file`] one read
+//! and one hash of `nvs.toml`. Nothing here runs per request except
 //! [`create_private_dir`], which is the one create a temporary directory always cost.
 
 use std::path::{Path, PathBuf};
@@ -278,9 +285,149 @@ pub fn current() -> Option<&'static Folder> {
 /// [`Folder::config_file`] of [`current`]: the file step 3 of
 /// `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` reads, as
 /// [`crate::resolve::roots`] takes it. `None` exactly when [`current`] is.
+///
+/// The first call in a process runs [`Folder::refresh_config`] on the file before handing it back,
+/// so every lookup reads this version's template where the file is one an older version wrote and
+/// nobody changed. Every lookup in the CLI and the language server takes the file from here, which
+/// is what makes this the one place the refresh happens; what it found is not reported.
 #[must_use]
 pub fn config_file() -> Option<PathBuf> {
-    current().map(Folder::config_file)
+    static REFRESHED: std::sync::Once = std::sync::Once::new();
+    let folder = current()?;
+    REFRESHED.call_once(|| {
+        let _ = folder.refresh_config();
+    });
+    Some(folder.config_file())
+}
+
+/// The data folder's `nvs.toml` as Novis writes it: [`mark`]'s line for this version, then
+/// [`crate::default_file`]. `nvs init` writes the template without the line, because that file is
+/// the operator's to edit from the start.
+#[must_use]
+pub fn config_template() -> String {
+    mark(env!("CARGO_PKG_VERSION"), crate::default_file())
+}
+
+/// `body` under the marker line that says Novis `version` wrote it: one comment line of plain text
+/// ending in ` blake3:<hex>`, the hash of `body`'s bytes. [`unedited`] is the reading of it.
+#[must_use]
+pub fn mark(version: &str, body: &str) -> String {
+    format!(
+        "{MARK_HEAD}{version} wrote this file. Novis updates it when you update Novis, unless you \
+         change it.{MARK_HASH}{}\n{body}",
+        blake3::hash(body.as_bytes()).to_hex()
+    )
+}
+
+/// How [`mark`]'s line starts.
+const MARK_HEAD: &str = "# Novis ";
+/// What comes before the hash at the end of [`mark`]'s line.
+const MARK_HASH: &str = " blake3:";
+
+/// Whether `text` is [`mark`]'s output for some version, with nothing after the line changed: the
+/// first line starts as the marker does and ends with the hash of everything after it. A file
+/// without the line, or whose rest no longer matches the hash, is the operator's.
+#[must_use]
+pub fn unedited(text: &str) -> bool {
+    let Some((line, body)) = text.split_once('\n') else {
+        return false;
+    };
+    line.starts_with(MARK_HEAD)
+        && line
+            .strip_suffix(blake3::hash(body.as_bytes()).to_hex().as_str())
+            .is_some_and(|head| head.ends_with(MARK_HASH))
+}
+
+/// What [`Folder::refresh_config`] found, and did.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Refresh {
+    /// The file was an unedited template another version wrote, and is now [`config_template`].
+    Replaced,
+    /// The file is already [`config_template`], and was not written.
+    Current,
+    /// The file is not an unedited template, so it is the operator's and was not touched.
+    Edited,
+    /// Nothing was replaced, for the reason given: there is no file, the folder or the file fails
+    /// the trust check, the file is a link or read-only, or the replacement could not be written.
+    Skipped(String),
+}
+
+impl Folder {
+    /// Replaces [`Folder::config_file`] with [`config_template`] when it is an unedited template of
+    /// another version, so a file Novis wrote never stops a later version from reading its own
+    /// configuration. A file somebody changed is never touched, and neither is one in a folder or
+    /// with a file check that fails `rule:config/ownership-is-the-trust-boundary`, a link, or a
+    /// read-only file.
+    ///
+    /// The replacement is atomic: the new text goes into a sibling file created only by this call,
+    /// with the old file's mode and, on Unix, its owner and group, and is renamed over the old one,
+    /// so a reader sees the old file or the new one and never part of either. Any failure leaves the
+    /// old file as it was and is returned rather than printed: a service whose `nvs.toml` is
+    /// read-only to it reads the file as it is, every start.
+    pub fn refresh_config(&self) -> Refresh {
+        let file = self.config_file();
+        let Ok(text) = std::fs::read_to_string(&file) else {
+            return Refresh::Skipped(format!("`{}` cannot be read", file.display()));
+        };
+        let template = config_template();
+        if text == template {
+            return Refresh::Current;
+        }
+        if !unedited(&text) {
+            return Refresh::Edited;
+        }
+        if let Err(why) = self.check().and_then(|_| trust::check(&file)) {
+            return Refresh::Skipped(why.message().to_owned());
+        }
+        let old = match std::fs::symlink_metadata(&file) {
+            Ok(old) if !old.is_file() => {
+                return Refresh::Skipped(format!("`{}` is not a plain file", file.display()));
+            }
+            Ok(old) if old.permissions().readonly() => {
+                return Refresh::Skipped(format!("`{}` is read-only", file.display()));
+            }
+            Ok(old) => old,
+            Err(err) => return Refresh::Skipped(err.to_string()),
+        };
+        match replace(&file, &template, &old) {
+            Ok(()) => Refresh::Replaced,
+            Err(err) => Refresh::Skipped(err.to_string()),
+        }
+    }
+}
+
+/// Writes `text` into a new sibling of `file` with `old`'s permissions and renames it over `file`.
+/// The sibling is deleted again when anything fails.
+fn replace(file: &Path, text: &str, old: &std::fs::Metadata) -> std::io::Result<()> {
+    use std::io::Write as _;
+
+    let name = format!(".{}.{}.tmp", crate::resolve::LOCAL_FILE, std::process::id());
+    let temp = file.with_file_name(name);
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+    let mut out = options.open(&temp)?;
+    let written = (|| {
+        out.write_all(text.as_bytes())?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::{MetadataExt as _, PermissionsExt as _};
+
+            std::os::unix::fs::fchown(&out, Some(old.uid()), Some(old.gid()))?;
+            out.set_permissions(std::fs::Permissions::from_mode(old.mode() & 0o7777))?;
+        }
+        #[cfg(not(unix))]
+        let _ = old;
+        out.sync_all()
+    })();
+    // Closed before the rename, which Windows refuses for a file this process still has open.
+    drop(out);
+    let renamed = written.and_then(|()| std::fs::rename(&temp, file));
+    if renamed.is_err() {
+        let _ = std::fs::remove_file(&temp);
+    }
+    renamed
 }
 
 /// [`CURRENT`], computed on first use.
@@ -672,5 +819,103 @@ mod tests {
             & 0o777;
         assert_eq!(mode, 0o777, "the folder's mode is not changed");
         assert!(!folder.cache().exists(), "nothing is created inside it");
+    }
+
+    /// An older version's template: a block this version does not know, under that version's
+    /// marker line.
+    const OLD_BODY: &str = "# the template an older Novis shipped\n[control]\n# socket = \"\"\n";
+
+    /// A prepared data folder in a private scratch directory, with `text` as its `nvs.toml`.
+    fn data_with(name: &str, text: &str) -> (nvs_repo::Scratch, Folder) {
+        let dir = nvs_repo::scratch_private(&format!("data-refresh-{name}"));
+        let folder = Folder::new(dir.join("data"));
+        folder.prepare().expect("a private folder is usable");
+        std::fs::write(folder.config_file(), text).unwrap();
+        (dir, folder)
+    }
+
+    #[test]
+    fn the_marker_line_names_the_version_and_the_hash_of_the_rest() {
+        let written = super::mark("0.0.1", OLD_BODY);
+        let (line, rest) = written.split_once('\n').unwrap();
+        assert!(line.starts_with("# Novis 0.0.1 wrote this file."), "{line}");
+        assert!(
+            line.ends_with(&format!(
+                " blake3:{}",
+                blake3::hash(OLD_BODY.as_bytes()).to_hex()
+            )),
+            "{line}"
+        );
+        assert_eq!(rest, OLD_BODY);
+        assert!(super::unedited(&written));
+        assert!(super::unedited(&super::config_template()));
+        assert!(!super::unedited(&written.replace("# socket", "socket")));
+        assert!(!super::unedited(OLD_BODY));
+        assert!(!super::unedited(""));
+    }
+
+    #[test]
+    fn an_unedited_older_template_is_replaced_and_a_current_one_is_not_written() {
+        let (_dir, folder) = data_with("old", &super::mark("0.0.1", OLD_BODY));
+
+        assert_eq!(folder.refresh_config(), super::Refresh::Replaced);
+        let file = folder.config_file();
+        assert_eq!(
+            std::fs::read_to_string(&file).unwrap(),
+            super::config_template()
+        );
+        trust::check(&file).expect("the replacement passes the trust check");
+        let leftovers: Vec<_> = std::fs::read_dir(folder.root())
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name())
+            .filter(|name| name.to_string_lossy().ends_with(".tmp"))
+            .collect();
+        assert!(leftovers.is_empty(), "{leftovers:?}");
+
+        let before = std::fs::metadata(&file).unwrap().modified().unwrap();
+        assert_eq!(folder.refresh_config(), super::Refresh::Current);
+        assert_eq!(
+            std::fs::metadata(&file).unwrap().modified().unwrap(),
+            before,
+            "a current file is not written"
+        );
+    }
+
+    #[test]
+    fn an_edited_file_and_a_file_without_the_marker_are_never_touched() {
+        let edited = super::mark("0.0.1", OLD_BODY).replace("# socket", "socket");
+        for (name, text) in [("edited", edited.as_str()), ("unmarked", OLD_BODY)] {
+            let (_dir, folder) = data_with(name, text);
+            assert_eq!(folder.refresh_config(), super::Refresh::Edited, "{name}");
+            assert_eq!(
+                std::fs::read_to_string(folder.config_file()).unwrap(),
+                text,
+                "{name}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_read_only_file_is_left_as_it_is() {
+        let old = super::mark("0.0.1", OLD_BODY);
+        let (_dir, folder) = data_with("read-only", &old);
+        let file = folder.config_file();
+        let mut permissions = std::fs::metadata(&file).unwrap().permissions();
+        permissions.set_readonly(true);
+        std::fs::set_permissions(&file, permissions.clone()).unwrap();
+
+        let refreshed = folder.refresh_config();
+        assert!(
+            matches!(refreshed, super::Refresh::Skipped(_)),
+            "{refreshed:?}"
+        );
+        assert_eq!(std::fs::read_to_string(&file).unwrap(), old);
+
+        #[expect(
+            clippy::permissions_set_readonly_false,
+            reason = "the scratch folder's own file, made writable again so it can be deleted"
+        )]
+        permissions.set_readonly(false);
+        std::fs::set_permissions(&file, permissions).unwrap();
     }
 }

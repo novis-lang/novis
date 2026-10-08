@@ -187,7 +187,11 @@ Four steps, first hit wins:
    step and the next entirely, so an operator naming files never gets a surprise merge with whatever is
    in the working directory or the data folder, even if every named file turns out to be missing.
 3. `nvs.toml` in the **data folder** — `.nvsdata` beside the running binary, or the folder the global
-   `--data` flag names — if it exists. A process with no usable data folder skips this step.
+   `--data` flag names — if it exists. A process with no usable data folder skips this step. The file
+   Novis writes there starts with a line naming its version and a hash of the rest, and before the
+   first lookup reads it, an unedited one another version wrote is replaced with this version's
+   template; a file without the line or with another hash is never touched, and a refresh that cannot
+   write reads the file as it is.
 4. Otherwise the shipped defaults
    ([`config/no-configuration-file-is-a-complete-configuration`](config.md#config-no-configuration-file-is-a-complete-configuration)). A **project command** — `run`,
    `serve`, `test`, `build` and `check` — first writes the shipped default file as the data folder's

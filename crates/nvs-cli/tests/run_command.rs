@@ -190,6 +190,96 @@ fn an_unusable_data_folder_warns_once_and_the_run_succeeds() {
     assert!(!dir.join("nvs.toml").exists(), "nothing is written instead");
 }
 
+/// The body of a template an older version wrote: a block this version does not know.
+const OLD_TEMPLATE: &str = "# an older template\n[control]\nsocket = \"nvs.sock\"\n";
+
+/// `nvs config check` with the data folder `data`, from `dir`.
+fn config_check(dir: &Path, data: &Path) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(data)
+        .args(["config", "check"])
+        .current_dir(dir)
+        .output()
+        .expect("the `nvs` binary this test was built beside runs")
+}
+
+/// The data folder's `nvs.toml` that an older version wrote and nobody changed is replaced with
+/// this version's template before it is read, by a run and by `nvs config check` alike, so a block
+/// that version removed stops neither. The same file with its body changed is the operator's: it
+/// is read as it is, and its unknown block stops the run.
+// covers: tools:cli/nvs-run
+#[test]
+fn an_unedited_older_template_in_the_data_folder_is_replaced_before_it_is_read() {
+    let dir = scratch("refresh");
+    let data = dir.join(".nvsdata");
+    fs::write(dir.join("main.nvs"), PROGRAM).unwrap();
+    let first = run_in(&dir, &["main.nvs"]);
+    assert_eq!(first.status.code(), Some(0), "{first:?}");
+    let file = data.join("nvs.toml");
+    let current = nvs_config::data::config_template();
+    assert_eq!(fs::read_to_string(&file).unwrap(), current);
+
+    let old = nvs_config::data::mark("0.0.1", OLD_TEMPLATE);
+    fs::write(&file, &old).unwrap();
+    let out = run_in(&dir, &["main.nvs"]);
+    assert_eq!(out.status.code(), Some(0), "{out:?}");
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "ran\n");
+    assert_eq!(fs::read_to_string(&file).unwrap(), current);
+
+    fs::write(&file, &old).unwrap();
+    let out = config_check(&dir, &data);
+    assert_eq!(out.status.code(), Some(0), "{out:?}");
+    assert_eq!(fs::read_to_string(&file).unwrap(), current);
+
+    let edited = old.replace("nvs.sock", "other.sock");
+    fs::write(&file, &edited).unwrap();
+    let out = run_in(&dir, &["main.nvs"]);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(
+        out.status.code(),
+        Some(1),
+        "an edited file is read: {stderr}"
+    );
+    assert!(stderr.contains("E0601"), "{stderr}");
+    assert_eq!(fs::read_to_string(&file).unwrap(), edited);
+}
+
+/// A read-only `nvs.toml` that is an older template is read as it is: the run succeeds and says
+/// nothing about the file.
+// covers: tools:cli/nvs-run
+#[test]
+fn a_read_only_older_template_is_read_as_it_is_and_the_run_goes_on() {
+    let dir = scratch("refresh-read-only");
+    let data = dir.join(".nvsdata");
+    fs::write(dir.join("main.nvs"), PROGRAM).unwrap();
+    let first = run_in(&dir, &["main.nvs"]);
+    assert_eq!(first.status.code(), Some(0), "{first:?}");
+    let file = data.join("nvs.toml");
+    let old = nvs_config::data::mark("0.0.1", "# an older template that this version reads\n");
+    fs::write(&file, &old).unwrap();
+    let mut permissions = fs::metadata(&file).unwrap().permissions();
+    permissions.set_readonly(true);
+    fs::set_permissions(&file, permissions.clone()).unwrap();
+
+    let out = run_in(&dir, &["main.nvs"]);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(out.status.code(), Some(0), "{stderr}");
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "ran\n");
+    assert!(
+        !stderr.contains("warning") && !stderr.contains("nvs.toml"),
+        "nothing is said about the file: {stderr}"
+    );
+    assert_eq!(fs::read_to_string(&file).unwrap(), old);
+
+    #[expect(
+        clippy::permissions_set_readonly_false,
+        reason = "the scratch folder's own file, made writable again so it can be deleted"
+    )]
+    permissions.set_readonly(false);
+    fs::set_permissions(&file, permissions).unwrap();
+}
+
 /// A program that writes one log record and then one line of output.
 const LOGGING: &str =
     "<?nvs\nCore\\Log::write(Core\\Log\\Level::Warn, \"logged\");\necho \"ran\", \"\\n\";\n";

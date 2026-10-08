@@ -19,7 +19,8 @@ command-line switches that change a setting. The settings in the file are the se
 
 When `nvs run`, `nvs serve`, `nvs test`, `nvs build` or `nvs check` finds no file, it writes
 `nvs.toml` into the data folder. It never writes into your project. `--no-init` stops it from
-writing the file.
+writing the file. Novis updates this file when you update Novis, unless you changed it. After you
+change it, Novis never touches it again.
 
 ## Start with nvs init
 

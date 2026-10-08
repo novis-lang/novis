@@ -30791,7 +30791,8 @@ variable and no command-line switch that sets a directive: what the file says is
 - If neither file exists, the configuration is empty. An empty configuration is complete and valid:
   nothing is limited, and nothing is granted. `nvs run`, `nvs serve`, `nvs test`, `nvs build` and
   `nvs check` then write `nvs.toml` into the data folder, with every key commented out. You can edit
-  that file. `--no-init` stops them from writing it.
+  that file. `--no-init` stops them from writing it. Novis updates this file when you update Novis,
+  unless you changed it. After you change it, Novis never touches it again.
 - `--config <path>` (on any subcommand) names the file to read instead. Then `nvs` reads neither
   `nvs.toml`. Repeat it to read several files in order.
 - Every relative path inside a file — an include, a capability root, an `[[app]]` key, a secret

@@ -198,9 +198,9 @@ impl Declined {
     }
 }
 
-/// The shipped default file written at `target` — the data folder's `nvs.toml` for a project
-/// command, `./nvs.toml` or the one `--config` path for [`init`] — and the path it now holds, or the
-/// [`Declined`] reason it does not.
+/// `text` written at `target` — [`nvs_config::data::config_template`] into the data folder's
+/// `nvs.toml` for a project command, [`nvs_config::default_file`] into `./nvs.toml` or the one
+/// `--config` path for [`init`] — and the path it now holds, or the [`Declined`] reason it does not.
 ///
 /// `rule:config/ownership-is-the-trust-boundary` is asked first and about the **directory**, because
 /// this is the one place in the binary that creates a file a later `nvs serve` will read as
@@ -211,7 +211,7 @@ impl Declined {
 /// The data folder is created privately by `nvs_config::data::prepare` before any of this runs, and
 /// `nvs_config::data::check` is the check, so the default data folder is examined without the
 /// binary's directory above it.
-fn write_default_at(target: &Path) -> Result<PathBuf, Declined> {
+fn write_default_at(target: &Path, text: &str) -> Result<PathBuf, Declined> {
     let (Some(dir), Some(name)) = (target.parent(), target.file_name()) else {
         return Err(Declined::Unwritable(format!(
             "`{}` does not name a file",
@@ -219,19 +219,23 @@ fn write_default_at(target: &Path) -> Result<PathBuf, Declined> {
         )));
     };
     let dir = nvs_config::data::check(dir).map_err(Declined::Untrusted)?;
-    write_template(dir.join(name))
+    write_template(dir.join(name), text)
 }
 
-/// [`write_default_at`] for `folder`'s `nvs.toml`, checked with [`nvs_config::data::Folder::check`]
-/// rather than with this process's own data folder in mind. The service installer writes the file
-/// a service will read, and that service's data folder need not be the installer's.
+/// [`nvs_config::data::config_template`] written as `folder`'s `nvs.toml`, checked with
+/// [`nvs_config::data::Folder::check`] rather than with this process's own data folder in mind.
+/// The service installer writes the file a service will read, and that service's data folder need
+/// not be the installer's.
 pub(crate) fn write_default_in(folder: &nvs_config::data::Folder) -> Result<PathBuf, Declined> {
     let dir = folder.check().map_err(Declined::Untrusted)?;
-    write_template(dir.join(nvs_config::resolve::LOCAL_FILE))
+    write_template(
+        dir.join(nvs_config::resolve::LOCAL_FILE),
+        &nvs_config::data::config_template(),
+    )
 }
 
-/// The template written at `path`, in a directory the caller has already checked.
-fn write_template(path: PathBuf) -> Result<PathBuf, Declined> {
+/// `text` written as the new file `path`, in a directory the caller has already checked.
+fn write_template(path: PathBuf, text: &str) -> Result<PathBuf, Declined> {
     // `create_new` is the whole of never overwriting: the file is created by this call or it is not,
     // with no window between asking whether one exists and writing it, so a second `nvs` in the same
     // directory loses the race rather than landing on top of the winner.
@@ -243,7 +247,7 @@ fn write_template(path: PathBuf) -> Result<PathBuf, Declined> {
             std::io::ErrorKind::AlreadyExists => Declined::Exists,
             _ => Declined::Unwritable(err.to_string()),
         })?;
-    if let Err(err) = file.write_all(nvs_config::default_file().as_bytes()) {
+    if let Err(err) = file.write_all(text.as_bytes()) {
         // A half-written template is a tree that refuses to parse, which would turn a failed write
         // into a refusal to start. What this run had a moment ago is no file, so that is what it
         // gets back, and the leftovers are this process's own.
@@ -256,8 +260,9 @@ fn write_template(path: PathBuf) -> Result<PathBuf, Declined> {
 /// `nvs init` — the same file, written because an operator asked for it.
 ///
 /// The write is [`write_default_at`]'s, so this is the template a project command writes into the
-/// data folder and the ownership check in front of it is the same check. **What differs is what a
-/// refusal means.** Nobody asked for the implicit write, so declining it is silent and the run
+/// data folder and the ownership check in front of it is the same check. The file has no marker
+/// line, because it is the operator's to edit from the start and Novis never refreshes it
+/// ([`nvs_config::data::Folder::refresh_config`]). **What differs is what a refusal means.** Nobody asked for the implicit write, so declining it is silent and the run
 /// carries on; this command exists only to produce the file, so a refusal is the answer to the
 /// question that was asked — an `error:` line and a non-zero exit, which is what a script that runs
 /// this can act on.
@@ -291,7 +296,7 @@ pub(crate) fn init(config: &[PathBuf]) -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    match write_default_at(&target) {
+    match write_default_at(&target, nvs_config::default_file()) {
         Ok(written) => {
             println!("wrote `{}`", written.display());
             ExitCode::SUCCESS
@@ -533,7 +538,9 @@ fn resolved_in(
     // warning `nvs_config::data::prepare` gives the command.
     if init == Init::Write
         && matches!(roots, nvs_config::Roots::Defaults)
-        && data.is_some_and(|data| write_default_at(data).is_ok())
+        && data.is_some_and(|data| {
+            write_default_at(data, &nvs_config::data::config_template()).is_ok()
+        })
     {
         roots = nvs_config::resolve::roots(config, cwd, data, &files);
     }
@@ -1178,8 +1185,8 @@ mod tests {
         let written = fs::read(&data_file).expect("the write happened");
         assert_eq!(
             written,
-            nvs_config::default_file().as_bytes(),
-            "the file written is `nvs_config::default_file` and nothing else"
+            nvs_config::data::config_template().as_bytes(),
+            "the file written is the marker line and `nvs_config::default_file`, and nothing else"
         );
     }
 
@@ -1331,7 +1338,8 @@ mod tests {
     fn a_declined_write_says_which_reason_applied() {
         let untrusted = scratch("reason-untrusted");
         open_to_the_world(&untrusted);
-        let breach = write_default_at(&untrusted.join("nvs.toml"))
+        let text = nvs_config::default_file();
+        let breach = write_default_at(&untrusted.join("nvs.toml"), text)
             .expect_err("a directory any local account can write is refused");
         assert!(
             matches!(breach, Declined::Untrusted(_)),
@@ -1351,7 +1359,7 @@ mod tests {
 
         let refusing = scratch("reason-unwritable");
         refuse_new_files(&refusing);
-        let refused = write_default_at(&refusing.join("nvs.toml"))
+        let refused = write_default_at(&refusing.join("nvs.toml"), text)
             .expect_err("a directory that takes no new file writes none");
         assert!(
             matches!(refused, Declined::Unwritable(_)),
@@ -1360,8 +1368,8 @@ mod tests {
 
         let occupied = scratch("reason-exists");
         fs::write(occupied.join("nvs.toml"), "").expect("a scratch directory takes a file");
-        let already =
-            write_default_at(&occupied.join("nvs.toml")).expect_err("the file is already there");
+        let already = write_default_at(&occupied.join("nvs.toml"), text)
+            .expect_err("the file is already there");
         assert!(
             matches!(already, Declined::Exists),
             "a file that is already there is its own reason: {already:?}"

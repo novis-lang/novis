@@ -18,8 +18,9 @@ doctest = false
 # makes are their default behaviour rather than machinery of ours. Both are pure
 # Rust, so ADR 0051 § 4's two questions do not arise.
 #
-# `blake3` is ADR 0078 § 4's own spelling of both cache keys; `src/cache.rs` is
-# the only thing in this crate that hashes anything.
+# `blake3` is ADR 0078 § 4's own spelling of both cache keys in `src/cache.rs`,
+# and `src/data.rs` hashes the data folder's `nvs.toml` with it to tell a
+# template nobody changed from an operator's file.
 #
 # `nvs-render` is here for one type: `[log] level` names one of ADR 0092 § 2's
 # five levels, and that roster's home is the enum the record carries. A copy of

@@ -475,8 +475,9 @@ fn data_unusable(folder: Option<&Path>, reason: &str) -> Diagnostic {
 
 /// Creates the service's data folder for an install, privately, and writes
 /// the shipped `nvs.toml` into it when the stored argv reads that file and
-/// there is none yet. A file that is already there is the operator's, and is
-/// kept as it is.
+/// there is none yet. A file that is already there is kept as it is, unless
+/// it is a template an older Novis wrote and nobody changed, which
+/// `nvs_config::data::Folder::refresh_config` replaces.
 ///
 /// Returns whether the folder is usable. Where the stored `--config` names
 /// another file, an unusable folder is the one warning every command prints
@@ -501,7 +502,13 @@ fn prepare_data(plan: &Plan) -> Result<bool, Diagnostic> {
     }
     if plan.reads_data_config {
         let reason = match crate::config::write_default_in(data) {
-            Ok(_) | Err(crate::config::Declined::Exists) => return Ok(true),
+            Ok(_) => return Ok(true),
+            Err(crate::config::Declined::Exists) => {
+                // The service may be unable to write the file once the install has given it
+                // to root, so an unedited older template is brought up to date here.
+                let _ = data.refresh_config();
+                return Ok(true);
+            }
             Err(crate::config::Declined::Untrusted(why)) => why.message().to_owned(),
             Err(crate::config::Declined::Unwritable(why)) => why,
         };
@@ -4475,9 +4482,11 @@ mod tests {
             assert!(data.join(sub).is_dir(), "{sub}");
         }
         let file = data.join("nvs.toml");
-        assert_eq!(
-            std::fs::read_to_string(&file).expect("the template"),
-            nvs_config::default_file()
+        let written = std::fs::read_to_string(&file).expect("the template");
+        assert_eq!(written, nvs_config::data::config_template());
+        assert!(
+            nvs_config::data::unedited(&written),
+            "the installer's file carries the marker line"
         );
 
         // The operator's own file is kept.
@@ -4487,6 +4496,15 @@ mod tests {
         assert_eq!(
             std::fs::read_to_string(&file).expect("a file"),
             "# the operator's\n"
+        );
+
+        // A template an older version wrote, unchanged, is brought up to date.
+        std::fs::write(&file, nvs_config::data::mark("0.0.1", "[control]\n")).expect("a file");
+        let (done, _, _) = install(&data, &bare, false);
+        assert!(done.is_ok(), "{done:?}");
+        assert_eq!(
+            std::fs::read_to_string(&file).expect("a file"),
+            nvs_config::data::config_template()
         );
 
         // A file where the folder should be cannot become one.
