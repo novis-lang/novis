@@ -284,7 +284,7 @@ as nothing.
 | `nvs.secrets.redact` | `true` | conceal the ranges the server reports as `secret` |
 | `nvs.taint.mark` | `"off"` | whether a `tainted` value carries a marker glyph as well as the token modifier every theme already styles — `off`, `declaration` for each declaration whose type carries it, or `sink` |
 | `nvs.lsp.debounce` | `150` | milliseconds a keystroke is to wait before analysis starts. Contributed and not yet read — see below |
-| `nvs.stubs.dir` | `""` | the directory the server writes the `Core` declaration files to, which Go to Definition on a `Core` name opens. Empty is a directory inside the extension's own storage, one per server version |
+| `nvs.stubs.dir` | `""` | the directory the server writes the `Core` declaration files to, which Go to Definition on a `Core` name opens. Empty is a directory inside the extension's own storage, one per server version. A server that gets no directory from its editor writes to the `lsp` folder in the data folder |
 
 Changing `nvs.path` or `nvs.lsp.enable` restarts the server, since neither can reach one that is
 already running.

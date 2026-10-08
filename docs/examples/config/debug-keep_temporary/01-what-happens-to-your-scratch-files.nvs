@@ -10,8 +10,8 @@
 echo 'kept after a run: ', Core\Config::get('debug.keep_temporary') ?? '(no)', "\n";
 
 // `io.temp_root` is where these directories are made. This file sets nothing,
-// so they are made in the temporary directory of the machine.
-echo 'made under:       ', Core\Config::get('io.temp_root') ?? "(the machine's own)", "\n";
+// so they are made in the `tmp` folder of the data folder.
+echo 'made under:       ', Core\Config::get('io.temp_root') ?? '(the tmp folder in the data folder)', "\n";
 
 // A program cannot change `keep_temporary`, so this prints `no`. Otherwise a program
 // could keep every file it makes until the disk is full.

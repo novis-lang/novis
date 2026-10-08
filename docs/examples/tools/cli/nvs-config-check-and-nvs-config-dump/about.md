@@ -1,7 +1,8 @@
 `nvs config check` checks a configuration, and `nvs config dump` prints every setting that is in
 effect. Both commands run no program.
 
-Without arguments, both read `./nvs.toml`. You can name other files. `config check` reads all the
+Without arguments, both read `./nvs.toml`. If that file does not exist, they read `nvs.toml` in the
+data folder. You can name other files. `config check` reads all the
 files, with their includes, `[[app]]` blocks and secrets. It prints one line such as
 `ok: 2 files, 4 directives set, 1 override, 0 warnings`. The exit status is `1` for a syntax error,
 an unknown key or an include that does not exist.

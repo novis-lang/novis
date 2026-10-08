@@ -10,7 +10,8 @@ runs `nvs`.
 account cannot write to it. `it already exists` means that `nvs init` found a file at that path and
 did not change it.
 
-**Good to know:** a message that starts with `warning:` does not stop the program. Novis does not
-use the cache folder until you fix the path, so it compiles the program again at every start.
+**Good to know:** a `warning:` message does not stop the program. Novis does not use the cache
+folder until you fix the path, so it compiles the program at every start. For the data folder, you
+can also pass `--data` with another folder.
 
 **The example below** reads five messages and prints the path to change and what to do.

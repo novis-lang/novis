@@ -1,9 +1,9 @@
 <?nvs
 // This program shows where Novis creates temporary directories, and who may change that place.
 
-// Nothing sets `[io] temp_root` here. So Novis uses a `novis` directory
-// inside the temporary directory of the operating system.
-echo 'configured root: ', Core\Config::get('io.temp_root') ?? '(none — a private subdirectory of the platform temporary directory)', "\n";
+// Nothing sets `[io] temp_root` here. So Novis uses the `tmp` folder
+// in its data folder, `.nvsdata` next to the `nvs` program.
+echo 'configured root: ', Core\Config::get('io.temp_root') ?? '(none: the tmp folder in the data folder)', "\n";
 
 // A program cannot change the root. `Core\Config::set` returns `false`.
 echo 'move it:         ', Core\Config::set('io.temp_root', '/tmp/somewhere-of-mine') ? 'yes' : 'no', "\n";

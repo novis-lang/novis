@@ -31,8 +31,10 @@ usually one file:
 | `nvs agent <verb>` | the same registry for a coding agent: a primer, an index, a search, one card — and the pointers `init` installs |
 | `nvs ast [--json] <file>` | parse one file and print its syntax tree |
 
-Every subcommand also takes `--config <PATH>` (see `nvs run`) and `-h`/`--help`. Every operation is
-a subcommand: there is no `-i`, `-a`, `-r`, `-f` or lowercase `-v`.
+Every subcommand also takes `--config <PATH>` (see `nvs run`), `--data <PATH>` and `-h`/`--help`.
+`--data` names the data folder, where Novis keeps its own files (see
+[Installing on a host](#tools-install)). Every operation is a subcommand: there is no `-i`, `-a`,
+`-r`, `-f` or lowercase `-v`.
 
 **In other chapters:** `nvs serve` and `nvs service` are in
 [the server chapter](#tools-server); `nvs lsp` and `nvs lsp-test` are in
@@ -72,12 +74,17 @@ E0229
 otherwise compiles and runs it with the current directory as its working directory. Before running
 it reads the configuration:
 
-- `./nvs.toml` in the working directory, if there is one. A missing file is not an error — the
-  program runs with an empty configuration.
-- `--config <path>` names a file to read *instead*: naming one disables the `./nvs.toml` lookup
-  entirely. Repeat the flag to read several files in order; a named file that does not exist
-  refuses the run (`E0605`). Relative paths inside a configuration file resolve against that file's
-  own directory. The configuration chapter has the file format.
+- `./nvs.toml` in the working directory, if there is one.
+- If there is none, `nvs.toml` in the data folder. The data folder is `.nvsdata` next to the `nvs`
+  program, or the folder that `--data` names.
+- If neither file exists, `nvs run` writes `nvs.toml` into the data folder and reads it. Every key
+  in that file is commented out, so the program runs with an empty configuration. `--no-init`, or
+  the environment variable `NOVIS_NO_INIT`, stops `nvs run` from writing the file. `nvs run` never
+  writes a file into the working directory.
+- `--config <path>` names a file to read *instead*. Then `nvs run` reads neither `nvs.toml`. Repeat
+  the flag to read several files in order. A named file that does not exist stops the run with
+  `E0605`. Relative paths inside a configuration file start at that file's own directory. The
+  configuration chapter has the file format.
 
 Two debugging flags replace running with printing: `--dump-ir` prints the lowered intermediate
 representation of every function in the program, and `--dump-asm` prints the generated machine
@@ -318,15 +325,16 @@ total: 420 MB
 - Running the bundle runs the program. **Its whole command line belongs to the program**: a bundle
   never interprets `run`, `check`, `--help` or any other `nvs` argument, so an application whose
   first argument happens to be `run` keeps it.
-- A bundle still reads `./nvs.toml` from the directory it is *run in*, exactly like `nvs run`, and
-  a malformed one refuses the run. Ship the configuration beside it or run it from a directory that
-  has none.
+- A bundle reads `./nvs.toml` from the directory it is *run in*. If there is none, it reads
+  `nvs.toml` in the `.nvsdata` folder next to the bundle. A file with an error stops the run. A
+  bundle never writes a `nvs.toml`. Ship the configuration beside it, or run it from a directory
+  that has none.
 - Files reached only through `autoload` at run time, or opened with `Core\IO`, are not in the
   bundle: it carries the static `require` graph and nothing else.
 - Each `.nvsx` file that the build's configuration lists under `[[extension]]` goes into the
   bundle, with its `sha256` and its `grants`. The bundle checks each `sha256` when it starts and
-  loads these extensions before the ones in `./nvs.toml`. A file that does not match its `sha256`
-  stops the build.
+  loads these extensions before the ones in the configuration file it reads. A file that does not
+  match its `sha256` stops the build.
 
 # nvs build --openapi
 
@@ -379,8 +387,9 @@ additive: paths./users.get.query.q — optional parameter added
     nvs config dump [files]... [--origin] [--toml]
 
 Both read the configuration tree offline and run nothing, so a tree can be validated in CI before
-it is deployed. With no files named they read `./nvs.toml` (and nothing, successfully, when there
-is none); naming files positionally is the same as `--config`.
+it is deployed. With no files named they read `./nvs.toml`. If there is none, they read `nvs.toml` in
+the data folder. If there is neither, they report an empty configuration, which is not an error.
+Naming files positionally is the same as `--config`. Neither command creates the data folder.
 
 - `config check` resolves the whole tree — includes, `[[app]]` blocks, secrets — and prints one
   line: `ok: 2 files, 4 directives set, 1 override, 0 warnings`. It exits `1` on anything the tree
@@ -492,8 +501,9 @@ $ nvs ext test
   0 failed, 1 passed, 0 skipped, 0 flaky in 1 ms
 ```
 
-- The command does not read `./nvs.toml`. Without `--config`, the extension gets no folders and no
-  hosts. Name a configuration with `--config` to test with the grants it gives.
+- The command does not read `./nvs.toml` or the `nvs.toml` in the data folder. Without `--config`,
+  the extension gets no folders and no hosts. Name a configuration with `--config` to test with the
+  grants it gives.
 - If the configuration lists the `.nvsx` file with another `sha256`, the command stops with an
   error that names both values.
 - If a file of the project changed after the last `nvs ext build`, the command stops with an error.
@@ -608,9 +618,8 @@ environment — so an entry is never stale and never needs clearing. `nvs run` a
 read and write it.
 
 `[opcache] file_cache_dir` names the directory, and `[opcache] file_cache = false` turns the cache
-off. With no directory named it is `novis\opcache` under `%LOCALAPPDATA%` on Windows, and
-`novis/opcache` under `$XDG_CACHE_HOME` or `~/.cache` elsewhere. `[cache] dir` is not a key: it is
-refused with `E0601`.
+off. With no directory named, the cache is the `cache` folder in the data folder. `[cache] dir` is
+not a key: it stops the run with `E0601`.
 
 ```toml
 [opcache]

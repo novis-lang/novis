@@ -1,13 +1,42 @@
 ---
 id: install
 title: "Installing on a host: folders and permissions"
-summary: where to put the `nvs` binary, the configuration, the compile cache and the logs on a server; which folder permissions Novis checks and when; the commands that set them on Windows and on Linux; and what each refusal message means
-keywords: install, installation, setup, deploy, deployment, server, host, folder, directory, permissions, ACL, DACL, icacls, chmod, chown, owner, ownership, Authenticated Users, Users, Everyone, SID, S-1-5-11, S-1-5-32-545, inheritance, E0607, access denied, os error 5, nvs init, nvs serve, --config, file_cache_dir, opcache, cache, log, logs, log target, Windows, Linux, PATH, service account, elevated prompt, administrator
+summary: the data folder where Novis keeps its own files; where to put the `nvs` binary, the configuration, the compile cache and the logs on a server; which folder permissions Novis checks and when; the commands that set them on Windows and on Linux; and what each refusal message means
+keywords: install, installation, setup, deploy, deployment, server, host, folder, directory, permissions, ACL, DACL, icacls, chmod, chown, owner, ownership, Authenticated Users, Users, Everyone, SID, S-1-5-11, S-1-5-32-545, inheritance, E0607, access denied, os error 5, nvs init, nvs serve, --config, --data, data folder, .nvsdata, file_cache_dir, opcache, cache, log, logs, log target, Windows, Linux, PATH, service account, elevated prompt, administrator
 ---
 
 # The layout
 
-A host needs four folders. They can have any names and be anywhere.
+## The data folder
+
+Novis keeps its own files in one folder, the **data folder**. By default it is the folder `.nvsdata`
+next to the `nvs` program. The option `--data <folder>` names another folder. Every command accepts
+it, and a relative path starts at the current folder.
+
+| In the data folder | Contains | The setting that moves it |
+|---|---|---|
+| `nvs.toml` | the configuration file that `nvs` reads when the current folder has no `nvs.toml` | `--config` |
+| `cache` | compiled programs | `[opcache] file_cache_dir` |
+| `tmp` | the folders that `Core\IO::temporaryDir` creates | `[io] temp_root` |
+| `lsp` | files for the editor | the editor's `nvs.stubs.dir` setting |
+
+`nvs run`, `nvs serve`, `nvs test`, `nvs build`, `nvs check` and `nvs lsp` create the data folder
+and its three subfolders when they do not exist. When `nvs` creates the folder, only the account
+that runs `nvs` can open it. On Windows, `Administrators` and `SYSTEM` can open it too. Other
+commands, such as `nvs config check`, never create it.
+
+If `nvs` cannot create or use the data folder, it prints one warning and runs without it. Programs
+then run without the compile cache, and `Core\IO::temporaryDir` throws an error. This happens when
+the `nvs` program is in a folder that your account cannot write to, for example `/usr/local/bin`.
+Pass `--data` with a folder that only your account can change.
+
+`nvs test` and `nvs lsp-test` need a folder for temporary files. Without a usable data folder and
+without `[io] temp_root`, they stop with an error.
+
+## Folders you choose yourself
+
+On a server you can choose each folder yourself. A host then needs four folders. They can have any
+names and be anywhere.
 
 | Folder | Contains | Who writes to it | Who reads it |
 |---|---|---|---|
@@ -50,7 +79,8 @@ prefix = "/{1:lower}"
 
 `nvs init` writes a `nvs.toml` in which every key is present and commented out. Without `--config`
 it writes `nvs.toml` into the current directory. The folder must already exist, and an existing
-file is never overwritten.
+file is never overwritten. `nvs run` and the other commands never write into the current directory.
+When they find no configuration file, they write the same file into the data folder.
 
 Each key's line ends with a short note. `# default` means the value shown is what Novis uses when
 the key is not set, so removing the `#` changes nothing. `# default: no cap` (or `off`, or another
@@ -93,6 +123,7 @@ This is what each command checks:
 |---|---|---|
 | `nvs serve`, at the start and at each reload | every configuration file, and the folder that contains it | the server does not start, or it keeps its configuration and logs `E0607` |
 | `nvs init` | the folder it writes into, **and the folder that contains that folder** | nothing is written and the exit status is `1` |
+| `nvs run`, `nvs serve`, `nvs test`, `nvs build`, `nvs check`, `nvs lsp` | the data folder. For a folder that `--data` names, **also the folder that contains it** | one `warning:` line. The command runs without the data folder |
 | every command that compiles a program | the cache folder, **and the folder that contains it** | a `warning:` line when `file_cache_dir` is set. The program runs, and it is compiled again on every start |
 
 `nvs run`, `nvs check`, `nvs test` and `nvs config check` do not check the configuration files.
@@ -100,6 +131,10 @@ This is what each command checks:
 The check on the cache folder and in `nvs init` also looks at the folder one level up. If
 `D:\srv\novis\config` has the correct permissions and `D:\srv\novis` does not, the message names
 `D:\srv\novis`. That is the folder to change.
+
+The default data folder, `.nvsdata` next to `nvs`, is the one exception. The folder that contains it
+is the folder of the `nvs` program, and Novis does not check that folder. An account that can change
+that folder can already replace `nvs` itself.
 
 The log folder is not checked.
 
@@ -194,3 +229,4 @@ folder you were working in.
 | `Access is denied` or `Permission denied` (`os error 5`, `os error 13`) | the permissions are strict enough, and **your** account cannot write there | use an administrator prompt or `sudo`, or give your account the right |
 | `... it already exists, and it is never overwritten` | `nvs init` found a file at that path | edit the file, or delete it and run `nvs init` again |
 | `warning: [opcache] file_cache_dir ... is not used` | the cache folder, or the folder that contains it, failed the check | fix the named path. Until then the program works and starts more slowly |
+| `warning: Novis cannot use its data folder ...` | the data folder could not be created, or it failed the check | fix the named folder, or pass `--data` with a folder that only your account can change. Until then programs run without the compile cache |

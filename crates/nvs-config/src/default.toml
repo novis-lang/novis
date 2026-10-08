@@ -1,6 +1,7 @@
-# Novis reads this file as `./nvs.toml`. Every key the runtime parses is in it, commented out, so
-# that what a host can be told to do is something an operator reads rather than something they have
-# to go and find. A file in which no key is uncommented is exactly a host with no file at all:
+# Novis reads this file as `./nvs.toml`. When the working directory has none, Novis reads
+# `nvs.toml` in its data folder, `.nvsdata` next to the `nvs` program. Every key the runtime parses
+# is in it, commented out, so that what a host can be told to do is something an operator reads
+# rather than something they have to go and find. A file in which no key is uncommented is exactly a host with no file at all:
 # capabilities grant nothing, `[mode] default` is `production`, and every other key is whatever the
 # code that enforces it ships (`rule:config/no-configuration-file-is-a-complete-configuration`).
 #
@@ -273,14 +274,13 @@
 # ----------------------------------------------------------------------------------------------
 
 [io]
-# The directory every temporary directory is created in. When this is not set, Novis uses a
-# `novis` subdirectory of the operating system's temporary directory: `$TMPDIR/novis` (usually
-# `/tmp/novis`) on Linux and macOS, `%TEMP%\novis` on Windows. Novis creates that directory on
-# first use, readable by the server's user only. An empty string means the same as not set.
+# The directory every temporary directory is created in. When this is not set, Novis uses `tmp`
+# in its data folder, `.nvsdata` next to the `nvs` program. Novis creates that folder, and only
+# the account that runs `nvs` can open it. An empty string means the same as not set.
 # Set this to put temporaries on a particular filesystem, such as a larger disk or a tmpfs.
 # `Boot`-class: `nvs serve` removes leftover directories at start, under the root it started with.
 # Changing it while a server runs leaves the old root's leftovers in place; nothing removes them.
-#temp_root = "/var/tmp/novis"         # default: the system's temporary directory, under `novis`
+#temp_root = "/var/tmp/novis"         # default: `tmp` in the data folder
 
 
 # ----------------------------------------------------------------------------------------------
@@ -959,7 +959,7 @@
 # the runtime's mapping of every cached unit. Whatever the directory is, it must be owned by the
 # account running the compile and writable by nobody else.
 #file_cache = true                    # default
-#file_cache_dir = "/var/cache/novis"  # default: a cache directory of the account running Novis
+#file_cache_dir = "/var/cache/novis"  # default: `cache` in the data folder
 # The cache's ceiling in bytes, and the probability pair that decides how often a sweep runs — the
 # shape PHP's session GC uses, read the same way: a sweep on `file_cache_gc_probability` runs in
 # `file_cache_gc_divisor`.

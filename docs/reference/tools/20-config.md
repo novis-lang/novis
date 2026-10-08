@@ -10,11 +10,16 @@ keywords: nvs.toml, configuration, config, TOML, limits, memory_limit, max_execu
 Configuration is one TOML file, `nvs.toml`. There is no `php.ini`, no `.htaccess`, no environment
 variable and no command-line switch that sets a directive: what the file says is what is in force.
 
-- `nvs run`, `nvs test` and a bundled executable read `./nvs.toml` from the **working directory**
-  — not from the program's directory. No file means an empty configuration, which is complete and
-  valid: nothing is limited, nothing is granted.
-- `--config <path>` (on any subcommand) names the file to read instead and switches the
-  `./nvs.toml` lookup off. Repeat it to read several files in order.
+- `nvs` reads `./nvs.toml` from the **working directory**. It does not look in the program's
+  directory.
+- If there is no `./nvs.toml`, `nvs` reads `nvs.toml` in the data folder. The data folder is
+  `.nvsdata` next to the `nvs` program, or the folder that `--data` names.
+- If neither file exists, the configuration is empty. An empty configuration is complete and valid:
+  nothing is limited, and nothing is granted. `nvs run`, `nvs serve`, `nvs test`, `nvs build` and
+  `nvs check` then write `nvs.toml` into the data folder, with every key commented out. You can edit
+  that file. `--no-init` stops them from writing it.
+- `--config <path>` (on any subcommand) names the file to read instead. Then `nvs` reads neither
+  `nvs.toml`. Repeat it to read several files in order.
 - Every relative path inside a file — an include, a capability root, an `[[app]]` key, a secret
   file — resolves against the directory of the file it is written in.
 - A key the binary does not know refuses the run before the program starts (`E0601`), naming the

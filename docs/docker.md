@@ -77,7 +77,12 @@ nvs serve /app/main.nvs --listen 0.0.0.0:8000
 (`rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 2). So a mounted tree's own
 configuration is found with nothing passed on the command line, and
 [docs/reference/tools/20-config.md](reference/tools/20-config.md) is the reference for what goes
-in it. Two keys matter more in a container than outside one:
+in it. With no `./nvs.toml`, step 3 reads `nvs.toml` in the data folder — `.nvsdata` beside the
+binary, which is `/usr/local/bin/.nvsdata` in this image, or the folder `--data` names. The
+`nonroot` account cannot create a folder in `/usr/local/bin`, so a container started without
+`--data` prints the unusable-data-folder warning, runs without a compile cache and has no root for
+`Core\IO::temporaryDir`; `--data` naming a writable volume, such as `/app/.nvsdata`, gives it all
+three. Two keys matter more in a container than outside one:
 
 ```toml
 [server]
@@ -95,7 +100,7 @@ reads files, opens sockets or connects to a database needs the grants in its `[[
 `rule:http-server/allow-url-pins-the-address` for `net`. Running as root in a container grants
 nothing; the container boundary and the capability tree are unrelated mechanisms and both apply.
 
-If you pass `--config`, note that naming any file **disables** the `./nvs.toml` lookup entirely
+If you pass `--config`, note that naming any file **disables** both `nvs.toml` lookups entirely
 (`rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 1). That is deliberate — it is how you get a predictable tree — but it means a
 mounted `nvs.toml` is silently unread once `--config` appears.
 

@@ -1018,7 +1018,7 @@ const WALK_DOC: MethodDoc = MethodDoc {
 /// `Core\IO::temporaryDir`'s reference card — `rule:core-api/reference-card`.
 const TEMPORARY_DIR_DOC: MethodDoc = MethodDoc {
     short: "Creates a new, empty, private directory under the root Novis owns — `[io] temp_root`, \
-            or a `novis` subdirectory of the platform temporary directory — and answers its path. \
+            or the `tmp` folder in the data folder — and answers its path. \
             `sys_get_temp_dir` and `tempnam` in one member, and the directory is made rather than \
             merely named, so there is no window between choosing a name and owning it. Needs the \
             `fs.write` capability **for the path it creates**: the name is chosen first and asked \
@@ -1039,7 +1039,8 @@ const TEMPORARY_DIR_DOC: MethodDoc = MethodDoc {
         ErrorDoc {
             error: "IOError",
             desc: "The capability allowed it and no directory could be created — the root is full, \
-                   read-only, or absent.",
+                   read-only, or absent, or there is no root because `[io] temp_root` is unset and \
+                   the data folder cannot be used.",
         },
     ],
 };

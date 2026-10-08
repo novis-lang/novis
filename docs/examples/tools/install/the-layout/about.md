@@ -1,6 +1,8 @@
-A host that runs Novis needs four folders: one for the `nvs` binary, one for the configuration, one for the compile cache and one for the logs.
+On a server you can choose four folders yourself: one for the `nvs` binary, one for the configuration, one for the compile cache and one for the logs.
 
-The folders can have any names and be anywhere. Administrators write to the binary folder and the
+Without your own folders, Novis keeps its configuration file and its compile cache in the data
+folder, `.nvsdata` next to the `nvs` program. The folders can have any names and be anywhere.
+Administrators write to the binary folder and the
 configuration folder. The account that runs `nvs` writes to the cache folder and the log folder.
 The simplest layout puts the other three folders inside the binary folder.
 

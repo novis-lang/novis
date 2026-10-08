@@ -30,8 +30,8 @@ What is served depends on the file named and on whether the configuration writes
 
 `--listen` replaces `[server] listen` for this run, and `--port` keeps the host the file chose and
 replaces the port; the two are not combined. `--config` reads a configuration file instead of
-`./nvs.toml` (the configuration chapter). With nothing written anywhere the server listens on
-`127.0.0.1:8000`.
+`./nvs.toml` and the `nvs.toml` in the data folder (the configuration chapter). With nothing written
+anywhere the server listens on `127.0.0.1:8000`.
 
 # The `[server]` block
 
@@ -391,10 +391,15 @@ The installer checks the command first. When a check fails, it prints an error a
 |---|---|
 | The command is `serve` or `run`. No other command keeps running. | `E0630` |
 | `serve` with no file needs a configuration with a `[[server.mount]]` entry that is on disk. | `E0630` |
-| Every path is a full path. This includes `[log] target` and `[opcache] file_cache_dir` in the configuration. | `E0631` |
-| `--config` names the configuration file. | `E0631` |
+| Every path is a full path. This includes `--config`, `--data`, and `[log] target`, `[opcache] file_cache_dir` and `[io] temp_root` in the configuration. | `E0631` |
+| The installer can create and use the data folder, when the service reads the `nvs.toml` in it. | `E0653` |
 | The command line has no `--password`. Other users of the machine can read a command line. | `E0633` |
 | A bundled executable does not install itself. Install the `nvs` binary. | `E0634` |
+
+Without `--config`, the service reads the `nvs.toml` in its data folder. The data folder is
+`.nvsdata` next to the `nvs` program, or the folder that `--data` names after `--`. The installer
+adds `--config` and the full path of that file to the command that it stores. It creates the folder
+and the file when they do not exist. A file that already exists is not changed.
 
 The error names what failed the check:
 
@@ -418,6 +423,10 @@ The options of the installer:
 | `--depends-on <service>` | A service that must start first, such as a database. You can repeat it. |
 | `--description <text>` | The text that an administrator sees beside the name. |
 | `--dry-run` | Prints every step and changes nothing. |
+
+With `--account`, the service account can read the data folder and every configuration file. It can
+write only to the `cache`, `tmp` and `lsp` folders in the data folder, and to a log, cache or
+temporary folder that the configuration names. The service cannot change its own configuration.
 
 A service has no terminal. Set `[log] target` to a file, so that the log of the server is written
 to that file. `nvs service install --help` prints one whole command line for each platform.

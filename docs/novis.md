@@ -214,10 +214,8 @@ Conventions the whole file uses:
 | [`Core\Ldap`](#core-core-ldap) |  |
 | [`Core\Ldap\Connection`](#core-core-ldap-connection) |  |
 | [`Core\Ldap\Entries`](#core-core-ldap-entries) |  |
-| [`Core\Ldap\Changes`](#core-core-ldap-changes) |  |
 | [`Core\Ldap\Entry`](#core-core-ldap-entry) |  |
 | [`Core\Ldap\Filter`](#core-core-ldap-filter) |  |
-| [`Core\Ldap\Change`](#core-core-ldap-change) |  |
 | [`Core\Ldap\Dn`](#core-core-ldap-dn) |  |
 | [`Core\Ldap\Sid`](#core-core-ldap-sid) |  |
 | [`Core\Ldap\Ad`](#core-core-ldap-ad) |  |
@@ -246,9 +244,9 @@ Conventions the whole file uses:
 ### Part C — The toolchain
 
 - C.1 [The nvs command](#tools-cli) — every subcommand of the `nvs` binary — run, check, test, build, api, config, info, meta, ast — with its flags, its exit status and what it prints *(nvs, nvs run, nvs check, nvs test, nvs build, --compile, --openapi, nvs api diff, nvs config check, nvs config dump, nvs info, nvs meta --json, nvs ast, --config, --dump-ir, --dump-asm, --filter, --format, exit status, exit code, .nvs, .php, shebang, cache, single-file executable, bundle, php -l, php -i, php -r, phpunit, composer, phpdbg)*
-- C.2 [Installing on a host: folders and permissions](#tools-install) — where to put the `nvs` binary, the configuration, the compile cache and the logs on a server; which folder permissions Novis checks and when; the commands that set them on Windows and on Linux; and what each refusal message means *(install, installation, setup, deploy, deployment, server, host, folder, directory, permissions, ACL, DACL, icacls, chmod, chown, owner, ownership, Authenticated Users, Users, Everyone, SID, S-1-5-11, S-1-5-32-545, inheritance, E0607, access denied, os error 5, nvs init, nvs serve, --config, file_cache_dir, opcache, cache, log, logs, log target, Windows, Linux, PATH, service account, elevated prompt, administrator)*
+- C.2 [Installing on a host: folders and permissions](#tools-install) — the data folder where Novis keeps its own files; where to put the `nvs` binary, the configuration, the compile cache and the logs on a server; which folder permissions Novis checks and when; the commands that set them on Windows and on Linux; and what each refusal message means *(install, installation, setup, deploy, deployment, server, host, folder, directory, permissions, ACL, DACL, icacls, chmod, chown, owner, ownership, Authenticated Users, Users, Everyone, SID, S-1-5-11, S-1-5-32-545, inheritance, E0607, access denied, os error 5, nvs init, nvs serve, --config, --data, data folder, .nvsdata, file_cache_dir, opcache, cache, log, logs, log target, Windows, Linux, PATH, service account, elevated prompt, administrator)*
 - C.3 [Configuration: nvs.toml, limits and capabilities](#tools-config) — the `nvs.toml` file — where it is read from, every block the binary accepts, resource limits and their ceilings, capability grants, per-application blocks, includes, secrets, and reading it from a program with `Core\Config` *(nvs.toml, configuration, config, TOML, limits, memory_limit, max_execution_time, limits.hard, ceiling, capabilities, fs.read, fs.write, script.spawn, net.connect, net.listen, net.local, process.exec, cache.shared, capability, permission, sandbox, [[app]], entry, root, include, mode, development, production, ini_get, ini_set, ini_restore, ini_get_all, php.ini, .htaccess, secret, secrets, password_file, /run/secrets, SOPS, sops, age, encrypted secrets, sealed secrets, Vault, LoadCredential, mail, Core\Config)*
-- C.4 [The HTTP server](#tools-server) — `nvs serve`, the `[server]` block and its mounts, how a request finds the file that answers it, what a program reads about the door it came through, what reaches a running server, the drain, what happens when the client goes away and `nvs service` *(nvs serve, server, HTTP, disconnect, client disconnect, client goes away, cancel_on_disconnect, disconnect_grace, ignore_user_abort, restart, restart required, deploy, hot reload, zero downtime, symlink, settle, revalidate_freq, listen, port, --listen, --port, [server], [[server.mount]], mount, prefix, host, scan, entry, origin, root, dispatch, static, static files, trusted_proxies, X-Forwarded-For, X-Forwarded-Proto, client IP, health_path, health check, max_in_flight, workers, timeout, drain, drain_timeout, graceful shutdown, reload, nvs service, service, systemd, Windows service, Core\Request::mount, Core\Request\Mount, Core\Router::url, multi-tenant, subdirectory, virtual host, front controller, try_files, php -S, php-fpm, nginx, Apache, .htaccess, RewriteBase, SCRIPT_NAME, PATH_INFO, DocumentRoot)*
+- C.4 [The HTTP server](#tools-server) — `nvs serve`, the `[server]` block and its mounts, how a request finds the file that answers it, what a program reads about the door it came through, what reaches a running server, the drain, what happens when the client goes away, `nvs ctl` and `nvs service` *(nvs serve, server, HTTP, disconnect, client disconnect, client goes away, cancel_on_disconnect, disconnect_grace, ignore_user_abort, restart, restart required, deploy, hot reload, zero downtime, symlink, settle, revalidate_freq, listen, port, --listen, --port, [server], [[server.mount]], mount, prefix, host, scan, entry, origin, root, dispatch, static, static files, trusted_proxies, X-Forwarded-For, X-Forwarded-Proto, client IP, health_path, health check, max_in_flight, workers, timeout, drain, drain_timeout, graceful shutdown, reload, nvs ctl, control socket, nvs service, service, systemd, Windows service, Core\Request::mount, Core\Request\Mount, Core\Router::url, multi-tenant, subdirectory, virtual host, front controller, try_files, php -S, php-fpm, nginx, Apache, .htaccess, RewriteBase, SCRIPT_NAME, PATH_INFO, DocumentRoot)*
 - C.5 [Coming from PHP: how Novis is different, and how to port a program](#tools-php-differences) — how Novis is different from PHP, what Novis can do that PHP cannot, and how to port a program by writing it again; there is no converter and no list of PHP names *(PHP, coming from PHP, switch from PHP, differences, port, porting, rewrite, migration, converter, AI agent, coding agent, nvs agent, PHPUnit, PHPStan, Psalm, PHP CS Fixer, PHP_CodeSniffer, Composer)*
 - C.6 [The editor: nvs lsp, nvs lsp-test and the VS Code extension](#tools-editor) — the language server — every request it answers, the diagnostics it publishes, the positions it speaks and the secrets it conceals — `nvs lsp-test`, the suite that freezes an editor answer as text, and the VS Code extension that is the reference client *(nvs lsp, language server, LSP, Language Server Protocol, editor, IDE, VS Code, stdio, initialize, hover, go to definition, completion, autocomplete, semantic tokens, syntax highlighting, document symbol, outline, selection range, folding, document link, code action, quick fix, refactor, convert to html template, publishDiagnostics, nvs/redactions, secret, position encoding, utf-8, utf-16, nvs lsp-test, .lspt, --coverage, extension, vsix, TextMate grammar, nvs.path, nvs.lsp.enable, nvs.secrets.redact, nvs.taint.mark, reveal secret, restart language server, activation)*
 - C.7 [Coding agents: nvs agent, and what nvs agent init installs](#tools-agents) — the four commands a coding agent reads the language through — `primer`, `index`, `find` and `show` — over the `Core` registry and the chapters of this reference, the `nvs check` loop that closes them, and `nvs agent init`, which writes an `AGENTS.md` stanza and what the coding agent you run needs beside it, and states no language fact *(nvs agent, nvs agent primer, nvs agent index, nvs agent find, nvs agent show, nvs agent init, nvs agent hook, --agent, --all, --force, --check, --no-hooks, --json, hook, check hook, check on edit, PostToolUse, postToolUse, settings.json, .claude/settings.json, hooks.json, .cursor/hooks.json, JSON, fingerprint, coding agent, LLM, AI assistant, agent instructions, AGENTS.md, SKILL.md, .claude, Claude Code, skill, Cursor, Codex, OpenCode, GitHub Copilot, .instructions.md, adapter, pointer, stale documentation, hallucinated member, nvs check loop)*
@@ -11028,7 +11026,7 @@ Serializes `$value` as JSON text. It can be a scalar, an array, an anonymous obj
 | `{pretty: …}` | `bool` (default `false`) | Indent the output across lines, as `JSON_PRETTY_PRINT` does; the default is one line. |
 | `{escapeUnicode: …}` | `bool` (default `false`) | Write every non-ASCII character as a `\uXXXX` escape, as `json_encode` does by default; the default here keeps UTF-8 as it is. |
 
-**Returns** `string` — The JSON text. It is a `tainted string` when `$value` can contain text from outside the program. That is a `tainted` string, or a `mixed` or `object` value, anywhere inside it.
+**Returns** `string` — The JSON text.
 
 **Throws** `LogicError` — `$value` holds something JSON cannot spell: a `NaN` or infinite `float`, a value of a type with no JSON encoding, an instance of a class without `#[Json\Derive]`, or nesting past 1024 levels.
 
@@ -12256,11 +12254,11 @@ Every entry of the tree under `$path`, as an `Iterable<string>` of paths relativ
 Core\IO::temporaryDir(): string
 ```
 
-Creates a new, empty, private directory under the root Novis owns — `[io] temp_root`, or a `novis` subdirectory of the platform temporary directory — and answers its path. `sys_get_temp_dir` and `tempnam` in one member, and the directory is made rather than merely named, so there is no window between choosing a name and owning it. Needs the `fs.write` capability **for the path it creates**: the name is chosen first and asked about second, so a configuration granting only the working directory does not reach the temporary root.
+Creates a new, empty, private directory under the root Novis owns — `[io] temp_root`, or the `tmp` folder in the data folder — and answers its path. `sys_get_temp_dir` and `tempnam` in one member, and the directory is made rather than merely named, so there is no window between choosing a name and owning it. Needs the `fs.write` capability **for the path it creates**: the name is chosen first and asked about second, so a configuration granting only the working directory does not reach the temporary root.
 
 **Returns** `string` — The absolute path of a directory that exists, holds nothing, and belongs to this script. The runtime deletes it, and everything in it, when the script ends — after the last user code and whatever the ending was — so a program never has to remember and can never leak one. Removing it early is allowed and is not an error; a file that must outlive its script is storage, not a temporary.
 
-**Throws** `RuntimeError` — The configuration does not grant `fs.write` for the temporary root; the message names the path a grant would have to cover.; `IOError` — The capability allowed it and no directory could be created — the root is full, read-only, or absent.
+**Throws** `RuntimeError` — The configuration does not grant `fs.write` for the temporary root; the message names the path a grant would have to cover.; `IOError` — The capability allowed it and no directory could be created — the root is full, read-only, or absent, or there is no root because `[io] temp_root` is unset and the data folder cannot be used.
 
 <a id="core-core-io-canonicalize"></a>
 #### `Core\IO::canonicalize`
@@ -16309,7 +16307,7 @@ Turns a value into `bytes` that `decode()` can read back. The value can be a num
 |---|---|---|
 | `$value` | `mixed` | The value to turn into bytes. Two places that point to the same object still point to one object after `decode()`. |
 
-**Returns** `bytes` — The bytes. They are `tainted` when `$value` can contain text from outside the program. That is a `tainted` string, or a `mixed` or `object` value, anywhere inside it. Then `decode()` needs `Core\Taint::assertTrustedBytes` first.
+**Returns** `bytes` — The bytes. If `$value` is `tainted`, the bytes are also `tainted`.
 
 **Throws** `LogicError` — `$value` contains a callable, an open file or connection, or an object with a `secret` property. It is also thrown when arrays and objects are nested more than 256 levels deep.
 
@@ -16324,7 +16322,7 @@ Builds the value again from the `bytes` that `encode()` returned. It reads only 
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$payload` | `bytes` (sink) | The bytes that `encode()` returned. If they are `tainted` and your program wrote them itself, call `Core\Taint::assertTrustedBytes` on them first. |
+| `$payload` | `bytes` (sink) | The bytes that `encode()` returned. |
 
 **Returns** `mixed` — The value. An object in it is a new object of the class with the same name in this program, and its constructor does not run.
 
@@ -19140,7 +19138,7 @@ two usually cover the same tree, and reading one for the other is the mistake th
 prevent: what you learn here is routing, never policy.
 
 **The table expands at boot, not per request.** A `scan` glob is resolved against the disk once at
-startup — and again at each configuration reload, in development also under hot reload's revalidation — into
+startup — and again on `nvs ctl reload`, in development also under hot reload's revalidation — into
 ordinary mounts whose paths were each checked to lie inside `[server] root`. So a prefix reaching a
 program is a row an operator wrote, and no path is ever derived from a URL at request time.
 
@@ -20404,7 +20402,7 @@ Writes one log record — the same record, through the same writer, the engine i
 <a id="core-core-taint"></a>
 ### `Core\Taint`
 
-Keywords: taint, tainted, assertTrusted, trust, untrusted input, injection, sanitize, allowlist, escape hatch, validation, assertTrusted, assertTrustedBytes
+Keywords: taint, tainted, assertTrusted, trust, untrusted input, injection, sanitize, allowlist, escape hatch, validation, assertTrusted
 
 `Core\Taint::assertTrusted` answers its operand with the `tainted` qualifier dropped, on your own written
 authority. Every other way out of `tainted` is *sink-named*: `Core\Html::escape` for HTML text,
@@ -20433,7 +20431,6 @@ first, whose answer is still `tainted`, and asserts second; the other order does
 | Member | Signature |
 |---|---|
 | [`Core\Taint::assertTrusted`](#core-core-taint-asserttrusted) | `assertTrusted(string $value, string $reason): string` |
-| [`Core\Taint::assertTrustedBytes`](#core-core-taint-asserttrustedbytes) | `assertTrustedBytes(bytes $value, string $reason): bytes` |
 
 <a id="core-core-taint-asserttrusted"></a>
 #### `Core\Taint::assertTrusted`
@@ -20449,23 +20446,7 @@ Returns a `tainted string` as a plain `string`. Use it only after your own check
 | `$value` | `string` (launder) | The value your program has checked. A plain `string` is also allowed, and the result is the same text. |
 | `$reason` | `string` (neutral) | What was checked, and why the value can be trusted. It is written for the people who read the code. The program never reads it. |
 
-**Returns** `string` — The same text as a plain `string`. Nothing is escaped or removed. A `secret` value does not compile here, so call `Core\Secret::reveal` on it first. For `tainted bytes`, use `assertTrustedBytes()`.
-
-<a id="core-core-taint-asserttrustedbytes"></a>
-#### `Core\Taint::assertTrustedBytes`
-
-```nvs skip
-Core\Taint::assertTrustedBytes(bytes $value, string $reason): bytes
-```
-
-Returns `tainted bytes` as plain `bytes`. Use it after your own check, for example when `Core\Serialize::decode` reads bytes that your program wrote itself.
-
-| Parameter | Type | Meaning |
-|---|---|---|
-| `$value` | `bytes` (launder) | The bytes your program has checked. Plain `bytes` are also allowed, and the result is the same bytes. |
-| `$reason` | `string` (neutral) | What was checked, and why the bytes can be trusted. It is written for the people who read the code. The program never reads it. |
-
-**Returns** `bytes` — The same bytes as plain `bytes`. Nothing is changed. A `secret` value does not compile here, so call `Core\Secret::revealBytes` on it first.
+**Returns** `string` — The same text as a plain `string`. Nothing is escaped or removed. A `secret` value does not compile here, so call `Core\Secret::reveal` on it first.
 
 <a id="core-core-secret"></a>
 ### `Core\Secret`
@@ -26143,22 +26124,13 @@ Opens a directory at a URL the program gives. Needs the `ldap.open` capability f
 <a id="core-core-ldap-connection"></a>
 ### `Core\Ldap\Connection`
 
-Keywords: whoami, authenticate, search, changes, read, add, modify, delete, rename, setPassword, changePassword, compare
+Keywords: whoami, search, read
 
 | Member | Signature |
 |---|---|
 | [`Core\Ldap\Connection->whoami`](#core-core-ldap-connection-whoami) | `whoami(): string` |
-| [`Core\Ldap\Connection->authenticate`](#core-core-ldap-connection-authenticate) | `authenticate(string $login, secret tainted string $password): void` |
-| [`Core\Ldap\Connection->search`](#core-core-ldap-connection-search) | `search(Core\Ldap\Filter $filter, {base?: Core\Ldap\Dn\|string, scope?: Core\Ldap\Scope, select?: array<string>, pageSize?: int, sizeLimit?: int, sort?: string, descending?: bool, offset?: int, window?: int, showDeleted?: bool}): Core\Ldap\Entries` |
-| [`Core\Ldap\Connection->changes`](#core-core-ldap-connection-changes) | `changes(Core\Ldap\Filter $filter, {base?: Core\Ldap\Dn\|string, select?: array<string>, cookie?: tainted bytes}): Core\Ldap\Changes` |
+| [`Core\Ldap\Connection->search`](#core-core-ldap-connection-search) | `search(Core\Ldap\Filter $filter, {base?: Core\Ldap\Dn\|string, scope?: Core\Ldap\Scope, select?: array<string>, pageSize?: int, sizeLimit?: int}): Core\Ldap\Entries` |
 | [`Core\Ldap\Connection->read`](#core-core-ldap-connection-read) | `read(Core\Ldap\Dn\|string $dn, {select?: array<string>}): ?Core\Ldap\Entry` |
-| [`Core\Ldap\Connection->add`](#core-core-ldap-connection-add) | `add(Core\Ldap\Dn\|string $dn, array<mixed> $attributes): void` |
-| [`Core\Ldap\Connection->modify`](#core-core-ldap-connection-modify) | `modify(Core\Ldap\Dn\|string $dn, array<Core\Ldap\Change> $changes): void` |
-| [`Core\Ldap\Connection->delete`](#core-core-ldap-connection-delete) | `delete(Core\Ldap\Dn\|string $dn): void` |
-| [`Core\Ldap\Connection->rename`](#core-core-ldap-connection-rename) | `rename(Core\Ldap\Dn\|string $from, Core\Ldap\Dn\|string $to): void` |
-| [`Core\Ldap\Connection->setPassword`](#core-core-ldap-connection-setpassword) | `setPassword(Core\Ldap\Dn\|string $dn, secret tainted string $password): void` |
-| [`Core\Ldap\Connection->changePassword`](#core-core-ldap-connection-changepassword) | `changePassword(Core\Ldap\Dn\|string $dn, secret tainted string $old, secret tainted string $new): void` |
-| [`Core\Ldap\Connection->compare`](#core-core-ldap-connection-compare) | `compare(Core\Ldap\Dn\|string $dn, string $attribute, mixed $value): bool` |
 
 <a id="core-core-ldap-connection-whoami"></a>
 #### `Core\Ldap\Connection->whoami`
@@ -26173,29 +26145,11 @@ Returns the account the connection is logged in as, as the server reports it.
 
 **Throws** `LogicError` — The connection is closed.; `Core\Ldap\LdapError` — The server did not answer, or it returned an error. `$kind` says why.
 
-<a id="core-core-ldap-connection-authenticate"></a>
-#### `Core\Ldap\Connection->authenticate`
-
-```nvs skip
-$connection->authenticate(string $login, secret tainted string $password): void
-```
-
-Checks a user's login and password. It opens a new connection to the same server, logs in as the user and closes that connection. The connection you call it on stays logged in as before.
-
-| Parameter | Type | Meaning |
-|---|---|---|
-| `$login` | `string` (neutral) | The user's DN, `user@example.test` or `DOMAIN\user`. It can be `tainted`, such as a name from a login form. |
-| `$password` | `secret tainted string` | The user's password. |
-
-**Returns** `void` — Nothing. The login and password are correct when no error is thrown.
-
-**Throws** `LogicError` — The connection is closed.; `Core\Ldap\LdapError` — `$kind` is `InvalidCredentials` for a wrong password and for a user that does not exist, so the error does not show which users exist. An empty login or password is also `InvalidCredentials`, and nothing is sent. Active Directory gives other reasons as their own kinds, such as `AccountDisabled`, `AccountLocked` or `PasswordExpired`.
-
 <a id="core-core-ldap-connection-search"></a>
 #### `Core\Ldap\Connection->search`
 
 ```nvs skip
-$connection->search(Core\Ldap\Filter $filter, {base?: Core\Ldap\Dn|string, scope?: Core\Ldap\Scope, select?: array<string>, pageSize?: int, sizeLimit?: int, sort?: string, descending?: bool, offset?: int, window?: int, showDeleted?: bool}): Core\Ldap\Entries
+$connection->search(Core\Ldap\Filter $filter, {base?: Core\Ldap\Dn|string, scope?: Core\Ldap\Scope, select?: array<string>, pageSize?: int, sizeLimit?: int}): Core\Ldap\Entries
 ```
 
 Finds the entries that match a filter. The server sends the entries in pages, and the next page is read when a `foreach` loop reaches it.
@@ -26208,35 +26162,10 @@ Finds the entries that match a filter. The server sends the entries in pages, an
 | `{select: …}` | `array<string>` (default `null`) | The attributes each entry has, such as `['cn', 'mail']`. Left out, an entry has every attribute the connection's account can read. |
 | `{pageSize: …}` | `int` (default `1000`) | How many entries the server sends at once. The default is 1000. |
 | `{sizeLimit: …}` | `int` (default `0`) | The most entries the search may find. The default, 0, is the server's own limit. |
-| `{sort: …}` | `string` (default `null`, sink) | The attribute the server sorts the entries by, such as `cn`. Left out, the entries come in the server's own order. |
-| `{descending: …}` | `bool` (default `false`) | `true` sorts from the largest value to the smallest. It needs `sort`. The default is `false`. |
-| `{offset: …}` | `int` (default `0`) | How many sorted entries the window skips. It needs `window`. The default is 0. |
-| `{window: …}` | `int` (default `0`) | How many sorted entries to return, starting after `offset`. It needs `sort`. With `{sort: 'cn', offset: 20, window: 10}`, the search returns entries 21 to 30. `total()` then returns how many entries there are in all. The default, 0, returns every entry. |
-| `{showDeleted: …}` | `bool` (default `false`) | `true` also finds deleted entries. Active Directory keeps a deleted entry for some time, with most of its attributes removed. `isDeleted()` checks whether an entry is one of them. The account needs the right to read deleted entries. The default is `false`. |
 
 **Returns** `Core\Ldap\Entries` — A `Core\Ldap\Entries`. Use it in a `foreach` loop to get each `Core\Ldap\Entry`.
 
-**Throws** `LogicError` — A name in `select` or `sort` is not an attribute name, a number is out of range, `window`, `offset` or `descending` is given without the option it needs, the search has no `base`, or the connection is closed.; `Core\Ldap\LdapError` — The server returned an error, such as `NoSuchObject` for a `base` that does not exist. A search that finds more entries than `sizeLimit` throws `SizeLimitExceeded` in the loop.
-
-<a id="core-core-ldap-connection-changes"></a>
-#### `Core\Ldap\Connection->changes`
-
-```nvs skip
-$connection->changes(Core\Ldap\Filter $filter, {base?: Core\Ldap\Dn|string, select?: array<string>, cookie?: tainted bytes}): Core\Ldap\Changes
-```
-
-Finds the entries that changed since the last call, with Active Directory's DirSync. Store the `cookie()` of the result, and give it to the next call. That call returns only the entries that changed after it.
-
-| Parameter | Type | Meaning |
-|---|---|---|
-| `$filter` | `Core\Ldap\Filter` | Which entries to return, such as `Filter::equals('objectClass', 'user')`. |
-| `{base: …}` | `Core\Ldap\Dn\|string` (default `null`, sink) | The root of the domain, as a `Dn` or as text. Left out, it is the `base` of the `[ldap]` block. Active Directory throws an error for any other DN. Text cannot be `tainted`. |
-| `{select: …}` | `array<string>` (default `null`) | The attributes to watch, such as `['cn', 'mail']`. A changed entry has only the attributes that changed. The attributes `filter` uses and `isDeleted` are always watched too. Left out, every attribute is watched. |
-| `{cookie: …}` | `tainted bytes` (default `null`) | The `cookie()` of an earlier result. Left out, the result has every entry that matches `filter`. |
-
-**Returns** `Core\Ldap\Changes` — A `Core\Ldap\Changes`. Use it in a `foreach` loop to get each changed `Core\Ldap\Entry`. A deleted entry has `isDeleted()` set to `true`.
-
-**Throws** `LogicError` — A name in `select` is not an attribute name, there is no `base`, or the connection is closed.; `Core\Ldap\LdapError` — The server returned an error. A server without DirSync throws `Unsupported`.
+**Throws** `LogicError` — A name in `select` is not an attribute name, `pageSize` or `sizeLimit` is out of range, the search has no `base`, or the connection is closed.; `Core\Ldap\LdapError` — The server returned an error, such as `NoSuchObject` for a `base` that does not exist. A search that finds more entries than `sizeLimit` throws `SizeLimitExceeded` in the loop.
 
 <a id="core-core-ldap-connection-read"></a>
 #### `Core\Ldap\Connection->read`
@@ -26256,142 +26185,14 @@ Reads the one entry at a DN.
 
 **Throws** `LogicError` — A name in `select` is not an attribute name, or the connection is closed.; `Core\Ldap\LdapError` — The server returned an error other than "no such entry".
 
-<a id="core-core-ldap-connection-add"></a>
-#### `Core\Ldap\Connection->add`
-
-```nvs skip
-$connection->add(Core\Ldap\Dn|string $dn, array<mixed> $attributes): void
-```
-
-Adds a new entry to the directory.
-
-| Parameter | Type | Meaning |
-|---|---|---|
-| `$dn` | `Core\Ldap\Dn\|string` (sink) | The entry's DN, as a `Dn` or as text. Text cannot be `tainted`. Build a DN from user input with `Dn::of` or `child`. |
-| `$attributes` | `array<mixed>` | The entry's attributes, keyed by name, such as `['objectClass' => ['top', 'group'], 'cn' => 'Staff']`. A value is written in the form the readers of `Entry` return it, and a list writes one value per element. |
-
-**Returns** `void` — Nothing.
-
-**Throws** `LogicError` — An attribute name is not a name, a value has no LDAP form, such as a `float`, or the connection is closed.; `Core\Ldap\LdapError` — The server returned an error. `$kind` says why, such as `NoSuchObject`, `AlreadyExists`, `InsufficientAccess` or `ConstraintViolation`.
-
-<a id="core-core-ldap-connection-modify"></a>
-#### `Core\Ldap\Connection->modify`
-
-```nvs skip
-$connection->modify(Core\Ldap\Dn|string $dn, array<Core\Ldap\Change> $changes): void
-```
-
-Changes the attributes of one entry. The server makes every change in the list, in order, or none of them.
-
-| Parameter | Type | Meaning |
-|---|---|---|
-| `$dn` | `Core\Ldap\Dn\|string` (sink) | The entry's DN, as a `Dn` or as text. Text cannot be `tainted`. Build a DN from user input with `Dn::of` or `child`. |
-| `$changes` | `array<Core\Ldap\Change>` | The changes, each made with `Change::add`, `remove`, `removeAll` or `replace`. The list cannot be empty. |
-
-**Returns** `void` — Nothing.
-
-**Throws** `LogicError` — An attribute name is not a name, a value has no LDAP form, such as a `float`, or the connection is closed.; `Core\Ldap\LdapError` — The server returned an error. `$kind` says why, such as `NoSuchObject`, `AlreadyExists`, `InsufficientAccess` or `ConstraintViolation`.
-
-<a id="core-core-ldap-connection-delete"></a>
-#### `Core\Ldap\Connection->delete`
-
-```nvs skip
-$connection->delete(Core\Ldap\Dn|string $dn): void
-```
-
-Deletes one entry. An entry with entries below it cannot be deleted.
-
-| Parameter | Type | Meaning |
-|---|---|---|
-| `$dn` | `Core\Ldap\Dn\|string` (sink) | The entry's DN, as a `Dn` or as text. Text cannot be `tainted`. Build a DN from user input with `Dn::of` or `child`. |
-
-**Returns** `void` — Nothing.
-
-**Throws** `LogicError` — An attribute name is not a name, a value has no LDAP form, such as a `float`, or the connection is closed.; `Core\Ldap\LdapError` — The server returned an error. `$kind` says why, such as `NoSuchObject`, `AlreadyExists`, `InsufficientAccess` or `ConstraintViolation`.
-
-<a id="core-core-ldap-connection-rename"></a>
-#### `Core\Ldap\Connection->rename`
-
-```nvs skip
-$connection->rename(Core\Ldap\Dn|string $from, Core\Ldap\Dn|string $to): void
-```
-
-Gives an entry a new DN. The entry moves when the new DN has another parent.
-
-| Parameter | Type | Meaning |
-|---|---|---|
-| `$from` | `Core\Ldap\Dn\|string` (sink) | The entry's DN now, as a `Dn` or as text. Text cannot be `tainted`. |
-| `$to` | `Core\Ldap\Dn\|string` (sink) | The entry's new DN, such as `CN=Shop,OU=Groups,DC=example,DC=test`. Text cannot be `tainted`. |
-
-**Returns** `void` — Nothing.
-
-**Throws** `LogicError` — `from` or `to` is text that is not a DN, or the connection is closed.; `Core\Ldap\LdapError` — The server returned an error, such as `NoSuchObject` or `AlreadyExists`.
-
-<a id="core-core-ldap-connection-setpassword"></a>
-#### `Core\Ldap\Connection->setPassword`
-
-```nvs skip
-$connection->setPassword(Core\Ldap\Dn|string $dn, secret tainted string $password): void
-```
-
-Sets a new password for a user account, as an administrator does. It works only over TLS.
-
-| Parameter | Type | Meaning |
-|---|---|---|
-| `$dn` | `Core\Ldap\Dn\|string` (sink) | The user account's DN, as a `Dn` or as text. Text cannot be `tainted`. |
-| `$password` | `secret tainted string` | The new password. |
-
-**Returns** `void` — Nothing.
-
-**Throws** `LogicError` — `dn` is text that is not a DN, or the connection is closed.; `Core\Ldap\LdapError` — `$kind` is `EncryptionRequired` when the connection does not use TLS. Nothing is sent then. It is `PasswordPolicy` when the domain does not accept the new password, and another kind for any other error the server returns.
-
-<a id="core-core-ldap-connection-changepassword"></a>
-#### `Core\Ldap\Connection->changePassword`
-
-```nvs skip
-$connection->changePassword(Core\Ldap\Dn|string $dn, secret tainted string $old, secret tainted string $new): void
-```
-
-Changes the password of a user account from `$old` to `$new`, as the user does. The server checks `$old` and the password history. It works only over TLS.
-
-| Parameter | Type | Meaning |
-|---|---|---|
-| `$dn` | `Core\Ldap\Dn\|string` (sink) | The user account's DN, as a `Dn` or as text. Text cannot be `tainted`. |
-| `$old` | `secret tainted string` | The password the account has now. |
-| `$new` | `secret tainted string` | The new password. |
-
-**Returns** `void` — Nothing.
-
-**Throws** `LogicError` — `dn` is text that is not a DN, or the connection is closed.; `Core\Ldap\LdapError` — `$kind` is `EncryptionRequired` when the connection does not use TLS. Nothing is sent then. It is `PasswordPolicy` when the domain does not accept the new password, and another kind for any other error the server returns.
-
-<a id="core-core-ldap-connection-compare"></a>
-#### `Core\Ldap\Connection->compare`
-
-```nvs skip
-$connection->compare(Core\Ldap\Dn|string $dn, string $attribute, mixed $value): bool
-```
-
-Checks whether an entry has a value. The server compares the value by the rules of the attribute, so `staff` matches `Staff` in a name.
-
-| Parameter | Type | Meaning |
-|---|---|---|
-| `$dn` | `Core\Ldap\Dn\|string` (sink) | The entry's DN, as a `Dn` or as text. Text cannot be `tainted`. Build a DN from user input with `Dn::of` or `child`. |
-| `$attribute` | `string` (sink) | The attribute's name, such as `department`. It cannot be `tainted`. |
-| `$value` | `mixed` | One value, in any form a write accepts, such as a `string`, an `int` or a `Dn`. |
-
-**Returns** `bool` — `true` when the entry has the value, and `false` when it does not.
-
-**Throws** `LogicError` — `attribute` is not an attribute name, `value` is `null`, a list or has no LDAP form, or the connection is closed.; `Core\Ldap\LdapError` — The server returned an error. `$kind` is `NoSuchObject` when there is no entry with this DN.
-
 <a id="core-core-ldap-entries"></a>
 ### `Core\Ldap\Entries`
 
-Keywords: references, total
+Keywords: references
 
 | Member | Signature |
 |---|---|
 | [`Core\Ldap\Entries->references`](#core-core-ldap-entries-references) | `references(): array<tainted string>` |
-| [`Core\Ldap\Entries->total`](#core-core-ldap-entries-total) | `total(): ?int` |
 
 <a id="core-core-ldap-entries-references"></a>
 #### `Core\Ldap\Entries->references`
@@ -26404,54 +26205,18 @@ Returns the URLs of other servers that the server named for this search. Novis d
 
 **Returns** `array<tainted string>` — The URLs in the order the server sent them. The list is complete after the loop ends, and it is empty when the server named no other server.
 
-<a id="core-core-ldap-entries-total"></a>
-#### `Core\Ldap\Entries->total`
-
-```nvs skip
-$entries->total(): ?int
-```
-
-Returns how many entries the whole sorted search found, when the search used the `window` option. The server counts them, so you can show a page number such as "page 3 of 12".
-
-**Returns** `?int` — The number of entries, or `null` when the search did not use `window`.
-
-<a id="core-core-ldap-changes"></a>
-### `Core\Ldap\Changes`
-
-Keywords: cookie
-
-| Member | Signature |
-|---|---|
-| [`Core\Ldap\Changes->cookie`](#core-core-ldap-changes-cookie) | `cookie(): tainted bytes` |
-
-<a id="core-core-ldap-changes-cookie"></a>
-#### `Core\Ldap\Changes->cookie`
-
-```nvs skip
-$changes->cookie(): tainted bytes
-```
-
-Returns the cookie for the next call to `changes`. Store it, for example in a database, after the loop ends. If you stop the loop early, the cookie covers only the entries you read, so the next call returns the others again.
-
-**Returns** `tainted bytes` — The cookie. It is `tainted`, because the server sent it.
-
-**Throws** `LogicError` — The connection is closed.
-
 <a id="core-core-ldap-entry"></a>
 ### `Core\Ldap\Entry`
 
-Keywords: dn, has, isDeleted, string, strings, bytes, int, bool, uuid, sid, sids, instant, duration, accountFlags, groupType, accountType, toArray
+Keywords: dn, has, string, strings, bytes, uuid, sid, sids, instant, duration, accountFlags, groupType, accountType, toArray
 
 | Member | Signature |
 |---|---|
 | [`Core\Ldap\Entry->dn`](#core-core-ldap-entry-dn) | `dn(): Core\Ldap\Dn` |
 | [`Core\Ldap\Entry->has`](#core-core-ldap-entry-has) | `has(string $name): bool` |
-| [`Core\Ldap\Entry->isDeleted`](#core-core-ldap-entry-isdeleted) | `isDeleted(): bool` |
 | [`Core\Ldap\Entry->string`](#core-core-ldap-entry-string) | `string(string $name): ?tainted string` |
 | [`Core\Ldap\Entry->strings`](#core-core-ldap-entry-strings) | `strings(string $name): ?array<tainted string>` |
 | [`Core\Ldap\Entry->bytes`](#core-core-ldap-entry-bytes) | `bytes(string $name): ?tainted bytes` |
-| [`Core\Ldap\Entry->int`](#core-core-ldap-entry-int) | `int(string $name): ?int` |
-| [`Core\Ldap\Entry->bool`](#core-core-ldap-entry-bool) | `bool(string $name): ?bool` |
 | [`Core\Ldap\Entry->uuid`](#core-core-ldap-entry-uuid) | `uuid(string $name): ?Core\Uuid` |
 | [`Core\Ldap\Entry->sid`](#core-core-ldap-entry-sid) | `sid(string $name): ?Core\Ldap\Sid` |
 | [`Core\Ldap\Entry->sids`](#core-core-ldap-entry-sids) | `sids(string $name): ?array<Core\Ldap\Sid>` |
@@ -26489,17 +26254,6 @@ Checks whether the entry has a value for an attribute.
 | `$name` | `string` (neutral) | The attribute's name, such as `mail`. Upper and lower case are the same. |
 
 **Returns** `bool` — `true` when the entry has the attribute, and `false` when it does not or the search did not select it.
-
-<a id="core-core-ldap-entry-isdeleted"></a>
-#### `Core\Ldap\Entry->isDeleted`
-
-```nvs skip
-$entry->isDeleted(): bool
-```
-
-Checks whether the entry is a deleted entry. Only a search with `showDeleted: true` finds deleted entries.
-
-**Returns** `bool` — `true` when the entry's `isDeleted` attribute is `TRUE`, and `false` otherwise.
 
 <a id="core-core-ldap-entry-string"></a>
 #### `Core\Ldap\Entry->string`
@@ -26551,40 +26305,6 @@ Returns the one value of an attribute as bytes, exactly as the server sent it. U
 **Returns** `?tainted bytes` — The value, or `null` when the entry has no value for the attribute.
 
 **Throws** `LogicError` — The attribute has more than one value.
-
-<a id="core-core-ldap-entry-int"></a>
-#### `Core\Ldap\Entry->int`
-
-```nvs skip
-$entry->int(string $name): ?int
-```
-
-Returns a number attribute, such as `logonCount` or `primaryGroupID`, as an `int`.
-
-| Parameter | Type | Meaning |
-|---|---|---|
-| `$name` | `string` (neutral) | The attribute's name, such as `mail`. Upper and lower case are the same. |
-
-**Returns** `?int` — The number, or `null` when the entry has no value for the attribute.
-
-**Throws** `LogicError` — The attribute has more than one value, or its value is not a whole number, or the number is too large for an `int`. The message names the attribute.
-
-<a id="core-core-ldap-entry-bool"></a>
-#### `Core\Ldap\Entry->bool`
-
-```nvs skip
-$entry->bool(string $name): ?bool
-```
-
-Returns a yes-or-no attribute, such as `isCriticalSystemObject`, as a `bool`. The directory writes these values as `TRUE` and `FALSE`.
-
-| Parameter | Type | Meaning |
-|---|---|---|
-| `$name` | `string` (neutral) | The attribute's name, such as `mail`. Upper and lower case are the same. |
-
-**Returns** `?bool` — `true` for `TRUE`, `false` for `FALSE`, or `null` when the entry has no value for the attribute.
-
-**Throws** `LogicError` — The attribute has more than one value, or its value is not `TRUE` or `FALSE`. The message names the attribute.
 
 <a id="core-core-ldap-entry-uuid"></a>
 #### `Core\Ldap\Entry->uuid`
@@ -26900,7 +26620,7 @@ Matches the entries that every one of the filters matches.
 
 **Returns** `Core\Ldap\Filter` — A `Core\Ldap\Filter`.
 
-**Throws** `LogicError` — No filter is given, or the new filter has more than 100 levels of `all`, `any` and `not` inside each other.
+**Throws** `LogicError` — No filter is given.
 
 <a id="core-core-ldap-filter-any"></a>
 #### `Core\Ldap\Filter::any`
@@ -26917,7 +26637,7 @@ Matches the entries that at least one of the filters matches.
 
 **Returns** `Core\Ldap\Filter` — A `Core\Ldap\Filter`.
 
-**Throws** `LogicError` — No filter is given, or the new filter has more than 100 levels of `all`, `any` and `not` inside each other.
+**Throws** `LogicError` — No filter is given.
 
 <a id="core-core-ldap-filter-not"></a>
 #### `Core\Ldap\Filter::not`
@@ -26934,8 +26654,6 @@ Matches the entries that the filter does not match.
 
 **Returns** `Core\Ldap\Filter` — A `Core\Ldap\Filter`.
 
-**Throws** `LogicError` — The new filter has more than 100 levels of `all`, `any` and `not` inside each other.
-
 <a id="core-core-ldap-filter-parse"></a>
 #### `Core\Ldap\Filter::parse`
 
@@ -26951,7 +26669,7 @@ Reads LDAP filter text, such as `(&(objectClass=user)(cn=Ann))`, and returns the
 
 **Returns** `Core\Ldap\Filter` — A `Core\Ldap\Filter`. Its `toString` returns text that `parse` reads back as the same filter.
 
-**Throws** `LogicError` — The text is not a filter, it has a name that is not an attribute name, or it has more than 100 levels of filters inside each other. The message gives the position of the first wrong character.
+**Throws** `LogicError` — The text is not a filter, or it has a name that is not an attribute name. The message gives the position of the first wrong character.
 
 <a id="core-core-ldap-filter-tostring"></a>
 #### `Core\Ldap\Filter->toString`
@@ -26963,89 +26681,6 @@ $filter->toString(): tainted string
 Returns the filter as LDAP filter text, such as `(&(objectClass=user)(cn=Ann))`. Use it to write the filter to a log. A search does not use this text.
 
 **Returns** `tainted string` — The text. A `*`, `(`, `)` or `\` in a value is written as `\` and two hex digits. The text is `tainted`, because a value in the filter may be.
-
-<a id="core-core-ldap-change"></a>
-### `Core\Ldap\Change`
-
-Keywords: add, remove, removeAll, replace
-
-| Member | Signature |
-|---|---|
-| [`Core\Ldap\Change::add`](#core-core-ldap-change-add) | `add(string $attribute, mixed $value): Core\Ldap\Change` |
-| [`Core\Ldap\Change::remove`](#core-core-ldap-change-remove) | `remove(string $attribute, mixed $value): Core\Ldap\Change` |
-| [`Core\Ldap\Change::removeAll`](#core-core-ldap-change-removeall) | `removeAll(string $attribute): Core\Ldap\Change` |
-| [`Core\Ldap\Change::replace`](#core-core-ldap-change-replace) | `replace(string $attribute, mixed $value): Core\Ldap\Change` |
-
-<a id="core-core-ldap-change-add"></a>
-#### `Core\Ldap\Change::add`
-
-```nvs skip
-Core\Ldap\Change::add(string $attribute, mixed $value): Core\Ldap\Change
-```
-
-Adds values to an attribute. The entry must not have them yet.
-
-| Parameter | Type | Meaning |
-|---|---|---|
-| `$attribute` | `string` (sink) | The attribute's name, such as `description`. It cannot be `tainted`. |
-| `$value` | `mixed` | One value, or a list of values. A value is written in the form the readers of `Entry` return it, such as an `int`, a `Uuid` or an `Instant`. |
-
-**Returns** `Core\Ldap\Change` — The change.
-
-**Throws** `LogicError` — `attribute` is not an attribute name.
-
-<a id="core-core-ldap-change-remove"></a>
-#### `Core\Ldap\Change::remove`
-
-```nvs skip
-Core\Ldap\Change::remove(string $attribute, mixed $value): Core\Ldap\Change
-```
-
-Removes values from an attribute. The entry must have them.
-
-| Parameter | Type | Meaning |
-|---|---|---|
-| `$attribute` | `string` (sink) | The attribute's name, such as `description`. It cannot be `tainted`. |
-| `$value` | `mixed` | One value, or a list of values. A value is written in the form the readers of `Entry` return it, such as an `int`, a `Uuid` or an `Instant`. |
-
-**Returns** `Core\Ldap\Change` — The change.
-
-**Throws** `LogicError` — `attribute` is not an attribute name.
-
-<a id="core-core-ldap-change-removeall"></a>
-#### `Core\Ldap\Change::removeAll`
-
-```nvs skip
-Core\Ldap\Change::removeAll(string $attribute): Core\Ldap\Change
-```
-
-Removes an attribute and every value it has.
-
-| Parameter | Type | Meaning |
-|---|---|---|
-| `$attribute` | `string` (sink) | The attribute's name, such as `description`. It cannot be `tainted`. |
-
-**Returns** `Core\Ldap\Change` — The change.
-
-**Throws** `LogicError` — `attribute` is not an attribute name.
-
-<a id="core-core-ldap-change-replace"></a>
-#### `Core\Ldap\Change::replace`
-
-```nvs skip
-Core\Ldap\Change::replace(string $attribute, mixed $value): Core\Ldap\Change
-```
-
-Replaces every value of an attribute. With `null` or an empty list, the attribute is removed.
-
-| Parameter | Type | Meaning |
-|---|---|---|
-| `$attribute` | `string` (sink) | The attribute's name, such as `description`. It cannot be `tainted`. |
-| `$value` | `mixed` | One value, or a list of values. A value is written in the form the readers of `Entry` return it, such as an `int`, a `Uuid` or an `Instant`. |
-
-**Returns** `Core\Ldap\Change` — The change.
-
-**Throws** `LogicError` — `attribute` is not an attribute name.
 
 <a id="core-core-ldap-dn"></a>
 ### `Core\Ldap\Dn`
@@ -29960,10 +29595,12 @@ usually one file:
 | `nvs agent <verb>` | the same registry for a coding agent: a primer, an index, a search, one card — and the pointers `init` installs |
 | `nvs ast [--json] <file>` | parse one file and print its syntax tree |
 
-Every subcommand also takes `--config <PATH>` (see `nvs run`) and `-h`/`--help`. Every operation is
-a subcommand: there is no `-i`, `-a`, `-r`, `-f` or lowercase `-v`.
+Every subcommand also takes `--config <PATH>` (see `nvs run`), `--data <PATH>` and `-h`/`--help`.
+`--data` names the data folder, where Novis keeps its own files (see
+[Installing on a host](#tools-install)). Every operation is a subcommand: there is no `-i`, `-a`,
+`-r`, `-f` or lowercase `-v`.
 
-**In other chapters:** `nvs serve` and `nvs service` are in
+**In other chapters:** `nvs serve`, `nvs ctl` and `nvs service` are in
 [the server chapter](#tools-server); `nvs lsp` and `nvs lsp-test` are in
 [the editor chapter](#tools-editor).
 
@@ -30001,12 +29638,17 @@ E0229
 otherwise compiles and runs it with the current directory as its working directory. Before running
 it reads the configuration:
 
-- `./nvs.toml` in the working directory, if there is one. A missing file is not an error — the
-  program runs with an empty configuration.
-- `--config <path>` names a file to read *instead*: naming one disables the `./nvs.toml` lookup
-  entirely. Repeat the flag to read several files in order; a named file that does not exist
-  refuses the run (`E0605`). Relative paths inside a configuration file resolve against that file's
-  own directory. The configuration chapter has the file format.
+- `./nvs.toml` in the working directory, if there is one.
+- If there is none, `nvs.toml` in the data folder. The data folder is `.nvsdata` next to the `nvs`
+  program, or the folder that `--data` names.
+- If neither file exists, `nvs run` writes `nvs.toml` into the data folder and reads it. Every key
+  in that file is commented out, so the program runs with an empty configuration. `--no-init`, or
+  the environment variable `NOVIS_NO_INIT`, stops `nvs run` from writing the file. `nvs run` never
+  writes a file into the working directory.
+- `--config <path>` names a file to read *instead*. Then `nvs run` reads neither `nvs.toml`. Repeat
+  the flag to read several files in order. A named file that does not exist stops the run with
+  `E0605`. Relative paths inside a configuration file start at that file's own directory. The
+  configuration chapter has the file format.
 
 Two debugging flags replace running with printing: `--dump-ir` prints the lowered intermediate
 representation of every function in the program, and `--dump-asm` prints the generated machine
@@ -30247,15 +29889,16 @@ total: 420 MB
 - Running the bundle runs the program. **Its whole command line belongs to the program**: a bundle
   never interprets `run`, `check`, `--help` or any other `nvs` argument, so an application whose
   first argument happens to be `run` keeps it.
-- A bundle still reads `./nvs.toml` from the directory it is *run in*, exactly like `nvs run`, and
-  a malformed one refuses the run. Ship the configuration beside it or run it from a directory that
-  has none.
+- A bundle reads `./nvs.toml` from the directory it is *run in*. If there is none, it reads
+  `nvs.toml` in the `.nvsdata` folder next to the bundle. A file with an error stops the run. A
+  bundle never writes a `nvs.toml`. Ship the configuration beside it, or run it from a directory
+  that has none.
 - Files reached only through `autoload` at run time, or opened with `Core\IO`, are not in the
   bundle: it carries the static `require` graph and nothing else.
 - Each `.nvsx` file that the build's configuration lists under `[[extension]]` goes into the
   bundle, with its `sha256` and its `grants`. The bundle checks each `sha256` when it starts and
-  loads these extensions before the ones in `./nvs.toml`. A file that does not match its `sha256`
-  stops the build.
+  loads these extensions before the ones in the configuration file it reads. A file that does not
+  match its `sha256` stops the build.
 
 ### nvs build --openapi
 
@@ -30308,8 +29951,9 @@ additive: paths./users.get.query.q — optional parameter added
     nvs config dump [files]... [--origin] [--toml]
 
 Both read the configuration tree offline and run nothing, so a tree can be validated in CI before
-it is deployed. With no files named they read `./nvs.toml` (and nothing, successfully, when there
-is none); naming files positionally is the same as `--config`.
+it is deployed. With no files named they read `./nvs.toml`. If there is none, they read `nvs.toml` in
+the data folder. If there is neither, they report an empty configuration, which is not an error.
+Naming files positionally is the same as `--config`. Neither command creates the data folder.
 
 - `config check` resolves the whole tree — includes, `[[app]]` blocks, secrets — and prints one
   line: `ok: 2 files, 4 directives set, 1 override, 0 warnings`. It exits `1` on anything the tree
@@ -30421,8 +30065,9 @@ $ nvs ext test
   0 failed, 1 passed, 0 skipped, 0 flaky in 1 ms
 ```
 
-- The command does not read `./nvs.toml`. Without `--config`, the extension gets no folders and no
-  hosts. Name a configuration with `--config` to test with the grants it gives.
+- The command does not read `./nvs.toml` or the `nvs.toml` in the data folder. Without `--config`,
+  the extension gets no folders and no hosts. Name a configuration with `--config` to test with the
+  grants it gives.
 - If the configuration lists the `.nvsx` file with another `sha256`, the command stops with an
   error that names both values.
 - If a file of the project changed after the last `nvs ext build`, the command stops with an error.
@@ -30537,9 +30182,8 @@ environment — so an entry is never stale and never needs clearing. `nvs run` a
 read and write it.
 
 `[opcache] file_cache_dir` names the directory, and `[opcache] file_cache = false` turns the cache
-off. With no directory named it is `novis\opcache` under `%LOCALAPPDATA%` on Windows, and
-`novis/opcache` under `$XDG_CACHE_HOME` or `~/.cache` elsewhere. `[cache] dir` is not a key: it is
-refused with `E0601`.
+off. With no directory named, the cache is the `cache` folder in the data folder. `[cache] dir` is
+not a key: it stops the run with `E0601`.
 
 ```toml
 [opcache]
@@ -30555,11 +30199,40 @@ permissions that pass.
 <a id="tools-install"></a>
 ## C.2 Installing on a host: folders and permissions
 
-Keywords: install, installation, setup, deploy, deployment, server, host, folder, directory, permissions, ACL, DACL, icacls, chmod, chown, owner, ownership, Authenticated Users, Users, Everyone, SID, S-1-5-11, S-1-5-32-545, inheritance, E0607, access denied, os error 5, nvs init, nvs serve, --config, file_cache_dir, opcache, cache, log, logs, log target, Windows, Linux, PATH, service account, elevated prompt, administrator
+Keywords: install, installation, setup, deploy, deployment, server, host, folder, directory, permissions, ACL, DACL, icacls, chmod, chown, owner, ownership, Authenticated Users, Users, Everyone, SID, S-1-5-11, S-1-5-32-545, inheritance, E0607, access denied, os error 5, nvs init, nvs serve, --config, --data, data folder, .nvsdata, file_cache_dir, opcache, cache, log, logs, log target, Windows, Linux, PATH, service account, elevated prompt, administrator
 
 ### The layout
 
-A host needs four folders. They can have any names and be anywhere.
+#### The data folder
+
+Novis keeps its own files in one folder, the **data folder**. By default it is the folder `.nvsdata`
+next to the `nvs` program. The option `--data <folder>` names another folder. Every command accepts
+it, and a relative path starts at the current folder.
+
+| In the data folder | Contains | The setting that moves it |
+|---|---|---|
+| `nvs.toml` | the configuration file that `nvs` reads when the current folder has no `nvs.toml` | `--config` |
+| `cache` | compiled programs | `[opcache] file_cache_dir` |
+| `tmp` | the folders that `Core\IO::temporaryDir` creates | `[io] temp_root` |
+| `lsp` | files for the editor | the editor's `nvs.stubs.dir` setting |
+
+`nvs run`, `nvs serve`, `nvs test`, `nvs build`, `nvs check` and `nvs lsp` create the data folder
+and its three subfolders when they do not exist. When `nvs` creates the folder, only the account
+that runs `nvs` can open it. On Windows, `Administrators` and `SYSTEM` can open it too. Other
+commands, such as `nvs config check`, never create it.
+
+If `nvs` cannot create or use the data folder, it prints one warning and runs without it. Programs
+then run without the compile cache, and `Core\IO::temporaryDir` throws an error. This happens when
+the `nvs` program is in a folder that your account cannot write to, for example `/usr/local/bin`.
+Pass `--data` with a folder that only your account can change.
+
+`nvs test` and `nvs lsp-test` need a folder for temporary files. Without a usable data folder and
+without `[io] temp_root`, they stop with an error.
+
+#### Folders you choose yourself
+
+On a server you can choose each folder yourself. A host then needs four folders. They can have any
+names and be anywhere.
 
 | Folder | Contains | Who writes to it | Who reads it |
 |---|---|---|---|
@@ -30602,7 +30275,8 @@ prefix = "/{1:lower}"
 
 `nvs init` writes a `nvs.toml` in which every key is present and commented out. Without `--config`
 it writes `nvs.toml` into the current directory. The folder must already exist, and an existing
-file is never overwritten.
+file is never overwritten. `nvs run` and the other commands never write into the current directory.
+When they find no configuration file, they write the same file into the data folder.
 
 Each key's line ends with a short note. `# default` means the value shown is what Novis uses when
 the key is not set, so removing the `#` changes nothing. `# default: no cap` (or `off`, or another
@@ -30643,8 +30317,9 @@ This is what each command checks:
 
 | Command | Checks | If the check fails |
 |---|---|---|
-| `nvs serve`, at the start and at each reload | every configuration file, and the folder that contains it | the server does not start, or it keeps its configuration and logs `E0607` |
+| `nvs serve`, `nvs ctl reload` | every configuration file, and the folder that contains it | the server does not start, or the reload is refused, with `E0607` |
 | `nvs init` | the folder it writes into, **and the folder that contains that folder** | nothing is written and the exit status is `1` |
+| `nvs run`, `nvs serve`, `nvs test`, `nvs build`, `nvs check`, `nvs lsp` | the data folder. For a folder that `--data` names, **also the folder that contains it** | one `warning:` line. The command runs without the data folder |
 | every command that compiles a program | the cache folder, **and the folder that contains it** | a `warning:` line when `file_cache_dir` is set. The program runs, and it is compiled again on every start |
 
 `nvs run`, `nvs check`, `nvs test` and `nvs config check` do not check the configuration files.
@@ -30652,6 +30327,10 @@ This is what each command checks:
 The check on the cache folder and in `nvs init` also looks at the folder one level up. If
 `D:\srv\novis\config` has the correct permissions and `D:\srv\novis` does not, the message names
 `D:\srv\novis`. That is the folder to change.
+
+The default data folder, `.nvsdata` next to `nvs`, is the one exception. The folder that contains it
+is the folder of the `nvs` program, and Novis does not check that folder. An account that can change
+that folder can already replace `nvs` itself.
 
 The log folder is not checked.
 
@@ -30746,6 +30425,7 @@ folder you were working in.
 | `Access is denied` or `Permission denied` (`os error 5`, `os error 13`) | the permissions are strict enough, and **your** account cannot write there | use an administrator prompt or `sudo`, or give your account the right |
 | `... it already exists, and it is never overwritten` | `nvs init` found a file at that path | edit the file, or delete it and run `nvs init` again |
 | `warning: [opcache] file_cache_dir ... is not used` | the cache folder, or the folder that contains it, failed the check | fix the named path. Until then the program works and starts more slowly |
+| `warning: Novis cannot use its data folder ...` | the data folder could not be created, or it failed the check | fix the named folder, or pass `--data` with a folder that only your account can change. Until then programs run without the compile cache |
 
 <a id="tools-config"></a>
 ## C.3 Configuration: nvs.toml, limits and capabilities
@@ -30757,11 +30437,16 @@ Keywords: nvs.toml, configuration, config, TOML, limits, memory_limit, max_execu
 Configuration is one TOML file, `nvs.toml`. There is no `php.ini`, no `.htaccess`, no environment
 variable and no command-line switch that sets a directive: what the file says is what is in force.
 
-- `nvs run`, `nvs test` and a bundled executable read `./nvs.toml` from the **working directory**
-  — not from the program's directory. No file means an empty configuration, which is complete and
-  valid: nothing is limited, nothing is granted.
-- `--config <path>` (on any subcommand) names the file to read instead and switches the
-  `./nvs.toml` lookup off. Repeat it to read several files in order.
+- `nvs` reads `./nvs.toml` from the **working directory**. It does not look in the program's
+  directory.
+- If there is no `./nvs.toml`, `nvs` reads `nvs.toml` in the data folder. The data folder is
+  `.nvsdata` next to the `nvs` program, or the folder that `--data` names.
+- If neither file exists, the configuration is empty. An empty configuration is complete and valid:
+  nothing is limited, and nothing is granted. `nvs run`, `nvs serve`, `nvs test`, `nvs build` and
+  `nvs check` then write `nvs.toml` into the data folder, with every key commented out. You can edit
+  that file. `--no-init` stops them from writing it.
+- `--config <path>` (on any subcommand) names the file to read instead. Then `nvs` reads neither
+  `nvs.toml`. Repeat it to read several files in order.
 - Every relative path inside a file — an include, a capability root, an `[[app]]` key, a secret
   file — resolves against the directory of the file it is written in.
 - A key the binary does not know refuses the run before the program starts (`E0601`), naming the
@@ -30806,7 +30491,7 @@ accepts — anything else is `E0601`:
 | `[log]` | `handler`, `handler_reserve_memory`, `handler_reserve_time`, `target`, `format`, `level` |
 | `[http]` | `[http.errors] detail`; `[http.headers]`; `[http.cors]`; `[http.cookies]`; `[http.client]` |
 | `[server]`, `[[server.mount]]` | the web server's listen addresses, timeouts and mounts |
-| `[debug]`, `[metrics]`, `[trace]`, `[opcache]`, `[deferred]` | their named directives |
+| `[debug]`, `[metrics]`, `[trace]`, `[control]`, `[opcache]`, `[deferred]` | their named directives |
 | `[[extension]]`, `[[schedule]]` | extension paths; scheduled scripts |
 | `[ext.<name>]` | the settings of one extension. The extension's manifest lists the keys and their types. A key it does not list, or a block no loaded extension uses, stops the server from starting |
 
@@ -31356,6 +31041,7 @@ the file by itself, or only at its next start. Only `[server] listen`, `socket_m
 | `cache.shared` | operator only — a request cannot change it | at reload |
 | `cache.local` | operator only — a request cannot change it | at reload |
 | `cache.process` | operator only — a request cannot change it | at reload |
+| `control.socket` | operator only — a request cannot change it | at reload |
 | `io.temp_root` | operator only — a request cannot change it | at reload |
 | `image.max_pixels` | operator only — a request cannot change it | at reload |
 | `debug.keep_temporary` | operator only — a request cannot change it | at reload |
@@ -31402,7 +31088,7 @@ limits.wall_time       = "30s"
 <a id="tools-server"></a>
 ## C.4 The HTTP server
 
-Keywords: nvs serve, server, HTTP, disconnect, client disconnect, client goes away, cancel_on_disconnect, disconnect_grace, ignore_user_abort, restart, restart required, deploy, hot reload, zero downtime, symlink, settle, revalidate_freq, listen, port, --listen, --port, [server], [[server.mount]], mount, prefix, host, scan, entry, origin, root, dispatch, static, static files, trusted_proxies, X-Forwarded-For, X-Forwarded-Proto, client IP, health_path, health check, max_in_flight, workers, timeout, drain, drain_timeout, graceful shutdown, reload, nvs service, service, systemd, Windows service, Core\Request::mount, Core\Request\Mount, Core\Router::url, multi-tenant, subdirectory, virtual host, front controller, try_files, php -S, php-fpm, nginx, Apache, .htaccess, RewriteBase, SCRIPT_NAME, PATH_INFO, DocumentRoot
+Keywords: nvs serve, server, HTTP, disconnect, client disconnect, client goes away, cancel_on_disconnect, disconnect_grace, ignore_user_abort, restart, restart required, deploy, hot reload, zero downtime, symlink, settle, revalidate_freq, listen, port, --listen, --port, [server], [[server.mount]], mount, prefix, host, scan, entry, origin, root, dispatch, static, static files, trusted_proxies, X-Forwarded-For, X-Forwarded-Proto, client IP, health_path, health check, max_in_flight, workers, timeout, drain, drain_timeout, graceful shutdown, reload, nvs ctl, control socket, nvs service, service, systemd, Windows service, Core\Request::mount, Core\Request\Mount, Core\Router::url, multi-tenant, subdirectory, virtual host, front controller, try_files, php -S, php-fpm, nginx, Apache, .htaccess, RewriteBase, SCRIPT_NAME, PATH_INFO, DocumentRoot
 
 ### nvs serve
 
@@ -31429,8 +31115,8 @@ What is served depends on the file named and on whether the configuration writes
 
 `--listen` replaces `[server] listen` for this run, and `--port` keeps the host the file chose and
 replaces the port; the two are not combined. `--config` reads a configuration file instead of
-`./nvs.toml` (the configuration chapter). With nothing written anywhere the server listens on
-`127.0.0.1:8000`.
+`./nvs.toml` and the `nvs.toml` in the data folder (the configuration chapter). With nothing written
+anywhere the server listens on `127.0.0.1:8000`.
 
 ### The `[server]` block
 
@@ -31622,23 +31308,18 @@ A change that does not compile fails the requests that reach it, with its diagno
 does not serve the last version that compiled in its place. When the file is fixed, the next check
 finds the fix.
 
-**A configuration change.** The server checks its own configuration files every two seconds. When
-you save a file, the server reads all of its configuration files again and checks them. Then the next
-request uses the new configuration. Every reload writes one `configuration reloaded` line to the log.
-Its `applied` field lists the keys that changed. Its `ignored` field lists the changed keys that need
-a restart. `invalidated` is the number of compiled program files that the server compiles again.
-
-A file with an error changes nothing. The server writes `configuration reload refused` to the log
-once, with the error and its line, and keeps the configuration it has. A saved file is the only
-thing that starts a reload. No signal and no command from a service manager starts one.
+**A configuration change.** The server checks its own configuration files every two seconds. A
+saved file is applied the same way `nvs ctl reload` applies it: the whole tree is read and checked
+first, and only then does the next request see it. A file that does not check is logged once, with
+its line, and the running configuration stays. `nvs ctl reload` applies a change at once.
 
 **Four keys need a restart**: `[server] listen`, `[server] socket_mode`, `[server] workers` and
 `[server] watchdog_margin`. A port below 1024 needs a privilege the server gave up after it opened
 the socket. `socket_mode` is applied only when a socket is opened, and `workers` sets how many cores
 accept requests. `watchdog_margin` is how long a worker may stay past the deadline of its oldest
 request before the server reports that the worker has stopped. A changed one takes effect at the
-next start. Until then, the server writes `configuration restart pending` to the log once, with the
-key, the running value and the new one. The shipped `nvs.toml` ends each of these four lines with
+next start. Until then, the reload names it and logs it once with the running value and the new one,
+and `nvs ctl status` lists it. The shipped `nvs.toml` ends each of these four lines with
 `restart required`:
 
 ```toml
@@ -31710,11 +31391,12 @@ foreach ($orders as string $order) {
 }
 ```
 
-**A reload drains the connections that are open.** When the server applies a saved configuration
-file, it closes each connection that was opened before the reload, the same way a stop does. A
-request that is running finishes with the configuration it started with, and then its connection
-closes. The server still accepts new connections, and they use the new configuration. The health
-path still answers `200`, and `Core\Server::isDraining()` still returns `false`.
+**A reload drains the connections that are open.** `nvs ctl reload` closes each connection
+that was opened before it, the same way a stop does. A request that is running finishes with the
+configuration it started with, and then its connection closes. The server still accepts new
+connections, and they use the new configuration. The health path still answers `200`,
+`Core\Server::isDraining()` still returns `false`, and `nvs ctl status` still prints
+`draining: false`.
 
 ### When the client goes away
 
@@ -31749,6 +31431,86 @@ be written in `[app.limits]` for one application. A request cannot change them w
 a program cannot test whether its client has gone. These keys do not apply to an event stream
 (`Core\Sse`) or a WebSocket.
 
+### nvs ctl
+
+    nvs ctl reload [--socket <path>]
+    nvs ctl config [--socket <path>]
+    nvs ctl status [--socket <path>]
+
+`nvs ctl` sends one request to a running server and prints the answer. It reaches the server over
+the control socket, which `[control] socket` in the configuration names:
+
+```toml
+[control]
+socket = "/run/nvs/control.sock"      # on Windows a pipe name: '\\.\pipe\nvs-control'
+```
+
+A server has no control socket when the value is `false`, or when no `[control]` block is written.
+Only the account that runs the server can use the socket. It has no password and no network
+address. The server does not start when another account can write to the directory that contains
+the socket. No request runs code of your program.
+
+`nvs ctl` reads the name of the socket from the configuration file, as `nvs serve` finds it:
+`./nvs.toml`, else the `nvs.toml` in the data folder, or the file that `--config` names.
+`--socket` gives the name directly, which selects one server when several run on a host. `nvs ctl`
+and the server must be the same version of `nvs`.
+
+**`status`** prints how many requests are running and whether the server is draining.
+`config_check` counts the checks that the server made of its own configuration files. A
+`restart pending` line follows for each key whose changed value waits for the next start:
+
+```text
+$ nvs ctl status
+in_flight: 3
+draining: false
+config_check: 412 passes, 412 stats, 1 paths
+restart pending: server.workers (running not written, written 2)
+```
+
+**`config`** prints every key that the server is running with, and the file that set it.
+`nvs config dump --origin` prints the same list from the files on disk. A difference between the
+two lists is a change that the server has not applied.
+
+```text
+$ nvs ctl config
+control.socket = "/run/nvs/control.sock"    /srv/shop/nvs.toml
+limits.memory  = "128M"                     /srv/shop/nvs.toml
+mode.default   = "production"               /srv/shop/nvs.toml
+```
+
+**`reload`** reads all configuration files again and applies the result at once. It prints an
+`applied:` line for each key that it changed. It prints an `ignored:` line for each changed key
+that it did not apply, such as a key that needs a restart. `invalidated:` is the number of
+compiled program files that the change made stale, and the server compiles them again. A mount
+`scan` is expanded again. The server also checks its files by itself every two seconds, and a
+change that it already applied is not listed.
+
+```text
+$ nvs ctl reload
+applied: limits.memory
+ignored: server.workers
+invalidated: 0
+```
+
+When a file has an error, `reload` applies nothing. It prints the error and exits with status `1`,
+and the server keeps the configuration it has:
+
+```text
+$ nvs ctl reload
+error: the server refused `POST /reload` with 409:
+error[E0601]: unclosed table, expected `]`
+  --> /srv/shop/nvs.toml:7:8
+  |
+7 | [limits
+  |        ^ here
+  = note: in `[limits`
+
+note: the running configuration is unchanged
+```
+
+A changed `[control] socket` moves the socket without a restart. The new socket answers before the
+old one closes.
+
 ### nvs service
 
     nvs service install <name> [options] -- <nvs arguments>
@@ -31774,10 +31536,15 @@ The installer checks the command first. When a check fails, it prints an error a
 |---|---|
 | The command is `serve` or `run`. No other command keeps running. | `E0630` |
 | `serve` with no file needs a configuration with a `[[server.mount]]` entry that is on disk. | `E0630` |
-| Every path is a full path. This includes `[log] target` and `[opcache] file_cache_dir` in the configuration. | `E0631` |
-| `--config` names the configuration file. | `E0631` |
+| Every path is a full path. This includes `--config`, `--data`, and `[log] target`, `[opcache] file_cache_dir` and `[io] temp_root` in the configuration. | `E0631` |
+| The installer can create and use the data folder, when the service reads the `nvs.toml` in it. | `E0653` |
 | The command line has no `--password`. Other users of the machine can read a command line. | `E0633` |
 | A bundled executable does not install itself. Install the `nvs` binary. | `E0634` |
+
+Without `--config`, the service reads the `nvs.toml` in its data folder. The data folder is
+`.nvsdata` next to the `nvs` program, or the folder that `--data` names after `--`. The installer
+adds `--config` and the full path of that file to the command that it stores. It creates the folder
+and the file when they do not exist. A file that already exists is not changed.
 
 The error names what failed the check:
 
@@ -31802,6 +31569,10 @@ The options of the installer:
 | `--description <text>` | The text that an administrator sees beside the name. |
 | `--dry-run` | Prints every step and changes nothing. |
 
+With `--account`, the service account can read the data folder and every configuration file. It can
+write only to the `cache`, `tmp` and `lsp` folders in the data folder, and to a log, cache or
+temporary folder that the configuration names. The service cannot change its own configuration.
+
 A service has no terminal. Set `[log] target` to a file, so that the log of the server is written
 to that file. `nvs service install --help` prints one whole command line for each platform.
 
@@ -31818,6 +31589,7 @@ After=network.target
 [Service]
 Type=notify
 ExecStart=/usr/local/bin/nvs serve /srv/shop/public/index.nvs --config /srv/shop/nvs.toml
+ExecReload=/usr/local/bin/nvs ctl reload --socket /run/nvs/control.sock
 WatchdogSec=30
 NoNewPrivileges=true
 ProtectSystem=strict
@@ -31831,19 +31603,22 @@ SystemCallFilter=@system-service
 WantedBy=multi-user.target
 ```
 
-On Linux, `install` writes this unit to `/etc/systemd/system/shop.service` and enables it. The unit
-has no reload command. The server applies a saved configuration file by itself.
+The `ExecReload` line is printed when the configuration sets `[control] socket`. On Linux,
+`install` writes this unit to `/etc/systemd/system/shop.service` and enables it.
 
 **`start`** and **`stop`** send the request to the service manager. After a stop the server drains
 (§ *Stopping and reloading: the drain*). **`status`** prints the state that the service manager
-reports:
+reports, and then the lines of `nvs ctl status`:
 
 ```text
 $ nvs service status shop
 active
+in_flight: 3
+draining: false
+config_check: 412 passes, 412 stats, 1 paths
 ```
 
-On Windows the state is a word such as `running` or `stopped`. **`run`** runs the stored command in your
+On Windows the first line is a state such as `running` or `stopped`. **`run`** runs the stored command in your
 terminal, so you can read what the server prints when it does not start as a service.
 **`uninstall`** removes the service and everything that `install` added.
 
@@ -32346,7 +32121,7 @@ as nothing.
 | `nvs.secrets.redact` | `true` | conceal the ranges the server reports as `secret` |
 | `nvs.taint.mark` | `"off"` | whether a `tainted` value carries a marker glyph as well as the token modifier every theme already styles — `off`, `declaration` for each declaration whose type carries it, or `sink` |
 | `nvs.lsp.debounce` | `150` | milliseconds a keystroke is to wait before analysis starts. Contributed and not yet read — see below |
-| `nvs.stubs.dir` | `""` | the directory the server writes the `Core` declaration files to, which Go to Definition on a `Core` name opens. Empty is a directory inside the extension's own storage, one per server version |
+| `nvs.stubs.dir` | `""` | the directory the server writes the `Core` declaration files to, which Go to Definition on a `Core` name opens. Empty is a directory inside the extension's own storage, one per server version. A server that gets no directory from its editor writes to the `lsp` folder in the data folder |
 
 Changing `nvs.path` or `nvs.lsp.enable` restarts the server, since neither can reach one that is
 already running.

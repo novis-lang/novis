@@ -8,6 +8,6 @@ the entry file without its extension, in the current directory.
 All arguments of the executable go to your program. The executable does not read `run`, `check` or
 `--help` as `nvs` commands.
 
-**Good to know:** the executable still reads `./nvs.toml` from the directory where it runs. Files
+**Good to know:** the executable reads `./nvs.toml` from the directory where it runs. Files
 that the program finds only through `autoload` at run time, or opens with `Core\IO`, are not in the
 executable.

@@ -1,4 +1,4 @@
-configured root: (none — a private subdirectory of the platform temporary directory)
+configured root: (none: the tmp folder in the data folder)
 move it:         no
 keep them:       no
 kept today:      false
