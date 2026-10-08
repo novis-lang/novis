@@ -1,0 +1,279 @@
+---
+/**
+ * Request isolation: the text on one side and a small drawing on the other.
+ * The drawing shows four requests that run at the same time; one of them
+ * goes over its memory limit and stops, and the other three finish.
+ *
+ * The drawing is inline SVG painted with the theme's tokens. Its bars grow
+ * as it scrolls into view where scroll-driven animations run and the reader
+ * allows motion; everywhere else they are drawn at their full length.
+ */
+import { Icon } from '@astrojs/starlight/components'
+import Section from './Section.astro'
+import Rich from './Rich.astro'
+import { withBase } from '~/lib/base'
+
+const lanes = [
+  { label: 'GET /', end: 470, ok: true },
+  { label: 'GET /search', end: 430, ok: true },
+  { label: 'POST /report', end: 300, ok: false },
+  { label: 'GET /cart', end: 450, ok: true },
+]
+
+const points = [
+  { icon: 'puzzle', text: 'Each request has its own memory and its own copy of every static property.' },
+  { icon: 'setting', text: 'You set limits for memory and time in `nvs.toml`. They apply to every request.' },
+  { icon: 'error', text: 'A request that uses more than a limit stops immediately. Only that request stops.' },
+]
+---
+
+<Section
+  id="isolation"
+  align="start"
+  eyebrow="Every request on its own"
+  title="One request cannot break another"
+  lead="A request can crash, run out of memory or loop forever. When that happens, only that request stops. The server keeps running, and every other request finishes normally."
+>
+  <div class="layout">
+    <div class="points nv-reveal">
+      <ul role="list">
+        {
+          points.map((p) => (
+            <li>
+              <span class="nv-icon-tile">
+                <Icon name={p.icon as any} size="1.15rem" />
+              </span>
+              <span>
+                <Rich text={p.text} />
+              </span>
+            </li>
+          ))
+        }
+      </ul>
+      <div class="links">
+        <a class="nv-button nv-button-secondary" href={withBase('/in-depth/concepts/isolation/')}>
+          How isolation works
+          <Icon name="right-arrow" size="1rem" />
+        </a>
+        <a class="nv-button nv-button-secondary" href={withBase('/in-depth/concepts/limits/')}>
+          Memory and CPU limits
+          <Icon name="right-arrow" size="1rem" />
+        </a>
+      </div>
+    </div>
+
+    <figure class="diagram nv-reveal">
+      <svg viewBox="0 0 520 300" role="img" aria-labelledby="isolation-svg-title">
+        <title id="isolation-svg-title">
+          Four requests run at the same time. One request goes over its memory limit and stops. The other three
+          finish.
+        </title>
+        <text class="axis" x="140" y="28">time</text>
+        <line class="axis-line" x1="176" y1="24" x2="480" y2="24" />
+        <path class="axis-line" d="M474 20 L480 24 L474 28" />
+        {
+          lanes.map((lane, i) => {
+            const y = 70 + i * 60
+            return (
+              <g class:list={['lane', { fail: !lane.ok }]} style={`--i: ${i}`}>
+                <text class="label" x="0" y={y + 5}>
+                  {lane.label}
+                </text>
+                <line class="track" x1="140" y1={y} x2="480" y2={y} />
+                <rect class="bar" x="140" y={y - 7} width={lane.end - 140} height="14" rx="7" />
+                {lane.ok ? (
+                  <g class="end" transform={`translate(${lane.end + 18} ${y})`}>
+                    <circle r="11" />
+                    <path d="M-5 0 L-1.5 4 L5 -4" />
+                  </g>
+                ) : (
+                  <g class="end" transform={`translate(${lane.end + 18} ${y})`}>
+                    <circle r="11" />
+                    <path d="M-4 -4 L4 4 M4 -4 L-4 4" />
+                  </g>
+                )}
+                {!lane.ok && (
+                  <text class="note" x={lane.end + 38} y={y + 5}>
+                    memory limit
+                  </text>
+                )}
+              </g>
+            )
+          })
+        }
+      </svg>
+      <figcaption>
+        <span class="key"><i class="ok"></i> finished</span>
+        <span class="key"><i class="stop"></i> stopped, alone</span>
+      </figcaption>
+    </figure>
+  </div>
+</Section>
+
+<style>
+  .layout {
+    display: grid;
+    gap: var(--nv-space-6);
+    align-items: center;
+  }
+  @media (min-width: 64rem) {
+    .layout {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+      gap: var(--nv-space-7);
+    }
+  }
+
+  .points ul {
+    display: grid;
+    gap: var(--nv-space-4);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .points li {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--nv-space-3);
+    color: var(--sl-color-gray-2);
+    line-height: 1.6;
+  }
+  .points li > span:last-child {
+    padding-block-start: 0.45rem;
+  }
+  .links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--nv-space-3);
+    margin-block-start: var(--nv-space-6);
+  }
+  .links .nv-button {
+    font-size: var(--sl-text-sm);
+  }
+
+  .diagram {
+    margin: 0;
+    padding: var(--nv-space-5);
+    border: 1px solid var(--nv-hairline);
+    border-radius: var(--nv-radius-lg);
+    background:
+      radial-gradient(70% 60% at 80% 0%, var(--nv-wash), transparent 70%),
+      var(--nv-surface);
+    box-shadow: var(--nv-shadow-md);
+  }
+  svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+    font-family: var(--sl-font-mono);
+  }
+  .axis {
+    font-size: 12px;
+    fill: var(--sl-color-gray-3);
+  }
+  .axis-line {
+    fill: none;
+    stroke: var(--sl-color-gray-4);
+    stroke-width: 1.5;
+  }
+  .label {
+    font-size: 13px;
+    font-weight: 600;
+    fill: var(--sl-color-gray-2);
+  }
+  .track {
+    stroke: var(--nv-hairline-strong);
+    stroke-width: 2;
+    stroke-dasharray: 2 6;
+    stroke-linecap: round;
+  }
+  .bar {
+    fill: var(--sl-color-accent);
+    transform-box: fill-box;
+    transform-origin: left center;
+  }
+  .end circle {
+    fill: var(--nv-ok);
+  }
+  .end path {
+    fill: none;
+    stroke: var(--sl-color-black);
+    stroke-width: 2.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .fail .bar {
+    fill: var(--nv-crimson-fill);
+  }
+  .fail .end circle {
+    fill: var(--nv-crimson-fill);
+  }
+  .fail .end path {
+    stroke: white;
+  }
+  .note {
+    font-size: 12px;
+    font-weight: 700;
+    fill: var(--nv-crimson-text);
+  }
+
+  figcaption {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--nv-space-2) var(--nv-space-5);
+    margin-block-start: var(--nv-space-4);
+    padding-block-start: var(--nv-space-3);
+    border-top: 1px solid var(--nv-hairline);
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-3);
+  }
+  .key {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45em;
+  }
+  .key i {
+    width: 0.75rem;
+    height: 0.75rem;
+    border-radius: 50%;
+  }
+  .key .ok {
+    background: var(--nv-ok);
+  }
+  .key .stop {
+    background: var(--nv-crimson-fill);
+  }
+
+  /* The bars grow from the left as the drawing scrolls in, one after another. */
+  @keyframes grow {
+    from {
+      scale: 0 1;
+    }
+    to {
+      scale: 1 1;
+    }
+  }
+  @keyframes pop {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    @supports (animation-timeline: view()) {
+      .diagram .bar {
+        animation: grow linear both;
+        animation-timeline: view();
+        animation-range: entry calc(30% + var(--i) * 8%) cover calc(45% + var(--i) * 6%);
+      }
+      .diagram .end,
+      .diagram .note {
+        animation: pop linear both;
+        animation-timeline: view();
+        animation-range: cover calc(42% + var(--i) * 6%) cover calc(50% + var(--i) * 6%);
+      }
+    }
+  }
+</style>

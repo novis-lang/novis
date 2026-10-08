@@ -1,0 +1,4 @@
+<?nvs
+// This program answers a web request with JSON.
+// A shape becomes a JSON object, with its keys in the order they are written.
+Core\Response::json({ status: "ok", version: 3 });

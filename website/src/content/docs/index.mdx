@@ -3,80 +3,47 @@ title: Novis
 covers: []
 description: Novis is a programming language for web servers and the command line. It is safe by default and compiled to machine code.
 template: splash
-hero:
-  title: Web code that is safe by default
-  tagline: Novis is a programming language for web servers and the command line. The compiler checks input from outside, every request runs on its own and your code runs as machine code.
-  actions:
-    - text: Install
-      link: /install/
-      icon: right-arrow
-      variant: primary
-    - text: Start with Guides
-      link: /guides/
-      variant: minimal
 ---
 
-import { CardGrid, LinkCard } from '@astrojs/starlight/components'
 import Snippet from '@components/Snippet.astro'
-import { AREAS } from '@config/site.mjs'
-import { withBase } from '~/lib/base'
+import Hero from '@components/home/Hero.astro'
+import Facts from '@components/home/Facts.astro'
+import Catches from '@components/home/Catches.astro'
+import Bento from '@components/home/Bento.astro'
+import Isolation from '@components/home/Isolation.astro'
+import Library from '@components/home/Library.astro'
+import Tooling from '@components/home/Tooling.astro'
+import Path from '@components/home/Path.astro'
+import Cta from '@components/home/Cta.astro'
 
-<div class="nv-hero-code">
+<Hero>
+  <Snippet src="home/hello-request.nvs" />
+</Hero>
 
-<Snippet src="home/greetings.nvs" />
+<Facts />
 
-</div>
+<Catches>
+  <Snippet src="home/sql-error.nvs" slot="query" />
+  <Snippet src="guides/why-novis/secret-values-error.nvs" slot="secret" />
+</Catches>
 
-<div class="nv-features">
-<div class="nv-feature">
+<Bento>
+  <Snippet src="home/checked-number.nvs" slot="conversion" />
+  <Snippet src="home/unicode.nvs" slot="unicode" />
+  <Snippet src="home/json-response.nvs" slot="json" />
+  <Snippet src="home/tasks.nvs" slot="tasks" />
+</Bento>
 
-### [Input from outside is tainted](/guides/why-novis/tainted-input/)
+<Isolation />
 
-Text from a request cannot reach SQL, HTML or a shell command until you check it. The compiler
-finds the mistake before the program runs.
+<Library>
+  <Snippet src="guides/why-novis/one-library.nvs" />
+</Library>
 
-</div>
-<div class="nv-feature">
+<Tooling>
+  <Snippet src="guides/why-novis/tests-in-code.nvs" />
+</Tooling>
 
-### [One failure stops one program](/guides/why-novis/one-failure/)
+<Path />
 
-Each request runs on its own, with its own memory and limits. A request that crashes stops alone,
-and the server keeps running.
-
-</div>
-<div class="nv-feature">
-
-### [Secrets are never printed](/guides/why-novis/secret-values/)
-
-A password or key is a `secret string`. Code that prints it or writes it to a log does not compile.
-
-</div>
-<div class="nv-feature">
-
-### [HTML that escapes itself](/guides/why-novis/html-escapes/)
-
-An `html` template escapes every value you put into it. A comment from a user is shown as text, and
-it never runs as a script.
-
-</div>
-<div class="nv-feature">
-
-### [Every conversion is checked](/guides/why-novis/checked-conversions/)
-
-`"12abc" as int` throws an error. `as ?int` gives `null`. Then your code can choose what to do next.
-
-</div>
-<div class="nv-feature">
-
-### [Tests are part of the language](/guides/why-novis/tests-in-code/)
-
-You write a test as a method with `#[Test]`. `nvs test` runs every test, each one on its own.
-
-</div>
-</div>
-
-## Find your way
-
-<CardGrid>
-  {AREAS.map((area) => <LinkCard title={area.label} description={area.subtitle} href={withBase(area.href)} />)}
-</CardGrid>
+<Cta />

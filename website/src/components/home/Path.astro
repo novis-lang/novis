@@ -1,0 +1,143 @@
+---
+/**
+ * Where to go next, in the order a reader learns: install, the tour, then the
+ * four areas of the site (AREAS in config/site.mjs). Numbered cards, three
+ * columns from 64rem, two from 40rem, one below.
+ */
+import { Icon } from '@astrojs/starlight/components'
+import Section from './Section.astro'
+import Rich from './Rich.astro'
+import { AREAS, INSTALL } from '@config/site.mjs'
+import { withBase } from '~/lib/base'
+
+const text: Record<string, { icon: string; text: string }> = {
+  '/guides/': { icon: 'puzzle', text: 'Example programs, and how to use each feature in real code.' },
+  '/syntax/': { icon: 'pencil', text: 'How to write Novis: types, classes, errors and more.' },
+  '/reference/': { icon: 'open-book', text: 'Every class and method of the standard library, and every command.' },
+  '/in-depth/': { icon: 'magnifier', text: 'The ideas behind the language, and the decisions that shaped it.' },
+}
+
+const steps = [
+  {
+    label: INSTALL.label,
+    href: INSTALL.href,
+    icon: 'download',
+    text: 'Build `nvs` from source on Windows, Linux or macOS.',
+  },
+  {
+    label: 'Take the tour',
+    href: '/guides/tour/',
+    icon: 'rocket',
+    text: 'Short lessons, from your first method to HTML templates.',
+  },
+  ...AREAS.map((area) => ({ label: area.label, href: area.href, ...text[area.href]! })),
+]
+---
+
+<Section id="start" eyebrow="Where to start" title="Learn Novis step by step">
+  <ol class="steps" role="list">
+    {
+      steps.map((step, i) => (
+        <li class="nv-reveal">
+          <a class="step nv-card-link" href={withBase(step.href)}>
+            <span class="number" aria-hidden="true">
+              {String(i + 1).padStart(2, '0')}
+            </span>
+            <span class="icon" aria-hidden="true">
+              <Icon name={step.icon as any} size="1.35rem" />
+            </span>
+            <span class="label">{step.label}</span>
+            <span class="text">
+              <Rich text={step.text} />
+            </span>
+          </a>
+        </li>
+      ))
+    }
+  </ol>
+</Section>
+
+<style>
+  .steps {
+    display: grid;
+    gap: var(--nv-space-4);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    counter-reset: none;
+  }
+  @media (min-width: 40rem) {
+    .steps {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  @media (min-width: 64rem) {
+    .steps {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+  .steps li {
+    display: flex;
+  }
+  .step {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      'number icon'
+      'label label'
+      'text text';
+    gap: var(--nv-space-2);
+    width: 100%;
+    padding: var(--nv-space-5);
+    border: 1px solid var(--nv-hairline);
+    border-radius: var(--nv-radius-lg);
+    background: var(--nv-surface);
+    box-shadow: var(--nv-shadow-sm);
+    text-decoration: none;
+    overflow: hidden;
+  }
+  .number {
+    grid-area: number;
+    font-size: 2.25rem;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    font-variant-numeric: tabular-nums;
+    color: var(--nv-hairline-strong);
+    transition: color var(--nv-fast) var(--nv-ease);
+  }
+  .step:hover .number {
+    color: var(--sl-color-text-accent);
+  }
+  .icon {
+    grid-area: icon;
+    color: var(--sl-color-gray-3);
+    transition:
+      color var(--nv-fast) var(--nv-ease),
+      transform var(--nv-fast) var(--nv-ease);
+  }
+  .step:hover .icon {
+    color: var(--nv-gold-text);
+    transform: rotate(-8deg) scale(1.1);
+  }
+  .label {
+    grid-area: label;
+    margin-block-start: var(--nv-space-3);
+    font-size: var(--sl-text-lg);
+    font-weight: 750;
+    letter-spacing: -0.01em;
+    color: var(--sl-color-white);
+  }
+  .text {
+    grid-area: text;
+    font-size: var(--sl-text-sm);
+    line-height: 1.6;
+    color: var(--sl-color-gray-2);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .step:hover .icon {
+      transform: none;
+    }
+  }
+</style>

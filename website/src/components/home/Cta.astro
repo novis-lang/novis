@@ -1,0 +1,143 @@
+---
+/**
+ * The closing call to action: a band in the signature gradient with the
+ * install button and the project's pages elsewhere. White text on the band
+ * clears 4.5:1 along the whole gradient.
+ */
+import { Icon } from '@astrojs/starlight/components'
+import { DISCORD_URL, GITHUB_URL, INSTALL } from '@config/site.mjs'
+import { externalLinkAttrs } from '@config/external-links.mjs'
+import { withBase } from '~/lib/base'
+---
+
+<section class="cta nv-band not-content nv-reveal" aria-labelledby="cta-title">
+  <div class="rings" aria-hidden="true"></div>
+  <div class="copy">
+    <h2 id="cta-title">Build your next web server with Novis</h2>
+    <p>
+      Novis is free and open source. Install it, take the tour, and ask your questions on Discord. Every report
+      and every idea helps.
+    </p>
+  </div>
+  <div class="actions">
+    <a class="nv-button on-band-primary" href={withBase(INSTALL.href)}>
+      Install Novis
+      <Icon name="right-arrow" size="1.1rem" />
+    </a>
+    <a class="nv-button on-band" href={GITHUB_URL} {...externalLinkAttrs(GITHUB_URL)}>
+      <Icon name="github" size="1.1rem" />
+      GitHub
+    </a>
+    <a class="nv-button on-band" href={DISCORD_URL} {...externalLinkAttrs(DISCORD_URL)}>
+      <Icon name="discord" size="1.1rem" />
+      Discord
+    </a>
+    <a class="nv-button on-band" href={withBase('/sponsoring/')}>
+      <Icon name="heart" size="1.1rem" />
+      Sponsoring
+    </a>
+  </div>
+</section>
+
+<style>
+  .cta {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    display: grid;
+    gap: var(--nv-space-5);
+    margin-block: var(--nv-space-9) var(--nv-space-6);
+    padding: var(--nv-space-7) var(--nv-space-6);
+    box-shadow: var(--nv-shadow-lg);
+  }
+  @media (min-width: 64rem) {
+    .cta {
+      grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+      align-items: center;
+      padding: var(--nv-space-8) var(--nv-space-7);
+    }
+  }
+  /* Thin rings and a light sheen in the corner: gradients only. */
+  .rings {
+    position: absolute;
+    z-index: -1;
+    inset: 0;
+    background:
+      repeating-radial-gradient(
+        circle at 100% 0%,
+        transparent 0 38px,
+        color-mix(in oklab, white 9%, transparent) 38px 39px
+      ),
+      radial-gradient(50% 80% at 100% 0%, color-mix(in oklab, var(--nv-gold) 22%, transparent), transparent 70%);
+    -webkit-mask-image: radial-gradient(70% 90% at 100% 0%, black, transparent 75%);
+    mask-image: radial-gradient(70% 90% at 100% 0%, black, transparent 75%);
+  }
+  h2 {
+    margin: 0;
+    font-size: clamp(1.6rem, 1.2rem + 1.8vw, 2.4rem);
+    font-weight: 800;
+    line-height: 1.12;
+    letter-spacing: -0.03em;
+    text-wrap: balance;
+  }
+  p {
+    margin: var(--nv-space-3) 0 0;
+    max-width: 34rem;
+    font-size: var(--sl-text-lg);
+    line-height: 1.6;
+    opacity: 0.94;
+  }
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--nv-space-3);
+  }
+  @media (min-width: 64rem) {
+    .actions {
+      justify-content: flex-end;
+    }
+  }
+  .on-band-primary {
+    background: white;
+    color: var(--nv-crimson);
+    box-shadow: 0 8px 24px -10px color-mix(in oklab, black 60%, transparent);
+  }
+  .on-band-primary:hover {
+    color: var(--nv-crimson);
+    transform: translateY(-1px);
+    box-shadow: 0 12px 28px -10px color-mix(in oklab, black 70%, transparent);
+  }
+  .on-band {
+    border-color: color-mix(in oklab, white 45%, transparent);
+    background: color-mix(in oklab, white 10%, transparent);
+    color: white;
+  }
+  .on-band:hover {
+    border-color: white;
+    background: color-mix(in oklab, white 20%, transparent);
+    color: white;
+    transform: translateY(-1px);
+  }
+  .on-band-primary:active,
+  .on-band:active {
+    transform: translateY(0);
+  }
+  @media (max-width: 49.99rem) {
+    .cta {
+      padding: var(--nv-space-6) var(--nv-space-5);
+    }
+    p {
+      font-size: var(--sl-text-base);
+    }
+    .actions .nv-button {
+      flex: 1 1 9rem;
+      justify-content: center;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .on-band-primary:hover,
+    .on-band:hover {
+      transform: none;
+    }
+  }
+</style>

@@ -1,0 +1,116 @@
+---
+/**
+ * A strip of four short facts under the hero, each with an icon and a link
+ * to the page that explains it. Four columns from 64rem, two from 36rem,
+ * one below.
+ */
+import { Icon } from '@astrojs/starlight/components'
+import { withBase } from '~/lib/base'
+import Rich from './Rich.astro'
+
+const facts = [
+  {
+    icon: 'rocket',
+    title: 'Compiled to machine code',
+    text: 'Each file is compiled the first time it is needed. You never run a build step.',
+    href: '/in-depth/concepts/compiled/',
+  },
+  {
+    icon: 'warning',
+    title: 'Input is tainted',
+    text: 'Text from a request must be checked or escaped before it reaches a database, a shell or a page.',
+    href: '/in-depth/concepts/tainted-input/',
+  },
+  {
+    icon: 'puzzle',
+    title: 'Every request on its own',
+    text: 'Each request has its own memory. When one request crashes, the others keep running.',
+    href: '/in-depth/concepts/isolation/',
+  },
+  {
+    icon: 'setting',
+    title: 'One program',
+    text: '`nvs` runs your code, serves web requests, runs your tests and formats your files.',
+    href: '/reference/cli/one-binary/',
+  },
+] as const
+---
+
+<ul class="facts not-content" role="list">
+  {
+    facts.map((fact) => (
+      <li class="nv-reveal">
+        <a class="fact" href={withBase(fact.href)}>
+          <span class="nv-icon-tile">
+            <Icon name={fact.icon} size="1.25rem" />
+          </span>
+          <span class="title">{fact.title}</span>
+          <span class="text">
+            <Rich text={fact.text} />
+          </span>
+        </a>
+      </li>
+    ))
+  }
+</ul>
+
+<style>
+  .facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+    gap: var(--nv-space-3);
+    margin: var(--nv-space-5) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  .fact {
+    position: relative;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-rows: auto 1fr;
+    column-gap: var(--nv-space-3);
+    row-gap: var(--nv-space-1);
+    height: 100%;
+    padding: var(--nv-space-4);
+    border: 1px solid var(--nv-hairline);
+    border-radius: var(--nv-radius-lg);
+    background: color-mix(in oklab, var(--nv-surface) 80%, transparent);
+    text-decoration: none;
+    transition:
+      border-color var(--nv-fast) var(--nv-ease),
+      background-color var(--nv-fast) var(--nv-ease),
+      transform var(--nv-fast) var(--nv-ease);
+  }
+  .fact:hover {
+    border-color: color-mix(in oklab, var(--sl-color-accent) 55%, var(--nv-hairline));
+    background: var(--nv-surface);
+    transform: translateY(-2px);
+  }
+  .fact:active {
+    transform: translateY(0);
+  }
+  .nv-icon-tile {
+    grid-row: span 2;
+    transition: background-color var(--nv-fast) var(--nv-ease);
+  }
+  .fact:hover .nv-icon-tile {
+    background: color-mix(in oklab, var(--sl-color-accent) 28%, transparent);
+  }
+  .title {
+    align-self: center;
+    font-weight: 750;
+    letter-spacing: -0.01em;
+    color: var(--sl-color-white);
+    line-height: 1.3;
+  }
+  .text {
+    font-size: var(--sl-text-sm);
+    line-height: 1.55;
+    color: var(--sl-color-gray-2);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .fact:hover {
+      transform: none;
+    }
+  }
+</style>

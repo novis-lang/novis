@@ -1,0 +1,16 @@
+---
+/**
+ * PageTitle override: Starlight's title, except on the front page.
+ *
+ * The front page builds its own hero, and that hero holds the page's one
+ * `<h1>` with Starlight's title id, so the skip link still lands on it
+ * (src/components/home/Hero.astro). Here the front page renders no title, and
+ * custom.css hides the empty panel Starlight wraps around it.
+ */
+import Default from '@astrojs/starlight/components/PageTitle.astro'
+import { withBase } from '~/lib/base'
+
+const isFrontPage = Astro.url.pathname === withBase('/')
+---
+
+{!isFrontPage && <Default />}

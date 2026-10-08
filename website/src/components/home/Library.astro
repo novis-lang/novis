@@ -1,0 +1,222 @@
+---
+/**
+ * The standard library: how many classes and functions it has, counted from
+ * the reference data at build time, a snippet passed in the default slot, and
+ * rows of class names that link to their reference pages.
+ *
+ * The rows scroll sideways while the reader allows motion, and stop while the
+ * pointer or the keyboard focus is on them. Each row is drawn twice for a
+ * seamless loop; the copy is hidden from assistive technology and from the
+ * tab order. With reduced motion the rows wrap and the copy is not shown.
+ */
+import { Icon } from '@astrojs/starlight/components'
+import Section from './Section.astro'
+import { classes } from '~/lib/core'
+import { withBase } from '~/lib/base'
+
+const functionCount = classes.reduce((n, c) => n + c.members.length, 0)
+
+// The classes directly under `Core`, in three rows of about the same length.
+const top = classes.filter((c) => c.name.split('\\').length === 2)
+const rowCount = 3
+const rows = Array.from({ length: rowCount }, (_, r) => top.filter((_, i) => i % rowCount === r))
+---
+
+<Section
+  id="library"
+  eyebrow="The standard library"
+  title="One library comes with it"
+  lead="It has classes for JSON, databases, HTTP, passwords, dates and much more. Most programs need no package from outside."
+>
+  <div class="layout">
+    <div class="numbers nv-reveal">
+      <div class="count">
+        <span class="value nv-gradient-text">{classes.length}</span>
+        <span class="unit">classes</span>
+      </div>
+      <div class="count">
+        <span class="value nv-gradient-text">{functionCount}</span>
+        <span class="unit">methods and functions</span>
+      </div>
+      <p>
+        Every class has its own page in the reference. It lists each method and its parameters.
+      </p>
+      <a class="nv-button nv-button-secondary" href={withBase('/reference/')}>
+        <Icon name="open-book" size="1.1rem" />
+        Open the reference
+      </a>
+    </div>
+    <div class="code nv-reveal">
+      <slot />
+    </div>
+  </div>
+
+  <div class="marquee" role="group" aria-label="Classes of the standard library">
+    {
+      rows.map((row, r) => (
+        <div class:list={['row', { reverse: r % 2 === 1 }]} style={`--duration: ${row.length * 3.2}s`}>
+          <div class="track">
+            <ul role="list">
+              {row.map((c) => (
+                <li>
+                  <a class="chip" href={c.url}>
+                    {c.name}
+                  </a>
+                </li>
+              ))}
+            </ul>
+            <ul role="list" class="copy" aria-hidden="true">
+              {row.map((c) => (
+                <li>
+                  <a class="chip" href={c.url} tabindex="-1">
+                    {c.name}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      ))
+    }
+  </div>
+</Section>
+
+<style>
+  .layout {
+    display: grid;
+    gap: var(--nv-space-6);
+    align-items: center;
+  }
+  @media (min-width: 64rem) {
+    .layout {
+      grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+      gap: var(--nv-space-7);
+    }
+  }
+
+  .numbers {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--nv-space-5) var(--nv-space-4);
+    align-items: end;
+  }
+  .count {
+    display: flex;
+    flex-direction: column;
+    gap: var(--nv-space-1);
+    padding-inline-start: var(--nv-space-4);
+    border-inline-start: 3px solid var(--nv-gold);
+  }
+  .value {
+    font-size: clamp(2.75rem, 2rem + 3vw, 4rem);
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    font-variant-numeric: tabular-nums;
+  }
+  .unit {
+    font-size: var(--sl-text-sm);
+    font-weight: 650;
+    color: var(--sl-color-gray-2);
+  }
+  .numbers p {
+    grid-column: 1 / -1;
+    margin: 0;
+    color: var(--sl-color-gray-2);
+    line-height: 1.65;
+  }
+  .numbers .nv-button {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+  .code {
+    min-width: 0;
+  }
+  .code :global(.expressive-code) {
+    margin: 0;
+  }
+  .code :global(.expressive-code + .expressive-code) {
+    margin-top: var(--nv-space-2);
+  }
+
+  /* ---------------------------------------------------------- class names */
+  .marquee {
+    display: grid;
+    gap: var(--nv-space-3);
+    margin-block-start: var(--nv-space-7);
+    -webkit-mask-image: linear-gradient(90deg, transparent, black 8%, black 92%, transparent);
+    mask-image: linear-gradient(90deg, transparent, black 8%, black 92%, transparent);
+  }
+  .row {
+    overflow: hidden;
+  }
+  .track {
+    display: flex;
+    width: max-content;
+  }
+  .track ul {
+    display: flex;
+    gap: var(--nv-space-2);
+    margin: 0;
+    padding: 0 var(--nv-space-2) 0 0;
+    list-style: none;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.4rem 0.85rem;
+    border: 1px solid var(--nv-hairline);
+    border-radius: var(--nv-radius-pill);
+    background: var(--nv-surface);
+    font-family: var(--sl-font-mono);
+    font-size: 0.8rem;
+    color: var(--sl-color-gray-2);
+    text-decoration: none;
+    white-space: nowrap;
+    transition:
+      border-color var(--nv-fast) var(--nv-ease),
+      color var(--nv-fast) var(--nv-ease),
+      background-color var(--nv-fast) var(--nv-ease);
+  }
+  .chip:hover {
+    border-color: var(--sl-color-accent);
+    background: var(--nv-wash-soft);
+    color: var(--sl-color-text-accent);
+  }
+  .chip:active {
+    background: var(--nv-wash);
+  }
+
+  @keyframes slide {
+    to {
+      translate: -50% 0;
+    }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .track {
+      animation: slide var(--duration) linear infinite;
+    }
+    .reverse .track {
+      animation-direction: reverse;
+    }
+    .marquee:hover .track,
+    .marquee:focus-within .track {
+      animation-play-state: paused;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .marquee {
+      -webkit-mask-image: none;
+      mask-image: none;
+    }
+    .track {
+      width: auto;
+    }
+    .track ul {
+      flex-wrap: wrap;
+    }
+    .copy {
+      display: none;
+    }
+  }
+</style>

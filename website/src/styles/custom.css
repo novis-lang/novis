@@ -418,7 +418,56 @@ kbd,
   box-shadow: var(--nv-shadow-md);
 }
 
+/* A snippet that must not compile (src/components/Snippet.astro): the code,
+   then the compiler's diagnostic in a frame with Starlight's red edge and
+   tint, so a reader sees at once that this program is an error. */
+[data-snippet-kind='error'] > [data-snippet-part='diagnostic'] {
+  margin-top: var(--nv-space-3);
+}
+[data-snippet-part='diagnostic'] .expressive-code .frame {
+  border-radius: var(--nv-radius);
+  box-shadow:
+    inset 3px 0 0 var(--nv-danger),
+    var(--nv-shadow-sm);
+}
+[data-snippet-part='diagnostic'] .expressive-code .frame pre {
+  border-color: color-mix(in oklab, var(--nv-danger) 45%, var(--nv-hairline));
+  background: color-mix(in oklab, var(--nv-danger) 7%, var(--nv-code-bg));
+}
+[data-snippet-part='diagnostic'] .expressive-code .frame .header {
+  border-color: color-mix(in oklab, var(--nv-danger) 45%, var(--nv-hairline));
+}
+[data-snippet-part='diagnostic'] .expressive-code .frame .header .title {
+  color: var(--nv-danger);
+}
+[data-snippet-part='diagnostic'] .expressive-code .frame .header .title::before {
+  content: '';
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-inline-end: 0.5rem;
+  border-radius: 50%;
+  background: currentColor;
+  vertical-align: 0.08em;
+}
+
 /* ======================================================= buttons */
+
+/* .nv-button is a link styled as a button, for pages and components that
+   build their own; Starlight's .sl-link-button brings its own box. */
+.nv-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  min-height: 2.75rem;
+  padding: 0.6rem 1.25rem;
+  border: 1px solid transparent;
+  border-radius: var(--nv-radius-pill);
+  font-size: var(--sl-text-base);
+  line-height: 1.2;
+  text-decoration: none;
+  white-space: nowrap;
+}
 
 .sl-link-button,
 .nv-button {
@@ -1126,7 +1175,41 @@ a.nv-card:hover {
   flex-shrink: 0;
 }
 
+/* The front page renders no Starlight title (src/components/PageTitle.astro):
+   its hero holds the <h1>. This hides the empty panel around the title. */
+main:has(.home-hero) > .content-panel:first-child {
+  display: none;
+}
+main:has(.home-hero) > .content-panel {
+  border-top: 0;
+}
+
 /* ================================================================ motion */
+
+/* .nv-reveal: a block fades in and rises a little as it scrolls into view.
+   Only where the browser runs scroll-driven animations and the reader has
+   not asked for less motion; everywhere else the block is simply shown.
+   It animates `translate` and `opacity`, so a hover `transform` on the same
+   element still works. */
+@keyframes nv-reveal {
+  from {
+    opacity: 0;
+    translate: 0 1.5rem;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .nv-reveal {
+      animation: nv-reveal linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 55%;
+    }
+  }
+}
 
 @media (prefers-reduced-motion: reduce) {
   *,

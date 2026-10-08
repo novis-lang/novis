@@ -1,0 +1,10 @@
+<?nvs
+// This program answers a web request with an HTML page.
+// The request is `GET /hello?name=<script>alert(1)</script>`.
+
+// A value from the request is a `tainted string`.
+var $name = Core\Request::query("name") as tainted string;
+
+// An `html` template escapes the name.
+// The browser shows the script as text.
+Core\Response::html(html`<h1>Hello, {$name}!</h1>`);

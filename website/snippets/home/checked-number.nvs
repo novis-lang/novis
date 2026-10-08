@@ -1,0 +1,8 @@
+<?nvs
+// This program converts text from a form to whole numbers.
+string $age = "42";
+string $typo = "4x2";
+
+// `as ?int` gives `null` when the text is not a whole number.
+echo ($age as ?int) ?? "not a number", "\n";
+echo ($typo as ?int) ?? "not a number", "\n";

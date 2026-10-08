@@ -1,0 +1,78 @@
+---
+/**
+ * One section of the front page: an eyebrow, a heading, an optional lead
+ * paragraph, and the section's own content in the default slot. The head is
+ * centred or set at the start; the content is whatever the caller builds.
+ *
+ * The section fades in as it scrolls into view where the browser supports
+ * scroll-driven animations (`.nv-reveal` in custom.css). Without that support,
+ * or with reduced motion, it is simply there.
+ */
+import Rich from './Rich.astro'
+
+interface Props {
+  id?: string
+  eyebrow: string
+  title: string
+  /** Plain text; a lead is one or two short sentences. */
+  lead?: string
+  align?: 'start' | 'center'
+}
+
+const { id, eyebrow, title, lead, align = 'center' } = Astro.props
+const headingId = id ? `${id}-title` : undefined
+---
+
+<section class:list={['home-section not-content', `align-${align}`]} id={id} aria-labelledby={headingId}>
+  <header class="head nv-reveal">
+    <span class="nv-eyebrow">{eyebrow}</span>
+    <h2 id={headingId}>{title}</h2>
+    {lead && <p class="lead"><Rich text={lead} /></p>}
+  </header>
+  <slot />
+</section>
+
+<style>
+  .home-section {
+    margin-block: var(--nv-space-9) 0;
+  }
+  .head {
+    display: flex;
+    flex-direction: column;
+    gap: var(--nv-space-3);
+    margin-block-end: var(--nv-space-6);
+    max-width: 44rem;
+  }
+  .align-center .head {
+    align-items: center;
+    text-align: center;
+    margin-inline: auto;
+  }
+  h2 {
+    margin: 0;
+    font-size: clamp(1.75rem, 1.2rem + 2.2vw, 2.6rem);
+    font-weight: 800;
+    line-height: 1.12;
+    letter-spacing: -0.03em;
+    color: var(--sl-color-white);
+    text-wrap: balance;
+  }
+  .lead {
+    margin: 0;
+    font-size: var(--sl-text-lg);
+    line-height: 1.6;
+    color: var(--sl-color-gray-2);
+    text-wrap: pretty;
+  }
+  @media (max-width: 49.99rem) {
+    .home-section {
+      margin-block-start: var(--nv-space-8);
+    }
+    .head {
+      margin-block-end: var(--nv-space-5);
+    }
+    .lead {
+      font-size: var(--sl-text-base);
+    }
+  }
+</style>

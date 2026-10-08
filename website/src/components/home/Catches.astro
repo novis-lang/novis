@@ -1,0 +1,134 @@
+---
+/**
+ * "The compiler finds it first": two programs that do not compile, each
+ * beside a short explanation and a link. The snippets come in through the
+ * named slots `query` and `secret`, because the site checker finds a page's
+ * snippets in the page itself. Text beside code from 64rem; stacked below,
+ * where the code keeps the full width.
+ */
+import { Icon } from '@astrojs/starlight/components'
+import Section from './Section.astro'
+import { withBase } from '~/lib/base'
+import Rich from './Rich.astro'
+---
+
+<Section
+  id="compiler"
+  eyebrow="Errors before the program runs"
+  title="The compiler finds the mistake first"
+  lead="Some mistakes are common in web code. In Novis, they do not compile. You see the error, and your users never do."
+>
+  <div class="rows">
+    <article class="row nv-reveal">
+      <div class="text">
+        <span class="nv-icon-tile"><Icon name="warning" size="1.25rem" /></span>
+        <h3>Text from a request in a database query</h3>
+        <p>
+          <Rich
+            text="A value from a request is a `tainted string`. It cannot become part of the text of a query. You send it as a parameter instead."
+          />
+        </p>
+        <a class="more" href={withBase('/guides/why-novis/tainted-input/')}>
+          How tainted input works <Icon name="right-arrow" size="1rem" />
+        </a>
+      </div>
+      <div class="code"><slot name="query" /></div>
+    </article>
+
+    <article class="row flip nv-reveal">
+      <div class="text">
+        <span class="nv-icon-tile"><Icon name="padlock" size="1.25rem" /></span>
+        <h3>A password in the output</h3>
+        <p>
+          <Rich text="A password or a key is a `secret string`. Code that prints it or writes it to a log does not compile." />
+        </p>
+        <a class="more" href={withBase('/guides/why-novis/secret-values/')}>
+          How secret values work <Icon name="right-arrow" size="1rem" />
+        </a>
+      </div>
+      <div class="code"><slot name="secret" /></div>
+    </article>
+  </div>
+</Section>
+
+<style>
+  .rows {
+    display: grid;
+    gap: var(--nv-space-5);
+  }
+  .row {
+    display: grid;
+    gap: var(--nv-space-5);
+    padding: var(--nv-space-5);
+    border: 1px solid var(--nv-hairline);
+    border-radius: var(--nv-radius-lg);
+    background:
+      radial-gradient(60% 80% at 0% 0%, color-mix(in oklab, var(--nv-danger) 7%, transparent), transparent 70%),
+      var(--nv-surface);
+    box-shadow: var(--nv-shadow-sm);
+  }
+  @media (min-width: 64rem) {
+    .row {
+      grid-template-columns: minmax(0, 0.8fr) minmax(0, 2fr);
+      align-items: center;
+      padding: var(--nv-space-6);
+    }
+    .row.flip {
+      grid-template-columns: minmax(0, 2fr) minmax(0, 0.8fr);
+      background:
+        radial-gradient(60% 80% at 100% 0%, color-mix(in oklab, var(--nv-danger) 7%, transparent), transparent 70%),
+        var(--nv-surface);
+    }
+    .row.flip .text {
+      order: 2;
+    }
+  }
+  .text {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--nv-space-3);
+  }
+  .nv-icon-tile {
+    border-color: color-mix(in oklab, var(--nv-danger) 35%, transparent);
+    background: color-mix(in oklab, var(--nv-danger) 14%, transparent);
+    color: var(--nv-danger);
+  }
+  h3 {
+    margin: 0;
+    font-size: var(--sl-text-xl);
+    font-weight: 750;
+    line-height: 1.25;
+    letter-spacing: -0.015em;
+    color: var(--sl-color-white);
+  }
+  p {
+    margin: 0;
+    color: var(--sl-color-gray-2);
+    line-height: 1.65;
+  }
+  .more {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35em;
+    font-weight: 650;
+    color: var(--sl-color-text-accent);
+    text-decoration: none;
+  }
+  .more svg {
+    transition: transform var(--nv-fast) var(--nv-ease);
+  }
+  .more:hover {
+    text-decoration: underline;
+    text-underline-offset: 0.25em;
+  }
+  .more:hover svg {
+    transform: translateX(3px);
+  }
+  .code {
+    min-width: 0;
+  }
+  .code :global(.expressive-code) {
+    margin: 0;
+  }
+</style>

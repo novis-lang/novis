@@ -1,0 +1,222 @@
+---
+/**
+ * The tools: a terminal-style card that lists the `nvs` commands, each row a
+ * link to its reference page, beside a snippet with a test passed in the
+ * default slot. The card is dark in both themes, like a terminal.
+ */
+import { Icon } from '@astrojs/starlight/components'
+import Section from './Section.astro'
+import Rich from './Rich.astro'
+import { withBase } from '~/lib/base'
+
+const commands = [
+  { cmd: 'nvs run app.nvs', text: 'Check, compile and run a program', href: '/reference/cli/nvs-run/' },
+  { cmd: 'nvs serve app.nvs', text: 'Serve web requests', href: '/reference/cli/nvs-serve/' },
+  { cmd: 'nvs test tests/', text: 'Run every test', href: '/reference/cli/nvs-test/' },
+  { cmd: 'nvs check app.nvs', text: 'Report every error and run nothing', href: '/reference/cli/nvs-check/' },
+  { cmd: 'nvs fmt', text: 'Format your files', href: null },
+  {
+    cmd: 'nvs build --compile app.nvs',
+    text: 'Write one executable file with your program',
+    href: '/reference/cli/nvs-build-compile/',
+  },
+  {
+    cmd: 'nvs build --openapi app.nvs',
+    text: 'Write the OpenAPI document of your web API',
+    href: '/reference/cli/nvs-build-openapi/',
+  },
+  { cmd: 'nvs lsp', text: 'Errors and completion in your editor', href: '/install/editor/' },
+]
+---
+
+<Section
+  id="tools"
+  eyebrow="Tools"
+  title="One program runs, tests and serves your code"
+  lead="`nvs` is one program. It runs your code, serves web requests, runs your tests and formats your files."
+>
+  <div class="layout">
+    <figure class="terminal nv-reveal">
+      <div class="bar">
+        <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span class="title">nvs</span>
+      </div>
+      <ul role="list">
+        {
+          commands.map((c) => {
+            const body = (
+              <>
+                <span class="line">
+                  <span class="prompt" aria-hidden="true">
+                    $
+                  </span>
+                  <code>{c.cmd}</code>
+                </span>
+                <span class="desc"># {c.text}</span>
+              </>
+            )
+            return <li>{c.href ? <a href={withBase(c.href)}>{body}</a> : <span class="row">{body}</span>}</li>
+          })
+        }
+      </ul>
+      <figcaption class="sr-only">The commands of the nvs program.</figcaption>
+    </figure>
+
+    <div class="tests nv-reveal">
+      <div class="tests-head">
+        <span class="nv-icon-tile"><Icon name="approve-check-circle" size="1.2rem" /></span>
+        <div>
+          <h3>Tests live next to your code</h3>
+          <p>
+            <Rich text="A test is a method with `#[Test]`. `nvs test` runs each test on its own. You do not install a package for it." />
+          </p>
+        </div>
+      </div>
+      <slot />
+      <a class="more" href={withBase('/guides/why-novis/tests-in-code/')}>
+        Tests in the language <Icon name="right-arrow" size="1rem" />
+      </a>
+    </div>
+  </div>
+</Section>
+
+<style>
+  .layout {
+    display: grid;
+    gap: var(--nv-space-6);
+    align-items: start;
+  }
+  @media (min-width: 64rem) {
+    .layout {
+      grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+    }
+  }
+
+  /* The terminal keeps its dark ground in the light theme too, so its colors
+     are fixed to the dark ends of the palette rather than the theme's. */
+  .terminal {
+    --term-bg: color-mix(in oklab, var(--nv-fog) 4%, var(--nv-ink));
+    --term-text: var(--nv-fog);
+    --term-dim: color-mix(in oklab, var(--nv-fog) 62%, var(--nv-ink));
+    --term-line: color-mix(in oklab, var(--nv-fog) 12%, var(--nv-ink));
+    margin: 0;
+    overflow: hidden;
+    border: 1px solid var(--term-line);
+    border-radius: var(--nv-radius-lg);
+    background:
+      radial-gradient(80% 60% at 100% 0%, color-mix(in oklab, var(--nv-violet) 20%, transparent), transparent 70%),
+      var(--term-bg);
+    box-shadow: var(--nv-shadow-lg);
+    color: var(--term-text);
+  }
+  .bar {
+    display: flex;
+    align-items: center;
+    gap: var(--nv-space-3);
+    padding: 0.6rem 0.9rem;
+    border-bottom: 1px solid var(--term-line);
+    font-family: var(--sl-font-mono);
+    font-size: 0.75rem;
+    color: var(--term-dim);
+  }
+  .dots {
+    display: inline-flex;
+    gap: 0.4rem;
+  }
+  .dots i {
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 50%;
+    background: var(--term-line);
+  }
+  .terminal ul {
+    margin: 0;
+    padding: var(--nv-space-3) 0;
+    list-style: none;
+    font-family: var(--sl-font-mono);
+    font-size: 0.82rem;
+  }
+  .terminal li a,
+  .terminal li .row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.15rem var(--nv-space-4);
+    padding: 0.45rem var(--nv-space-5);
+    color: var(--term-text);
+    text-decoration: none;
+    transition: background-color var(--nv-fast) var(--nv-ease);
+  }
+  .terminal li a:hover {
+    background: color-mix(in oklab, var(--nv-violet) 24%, transparent);
+  }
+  .terminal li a:active {
+    background: color-mix(in oklab, var(--nv-violet) 34%, transparent);
+  }
+  .terminal li a:focus-visible {
+    outline-offset: -2px;
+  }
+  .line {
+    display: inline-flex;
+    gap: 0.6em;
+  }
+  .prompt {
+    color: var(--nv-gold);
+    font-weight: 700;
+  }
+  code {
+    font-family: inherit;
+    color: inherit;
+    font-weight: 600;
+  }
+  .desc {
+    color: var(--term-dim);
+  }
+  .terminal li a:hover .desc {
+    color: var(--term-text);
+  }
+
+  .tests {
+    display: flex;
+    flex-direction: column;
+    gap: var(--nv-space-4);
+    min-width: 0;
+  }
+  .tests-head {
+    display: flex;
+    gap: var(--nv-space-3);
+    align-items: flex-start;
+  }
+  h3 {
+    margin: 0 0 var(--nv-space-1);
+    font-size: var(--sl-text-lg);
+    font-weight: 750;
+    color: var(--sl-color-white);
+  }
+  .tests p {
+    margin: 0;
+    font-size: var(--sl-text-sm);
+    line-height: 1.65;
+    color: var(--sl-color-gray-2);
+  }
+  .tests :global(.expressive-code) {
+    margin: 0;
+  }
+  .tests :global(.expressive-code + .expressive-code) {
+    margin-top: var(--nv-space-2);
+  }
+  .more {
+    display: inline-flex;
+    align-items: center;
+    align-self: flex-start;
+    gap: 0.35em;
+    font-size: var(--sl-text-sm);
+    font-weight: 650;
+    color: var(--sl-color-text-accent);
+    text-decoration: none;
+  }
+  .more:hover {
+    text-decoration: underline;
+    text-underline-offset: 0.25em;
+  }
+</style>

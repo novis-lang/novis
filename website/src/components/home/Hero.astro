@@ -1,0 +1,337 @@
+---
+/**
+ * The front page's hero: the page's one `<h1>`, the tagline, the two calls
+ * to action, and a code window that holds the snippet passed in the default
+ * slot. Two columns from 64rem, stacked below.
+ *
+ * The `<h1>` carries Starlight's title id, so the skip link lands on it;
+ * src/components/PageTitle.astro renders no other title on this page.
+ * The glow behind it is static radial gradients: no filter, no animation.
+ */
+import { Icon } from '@astrojs/starlight/components'
+import { INSTALL } from '@config/site.mjs'
+import { withBase } from '~/lib/base'
+---
+
+<section class="home-hero not-content" aria-labelledby="_top">
+  <div class="backdrop" aria-hidden="true"></div>
+
+  <div class="copy">
+    <a class="pill" href={withBase('/guides/why-novis/')}>
+      <span class="nv-chip">Why Novis?</span>
+      <span>See what the compiler checks for you</span>
+      <Icon name="right-arrow" size="1rem" />
+    </a>
+    <h1 id="_top" data-page-title>
+      Web code that is <span class="nv-gradient-text">safe by default</span>
+    </h1>
+    <p class="tagline">
+      Novis is a programming language for web servers and the command line. The compiler checks input from
+      outside. Every request runs on its own, and your code runs as machine code.
+    </p>
+    <div class="actions">
+      <a class="nv-button nv-button-primary" href={withBase(INSTALL.href)}>
+        Install Novis
+        <Icon name="right-arrow" size="1.1rem" />
+      </a>
+      <a class="nv-button nv-button-secondary" href={withBase('/guides/tour/')}>
+        <Icon name="open-book" size="1.1rem" />
+        Take the tour
+      </a>
+    </div>
+    <ul class="meta">
+      <li><Icon name="approve-check-circle" size="1rem" /> Free and open source</li>
+      <li><Icon name="laptop" size="1rem" /> Windows, Linux and macOS</li>
+      <li><Icon name="vscode" size="1rem" /> An extension for VS Code</li>
+    </ul>
+  </div>
+
+  <div class="stage">
+    <figure class="window">
+      <div class="bar">
+        <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span class="file">hello.nvs</span>
+        <span class="request">GET /hello</span>
+      </div>
+      <div class="code">
+        <slot />
+      </div>
+      <figcaption class="sr-only">A Novis program that answers a web request, and the HTML it sends.</figcaption>
+    </figure>
+    <div class="badge" aria-hidden="true">
+      <span class="badge-icon"><Icon name="approve-check" size="1rem" /></span>
+      The script is escaped
+    </div>
+  </div>
+</section>
+
+<style>
+  .home-hero {
+    position: relative;
+    isolation: isolate;
+    display: grid;
+    gap: var(--nv-space-7);
+    align-items: center;
+    padding-block: var(--nv-space-6) var(--nv-space-5);
+  }
+  @media (min-width: 64rem) {
+    .home-hero {
+      grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.15fr);
+      gap: var(--nv-space-7);
+      padding-block: var(--nv-space-8) var(--nv-space-7);
+    }
+  }
+
+  /* Two soft color fields and a dot grid that fades out at its edges. */
+  .backdrop {
+    position: absolute;
+    z-index: -1;
+    inset: -3rem 0 -2rem;
+    pointer-events: none;
+    background:
+      radial-gradient(38% 46% at 82% 38%, color-mix(in oklab, var(--nv-violet) 26%, transparent), transparent 70%),
+      radial-gradient(30% 40% at 58% 78%, color-mix(in oklab, var(--nv-crimson) 20%, transparent), transparent 70%),
+      radial-gradient(22% 30% at 12% 10%, color-mix(in oklab, var(--nv-gold) 10%, transparent), transparent 70%);
+  }
+  .backdrop::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(color-mix(in oklab, var(--sl-color-white) 16%, transparent) 1px, transparent 1.5px);
+    background-size: 22px 22px;
+    -webkit-mask-image: radial-gradient(ellipse 60% 70% at 70% 45%, black 10%, transparent 75%);
+    mask-image: radial-gradient(ellipse 60% 70% at 70% 45%, black 10%, transparent 75%);
+  }
+  :global([data-theme='light']) .backdrop {
+    background:
+      radial-gradient(38% 46% at 82% 38%, color-mix(in oklab, var(--nv-violet) 16%, transparent), transparent 70%),
+      radial-gradient(30% 40% at 58% 78%, color-mix(in oklab, var(--nv-crimson) 10%, transparent), transparent 70%),
+      radial-gradient(22% 30% at 12% 10%, color-mix(in oklab, var(--nv-gold) 14%, transparent), transparent 70%);
+  }
+
+  .copy {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--nv-space-5);
+  }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--nv-space-2);
+    max-width: 100%;
+    padding: 0.25rem 0.75rem 0.25rem 0.3rem;
+    border: 1px solid var(--nv-hairline-strong);
+    border-radius: var(--nv-radius-pill);
+    background: var(--nv-surface);
+    color: var(--sl-color-gray-2);
+    font-size: var(--sl-text-sm);
+    font-weight: 600;
+    text-decoration: none;
+    box-shadow: var(--nv-shadow-sm);
+    transition:
+      border-color var(--nv-fast) var(--nv-ease),
+      color var(--nv-fast) var(--nv-ease),
+      transform var(--nv-fast) var(--nv-ease);
+  }
+  .pill .nv-chip {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  .pill svg {
+    flex-shrink: 0;
+    transition: transform var(--nv-fast) var(--nv-ease);
+  }
+  .pill:hover {
+    border-color: var(--sl-color-accent);
+    color: var(--sl-color-white);
+  }
+  .pill:hover svg {
+    transform: translateX(3px);
+  }
+  .pill:active {
+    transform: scale(0.98);
+  }
+
+  h1 {
+    margin: 0;
+    font-size: clamp(2.5rem, 1.6rem + 4vw, 4.25rem);
+    font-weight: 800;
+    line-height: 1.04;
+    letter-spacing: -0.04em;
+    color: var(--sl-color-white);
+    text-wrap: balance;
+  }
+  h1 .nv-gradient-text {
+    /* Room for descenders inside the clipped background. */
+    padding-block-end: 0.06em;
+  }
+
+  .tagline {
+    margin: 0;
+    max-width: 34rem;
+    font-size: var(--sl-text-lg);
+    line-height: 1.65;
+    color: var(--sl-color-gray-2);
+    text-wrap: pretty;
+  }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--nv-space-3);
+  }
+
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--nv-space-2) var(--nv-space-5);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-3);
+  }
+  .meta li {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+  }
+  .meta svg {
+    color: var(--sl-color-text-accent);
+  }
+
+  /* ------------------------------------------------------------ the window */
+  .stage {
+    position: relative;
+    min-width: 0;
+  }
+  .window {
+    position: relative;
+    margin: 0;
+    border: 1px solid var(--nv-hairline-strong);
+    border-radius: var(--nv-radius-lg);
+    background: var(--nv-code-bg);
+    box-shadow: var(--nv-shadow-lg), 0 30px 80px -40px color-mix(in oklab, var(--nv-violet) 60%, transparent);
+    overflow: hidden;
+  }
+  /* A gradient hairline along the top edge. */
+  .window::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto;
+    height: 1px;
+    background: var(--nv-gradient-line);
+    opacity: 0.9;
+  }
+  .bar {
+    display: flex;
+    align-items: center;
+    gap: var(--nv-space-3);
+    padding: 0.6rem 0.9rem;
+    border-bottom: 1px solid var(--nv-hairline);
+    background: var(--nv-surface-2);
+    font-family: var(--sl-font-mono);
+    font-size: 0.75rem;
+    color: var(--sl-color-gray-3);
+  }
+  .dots {
+    display: inline-flex;
+    gap: 0.4rem;
+  }
+  .dots i {
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 50%;
+    background: var(--nv-crimson-fill);
+  }
+  .dots i:nth-child(2) {
+    background: var(--nv-gold);
+  }
+  .dots i:nth-child(3) {
+    background: var(--sl-color-accent);
+  }
+  .file {
+    color: var(--sl-color-gray-2);
+    font-weight: 600;
+  }
+  .request {
+    margin-inline-start: auto;
+    padding: 0.1rem 0.5rem;
+    border-radius: var(--nv-radius-pill);
+    background: var(--nv-wash);
+    color: var(--sl-color-text-accent);
+    font-weight: 600;
+  }
+
+  /* The snippet inside: no frame of its own, the window is the frame. */
+  .code :global(.expressive-code) {
+    margin: 0;
+  }
+  .code :global(.expressive-code + .expressive-code) {
+    margin: 0;
+  }
+  .code :global(.expressive-code .frame) {
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .code :global(.expressive-code pre) {
+    border: 0;
+    border-radius: 0;
+    font-size: 0.8rem;
+  }
+  .code :global(.expressive-code .frame.has-title .header) {
+    border-radius: 0;
+  }
+  .code :global(.expressive-code + .expressive-code .frame) {
+    border-top: 1px solid var(--nv-hairline);
+  }
+
+  .badge {
+    position: absolute;
+    inset-inline-start: -1.25rem;
+    inset-block-end: -1.25rem;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--nv-space-2);
+    padding: 0.55rem 0.9rem 0.55rem 0.55rem;
+    border: 1px solid var(--nv-hairline-strong);
+    border-radius: var(--nv-radius-pill);
+    background: var(--nv-glass-solid);
+    box-shadow: var(--nv-shadow-md);
+    font-size: var(--sl-text-sm);
+    font-weight: 650;
+    color: var(--sl-color-white);
+  }
+  .badge-icon {
+    display: inline-flex;
+    padding: 0.25rem;
+    border-radius: 50%;
+    background: var(--nv-ok);
+    color: var(--sl-color-black);
+  }
+  @media (max-width: 63.99rem) {
+    .badge {
+      position: static;
+      margin-block-start: var(--nv-space-3);
+    }
+  }
+
+  @media (max-width: 49.99rem) {
+    .home-hero {
+      gap: var(--nv-space-6);
+      padding-block-start: var(--nv-space-4);
+    }
+    .tagline {
+      font-size: var(--sl-text-base);
+    }
+    .actions {
+      width: 100%;
+    }
+    .actions .nv-button {
+      flex: 1 1 12rem;
+      justify-content: center;
+    }
+  }
+</style>

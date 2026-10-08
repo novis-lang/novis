@@ -94,6 +94,8 @@ export default defineConfig({
         // The Starlight component that links off the site, with the
         // external-link rule applied — see config/external-links.mjs.
         SocialIcons: './src/components/SocialIcons.astro',
+        // No title on the front page, whose hero holds the page's <h1>.
+        PageTitle: './src/components/PageTitle.astro',
       },
       expressiveCode: {
         shiki: {
