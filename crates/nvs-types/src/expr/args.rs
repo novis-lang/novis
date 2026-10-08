@@ -601,7 +601,7 @@ fn check_arg_admitting_quals(
     }
     let mut compared = actual;
     if admitted.tainted {
-        compared = untainted(compared, env.interner);
+        compared = untainted_entries(compared, expected, env.interner);
     }
     if admitted.secret {
         compared = unsecret(compared, env.interner);

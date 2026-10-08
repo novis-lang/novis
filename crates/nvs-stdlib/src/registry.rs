@@ -471,7 +471,9 @@ pub enum CoreTy {
     /// unqualified shape type it already is — and each field keeps the
     /// qualifier it was given.
     Object,
-    /// `array<T>`, whose element type is the wrapped one.
+    /// `array<T>`, whose element type is the wrapped one. As a parameter it
+    /// carries a classification only when the element is
+    /// `Text(Qual::Contagious)` — [`Self::classification`] owns why.
     Array(&'static CoreTy),
     /// `callable` — `rule:types/callable-is-the-only-function-type`'s one function type,
     /// and the **top** of `rule:types/callable-signature`'s lattice: it says
@@ -1206,10 +1208,13 @@ impl CoreTy {
     /// and the unclassified [`Self::Str`]/[`Self::Bytes`] spellings, whose
     /// `None` is the refusal rather than an omission.
     ///
-    /// A [`Self::Union`] answers the mark its arms declare, which is the one
-    /// place a parameter's classification is not written beside the parameter
-    /// itself — that variant's own docs hold the rule and what a disagreement
-    /// answers.
+    /// A [`Self::Union`] answers the mark its arms declare — that variant's own
+    /// docs hold the rule and what a disagreement answers. A [`Self::Array`]
+    /// answers [`Qual::Contagious`] when its element is written contagious and
+    /// `None` for every other element, `Neutral` and `Sink` included: a
+    /// contagious element is the one mark whose admission carries the bit back
+    /// out to the result, and every other `array<…>` parameter refuses a
+    /// tainted entry until its own row says otherwise.
     #[must_use]
     pub const fn classification(&self) -> Option<Qual> {
         match self {
@@ -1229,6 +1234,13 @@ impl CoreTy {
             // `?T` is `null|T`, and `null` has no cell, so the mark is the inner type's — as a
             // union's is its text arm's.
             Self::Nullable(inner) => inner.classification(),
+            // `Core\Str::join`'s parts: every entry's bytes are in the answer,
+            // so a tainted entry is admitted exactly where the answer can
+            // carry the bit, as a contagious `string` parameter is.
+            Self::Array(elem) => match elem.classification() {
+                Some(Qual::Contagious) => Some(Qual::Contagious),
+                _ => None,
+            },
             _ => None,
         }
     }
@@ -4843,9 +4855,9 @@ mod tests {
     /// [`CoreTy::Options`] bag — every position where the *argument* the call
     /// writes is itself a string. Under [`CoreTy::Array`] or
     /// [`CoreTy::Iterated`] the argument is a container and the string is its
-    /// element type; `rule:security/unclassified-parameter-refuses-tainted` is written about the parameter, and
-    /// classifying an element type would be a claim about flow through a
-    /// container that no member makes yet.
+    /// element type, so an unclassified element is not owed a mark here: it
+    /// refuses a tainted entry, and a row that admits one writes the element
+    /// contagious, as `Core\Str::join` does ([`CoreTy::classification`]).
     #[test]
     fn every_member_parameter_carries_a_qualifier_classification() {
         fn unclassified(ty: &CoreTy) -> bool {

@@ -306,12 +306,9 @@ pub(crate) fn qualified_scalar(
 /// It deliberately does **not** reach through `array<…>`, where
 /// [`tainted_result`] does. The reach is not symmetric because the two
 /// directions are not: setting the bit further than necessary refuses, and
-/// clearing it further than necessary admits. No array can reach here anyway —
-/// [`crate::core_lib`]'s `qual_of` gives an `array<text>` parameter no
-/// classification at all, so the array's entries are the over-strictness that
-/// function's own comment records rather than something this one may spend.
-/// If a row ever classifies an array parameter, this is the second place to
-/// change and the first is that limit.
+/// clearing it further than necessary admits. An array's entries are cleared
+/// only by [`untainted_entries`], and only for a parameter declared as an
+/// array.
 ///
 /// [`unsecret`] does not follow even into a union: `rule:core-classes/secret-reveal`'s escape hatch
 /// is four parameters of two classes with no contagion to carry, so the same
@@ -331,6 +328,39 @@ pub(crate) fn untainted(ty: TypeId, interner: &mut TypeInterner) -> TypeId {
             interner.make_union(members)
         }
         _ => ty,
+    }
+}
+
+/// [`untainted`], reaching through `array<…>` exactly as deep as `expected` is
+/// an array, and nowhere else.
+///
+/// This is the admission at a classified parameter declared `array<…>`, and
+/// every such parameter is [`Qual::Contagious`]: a `Core` row classifies one
+/// only when its element is written contagious
+/// (`nvs_stdlib::registry::CoreTy::classification`), as `Core\Str::join`'s
+/// parts are, and an extension's list parameter is contagious by
+/// `rule:security/extension-contagion`. So an `array<tainted string>` argument
+/// is compared as the `array<string>` the parameter declares, and
+/// `crate::expr::args`' `carries_contagion` reads the bit back out through
+/// [`carries_tainted`], which reaches arrays too. Following `expected` rather
+/// than the argument keeps the reach to the parameter that admits it: a
+/// parameter declared as a union or a scalar is narrowed by [`untainted`]
+/// alone, so an `array<…>` inside a union arm is never cleared.
+pub(crate) fn untainted_entries(
+    ty: TypeId,
+    expected: TypeId,
+    interner: &mut TypeInterner,
+) -> TypeId {
+    let entries = match (interner.get(expected), interner.get(ty)) {
+        (Ty::Array(want), Ty::Array(elem)) => Some((*want, *elem)),
+        _ => None,
+    };
+    match entries {
+        Some((want, elem)) => {
+            let elem = untainted_entries(elem, want, interner);
+            interner.array(elem)
+        }
+        None => untainted(ty, interner),
     }
 }
 

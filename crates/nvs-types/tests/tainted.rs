@@ -523,3 +523,52 @@ fn a_shape_or_binding_receiving_text_out_of_mixed_must_be_written_tainted() {
         assert_eq!(got, refused, "{line}: {diags:?}");
     }
 }
+
+// `Core\Str::join`'s parts are contagious on the array's element: every
+// entry's bytes are in the answer, so a tainted entry is admitted and taints
+// the result.
+
+#[test]
+fn join_over_tainted_parts_compiles_and_answers_a_tainted_string() {
+    let diags = check_in_method(
+        "mixed $m = [\"a\"];\n\
+         array<tainted string> $parts = $m as array<string>;\n\
+         tainted string $s = Core\\Str::join($parts, \", \");\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn join_over_tainted_parts_does_not_launder_them() {
+    let diags = check_in_method(
+        "mixed $m = [\"a\"];\n\
+         array<tainted string> $parts = $m as array<string>;\n\
+         string $s = Core\\Str::join($parts, \", \");\n",
+    );
+    assert!(
+        diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+        "{diags:?}"
+    );
+}
+
+#[test]
+fn join_over_plain_parts_and_a_plain_separator_answers_a_plain_string() {
+    let diags = check_in_method(
+        "array<string> $parts = [\"a\", \"b\"];\n\
+         string $s = Core\\Str::join($parts, \", \");\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn join_still_refuses_secret_parts() {
+    let diags = check_in_method(
+        "secret string $token = \"literal\";\n\
+         array<secret string> $parts = [$token];\n\
+         string $s = Core\\Str::join($parts, \", \");\n",
+    );
+    assert!(
+        diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+        "{diags:?}"
+    );
+}

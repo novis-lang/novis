@@ -221,10 +221,10 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // The payload's element is marked as [`crate::jwt`]'s claims are,
             // and for that row's reason: the token is base64 and carries no
             // argument's `tainted` into any sink. The mark is on the element
-            // rather than on the parameter because an `array<…>` has no cell
-            // for one — `nvs_types::core_lib`'s `qual_of` reads none from an
-            // array parameter, so what admits an argument here is the declared
-            // element type and nothing else.
+            // because an `array<…>` has no cell of its own, and
+            // `CoreTy::classification` reads only a contagious element through
+            // the array, so this parameter is unclassified and what admits an
+            // argument here is the declared element type and nothing else.
             params: &[
                 CoreTy::Array(&CoreTy::Text(Qual::Neutral)),
                 CoreTy::Shape(SIGNING),

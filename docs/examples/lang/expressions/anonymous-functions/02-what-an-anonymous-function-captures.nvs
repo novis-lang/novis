@@ -20,7 +20,9 @@ while ($round < 3) {
     $round = $round + 1;
 }
 
-array<string> $printed = [];
+// `$label()` returns `mixed`, and `as string` converts it to a `tainted string`.
+// So the array has the type `array<tainted string>`.
+array<tainted string> $printed = [];
 
 foreach ($labels as callable $label) {
     $printed = Core\Arr::append($printed, $label() as string);

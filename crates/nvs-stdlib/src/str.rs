@@ -190,7 +190,10 @@ const CARD: ClassDoc = ClassDoc {
 /// * **Contagious** everywhere else, including the needle of a member that
 ///   answers a slice: `before`'s separator never appears in the answer, but
 ///   *which* slice is answered is the needle's doing, and laundering by
-///   influence is not something this class is allowed to do.
+///   influence is not something this class is allowed to do. `join`'s parts
+///   carry the mark on the array's element, because every entry's bytes are
+///   in the answer; `CoreTy::classification` is what reads it through the
+///   array.
 /// * **Sink** on `format`'s template, which is one of `rule:core-api/shape-rules` R11's four
 ///   grammars — § 1's corollary makes every one of the four a sink, and the
 ///   variadic arguments it renders stay data.
@@ -342,7 +345,10 @@ pub const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "join",
             names: &["parts", "separator"],
-            params: &[CoreTy::Array(&CoreTy::Str), CoreTy::Text(Qual::Contagious)],
+            params: &[
+                CoreTy::Array(&CoreTy::Text(Qual::Contagious)),
+                CoreTy::Text(Qual::Contagious),
+            ],
             defaults: &[Const::Str("")],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_str_join",

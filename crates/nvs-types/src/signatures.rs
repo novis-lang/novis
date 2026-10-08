@@ -112,14 +112,14 @@ pub struct MethodSig {
     /// registry row that wrote it ([`nvs_stdlib::registry::Qual`] holds the
     /// rule a class is classified by), and a user-declared method's parameters
     /// have never been classified at all. A `Core` row fills one entry per
-    /// [`Self::params`] entry, `None` where the parameter's type has no cell to
-    /// write one in — every `CoreTy` but `Text` and `Blob`.
+    /// [`Self::params`] entry from `nvs_stdlib::registry::CoreTy::classification`,
+    /// `None` where the parameter's type carries no mark.
     ///
     /// A parallel `Vec` for [`Self::inout`]'s reason, and read through
-    /// [`Self::qual_at`] so the variadic rule stays in one place. A
-    /// classification nested inside an `array<…>` element or an options bag is
-    /// deliberately not carried: no registry row writes one there, and the
-    /// checker asks this question of a whole argument.
+    /// [`Self::qual_at`] so the variadic rule stays in one place. The checker
+    /// asks this question of a whole argument, so a mark nested in an options
+    /// bag is not carried, and one on an `array<…>` element is carried only
+    /// when it is `Contagious` — the registry's `classification` owns why.
     pub param_quals: Vec<Option<Qual>>,
     /// What each parameter's text names, positionally — `rule:programs/relative-paths-resolve-from-their-file`'s
     /// mark, read through [`Self::text_at`]. **Empty** means every parameter is

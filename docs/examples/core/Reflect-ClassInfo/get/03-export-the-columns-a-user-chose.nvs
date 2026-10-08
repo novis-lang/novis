@@ -18,11 +18,9 @@ array<string> $columns = ["id", "total"];
 echo Core\Str::join($columns, ","), "\n";
 foreach ($orders as Order $order) {
     var $info = Core\Reflect::forObject($order);
-    tainted string $line = "";
-    string $separator = "";
+    array<tainted string> $cells = [];
     foreach ($columns as string $column) {
-        $line = $line . $separator . ($info->get($order, $column) as string);
-        $separator = ",";
+        $cells[] = $info->get($order, $column) as string;
     }
-    echo $line, "\n";
+    echo Core\Str::join($cells, ","), "\n";
 }

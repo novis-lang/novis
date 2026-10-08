@@ -489,13 +489,14 @@ fn qual_of(ty: &CoreTy) -> Option<Qual> {
         // Which spellings carry one is the registry's own question and this is
         // not a second answer to it: every other walk here reads a row, and a
         // leaf list restated on this side is how the two drift. That is also
-        // why a union needs nothing here — the registry folds its arms into
-        // the parameter's mark, so this reads a declared classification
+        // why a union and an array need nothing here — the registry folds a
+        // union's arms into the parameter's mark and reads a contagious array
+        // element through the array, so this reads a declared classification
         // whatever the parameter's type. What this adds is the variadic rule
-        // above, which the registry has no reason to know — an `array<text>`
-        // element and an options bag's members are unclassified for the reason
-        // `MethodSig::param_quals` records, and a `None` refuses a qualified
-        // argument exactly as `Sink` does.
+        // above, which the registry has no reason to know. An options bag's
+        // members are unclassified for the reason `MethodSig::param_quals`
+        // records, and a `None` refuses a qualified argument exactly as `Sink`
+        // does.
         _ => ty.classification(),
     }
 }
@@ -529,13 +530,14 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         // qualifier back out.
         //
         // **What has no mark is a nested spelling.** `qual_of` answers `None`
-        // for an `array<text>` element and for an options bag's members, and
-        // `None` refuses a qualified argument exactly as `Sink` does. A
-        // `CoreTy::Union` is not one of those: it answers the mark its arms
+        // for an options bag's members and for an `array<text>` whose element
+        // is anything but contagious, and `None` refuses a qualified argument
+        // exactly as `Sink` does. A `CoreTy::Union` answers the mark its arms
         // declare, so `Core\Regex`'s `Pattern|string` parameters are a sink
         // because their text arm is written that way —
         // `nvs_stdlib::registry::CoreTy::Union` owns that rule and what two
-        // disagreeing arms answer.
+        // disagreeing arms answer — and an array with a contagious element
+        // answers `Contagious`, which `CoreTy::classification` owns.
         // A path or a class name is a mark on the text and not a second type:
         // `nvs_stdlib::registry::ParamText` owns what reads it, and none of
         // that changes what a caller may pass.
@@ -2140,7 +2142,7 @@ mod tests {
         assert_eq!(
             sig.qual_at(1),
             None,
-            "an array parameter has no cell to classify, and needs none here"
+            "an argv's element is not contagious, so the array parameter carries no mark"
         );
         let tainted = interner.tainted_string();
         let tainted_argv = interner.array(tainted);
@@ -2287,8 +2289,9 @@ mod tests {
         .expect("Core\\Str::join is registered");
         assert_eq!(
             sig.qual_at(0),
-            None,
-            "an array parameter has no cell to classify"
+            Some(Qual::Contagious),
+            "every part's bytes are in the answer, so the array's contagious element is the \
+             parameter's mark"
         );
         assert_eq!(
             sig.qual_at(1),
