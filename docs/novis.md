@@ -26125,11 +26125,12 @@ Opens a directory at a URL the program gives. Needs the `ldap.open` capability f
 <a id="core-core-ldap-connection"></a>
 ### `Core\Ldap\Connection`
 
-Keywords: whoami, search, read, add, modify, delete, rename, setPassword, changePassword, compare
+Keywords: whoami, authenticate, search, read, add, modify, delete, rename, setPassword, changePassword, compare
 
 | Member | Signature |
 |---|---|
 | [`Core\Ldap\Connection->whoami`](#core-core-ldap-connection-whoami) | `whoami(): string` |
+| [`Core\Ldap\Connection->authenticate`](#core-core-ldap-connection-authenticate) | `authenticate(string $login, secret tainted string $password): void` |
 | [`Core\Ldap\Connection->search`](#core-core-ldap-connection-search) | `search(Core\Ldap\Filter $filter, {base?: Core\Ldap\Dn\|string, scope?: Core\Ldap\Scope, select?: array<string>, pageSize?: int, sizeLimit?: int}): Core\Ldap\Entries` |
 | [`Core\Ldap\Connection->read`](#core-core-ldap-connection-read) | `read(Core\Ldap\Dn\|string $dn, {select?: array<string>}): ?Core\Ldap\Entry` |
 | [`Core\Ldap\Connection->add`](#core-core-ldap-connection-add) | `add(Core\Ldap\Dn\|string $dn, array<mixed> $attributes): void` |
@@ -26152,6 +26153,24 @@ Returns the account the connection is logged in as, as the server reports it.
 **Returns** `string` — `dn:` and then the account's DN, or `u:` and then its login name. The result is an empty string when the connection did not log in.
 
 **Throws** `LogicError` — The connection is closed.; `Core\Ldap\LdapError` — The server did not answer, or it returned an error. `$kind` says why.
+
+<a id="core-core-ldap-connection-authenticate"></a>
+#### `Core\Ldap\Connection->authenticate`
+
+```nvs skip
+$connection->authenticate(string $login, secret tainted string $password): void
+```
+
+Checks a user's login and password. It opens a new connection to the same server, logs in as the user and closes that connection. The connection you call it on stays logged in as before.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$login` | `string` (neutral) | The user's DN, `user@example.test` or `DOMAIN\user`. It can be `tainted`, such as a name from a login form. |
+| `$password` | `secret tainted string` | The user's password. |
+
+**Returns** `void` — Nothing. The login and password are correct when no error is thrown.
+
+**Throws** `LogicError` — The connection is closed.; `Core\Ldap\LdapError` — `$kind` is `InvalidCredentials` for a wrong password and for a user that does not exist, so the error does not show which users exist. An empty login or password is also `InvalidCredentials`, and nothing is sent. Active Directory gives other reasons as their own kinds, such as `AccountDisabled`, `AccountLocked` or `PasswordExpired`.
 
 <a id="core-core-ldap-connection-search"></a>
 #### `Core\Ldap\Connection->search`
