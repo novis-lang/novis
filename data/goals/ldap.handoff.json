@@ -1,32 +1,27 @@
 {
-  "state": "**Goal `ldap`, Stage 4.** `nvs-config` reads `[ldap.<name>]` and `[capabilities.ldap]`. `crates/nvs-stdlib/src/ldap/mod.rs` opens connections (`connect`, `open`) and runs `who_am_i`, `search` and `read`. `Core\\Ldap::connect`/`open` are registered with six server-free cases. `nvs_ldap::Filter::Encoded` and `nvs_ldap::is_attribute_description` are on `main`.\n\n**A `.nvst` case can now copy a repository file beside itself**: `--COPY--`, one path per line relative to the case's directory, `..` allowed, landing under its last segment. A missing source skips the case and names the file (`crates/nvs-test/src/lib.rs` section table). A samba-backed case writes `--COPY--\\n../../db/ca.crt` and `tls_ca_file = \"ca.crt\"` in its `--FILE nvs.toml--`.\n\n**The members are written and wait on branch `ldap-stage4-members`** (one commit on top of `cd9b49179`, stdlib files only: `instance.rs`, `ldap/mod.rs`, `ldap/registry.rs`, `ldap/search.rs`, `registry.rs`). It registers `Ldap\\Connection::whoami`/`search`/`read`, `Ldap\\Entries`, `Ldap\\Entry` (`dn`, `has`, `string`, `strings`, `bytes`), `Ldap\\Filter` (`equals`, `present`) and `Ldap\\Scope`. A probe against `samba-ad` printed the right answers for each. It is not on `main` because `conformance_coverage.rs` needs three `.nvst` cases per new member (10 members) plus a case or an \"unreachable from source\" comment for every `Fault` site in `search.rs`.\n\n`dn()` returns `string` until `Dn` exists (Stage 5). `toArray` and `Entries::references` are not written. `Ldap\\Settings` still lacks `base` and `tlsCaFile`.",
+  "state": "**Goal `ldap`, Stage 4.** `nvs-config` reads `[ldap.<name>]` and `[capabilities.ldap]`. `crates/nvs-stdlib/src/ldap/mod.rs` opens connections (`connect`, `open`) and runs `who_am_i`, `search` and `read`. `nvs_ldap::Filter::Encoded` and `nvs_ldap::is_attribute_description` are on `main`.\n\n**The Stage 4 members are on `main`**: `Ldap\\Connection::whoami`/`search`/`read`, `Ldap\\Entries`, `Ldap\\Entry` (`dn`, `has`, `string`, `strings`, `bytes`), `Ldap\\Filter` (`equals`, `present`) and `Ldap\\Scope` (`Base`, `OneLevel`, `Subtree`). Each has at least three `.nvst` cases under `tests/conformance/core/ldap-*.nvst`. Six of those cases need no server. The others reach the `samba-ad` service in `tests/db/compose.yaml` at `ldaps://localhost:16636` as `CN=Administrator,CN=Users,DC=example,DC=test`. They are skipped through `--COPY--\\n../../db/ca.crt` where `tests/db/ca.crt` is absent. The acceptance case `ldap-connect-and-search.nvst` passes against it.\n\n`dn()` returns `string` until `Dn` exists (Stage 5). `toArray` and `Entries::references` are not written. `Ldap\\Settings` still lacks `base` and `tlsCaFile`, so `open` cannot reach a server whose certificate needs a private CA.",
   "next": {
     "stage": 4,
     "title": "`Core\\Ldap`: connect, open, search, read",
     "files": [
       "crates/nvs-stdlib/src/ldap/search.rs",
       "crates/nvs-stdlib/src/ldap/registry.rs",
+      "crates/nvs-stdlib/src/ldap/mod.rs",
       "tests/conformance/core/ldap-*.nvst"
     ],
     "items": [
       {
         "done": false,
-        "text": "**Land branch `ldap-stage4-members` and its server-free cases**: `git cherry-pick -n ldap-stage4-members`, so it commits with its cases after verify. Once that commit is on `main`, delete the branch with `git branch -d`, and if it says the branch is not merged, use `git branch -D` only after `git diff ldap-stage4-members main -- crates/nvs-stdlib` shows nothing. Write the cases that need no server: a tainted DN or `base` does not compile, a tainted `select` name does not compile, `Filter::equals` accepts a tainted value, a bad attribute name throws `LogicError`. Add an assertion or an \"unreachable from source\" comment for each `Fault` site in `crates/nvs-stdlib/src/ldap/search.rs:68`. ADR 0278 § 1, § 5 and § 6."
+        "text": "**`Entry::toArray` and `Entries::references`** (ADR 0278 § 1 and § 5). The `Entry` rows start at `crates/nvs-stdlib/src/ldap/registry.rs:465`, and the reader bodies at `crates/nvs-stdlib/src/ldap/search.rs:354`. `toArray`'s keys keep the server's spelling (the module doc at `crates/nvs-stdlib/src/ldap/search.rs:6`). Three cases each, against `samba-ad`, in the shape of `tests/conformance/core/ldap-entry-readers-agree-on-a-missing-attribute.nvst`."
       },
       {
         "done": false,
-        "text": "**The samba-backed cases**: the acceptance case `tests/conformance/core/ldap-connect-and-search.nvst` and the rest of three per member of `Ldap\\Connection`, `Ldap\\Entry`, `Ldap\\Filter` and `Ldap\\Entries`, each with `--COPY--\\n../../db/ca.crt` (`crates/nvs-test/src/run.rs:197`) and a `--SKIPIF--` for a missing server. ADR 0278 § 1 and § 5."
-      },
-      {
-        "done": false,
-        "text": "**`Entry::toArray` and `Entries::references`** (ADR 0278 § 1 and § 5) in `crates/nvs-stdlib/src/ldap/search.rs` and `crates/nvs-stdlib/src/ldap/registry.rs:205`, each with three cases."
+        "text": "**`Ldap\\Settings` gains `base` and `tlsCaFile`** (ADR 0278 § 2). The shape is at `crates/nvs-stdlib/src/ldap/registry.rs:59`, and its slot constants follow it. Then add a case where `Core\\Ldap::open` reaches `samba-ad` over LDAPS and `whoami` returns `u:EXAMPLE\\Administrator`."
       }
     ]
   },
   "backlog": [
-    "`Ldap\\Settings.base` and `tlsCaFile` (ADR 0278 § 2), once `Dn` exists (Stage 5).",
-    "`Entry::dn()` becomes `Dn` in Stage 5, and `read` takes `Dn|string`.",
-    "`rule:security/ldap-pool-is-bound-as-its-block` stays `designed` until a Novis case guards it.",
-    "`SearchOptions.timeLimit` (a `Duration`) is not registered yet (ADR 0278 § 1)."
+    "Stage 5: `Filter::all`/`any`/`not`, the rest of the matches, `Filter::parse` and `Dn` (ADR 0278 § 5). `dn()` then returns `Dn`.",
+    "Stages 6 to 10 as `docs/agent/goals/ldap.md` orders them."
   ]
 }

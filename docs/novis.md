@@ -213,6 +213,9 @@ Conventions the whole file uses:
 | [`Core\Db\Plan\Step`](#core-core-db-plan-step) |  |
 | [`Core\Ldap`](#core-core-ldap) |  |
 | [`Core\Ldap\Connection`](#core-core-ldap-connection) |  |
+| [`Core\Ldap\Entries`](#core-core-ldap-entries) |  |
+| [`Core\Ldap\Entry`](#core-core-ldap-entry) |  |
+| [`Core\Ldap\Filter`](#core-core-ldap-filter) |  |
 | [`Core\Queue`](#core-core-queue) |  |
 | [`Core\Queue\Id`](#core-core-queue-id) |  |
 | [`Core\Queue\Stats`](#core-core-queue-stats) |  |
@@ -26080,10 +26083,209 @@ Opens a directory at a URL the program gives. Needs the `ldap.open` capability f
 <a id="core-core-ldap-connection"></a>
 ### `Core\Ldap\Connection`
 
+Keywords: whoami, search, read
+
+| Member | Signature |
+|---|---|
+| [`Core\Ldap\Connection->whoami`](#core-core-ldap-connection-whoami) | `whoami(): string` |
+| [`Core\Ldap\Connection->search`](#core-core-ldap-connection-search) | `search(Core\Ldap\Filter $filter, {base?: string, scope?: Core\Ldap\Scope, select?: array<string>, pageSize?: int, sizeLimit?: int}): Core\Ldap\Entries` |
+| [`Core\Ldap\Connection->read`](#core-core-ldap-connection-read) | `read(string $dn, {select?: array<string>}): ?Core\Ldap\Entry` |
+
+<a id="core-core-ldap-connection-whoami"></a>
+#### `Core\Ldap\Connection->whoami`
+
+```nvs skip
+$connection->whoami(): string
+```
+
+Returns the account the connection is logged in as, as the server reports it.
+
+**Returns** `string` — `dn:` and then the account's DN, or `u:` and then its login name. The result is an empty string when the connection did not log in.
+
+**Throws** `LogicError` — The connection is closed.; `Core\Ldap\LdapError` — The server did not answer, or it returned an error. `$kind` says why.
+
+<a id="core-core-ldap-connection-search"></a>
+#### `Core\Ldap\Connection->search`
+
+```nvs skip
+$connection->search(Core\Ldap\Filter $filter, {base?: string, scope?: Core\Ldap\Scope, select?: array<string>, pageSize?: int, sizeLimit?: int}): Core\Ldap\Entries
+```
+
+Finds the entries that match a filter. The server sends the entries in pages, and the next page is read when a `foreach` loop reaches it.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$filter` | `Core\Ldap\Filter` | Which entries to return, such as `Filter::equals('sAMAccountName', $login)`. |
+| `{base: …}` | `string` (default `null`, sink) | The DN the search starts from. Left out, it is the `base` of the `[ldap]` block. It cannot be `tainted`. |
+| `{scope: …}` | `Core\Ldap\Scope` (default `Core\Ldap\Scope::Subtree`) | How far below `base` the search looks. The default is `Scope::Subtree`. |
+| `{select: …}` | `array<string>` (default `null`) | The attributes each entry has, such as `['cn', 'mail']`. Left out, an entry has every attribute the connection's account can read. |
+| `{pageSize: …}` | `int` (default `1000`) | How many entries the server sends at once. The default is 1000. |
+| `{sizeLimit: …}` | `int` (default `0`) | The most entries the search may find. The default, 0, is the server's own limit. |
+
+**Returns** `Core\Ldap\Entries` — A `Core\Ldap\Entries`. Use it in a `foreach` loop to get each `Core\Ldap\Entry`.
+
+**Throws** `LogicError` — A name in `select` is not an attribute name, `pageSize` or `sizeLimit` is out of range, the search has no `base`, or the connection is closed.; `Core\Ldap\LdapError` — The server returned an error, such as `NoSuchObject` for a `base` that does not exist. A search that finds more entries than `sizeLimit` throws `SizeLimitExceeded` in the loop.
+
+<a id="core-core-ldap-connection-read"></a>
+#### `Core\Ldap\Connection->read`
+
+```nvs skip
+$connection->read(string $dn, {select?: array<string>}): ?Core\Ldap\Entry
+```
+
+Reads the one entry at a DN.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$dn` | `string` (sink) | The entry's DN, such as `CN=Staff,OU=Groups,DC=example,DC=test`. It cannot be `tainted`. |
+| `{select: …}` | `array<string>` (default `null`) | The attributes the entry has. Left out, it has every attribute the connection's account can read. |
+
+**Returns** `?Core\Ldap\Entry` — A `Core\Ldap\Entry`, or `null` when no entry has this DN.
+
+**Throws** `LogicError` — A name in `select` is not an attribute name, or the connection is closed.; `Core\Ldap\LdapError` — The server returned an error other than "no such entry".
+
+<a id="core-core-ldap-entries"></a>
+### `Core\Ldap\Entries`
+
 Keywords: 
 
 | Member | Signature |
 |---|---|
+
+<a id="core-core-ldap-entry"></a>
+### `Core\Ldap\Entry`
+
+Keywords: dn, has, string, strings, bytes
+
+| Member | Signature |
+|---|---|
+| [`Core\Ldap\Entry->dn`](#core-core-ldap-entry-dn) | `dn(): string` |
+| [`Core\Ldap\Entry->has`](#core-core-ldap-entry-has) | `has(string $name): bool` |
+| [`Core\Ldap\Entry->string`](#core-core-ldap-entry-string) | `string(string $name): ?tainted string` |
+| [`Core\Ldap\Entry->strings`](#core-core-ldap-entry-strings) | `strings(string $name): ?array<tainted string>` |
+| [`Core\Ldap\Entry->bytes`](#core-core-ldap-entry-bytes) | `bytes(string $name): ?tainted bytes` |
+
+<a id="core-core-ldap-entry-dn"></a>
+#### `Core\Ldap\Entry->dn`
+
+```nvs skip
+$entry->dn(): string
+```
+
+Returns the entry's DN, as the server sent it.
+
+**Returns** `string` — The DN, such as `CN=Administrator,CN=Users,DC=example,DC=test`.
+
+<a id="core-core-ldap-entry-has"></a>
+#### `Core\Ldap\Entry->has`
+
+```nvs skip
+$entry->has(string $name): bool
+```
+
+Checks whether the entry has a value for an attribute.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The attribute's name, such as `mail`. Upper and lower case are the same. |
+
+**Returns** `bool` — `true` when the entry has the attribute, and `false` when it does not or the search did not select it.
+
+<a id="core-core-ldap-entry-string"></a>
+#### `Core\Ldap\Entry->string`
+
+```nvs skip
+$entry->string(string $name): ?tainted string
+```
+
+Returns the one value of an attribute as text. The result is `tainted`, because the directory's data can come from anyone who can write to it.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The attribute's name, such as `mail`. Upper and lower case are the same. |
+
+**Returns** `?tainted string` — The value, or `null` when the entry has no value for the attribute.
+
+**Throws** `LogicError` — The attribute has more than one value, so use `strings`. Or the value is not UTF-8 text, so use `bytes`.
+
+<a id="core-core-ldap-entry-strings"></a>
+#### `Core\Ldap\Entry->strings`
+
+```nvs skip
+$entry->strings(string $name): ?array<tainted string>
+```
+
+Returns every value of an attribute as text, such as every `member` of a group. The values are `tainted`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The attribute's name, such as `mail`. Upper and lower case are the same. |
+
+**Returns** `?array<tainted string>` — The values in the order the server sent them, or `null` when the entry has no value for the attribute.
+
+**Throws** `LogicError` — A value is not UTF-8 text.
+
+<a id="core-core-ldap-entry-bytes"></a>
+#### `Core\Ldap\Entry->bytes`
+
+```nvs skip
+$entry->bytes(string $name): ?tainted bytes
+```
+
+Returns the one value of an attribute as bytes, exactly as the server sent it. Use it for binary values, such as `objectGUID`. The result is `tainted`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The attribute's name, such as `mail`. Upper and lower case are the same. |
+
+**Returns** `?tainted bytes` — The value, or `null` when the entry has no value for the attribute.
+
+**Throws** `LogicError` — The attribute has more than one value.
+
+<a id="core-core-ldap-filter"></a>
+### `Core\Ldap\Filter`
+
+Keywords: equals, present
+
+| Member | Signature |
+|---|---|
+| [`Core\Ldap\Filter::equals`](#core-core-ldap-filter-equals) | `equals(string $attribute, string $value): Core\Ldap\Filter` |
+| [`Core\Ldap\Filter::present`](#core-core-ldap-filter-present) | `present(string $attribute): Core\Ldap\Filter` |
+
+<a id="core-core-ldap-filter-equals"></a>
+#### `Core\Ldap\Filter::equals`
+
+```nvs skip
+Core\Ldap\Filter::equals(string $attribute, string $value): Core\Ldap\Filter
+```
+
+Matches the entries where an attribute has this value.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$attribute` | `string` (sink) | The attribute's name, such as `sAMAccountName`. It cannot be `tainted`. |
+| `$value` | `string` (neutral) | The value to match. It may be `tainted`, such as a login name from a form. A `*` or `)` in it is a normal character. |
+
+**Returns** `Core\Ldap\Filter` — A `Core\Ldap\Filter`.
+
+**Throws** `LogicError` — `$attribute` is not an attribute name.
+
+<a id="core-core-ldap-filter-present"></a>
+#### `Core\Ldap\Filter::present`
+
+```nvs skip
+Core\Ldap\Filter::present(string $attribute): Core\Ldap\Filter
+```
+
+Matches the entries that have any value for an attribute.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$attribute` | `string` (sink) | The attribute's name, such as `sAMAccountName`. It cannot be `tainted`. |
+
+**Returns** `Core\Ldap\Filter` — A `Core\Ldap\Filter`.
+
+**Throws** `LogicError` — `$attribute` is not an attribute name.
 
 <a id="core-core-queue"></a>
 ### `Core\Queue`
@@ -27989,6 +28191,17 @@ Whether a connection to a directory is encrypted.
 |---|---|
 | `Core\Ldap\Tls::Required` | The connection is encrypted. An `ldaps://` URL starts with TLS, and an `ldap://` URL switches to TLS before it logs in. |
 | `Core\Ldap\Tls::None` | The connection is not encrypted. The password and every result cross the network as plain text. The host must be in `[capabilities.ldap] cleartext`. |
+
+<a id="enum-core-ldap-scope"></a>
+#### `Core\Ldap\Scope`
+
+How far below its `base` a search looks.
+
+| Case | Meaning |
+|---|---|
+| `Core\Ldap\Scope::Base` | Only the `base` entry itself. |
+| `Core\Ldap\Scope::OneLevel` | The entries directly below `base`, and not `base` itself. |
+| `Core\Ldap\Scope::Subtree` | `base` and every entry below it, at any depth. This is the default. |
 
 <a id="enum-core-queue-state"></a>
 #### `Core\Queue\State`
