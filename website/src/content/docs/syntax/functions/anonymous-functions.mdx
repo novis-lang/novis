@@ -1,12 +1,13 @@
 ---
 title: Anonymous functions
 covers: ['lang:expressions/anonymous-functions']
-description: How to write an anonymous function with fn, store it in a callable, and which outside variables it can use.
+description: How to write an anonymous function with fn, store it in a callable, name it so it can call itself, and which outside variables it can use.
 ---
 import Snippet from '@components/Snippet.astro'
 
-An anonymous function is a function without a name. You write it with `fn` and store it in a
-`callable` variable: `callable $double = fn(int $x): int => $x * 2;`.
+An anonymous function is a function you write with `fn` and store in a `callable` variable:
+`callable $double = fn(int $x): int => $x * 2;`. Usually it has no name. It has a name only when
+it calls itself.
 
 <Snippet src="syntax/anonymous-functions/01-fn.nvs" />
 
@@ -14,6 +15,19 @@ An anonymous function is a function without a name. You write it with `fn` and s
 - `fn(...): int => { ... }` runs a block. The block uses `return`, and the return type is required.
 - Every parameter has a type.
 - `fn` is the only way to write an anonymous function. `function () {}` does not compile.
+
+## Recursion
+
+An anonymous function that calls itself needs a name. Write the name between `fn` and the
+parameters: `fn fact(int $n): int => ...`.
+
+<Snippet src="syntax/anonymous-functions/03-recursion.nvs" />
+
+- The name works only inside the function's own body. Code outside the function cannot use it.
+- A call through the name is checked against the function's parameters and return type.
+- The variable the function is stored in does not work for this. `$factorial($n - 1)` inside the
+  function does not compile, because `$factorial` has no value yet when the function is created.
+- Write a method when other code also needs to call the function.
 
 ## Outside variables
 
