@@ -38,18 +38,21 @@ const rows =
   {
     rows.map((r) => (
       <li>
-        <strong>
-          <code>{r.label}</code>
-        </strong>{' '}
-        {r.type && <code class="nv-param-type">{r.type}</code>}
-        {r.extra && <span class="nv-param-extra">({r.extra})</span>}
-        {r.doc?.descHtml && <>{' '}— <span set:html={r.doc.descHtml} /></>}
+        <span class="nv-param-head">
+          <code class="nv-param-name">{r.label}</code>
+          {r.type && <code class="nv-param-type">{r.type}</code>}
+          {r.extra && <span class="nv-param-extra">{r.extra}</span>}
+        </span>
+        {r.doc?.descHtml && <span class="nv-param-desc" set:html={r.doc.descHtml} />}
         {r.doc?.shape && r.doc.shape.length > 0 && (
           <ul>
             {r.doc.shape.map((k) => (
               <li>
-                <code>{k.key}</code> {k.type && <code class="nv-param-type">{k.type}</code>}
-                {k.descHtml && <>{' '}— <span set:html={k.descHtml} /></>}
+                <span class="nv-param-head">
+                  <code class="nv-param-name">{k.key}</code>
+                  {k.type && <code class="nv-param-type">{k.type}</code>}
+                </span>
+                {k.descHtml && <span class="nv-param-desc" set:html={k.descHtml} />}
               </li>
             ))}
           </ul>

@@ -140,7 +140,8 @@ Derived tokens a component reaches for: `--nv-surface` and `--nv-surface-2` (a c
 raised strip), `--nv-hairline` and `--nv-hairline-strong`, `--nv-wash` (a violet tint behind
 current or hovered items), `--nv-glass` (the header), `--nv-gradient` (crimson into violet,
 for large text) and `--nv-gradient-line` (crimson, violet, gold, for hairlines and hovered
-card borders), `--nv-shadow-sm/md/lg`, `--nv-quiet` (muted annotations), `--nv-code-bg`, and
+card borders), `--nv-shadow-sm/md/lg`, `--nv-quiet` (muted annotations), `--nv-faint` (the
+faintest tone that still clears 3:1, for icons and large decorative numbers), `--nv-code-bg`, and
 the spacing, radius and motion scales. Status colors — `--nv-ok`, `--nv-warn`,
 `--nv-danger` and the asides — are Starlight's own green, orange, red and blue.
 

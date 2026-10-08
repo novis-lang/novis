@@ -148,6 +148,9 @@ const current = (href: string) => (pathname.startsWith(href) ? 'page' : undefine
     color: var(--sl-color-white);
     background-color: var(--nv-hover);
   }
+  .site-nav a:not(.install):active {
+    background-color: var(--nv-wash);
+  }
   /* The current area: violet text and a short bar under it. */
   .site-nav a:not(.install)::after {
     content: '';

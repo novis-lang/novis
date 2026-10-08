@@ -73,7 +73,7 @@ const commands = [
         </div>
       </div>
       <slot />
-      <a class="more" href={withBase('/guides/why-novis/tests-in-code/')}>
+      <a class="nv-more" href={withBase('/guides/why-novis/tests-in-code/')}>
         Tests in the language <Icon name="right-arrow" size="1rem" />
       </a>
     </div>
@@ -204,19 +204,5 @@ const commands = [
   }
   .tests :global(.expressive-code + .expressive-code) {
     margin-top: var(--nv-space-2);
-  }
-  .more {
-    display: inline-flex;
-    align-items: center;
-    align-self: flex-start;
-    gap: 0.35em;
-    font-size: var(--sl-text-sm);
-    font-weight: 650;
-    color: var(--sl-color-text-accent);
-    text-decoration: none;
-  }
-  .more:hover {
-    text-decoration: underline;
-    text-underline-offset: 0.25em;
   }
 </style>

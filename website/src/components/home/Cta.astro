@@ -92,10 +92,21 @@ import { withBase } from '~/lib/base'
     flex-wrap: wrap;
     gap: var(--nv-space-3);
   }
+  /* Beside the text, the four buttons are a two by two grid of equal width. */
   @media (min-width: 64rem) {
     .actions {
-      justify-content: flex-end;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      justify-self: end;
+      width: min(100%, 26rem);
     }
+    .actions .nv-button {
+      justify-content: center;
+    }
+  }
+  /* Violet focus rings vanish on the band: these are white. */
+  .cta :focus-visible {
+    outline-color: white;
   }
   .on-band-primary {
     background: white;
@@ -107,14 +118,16 @@ import { withBase } from '~/lib/base'
     transform: translateY(-1px);
     box-shadow: 0 12px 28px -10px color-mix(in oklab, black 70%, transparent);
   }
+  /* A dark wash, not a white one, under white text: the text keeps 4.5:1
+     at the violet end of the band, where the gold sheen lightens it. */
   .on-band {
     border-color: color-mix(in oklab, white 45%, transparent);
-    background: color-mix(in oklab, white 10%, transparent);
+    background: color-mix(in oklab, var(--nv-ink) 16%, transparent);
     color: white;
   }
   .on-band:hover {
     border-color: white;
-    background: color-mix(in oklab, white 20%, transparent);
+    background: color-mix(in oklab, var(--nv-ink) 28%, transparent);
     color: white;
     transform: translateY(-1px);
   }
@@ -122,8 +135,15 @@ import { withBase } from '~/lib/base'
   .on-band:active {
     transform: translateY(0);
   }
+  .on-band-primary:active {
+    background: color-mix(in oklab, var(--nv-crimson) 8%, white);
+  }
+  .on-band:active {
+    background: color-mix(in oklab, var(--nv-ink) 38%, transparent);
+  }
   @media (max-width: 49.99rem) {
     .cta {
+      margin-block-start: var(--nv-space-7);
       padding: var(--nv-space-6) var(--nv-space-5);
     }
     p {

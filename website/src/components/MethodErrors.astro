@@ -18,10 +18,10 @@ const errors = found.member.doc?.errors ?? []
 <ul class="nv-param-docs">
   {errors.map((e) => (
     <li>
-      <strong>
-        <code>{e.error}</code>
-      </strong>
-      {e.descHtml && <>{' '}— <span set:html={e.descHtml} /></>}
+      <span class="nv-param-head">
+        <code class="nv-param-name">{e.error}</code>
+      </span>
+      {e.descHtml && <span class="nv-param-desc" set:html={e.descHtml} />}
     </li>
   ))}
 </ul>

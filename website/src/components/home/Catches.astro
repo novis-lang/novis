@@ -28,7 +28,7 @@ import Rich from './Rich.astro'
             text="A value from a request is a `tainted string`. It cannot become part of the text of a query. You send it as a parameter instead."
           />
         </p>
-        <a class="more" href={withBase('/guides/why-novis/tainted-input/')}>
+        <a class="nv-more"href={withBase('/guides/why-novis/tainted-input/')}>
           How tainted input works <Icon name="right-arrow" size="1rem" />
         </a>
       </div>
@@ -42,7 +42,7 @@ import Rich from './Rich.astro'
         <p>
           <Rich text="A password or a key is a `secret string`. Code that prints it or writes it to a log does not compile." />
         </p>
-        <a class="more" href={withBase('/guides/why-novis/secret-values/')}>
+        <a class="nv-more"href={withBase('/guides/why-novis/secret-values/')}>
           How secret values work <Icon name="right-arrow" size="1rem" />
         </a>
       </div>
@@ -107,23 +107,9 @@ import Rich from './Rich.astro'
     color: var(--sl-color-gray-2);
     line-height: 1.65;
   }
-  .more {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35em;
-    font-weight: 650;
-    color: var(--sl-color-text-accent);
-    text-decoration: none;
-  }
-  .more svg {
-    transition: transform var(--nv-fast) var(--nv-ease);
-  }
-  .more:hover {
-    text-decoration: underline;
-    text-underline-offset: 0.25em;
-  }
-  .more:hover svg {
-    transform: translateX(3px);
+  /* The link is as large as the paragraph above it. */
+  .nv-more {
+    font-size: inherit;
   }
   .code {
     min-width: 0;

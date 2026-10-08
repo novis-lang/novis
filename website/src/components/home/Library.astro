@@ -142,13 +142,16 @@ const rows = Array.from({ length: rowCount }, (_, r) => top.filter((_, i) => i %
   /* ---------------------------------------------------------- class names */
   .marquee {
     display: grid;
-    gap: var(--nv-space-3);
+    gap: var(--nv-space-2);
     margin-block-start: var(--nv-space-7);
     -webkit-mask-image: linear-gradient(90deg, transparent, black 8%, black 92%, transparent);
     mask-image: linear-gradient(90deg, transparent, black 8%, black 92%, transparent);
   }
+  /* The padding leaves room for a chip's focus ring, which the row would
+     otherwise clip. */
   .row {
     overflow: hidden;
+    padding-block: var(--nv-space-1);
   }
   .track {
     display: flex;
