@@ -1763,7 +1763,7 @@ secret string $token = "hunter2";
 echo "Bearer {$token}\n";
 ```
 ```output
-cannot be written by `echo`
+`echo` cannot print a `secret` value
 ```
 
 ```nvs error

@@ -1464,24 +1464,28 @@ fn report_secret_logged(span: Span, env: &mut Env<'_>) {
 /// refuses is as often a credential landing in a CI log as one printed to a
 /// tty. A tty-dependent version of the rule is not available — `rule:tooling/terminal-output-is-a-sink`
 /// rejects tty-dependent behaviour outright.
-pub(crate) fn reject_secret_output(ty: TypeId, span: Span, form: &str, env: &mut Env<'_>) -> bool {
+///
+/// `subject` is the message's opening words, naming the sink as a reader
+/// would: "`echo`", "`print`", "an `html` template".
+pub(crate) fn reject_secret_output(
+    ty: TypeId,
+    span: Span,
+    subject: &str,
+    env: &mut Env<'_>,
+) -> bool {
     if !is_secret(ty, env.interner) {
         return false;
     }
     env.diags.report(
         Diagnostic::error(
             code::E_SECRET_OUTPUT,
-            format!(
-                "a `secret`-qualified value cannot be written by `{form}`; output is read \
-                 by a person or captured into a log, so the value would be disclosed \
-                 rather than used"
-            ),
+            format!("{subject} cannot print a `secret` value"),
         )
-        .with_primary(span, "secret value written here")
+        .with_primary(span, "this value is `secret`")
         .with_help(
-            "reveal it explicitly first with `Core\\Secret::reveal(..., \"reason\")`; \
-             interpolating or concatenating it into a larger string does not help — the \
-             qualifier spreads to the result",
+            "Output is read by people and saved in logs. To print the value anyway, call \
+             `Core\\Secret::reveal($value, \"reason\")` first. Joining it into a longer \
+             string does not help. The result is `secret` too.",
         ),
     );
     true

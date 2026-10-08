@@ -52,7 +52,7 @@ error[E0301]: `$lines` is assigned to but was never declared
 error[E0401]: expected `string`, found `tainted string`
    --> case.nvs:26:33
 %A
-error[E0790]: a `secret`-qualified value cannot be written by `echo`; output is read by a person or captured into a log, so the value would be disclosed rather than used
+error[E0790]: `echo` cannot print a `secret` value
    --> case.nvs:28:6
 %A
 error[E0241]: `<>` is not supported

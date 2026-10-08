@@ -617,7 +617,7 @@ pub(crate) fn infer_html_template(
         match part {
             StringPart::Expr(e) => {
                 let ty = check_expr(e, None, live, scope, ctx, env);
-                reject_secret_output(ty, e.span, "html`…`", env);
+                reject_secret_output(ty, e.span, "an `html` template", env);
                 if !is_html_markup(ty, env) {
                     require_stringable(ty, e.span, env);
                 }

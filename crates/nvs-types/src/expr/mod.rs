@@ -903,7 +903,7 @@ pub(crate) fn infer(
             // see [`quals::reject_secret_output`]. `print` differs from `echo`
             // only in being an expression with a value, which is nothing the
             // qualifier cares about.
-            if !reject_secret_output(ty, inner.span, "print", env) {
+            if !reject_secret_output(ty, inner.span, "`print`", env) {
                 require_stringable(ty, inner.span, env);
             }
             env.interner.int()

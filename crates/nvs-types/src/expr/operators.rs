@@ -2516,8 +2516,8 @@ fn conversion_help(from: ConvKind, to: ConvKind) -> &'static str {
              then to the type you want"
         }
         (_, Array) => {
-            "`rule:types/conversion`'s only row producing an `array<T>` is another `array<U>` — text becomes \
-             one through `Core\\Json::decode($s)`"
+            "only another array converts to an `array<T>`. Test the value with `is` first, or \
+             read JSON text with `Core\\Json::decode($s)`"
         }
         (_, Bytes) => {
             "`rule:types/conversion` gives `bytes` exactly one source, a `string`: render the value first — \

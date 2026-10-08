@@ -50,9 +50,9 @@ error[E0401]: expected `string`, found `tainted string`
 %A
 error[E0401]: expected `string`, found `tainted string`
 %A
-error[E0790]: a `secret`-qualified value cannot be written by `echo`; output is read by a person or captured into a log, so the value would be disclosed rather than used
+error[E0790]: `echo` cannot print a `secret` value
 %A
-error[E0790]: a `secret`-qualified value cannot be written by `print`; output is read by a person or captured into a log, so the value would be disclosed rather than used
+error[E0790]: `print` cannot print a `secret` value
 %A
 error[E0724]: a `secret`-qualified value cannot be passed to `Core\Debug::dump`; a dump is written to be read by a person, so the value would be disclosed rather than used
 %A

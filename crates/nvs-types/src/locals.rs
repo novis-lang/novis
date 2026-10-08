@@ -1568,7 +1568,7 @@ pub(crate) fn check_stmt(
                 // reaches with no member in between — see
                 // [`crate::expr::reject_secret_output`], including for why a
                 // refused operand is not then asked the stringable question.
-                if !reject_secret_output(ty, x.span, "echo", env) {
+                if !reject_secret_output(ty, x.span, "`echo`", env) {
                     require_stringable(ty, x.span, env);
                 }
             }
