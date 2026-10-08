@@ -19,9 +19,9 @@ A class that writes `Core\Db\Codec`'s `fromRow` and carries no `#[Db\Derive]` is
 class Account {
     public uint $twice;
 
-    public string $who;
+    public tainted string $who;
 
-    public function constructor(uint $twice, string $who)
+    public function constructor(uint $twice, tainted string $who)
     {
         $this->twice = $twice;
         $this->who = $who;
@@ -33,7 +33,7 @@ class Account {
     public static function fromRow(Core\Db\Row $row): static
     {
         ?uint $id = $row->uint("id");
-        ?string $name = $row->string("name");
+        ?tainted string $name =$row->string("name");
         if ($id != null) {
             if ($name != null) {
                 return new static($id + $id, $name);

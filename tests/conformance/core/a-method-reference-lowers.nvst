@@ -33,7 +33,7 @@ class Box implements Shape {
 
     // `self::` over a static member binds the declaring class, and needs no
     // receiver to remember.
-    public static function labelled(): string {
+    public static function labelled(): tainted string {
         callable $named = self::label(...);
         return $named() as string;
     }

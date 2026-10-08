@@ -24,7 +24,7 @@ $process->put("ahead", "kept", {ttl: 1h});
 // would still print a row of its own.
 array<string> $inside = ["no-lifetime", "ahead"];
 int $present = 0;
-string $back = "";
+tainted string $back = "";
 foreach ($inside as string $key) {
     $back = ($local->get($key) ?? "") as string;
     if ($back == "kept") {

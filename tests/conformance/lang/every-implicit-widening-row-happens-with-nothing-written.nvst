@@ -25,7 +25,7 @@ class Q {
         return $n;
     }
 
-    public static function text(mixed $m): string {
+    public static function text(mixed $m): tainted string {
         return $m as string;
     }
 }

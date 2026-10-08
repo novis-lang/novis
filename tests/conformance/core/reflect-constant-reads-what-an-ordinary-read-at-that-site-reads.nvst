@@ -15,7 +15,7 @@ class Base implements Bounded {
     protected const string TAG = "base";
     public const int MAX = 10;
 
-    public function reach(): string {
+    public function reach(): tainted string {
         var $described = Core\Reflect::forObject($this);
         return $described->constant("TAG") as string;
     }
@@ -24,7 +24,7 @@ class Base implements Bounded {
 class Narrow extends Base {
     public const int MAX = 3;
 
-    public function inherited(): string {
+    public function inherited(): tainted string {
         var $described = Core\Reflect::forObject($this);
         return $described->constant("TAG") as string;
     }

@@ -38,7 +38,7 @@ try {
     // Bound before it is echoed: `echo` writes its arguments one at a time, so
     // evaluating the call inside the list would print the prefix before the
     // throw reached the `catch`.
-    string $direct = $isKeep(7) as string;
+    tainted string $direct = $isKeep(7) as string;
     echo "direct did not throw, ", $direct, "\n";
 } catch (Throwable $e) {
     echo "direct: ", $e->message, "\n";

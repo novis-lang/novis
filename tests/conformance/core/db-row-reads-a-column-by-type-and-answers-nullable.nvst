@@ -24,8 +24,8 @@ foreach ($db->query("select * from accounts", [])->all() as Core\Db\Row $row) {
     // The eleven, in § 18's own order. A `null` from one of these is a NULL
     // column and never "no such column": that second question is `has`, above,
     // and an unknown name throws here rather than reading as absent.
-    ?string $owner = $row->string("owner");
-    ?bytes $photo = $row->bytes("photo");
+    ?tainted string $owner = $row->string("owner");
+    ?tainted bytes $photo = $row->bytes("photo");
     ?int $id = $row->int("id");
     ?uint $seq = $row->uint("seq");
     ?float $ratio = $row->float("ratio");
@@ -46,17 +46,17 @@ mixed $one = $rows->value();
 array<mixed> $ids = $rows->column("id");
 uint $count = $rows->count();
 
-// And the bound, on a row that is not in doubt: the reader answers `?string`,
-// so a `string` is one narrowing away and never the thing that was returned.
+// And the bound, on a row that is not in doubt: the reader answers `?tainted string`,
+// so a `tainted string` is one narrowing away and never the thing that was returned.
 // A reader that answered `T` would compile here and fail on the first NULL.
 foreach ($all as Core\Db\Row $named) {
-    string $unwrapped = $named->string("owner");
+    tainted string $unwrapped = $named->string("owner");
 }
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0401]: expected `string`, found `string|null`
-   --> case.nvs:50:25
+error[E0401]: expected `tainted string`, found `null|tainted string`
+   --> case.nvs:50:33
 %A
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -43,7 +43,7 @@ class Bound {
         try { return ($a - $b) as string; } catch (ArithmeticError $e) { return "throws"; }
     }
 
-    public static function erased(mixed $a, mixed $b): string {
+    public static function erased(mixed $a, mixed $b): tainted string {
         try { return ($a + $b) as string; } catch (Throwable $e) { return "throws"; }
     }
 }

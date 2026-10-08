@@ -28,7 +28,7 @@ array<Row> $one = $db->query(
 )->all();
 var $row = $one[0];
 
-?string $text = $row->get("label") as ?string;
+?tainted string $text = $row->get("label") as ?string;
 if ($text == $row->string("label")) {
     echo "label: ", $text ?? "", " agrees\n";
 }

@@ -18,7 +18,7 @@ class Look {
         return "{$raw->width}x{$raw->height}";
     }
 
-    public static function first(Image $image): string {
+    public static function first(Image $image): tainted string {
         array<mixed> $p = Core\Bytes::unpack(Core\Bytes::slice($image->raw()->pixels, 0, 4), "C4");
         return "{$p[0]} {$p[1]} {$p[2]}";
     }

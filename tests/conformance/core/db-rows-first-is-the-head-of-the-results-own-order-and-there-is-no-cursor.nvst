@@ -22,7 +22,7 @@ class Seating {
 }
 
 class Head {
-    public static function labelOf(?Core\Db\Row $row): string
+    public static function labelOf(?Core\Db\Row $row): tainted string
     {
         if ($row == null) {
             return "none";

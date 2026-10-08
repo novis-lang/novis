@@ -30,7 +30,7 @@ class Pick {
 
     // The same widening written plainly: `mixed` admits every shape, so
     // there is no set to test and the conversion is the tag alone.
-    public static function widened(string $raw): string {
+    public static function widened(string $raw): tainted string {
         mixed $any = $raw as mixed;
         return "widened " . ($any as string) . "|";
     }

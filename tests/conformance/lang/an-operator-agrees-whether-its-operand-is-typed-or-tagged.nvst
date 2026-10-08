@@ -30,7 +30,7 @@ class Check {
     // 1 where the two spellings agree. The row is named on stdout when they do
     // not, so a failure says which one moved rather than only that the count
     // fell.
-    public static function same(string $row, string $typed, string $tagged): int {
+    public static function same(string $row, string $typed, tainted string $tagged): int {
         if ($typed == $tagged) {
             return 1;
         }

@@ -18,13 +18,13 @@ int $elements = 0;
 foreach ($subjects as mixed $subject) {
     bool $threw = false;
     try {
-        array<string> $checked = $subject as array<string>;
+        array<tainted string> $checked = $subject as array<string>;
         // `Core\Arr::count` answers a `uint`, which an `int` may not meet.
         $elements = $elements + (Core\Arr::count($checked) as int);
     } catch (Throwable $e) {
         $threw = true;
     }
-    ?array<string> $maybe = $subject as ?array<string>;
+    ?array<tainted string> $maybe =$subject as ?array<string>;
     if ($threw == ($maybe == null)) {
         $agreed = $agreed + 1;
     }
@@ -35,12 +35,12 @@ echo "walked ", $elements as string, " elements\n";
 // `rule:types/arrays`'s "nests to any depth", which the walk follows: an element of
 // the grid that is not itself an array of strings fails the outer conversion.
 mixed $grid = [["a"], ["b", "c"]];
-array<array<string>> $cells = $grid as array<array<string>>;
+array<array<tainted string>> $cells =$grid as array<array<string>>;
 echo Core\Json::encode($cells), "\n";
 
 mixed $ragged = [["a"], [1]];
 try {
-    array<array<string>> $flat = $ragged as array<array<string>>;
+    array<array<tainted string>> $flat =$ragged as array<array<string>>;
     echo "the nested row let it through\n";
 } catch (Throwable $nested) {
     echo "the nested row throws\n";

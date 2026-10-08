@@ -24,7 +24,7 @@ $second->put("delta", "<delta>");
 // would answer for the two its own handle wrote and `null` for the others,
 // which is a plausible-looking half.
 var $third = Core\Cache::local();
-string $back = "";
+tainted string $back = "";
 int $seen = 0;
 foreach ($keys as string $key) {
     $back = $third->get($key) as string;
@@ -36,7 +36,7 @@ echo "a handle taken last reads them all: ", $seen, " of ", Core\Arr::count($key
 
 // The same claim in the direction time runs against: the handle taken first
 // reads what the handle taken second wrote afterwards.
-string $crossed = $first->get("delta") as string;
+tainted string $crossed =$first->get("delta") as string;
 echo "the first handle reads the second's write: ", $crossed, "\n";
 
 // And the entries are the core's rather than any handle's: rebinding all three
@@ -46,7 +46,7 @@ $first = Core\Cache::local();
 $second = Core\Cache::local();
 $third = Core\Cache::local();
 var $fourth = Core\Cache::local();
-string $survived = $fourth->get("alpha") as string;
+tainted string $survived =$fourth->get("alpha") as string;
 echo "an entry outlives every handle that wrote it: ", $survived, "\n";
 --EXPECT--
 a handle taken last reads them all: 4 of 4

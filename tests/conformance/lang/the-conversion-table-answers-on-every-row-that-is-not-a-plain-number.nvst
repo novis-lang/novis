@@ -114,7 +114,7 @@ try {
 
 // An array's element type: every element has to satisfy the new one already.
 array<mixed> $words = ["alpha", "beta"];
-array<string> $names = $words as array<string>;
+array<tainted string> $names = $words as array<string>;
 echo $names[0], "\n";
 
 array<mixed> $ragged = [1, "two"];

@@ -5,11 +5,11 @@ Every row of the chapter's last table has a replacement that answers, counted in
 // covers: lang:types/what-does-not-exist
 // The other half of the table: for every PHP spelling the chapter drops, the
 // one thing written instead, run rather than described. The list is returned
-// as one `array<string>` and counted, so a replacement that started answering
-// something else changes a line and one that stopped answering at all changes
-// the count.
+// as one `array<tainted string>`, since two of its rows are text read out of a
+// `mixed`, and counted, so a replacement that started answering something else
+// changes a line and one that stopped answering at all changes the count.
 class Swap {
-    public static function run(): array<string> {
+    public static function run(): array<tainted string> {
         mixed $m = 1;
         string $s = "abc";
         array<int> $pair = [7, 9];
@@ -17,7 +17,7 @@ class Swap {
 
         // `(int)$x` and the `intval` family are all one operator.
         int $cast = $m as int;
-        string $text = $m as string;
+        tainted string $text = $m as string;
         float $real = $m as float;
         bool $flag = $m as bool;
 
@@ -71,9 +71,9 @@ class Swap {
     }
 }
 
-array<string> $out = Swap::run();
+array<tainted string> $out = Swap::run();
 echo "replacements ", Core\Arr::count($out), "\n";
-foreach ($out as string $one) {
+foreach ($out as tainted string $one) {
     echo $one, "\n";
 }
 --EXPECT--

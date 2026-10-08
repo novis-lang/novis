@@ -19,7 +19,7 @@ class Vault {
 
     // Inside the class, an ordinary call to `sealed()` compiles, so the
     // reflective one written here reaches it too — and answers the same thing.
-    public function fromInside(): string {
+    public function fromInside(): tainted string {
         var $described = Core\Reflect::forObject($this);
         var $reflective = $described->call($this, "sealed", []);
         if ($reflective == $this->sealed()) {

@@ -33,7 +33,7 @@ array<string> $values = [
     "the last one",
 ];
 
-string $back = "";
+tainted string $back = "";
 int $answered = 0;
 foreach ($values as string $value) {
     $cache->put("hot", $value);

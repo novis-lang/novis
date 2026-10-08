@@ -20,7 +20,7 @@ array<mixed> $mapped = Core\Arr::map($words, fn (string $w) => $upper($w));
 int $agree = 0;
 int $i = 0;
 foreach ($words as string $w) {
-    string $direct = $upper($w) as string;
+    tainted string $direct = $upper($w) as string;
     if ($direct == ($mapped[$i as string] as string)) {
         $agree = $agree + 1;
     }

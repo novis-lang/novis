@@ -12,7 +12,7 @@ One `mixed` value answers an operator, a condition and a subscript, and each ans
 // the *typed* spelling of the same question, which is what makes the tag the
 // whole answer rather than a second implementation of one.
 class Ask {
-    public static function arith(mixed $m): string {
+    public static function arith(mixed $m): tainted string {
         try {
             return ($m + 1) as string;
         } catch (Throwable $e) {
@@ -29,7 +29,7 @@ class Ask {
 
     // Under a `??` both failures answer `null`: the absent key and the base
     // that is no array at all.
-    public static function sub(mixed $m): string {
+    public static function sub(mixed $m): tainted string {
         return ($m["k"] ?? "-") as string;
     }
 }

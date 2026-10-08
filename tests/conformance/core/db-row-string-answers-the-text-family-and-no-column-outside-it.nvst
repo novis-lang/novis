@@ -51,7 +51,7 @@ foreach ($others as string $column) {
 }
 
 // A NULL column is an absence and not a refusal — `rule:core-classes/db-column-types`, spec § 18.
-?string $missed = $row->string("missed");
+?tainted string $missed =$row->string("missed");
 if ($missed == null) {
     echo "string over missed: null\n";
 }

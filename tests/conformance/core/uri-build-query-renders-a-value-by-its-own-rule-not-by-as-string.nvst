@@ -29,7 +29,7 @@ foreach ($values as mixed $v) {
     // `as string` from a `mixed` is the checked conversion, so the nested
     // array's row is a throw rather than a rendering — that is the third kind
     // of value here, and the reason the comparison is guarded.
-    string $direct = "<throws>";
+    tainted string $direct = "<throws>";
     try {
         $direct = $v as string;
     } catch (Throwable $e) {

@@ -37,7 +37,7 @@ try {
 // at a `string` parameter is the ordinary exact-comparison refusal.
 callable $wantsString = fn (string $s): string => $s;
 try {
-    string $bad = $wantsString(1.5) as string;
+    tainted string $bad = $wantsString(1.5) as string;
     echo "backwards did not throw, ", $bad, "\n";
 } catch (Throwable $e) {
     echo "backwards: ", $e->message, "\n";

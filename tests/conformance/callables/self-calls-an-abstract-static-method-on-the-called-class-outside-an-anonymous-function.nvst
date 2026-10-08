@@ -14,7 +14,7 @@ abstract class Page {
     }
 
     // An anonymous function reads the value that was read outside it.
-    public static function shout(): string {
+    public static function shout(): tainted string {
         string $title = self::title();
         callable $f = fn (): string => Core\Str::upper($title);
         return $f() as string;

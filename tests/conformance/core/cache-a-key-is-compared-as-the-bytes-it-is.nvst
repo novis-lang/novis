@@ -38,7 +38,7 @@ array<string> $keys = [
 foreach ($keys as string $key) {
     $cache->put($key, "<" . $key . ">");
 }
-string $back = "";
+tainted string $back = "";
 int $own = 0;
 foreach ($keys as string $key) {
     $back = $cache->get($key) as string;
@@ -57,23 +57,23 @@ echo "user:3 is ", $near, "\n";
 
 // Case is a byte difference like any other, printed rather than counted so the
 // pair the count covers is visible.
-string $lower = $cache->get("user") as string;
-string $upper = $cache->get("User") as string;
+tainted string $lower = $cache->get("user") as string;
+tainted string $upper = $cache->get("User") as string;
 echo "user -> ", $lower, ", User -> ", $upper, "\n";
 
 // The two spellings of one word are compared as bytes and not as text, so the
 // store performs no Unicode normalisation on the way in — the answers are
 // compared to each other here rather than printed, since both render alike.
-string $composed = $cache->get("caf\u{e9}") as string;
-string $decomposed = $cache->get("cafe\u{301}") as string;
+tainted string $composed = $cache->get("caf\u{e9}") as string;
+tainted string $decomposed = $cache->get("cafe\u{301}") as string;
 string $folded = $composed == $decomposed ? "one entry" : "two entries";
 echo "two spellings of one word are ", $folded, "\n";
 
 // And a key is compared whole: two that agree for hundreds of characters and
 // differ at the last one are two entries, which a store hashing a bounded
 // prefix would fail while passing every short key above.
-string $tailA = $cache->get($long . "a") as string;
-string $tailB = $cache->get($long . "b") as string;
+tainted string $tailA = $cache->get($long . "a") as string;
+tainted string $tailB = $cache->get($long . "b") as string;
 string $truncated = $tailA == $tailB ? "one entry" : "two entries";
 echo "keys agreeing for ", Core\Str::length($long), " characters and differing at the last are ", $truncated, "\n";
 
@@ -81,7 +81,7 @@ echo "keys agreeing for ", Core\Str::length($long), " characters and differing a
 // a string holds and not which literal produced it, so a key built at run time
 // reaches the entry written under an equal literal.
 string $built = "us" . "er" . ":1";
-string $viaBuilt = $cache->get($built) as string;
+tainted string $viaBuilt =$cache->get($built) as string;
 echo "an equal key built at run time reads ", $viaBuilt, "\n";
 --EXPECT--
 each key answered its own value: 11 of 11

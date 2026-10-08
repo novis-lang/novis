@@ -6,7 +6,7 @@ class Render {
     // `rule:types/conversion`'s checked spelling: it "either produces a value of the
     // target type or throws", and § 2's table produces a `bytes` from a
     // `string` and from nothing else.
-    public static function checked(mixed $m): string {
+    public static function checked(mixed $m): tainted string {
         try {
             return Core\Encoding::toHex($m as bytes);
         } catch (Throwable $e) {
@@ -17,8 +17,8 @@ class Render {
     // `rule:expressions/nullable-conversion`'s twin, which "yields `null` exactly where `expr as T`
     // would throw". One row set under both spellings, so the sweep below
     // asserts that they agree rather than what either one answered.
-    public static function nullable(mixed $m): string {
-        ?bytes $b = $m as ?bytes;
+    public static function nullable(mixed $m): tainted string {
+        ?tainted bytes $b = $m as ?bytes;
         if ($b == null) {
             return "threw";
         }
@@ -33,8 +33,8 @@ class Render {
 array<mixed> $probes = ["nvs", "λ" as bytes, 42, 1.5, true, null, ["a"]];
 int $agreed = 0;
 foreach ($probes as mixed $probe) {
-    string $left = Render::checked($probe);
-    string $right = Render::nullable($probe);
+    tainted string $left = Render::checked($probe);
+    tainted string $right = Render::nullable($probe);
     if ($left == $right) {
         $agreed = $agreed + 1;
     }

@@ -5,7 +5,7 @@ A call to an `abstract static` method is refused where the class it is called on
 abstract class Page {
     public abstract static function title(): string;
 
-    public static function heading(): string {
+    public static function heading(): tainted string {
         callable $f = fn (): string => self::title();
         return $f() as string;
     }

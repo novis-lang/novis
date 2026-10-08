@@ -32,8 +32,18 @@ class Box {
 // `rule:types/conversion`: `mixed as string` reads the runtime tag, so a
 // value that arrived with the wrong tag prints wrong — or throws — here.
 class Show {
-    public static function of(mixed $v): string {
+    public static function of(mixed $v): tainted string {
         return $v as string;
+    }
+
+    public static function all(array<mixed> $vs): tainted string {
+        tainted string $out = "";
+        string $gap = "";
+        foreach ($vs as mixed $v) {
+            $out = $out . $gap . Show::of($v);
+            $gap = " ";
+        }
+        return $out;
     }
 }
 
@@ -54,16 +64,16 @@ array<array<mixed>> $grid = [[]];
 $grid[0][] = $iv;
 $grid[0]["f"] = $fv;
 $grid[][0] = $bv;
-echo Core\Str::join(Core\Arr::map($flat, fn(mixed $v): string => Show::of($v)), " "), "\n";
+echo Show::all($flat), "\n";
 echo Show::of($keyed["i"]), " ", Show::of($keyed["f"]), " ", Show::of($keyed["b"]), "\n";
 echo Show::of($grid[0][0]), " ", Show::of($grid[0]["f"]), " ", Show::of($grid[1][0]), "\n";
 
 // Property and `inout` slots.
 var $box = new Box();
 $box->held = $iv;
-string $a = Show::of($box->held);
+tainted string $a = Show::of($box->held);
 $box->held = $fv;
-string $b = Show::of($box->held);
+tainted string $b = Show::of($box->held);
 $box->held = $bv;
 echo $a, " ", $b, " ", Show::of($box->held), "\n";
 mixed $slot = null;
@@ -71,7 +81,7 @@ Box::into(inout $slot, $iv);
 echo Show::of($slot), "\n";
 $box->rows[] = $iv;
 Box::push(inout $box->rows, $fv);
-echo Core\Str::join(Core\Arr::map($box->rows, fn(mixed $v): string => Show::of($v)), " "), "\n";
+echo Show::all($box->rows), "\n";
 
 // A static slot is one tagged position too when it is nullable, and its
 // array is a holder an element write goes back through.

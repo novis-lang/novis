@@ -60,13 +60,13 @@ $rows = $rows + Row::both("two fields", $point is {y: int, x: int}, $texty is {y
 
 // Width subtyping: a subject carrying more than the shape names satisfies it,
 // and the extra field is never looked at.
-$rows = $rows + Row::both("wider subject", $wide is {x: int}, $texty is {label: string});
+$rows = $rows + Row::both("wider subject", $wide is {x: int}, $texty is tainted {label: string});
 
 // A required key the subject does not carry answers `false`; the same key
 // written optional answers `true` with nothing read. A key that is there is
 // held to its type either way.
-$rows = $rows + Row::both("required key", $wide is {label: string}, $point is {z: int});
-$rows = $rows + Row::both("optional key", $point is {z?: int}, $point is {y?: string});
+$rows = $rows + Row::both("required key", $wide is tainted {label: string}, $point is {z: int});
+$rows = $rows + Row::both("optional key", $point is {z?: int}, $point is tainted {y?: string});
 
 // The boundary this walk exists for, asserted on both sides: `{a: ?int}`
 // demands an `a` that may hold `null`, so a value holding `null` answers `true`
@@ -78,7 +78,7 @@ $rows = $rows + Row::both("null is not absent", $held is {a: ?int}, $absent is {
 // two unrelated classes sharing field names and types are interchangeable
 // wherever a shape is used, so an ordinary object answers this walk like any
 // other value does.
-$rows = $rows + Row::both("a class instance", $animal is {animalName: string}, $animal is {animalName: int});
+$rows = $rows + Row::both("a class instance", $animal is tainted {animalName: string},$animal is {animalName: int});
 
 // A subject holding no object at all declines before any field is read.
 $rows = $rows + Row::both("not an object", $point is {x: int}, $plain is {x: int});

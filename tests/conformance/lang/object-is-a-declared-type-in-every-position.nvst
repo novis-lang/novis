@@ -13,7 +13,7 @@ final class Point {
 
 final class Probe {
     // A parameter and a return type, both erased at the boundary.
-    public static function nameOf(object $o): string {
+    public static function nameOf(object $o): tainted string {
         return $o->name as string;
     }
 

@@ -22,7 +22,7 @@ $first->put("gamma", "<gamma>");
 // answer for the two its own handle wrote and `null` for the third, which is a
 // plausible-looking half.
 var $third = Core\Cache::process();
-string $back = "";
+tainted string $back = "";
 int $seen = 0;
 foreach ($keys as string $key) {
     $back = $third->get($key) as string;

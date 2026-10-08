@@ -9,17 +9,17 @@ class Base {
         return "tag";
     }
 
-    public function constant(): string {
+    public function constant(): tainted string {
         callable $f = fn (): string => static::PATH;
         return $f() as string;
     }
 
-    public function call(): string {
+    public function call(): tainted string {
         callable $f = fn (): string => static::tag();
         return $f() as string;
     }
 
-    public static function name(): string {
+    public static function name(): tainted string {
         callable $f = fn (): string => static::class;
         return $f() as string;
     }
