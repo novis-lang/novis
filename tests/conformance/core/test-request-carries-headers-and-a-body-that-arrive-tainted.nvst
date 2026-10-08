@@ -30,7 +30,7 @@ try {
     echo "octets ", Core\Bytes::length(Core\Request::bytes()), "\n";
     // The target splits exactly as the door splits one, so the query is the
     // request's and not part of its path.
-    echo "since ", Core\Request::query("since") as string, "\n";
+    echo "since ", Core\Request::query("since") ?? "", "\n";
 }
 --EXPECT--
 signature t=1,v1=deadbeef

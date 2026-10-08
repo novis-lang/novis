@@ -100,7 +100,7 @@ if ($matched != null) {
 // will call — the fallback text for a key the request did not send, then the
 // text this request did send.
 echo 'tag is ', Slug::parse(Posts::TAG_DEFAULT)->text, "\n";
-echo 'tag is ', Slug::parse(Core\Request::query('tag') as string)->text, "\n";
+echo 'tag is ', Slug::parse(Core\Request::query('tag') ?? '')->text, "\n";
 
 // A segment the class refuses fails over a route that *did* match, so it is a
 // `400` and never a `404`: the shape claimed the row, and the refusal happened

@@ -56,7 +56,7 @@ try {
 }
 
 // 4. The visitor's text tries to end the string, add a key and close a script tag.
-Core\Response::json({ name: Core\Request::query('name') as string });
+Core\Response::json({ name: Core\Request::query('name') ?? '' });
 
 // 5. The value is kept in memory and sent again and again until the memory limit
 // stops the program.

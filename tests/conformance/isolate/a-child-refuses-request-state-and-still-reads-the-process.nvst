@@ -60,7 +60,7 @@ echo "the process is still readable: draining=",
 // rather than of this process. A case run with no request at all cannot tell
 // those two apart, because every line of it would refuse.
 echo "the parent reads its own request: page=",
-    Core\Request::query("page") as string, "\n";
+    Core\Request::query("page") ?? "", "\n";
 
 var $handle = spawn script "child.nvs" with(output: "capture");
 var $child = await $handle;
@@ -74,7 +74,7 @@ echo $child->output;
 // And the request is still the parent's afterwards: the child asking for it and
 // being refused consumed nothing from the context that has one.
 echo "the parent still reads its own request: page=",
-    Core\Request::query("page") as string, "\n";
+    Core\Request::query("page") ?? "", "\n";
 --EXPECT--
 the parent reads its own request: page=2
 ok=true

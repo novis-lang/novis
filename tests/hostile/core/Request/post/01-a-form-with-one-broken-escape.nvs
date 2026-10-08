@@ -4,7 +4,7 @@
 
 // 1. Reads a field that is correct. The broken escape is in another field, and the read still throws.
 try {
-    mixed $name = Core\Request::post('name');
+    ?tainted string $name = Core\Request::post('name');
     echo 'not reached: ', $name ?? 'null', "\n";
 } catch (RuntimeError $error) {
     echo 'name: ', Core\Str::length($error->message) > 0 ? 'error' : 'no message', "\n";
@@ -15,7 +15,7 @@ uint $failed = 0;
 uint $i = 0;
 while ($i < 2000) {
     try {
-        mixed $deep = Core\Request::post('deep');
+        ?tainted string $deep = Core\Request::post('deep');
         echo 'not reached: ', $deep == null ? 'null' : 'found', "\n";
     } catch (RuntimeError $error) {
         $failed = $failed + 1;

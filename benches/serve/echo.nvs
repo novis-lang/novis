@@ -14,4 +14,4 @@
 //
 // The query is read rather than the path, because `rule:http-server/a-path-is-never-derived-from-a-url`
 // means a per-request path would be a mount table this leg does not have.
-echo "id=", Core\Request::query("n") as string, "\n";
+echo "id=", Core\Request::query("n") ?? "", "\n";

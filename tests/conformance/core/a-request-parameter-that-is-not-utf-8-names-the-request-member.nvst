@@ -9,14 +9,14 @@ name=ada&bad=%FF
 // One broken escape refuses the whole parameter set, so even the field that
 // decodes cleanly is not read.
 try {
-    echo Core\Request::query("page") as string, "\n";
+    echo Core\Request::query("page") ?? "", "\n";
 } catch (RuntimeError $error) {
     echo $error->message, "\n";
 }
 
 // The same shared parse over a form body, with the member that was called.
 try {
-    echo Core\Request::post("name") as string, "\n";
+    echo Core\Request::post("name") ?? "", "\n";
 } catch (RuntimeError $error) {
     echo $error->message, "\n";
 }

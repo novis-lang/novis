@@ -14,7 +14,7 @@ echo Core\Request::body(), "\n";
 // The reader that follows is a different member and the rule is the same one:
 // `post` parses the octets `body` held, where parsing the wire would find it
 // drained by then and answer a form with no fields in it.
-echo Core\Request::post("title") as string, "\n";
+echo Core\Request::post("title") ?? "", "\n";
 // And the hold belongs to the request rather than to the member that filled
 // it, so the octets are still what `body` answers once a form has been parsed
 // out of them.

@@ -6,5 +6,5 @@
 // scaling: max 4096
 // scaling: expect linear
 
-tainted string $q =Core\Request::query("q") as string;
+tainted string $q = Core\Request::query("q") ?? "";
 echo "q: ", $q, "\n";

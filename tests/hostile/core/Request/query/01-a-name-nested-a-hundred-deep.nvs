@@ -3,8 +3,8 @@
 // Each read should return a value or `null`. The program should stop at its memory limit.
 // hostile: ends-early 4 FATAL
 
-// 1. Reads the name nested 100 levels deep. The result is an array.
-mixed $deep = Core\Request::query('deep');
+// 1. Reads the name nested 100 levels deep. The name was sent with brackets, so the result is `null`.
+?tainted string $deep = Core\Request::query('deep');
 echo 'deep: ', $deep == null ? 'null' : 'found', "\n";
 
 // 2. Reads the name that was sent three times. Only one value is returned.
@@ -20,9 +20,9 @@ foreach ($strange as string $name) {
 }
 echo 'strange names found: ', $found, "\n";
 
-// 4. Keeps every copy of the list without end. This stops at the memory limit.
+// 4. Keeps a new copy of the list with ten values, without end. This stops at the memory limit.
 echo "step 4\n";
-array<mixed> $kept = [];
+array<array<tainted string>> $kept = [];
 while (true) {
-    $kept[] = Core\Request::query('list');
+    $kept[] = Core\Request::queryArray('list');
 }

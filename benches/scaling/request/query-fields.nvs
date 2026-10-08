@@ -10,5 +10,5 @@ int $read = 0;
 while (Core\Request::query("p{$read}") != null) {
     $read = $read + 1;
 }
-tainted string $q =Core\Request::query("q") as string;
+tainted string $q = Core\Request::query("q") ?? "";
 echo "parameters: ", $read, " q: ", $q, "\n";

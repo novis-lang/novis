@@ -20,7 +20,7 @@ echo Core\Request::host() ?? "none", "\n";
 // The request is still a request: the query it carried reads back as usual, so
 // the two nulls above are answers about the peer rather than a program running
 // with nothing inbound.
-echo Core\Request::query("page") as string, "\n";
+echo Core\Request::query("page") ?? "", "\n";
 --EXPECT--
 https
 none

@@ -2,7 +2,7 @@
 // Shows an API that answers with status 422 when a required value is missing.
 
 // The request has no `email` value, so `query` returns `null`.
-mixed $email = Core\Request::query("email");
+?tainted string $email = Core\Request::query("email");
 if ($email == null) {
     // 422 tells the client that the request is wrong and must be changed.
     Core\Response::setStatus(422);

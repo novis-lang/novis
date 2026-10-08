@@ -11,7 +11,7 @@ Core\Response\Stream $body = Core\Response::stream('text/plain; charset=utf-8');
 $body->write("a\r\nSet-Cookie: sid=admin\r\n\r\nHTTP/1.1 200 OK\r\n\r\n");
 
 // 2. The same line breaks and a script tag, sent by the visitor in the address.
-$body->write(Core\Request::query('q') as string);
+$body->write(Core\Request::query('q') ?? '');
 
 // 3. A NUL byte and bytes that are not UTF-8.
 $body->write(Core\Encoding::fromHex('00fffe80'));

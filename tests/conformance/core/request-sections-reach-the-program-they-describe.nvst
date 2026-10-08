@@ -14,8 +14,8 @@ X-Trace: 7
 // that answers a request at all: `Core\Request` throws where there is none
 // (`rule:security/request-state-throws-in-an-isolate`), so a program run with
 // no `--request` cannot reach a single line of this.
-echo Core\Request::query("page") as string, "\n";
-echo Core\Request::post("name") as string, "\n";
+echo Core\Request::query("page") ?? "", "\n";
+echo Core\Request::post("name") ?? "", "\n";
 // The field is asked for by a name spelled differently from the one the case
 // wrote, which RFC 9110 § 5.1 makes the same field.
 echo Core\Request::header("x-trace") as string, "\n";
