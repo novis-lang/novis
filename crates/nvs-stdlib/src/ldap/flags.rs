@@ -1,4 +1,4 @@
-//! `Ldap\Ad\AccountFlags` and `Ldap\Ad\GroupType`: AD's two flag fields, as readonly objects with one `bool` reader per flag and `bits()`
+//! `Ldap\Ad\AccountFlags` and `Ldap\Ad\GroupType`: AD's two flag fields, as readonly objects with one `bool` reader per flag, `bits()` and an immutable `with`
 //!
 //! ADR 0278 §§ 1 and 8, `rule:core-classes/ldap-value-types`. An object keeps
 //! the integer AD wrote in its `bits` slot, so a bit no reader names is kept
@@ -16,23 +16,35 @@
 //! `msDS-User-Account-Control-Computed` in its `computed` slot, which `search`
 //! requests whenever `userAccountControl` is selected, and `lockedOut` and
 //! `passwordExpired` read it. Where the entry did not carry it the slot is
-//! `null`, and the two read `bits` as every other flag does.
+//! `null`, and the two read `bits` as every other flag does. `with` has no
+//! option for either, and a copy it returns keeps the `computed` slot.
+//!
+//! **`with` takes one `bool` option per settable flag, defaulting to `null`**
+//! (`registry::Const::Null`), which is "leave this bit alone": the option's
+//! type stays `bool`, so `{disabled: null}` does not compile and the helper
+//! sees exactly set, clear or not given.
+//!
+//! **`mustChangePassword` is `pwdLastSet = 0`**, kept as a `bool` in the
+//! `mustChange` slot when the entry is read. `search` and `read` request
+//! `pwdLastSet` whenever `userAccountControl` is selected, for the same
+//! reason they request the computed attribute.
 
 use nvs_ldap::value::{ACCOUNT_FLAGS as ACCOUNT_BITS, COMPUTED_ACCOUNT_FLAGS, Flag};
-use nvs_ldap::value::{GROUP_TYPE_FLAGS as GROUP_BITS, has_flag};
+use nvs_ldap::value::{GROUP_TYPE_FLAGS as GROUP_BITS, has_flag, with_flags};
 use nvs_runtime::{Fault, Value};
 
-use super::{ACCOUNT_FLAGS, FLAGS_BITS_AT, FLAGS_COMPUTED_AT, GROUP_TYPE};
+use super::{ACCOUNT_FLAGS, FLAGS_BITS_AT, FLAGS_COMPUTED_AT, FLAGS_MUST_CHANGE_AT, GROUP_TYPE};
 use crate::registry::CoreClass;
 
-/// An `Ad\AccountFlags` over `userAccountControl`'s `bits` and, where the
-/// entry carried it, the computed attribute's.
-pub(super) fn account_flags_value(bits: i64, computed: Option<i64>) -> Value {
+/// An `Ad\AccountFlags` over `userAccountControl`'s `bits`, the computed
+/// attribute's where the entry carried it, and whether `pwdLastSet` is `0`.
+pub(super) fn account_flags_value(bits: i64, computed: Option<i64>, must_change: bool) -> Value {
     crate::instance::build(
         &ACCOUNT_FLAGS,
         [
             Value::int(bits),
             computed.map_or_else(Value::null, Value::int),
+            Value::bool(must_change),
         ],
     )
 }
@@ -79,6 +91,17 @@ fn flag(args: &[Value], class: &CoreClass, flags: &[Flag], member: &str) -> Resu
     Ok(Value::bool(has_flag(bits, bit)))
 }
 
+/// `bits` with each flag of `settable` whose option in `options` is a `bool`
+/// set or cleared, by [`with_flags`]. `options` is `with`'s arguments after
+/// the receiver, one per flag in `settable`'s order, and `null` for one the
+/// call left out.
+fn with_bits<'a>(bits: i64, settable: impl Iterator<Item = &'a Flag>, options: &[Value]) -> u32 {
+    let changes = settable
+        .zip(options)
+        .filter_map(|(flag, option)| option.as_bool().map(|on| (flag.bit, on)));
+    with_flags(bits, changes)
+}
+
 /// One helper per reader, and the `address()` arms for all of them and for
 /// the two `bits()` bodies below.
 macro_rules! flag_helpers {
@@ -102,6 +125,15 @@ macro_rules! flag_helpers {
                 }
                 "nvs_core_ldap_ad_group_type_bits" => {
                     (nvs_core_ldap_ad_group_type_bits as *const ()).cast()
+                }
+                "nvs_core_ldap_ad_account_flags_must_change_password" => {
+                    (nvs_core_ldap_ad_account_flags_must_change_password as *const ()).cast()
+                }
+                "nvs_core_ldap_ad_account_flags_with" => {
+                    (nvs_core_ldap_ad_account_flags_with as *const ()).cast()
+                }
+                "nvs_core_ldap_ad_group_type_with" => {
+                    (nvs_core_ldap_ad_group_type_with as *const ()).cast()
                 }
                 _ => return None,
             })
@@ -157,5 +189,46 @@ nvs_runtime::nvs_helper! {
     /// for a security group.
     fn nvs_core_ldap_ad_group_type_bits(_ctx, args: [1]) {
         Ok(Value::int(bits_of(args[0], &GROUP_TYPE, "bits")?))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$flags->mustChangePassword(): bool` — whether the entry's
+    /// `pwdLastSet` was `0`.
+    fn nvs_core_ldap_ad_account_flags_must_change_password(_ctx, args: [1]) {
+        let member = "mustChangePassword";
+        let receiver = crate::instance::receiver(args[0], &ACCOUNT_FLAGS, member)?;
+        let must_change = crate::instance::slot(receiver, FLAGS_MUST_CHANGE_AT).as_bool();
+        Ok(Value::bool(must_change.unwrap_or(false)))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$flags->with({...}): Ad\AccountFlags` — a copy with the named flags
+    /// set or cleared. The computed attribute and `mustChangePassword` are
+    /// kept as they were, because no option changes them.
+    fn nvs_core_ldap_ad_account_flags_with(_ctx, args: [20]) {
+        let member = "with";
+        let settable = ACCOUNT_BITS
+            .iter()
+            .filter(|flag| flag.bit & COMPUTED_ACCOUNT_FLAGS == 0);
+        let bits = with_bits(bits_of(args[0], &ACCOUNT_FLAGS, member)?, settable, &args[1..]);
+        let computed = int_in(args[0], &ACCOUNT_FLAGS, FLAGS_COMPUTED_AT, member)?;
+        let receiver = crate::instance::receiver(args[0], &ACCOUNT_FLAGS, member)?;
+        let must_change = crate::instance::slot(receiver, FLAGS_MUST_CHANGE_AT).as_bool();
+        Ok(account_flags_value(
+            i64::from(bits),
+            computed,
+            must_change.unwrap_or(false),
+        ))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$type->with({...}): Ad\GroupType` — a copy with the named flags set
+    /// or cleared, signed as AD writes `groupType`.
+    fn nvs_core_ldap_ad_group_type_with(_ctx, args: [8]) {
+        let bits = with_bits(bits_of(args[0], &GROUP_TYPE, "with")?, GROUP_BITS.iter(), &args[1..]);
+        Ok(group_type_value(i64::from(bits.cast_signed())))
     }
 }

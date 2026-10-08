@@ -81,6 +81,8 @@ pub(super) const SID_BYTES_AT: usize = 0;
 pub(super) const FLAGS_BITS_AT: usize = 0;
 /// [`ACCOUNT_FLAGS`]' slot for `msDS-User-Account-Control-Computed`, or `null`.
 pub(super) const FLAGS_COMPUTED_AT: usize = 1;
+/// [`ACCOUNT_FLAGS`]' slot for whether `pwdLastSet` is `0`, as a `bool`.
+pub(super) const FLAGS_MUST_CHANGE_AT: usize = 2;
 
 /// ADR 0278 § 2's `Ldap\Settings`, the one shape `open` takes.
 ///
@@ -1765,8 +1767,26 @@ pub(crate) const ACCOUNT_FLAGS: CoreClass = CoreClass {
             symbol: "nvs_core_ldap_ad_account_flags_bits",
             doc: Some(&AF_BITS_DOC),
         },
+        CoreMethod {
+            name: "mustChangePassword",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            symbol: "nvs_core_ldap_ad_account_flags_must_change_password",
+            doc: Some(&AF_MUST_CHANGE_PASSWORD_DOC),
+        },
+        CoreMethod {
+            name: "with",
+            names: &[],
+            params: &[CoreTy::Options(AF_WITH_OPTIONS)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(ACCOUNT_FLAGS_NAME),
+            symbol: "nvs_core_ldap_ad_account_flags_with",
+            doc: Some(&AF_WITH_DOC),
+        },
     ],
-    slots: &["bits", "computed"],
+    slots: &["bits", "computed", "mustChange"],
     constants: &[],
 };
 
@@ -1832,6 +1852,90 @@ const AF_BITS_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
+/// `Ldap\Ad\AccountFlags::mustChangePassword`' reference card — `rule:core-api/reference-card`.
+const AF_MUST_CHANGE_PASSWORD_DOC: MethodDoc = MethodDoc {
+    short: "Checks whether the user must change the password at the next login. This is true \
+            when `pwdLastSet` is `0`. A search that selects `userAccountControl` also reads \
+            `pwdLastSet`.",
+    params: &[],
+    ret: "`true` when `pwdLastSet` is `0`, and `false` when it is not or the entry has no \
+          `pwdLastSet`.",
+    errors: &[],
+};
+
+/// One option of a flag field's `with`: a flag to set or clear, left as it
+/// is when the call does not name it.
+const fn flag_option(name: &'static str) -> CoreOption {
+    CoreOption {
+        name,
+        ty: CoreTy::Bool,
+        default: Const::Null,
+    }
+}
+
+/// The card of one option of a flag field's `with`.
+const fn flag_option_doc(name: &'static str) -> ParamDoc {
+    ParamDoc {
+        name,
+        desc: "`true` sets the flag and `false` clears it. Leave it out to keep the flag as it is.",
+        shape: &[],
+    }
+}
+
+/// `Ldap\Ad\AccountFlags::with`'s options: every flag in
+/// `nvs_ldap::value::ACCOUNT_FLAGS` but the two AD computes, in its order.
+const AF_WITH_OPTIONS: &[CoreOption] = &[
+    flag_option("script"),
+    flag_option("disabled"),
+    flag_option("homeDirectoryRequired"),
+    flag_option("passwordNotRequired"),
+    flag_option("reversibleEncryption"),
+    flag_option("temporaryDuplicateAccount"),
+    flag_option("normalAccount"),
+    flag_option("interdomainTrustAccount"),
+    flag_option("workstationTrustAccount"),
+    flag_option("serverTrustAccount"),
+    flag_option("passwordNeverExpires"),
+    flag_option("mnsLogonAccount"),
+    flag_option("smartcardRequired"),
+    flag_option("trustedForDelegation"),
+    flag_option("notDelegated"),
+    flag_option("useDesKeyOnly"),
+    flag_option("noPreauthRequired"),
+    flag_option("trustedToAuthForDelegation"),
+    flag_option("partialSecretsAccount"),
+];
+
+/// `Ldap\Ad\AccountFlags::with`'s reference card — `rule:core-api/reference-card`.
+const AF_WITH_DOC: MethodDoc = MethodDoc {
+    short: "Returns a copy with the flags you name set or cleared, such as \
+            `$flags->with({disabled: true})`. Every other bit stays as it is. `lockedOut` and \
+            `passwordExpired` are not options, because Active Directory computes them.",
+    params: &[
+        flag_option_doc("script"),
+        flag_option_doc("disabled"),
+        flag_option_doc("homeDirectoryRequired"),
+        flag_option_doc("passwordNotRequired"),
+        flag_option_doc("reversibleEncryption"),
+        flag_option_doc("temporaryDuplicateAccount"),
+        flag_option_doc("normalAccount"),
+        flag_option_doc("interdomainTrustAccount"),
+        flag_option_doc("workstationTrustAccount"),
+        flag_option_doc("serverTrustAccount"),
+        flag_option_doc("passwordNeverExpires"),
+        flag_option_doc("mnsLogonAccount"),
+        flag_option_doc("smartcardRequired"),
+        flag_option_doc("trustedForDelegation"),
+        flag_option_doc("notDelegated"),
+        flag_option_doc("useDesKeyOnly"),
+        flag_option_doc("noPreauthRequired"),
+        flag_option_doc("trustedToAuthForDelegation"),
+        flag_option_doc("partialSecretsAccount"),
+    ],
+    ret: "A new `Core\\Ldap\\Ad\\AccountFlags`. The object you call it on does not change.",
+    errors: &[],
+};
+
 /// `Ldap\Ad\GroupType`'s class card — `rule:core-api/reference-card`.
 const GROUP_TYPE_CARD: ClassDoc = ClassDoc {
     short: "The type of a group, read from `groupType`. Each flag is a function that returns a \
@@ -1889,6 +1993,15 @@ pub(crate) const GROUP_TYPE: CoreClass = CoreClass {
             symbol: "nvs_core_ldap_ad_group_type_bits",
             doc: Some(&GT_BITS_DOC),
         },
+        CoreMethod {
+            name: "with",
+            names: &[],
+            params: &[CoreTy::Options(GT_WITH_OPTIONS)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(GROUP_TYPE_NAME),
+            symbol: "nvs_core_ldap_ad_group_type_with",
+            doc: Some(&GT_WITH_DOC),
+        },
     ],
     slots: &["bits"],
     constants: &[],
@@ -1917,6 +2030,35 @@ const GT_BITS_DOC: MethodDoc = MethodDoc {
             number is negative, such as `-2147483646`.",
     params: &[],
     ret: "The number, with every bit.",
+    errors: &[],
+};
+
+/// `Ldap\Ad\GroupType::with`'s options: every flag in
+/// `nvs_ldap::value::GROUP_TYPE_FLAGS`, in its order.
+const GT_WITH_OPTIONS: &[CoreOption] = &[
+    flag_option("system"),
+    flag_option("global"),
+    flag_option("domainLocal"),
+    flag_option("universal"),
+    flag_option("appBasic"),
+    flag_option("appQuery"),
+    flag_option("security"),
+];
+
+/// `Ldap\Ad\GroupType::with`'s reference card — `rule:core-api/reference-card`.
+const GT_WITH_DOC: MethodDoc = MethodDoc {
+    short: "Returns a copy with the flags you name set or cleared, such as \
+            `$type->with({security: false})`. Every other bit stays as it is.",
+    params: &[
+        flag_option_doc("system"),
+        flag_option_doc("global"),
+        flag_option_doc("domainLocal"),
+        flag_option_doc("universal"),
+        flag_option_doc("appBasic"),
+        flag_option_doc("appQuery"),
+        flag_option_doc("security"),
+    ],
+    ret: "A new `Core\\Ldap\\Ad\\GroupType`. The object you call it on does not change.",
     errors: &[],
 };
 
@@ -2198,10 +2340,27 @@ mod tests {
                 .instance
                 .iter()
                 .map(|row| row.name)
-                .filter(|name| *name != "bits")
+                .filter(|name| !["bits", "with", "mustChangePassword"].contains(name))
                 .collect();
             let named: Vec<&str> = flags.iter().map(|flag| flag.name).collect();
             assert_eq!(readers, named, "{}", class.name);
+        }
+    }
+
+    #[test]
+    fn every_with_option_names_a_flag_ad_does_not_compute_in_order() {
+        let computed = nvs_ldap::value::COMPUTED_ACCOUNT_FLAGS;
+        for (options, flags) in [
+            (AF_WITH_OPTIONS, nvs_ldap::value::ACCOUNT_FLAGS),
+            (GT_WITH_OPTIONS, nvs_ldap::value::GROUP_TYPE_FLAGS),
+        ] {
+            let written: Vec<&str> = options.iter().map(|option| option.name).collect();
+            let settable: Vec<&str> = flags
+                .iter()
+                .filter(|flag| flags != nvs_ldap::value::ACCOUNT_FLAGS || flag.bit & computed == 0)
+                .map(|flag| flag.name)
+                .collect();
+            assert_eq!(written, settable);
         }
     }
 

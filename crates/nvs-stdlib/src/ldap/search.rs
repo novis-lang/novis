@@ -102,11 +102,17 @@ fn selected(value: &Value, member: &str) -> Result<Vec<String>, Fault> {
         at = names.next_slot(slot + 1);
     }
     // AD computes lockout and an expired password and returns them only
-    // when they are asked for, so `Entry::accountFlags` can read them.
-    let computed = nvs_ldap::value::COMPUTED_ACCOUNT_CONTROL;
-    let has = |wanted: &str| out.iter().any(|name| name.eq_ignore_ascii_case(wanted));
-    if has("userAccountControl") && !has(computed) {
-        out.push(computed.to_owned());
+    // when they are asked for, and a password that must be changed is
+    // `pwdLastSet = 0`, so `Entry::accountFlags` needs both beside
+    // `userAccountControl`.
+    let has =
+        |out: &[String], wanted: &str| out.iter().any(|name| name.eq_ignore_ascii_case(wanted));
+    if has(&out, "userAccountControl") {
+        for wanted in [nvs_ldap::value::COMPUTED_ACCOUNT_CONTROL, "pwdLastSet"] {
+            if !has(&out, wanted) {
+                out.push(wanted.to_owned());
+            }
+        }
     }
     Ok(out)
 }

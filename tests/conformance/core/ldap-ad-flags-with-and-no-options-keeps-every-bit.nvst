@@ -1,0 +1,45 @@
+--TEST--
+For every user and group under `CN=Users`, `with()` with no options keeps `bits()`, setting a flag and then clearing it returns the bits without that flag, and only users whose `pwdLastSet` is `0` must change their password — `rule:core-classes/ldap-value-types`
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+bool $agree = true;
+int $checked = 0;
+int $mustChange = 0;
+foreach ($corp->search(Core\Ldap\Filter::present("objectClass"), {base: "CN=Users,DC=example,DC=test", scope: Core\Ldap\Scope::OneLevel, select: ["userAccountControl", "groupType"]}) as Core\Ldap\Entry $entry) {
+    ?Core\Ldap\Ad\AccountFlags $flags = $entry->accountFlags();
+    if ($flags != null) {
+        $checked = $checked + 1;
+        $agree = $agree && $flags->with()->bits() == $flags->bits();
+        // `2` is `disabled` and `65536` is `passwordNeverExpires`.
+        $agree = $agree && $flags->with({disabled: true})->with({disabled: false})->bits() == ($flags->bits() & ~2);
+        $agree = $agree && $flags->with({passwordNeverExpires: true})->bits() == ($flags->bits() | 65536);
+        $mustChange = $mustChange + ($flags->mustChangePassword() ? 1 : 0);
+    }
+    ?Core\Ldap\Ad\GroupType $type = $entry->groupType();
+    if ($type != null) {
+        $checked = $checked + 1;
+        $agree = $agree && $type->with()->bits() == $type->bits();
+        $agree = $agree && $type->with({system: true})->with({system: false})->bits() == ($type->bits() & ~1);
+        $agree = $agree && $type->with({security: $type->security()})->bits() == $type->bits();
+    }
+}
+echo "checked more than the users: ", $checked > 3 ? "yes" : "no", "\n";
+echo "with keeps the other bits: ", $agree ? "yes" : "no", "\n";
+echo "must change their password: ", $mustChange, "\n";
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+base = "DC=example,DC=test"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+checked more than the users: yes
+with keeps the other bits: yes
+must change their password: 1

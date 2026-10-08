@@ -828,7 +828,7 @@ fn generalized_time_reads_as_an_instant() {
 fn account_flags_keep_the_bits_they_do_not_name() {
     use nvs_ldap::value::{
         ACCOUNT_FLAGS, AccountType, GROUP_TYPE_FLAGS, ValueError, account_type, flag_field,
-        has_flag, named_bits,
+        has_flag, named_bits, with_flags,
     };
 
     let flag = |flags: &[nvs_ldap::value::Flag], name: &str| {
@@ -846,12 +846,30 @@ fn account_flags_keep_the_bits_they_do_not_name() {
     assert!(has_flag(bits, flag(ACCOUNT_FLAGS, "disabled")));
     assert!(has_flag(bits, flag(ACCOUNT_FLAGS, "normalAccount")));
     assert!(!has_flag(bits, flag(ACCOUNT_FLAGS, "lockedOut")));
+    // `with` changes only the bits it names, and keeps the unnamed ones.
+    let enabled = with_flags(bits, [(flag(ACCOUNT_FLAGS, "disabled"), false)]);
+    assert_eq!(enabled, 0x200 | unnamed);
+    let no_expiry = flag(ACCOUNT_FLAGS, "passwordNeverExpires");
+    assert_eq!(
+        with_flags(bits, [(no_expiry, true)]),
+        0x202 | unnamed | no_expiry
+    );
+    assert_eq!(with_flags(bits, []), 0x202 | unnamed);
 
     // A security group is negative, because AD writes `groupType` signed.
     let group = flag_field(b"-2147483646").expect("a group type");
     assert!(has_flag(group, flag(GROUP_TYPE_FLAGS, "security")));
     assert!(has_flag(group, flag(GROUP_TYPE_FLAGS, "global")));
     assert!(!has_flag(group, flag(GROUP_TYPE_FLAGS, "universal")));
+    // Clearing the security bit makes it positive, and setting it again
+    // returns the number AD wrote.
+    let distribution = with_flags(group, [(flag(GROUP_TYPE_FLAGS, "security"), false)]);
+    assert_eq!(distribution, 2);
+    let security = with_flags(
+        i64::from(distribution),
+        [(flag(GROUP_TYPE_FLAGS, "security"), true)],
+    );
+    assert_eq!(security.cast_signed(), -2_147_483_646);
     assert_eq!(flag_field(b"4294967295"), Ok(i64::from(u32::MAX)));
     for wrong in [&b"4294967296"[..], b"-2147483649", b"0x2", b""] {
         assert_eq!(flag_field(wrong), Err(ValueError::NotAFlagField));

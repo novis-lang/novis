@@ -465,6 +465,24 @@ pub fn has_flag(bits: i64, flag: u32) -> bool {
     bits & i64::from(flag) != 0
 }
 
+/// `bits`, as [`flag_field`] read it, with each `(flag, on)` of `changes` set
+/// or cleared and every other bit kept. The result is the 32 bits AD stores:
+/// `userAccountControl` reads it unsigned and `groupType` signed, so the
+/// sign of a `groupType` is its security bit and nothing else.
+#[must_use]
+pub fn with_flags(bits: i64, changes: impl IntoIterator<Item = (u32, bool)>) -> u32 {
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "`flag_field` reads a value in `i32::MIN..=u32::MAX`, whose low 32 bits are the field"
+    )]
+    let stored = bits as u32;
+    changes.into_iter().fold(
+        stored,
+        |out, (flag, on)| if on { out | flag } else { out & !flag },
+    )
+}
+
 /// `sAMAccountType`'s values, as `Ad\AccountType` names them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AccountType {

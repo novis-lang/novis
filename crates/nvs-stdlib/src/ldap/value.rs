@@ -177,7 +177,8 @@ fn fixed_value<T>(
 
 nvs_runtime::nvs_helper! {
     /// `$entry->accountFlags(): ?Ad\AccountFlags` — `userAccountControl`, with
-    /// the computed attribute where the entry carries it. See [`super::flags`].
+    /// the computed attribute and `pwdLastSet` where the entry carries them.
+    /// See [`super::flags`].
     fn nvs_core_ldap_entry_account_flags(_ctx, args: [1]) {
         let member = "accountFlags";
         let read = nvs_ldap::value::flag_field;
@@ -186,7 +187,8 @@ nvs_runtime::nvs_helper! {
         };
         let computed = nvs_ldap::value::COMPUTED_ACCOUNT_CONTROL;
         let computed = fixed_value(args[0], computed, member, read)?;
-        Ok(account_flags_value(bits, computed))
+        let must_change = fixed_value(args[0], "pwdLastSet", member, |value| Ok(value == b"0"))?;
+        Ok(account_flags_value(bits, computed, must_change.unwrap_or(false)))
     }
 }
 

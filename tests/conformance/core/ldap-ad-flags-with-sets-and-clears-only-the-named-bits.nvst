@@ -1,0 +1,57 @@
+--TEST--
+`with` on `Ad\AccountFlags` and `Ad\GroupType` sets or clears only the flags it names, keeps every other bit, keeps the sign of a security group's `groupType`, and leaves the object it is called on unchanged — `rule:core-classes/ldap-value-types`
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+var $users = Core\Ldap\Dn::parse("CN=Users,DC=example,DC=test");
+
+// Administrator's `userAccountControl` is 512: only `normalAccount` is set.
+?Core\Ldap\Entry $admin = $corp->read($users->child("CN", "Administrator"), {select: ["userAccountControl"]});
+?Core\Ldap\Ad\AccountFlags $flags = $admin?->accountFlags();
+if ($flags != null) {
+    var $disabled = $flags->with({disabled: true});
+    echo "disabled: ", $disabled->bits(), " ", $disabled->disabled() ? "yes" : "no", "\n";
+    var $changed = $disabled->with({disabled: false, passwordNeverExpires: true});
+    echo "enabled again: ", $changed->bits(), " ", $changed->disabled() ? "yes" : "no", " ", $changed->passwordNeverExpires() ? "yes" : "no", "\n";
+    echo "original: ", $flags->bits(), "\n";
+}
+
+// Guest's is 66082. Clearing one flag keeps the other four bits.
+?Core\Ldap\Entry $guest = $corp->read($users->child("CN", "Guest"), {select: ["userAccountControl"]});
+?Core\Ldap\Ad\AccountFlags $guestFlags = $guest?->accountFlags();
+if ($guestFlags != null) {
+    echo "guest: ", $guestFlags->with({passwordNotRequired: false})->bits(), "\n";
+}
+
+// Domain Admins is a global security group, so its `groupType` is negative.
+?Core\Ldap\Entry $group = $corp->read("CN=Domain Admins,CN=Users,DC=example,DC=test", {select: ["groupType"]});
+?Core\Ldap\Ad\GroupType $type = $group?->groupType();
+if ($type != null) {
+    var $distribution = $type->with({security: false});
+    echo "distribution: ", $distribution->bits(), " ", $distribution->security() ? "yes" : "no", "\n";
+    echo "security again: ", $distribution->with({security: true})->bits(), "\n";
+    var $universal = $type->with({global: false, universal: true});
+    echo "universal: ", $universal->bits(), " ", $universal->global() ? "yes" : "no", " ", $universal->universal() ? "yes" : "no", "\n";
+    echo "original: ", $type->bits(), "\n";
+}
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+base = "DC=example,DC=test"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+disabled: 514 yes
+enabled again: 66048 no yes
+original: 512
+guest: 66050
+distribution: 2 no
+security again: -2147483646
+universal: -2147483640 no yes
+original: -2147483646

@@ -1,5 +1,5 @@
 --TEST--
-An account's `userAccountControl` reads as an `Ad\AccountFlags` with one `bool` reader per flag, `bits()` returns the whole number, and `sAMAccountType` reads as an `Ad\AccountType` — `rule:core-classes/ldap-value-types`
+An account's `userAccountControl` reads as an `Ad\AccountFlags` with one `bool` reader per flag, `bits()` returns the whole number, `mustChangePassword()` reads `pwdLastSet`, and `sAMAccountType` reads as an `Ad\AccountType` — `rule:core-classes/ldap-value-types`
 --FILE--
 <?nvs
 var $corp = Core\Ldap::connect("corp");
@@ -33,6 +33,7 @@ foreach ($names as string $name) {
     echo "  passwordExpired ", $flags->passwordExpired() ? "yes" : "no", "\n";
     echo "  trustedToAuthForDelegation ", $flags->trustedToAuthForDelegation() ? "yes" : "no", "\n";
     echo "  partialSecretsAccount ", $flags->partialSecretsAccount() ? "yes" : "no", "\n";
+    echo "  mustChangePassword ", $flags->mustChangePassword() ? "yes" : "no", "\n";
 }
 --COPY--
 ../../db/ca.crt
@@ -69,6 +70,7 @@ Administrator: bits 512, type User
   passwordExpired no
   trustedToAuthForDelegation no
   partialSecretsAccount no
+  mustChangePassword no
 Guest: bits 66082, type User
   script no
   disabled yes
@@ -91,3 +93,4 @@ Guest: bits 66082, type User
   passwordExpired no
   trustedToAuthForDelegation no
   partialSecretsAccount no
+  mustChangePassword yes
