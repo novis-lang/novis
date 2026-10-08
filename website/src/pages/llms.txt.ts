@@ -2,7 +2,9 @@
  * /llms.txt — the agent-facing site inventory (https://llmstxt.org/ format):
  * what this site is, and a link to every page with its one-line description.
  * Built from the same content collection as the pages themselves, so it can
- * never drift.
+ * never drift. A page with `pagefind: false` in its frontmatter is left out of
+ * the site search and out of this file: those are the legal pages, which name a
+ * person and an address.
  */
 import type { APIRoute } from 'astro'
 import { getCollection } from 'astro:content'
@@ -18,7 +20,7 @@ export const GET: APIRoute = async () => {
     `- [${d.data.title}](${url(d.id)})${d.data.description ? `: ${String(d.data.description).replace(/\s+/g, ' ')}` : ''}`
 
   const section = (title: string, filter: (id: string) => boolean) => {
-    const pages = docs.filter((d) => filter(d.id)).sort((a, b) => a.id.localeCompare(b.id))
+    const pages = docs.filter((d) => d.data.pagefind !== false && filter(d.id)).sort((a, b) => a.id.localeCompare(b.id))
     if (pages.length === 0) return ''
     return `\n## ${title}\n\n${pages.map(line).join('\n')}\n`
   }

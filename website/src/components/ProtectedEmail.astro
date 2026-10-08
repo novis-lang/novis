@@ -1,0 +1,24 @@
+---
+/**
+ * CONTACT_EMAIL from config/site.mjs as a mailto link that the browser builds.
+ * The HTML carries the address reversed and Base64-encoded, so a scraper that
+ * reads the HTML without running its script finds no address. A reader without
+ * JavaScript sees the address with "(at)" and "(dot)" written out.
+ */
+import { CONTACT_EMAIL } from '@config/site.mjs'
+
+const encoded = btoa([...CONTACT_EMAIL].reverse().join(''))
+const written = CONTACT_EMAIL.replace('@', ' (at) ').replaceAll('.', ' (dot) ')
+---
+
+<span class="nv-protected-email" data-encoded={encoded}><noscript>{written}</noscript></span>
+
+<script>
+  for (const el of document.querySelectorAll<HTMLElement>('.nv-protected-email[data-encoded]')) {
+    const address = [...atob(el.dataset.encoded ?? '')].reverse().join('')
+    const link = document.createElement('a')
+    link.href = `mailto:${address}`
+    link.textContent = address
+    el.replaceChildren(link)
+  }
+</script>

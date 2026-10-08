@@ -92,7 +92,7 @@ export const LOCK = "website/site.lock.json";
 /** The page directories a renderer writes, under `DOCS`. */
 const GENERATED = ["reference/core/"];
 /** Pages whose wording is fixed by law, and which `prose` does not judge. */
-const LEGAL = ["impressum.md", "datenschutz.md"];
+const LEGAL = ["impressum.mdx", "datenschutz.mdx"];
 
 export const PARTS = ["structure", "snippets", "stale", "reference", "syntax", "guides", "in-depth", "apps", "prose"] as const;
 type Part = (typeof PARTS)[number];

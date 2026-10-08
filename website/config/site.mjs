@@ -16,6 +16,13 @@ export const GITHUB_URL = 'https://github.com/novis-lang/novis'
 /** Community server. Drives the Discord header icon. */
 export const DISCORD_URL = 'https://discord.gg/8ftMjPeH8h'
 
+/**
+ * The contact address the legal notice and the privacy policy print. The page
+ * HTML never carries it in plain text: src/components/ProtectedEmail.astro
+ * builds it in the browser.
+ */
+export const CONTACT_EMAIL = 'novis-lang@proton.me'
+
 /** Branch the GitHub links point into. */
 export const GITHUB_BRANCH = 'main'
 

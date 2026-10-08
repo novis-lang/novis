@@ -1,4 +1,5 @@
-# Novis website. Everything is public and indexable.
+# Novis website. Everything is public. The legal notice and the privacy policy
+# carry a noindex meta tag, which a crawler has to be allowed to read.
 User-agent: *
 Allow: /
 
