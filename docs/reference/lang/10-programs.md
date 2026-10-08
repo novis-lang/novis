@@ -251,7 +251,7 @@ return ["host" => "example.test", "port" => "8080"];
 ```
 ```nvs
 <?nvs
-array<string> $config = (require 'config.nvs') as array<string>;
+array<tainted string> $config = (require 'config.nvs') as array<string>;
 echo $config["host"], ":", $config["port"], "\n";
 ```
 ```output

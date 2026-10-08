@@ -603,7 +603,7 @@ that already exists, so a `{x: int}` value is not a `{x: float}` value. Build a 
 ```nvs
 <?nvs
 class Q {
-    public static function show(?int $n, int|string $u, mixed $m, float $x): string {
+    public static function show(?int $n, int|string $u, mixed $m, float $x): tainted string {
         return (($n ?? 0) as string) . ($u as string) . ($m as string) . ($x as string);
     }
 }

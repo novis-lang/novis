@@ -499,7 +499,7 @@ return ["host" => "example.test", "port" => "8080"];
 ```
 ```nvs
 <?nvs
-array<string> $config = (require 'config.nvs') as array<string>;
+array<tainted string> $config = (require 'config.nvs') as array<string>;
 echo $config["host"], ":", $config["port"], "\n";
 ```
 ```output
@@ -1208,7 +1208,7 @@ that already exists, so a `{x: int}` value is not a `{x: float}` value. Build a 
 ```nvs
 <?nvs
 class Q {
-    public static function show(?int $n, int|string $u, mixed $m, float $x): string {
+    public static function show(?int $n, int|string $u, mixed $m, float $x): tainted string {
         return (($n ?? 0) as string) . ($u as string) . ($m as string) . ($x as string);
     }
 }
@@ -25531,8 +25531,8 @@ Keywords: has, get, toArray, string, bytes, int, uint, float, bool, decimal, ins
 | [`Core\Db\Row->has`](#core-core-db-row-has) | `has(string $name): bool` |
 | [`Core\Db\Row->get`](#core-core-db-row-get) | `get(string $name): mixed` |
 | [`Core\Db\Row->toArray`](#core-core-db-row-toarray) | `toArray(): array<mixed>` |
-| [`Core\Db\Row->string`](#core-core-db-row-string) | `string(string $name): ?string` |
-| [`Core\Db\Row->bytes`](#core-core-db-row-bytes) | `bytes(string $name): ?bytes` |
+| [`Core\Db\Row->string`](#core-core-db-row-string) | `string(string $name): ?tainted string` |
+| [`Core\Db\Row->bytes`](#core-core-db-row-bytes) | `bytes(string $name): ?tainted bytes` |
 | [`Core\Db\Row->int`](#core-core-db-row-int) | `int(string $name): ?int` |
 | [`Core\Db\Row->uint`](#core-core-db-row-uint) | `uint(string $name): ?uint` |
 | [`Core\Db\Row->float`](#core-core-db-row-float) | `float(string $name): ?float` |
@@ -25590,7 +25590,7 @@ Returns the whole row as an array with string keys, in the server's column order
 #### `Core\Db\Row->string`
 
 ```nvs skip
-$row->string(string $name): ?string
+$row->string(string $name): ?tainted string
 ```
 
 One column as `string`, for the text family alone — `CHAR`, `VARCHAR`, `TEXT`, `ENUM` and `JSON`, each of which reads back as a `tainted string`.
@@ -25599,7 +25599,7 @@ One column as `string`, for the text family alone — `CHAR`, `VARCHAR`, `TEXT`,
 |---|---|---|
 | `$name` | `string` (neutral) | The column label, as the server described it. |
 
-**Returns** `?string` — The text, or `null` for a NULL column.
+**Returns** `?tainted string` — The text, or `null` for a NULL column.
 
 **Throws** `LogicError` — The row has no column with that name, or the column is not text — a `BYTEA` is `bytes` and is read by `->bytes`, and a number is not re-rendered here.
 
@@ -25607,7 +25607,7 @@ One column as `string`, for the text family alone — `CHAR`, `VARCHAR`, `TEXT`,
 #### `Core\Db\Row->bytes`
 
 ```nvs skip
-$row->bytes(string $name): ?bytes
+$row->bytes(string $name): ?tainted bytes
 ```
 
 One column as `bytes` — `BINARY`, `BLOB` and `BYTEA`, which have no text form at all and are a separate type from `string`.
@@ -25616,7 +25616,7 @@ One column as `bytes` — `BINARY`, `BLOB` and `BYTEA`, which have no text form 
 |---|---|---|
 | `$name` | `string` (neutral) | The column label, as the server described it. |
 
-**Returns** `?bytes` — The octets, or `null` for a NULL column.
+**Returns** `?tainted bytes` — The octets as `tainted bytes`, or `null` for a NULL column.
 
 **Throws** `LogicError` — The row has no column with that name, or the column is text rather than `bytes` — the two are separate types and this reader does not span them.
 
