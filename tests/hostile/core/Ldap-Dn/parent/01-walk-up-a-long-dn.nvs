@@ -1,0 +1,33 @@
+<?nvs
+// Attack: a program walks up from a DN of two thousand parts, one `parent` at a time.
+// It should reach the top and get `null`, and the program must keep running.
+// hostile: timeout-ms 120000
+
+// 1. Walk to the top, and count the steps.
+uint $steps = 0;
+try {
+    Core\Ldap\Dn $at = Core\Ldap\Dn::parse(Core\Str::repeat('OU=a,', 1999) . 'DC=test');
+    while (true) {
+        var $up = $at->parent();
+        if ($up == null) {
+            break;
+        } else {
+            $at = $up;
+            $steps = $steps + 1;
+        }
+    }
+    echo '1 steps: ', $steps, ', top: ', $at->toString(), "\n";
+} catch (Throwable $error) {
+    echo "1 threw\n";
+}
+
+// 2. `parent` on a DN with one part, many times.
+uint $nulls = 0;
+var $top = Core\Ldap\Dn::of('DC', 'test');
+while ($nulls < 100000) {
+    if ($top->parent() != null) {
+        break;
+    }
+    $nulls = $nulls + 1;
+}
+echo '2 nulls: ', $nulls, "\n";

@@ -1,0 +1,1 @@
+Core\Ldap\Dn::parse: the text stops being a DN at character 7: a `;` in a value is written `\;`

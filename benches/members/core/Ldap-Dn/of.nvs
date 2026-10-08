@@ -1,0 +1,23 @@
+<?nvs
+// Measures how fast `Core\Ldap\Dn::of` makes a DN from a name, as a program does with a name from a form.
+// bench: iterations 100000
+// bench: calls 0
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        // The length so far chooses the name, so the loop cannot be left out.
+        array<string> $names = ['Ann Lee', 'Lee, Ann', 'Ann+uid=7'];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Str::length(Core\Ldap\Dn::of('CN', $names[($total % 3) as int])->rdnAttribute());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(100000), "\n";

@@ -12,6 +12,8 @@ echo "value: ", $person->rdnValue(), "\n";
 echo "parent: ", $person->parent()?->toString() ?? "none", "\n";
 echo "within staff: ", $person->isWithin($staff) ? "yes" : "no", "\n";
 echo "staff within it: ", $staff->isWithin($person) ? "yes" : "no", "\n";
+// covers: Core\Ldap\Dn::child, Core\Ldap\Dn::parent, Core\Ldap\Dn::rdnAttribute
+// covers: Core\Ldap\Dn::rdnValue, Core\Ldap\Dn::isWithin, Core\Ldap\Dn::toString
 --EXPECT--
 CN=Lee\, Ann\+uid\=7,OU=Staff,DC=example,DC=test
 attribute: CN

@@ -1,0 +1,10 @@
+<?nvs
+// Shows the error for an empty value.
+
+try {
+    var $dn = Core\Ldap\Dn::of('CN', '');
+    echo $dn->toString(), "\n";
+} catch (LogicError $error) {
+    // This prints Core\Ldap\Dn::of: the value is empty.
+    echo $error->message, "\n";
+}

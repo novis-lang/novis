@@ -1,0 +1,8 @@
+<?nvs
+// Shows the result for a DN with only one part.
+
+var $top = Core\Ldap\Dn::of('DC', 'test');
+// The result is `null`, so this prints no parent.
+if ($top->parent() == null) {
+    echo "no parent\n";
+}

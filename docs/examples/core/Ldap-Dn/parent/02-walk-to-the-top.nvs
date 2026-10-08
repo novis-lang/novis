@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to go up a DN one level at a time, until there is no parent.
+
+Core\Ldap\Dn $at = Core\Ldap\Dn::parse('CN=Ann,OU=Staff,DC=example,DC=test');
+// This prints four lines, and the last one is DC=test.
+while (true) {
+    echo $at->toString(), "\n";
+    var $up = $at->parent();
+    if ($up == null) {
+        break;
+    } else {
+        $at = $up;
+    }
+}

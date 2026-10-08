@@ -1,0 +1,6 @@
+<?nvs
+// Shows the result when the first part has two values joined by `+`.
+
+var $person = Core\Ldap\Dn::parse('CN=Ann+UID=ann7,OU=Staff,DC=example,DC=test');
+// The result is the first value. This prints Ann.
+echo $person->rdnValue(), "\n";

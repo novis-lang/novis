@@ -1,0 +1,6 @@
+<?nvs
+// Shows how to find the unit that a person's entry is in.
+
+var $person = Core\Ldap\Dn::parse('CN=Ann,OU=Staff,DC=example,DC=test');
+// This prints OU=Staff,DC=example,DC=test.
+echo $person->parent()?->toString() ?? 'none', "\n";

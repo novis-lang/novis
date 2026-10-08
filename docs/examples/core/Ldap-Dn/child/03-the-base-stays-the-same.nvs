@@ -1,0 +1,12 @@
+<?nvs
+// Shows that `child` returns a new DN, and the DN you call it on does not change.
+
+var $staff = Core\Ldap\Dn::parse('OU=Staff,DC=example,DC=test');
+var $ann = $staff->child('CN', 'Ann');
+var $ben = $staff->child('CN', 'Ben');
+// This prints CN=Ann,OU=Staff,DC=example,DC=test.
+echo $ann->toString(), "\n";
+// This prints CN=Ben,OU=Staff,DC=example,DC=test.
+echo $ben->toString(), "\n";
+// This prints OU=Staff,DC=example,DC=test.
+echo $staff->toString(), "\n";

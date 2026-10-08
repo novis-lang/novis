@@ -637,6 +637,9 @@ fn ad_member_of_nested_uses_the_in_chain_rule() {
     found(&mut ctx, key, &Filter::Encoded(nested(&group).to_ber()));
 }
 
+// covers: Core\Ldap\Dn::parse, Core\Ldap\Dn::of, Core\Ldap\Dn::child, Core\Ldap\Dn::parent
+// covers: Core\Ldap\Dn::rdnAttribute, Core\Ldap\Dn::rdnValue, Core\Ldap\Dn::isWithin
+// covers: Core\Ldap\Dn::toString
 #[test]
 fn dn_escapes_each_value_and_round_trips() {
     let users = Dn::parse("CN=Users, DC=example, DC=test").expect("an operator's DN parses");
@@ -651,6 +654,7 @@ fn dn_escapes_each_value_and_round_trips() {
         "CN=Administrator\\,CN\\=Users,CN=Users,DC=example,DC=test"
     );
     assert_eq!(dn.rdns().len(), 4, "the value added no level");
+    assert_eq!(dn.rdn().first().attribute, "CN");
     assert_eq!(dn.rdn().first().value, hostile);
     assert_eq!(Dn::parse(&dn.to_text()), Ok(dn.clone()));
     assert!(dn.is_within(&users));

@@ -1,0 +1,7 @@
+<?nvs
+// Shows how to read the base of your searches from text that you wrote.
+
+// The spaces after each `,` are removed.
+var $base = Core\Ldap\Dn::parse('OU=Staff, DC=example, DC=test');
+// This prints OU=Staff,DC=example,DC=test.
+echo $base->toString(), "\n";

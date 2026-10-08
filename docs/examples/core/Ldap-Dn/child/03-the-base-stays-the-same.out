@@ -1,0 +1,3 @@
+CN=Ann,OU=Staff,DC=example,DC=test
+CN=Ben,OU=Staff,DC=example,DC=test
+OU=Staff,DC=example,DC=test

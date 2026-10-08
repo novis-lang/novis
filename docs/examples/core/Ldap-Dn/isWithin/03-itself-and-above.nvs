@@ -1,0 +1,9 @@
+<?nvs
+// Shows that a DN is within itself, and is not within an entry below it.
+
+var $staff = Core\Ldap\Dn::parse('OU=Staff,DC=example,DC=test');
+var $ann = $staff->child('CN', 'Ann');
+// This prints yes.
+echo $staff->isWithin($staff) ? 'yes' : 'no', "\n";
+// This prints no.
+echo $staff->isWithin($ann) ? 'yes' : 'no', "\n";

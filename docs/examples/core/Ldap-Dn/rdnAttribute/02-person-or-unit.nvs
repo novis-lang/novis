@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to tell a person's entry from a unit by the first attribute name.
+
+array<string> $texts = ['CN=Ann,OU=Staff,DC=example,DC=test', 'ou=Staff,DC=example,DC=test'];
+// The name is compared without case, because a DN may write `ou` or `OU`.
+// This prints a person, then a unit.
+foreach ($texts as string $text) {
+    var $name = Core\Str::upper(Core\Ldap\Dn::parse($text)->rdnAttribute());
+    echo $name == 'OU' ? 'a unit' : 'a person', "\n";
+}

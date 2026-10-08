@@ -1,0 +1,32 @@
+<?nvs
+// Attack: a request builds a DN that looks like it is inside the staff unit, to pass a
+// check before a change. Each one should be outside the unit, and the program must keep running.
+// hostile: timeout-ms 60000
+
+var $staff = Core\Ldap\Dn::parse('OU=Staff,DC=example,DC=test');
+
+// 1. Names from a request that try to end with the staff unit.
+array<string> $names = ['x,OU=Staff,DC=example,DC=test', 'OU=Staff', 'Staff,DC=example,DC=test'];
+uint $outside = 0;
+foreach ($names as string $name) {
+    var $dn = Core\Ldap\Dn::of('DC', 'test')->child('CN', $name);
+    if (!$dn->isWithin($staff)) {
+        $outside = $outside + 1;
+    }
+}
+echo '1 outside: ', $outside, " of 3\n";
+
+// 2. The unit in upper case, and a name with the one letter `ﬀ` in place of `ff`.
+array<string> $texts = ['OU=STAFF,DC=example,DC=test', 'OU=Staff,DC=EXAMPLE,DC=TEST', "OU=Sta\u{FB00},DC=example,DC=test"];
+foreach ($texts as string $text) {
+    echo '2 ', Core\Ldap\Dn::parse($text)->isWithin($staff) ? 'yes' : 'no', "\n";
+}
+
+// 3. Two DNs of ten thousand parts each, which differ only at the top.
+try {
+    var $left = Core\Ldap\Dn::parse(Core\Str::repeat('OU=a,', 10000) . 'DC=test');
+    var $right = Core\Ldap\Dn::parse(Core\Str::repeat('OU=a,', 10000) . 'DC=other');
+    echo '3 ', $left->isWithin($right) ? 'yes' : 'no', "\n";
+} catch (Throwable $error) {
+    echo "3 threw\n";
+}

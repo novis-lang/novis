@@ -1,0 +1,6 @@
+<?nvs
+// Shows that the text keeps the case you wrote, without the spaces around `,` and `=`.
+
+var $base = Core\Ldap\Dn::parse('ou = Staff , dc=Example , dc=test');
+// This prints ou=Staff,dc=Example,dc=test.
+echo $base->toString(), "\n";
