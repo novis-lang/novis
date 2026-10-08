@@ -26125,7 +26125,7 @@ Opens a directory at a URL the program gives. Needs the `ldap.open` capability f
 <a id="core-core-ldap-connection"></a>
 ### `Core\Ldap\Connection`
 
-Keywords: whoami, search, read, add, modify, delete, rename
+Keywords: whoami, search, read, add, modify, delete, rename, setPassword, changePassword
 
 | Member | Signature |
 |---|---|
@@ -26136,6 +26136,8 @@ Keywords: whoami, search, read, add, modify, delete, rename
 | [`Core\Ldap\Connection->modify`](#core-core-ldap-connection-modify) | `modify(Core\Ldap\Dn\|string $dn, array<Core\Ldap\Change> $changes): void` |
 | [`Core\Ldap\Connection->delete`](#core-core-ldap-connection-delete) | `delete(Core\Ldap\Dn\|string $dn): void` |
 | [`Core\Ldap\Connection->rename`](#core-core-ldap-connection-rename) | `rename(Core\Ldap\Dn\|string $from, Core\Ldap\Dn\|string $to): void` |
+| [`Core\Ldap\Connection->setPassword`](#core-core-ldap-connection-setpassword) | `setPassword(Core\Ldap\Dn\|string $dn, secret tainted string $password): void` |
+| [`Core\Ldap\Connection->changePassword`](#core-core-ldap-connection-changepassword) | `changePassword(Core\Ldap\Dn\|string $dn, secret tainted string $old, secret tainted string $new): void` |
 
 <a id="core-core-ldap-connection-whoami"></a>
 #### `Core\Ldap\Connection->whoami`
@@ -26260,6 +26262,43 @@ Gives an entry a new DN. The entry moves when the new DN has another parent.
 **Returns** `void` — Nothing.
 
 **Throws** `LogicError` — `from` or `to` is text that is not a DN, or the connection is closed.; `Core\Ldap\LdapError` — The server returned an error, such as `NoSuchObject` or `AlreadyExists`.
+
+<a id="core-core-ldap-connection-setpassword"></a>
+#### `Core\Ldap\Connection->setPassword`
+
+```nvs skip
+$connection->setPassword(Core\Ldap\Dn|string $dn, secret tainted string $password): void
+```
+
+Sets a new password for a user account, as an administrator does. It works only over TLS.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$dn` | `Core\Ldap\Dn\|string` (sink) | The user account's DN, as a `Dn` or as text. Text cannot be `tainted`. |
+| `$password` | `secret tainted string` | The new password. |
+
+**Returns** `void` — Nothing.
+
+**Throws** `LogicError` — `dn` is text that is not a DN, or the connection is closed.; `Core\Ldap\LdapError` — `$kind` is `EncryptionRequired` when the connection does not use TLS. Nothing is sent then. It is `PasswordPolicy` when the domain does not accept the new password, and another kind for any other error the server returns.
+
+<a id="core-core-ldap-connection-changepassword"></a>
+#### `Core\Ldap\Connection->changePassword`
+
+```nvs skip
+$connection->changePassword(Core\Ldap\Dn|string $dn, secret tainted string $old, secret tainted string $new): void
+```
+
+Changes the password of a user account from `$old` to `$new`, as the user does. The server checks `$old` and the password history. It works only over TLS.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$dn` | `Core\Ldap\Dn\|string` (sink) | The user account's DN, as a `Dn` or as text. Text cannot be `tainted`. |
+| `$old` | `secret tainted string` | The password the account has now. |
+| `$new` | `secret tainted string` | The new password. |
+
+**Returns** `void` — Nothing.
+
+**Throws** `LogicError` — `dn` is text that is not a DN, or the connection is closed.; `Core\Ldap\LdapError` — `$kind` is `EncryptionRequired` when the connection does not use TLS. Nothing is sent then. It is `PasswordPolicy` when the domain does not accept the new password, and another kind for any other error the server returns.
 
 <a id="core-core-ldap-entries"></a>
 ### `Core\Ldap\Entries`
