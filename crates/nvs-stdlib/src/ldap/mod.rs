@@ -76,6 +76,7 @@ use nvs_config::Cap;
 use nvs_config::capability::Scope;
 use nvs_runtime::{Ctx, Fault, Tag, ThrownClass, Value};
 
+mod dn;
 mod registry;
 mod search;
 
@@ -697,6 +698,7 @@ nvs_runtime::nvs_helper! {
         let url = settings_text(args, URL_ARG, "url")?.unwrap_or_default();
         let user = settings_text(args, USER_ARG, "user")?;
         let password = settings_text(args, PASSWORD_ARG, "password")?.unwrap_or_default();
+        let base = dn::dn_arg(args[BASE_ARG], OPEN)?;
         let settings = Settings {
             url,
             user,
@@ -704,7 +706,7 @@ nvs_runtime::nvs_helper! {
             tls: settings_tls(&args[TLS_ARG])?,
             tls_ca_file: None,
             timeout: settings_timeout(args)?,
-            base: settings_text(args, BASE_ARG, "base")?,
+            base: base.as_deref(),
         };
         let key = open(ctx, &settings)?;
         Ok(connection(key))
@@ -717,6 +719,6 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "nvs_core_ldap_connect" => (nvs_core_ldap_connect as *const ()).cast(),
         "nvs_core_ldap_open" => (nvs_core_ldap_open as *const ()).cast(),
-        _ => return search::address(symbol),
+        _ => return search::address(symbol).or_else(|| dn::address(symbol)),
     })
 }

@@ -13,10 +13,10 @@ class Reports {
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0401]: expected `string`, found `tainted string`
+error[E0401]: expected `string|Core\Ldap\Dn`, found `tainted string`
   --> case.nvs:6:80
 %A
-  = help: `base` is a sink and no `Core` member launders one for it: the only way through is `Core\Taint::assertTrusted($value, $reason)`, which is forbidden by default, greppable, and carries in the source the reason the value can be trusted
+  = help: a `tainted` DN is a sink: build it with `Core\Ldap\Dn::of($attribute, $value)` or `$dn->child($attribute, $value)`, which escape the value and return the `Core\Ldap\Dn` this parameter accepts
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

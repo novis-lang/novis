@@ -1,0 +1,42 @@
+--TEST--
+`read` and a search's `base` take a `Dn`, `Entry::dn` returns one, and a `tainted` name built into a `Dn` reads no other entry — ADR 0278 § 7 and `rule:core-classes/ldap-dn-is-the-launderer`
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+var $users = Core\Ldap\Dn::parse("CN=Users,DC=example,DC=test");
+var $admin = $corp->read($users->child("CN", "Administrator"), {select: ["cn"]});
+if ($admin == null) {
+    echo "no entry", "\n";
+} else {
+    var $dn = $admin->dn();
+    echo "read: ", $dn->rdnValue(), "\n";
+    echo "parent: ", $dn->parent()?->toString() ?? "none", "\n";
+    echo "within users: ", $dn->isWithin($users) ? "yes" : "no", "\n";
+}
+// A name from a request. Its `,` and `=` are escaped, so it names no other entry.
+tainted string $name = "Administrator,CN=Users";
+echo "from a request: ", $corp->read($users->child("CN", $name)) == null ? "null" : "an entry", "\n";
+int $found = 0;
+var $entries = $corp->search(Core\Ldap\Filter::equals("cn", "Administrator"), {base: $users, select: ["cn"]});
+foreach ($entries as Core\Ldap\Entry $entry) {
+    $found = $found + 1;
+}
+echo "found from a Dn base: ", $found, "\n";
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+base = "DC=example,DC=test"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+read: Administrator
+parent: CN=Users,DC=example,DC=test
+within users: yes
+from a request: null
+found from a Dn base: 1

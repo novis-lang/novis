@@ -1,0 +1,28 @@
+--TEST--
+`Ldap\Dn::parse` drops the spaces around `,` and `=`, reads an escaped `,` as part of a value, and throws `LogicError` naming the first character that is not part of a DN — ADR 0278 § 7
+--FILE--
+<?nvs
+var $base = Core\Ldap\Dn::parse(" OU = Staff , DC=example,DC=test ");
+echo $base->toString(), "\n";
+echo "attribute: ", $base->rdnAttribute(), "\n";
+echo "parent: ", $base->parent()?->toString() ?? "none", "\n";
+echo "escaped: ", Core\Ldap\Dn::parse("CN=Lee\\, Ann,DC=test")->rdnValue(), "\n";
+array<string> $wrong = ["", "CN=Ann,", "CN=Ann;DC=test", "1CN=Ann", "CN=\\q"];
+foreach ($wrong as string $text) {
+    try {
+        var $dn = Core\Ldap\Dn::parse($text);
+        echo "parsed: ", $dn->toString(), "\n";
+    } catch (LogicError $e) {
+        echo $e->message, "\n";
+    }
+}
+--EXPECT--
+OU=Staff,DC=example,DC=test
+attribute: OU
+parent: DC=example,DC=test
+escaped: Lee, Ann
+Core\Ldap\Dn::parse: the text stops being a DN at character 1: a DN has at least one part, such as `DC=example`
+Core\Ldap\Dn::parse: the text stops being a DN at character 8: this is not an attribute name
+Core\Ldap\Dn::parse: the text stops being a DN at character 7: a `;` in a value is written `\;`
+Core\Ldap\Dn::parse: the text stops being a DN at character 1: this is not an attribute name
+Core\Ldap\Dn::parse: the text stops being a DN at character 4: a `\` in a value is followed by a special character or two hex digits

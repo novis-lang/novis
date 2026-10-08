@@ -27,8 +27,16 @@ pub(crate) const ENTRY_NAME: &str = r"Core\Ldap\Entry";
 /// `Core\Ldap\Filter`'s fully-qualified name.
 pub(crate) const FILTER_NAME: &str = r"Core\Ldap\Filter";
 
+/// `Core\Ldap\Dn`'s fully-qualified name.
+pub(crate) const DN_NAME: &str = r"Core\Ldap\Dn";
+
 /// [`SCOPE`]'s fully-qualified name.
 pub(crate) const SCOPE_NAME: &str = r"Core\Ldap\Scope";
+
+/// Every DN parameter's type, `rule:core-classes/ldap-dn-is-the-launderer`'s
+/// `Dn|string`: a [`DN`], or text that refuses `tainted` because the server
+/// parses it into a path in the tree.
+const DN_OR_STRING: &[CoreTy] = &[CoreTy::Instance(DN_NAME), CoreTy::Text(Qual::Sink)];
 
 /// The slot a [`CONNECTION`] and an [`ENTRIES`] keep the connection's key in,
 /// filed by [`nvs_runtime::Ctx::hold_open_connection`].
@@ -50,6 +58,8 @@ pub(super) const ENTRY_DN_AT: usize = 0;
 pub(super) const ENTRY_ATTRIBUTES_AT: usize = 1;
 /// [`FILTER`]'s slot for its BER encoding.
 pub(super) const FILTER_BER_AT: usize = 0;
+/// [`DN`]'s slot for its RFC 4514 text, as [`nvs_ldap::Dn::to_text`] wrote it.
+pub(super) const DN_TEXT_AT: usize = 0;
 
 /// ADR 0278 § 2's `Ldap\Settings`, the one shape `open` takes.
 ///
@@ -88,9 +98,9 @@ pub(super) const SETTINGS: &[&[CoreField]] = &[&[
     },
     CoreField {
         name: "base",
-        // A sink, as `search`'s `base` option is: it is where every search
+        // A DN, as `search`'s `base` option is: it is where every search
         // that names no base starts.
-        ty: CoreTy::Text(Qual::Sink),
+        ty: CoreTy::Union(DN_OR_STRING),
         default: Some(Const::Null),
     },
 ]];
@@ -224,8 +234,8 @@ const OPEN_DOC: MethodDoc = MethodDoc {
             },
             ShapeKeyDoc {
                 key: "base",
-                ty: "string",
-                desc: "The DN a search starts from when it does not give its own `base`. It \
+                ty: "Dn|string",
+                desc: "The DN a search starts from when it does not give its own `base`. Text \
                        cannot be `tainted`.",
             },
         ],
@@ -253,7 +263,7 @@ const OPEN_DOC: MethodDoc = MethodDoc {
 const SEARCH_OPTIONS: &[CoreOption] = &[
     CoreOption {
         name: "base",
-        ty: CoreTy::Text(Qual::Sink),
+        ty: CoreTy::Union(DN_OR_STRING),
         // The block's own `base`, which `search` reads off the connection.
         default: Const::Null,
     },
@@ -322,8 +332,7 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
         CoreMethod {
             name: "read",
             names: &["dn"],
-            // A sink: the server parses a DN into a path in the tree.
-            params: &[CoreTy::Text(Qual::Sink), CoreTy::Options(READ_OPTIONS)],
+            params: &[CoreTy::Union(DN_OR_STRING), CoreTy::Options(READ_OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Instance(ENTRY_NAME)),
             symbol: "nvs_core_ldap_connection_read",
@@ -364,8 +373,8 @@ const SEARCH_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "base",
-            desc: "The DN the search starts from. Left out, it is the `base` of the `[ldap]` \
-                   block. It cannot be `tainted`.",
+            desc: "The DN the search starts from, as a `Dn` or as text. Left out, it is the \
+                   `base` of the `[ldap]` block. Text cannot be `tainted`.",
             shape: &[],
         },
         ParamDoc {
@@ -413,8 +422,9 @@ const READ_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "dn",
-            desc: "The entry's DN, such as `CN=Staff,OU=Groups,DC=example,DC=test`. It cannot be \
-                   `tainted`.",
+            desc: "The entry's DN, as a `Dn` or as text such as \
+                   `CN=Staff,OU=Groups,DC=example,DC=test`. Text cannot be `tainted`. Build a DN \
+                   from user input with `Dn::of` or `child`.",
             shape: &[],
         },
         ParamDoc {
@@ -501,7 +511,7 @@ pub(crate) const ENTRY: CoreClass = CoreClass {
             names: &[],
             params: &[],
             defaults: &[],
-            return_ty: CoreTy::Str,
+            return_ty: CoreTy::Instance(DN_NAME),
             symbol: "nvs_core_ldap_entry_dn",
             doc: Some(&ENTRY_DN_DOC),
         },
@@ -557,10 +567,14 @@ pub(crate) const ENTRY: CoreClass = CoreClass {
 
 /// `Ldap\Entry::dn`'s reference card — `rule:core-api/reference-card`.
 const ENTRY_DN_DOC: MethodDoc = MethodDoc {
-    short: "Returns the entry's DN, as the server sent it.",
+    short: "Returns the entry's DN as a `Core\\Ldap\\Dn`.",
     params: &[],
     ret: "The DN, such as `CN=Administrator,CN=Users,DC=example,DC=test`.",
-    errors: &[],
+    errors: &[ErrorDoc {
+        error: "Core\\Ldap\\LdapError",
+        desc: "The server sent a DN that is not correct DN text. `$kind` is \
+               `ErrorKind::Protocol`.",
+    }],
 };
 
 /// `Ldap\Entry::has`'s reference card — `rule:core-api/reference-card`.
@@ -936,6 +950,210 @@ const FILTER_TO_STRING_DOC: MethodDoc = MethodDoc {
     params: &[],
     ret: "The text. A `*`, `(`, `)` or `\\` in a value is written as `\\` and two hex digits. \
           The text is `tainted`, because a value in the filter may be.",
+    errors: &[],
+};
+
+/// `Ldap\Dn`'s class card — `rule:core-api/reference-card`.
+const DN_CARD: ClassDoc = ClassDoc {
+    short: "A DN (distinguished name), the path of an entry in a directory, such as \
+            `CN=Ann Lee,OU=Staff,DC=example,DC=test`. Build one from an attribute and a value, \
+            and the value can be user input: each special character in it is escaped.",
+};
+
+/// The `attribute` parameter of [`DN`]'s builders.
+const DN_ATTRIBUTE_PARAM: ParamDoc = ParamDoc {
+    name: "attribute",
+    desc: "The attribute's name, such as `CN` or `OU`. It cannot be `tainted`.",
+    shape: &[],
+};
+
+/// The `value` parameter of [`DN`]'s builders.
+const DN_VALUE_PARAM: ParamDoc = ParamDoc {
+    name: "value",
+    desc: "The value, such as `Ann Lee`. It can be `tainted`. A `,`, `+`, `=` or other special \
+           character in it is escaped, so it stays one value.",
+    shape: &[],
+};
+
+/// The error of [`DN`]'s builders.
+const DN_PART_ERRORS: &[ErrorDoc] = &[ErrorDoc {
+    error: "LogicError",
+    desc: "The attribute is not an attribute name, or the value is empty.",
+}];
+
+/// ADR 0278 § 7's `Ldap\Dn`, `rule:core-classes/ldap-dn-is-the-launderer`.
+/// `super::dn`'s module doc says what its slot is.
+///
+/// `of` and `child` launder their `value` for the DN sink and nothing else:
+/// they return a `Dn`, which only a DN parameter takes, and every text a `Dn`
+/// gives back is `tainted`.
+pub(crate) const DN: CoreClass = CoreClass {
+    name: DN_NAME,
+    doc: Some(&DN_CARD),
+    methods: &[
+        CoreMethod {
+            name: "parse",
+            names: &["text"],
+            // The server would read this text as a path, so it is a sink.
+            params: &[CoreTy::Text(Qual::Sink)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(DN_NAME),
+            symbol: "nvs_core_ldap_dn_parse",
+            doc: Some(&DN_PARSE_DOC),
+        },
+        CoreMethod {
+            name: "of",
+            names: &["attribute", "value"],
+            params: &[CoreTy::Text(Qual::Sink), CoreTy::Text(Qual::Launder)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(DN_NAME),
+            symbol: "nvs_core_ldap_dn_of",
+            doc: Some(&DN_OF_DOC),
+        },
+    ],
+    instance: &[
+        CoreMethod {
+            name: "child",
+            names: &["attribute", "value"],
+            params: &[CoreTy::Text(Qual::Sink), CoreTy::Text(Qual::Launder)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(DN_NAME),
+            symbol: "nvs_core_ldap_dn_child",
+            doc: Some(&DN_CHILD_DOC),
+        },
+        CoreMethod {
+            name: "parent",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Instance(DN_NAME)),
+            symbol: "nvs_core_ldap_dn_parent",
+            doc: Some(&DN_PARENT_DOC),
+        },
+        CoreMethod {
+            name: "rdnAttribute",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "nvs_core_ldap_dn_rdn_attribute",
+            doc: Some(&DN_RDN_ATTRIBUTE_DOC),
+        },
+        CoreMethod {
+            name: "rdnValue",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::TaintedStr,
+            symbol: "nvs_core_ldap_dn_rdn_value",
+            doc: Some(&DN_RDN_VALUE_DOC),
+        },
+        CoreMethod {
+            name: "isWithin",
+            names: &["other"],
+            params: &[CoreTy::Instance(DN_NAME)],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            symbol: "nvs_core_ldap_dn_is_within",
+            doc: Some(&DN_IS_WITHIN_DOC),
+        },
+        CoreMethod {
+            name: "toString",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            // A value in the DN may be `tainted`, so the text is.
+            return_ty: CoreTy::TaintedStr,
+            symbol: "nvs_core_ldap_dn_to_string",
+            doc: Some(&DN_TO_STRING_DOC),
+        },
+    ],
+    slots: &["text"],
+    constants: &[],
+};
+
+/// `Ldap\Dn::parse`'s reference card — `rule:core-api/reference-card`.
+const DN_PARSE_DOC: MethodDoc = MethodDoc {
+    short: "Reads DN text, such as `OU=Staff,DC=example,DC=test`, and returns the DN. Use it \
+            for a DN that you wrote, for example in a configuration file.",
+    params: &[ParamDoc {
+        name: "text",
+        desc: "The DN text, as RFC 4514 writes it. It cannot be `tainted`. Build a DN from user \
+               input with `of` and `child`.",
+        shape: &[],
+    }],
+    ret: "A `Core\\Ldap\\Dn`. Spaces around `,`, `+` and `=` are removed.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The text is not a DN. The message gives the position of the first wrong \
+               character.",
+    }],
+};
+
+/// `Ldap\Dn::of`'s reference card — `rule:core-api/reference-card`.
+const DN_OF_DOC: MethodDoc = MethodDoc {
+    short: "Returns a DN with one part, `attribute=value`.",
+    params: &[DN_ATTRIBUTE_PARAM, DN_VALUE_PARAM],
+    ret: "A `Core\\Ldap\\Dn`.",
+    errors: DN_PART_ERRORS,
+};
+
+/// `Ldap\Dn->child`'s reference card — `rule:core-api/reference-card`.
+const DN_CHILD_DOC: MethodDoc = MethodDoc {
+    short: "Returns the DN of an entry directly below this one. `attribute=value` is added at \
+            the start.",
+    params: &[DN_ATTRIBUTE_PARAM, DN_VALUE_PARAM],
+    ret: "A new `Core\\Ldap\\Dn`. This DN does not change.",
+    errors: DN_PART_ERRORS,
+};
+
+/// `Ldap\Dn->parent`'s reference card — `rule:core-api/reference-card`.
+const DN_PARENT_DOC: MethodDoc = MethodDoc {
+    short: "Returns the DN one level up. The first part is removed.",
+    params: &[],
+    ret: "The parent DN, or `null` when this DN has only one part.",
+    errors: &[],
+};
+
+/// `Ldap\Dn->rdnAttribute`'s reference card — `rule:core-api/reference-card`.
+const DN_RDN_ATTRIBUTE_DOC: MethodDoc = MethodDoc {
+    short: "Returns the attribute name of the first part. For \
+            `CN=Ann Lee,OU=Staff,DC=example,DC=test` this is `CN`.",
+    params: &[],
+    ret: "The name, written as in the DN. When the first part has several values joined by \
+          `+`, it is the name of the first one.",
+    errors: &[],
+};
+
+/// `Ldap\Dn->rdnValue`'s reference card — `rule:core-api/reference-card`.
+const DN_RDN_VALUE_DOC: MethodDoc = MethodDoc {
+    short: "Returns the value of the first part, with escapes removed. For \
+            `CN=Lee\\, Ann,OU=Staff,DC=example,DC=test` this is `Lee, Ann`.",
+    params: &[],
+    ret: "The value. It is `tainted`. When the first part has several values joined by `+`, it \
+          is the first one.",
+    errors: &[],
+};
+
+/// `Ldap\Dn->isWithin`'s reference card — `rule:core-api/reference-card`.
+const DN_IS_WITHIN_DOC: MethodDoc = MethodDoc {
+    short: "Checks if this DN is `other` or an entry below it. Names and values are compared \
+            without case.",
+    params: &[ParamDoc {
+        name: "other",
+        desc: "The DN to compare with, such as `Dn::parse('DC=example,DC=test')`.",
+        shape: &[],
+    }],
+    ret: "`true` when this DN ends with every part of `other`.",
+    errors: &[],
+};
+
+/// `Ldap\Dn->toString`'s reference card — `rule:core-api/reference-card`.
+const DN_TO_STRING_DOC: MethodDoc = MethodDoc {
+    short: "Returns the DN as text, with each special character in a value escaped.",
+    params: &[],
+    ret: "The text. `Dn::parse` reads it back as the same DN. The text is `tainted`, because a \
+          value in the DN may be.",
     errors: &[],
 };
 

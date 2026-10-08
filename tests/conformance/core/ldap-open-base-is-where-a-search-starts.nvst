@@ -14,7 +14,7 @@ var $corp = Core\Ldap::open({
 });
 var $users = $corp->search(Core\Ldap\Filter::present("objectClass"), {scope: Core\Ldap\Scope::Base, select: ["cn"]});
 foreach ($users as Core\Ldap\Entry $entry) {
-    echo "from settings: ", $entry->dn(), "\n";
+    echo "from settings: ", $entry->dn()->toString(), "\n";
 }
 var $builtin = $corp->search(Core\Ldap\Filter::present("objectClass"), {
     base: "CN=Builtin,DC=example,DC=test",
@@ -22,7 +22,7 @@ var $builtin = $corp->search(Core\Ldap\Filter::present("objectClass"), {
     select: ["cn"],
 });
 foreach ($builtin as Core\Ldap\Entry $entry) {
-    echo "from the search: ", $entry->dn(), "\n";
+    echo "from the search: ", $entry->dn()->toString(), "\n";
 }
 --COPY--
 ../../db/ca.crt

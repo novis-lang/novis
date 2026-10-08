@@ -5,8 +5,8 @@
 var $corp = Core\Ldap::connect("corp");
 
 class Users {
-    public static function names(Core\Ldap\Connection $corp, int $pageSize): array<string> {
-        array<string> $out = [];
+    public static function names(Core\Ldap\Connection $corp, int $pageSize): array<tainted string> {
+        array<tainted string> $out = [];
         var $entries = $corp->search(Core\Ldap\Filter::present("sAMAccountName"), {
             base: "CN=Users,DC=example,DC=test",
             scope: Core\Ldap\Scope::OneLevel,
@@ -17,7 +17,7 @@ class Users {
             if (!$entry->has("sAMAccountName")) {
                 $out[] = "missing";
             }
-            $out[] = $entry->dn();
+            $out[] = $entry->dn()->toString();
         }
         return $out;
     }

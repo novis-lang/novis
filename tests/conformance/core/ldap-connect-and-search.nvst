@@ -13,7 +13,7 @@ var $admins = $corp->search(
 int $found = 0;
 foreach ($admins as Core\Ldap\Entry $entry) {
     $found = $found + 1;
-    echo "dn: ", $entry->dn(), "\n";
+    echo "dn: ", $entry->dn()->toString(), "\n";
     // A name matches without case, as it does in LDAP.
     echo "login: ", $entry->string("samaccountname") ?? "none", "\n";
     var $classes = $entry->strings("objectClass");
@@ -25,7 +25,7 @@ echo "found: ", $found, "\n";
 
 // `read` returns the entry at a DN, and `null` when there is none.
 var $same = $corp->read("CN=Administrator,CN=Users,DC=example,DC=test");
-echo "read: ", $same?->dn() ?? "none", "\n";
+echo "read: ", $same?->dn()?->toString() ?? "none", "\n";
 var $missing = $corp->read("CN=Nobody,CN=Users,DC=example,DC=test");
 echo "missing: ", $missing == null ? "null" : "an entry", "\n";
 --COPY--

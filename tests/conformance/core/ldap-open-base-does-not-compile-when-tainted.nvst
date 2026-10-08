@@ -10,7 +10,7 @@ class Directory {
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0401]: expected `string`, found `tainted string`
+error[E0401]: expected `string|Core\Ldap\Dn`, found `tainted string`
 %A
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

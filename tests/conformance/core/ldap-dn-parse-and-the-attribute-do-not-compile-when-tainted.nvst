@@ -1,0 +1,23 @@
+--TEST--
+`Dn::parse` reads text as a DN's structure and an attribute name selects what the server compares, so neither compiles with a `tainted` string, while a `tainted` value does — ADR 0278 § 7, `rule:core-classes/ldap-dn-is-the-launderer` and `rule:security/unclassified-parameter-refuses-tainted`
+--FILE--
+<?nvs
+tainted string $text = "CN=Ann,DC=test";
+var $fromInput = Core\Ldap\Dn::parse($text);
+var $fromLog = Core\Ldap\Dn::parse(Core\Ldap\Dn::of("CN", "Ann")->toString());
+var $built = Core\Ldap\Dn::of("CN", $text);
+var $badName = Core\Ldap\Dn::of($text, "Ann");
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+  --> case.nvs:3:38
+%A
+error[E0401]: expected `string`, found `tainted string`
+  --> case.nvs:4:36
+%A
+error[E0401]: expected `string`, found `tainted string`
+  --> case.nvs:6:33
+%A
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

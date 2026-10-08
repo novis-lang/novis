@@ -1483,7 +1483,9 @@ mod tests {
     /// `Core\Ldap\Entries::references` is on it too: a continuation reference
     /// is a URL the server chose, and following it is the program's decision.
     /// `Core\Ldap\Filter::toString` is the filter's text for a log, and a value
-    /// inside it may be `tainted`.
+    /// inside it may be `tainted`. `Core\Ldap\Dn`'s `toString` and `rdnValue`
+    /// are on it for the same reason: `of` and `child` launder a value into a
+    /// `Dn`, and the text it gives back must not leave the DN sink unmarked.
     /// All of them belong in this set for the reason the claims do: a member that
     /// promises `tainted` is invisible from every row but its own, so this is
     /// where a new arrival has to be looked at rather than waved through.
@@ -1591,6 +1593,9 @@ mod tests {
                     "array<tainted string>".to_owned(),
                 ),
                 (r"Core\Ldap\Filter", "toString", "tainted string".to_owned(),),
+                // A value in a DN may have come from a request.
+                (r"Core\Ldap\Dn", "rdnValue", "tainted string".to_owned()),
+                (r"Core\Ldap\Dn", "toString", "tainted string".to_owned()),
                 (
                     r"Core\Net\Datagram\Message",
                     "payload",

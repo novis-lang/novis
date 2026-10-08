@@ -67,11 +67,6 @@ fn key_in(value: Value, class: &CoreClass, at: usize, member: &str) -> Result<u6
         })
 }
 
-/// A `string` argument, or `None` for the `null` an omitted option passes.
-fn optional_text(value: &Value) -> Option<&str> {
-    value.as_text()
-}
-
 /// The error for an attribute name RFC 4512 does not allow.
 fn not_an_attribute(member: &str, name: &str) -> Fault {
     Fault::thrown_as(
@@ -312,8 +307,8 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_ldap_connection_search(ctx, args: [7]) {
         let key = key_in(args[0], &CONNECTION, CONNECTION_HANDLE_AT, "search")?;
         let filter = nvs_ldap::Filter::Encoded(ber_of(args[1], "search")?);
-        let base = match optional_text(&args[2]) {
-            Some(base) => base.to_owned(),
+        let base = match super::dn::dn_arg(args[2], SEARCH)? {
+            Some(base) => base,
             None => super::base_of(ctx, key)?.ok_or_else(|| {
                 Fault::thrown_as(
                     ThrownClass::Logic,
@@ -345,14 +340,14 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$connection->read(string $dn, {select?}): ?Entry` — [`super::read`]
-    /// for a Novis program.
+    /// `$connection->read(Dn|string $dn, {select?}): ?Entry` —
+    /// [`super::read`] for a Novis program.
     fn nvs_core_ldap_connection_read(ctx, args: [3]) {
         let key = key_in(args[0], &CONNECTION, CONNECTION_HANDLE_AT, "read")?;
-        let dn = args[1].as_text().ok_or_else(|| {
-            // Unreachable from source: the parameter is a `string`.
-            Fault::fatal(format!("{READ} expected a `string` DN"))
-        })?.to_owned();
+        let dn = super::dn::dn_arg(args[1], READ)?.ok_or_else(|| {
+            // Unreachable from source: the parameter is not nullable.
+            Fault::fatal(format!("{READ} expected a `Dn` or a `string`"))
+        })?;
         let select = selected(&args[2], READ)?;
         let attributes: Vec<&str> = select.iter().map(String::as_str).collect();
         Ok(super::read(ctx, key, &dn, &attributes)?.map_or_else(Value::null, entry_value))
@@ -440,9 +435,11 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$entry->dn(): string` — the entry's DN as the server sent it.
+    /// `$entry->dn(): Dn` — the DN text the server sent, read as a `Dn`.
     fn nvs_core_ldap_entry_dn(_ctx, args: [1]) {
-        crate::instance::read_slot(args, &ENTRY, ENTRY_DN_AT, "dn")
+        let receiver = crate::instance::receiver(args[0], &ENTRY, "dn")?;
+        let held = crate::instance::slot(receiver, ENTRY_DN_AT);
+        super::dn::from_server(held.as_text().unwrap_or_default(), r"Core\Ldap\Entry::dn")
     }
 }
 

@@ -18,7 +18,7 @@ use std::time::Duration;
 
 use nvs_config::tree::{CapLdap, Capabilities, Config, LdapDirectory, Setting};
 use nvs_ldap::ber::{self, Writer, tag};
-use nvs_ldap::{Filter, Scope, SearchRequest};
+use nvs_ldap::{Dn, Filter, Scope, SearchRequest};
 use nvs_runtime::HeldConnection as _;
 use nvs_stdlib::ldap;
 
@@ -497,5 +497,56 @@ fn a_tainted_value_cannot_change_a_filters_structure() {
     assert!(
         found(&mut ctx, key, &filter).is_empty(),
         "no account is named `*)(objectClass=*`, so nothing matches"
+    );
+}
+
+#[test]
+fn dn_escapes_each_value_and_round_trips() {
+    let users = Dn::parse("CN=Users, DC=example, DC=test").expect("an operator's DN parses");
+    assert_eq!(users.to_text(), "CN=Users,DC=example,DC=test");
+
+    // Concatenated into text, this value would end the first level and name
+    // `CN=Users` as the second. Built from parts, it is one value.
+    let hostile = "Administrator,CN=Users";
+    let dn = users.child("CN", hostile).expect("builds");
+    assert_eq!(
+        dn.to_text(),
+        "CN=Administrator\\,CN\\=Users,CN=Users,DC=example,DC=test"
+    );
+    assert_eq!(dn.rdns().len(), 4, "the value added no level");
+    assert_eq!(dn.rdn().first().value, hostile);
+    assert_eq!(Dn::parse(&dn.to_text()), Ok(dn.clone()));
+    assert!(dn.is_within(&users));
+    assert_eq!(dn.parent(), Some(users.clone()));
+
+    // Every character RFC 4514 § 2.4 names, each at the place it matters.
+    for value in [
+        " lead", "trail ", "#hash", "a+b", "a;b", "a<b>", "a\"b", "a\\b", "a\nb", "Åsa",
+    ] {
+        let dn = Dn::of("CN", value).expect("builds");
+        let back = Dn::parse(&dn.to_text()).expect("reads back");
+        assert_eq!(back.rdn().first().value, value, "{}", dn.to_text());
+        assert_eq!(back, dn);
+    }
+    assert_eq!(Dn::of("CN;x", "a"), Err(nvs_ldap::PartError::Attribute));
+    assert_eq!(Dn::of("CN", ""), Err(nvs_ldap::PartError::EmptyValue));
+
+    let Some(ca) = samba() else { return };
+    let mut ctx = ctx_over(&corp(&ca));
+    let key = ldap::connect(&mut ctx, "corp").expect("the block opens");
+    let admin = users.child("CN", "Administrator").expect("builds");
+    let entry = ldap::read(&mut ctx, key, &admin.to_text(), &[])
+        .expect("the read succeeds")
+        .expect("the entry exists");
+    assert_eq!(
+        Dn::parse(&entry.dn),
+        Ok(admin),
+        "the server's DN reads as the one built"
+    );
+    assert!(
+        ldap::read(&mut ctx, key, &dn.to_text(), &[])
+            .expect("the read succeeds")
+            .is_none(),
+        "no entry is named `Administrator,CN=Users`, so nothing is read"
     );
 }

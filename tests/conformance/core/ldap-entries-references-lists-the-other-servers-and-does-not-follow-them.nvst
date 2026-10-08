@@ -7,9 +7,9 @@ var $entries = $corp->search(Core\Ldap\Filter::present("objectClass"), {
     scope: Core\Ldap\Scope::OneLevel,
     select: ["cn"],
 });
-array<string> $dns = [];
+array<tainted string> $dns = [];
 foreach ($entries as Core\Ldap\Entry $entry) {
-    $dns[] = $entry->dn();
+    $dns[] = $entry->dn()->toString();
 }
 foreach ($entries->references() as tainted string $url) {
     echo "reference: ", $url, "\n";

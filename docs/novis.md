@@ -216,6 +216,7 @@ Conventions the whole file uses:
 | [`Core\Ldap\Entries`](#core-core-ldap-entries) |  |
 | [`Core\Ldap\Entry`](#core-core-ldap-entry) |  |
 | [`Core\Ldap\Filter`](#core-core-ldap-filter) |  |
+| [`Core\Ldap\Dn`](#core-core-ldap-dn) |  |
 | [`Core\Queue`](#core-core-queue) |  |
 | [`Core\Queue\Id`](#core-core-queue-id) |  |
 | [`Core\Queue\Stats`](#core-core-queue-stats) |  |
@@ -26044,7 +26045,7 @@ Keywords: connect, open
 | Member | Signature |
 |---|---|
 | [`Core\Ldap::connect`](#core-core-ldap-connect) | `connect(string $name): Core\Ldap\Connection` |
-| [`Core\Ldap::open`](#core-core-ldap-open) | `open({url: string, user?: tainted string, password?: secret tainted string, tls?: Core\Ldap\Tls, timeout?: Core\Time\Duration, base?: string} $settings): Core\Ldap\Connection` |
+| [`Core\Ldap::open`](#core-core-ldap-open) | `open({url: string, user?: tainted string, password?: secret tainted string, tls?: Core\Ldap\Tls, timeout?: Core\Time\Duration, base?: Core\Ldap\Dn\|string} $settings): Core\Ldap\Connection` |
 
 <a id="core-core-ldap-connect"></a>
 #### `Core\Ldap::connect`
@@ -26067,14 +26068,14 @@ Opens the directory named by an `[ldap.<name>]` block in `nvs.toml`. A second ca
 #### `Core\Ldap::open`
 
 ```nvs skip
-Core\Ldap::open({url: string, user?: tainted string, password?: secret tainted string, tls?: Core\Ldap\Tls, timeout?: Core\Time\Duration, base?: string} $settings): Core\Ldap\Connection
+Core\Ldap::open({url: string, user?: tainted string, password?: secret tainted string, tls?: Core\Ldap\Tls, timeout?: Core\Time\Duration, base?: Core\Ldap\Dn|string} $settings): Core\Ldap\Connection
 ```
 
 Opens a directory at a URL the program gives. Needs the `ldap.open` capability for the URL's host. The host's address is also checked against the addresses no program may reach, such as private networks.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$settings` | `{url: string, user?: tainted string, password?: secret tainted string, tls?: Core\Ldap\Tls, timeout?: Core\Time\Duration, base?: string}` | The directory to open and the account to log in with. Keys: `url` (string) One `ldaps://` or `ldap://` URL. It cannot be `tainted`, because the password is sent to this host.; `user` (tainted string) The account to log in as, as a DN, `user@example.test` or `EXAMPLE\user`. Left out, the connection does not log in.; `password` (secret tainted string) The account's password. An empty password throws before anything is sent.; `tls` (Tls) `Tls::Required`, the default, encrypts the connection. `Tls::None` sends everything as plain text, and needs the host in `[capabilities.ldap] cleartext`.; `timeout` (Duration) How long one operation may take. Left out, it is 30 seconds.; `base` (string) The DN a search starts from when it does not give its own `base`. It cannot be `tainted`. |
+| `$settings` | `{url: string, user?: tainted string, password?: secret tainted string, tls?: Core\Ldap\Tls, timeout?: Core\Time\Duration, base?: Core\Ldap\Dn\|string}` | The directory to open and the account to log in with. Keys: `url` (string) One `ldaps://` or `ldap://` URL. It cannot be `tainted`, because the password is sent to this host.; `user` (tainted string) The account to log in as, as a DN, `user@example.test` or `EXAMPLE\user`. Left out, the connection does not log in.; `password` (secret tainted string) The account's password. An empty password throws before anything is sent.; `tls` (Tls) `Tls::Required`, the default, encrypts the connection. `Tls::None` sends everything as plain text, and needs the host in `[capabilities.ldap] cleartext`.; `timeout` (Duration) How long one operation may take. Left out, it is 30 seconds.; `base` (Dn\|string) The DN a search starts from when it does not give its own `base`. Text cannot be `tainted`. |
 
 **Returns** `Core\Ldap\Connection` — A `Core\Ldap\Connection`. It is closed when the request ends.
 
@@ -26088,8 +26089,8 @@ Keywords: whoami, search, read
 | Member | Signature |
 |---|---|
 | [`Core\Ldap\Connection->whoami`](#core-core-ldap-connection-whoami) | `whoami(): string` |
-| [`Core\Ldap\Connection->search`](#core-core-ldap-connection-search) | `search(Core\Ldap\Filter $filter, {base?: string, scope?: Core\Ldap\Scope, select?: array<string>, pageSize?: int, sizeLimit?: int}): Core\Ldap\Entries` |
-| [`Core\Ldap\Connection->read`](#core-core-ldap-connection-read) | `read(string $dn, {select?: array<string>}): ?Core\Ldap\Entry` |
+| [`Core\Ldap\Connection->search`](#core-core-ldap-connection-search) | `search(Core\Ldap\Filter $filter, {base?: Core\Ldap\Dn\|string, scope?: Core\Ldap\Scope, select?: array<string>, pageSize?: int, sizeLimit?: int}): Core\Ldap\Entries` |
+| [`Core\Ldap\Connection->read`](#core-core-ldap-connection-read) | `read(Core\Ldap\Dn\|string $dn, {select?: array<string>}): ?Core\Ldap\Entry` |
 
 <a id="core-core-ldap-connection-whoami"></a>
 #### `Core\Ldap\Connection->whoami`
@@ -26108,7 +26109,7 @@ Returns the account the connection is logged in as, as the server reports it.
 #### `Core\Ldap\Connection->search`
 
 ```nvs skip
-$connection->search(Core\Ldap\Filter $filter, {base?: string, scope?: Core\Ldap\Scope, select?: array<string>, pageSize?: int, sizeLimit?: int}): Core\Ldap\Entries
+$connection->search(Core\Ldap\Filter $filter, {base?: Core\Ldap\Dn|string, scope?: Core\Ldap\Scope, select?: array<string>, pageSize?: int, sizeLimit?: int}): Core\Ldap\Entries
 ```
 
 Finds the entries that match a filter. The server sends the entries in pages, and the next page is read when a `foreach` loop reaches it.
@@ -26116,7 +26117,7 @@ Finds the entries that match a filter. The server sends the entries in pages, an
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$filter` | `Core\Ldap\Filter` | Which entries to return, such as `Filter::equals('sAMAccountName', $login)`. |
-| `{base: …}` | `string` (default `null`, sink) | The DN the search starts from. Left out, it is the `base` of the `[ldap]` block. It cannot be `tainted`. |
+| `{base: …}` | `Core\Ldap\Dn\|string` (default `null`, sink) | The DN the search starts from, as a `Dn` or as text. Left out, it is the `base` of the `[ldap]` block. Text cannot be `tainted`. |
 | `{scope: …}` | `Core\Ldap\Scope` (default `Core\Ldap\Scope::Subtree`) | How far below `base` the search looks. The default is `Scope::Subtree`. |
 | `{select: …}` | `array<string>` (default `null`) | The attributes each entry has, such as `['cn', 'mail']`. Left out, an entry has every attribute the connection's account can read. |
 | `{pageSize: …}` | `int` (default `1000`) | How many entries the server sends at once. The default is 1000. |
@@ -26130,14 +26131,14 @@ Finds the entries that match a filter. The server sends the entries in pages, an
 #### `Core\Ldap\Connection->read`
 
 ```nvs skip
-$connection->read(string $dn, {select?: array<string>}): ?Core\Ldap\Entry
+$connection->read(Core\Ldap\Dn|string $dn, {select?: array<string>}): ?Core\Ldap\Entry
 ```
 
 Reads the one entry at a DN.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$dn` | `string` (sink) | The entry's DN, such as `CN=Staff,OU=Groups,DC=example,DC=test`. It cannot be `tainted`. |
+| `$dn` | `Core\Ldap\Dn\|string` (sink) | The entry's DN, as a `Dn` or as text such as `CN=Staff,OU=Groups,DC=example,DC=test`. Text cannot be `tainted`. Build a DN from user input with `Dn::of` or `child`. |
 | `{select: …}` | `array<string>` (default `null`) | The attributes the entry has. Left out, it has every attribute the connection's account can read. |
 
 **Returns** `?Core\Ldap\Entry` — A `Core\Ldap\Entry`, or `null` when no entry has this DN.
@@ -26171,7 +26172,7 @@ Keywords: dn, has, string, strings, bytes, toArray
 
 | Member | Signature |
 |---|---|
-| [`Core\Ldap\Entry->dn`](#core-core-ldap-entry-dn) | `dn(): string` |
+| [`Core\Ldap\Entry->dn`](#core-core-ldap-entry-dn) | `dn(): Core\Ldap\Dn` |
 | [`Core\Ldap\Entry->has`](#core-core-ldap-entry-has) | `has(string $name): bool` |
 | [`Core\Ldap\Entry->string`](#core-core-ldap-entry-string) | `string(string $name): ?tainted string` |
 | [`Core\Ldap\Entry->strings`](#core-core-ldap-entry-strings) | `strings(string $name): ?array<tainted string>` |
@@ -26182,12 +26183,14 @@ Keywords: dn, has, string, strings, bytes, toArray
 #### `Core\Ldap\Entry->dn`
 
 ```nvs skip
-$entry->dn(): string
+$entry->dn(): Core\Ldap\Dn
 ```
 
-Returns the entry's DN, as the server sent it.
+Returns the entry's DN as a `Core\Ldap\Dn`.
 
-**Returns** `string` — The DN, such as `CN=Administrator,CN=Users,DC=example,DC=test`.
+**Returns** `Core\Ldap\Dn` — The DN, such as `CN=Administrator,CN=Users,DC=example,DC=test`.
+
+**Throws** `Core\Ldap\LdapError` — The server sent a DN that is not correct DN text. `$kind` is `ErrorKind::Protocol`.
 
 <a id="core-core-ldap-entry-has"></a>
 #### `Core\Ldap\Entry->has`
@@ -26506,6 +26509,134 @@ $filter->toString(): tainted string
 Returns the filter as LDAP filter text, such as `(&(objectClass=user)(cn=Ann))`. Use it to write the filter to a log. A search does not use this text.
 
 **Returns** `tainted string` — The text. A `*`, `(`, `)` or `\` in a value is written as `\` and two hex digits. The text is `tainted`, because a value in the filter may be.
+
+<a id="core-core-ldap-dn"></a>
+### `Core\Ldap\Dn`
+
+Keywords: parse, of, child, parent, rdnAttribute, rdnValue, isWithin, toString
+
+| Member | Signature |
+|---|---|
+| [`Core\Ldap\Dn::parse`](#core-core-ldap-dn-parse) | `parse(string $text): Core\Ldap\Dn` |
+| [`Core\Ldap\Dn::of`](#core-core-ldap-dn-of) | `of(string $attribute, string $value): Core\Ldap\Dn` |
+| [`Core\Ldap\Dn->child`](#core-core-ldap-dn-child) | `child(string $attribute, string $value): Core\Ldap\Dn` |
+| [`Core\Ldap\Dn->parent`](#core-core-ldap-dn-parent) | `parent(): ?Core\Ldap\Dn` |
+| [`Core\Ldap\Dn->rdnAttribute`](#core-core-ldap-dn-rdnattribute) | `rdnAttribute(): string` |
+| [`Core\Ldap\Dn->rdnValue`](#core-core-ldap-dn-rdnvalue) | `rdnValue(): tainted string` |
+| [`Core\Ldap\Dn->isWithin`](#core-core-ldap-dn-iswithin) | `isWithin(Core\Ldap\Dn $other): bool` |
+| [`Core\Ldap\Dn->toString`](#core-core-ldap-dn-tostring) | `toString(): tainted string` |
+
+<a id="core-core-ldap-dn-parse"></a>
+#### `Core\Ldap\Dn::parse`
+
+```nvs skip
+Core\Ldap\Dn::parse(string $text): Core\Ldap\Dn
+```
+
+Reads DN text, such as `OU=Staff,DC=example,DC=test`, and returns the DN. Use it for a DN that you wrote, for example in a configuration file.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$text` | `string` (sink) | The DN text, as RFC 4514 writes it. It cannot be `tainted`. Build a DN from user input with `of` and `child`. |
+
+**Returns** `Core\Ldap\Dn` — A `Core\Ldap\Dn`. Spaces around `,`, `+` and `=` are removed.
+
+**Throws** `LogicError` — The text is not a DN. The message gives the position of the first wrong character.
+
+<a id="core-core-ldap-dn-of"></a>
+#### `Core\Ldap\Dn::of`
+
+```nvs skip
+Core\Ldap\Dn::of(string $attribute, string $value): Core\Ldap\Dn
+```
+
+Returns a DN with one part, `attribute=value`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$attribute` | `string` (sink) | The attribute's name, such as `CN` or `OU`. It cannot be `tainted`. |
+| `$value` | `string` (launder) | The value, such as `Ann Lee`. It can be `tainted`. A `,`, `+`, `=` or other special character in it is escaped, so it stays one value. |
+
+**Returns** `Core\Ldap\Dn` — A `Core\Ldap\Dn`.
+
+**Throws** `LogicError` — The attribute is not an attribute name, or the value is empty.
+
+<a id="core-core-ldap-dn-child"></a>
+#### `Core\Ldap\Dn->child`
+
+```nvs skip
+$dn->child(string $attribute, string $value): Core\Ldap\Dn
+```
+
+Returns the DN of an entry directly below this one. `attribute=value` is added at the start.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$attribute` | `string` (sink) | The attribute's name, such as `CN` or `OU`. It cannot be `tainted`. |
+| `$value` | `string` (launder) | The value, such as `Ann Lee`. It can be `tainted`. A `,`, `+`, `=` or other special character in it is escaped, so it stays one value. |
+
+**Returns** `Core\Ldap\Dn` — A new `Core\Ldap\Dn`. This DN does not change.
+
+**Throws** `LogicError` — The attribute is not an attribute name, or the value is empty.
+
+<a id="core-core-ldap-dn-parent"></a>
+#### `Core\Ldap\Dn->parent`
+
+```nvs skip
+$dn->parent(): ?Core\Ldap\Dn
+```
+
+Returns the DN one level up. The first part is removed.
+
+**Returns** `?Core\Ldap\Dn` — The parent DN, or `null` when this DN has only one part.
+
+<a id="core-core-ldap-dn-rdnattribute"></a>
+#### `Core\Ldap\Dn->rdnAttribute`
+
+```nvs skip
+$dn->rdnAttribute(): string
+```
+
+Returns the attribute name of the first part. For `CN=Ann Lee,OU=Staff,DC=example,DC=test` this is `CN`.
+
+**Returns** `string` — The name, written as in the DN. When the first part has several values joined by `+`, it is the name of the first one.
+
+<a id="core-core-ldap-dn-rdnvalue"></a>
+#### `Core\Ldap\Dn->rdnValue`
+
+```nvs skip
+$dn->rdnValue(): tainted string
+```
+
+Returns the value of the first part, with escapes removed. For `CN=Lee\, Ann,OU=Staff,DC=example,DC=test` this is `Lee, Ann`.
+
+**Returns** `tainted string` — The value. It is `tainted`. When the first part has several values joined by `+`, it is the first one.
+
+<a id="core-core-ldap-dn-iswithin"></a>
+#### `Core\Ldap\Dn->isWithin`
+
+```nvs skip
+$dn->isWithin(Core\Ldap\Dn $other): bool
+```
+
+Checks if this DN is `other` or an entry below it. Names and values are compared without case.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$other` | `Core\Ldap\Dn` | The DN to compare with, such as `Dn::parse('DC=example,DC=test')`. |
+
+**Returns** `bool` — `true` when this DN ends with every part of `other`.
+
+<a id="core-core-ldap-dn-tostring"></a>
+#### `Core\Ldap\Dn->toString`
+
+```nvs skip
+$dn->toString(): tainted string
+```
+
+Returns the DN as text, with each special character in a value escaped.
+
+**Returns** `tainted string` — The text. `Dn::parse` reads it back as the same DN. The text is `tainted`, because a value in the DN may be.
 
 <a id="core-core-queue"></a>
 ### `Core\Queue`

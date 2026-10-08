@@ -1,0 +1,25 @@
+--TEST--
+`parent` removes one level at a time until it returns `null`, and `isWithin` compares every level without case, so each level up is within the domain until the domain's own parent — ADR 0278 § 7
+--FILE--
+<?nvs
+var $domain = Core\Ldap\Dn::parse("dc=EXAMPLE,dc=Test");
+echo "domain: ", $domain->toString(), "\n";
+Core\Ldap\Dn $at = Core\Ldap\Dn::parse("CN=Ann,OU=Staff,DC=example,DC=test");
+while (true) {
+    echo $at->rdnAttribute(), "=", $at->rdnValue(), " within the domain: ", $at->isWithin($domain) ? "yes" : "no", "\n";
+    var $up = $at->parent();
+    if ($up == null) {
+        break;
+    } else {
+        $at = $up;
+    }
+}
+var $other = Core\Ldap\Dn::of("DC", "other")->child("DC", "example");
+echo "other domain: ", Core\Ldap\Dn::parse("CN=Ann,DC=example,DC=test")->isWithin($other) ? "yes" : "no", "\n";
+--EXPECT--
+domain: dc=EXAMPLE,dc=Test
+CN=Ann within the domain: yes
+OU=Staff within the domain: yes
+DC=example within the domain: yes
+DC=test within the domain: no
+other domain: no

@@ -6,17 +6,21 @@ var $corp = Core\Ldap::connect("corp");
 
 class Users {
     // The accounts under `CN=Users` that `$filter` matches, sorted, by their DN's first part.
-    public static function matching(Core\Ldap\Connection $corp, Core\Ldap\Filter $filter): string {
-        array<string> $out = [];
+    public static function matching(Core\Ldap\Connection $corp, Core\Ldap\Filter $filter): tainted string {
+        array<tainted string> $out = [];
         var $entries = $corp->search(Core\Ldap\Filter::all(Core\Ldap\Filter::equals("objectClass", "user"), $filter), {
             base: "CN=Users,DC=example,DC=test",
             scope: Core\Ldap\Scope::OneLevel,
             select: ["cn"],
         });
         foreach ($entries as Core\Ldap\Entry $entry) {
-            $out[] = Core\Str::before($entry->dn(), ",") ?? "";
+            $out[] = Core\Str::before($entry->dn()->toString(), ",") ?? "";
         }
-        return Core\Str::join(Core\Arr::sort($out), " ");
+        tainted string $joined = "";
+        foreach (Core\Arr::sort($out) as tainted string $one) {
+            $joined = $joined == "" ? $one : $joined . " " . $one;
+        }
+        return $joined;
     }
 }
 

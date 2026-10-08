@@ -7,7 +7,7 @@ var $corp = Core\Ldap::connect("corp");
 if ($admin == null) {
     echo "no entry", "\n";
 } else {
-    echo "dn: ", $admin->dn(), "\n";
+    echo "dn: ", $admin->dn()->toString(), "\n";
     echo "has cn: ", $admin->has("CN") ? "yes" : "no", "\n";
     var $cn = $admin->bytes("cn");
     echo "cn as bytes: ", $cn == null ? "null" : Core\Bytes::length($cn), "\n";

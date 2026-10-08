@@ -1,0 +1,22 @@
+--TEST--
+`Dn::of` and `child` throw `LogicError` for an empty value and for an attribute that is not a name, and accept a value of one space and a numeric OID — ADR 0278 § 7
+--FILE--
+<?nvs
+var $base = Core\Ldap\Dn::of("DC", "test");
+try {
+    echo Core\Ldap\Dn::of("CN", "")->toString(), "\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+echo $base->child("CN", " ")->toString(), "\n";
+try {
+    echo $base->child("cn;lang-en", "Ann")->toString(), "\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+echo $base->child("2.5.4.3", "Ann")->toString(), "\n";
+--EXPECT--
+Core\Ldap\Dn::of: the value is empty
+CN=\ ,DC=test
+Core\Ldap\Dn->child: `cn;lang-en` is not an attribute name. A name starts with a letter and has only letters, digits and `-`, such as `CN` or `OU`
+2.5.4.3=Ann,DC=test

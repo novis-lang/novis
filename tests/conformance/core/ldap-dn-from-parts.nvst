@@ -1,0 +1,21 @@
+--TEST--
+`Ldap\Dn` is built from an attribute and a value, and a `,`, `+` or `=` in a `tainted` value stays part of that one value — ADR 0278 § 7 and `rule:core-classes/ldap-dn-is-the-launderer`
+--FILE--
+<?nvs
+// A value from a request, with characters that would end the name early or add a level.
+tainted string $name = "Lee, Ann+uid=7";
+var $staff = Core\Ldap\Dn::of("DC", "test")->child("DC", "example")->child("OU", "Staff");
+var $person = $staff->child("CN", $name);
+echo $person->toString(), "\n";
+echo "attribute: ", $person->rdnAttribute(), "\n";
+echo "value: ", $person->rdnValue(), "\n";
+echo "parent: ", $person->parent()?->toString() ?? "none", "\n";
+echo "within staff: ", $person->isWithin($staff) ? "yes" : "no", "\n";
+echo "staff within it: ", $staff->isWithin($person) ? "yes" : "no", "\n";
+--EXPECT--
+CN=Lee\, Ann\+uid\=7,OU=Staff,DC=example,DC=test
+attribute: CN
+value: Lee, Ann+uid=7
+parent: OU=Staff,DC=example,DC=test
+within staff: yes
+staff within it: no

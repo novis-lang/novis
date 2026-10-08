@@ -126,8 +126,8 @@ fn check_arg_list(
             Some(want) if admitted.any() => {
                 check_arg_admitting_quals(&arg.value, want, admitted, live, scope, ctx, env)
             }
-            Some(want) if admits_http_target(want, env) => {
-                check_url_arg(&arg.value, want, live, scope, ctx, env)
+            Some(want) if carrier_help(want, env).is_some() => {
+                check_carrier_arg(&arg.value, want, live, scope, ctx, env)
             }
             _ => check_arg(&arg.value, expected, live, scope, ctx, env),
         };
@@ -770,14 +770,17 @@ pub(crate) fn check_options_arg(
 /// host no launderer — no string check can establish that an address is safe
 /// to send a credential to — so a reader told only "expected `string`, found
 /// `tainted string`" has nowhere to go, and `Core\Taint::assertTrusted` is the
-/// one way through that exists.
+/// one way through that exists. A key whose type also accepts a sink's
+/// carrier, such as `Ldap\Settings`' `base`, has a launderer, and the help
+/// names it instead ([`carrier_help`]).
 ///
 /// **The help is attached here and not at an ordinary sink parameter**, where
 /// the same refusal has a different answer: a `tainted` value at
 /// `Core\Db::query`'s statement text is a bound parameter's job (`rule:security/sink-predicate`
 /// ) and at the HTML sink it is `Core\Html::escape`'s, so naming the escape
-/// hatch there would push the wrong fix at every one of them. The outbound URL
-/// parameter has a launderer of its own, and [`check_url_arg`] names it.
+/// hatch there would push the wrong fix at every one of them. A parameter
+/// that accepts a carrier has a launderer of its own, and
+/// [`check_carrier_arg`] names it.
 fn check_shape_field(
     value: &Expr,
     field: &crate::ty::CoreShapeField,
@@ -803,35 +806,60 @@ fn check_shape_field(
         && is_assignable(laundered, field.ty, env.interner, env.graph, env.signatures);
     let mut diag = mismatch(value.span, field.ty, actual, env);
     if qualifier_alone {
-        diag = diag.with_help(format!(
-            "`{}` is a sink and no `Core` member launders one for it: the only way through is \
-             `Core\\Taint::assertTrusted($value, $reason)`, which is forbidden by default, \
-             greppable, and carries in the source the reason the value can be trusted",
-            field.name
+        diag = diag.with_help(carrier_help(field.ty, env).map_or_else(
+            || {
+                format!(
+                    "`{}` is a sink and no `Core` member launders one for it: the only way \
+                     through is `Core\\Taint::assertTrusted($value, $reason)`, which is forbidden \
+                     by default, greppable, and carries in the source the reason the value can be \
+                     trusted",
+                    field.name
+                )
+            },
+            str::to_owned,
         ));
     }
     env.diags.report(diag);
     actual
 }
 
-/// Whether a parameter accepts a `Core\Http\Target` — the outbound URL sink of
-/// `rule:security/outbound-url-is-a-sink`, which only `Core\Http::allowUrl`
-/// answers with.
-fn admits_http_target(expected: TypeId, env: &mut Env<'_>) -> bool {
-    let target = env.interner.class(QName::parse(r"Core\Http\Target"));
-    is_assignable(target, expected, env.interner, env.graph, env.signatures)
+/// The help for a `tainted` value at a parameter that accepts a sink's
+/// carrier, or `None` for a parameter that accepts none.
+///
+/// Two sinks have a carrier, and each is answered by its own launderers only:
+/// `rule:security/outbound-url-is-a-sink`'s `Core\Http\Target`, which only
+/// `Core\Http::allowUrl` returns, and `rule:core-classes/ldap-dn-is-the-launderer`'s
+/// `Core\Ldap\Dn`, which `of` and `child` build. Naming them cannot push the
+/// wrong fix.
+fn carrier_help(expected: TypeId, env: &mut Env<'_>) -> Option<&'static str> {
+    let mut admits = |class: &str| {
+        let carrier = env.interner.class(QName::parse(class));
+        is_assignable(carrier, expected, env.interner, env.graph, env.signatures)
+    };
+    if admits(r"Core\Http\Target") {
+        Some(
+            "a `tainted` URL is a sink: pass it through `Core\\Http::allowUrl($url)` first, \
+             which checks the address and returns the `Core\\Http\\Target` this parameter accepts",
+        )
+    } else if admits(r"Core\Ldap\Dn") {
+        Some(
+            "a `tainted` DN is a sink: build it with `Core\\Ldap\\Dn::of($attribute, $value)` or \
+             `$dn->child($attribute, $value)`, which escape the value and return the \
+             `Core\\Ldap\\Dn` this parameter accepts",
+        )
+    } else {
+        None
+    }
 }
 
-/// [`check_expr`] for an argument at an outbound URL parameter
-/// ([`admits_http_target`]), which names the launderer when `tainted` is the
+/// [`check_expr`] for an argument at a parameter that accepts a sink's
+/// carrier ([`carrier_help`]), which names the launderer when `tainted` is the
 /// whole objection.
 ///
-/// It is [`check_shape_field`]'s help for the one sink with a launderer of its
-/// own: `Core\Http::allowUrl` is the only member that answers a
-/// `Core\Http\Target`, so naming it cannot push the wrong fix. The guards are
-/// [`check_expr`]'s, and a parenthesised argument is left to it, because its
-/// `Paren` arm re-enters there and would report the mismatch a second time.
-fn check_url_arg(
+/// It is [`check_shape_field`]'s help for an ordinary parameter. The guards
+/// are [`check_expr`]'s, and a parenthesised argument is left to it, because
+/// its `Paren` arm re-enters there and would report the mismatch a second time.
+fn check_carrier_arg(
     value: &Expr,
     expected: TypeId,
     live: &mut Live,
@@ -856,11 +884,8 @@ fn check_url_arg(
     let qualifier_alone = carries_tainted(actual, env.interner)
         && is_assignable(laundered, expected, env.interner, env.graph, env.signatures);
     let mut diag = mismatch(value.span, expected, actual, env);
-    if qualifier_alone {
-        diag = diag.with_help(
-            "a `tainted` URL is a sink: pass it through `Core\\Http::allowUrl($url)` first, \
-             which checks the address and returns the `Core\\Http\\Target` this parameter accepts",
-        );
+    if qualifier_alone && let Some(help) = carrier_help(expected, env) {
+        diag = diag.with_help(help);
     }
     env.diags.report(diag);
     actual

@@ -2492,6 +2492,11 @@ mod tests {
             (r"Core\Html::sanitize", true),
             (r"Core\Http::allowUrl", false),
             (r"Core\IO::within", false),
+            // Both answer `Core\Ldap\Dn`, a value only a DN parameter takes,
+            // for `Core\Http::allowUrl`'s reason: nothing auto-escapes into a
+            // DN, so it is not a text carrier.
+            (r"Core\Ldap\Dn::child", false),
+            (r"Core\Ldap\Dn::of", false),
             (r"Core\Path::fromCwd", false),
             (r"Core\Regex::quote", false),
             (r"Core\SignedCookie::open", false),
