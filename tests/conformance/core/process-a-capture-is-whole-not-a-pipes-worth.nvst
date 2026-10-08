@@ -37,25 +37,20 @@
 // `process-a-completed-run-answers-the-status-the-child-chose.nvst` states:
 // § 1 makes a `PATH` lookup the caller's own, and the one that is not this
 // platform's starts nothing — `IOError` on Windows, `RuntimeError` for a path
-// with no root on Unix, as that case says. Each hands back exactly the size the
+// with no root on Unix, as that case says. Each writes exactly the size the
 // sweep names — `printf` pads to a field width in a single write, and `cmd`
-// echoes whole thousands and then
-// whatever is left over, each `echo` carrying its own CRLF — so the two legs
-// measure the same sizes rather than comparable ones. The counts are `>=` for
-// that reason and not `==`: what is being pinned is that nothing was lost, and
-// a shell that pads a byte of its own is not this case's subject.
+// types `payload.txt`, which this case writes at that size first — so the two
+// legs measure the same sizes rather than comparable ones. The counts are `>=`
+// and not `==`: what is being pinned is that nothing was lost, and a shell that
+// pads a byte of its own is not this case's subject.
 //
-// The child writes in thousand-octet chunks because a **write** is what a
-// capture costs to drain: one reader wakeup apiece, set by how many writes the
-// child made rather than by how many octets it sent. A child emitting the
-// largest size a line at a time makes thousands of them, which is free on an
-// idle machine and, on a loaded one, the only thing in this tree that decides a
-// case's runtime — eventually tripping `nvs_test::run::CASE_TIMEOUT`, which is
-// a detector for a wedged case and not a budget. Nothing above is a claim about
-// how the child chunks what it writes, so the sizes stand and the chunking is
-// free to be coarse.
+// The Windows child types a file because a **write** is what a capture costs
+// to drain: one reader wakeup apiece, set by how many writes the child made
+// rather than by how many octets it sent. `type` copies the file in whole
+// buffers; an `echo` loop pays a loop iteration and a write per line, which on
+// a loaded machine trips `nvs_test::run::CASE_TIMEOUT`, and
+// `tools/nv/test/no-echo-loop-child.test.ts` refuses one.
 
-string $line = Core\Str::repeat("x", 998);
 array<int> $sweep = [1000, 65500, 65600, 262100];
 
 int $started = 0;
@@ -66,15 +61,6 @@ int $past = 0;
 int $stopped = 0;
 
 foreach ($sweep as int $size) {
-    // `cmd` has no field width, so the size is reached as whole 1,000-octet
-    // lines plus one last line for the remainder, which every size here has.
-    int $bulk = Core\Math::intDiv($size, 1000);
-    int $rest = $size - $bulk * 1000;
-    string $tail = "";
-    if ($rest > 0) {
-        $tail = Core\Str::format(" & echo %s", Core\Str::repeat("x", ($rest - 2) as uint));
-    }
-
     bytes $out = "" as bytes;
     bytes $err = "" as bytes;
 
@@ -90,17 +76,10 @@ foreach ($sweep as int $size) {
     }
 
     try {
+        Core\IO::write("payload.txt", Core\Str::repeat("x", $size as uint));
         var $windows = Core\Process::run("C:\\Windows\\System32\\cmd.exe", [
             "/c",
-            Core\Str::format(
-                "((for /l %%i in (1,1,%d) do @echo %s)%s) 1>&2 & (for /l %%i in (1,1,%d) do @echo %s)%s",
-                $bulk,
-                $line,
-                $tail,
-                $bulk,
-                $line,
-                $tail
-            )
+            "type payload.txt 1>&2 & type payload.txt"
         ]);
         $started = $started + 1;
         $out = $windows->stdout();
@@ -128,9 +107,13 @@ echo "stopped at the buffer=", $stopped, "\n";
 # `true` for the reason the exit-code case gives: the door's own scoping is
 # pinned by
 # `process-run-asks-for-the-capability-before-it-looks-at-the-target.nvst`, and
-# this case is about how much of a completed run was captured.
+# this case is about how much of a completed run was captured. The write
+# grant is for the payload the Windows child types.
 [capabilities.process]
 exec = true
+
+[capabilities.fs]
+write = ["."]
 --EXPECT--
 sizes=4
 started=4

@@ -11,7 +11,7 @@ class Bench {
         array<string> $arguments = ["-c", "exec yes \"a line of output\" >&2"];
         if (Core\Path::SEPARATOR == "\\") {
             $path = "C:\\Windows\\System32\\cmd.exe";
-            $arguments = ["/c", "for /l %i in (0,0,1) do @echo a line of output 1>&2"];
+            $arguments = ["/c", "for /l %i in (0,0,1) do @type C:\\Windows\\System32\\cmd.exe 1>&2"];
         }
         var $program = Core\Process::spawn($path, $arguments);
         uint $total = 0;

@@ -10,6 +10,9 @@
 // The candidate that is not this platform's starts nothing: `IOError` on
 // Windows, `RuntimeError` for a path with no root on Unix, as
 // `process-a-completed-run-answers-the-status-the-child-chose.nvst` says.
+// The Windows child types `cmd.exe` in a loop: an `echo` loop writes a line
+// per write, and `tools/nv/test/no-echo-loop-child.test.ts` says why that is
+// refused.
 // covers: Core\Process\Handle::wait
 
 int $started = 0;
@@ -41,7 +44,7 @@ try {
 }
 
 try {
-    Core\Process\Handle $floodOnWindows = Core\Process::spawn("C:\\Windows\\System32\\cmd.exe", ["/c", "for /l %i in (0,0,1) do @echo a line that repeats"]);
+    Core\Process\Handle $floodOnWindows = Core\Process::spawn("C:\\Windows\\System32\\cmd.exe", ["/c", "for /l %i in (0,0,1) do @type C:\\Windows\\System32\\cmd.exe"]);
     $started += 1;
     try {
         $floodOnWindows->wait();
@@ -49,7 +52,7 @@ try {
     } catch (RuntimeError $overOnWindows) {
         $out = "RuntimeError";
     }
-    Core\Process\Handle $floodErrOnWindows = Core\Process::spawn("C:\\Windows\\System32\\cmd.exe", ["/c", "for /l %i in (0,0,1) do @echo a line that repeats 1>&2"]);
+    Core\Process\Handle $floodErrOnWindows = Core\Process::spawn("C:\\Windows\\System32\\cmd.exe", ["/c", "for /l %i in (0,0,1) do @type C:\\Windows\\System32\\cmd.exe 1>&2"]);
     try {
         $floodErrOnWindows->wait();
         $err = "returned";

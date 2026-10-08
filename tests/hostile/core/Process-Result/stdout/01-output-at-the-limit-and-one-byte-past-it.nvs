@@ -29,7 +29,7 @@ echo 'one byte past: ', Attack::size('head -c 1048577 /dev/zero', 'exit 0'), "\n
 // 2. Output that never ends. It passes the limit, so `run` throws `RuntimeError`.
 echo 'endless: ', Attack::size(
     'trap "" PIPE; while :; do echo a line that repeats; done',
-    'for /l %i in (0,0,1) do @echo a line that repeats',
+    'for /l %i in (0,0,1) do @type C:\\Windows\\System32\\cmd.exe',
 ), "\n";
 
 // 3. Zero bytes and bytes that are not UTF-8. Converting them to text throws an error.

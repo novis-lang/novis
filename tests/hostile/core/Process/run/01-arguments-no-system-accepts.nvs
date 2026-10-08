@@ -64,7 +64,7 @@ echo Attack::say(['', '--help', '-n', "\"; exit 7", 'données 報告 😀']), "\
 
 // 7. A program that never stops printing. It is stopped at the 1 MiB limit with a `RuntimeError`.
 echo Attack::attempt('/usr/bin/yes', ['a line that repeats']), "\n";
-echo Attack::attempt("C:\\Windows\\System32\\cmd.exe", ['/c', 'for /l %i in (0,0,1) do @echo a line that repeats']), "\n";
+echo Attack::attempt("C:\\Windows\\System32\\cmd.exe", ['/c', 'for /l %i in (0,0,1) do @type C:\\Windows\\System32\\cmd.exe']), "\n";
 
 // 8. The same small program runs 100 times, and every result is freed.
 int $ran = 0;

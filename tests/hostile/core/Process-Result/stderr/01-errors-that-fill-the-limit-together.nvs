@@ -43,7 +43,7 @@ echo 'half and half and one: ', Attack::sizes(
 // 3. Errors that never end, while the normal output stays empty.
 echo 'endless errors: ', Attack::sizes(
     'trap "" PIPE; while :; do echo a line that repeats >&2; done',
-    'for /l %i in (0,0,1) do @echo a line that repeats 1>&2',
+    'for /l %i in (0,0,1) do @type C:\\Windows\\System32\\cmd.exe 1>&2',
 ), "\n";
 
 // 4. 200 short runs, each read twice. Memory should not grow.

@@ -11,7 +11,10 @@ class Bench {
         array<array<string>> $lists = [["y"], ["a longer line"]];
         if (Core\Path::SEPARATOR == "\\") {
             $path = "C:\\Windows\\System32\\cmd.exe";
-            $lists = [["/c", "for /l %i in (0,0,1) do @echo y"], ["/c", "for /l %i in (0,0,1) do @echo a longer line"]];
+            $lists = [
+                ["/c", "for /l %i in (0,0,1) do @type C:\\Windows\\System32\\cmd.exe"],
+                ["/c", "for /l %i in (0,0,1) do @type C:\\Windows\\System32\\cmd.exe 1>&2"],
+            ];
         }
         uint $total = 0;
         uint $i = 0;

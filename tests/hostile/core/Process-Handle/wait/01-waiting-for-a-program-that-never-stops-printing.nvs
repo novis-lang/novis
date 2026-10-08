@@ -46,14 +46,14 @@ echo 'wait after kill: ', Attack::wait($killed), "\n";
 // It passes the 1 MiB limit, so `wait()` throws `RuntimeError`.
 var $endless = Attack::shell(
     'trap "" PIPE; while :; do echo a line that repeats; done',
-    'for /l %i in (0,0,1) do @echo a line that repeats',
+    'for /l %i in (0,0,1) do @type C:\\Windows\\System32\\cmd.exe',
 );
 echo 'endless output: ', Attack::wait($endless), "\n";
 
 // 4. The same, on the error output.
 var $endlessErrors = Attack::shell(
     'trap "" PIPE; while :; do echo a line that repeats >&2; done',
-    'for /l %i in (0,0,1) do @echo a line that repeats 1>&2',
+    'for /l %i in (0,0,1) do @type C:\\Windows\\System32\\cmd.exe 1>&2',
 );
 echo 'endless error output: ', Attack::wait($endlessErrors), "\n";
 
