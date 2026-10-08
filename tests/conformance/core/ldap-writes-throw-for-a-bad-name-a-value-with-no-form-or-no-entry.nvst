@@ -1,0 +1,75 @@
+--TEST--
+A `Change` with an attribute that is not a name and a write of a `float` throw `LogicError` before anything is sent, an empty list of changes throws `LogicError`, and `delete`, `modify` and `rename` of a DN with no entry throw `NoSuchObject` — `rule:core-classes/ldap-value-types`
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+var $missing = "OU=Nowhere,DC=example,DC=test";
+
+array<string> $kinds = ["add", "remove", "removeAll", "replace"];
+foreach ($kinds as string $kind) {
+    try {
+        if ($kind == "add") {
+            Core\Ldap\Change::add("no name", "x");
+        } elseif ($kind == "remove") {
+            Core\Ldap\Change::remove("no name", "x");
+        } elseif ($kind == "removeAll") {
+            Core\Ldap\Change::removeAll("no name");
+        } else {
+            Core\Ldap\Change::replace("no name", "x");
+        }
+        echo $kind, ": not reached", "\n";
+    } catch (LogicError $bad) {
+        echo $kind, ": LogicError", "\n";
+    }
+}
+
+try {
+    $corp->add($missing, ["objectClass" => "organizationalUnit", "description" => 1.5]);
+    echo "not reached", "\n";
+} catch (LogicError $noForm) {
+    echo "a float: LogicError", "\n";
+}
+try {
+    $corp->modify($missing, []);
+    echo "not reached", "\n";
+} catch (LogicError $empty) {
+    echo "no changes: LogicError", "\n";
+}
+
+try {
+    $corp->modify($missing, [Core\Ldap\Change::replace("description", "x")]);
+} catch (Core\Ldap\LdapError $none) {
+    echo "modify: ", $none->kind == Core\Ldap\ErrorKind::NoSuchObject ? "NoSuchObject" : "other", "\n";
+}
+try {
+    $corp->rename($missing, "OU=Elsewhere,DC=example,DC=test");
+} catch (Core\Ldap\LdapError $none) {
+    echo "rename: ", $none->kind == Core\Ldap\ErrorKind::NoSuchObject ? "NoSuchObject" : "other", "\n";
+}
+try {
+    $corp->delete($missing);
+} catch (Core\Ldap\LdapError $none) {
+    echo "delete: ", $none->kind == Core\Ldap\ErrorKind::NoSuchObject ? "NoSuchObject" : "other", "\n";
+}
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+base = "DC=example,DC=test"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+add: LogicError
+remove: LogicError
+removeAll: LogicError
+replace: LogicError
+a float: LogicError
+no changes: LogicError
+modify: NoSuchObject
+rename: NoSuchObject
+delete: NoSuchObject

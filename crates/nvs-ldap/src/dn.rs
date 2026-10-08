@@ -67,6 +67,25 @@ impl Rdn {
         &self.0[0]
     }
 
+    /// The level as RFC 4514 text, every value escaped, as a rename sends it.
+    #[must_use]
+    pub fn to_text(&self) -> String {
+        let mut out = String::new();
+        self.write_text(&mut out);
+        out
+    }
+
+    fn write_text(&self, out: &mut String) {
+        for (j, ava) in self.0.iter().enumerate() {
+            if j > 0 {
+                out.push('+');
+            }
+            out.push_str(&ava.attribute);
+            out.push('=');
+            escaped(out, &ava.value);
+        }
+    }
+
     /// Whether both have the same pairs, in any order.
     fn same(&self, other: &Self) -> bool {
         self.0.len() == other.0.len()
@@ -161,16 +180,16 @@ impl Dn {
             if i > 0 {
                 out.push(',');
             }
-            for (j, ava) in rdn.0.iter().enumerate() {
-                if j > 0 {
-                    out.push('+');
-                }
-                out.push_str(&ava.attribute);
-                out.push('=');
-                escaped(&mut out, &ava.value);
-            }
+            rdn.write_text(&mut out);
         }
         out
+    }
+
+    /// Whether this DN names the same entry as `other`: every level the same,
+    /// with attribute names matched without case.
+    #[must_use]
+    pub fn same(&self, other: &Self) -> bool {
+        self.0.len() == other.0.len() && self.is_within(other)
     }
 
     /// Reads RFC 4514 text, as the module doc describes.

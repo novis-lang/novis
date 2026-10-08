@@ -51,7 +51,8 @@
 //! so nothing of a finished search stays on a pooled connection. One the program stops reading stays until the request ends,
 //! and a pooled connection drops what is left before it is reused. `search.rs`
 //! is the Novis half: the helpers for `Ldap\Connection`, `Ldap\Entries`,
-//! `Ldap\Entry` and `Ldap\Filter`.
+//! `Ldap\Entry` and `Ldap\Filter`. `write.rs` is the writing half: `add`,
+//! `modify`, `delete`, `rename` and `Ldap\Change`.
 //!
 //! **The schema is read once per pool** (`rule:core-classes/ldap-value-types`).
 //! [`schema`] reads it with [`nvs_ldap::schema::read`] the first time a
@@ -94,11 +95,13 @@ mod registry;
 mod search;
 mod sid;
 mod value;
+mod write;
 
 pub(crate) use self::registry::*;
 pub(crate) use self::search::{
     ENTRIES_ADVANCE_SYMBOL, ENTRIES_CURRENT_SYMBOL, ENTRIES_ITERATE_SYMBOL,
 };
+pub use self::write::{ADD, DELETE, MODIFY, RENAME, add, delete, modify, rename};
 
 /// `Core\Ldap::connect`, as its refusals spell it.
 pub const CONNECT: &str = r"Core\Ldap::connect";
@@ -796,7 +799,8 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
                 .or_else(|| dn::address(symbol))
                 .or_else(|| sid::address(symbol))
                 .or_else(|| flags::address(symbol))
-                .or_else(|| value::address(symbol));
+                .or_else(|| value::address(symbol))
+                .or_else(|| write::address(symbol));
         }
     })
 }

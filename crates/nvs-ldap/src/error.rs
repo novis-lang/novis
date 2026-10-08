@@ -103,7 +103,8 @@ impl Kind {
             8 | 13 => Self::EncryptionRequired,
             10 => Self::Referral,
             19 | 53 if ad_sub_code(diagnostic) == Some(0x52D) => Self::PasswordPolicy,
-            19 | 21 | 65 | 67 | 69 => Self::ConstraintViolation,
+            // `noSuchAttribute` is a `remove` of a value the entry does not have.
+            16 | 19 | 21 | 65 | 67 | 69 => Self::ConstraintViolation,
             20 | 68 => Self::AlreadyExists,
             32 => Self::NoSuchObject,
             49 => match ad_sub_code(diagnostic) {

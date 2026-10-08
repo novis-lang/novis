@@ -12,7 +12,7 @@
 //! - [`proto`] is the messages, the controls and the filter tree.
 //! - [`dn`] is RFC 4514's distinguished name, escaped as it is built.
 //! - [`conn`] is one connection: LDAPS or StartTLS, bind, `whoami`, search,
-//!   unbind.
+//!   add, modify, delete, rename, compare, unbind.
 //! - [`error`] is the one error type, with ADR 0278 § 10's kinds.
 //! - [`value`] reads the value forms AD sends that are not text: a GUID, a
 //!   SID, a FILETIME, an interval and a GeneralizedTime.
@@ -36,7 +36,8 @@ pub use conn::{Connection, Cursor, Endpoint, Scheme, Search, Tls, Url};
 pub use dn::{Ava, Dn, PartError, Rdn};
 pub use error::{Error, Kind};
 pub use proto::{
-    Attribute, Entry, Filter, Scope, SearchRequest, TextError, is_attribute_description,
+    Attribute, Change, ChangeKind, Entry, Filter, Scope, SearchRequest, TextError,
+    is_attribute_description,
 };
 pub use schema::{Schema, Syntax};
 pub use value::{GeneralizedTime, Sid, SidTextError, ValueError};

@@ -1,4 +1,4 @@
-//! LDAPv3's messages as this client sends and reads them: bind, unbind, search, the extended operation, controls, and the filter, encoded straight to BER
+//! LDAPv3's messages as this client sends and reads them: bind, unbind, search, the four writes, compare, the extended operation, controls, and the filter, encoded straight to BER
 //!
 //! RFC 4511 § 4 is the grammar. Only the operations [`crate::Connection`]
 //! performs are encoded, and an incoming message whose operation this client
@@ -32,6 +32,16 @@ const SEARCH_REQUEST: u8 = 0x63;
 const SEARCH_ENTRY: u8 = 0x64;
 const SEARCH_DONE: u8 = 0x65;
 const SEARCH_REFERENCE: u8 = 0x73;
+const MODIFY_REQUEST: u8 = 0x66;
+const MODIFY_RESPONSE: u8 = 0x67;
+const ADD_REQUEST: u8 = 0x68;
+const ADD_RESPONSE: u8 = 0x69;
+const DEL_REQUEST: u8 = 0x4a;
+const DEL_RESPONSE: u8 = 0x6b;
+const MODIFY_DN_REQUEST: u8 = 0x6c;
+const MODIFY_DN_RESPONSE: u8 = 0x6d;
+const COMPARE_REQUEST: u8 = 0x6e;
+const COMPARE_RESPONSE: u8 = 0x6f;
 const EXTENDED_REQUEST: u8 = 0x77;
 const EXTENDED_RESPONSE: u8 = 0x78;
 const CONTROLS: u8 = 0xa0;
@@ -735,6 +745,119 @@ pub fn extended_request(oid: &str) -> Vec<u8> {
     out.into_bytes()
 }
 
+/// How one change of a Modify request changes its attribute.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChangeKind {
+    /// Adds the values, which must not be there yet.
+    Add,
+    /// Removes the values, or every value when none is given.
+    Remove,
+    /// Replaces every value with these, or removes the attribute when none is given.
+    Replace,
+}
+
+/// One change of a Modify request: what it does, to which attribute, with which values.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Change {
+    /// What it does.
+    pub kind: ChangeKind,
+    /// The attribute it changes.
+    pub attribute: String,
+    /// The values, in the form the server stores them.
+    pub values: Vec<Vec<u8>>,
+}
+
+/// One attribute's name and values, the list a write sends.
+fn partial_attribute(out: &mut Writer, attribute: &str, values: &[Vec<u8>]) {
+    out.constructed(tag::SEQUENCE, |one| {
+        one.octets(tag::OCTET_STRING, attribute.as_bytes());
+        one.constructed(tag::SET, |set| {
+            for value in values {
+                set.octets(tag::OCTET_STRING, value);
+            }
+        });
+    });
+}
+
+/// A `ModifyRequest` applying `changes` to `dn`, in order and as one.
+#[must_use]
+pub fn modify_request(dn: &str, changes: &[Change]) -> Vec<u8> {
+    let mut out = Writer::new();
+    out.constructed(MODIFY_REQUEST, |modify| {
+        modify.octets(tag::OCTET_STRING, dn.as_bytes());
+        modify.constructed(tag::SEQUENCE, |list| {
+            for change in changes {
+                list.constructed(tag::SEQUENCE, |one| {
+                    one.integer(
+                        tag::ENUMERATED,
+                        match change.kind {
+                            ChangeKind::Add => 0,
+                            ChangeKind::Remove => 1,
+                            ChangeKind::Replace => 2,
+                        },
+                    );
+                    partial_attribute(one, &change.attribute, &change.values);
+                });
+            }
+        });
+    });
+    out.into_bytes()
+}
+
+/// An `AddRequest` for a new entry at `dn` with `attributes`.
+#[must_use]
+pub fn add_request(dn: &str, attributes: &[Attribute]) -> Vec<u8> {
+    let mut out = Writer::new();
+    out.constructed(ADD_REQUEST, |add| {
+        add.octets(tag::OCTET_STRING, dn.as_bytes());
+        add.constructed(tag::SEQUENCE, |list| {
+            for attribute in attributes {
+                partial_attribute(list, &attribute.name, &attribute.values);
+            }
+        });
+    });
+    out.into_bytes()
+}
+
+/// A `DelRequest` for the entry at `dn`.
+#[must_use]
+pub fn delete_request(dn: &str) -> Vec<u8> {
+    let mut out = Writer::new();
+    out.octets(DEL_REQUEST, dn.as_bytes());
+    out.into_bytes()
+}
+
+/// A `ModifyDNRequest` giving the entry at `dn` the first level `new_rdn`,
+/// and moving it below `new_superior` when that is given. The old name's
+/// value is deleted from the entry, as a rename means.
+#[must_use]
+pub fn modify_dn_request(dn: &str, new_rdn: &str, new_superior: Option<&str>) -> Vec<u8> {
+    let mut out = Writer::new();
+    out.constructed(MODIFY_DN_REQUEST, |rename| {
+        rename.octets(tag::OCTET_STRING, dn.as_bytes());
+        rename.octets(tag::OCTET_STRING, new_rdn.as_bytes());
+        rename.boolean(tag::BOOLEAN, true);
+        if let Some(superior) = new_superior {
+            rename.octets(0x80, superior.as_bytes());
+        }
+    });
+    out.into_bytes()
+}
+
+/// A `CompareRequest` asking whether the entry at `dn` has `value` under `attribute`.
+#[must_use]
+pub fn compare_request(dn: &str, attribute: &str, value: &[u8]) -> Vec<u8> {
+    let mut out = Writer::new();
+    out.constructed(COMPARE_REQUEST, |compare| {
+        compare.octets(tag::OCTET_STRING, dn.as_bytes());
+        compare.constructed(tag::SEQUENCE, |ava| {
+            ava.octets(tag::OCTET_STRING, attribute.as_bytes());
+            ava.octets(tag::OCTET_STRING, value);
+        });
+    });
+    out.into_bytes()
+}
+
 /// What a `SearchRequest` asks for.
 #[derive(Debug, Clone, Copy)]
 pub struct SearchRequest<'a> {
@@ -846,6 +969,11 @@ pub enum Op {
         /// The response's value.
         value: Option<Vec<u8>>,
     },
+    /// The answer to a modify, an add, a delete or a rename, which carries
+    /// only its result.
+    Written(LdapResult),
+    /// The answer to a compare, whose result code is the answer.
+    Compared(LdapResult),
     /// An operation this client never asks for, by its tag.
     Other(u8),
 }
@@ -883,6 +1011,10 @@ pub fn decode(bytes: &[u8]) -> Result<Incoming, Error> {
             Op::SearchReference(list)
         }
         SEARCH_DONE => Op::SearchDone(result(&mut Reader::new(op.body))?),
+        MODIFY_RESPONSE | ADD_RESPONSE | DEL_RESPONSE | MODIFY_DN_RESPONSE => {
+            Op::Written(result(&mut Reader::new(op.body))?)
+        }
+        COMPARE_RESPONSE => Op::Compared(result(&mut Reader::new(op.body))?),
         EXTENDED_RESPONSE => {
             let mut body = Reader::new(op.body);
             let result = result(&mut body)?;

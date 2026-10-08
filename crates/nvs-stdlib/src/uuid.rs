@@ -509,7 +509,7 @@ const SHOWN_CHARS: usize = 48;
 /// shape. Compiled code wrote the tag and `nvs_types` already checked the
 /// declared type, so that is a runtime-contract violation rather than anything
 /// a program can cause — the same treatment `crate::time` gives an `Instant`.
-fn uuid_of(args: &[Value], at: usize, member: &str) -> Result<Uuid, Fault> {
+pub(crate) fn uuid_of(args: &[Value], at: usize, member: &str) -> Result<Uuid, Fault> {
     let object = crate::instance::receiver(args[at], &CLASS, member)?;
     let half = |index: usize, which: &str| {
         crate::instance::slot(object, index)

@@ -2440,6 +2440,7 @@ pub const CLASSES: &[CoreClass] = &[
     crate::ldap::ENTRIES,
     crate::ldap::ENTRY,
     crate::ldap::FILTER,
+    crate::ldap::CHANGE,
     crate::ldap::DN,
     crate::ldap::SID,
     crate::ldap::AD,
@@ -6402,7 +6403,10 @@ mod tests {
     /// ([`crate::http`]). `Core\Cache\SecretEntry` is `Core\Jwe\Key`'s shape
     /// again: a fill builds one, the sealing path reads its two slots, and a
     /// member answering the secret back would be a second door onto a value
-    /// `getSecret` is the only door onto ([`crate::cache`]). Classes have left
+    /// `getSecret` is the only door onto ([`crate::cache`]). `Core\Ldap\Change`
+    /// is `Core\Db\InList`'s shape over a write: ADR 0278 § 1 writes four
+    /// constructors and no member on it, and `modify` is what reads its three
+    /// slots ([`crate::ldap`]'s `write`). Classes have left
     /// this list, each the same way: `Core\Db\Connection` when `query` landed
     /// on it, `Core\Db\Rows` when its readers did, and `Core\Cli\Text` when
     /// `text()` did — its runs are still rendered by `value_to_string`, but a
@@ -6456,6 +6460,7 @@ mod tests {
             crate::jwe::KEY_NAME,
             crate::jwt::KEY_SET_NAME,
             crate::cache::SECRET_ENTRY_NAME,
+            crate::ldap::CHANGE_NAME,
         ];
         for class in CLASSES {
             if HANDLES.contains(&class.name) {

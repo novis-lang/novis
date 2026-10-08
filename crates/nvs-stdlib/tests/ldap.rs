@@ -1118,3 +1118,189 @@ fn the_schema_is_read_once_per_pool() {
     assert!(!Arc::ptr_eq(&read, &other), "each pool reads its own");
     assert_eq!(*read, *other, "the same server declares the same schema");
 }
+
+/// A write's answer under message `id`: `tag` with a result of `code`.
+fn written(id: i64, tag: u8, code: i64) -> Vec<u8> {
+    let mut answer = Writer::new();
+    answer.constructed(tag::SEQUENCE, |msg| {
+        msg.integer(tag::INTEGER, id);
+        msg.constructed(tag, |done| {
+            done.integer(tag::ENUMERATED, code);
+            done.octets(tag::OCTET_STRING, b"");
+            done.octets(tag::OCTET_STRING, b"");
+        });
+    });
+    answer.into_bytes()
+}
+
+/// The values of `name` on the entry at `dn`, as text, or `None` when it has none.
+fn texts(ctx: &mut nvs_runtime::Ctx, key: u64, dn: &str, name: &str) -> Option<Vec<String>> {
+    let entry = ldap::read(ctx, key, dn, &[name])
+        .expect("the read succeeds")
+        .expect("the entry exists");
+    entry.get(name).map(|values| {
+        values
+            .iter()
+            .map(|value| String::from_utf8_lossy(value).into_owned())
+            .collect()
+    })
+}
+
+#[test]
+fn modify_applies_its_changes_in_one_request() {
+    use nvs_ldap::{Change, ChangeKind, proto};
+
+    let change = |kind, attribute: &str, values: &[&str]| Change {
+        kind,
+        attribute: attribute.to_owned(),
+        values: values
+            .iter()
+            .map(|value| value.as_bytes().to_vec())
+            .collect(),
+    };
+    let dn = "OU=Framework,DC=example,DC=test";
+    let changes = [
+        change(ChangeKind::Add, "description", &["two"]),
+        change(ChangeKind::Remove, "description", &["one"]),
+        change(ChangeKind::Replace, "street", &[]),
+    ];
+
+    // The peer reads one message, and it is one Modify request holding all
+    // three changes in order.
+    let (port, read) = scripted(vec![written(1, 0x67, 0)]);
+    let mut ctx = ctx_over(&cleartext_corp(port));
+    let key = ldap::connect(&mut ctx, "corp").expect("the peer accepts");
+    ldap::modify(&mut ctx, key, dn, &changes).expect("the peer says success");
+    let sent = read.lock().expect("unpoisoned").clone();
+    assert_eq!(
+        sent,
+        proto::message(1, &proto::modify_request(dn, &changes), &[]),
+        "one message, one request"
+    );
+    let (head, length) = ber::header(&sent).expect("BER").expect("whole");
+    assert_eq!(head + length, sent.len());
+
+    let Some(ca) = samba() else { return };
+    let mut ctx = ctx_over(&corp(&ca));
+    let key = ldap::connect(&mut ctx, "corp").expect("the block opens");
+    // A run that stopped half-way leaves the entry behind.
+    ldap::delete(&mut ctx, key, dn).ok();
+    ldap::add(
+        &mut ctx,
+        key,
+        dn,
+        &[
+            nvs_ldap::Attribute {
+                name: "objectClass".to_owned(),
+                values: vec![b"top".to_vec(), b"organizationalUnit".to_vec()],
+            },
+            nvs_ldap::Attribute {
+                name: "description".to_owned(),
+                values: vec![b"one".to_vec()],
+            },
+        ],
+    )
+    .expect("the entry is added");
+
+    // The second change fails, so the first is not applied either.
+    let refused = ldap::modify(
+        &mut ctx,
+        key,
+        dn,
+        &[
+            change(ChangeKind::Add, "description", &["two"]),
+            change(ChangeKind::Remove, "description", &["absent"]),
+        ],
+    )
+    .expect_err("there is no value `absent` to remove");
+    assert!(
+        refused.message().contains("ConstraintViolation"),
+        "{}",
+        refused.message()
+    );
+    assert_eq!(
+        texts(&mut ctx, key, dn, "description"),
+        Some(vec!["one".to_owned()]),
+        "nothing of a refused modify is applied"
+    );
+
+    ldap::modify(&mut ctx, key, dn, &changes[..2]).expect("both changes apply");
+    assert_eq!(
+        texts(&mut ctx, key, dn, "description"),
+        Some(vec!["two".to_owned()])
+    );
+    ldap::delete(&mut ctx, key, dn).expect("the entry is deleted");
+    assert!(
+        ldap::read(&mut ctx, key, dn, &[])
+            .expect("the read succeeds")
+            .is_none()
+    );
+}
+
+#[test]
+fn typed_values_round_trip_through_a_write() {
+    use nvs_ldap::value::{
+        boolean, boolean_text, filetime, filetime_text, flag_field, flag_text, interval,
+        interval_text, uuid_from_guid,
+    };
+
+    // Each writer is the inverse of the reader `Ldap\Entry` uses.
+    for nanos in [0, 1_700_000_000_000_000_000, -86_400_000_000_000] {
+        let text = filetime_text(nanos).expect("after 1601");
+        assert_eq!(filetime(text.as_bytes()), Ok(Some(nanos)), "{text}");
+    }
+    assert_eq!(filetime_text(-(116_444_736_000_000_000 * 100)), None);
+    let six_weeks = 42 * 86_400 * 1_000_000_000;
+    assert_eq!(interval_text(six_weeks), "-36288000000000");
+    assert_eq!(
+        interval(interval_text(six_weeks).as_bytes()),
+        Ok(Some(six_weeks))
+    );
+    for on in [true, false] {
+        assert_eq!(boolean(boolean_text(on).as_bytes()), Ok(on));
+    }
+    // A security group's `groupType` is negative, and `with` returns it as
+    // the unsigned 32 bits.
+    assert_eq!(flag_text(0x8000_0002), "-2147483646");
+    assert_eq!(flag_text(-2_147_483_646), "-2147483646");
+    assert_eq!(flag_field(flag_text(0x202).as_bytes()), Ok(0x202));
+    let guid = [7u8; 16];
+    let swapped = uuid_from_guid(&guid).expect("16 bytes");
+    assert_eq!(uuid_from_guid(&swapped), Ok(guid));
+
+    // An entry written with each form reads back the same values.
+    let Some(ca) = samba() else { return };
+    let mut ctx = ctx_over(&corp(&ca));
+    let key = ldap::connect(&mut ctx, "corp").expect("the block opens");
+    let dn = "OU=Example,DC=example,DC=test";
+    ldap::delete(&mut ctx, key, dn).ok();
+    ldap::add(
+        &mut ctx,
+        key,
+        dn,
+        &[
+            nvs_ldap::Attribute {
+                name: "objectClass".to_owned(),
+                values: vec![b"organizationalUnit".to_vec()],
+            },
+            nvs_ldap::Attribute {
+                name: "gPOptions".to_owned(),
+                values: vec![b"1".to_vec()],
+            },
+            nvs_ldap::Attribute {
+                name: "managedBy".to_owned(),
+                values: vec![ADMIN.as_bytes().to_vec()],
+            },
+        ],
+    )
+    .expect("the entry is added");
+    assert_eq!(
+        texts(&mut ctx, key, dn, "gPOptions"),
+        Some(vec!["1".to_owned()])
+    );
+    assert_eq!(
+        texts(&mut ctx, key, dn, "managedBy"),
+        Some(vec![ADMIN.to_owned()])
+    );
+    ldap::delete(&mut ctx, key, dn).expect("the entry is deleted");
+}

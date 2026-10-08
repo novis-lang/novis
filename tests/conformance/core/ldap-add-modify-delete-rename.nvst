@@ -1,0 +1,70 @@
+--TEST--
+`add` writes a new entry, `modify` applies `Change::add`, `remove`, `removeAll` and `replace` in one request, `rename` gives the entry a new name below another parent, and `delete` removes it, with an `int`, a `bool` and a `Dn` written in the form they are read — `rule:core-classes/ldap-value-types`
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+var $admin = Core\Ldap\Dn::parse("CN=Administrator,CN=Users,DC=example,DC=test");
+
+// A run that stopped half-way leaves its entries behind.
+array<string> $leftovers = ["OU=Store,OU=Blog,DC=example,DC=test", "OU=Shop,DC=example,DC=test", "OU=Blog,DC=example,DC=test"];
+foreach ($leftovers as string $left) {
+    try {
+        $corp->delete($left);
+    } catch (Core\Ldap\LdapError $gone) {
+    }
+}
+
+$corp->add("OU=Blog,DC=example,DC=test", ["objectClass" => "organizationalUnit"]);
+$corp->add("OU=Shop,DC=example,DC=test", [
+    "objectClass" => ["top", "organizationalUnit"],
+    "description" => "one",
+    "gPOptions" => 1,
+    "managedBy" => $admin,
+]);
+?Core\Ldap\Entry $shop = $corp->read("OU=Shop,DC=example,DC=test", {select: ["gPOptions", "managedBy"]});
+echo "gPOptions: ", $shop?->int("gPOptions") ?? "null", "\n";
+echo "managedBy: ", $shop?->string("managedBy") ?? "null", "\n";
+
+// The four changes are one request, applied in this order.
+$corp->modify("OU=Shop,DC=example,DC=test", [
+    Core\Ldap\Change::add("description", "two"),
+    Core\Ldap\Change::remove("description", "one"),
+    Core\Ldap\Change::removeAll("managedBy"),
+    Core\Ldap\Change::replace("showInAdvancedViewOnly", true),
+]);
+$shop = $corp->read("OU=Shop,DC=example,DC=test", {select: ["description", "managedBy", "showInAdvancedViewOnly"]});
+var $descriptions = $shop?->strings("description");
+echo "description: ", $descriptions == null ? "null" : Core\Str::join($descriptions, ", "), "\n";
+echo "managedBy: ", $shop?->has("managedBy") ? "set" : "removed", "\n";
+echo "showInAdvancedViewOnly: ", $shop?->bool("showInAdvancedViewOnly") ? "true" : "false", "\n";
+
+// The new DN has another parent, so the entry moves below it.
+$corp->rename("OU=Shop,DC=example,DC=test", Core\Ldap\Dn::parse("OU=Store,OU=Blog,DC=example,DC=test"));
+echo "old name: ", $corp->read("OU=Shop,DC=example,DC=test") == null ? "gone" : "still there", "\n";
+?Core\Ldap\Entry $store = $corp->read("OU=Store,OU=Blog,DC=example,DC=test", {select: ["description"]});
+echo "new name: ", $store?->string("description") ?? "null", "\n";
+
+$corp->delete("OU=Store,OU=Blog,DC=example,DC=test");
+$corp->delete("OU=Blog,DC=example,DC=test");
+echo "deleted: ", $corp->read("OU=Blog,DC=example,DC=test") == null ? "yes" : "no", "\n";
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+base = "DC=example,DC=test"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+gPOptions: 1
+managedBy: CN=Administrator,CN=Users,DC=example,DC=test
+description: two
+managedBy: removed
+showInAdvancedViewOnly: true
+old name: gone
+new name: two
+deleted: yes

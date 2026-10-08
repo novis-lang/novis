@@ -45,6 +45,9 @@ pub(crate) const GROUP_TYPE_NAME: &str = r"Core\Ldap\Ad\GroupType";
 /// [`ACCOUNT_TYPE`]'s fully-qualified name.
 pub(crate) const ACCOUNT_TYPE_NAME: &str = r"Core\Ldap\Ad\AccountType";
 
+/// `Core\Ldap\Change`'s fully-qualified name.
+pub(crate) const CHANGE_NAME: &str = r"Core\Ldap\Change";
+
 /// [`SCOPE`]'s fully-qualified name.
 pub(crate) const SCOPE_NAME: &str = r"Core\Ldap\Scope";
 
@@ -71,6 +74,12 @@ pub(super) const ENTRIES_REFERENCES_AT: usize = 3;
 pub(super) const ENTRY_DN_AT: usize = 0;
 /// [`ENTRY`]'s slot for its attributes, keyed by name.
 pub(super) const ENTRY_ATTRIBUTES_AT: usize = 1;
+/// [`CHANGE`]'s slot for what it does: 0 adds, 1 removes, 2 replaces.
+pub(super) const CHANGE_KIND_AT: usize = 0;
+/// [`CHANGE`]'s slot for the attribute it changes.
+pub(super) const CHANGE_ATTRIBUTE_AT: usize = 1;
+/// [`CHANGE`]'s slot for the value it was given, unencoded, or `null`.
+pub(super) const CHANGE_VALUE_AT: usize = 2;
 /// [`FILTER`]'s slot for its BER encoding.
 pub(super) const FILTER_BER_AT: usize = 0;
 /// [`DN`]'s slot for its RFC 4514 text, as [`nvs_ldap::Dn::to_text`] wrote it.
@@ -361,6 +370,45 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
             symbol: "nvs_core_ldap_connection_read",
             doc: Some(&READ_DOC),
         },
+        CoreMethod {
+            name: "add",
+            names: &["dn", "attributes"],
+            params: &[CoreTy::Union(DN_OR_STRING), CoreTy::Array(&CoreTy::Mixed)],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_ldap_connection_add",
+            doc: Some(&ADD_DOC),
+        },
+        CoreMethod {
+            name: "modify",
+            names: &["dn", "changes"],
+            params: &[
+                CoreTy::Union(DN_OR_STRING),
+                CoreTy::Array(&CoreTy::Instance(CHANGE_NAME)),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_ldap_connection_modify",
+            doc: Some(&MODIFY_DOC),
+        },
+        CoreMethod {
+            name: "delete",
+            names: &["dn"],
+            params: &[CoreTy::Union(DN_OR_STRING)],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_ldap_connection_delete",
+            doc: Some(&DELETE_DOC),
+        },
+        CoreMethod {
+            name: "rename",
+            names: &["from", "to"],
+            params: &[CoreTy::Union(DN_OR_STRING), CoreTy::Union(DN_OR_STRING)],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_ldap_connection_rename",
+            doc: Some(&RENAME_DOC),
+        },
     ],
     slots: &[HANDLE_SLOT],
     constants: &[],
@@ -468,6 +516,206 @@ const READ_DOC: MethodDoc = MethodDoc {
             desc: "The server returned an error other than \"no such entry\".",
         },
     ],
+};
+
+/// The DN parameter of a write — `rule:core-api/reference-card`.
+const WRITE_DN_PARAM: ParamDoc = ParamDoc {
+    name: "dn",
+    desc: "The entry's DN, as a `Dn` or as text. Text cannot be `tainted`. Build a DN from user \
+           input with `Dn::of` or `child`.",
+    shape: &[],
+};
+
+/// The `LdapError` every write throws — `rule:core-api/reference-card`.
+const WRITE_ERRORS: &[ErrorDoc] = &[
+    ErrorDoc {
+        error: "LogicError",
+        desc: "An attribute name is not a name, a value has no LDAP form, such as a `float`, \
+               or the connection is closed.",
+    },
+    ErrorDoc {
+        error: "Core\\Ldap\\LdapError",
+        desc: "The server returned an error. `$kind` says why, such as `NoSuchObject`, \
+               `AlreadyExists`, `InsufficientAccess` or `ConstraintViolation`.",
+    },
+];
+
+/// `Ldap\Connection::add`'s reference card — `rule:core-api/reference-card`.
+const ADD_DOC: MethodDoc = MethodDoc {
+    short: "Adds a new entry to the directory.",
+    params: &[
+        WRITE_DN_PARAM,
+        ParamDoc {
+            name: "attributes",
+            desc: "The entry's attributes, keyed by name, such as `['objectClass' => ['top', \
+                   'group'], 'cn' => 'Staff']`. A value is written in the form the readers of \
+                   `Entry` return it, and a list writes one value per element.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing.",
+    errors: WRITE_ERRORS,
+};
+
+/// `Ldap\Connection::modify`'s reference card — `rule:core-api/reference-card`.
+const MODIFY_DOC: MethodDoc = MethodDoc {
+    short: "Changes the attributes of one entry. The server makes every change in the list, in \
+            order, or none of them.",
+    params: &[
+        WRITE_DN_PARAM,
+        ParamDoc {
+            name: "changes",
+            desc: "The changes, each made with `Change::add`, `remove`, `removeAll` or \
+                   `replace`. The list cannot be empty.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing.",
+    errors: WRITE_ERRORS,
+};
+
+/// `Ldap\Connection::delete`'s reference card — `rule:core-api/reference-card`.
+const DELETE_DOC: MethodDoc = MethodDoc {
+    short: "Deletes one entry. An entry with entries below it cannot be deleted.",
+    params: &[WRITE_DN_PARAM],
+    ret: "Nothing.",
+    errors: WRITE_ERRORS,
+};
+
+/// `Ldap\Connection::rename`'s reference card — `rule:core-api/reference-card`.
+const RENAME_DOC: MethodDoc = MethodDoc {
+    short: "Gives an entry a new DN. The entry moves when the new DN has another parent.",
+    params: &[
+        ParamDoc {
+            name: "from",
+            desc: "The entry's DN now, as a `Dn` or as text. Text cannot be `tainted`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "to",
+            desc: "The entry's new DN, such as `CN=Shop,OU=Groups,DC=example,DC=test`. Text \
+                   cannot be `tainted`.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "`from` or `to` is text that is not a DN, or the connection is closed.",
+        },
+        ErrorDoc {
+            error: "Core\\Ldap\\LdapError",
+            desc: "The server returned an error, such as `NoSuchObject` or `AlreadyExists`.",
+        },
+    ],
+};
+
+/// `Ldap\Change`'s class card — `rule:core-api/reference-card`.
+const CHANGE_CARD: ClassDoc = ClassDoc {
+    short: "One change to one attribute, for `Connection::modify`.",
+};
+
+/// The attribute parameter of every `Change` constructor.
+const CHANGE_ATTRIBUTE_PARAM: ParamDoc = ParamDoc {
+    name: "attribute",
+    desc: "The attribute's name, such as `description`. It cannot be `tainted`.",
+    shape: &[],
+};
+
+/// The value parameter of every `Change` constructor that takes one.
+const CHANGE_VALUE_PARAM: ParamDoc = ParamDoc {
+    name: "value",
+    desc: "One value, or a list of values. A value is written in the form the readers of \
+           `Entry` return it, such as an `int`, a `Uuid` or an `Instant`.",
+    shape: &[],
+};
+
+/// The error every `Change` constructor throws.
+const CHANGE_ERRORS: &[ErrorDoc] = &[ErrorDoc {
+    error: "LogicError",
+    desc: "`attribute` is not an attribute name.",
+}];
+
+/// ADR 0278 § 1's `Ldap\Change`: one change of a `modify`, its value kept
+/// unencoded until `modify` sends it. `super::write`'s module doc says why.
+pub(crate) const CHANGE: CoreClass = CoreClass {
+    name: CHANGE_NAME,
+    doc: Some(&CHANGE_CARD),
+    methods: &[
+        CoreMethod {
+            name: "add",
+            names: &["attribute", "value"],
+            params: &[CoreTy::Text(Qual::Sink), CoreTy::Mixed],
+            defaults: &[],
+            return_ty: CoreTy::Instance(CHANGE_NAME),
+            symbol: "nvs_core_ldap_change_add",
+            doc: Some(&CHANGE_ADD_DOC),
+        },
+        CoreMethod {
+            name: "remove",
+            names: &["attribute", "value"],
+            params: &[CoreTy::Text(Qual::Sink), CoreTy::Mixed],
+            defaults: &[],
+            return_ty: CoreTy::Instance(CHANGE_NAME),
+            symbol: "nvs_core_ldap_change_remove",
+            doc: Some(&CHANGE_REMOVE_DOC),
+        },
+        CoreMethod {
+            name: "removeAll",
+            names: &["attribute"],
+            params: &[CoreTy::Text(Qual::Sink)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(CHANGE_NAME),
+            symbol: "nvs_core_ldap_change_remove_all",
+            doc: Some(&CHANGE_REMOVE_ALL_DOC),
+        },
+        CoreMethod {
+            name: "replace",
+            names: &["attribute", "value"],
+            params: &[CoreTy::Text(Qual::Sink), CoreTy::Mixed],
+            defaults: &[],
+            return_ty: CoreTy::Instance(CHANGE_NAME),
+            symbol: "nvs_core_ldap_change_replace",
+            doc: Some(&CHANGE_REPLACE_DOC),
+        },
+    ],
+    instance: &[],
+    slots: &["kind", "attribute", "value"],
+    constants: &[],
+};
+
+/// `Ldap\Change::add`'s reference card — `rule:core-api/reference-card`.
+const CHANGE_ADD_DOC: MethodDoc = MethodDoc {
+    short: "Adds values to an attribute. The entry must not have them yet.",
+    params: &[CHANGE_ATTRIBUTE_PARAM, CHANGE_VALUE_PARAM],
+    ret: "The change.",
+    errors: CHANGE_ERRORS,
+};
+
+/// `Ldap\Change::remove`'s reference card — `rule:core-api/reference-card`.
+const CHANGE_REMOVE_DOC: MethodDoc = MethodDoc {
+    short: "Removes values from an attribute. The entry must have them.",
+    params: &[CHANGE_ATTRIBUTE_PARAM, CHANGE_VALUE_PARAM],
+    ret: "The change.",
+    errors: CHANGE_ERRORS,
+};
+
+/// `Ldap\Change::removeAll`'s reference card — `rule:core-api/reference-card`.
+const CHANGE_REMOVE_ALL_DOC: MethodDoc = MethodDoc {
+    short: "Removes an attribute and every value it has.",
+    params: &[CHANGE_ATTRIBUTE_PARAM],
+    ret: "The change.",
+    errors: CHANGE_ERRORS,
+};
+
+/// `Ldap\Change::replace`'s reference card — `rule:core-api/reference-card`.
+const CHANGE_REPLACE_DOC: MethodDoc = MethodDoc {
+    short: "Replaces every value of an attribute. With `null` or an empty list, the attribute \
+            is removed.",
+    params: &[CHANGE_ATTRIBUTE_PARAM, CHANGE_VALUE_PARAM],
+    ret: "The change.",
+    errors: CHANGE_ERRORS,
 };
 
 /// `Ldap\Entries`' class card — `rule:core-api/reference-card`.

@@ -1,4 +1,4 @@
-//! One LDAP connection over the parking stream: LDAPS or StartTLS before a password is written, a simple bind, `whoami`, a paged search and an unbind
+//! One LDAP connection over the parking stream: LDAPS or StartTLS before a password is written, a simple bind, `whoami`, a paged search, the four writes, compare and an unbind
 //!
 //! The sequencing is this crate's own, as `rule:core-classes/db-crate-boundary`
 //! asks. One operation is outstanding at a time, so every answer must carry
@@ -45,6 +45,7 @@ use nvs_host::net::NvsTcp;
 use nvs_host::tls::NvsTls;
 
 use crate::ber;
+use crate::dn::Dn;
 use crate::error::{Error, Kind};
 use crate::proto::{self, Control, Entry, Incoming, LdapResult, Op, SearchRequest};
 
@@ -399,6 +400,91 @@ impl Connection {
             connection: self,
             cursor: Cursor::new(request),
         }
+    }
+
+    /// Applies `changes` to the entry at `dn` in one Modify request, so the
+    /// server applies all of them, in order, or none.
+    ///
+    /// # Errors
+    ///
+    /// Every result but success, by [`Kind::of_result`]: [`Kind::NoSuchObject`],
+    /// [`Kind::AlreadyExists`] for a value added twice,
+    /// [`Kind::ConstraintViolation`] for one the schema does not allow.
+    pub fn modify(&mut self, dn: &str, changes: &[proto::Change]) -> Result<(), Error> {
+        self.write(&proto::modify_request(dn, changes), "the modify")
+    }
+
+    /// Adds a new entry at `dn` with `attributes`.
+    ///
+    /// # Errors
+    ///
+    /// [`Kind::AlreadyExists`] for a DN already taken, and every other result
+    /// but success.
+    pub fn add(&mut self, dn: &str, attributes: &[proto::Attribute]) -> Result<(), Error> {
+        self.write(&proto::add_request(dn, attributes), "the add")
+    }
+
+    /// Deletes the entry at `dn`, which must have no entries below it.
+    ///
+    /// # Errors
+    ///
+    /// [`Kind::NoSuchObject`], and every other result but success.
+    pub fn delete(&mut self, dn: &str) -> Result<(), Error> {
+        self.write(&proto::delete_request(dn), "the delete")
+    }
+
+    /// Renames the entry at `from` to `to`: its first level becomes `to`'s,
+    /// and where `to` is below another parent the entry moves there.
+    ///
+    /// # Errors
+    ///
+    /// [`Kind::NoSuchObject`], [`Kind::AlreadyExists`] for a name already
+    /// taken, and every other result but success.
+    pub fn rename(&mut self, from: &Dn, to: &Dn) -> Result<(), Error> {
+        let moved = match (from.parent(), to.parent()) {
+            (Some(old), Some(new)) if old.same(&new) => None,
+            (None, None) => None,
+            (_, new) => Some(new.map(|new| new.to_text()).unwrap_or_default()),
+        };
+        self.write(
+            &proto::modify_dn_request(&from.to_text(), &to.rdn().to_text(), moved.as_deref()),
+            "the rename",
+        )
+    }
+
+    /// Whether the entry at `dn` has `value` under `attribute`, as the
+    /// server's own matching rule for the attribute decides.
+    ///
+    /// # Errors
+    ///
+    /// Every result but `compareTrue` and `compareFalse`.
+    pub fn compare(&mut self, dn: &str, attribute: &str, value: &[u8]) -> Result<bool, Error> {
+        let answer = self.request(
+            &proto::compare_request(dn, attribute, value),
+            &[],
+            "the compare",
+        )?;
+        let Op::Compared(result) = answer.op else {
+            return Err(unexpected("the compare"));
+        };
+        match result.code {
+            5 => Ok(false),
+            6 => Ok(true),
+            _ => Err(Error::from_result(
+                "the compare",
+                result.code,
+                &result.diagnostic,
+            )),
+        }
+    }
+
+    /// Sends one of the four writes and reads its result.
+    fn write(&mut self, op: &[u8], operation: &str) -> Result<(), Error> {
+        let answer = self.request(op, &[], operation)?;
+        let Op::Written(result) = answer.op else {
+            return Err(unexpected(operation));
+        };
+        succeeded(operation, &result)
     }
 
     /// Ends the session and closes the socket.

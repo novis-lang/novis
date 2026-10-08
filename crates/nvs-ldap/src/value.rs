@@ -332,6 +332,41 @@ pub fn interval(value: &[u8]) -> Result<Option<i64>, ValueError> {
         .ok_or(ValueError::IntervalTooLong)
 }
 
+/// The FILETIME value for `nanos` since 1970-01-01 UTC, the form [`filetime`]
+/// reads, or `None` for a time before 1601 or one no `i64` tick count holds.
+/// A fraction of a tick is dropped.
+#[must_use]
+pub fn filetime_text(nanos: i128) -> Option<String> {
+    let ticks = nanos.div_euclid(NANOS_PER_TICK) + FILETIME_UNIX_EPOCH;
+    let ticks = i64::try_from(ticks).ok().filter(|ticks| *ticks > 0)?;
+    Some(ticks.to_string())
+}
+
+/// The interval value for a length of `nanos`, the negative tick count
+/// [`interval`] reads. A fraction of a tick is dropped.
+#[must_use]
+pub fn interval_text(nanos: i64) -> String {
+    (-(nanos / 100)).to_string()
+}
+
+/// The value for a `bool`, `TRUE` or `FALSE`, the form [`boolean`] reads.
+#[must_use]
+pub fn boolean_text(on: bool) -> &'static str {
+    if on { "TRUE" } else { "FALSE" }
+}
+
+/// The value for a flag field, the low 32 bits of `bits` as the signed
+/// INTEGER AD stores, which [`flag_field`] reads back.
+#[must_use]
+pub fn flag_text(bits: i64) -> String {
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "a flag field is the low 32 bits, and AD's INTEGER syntax is a signed 32-bit number"
+    )]
+    let stored = bits as i32;
+    stored.to_string()
+}
+
 /// One bit a flag field names: the name of the `bool` reader for it, and the
 /// bit's value.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
