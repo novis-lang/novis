@@ -1536,6 +1536,8 @@ mod tests {
                     "finish",
                     "tainted bytes".to_owned(),
                 ),
+                (r"Core\Db\Row", "bytes", "null|tainted bytes".to_owned()),
+                (r"Core\Db\Row", "string", "null|tainted string".to_owned()),
                 (r"Core\Env", "all", "array<tainted string>".to_owned()),
                 (r"Core\Env", "get", "null|tainted string".to_owned()),
                 (r"Core\Http\Event", "data", "tainted string".to_owned()),
@@ -1683,8 +1685,8 @@ mod tests {
              verified claim, a verified signature's payload, a decrypted payload, an \
              outbound reply's body as text and as octets, the two readers of that \
              reply's header lines, the chain the peer it arrived from presented and \
-             the two names written in that chain's leaf, \
-             the two environment \
+             the two names written in that chain's leaf, a database row's text and \
+             octets, the two environment \
              reads, the two prompts that answer what a person typed, the words the program \
              was started with, everything attached to its standard input, every read of \
              the request being answered, the three facts it arrived on, the three \

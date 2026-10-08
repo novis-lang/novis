@@ -134,14 +134,15 @@ fn yield_from_and_a_keyed_yield_are_both_refused() {
 }
 
 /// `mixed` is the one unchecked position (`rule:types/declaration`), so it neither
-/// yields an element type nor is refused as a subject.
+/// yields an element type nor is refused as a subject. Its text is `tainted`
+/// (`rule:security/taint-propagation`), so a text binding says so.
 #[test]
 fn a_mixed_subject_is_neither_checked_nor_refused() {
     let diags = check_src(
         "<?nvs\n\
          class T {\n\
          \x20 function m(mixed $x): void {\n\
-         \x20\x20 foreach ($x as string $s) { echo $s; }\n\
+         \x20\x20 foreach ($x as tainted string $s) { echo $s; }\n\
          \x20 }\n\
          }\n",
     );

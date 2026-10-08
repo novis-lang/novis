@@ -86,17 +86,29 @@ fn a_test_over_a_union_member_and_over_a_non_member_both_check() {
 /// absent rather than knowable.
 #[test]
 fn is_against_a_tainted_or_secret_qualifier_is_e0813() {
-    for target in ["tainted string", "secret bytes", "array<tainted string>"] {
-        let diags = check_with_subjects(&format!("    bool $b = $m is {target};"));
+    // Over a declared subject both qualifiers are refused; over `mixed` only
+    // `secret` is, because `tainted` is what text out of `mixed` gets anyway
+    // (`rule:security/taint-propagation`).
+    for (subject, target) in [
+        ("$n", "tainted string"),
+        ("$n", "array<tainted string>"),
+        ("$m", "secret bytes"),
+        ("$n", "secret bytes"),
+    ] {
+        let diags = check_with_subjects(&format!(
+            "    string|int $n = 1;\n    bool $b = {subject} is {target};"
+        ));
         assert!(
             diags
                 .iter()
                 .any(|d| d.code == Some(code::E_TYPE_TEST_AGAINST_A_QUALIFIER)),
-            "`{target}` was accepted: {diags:?}"
+            "`{subject} is {target}` was accepted: {diags:?}"
         );
     }
-    let unqualified = check_with_subjects("    bool $b = $m is string;");
-    assert!(!unqualified.has_errors(), "{unqualified:?}");
+    for target in ["string", "tainted string", "array<tainted string>"] {
+        let accepted = check_with_subjects(&format!("    bool $b = $m is {target};"));
+        assert!(!accepted.has_errors(), "`{target}`: {accepted:?}");
+    }
 }
 
 /// `rule:types/type-test`'s second refusal: no value inhabits either type, so

@@ -4,13 +4,13 @@
 // value is tainted, so the program should not compile.
 // hostile: expect-refusal
 
-mixed $q = Core\Request::query("q");
+mixed $q = Core\Request::query('q');
 
 // 1. Converts the value with `as string` and joins it into a pattern.
-Core\Regex::compile("^" . ($q as string) . "$");
+Core\Regex::compile('^' . ($q as string) . '$');
 
 // 2. Joins the `mixed` value into the pattern directly.
-Core\Regex::compile("^" . $q);
+Core\Regex::compile('^' . $q);
 
 // 3. Puts the value into a string with `{…}`.
 Core\Regex::compile("^{$q}$");

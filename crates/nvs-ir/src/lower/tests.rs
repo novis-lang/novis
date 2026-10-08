@@ -3640,10 +3640,10 @@ fn an_array_conversion_walks_its_elements() {
     let (f, map, file) = lower_script_src(
         "<?nvs
 array<mixed> $m = [\"a\", \"b\"];
-array<string> $s = $m as array<string>;
-?array<string> $o = $m as ?array<string>;
+array<tainted string> $s = $m as array<string>;
+?array<tainted string> $o = $m as ?array<string>;
 array<mixed> $n = [$m];
-array<array<string>> $d = $n as array<array<string>>;
+array<array<tainted string>> $d = $n as array<array<string>>;
 array<mixed> $free = $s as array<mixed>;
 ",
     );
