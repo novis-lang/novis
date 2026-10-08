@@ -16,9 +16,9 @@
 // `owed` is written over whatever verdict the store holds, so an atom another process ran green after
 // this run read its selection is owed too and runs once more: a concurrent run costs a run, never a miss.
 
-import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { cpus } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import type { FileItems } from "../keys/scan.ts";
 import { scanItems } from "../keys/scan.ts";
 import type { Graph } from "../keys/graph.ts";
@@ -139,6 +139,27 @@ export class Recorder {
     const scope = graphScope(graph);
     this.index = new ItemIndex(view.values());
     this.generated = generatedIncludes(view.values(), (f) => scope.pkgOf(f), root);
+  }
+
+  /**
+   * A copy of the binary `nvs` in this run's directory, for the run to start and map in its place, and
+   * deleted with the directory. Another process can rebuild `nvs` while a long run records, from a
+   * different profile or a newer tree, and the copy keeps every record of the run to the one build it
+   * started with. It spends the binary's size on disk for the run's length. A copy is taken again when
+   * `nvs` changed while it was copied.
+   */
+  pin(nvs: string): string {
+    const copy = join(this.dir, basename(nvs));
+    for (let tries = 1; ; tries++) {
+      const before = statSync(nvs);
+      copyFileSync(nvs, copy);
+      const after = statSync(nvs);
+      if (before.size === after.size && before.mtimeMs === after.mtimeMs && before.ino === after.ino) {
+        this.covmap.pin(copy, { path: nvs, size: before.size, mtimeMs: before.mtimeMs });
+        return copy;
+      }
+      if (tries === 3) throw new Error(`${nvs} changed each time it was copied`);
+    }
   }
 
   /** The directory one atom's processes record into, made empty. */

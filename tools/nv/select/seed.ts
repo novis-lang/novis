@@ -90,7 +90,10 @@ export function failedLabels(out: string): Set<string> {
 /** What the runners below share: the recorder, the covws `nvs`, and how many runs go at once. */
 export interface Ctx {
   r: Recorder;
+  /** The `nvs` a recorded program runs: the run's pinned copy (`Recorder.pin`). */
   nvs: string;
+  /** The covws build's own `nvs`, which a test binary starts by the path it was compiled with. */
+  built: string;
   jobs: number;
   say: (line: string) => void;
   tally: (kind: AtomKind, verdict: Verdict, ext: Extracted | null) => void;
@@ -129,14 +132,14 @@ export async function seed(store: SelectStore, opts: SeedOptions = {}): Promise<
     const left = xs.filter((x) => !recorded.has(id(x)));
     return opts.limit ? left.slice(0, opts.limit) : left;
   };
-  const ctx: Ctx = { r, nvs: build.nvs, jobs, say, tally, root };
+  const ctx: Ctx = { r, nvs: r.pin(build.nvs), built: build.nvs, jobs, say, tally, root };
   try {
     if (kinds.includes("case")) {
       const cases = limit(caseFiles(root), caseId);
-      const ran = await recordCases(r, build.nvs, cases, { jobs, onBatch: (done, total) => say(`select: cases ${done}/${total}`), root });
+      const ran = await recordCases(r, ctx.nvs, cases, { jobs, onBatch: (done, total) => say(`select: cases ${done}/${total}`), root });
       for (const v of ran.verdicts.values()) tally("case", v, null);
     }
-    if (kinds.includes("proof")) await seedProofs(ctx, limit(await proofPrograms(build.nvs), (p) => proofId(p.path)));
+    if (kinds.includes("proof")) await seedProofs(ctx, limit(await proofPrograms(ctx.nvs), (p) => proofId(p.path)));
     if (kinds.includes("test")) await seedTests(ctx, limit([...build.tests].flatMap(([pkg, ts]) => ts.map((t) => ({ pkg, t }))), (x) => testId(x.pkg, x.t)));
     if (kinds.includes("nv")) await seedNv(ctx, limit(nvChecks(root), (c) => nvId(c.id)));
     // Every atom of the kinds seeded ran; the store's items and tree are the ones scanned above.
@@ -202,7 +205,7 @@ export async function seedTests(ctx: Ctx, exes: { pkg: string; t: TestExe }[]): 
     // `NOVIS_NO_FILE_CACHE` is not set: the binaries that test the cache would test nothing.
     const env = { ...ctx.r.env(name), ...(await ctx.r.cacheDir(name)), CARGO_MANIFEST_DIR: t.dir, RUST_TEST_THREADS: threads, NO_COLOR: "1" };
     const p = await run([t.exe], { cwd: t.dir, env, timeoutMs: 3_600_000, reap: true });
-    const ext = await ctx.r.keysOf(name, [t.exe, ctx.nvs]);
+    const ext = await ctx.r.keysOf(name, [t.exe, ctx.built]);
     const verdict: Verdict = p.code === 0 && ext ? "green" : "red";
     ctx.r.record(id, "", verdict, testKeys(ext, id.slice(5)));
     ctx.tally("test", verdict, ext);

@@ -11,6 +11,10 @@
 // - every check of the plan that a shut floor gate does not hold and that is its own atom, a fixture or a
 //   command, `bun nv` ones among them, as the sweep runs it (`driver/runner.ts` `PlanSweep`).
 //
+// The cases and the proof programs run a copy of the covws `nvs` taken when the build ends
+// (`Recorder.pin`), so a rebuild by another process during the run changes nothing they record. The
+// test executables start the build's own `nvs`, the path they were compiled with.
+//
 // The heavy checks keep the floor gate's own cadence and are not run here. The store's tree then moves
 // past the change, as after any sweep.
 //
@@ -155,12 +159,12 @@ export async function fullRun(store: SelectStore, opts: FullOptions = {}): Promi
   }
 
   const r = await Recorder.open(store, sweep.change.view, sweep.graph, "full", { root, say });
-  const ctx: Ctx = { r, nvs: build.nvs, jobs, say, tally: () => {}, root };
+  const ctx: Ctx = { r, nvs: r.pin(build.nvs), built: build.nvs, jobs, say, tally: () => {}, root };
   try {
     if (kinds.has("case")) {
-      await recordCases(r, build.nvs, caseFiles(root), { jobs, onBatch: (done, total) => say(`select: cases ${done}/${total}`), root });
+      await recordCases(r, ctx.nvs, caseFiles(root), { jobs, onBatch: (done, total) => say(`select: cases ${done}/${total}`), root });
     }
-    if (kinds.has("proof")) await seedProofs(ctx, await proofPrograms(build.nvs));
+    if (kinds.has("proof")) await seedProofs(ctx, await proofPrograms(ctx.nvs));
     if (kinds.has("test")) await seedTests(ctx, [...build.tests].flatMap(([pkg, ts]) => ts.map((t) => ({ pkg, t }))));
     if (kinds.has("nvtest")) {
       say("select: tsc --noEmit");

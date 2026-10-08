@@ -113,6 +113,13 @@ export function parseExport(json: string): Record<string, CovLoc> {
   return out;
 }
 
+/** A binary a pinned copy was taken from (`CovMap.pin`). */
+export interface Original {
+  path: string;
+  size: number;
+  mtimeMs: number;
+}
+
 /** Name to location for the objects an atom ran, each object's map cached on disk by its path, size and
  * modification time, and the last few in memory under the identity of the file they were read from. A
  * rebuilt object's new map replaces its old one, so the cache holds one map per object path.
@@ -125,15 +132,23 @@ export class CovMap {
   private maps = new Map<string, { id: string; map: Map<string, CovLoc> }>();
   private pending = new Map<string, Promise<Map<string, CovLoc>>>();
   private objects: string[] = [];
+  /** Each pinned copy's original: its path, and its size and modification time when it was copied. */
+  private pins = new Map<string, Original>();
 
   constructor(
     private readonly dir: string = COVMAP_DIR,
     private readonly keep = 6,
   ) {}
 
+  /** Takes `copy` as the build `original` describes, so the copy's map is cached and replaced on disk
+   * under the original's path, and a copy of a build whose map is cached exports nothing. */
+  pin(copy: string, original: Original): void {
+    this.pins.set(copy, original);
+  }
+
   private cacheFile(object: string): string {
-    const st = statSync(object);
-    return join(this.dir, `${digest(object, String(st.size), String(st.mtimeMs)).slice(0, 24)}.json`);
+    const st = this.pins.get(object) ?? statSync(object);
+    return join(this.dir, `${digest(this.pins.get(object)?.path ?? object, String(st.size), String(st.mtimeMs)).slice(0, 24)}.json`);
   }
 
   /** What tells one build of `object` from another: its size, modification time and file id. */
@@ -155,7 +170,7 @@ export class CovMap {
       else map = parseExport(r.stdout);
       mkdirSync(this.dir, { recursive: true });
       writeFileSync(cache, JSON.stringify(map));
-      this.replaced(object, cache);
+      this.replaced(this.pins.get(object)?.path ?? object, cache);
     }
     return new Map(Object.entries(map));
   }

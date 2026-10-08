@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { sinceOverlay } from "../select/change.ts";
 import { CovMap } from "../select/extract.ts";
 import { ALL_NAMES, pathKeys, readsKeys, spawnKeys } from "../select/keys.ts";
-import { advance, caseLabels, depInfoPaths, NO_ADVANCE_ENV } from "../select/record.ts";
+import { advance, caseLabels, depInfoPaths, NO_ADVANCE_ENV, Recorder } from "../select/record.ts";
 import { type ChangeSet, query } from "../select/select.ts";
 import { SelectStore } from "../select/store.ts";
 import { digest } from "../keys/scan.ts";
@@ -208,6 +208,28 @@ describe("the readers a recorded run needs", () => {
       expect(cm.get("_RNvCsNEW_3pkg3run")).toEqual(["src/a.rs", 1, 2]);
       expect(cm.get("_RNvCsOLD_3pkg3run")).toBeUndefined();
     } finally {
+      s.cleanup();
+    }
+  });
+
+  test("a pinned copy keeps the build it was taken from, and its map is cached under the original's key", async () => {
+    const s = scratch();
+    const store = new SelectStore(":memory:");
+    try {
+      const nvs = join(s.root, "nvs.bin");
+      s.put("nvs.bin", "the build the run started with");
+      const cacheFile = (cm: CovMap) => (cm as unknown as { cacheFile(o: string): string }).cacheFile.bind(cm);
+      const originalKey = cacheFile(new CovMap())(nvs);
+      const r = await Recorder.open(store, new Map(), null, "pin", { root: s.root });
+      const copy = r.pin(nvs);
+      expect(copy).not.toBe(nvs);
+      expect(cacheFile(r.covmap)(copy)).toBe(originalKey);
+      s.put("nvs.bin", "a build another process made later");
+      expect(readFileSync(copy, "utf8")).toBe("the build the run started with");
+      r.close();
+      expect(existsSync(copy)).toBe(false);
+    } finally {
+      store.close();
       s.cleanup();
     }
   });
