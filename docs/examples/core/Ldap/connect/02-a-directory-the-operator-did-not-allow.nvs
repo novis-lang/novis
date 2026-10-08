@@ -1,0 +1,11 @@
+<?nvs
+// Shows what happens when a program opens a directory the operator did not allow.
+// `[capabilities.ldap] connect` in `nvs.toml` lists the names a program may open.
+// This program may open `corp`, but not `hr`, so the call throws a `RuntimeError`.
+
+try {
+    Core\Ldap::connect("hr");
+    echo "The directory is open.\n";
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}

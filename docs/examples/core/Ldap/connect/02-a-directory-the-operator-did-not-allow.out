@@ -1,0 +1,2 @@
+Core\Ldap::connect needs the capability `ldap.connect` for hr, which is not granted
+help: grant it in nvs.toml under `[capabilities.ldap]`

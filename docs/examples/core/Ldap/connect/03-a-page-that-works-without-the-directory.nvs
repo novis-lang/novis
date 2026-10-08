@@ -1,0 +1,22 @@
+<?nvs
+// Shows how a page can still show a name when the directory does not answer.
+
+class People {
+    // Returns the full name of a person from the `[ldap.corp]` directory, or the login name.
+    // The result is `tainted`, because a value from the directory comes from outside the program.
+    public static function displayName(string $login): tainted string {
+        try {
+            var $corp = Core\Ldap::connect("corp");
+            var $people = $corp->search(Core\Ldap\Filter::equals("sAMAccountName", $login), {select: ["displayName"]});
+            foreach ($people as Core\Ldap\Entry $person) {
+                return $person->string("displayName") ?? $login;
+            }
+        } catch (Core\Ldap\LdapError $error) {
+            // The directory did not answer. The login name below is the result.
+        }
+        return $login;
+    }
+}
+
+// No directory server runs where this example runs, so this prints `Hello, anna`.
+echo "Hello, ", People::displayName("anna"), "\n";

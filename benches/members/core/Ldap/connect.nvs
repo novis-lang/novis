@@ -1,0 +1,28 @@
+<?nvs
+// Measures how fast `Core\Ldap::connect` throws for a name that is not allowed.
+// A program meets this when it takes the directory name from a request.
+// bench: iterations 20000
+// bench: calls 0
+// bench: complexity constant
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // The count so far chooses the name, so the loop cannot be left out.
+        // No block has either name, so every round throws an error.
+        array<string> $names = ["hr", "sales"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            try {
+                Core\Ldap::connect($names[($total % 2) as int]);
+                $total = $total + 2;
+            } catch (RuntimeError $error) {
+                $total = $total + 1;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(20000), "\n";

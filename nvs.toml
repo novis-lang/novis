@@ -867,6 +867,81 @@ entry = "tests/hostile/core/Mail/send/01-headers-hidden-in-every-field.nvs"
 [app.capabilities.mail]
 send = ["shop"]
 
+# `Core\Ldap::connect`'s and `Core\Ldap::open`'s proof programs. `connect` is granted
+# `[ldap.corp]`, which dials a closed port. `open` is granted loopback, and `net.internal` lets that
+# address through the outbound policy, so the dial is refused by the closed port and not the policy.
+[[app]]
+entry = "docs/examples/core/Ldap/connect/01-sign-in-to-the-company-directory.nvs"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+entry = "docs/examples/core/Ldap/connect/02-a-directory-the-operator-did-not-allow.nvs"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+entry = "docs/examples/core/Ldap/connect/03-a-page-that-works-without-the-directory.nvs"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+entry = "tests/hostile/core/Ldap/connect/01-names-a-program-chose.nvs"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+entry = "benches/members/core/Ldap/connect.nvs"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+entry = "docs/examples/core/Ldap/open/01-open-a-directory-the-program-names.nvs"
+
+[app.capabilities.ldap]
+open = ["127.0.0.1"]
+
+[app.capabilities.net]
+internal = ["127.0.0.1"]
+
+[[app]]
+entry = "docs/examples/core/Ldap/open/02-a-host-the-operator-did-not-allow.nvs"
+
+[app.capabilities.ldap]
+open = ["127.0.0.1"]
+
+[app.capabilities.net]
+internal = ["127.0.0.1"]
+
+[[app]]
+entry = "docs/examples/core/Ldap/open/03-plain-text-needs-its-own-grant.nvs"
+
+[app.capabilities.ldap]
+open = ["127.0.0.1"]
+
+[app.capabilities.net]
+internal = ["127.0.0.1"]
+
+[[app]]
+entry = "tests/hostile/core/Ldap/open/01-settings-a-request-chose.nvs"
+
+[app.capabilities.ldap]
+open = ["127.0.0.1"]
+
+[app.capabilities.net]
+internal = ["127.0.0.1"]
+
+[[app]]
+entry = "benches/members/core/Ldap/open.nvs"
+
+[app.capabilities.ldap]
+open = ["127.0.0.1"]
+
 # `Core\Db\Column`'s proof programs, granted the same way and for the same reason: a description is
 # read off a statement, so every one of these opens `[db.notes]` by name and asks for nothing else.
 [[app]]
@@ -2649,6 +2724,15 @@ path = ":memory:"
 host = "127.0.0.1"
 port = 1
 from = "shop@example.com"
+timeout = "5s"
+
+# `Core\Ldap::connect`'s proof programs open this block, on `[mail.shop]`'s footing: port 1 on
+# loopback has no listener, so every dial is refused and every run ends with the same `LdapError`
+# and no password sent. The cases that reach Samba write their own `[ldap.corp]` beside them.
+[ldap.corp]
+url = "ldaps://127.0.0.1:1"
+user = "CN=Reader,CN=Users,DC=example,DC=test"
+password = "Example-Pw1"
 timeout = "5s"
 
 # The backend `rule:core-classes/queue-storage-is-a-table`'s schema had no hand-written list for, and

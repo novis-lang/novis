@@ -1,0 +1,15 @@
+<?nvs
+// Shows what happens when a program opens a directory on a host the operator did
+// not allow. `[capabilities.ldap] open` in `nvs.toml` lists the hosts. This
+// program may open `127.0.0.1` only, so the call throws a `RuntimeError`.
+
+try {
+    Core\Ldap::open({
+        url: "ldaps://dc1.example.test",
+        user: "CN=Reader,CN=Users,DC=example,DC=test",
+        password: "Example-Pw1",
+    });
+    echo "The directory is open.\n";
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}

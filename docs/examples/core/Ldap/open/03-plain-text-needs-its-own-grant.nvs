@@ -1,0 +1,17 @@
+<?nvs
+// Shows that a connection without encryption needs its own permission.
+// `Tls::None` sends the password as plain text. The host must also be listed in
+// `[capabilities.ldap] cleartext` in `nvs.toml`, and here it is not.
+
+try {
+    Core\Ldap::open({
+        url: "ldap://127.0.0.1:1",
+        user: "CN=Reader,CN=Users,DC=example,DC=test",
+        password: "Example-Pw1",
+        tls: Core\Ldap\Tls::None,
+    });
+    echo "The directory is open.\n";
+} catch (Core\Ldap\LdapError $error) {
+    // This prints `EncryptionRequired`.
+    echo $error->kind == Core\Ldap\ErrorKind::EncryptionRequired ? "EncryptionRequired" : "another reason", "\n";
+}

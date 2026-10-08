@@ -103,6 +103,7 @@ fn block_at(url: &str, ca: Option<&PathBuf>) -> LdapDirectory {
     }
 }
 
+// covers: Core\Ldap::connect
 #[test]
 fn connect_reads_its_block_and_needs_the_ldap_connect_grant() {
     // Port 1 on loopback: nothing listens there, so the dial fails at once.
@@ -155,6 +156,7 @@ fn connect_reads_its_block_and_needs_the_ldap_connect_grant() {
     );
 }
 
+// covers: Core\Ldap::open
 #[test]
 fn open_needs_the_ldap_open_grant_and_passes_the_address_policy() {
     let settings = ldap::Settings {

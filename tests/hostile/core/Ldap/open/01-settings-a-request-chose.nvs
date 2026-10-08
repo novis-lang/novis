@@ -1,0 +1,88 @@
+<?nvs
+// Attack: a program opens directories at addresses the operator did not allow,
+// and with URLs that are not LDAP at all. Every one must throw an error before a
+// password is sent. None of these attempts may stop the program.
+// hostile: timeout-ms 60000
+
+class Attempt
+{
+    // Opens one URL with a user and a password, and returns 1 if it threw an error.
+    public static function open(string $url): uint
+    {
+        try {
+            Core\Ldap::open({ url: $url, user: 'CN=Reader,DC=example,DC=test', password: 'Example-Pw1' });
+            return 0;
+        } catch (Throwable $error) {
+            return 1;
+        }
+    }
+}
+
+// 1. Hosts the grant does not name: private networks, the cloud metadata address,
+// other names for this computer, and a name that only starts like the allowed one.
+array<string> $hosts = [
+    'ldaps://10.0.0.1',
+    'ldaps://192.168.1.10:636',
+    'ldaps://169.254.169.254',
+    'ldaps://localhost:1',
+    'ldaps://[::1]:1',
+    'ldaps://0.0.0.0:1',
+    'ldaps://127.0.0.2:1',
+    'ldaps://127.0.0.1.example.test',
+    'ldaps://2130706433:1',
+];
+uint $refused = 0;
+foreach ($hosts as string $url) {
+    $refused = $refused + Attempt::open($url);
+}
+echo '1 hosts refused: ', $refused, ' of ', Core\Arr::count($hosts), "\n";
+
+// 2. URLs that are not one LDAP URL. Some use another scheme or have no host. Others
+// have a bad port, two URLs, a line break, a user name, or 100000 letters.
+array<string> $urls = [
+    'http://127.0.0.1:1',
+    'ldapi://%2Ftmp%2Fldap.sock',
+    'file:///etc/passwd',
+    '',
+    'ldaps://',
+    'ldaps://127.0.0.1:99999',
+    'ldaps://127.0.0.1:1 ldaps://10.0.0.1',
+    "ldaps://127.0.0.1:1\r\nldaps://10.0.0.1",
+    'ldaps://admin@127.0.0.1:1',
+    'ldaps://' . Core\Str::repeat('a', 100000),
+];
+$refused = 0;
+foreach ($urls as string $url) {
+    $refused = $refused + Attempt::open($url);
+}
+echo '2 URLs refused: ', $refused, ' of ', Core\Arr::count($urls), "\n";
+
+// 3. The allowed host with an empty password, a user of a hundred thousand
+// letters, and plain text that `cleartext` does not allow.
+uint $threw = 0;
+try {
+    Core\Ldap::open({ url: 'ldaps://127.0.0.1:1', user: 'CN=Reader,DC=example,DC=test', password: '' });
+} catch (Throwable $emptyPassword) {
+    $threw = $threw + 1;
+}
+try {
+    Core\Ldap::open({ url: 'ldaps://127.0.0.1:1', user: Core\Str::repeat('u', 100000), password: 'Example-Pw1' });
+} catch (Throwable $longUser) {
+    $threw = $threw + 1;
+}
+try {
+    Core\Ldap::open({ url: 'ldap://127.0.0.1:1', user: 'CN=Reader,DC=example,DC=test', password: 'Example-Pw1', tls: Core\Ldap\Tls::None });
+} catch (Throwable $plainText) {
+    $threw = $threw + 1;
+}
+echo '3 threw: ', $threw, " of 3\n";
+
+// 4. Twenty thousand hosts the grant does not name, one per round. Each one
+// throws an error, and nothing may be left behind.
+$refused = 0;
+uint $i = 0;
+while ($i < 20000) {
+    $refused = $refused + Attempt::open('ldaps://dc' . ($i as string) . '.example.test');
+    $i = $i + 1;
+}
+echo '4 refused: ', $refused, "\n";

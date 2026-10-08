@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to open a directory by its name and find one person in it.
+// `Core\Ldap::connect` opens the `[ldap.corp]` block of `nvs.toml`. No directory
+// server runs where this example runs, so the call throws a `Core\Ldap\LdapError`.
+
+try {
+    var $corp = Core\Ldap::connect("corp");
+    var $people = $corp->search(Core\Ldap\Filter::equals("sAMAccountName", "anna"), {select: ["mail"]});
+    foreach ($people as Core\Ldap\Entry $person) {
+        echo $person->string("mail") ?? "no mail address", "\n";
+    }
+} catch (Core\Ldap\LdapError $error) {
+    // `kind` says why the call failed. Here it is `Unavailable`.
+    echo "The directory did not answer.\n";
+    echo $error->kind == Core\Ldap\ErrorKind::Unavailable ? "Unavailable" : "another reason", "\n";
+}

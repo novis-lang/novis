@@ -1,0 +1,64 @@
+<?nvs
+// Attack: a program asks for every directory name it can think of. Only the
+// operator decides which names a program may open, so every name here but
+// `corp` must throw an error. None of these attempts may stop the program.
+// hostile: timeout-ms 60000
+
+// 1. Twenty thousand names no block has, one per round. Each one throws an error,
+// and nothing may be left behind.
+uint $opened = 0;
+uint $refused = 0;
+uint $i = 0;
+while ($i < 20000) {
+    try {
+        Core\Ldap::connect('corp-' . ($i as string));
+        $opened = $opened + 1;
+    } catch (Throwable $error) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo '1 opened: ', $opened, ', refused: ', $refused, "\n";
+
+// 2. Names no block can have: a hundred thousand letters, only spaces, no name at
+// all, the right name in capitals, and names written to look like the settings file.
+array<string> $bad = [
+    Core\Str::repeat('c', 100000),
+    '   ',
+    '',
+    'CORP',
+    'corp] [ldap.other',
+    'corp.pool',
+    "corp\nurl = \"ldap://10.0.0.1\"",
+];
+uint $threw = 0;
+foreach ($bad as string $name) {
+    try {
+        Core\Ldap::connect($name);
+    } catch (Throwable $badName) {
+        $threw = $threw + 1;
+    }
+}
+echo '2 names refused: ', $threw, ' of ', Core\Arr::count($bad), "\n";
+
+// 3. The one allowed name, several times. Its server does not answer, so every
+// call throws an error, and a failed call may not leave a connection behind.
+uint $failed = 0;
+$i = 0;
+while ($i < 5) {
+    try {
+        Core\Ldap::connect('corp');
+    } catch (Throwable $unanswered) {
+        $failed = $failed + 1;
+    }
+    $i = $i + 1;
+}
+echo '3 failed: ', $failed, " of 5\n";
+
+// 4. A name no block has, after all of the above. It still throws an error.
+try {
+    Core\Ldap::connect('hr');
+    echo "4 opened\n";
+} catch (RuntimeError $denied) {
+    echo "4 refused\n";
+}

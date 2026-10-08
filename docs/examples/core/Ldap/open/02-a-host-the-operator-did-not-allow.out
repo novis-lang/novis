@@ -1,0 +1,2 @@
+Core\Ldap::open needs the capability `ldap.open` for dc1.example.test, which is not granted
+help: grant it in nvs.toml under `[capabilities.ldap]`
