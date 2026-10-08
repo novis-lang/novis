@@ -26269,7 +26269,7 @@ Returns every attribute of the entry as an array. Each key is an attribute name,
 <a id="core-core-ldap-filter"></a>
 ### `Core\Ldap\Filter`
 
-Keywords: equals, startsWith, endsWith, contains, present, atLeast, atMost, approx, all, any, not, toString
+Keywords: equals, startsWith, endsWith, contains, present, atLeast, atMost, approx, all, any, not, parse, toString
 
 | Member | Signature |
 |---|---|
@@ -26284,6 +26284,7 @@ Keywords: equals, startsWith, endsWith, contains, present, atLeast, atMost, appr
 | [`Core\Ldap\Filter::all`](#core-core-ldap-filter-all) | `all(Core\Ldap\Filter ...$filters): Core\Ldap\Filter` |
 | [`Core\Ldap\Filter::any`](#core-core-ldap-filter-any) | `any(Core\Ldap\Filter ...$filters): Core\Ldap\Filter` |
 | [`Core\Ldap\Filter::not`](#core-core-ldap-filter-not) | `not(Core\Ldap\Filter $filter): Core\Ldap\Filter` |
+| [`Core\Ldap\Filter::parse`](#core-core-ldap-filter-parse) | `parse(string $text): Core\Ldap\Filter` |
 | [`Core\Ldap\Filter->toString`](#core-core-ldap-filter-tostring) | `toString(): tainted string` |
 
 <a id="core-core-ldap-filter-equals"></a>
@@ -26477,6 +26478,23 @@ Matches the entries that the filter does not match.
 | `$filter` | `Core\Ldap\Filter` | The filter to reverse. |
 
 **Returns** `Core\Ldap\Filter` — A `Core\Ldap\Filter`.
+
+<a id="core-core-ldap-filter-parse"></a>
+#### `Core\Ldap\Filter::parse`
+
+```nvs skip
+Core\Ldap\Filter::parse(string $text): Core\Ldap\Filter
+```
+
+Reads LDAP filter text, such as `(&(objectClass=user)(cn=Ann))`, and returns the filter it describes. Use it for a filter that you wrote, for example in a configuration file.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$text` | `string` (sink) | The filter text, as RFC 4515 writes it. It cannot be `tainted`. Build a filter from user input with `equals` and the other functions of this class. |
+
+**Returns** `Core\Ldap\Filter` — A `Core\Ldap\Filter`. Its `toString` returns text that `parse` reads back as the same filter.
+
+**Throws** `LogicError` — The text is not a filter, or it has a name that is not an attribute name. The message gives the position of the first wrong character.
 
 <a id="core-core-ldap-filter-tostring"></a>
 #### `Core\Ldap\Filter->toString`
