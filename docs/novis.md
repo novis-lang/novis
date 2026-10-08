@@ -216,6 +216,7 @@ Conventions the whole file uses:
 | [`Core\Ldap\Entries`](#core-core-ldap-entries) |  |
 | [`Core\Ldap\Entry`](#core-core-ldap-entry) |  |
 | [`Core\Ldap\Filter`](#core-core-ldap-filter) |  |
+| [`Core\Ldap\Change`](#core-core-ldap-change) |  |
 | [`Core\Ldap\Dn`](#core-core-ldap-dn) |  |
 | [`Core\Ldap\Sid`](#core-core-ldap-sid) |  |
 | [`Core\Ldap\Ad`](#core-core-ldap-ad) |  |
@@ -26124,13 +26125,17 @@ Opens a directory at a URL the program gives. Needs the `ldap.open` capability f
 <a id="core-core-ldap-connection"></a>
 ### `Core\Ldap\Connection`
 
-Keywords: whoami, search, read
+Keywords: whoami, search, read, add, modify, delete, rename
 
 | Member | Signature |
 |---|---|
 | [`Core\Ldap\Connection->whoami`](#core-core-ldap-connection-whoami) | `whoami(): string` |
 | [`Core\Ldap\Connection->search`](#core-core-ldap-connection-search) | `search(Core\Ldap\Filter $filter, {base?: Core\Ldap\Dn\|string, scope?: Core\Ldap\Scope, select?: array<string>, pageSize?: int, sizeLimit?: int}): Core\Ldap\Entries` |
 | [`Core\Ldap\Connection->read`](#core-core-ldap-connection-read) | `read(Core\Ldap\Dn\|string $dn, {select?: array<string>}): ?Core\Ldap\Entry` |
+| [`Core\Ldap\Connection->add`](#core-core-ldap-connection-add) | `add(Core\Ldap\Dn\|string $dn, array<mixed> $attributes): void` |
+| [`Core\Ldap\Connection->modify`](#core-core-ldap-connection-modify) | `modify(Core\Ldap\Dn\|string $dn, array<Core\Ldap\Change> $changes): void` |
+| [`Core\Ldap\Connection->delete`](#core-core-ldap-connection-delete) | `delete(Core\Ldap\Dn\|string $dn): void` |
+| [`Core\Ldap\Connection->rename`](#core-core-ldap-connection-rename) | `rename(Core\Ldap\Dn\|string $from, Core\Ldap\Dn\|string $to): void` |
 
 <a id="core-core-ldap-connection-whoami"></a>
 #### `Core\Ldap\Connection->whoami`
@@ -26184,6 +26189,77 @@ Reads the one entry at a DN.
 **Returns** `?Core\Ldap\Entry` — A `Core\Ldap\Entry`, or `null` when no entry has this DN.
 
 **Throws** `LogicError` — A name in `select` is not an attribute name, or the connection is closed.; `Core\Ldap\LdapError` — The server returned an error other than "no such entry".
+
+<a id="core-core-ldap-connection-add"></a>
+#### `Core\Ldap\Connection->add`
+
+```nvs skip
+$connection->add(Core\Ldap\Dn|string $dn, array<mixed> $attributes): void
+```
+
+Adds a new entry to the directory.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$dn` | `Core\Ldap\Dn\|string` (sink) | The entry's DN, as a `Dn` or as text. Text cannot be `tainted`. Build a DN from user input with `Dn::of` or `child`. |
+| `$attributes` | `array<mixed>` | The entry's attributes, keyed by name, such as `['objectClass' => ['top', 'group'], 'cn' => 'Staff']`. A value is written in the form the readers of `Entry` return it, and a list writes one value per element. |
+
+**Returns** `void` — Nothing.
+
+**Throws** `LogicError` — An attribute name is not a name, a value has no LDAP form, such as a `float`, or the connection is closed.; `Core\Ldap\LdapError` — The server returned an error. `$kind` says why, such as `NoSuchObject`, `AlreadyExists`, `InsufficientAccess` or `ConstraintViolation`.
+
+<a id="core-core-ldap-connection-modify"></a>
+#### `Core\Ldap\Connection->modify`
+
+```nvs skip
+$connection->modify(Core\Ldap\Dn|string $dn, array<Core\Ldap\Change> $changes): void
+```
+
+Changes the attributes of one entry. The server makes every change in the list, in order, or none of them.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$dn` | `Core\Ldap\Dn\|string` (sink) | The entry's DN, as a `Dn` or as text. Text cannot be `tainted`. Build a DN from user input with `Dn::of` or `child`. |
+| `$changes` | `array<Core\Ldap\Change>` | The changes, each made with `Change::add`, `remove`, `removeAll` or `replace`. The list cannot be empty. |
+
+**Returns** `void` — Nothing.
+
+**Throws** `LogicError` — An attribute name is not a name, a value has no LDAP form, such as a `float`, or the connection is closed.; `Core\Ldap\LdapError` — The server returned an error. `$kind` says why, such as `NoSuchObject`, `AlreadyExists`, `InsufficientAccess` or `ConstraintViolation`.
+
+<a id="core-core-ldap-connection-delete"></a>
+#### `Core\Ldap\Connection->delete`
+
+```nvs skip
+$connection->delete(Core\Ldap\Dn|string $dn): void
+```
+
+Deletes one entry. An entry with entries below it cannot be deleted.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$dn` | `Core\Ldap\Dn\|string` (sink) | The entry's DN, as a `Dn` or as text. Text cannot be `tainted`. Build a DN from user input with `Dn::of` or `child`. |
+
+**Returns** `void` — Nothing.
+
+**Throws** `LogicError` — An attribute name is not a name, a value has no LDAP form, such as a `float`, or the connection is closed.; `Core\Ldap\LdapError` — The server returned an error. `$kind` says why, such as `NoSuchObject`, `AlreadyExists`, `InsufficientAccess` or `ConstraintViolation`.
+
+<a id="core-core-ldap-connection-rename"></a>
+#### `Core\Ldap\Connection->rename`
+
+```nvs skip
+$connection->rename(Core\Ldap\Dn|string $from, Core\Ldap\Dn|string $to): void
+```
+
+Gives an entry a new DN. The entry moves when the new DN has another parent.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$from` | `Core\Ldap\Dn\|string` (sink) | The entry's DN now, as a `Dn` or as text. Text cannot be `tainted`. |
+| `$to` | `Core\Ldap\Dn\|string` (sink) | The entry's new DN, such as `CN=Shop,OU=Groups,DC=example,DC=test`. Text cannot be `tainted`. |
+
+**Returns** `void` — Nothing.
+
+**Throws** `LogicError` — `from` or `to` is text that is not a DN, or the connection is closed.; `Core\Ldap\LdapError` — The server returned an error, such as `NoSuchObject` or `AlreadyExists`.
 
 <a id="core-core-ldap-entries"></a>
 ### `Core\Ldap\Entries`
@@ -26717,6 +26793,89 @@ $filter->toString(): tainted string
 Returns the filter as LDAP filter text, such as `(&(objectClass=user)(cn=Ann))`. Use it to write the filter to a log. A search does not use this text.
 
 **Returns** `tainted string` — The text. A `*`, `(`, `)` or `\` in a value is written as `\` and two hex digits. The text is `tainted`, because a value in the filter may be.
+
+<a id="core-core-ldap-change"></a>
+### `Core\Ldap\Change`
+
+Keywords: add, remove, removeAll, replace
+
+| Member | Signature |
+|---|---|
+| [`Core\Ldap\Change::add`](#core-core-ldap-change-add) | `add(string $attribute, mixed $value): Core\Ldap\Change` |
+| [`Core\Ldap\Change::remove`](#core-core-ldap-change-remove) | `remove(string $attribute, mixed $value): Core\Ldap\Change` |
+| [`Core\Ldap\Change::removeAll`](#core-core-ldap-change-removeall) | `removeAll(string $attribute): Core\Ldap\Change` |
+| [`Core\Ldap\Change::replace`](#core-core-ldap-change-replace) | `replace(string $attribute, mixed $value): Core\Ldap\Change` |
+
+<a id="core-core-ldap-change-add"></a>
+#### `Core\Ldap\Change::add`
+
+```nvs skip
+Core\Ldap\Change::add(string $attribute, mixed $value): Core\Ldap\Change
+```
+
+Adds values to an attribute. The entry must not have them yet.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$attribute` | `string` (sink) | The attribute's name, such as `description`. It cannot be `tainted`. |
+| `$value` | `mixed` | One value, or a list of values. A value is written in the form the readers of `Entry` return it, such as an `int`, a `Uuid` or an `Instant`. |
+
+**Returns** `Core\Ldap\Change` — The change.
+
+**Throws** `LogicError` — `attribute` is not an attribute name.
+
+<a id="core-core-ldap-change-remove"></a>
+#### `Core\Ldap\Change::remove`
+
+```nvs skip
+Core\Ldap\Change::remove(string $attribute, mixed $value): Core\Ldap\Change
+```
+
+Removes values from an attribute. The entry must have them.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$attribute` | `string` (sink) | The attribute's name, such as `description`. It cannot be `tainted`. |
+| `$value` | `mixed` | One value, or a list of values. A value is written in the form the readers of `Entry` return it, such as an `int`, a `Uuid` or an `Instant`. |
+
+**Returns** `Core\Ldap\Change` — The change.
+
+**Throws** `LogicError` — `attribute` is not an attribute name.
+
+<a id="core-core-ldap-change-removeall"></a>
+#### `Core\Ldap\Change::removeAll`
+
+```nvs skip
+Core\Ldap\Change::removeAll(string $attribute): Core\Ldap\Change
+```
+
+Removes an attribute and every value it has.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$attribute` | `string` (sink) | The attribute's name, such as `description`. It cannot be `tainted`. |
+
+**Returns** `Core\Ldap\Change` — The change.
+
+**Throws** `LogicError` — `attribute` is not an attribute name.
+
+<a id="core-core-ldap-change-replace"></a>
+#### `Core\Ldap\Change::replace`
+
+```nvs skip
+Core\Ldap\Change::replace(string $attribute, mixed $value): Core\Ldap\Change
+```
+
+Replaces every value of an attribute. With `null` or an empty list, the attribute is removed.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$attribute` | `string` (sink) | The attribute's name, such as `description`. It cannot be `tainted`. |
+| `$value` | `mixed` | One value, or a list of values. A value is written in the form the readers of `Entry` return it, such as an `int`, a `Uuid` or an `Instant`. |
+
+**Returns** `Core\Ldap\Change` — The change.
+
+**Throws** `LogicError` — `attribute` is not an attribute name.
 
 <a id="core-core-ldap-dn"></a>
 ### `Core\Ldap\Dn`
