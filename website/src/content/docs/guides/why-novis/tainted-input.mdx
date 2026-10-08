@@ -16,13 +16,7 @@ These are safe ways to use the value.
 
 Using a tainted value as a plain `string` does not compile:
 
-```txt
-error[E0401]: expected `string`, found `tainted string`
-  --> form.nvs:3:17
-  |
-3 | string $plain = $comment;
-  |                 ^^^^^^^^ this is `tainted string`
-```
+<Snippet src="guides/why-novis/tainted-input-error.nvs" />
 
 The compiler finds the mistake before the program runs. No person has to find it in a code review.
 

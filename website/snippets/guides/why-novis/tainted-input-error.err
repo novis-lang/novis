@@ -1,0 +1,8 @@
+error[E0401]: expected `string`, found `tainted string`
+  --> tainted-input-error.nvs:4:17
+  |
+4 | string $plain = $comment;
+  |                 ^^^^^^^^ this is `tainted string`
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.
