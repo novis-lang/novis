@@ -1,0 +1,40 @@
+--TEST--
+`search` and `read` both throw `LogicError` for a `select` name RFC 4512 does not allow, before anything is sent, and accept a name with an option — ADR 0278 § 5
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+var $dn = "CN=Administrator,CN=Users,DC=example,DC=test";
+array<string> $bad = ["cn)(objectClass=*", "*", "1cn", ""];
+int $thrown = 0;
+foreach ($bad as var $name) {
+    try {
+        $corp->read($dn, {select: ["cn", $name]});
+    } catch (LogicError $notAName) {
+        $thrown = $thrown + 1;
+    }
+    try {
+        $corp->search(Core\Ldap\Filter::present("cn"), {select: [$name]});
+    } catch (LogicError $notAName) {
+        $thrown = $thrown + 1;
+    }
+}
+echo "thrown: ", $thrown, " of ", Core\Arr::count($bad) * 2, "\n";
+
+// `cn;lang-en` is an attribute name with an option, so it is allowed.
+var $admin = $corp->read($dn, {select: ["cn;lang-en"]});
+echo "with an option: ", $admin == null ? "no entry" : "read", "\n";
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+base = "DC=example,DC=test"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+thrown: 8 of 8
+with an option: read

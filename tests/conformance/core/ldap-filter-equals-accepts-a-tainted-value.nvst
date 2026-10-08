@@ -1,0 +1,15 @@
+--TEST--
+`Filter::equals` accepts a `tainted` value, because the value is encoded as data and is never parsed as filter text — ADR 0278 § 5 and `rule:security/tainted-qualifier`
+--FILE--
+<?nvs
+class Logins {
+    public static function filter(tainted string $login): Core\Ldap\Filter {
+        return Core\Ldap\Filter::equals("sAMAccountName", $login);
+    }
+}
+
+// A value with filter syntax in it is still one value to compare against.
+var $filter = Logins::filter("*)(objectClass=*");
+echo $filter is Core\Ldap\Filter ? "a Filter" : "other", "\n";
+--EXPECT--
+a Filter

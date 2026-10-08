@@ -1,0 +1,50 @@
+--TEST--
+Core\Ldap::connect binds as its block, `whoami` returns that identity, `search` finds an entry by an equality filter and `read` reads the same entry by its DN — ADR 0278 § 1, § 5 and § 6
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+echo "bound as: ", $corp->whoami(), "\n";
+
+// The filter matches the one account whose login name is `Administrator`.
+var $admins = $corp->search(
+    Core\Ldap\Filter::equals("sAMAccountName", "Administrator"),
+    {select: ["sAMAccountName", "objectClass"]},
+);
+int $found = 0;
+foreach ($admins as Core\Ldap\Entry $entry) {
+    $found = $found + 1;
+    echo "dn: ", $entry->dn(), "\n";
+    // A name matches without case, as it does in LDAP.
+    echo "login: ", $entry->string("samaccountname") ?? "none", "\n";
+    var $classes = $entry->strings("objectClass");
+    if ($classes != null) {
+        echo "is a user: ", Core\Arr::contains($classes, "user") ? "yes" : "no", "\n";
+    }
+}
+echo "found: ", $found, "\n";
+
+// `read` returns the entry at a DN, and `null` when there is none.
+var $same = $corp->read("CN=Administrator,CN=Users,DC=example,DC=test");
+echo "read: ", $same?->dn() ?? "none", "\n";
+var $missing = $corp->read("CN=Nobody,CN=Users,DC=example,DC=test");
+echo "missing: ", $missing == null ? "null" : "an entry", "\n";
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+base = "DC=example,DC=test"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+bound as: u:EXAMPLE\Administrator
+dn: CN=Administrator,CN=Users,DC=example,DC=test
+login: Administrator
+is a user: yes
+found: 1
+read: CN=Administrator,CN=Users,DC=example,DC=test
+missing: null

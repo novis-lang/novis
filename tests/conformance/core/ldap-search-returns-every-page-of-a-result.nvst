@@ -1,0 +1,50 @@
+--TEST--
+`search` with a `pageSize` of 2 returns the same entries as one page of 1000, every one of them has the attribute a `Filter::present` asked for, and `Scope::OneLevel` stays one level under the base — ADR 0278 § 5
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+
+class Users {
+    public static function names(Core\Ldap\Connection $corp, int $pageSize): array<string> {
+        array<string> $out = [];
+        var $entries = $corp->search(Core\Ldap\Filter::present("sAMAccountName"), {
+            base: "CN=Users,DC=example,DC=test",
+            scope: Core\Ldap\Scope::OneLevel,
+            select: ["sAMAccountName"],
+            pageSize: $pageSize,
+        });
+        foreach ($entries as Core\Ldap\Entry $entry) {
+            if (!$entry->has("sAMAccountName")) {
+                $out[] = "missing";
+            }
+            $out[] = $entry->dn();
+        }
+        return $out;
+    }
+}
+
+var $small = Users::names($corp, 2);
+var $large = Users::names($corp, 1000);
+echo "more than two pages: ", Core\Arr::count($small) > 4 ? "yes" : "no", "\n";
+echo "same entries: ", $small == $large ? "yes" : "no", "\n";
+echo "every entry has the attribute: ", Core\Arr::contains($small, "missing") ? "no" : "yes", "\n";
+
+// `Scope::OneLevel` returns the children of the base and not the base itself.
+echo "the base is not returned: ", Core\Arr::contains($small, "CN=Users,DC=example,DC=test") ? "no" : "yes", "\n";
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+base = "DC=example,DC=test"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+more than two pages: yes
+same entries: yes
+every entry has the attribute: yes
+the base is not returned: yes

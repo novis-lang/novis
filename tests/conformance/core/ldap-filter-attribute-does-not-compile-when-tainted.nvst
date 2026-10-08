@@ -1,0 +1,18 @@
+--TEST--
+The attribute name of `Filter::equals` and `Filter::present` is sent as it is written, so a `tainted` one does not compile — ADR 0278 § 5 and `rule:security/tainted-qualifier`
+--FILE--
+<?nvs
+tainted string $attribute = "cn";
+var $equal = Core\Ldap\Filter::equals($attribute, "Staff");
+var $present = Core\Ldap\Filter::present($attribute);
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+  --> case.nvs:3:39
+%A
+error[E0401]: expected `string`, found `tainted string`
+  --> case.nvs:4:42
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

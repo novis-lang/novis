@@ -1,0 +1,40 @@
+--TEST--
+An `Ldap\Entry` read with `select` has only the attributes it named: `has` returns `false` for any other, and `string`, `strings` and `bytes` all return `null` for it — ADR 0278 § 5 and § 6
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+?Core\Ldap\Entry $admin =$corp->read("CN=Administrator,CN=Users,DC=example,DC=test", {select: ["cn"]});
+if ($admin == null) {
+    echo "no entry", "\n";
+} else {
+    echo "dn: ", $admin->dn(), "\n";
+    echo "has cn: ", $admin->has("CN") ? "yes" : "no", "\n";
+    var $cn = $admin->bytes("cn");
+    echo "cn as bytes: ", $cn == null ? "null" : Core\Bytes::length($cn), "\n";
+
+    // `sAMAccountName` exists on the entry, but `select` did not name it.
+    echo "has sAMAccountName: ", $admin->has("sAMAccountName") ? "yes" : "no", "\n";
+    echo "string: ", $admin->string("sAMAccountName") == null ? "null" : "a value", "\n";
+    echo "strings: ", $admin->strings("sAMAccountName") == null ? "null" : "a list", "\n";
+    echo "bytes: ", $admin->bytes("sAMAccountName") == null ? "null" : "a value", "\n";
+}
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+base = "DC=example,DC=test"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+dn: CN=Administrator,CN=Users,DC=example,DC=test
+has cn: yes
+cn as bytes: 13
+has sAMAccountName: no
+string: null
+strings: null
+bytes: null

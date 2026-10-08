@@ -1,0 +1,41 @@
+--TEST--
+`objectGUID` is 16 bytes that are not UTF-8, so `bytes` returns them and `string` and `strings` both throw `LogicError` naming `bytes` — ADR 0278 § 6
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+?Core\Ldap\Entry $admin =$corp->read("CN=Administrator,CN=Users,DC=example,DC=test", {select: ["objectGUID"]});
+if ($admin == null) {
+    echo "no entry", "\n";
+} else {
+    echo "has objectGUID: ", $admin->has("objectGUID") ? "yes" : "no", "\n";
+    var $guid = $admin->bytes("objectGUID");
+    echo "bytes: ", $guid == null ? "null" : Core\Bytes::length($guid), "\n";
+    try {
+        echo $admin->string("objectGUID") ?? "null", "\n";
+    } catch (LogicError $notText) {
+        echo "string: ", Core\Str::contains($notText->message, "`bytes`") ? "throws, names bytes" : "throws", "\n";
+    }
+    try {
+        var $all = $admin->strings("objectGUID");
+        echo "strings: ", $all == null ? "null" : "a list", "\n";
+    } catch (LogicError $notText) {
+        echo "strings: ", Core\Str::contains($notText->message, "`bytes`") ? "throws, names bytes" : "throws", "\n";
+    }
+}
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+base = "DC=example,DC=test"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+has objectGUID: yes
+bytes: 16
+string: throws, names bytes
+strings: throws, names bytes

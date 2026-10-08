@@ -2425,6 +2425,9 @@ pub const CLASSES: &[CoreClass] = &[
     // program's settings under `ldap.open`.
     crate::ldap::CLASS,
     crate::ldap::CONNECTION,
+    crate::ldap::ENTRIES,
+    crate::ldap::ENTRY,
+    crate::ldap::FILTER,
     // `rule:concurrency/queue-four-members`'s durable background job, immediately after the database classes
     // because that is what it is made of: a job is a row in one of these connections,
     // which is the whole of why § 3's enqueue can commit with the write that caused
@@ -3137,6 +3140,7 @@ pub const ENUMS: &[CoreEnum] = &[
     crate::db::GRADE,
     crate::ldap::ERROR_KIND,
     crate::ldap::TLS,
+    crate::ldap::SCOPE,
     // `rule:concurrency/claiming-is-one-statement` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`'s job lifecycle, immediately after the database enums
     // for the reason [`crate::queue::CLASS`] sits after the database classes: a
     // job is a row, and this enum is one of that row's columns as well as what
@@ -3749,6 +3753,12 @@ pub const ITERABLES: &[(&str, &CoreTy)] = &[
     // the body held, so this is a concrete element like the two `Core\IO` rows
     // above and never one of a receiver's own variables.
     (crate::request::BODY_STREAM_NAME, &CoreTy::TaintedBytes),
+    // ADR 0278 § 5's `search(): Entries`, which yields a `Core\Ldap\Entry`
+    // whatever the search selected.
+    (
+        crate::ldap::ENTRIES_NAME,
+        &CoreTy::Instance(crate::ldap::ENTRY_NAME),
+    ),
     // `rule:http-server/an-upload-is-received-only-through-files`'s `files(): Iterable<Part>`. A concrete element again, and
     // the first one that is an *instance* rather than a scalar: what a
     // multipart body yields is a `Core\Request\Part` whatever the upload was,
@@ -6421,8 +6431,8 @@ mod tests {
             crate::cli::STYLE_NAME,
             crate::db::IN_LIST_NAME,
             crate::db::STREAM_NAME,
-            // Memberless until `whoami`, `search` and `read` are registered.
-            crate::ldap::CONNECTION_NAME,
+            crate::ldap::ENTRIES_NAME,
+            crate::ldap::FILTER_NAME,
             crate::queue::ID_NAME,
             crate::request::BODY_STREAM_NAME,
             crate::request::FILES_NAME,

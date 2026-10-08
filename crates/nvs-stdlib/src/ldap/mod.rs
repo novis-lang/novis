@@ -42,10 +42,20 @@
 //! paging is not settled, so it is closed and not pooled. [`read`] is a
 //! base-scope search that returns `None` for `noSuchObject`.
 //!
+//! **A Novis program's search is parked on its connection.** An object slot
+//! holds a `Value`, so [`Entries::park`] moves the cursor into [`Held`] under
+//! an id, and `Ldap\Entries` carries the connection's key and that id. [`step`]
+//! reads the next entry, and a search leaves [`Held`] at its last entry or its
+//! first failure. One the program stops reading stays until the request ends,
+//! and a pooled connection drops what is left before it is reused. `search.rs`
+//! is the Novis half: the helpers for `Ldap\Connection`, `Ldap\Entries`,
+//! `Ldap\Entry` and `Ldap\Filter`.
+//!
 //! **What it spends:** one socket and one TLS session per connection a request
 //! holds, and up to the block's `pool.idle` of them per core between requests.
 //! A search holds one page of up to [`PAGE_SIZE`] entries by default, per
-//! search a request has open.
+//! search a request has open, and an `Ldap\Entry` holds its attributes' values
+//! for as long as the program keeps it.
 //!
 //! **Every failure the directory or the wire reports is one `Ldap\LdapError`**
 //! (ADR 0278 § 10), built by [`fault_of`]: `$kind` is the [`ERROR_KIND`] case
@@ -65,8 +75,12 @@ use nvs_config::capability::Scope;
 use nvs_runtime::{Ctx, Fault, Tag, ThrownClass, Value};
 
 mod registry;
+mod search;
 
 pub(crate) use self::registry::*;
+pub(crate) use self::search::{
+    ENTRIES_ADVANCE_SYMBOL, ENTRIES_CURRENT_SYMBOL, ENTRIES_ITERATE_SYMBOL,
+};
 
 /// `Core\Ldap::connect`, as its refusals spell it.
 pub const CONNECT: &str = r"Core\Ldap::connect";
@@ -84,7 +98,7 @@ pub const SEARCH: &str = r"Core\Ldap\Connection::search";
 pub const READ: &str = r"Core\Ldap\Connection::read";
 
 /// `Core\Ldap\Entries`, as a failure reading its next page spells it.
-pub const ENTRIES: &str = r"Core\Ldap\Entries";
+pub const ENTRIES_MEMBER: &str = r"Core\Ldap\Entries";
 
 /// How many entries one page of a search holds when the program does not say.
 pub const PAGE_SIZE: u32 = 1000;
@@ -96,13 +110,44 @@ pub struct Held {
     conn: nvs_ldap::Connection,
     /// How long one operation on it may take.
     timeout: Duration,
+    /// The block's `base`, where a search that names none starts, or `None`
+    /// for a connection `open` made.
+    base: Option<String>,
+    /// The searches a program is reading on this connection, by the id its
+    /// `Ldap\Entries` carries. A search leaves when its last entry is read.
+    searches: BTreeMap<u64, nvs_ldap::Cursor>,
+    /// The id the next parked search gets.
+    next_search: u64,
 }
 
 impl Held {
+    /// A connection just opened, with nothing parked on it.
+    fn new(conn: nvs_ldap::Connection, timeout: Duration) -> Self {
+        Self {
+            conn,
+            timeout,
+            base: None,
+            searches: BTreeMap::new(),
+            next_search: 0,
+        }
+    }
+
     /// The connection, with a fresh deadline filed for the operation about to run.
     fn ready(&mut self) -> &mut nvs_ldap::Connection {
         self.conn.set_deadline(Some(Instant::now() + self.timeout));
         &mut self.conn
+    }
+
+    /// The next entry of the search parked under `id`, or `None` after its
+    /// last one. A search that ended, or failed, is no longer parked.
+    fn advance(&mut self, id: u64) -> Option<Result<nvs_ldap::Entry, nvs_ldap::Error>> {
+        let cursor = self.searches.get_mut(&id)?;
+        self.conn.set_deadline(Some(Instant::now() + self.timeout));
+        let next = cursor.next(&mut self.conn);
+        if !matches!(next, Some(Ok(_))) {
+            self.searches.remove(&id);
+        }
+        next
     }
 }
 
@@ -214,7 +259,7 @@ fn dial(
     if let Some(user) = settings.user {
         conn.bind(user, settings.password)?;
     }
-    Ok(Held { conn, timeout })
+    Ok(Held::new(conn, timeout))
 }
 
 /// `Core\Ldap::connect`'s body: opens `[ldap.<name>]` for this request, or
@@ -291,10 +336,15 @@ pub fn connect(ctx: &mut Ctx, name: &str) -> Result<u64, Fault> {
     } else {
         None
     };
-    let held = match pooled {
+    let mut held = match pooled {
         Some(warm) => *warm,
         None => walk(ctx, name, block, &settings)?,
     };
+    // A search the last request left unread holds no page the server is
+    // still sending, or the connection would not have been pooled, and its id
+    // belongs to an `Ldap\Entries` that request freed.
+    held.searches.clear();
+    held.base.clone_from(&block.base);
     Ok(ctx.hold_open_connection(Some(memo), Some(lease), Box::new(held)))
 }
 
@@ -422,11 +472,11 @@ impl Entries {
         if self.cursor.is_finished() && self.cursor.held() == 0 {
             return Ok(None);
         }
-        let conn = held(ctx, self.key, ENTRIES)?.ready();
+        let conn = held(ctx, self.key, ENTRIES_MEMBER)?.ready();
         self.cursor
             .next(conn)
             .transpose()
-            .map_err(|error| fault_of(ENTRIES, &error))
+            .map_err(|error| fault_of(ENTRIES_MEMBER, &error))
     }
 
     /// The continuation references the search returned so far, none of them followed.
@@ -434,6 +484,45 @@ impl Entries {
     pub fn references(&self) -> &[String] {
         self.cursor.references()
     }
+
+    /// Moves the search onto the connection it runs on and returns the id
+    /// [`step`] reads it back by, which is what an `Ldap\Entries` carries:
+    /// an object slot holds a `Value`, and a cursor is not one.
+    ///
+    /// # Errors
+    ///
+    /// [`held`]'s.
+    pub fn park(self, ctx: &mut Ctx) -> Result<u64, Fault> {
+        let held = held(ctx, self.key, SEARCH)?;
+        let id = held.next_search;
+        held.next_search += 1;
+        held.searches.insert(id, self.cursor);
+        Ok(id)
+    }
+}
+
+/// The next entry of the search [`Entries::park`] parked under `id` on the
+/// connection held under `key`, or `None` after its last one.
+///
+/// # Errors
+///
+/// [`held`]'s, a size or time limit the server hit, and every other failure
+/// the server reports.
+pub fn step(ctx: &mut Ctx, key: u64, id: u64) -> Result<Option<nvs_ldap::Entry>, Fault> {
+    held(ctx, key, ENTRIES_MEMBER)?
+        .advance(id)
+        .transpose()
+        .map_err(|error| fault_of(ENTRIES_MEMBER, &error))
+}
+
+/// The `base` of the block the connection held under `key` was opened from,
+/// or `None` for a connection `open` made.
+///
+/// # Errors
+///
+/// [`held`]'s.
+pub fn base_of(ctx: &mut Ctx, key: u64) -> Result<Option<String>, Fault> {
+    Ok(held(ctx, key, SEARCH)?.base.clone())
 }
 
 /// `Core\Ldap\Connection::search`'s body: starts `request` on the connection
@@ -581,6 +670,6 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "nvs_core_ldap_connect" => (nvs_core_ldap_connect as *const ()).cast(),
         "nvs_core_ldap_open" => (nvs_core_ldap_open as *const ()).cast(),
-        _ => return None,
+        _ => return search::address(symbol),
     })
 }

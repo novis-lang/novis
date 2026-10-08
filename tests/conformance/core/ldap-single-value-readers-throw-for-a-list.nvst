@@ -1,0 +1,46 @@
+--TEST--
+`objectClass` has several values, so `string` and `bytes` both throw `LogicError` naming the count and `strings`, and `strings` returns every value in the order the server sent them — ADR 0278 § 6
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+?Core\Ldap\Entry $admin =$corp->read("CN=Administrator,CN=Users,DC=example,DC=test", {select: ["objectClass"]});
+if ($admin == null) {
+    echo "no entry", "\n";
+} else {
+    var $classes = $admin->strings("objectClass");
+    if ($classes != null) {
+        foreach ($classes as var $class) {
+            echo "strings: ", $class, "\n";
+        }
+    }
+    try {
+        echo $admin->string("objectClass") ?? "null", "\n";
+    } catch (LogicError $many) {
+        echo "string: ", $many->message, "\n";
+    }
+    try {
+        var $one = $admin->bytes("objectClass");
+        echo "bytes: ", $one == null ? "null" : "a value", "\n";
+    } catch (LogicError $many) {
+        echo "bytes: ", $many->message, "\n";
+    }
+}
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+base = "DC=example,DC=test"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+strings: top
+strings: person
+strings: organizationalPerson
+strings: user
+string: Core\Ldap\Entry::string: `objectClass` has 4 values. `strings` returns all of them
+bytes: Core\Ldap\Entry::bytes: `objectClass` has 4 values. `strings` returns all of them

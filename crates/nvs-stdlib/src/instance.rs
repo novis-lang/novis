@@ -163,6 +163,8 @@ const HOST_HANDLE_CLASSES: &[&CoreClass] = &[
     // `Core\Db\Rows` holds the rows themselves and crosses.
     &crate::db::STREAM,
     &crate::ldap::CONNECTION,
+    // A search holds the connection's key, and reads its next page through it.
+    &crate::ldap::ENTRIES,
 ];
 
 /// Every member compiled code reaches on a `Core` instance **by name** — one
@@ -284,6 +286,16 @@ const DISPATCH_ROSTER: &[(&str, &[(&str, &str)])] = &[
             (sequence::ITERATE, crate::db::STREAM_ITERATE_SYMBOL),
             (sequence::ADVANCE, crate::db::STREAM_ADVANCE_SYMBOL),
             (sequence::CURRENT, crate::db::STREAM_CURRENT_SYMBOL),
+        ],
+    ),
+    // And ADR 0278 § 5's search, for the same reason: the next entry may be on
+    // a page the server has not sent yet.
+    (
+        crate::ldap::ENTRIES_NAME,
+        &[
+            (sequence::ITERATE, crate::ldap::ENTRIES_ITERATE_SYMBOL),
+            (sequence::ADVANCE, crate::ldap::ENTRIES_ADVANCE_SYMBOL),
+            (sequence::CURRENT, crate::ldap::ENTRIES_CURRENT_SYMBOL),
         ],
     ),
     // And spec § 12's walk over a CSV file's records, which makes the same

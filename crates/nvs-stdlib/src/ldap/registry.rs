@@ -5,8 +5,8 @@
 //! defined by a sibling, and a card sits directly after the row it describes.
 
 use crate::registry::{
-    CaseDoc, ClassDoc, Const, CoreClass, CoreEnum, CoreField, CoreMethod, CoreTy, EnumDoc,
-    ErrorDoc, MethodDoc, ParamDoc, Qual, ShapeKeyDoc,
+    CaseDoc, ClassDoc, Const, CoreClass, CoreEnum, CoreField, CoreMethod, CoreOption, CoreTy,
+    EnumDoc, ErrorDoc, MethodDoc, ParamDoc, Qual, ShapeKeyDoc,
 };
 
 /// `Core\Ldap`'s fully-qualified name.
@@ -18,9 +18,36 @@ pub(crate) const CONNECTION_NAME: &str = r"Core\Ldap\Connection";
 /// [`TLS`]' fully-qualified name.
 pub(crate) const TLS_NAME: &str = r"Core\Ldap\Tls";
 
-/// The slot a [`CONNECTION`] keeps its key in, filed by
-/// [`nvs_runtime::Ctx::hold_open_connection`].
+/// `Core\Ldap\Entries`' fully-qualified name.
+pub(crate) const ENTRIES_NAME: &str = r"Core\Ldap\Entries";
+
+/// `Core\Ldap\Entry`'s fully-qualified name.
+pub(crate) const ENTRY_NAME: &str = r"Core\Ldap\Entry";
+
+/// `Core\Ldap\Filter`'s fully-qualified name.
+pub(crate) const FILTER_NAME: &str = r"Core\Ldap\Filter";
+
+/// [`SCOPE`]'s fully-qualified name.
+pub(crate) const SCOPE_NAME: &str = r"Core\Ldap\Scope";
+
+/// The slot a [`CONNECTION`] and an [`ENTRIES`] keep the connection's key in,
+/// filed by [`nvs_runtime::Ctx::hold_open_connection`].
 const HANDLE_SLOT: &str = "handle";
+
+/// [`CONNECTION`]'s [`HANDLE_SLOT`].
+pub(super) const CONNECTION_HANDLE_AT: usize = 0;
+/// [`ENTRIES`]' [`HANDLE_SLOT`].
+pub(super) const ENTRIES_HANDLE_AT: usize = 0;
+/// [`ENTRIES`]' slot for the id its search is parked under.
+pub(super) const ENTRIES_SEARCH_AT: usize = 1;
+/// [`ENTRIES`]' slot for the entry the last `advance()` read.
+pub(super) const ENTRIES_ENTRY_AT: usize = 2;
+/// [`ENTRY`]'s DN slot.
+pub(super) const ENTRY_DN_AT: usize = 0;
+/// [`ENTRY`]'s slot for its attributes, keyed by name.
+pub(super) const ENTRY_ATTRIBUTES_AT: usize = 1;
+/// [`FILTER`]'s slot for its BER encoding.
+pub(super) const FILTER_BER_AT: usize = 0;
 
 /// ADR 0278 § 2's `Ldap\Settings`, the one shape `open` takes.
 ///
@@ -202,18 +229,444 @@ const OPEN_DOC: MethodDoc = MethodDoc {
     ],
 };
 
+/// `search`'s options, ADR 0278 § 1's `SearchOptions` as far as Stage 4 goes.
+///
+/// `base` and `select` are sinks: the base is a path the server walks, and
+/// an attribute name is sent as it is written.
+const SEARCH_OPTIONS: &[CoreOption] = &[
+    CoreOption {
+        name: "base",
+        ty: CoreTy::Text(Qual::Sink),
+        // The block's own `base`, which `search` reads off the connection.
+        default: Const::Null,
+    },
+    CoreOption {
+        name: "scope",
+        ty: CoreTy::Enum(SCOPE_NAME),
+        default: Const::EnumCase(SCOPE_NAME, "Subtree"),
+    },
+    CoreOption {
+        name: "select",
+        ty: CoreTy::Array(&CoreTy::Str),
+        // Every attribute the connection's account can read.
+        default: Const::Null,
+    },
+    CoreOption {
+        name: "pageSize",
+        ty: CoreTy::Int,
+        // [`super::PAGE_SIZE`].
+        default: Const::Int(1000),
+    },
+    CoreOption {
+        name: "sizeLimit",
+        ty: CoreTy::Int,
+        // The server's own limit.
+        default: Const::Int(0),
+    },
+];
+
+/// `read`'s one option.
+const READ_OPTIONS: &[CoreOption] = &[CoreOption {
+    name: "select",
+    ty: CoreTy::Array(&CoreTy::Str),
+    default: Const::Null,
+}];
+
 /// ADR 0278 § 1's `Ldap\Connection`: what `connect` and `open` return.
 ///
 /// Its one slot is the key the connection is held under in the request's own
-/// table, which [`super::held`] reads back. The members that run on it are
-/// owed, and the goal's handoff names them.
+/// table, which [`super::held`] reads back.
 pub(crate) const CONNECTION: CoreClass = CoreClass {
     name: CONNECTION_NAME,
     doc: Some(&CONNECTION_CARD),
     methods: &[],
-    instance: &[],
+    instance: &[
+        CoreMethod {
+            name: "whoami",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "nvs_core_ldap_connection_whoami",
+            doc: Some(&WHOAMI_DOC),
+        },
+        CoreMethod {
+            name: "search",
+            names: &["filter"],
+            params: &[
+                CoreTy::Instance(FILTER_NAME),
+                CoreTy::Options(SEARCH_OPTIONS),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Instance(ENTRIES_NAME),
+            symbol: "nvs_core_ldap_connection_search",
+            doc: Some(&SEARCH_DOC),
+        },
+        CoreMethod {
+            name: "read",
+            names: &["dn"],
+            // A sink: the server parses a DN into a path in the tree.
+            params: &[CoreTy::Text(Qual::Sink), CoreTy::Options(READ_OPTIONS)],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Instance(ENTRY_NAME)),
+            symbol: "nvs_core_ldap_connection_read",
+            doc: Some(&READ_DOC),
+        },
+    ],
     slots: &[HANDLE_SLOT],
     constants: &[],
+};
+
+/// `Ldap\Connection::whoami`'s reference card — `rule:core-api/reference-card`.
+const WHOAMI_DOC: MethodDoc = MethodDoc {
+    short: "Returns the account the connection is logged in as, as the server reports it.",
+    params: &[],
+    ret: "`dn:` and then the account's DN, or `u:` and then its login name. The result is an \
+          empty string when the connection did not log in.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "The connection is closed.",
+        },
+        ErrorDoc {
+            error: "Core\\Ldap\\LdapError",
+            desc: "The server did not answer, or it returned an error. `$kind` says why.",
+        },
+    ],
+};
+
+/// `Ldap\Connection::search`'s reference card — `rule:core-api/reference-card`.
+const SEARCH_DOC: MethodDoc = MethodDoc {
+    short: "Finds the entries that match a filter. The server sends the entries in pages, and \
+            the next page is read when a `foreach` loop reaches it.",
+    params: &[
+        ParamDoc {
+            name: "filter",
+            desc: "Which entries to return, such as `Filter::equals('sAMAccountName', $login)`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "base",
+            desc: "The DN the search starts from. Left out, it is the `base` of the `[ldap]` \
+                   block. It cannot be `tainted`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "scope",
+            desc: "How far below `base` the search looks. The default is `Scope::Subtree`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "select",
+            desc: "The attributes each entry has, such as `['cn', 'mail']`. Left out, an entry \
+                   has every attribute the connection's account can read.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "pageSize",
+            desc: "How many entries the server sends at once. The default is 1000.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "sizeLimit",
+            desc: "The most entries the search may find. The default, 0, is the server's own \
+                   limit.",
+            shape: &[],
+        },
+    ],
+    ret: "A `Core\\Ldap\\Entries`. Use it in a `foreach` loop to get each `Core\\Ldap\\Entry`.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "A name in `select` is not an attribute name, `pageSize` or `sizeLimit` is out \
+                   of range, the search has no `base`, or the connection is closed.",
+        },
+        ErrorDoc {
+            error: "Core\\Ldap\\LdapError",
+            desc: "The server returned an error, such as `NoSuchObject` for a `base` that does \
+                   not exist. A search that finds more entries than `sizeLimit` throws \
+                   `SizeLimitExceeded` in the loop.",
+        },
+    ],
+};
+
+/// `Ldap\Connection::read`'s reference card — `rule:core-api/reference-card`.
+const READ_DOC: MethodDoc = MethodDoc {
+    short: "Reads the one entry at a DN.",
+    params: &[
+        ParamDoc {
+            name: "dn",
+            desc: "The entry's DN, such as `CN=Staff,OU=Groups,DC=example,DC=test`. It cannot be \
+                   `tainted`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "select",
+            desc: "The attributes the entry has. Left out, it has every attribute the \
+                   connection's account can read.",
+            shape: &[],
+        },
+    ],
+    ret: "A `Core\\Ldap\\Entry`, or `null` when no entry has this DN.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "A name in `select` is not an attribute name, or the connection is closed.",
+        },
+        ErrorDoc {
+            error: "Core\\Ldap\\LdapError",
+            desc: "The server returned an error other than \"no such entry\".",
+        },
+    ],
+};
+
+/// `Ldap\Entries`' class card — `rule:core-api/reference-card`.
+const ENTRIES_CARD: ClassDoc = ClassDoc {
+    short: "The entries a search found. A `foreach` loop gets them one at a time, and reads the \
+            next page from the server when it needs it.",
+};
+
+/// ADR 0278 § 5's `Ldap\Entries`: what `search` returns, and its own iterator.
+///
+/// `ITERABLES` in [`crate::registry`] declares its element, and
+/// [`crate::instance`]'s dispatch roster gives it the three names a `foreach`
+/// calls. `super::search`'s module doc says what each slot is.
+pub(crate) const ENTRIES: CoreClass = CoreClass {
+    name: ENTRIES_NAME,
+    doc: Some(&ENTRIES_CARD),
+    methods: &[],
+    instance: &[],
+    slots: &[HANDLE_SLOT, "search", "entry"],
+    constants: &[],
+};
+
+/// `Ldap\Entry`'s class card — `rule:core-api/reference-card`.
+const ENTRY_CARD: ClassDoc = ClassDoc {
+    short: "One entry from a directory: its DN and its attributes. An attribute name is found \
+            without case, so `mail` and `Mail` are the same attribute.",
+};
+
+/// The card shared by [`ENTRY`]'s readers' one parameter.
+const ATTRIBUTE_NAME_PARAM: ParamDoc = ParamDoc {
+    name: "name",
+    desc: "The attribute's name, such as `mail`. Upper and lower case are the same.",
+    shape: &[],
+};
+
+/// ADR 0278 § 1's `Ldap\Entry`, as far as Stage 4 goes: the DN and the
+/// readers for text and bytes. `super::search`'s module doc says what each
+/// slot is.
+pub(crate) const ENTRY: CoreClass = CoreClass {
+    name: ENTRY_NAME,
+    doc: Some(&ENTRY_CARD),
+    methods: &[],
+    instance: &[
+        CoreMethod {
+            name: "dn",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "nvs_core_ldap_entry_dn",
+            doc: Some(&ENTRY_DN_DOC),
+        },
+        CoreMethod {
+            name: "has",
+            names: &["name"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            symbol: "nvs_core_ldap_entry_has",
+            doc: Some(&ENTRY_HAS_DOC),
+        },
+        CoreMethod {
+            name: "string",
+            names: &["name"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::TaintedStr),
+            symbol: "nvs_core_ldap_entry_string",
+            doc: Some(&ENTRY_STRING_DOC),
+        },
+        CoreMethod {
+            name: "strings",
+            names: &["name"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Array(&CoreTy::TaintedStr)),
+            symbol: "nvs_core_ldap_entry_strings",
+            doc: Some(&ENTRY_STRINGS_DOC),
+        },
+        CoreMethod {
+            name: "bytes",
+            names: &["name"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::TaintedBytes),
+            symbol: "nvs_core_ldap_entry_bytes",
+            doc: Some(&ENTRY_BYTES_DOC),
+        },
+    ],
+    slots: &["dn", "attributes"],
+    constants: &[],
+};
+
+/// `Ldap\Entry::dn`'s reference card — `rule:core-api/reference-card`.
+const ENTRY_DN_DOC: MethodDoc = MethodDoc {
+    short: "Returns the entry's DN, as the server sent it.",
+    params: &[],
+    ret: "The DN, such as `CN=Administrator,CN=Users,DC=example,DC=test`.",
+    errors: &[],
+};
+
+/// `Ldap\Entry::has`'s reference card — `rule:core-api/reference-card`.
+const ENTRY_HAS_DOC: MethodDoc = MethodDoc {
+    short: "Checks whether the entry has a value for an attribute.",
+    params: &[ATTRIBUTE_NAME_PARAM],
+    ret: "`true` when the entry has the attribute, and `false` when it does not or the search \
+          did not select it.",
+    errors: &[],
+};
+
+/// `Ldap\Entry::string`'s reference card — `rule:core-api/reference-card`.
+const ENTRY_STRING_DOC: MethodDoc = MethodDoc {
+    short: "Returns the one value of an attribute as text. The result is `tainted`, because the \
+            directory's data can come from anyone who can write to it.",
+    params: &[ATTRIBUTE_NAME_PARAM],
+    ret: "The value, or `null` when the entry has no value for the attribute.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The attribute has more than one value, so use `strings`. Or the value is not \
+               UTF-8 text, so use `bytes`.",
+    }],
+};
+
+/// `Ldap\Entry::strings`' reference card — `rule:core-api/reference-card`.
+const ENTRY_STRINGS_DOC: MethodDoc = MethodDoc {
+    short: "Returns every value of an attribute as text, such as every `member` of a group. The \
+            values are `tainted`.",
+    params: &[ATTRIBUTE_NAME_PARAM],
+    ret: "The values in the order the server sent them, or `null` when the entry has no value \
+          for the attribute.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "A value is not UTF-8 text.",
+    }],
+};
+
+/// `Ldap\Entry::bytes`' reference card — `rule:core-api/reference-card`.
+const ENTRY_BYTES_DOC: MethodDoc = MethodDoc {
+    short: "Returns the one value of an attribute as bytes, exactly as the server sent it. Use \
+            it for binary values, such as `objectGUID`. The result is `tainted`.",
+    params: &[ATTRIBUTE_NAME_PARAM],
+    ret: "The value, or `null` when the entry has no value for the attribute.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The attribute has more than one value.",
+    }],
+};
+
+/// `Ldap\Filter`'s class card — `rule:core-api/reference-card`.
+const FILTER_CARD: ClassDoc = ClassDoc {
+    short: "Which entries a search returns. A filter is built from an attribute name and a \
+            value. The value is sent as data and never as filter text, so a value from a user \
+            cannot change what the filter matches.",
+};
+
+/// ADR 0278 § 6's `Ldap\Filter`, as far as Stage 4 goes: `equals` and
+/// `present`. `super::search`'s module doc says what its slot is.
+pub(crate) const FILTER: CoreClass = CoreClass {
+    name: FILTER_NAME,
+    doc: Some(&FILTER_CARD),
+    methods: &[
+        CoreMethod {
+            name: "equals",
+            names: &["attribute", "value"],
+            // The name is a sink, checked against RFC 4512. The value is
+            // data in the BER the filter is built into, so it may be
+            // `tainted`.
+            params: &[CoreTy::Text(Qual::Sink), CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(FILTER_NAME),
+            symbol: "nvs_core_ldap_filter_equals",
+            doc: Some(&FILTER_EQUALS_DOC),
+        },
+        CoreMethod {
+            name: "present",
+            names: &["attribute"],
+            params: &[CoreTy::Text(Qual::Sink)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(FILTER_NAME),
+            symbol: "nvs_core_ldap_filter_present",
+            doc: Some(&FILTER_PRESENT_DOC),
+        },
+    ],
+    instance: &[],
+    slots: &["ber"],
+    constants: &[],
+};
+
+/// The card shared by [`FILTER`]'s `attribute` parameters.
+const FILTER_ATTRIBUTE_PARAM: ParamDoc = ParamDoc {
+    name: "attribute",
+    desc: "The attribute's name, such as `sAMAccountName`. It cannot be `tainted`.",
+    shape: &[],
+};
+
+/// `Ldap\Filter::equals`' reference card — `rule:core-api/reference-card`.
+const FILTER_EQUALS_DOC: MethodDoc = MethodDoc {
+    short: "Matches the entries where an attribute has this value.",
+    params: &[
+        FILTER_ATTRIBUTE_PARAM,
+        ParamDoc {
+            name: "value",
+            desc: "The value to match. It may be `tainted`, such as a login name from a form. \
+                   A `*` or `)` in it is a normal character.",
+            shape: &[],
+        },
+    ],
+    ret: "A `Core\\Ldap\\Filter`.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "`$attribute` is not an attribute name.",
+    }],
+};
+
+/// `Ldap\Filter::present`'s reference card — `rule:core-api/reference-card`.
+const FILTER_PRESENT_DOC: MethodDoc = MethodDoc {
+    short: "Matches the entries that have any value for an attribute.",
+    params: &[FILTER_ATTRIBUTE_PARAM],
+    ret: "A `Core\\Ldap\\Filter`.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "`$attribute` is not an attribute name.",
+    }],
+};
+
+/// ADR 0278 § 5's `Ldap\Scope`. The values are declaration ordinals.
+pub(crate) const SCOPE: CoreEnum = CoreEnum {
+    name: SCOPE_NAME,
+    cases: &[("Base", 0), ("OneLevel", 1), ("Subtree", 2)],
+    doc: Some(&SCOPE_DOC),
+};
+
+/// [`SCOPE`]'s reference card — `rule:core-api/reference-card`.
+const SCOPE_DOC: EnumDoc = EnumDoc {
+    short: "How far below its `base` a search looks.",
+    cases: &[
+        CaseDoc {
+            name: "Base",
+            desc: "Only the `base` entry itself.",
+        },
+        CaseDoc {
+            name: "OneLevel",
+            desc: "The entries directly below `base`, and not `base` itself.",
+        },
+        CaseDoc {
+            name: "Subtree",
+            desc: "`base` and every entry below it, at any depth. This is the default.",
+        },
+    ],
 };
 
 /// ADR 0278 § 2's `Ldap\Tls`. The values are declaration ordinals.

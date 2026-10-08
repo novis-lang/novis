@@ -1,0 +1,18 @@
+--TEST--
+`read` sends its DN as the path of an entry, so a `tainted` DN does not compile, and a DN the program wrote does — ADR 0278 § 5 and `rule:security/tainted-qualifier`
+--FILE--
+<?nvs
+class Lookup {
+    public static function entry(Core\Ldap\Connection $corp, tainted string $dn): void {
+        var $written = $corp->read("CN=Staff,CN=Users,DC=example,DC=test");
+        var $outside = $corp->read($dn);
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+  --> case.nvs:5:36
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -1,0 +1,21 @@
+--TEST--
+A `select` name is sent as it is written, so a `tainted` one does not compile on `search` or on `read` — ADR 0278 § 5 and `rule:security/tainted-qualifier`
+--FILE--
+<?nvs
+class Fields {
+    public static function of(Core\Ldap\Connection $corp, tainted string $name): void {
+        var $found = $corp->search(Core\Ldap\Filter::present("cn"), {select: [$name]});
+        var $one = $corp->read("CN=Staff,CN=Users,DC=example,DC=test", {select: [$name]});
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+  --> case.nvs:4:79
+%A
+error[E0401]: expected `string`, found `tainted string`
+  --> case.nvs:5:82
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

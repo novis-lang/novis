@@ -1,0 +1,32 @@
+--TEST--
+A block with `tls = "none"` on a host `[capabilities.ldap] cleartext` grants binds over plain `ldap://`, and `whoami` returns the same identity it returns over LDAPS — ADR 0278 § 2 and § 5
+--FILE--
+<?nvs
+// The `plain` block sends its password without TLS. Only a test server on
+// this machine may be reached that way. The copied `ca.crt` is for the `corp`
+// block, and the case is skipped where the test server is not running.
+var $plain = Core\Ldap::connect("plain");
+var $secure = Core\Ldap::connect("corp");
+echo "plain: ", $plain->whoami(), "\n";
+echo "same as LDAPS: ", $plain->whoami() == $secure->whoami() ? "yes" : "no", "\n";
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp", "plain"]
+cleartext = ["localhost"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+
+[ldap.plain]
+url = "ldap://localhost:16389"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls = "none"
+--EXPECT--
+plain: u:EXAMPLE\Administrator
+same as LDAPS: yes

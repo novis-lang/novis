@@ -1,0 +1,22 @@
+--TEST--
+A value an `Ldap\Entry` returns is `tainted`, so `string`'s result does not compile as a search `base` — ADR 0278 § 5 and § 6 and `rule:security/tainted-qualifier`
+--FILE--
+<?nvs
+class Reports {
+    public static function under(Core\Ldap\Connection $corp, Core\Ldap\Entry $manager): void {
+        var $base = $manager->string("distinguishedName");
+        if ($base != null) {
+            var $found = $corp->search(Core\Ldap\Filter::present("cn"), {base: $base});
+        }
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+  --> case.nvs:6:80
+%A
+  = help: `base` is a sink and no `Core` member launders one for it: the only way through is `Core\Taint::assertTrusted($value, $reason)`, which is forbidden by default, greppable, and carries in the source the reason the value can be trusted
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.
