@@ -7,7 +7,7 @@
 //! DN and an array keyed by each attribute's name as the server spelled it,
 //! whose values are lists of `bytes`. A reader finds a name without case, as
 //! LDAP does, and `toArray`'s keys keep the server's spelling. The typed
-//! readers ADR 0278 § 8 adds read the same lists.
+//! readers ADR 0278 § 8 adds read the same lists, and are `super::value`'s.
 //!
 //! **An `Ldap\Filter` is its BER encoding**, one `bytes` slot written by the
 //! static member that built it (`rule:core-classes/ldap-filter-is-a-value`).
@@ -40,7 +40,7 @@ pub(crate) const ENTRIES_CURRENT_SYMBOL: &str = "nvs_core_ldap_entries_current";
 
 /// `value` with a reference of its own, for a value read out of a slot or an
 /// array the receiver still holds.
-fn retained(value: Value) -> Value {
+pub(super) fn retained(value: Value) -> Value {
     #[expect(
         unsafe_code,
         reason = "the slot or array the value was read from keeps its own \
@@ -125,7 +125,7 @@ fn entry_value(entry: nvs_ldap::Entry) -> Value {
 
 /// The name an `Ldap\Entry` reader was given, and the list of values the
 /// entry has under it, found without case, or `None` when it has none.
-fn values_named<'a>(
+pub(super) fn values_named<'a>(
     args: &'a [Value],
     member: &str,
 ) -> Result<(&'a str, Option<std::mem::ManuallyDrop<NvsArray>>), Fault> {
@@ -154,7 +154,7 @@ fn values_named<'a>(
 
 /// The one value a single-value reader returns, or the error for a list
 /// with more than one.
-fn only_value(values: &NvsArray, member: &str, name: &str) -> Result<Value, Fault> {
+pub(super) fn only_value(values: &NvsArray, member: &str, name: &str) -> Result<Value, Fault> {
     match (values.count(), values.get_index(0)) {
         (1, Some(value)) => Ok(value),
         (count, _) => Err(Fault::thrown_as(

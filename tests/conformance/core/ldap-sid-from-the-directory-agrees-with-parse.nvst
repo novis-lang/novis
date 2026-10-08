@@ -1,0 +1,59 @@
+--TEST--
+A SID read from the directory agrees with `Sid::parse` of its own text: the same text, the same bytes the server sent, and `sids` reads every value of `tokenGroups` — `rule:core-classes/ldap-value-types`
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+?Core\Ldap\Entry $admin = $corp->read("CN=Administrator,CN=Users,DC=example,DC=test", {select: ["objectSid", "tokenGroups"]});
+if ($admin == null) {
+    echo "no entry", "\n";
+} else {
+    var $sid = $admin->sid("objectSid");
+    var $raw = $admin->bytes("objectSid");
+    if ($sid == null || $raw == null) {
+        echo "no sid", "\n";
+    } else {
+        var $again = Core\Ldap\Sid::parse($sid->toString());
+        echo "same text: ", $again->toString() == $sid->toString() ? "yes" : "no", "\n";
+        echo "same bytes as parse: ", $again->bytes() == $sid->bytes() ? "yes" : "no", "\n";
+        echo "same bytes as the server: ", $sid->bytes() == ($raw as bytes) ? "yes" : "no", "\n";
+    }
+
+    // `tokenGroups` lists every group the account is in, nested ones too.
+    // Each is a SID. Domain Users has the RID 513, and Domain Admins 512.
+    var $groups = $admin->sids("tokenGroups");
+    if ($groups == null || $sid == null) {
+        echo "no groups", "\n";
+    } else {
+        var $domain = $sid->domain()?->toString();
+        int $users = 0;
+        int $admins = 0;
+        int $inDomain = 0;
+        foreach ($groups as var $group) {
+            if ($group->rid() == 513) { $users = $users + 1; }
+            if ($group->rid() == 512) { $admins = $admins + 1; }
+            if ($group->domain()?->toString() == $domain) { $inDomain = $inDomain + 1; }
+        }
+        echo "Domain Users: ", $users, "\n";
+        echo "Domain Admins: ", $admins, "\n";
+        echo "some groups are in the domain: ", $inDomain > 1 ? "yes" : "no", "\n";
+    }
+}
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+base = "DC=example,DC=test"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+same text: yes
+same bytes as parse: yes
+same bytes as the server: yes
+Domain Users: 1
+Domain Admins: 1
+some groups are in the domain: yes

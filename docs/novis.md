@@ -217,6 +217,7 @@ Conventions the whole file uses:
 | [`Core\Ldap\Entry`](#core-core-ldap-entry) |  |
 | [`Core\Ldap\Filter`](#core-core-ldap-filter) |  |
 | [`Core\Ldap\Dn`](#core-core-ldap-dn) |  |
+| [`Core\Ldap\Sid`](#core-core-ldap-sid) |  |
 | [`Core\Ldap\Ad`](#core-core-ldap-ad) |  |
 | [`Core\Queue`](#core-core-queue) |  |
 | [`Core\Queue\Id`](#core-core-queue-id) |  |
@@ -26169,7 +26170,7 @@ Returns the URLs of other servers that the server named for this search. Novis d
 <a id="core-core-ldap-entry"></a>
 ### `Core\Ldap\Entry`
 
-Keywords: dn, has, string, strings, bytes, toArray
+Keywords: dn, has, string, strings, bytes, uuid, sid, sids, instant, duration, toArray
 
 | Member | Signature |
 |---|---|
@@ -26178,6 +26179,11 @@ Keywords: dn, has, string, strings, bytes, toArray
 | [`Core\Ldap\Entry->string`](#core-core-ldap-entry-string) | `string(string $name): ?tainted string` |
 | [`Core\Ldap\Entry->strings`](#core-core-ldap-entry-strings) | `strings(string $name): ?array<tainted string>` |
 | [`Core\Ldap\Entry->bytes`](#core-core-ldap-entry-bytes) | `bytes(string $name): ?tainted bytes` |
+| [`Core\Ldap\Entry->uuid`](#core-core-ldap-entry-uuid) | `uuid(string $name): ?Core\Uuid` |
+| [`Core\Ldap\Entry->sid`](#core-core-ldap-entry-sid) | `sid(string $name): ?Core\Ldap\Sid` |
+| [`Core\Ldap\Entry->sids`](#core-core-ldap-entry-sids) | `sids(string $name): ?array<Core\Ldap\Sid>` |
+| [`Core\Ldap\Entry->instant`](#core-core-ldap-entry-instant) | `instant(string $name): ?Core\Time\Instant` |
+| [`Core\Ldap\Entry->duration`](#core-core-ldap-entry-duration) | `duration(string $name): ?Core\Time\Duration` |
 | [`Core\Ldap\Entry->toArray`](#core-core-ldap-entry-toarray) | `toArray(): array<array<tainted bytes>>` |
 
 <a id="core-core-ldap-entry-dn"></a>
@@ -26258,6 +26264,91 @@ Returns the one value of an attribute as bytes, exactly as the server sent it. U
 **Returns** `?tainted bytes` — The value, or `null` when the entry has no value for the attribute.
 
 **Throws** `LogicError` — The attribute has more than one value.
+
+<a id="core-core-ldap-entry-uuid"></a>
+#### `Core\Ldap\Entry->uuid`
+
+```nvs skip
+$entry->uuid(string $name): ?Core\Uuid
+```
+
+Returns a GUID attribute, such as `objectGUID`, as a `Core\Uuid`. Active Directory stores the first three groups of a GUID in reverse byte order. This function puts them in the usual order, so the text is the same as Windows shows.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The attribute's name, such as `mail`. Upper and lower case are the same. |
+
+**Returns** `?Core\Uuid` — The UUID, or `null` when the entry has no value for the attribute.
+
+**Throws** `LogicError` — The attribute has more than one value, or its value is not in the form this function reads. The message names the attribute.
+
+<a id="core-core-ldap-entry-sid"></a>
+#### `Core\Ldap\Entry->sid`
+
+```nvs skip
+$entry->sid(string $name): ?Core\Ldap\Sid
+```
+
+Returns a SID attribute, such as `objectSid`, as a `Core\Ldap\Sid`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The attribute's name, such as `mail`. Upper and lower case are the same. |
+
+**Returns** `?Core\Ldap\Sid` — The SID, or `null` when the entry has no value for the attribute.
+
+**Throws** `LogicError` — The attribute has more than one value, or its value is not in the form this function reads. The message names the attribute.
+
+<a id="core-core-ldap-entry-sids"></a>
+#### `Core\Ldap\Entry->sids`
+
+```nvs skip
+$entry->sids(string $name): ?array<Core\Ldap\Sid>
+```
+
+Returns every value of a SID attribute, such as `tokenGroups` or `sIDHistory`, as a list of `Core\Ldap\Sid`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The attribute's name, such as `mail`. Upper and lower case are the same. |
+
+**Returns** `?array<Core\Ldap\Sid>` — The SIDs in the order the server sent them, or `null` when the entry has no value for the attribute.
+
+**Throws** `LogicError` — A value is not a SID. The message names the attribute.
+
+<a id="core-core-ldap-entry-instant"></a>
+#### `Core\Ldap\Entry->instant`
+
+```nvs skip
+$entry->instant(string $name): ?Core\Time\Instant
+```
+
+Returns a time attribute as a `Core\Time\Instant`. It reads both forms a directory uses: a number of 100-nanosecond steps since the year 1601, such as `pwdLastSet`, and text such as `20240101120000.0Z`, such as `whenCreated`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The attribute's name, such as `mail`. Upper and lower case are the same. |
+
+**Returns** `?Core\Time\Instant` — The instant, or `null` when the entry has no value for the attribute. It is also `null` when the number is `0` or `9223372036854775807`. Active Directory uses those two numbers for "never".
+
+**Throws** `LogicError` — The attribute has more than one value, or its value is not in the form this function reads. The message names the attribute.
+
+<a id="core-core-ldap-entry-duration"></a>
+#### `Core\Ldap\Entry->duration`
+
+```nvs skip
+$entry->duration(string $name): ?Core\Time\Duration
+```
+
+Returns a length of time, such as `maxPwdAge` or `lockoutDuration`, as a `Core\Time\Duration`. Active Directory stores it as a negative number of 100-nanosecond steps.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The attribute's name, such as `mail`. Upper and lower case are the same. |
+
+**Returns** `?Core\Time\Duration` — The duration, or `null` when the entry has no value for the attribute. It is also `null` when the number is `-9223372036854775808`. Active Directory uses that number for "never".
+
+**Throws** `LogicError` — The attribute has more than one value, or its value is not zero or a negative number, or it is longer than a `Duration` can be. The message names the attribute.
 
 <a id="core-core-ldap-entry-toarray"></a>
 #### `Core\Ldap\Entry->toArray`
@@ -26638,6 +26729,80 @@ $dn->toString(): tainted string
 Returns the DN as text, with each special character in a value escaped.
 
 **Returns** `tainted string` — The text. `Dn::parse` reads it back as the same DN. The text is `tainted`, because a value in the DN may be.
+
+<a id="core-core-ldap-sid"></a>
+### `Core\Ldap\Sid`
+
+Keywords: parse, toString, bytes, domain, rid
+
+| Member | Signature |
+|---|---|
+| [`Core\Ldap\Sid::parse`](#core-core-ldap-sid-parse) | `parse(string $text): Core\Ldap\Sid` |
+| [`Core\Ldap\Sid->toString`](#core-core-ldap-sid-tostring) | `toString(): string` |
+| [`Core\Ldap\Sid->bytes`](#core-core-ldap-sid-bytes) | `bytes(): bytes` |
+| [`Core\Ldap\Sid->domain`](#core-core-ldap-sid-domain) | `domain(): ?Core\Ldap\Sid` |
+| [`Core\Ldap\Sid->rid`](#core-core-ldap-sid-rid) | `rid(): int` |
+
+<a id="core-core-ldap-sid-parse"></a>
+#### `Core\Ldap\Sid::parse`
+
+```nvs skip
+Core\Ldap\Sid::parse(string $text): Core\Ldap\Sid
+```
+
+Reads SID text, such as `S-1-5-32-544`, and returns the SID.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$text` | `string` (neutral) | The text. It starts with `S-1-`, then the authority, then 1 to 15 numbers, all joined by `-`. |
+
+**Returns** `Core\Ldap\Sid` — A `Core\Ldap\Sid`.
+
+**Throws** `LogicError` — The text is not a SID. The message says which part is wrong.
+
+<a id="core-core-ldap-sid-tostring"></a>
+#### `Core\Ldap\Sid->toString`
+
+```nvs skip
+$sid->toString(): string
+```
+
+Returns the SID as text, such as `S-1-5-32-544`.
+
+**Returns** `string` — The text. `Sid::parse` reads it back as the same SID.
+
+<a id="core-core-ldap-sid-bytes"></a>
+#### `Core\Ldap\Sid->bytes`
+
+```nvs skip
+$sid->bytes(): bytes
+```
+
+Returns the SID in its binary form, the form Active Directory stores in `objectSid`.
+
+**Returns** `bytes` — The bytes: 8 bytes, then 4 bytes for each number after the authority.
+
+<a id="core-core-ldap-sid-domain"></a>
+#### `Core\Ldap\Sid->domain`
+
+```nvs skip
+$sid->domain(): ?Core\Ldap\Sid
+```
+
+Returns the SID without its last number. For a user or a group, this is the SID of its domain.
+
+**Returns** `?Core\Ldap\Sid` — The shorter SID, or `null` when this SID has only one number after the authority.
+
+<a id="core-core-ldap-sid-rid"></a>
+#### `Core\Ldap\Sid->rid`
+
+```nvs skip
+$sid->rid(): int
+```
+
+Returns the last number of the SID, the RID (relative identifier). In a domain, `500` is the built-in `Administrator` and `512` is `Domain Admins`.
+
+**Returns** `int` — The RID, from `0` to `4294967295`.
 
 <a id="core-core-ldap-ad"></a>
 ### `Core\Ldap\Ad`

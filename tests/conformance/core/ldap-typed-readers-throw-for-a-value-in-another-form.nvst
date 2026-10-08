@@ -1,0 +1,61 @@
+--TEST--
+Each typed `Ldap\Entry` reader throws `LogicError` naming the attribute for a value it cannot read without losing something: text is not a GUID, a SID or a time, and a FILETIME is not a `Duration` — `rule:core-classes/ldap-value-types`
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+?Core\Ldap\Entry $admin = $corp->read("CN=Administrator,CN=Users,DC=example,DC=test", {select: ["cn", "objectGUID", "pwdLastSet", "objectSid"]});
+if ($admin == null) {
+    echo "no entry", "\n";
+} else {
+    try {
+        echo $admin->uuid("cn")?->toString() ?? "null", "\n";
+    } catch (LogicError $wrong) {
+        echo $wrong->message, "\n";
+    }
+    try {
+        echo $admin->sid("objectGUID")?->toString() ?? "null", "\n";
+    } catch (LogicError $wrong) {
+        echo $wrong->message, "\n";
+    }
+    try {
+        var $all = $admin->sids("cn");
+        echo $all == null ? "null" : "a list", "\n";
+    } catch (LogicError $wrong) {
+        echo $wrong->message, "\n";
+    }
+    try {
+        echo $admin->instant("cn")?->toIso() ?? "null", "\n";
+    } catch (LogicError $wrong) {
+        echo $wrong->message, "\n";
+    }
+    // `pwdLastSet` is a positive number. A length of time in AD is negative.
+    try {
+        echo $admin->duration("pwdLastSet")?->toString() ?? "null", "\n";
+    } catch (LogicError $wrong) {
+        echo $wrong->message, "\n";
+    }
+    try {
+        echo $admin->uuid("objectSid")?->toString() ?? "null", "\n";
+    } catch (LogicError $wrong) {
+        echo $wrong->message, "\n";
+    }
+}
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+base = "DC=example,DC=test"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+Core\Ldap\Entry::uuid: a value of `cn` is not a GUID, which is 16 bytes
+Core\Ldap\Entry::sid: a value of `objectGUID` is not a SID
+Core\Ldap\Entry::sids: a value of `cn` is not a SID
+Core\Ldap\Entry::instant: a value of `cn` is not a time
+Core\Ldap\Entry::duration: a value of `pwdLastSet` is not a length of time
+Core\Ldap\Entry::uuid: a value of `objectSid` is not a GUID, which is 16 bytes

@@ -604,3 +604,222 @@ fn dn_escapes_each_value_and_round_trips() {
         "no entry is named `Administrator,CN=Users`, so nothing is read"
     );
 }
+
+/// The one value of `name` on the administrator's entry, read with `select`
+/// naming it alone.
+fn admin_value(ctx: &mut nvs_runtime::Ctx, key: u64, dn: &str, name: &str) -> Vec<u8> {
+    let entry = ldap::read(ctx, key, dn, &[name])
+        .expect("the read succeeds")
+        .expect("the entry exists");
+    let values = entry.get(name).expect("the entry has the attribute");
+    assert_eq!(values.len(), 1, "`{name}` has one value");
+    values[0].clone()
+}
+
+#[test]
+fn object_guid_reads_as_a_uuid_with_ads_byte_order() {
+    use nvs_ldap::value::{ValueError, uuid_from_guid};
+
+    // MS-DTYP § 2.3.4's own example: `{6F9619FF-8B86-D011-B42D-00C04FC964FF}`
+    // is stored with its first three groups little-endian.
+    let stored = [
+        0xff, 0x19, 0x96, 0x6f, 0x86, 0x8b, 0x11, 0xd0, 0xb4, 0x2d, 0x00, 0xc0, 0x4f, 0xc9, 0x64,
+        0xff,
+    ];
+    let octets = uuid_from_guid(&stored).expect("16 bytes");
+    assert_eq!(
+        octets,
+        [
+            0x6f, 0x96, 0x19, 0xff, 0x8b, 0x86, 0xd0, 0x11, 0xb4, 0x2d, 0x00, 0xc0, 0x4f, 0xc9,
+            0x64, 0xff
+        ]
+    );
+    assert_eq!(
+        uuid_from_guid(&octets),
+        Ok(stored),
+        "the swap is its own inverse"
+    );
+    assert_eq!(uuid_from_guid(&stored[..15]), Err(ValueError::NotAGuid));
+    assert_eq!(uuid_from_guid(&[0; 17]), Err(ValueError::NotAGuid));
+
+    let Some(ca) = samba() else { return };
+    let mut ctx = ctx_over(&corp(&ca));
+    let key = ldap::connect(&mut ctx, "corp").expect("the block opens");
+    let guid = admin_value(&mut ctx, key, ADMIN, "objectGUID");
+    let octets = uuid_from_guid(&guid).expect("the server sent 16 bytes");
+    // A directory issues random GUIDs, version 4. The version is the high
+    // nibble of octet 6 only once the third group is swapped back.
+    assert_eq!(octets[6] >> 4, 4, "{octets:02x?}");
+    assert_eq!(octets[8] >> 6, 0b10, "the RFC 9562 variant, {octets:02x?}");
+}
+
+#[test]
+fn object_sid_reads_as_its_s_1_5_21_text() {
+    use nvs_ldap::{Sid, SidTextError, ValueError};
+
+    // BUILTIN\Administrators, MS-DTYP § 2.4.2.4.
+    let builtin = [1, 2, 0, 0, 0, 0, 0, 5, 0x20, 0, 0, 0, 0x20, 0x02, 0, 0];
+    let sid = Sid::from_bytes(&builtin).expect("a SID");
+    assert_eq!(sid.to_text(), "S-1-5-32-544");
+    assert_eq!(sid.to_bytes(), builtin);
+    assert_eq!(sid.rid(), 544);
+    assert_eq!(
+        sid.domain().map(|d| d.to_text()).as_deref(),
+        Some("S-1-5-32")
+    );
+    assert_eq!(Sid::parse("S-1-5-32-544"), Ok(sid));
+    assert_eq!(Sid::parse("S-1-1-0").expect("Everyone").domain(), None);
+    assert_eq!(
+        Sid::parse("S-1-0x010000000000-7").map(|sid| sid.to_text()),
+        Ok("S-1-0x010000000000-7".to_owned())
+    );
+    assert_eq!(Sid::parse("s-1-5-32"), Err(SidTextError::Prefix));
+    assert_eq!(Sid::parse("S-1-5-x"), Err(SidTextError::Part));
+    assert_eq!(Sid::parse("S-1-0x1000000000000-1"), Err(SidTextError::Part));
+    assert_eq!(Sid::parse("S-1-5"), Err(SidTextError::Count));
+    assert_eq!(Sid::from_bytes(&builtin[..15]), Err(ValueError::NotASid));
+    assert_eq!(
+        Sid::from_bytes(&[1, 0, 0, 0, 0, 0, 0, 5]),
+        Err(ValueError::NotASid)
+    );
+    assert_eq!(
+        Sid::from_bytes(&[2, 1, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0]),
+        Err(ValueError::NotASid)
+    );
+
+    let Some(ca) = samba() else { return };
+    let mut ctx = ctx_over(&corp(&ca));
+    let key = ldap::connect(&mut ctx, "corp").expect("the block opens");
+    let admin = Sid::from_bytes(&admin_value(&mut ctx, key, ADMIN, "objectSid"))
+        .expect("the server sent a SID");
+    let text = admin.to_text();
+    assert!(text.starts_with("S-1-5-21-"), "{text}");
+    assert_eq!(admin.rid(), 500, "the built-in administrator is RID 500");
+    let domain = Sid::from_bytes(&admin_value(&mut ctx, key, BASE, "objectSid"))
+        .expect("the domain has a SID");
+    assert_eq!(admin.domain(), Some(domain));
+    assert_eq!(Sid::parse(&text), Ok(admin));
+}
+
+#[test]
+fn a_filetime_of_zero_or_max_reads_as_null() {
+    use nvs_ldap::value::{ValueError, filetime, is_integer};
+
+    assert_eq!(filetime(b"0"), Ok(None));
+    assert_eq!(filetime(b"9223372036854775807"), Ok(None));
+    // 1970-01-01 is 116444736000000000 ticks after 1601-01-01.
+    assert_eq!(filetime(b"116444736000000000"), Ok(Some(0)));
+    assert_eq!(filetime(b"116444736000000001"), Ok(Some(100)));
+    assert_eq!(filetime(b"1"), Ok(Some(-11_644_473_600_000_000_000 + 100)));
+    assert_eq!(filetime(b"-1"), Err(ValueError::NotAFiletime));
+    assert_eq!(
+        filetime(b"20240101120000.0Z"),
+        Err(ValueError::NotAFiletime)
+    );
+    assert_eq!(filetime(b""), Err(ValueError::NotAFiletime));
+    assert!(is_integer(b"133500000000000000"));
+    assert!(!is_integer(b"20240101120000Z"));
+
+    let Some(ca) = samba() else { return };
+    let mut ctx = ctx_over(&corp(&ca));
+    let key = ldap::connect(&mut ctx, "corp").expect("the block opens");
+    assert_eq!(
+        filetime(&admin_value(&mut ctx, key, ADMIN, "accountExpires")),
+        Ok(None),
+        "the administrator's account never expires"
+    );
+    let set = filetime(&admin_value(&mut ctx, key, ADMIN, "pwdLastSet"))
+        .expect("a FILETIME")
+        .expect("the password was set");
+    // After 2020-01-01, the year this server image was built after.
+    assert!(set > 1_577_836_800_000_000_000, "{set}");
+}
+
+#[test]
+fn a_negative_interval_reads_as_a_duration() {
+    use nvs_ldap::value::{ValueError, interval};
+
+    // 42 days, as AD writes the default `maxPwdAge`.
+    assert_eq!(
+        interval(b"-36288000000000"),
+        Ok(Some(42 * 24 * 3600 * 1_000_000_000))
+    );
+    assert_eq!(interval(b"0"), Ok(Some(0)));
+    assert_eq!(
+        interval(b"-9223372036854775808"),
+        Ok(None),
+        "AD's \"never\""
+    );
+    assert_eq!(interval(b"1"), Err(ValueError::NotAnInterval));
+    assert_eq!(interval(b"-x"), Err(ValueError::NotAnInterval));
+    assert_eq!(
+        interval(b"-9223372036854775807"),
+        Err(ValueError::IntervalTooLong)
+    );
+
+    let Some(ca) = samba() else { return };
+    let mut ctx = ctx_over(&corp(&ca));
+    let key = ldap::connect(&mut ctx, "corp").expect("the block opens");
+    assert_eq!(
+        interval(&admin_value(&mut ctx, key, BASE, "lockoutDuration")),
+        Ok(Some(30 * 60 * 1_000_000_000)),
+        "Samba's default lockout is 30 minutes"
+    );
+}
+
+#[test]
+fn generalized_time_reads_as_an_instant() {
+    use nvs_ldap::value::{GeneralizedTime, ValueError, generalized_time};
+
+    let at = |year, month, day, hour, minute, second, nanosecond, offset| GeneralizedTime {
+        year,
+        month,
+        day,
+        hour,
+        minute,
+        second,
+        nanosecond,
+        offset,
+    };
+    assert_eq!(
+        generalized_time(b"20240101120000.0Z"),
+        Ok(at(2024, 1, 1, 12, 0, 0, 0, 0))
+    );
+    assert_eq!(
+        generalized_time(b"20240229235959.123Z"),
+        Ok(at(2024, 2, 29, 23, 59, 59, 123_000_000, 0))
+    );
+    assert_eq!(
+        generalized_time(b"199412161032-0500"),
+        Ok(at(1994, 12, 16, 10, 32, 0, 0, -5 * 3600))
+    );
+    // A fraction of an hour is minutes and seconds.
+    assert_eq!(
+        generalized_time(b"2024010112.5+0130"),
+        Ok(at(2024, 1, 1, 12, 30, 0, 0, 5400))
+    );
+    for wrong in [
+        &b"20240101120000"[..],
+        b"20241301120000Z",
+        b"20240101246000Z",
+        b"2024010112.Z",
+        b"20240101120000Z ",
+        b"20240101120000+055",
+        b"133500000000000000",
+    ] {
+        assert_eq!(
+            generalized_time(wrong),
+            Err(ValueError::NotAGeneralizedTime),
+            "{}",
+            String::from_utf8_lossy(wrong)
+        );
+    }
+
+    let Some(ca) = samba() else { return };
+    let mut ctx = ctx_over(&corp(&ca));
+    let key = ldap::connect(&mut ctx, "corp").expect("the block opens");
+    let created = admin_value(&mut ctx, key, ADMIN, "whenCreated");
+    let read = generalized_time(&created).expect("whenCreated is a GeneralizedTime");
+    assert_eq!(read.offset, 0, "AD writes UTC");
+    assert!(read.year >= 2020, "{read:?}");
+}

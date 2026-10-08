@@ -14,6 +14,8 @@
 //! - [`conn`] is one connection: LDAPS or StartTLS, bind, `whoami`, search,
 //!   unbind.
 //! - [`error`] is the one error type, with ADR 0278 § 10's kinds.
+//! - [`value`] reads the value forms AD sends that are not text: a GUID, a
+//!   SID, a FILETIME, an interval and a GeneralizedTime.
 //!
 //! Nothing here reads configuration or a capability grant. The caller resolves
 //! the address, checks it against the outbound policy and the grants, and
@@ -24,6 +26,7 @@ pub mod conn;
 pub mod dn;
 pub mod error;
 pub mod proto;
+pub mod value;
 
 pub use conn::{Connection, Cursor, Endpoint, Scheme, Search, Tls, Url};
 pub use dn::{Ava, Dn, PartError, Rdn};
@@ -31,3 +34,4 @@ pub use error::{Error, Kind};
 pub use proto::{
     Attribute, Entry, Filter, Scope, SearchRequest, TextError, is_attribute_description,
 };
+pub use value::{GeneralizedTime, Sid, SidTextError, ValueError};

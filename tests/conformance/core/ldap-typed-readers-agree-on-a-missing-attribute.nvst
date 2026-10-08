@@ -1,0 +1,60 @@
+--TEST--
+Every typed `Ldap\Entry` reader returns `null` for an attribute the entry does not have, as `string` and `bytes` do, and a single-value reader throws for a list — `rule:core-classes/ldap-value-types`
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+?Core\Ldap\Entry $admin = $corp->read("CN=Administrator,CN=Users,DC=example,DC=test", {select: ["cn", "objectClass"]});
+if ($admin == null) {
+    echo "no entry", "\n";
+} else {
+    // `select` did not name `objectGUID`, so the entry does not have it.
+    int $missing = 0;
+    if ($admin->uuid("objectGUID") == null) { $missing = $missing + 1; }
+    if ($admin->sid("objectSid") == null) { $missing = $missing + 1; }
+    if ($admin->sids("tokenGroups") == null) { $missing = $missing + 1; }
+    if ($admin->instant("whenCreated") == null) { $missing = $missing + 1; }
+    if ($admin->duration("maxPwdAge") == null) { $missing = $missing + 1; }
+    if ($admin->string("sAMAccountName") == null) { $missing = $missing + 1; }
+    if ($admin->bytes("sAMAccountName") == null) { $missing = $missing + 1; }
+    echo "null from ", $missing, " of 7 readers", "\n";
+
+    // `objectClass` has several values, so a reader for one value throws.
+    try {
+        echo $admin->instant("objectClass")?->toIso() ?? "null", "\n";
+    } catch (LogicError $list) {
+        echo $list->message, "\n";
+    }
+    try {
+        echo $admin->uuid("objectClass")?->toString() ?? "null", "\n";
+    } catch (LogicError $list) {
+        echo Core\Str::contains($list->message, "`strings`") ? "uuid: throws, names strings" : $list->message, "\n";
+    }
+    try {
+        echo $admin->duration("objectClass")?->toString() ?? "null", "\n";
+    } catch (LogicError $list) {
+        echo Core\Str::contains($list->message, "`strings`") ? "duration: throws, names strings" : $list->message, "\n";
+    }
+    try {
+        echo $admin->sid("objectClass")?->toString() ?? "null", "\n";
+    } catch (LogicError $list) {
+        echo Core\Str::contains($list->message, "`strings`") ? "sid: throws, names strings" : $list->message, "\n";
+    }
+}
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+base = "DC=example,DC=test"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+null from 7 of 7 readers
+Core\Ldap\Entry::instant: `objectClass` has 4 values. `strings` returns all of them
+uuid: throws, names strings
+duration: throws, names strings
+sid: throws, names strings

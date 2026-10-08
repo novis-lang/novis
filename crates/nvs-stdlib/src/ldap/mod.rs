@@ -79,6 +79,8 @@ use nvs_runtime::{Ctx, Fault, Tag, ThrownClass, Value};
 mod dn;
 mod registry;
 mod search;
+mod sid;
+mod value;
 
 pub(crate) use self::registry::*;
 pub(crate) use self::search::{
@@ -719,6 +721,11 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "nvs_core_ldap_connect" => (nvs_core_ldap_connect as *const ()).cast(),
         "nvs_core_ldap_open" => (nvs_core_ldap_open as *const ()).cast(),
-        _ => return search::address(symbol).or_else(|| dn::address(symbol)),
+        _ => {
+            return search::address(symbol)
+                .or_else(|| dn::address(symbol))
+                .or_else(|| sid::address(symbol))
+                .or_else(|| value::address(symbol));
+        }
     })
 }

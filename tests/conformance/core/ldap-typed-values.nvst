@@ -1,0 +1,63 @@
+--TEST--
+An AD entry's GUID reads as a `Core\Uuid` in the usual byte order, its SID as an `Ldap\Sid`, a FILETIME and a GeneralizedTime as an `Instant` with "never" as `null`, and an interval as a `Duration` — `rule:core-classes/ldap-value-types`
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+?Core\Ldap\Entry $admin = $corp->read("CN=Administrator,CN=Users,DC=example,DC=test", {select: ["objectGUID", "objectSid", "pwdLastSet", "accountExpires", "whenCreated"]});
+?Core\Ldap\Entry $domain = $corp->read("DC=example,DC=test", {select: ["maxPwdAge", "lockoutDuration", "objectSid"]});
+if ($admin == null || $domain == null) {
+    echo "no entry", "\n";
+} else {
+    // A directory makes random (version 4) GUIDs. The version digit starts
+    // the third group only when the bytes are in the usual order.
+    var $guid = $admin->uuid("objectGUID");
+    echo "uuid version 4: ", $guid != null && Core\Str::startsWith(Core\Str::split($guid->toString(), "-")[2], "4") ? "yes" : "no", "\n";
+
+    var $sid = $admin->sid("objectSid");
+    var $domainSid = $domain->sid("objectSid");
+    if ($sid == null || $domainSid == null) {
+        echo "no sid", "\n";
+    } else {
+        echo "sid starts: ", Core\Str::startsWith($sid->toString(), "S-1-5-21-") ? "S-1-5-21-" : $sid->toString(), "\n";
+        echo "rid: ", $sid->rid(), "\n";
+        echo "domain is the domain's sid: ", $sid->domain()?->toString() == $domainSid->toString() ? "yes" : "no", "\n";
+    }
+
+    // `pwdLastSet` is a FILETIME and `whenCreated` is a GeneralizedTime.
+    // The password was set when the account was made.
+    var $set = $admin->instant("pwdLastSet");
+    var $created = $admin->instant("whenCreated");
+    if ($set == null || $created == null) {
+        echo "no time", "\n";
+    } else {
+        echo "set after created: ", $set->compareTo($created) >= 0 ? "yes" : "no", "\n";
+        echo "set within a minute: ", $set->since($created)->toSeconds() < 60 ? "yes" : "no", "\n";
+    }
+    // The account never expires, so the FILETIME is "never".
+    echo "accountExpires: ", $admin->instant("accountExpires") == null ? "null" : "a time", "\n";
+
+    echo "maxPwdAge: ", $domain->duration("maxPwdAge")?->toString() ?? "null", "\n";
+    echo "lockoutDuration: ", $domain->duration("lockoutDuration")?->toString() ?? "null", "\n";
+}
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+base = "DC=example,DC=test"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+uuid version 4: yes
+sid starts: S-1-5-21-
+rid: 500
+domain is the domain's sid: yes
+set after created: yes
+set within a minute: yes
+accountExpires: null
+maxPwdAge: 6w
+lockoutDuration: 30m

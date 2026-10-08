@@ -33,6 +33,9 @@ pub(crate) const DN_NAME: &str = r"Core\Ldap\Dn";
 /// `Core\Ldap\Ad`'s fully-qualified name.
 pub(crate) const AD_NAME: &str = r"Core\Ldap\Ad";
 
+/// `Core\Ldap\Sid`'s fully-qualified name.
+pub(crate) const SID_NAME: &str = r"Core\Ldap\Sid";
+
 /// [`SCOPE`]'s fully-qualified name.
 pub(crate) const SCOPE_NAME: &str = r"Core\Ldap\Scope";
 
@@ -63,6 +66,8 @@ pub(super) const ENTRY_ATTRIBUTES_AT: usize = 1;
 pub(super) const FILTER_BER_AT: usize = 0;
 /// [`DN`]'s slot for its RFC 4514 text, as [`nvs_ldap::Dn::to_text`] wrote it.
 pub(super) const DN_TEXT_AT: usize = 0;
+/// [`SID`]'s slot for its binary form, as [`nvs_ldap::Sid::to_bytes`] wrote it.
+pub(super) const SID_BYTES_AT: usize = 0;
 
 /// ADR 0278 § 2's `Ldap\Settings`, the one shape `open` takes.
 ///
@@ -501,9 +506,9 @@ const ATTRIBUTE_NAME_PARAM: ParamDoc = ParamDoc {
     shape: &[],
 };
 
-/// ADR 0278 § 1's `Ldap\Entry`, as far as Stage 4 goes: the DN and the
-/// readers for text and bytes. `super::search`'s module doc says what each
-/// slot is.
+/// ADR 0278 § 1's `Ldap\Entry`: the DN, the readers for text and bytes, and
+/// § 8's typed readers. `super::search`'s module doc says what each slot is,
+/// and `super::value`'s what each typed reader accepts.
 pub(crate) const ENTRY: CoreClass = CoreClass {
     name: ENTRY_NAME,
     doc: Some(&ENTRY_CARD),
@@ -553,6 +558,51 @@ pub(crate) const ENTRY: CoreClass = CoreClass {
             return_ty: CoreTy::Nullable(&CoreTy::TaintedBytes),
             symbol: "nvs_core_ldap_entry_bytes",
             doc: Some(&ENTRY_BYTES_DOC),
+        },
+        CoreMethod {
+            name: "uuid",
+            names: &["name"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Instance(crate::uuid::NAME)),
+            symbol: "nvs_core_ldap_entry_uuid",
+            doc: Some(&ENTRY_UUID_DOC),
+        },
+        CoreMethod {
+            name: "sid",
+            names: &["name"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Instance(SID_NAME)),
+            symbol: "nvs_core_ldap_entry_sid",
+            doc: Some(&ENTRY_SID_DOC),
+        },
+        CoreMethod {
+            name: "sids",
+            names: &["name"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Array(&CoreTy::Instance(SID_NAME))),
+            symbol: "nvs_core_ldap_entry_sids",
+            doc: Some(&ENTRY_SIDS_DOC),
+        },
+        CoreMethod {
+            name: "instant",
+            names: &["name"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Instance(crate::time::INSTANT_NAME)),
+            symbol: "nvs_core_ldap_entry_instant",
+            doc: Some(&ENTRY_INSTANT_DOC),
+        },
+        CoreMethod {
+            name: "duration",
+            names: &["name"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Instance(crate::time::DURATION_NAME)),
+            symbol: "nvs_core_ldap_entry_duration",
+            doc: Some(&ENTRY_DURATION_DOC),
         },
         CoreMethod {
             name: "toArray",
@@ -624,6 +674,73 @@ const ENTRY_BYTES_DOC: MethodDoc = MethodDoc {
     errors: &[ErrorDoc {
         error: "LogicError",
         desc: "The attribute has more than one value.",
+    }],
+};
+
+/// The error every one of [`ENTRY`]'s single-value typed readers throws.
+const ENTRY_TYPED_ERRORS: &[ErrorDoc] = &[ErrorDoc {
+    error: "LogicError",
+    desc: "The attribute has more than one value, or its value is not in the form this \
+           function reads. The message names the attribute.",
+}];
+
+/// `Ldap\Entry::uuid`'s reference card — `rule:core-api/reference-card`.
+const ENTRY_UUID_DOC: MethodDoc = MethodDoc {
+    short: "Returns a GUID attribute, such as `objectGUID`, as a `Core\\Uuid`. Active Directory \
+            stores the first three groups of a GUID in reverse byte order. This function puts \
+            them in the usual order, so the text is the same as Windows shows.",
+    params: &[ATTRIBUTE_NAME_PARAM],
+    ret: "The UUID, or `null` when the entry has no value for the attribute.",
+    errors: ENTRY_TYPED_ERRORS,
+};
+
+/// `Ldap\Entry::sid`'s reference card — `rule:core-api/reference-card`.
+const ENTRY_SID_DOC: MethodDoc = MethodDoc {
+    short: "Returns a SID attribute, such as `objectSid`, as a `Core\\Ldap\\Sid`.",
+    params: &[ATTRIBUTE_NAME_PARAM],
+    ret: "The SID, or `null` when the entry has no value for the attribute.",
+    errors: ENTRY_TYPED_ERRORS,
+};
+
+/// `Ldap\Entry::sids`' reference card — `rule:core-api/reference-card`.
+const ENTRY_SIDS_DOC: MethodDoc = MethodDoc {
+    short: "Returns every value of a SID attribute, such as `tokenGroups` or `sIDHistory`, as a \
+            list of `Core\\Ldap\\Sid`.",
+    params: &[ATTRIBUTE_NAME_PARAM],
+    ret: "The SIDs in the order the server sent them, or `null` when the entry has no value for \
+          the attribute.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "A value is not a SID. The message names the attribute.",
+    }],
+};
+
+/// `Ldap\Entry::instant`'s reference card — `rule:core-api/reference-card`.
+const ENTRY_INSTANT_DOC: MethodDoc = MethodDoc {
+    short: "Returns a time attribute as a `Core\\Time\\Instant`. It reads both forms a \
+            directory uses: a number of 100-nanosecond steps since the year 1601, such as \
+            `pwdLastSet`, and text such as `20240101120000.0Z`, such as `whenCreated`.",
+    params: &[ATTRIBUTE_NAME_PARAM],
+    ret: "The instant, or `null` when the entry has no value for the attribute. It is also \
+          `null` when the number is `0` or `9223372036854775807`. Active Directory uses those \
+          two numbers for \"never\".",
+    errors: ENTRY_TYPED_ERRORS,
+};
+
+/// `Ldap\Entry::duration`'s reference card — `rule:core-api/reference-card`.
+const ENTRY_DURATION_DOC: MethodDoc = MethodDoc {
+    short: "Returns a length of time, such as `maxPwdAge` or `lockoutDuration`, as a \
+            `Core\\Time\\Duration`. Active Directory stores it as a negative number of \
+            100-nanosecond steps.",
+    params: &[ATTRIBUTE_NAME_PARAM],
+    ret: "The duration, or `null` when the entry has no value for the attribute. It is also \
+          `null` when the number is `-9223372036854775808`. Active Directory uses that number \
+          for \"never\".",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The attribute has more than one value, or its value is not zero or a negative \
+               number, or it is longer than a `Duration` can be. The message names the \
+               attribute.",
     }],
 };
 
@@ -1157,6 +1274,119 @@ const DN_TO_STRING_DOC: MethodDoc = MethodDoc {
     params: &[],
     ret: "The text. `Dn::parse` reads it back as the same DN. The text is `tainted`, because a \
           value in the DN may be.",
+    errors: &[],
+};
+
+/// `Ldap\Sid`'s class card — `rule:core-api/reference-card`.
+const SID_CARD: ClassDoc = ClassDoc {
+    short: "A SID (security identifier), the number Windows uses for a user, a group or a \
+            computer, such as `S-1-5-21-1004336348-1177238915-682003330-512`.",
+};
+
+/// ADR 0278 § 1's `Ldap\Sid`: one value, its binary form in one slot. The
+/// bodies are `super::sid`'s.
+pub(crate) const SID: CoreClass = CoreClass {
+    name: SID_NAME,
+    doc: Some(&SID_CARD),
+    methods: &[CoreMethod {
+        name: "parse",
+        names: &["text"],
+        // The text is read into numbers, and nothing of it is sent as text.
+        params: &[CoreTy::Text(Qual::Neutral)],
+        defaults: &[],
+        return_ty: CoreTy::Instance(SID_NAME),
+        symbol: "nvs_core_ldap_sid_parse",
+        doc: Some(&SID_PARSE_DOC),
+    }],
+    instance: &[
+        CoreMethod {
+            name: "toString",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "nvs_core_ldap_sid_to_string",
+            doc: Some(&SID_TO_STRING_DOC),
+        },
+        CoreMethod {
+            name: "bytes",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Bytes,
+            symbol: "nvs_core_ldap_sid_bytes",
+            doc: Some(&SID_BYTES_DOC),
+        },
+        CoreMethod {
+            name: "domain",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Instance(SID_NAME)),
+            symbol: "nvs_core_ldap_sid_domain",
+            doc: Some(&SID_DOMAIN_DOC),
+        },
+        CoreMethod {
+            name: "rid",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Int,
+            symbol: "nvs_core_ldap_sid_rid",
+            doc: Some(&SID_RID_DOC),
+        },
+    ],
+    slots: &["bytes"],
+    constants: &[],
+};
+
+/// `Ldap\Sid::parse`'s reference card — `rule:core-api/reference-card`.
+const SID_PARSE_DOC: MethodDoc = MethodDoc {
+    short: "Reads SID text, such as `S-1-5-32-544`, and returns the SID.",
+    params: &[ParamDoc {
+        name: "text",
+        desc: "The text. It starts with `S-1-`, then the authority, then 1 to 15 numbers, all \
+               joined by `-`.",
+        shape: &[],
+    }],
+    ret: "A `Core\\Ldap\\Sid`.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The text is not a SID. The message says which part is wrong.",
+    }],
+};
+
+/// `Ldap\Sid->toString`'s reference card — `rule:core-api/reference-card`.
+const SID_TO_STRING_DOC: MethodDoc = MethodDoc {
+    short: "Returns the SID as text, such as `S-1-5-32-544`.",
+    params: &[],
+    ret: "The text. `Sid::parse` reads it back as the same SID.",
+    errors: &[],
+};
+
+/// `Ldap\Sid->bytes`'s reference card — `rule:core-api/reference-card`.
+const SID_BYTES_DOC: MethodDoc = MethodDoc {
+    short: "Returns the SID in its binary form, the form Active Directory stores in `objectSid`.",
+    params: &[],
+    ret: "The bytes: 8 bytes, then 4 bytes for each number after the authority.",
+    errors: &[],
+};
+
+/// `Ldap\Sid->domain`'s reference card — `rule:core-api/reference-card`.
+const SID_DOMAIN_DOC: MethodDoc = MethodDoc {
+    short: "Returns the SID without its last number. For a user or a group, this is the SID of \
+            its domain.",
+    params: &[],
+    ret: "The shorter SID, or `null` when this SID has only one number after the authority.",
+    errors: &[],
+};
+
+/// `Ldap\Sid->rid`'s reference card — `rule:core-api/reference-card`.
+const SID_RID_DOC: MethodDoc = MethodDoc {
+    short: "Returns the last number of the SID, the RID (relative identifier). In a domain, \
+            `500` is the built-in `Administrator` and `512` is `Domain Admins`.",
+    params: &[],
+    ret: "The RID, from `0` to `4294967295`.",
     errors: &[],
 };
 

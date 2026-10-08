@@ -1,0 +1,33 @@
+--TEST--
+`Ldap\Sid::parse` reads SID text, `toString` writes the same text back, `bytes` is the binary form AD stores, and `domain` and `rid` split off the last number — `rule:core-classes/ldap-value-types`
+--FILE--
+<?nvs
+// BUILTIN\Administrators: authority 5, then 32 and 544.
+var $admins = Core\Ldap\Sid::parse("S-1-5-32-544");
+echo $admins->toString(), "\n";
+echo Core\Encoding::toHex($admins->bytes()), "\n";
+echo "rid: ", $admins->rid(), "\n";
+echo "domain: ", $admins->domain()?->toString() ?? "null", "\n";
+
+var $user = Core\Ldap\Sid::parse("S-1-5-21-1004336348-1177238915-682003330-1105");
+echo "rid: ", $user->rid(), "\n";
+echo "domain: ", $user->domain()?->toString() ?? "null", "\n";
+echo "bytes: ", Core\Bytes::length($user->bytes()), "\n";
+
+// The largest number a part can have is 4294967295.
+echo Core\Ldap\Sid::parse("S-1-5-21-4294967295")->rid(), "\n";
+
+// An authority of 2^32 or more is written in hex, with `0x`.
+echo Core\Ldap\Sid::parse("S-1-0x010000000000-7")->toString(), "\n";
+echo Core\Ldap\Sid::parse("S-1-0x000000000005-7")->toString(), "\n";
+--EXPECT--
+S-1-5-32-544
+01020000000000052000000020020000
+rid: 544
+domain: S-1-5-32
+rid: 1105
+domain: S-1-5-21-1004336348-1177238915-682003330
+bytes: 28
+4294967295
+S-1-0x010000000000-7
+S-1-5-7
