@@ -10,6 +10,7 @@
 //! - [`ber`] encodes and reads the BER subset RFC 4511 § 5.1 allows, and its
 //!   module doc says why it is written here rather than borrowed.
 //! - [`proto`] is the messages, the controls and the filter tree.
+//! - [`dn`] is RFC 4514's distinguished name, escaped as it is built.
 //! - [`conn`] is one connection: LDAPS or StartTLS, bind, `whoami`, search,
 //!   unbind.
 //! - [`error`] is the one error type, with ADR 0278 § 10's kinds.
@@ -20,10 +21,12 @@
 
 pub mod ber;
 pub mod conn;
+pub mod dn;
 pub mod error;
 pub mod proto;
 
 pub use conn::{Connection, Cursor, Endpoint, Scheme, Search, Tls, Url};
+pub use dn::{Ava, Dn, PartError, Rdn};
 pub use error::{Error, Kind};
 pub use proto::{
     Attribute, Entry, Filter, Scope, SearchRequest, TextError, is_attribute_description,
