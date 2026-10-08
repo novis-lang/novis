@@ -4705,8 +4705,8 @@ pub mod code {
          `callable(int): string`, not `callable(int $x): string`.",
     );
 
-    /// Two writers of one response body — `echo` and a typed body member, or
-    /// two different typed members —
+    /// Two writers of one response body — `echo` or page text outside
+    /// `<?nvs … ?>` and a typed body member, or two different typed members —
     /// `rule:security/response-body-is-one-typed-member`
     /// 's sixth row.
     ///

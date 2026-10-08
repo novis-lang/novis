@@ -1264,7 +1264,13 @@ pub(crate) fn check_stmt(
             // rather than here, where the declaration is not in reach.
         }
         StmtKind::Block(b) => check_block(&b.stmts, live, scope, return_ty, ctx, env),
-        StmtKind::Empty | StmtKind::InlineHtml(_) | StmtKind::Error => {}
+        // Page text outside `<?nvs … ?>` is written to the response exactly as
+        // `echo` writes there, so it is the same writer to
+        // `rule:security/response-body-is-one-typed-member`'s sixth row.
+        StmtKind::InlineHtml(_) => {
+            crate::response::note_echo(stmt.span, crate::response::PAGE_TEXT, env);
+        }
+        StmtKind::Empty | StmtKind::Error => {}
         // Each arm's `else` is the rest of the chain. The arms are checked in
         // order with `live` as the rest's live set, each one under every
         // earlier condition narrowed false. Then the joins are made from the
@@ -1548,7 +1554,7 @@ pub(crate) fn check_stmt(
             // by a typed member both. The statement's own span rather than an
             // operand's, because here the *writer* is what a reader has to
             // find — see `crate::response`.
-            crate::response::note_echo(stmt.span, env);
+            crate::response::note_echo(stmt.span, crate::response::ECHO, env);
             for x in xs {
                 let ty = check_expr(x, None, live, scope, ctx, env);
                 // `rule:security/secret-sinks-refuse`'s terminal-output sink, which this statement

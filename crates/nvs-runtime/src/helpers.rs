@@ -2871,14 +2871,16 @@ crate::nvs_helper! {
 }
 
 crate::nvs_helper! {
-    /// `nvs_ir::Helper::EchoMarkup` — one piece of an html template written at
-    /// `echo`, which is the bytes of a `Core\Html\Markup` nobody built.
+    /// `nvs_ir::Helper::EchoMarkup` — the bytes of a `Core\Html\Markup` nobody
+    /// built: one piece of an html template written at `echo`, or a run of a
+    /// file's text outside `<?nvs … ?>`.
     ///
     /// [`nvs_echo_value`] writes a `Markup` raw under the HTML sink and
     /// substitutes it under every other one, and this asks the same question of
     /// the sink alone, because the piece no longer has a class to ask. Under
-    /// the HTML sink a segment is what the author wrote and a hole was escaped
-    /// on the way in, so escaping either here would escape it twice.
+    /// the HTML sink a segment or a run of page text is what the author wrote
+    /// and a hole was escaped on the way in, so escaping any of them here would
+    /// break the page or escape the hole twice.
     fn nvs_echo_markup(ctx, args: [1]) {
         let raw = if ctx.carrier() == crate::CARRIER_HTML_MARKUP { Raw::Yes } else { Raw::No };
         write_rendered(ctx, "nvs_echo_markup", args[0], raw)?;

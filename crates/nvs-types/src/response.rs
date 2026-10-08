@@ -116,8 +116,9 @@ const BODY_MEMBERS: [(&str, &str); 7] = [
 pub(crate) struct BodyWriters {
     /// Whether this body is a `#[Route]` handler's, and so has a response.
     armed: bool,
-    /// The first `echo` statement in it.
-    echo: Option<Span>,
+    /// The first `echo` statement or run of page text in it, and the label
+    /// naming which of the two it is.
+    echo: Option<(Span, &'static str)>,
     /// The first body-writing member call in it, and the label naming it —
     /// the label rather than the bare name, because two writers are told apart
     /// by which member they are and the roster spans two classes.
@@ -210,21 +211,28 @@ pub(crate) fn entering_body(m: &MethodMember, ctx: &Ctx<'_>, env: &Env<'_>) -> B
     }
 }
 
-/// An `echo` statement in the body being checked.
+/// [`note_echo`]'s label for an `echo` statement, `<?= ?>` included.
+pub(crate) const ECHO: &str = "`echo`";
+/// [`note_echo`]'s label for a run of text outside `<?nvs … ?>`, which writes
+/// the response body exactly as `echo` does.
+pub(crate) const PAGE_TEXT: &str = "the HTML outside `<?nvs ?>`";
+
+/// An `echo` statement, or a run of page text, in the body being checked;
+/// `label` is [`ECHO`] or [`PAGE_TEXT`].
 ///
-/// Called from [`crate::locals::check_stmt`]'s `Echo` arm with the statement's
-/// own span, which is what the label points at: the operand is where `rule:security/secret-sinks-refuse`
-/// 's secret refusal points, because there the *value* is the mistake, and
-/// here the writer is.
-pub(crate) fn note_echo(span: Span, env: &mut Env<'_>) {
+/// Called from [`crate::locals::check_stmt`]'s `Echo` and `InlineHtml` arms
+/// with the statement's own span, which is what the label points at: the
+/// operand is where `rule:security/secret-sinks-refuse`'s secret refusal
+/// points, because there the *value* is the mistake, and here the writer is.
+pub(crate) fn note_echo(span: Span, label: &'static str, env: &mut Env<'_>) {
     if !env.body_writers.armed || env.body_writers.reported {
         return;
     }
     if let Some((member_span, member)) = env.body_writers.member.clone() {
-        report(span, "`echo`", member_span, &member, env);
+        report(span, label, member_span, &member, env);
         return;
     }
-    env.body_writers.echo.get_or_insert(span);
+    env.body_writers.echo.get_or_insert((span, label));
 }
 
 /// A resolved `Core\Class::member(...)` call in the body being checked.
@@ -240,8 +248,8 @@ pub(crate) fn note_body_member(qname: &QName, member: &str, span: Span, env: &mu
     let Some(label) = body_member_label(qname, member) else {
         return;
     };
-    if let Some(echo) = env.body_writers.echo {
-        report(span, &label, echo, "`echo`", env);
+    if let Some((echo, echo_label)) = env.body_writers.echo {
+        report(span, &label, echo, echo_label, env);
         return;
     }
     if let Some((first, first_label)) = env.body_writers.member.clone() {

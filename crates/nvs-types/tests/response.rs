@@ -210,6 +210,38 @@ fn two_body_writers_on_one_response_is_a_diagnostic() {
     assert!(!refused(&diags), "{diags:?}");
 }
 
+/// Page text outside `<?nvs … ?>` is written to the response the way `echo` is,
+/// so it is `echo`'s writer: beside a typed member in either order it is the
+/// same refusal, beside `echo` it is one writer, and in a method no request
+/// reaches it is left alone like `echo`.
+// covers: lang:programs/code-mode-and-html-mode
+#[test]
+fn page_text_in_a_handler_is_the_echo_writer() {
+    let diags = check_src(&handler(
+        "    Core\\Response::json(1);\n?>\n<p>tail</p>\n<?nvs\n",
+    ));
+    assert!(refused(&diags), "{diags:?}");
+    let message = &diags
+        .iter()
+        .find(|d| d.code == Some(code::E_ECHO_BESIDE_A_BODY_MEMBER))
+        .expect("refused above")
+        .message;
+    assert!(message.contains("the HTML outside `<?nvs ?>`"), "{message}");
+
+    let diags = check_src(&handler(
+        "?>\n<p>head</p>\n<?nvs\n    Core\\Response::text(\"t\");\n",
+    ));
+    assert!(refused(&diags), "{diags:?}");
+
+    let diags = check_src(&handler("?>\n<p>head</p>\n<?nvs\n    echo \"a\";\n"));
+    assert!(!diags.has_errors(), "{diags:?}");
+
+    let diags = check_src(&plain_method(
+        "    Core\\Response::json(1);\n?>\n<p>tail</p>\n<?nvs\n",
+    ));
+    assert!(!refused(&diags), "{diags:?}");
+}
+
 #[test]
 fn a_handler_that_writes_its_body_one_way_is_accepted() {
     // `echo` alone is § 4's last bullet — the inline-HTML page, which is the

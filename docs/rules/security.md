@@ -1293,7 +1293,8 @@ member accepts one only because a no-sniff header is on by default with nothing 
 change to two rules.
 
 **Two writers of one response body is a compile error** — `echo` beside a typed member, and two
-different typed members beside each other. They disagree about the body's type and its content type,
+different typed members beside each other. A file's text outside `<?nvs … ?>` is `echo`'s writer
+here, because the HTML sink writes it the same way. They disagree about the body's type and its content type,
 and silently letting the last one win is how a JSON endpoint acquires an HTML prelude. What the
 refusal needs is two *different* writers: one member called twice declares one thing twice, so a body
 written in a loop is an ordinary program and is left alone.

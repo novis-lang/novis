@@ -1,0 +1,36 @@
+--TEST--
+A file's text outside `<?nvs … ?>` is written as it is under both sinks, while a `<?= ?>` hole holding a string is escaped inside an HTTP request and one holding a `Core\Html\Markup` is written once -- the same lines run as a request and as this program -- `rule:tooling/shebang-opens-code-mode`, `rule:core-classes/html-auto-escape`, `rule:tooling/echo-always-has-a-sink`
+--FILE--
+<?nvs
+// covers: lang:programs/code-mode-and-html-mode
+// The program sends a request to itself. Inside that request the call below
+// throws an error, so the `catch` block runs and the page after it is the
+// request's body. The program then writes the same page itself.
+string $where = "program";
+try {
+    var $page = Core\Test::request(Core\Http\Method::Get, "/shop");
+    echo $page->body();
+} catch (RuntimeError $inside) {
+    $where = "request";
+}
+string $name = "<b>Shop</b> & co";
+Core\Html\Markup $logo = "<img src=\"logo.png\" alt=\"&amp;\">" as Core\Html\Markup;
+// The tags and the entity in the page text are what the author wrote, so both
+// sinks write them unchanged. Only the string hole differs between the two.
+?>
+<?= $where ?>:
+<ul class="shop">
+  <li><?= $name ?></li>
+  <li><?= $logo ?></li>
+</ul>
+--EXPECT--
+request:
+<ul class="shop">
+  <li>&lt;b&gt;Shop&lt;/b&gt; &amp; co</li>
+  <li><img src="logo.png" alt="&amp;"></li>
+</ul>
+program:
+<ul class="shop">
+  <li><b>Shop</b> & co</li>
+  <li><img src="logo.png" alt="&amp;"></li>
+</ul>

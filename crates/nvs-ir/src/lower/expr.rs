@@ -830,21 +830,28 @@ impl<'a> Lowering<'a> {
             self.release_temporaries_since(mark, *cur);
         }
     }
-    /// A run of literal text between `?>` and the next `<?nvs` — spec
-    /// `00-overview.md` § 1 — written to the request's output verbatim.
+    /// A run of literal text between `?>` and the next `<?nvs` — written to the
+    /// output verbatim (`docs/reference/lang/10-programs.md` § *Code mode and
+    /// HTML mode*, `rule:tooling/shebang-opens-code-mode`).
     ///
     /// The span points straight at the source bytes, so there is nothing to
     /// cook: unlike a string literal it carries no quotes and no escape
-    /// sequences, and unlike [`Self::lower_echo`]'s operands it is never
-    /// converted or escaped on the way out. `nvs_syntax::Lexer::lex_code`
-    /// already swallowed the one newline immediately after `?>`, and
-    /// `lex_html` pushes no token at all for an empty run, so the text this
-    /// receives is exactly what the page owes and never the empty string.
+    /// sequences, and it is never converted on the way out.
+    /// `nvs_syntax::Lexer::lex_code` already swallowed the one newline
+    /// immediately after `?>`, and `lex_html` pushes no token at all for an
+    /// empty run, so the text this receives is exactly what the page owes and
+    /// never the empty string.
     ///
-    /// From there it is [`Self::lower_echo`]'s own tail, for the same reasons
-    /// that function's doc comment gives: one [`Helper::EchoStr`] call, the
-    /// one conversion-free helper that can genuinely fail, carrying the
-    /// failure edge [`Self::landing_block`] hands out. The
+    /// **It is written as a `Core\Html\Markup` nobody built**, the same
+    /// [`Helper::EchoMarkup`] write an html template's segment takes at `echo`
+    /// ([`Self::echo_html_template_parts`]): the text is exactly what the
+    /// developer wrote, which is the trust `rule:core-classes/html-auto-escape`
+    /// gives a string literal lifted with `as Markup`. So under the HTTP sink
+    /// the page's own tags go out as tags while a `<?= ?>` hole, which is an
+    /// ordinary `echo`, is still escaped; under every other sink the helper
+    /// substitutes exactly as [`Helper::EchoStr`] would, so a command-line
+    /// program prints what it always printed. One helper call either way,
+    /// carrying the failure edge [`Self::landing_block`] hands out. The
     /// [`InstKind::ConstStr`] is a fresh value with exactly one use, so it
     /// goes on [`Self::owned_temporaries`] and is released on both edges.
     ///
@@ -857,7 +864,7 @@ impl<'a> Lowering<'a> {
         let mark = self.temporaries_mark();
         let (v, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(text));
         self.own_temporary(v);
-        self.emit_write(Helper::EchoStr, v, env, *cur);
+        self.emit_write(Helper::EchoMarkup, v, env, *cur);
         self.release_temporaries_since(mark, *cur);
     }
     /// `print $x` — one operand written exactly as [`Self::lower_echo`]
