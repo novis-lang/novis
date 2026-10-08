@@ -69,6 +69,7 @@ nvs-config = { path = "crates/nvs-config", version = "0.0.1" }
 # The defaults are the wasmtime host and the packer; a dependent names what it takes.
 nvs-ext = { path = "crates/nvs-ext", version = "0.0.1", default-features = false }
 nvs-db = { path = "crates/nvs-db", version = "0.0.1" }
+nvs-ldap = { path = "crates/nvs-ldap", version = "0.0.1" }
 nvs-stdlib = { path = "crates/nvs-stdlib", version = "0.0.1" }
 nvs-test = { path = "crates/nvs-test", version = "0.0.1" }
 # Dev-only: how a test reaches a file outside its own package, recorded for `bun nv verify`.

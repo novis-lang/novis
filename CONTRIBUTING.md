@@ -154,6 +154,7 @@ crates/             the Cargo workspace
   nvs-host          thread-per-core scheduler, reactor, coroutines, the Isolate boundary  [audited unsafe]
   nvs-stdlib        every `Core` member, and the registry a call resolves against  [audited unsafe]
   nvs-db            the five SQL drivers: sans-IO codecs over nvs-host's streams
+  nvs-ldap          the LDAP wire: a BER codec and a connection over nvs-host's streams
   nvs-config        the directive registry and the `nvs.toml` tree  [audited unsafe]
   nvs-server        the built-in HTTP server: a socket to a root isolate and back
   nvs-cli           the `nvs` binary  [audited unsafe]

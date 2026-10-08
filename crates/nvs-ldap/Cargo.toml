@@ -1,0 +1,36 @@
+[package]
+name = "nvs-ldap"
+build = "../../tools/build/tests_without_pdb.rs"
+description = "The LDAP wire: a BER codec of LDAP's own subset and a connection over the parking stream"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[lib]
+# No doc comment in this crate has a runnable example, so `cargo test` does
+# not run rustdoc over it. A crate that gains one deletes this table.
+doctest = false
+
+# `rule:core-classes/db-crate-boundary` fixes this crate's place in the graph,
+# as it fixes `nvs-db`'s: `nvs-stdlib` depends on this crate and never the
+# reverse. A `use nvs_stdlib::…` here turns the workspace into a cycle.
+[dependencies]
+# The parking stream and its TLS session. This edge is why no async runtime is
+# needed: a socket that hands the core back is a plain `Read`/`Write`, so the
+# codec and the sequencing above it are all this crate has to supply.
+#
+# There is no codec dependency. `src/ber.rs`'s module doc says why: the one
+# crate with LDAP's types sits on a ten-encoding ASN.1 framework, for a BER
+# subset of a tag byte, a length and a body.
+nvs-host.workspace = true
+
+[dev-dependencies]
+# `tests/samba.rs` reads `tests/db/ca.crt`, the anchor of the compose servers.
+nvs-repo.workspace = true
+
+[lints]
+workspace = true

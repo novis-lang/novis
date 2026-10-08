@@ -3085,6 +3085,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "nvs-ldap"
+version = "0.0.1"
+dependencies = [
+ "nvs-host",
+ "nvs-repo",
+]
+
+[[package]]
 name = "nvs-lsp"
 version = "0.0.1"
 dependencies = [
