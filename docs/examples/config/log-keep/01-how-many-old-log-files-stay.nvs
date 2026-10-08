@@ -1,0 +1,10 @@
+<?nvs
+// This program prints how many old log files Novis keeps and shows that a program cannot change it.
+
+echo 'keep: ', Core\Config::get('log.keep') ?? '(not set, so 5)', "\n";
+
+// `Core\Config::set` returns `false` here. Only `nvs.toml` can set `log.keep`.
+echo 'keep 1000 files: ', Core\Config::set('log.keep', '1000') ? 'accepted' : 'not allowed', "\n";
+echo 'keep 0 files: ', Core\Config::set('log.keep', '0') ? 'accepted' : 'not allowed', "\n";
+
+echo 'keep now: ', Core\Config::get('log.keep') ?? '(not set, so 5)', "\n";

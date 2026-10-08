@@ -9,8 +9,8 @@ creates and owns, with a per-service SID, no password to rotate or leak and no i
 domain account, with the password prompted rather than taken from the command line
 (`rule:packaging/the-installer-is-a-sink`). For those, install grants the account **read** on the
 service's data folder, on its `nvs.toml` and on every `--config` file, and **read/write** on the data
-folder's `cache/`, `tmp/` and `lsp/` only, each inherited only inside its own subfolder; a log
-directory, `[opcache] file_cache_dir` or `[io] temp_root` outside those three gets its own read/write
+folder's `cache/`, `tmp/`, `lsp/` and `logs/` only, each inherited only inside its own subfolder; a log
+directory, `[opcache] file_cache_dir` or `[io] temp_root` outside those four gets its own read/write
 grant, and nothing further is granted. **The service account never writes its own configuration.** A
 directory the grant names that is not there is created by the install, because such an account holds
 nothing on the parent and so could never create it itself. An uninstall finds the data folder from the

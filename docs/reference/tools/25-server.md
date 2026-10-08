@@ -425,11 +425,14 @@ The options of the installer:
 | `--dry-run` | Prints every step and changes nothing. |
 
 With `--account`, the service account can read the data folder and every configuration file. It can
-write only to the `cache`, `tmp` and `lsp` folders in the data folder, and to a log, cache or
+write only to the `cache`, `tmp`, `lsp` and `logs` folders in the data folder, and to a log, cache or
 temporary folder that the configuration names. The service cannot change its own configuration.
 
-A service has no terminal. Set `[log] target` to a file, so that the log of the server is written
-to that file. `nvs service install --help` prints one whole command line for each platform.
+A service has no terminal. When the configuration does not set `[log] target`, a service writes its
+log to `logs/nvs.log` in the data folder. When that file reaches `[log] max_size`, Novis renames it
+to `nvs.log.1` and starts a new file, and it keeps `[log] keep` old files. If the data folder cannot
+be used, the log goes to the standard error stream. `nvs service install --help` prints one whole
+command line for each platform.
 
 **`unit`** prints what `install` would store, and changes nothing. It makes the same checks, and it
 needs no administrator. On Linux it prints a systemd unit. On Windows it prints a `New-Service`

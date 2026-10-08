@@ -1,0 +1,45 @@
+<?nvs
+// Attack: a program tries to make Novis keep every old log file, or delete them all
+// to hide its records. Every change should fail, and the setting stays the same.
+// hostile: timeout-ms 20000
+
+// 1. Tries `log.keep` and keys that are almost the same.
+array<string> $names = [
+    'log.keep',
+    'keep',
+    'LOG.KEEP',
+    'log..keep',
+    '.log.keep',
+    'log.keep.',
+    'app.log.keep',
+    'app.0.log.keep',
+    "log.keep\u{0000}",
+    "log.format\u{0000}log.keep",
+    'log.' . Core\Str::repeat('sub.', 20000) . 'keep',
+];
+foreach ($names as string $key) {
+    Core\Config::set($key, 'false');
+    Core\Config::set($key, '0');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 2. Tries no limit, zero, negative counts and counts too large to store.
+array<string> $counts = [
+    'false',
+    'true',
+    '0',
+    '-1',
+    '1.5',
+    '',
+    '5 files',
+    '18446744073709551616',
+    '9223372036854775807',
+    Core\Str::repeat('9', 1048576),
+];
+foreach ($counts as string $count) {
+    Core\Config::set('log.keep', $count);
+}
+Core\Config::restore('log.keep');
+
+echo 'keep: ', Core\Config::get('log.keep') ?? '(not set)', "\n";

@@ -1,0 +1,4 @@
+keep: (not set, so 5)
+keep 1000 files: not allowed
+keep 0 files: not allowed
+keep now: (not set, so 5)

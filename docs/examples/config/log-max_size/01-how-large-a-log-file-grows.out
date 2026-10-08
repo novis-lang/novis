@@ -1,0 +1,4 @@
+max_size: (not set, so 10M)
+set it to 1G: not allowed
+remove the limit: not allowed
+max_size now: (not set, so 10M)

@@ -25,7 +25,10 @@ command prints for it, the install proceeds, and nothing is granted on the folde
 There is no row for where the service's output goes, and no `--log-file` option: a hosted process's
 stdout and stderr are the platform log's — the journal under systemd, the event log under the SCM
 (`rule:packaging/a-service-answers-its-manager`) — so a refused compile leaves its diagnostic where an
-administrator looks without the installer being told a path.
+administrator looks without the installer being told a path. Once the configuration is read, a
+service whose configuration names no `[log] target` writes its log records to `logs/nvs.log` in its
+data folder (`rule:errors/engine-floor`), which is why the account's grant includes `logs/`. A
+`[log] target` of `stderr` is accepted like any other.
 
 Every surviving path is canonicalized and stored absolute. Each refusal is an `E0630`, `E0631`,
 `E0633`, `E0634` or `E0653` diagnostic naming what was refused and why — rows that share a reason share

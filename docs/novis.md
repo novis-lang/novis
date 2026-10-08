@@ -30488,7 +30488,7 @@ accepts — anything else is `E0601`:
 | `[db.<name>.pool]` | `max`, `idle`, `lifetime`, `acquire` — the connection pool's bounds, written as a table where `pool = false` turns it off |
 | `[db] pool` | `pool = false` written beside the blocks rather than inside one, turning pooling off for every connection this process opens — including one `Core\Db::open` described for itself, which names no block. Bounds are not written here: they belong to the block they size |
 | `[mail.<name>]` | `host`, `port`, `from`, `user`, `password`, `password_file`, `timeout` — an SMTP submission endpoint |
-| `[log]` | `handler`, `handler_reserve_memory`, `handler_reserve_time`, `target`, `format`, `level` |
+| `[log]` | `handler`, `handler_reserve_memory`, `handler_reserve_time`, `target`, `max_size`, `keep`, `format`, `level` |
 | `[http]` | `[http.errors] detail`; `[http.headers]`; `[http.cors]`; `[http.cookies]`; `[http.client]` |
 | `[server]`, `[[server.mount]]` | the web server's listen addresses, timeouts and mounts |
 | `[debug]`, `[metrics]`, `[trace]`, `[control]`, `[opcache]`, `[deferred]` | their named directives |
@@ -31038,6 +31038,8 @@ the file by itself, or only at its next start. Only `[server] listen`, `socket_m
 | `log.handler_reserve_memory` | operator only — a request cannot change it | at reload |
 | `log.handler_reserve_time` | operator only — a request cannot change it | at reload |
 | `log.target` | operator only — a request cannot change it | at reload |
+| `log.max_size` | operator only — a request cannot change it | at reload |
+| `log.keep` | operator only — a request cannot change it | at reload |
 | `cache.shared` | operator only — a request cannot change it | at reload |
 | `cache.local` | operator only — a request cannot change it | at reload |
 | `cache.process` | operator only — a request cannot change it | at reload |
@@ -31570,11 +31572,14 @@ The options of the installer:
 | `--dry-run` | Prints every step and changes nothing. |
 
 With `--account`, the service account can read the data folder and every configuration file. It can
-write only to the `cache`, `tmp` and `lsp` folders in the data folder, and to a log, cache or
+write only to the `cache`, `tmp`, `lsp` and `logs` folders in the data folder, and to a log, cache or
 temporary folder that the configuration names. The service cannot change its own configuration.
 
-A service has no terminal. Set `[log] target` to a file, so that the log of the server is written
-to that file. `nvs service install --help` prints one whole command line for each platform.
+A service has no terminal. When the configuration does not set `[log] target`, a service writes its
+log to `logs/nvs.log` in the data folder. When that file reaches `[log] max_size`, Novis renames it
+to `nvs.log.1` and starts a new file, and it keeps `[log] keep` old files. If the data folder cannot
+be used, the log goes to the standard error stream. `nvs service install --help` prints one whole
+command line for each platform.
 
 **`unit`** prints what `install` would store, and changes nothing. It makes the same checks, and it
 needs no administrator. On Linux it prints a systemd unit. On Windows it prints a `New-Service`

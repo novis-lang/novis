@@ -1,0 +1,10 @@
+<?nvs
+// This program prints the size limit of a log file and shows that a program cannot change it.
+
+echo 'max_size: ', Core\Config::get('log.max_size') ?? '(not set, so 10M)', "\n";
+
+// `Core\Config::set` returns `false` here. Only `nvs.toml` can set `log.max_size`.
+echo 'set it to 1G: ', Core\Config::set('log.max_size', '1G') ? 'accepted' : 'not allowed', "\n";
+echo 'remove the limit: ', Core\Config::set('log.max_size', 'false') ? 'accepted' : 'not allowed', "\n";
+
+echo 'max_size now: ', Core\Config::get('log.max_size') ?? '(not set, so 10M)', "\n";

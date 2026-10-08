@@ -2074,7 +2074,10 @@ command prints for it, the install proceeds, and nothing is granted on the folde
 There is no row for where the service's output goes, and no `--log-file` option: a hosted process's
 stdout and stderr are the platform log's — the journal under systemd, the event log under the SCM
 ([`packaging/a-service-answers-its-manager`](packaging.md#packaging-a-service-answers-its-manager)) — so a refused compile leaves its diagnostic where an
-administrator looks without the installer being told a path.
+administrator looks without the installer being told a path. Once the configuration is read, a
+service whose configuration names no `[log] target` writes its log records to `logs/nvs.log` in its
+data folder ([`errors/engine-floor`](errors.md#errors-engine-floor)), which is why the account's grant includes `logs/`. A
+`[log] target` of `stderr` is accepted like any other.
 
 Every surviving path is canonicalized and stored absolute. Each refusal is an `E0630`, `E0631`,
 `E0633`, `E0634` or `E0653` diagnostic naming what was refused and why — rows that share a reason share
@@ -2136,8 +2139,8 @@ creates and owns, with a per-service SID, no password to rotate or leak and no i
 domain account, with the password prompted rather than taken from the command line
 ([`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink)). For those, install grants the account **read** on the
 service's data folder, on its `nvs.toml` and on every `--config` file, and **read/write** on the data
-folder's `cache/`, `tmp/` and `lsp/` only, each inherited only inside its own subfolder; a log
-directory, `[opcache] file_cache_dir` or `[io] temp_root` outside those three gets its own read/write
+folder's `cache/`, `tmp/`, `lsp/` and `logs/` only, each inherited only inside its own subfolder; a log
+directory, `[opcache] file_cache_dir` or `[io] temp_root` outside those four gets its own read/write
 grant, and nothing further is granted. **The service account never writes its own configuration.** A
 directory the grant names that is not there is created by the install, because such an account holds
 nothing on the parent and so could never create it itself. An uninstall finds the data folder from the

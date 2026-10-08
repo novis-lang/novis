@@ -5,6 +5,10 @@ the deployment named, and at the bottom a floor written into the engine, which r
 with no script involved. This key names where that last record goes — the standard error stream, a
 file, or the system log — and with nothing written it is standard error.
 
+A service is different. When the service manager starts Novis and this key is not set, the records
+go to `logs/nvs.log` in the data folder. A file target is limited in size by `[log] max_size` and
+`[log] keep`.
+
 Moving it is the operator's alone. A program able to choose where the report of its own failure is
 written could choose somewhere nobody reads, which is the same as never being reported at all.
 

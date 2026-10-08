@@ -1,0 +1,52 @@
+<?nvs
+// Attack: a program tries to remove the size limit of the log file, so that its
+// records can fill the disk. Every change should fail, and the limit stays the same.
+// hostile: timeout-ms 20000
+
+// 1. Tries `log.max_size` and keys that are almost the same.
+array<string> $names = [
+    'log.max_size',
+    'max_size',
+    'LOG.MAX_SIZE',
+    'log..max_size',
+    '.log.max_size',
+    'log.max_size.',
+    'app.log.max_size',
+    'app.0.log.max_size',
+    "log.max_size\u{0000}",
+    "log.level\u{0000}log.max_size",
+    'log.' . Core\Str::repeat('sub.', 20000) . 'max_size',
+];
+foreach ($names as string $key) {
+    Core\Config::set($key, 'false');
+    Core\Config::set($key, '0');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 2. Tries no limit, a size of zero, negative sizes and sizes too large to store.
+array<string> $sizes = [
+    'false',
+    '0',
+    '0M',
+    '-1',
+    '-10M',
+    '',
+    ' ',
+    '1E',
+    '18446744073709551616',
+    '99999999999999999999G',
+    Core\Str::repeat('9', 1048576),
+];
+foreach ($sizes as string $size) {
+    Core\Config::set('log.max_size', $size);
+    Core\Config::set('log.keep', $size);
+}
+Core\Config::restore('log.max_size');
+Core\Config::restore('log.keep');
+
+// 3. Writes log records after the attempts. They go to the configured target.
+foreach ($sizes as string $size) {
+    Core\Log::write(Core\Log\Level::Warn, 'tried max_size = ' . Core\Str::slice($size, 0, 32));
+}
+echo 'max_size: ', Core\Config::get('log.max_size') ?? '(not set)', "\n";
