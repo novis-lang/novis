@@ -1,20 +1,18 @@
-//! Nothing but the temp root reads the system temp directory. Every temporary folder Novis makes
-//! lives under `capability::temp_root`, and a test that needs a directory asks `nvs_repo::scratch`
-//! for one under `target/`. This reads every Rust source under `crates/` as text and fails on a
-//! call to `std::env::temp_dir()` anywhere else, in test code and product code alike.
+//! Nothing reads the system temp directory. Every temporary folder Novis makes lives under
+//! `capability::temp_root`, which is `[io] temp_root` or the data folder's `tmp/`, and a test that
+//! needs a directory asks `nvs_repo::scratch` for one under `target/`. This reads every Rust source
+//! under `crates/` as text and fails on a call to `std::env::temp_dir()` anywhere, in test code and
+//! product code alike.
 
 use std::collections::BTreeMap;
 use std::path::Path;
-
-/// The one function that reads the system temp directory: its file, and how its signature starts.
-const TEMP_ROOT: (&str, &str) = ("crates/nvs-runtime/src/capability.rs", "pub fn temp_root(");
 
 /// The tests whose subject is the system temp directory itself, and so keep calling it: the file,
 /// how many calls it makes, and why.
 const SUBJECT: &[(&str, usize, &str)] = &[];
 
 #[test]
-fn nothing_but_the_temp_root_reads_the_system_temp_dir() {
+fn nothing_reads_the_system_temp_dir() {
     let root = nvs_repo::path("crates");
     let mut files = Vec::new();
     walk(&root, &mut files);
@@ -28,10 +26,7 @@ fn nothing_but_the_temp_root_reads_the_system_temp_dir() {
                 .replace('\\', "/")
         );
         let code = code_only(&std::fs::read_to_string(file).unwrap());
-        let mut at = calls(&code);
-        if rel == TEMP_ROOT.0 {
-            at.retain(|&at| !within(&code, TEMP_ROOT.1, at));
-        }
+        let at = calls(&code);
         if !at.is_empty() {
             found.insert(rel, at.len());
         }
@@ -54,7 +49,7 @@ fn nothing_but_the_temp_root_reads_the_system_temp_dir() {
         .collect();
     assert!(
         wrong.is_empty(),
-        "code calls `std::env::temp_dir()` outside `capability::temp_root`:\n{}\n\
+        "code calls `std::env::temp_dir()`:\n{}\n\
          Product code makes its directories under `capability::temp_root`, through \
          `capability::private_dir` where there is no context. A test writes into \
          `nvs_repo::scratch(\"<name>\")`: a directory under `target/` that is deleted when its guard \
@@ -85,15 +80,6 @@ fn calls(code: &str) -> Vec<usize> {
     code.match_indices("env::temp_dir()")
         .map(|(at, _)| at)
         .collect()
-}
-
-/// Whether `at` is inside the top-level function whose signature starts with `signature`: from the
-/// signature to the first line that is a lone `}`.
-fn within(code: &str, signature: &str, at: usize) -> bool {
-    code.find(signature).is_some_and(|start| {
-        let end = code[start..].find("\n}").map_or(code.len(), |i| start + i);
-        (start..end).contains(&at)
-    })
 }
 
 /// The text with every comment, string and character literal replaced by spaces of the same
@@ -177,17 +163,10 @@ fn code_only(text: &str) -> String {
 }
 
 #[test]
-fn a_call_is_counted_and_only_the_temp_roots_own_is_allowed() {
+fn a_call_is_counted_and_a_comment_or_string_is_not() {
     let text = "pub fn temp_root() -> PathBuf {\n    std::env::temp_dir().join(\"novis\")\n}\n\
                 // env::temp_dir() in a comment\n\
                 fn product() { let s = \"env::temp_dir()\"; std::env::temp_dir(); }\n\
                 #[cfg(test)]\nmod tests {\n    fn t() { env::temp_dir(); }\n}\n";
-    let code = code_only(text);
-    let at = calls(&code);
-    assert_eq!(at.len(), 3);
-    let outside: Vec<_> = at
-        .into_iter()
-        .filter(|&at| !within(&code, "pub fn temp_root(", at))
-        .collect();
-    assert_eq!(outside.len(), 2);
+    assert_eq!(calls(&code_only(text)).len(), 3);
 }

@@ -1173,12 +1173,13 @@ pub fn remove_dir(ctx: &Ctx, path: &Path, member: &str) -> Result<(), Fault> {
 ///
 /// **Nothing here relies on the name being unpredictable.** The defence is that creating a directory
 /// is atomic: a name an attacker has already taken, including as a symlink, fails with
-/// `AlreadyExists` and is retried rather than adopted. On Unix the mode is `0o700` at creation
-/// rather than after it, so there is no window in which the directory is readable by anyone else; on
-/// Windows the per-user temporary root already carries that ACL and the directory inherits it.
+/// `AlreadyExists` and is retried rather than adopted. Each directory is made by
+/// [`nvs_config::data::create_private_dir`]: on Unix it is `0o700` from the moment it exists, so
+/// there is no window in which anyone else can read it, and on Windows it inherits the root's DACL,
+/// which is private to this account wherever Novis created the root.
 ///
 /// **The root is Novis's own** (`rule:core-classes/temporary-dir-sweep`): `[io] temp_root` when an operator configured one,
-/// else a `novis` subdirectory of the platform temporary directory, created private on first use.
+/// else `tmp/` in the data folder ([`nvs_config::data`]), created private on first use.
 /// That the runtime is the only writer there is the whole safety argument for § 4's orphan sweep,
 /// which deletes entries a dead process left behind — sweeping a shared `/tmp`, with anyone's names
 /// and anyone's symlinks in it, is the classic TOCTOU surface and is what the owned root forbids.
@@ -1198,13 +1199,21 @@ pub fn remove_dir(ctx: &Ctx, path: &Path, member: &str) -> Result<(), Fault> {
 /// # Errors
 ///
 /// [`require`]'s catchable `RuntimeError` when the configuration does not grant `fs.write` for the
-/// path being created, or [`io_failure`]'s `IOError` when the root could not be created or every
-/// attempt to create a directory under it failed.
+/// path being created, or an `IOError` when there is no root at all ([`temp_root`] is `None`), the
+/// root could not be created, or every attempt to create a directory under it failed.
 ///
 pub fn temp_dir(ctx: &mut Ctx, member: &str) -> Result<PathBuf, Fault> {
     // The snapshot, never the request's overlay — [`temp_root`]'s doc owns why that is the only
     // tree this may be asked of.
-    let root = temp_root(ctx.config().map(|request| &request.snapshot().config));
+    let Some(root) = temp_root(ctx.config().map(|request| &request.snapshot().config)) else {
+        return Err(Fault::thrown_as(
+            ThrownClass::Io,
+            format!(
+                "{member} failed: there is no folder for temporary files. Set `[io] temp_root`, \
+                 or pass `--data <folder>` to name a data folder Novis can use."
+            ),
+        ));
+    };
     let path = create_entry(
         &root,
         // Asked of the entry rather than of the root, because that is the path the member hands
@@ -1256,9 +1265,9 @@ fn create_entry<E>(
         check(&path)?;
         if attempt == 0 {
             // After the check and never before it: creating the root is itself a write.
-            create_private_root(root).map_err(|err| fail(root, &err))?;
+            nvs_config::data::create_private_root(root).map_err(|err| fail(root, &err))?;
         }
-        match create_private_dir(&path) {
+        match nvs_config::data::create_private_dir(&path) {
             Ok(()) => return Ok(path),
             Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => continue,
             Err(err) => return Err(fail(&path, &err)),
@@ -1286,8 +1295,12 @@ fn nonce() -> u64 {
     ticks.wrapping_add(counted.wrapping_mul(0x9e37_79b9_7f4a_7c15))
 }
 
-/// `rule:core-classes/temporary-dir-sweep`'s owned root: `[io] temp_root` where a tree set it, else a `novis` subdirectory of
-/// the platform temporary directory.
+/// `rule:core-classes/temporary-dir-sweep`'s owned root: `[io] temp_root` where a tree set it, else `tmp/` in this process's
+/// data folder ([`nvs_config::data::current`]).
+///
+/// `None` when there is neither: no key, and no data folder to use — the binary's own path could
+/// not be read, or the CLI's startup `prepare` found the folder unusable. Nothing is written then,
+/// and [`temp_dir`] throws only for a program that asks for a directory.
 ///
 /// **Pass the snapshot's tree, never a request's overlay.** `io.temp_root` is `System`-class and
 /// `Boot` (`nvs_config::directive`), so there is no spelling by which a request could have written
@@ -1306,45 +1319,15 @@ fn nonce() -> u64 {
 /// working directory, which is the one place a temporary must never land.
 ///
 #[must_use]
-pub fn temp_root(config: Option<&nvs_config::Config>) -> PathBuf {
-    config
+pub fn temp_root(config: Option<&nvs_config::Config>) -> Option<PathBuf> {
+    let written = config
         .and_then(|config| config.io.as_ref())
         .and_then(|io| io.temp_root.as_deref())
-        .filter(|root| !root.is_empty())
-        .map_or_else(|| std::env::temp_dir().join("novis"), PathBuf::from)
-}
-
-/// The owned root, created on first use — and a no-op every time after that.
-///
-/// `recursive` for both halves of that sentence: it makes an existing root success rather than
-/// `AlreadyExists`, and it creates the components of a configured `temp_root` an operator pointed at
-/// a directory that is not there yet. On Unix the private mode applies to every component this call
-/// creates, so a root made here is never briefly world-readable.
-fn create_private_root(root: &Path) -> std::io::Result<()> {
-    private_builder().recursive(true).create(root)
-}
-
-/// [`create_entry`]'s one create, with the mode applied by the create itself rather than after it.
-fn create_private_dir(path: &Path) -> std::io::Result<()> {
-    private_builder().create(path)
-}
-
-/// A builder that creates owner-only directories: `0o700` from the moment the directory exists, so
-/// there is no window in which anyone else on the machine can read it.
-#[cfg(unix)]
-fn private_builder() -> std::fs::DirBuilder {
-    use std::os::unix::fs::DirBuilderExt;
-
-    let mut builder = std::fs::DirBuilder::new();
-    builder.mode(0o700);
-    builder
-}
-
-/// The same builder where the mode is not a concept: Windows has no `mode` bits to set, and the
-/// per-user temporary root already carries the ACL a new directory under it inherits.
-#[cfg(not(unix))]
-fn private_builder() -> std::fs::DirBuilder {
-    std::fs::DirBuilder::new()
+        .filter(|root| !root.is_empty());
+    match written {
+        Some(root) => Some(PathBuf::from(root)),
+        None => nvs_config::data::current().map(nvs_config::data::Folder::tmp),
+    }
 }
 
 /// § 2's process door: `program` started as a child with `argv`, once [`Cap::ProcessExec`] has been
@@ -2080,7 +2063,7 @@ mod tests {
             root.display()
         );
         assert!(
-            !made.starts_with(super::temp_root(None)),
+            super::temp_root(None).is_none_or(|default| !made.starts_with(default)),
             "and the default root is not consulted at all when one is configured"
         );
         assert!(
@@ -2094,7 +2077,7 @@ mod tests {
 
     /// § 2's "created private on first use": the root need not exist, and creating it is the
     /// runtime's own doing rather than something an operator has to prepare. The Unix half asserts
-    /// the mode, which is the whole reason the root is created by the private builder — a root left
+    /// the mode, which is the whole reason the root is created by the private create — a root left
     /// at the process umask would make every entry under it enumerable by anyone on the machine,
     /// even though each entry is itself `0o700`.
     #[test]

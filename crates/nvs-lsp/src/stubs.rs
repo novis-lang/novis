@@ -178,26 +178,13 @@ impl Stubs {
         Self { dir }
     }
 
-    /// Where the tree goes when no client named a directory: this account's
-    /// cache directory, one subdirectory per server version, so a bare
-    /// `nvs lsp` still answers a jump. `%LOCALAPPDATA%\novis\stubs\<version>`
-    /// on Windows, `$XDG_CACHE_HOME`'s or `~/.cache`'s `novis/stubs/<version>`
-    /// elsewhere — the layout `nvs-cli`'s opcache uses, beside it. `None` on
-    /// an account with none of those set.
+    /// Where the tree goes when no client named a directory: `lsp/<version>`
+    /// in this process's data folder ([`nvs_config::data::current`]), so a
+    /// bare `nvs lsp` still answers a jump and two server versions never share
+    /// a tree. `None` when there is no data folder to use.
     #[must_use]
     pub fn default_dir() -> Option<PathBuf> {
-        #[cfg(windows)]
-        let root = std::env::var_os("LOCALAPPDATA").map(PathBuf::from);
-        #[cfg(not(windows))]
-        let root = std::env::var_os("XDG_CACHE_HOME")
-            .map(PathBuf::from)
-            .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".cache")));
-        Some(
-            root?
-                .join("novis")
-                .join("stubs")
-                .join(env!("CARGO_PKG_VERSION")),
-        )
+        nvs_config::data::current().map(|folder| folder.lsp(env!("CARGO_PKG_VERSION")))
     }
 
     /// The directory.

@@ -19,6 +19,11 @@
 //! the tree through [`resolve::Files::trust`] rather than being called from the resolver, because
 //! whether there is a filesystem to ask is the reader's question and not the tree's.
 //!
+//! [`mod@data`] is the data folder Novis keeps its own files in — the compiled-code cache, the
+//! temporary root, the language server's stubs and a default `nvs.toml` — and the one private
+//! create every directory Novis makes for itself goes through. It is here because it is checked by
+//! [`mod@trust`] and read by every crate above this one.
+//!
 //! [`mod@secret`] is `rule:config/a-secret-is-a-file-whose-content-is-the-value`, which sits on that boundary rather than beside it: a
 //! `password_file` names a file whose whole content is the value, and it is trusted exactly as the
 //! file naming it was. It runs once over the flattened tree, because which of two `password_file`
@@ -64,6 +69,7 @@ pub mod app;
 pub mod audit;
 pub mod cache;
 pub mod capability;
+pub mod data;
 pub mod db;
 pub mod directive;
 pub mod errors;

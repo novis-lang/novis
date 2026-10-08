@@ -78,7 +78,9 @@ pub(crate) fn runner_dir(config: &[PathBuf]) -> Result<PathBuf, ExitCode> {
 }
 
 /// The temporary root `[io] temp_root` names in the configuration `config`
-/// resolves to, with any diagnostic already printed.
+/// resolves to, else the data folder's, with any diagnostic already printed.
+/// There is none when the key is unset and the binary's own path could not be
+/// read; that prints one error.
 fn root(config: &[PathBuf]) -> Result<PathBuf, ExitCode> {
     let files = LocalFiles;
     let mut sources = SourceMap::new();
@@ -98,7 +100,13 @@ fn root(config: &[PathBuf]) -> Result<PathBuf, ExitCode> {
             return Err(ExitCode::FAILURE);
         }
     };
-    Ok(nvs_runtime::capability::temp_root(Some(&resolved.config)))
+    nvs_runtime::capability::temp_root(Some(&resolved.config)).ok_or_else(|| {
+        eprintln!(
+            "error: there is no folder for temporary files. Set `[io] temp_root`, or pass \
+             `--data <folder>`."
+        );
+        ExitCode::FAILURE
+    })
 }
 
 /// [`clean`] with the root already decided and the output already chosen — the

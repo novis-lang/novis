@@ -192,7 +192,7 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
     // analysed.
     let settings = Settings::from_initialize(&params);
     // Where a jump to a `Core` name lands: the directory the client named, or
-    // this account's cache. Named now and written at the first such jump.
+    // the data folder's. Named now and written at the first such jump.
     documents.set_stubs(
         settings
             .stubs

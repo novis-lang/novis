@@ -1884,7 +1884,9 @@ impl nvs_server::Fires for Scheduled {
 /// exists to avoid, not one it may cause.
 ///
 fn sweep_orphans(config: &nvs_config::Config) {
-    let root = nvs_runtime::capability::temp_root(Some(config));
+    let Some(root) = nvs_runtime::capability::temp_root(Some(config)) else {
+        return;
+    };
     for (path, error) in nvs_runtime::sweep::refusals(nvs_runtime::sweep::orphans(&root)) {
         eprintln!(
             "note: a leftover temporary directory could not be removed: {} ({error})",

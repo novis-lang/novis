@@ -132,6 +132,18 @@ pub fn exposure(path: &Path) -> Option<String> {
     platform::exposure(path)
 }
 
+/// This account's SID as SDDL writes it, or `None` if the token cannot be read.
+///
+/// [`mod@crate::data`] needs it to *build* a security descriptor for the data folder, which is the
+/// one thing this module does not otherwise do; the SID lives here because the call that reads it
+/// is already here, under the same `#[expect]` and for the same reason. It is the SID and never the
+/// display name for § 6's reason: a name is localized and a rename does not move it.
+#[cfg(windows)]
+#[must_use]
+pub(crate) fn owner_sid() -> Option<String> {
+    platform::owner_sid()
+}
+
 #[cfg(unix)]
 mod platform {
     use std::path::{Path, PathBuf};
@@ -592,6 +604,18 @@ mod platform {
         let out = String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(text, len) });
         unsafe { LocalFree(text.cast()) };
         format!("`{out}`")
+    }
+
+    /// This process's own user SID as SDDL writes it — [`super::owner_sid`]'s result.
+    ///
+    /// [`sid_text`] is the shared half and it brackets its result in backticks, because every other
+    /// caller is writing a sentence for an operator. A security descriptor is not a sentence, so
+    /// the brackets come off here rather than being made optional there.
+    pub(super) fn owner_sid() -> Option<String> {
+        let user = token_user().ok()?;
+        let text = sid_text(as_psid(&user));
+        let bare = text.trim_matches('`');
+        bare.starts_with("S-").then(|| bare.to_string())
     }
 
     /// A SID buffer as the pointer every one of these calls takes.

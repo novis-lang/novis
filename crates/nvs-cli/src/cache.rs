@@ -1734,14 +1734,13 @@ fn refused_dir_warning(written: &str, why: &Untrusted) -> String {
     }
 }
 
-/// § 7's "a fixed system location", read as *this account's* rather than the host's, and one
-/// directory per running binary.
+/// § 7's "a fixed system location": `cache/` in this process's data folder
+/// ([`nvs_config::data::current`]), which Novis creates private to the account running it.
 ///
-/// `%LOCALAPPDATA%\novis\opcache` on Windows, `$XDG_CACHE_HOME`'s or `~/.cache`'s `novis/opcache`
-/// elsewhere. A host-wide `/var/cache/novis` would be a directory some other account owns for every
-/// account but one, and § 5 refuses exactly that — so the default that works everywhere is the one
-/// inside the account already running the compile. An operator wanting one shared location writes
-/// `opcache.file_cache_dir`, which is `System`-class for the reason § 7 gives.
+/// `None` when there is no data folder to use — the binary's own path could not be read, or the
+/// startup `prepare` found the folder unusable — and a run with no directory has no cache. An
+/// operator wanting another location writes `opcache.file_cache_dir`, which is `System`-class for
+/// the reason § 7 gives.
 ///
 /// **One directory, not one per compiler build.** `rule:config/the-extension-set-is-in-every-unit-key`'s
 /// `env_hash` names the running executable, so a rebuilt compiler addresses none of the artifacts
@@ -1749,13 +1748,7 @@ fn refused_dir_warning(written: &str, why: &Untrusted) -> String {
 /// each dead build's artifacts in a directory of their own, outside the one § 6 budget
 /// [`eviction_of`] reads and with nothing that ever reclaims them.
 fn default_dir() -> Option<PathBuf> {
-    #[cfg(windows)]
-    let root = std::env::var_os("LOCALAPPDATA").map(PathBuf::from);
-    #[cfg(not(windows))]
-    let root = std::env::var_os("XDG_CACHE_HOME")
-        .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".cache")));
-    Some(root?.join("novis").join("opcache"))
+    nvs_config::data::current().map(nvs_config::data::Folder::cache)
 }
 
 /// § 6's policy as `[opcache]` writes it, with [`Eviction::default`] for every key it leaves out.
