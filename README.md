@@ -84,14 +84,18 @@ Novis is open source and free, and it always will be. What it costs is time — 
 are willing to invest to reach our goal. But some things already cost real money: servers, licences,
 hardware. Novis has a baseline that is paid every month.
 
-That is where sponsors come in — maybe you?! Sponsors help us cover those fixed costs. Right now we are not
-a company, just individuals trying to build something great, and today a donation is received by a private
-individual: Roland, the creator of Novis. The plan is already set out, though: when the time comes we will
-found a *gemeinnütziger Verein* in Austria — a charitable association, the best legal form for this
-project. It is a non-profit whose purpose is not to make money, and it is what lets us be a proper
-organisation with transparent financial reports, employ people, rent an office, and keep the machine
-running. Before founding anything, though, the essentials come first — and sponsored money will be
-published transparently through the [Open Source Collective](https://opencollective.com/).
+That is where sponsors come in — maybe you?! Sponsors help us cover those fixed costs. Novis is already run
+by a company: a sole proprietorship (*Einzelunternehmen*) in Austria, owned and run by Roland, the creator
+of Novis, and today a donation goes to it. When the team is bigger and sponsoring makes it possible, we will
+found a *FlexCo* named Novis-Lang — the *Flexible Kapitalgesellschaft*, a form of company Austria introduced
+in 2024 for startups and growing companies — so that we can employ people and rent an office. Sponsored
+money will be published transparently through the [Open Source Collective](https://opencollective.com/).
+
+Whatever form the company takes, Novis is open source and always will be, it is under the MIT licence and
+always will be, and we do our best to keep it the best and simplest way to run the web applications of
+today and of the future.
+
+Novis-Lang® is a registered EU trademark.
 
 Every donation helps, no matter how large, how small, how long or how short. Ask on
 [Discord](https://discord.gg/8ftMjPeH8h) and we will tell you how — the full story is on the website's
