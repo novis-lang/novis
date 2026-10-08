@@ -807,6 +807,13 @@ joining it into a string or testing it with `is string` now gives `tainted strin
 reach a query, a page or a command until it is checked. Converting to a number, a `bool` or an enum
 stays clean. A shape that receives the text is written `tainted {…}`.
 
+**Keys and object fields from outside are tainted**
+
+A `foreach` key over request data, a decoded document or an array of tainted values is now `tainted
+string`, so it cannot reach a query until it is checked. Converting an object to a shape reads each
+text field from the object's own field, and a `mixed` or tainted field needs `tainted {…}`. `?string
+as array<string>` no longer compiles.
+
 ## The standard library and runtime
 
 What is built in and how it behaves: the Core namespace's own conventions, the components that ship with it, and how the runtime serves a request.
