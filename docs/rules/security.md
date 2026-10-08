@@ -878,8 +878,9 @@ still reads as a promise.
 
 **`mixed` is not qualifiable, and that is the same boundary.** The checker cannot distribute a qualifier
 through an erased container, so `tainted mixed` would promise what nothing enforces; structured input
-stays `array<mixed>` and the qualifier is about the payload once it is named. A request body recovers its
-taint by being converted into a shape that carries it — not by qualifying the container it arrived in.
+stays `array<mixed>`. The qualifier is recovered where the payload is named instead: text out of `mixed`
+is `tainted` however it is taken out ([`security/taint-propagation`](security.md#security-taint-propagation)), and a request body converted
+into a shape is converted into `tainted {…}` — not by qualifying the container it arrived in.
 
 **It is grammar, not only a type-checker fact.** Every binding carries a written type
 ([`types/declaration`](types.md#types-declaration)), so a function that receives a tainted value and passes it on has nowhere
@@ -890,7 +891,7 @@ every request-handling function would have to launder on its first line.
 `tainted` is written after `secret` when both appear, and `tainted secret string` is a diagnostic
 naming the required order rather than a second spelling ([`security/secret-qualifier`](security.md#security-secret-qualifier)).
 
-<sub>See also [`security/tainted-sources`](security.md#security-tainted-sources), [`security/taint-propagation`](security.md#security-taint-propagation), [`security/sink-predicate`](security.md#security-sink-predicate), [`types/grammar`](types.md#types-grammar). Decided in [0024](../decisions/0024.md), [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0033](../decisions/0033.md), [0157](../decisions/0157.md).</sub>
+<sub>See also [`security/tainted-sources`](security.md#security-tainted-sources), [`security/taint-propagation`](security.md#security-taint-propagation), [`security/sink-predicate`](security.md#security-sink-predicate), [`types/grammar`](types.md#types-grammar). Decided in [0024](../decisions/0024.md), [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0033](../decisions/0033.md), [0157](../decisions/0157.md), [0279](../decisions/0279.md).</sub>
 
 <a id="security-tainted-sources"></a>
 
@@ -910,12 +911,15 @@ code is not tainted — three digits carry nothing a sink can misread. Values re
 database are `tainted` under the same standing rule, which is what closes stored injection by the same
 mechanism as reflected.
 
-Structured input stays `array<mixed>`; the qualifier is about the scalar payload once it is pulled out
-of `mixed`. The list of sources being **enumerable** is what lets the qualifier attach itself
+Structured input stays `array<mixed>`, and a value read as `mixed` — a request field, a decoded
+document, a session or cache entry, a row's `get` — carries the qualifier the moment text is pulled out
+of it, because text out of `mixed` is `tainted` ([`security/taint-propagation`](security.md#security-taint-propagation)). A typed reader
+answers the tainted form itself: a row's `string` is `?tainted string` and its `bytes` is
+`?tainted bytes`. The list of sources being **enumerable** is what lets the qualifier attach itself
 automatically, and is exactly what `secret` has no equivalent of
 ([`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source)).
 
-<sub>See also [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables). Decided in [0024](../decisions/0024.md), [0012](../decisions/0012.md), [0058](../decisions/0058.md), [0067](../decisions/0067.md).</sub>
+<sub>See also [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables). Decided in [0024](../decisions/0024.md), [0012](../decisions/0012.md), [0058](../decisions/0058.md), [0067](../decisions/0067.md), [0279](../decisions/0279.md).</sub>
 
 <a id="security-taint-propagation"></a>
 
@@ -928,17 +932,33 @@ string member, an array of scalars — produces a tainted result. This is the po
 system already uses on other axes, applied to a new one, and `secret` poisons independently beside it
 ([`security/secret-propagation`](security.md#security-secret-propagation)).
 
+**Text out of `mixed` is `tainted`.** `mixed` is where request input lands and the qualifier cannot be
+written on it ([`security/tainted-qualifier`](security.md#security-tainted-qualifier)), so every way text leaves it adds the bit: `as string`
+and `as ?string` answer `tainted string` and `?tainted string`, `as bytes` answers `tainted bytes`,
+`as array<string>` answers `array<tainted string>`, `as secret string` answers `secret tainted string`,
+and a `.` or an interpolation with a `mixed` operand is tainted. `$m is string` narrows `$m` to
+`tainted string` on the true edge, and over a `mixed` subject `is tainted {…}` and `is tainted string`
+are admitted. The same holds for an `array<mixed>` operand and for a union with a `mixed` member. Where
+the text would land in a type the program *wrote* — a shape target of `as` or `is` over a `mixed` or
+`object` operand, or a `foreach` binding over a `mixed` or `iterable` subject — the qualifier is never
+added behind the declaration: a field or binding written without `tainted` is a diagnostic asking for
+`tainted {…}` or `tainted string`. A literal that was stored in `mixed` and is genuinely trusted is
+recovered with [`security/assert-trusted`](security.md#security-assert-trusted), or with the sink's own launderer.
+
 A checked `as` conversion to a type that already throws on a malformed shape — `as uint`, `as int`,
-`as float`, `as bool`, an enum's backing type — **removes the qualifier on success**. No new syntax is
-needed: a value that survived the check has had its shape proven, which is what laundering means for a
-non-string type. `as ?T` decides the qualifier by exactly this rule and launders nothing of its own
+`as float`, `as bool`, an enum's backing type, a set of allowed values — **removes the qualifier on
+success**, from a tainted operand and from a `mixed` one alike. No new syntax is needed: a value that
+survived the check has had its shape proven, which is what laundering means for a non-string type.
+`as ?T` decides the qualifier by exactly this rule and launders nothing of its own
 ([`expressions/conversion-keeps-qualifiers`](expressions.md#expressions-conversion-keeps-qualifiers)).
 
-`bytes as string` and `string as bytes` **preserve** the qualifier in either direction. UTF-8 validity
-says nothing about whether the content is safe for a given sink, and a conversion that laundered here
-would be a one-word bypass of every rule below.
+`bytes as string` and `string as bytes` **preserve** the qualifier in either direction, and so does a
+conversion out of a `?tainted string` or an `array<tainted string>`. UTF-8 validity says nothing about
+whether the content is safe for a given sink, and a conversion that laundered here would be a one-word
+bypass of every rule below. All of it is decided while checking: no tag at run time, nothing on the
+request path.
 
-<sub>See also [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`types/conversion`](types.md#types-conversion), [`expressions/conversion-keeps-qualifiers`](expressions.md#expressions-conversion-keeps-qualifiers). Decided in [0024](../decisions/0024.md), [0007](../decisions/0007.md), [0066](../decisions/0066.md).</sub>
+<sub>See also [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`types/conversion`](types.md#types-conversion), [`expressions/conversion-keeps-qualifiers`](expressions.md#expressions-conversion-keeps-qualifiers). Decided in [0024](../decisions/0024.md), [0007](../decisions/0007.md), [0066](../decisions/0066.md), [0279](../decisions/0279.md).</sub>
 
 <a id="security-sink-predicate"></a>
 

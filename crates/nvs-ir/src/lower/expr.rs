@@ -6859,8 +6859,12 @@ fn test_shape(
         CheckedTy::Uint => Ty::Uint,
         CheckedTy::Float => Ty::Float,
         CheckedTy::Decimal => Ty::Decimal,
-        CheckedTy::String => Ty::Str,
-        CheckedTy::Bytes => Ty::Bytes,
+        // `tainted` is erased here like everywhere below the checker, which
+        // admits it in a test only where it adds the qualifier
+        // (`rule:security/taint-propagation`): `$m is string` over a `mixed`
+        // records `tainted string`, and `as tainted {…}` tests its fields.
+        CheckedTy::String | CheckedTy::TaintedString => Ty::Str,
+        CheckedTy::Bytes | CheckedTy::TaintedBytes => Ty::Bytes,
         CheckedTy::Null => Ty::Null,
         // Plain `object` and nothing narrower: `rule:types/grammar`'s opaque
         // top of every class type is exactly "carries `Tag::Object`", while a

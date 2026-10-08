@@ -12,8 +12,9 @@ still reads as a promise.
 
 **`mixed` is not qualifiable, and that is the same boundary.** The checker cannot distribute a qualifier
 through an erased container, so `tainted mixed` would promise what nothing enforces; structured input
-stays `array<mixed>` and the qualifier is about the payload once it is named. A request body recovers its
-taint by being converted into a shape that carries it — not by qualifying the container it arrived in.
+stays `array<mixed>`. The qualifier is recovered where the payload is named instead: text out of `mixed`
+is `tainted` however it is taken out (`rule:security/taint-propagation`), and a request body converted
+into a shape is converted into `tainted {…}` — not by qualifying the container it arrived in.
 
 **It is grammar, not only a type-checker fact.** Every binding carries a written type
 (`rule:types/declaration`), so a function that receives a tainted value and passes it on has nowhere

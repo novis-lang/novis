@@ -429,9 +429,12 @@ pub(crate) fn binary_result(
         // `rule:security/taint-propagation` / `rule:security/secret-propagation`: concatenating a qualified operand with
         // an unqualified one poisons the result on that axis, the same
         // "poisoned" shape `rule:types/declaration` already uses for mixed-type arithmetic —
-        // `tainted` and `secret` poison independently of each other.
+        // `tainted` and `secret` poison independently of each other. A `mixed`
+        // operand poisons `tainted` too: text out of `mixed` is tainted.
         BinaryOp::Concat => {
-            let tainted = is_tainted(lhs, env.interner) || is_tainted(rhs, env.interner);
+            let tainted = [lhs, rhs].iter().any(|&side| {
+                is_tainted(side, env.interner) || carries_unchecked(side, env.interner)
+            });
             let secret = is_secret(lhs, env.interner) || is_secret(rhs, env.interner);
             qualified_scalar(false, tainted, secret, env.interner)
         }
@@ -2128,10 +2131,9 @@ fn reject_untestable_object_target(from: TypeId, to: TypeId, span: Span, env: &m
         )
         .with_primary(span, "converted here")
         .with_help(
-            "`rule:types/conversion` has no checked row into this target, because nothing about it can \
-             be tested on the value at run time: convert to a declared class, a `Core` class with \
-             instances such as `Core\\Time\\Date`, or a shape such as `{id: int}` whose fields \
-             carry no qualifier — those are the checked ways out of `mixed`",
+            "There is no checked conversion into this type, because it cannot be tested at run \
+             time. Convert to a declared class, a `Core` class such as `Core\\Time\\Date`, or a \
+             shape such as `{id: int}`. A shape cannot have a `secret` field here.",
         ),
     );
 }

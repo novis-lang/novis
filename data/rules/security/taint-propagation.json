@@ -4,7 +4,8 @@
   "because": [
     "0024",
     "0007",
-    "0066"
+    "0066",
+    "0279"
   ],
   "seeAlso": [
     "security/tainted-qualifier",
@@ -14,6 +15,8 @@
   ],
   "guardedBy": [
     "crates/nvs-types/tests/tainted.rs",
-    "tests/conformance/reject/tainted-and-secret-widen-but-never-narrow.nvst"
+    "tests/conformance/reject/tainted-and-secret-widen-but-never-narrow.nvst",
+    "tests/conformance/reject/mixed-text-into-a-plain-type-is-refused.nvst",
+    "tests/conformance/lang/mixed-text-converts-to-the-tainted-form-and-a-number-stays-clean.nvst"
   ]
 }

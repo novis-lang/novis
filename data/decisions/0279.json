@@ -1,0 +1,17 @@
+{
+  "title": "text out of `mixed` is `tainted`, however it is taken out",
+  "status": "accepted",
+  "scope": "What a value pulled out of `mixed` carries on the `tainted` axis: every conversion, `.`, interpolation, `is` narrowing, shape target and `foreach` binding that reads text out of `mixed`, and the typed readers of a database row. Not in scope: typed request accessors (`query`/`post` answering `?tainted string`), which are the follow-up step; and the `secret` axis, whose union reach is unchanged.",
+  "dependsOn": [
+    "0024",
+    "0157",
+    "0067"
+  ],
+  "dependsOnText": "[0024](0024.md) § 1 — the qualifier, its sources and the \"structured input stays `array<mixed>`\" boundary; [0157](0157.md) § 3–4 — `tainted {…}` over a shape, and `tainted mixed` refused; [0067](0067.md) — the row's column map, which already promised `tainted` text.",
+  "validatedBy": "the `tests/conformance/reject/mixed-text-*.nvst`, `tests/conformance/lang/mixed-text-*.nvst` and `tests/conformance/reject/db-row-text-readers-answer-tainted-text.nvst` cases, and `crates/nvs-types/tests/tainted.rs`.",
+  "summary": {
+    "group": "security",
+    "headline": "Text taken out of `mixed` is tainted",
+    "body": "Request fields, decoded JSON, session and cache entries arrive as `mixed`. Converting one to text,\njoining it into a string or testing it with `is string` now gives `tainted string`, so it cannot reach\na query, a page or a command until it is checked. Converting to a number, a `bool` or an enum stays\nclean. A shape that receives the text is written `tainted {…}`."
+  }
+}

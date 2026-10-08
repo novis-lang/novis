@@ -4,7 +4,8 @@
   "because": [
     "0150",
     "0192",
-    "0261"
+    "0261",
+    "0279"
   ],
   "seeAlso": [
     "types/narrowing",

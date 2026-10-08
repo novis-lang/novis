@@ -15,10 +15,12 @@ on a `mixed`, because the checker already knows every other case.
 `mixed` is where untrusted input lands, deliberately. `Core\Request::query()`/`::post()`,
 `Core\Server::*`, `Core\Script::args()` and `Core\Json::decode`'s result are `array<mixed>`, or return
 `mixed` per key, because input genuinely is untyped and pretending otherwise would be a lie in the
-type:
+type. What makes that safe is that text out of `mixed` is `tainted` (`rule:security/taint-propagation`),
+while a number, a `bool` or an enum is proven by its own conversion:
 
 ```nvs
 uint $id = Core\Request::query('id') as uint;     // throws on "abc", on "-1", on "" — never quietly 0
+tainted string $q = Core\Request::query('q') as string;
 ```
 
 `mixed` never absorbs implicitly in the other direction: `int $n = $m;` where `$m` is `mixed` is a

@@ -555,7 +555,8 @@ pub(crate) fn infer_interpolated(
                 // way, and a carrier flattened into the literal is escaped
                 // again by the sink that receives it.
                 crate::expr::operators::reject_carrier_as_text(ty, e.span, env);
-                tainted |= is_tainted(ty, env.interner);
+                // `rule:security/taint-propagation`: text out of `mixed` is tainted.
+                tainted |= is_tainted(ty, env.interner) || carries_unchecked(ty, env.interner);
                 secret |= is_secret(ty, env.interner);
             }
             // A `Text` run's escapes follow exactly the same grammar regardless

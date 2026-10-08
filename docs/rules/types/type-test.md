@@ -59,12 +59,13 @@ A value on the right that is **not** a `class<T>` is `E0496`, the one report `ne
 local and converts it there; a call or a constant after `is` is read as a type and resolves or fails
 as one.
 
-## The two refusals
+## The refusals
 
 | refused | code | why |
 |---|---|---|
-| `$x is tainted string`, `is secret bytes` | `E0813` | `rule:security/tainted-qualifier` erases both qualifiers before codegen. There is no runtime bit, so the question has no answer — not merely a knowable one |
+| `$x is tainted string`, `is secret bytes` | `E0813` | `rule:security/tainted-qualifier` erases both qualifiers before codegen. There is no runtime bit, so the question has no answer — not merely a knowable one. Over a `mixed` or `object` subject `tainted` is admitted and tested as plain text, because there it is the answer `rule:security/taint-propagation` gives anyway |
 | `$x is void`, `$x is never` | `E0811` | no value inhabits either |
+| `$m is {name: string}` over a `mixed` or `object` subject | `E0851` | text out of `mixed` is `tainted` (`rule:security/taint-propagation`), and a written shape says so itself: `$m is tainted {name: string}` |
 
 Nothing else is refused. In particular a test whose answer the declaration already settles is **not**:
 `int $n; $n is int` compiles and is `true`, `int $n; $n is string` compiles and is `false`, and

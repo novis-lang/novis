@@ -833,16 +833,18 @@ on a `mixed`, because the checker already knows every other case.
 `mixed` is where untrusted input lands, deliberately. `Core\Request::query()`/`::post()`,
 `Core\Server::*`, `Core\Script::args()` and `Core\Json::decode`'s result are `array<mixed>`, or return
 `mixed` per key, because input genuinely is untyped and pretending otherwise would be a lie in the
-type:
+type. What makes that safe is that text out of `mixed` is `tainted` ([`security/taint-propagation`](security.md#security-taint-propagation)),
+while a number, a `bool` or an enum is proven by its own conversion:
 
 ```nvs
 uint $id = Core\Request::query('id') as uint;     // throws on "abc", on "-1", on "" — never quietly 0
+tainted string $q = Core\Request::query('q') as string;
 ```
 
 `mixed` never absorbs implicitly in the other direction: `int $n = $m;` where `$m` is `mixed` is a
 diagnostic, not a runtime check.
 
-<sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar), [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/type-test`](types.md#types-type-test). Decided in [0007](../decisions/0007.md), [0012](../decisions/0012.md), [0066](../decisions/0066.md), [0047](../decisions/0047.md), [0150](../decisions/0150.md).</sub>
+<sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar), [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/type-test`](types.md#types-type-test). Decided in [0007](../decisions/0007.md), [0012](../decisions/0012.md), [0066](../decisions/0066.md), [0047](../decisions/0047.md), [0150](../decisions/0150.md), [0279](../decisions/0279.md).</sub>
 
 <a id="types-type-test"></a>
 
@@ -911,12 +913,13 @@ A value on the right that is **not** a `class<T>` is `E0496`, the one report `ne
 local and converts it there; a call or a constant after `is` is read as a type and resolves or fails
 as one.
 
-## The two refusals
+## The refusals
 
 | refused | code | why |
 |---|---|---|
-| `$x is tainted string`, `is secret bytes` | `E0813` | [`security/tainted-qualifier`](security.md#security-tainted-qualifier) erases both qualifiers before codegen. There is no runtime bit, so the question has no answer — not merely a knowable one |
+| `$x is tainted string`, `is secret bytes` | `E0813` | [`security/tainted-qualifier`](security.md#security-tainted-qualifier) erases both qualifiers before codegen. There is no runtime bit, so the question has no answer — not merely a knowable one. Over a `mixed` or `object` subject `tainted` is admitted and tested as plain text, because there it is the answer [`security/taint-propagation`](security.md#security-taint-propagation) gives anyway |
 | `$x is void`, `$x is never` | `E0811` | no value inhabits either |
+| `$m is {name: string}` over a `mixed` or `object` subject | `E0851` | text out of `mixed` is `tainted` ([`security/taint-propagation`](security.md#security-taint-propagation)), and a written shape says so itself: `$m is tainted {name: string}` |
 
 Nothing else is refused. In particular a test whose answer the declaration already settles is **not**:
 `int $n; $n is int` compiles and is `true`, `int $n; $n is string` compiles and is `false`, and
@@ -947,7 +950,7 @@ separate the same way ([`types/string-is-utf8`](types.md#types-string-is-utf8), 
 `is bytes` and not `is string`. Both are consequences of a finer type system rather than of this
 operator.
 
-<sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/single-value-types`](types.md#types-single-value-types), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`types/one-type-test`](types.md#types-one-type-test). Decided in [0150](../decisions/0150.md), [0192](../decisions/0192.md), [0261](../decisions/0261.md).</sub>
+<sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/single-value-types`](types.md#types-single-value-types), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`types/one-type-test`](types.md#types-one-type-test). Decided in [0150](../decisions/0150.md), [0192](../decisions/0192.md), [0261](../decisions/0261.md), [0279](../decisions/0279.md).</sub>
 
 <a id="types-narrowing"></a>
 
@@ -1019,7 +1022,7 @@ This is the whole conversion surface:
 | `int` / `uint` → `float` | exact, or throws above 2^53, where `f64` stops representing every integer |
 | `float` → `int` / `uint` | integral and in range, or throws. Rounding is `Core\Math::floor`/`ceil`/`round`, said out loud |
 | `string` → `int` / `uint` / `float` | the whole string must be an exact numeric literal, or throws. No leading-garbage rule, no `0` |
-| anything → `string` | total for scalars; an object needs `Stringable`, or it throws |
+| anything → `string` | total for scalars; an object needs `Stringable`, or it throws. Out of `mixed` the result is `tainted string` ([`security/taint-propagation`](security.md#security-taint-propagation)) |
 | `array<T>` → `array<U>` | every element must satisfy `U`, or be an `int` or `uint` where `U` is `float`, at any depth; an O(n) walk, one tag test per element. Where every element already satisfies `U`, the result shares the one copy-on-write buffer. Where an `int` or `uint` element meets a `float`, the result is a new array of the operand's size with that element converted, exact or throwing above 2^53. An element type naming a class, an enum, a single-value type or a union is refused where it is written, `array<mixed>` being the way round it |
 | `int` / `uint` → `decimal` | always exact — both fit in 96 bits |
 | `decimal` → `int` / `uint` | integral and in range, or throws. Rounding is `Core\Decimal::floor`/`ceil`/`round` |
@@ -1036,8 +1039,9 @@ This is the whole conversion surface:
 | an enum / `mixed` → a case-subset type | checked against the named cases ([`types/enum-case-type`](types.md#types-enum-case-type)) |
 | `string` / `class<U>` → `class<T>` | the name must be `T` or a class that is one, or it throws. `Foo::class` is decided at compile time, and `class<T>` → `string` is total — the descriptor's own name, not the annotation's |
 | `string` / `property<U>` → `property<T>` | the name must be one of `T`'s public declared properties, or it throws. A written-out name is decided at compile time, and `property<T>` → `string` is total |
-| `mixed` / `object` / a union / a class → a shape | checked: the value must have every field the shape names at the named type, tested the way `$x is Shape` tests it ([`types/type-test`](types.md#types-type-test)), or it throws the `RuntimeError` a failed `as ClassName` throws. An operand that already satisfies the shape converts for free, and one that holds no object, or a shape whose field carries a qualifier, is refused where it is written |
-| any row above, under a qualifier | a successful checked conversion strips `tainted` and `secret`; `as` is never a launderer for a value that keeps its type |
+| `mixed` / `object` / a union / a class → a shape | checked: the value must have every field the shape names at the named type, tested the way `$x is Shape` tests it ([`types/type-test`](types.md#types-type-test)), or it throws the `RuntimeError` a failed `as ClassName` throws. An operand that already satisfies the shape converts for free; one that holds no object, or a shape with a `secret` field, is refused where it is written. From `mixed` or `object`, a text field must be written `tainted` — `as tainted {…}` — or the conversion is refused |
+| any row above, under a qualifier | a successful checked conversion to a non-text type strips `tainted` and `secret`; a text result keeps both, and `as` is never a launderer for a value that keeps its type |
+| any row above, out of `mixed` | the one place a qualifier is added: a text result is `tainted` wherever its type can carry it, and a non-text result is clean ([`security/taint-propagation`](security.md#security-taint-propagation)) |
 
 A conversion the operand disproves by itself is a **compile** error rather than a run-time throw:
 the target has to be a closed set and the operand has to name one value. Everything else is answered
@@ -1050,7 +1054,7 @@ where it runs.
 condition, which tests any type for truthiness without asking for one. The `(int)` cast syntax
 is not a second spelling — it does not parse at all ([`types/no-legacy-cast`](types.md#types-no-legacy-cast)).
 
-<sub>See also [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/implicit-widening`](types.md#types-implicit-widening), [`types/arithmetic`](types.md#types-arithmetic), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0010](../decisions/0010.md), [0024](../decisions/0024.md), [0028](../decisions/0028.md), [0033](../decisions/0033.md), [0034](../decisions/0034.md), [0047](../decisions/0047.md), [0054](../decisions/0054.md), [0066](../decisions/0066.md), [0125](../decisions/0125.md), [0126](../decisions/0126.md), [0144](../decisions/0144.md), [0237](../decisions/0237.md), [0238](../decisions/0238.md).</sub>
+<sub>See also [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/implicit-widening`](types.md#types-implicit-widening), [`types/arithmetic`](types.md#types-arithmetic), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0010](../decisions/0010.md), [0024](../decisions/0024.md), [0028](../decisions/0028.md), [0033](../decisions/0033.md), [0034](../decisions/0034.md), [0047](../decisions/0047.md), [0054](../decisions/0054.md), [0066](../decisions/0066.md), [0125](../decisions/0125.md), [0126](../decisions/0126.md), [0144](../decisions/0144.md), [0237](../decisions/0237.md), [0238](../decisions/0238.md), [0279](../decisions/0279.md).</sub>
 
 <a id="types-no-legacy-cast"></a>
 

@@ -11,7 +11,7 @@ This is the whole conversion surface:
 | `int` / `uint` → `float` | exact, or throws above 2^53, where `f64` stops representing every integer |
 | `float` → `int` / `uint` | integral and in range, or throws. Rounding is `Core\Math::floor`/`ceil`/`round`, said out loud |
 | `string` → `int` / `uint` / `float` | the whole string must be an exact numeric literal, or throws. No leading-garbage rule, no `0` |
-| anything → `string` | total for scalars; an object needs `Stringable`, or it throws |
+| anything → `string` | total for scalars; an object needs `Stringable`, or it throws. Out of `mixed` the result is `tainted string` (`rule:security/taint-propagation`) |
 | `array<T>` → `array<U>` | every element must satisfy `U`, or be an `int` or `uint` where `U` is `float`, at any depth; an O(n) walk, one tag test per element. Where every element already satisfies `U`, the result shares the one copy-on-write buffer. Where an `int` or `uint` element meets a `float`, the result is a new array of the operand's size with that element converted, exact or throwing above 2^53. An element type naming a class, an enum, a single-value type or a union is refused where it is written, `array<mixed>` being the way round it |
 | `int` / `uint` → `decimal` | always exact — both fit in 96 bits |
 | `decimal` → `int` / `uint` | integral and in range, or throws. Rounding is `Core\Decimal::floor`/`ceil`/`round` |
@@ -28,8 +28,9 @@ This is the whole conversion surface:
 | an enum / `mixed` → a case-subset type | checked against the named cases (`rule:types/enum-case-type`) |
 | `string` / `class<U>` → `class<T>` | the name must be `T` or a class that is one, or it throws. `Foo::class` is decided at compile time, and `class<T>` → `string` is total — the descriptor's own name, not the annotation's |
 | `string` / `property<U>` → `property<T>` | the name must be one of `T`'s public declared properties, or it throws. A written-out name is decided at compile time, and `property<T>` → `string` is total |
-| `mixed` / `object` / a union / a class → a shape | checked: the value must have every field the shape names at the named type, tested the way `$x is Shape` tests it (`rule:types/type-test`), or it throws the `RuntimeError` a failed `as ClassName` throws. An operand that already satisfies the shape converts for free, and one that holds no object, or a shape whose field carries a qualifier, is refused where it is written |
-| any row above, under a qualifier | a successful checked conversion strips `tainted` and `secret`; `as` is never a launderer for a value that keeps its type |
+| `mixed` / `object` / a union / a class → a shape | checked: the value must have every field the shape names at the named type, tested the way `$x is Shape` tests it (`rule:types/type-test`), or it throws the `RuntimeError` a failed `as ClassName` throws. An operand that already satisfies the shape converts for free; one that holds no object, or a shape with a `secret` field, is refused where it is written. From `mixed` or `object`, a text field must be written `tainted` — `as tainted {…}` — or the conversion is refused |
+| any row above, under a qualifier | a successful checked conversion to a non-text type strips `tainted` and `secret`; a text result keeps both, and `as` is never a launderer for a value that keeps its type |
+| any row above, out of `mixed` | the one place a qualifier is added: a text result is `tainted` wherever its type can carry it, and a non-text result is clean (`rule:security/taint-propagation`) |
 
 A conversion the operand disproves by itself is a **compile** error rather than a run-time throw:
 the target has to be a closed set and the operand has to name one value. Everything else is answered

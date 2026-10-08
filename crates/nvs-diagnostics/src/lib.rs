@@ -5433,6 +5433,17 @@ pub mod code {
          constant of the deprecated class, with a type that fits. Otherwise the code that \
          used the old class does not compile after the fix.",
     );
+    /// Text out of `mixed` written into a type that does not say `tainted`:
+    /// a shape target of `as` or `is` over a `mixed` or `object` operand, or a
+    /// `foreach` binding over a `mixed` subject
+    /// (`rule:security/taint-propagation`). `as string` adds the qualifier by
+    /// itself; a shape and a binding are declarations, so the program writes it.
+    pub const E_UNCHECKED_TEXT_NOT_TAINTED: Code = Code::new("E0851").card(
+        "Text that comes out of a `mixed` value is `tainted` (marked as coming from outside \
+         the program). A shape or a variable that gets this text must say so. Write \
+         `tainted string`, or write `tainted` before a shape, as in \
+         `$data as tainted {name: string}`.",
+    );
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.

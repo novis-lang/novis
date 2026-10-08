@@ -32,6 +32,15 @@
 //! [`code::E_TYPE_TEST_AGAINST_A_QUALIFIER`] for a `tainted` or `secret`
 //! qualifier, which is erased before codegen and leaves no bit to read.
 //!
+//! **Over a `mixed` subject, `tainted` is the answer rather than the
+//! question** (`rule:security/taint-propagation`): text out of `mixed` is
+//! tainted, so `$m is string` narrows `$m` to `tainted string`, a written
+//! `$m is tainted {…}` is admitted and tests the shape with the qualifier
+//! erased, and a shape with a text field written without it is
+//! [`code::E_UNCHECKED_TEXT_NOT_TAINTED`]. The same holds for a plain
+//! `object` subject wherever a shape is tested. `secret` is refused over any
+//! subject.
+//!
 //! A test that survives both folds and both refusals **records the type it
 //! lowered** ([`crate::expr_table::ExprInfo::TypeTest`]), because that is the
 //! one case with a run-time answer: narrowing reads it on the true edge, and
@@ -62,6 +71,9 @@ use super::members::{
     can_hold_an_object, class_ref_argument, names_no_instance, reject_dynamic_class_name,
 };
 use super::operators::types_are_disjoint;
+use super::quals::{
+    carries_unchecked, fields_unchecked, reject_untainted_text_from_unchecked, tainted_result,
+};
 
 /// Checks `inner is against`, answering `bool` — or the literal `true`/`false`
 /// the two sides settle between them.
@@ -107,9 +119,16 @@ fn infer_against_type(
 ) -> TypeId {
     let tested = lower_type(ty, ctx, env);
     let subject = check_expr(inner, None, live, scope, ctx, env);
-    if reject_unanswerable_target(tested, expr.span, env) {
+    if reject_unanswerable_target(tested, subject, expr.span, env)
+        || reject_untainted_text_from_unchecked(subject, tested, false, expr.span, env)
+    {
         return env.interner.bool_ty();
     }
+    let tested = if carries_unchecked(subject, env.interner) {
+        tainted_result(tested, env.interner)
+    } else {
+        tested
+    };
     if always_holds(subject, tested, env) {
         env.exprs
             .record(expr.span, ExprInfo::SettledTypeTest { answer: true });
@@ -131,9 +150,12 @@ fn infer_against_type(
 ///
 /// An operand that [`always_holds`] the shape is the free row and records
 /// nothing. One the shape [`never_holds`] is [`code::E_NO_CONVERSION`], the
-/// refusal a class target gets for a pair sharing no value. A shape whose
-/// fields carry a qualifier has no bit to test ([`qualified_atom`]), so it is
-/// not accepted. Every other operand records
+/// refusal a class target gets for a pair sharing no value. A shape with a
+/// `secret` field has no bit to test ([`qualified_atom`]), so it is not
+/// accepted; a `tainted` field is tested as its plain text, since adding the
+/// qualifier can never leak. Text out of `mixed` landing in a field written
+/// without `tainted` is [`code::E_UNCHECKED_TEXT_NOT_TAINTED`]. Every other
+/// operand records
 /// [`ExprInfo::ShapeConversion`], and `nvs-ir` lowers the field walk an `is`
 /// lowers, once per conversion: O(fields), nothing allocated.
 pub(crate) fn accept_shape_conversion(
@@ -142,8 +164,11 @@ pub(crate) fn accept_shape_conversion(
     span: Span,
     env: &mut Env<'_>,
 ) -> bool {
-    if !matches!(env.interner.get(to), Ty::Shape(_)) || qualified_atom(to, env).is_some() {
+    if !matches!(env.interner.get(to), Ty::Shape(_)) || qualified_atom(to, true, env).is_some() {
         return false;
+    }
+    if reject_untainted_text_from_unchecked(from, to, false, span, env) {
+        return true;
     }
     if always_holds(from, to, env) {
         return true;
@@ -220,7 +245,16 @@ fn infer_against_class_ref(
 
 /// The two right-hand sides that have no answer rather than a knowable one.
 /// Reports the first that applies and answers whether anything was reported.
-fn reject_unanswerable_target(tested: TypeId, span: Span, env: &mut Env<'_>) -> bool {
+///
+/// A `tainted` atom over a `subject` whose text is unchecked is not one of
+/// them: the qualifier there is the answer `rule:security/taint-propagation`
+/// gives anyway, so it is tested as its plain text.
+fn reject_unanswerable_target(
+    tested: TypeId,
+    subject: TypeId,
+    span: Span,
+    env: &mut Env<'_>,
+) -> bool {
     if matches!(env.interner.get(tested), Ty::Void | Ty::Never) {
         let described = env.interner.describe(tested);
         env.diags.report(
@@ -233,7 +267,8 @@ fn reject_unanswerable_target(tested: TypeId, span: Span, env: &mut Env<'_>) -> 
         );
         return true;
     }
-    if let Some(qualified) = qualified_atom(tested, env) {
+    let secret_only = fields_unchecked(subject, env.interner);
+    if let Some(qualified) = qualified_atom(tested, secret_only, env) {
         let described = env.interner.describe(qualified);
         env.diags.report(
             Diagnostic::error(
@@ -260,20 +295,22 @@ fn reject_unanswerable_target(tested: TypeId, span: Span, env: &mut Env<'_>) -> 
 /// into the shape whose text fields are their tainted forms
 /// (`rule:security/tainted-qualifier`), so a qualifier written over a shape
 /// arrives here inside one, and `array<tainted string>` puts it inside an
-/// element. Every one of those is the same missing bit.
-fn qualified_atom(tested: TypeId, env: &Env<'_>) -> Option<TypeId> {
+/// element. Every one of those is the same missing bit. With `secret_only`
+/// set, a `tainted` atom is passed over: that is the question asked where
+/// adding `tainted` can only over-qualify the answer.
+fn qualified_atom(tested: TypeId, secret_only: bool, env: &Env<'_>) -> Option<TypeId> {
     match env.interner.get(tested) {
-        Ty::TaintedString
-        | Ty::TaintedBytes
-        | Ty::SecretString
-        | Ty::SecretBytes
-        | Ty::SecretTaintedString
-        | Ty::SecretTaintedBytes => Some(tested),
-        Ty::Array(element) => qualified_atom(*element, env),
-        Ty::Union(members) | Ty::Intersection(members) => {
-            members.iter().find_map(|m| qualified_atom(*m, env))
+        Ty::TaintedString | Ty::TaintedBytes if !secret_only => Some(tested),
+        Ty::SecretString | Ty::SecretBytes | Ty::SecretTaintedString | Ty::SecretTaintedBytes => {
+            Some(tested)
         }
-        Ty::Shape(fields) => fields.iter().find_map(|f| qualified_atom(f.ty, env)),
+        Ty::Array(element) => qualified_atom(*element, secret_only, env),
+        Ty::Union(members) | Ty::Intersection(members) => members
+            .iter()
+            .find_map(|m| qualified_atom(*m, secret_only, env)),
+        Ty::Shape(fields) => fields
+            .iter()
+            .find_map(|f| qualified_atom(f.ty, secret_only, env)),
         _ => None,
     }
 }

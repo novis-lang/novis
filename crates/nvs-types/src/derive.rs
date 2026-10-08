@@ -1658,7 +1658,8 @@ pub(crate) fn check_decode_sites(
     }
 }
 
-/// Whether a peer's octets can land in `declared` without the qualifier: a
+/// Whether a peer's octets — or, for `crate::expr::quals`, text out of
+/// `mixed` — can land in `declared` without the qualifier: a
 /// `string` or a `bytes`, or anything built out of one — an array of either,
 /// which decodes element by element into the same declared text; an arm of a
 /// union, since the value may arrive as that arm; or a field of a nested shape,
@@ -1668,7 +1669,7 @@ pub(crate) fn check_decode_sites(
 /// its declaration — and the tainted forms are atoms of their own
 /// (`rule:security/tainted-qualifier`), so an `int`, a `decimal`, an enum or a
 /// nested class answers `false` and is walked instead.
-fn unqualified_text(declared: TypeId, interner: &crate::ty::TypeInterner) -> bool {
+pub(crate) fn unqualified_text(declared: TypeId, interner: &crate::ty::TypeInterner) -> bool {
     match interner.get(declared) {
         Ty::String | Ty::Bytes => true,
         Ty::Array(element) => unqualified_text(*element, interner),

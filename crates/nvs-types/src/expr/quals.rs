@@ -15,7 +15,17 @@
 //! own *Alternatives rejected*), while `bytes`/`string` (including the
 //! identity-shaped `tainted string as string`/`secret string as string`, which
 //! would otherwise be a silent bypass) keep both qualifiers across either
-//! direction, per `rule:types/conversion`. In [`super::assign`]'s relation a same-base
+//! direction, per `rule:types/conversion`.
+//!
+//! **Text out of `mixed` is `tainted`** (`rule:security/taint-propagation`):
+//! `mixed` is where request input lands and it carries no qualifier, so every
+//! way text leaves it adds the bit — a conversion through
+//! [`apply_qualifier_conversion_rule`], a `.` or an interpolation with a
+//! `mixed` operand, an `is` that narrows one
+//! ([`crate::expr::type_test`]). Where the text would land in a type the
+//! program *wrote* — a shape's field, a `foreach` binding — the bit is not
+//! added behind the declaration's back: [`reject_untainted_text_from_unchecked`]
+//! asks for `tainted` to be written instead. In [`super::assign`]'s relation a same-base
 //! value widens freely on either bit — a trusted, non-secret value is always a
 //! safe over-approximation of "may be tainted"/"may be secret," the same
 //! direction `mixed` never gets — but never narrows through assignment.
@@ -124,6 +134,109 @@ pub(crate) fn carries_tainted(ty: TypeId, interner: &TypeInterner) -> bool {
             .any(|&member| carries_tainted(member, interner)),
         _ => false,
     }
+}
+
+/// Whether text taken out of a value of type `ty` comes from `mixed` — the
+/// atom itself, an array's element, or any member of a union. Such text is
+/// `tainted` whatever it is converted, concatenated or narrowed to
+/// (`rule:security/taint-propagation`), because `mixed` is where request input
+/// lands and the qualifier cannot be written on it
+/// (`rule:security/tainted-qualifier`).
+///
+/// It reaches as far as [`carries_tainted`] does and for its reason: the
+/// answer decides whether to *set* the bit, so reaching too far over-taints
+/// and never leaks.
+pub(crate) fn carries_unchecked(ty: TypeId, interner: &TypeInterner) -> bool {
+    match interner.get(ty) {
+        Ty::Mixed => true,
+        Ty::Array(elem) => carries_unchecked(*elem, interner),
+        Ty::Union(members) => members
+            .iter()
+            .any(|&member| carries_unchecked(member, interner)),
+        _ => false,
+    }
+}
+
+/// [`carries_unchecked`], widened by plain `object` for the two places a
+/// value's *fields* are read at a type the program names: a shape target of
+/// `as` or `is`. An `object` names no class, so its fields are as untyped as
+/// a `mixed`'s, and `$m as object` must not be a step around the rule.
+pub(crate) fn fields_unchecked(ty: TypeId, interner: &TypeInterner) -> bool {
+    match interner.get(ty) {
+        Ty::Object => true,
+        Ty::Union(members) => members
+            .iter()
+            .any(|&member| fields_unchecked(member, interner)),
+        _ => carries_unchecked(ty, interner),
+    }
+}
+
+/// Whether `ty` names a shape with a text field written without `tainted` —
+/// at the top, inside an array's element, or as a union member. The shape's
+/// own fields are read by [`crate::derive::unqualified_text`], the question a
+/// decode site asks of the same spelling.
+fn untainted_shape_text(ty: TypeId, interner: &TypeInterner) -> bool {
+    match interner.get(ty) {
+        Ty::Shape(fields) => fields
+            .iter()
+            .any(|field| crate::derive::unqualified_text(field.ty, interner)),
+        Ty::Array(elem) => untainted_shape_text(*elem, interner),
+        Ty::Union(members) | Ty::Intersection(members) => members
+            .iter()
+            .any(|&member| untainted_shape_text(member, interner)),
+        _ => false,
+    }
+}
+
+/// `rule:security/taint-propagation`'s one refusal: text out of `mixed` is
+/// `tainted`, and where it would land in a type the program wrote, the
+/// program writes the qualifier. `target` is that type — a shape converted
+/// or tested into from `from`, or a `foreach` binding over a `from` subject
+/// (`binding` is then `true`, and every text atom counts, not only a shape's).
+/// Returns whether it reported.
+///
+/// The bit is never added to a written shape for the program
+/// (`rule:security/tainted-qualifier`): a declaration that understates the
+/// value is the thing the qualifier exists to avoid. `as string` is not a
+/// declaration, so [`apply_qualifier_conversion_rule`] adds the bit there.
+pub(crate) fn reject_untainted_text_from_unchecked(
+    from: TypeId,
+    target: TypeId,
+    binding: bool,
+    span: Span,
+    env: &mut Env<'_>,
+) -> bool {
+    let unchecked = if binding {
+        matches!(env.interner.get(from), Ty::Mixed | Ty::Iterable)
+    } else {
+        fields_unchecked(from, env.interner)
+    };
+    let shape = untainted_shape_text(target, env.interner);
+    let text = shape || (binding && crate::derive::unqualified_text(target, env.interner));
+    if !unchecked || !text {
+        return false;
+    }
+    let source = env.interner.describe(from);
+    let written = env.interner.describe(target);
+    let fix = if shape {
+        "tainted {…}".to_owned()
+    } else {
+        let tainted = tainted_result(target, env.interner);
+        env.interner.describe(tainted)
+    };
+    env.diags.report(
+        Diagnostic::error(
+            code::E_UNCHECKED_TEXT_NOT_TAINTED,
+            format!("`{written}` gets its text from `{source}`, so it must be `{fix}`"),
+        )
+        .with_primary(span, format!("this is `{written}`"))
+        .with_help(
+            "Text from a `mixed` value can come from outside the program, so it is tainted. \
+             Write `tainted` before the type, as in `tainted string` or `tainted {name: string}`. \
+             Then check or escape the text before you use it in a query, a page or a command.",
+        ),
+    );
+    true
 }
 
 /// Whether `ty` carries `rule:security/secret-qualifier`'s `secret` qualifier — on its own or
@@ -355,22 +468,36 @@ pub(crate) fn admits_secret_argument(qual: Option<Qual>) -> bool {
 /// string`/`secret string as string`, which are not themselves
 /// shape-proving conversions and must not silently launder; that would be
 /// exactly the bypass this whole mechanism exists to close.
+///
+/// `tainted` is read off the operand with [`carries_tainted`]'s reach, so a
+/// `?tainted string` or an `array<tainted string>` keeps it across `as
+/// string` and `as array<string>`; `secret` is read off the atom alone.
+///
+/// An operand that [`carries_unchecked`] is the one source that *adds* a
+/// qualifier: text out of `mixed` is `tainted`, so the target is answered
+/// with the bit set wherever [`tainted_result`] can set it — `as string`,
+/// `as ?string`, `as bytes`, `as array<string>`, and `as secret string` as
+/// `secret tainted string`. A target with no text in it — `int`, an enum, a
+/// set of allowed values — is answered unchanged, for the laundering reason
+/// above.
 pub(crate) fn apply_qualifier_conversion_rule(
     from: TypeId,
     to: TypeId,
     interner: &mut TypeInterner,
 ) -> TypeId {
-    let from_tainted = is_tainted(from, interner);
-    let from_secret = is_secret(from, interner);
-    if !from_tainted && !from_secret {
+    let to = if carries_unchecked(from, interner) || carries_tainted(from, interner) {
+        tainted_result(to, interner)
+    } else {
+        to
+    };
+    if !is_secret(from, interner) {
         return to;
     }
     let Some(to_is_bytes) = qualifiable_base(to, interner) else {
         return to;
     };
-    let to_tainted = from_tainted || is_tainted(to, interner);
-    let to_secret = from_secret || is_secret(to, interner);
-    qualified_scalar(to_is_bytes, to_tainted, to_secret, interner)
+    let to_tainted = is_tainted(to, interner);
+    qualified_scalar(to_is_bytes, to_tainted, true, interner)
 }
 
 /// `rule:security/secret-sinks-refuse`: a `secret`-qualified value converted `as Core\Html\Markup`

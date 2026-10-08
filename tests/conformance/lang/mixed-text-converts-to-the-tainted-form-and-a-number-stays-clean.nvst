@@ -1,0 +1,47 @@
+--TEST--
+every way text leaves `mixed` answers the `tainted` form, a conversion to a number, a `bool` or an enum answers a clean value, and a written `tainted {…}` shape is accepted — `rule:security/taint-propagation`, `rule:types/conversion`, `rule:types/type-test`
+--FILE--
+<?nvs
+// Each binding below is declared at the type the checker must infer, so a
+// checker that dropped the qualifier anywhere would still compile this file and
+// fail the reject half: tests/conformance/reject/mixed-text-into-a-plain-type-is-refused.nvst.
+enum Mode { Read, Write }
+
+mixed $text = Core\Json::decode('"Ada"');
+
+// `rule:security/taint-propagation`: text out of `mixed` is `tainted`, in every form.
+tainted string $s = $text as string;
+?tainted string $n = $text as ?string;
+tainted bytes $b = $text as bytes;
+secret tainted string $k = $text as secret string;
+tainted string $joined = "name: " . $text;
+tainted string $inter = "name: {$text}";
+array<tainted string> $list = Core\Json::decode('["a", "b"]') as array<string>;
+echo $s, " ", $n ?? "null", " ", Core\Bytes::length($b), " ", $joined, " ", $inter, " ", Core\Arr::count($list), "\n";
+
+// A conversion that proves the value's shape answers a clean value.
+int $id = Core\Json::decode('"7"') as int;
+bool $on = Core\Json::decode('true') as bool;
+Mode $mode = Core\Json::decode('1') as Mode;
+string $plain = "id " . ($id + 1) as string;
+echo $plain, " ", $on ? "on" : "off", " ", $mode == Mode::Write ? "write" : "read", "\n";
+
+// `is string` narrows to the tainted form, and a written shape says `tainted`.
+if ($text is string) {
+    tainted string $narrowed = $text;
+    echo "narrowed ", $narrowed, "\n";
+}
+// A decoded JSON object is an array, so the object here is written out.
+mixed $doc = {name: "Grace"};
+if ($doc is tainted {name: string}) {
+    tainted string $field = $doc->name;
+    echo "tested ", $field, "\n";
+}
+tainted string $who = ($doc as tainted {name: string})->name;
+echo "converted ", $who, "\n";
+--EXPECT--
+Ada Ada 3 name: Ada name: Ada 2
+id 8 on write
+narrowed Ada
+tested Grace
+converted Grace

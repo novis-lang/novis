@@ -10,7 +10,10 @@ code is not tainted — three digits carry nothing a sink can misread. Values re
 database are `tainted` under the same standing rule, which is what closes stored injection by the same
 mechanism as reflected.
 
-Structured input stays `array<mixed>`; the qualifier is about the scalar payload once it is pulled out
-of `mixed`. The list of sources being **enumerable** is what lets the qualifier attach itself
+Structured input stays `array<mixed>`, and a value read as `mixed` — a request field, a decoded
+document, a session or cache entry, a row's `get` — carries the qualifier the moment text is pulled out
+of it, because text out of `mixed` is `tainted` (`rule:security/taint-propagation`). A typed reader
+answers the tainted form itself: a row's `string` is `?tainted string` and its `bytes` is
+`?tainted bytes`. The list of sources being **enumerable** is what lets the qualifier attach itself
 automatically, and is exactly what `secret` has no equivalent of
 (`rule:security/secret-has-no-ambient-source`).

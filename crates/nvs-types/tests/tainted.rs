@@ -454,3 +454,72 @@ class T {
         "{diags:?}"
     );
 }
+
+// `rule:security/taint-propagation`: text out of `mixed` is `tainted`.
+
+#[test]
+fn every_way_text_leaves_mixed_answers_the_tainted_form() {
+    let diags = check_in_method(
+        "mixed $m = 1;\n\
+         tainted string $a = $m as string;\n\
+         ?tainted string $b = $m as ?string;\n\
+         tainted bytes $c = $m as bytes;\n\
+         array<tainted string> $d = $m as array<string>;\n\
+         secret tainted string $e = $m as secret string;\n\
+         tainted string $f = \"x\" . $m;\n\
+         tainted string $g = \"x $m\";\n\
+         int $h = $m as int;\n\
+         bool $i = $m as bool;\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn text_out_of_mixed_is_not_assignable_into_a_plain_string() {
+    for line in [
+        "string $s = $m as string;",
+        "string $s = \"x\" . $m;",
+        "string $s = \"x $m\";",
+        "?string $s = $m as ?string;",
+        "array<string> $s = $m as array<string>;",
+    ] {
+        let diags = check_in_method(&format!("mixed $m = 1;\n{line}\n"));
+        assert!(
+            diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+            "{line}: {diags:?}"
+        );
+    }
+}
+
+#[test]
+fn a_conversion_keeps_tainted_through_a_nullable_and_an_array() {
+    for line in [
+        "?tainted string $t = null;\nstring $s = $t as string;",
+        "array<tainted string> $t = [];\narray<string> $s = $t as array<string>;",
+    ] {
+        let diags = check_in_method(line);
+        assert!(
+            diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+            "{line}: {diags:?}"
+        );
+    }
+}
+
+#[test]
+fn a_shape_or_binding_receiving_text_out_of_mixed_must_be_written_tainted() {
+    for (line, refused) in [
+        ("$p = ($m as {n: string})->n;", true),
+        ("$p = ($m as tainted {n: string})->n;", false),
+        ("$p = ($m as {n: int})->n;", false),
+        ("if ($m is {n: string}) {}", true),
+        ("if ($m is tainted {n: string}) {}", false),
+        ("foreach ($m as string $v) {}", true),
+        ("foreach ($m as tainted string $v) {}", false),
+    ] {
+        let diags = check_in_method(&format!("mixed $m = 1;\n{line}\n"));
+        let got = diags
+            .iter()
+            .any(|d| d.code == Some(code::E_UNCHECKED_TEXT_NOT_TAINTED));
+        assert_eq!(got, refused, "{line}: {diags:?}");
+    }
+}

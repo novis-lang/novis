@@ -1,0 +1,81 @@
+--TEST--
+text pulled out of `mixed` is `tainted` in every form, so a request value reaches a query only after it is checked, and a shape or a binding that receives it must be written `tainted` — `rule:security/taint-propagation`, `rule:security/tainted-sources`, `rule:types/type-test`
+--FILE--
+<?nvs
+// The accepted half is
+// tests/conformance/lang/mixed-text-converts-to-the-tainted-form-and-a-number-stays-clean.nvst.
+var $db = Core\Db::connect("main");
+
+// The two ways a request value reached a query as plain text.
+$db->query("select * from users where id = " . Core\Request::query("id"), []);
+string $id = Core\Request::query("id") as string;
+
+// Each other way text leaves `mixed`, bound at the plain type.
+mixed $m = Core\Json::decode('"x"');
+?string $n = $m as ?string;
+bytes $b = $m as bytes;
+array<string> $list = $m as array<string>;
+secret string $k = $m as secret string;
+string $inter = "id {$m}";
+if ($m is string) {
+    string $narrowed = $m;
+}
+
+// A written shape or binding says `tainted` itself, from `mixed` and from `object`.
+echo ($m as {name: string})->name, "\n";
+if ($m is {name: string}) {
+    echo "tested\n";
+}
+object $o = {name: "x"};
+echo ($o as {name: string})->name, "\n";
+foreach ($m as string $v) {
+    echo $v;
+}
+--FILE nvs.toml--
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+  --> case.nvs:7:12
+%A
+error[E0401]: expected `string`, found `tainted string`
+  --> case.nvs:8:14
+%A
+error[E0401]: expected `string|null`, found `null|tainted string`
+   --> case.nvs:12:14
+%A
+error[E0401]: expected `bytes`, found `tainted bytes`
+   --> case.nvs:13:12
+%A
+error[E0401]: expected `array<string>`, found `array<tainted string>`
+   --> case.nvs:14:23
+%A
+error[E0401]: expected `secret string`, found `secret tainted string`
+   --> case.nvs:15:20
+%A
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:16:17
+%A
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:18:24
+%A
+error[E0851]: `{name: string}` gets its text from `mixed`, so it must be `tainted {…}`
+   --> case.nvs:22:7
+%A
+error[E0851]: `{name: string}` gets its text from `mixed`, so it must be `tainted {…}`
+   --> case.nvs:23:5
+%A
+error[E0851]: `{name: string}` gets its text from `object`, so it must be `tainted {…}`
+   --> case.nvs:27:7
+%A
+error[E0851]: `string` gets its text from `mixed`, so it must be `tainted string`
+   --> case.nvs:28:16
+%A
+error: aborting due to 12 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

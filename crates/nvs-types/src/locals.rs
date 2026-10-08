@@ -1399,6 +1399,11 @@ pub(crate) fn check_stmt(
             let element = source.value_ty().unwrap_or_else(|| env.interner.mixed());
             let value_ty = foreach_binding_ty(value, element, ctx, env);
             crate::expr::check_foreach_value(&source, value_ty, value, env);
+            // `rule:security/taint-propagation`: a `mixed` subject's elements
+            // are text out of `mixed`, and the binding's type is written here.
+            crate::expr::reject_untainted_text_from_unchecked(
+                subject_ty, value_ty, true, value.span, env,
+            );
             if *value_inout {
                 crate::expr::check_foreach_inout(&source, subject, value_ty, value, env);
             }
