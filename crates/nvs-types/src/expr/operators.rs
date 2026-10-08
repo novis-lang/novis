@@ -1988,8 +1988,12 @@ fn reject_unconvertible(from: TypeId, to: TypeId, span: Span, env: &mut Env<'_>)
     if from == to {
         return;
     }
-    let from_kind = conversion_kind(from, env.interner);
     let to_kind = conversion_kind(to, env.interner);
+    let from_kind = if to_kind == ConvKind::Array {
+        array_source_kind(from, env.interner)
+    } else {
+        conversion_kind(from, env.interner)
+    };
     // A class target is not judged by the table at all — see
     // [`reject_unrelated_class_conversion`] for the three rows that exist and
     // why relatedness rather than a row is what decides them.
@@ -2311,6 +2315,30 @@ fn conversion_kind(id: TypeId, interner: &TypeInterner) -> ConvKind {
             shared.unwrap_or(ConvKind::Wide)
         }
         _ => ConvKind::Wide,
+    }
+}
+
+/// [`conversion_kind`] for an operand converted to an `array<T>`. A union
+/// operand is [`ConvKind::Wide`] there, which the table never refuses, so
+/// `?string as array<string>` compiled and threw at run time. The only row
+/// producing an array is another array (`rule:types/conversion`), so a union
+/// is read member by member: it is `Wide` when one member is an array or a
+/// type the table does not model, such as `mixed`, and `Null` when none is,
+/// which no row converts to an array.
+fn array_source_kind(from: TypeId, interner: &TypeInterner) -> ConvKind {
+    let Ty::Union(members) = interner.get(from) else {
+        return conversion_kind(from, interner);
+    };
+    let reaches = members.iter().any(|&member| {
+        matches!(
+            array_source_kind(member, interner),
+            ConvKind::Array | ConvKind::Wide
+        )
+    });
+    if reaches {
+        ConvKind::Wide
+    } else {
+        ConvKind::Null
     }
 }
 

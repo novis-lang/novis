@@ -524,6 +524,21 @@ fn a_shape_or_binding_receiving_text_out_of_mixed_must_be_written_tainted() {
     }
 }
 
+#[test]
+fn a_nullable_or_union_operand_with_no_array_member_does_not_convert_to_an_array() {
+    for (line, refused) in [
+        ("?string $s = null;\n$a = $s as array<string>;", true),
+        ("?string $s = null;\n$a = $s as ?array<string>;", true),
+        ("string|int $s = 1;\n$a = $s as array<string>;", true),
+        ("?array<int> $s = null;\n$a = $s as array<string>;", false),
+        ("mixed $s = null;\n$a = $s as array<string>;", false),
+    ] {
+        let diags = check_in_method(line);
+        let got = diags.iter().any(|d| d.code == Some(code::E_NO_CONVERSION));
+        assert_eq!(got, refused, "{line}: {diags:?}");
+    }
+}
+
 // `Core\Str::join`'s parts are contagious on the array's element: every
 // entry's bytes are in the answer, so a tainted entry is admitted and taints
 // the result.
