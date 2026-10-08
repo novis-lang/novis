@@ -18,12 +18,22 @@
 //! the grant is configuration and this crate reads none: the endpoint carries
 //! the answer as [`Endpoint::cleartext_granted`].
 //!
-//! **A search holds one page.** [`Search`] asks for `page_size` entries with
+//! **A search holds one page.** [`Cursor`] asks for `page_size` entries with
 //! the paged results control, reads that page whole, hands it out one entry at
 //! a time, and only then asks for the next. The control is sent critical, so
 //! a server that does not page refuses the search rather than sending every
 //! entry at once. **A continuation reference is data**: it is kept for
-//! [`Search::references`] and never dialled.
+//! [`Cursor::references`] and never dialled. A result code the search ends
+//! with, a size or time limit included, is an error, and the page that came
+//! with it is dropped, so a partial result is never read as a whole one.
+//!
+//! **The caller owns the cursor**, and advances it with the connection it was
+//! started on, so a search can stay open across calls that each borrow the
+//! connection for a moment. [`Search`] is the two borrowed together as an
+//! iterator. While a cursor has pages left on the server the connection is
+//! not [settled](Connection::is_settled), and a cursor dropped before its last
+//! page leaves it that way, so a pool closes the connection rather than
+//! reusing it with the server still holding the search.
 
 use std::collections::VecDeque;
 use std::io::{self, Read, Write};
@@ -195,8 +205,10 @@ pub struct Connection {
     next_id: i32,
     /// Whether a bind may be sent without TLS on this connection.
     cleartext_allowed: bool,
-    /// Whether every operation started on this connection has finished.
+    /// Whether the last operation sent on this connection has its answer.
     settled: bool,
+    /// How many cursors have pages left on the server.
+    paging: u32,
 }
 
 impl Connection {
@@ -240,6 +252,7 @@ impl Connection {
             next_id: 1,
             cleartext_allowed: plain,
             settled: true,
+            paging: 0,
         };
         let mut connection = match (url.scheme, endpoint.tls) {
             (Scheme::Ldaps, _) => connection.secured(url, endpoint.ca_file)?,
@@ -291,6 +304,7 @@ impl Connection {
             next_id,
             cleartext_allowed,
             settled,
+            paging,
         } = self;
         let wire = match wire {
             Wire::Plain(tcp) => Wire::Secured(
@@ -310,6 +324,7 @@ impl Connection {
             next_id,
             cleartext_allowed,
             settled,
+            paging,
         })
     }
 
@@ -319,11 +334,12 @@ impl Connection {
         matches!(self.wire, Wire::Secured(_))
     }
 
-    /// Whether every operation started on this connection has finished, which
-    /// is the property a pool checks before it reuses one.
+    /// Whether every operation started on this connection has finished, a
+    /// paged search included, which is the property a pool checks before it
+    /// reuses one.
     #[must_use]
     pub fn is_settled(&self) -> bool {
-        self.settled
+        self.settled && self.paging == 0
     }
 
     /// Files a deadline for the reads and writes that follow, or lifts it.
@@ -376,18 +392,12 @@ impl Connection {
             .map_err(|_| Error::new(Kind::Protocol, "whoami: the identity is not UTF-8"))
     }
 
-    /// Starts a paged search. The first page is asked for when the returned
-    /// [`Search`] is first read.
+    /// Starts a paged search on this connection. The first page is asked for
+    /// when the returned [`Search`] is first read.
     pub fn search(&mut self, request: &SearchRequest<'_>) -> Search<'_> {
         Search {
-            op: proto::search_request(request),
-            page_size: request.page_size.max(1),
             connection: self,
-            cookie: Vec::new(),
-            page: VecDeque::new(),
-            references: Vec::new(),
-            pages: 0,
-            state: Paging::First,
+            cursor: Cursor::new(request),
         }
     }
 
@@ -518,11 +528,12 @@ enum Paging {
     Done,
 }
 
-/// A search in progress: one page of entries held, the next asked for when
-/// this one is used up.
+/// A search the caller owns: one page of entries held, the next asked for
+/// when this one is used up.
+///
+/// It is advanced with the connection it was started on, and with no other.
 #[derive(Debug)]
-pub struct Search<'c> {
-    connection: &'c mut Connection,
+pub struct Cursor {
     /// The `SearchRequest`, encoded once.
     op: Vec<u8>,
     page_size: u32,
@@ -533,7 +544,21 @@ pub struct Search<'c> {
     state: Paging,
 }
 
-impl Search<'_> {
+impl Cursor {
+    /// A search for `request` that has sent nothing yet.
+    #[must_use]
+    pub fn new(request: &SearchRequest<'_>) -> Self {
+        Self {
+            op: proto::search_request(request),
+            page_size: request.page_size.max(1),
+            cookie: Vec::new(),
+            page: VecDeque::new(),
+            references: Vec::new(),
+            pages: 0,
+            state: Paging::First,
+        }
+    }
+
     /// The continuation references the search returned so far. None of them
     /// was followed.
     #[must_use]
@@ -553,9 +578,53 @@ impl Search<'_> {
         self.pages
     }
 
+    /// Whether the server has sent its last page.
+    #[must_use]
+    pub fn is_finished(&self) -> bool {
+        self.state == Paging::Done
+    }
+
+    /// Asks for the first page now, if it has not been asked for, so a search
+    /// the server refuses fails here rather than at the first entry.
+    ///
+    /// # Errors
+    ///
+    /// Every failure [`Cursor::next`] reports.
+    pub fn start(&mut self, connection: &mut Connection) -> Result<(), Error> {
+        if self.state == Paging::First {
+            self.fetch_or_stop(connection)?;
+        }
+        Ok(())
+    }
+
+    /// The next entry, asking `connection` for the next page when this one is
+    /// used up, or `None` once the last page is.
+    pub fn next(&mut self, connection: &mut Connection) -> Option<Result<Entry, Error>> {
+        loop {
+            if let Some(entry) = self.page.pop_front() {
+                return Some(Ok(entry));
+            }
+            if self.state == Paging::Done {
+                return None;
+            }
+            if let Err(error) = self.fetch_or_stop(connection) {
+                return Some(Err(error));
+            }
+        }
+    }
+
+    /// [`Cursor::fetch`], and on a failure the search ends with nothing held.
+    fn fetch_or_stop(&mut self, connection: &mut Connection) -> Result<(), Error> {
+        let fetched = self.fetch(connection);
+        if fetched.is_err() {
+            self.page.clear();
+            self.move_to(connection, Paging::Done);
+        }
+        fetched
+    }
+
     /// Asks for the next page and reads it whole.
-    fn fetch(&mut self) -> Result<(), Error> {
-        let connection = &mut *self.connection;
+    fn fetch(&mut self, connection: &mut Connection) -> Result<(), Error> {
         let id = connection.take_id();
         let controls = [Control::paged(self.page_size, &self.cookie)];
         connection.send(&proto::message(id, &self.op, &controls), "the search")?;
@@ -576,11 +645,12 @@ impl Search<'_> {
                         .map(Control::paged_cookie)
                         .transpose()?
                         .unwrap_or_default();
-                    self.state = if cookie.is_empty() {
+                    let next = if cookie.is_empty() {
                         Paging::Done
                     } else {
                         Paging::More
                     };
+                    self.move_to(connection, next);
                     self.cookie = cookie;
                     return Ok(());
                 }
@@ -588,34 +658,51 @@ impl Search<'_> {
             }
         }
     }
+
+    /// Moves to `next`, counting the search on `connection` while the server
+    /// holds pages of it.
+    fn move_to(&mut self, connection: &mut Connection, next: Paging) {
+        match (self.state == Paging::More, next == Paging::More) {
+            (false, true) => connection.paging += 1,
+            (true, false) => connection.paging -= 1,
+            _ => {}
+        }
+        self.state = next;
+    }
+}
+
+/// A [`Cursor`] and the connection it runs on, borrowed together as an iterator.
+#[derive(Debug)]
+pub struct Search<'c> {
+    connection: &'c mut Connection,
+    cursor: Cursor,
+}
+
+impl Search<'_> {
+    /// [`Cursor::references`].
+    #[must_use]
+    pub fn references(&self) -> &[String] {
+        self.cursor.references()
+    }
+
+    /// [`Cursor::held`].
+    #[must_use]
+    pub fn held(&self) -> usize {
+        self.cursor.held()
+    }
+
+    /// [`Cursor::pages`].
+    #[must_use]
+    pub fn pages(&self) -> u32 {
+        self.cursor.pages()
+    }
 }
 
 impl Iterator for Search<'_> {
     type Item = Result<Entry, Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            if let Some(entry) = self.page.pop_front() {
-                return Some(Ok(entry));
-            }
-            if self.state == Paging::Done {
-                return None;
-            }
-            if let Err(error) = self.fetch() {
-                self.state = Paging::Done;
-                return Some(Err(error));
-            }
-        }
-    }
-}
-
-impl Drop for Search<'_> {
-    fn drop(&mut self) {
-        // A search left with pages still on the server keeps a cookie there,
-        // so the connection is not settled and a pool closes it.
-        if self.state == Paging::More {
-            self.connection.settled = false;
-        }
+        self.cursor.next(self.connection)
     }
 }
 

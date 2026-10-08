@@ -1,0 +1,11 @@
+{
+  "lead": "Samba 4.23 ignores the size limit a client sends.",
+  "body": "A subtree search with `sizeLimit` 3 returns every entry and result 0, with or without the paged control, so a test that waits for `sizeLimitExceeded` from `samba-ad` never sees it. Script the answer instead: a loopback peer behind an anonymous `tls = \"none\"` block granted under `[capabilities.ldap] cleartext`, as `a_size_limit_the_server_hit_throws` in `crates/nvs-stdlib/tests/ldap.rs` does.",
+  "files": [
+    "crates/nvs-stdlib/tests/ldap.rs"
+  ],
+  "until": {
+    "kind": "test",
+    "arg": "a_size_limit_the_server_hit_throws"
+  }
+}

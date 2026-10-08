@@ -33,8 +33,19 @@
 //! from an LDAP key. An `open` connection is not pooled and closes with the
 //! request.
 //!
+//! **A search is an [`Entries`] the program owns** (ADR 0278 § 5): the key of
+//! the connection it runs on and an [`nvs_ldap::Cursor`] holding one page. The
+//! first page is read by [`search`] itself, so a base that does not exist or a
+//! filter the server refuses throws at the call. Every later page is read
+//! when the loop reaches it. A size or time limit the server hit throws, and
+//! the page it came with is dropped. A connection released with a search still
+//! paging is not settled, so it is closed and not pooled. [`read`] is a
+//! base-scope search that returns `None` for `noSuchObject`.
+//!
 //! **What it spends:** one socket and one TLS session per connection a request
 //! holds, and up to the block's `pool.idle` of them per core between requests.
+//! A search holds one page of up to [`PAGE_SIZE`] entries by default, per
+//! search a request has open.
 //!
 //! A failure throws a `RuntimeError` naming the member and ADR 0278 § 10's kind,
 //! except [`nvs_ldap::Kind::Unavailable`] (`IOError`) and
@@ -58,6 +69,18 @@ pub const OPEN: &str = r"Core\Ldap::open";
 
 /// `Core\Ldap\Connection::whoami`, as its refusals spell it.
 pub const WHOAMI: &str = r"Core\Ldap\Connection::whoami";
+
+/// `Core\Ldap\Connection::search`, as its refusals spell it.
+pub const SEARCH: &str = r"Core\Ldap\Connection::search";
+
+/// `Core\Ldap\Connection::read`, as its refusals spell it.
+pub const READ: &str = r"Core\Ldap\Connection::read";
+
+/// `Core\Ldap\Entries`, as a failure reading its next page spells it.
+pub const ENTRIES: &str = r"Core\Ldap\Entries";
+
+/// How many entries one page of a search holds when the program does not say.
+pub const PAGE_SIZE: u32 = 1000;
 
 /// One open LDAP connection, as a request holds it and the pool keeps it.
 #[derive(Debug)]
@@ -354,4 +377,92 @@ pub fn who_am_i(ctx: &mut Ctx, key: u64) -> Result<String, Fault> {
         .ready()
         .who_am_i()
         .map_err(|error| fault_of(WHOAMI, &error))
+}
+
+/// A search a request is reading: the connection it runs on, by key, and the
+/// page it holds.
+#[derive(Debug)]
+pub struct Entries {
+    key: u64,
+    cursor: nvs_ldap::Cursor,
+}
+
+impl Entries {
+    /// The next entry, reading the next page when this one is used up, or
+    /// `None` after the last one.
+    ///
+    /// # Errors
+    ///
+    /// [`held`]'s, a size or time limit the server hit, and every other
+    /// failure the server reports.
+    pub fn next(&mut self, ctx: &mut Ctx) -> Result<Option<nvs_ldap::Entry>, Fault> {
+        if self.cursor.is_finished() && self.cursor.held() == 0 {
+            return Ok(None);
+        }
+        let conn = held(ctx, self.key, ENTRIES)?.ready();
+        self.cursor
+            .next(conn)
+            .transpose()
+            .map_err(|error| fault_of(ENTRIES, &error))
+    }
+
+    /// The continuation references the search returned so far, none of them followed.
+    #[must_use]
+    pub fn references(&self) -> &[String] {
+        self.cursor.references()
+    }
+}
+
+/// `Core\Ldap\Connection::search`'s body: starts `request` on the connection
+/// held under `key` and reads its first page.
+///
+/// # Errors
+///
+/// [`held`]'s, and every failure the server reports for the first page.
+pub fn search(
+    ctx: &mut Ctx,
+    key: u64,
+    request: &nvs_ldap::SearchRequest<'_>,
+) -> Result<Entries, Fault> {
+    let mut cursor = nvs_ldap::Cursor::new(request);
+    cursor
+        .start(held(ctx, key, SEARCH)?.ready())
+        .map_err(|error| fault_of(SEARCH, &error))?;
+    Ok(Entries { key, cursor })
+}
+
+/// `Core\Ldap\Connection::read`'s body: the entry at `dn` with `attributes`,
+/// or `None` when no entry is there.
+///
+/// # Errors
+///
+/// [`held`]'s, and every failure the server reports but `noSuchObject`.
+pub fn read(
+    ctx: &mut Ctx,
+    key: u64,
+    dn: &str,
+    attributes: &[&str],
+) -> Result<Option<nvs_ldap::Entry>, Fault> {
+    let every = nvs_ldap::Filter::Present("objectClass".to_owned());
+    let mut cursor = nvs_ldap::Cursor::new(&nvs_ldap::SearchRequest {
+        base: dn,
+        scope: nvs_ldap::Scope::Base,
+        filter: &every,
+        attributes,
+        page_size: 1,
+        size_limit: 0,
+        time_limit: 0,
+    });
+    let conn = held(ctx, key, READ)?.ready();
+    let mut found = None;
+    // A base search has one entry at most, and the loop runs to the end so
+    // the connection is settled when it returns.
+    while let Some(next) = cursor.next(conn) {
+        match next {
+            Ok(entry) => found = found.or(Some(entry)),
+            Err(error) if error.kind() == nvs_ldap::Kind::NoSuchObject => return Ok(None),
+            Err(error) => return Err(fault_of(READ, &error)),
+        }
+    }
+    Ok(found)
 }

@@ -1,20 +1,28 @@
-//! `Core\Ldap`'s connections, run through `nvs_stdlib::ldap`: which grant each of `connect` and `open` asks, the address policy `open` passes and `connect` does not, and the pool's identity
+//! `Core\Ldap`'s connections, run through `nvs_stdlib::ldap`: which grant each of `connect` and `open` asks, the address policy `open` passes and `connect` does not, the pool's identity, and what `search` and `read` return
 //!
 //! The grant and policy cases need no server: every refusal they assert
 //! happens before a byte is sent, and the one dial they make goes to a port
-//! nothing listens on. The pool case needs the `samba-ad` service from
-//! `tests/db/compose.yaml`, and skips when nothing listens on its LDAPS port
-//! unless `NVS_LDAP_SAMBA` is set, as `crates/nvs-ldap/tests/samba.rs` does.
+//! nothing listens on. The size limit case talks to a scripted peer on
+//! loopback, because Samba ignores the limit a client sends. The pool and
+//! search cases need the `samba-ad` service from `tests/db/compose.yaml`, and
+//! skip when nothing listens on its LDAPS port unless `NVS_LDAP_SAMBA` is set,
+//! as `crates/nvs-ldap/tests/samba.rs` does.
 
 use std::collections::BTreeMap;
-use std::net::{Ipv4Addr, SocketAddr, TcpStream};
+use std::io::{Read as _, Write as _};
+use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::thread;
 use std::time::Duration;
 
 use nvs_config::tree::{CapLdap, Capabilities, Config, LdapDirectory, Setting};
+use nvs_ldap::ber::{self, Writer, tag};
+use nvs_ldap::{Filter, Scope, SearchRequest};
+use nvs_runtime::HeldConnection as _;
 use nvs_stdlib::ldap;
 
+const BASE: &str = "DC=example,DC=test";
 const ADMIN: &str = "CN=Administrator,CN=Users,DC=example,DC=test";
 const PASSWORD: &str = "Novis-test-1";
 const LDAPS_PORT: u16 = 16636;
@@ -199,17 +207,35 @@ fn open_needs_the_ldap_open_grant_and_passes_the_address_policy() {
     );
 }
 
-#[test]
-fn a_pooled_connection_is_always_bound_as_its_block() {
-    let Some(ca) = samba() else { return };
+/// A configuration with one `[ldap.corp]` block at the test server, granted by name.
+fn corp(ca: &PathBuf) -> Arc<nvs_config::Snapshot> {
     let url = format!("ldaps://localhost:{LDAPS_PORT}");
-    let config = snapshot(
-        vec![("corp", block_at(&url, Some(&ca)))],
+    snapshot(
+        vec![("corp", block_at(&url, Some(ca)))],
         CapLdap {
             connect: list(&["corp"]),
             ..CapLdap::default()
         },
-    );
+    )
+}
+
+/// A subtree search from the domain root for every entry, `page_size` to a page.
+fn everything(filter: &Filter, page_size: u32, size_limit: u32) -> SearchRequest<'_> {
+    SearchRequest {
+        base: BASE,
+        scope: Scope::Subtree,
+        filter,
+        attributes: &["cn"],
+        page_size,
+        size_limit,
+        time_limit: 0,
+    }
+}
+
+#[test]
+fn a_pooled_connection_is_always_bound_as_its_block() {
+    let Some(ca) = samba() else { return };
+    let config = corp(&ca);
 
     // The same request asks twice and gets the one connection it already holds.
     let mut first = ctx_over(&config);
@@ -233,4 +259,156 @@ fn a_pooled_connection_is_always_bound_as_its_block() {
             "a connection taken from the pool is bound as the block, every time"
         );
     }
+
+    // A search read to its end leaves the connection poolable. One left with
+    // pages still on the server does not, so teardown closes it.
+    let every = Filter::Present("objectClass".to_owned());
+    let mut ctx = ctx_over(&config);
+    let key = ldap::connect(&mut ctx, "corp").expect("the block opens");
+    let mut finished =
+        ldap::search(&mut ctx, key, &everything(&every, 1000, 0)).expect("the search starts");
+    while finished
+        .next(&mut ctx)
+        .expect("the search succeeds")
+        .is_some()
+    {}
+    assert!(
+        ldap::held(&mut ctx, key, "test")
+            .expect("open")
+            .is_poolable(),
+        "a search read to its end leaves the connection settled"
+    );
+    let mut paging =
+        ldap::search(&mut ctx, key, &everything(&every, 2, 0)).expect("the search starts");
+    assert!(paging.next(&mut ctx).expect("one entry").is_some());
+    drop(paging);
+    assert!(
+        !ldap::held(&mut ctx, key, "test")
+            .expect("open")
+            .is_poolable(),
+        "a search left paging keeps the connection out of the pool"
+    );
+}
+
+#[test]
+fn an_attribute_name_matches_without_case_and_keeps_the_servers_case() {
+    let Some(ca) = samba() else { return };
+    let mut ctx = ctx_over(&corp(&ca));
+    let key = ldap::connect(&mut ctx, "corp").expect("the block opens");
+
+    let entry = ldap::read(&mut ctx, key, ADMIN, &["SAMACCOUNTNAME"])
+        .expect("the read succeeds")
+        .expect("the administrator exists");
+    assert_eq!(
+        entry.get("samaccountname"),
+        Some(&[b"Administrator".to_vec()][..])
+    );
+    let names: Vec<&str> = entry.attributes.iter().map(|a| a.name.as_str()).collect();
+    assert_eq!(
+        names,
+        ["sAMAccountName"],
+        "the name is kept as the server spells it, whatever case the request used"
+    );
+
+    let missing = format!("CN=Nobody,CN=Users,{BASE}");
+    assert_eq!(
+        ldap::read(&mut ctx, key, &missing, &[]).expect("no such object is not an error"),
+        None
+    );
+    assert!(
+        ldap::held(&mut ctx, key, "test")
+            .expect("open")
+            .is_poolable(),
+        "a read, found or not, leaves the connection settled"
+    );
+}
+
+/// A peer on loopback that reads one whole message and answers it with
+/// `answer`, then holds the connection until the client closes it.
+fn peer(answer: Vec<u8>) -> u16 {
+    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a loopback port");
+    let port = listener.local_addr().expect("its address").port();
+    thread::spawn(move || {
+        let Ok((mut stream, _)) = listener.accept() else {
+            return;
+        };
+        stream.set_read_timeout(Some(Duration::from_secs(10))).ok();
+        let mut received = Vec::new();
+        let mut chunk = [0u8; 4096];
+        let mut answered = false;
+        loop {
+            if !answered
+                && matches!(ber::header(&received), Ok(Some((head, length))) if received.len() >= head + length)
+            {
+                stream.write_all(&answer).ok();
+                answered = true;
+            }
+            match stream.read(&mut chunk) {
+                Ok(0) | Err(_) => return,
+                Ok(read) => received.extend_from_slice(&chunk[..read]),
+            }
+        }
+    });
+    port
+}
+
+#[test]
+fn a_size_limit_the_server_hit_throws() {
+    // One entry, then a `SearchResultDone` with `sizeLimitExceeded` (4): what
+    // a directory sends when the search reached the limit it was given.
+    let mut answer = Writer::new();
+    answer.constructed(tag::SEQUENCE, |msg| {
+        msg.integer(tag::INTEGER, 1);
+        msg.constructed(0x64, |entry| {
+            entry.octets(tag::OCTET_STRING, b"CN=One,DC=example,DC=test");
+            entry.constructed(tag::SEQUENCE, |_| {});
+        });
+    });
+    answer.constructed(tag::SEQUENCE, |msg| {
+        msg.integer(tag::INTEGER, 1);
+        msg.constructed(0x65, |done| {
+            done.integer(tag::ENUMERATED, 4);
+            done.octets(tag::OCTET_STRING, b"");
+            done.octets(tag::OCTET_STRING, b"Size limit exceeded");
+        });
+    });
+    let port = peer(answer.into_bytes());
+
+    // An anonymous block over plain LDAP on loopback, which the cleartext
+    // grant allows, so the search is the first message the peer reads.
+    let config = snapshot(
+        vec![(
+            "corp",
+            LdapDirectory {
+                url: Some(Setting::Text(format!("ldap://127.0.0.1:{port}"))),
+                tls: Some("none".to_owned()),
+                timeout: Some(Setting::Text("5s".to_owned())),
+                ..LdapDirectory::default()
+            },
+        )],
+        CapLdap {
+            connect: list(&["corp"]),
+            cleartext: list(&["127.0.0.1"]),
+            ..CapLdap::default()
+        },
+    );
+    let mut ctx = ctx_over(&config);
+    let key = ldap::connect(&mut ctx, "corp").expect("the peer accepts");
+
+    // The page arrived with the limit, so the entry in it is not returned:
+    // the search throws before the program reads anything.
+    let every = Filter::Present("objectClass".to_owned());
+    let stopped = ldap::search(&mut ctx, key, &everything(&every, 1000, 1))
+        .expect_err("a search the server stopped at its size limit throws");
+    assert!(
+        stopped.message().contains("SizeLimitExceeded"),
+        "the limit throws as its kind: {}",
+        stopped.message()
+    );
+    assert!(
+        ldap::held(&mut ctx, key, "test")
+            .expect("open")
+            .is_poolable(),
+        "the server finished the search, so the connection is settled"
+    );
 }

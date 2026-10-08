@@ -23,6 +23,6 @@ pub mod conn;
 pub mod error;
 pub mod proto;
 
-pub use conn::{Connection, Endpoint, Scheme, Search, Tls, Url};
+pub use conn::{Connection, Cursor, Endpoint, Scheme, Search, Tls, Url};
 pub use error::{Error, Kind};
 pub use proto::{Attribute, Entry, Filter, Scope, SearchRequest};
