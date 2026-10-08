@@ -1622,6 +1622,18 @@ mod tests {
                 ),
                 (r"Core\Request", "host", "null|tainted string".to_owned(),),
                 (r"Core\Request", "path", "tainted string".to_owned()),
+                (r"Core\Request", "post", "null|tainted string".to_owned()),
+                (
+                    r"Core\Request",
+                    "postArray",
+                    "array<tainted string>".to_owned(),
+                ),
+                (r"Core\Request", "query", "null|tainted string".to_owned()),
+                (
+                    r"Core\Request",
+                    "queryArray",
+                    "array<tainted string>".to_owned(),
+                ),
                 (r"Core\Request", "scheme", "tainted string".to_owned()),
                 (
                     r"Core\Request\Mount",
@@ -1833,9 +1845,7 @@ mod tests {
                 (r"Core\Request", "method", r"Core\Http\Method".to_owned()),
                 (r"Core\Request", "json", "mixed".to_owned()),
                 (r"Core\Request", "jsonAs", "T".to_owned()),
-                (r"Core\Request", "post", "mixed".to_owned()),
                 (r"Core\Request", "postAs", "T".to_owned()),
-                (r"Core\Request", "query", "mixed".to_owned()),
                 (r"Core\Request", "queryAs", "T".to_owned()),
                 (
                     r"Core\Request",
@@ -1846,7 +1856,7 @@ mod tests {
                 (r"Core\Request\Mount", "prefix", "string".to_owned()),
                 (r"Core\Request\Part", "saveTo", "void".to_owned()),
             ]),
-            "the request tree's rows that answer an unqualified value are closed at twelve, and \
+            "the request tree's rows that answer an unqualified value are closed at ten, and \
              nine of them have the mark somewhere other than the return type: a closed method \
              enum, the bit derived from it, the `void` of bytes that went to a file, the matched \
              route, whose own class carries the mark on the captures it hands back, the mount \
@@ -1855,11 +1865,10 @@ mod tests {
              operator's text and not the peer's — and `jsonAs`, `queryAs` and `postAs`, whose `T` \
              is a class or shape the call site wrote, so \
              `rule:security/derived-codec-qualifiers` asks for the mark on that type's \
-             own declared fields. `query`, `post` and `json` are the \
-             other three and are one known hole — § 9's brackets make a value a `string` or a \
-             nested array, a decoded document is the same array, and there is no tainted array, so \
-             a member added here answering a bare `string` off the wire joins this set and is the \
-             thing it exists to catch"
+             own declared fields. `json` is the tenth: its `mixed` carries no mark, and text taken \
+             out of it is `tainted` by `rule:security/taint-propagation`, so a member added here \
+             answering a bare `string` off the wire joins this set and is the thing it exists to \
+             catch"
         );
         assert_eq!(
             walks_marked_elements,

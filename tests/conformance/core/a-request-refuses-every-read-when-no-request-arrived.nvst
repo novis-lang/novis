@@ -2,7 +2,7 @@
 Every reader `Core\Request` has refuses rather than answering empty in a program that is answering no request -- `rule:security/request-state-throws-in-an-isolate`, spec § 15, `rule:http-server/a-part-is-consumed-in-one-of-three-ways`, `rule:routing/a-request-reads-its-mount`
 --FILE--
 <?nvs
-// Agreement, asked of all thirteen readers: what decides the answer is whether a
+// Agreement, asked of all fifteen readers: what decides the answer is whether a
 // request arrived, and nothing about which member was called. A conformance
 // case is a program with no request in front of it -- which is exactly the
 // situation `rule:security/request-state-throws-in-an-isolate` is about, and the same one a scheduled script and a
@@ -112,7 +112,21 @@ try {
 } catch (LogicError $mounted) {
     $refused = $refused + 1;
 }
-echo "refused ", $refused, " of 13\n";
+// And the fourteenth and fifteenth read a bracketed name out of the query and
+// out of the form. Their ordinary answer for a name nobody sent is an empty
+// array, so a program with no request would read one as a peer that sent no
+// values under that name.
+try {
+    Core\Request::queryArray("tag");
+} catch (LogicError $tags) {
+    $refused = $refused + 1;
+}
+try {
+    Core\Request::postArray("item");
+} catch (LogicError $items) {
+    $refused = $refused + 1;
+}
+echo "refused ", $refused, " of 15\n";
 
 // The sentence names the member that was read, so a handler that wrapped six
 // questions learns which one it was standing on -- and it says why the answer
@@ -124,5 +138,5 @@ try {
     echo $why->message, "\n";
 }
 --EXPECT--
-refused 13 of 13
+refused 15 of 15
 Core\Request::path(): there is no request here — this program is not answering one, as a CLI program, a scheduled script, a job worker and a test are not. That is refused rather than answered empty, because "no request arrived" and "the request sent nothing" are different facts

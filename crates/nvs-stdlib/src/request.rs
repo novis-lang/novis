@@ -2384,7 +2384,6 @@ fn field_values(found: Option<Value>, member: &str, nested: &str) -> Result<Valu
         }
         slot = at + 1;
     }
-    drop(values);
     #[expect(
         unsafe_code,
         reason = "the payload is live: the parsed set still holds its own reference \
@@ -4739,7 +4738,6 @@ mod tests {
                         ));
                         slot = at + 1;
                     }
-                    drop(list);
                     #[expect(
                         unsafe_code,
                         reason = "the caller owns the one reference `queryArray` handed back"

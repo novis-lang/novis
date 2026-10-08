@@ -18674,7 +18674,7 @@ The ceiling `memoryHeld()` and `memoryPeak()` are measured against — `[limits]
 <a id="core-core-request"></a>
 ### `Core\Request`
 
-Keywords: $_GET, $_POST, $_COOKIE, $_FILES, $_SERVER, $_REQUEST, superglobal, filter_input, getallheaders, php://input, file_get_contents, json_decode, request body, form fields, multipart, upload, HEAD, request method, method, isHead, path, query, queryAs, header, headers, cookie, body, bytes, json, jsonAs, bodyStream, files, post, postAs, clientIp, scheme, host, route, mount
+Keywords: $_GET, $_POST, $_COOKIE, $_FILES, $_SERVER, $_REQUEST, superglobal, filter_input, getallheaders, php://input, file_get_contents, json_decode, request body, form fields, multipart, upload, HEAD, request method, method, isHead, path, query, queryArray, queryAs, header, headers, cookie, body, bytes, json, jsonAs, bodyStream, files, post, postArray, postAs, clientIp, scheme, host, route, mount
 
 `Core\Request` is the whole of what arrived: `method`, `isHead`, `path`, `query`, `header`, `headers`,
 `cookie` and the body readers, plus `route` and `mount` for where the router put it. There are no
@@ -18753,7 +18753,8 @@ no request here
 | [`Core\Request::method`](#core-core-request-method) | `method(): Core\Http\Method` |
 | [`Core\Request::isHead`](#core-core-request-ishead) | `isHead(): bool` |
 | [`Core\Request::path`](#core-core-request-path) | `path(): tainted string` |
-| [`Core\Request::query`](#core-core-request-query) | `query(string $name): mixed` |
+| [`Core\Request::query`](#core-core-request-query) | `query(string $name): ?tainted string` |
+| [`Core\Request::queryArray`](#core-core-request-queryarray) | `queryArray(string $name): array<tainted string>` |
 | [`Core\Request::queryAs`](#core-core-request-queryas) | `queryAs<T>({name?: string}): T` |
 | [`Core\Request::header`](#core-core-request-header) | `header(string $name): ?tainted string` |
 | [`Core\Request::headers`](#core-core-request-headers) | `headers(): array<array<tainted string>>` |
@@ -18764,7 +18765,8 @@ no request here
 | [`Core\Request::jsonAs`](#core-core-request-jsonas) | `jsonAs<T>({maxDepth?: uint}): T` |
 | [`Core\Request::bodyStream`](#core-core-request-bodystream) | `bodyStream(): Core\Request\BodyStream` |
 | [`Core\Request::files`](#core-core-request-files) | `files(): Core\Request\Files` |
-| [`Core\Request::post`](#core-core-request-post) | `post(string $name): mixed` |
+| [`Core\Request::post`](#core-core-request-post) | `post(string $name): ?tainted string` |
+| [`Core\Request::postArray`](#core-core-request-postarray) | `postArray(string $name): array<tainted string>` |
 | [`Core\Request::postAs`](#core-core-request-postas) | `postAs<T>({name?: string}): T` |
 | [`Core\Request::clientIp`](#core-core-request-clientip) | `clientIp(): ?tainted string` |
 | [`Core\Request::scheme`](#core-core-request-scheme) | `scheme(): tainted string` |
@@ -18815,18 +18817,35 @@ The request path with the matched mount's prefix removed, so an application read
 #### `Core\Request::query`
 
 ```nvs skip
-Core\Request::query(string $name): mixed
+Core\Request::query(string $name): ?tainted string
 ```
 
-Returns one query-string parameter by its name. The query is read the same way `Core\Uri::parseQuery` reads it, so `a[b]=c` gives a nested array under `a`.
+Returns one query-string parameter by its name, as text. The query is read the same way `Core\Uri::parseQuery` reads it.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$name` | `string` (neutral) | The parameter's name, decoded — the key as a form writes it, without brackets for a nested value. |
+| `$name` | `string` (neutral) | The parameter's name, decoded. Upper and lower case are different. |
 
-**Returns** `mixed` — The parameter's value as a `string`, a nested `array<mixed>` for a bracketed key, or `null` where the query carried no such name. Check it out with `as`, which throws on input the type does not fit rather than quietly yielding zero.
+**Returns** `?tainted string` — The parameter's value as a `tainted string`, or `null` when the query has no parameter with this name. A name with square brackets, such as `tag[]=a`, also gives `null`. Read those values with `queryArray`. Use `as` to convert the text, for example `as ?int`.
 
-**Throws** `LogicError` — This program is not answering a request, or the query string holds percent escapes that decode to octets that are not UTF-8.
+**Throws** `LogicError` — This program is not answering a request.; `RuntimeError` — The query string has a percent escape that decodes to bytes that are not UTF-8.
+
+<a id="core-core-request-queryarray"></a>
+#### `Core\Request::queryArray`
+
+```nvs skip
+Core\Request::queryArray(string $name): array<tainted string>
+```
+
+Returns every value of one query-string parameter that has square brackets, such as `tag[]=a&tag[]=b`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The parameter's name without the brackets. For `tag[]=a`, the name is `tag`. |
+
+**Returns** `array<tainted string>` — An `array<tainted string>`. `tag[]=a&tag[]=b` gives `["a", "b"]`, and `filter[color]=red` gives `["color" => "red"]`. A name without brackets gives an array with its one value. A name that is not in the query gives an empty array.
+
+**Throws** `LogicError` — This program is not answering a request.; `RuntimeError` — The query string has a percent escape that decodes to bytes that are not UTF-8.; `ParseError` — A value under this name has a second pair of brackets, such as `tag[a][b]=c`. Read nested values with `queryAs`.
 
 <a id="core-core-request-queryas"></a>
 #### `Core\Request::queryAs`
@@ -18982,18 +19001,35 @@ Returns the files that a form uploaded, one at a time in a `foreach` loop.
 #### `Core\Request::post`
 
 ```nvs skip
-Core\Request::post(string $name): mixed
+Core\Request::post(string $name): ?tainted string
 ```
 
-Returns one submitted form field by its name. The fields are read the same way `query` reads them. The body can be `multipart/form-data`, where the parts that are not files are read, or urlencoded.
+Returns one submitted form field by its name, as text. The fields are read the same way `query` reads them. The body can be `multipart/form-data`, where the parts that are not files are read, or urlencoded.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$name` | `string` (neutral) | The field's name, as the form declared it and without brackets for a nested value. |
+| `$name` | `string` (neutral) | The field's name, as the form declared it. Upper and lower case are different. |
 
-**Returns** `mixed` — The field's value as a `string`, a nested `array<mixed>` for a bracketed key, or `null` where the form carried no such name. Reading the body to its end is what this member does, so on a `multipart/form-data` request it is called **after** the `files()` walk, never before: the uploads are drained on the way to the last field.
+**Returns** `?tainted string` — The field's value as a `tainted string`, or `null` when the form has no field with this name. A name with square brackets, such as `item[]=pen`, also gives `null`. Read those values with `postArray`. This method reads the body to its end. On a `multipart/form-data` request, call it **after** `files()`, because it skips the uploads on its way to the last field.
 
-**Throws** `LogicError` — This program is not answering a request, or this request's body has already been read by `body` or `bodyStream` — those two hand the bytes over uninterpreted and leave no fields behind. A body `files` is walking is the one case this member joins rather than refuses.; `ParseError` — The request declared a `multipart/form-data` body and then did not say how to read one, or what arrived is not the body it declared, or a urlencoded field holds percent escapes that decode to octets that are not UTF-8.; `IOError` — The connection failed under the body, or the peer stopped short of the length it declared.
+**Throws** `LogicError` — This program is not answering a request, or `body` or `bodyStream` already read the body of this request. Calling `post` after `files()` is allowed.; `ParseError` — The body is not the form it says it is, or a `multipart/form-data` body has no boundary.; `RuntimeError` — A field has a percent escape that decodes to bytes that are not UTF-8.; `IOError` — The connection failed while the body was read, or the body ended before the length it declared.
+
+<a id="core-core-request-postarray"></a>
+#### `Core\Request::postArray`
+
+```nvs skip
+Core\Request::postArray(string $name): array<tainted string>
+```
+
+Returns every value of one form field that has square brackets, such as `item[]=pen&item[]=book`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The field's name without the brackets. For `item[]=pen`, the name is `item`. |
+
+**Returns** `array<tainted string>` — An `array<tainted string>`. `item[]=pen&item[]=book` gives `["pen", "book"]`, and `size[shirt]=M` gives `["shirt" => "M"]`. A name without brackets gives an array with its one value. A name that is not in the form gives an empty array. Like `post`, this method reads the body to its end, so call it **after** `files()`.
+
+**Throws** `LogicError` — This program is not answering a request, or `body` or `bodyStream` already read the body of this request.; `ParseError` — The body is not the form it says it is, or a value under this name has a second pair of brackets, such as `item[a][b]=c`. Read nested values with `postAs`.; `RuntimeError` — A field has a percent escape that decodes to bytes that are not UTF-8.; `IOError` — The connection failed while the body was read, or the body ended before the length it declared.
 
 <a id="core-core-request-postas"></a>
 #### `Core\Request::postAs`
