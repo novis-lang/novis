@@ -3,7 +3,7 @@
 
 # Security and isolation
 
-*19 of 94 rules below are **designed** rather than shipped, and are marked where they appear.*
+*18 of 94 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="security-isolate-shares-nothing"></a>
 
@@ -1367,7 +1367,7 @@ alone would hand the new generation's request a connection authenticated as the 
 
 <a id="security-ldap-pool-is-bound-as-its-block"></a>
 
-## A pooled LDAP connection is bound as its block for its whole life, and `authenticate` binds on a connection of its own  *(designed — not yet in the compiler)*
+## A pooled LDAP connection is bound as its block for its whole life, and `authenticate` binds on a connection of its own
 
 `rule:security/ldap-pool-is-bound-as-its-block`
 
@@ -1379,13 +1379,16 @@ keeps no other state a program can set — a control lives for one operation —
 property that the last operation finished: a connection released with a search still paging, or an
 operation outstanding, is closed rather than returned.
 
-`authenticate($login, $password)` dials the block's URL list with the same TLS, binds as the login,
-and closes the connection whether the bind succeeded or not. The login may be a DN, `user@upn-suffix`
+`authenticate($login, $password)` dials the block's URL list with the same TLS — or, on a connection
+`Ldap::open` made, the one address `open` pinned — binds as the login, and closes the connection
+whether the bind succeeded or not. An empty login is refused before anything is sent, as an empty
+password is ([`security/ldap-empty-password-is-refused`](security.md#security-ldap-empty-password-is-refused)). The login may be a DN, `user@upn-suffix`
 or `DOMAIN\user`; it accepts `tainted`, being a framed name the server looks up rather than text it
 parses. AD's reasons are kinds — `AccountDisabled`, `AccountLocked`, `PasswordExpired`,
 `MustChangePassword`, `AccountExpired`, `NotAllowedNow` — and **an unknown user (525) and a wrong
 password (52e) are both `InvalidCredentials`**, so a login form cannot tell an attacker which accounts
-exist. The message never carries the password. Each login pays one TCP and TLS handshake.
+exist, and every `InvalidCredentials` it throws has one message, since AD's diagnostic would name the
+sub-code. The message never carries the password. Each login pays one TCP and TLS handshake.
 
 <sub>See also [`security/db-pool-reset-is-a-boundary`](security.md#security-db-pool-reset-is-a-boundary), [`security/ldap-empty-password-is-refused`](security.md#security-ldap-empty-password-is-refused). Decided in [0278](../decisions/0278.md).</sub>
 

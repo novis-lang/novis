@@ -350,6 +350,15 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
             doc: Some(&WHOAMI_DOC),
         },
         CoreMethod {
+            name: "authenticate",
+            names: &["login", "password"],
+            params: &[CoreTy::Text(Qual::Neutral), CoreTy::SecretTaintedStr],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_ldap_connection_authenticate",
+            doc: Some(&AUTHENTICATE_DOC),
+        },
+        CoreMethod {
             name: "search",
             names: &["filter"],
             params: &[
@@ -463,6 +472,41 @@ const WHOAMI_DOC: MethodDoc = MethodDoc {
         ErrorDoc {
             error: "Core\\Ldap\\LdapError",
             desc: "The server did not answer, or it returned an error. `$kind` says why.",
+        },
+    ],
+};
+
+/// `Ldap\Connection::authenticate`'s reference card — `rule:core-api/reference-card`.
+const AUTHENTICATE_DOC: MethodDoc = MethodDoc {
+    short: "Checks a user's login and password. It opens a new connection to the same server, \
+            logs in as the user and closes that connection. The connection you call it on \
+            stays logged in as before.",
+    params: &[
+        ParamDoc {
+            name: "login",
+            desc: "The user's DN, `user@example.test` or `DOMAIN\\user`. It can be `tainted`, \
+                   such as a name from a login form.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "password",
+            desc: "The user's password.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing. The login and password are correct when no error is thrown.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "The connection is closed.",
+        },
+        ErrorDoc {
+            error: "Core\\Ldap\\LdapError",
+            desc: "`$kind` is `InvalidCredentials` for a wrong password and for a user that \
+                   does not exist, so the error does not show which users exist. An empty \
+                   login or password is also `InvalidCredentials`, and nothing is sent. \
+                   Active Directory gives other reasons as their own kinds, such as \
+                   `AccountDisabled`, `AccountLocked` or `PasswordExpired`.",
         },
     ],
 };

@@ -33,6 +33,14 @@
 //! from an LDAP key. An `open` connection is not pooled and closes with the
 //! request.
 //!
+//! **A login is checked on a connection of its own.** [`authenticate`] dials
+//! the server the receiver reached, the block's URL list or the address
+//! `open` pinned, binds as the login and closes the connection, so the
+//! receiver never changes identity. Every `InvalidCredentials` it throws has
+//! one message, because AD's diagnostic would say whether the account
+//! exists. Each login pays one TCP and TLS handshake and holds nothing after
+//! it returns.
+//!
 //! **A search is an [`Entries`] the program owns** (ADR 0278 § 5): the key of
 //! the connection it runs on and an [`nvs_ldap::Cursor`] holding one page. The
 //! first page is read by [`search`] itself, so a base that does not exist or a
@@ -115,6 +123,9 @@ pub const OPEN: &str = r"Core\Ldap::open";
 /// `Core\Ldap\Connection::whoami`, as its refusals spell it.
 pub const WHOAMI: &str = r"Core\Ldap\Connection::whoami";
 
+/// `Core\Ldap\Connection::authenticate`, as its refusals spell it.
+pub const AUTHENTICATE: &str = r"Core\Ldap\Connection::authenticate";
+
 /// `Core\Ldap\Connection::search`, as its refusals spell it.
 pub const SEARCH: &str = r"Core\Ldap\Connection::search";
 
@@ -147,6 +158,20 @@ pub struct Held {
     pool: Option<(String, String)>,
     /// The schema, once [`schema`] has read or found it for this connection.
     schema: Option<Arc<nvs_ldap::Schema>>,
+    /// The server a connection `open` made was dialled at, which
+    /// [`authenticate`] dials again, or `None` for a block's connection, which
+    /// dials the block's URL list.
+    redial: Option<Redial>,
+}
+
+/// Where [`open`] dialled a connection: the URL, the one address its host was
+/// pinned to, and how it encrypts.
+#[derive(Clone, Debug)]
+struct Redial {
+    url: nvs_ldap::Url,
+    address: SocketAddr,
+    tls: nvs_config::ldap::Tls,
+    cleartext: bool,
 }
 
 thread_local! {
@@ -167,6 +192,7 @@ impl Held {
             next_search: 0,
             pool: None,
             schema: None,
+            redial: None,
         }
     }
 
@@ -248,6 +274,20 @@ pub struct Settings<'a> {
 pub fn fault_of(member: &str, error: &nvs_ldap::Error) -> Fault {
     let message = format!("{member}: {}: {}", error.kind().name(), error.message());
     ldap_error(message, error)
+}
+
+/// The `Ldap\LdapError` a refused login becomes, worded for `member`. Every
+/// `InvalidCredentials` has the one message, because AD's diagnostic says
+/// `data 525` for an account that does not exist and `data 52e` for a wrong
+/// password, and a message that kept it would tell the two apart.
+fn login_fault(member: &str, error: &nvs_ldap::Error) -> Fault {
+    if error.kind() == nvs_ldap::Kind::InvalidCredentials {
+        let message = format!(
+            "{member}: InvalidCredentials: the server did not accept this login and password"
+        );
+        return ldap_error(message, error);
+    }
+    fault_of(member, error)
 }
 
 /// An `Ldap\LdapError` with `message`, carrying `error`'s kind and, where a
@@ -398,7 +438,7 @@ pub fn connect(ctx: &mut Ctx, name: &str) -> Result<u64, Fault> {
     };
     let mut held = match pooled {
         Some(warm) => *warm,
-        None => walk(ctx, name, block, &settings)?,
+        None => walk(ctx, CONNECT, name, block, &settings, fault_of)?,
     };
     // A search the last request left unread holds no page the server is
     // still sending, or the connection would not have been pooled, and its id
@@ -409,18 +449,22 @@ pub fn connect(ctx: &mut Ctx, name: &str) -> Result<u64, Fault> {
     Ok(ctx.hold_open_connection(Some(memo), Some(lease), Box::new(held)))
 }
 
-/// Tries the block's URLs in order and returns the first connection that opened and bound.
+/// Tries the block's URLs in order and returns the first connection that
+/// opened and bound, for `member`. A bind the server refused becomes
+/// `refused`'s fault.
 fn walk(
     ctx: &Ctx,
+    member: &str,
     name: &str,
     block: &nvs_config::tree::LdapDirectory,
     settings: &Settings<'_>,
+    refused: fn(&str, &nvs_ldap::Error) -> Fault,
 ) -> Result<Held, Fault> {
     let mut last = None;
     for written in nvs_config::ldap::urls_of(block) {
         let Some(url) = nvs_ldap::Url::parse(written) else {
             return Err(Fault::thrown(format!(
-                "{CONNECT}: `[ldap.{name}] url` names `{written}`, which is not an `ldap://` \
+                "{member}: `[ldap.{name}] url` names `{written}`, which is not an `ldap://` \
                  or `ldaps://` URL"
             )));
         };
@@ -441,7 +485,7 @@ fn walk(
         for address in addresses {
             match dial(&url, address, settings, cleartext) {
                 Ok(held) => return Ok(held),
-                Err(error) if refused_the_bind(&error) => return Err(fault_of(CONNECT, &error)),
+                Err(error) if refused_the_bind(&error) => return Err(refused(member, &error)),
                 Err(error) => last = Some(error),
             }
         }
@@ -450,7 +494,7 @@ fn walk(
         nvs_ldap::Error::new(nvs_ldap::Kind::Unavailable, "the block names no URL")
     });
     let message = format!(
-        "{CONNECT}: no URL in `[ldap.{name}]` answered, and the last one said: {}",
+        "{member}: no URL in `[ldap.{name}]` answered, and the last one said: {}",
         error.message()
     );
     Err(ldap_error(message, &error))
@@ -477,10 +521,101 @@ pub fn open(ctx: &mut Ctx, settings: &Settings<'_>) -> Result<u64, Fault> {
     nvs_runtime::capability::require(ctx, Cap::LdapOpen, Scope::Host(&url.host), OPEN)?;
     let pinned = nvs_runtime::capability::pinned_address(ctx, &url.host, OPEN)?;
     let cleartext = cleartext_granted(ctx, settings.tls, &url.host);
-    let mut held = dial(&url, SocketAddr::new(pinned, url.port), settings, cleartext)
-        .map_err(|error| fault_of(OPEN, &error))?;
+    let address = SocketAddr::new(pinned, url.port);
+    let mut held =
+        dial(&url, address, settings, cleartext).map_err(|error| fault_of(OPEN, &error))?;
     held.base = settings.base.map(str::to_owned);
+    held.redial = Some(Redial {
+        url,
+        address,
+        tls: settings.tls,
+        cleartext,
+    });
     Ok(ctx.hold_open_connection(None, None, Box::new(held)))
+}
+
+/// `Core\Ldap\Connection::authenticate`'s body: binds as `login` with
+/// `password` on a new connection to the server the receiver reached, and
+/// closes it whether the bind succeeded or not
+/// (`rule:security/ldap-pool-is-bound-as-its-block`).
+///
+/// A block's connection dials the block's URL list as it reads now, with the
+/// block's TLS and CA file, and a connection `open` made dials the one
+/// address `open` pinned. The receiver itself sends nothing and stays bound
+/// as whoever opened it. An empty login is refused before anything is sent,
+/// as an empty password is, because a bind with no name is anonymous.
+///
+/// # Errors
+///
+/// [`held`]'s. An `Ldap\LdapError` whose `$kind` is `InvalidCredentials` for
+/// a wrong password and for an account that does not exist, with the one
+/// message [`login_fault`] writes, and AD's other reasons as their own kinds.
+/// A block's URL walk fails as [`connect`]'s does.
+pub fn authenticate(ctx: &mut Ctx, key: u64, login: &str, password: &str) -> Result<(), Fault> {
+    let held = held(ctx, key, AUTHENTICATE)?;
+    let timeout = held.timeout;
+    let redial = held.redial.clone();
+    let block = held.pool.as_ref().map(|(name, _)| name.clone());
+    if login.is_empty() {
+        let error = nvs_ldap::Error::new(
+            nvs_ldap::Kind::InvalidCredentials,
+            "the login is empty, so nothing was sent",
+        );
+        return Err(login_fault(AUTHENTICATE, &error));
+    }
+    let bound = match (redial, block) {
+        (Some(redial), _) => {
+            let settings = Settings {
+                url: "",
+                user: Some(login),
+                password: password.as_bytes(),
+                tls: redial.tls,
+                tls_ca_file: None,
+                timeout: Some(timeout),
+                base: None,
+            };
+            dial(&redial.url, redial.address, &settings, redial.cleartext)
+                .map_err(|error| login_fault(AUTHENTICATE, &error))?
+        }
+        (None, Some(name)) => {
+            let snapshot = ctx
+                .config()
+                .map(|config| Arc::clone(config.snapshot()))
+                .ok_or_else(|| {
+                    Fault::thrown(format!(
+                        "{AUTHENTICATE}: this program is running with no configuration, so \
+                         there is no `[ldap.{name}]` block to dial"
+                    ))
+                })?;
+            let block = snapshot.config.ldap.get(&name).ok_or_else(|| {
+                Fault::thrown(format!(
+                    "{AUTHENTICATE}: `[ldap.{name}]` is no longer set up, so there is no \
+                     block to dial"
+                ))
+            })?;
+            let settings = Settings {
+                url: "",
+                user: Some(login),
+                password: password.as_bytes(),
+                tls: nvs_config::ldap::tls_of(block),
+                tls_ca_file: block.tls_ca_file.as_deref().map(Path::new),
+                timeout: Some(timeout),
+                base: None,
+            };
+            walk(ctx, AUTHENTICATE, &name, block, &settings, login_fault)?
+        }
+        // Unreachable: `connect` files the pool and `open` the redial on
+        // every connection either one holds.
+        (None, None) => {
+            return Err(Fault::fatal(format!(
+                "{AUTHENTICATE}: the connection names neither a block nor a server"
+            )));
+        }
+    };
+    // The login succeeded, and an unbind the server did not read changes
+    // nothing: the socket closes when `bound` is dropped either way.
+    bound.conn.unbind().ok();
+    Ok(())
 }
 
 /// The connection a request holds under `key`.

@@ -29,9 +29,9 @@ use nvs_runtime::{Ctx, Fault, NvsStr, Tag, ThrownClass, Value};
 
 use super::search::retained;
 use super::{
-    ACCOUNT_FLAGS, CHANGE, CHANGE_ATTRIBUTE_AT, CHANGE_KIND_AT, CHANGE_NAME, CHANGE_VALUE_AT,
-    CONNECTION, CONNECTION_HANDLE_AT, DN, DN_TEXT_AT, FLAGS_BITS_AT, GROUP_TYPE, SID, SID_BYTES_AT,
-    fault_of, held,
+    ACCOUNT_FLAGS, AUTHENTICATE, CHANGE, CHANGE_ATTRIBUTE_AT, CHANGE_KIND_AT, CHANGE_NAME,
+    CHANGE_VALUE_AT, CONNECTION, CONNECTION_HANDLE_AT, DN, DN_TEXT_AT, FLAGS_BITS_AT, GROUP_TYPE,
+    SID, SID_BYTES_AT, fault_of, held,
 };
 
 /// `Core\Ldap\Connection::add`, as its errors spell it.
@@ -521,6 +521,21 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
+    /// `$connection->authenticate(tainted string $login, secret tainted string
+    /// $password): void` — [`super::authenticate`].
+    fn nvs_core_ldap_connection_authenticate(ctx, args: [3]) {
+        let key = connection_key(args, "authenticate")?;
+        let login = args[1].as_text().map(str::to_owned).ok_or_else(|| {
+            // Unreachable from source: the parameter is a `string`.
+            Fault::fatal(format!("{AUTHENTICATE} expected a `string` login"))
+        })?;
+        let password = password_at(args, 2, AUTHENTICATE)?;
+        super::authenticate(ctx, key, &login, &password)?;
+        Ok(Value::null())
+    }
+}
+
+nvs_runtime::nvs_helper! {
     /// `$connection->compare(Dn|string $dn, string $attribute, mixed $value): bool`
     /// — [`compare`], the value encoded by [`encoded`] as a write would send
     /// it. A comparison takes exactly one value, so `null` and a list are the
@@ -572,6 +587,9 @@ pub(super) fn address(symbol: &str) -> Option<*const u8> {
         }
         "nvs_core_ldap_connection_change_password" => {
             (nvs_core_ldap_connection_change_password as *const ()).cast()
+        }
+        "nvs_core_ldap_connection_authenticate" => {
+            (nvs_core_ldap_connection_authenticate as *const ()).cast()
         }
         "nvs_core_ldap_connection_compare" => {
             (nvs_core_ldap_connection_compare as *const ()).cast()

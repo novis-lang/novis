@@ -6,10 +6,13 @@ keeps no other state a program can set — a control lives for one operation —
 property that the last operation finished: a connection released with a search still paging, or an
 operation outstanding, is closed rather than returned.
 
-`authenticate($login, $password)` dials the block's URL list with the same TLS, binds as the login,
-and closes the connection whether the bind succeeded or not. The login may be a DN, `user@upn-suffix`
+`authenticate($login, $password)` dials the block's URL list with the same TLS — or, on a connection
+`Ldap::open` made, the one address `open` pinned — binds as the login, and closes the connection
+whether the bind succeeded or not. An empty login is refused before anything is sent, as an empty
+password is (`rule:security/ldap-empty-password-is-refused`). The login may be a DN, `user@upn-suffix`
 or `DOMAIN\user`; it accepts `tainted`, being a framed name the server looks up rather than text it
 parses. AD's reasons are kinds — `AccountDisabled`, `AccountLocked`, `PasswordExpired`,
 `MustChangePassword`, `AccountExpired`, `NotAllowedNow` — and **an unknown user (525) and a wrong
 password (52e) are both `InvalidCredentials`**, so a login form cannot tell an attacker which accounts
-exist. The message never carries the password. Each login pays one TCP and TLS handshake.
+exist, and every `InvalidCredentials` it throws has one message, since AD's diagnostic would name the
+sub-code. The message never carries the password. Each login pays one TCP and TLS handshake.

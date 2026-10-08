@@ -1,0 +1,42 @@
+--TEST--
+`authenticate` accepts a user's right password, takes a `tainted` login, and leaves the connection it is called on logged in as the block — `rule:security/ldap-pool-is-bound-as-its-block`
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+var $owners = "CN=Owners,OU=Owners,DC=example,DC=test";
+
+// A run that stopped half-way leaves the account behind.
+array<string> $leftovers = [$owners, "OU=Owners,DC=example,DC=test"];
+foreach ($leftovers as string $left) {
+    try {
+        $corp->delete($left);
+    } catch (Core\Ldap\LdapError $gone) {
+    }
+}
+$corp->add("OU=Owners,DC=example,DC=test", ["objectClass" => "organizationalUnit"]);
+$corp->add($owners, ["objectClass" => "user", "sAMAccountName" => "Owners"]);
+$corp->setPassword($owners, "Owners-first-Pass-7");
+$corp->modify($owners, [Core\Ldap\Change::replace("userAccountControl", 512)]);
+
+string $before = $corp->whoami();
+tainted string $login = $owners;
+$corp->authenticate($login, "Owners-first-Pass-7");
+echo "accepted", "\n";
+echo "same identity: ", $corp->whoami() == $before ? "yes" : "no", "\n";
+
+$corp->delete($owners);
+$corp->delete("OU=Owners,DC=example,DC=test");
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+accepted
+same identity: yes

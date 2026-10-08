@@ -1524,3 +1524,263 @@ fn compare_returns_a_bool_and_throws_on_error() {
     let gone = compare(&mut ctx, key, b"Books").expect_err("the entry is gone");
     assert!(gone.contains("NoSuchObject"), "{gone}");
 }
+
+/// A `BindResponse` to message 1 with `code` and `diagnostic`.
+fn bound(code: i64, diagnostic: &str) -> Vec<u8> {
+    let mut answer = Writer::new();
+    answer.constructed(tag::SEQUENCE, |msg| {
+        msg.integer(tag::INTEGER, 1);
+        msg.constructed(0x61, |done| {
+            done.integer(tag::ENUMERATED, code);
+            done.octets(tag::OCTET_STRING, b"");
+            done.octets(tag::OCTET_STRING, diagnostic.as_bytes());
+        });
+    });
+    answer.into_bytes()
+}
+
+/// What a login peer read on one connection, and whether the client closed it.
+type Login = (Vec<u8>, bool);
+
+/// A peer on loopback for `authenticate`. It keeps the first connection open
+/// and answers nothing on it, which is the block's own connection. Every
+/// later connection is one login: the peer answers its first message with
+/// the next of `answers`, reads until the client closes it, and sends what
+/// it read.
+fn login_peer(answers: Vec<Vec<u8>>) -> (u16, std::sync::mpsc::Receiver<Login>) {
+    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a loopback port");
+    let port = listener.local_addr().expect("its address").port();
+    let (send, logins) = std::sync::mpsc::channel();
+    thread::spawn(move || {
+        let Ok((block, _)) = listener.accept() else {
+            return;
+        };
+        for answer in answers {
+            let Ok((mut stream, _)) = listener.accept() else {
+                return;
+            };
+            stream.set_read_timeout(Some(Duration::from_secs(10))).ok();
+            let mut received = Vec::new();
+            let mut answered = false;
+            let mut chunk = [0u8; 4096];
+            let closed = loop {
+                if !answered
+                    && let Ok(Some((head, length))) = ber::header(&received)
+                    && received.len() >= head + length
+                {
+                    stream.write_all(&answer).ok();
+                    answered = true;
+                }
+                match stream.read(&mut chunk) {
+                    Ok(0) => break true,
+                    Err(_) => break false,
+                    Ok(count) => received.extend_from_slice(&chunk[..count]),
+                }
+            };
+            send.send((received, closed)).ok();
+        }
+        drop(block);
+    });
+    (port, logins)
+}
+
+/// A user account `CN=<cn>,OU=<cn>` with `password` that can log in.
+fn login_user(ctx: &mut nvs_runtime::Ctx, key: u64, cn: &str, password: &str) -> String {
+    let dn = user(ctx, key, cn);
+    ldap::set_password(ctx, key, &dn, password).expect("the reset is accepted");
+    ldap::modify(
+        ctx,
+        key,
+        &dn,
+        &[nvs_ldap::Change {
+            kind: nvs_ldap::ChangeKind::Replace,
+            attribute: "userAccountControl".to_owned(),
+            values: vec![b"512".to_vec()],
+        }],
+    )
+    .expect("the account is enabled");
+    dn
+}
+
+#[test]
+fn authenticate_binds_on_its_own_connection_and_closes_it() {
+    use nvs_ldap::proto;
+
+    // The block's connection is the peer's first, and the login is its
+    // second: one bind, one unbind, and then the client closes it.
+    let login = format!("CN=Staff,OU=Staff,{BASE}");
+    let (port, logins) = login_peer(vec![bound(0, "")]);
+    let mut ctx = ctx_over(&cleartext_corp(port));
+    let key = ldap::connect(&mut ctx, "corp").expect("the peer accepts");
+    ldap::authenticate(&mut ctx, key, &login, "Staff-Pass-1").expect("the peer accepts the login");
+    let (sent, closed) = logins
+        .recv_timeout(Duration::from_secs(10))
+        .expect("the login came on a connection of its own");
+    let bind = proto::message(1, &proto::bind_request(&login, b"Staff-Pass-1"), &[]);
+    let unbind = proto::message(2, &proto::unbind_request(), &[]);
+    assert_eq!(sent, [bind, unbind].concat(), "one bind and one unbind");
+    assert!(closed, "the client closed the login's connection");
+
+    // Against the directory: the block's connection stays bound as the block.
+    let Some(ca) = samba() else { return };
+    let mut ctx = ctx_over(&corp(&ca));
+    let key = ldap::connect(&mut ctx, "corp").expect("the block opens");
+    let before = ldap::who_am_i(&mut ctx, key).expect("whoami answers");
+    let dn = login_user(&mut ctx, key, "Visitors", "Visitors-Pass-7");
+    ldap::authenticate(&mut ctx, key, &dn, "Visitors-Pass-7").expect("the login is accepted");
+    assert_eq!(
+        ldap::who_am_i(&mut ctx, key).expect("whoami answers"),
+        before,
+        "authenticate does not rebind the block's connection"
+    );
+    delete_user(&mut ctx, key, "Visitors");
+}
+
+#[test]
+fn no_such_user_and_a_wrong_password_are_one_kind() {
+    const AD: &str = "80090308: LdapErr: DSID-0C09050F, comment: AcceptSecurityContext error";
+    let (port, logins) = login_peer(vec![
+        bound(49, &format!("{AD}, data 525, v4f7c")),
+        bound(49, &format!("{AD}, data 52e, v4f7c")),
+    ]);
+    let mut ctx = ctx_over(&cleartext_corp(port));
+    let key = ldap::connect(&mut ctx, "corp").expect("the peer accepts");
+    let mut refused = Vec::new();
+    for _ in 0..2 {
+        let fault = ldap::authenticate(&mut ctx, key, &format!("CN=Staff,{BASE}"), "Staff-Pass-1")
+            .expect_err("the peer refuses the login");
+        let (_, closed) = logins
+            .recv_timeout(Duration::from_secs(10))
+            .expect("a login");
+        assert!(closed, "a refused login's connection is closed too");
+        refused.push(fault.message());
+    }
+    assert!(refused[0].contains("InvalidCredentials"), "{}", refused[0]);
+    assert_eq!(
+        refused[0], refused[1],
+        "no such user and a wrong password throw the same error"
+    );
+
+    // Against the directory: an account that does not exist, and one that
+    // does with the wrong password.
+    let Some(ca) = samba() else { return };
+    let mut ctx = ctx_over(&corp(&ca));
+    let key = ldap::connect(&mut ctx, "corp").expect("the block opens");
+    let dn = login_user(&mut ctx, key, "Members", "Members-Pass-7");
+    let missing = ldap::authenticate(
+        &mut ctx,
+        key,
+        &format!("CN=Nobody,{BASE}"),
+        "Members-Pass-7",
+    )
+    .expect_err("there is no such account");
+    let wrong = ldap::authenticate(&mut ctx, key, &dn, "Members-Pass-8")
+        .expect_err("the password is wrong");
+    assert!(
+        missing.message().contains("InvalidCredentials"),
+        "{}",
+        missing.message()
+    );
+    assert_eq!(missing.message(), wrong.message());
+    delete_user(&mut ctx, key, "Members");
+}
+
+#[test]
+fn ad_bind_sub_codes_map_to_kinds() {
+    const AD: &str = "80090308: LdapErr: DSID-0C09050F, comment: AcceptSecurityContext error";
+    let reasons = [
+        ("530", "NotAllowedNow"),
+        ("531", "NotAllowedNow"),
+        ("532", "PasswordExpired"),
+        ("533", "AccountDisabled"),
+        ("701", "AccountExpired"),
+        ("773", "MustChangePassword"),
+        ("775", "AccountLocked"),
+    ];
+    let answers = reasons
+        .iter()
+        .map(|(sub, _)| bound(49, &format!("{AD}, data {sub}, v4f7c")))
+        .collect();
+    let (port, logins) = login_peer(answers);
+    let mut ctx = ctx_over(&cleartext_corp(port));
+    let key = ldap::connect(&mut ctx, "corp").expect("the peer accepts");
+    for (sub, kind) in reasons {
+        let fault = ldap::authenticate(&mut ctx, key, &format!("CN=Staff,{BASE}"), "Staff-Pass-1")
+            .expect_err("the peer refuses the login");
+        logins
+            .recv_timeout(Duration::from_secs(10))
+            .expect("a login");
+        assert!(
+            fault.message().contains(&format!(": {kind}:")),
+            "data {sub}: {}",
+            fault.message()
+        );
+    }
+
+    // Against the directory: a disabled account, and one that must change
+    // its password before it logs in.
+    let Some(ca) = samba() else { return };
+    let mut ctx = ctx_over(&corp(&ca));
+    let key = ldap::connect(&mut ctx, "corp").expect("the block opens");
+    let dn = login_user(&mut ctx, key, "Readers", "Readers-Pass-7");
+    let replace = |attribute: &str, value: &[u8]| nvs_ldap::Change {
+        kind: nvs_ldap::ChangeKind::Replace,
+        attribute: attribute.to_owned(),
+        values: vec![value.to_vec()],
+    };
+    ldap::modify(&mut ctx, key, &dn, &[replace("pwdLastSet", b"0")])
+        .expect("the account must change its password");
+    let must = ldap::authenticate(&mut ctx, key, &dn, "Readers-Pass-7")
+        .expect_err("the password must change first");
+    assert!(
+        must.message().contains("MustChangePassword"),
+        "{}",
+        must.message()
+    );
+    ldap::modify(&mut ctx, key, &dn, &[replace("userAccountControl", b"514")])
+        .expect("the account is disabled");
+    let disabled = ldap::authenticate(&mut ctx, key, &dn, "Readers-Pass-7")
+        .expect_err("the account is disabled");
+    assert!(
+        disabled.message().contains("AccountDisabled"),
+        "{}",
+        disabled.message()
+    );
+    delete_user(&mut ctx, key, "Readers");
+}
+
+#[test]
+fn an_errors_message_never_carries_the_password() {
+    // A refused login, a reason AD names, a server that does not answer the
+    // bind, and an empty login, which is refused before anything is sent.
+    let secret = "Shop-Secret-Pass-9";
+    let (port, logins) = login_peer(vec![
+        bound(49, "AcceptSecurityContext error, data 52e, v4f7c"),
+        bound(49, "AcceptSecurityContext error, data 775, v4f7c"),
+        bound(52, "the server is shutting down"),
+    ]);
+    let mut ctx = ctx_over(&cleartext_corp(port));
+    let key = ldap::connect(&mut ctx, "corp").expect("the peer accepts");
+    let login = format!("CN=Staff,{BASE}");
+    let mut faults = Vec::new();
+    for _ in 0..3 {
+        faults
+            .push(ldap::authenticate(&mut ctx, key, &login, secret).expect_err("the login fails"));
+        logins
+            .recv_timeout(Duration::from_secs(10))
+            .expect("a login");
+    }
+    faults.push(ldap::authenticate(&mut ctx, key, "", secret).expect_err("the login is empty"));
+    for fault in &faults {
+        let message = fault.message();
+        assert!(
+            !message.contains(secret) && !message.contains("Secret"),
+            "{message}"
+        );
+    }
+    assert!(
+        faults[3].message().contains("InvalidCredentials"),
+        "{}",
+        faults[3].message()
+    );
+}

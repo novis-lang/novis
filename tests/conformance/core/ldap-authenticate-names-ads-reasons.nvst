@@ -1,0 +1,67 @@
+--TEST--
+`authenticate` throws `MustChangePassword` for an account that must change its password, `AccountDisabled` for a disabled account, and `InvalidCredentials` for an empty login, which is never sent — ADR 0278 § 10 and `rule:security/ldap-pool-is-bound-as-its-block`
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+var $patrons = "CN=Patrons,OU=Patrons,DC=example,DC=test";
+
+// A run that stopped half-way leaves the account behind.
+array<string> $leftovers = [$patrons, "OU=Patrons,DC=example,DC=test"];
+foreach ($leftovers as string $left) {
+    try {
+        $corp->delete($left);
+    } catch (Core\Ldap\LdapError $gone) {
+    }
+}
+$corp->add("OU=Patrons,DC=example,DC=test", ["objectClass" => "organizationalUnit"]);
+$corp->add($patrons, ["objectClass" => "user", "sAMAccountName" => "Patrons"]);
+$corp->setPassword($patrons, "Patrons-first-Pass-7");
+$corp->modify($patrons, [
+    Core\Ldap\Change::replace("userAccountControl", 512),
+    Core\Ldap\Change::replace("pwdLastSet", 0),
+]);
+
+// The password is right, and the account must change it first.
+try {
+    $corp->authenticate($patrons, "Patrons-first-Pass-7");
+    echo "must change: not reached", "\n";
+} catch (Core\Ldap\LdapError $refused) {
+    echo "must change: ", $refused->kind == Core\Ldap\ErrorKind::MustChangePassword ? "MustChangePassword" : "other", "\n";
+}
+
+// The password is right, and the account is disabled.
+$corp->modify($patrons, [Core\Ldap\Change::replace("userAccountControl", 514)]);
+try {
+    $corp->authenticate($patrons, "Patrons-first-Pass-7");
+    echo "disabled: not reached", "\n";
+} catch (Core\Ldap\LdapError $refused) {
+    echo "disabled: ", $refused->kind == Core\Ldap\ErrorKind::AccountDisabled ? "AccountDisabled" : "other", "\n";
+}
+
+// An empty login is refused before anything is sent, so there is no result code.
+try {
+    $corp->authenticate("", "Patrons-first-Pass-7");
+    echo "empty login: not reached", "\n";
+} catch (Core\Ldap\LdapError $refused) {
+    echo "empty login: ", $refused->kind == Core\Ldap\ErrorKind::InvalidCredentials ? "InvalidCredentials" : "other", "\n";
+    echo "code: ", $refused->code ?? "null", "\n";
+}
+
+$corp->delete($patrons);
+$corp->delete("OU=Patrons,DC=example,DC=test");
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+must change: MustChangePassword
+disabled: AccountDisabled
+empty login: InvalidCredentials
+code: null
