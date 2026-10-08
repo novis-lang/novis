@@ -6346,13 +6346,23 @@ pub(crate) mod tests {
         notes.lock().expect("a poisoned log").push(what.into());
     }
 
+    /// The note the client files once it has read the server's close, which is
+    /// after the server has acted on the disconnect.
+    const CLOSED: &str = "the client saw the server close";
+
     /// Serves one `POST` with an empty body on `written`'s tree, whose client
-    /// closes while the program runs `then`, and answers with what happened.
+    /// leaves while the program runs `then`, and answers with what happened.
     ///
     /// The body is empty because `hyper` watches for the close only once the
     /// whole request is read: that EOF ends the connection future and drops
-    /// the request's [`Peer`]. `then` is the work a request goes on with after
-    /// its client left (`rule:http-server/a-request-outlives-a-client-that-goes-away`).
+    /// the request's [`Peer`]. The client leaves when the program starts, so
+    /// the close always reaches a running request, and no clock decides the
+    /// order. It half-closes and reads on, and files [`CLOSED`] once the server
+    /// has closed its end. `hyper` drops the socket and then the request it was
+    /// waiting on, in one drop on the request's own core, so a request the
+    /// disconnect cancels runs none of its code after that note can exist.
+    /// `then` is the work a request goes on with after its client left
+    /// (`rule:http-server/a-request-outlives-a-client-that-goes-away`).
     /// The last note is always `the accept loop returned`, so a case reads an
     /// ordering against the connection's end and not only a final state.
     fn after_a_disconnect(
@@ -6379,6 +6389,10 @@ pub(crate) mod tests {
         let notes: Notes = Arc::new(std::sync::Mutex::new(Vec::new()));
         type Then = Box<dyn FnOnce(&mut Ctx, &Notes, &Admission)>;
         let then: RefCell<Option<Then>> = RefCell::new(Some(Box::new(then)));
+        let (started, may_leave) = std::sync::mpsc::channel::<()>();
+        // Taken by the one request, so the sender ends with its program and a
+        // program that never runs still lets the client go.
+        let started = RefCell::new(Some(started));
         let handler = {
             let notes = Arc::clone(&notes);
             Rc::new(move |request: Request<Incoming>, _origin: Origin| {
@@ -6398,6 +6412,7 @@ pub(crate) mod tests {
                 let notes = Arc::clone(&notes);
                 let admission = Arc::clone(&admission);
                 let then = then.borrow_mut().take().expect("one request per case");
+                let started = started.borrow_mut().take();
                 // Noted when the program's captures are dropped, which is its
                 // end and its teardown alike: a cancelled task runs no more of
                 // its own code.
@@ -6410,6 +6425,9 @@ pub(crate) mod tests {
                 let stopped = Stopped(Arc::clone(&notes));
                 let program: Program = Box::new(move |child: &mut Ctx, _args| {
                     let _stopped = &stopped;
+                    if let Some(started) = started {
+                        let _ = started.send(());
+                    }
                     then(child, &notes, &admission);
                     Value::null()
                 });
@@ -6426,6 +6444,7 @@ pub(crate) mod tests {
         let addr = listener
             .local_addr()
             .expect("a bound listener had no address");
+        let closed = Arc::clone(&notes);
         let client = std::thread::spawn(move || {
             let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
             socket
@@ -6433,8 +6452,14 @@ pub(crate) mod tests {
                     b"POST /orders HTTP/1.1\r\nHost: example.com\r\nContent-Length: 0\r\n\r\n",
                 )
                 .expect("the write failed");
-            std::thread::sleep(Duration::from_millis(30));
-            drop(socket);
+            // The bound only ends the wait for a server that never framed the
+            // request: a program that started, or was dropped unrun, ends it.
+            let _ = may_leave.recv_timeout(Duration::from_secs(10));
+            // Either call fails only for a socket the server has closed already,
+            // and a read of `Ok(0)` or a reset says the same.
+            let _ = socket.shutdown(std::net::Shutdown::Write);
+            let _ = socket.read_to_end(&mut Vec::new());
+            noted(&closed, CLOSED);
         });
 
         let ended = Arc::clone(&notes);
@@ -6460,15 +6485,25 @@ pub(crate) mod tests {
     }
 
     /// Two writes with a wait between them, the shape of a script that saves
-    /// an order and then its items. A cancelled task stops at the wait.
+    /// an order and then its items. The wait ends once the client has filed
+    /// [`CLOSED`], so the server has acted on the disconnect before the second
+    /// write, and ten seconds bound it for a server that never closes. A
+    /// cancelled task stops at the wait.
     fn two_writes(_ctx: &mut Ctx, notes: &Notes, _admission: &Admission) {
         noted(notes, "the first write");
-        if matches!(
-            nvs_host::sleep(Duration::from_millis(100)),
-            Woken::Cancelled
-        ) {
-            noted(notes, "cancelled");
-            return;
+        let bound = Instant::now() + Duration::from_secs(10);
+        let closed = || {
+            notes
+                .lock()
+                .expect("a poisoned log")
+                .iter()
+                .any(|note| note == CLOSED)
+        };
+        while !closed() && Instant::now() < bound {
+            if matches!(nvs_host::sleep(Duration::from_millis(5)), Woken::Cancelled) {
+                noted(notes, "cancelled");
+                return;
+            }
         }
         noted(notes, "the second write");
     }
@@ -6487,6 +6522,10 @@ pub(crate) mod tests {
         assert!(
             second < returned,
             "the connection ended before the request it was serving: {notes:?}"
+        );
+        assert!(
+            at(CLOSED).is_some_and(|closed| closed < second),
+            "the request ended before the server closed the connection: {notes:?}"
         );
     }
 
