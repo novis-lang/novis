@@ -47,7 +47,7 @@ export const LANES: Record<string, string[]> = {
   ],
   // The crates that emit or execute machine code, plus the probes that measure them. These are where
   // a use-after-free lives, and they are the only inputs a cost baseline has, so this gates ASAN and
-  // the release-profile guard run. It never narrows the platform matrix: every platform runs whenever
+  // the `cost-guards` job. It never narrows the platform matrix: every platform runs whenever
   // any code changes, because which host a contributor pushes from is unknowable.
   native: [
     "crates/nvs-runtime/", "crates/nvs-codegen/", "crates/nvs-stdlib/", "crates/nvs-host/",

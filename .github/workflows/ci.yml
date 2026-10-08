@@ -116,9 +116,10 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ${{ matrix.os }}
-    # The longest job here, and the one the three-hour hang was on: 32 minutes on Windows with a
-    # warm cache against 13 on Linux and 7 on macOS, because it builds the workspace twice — once
-    # debug for the tests and once release for the cost guards.
+    # Debug only: one build of the workspace, its tests, the doc tests and the conformance suite.
+    # The release-profile guards are the `cost-guards` job, so the two profiles never share a
+    # deadline or a cache. Windows is the slow leg: its debug steps took 32 minutes on a partial
+    # cache hit (build 17, tests 8, conformance 7), which a warm cache shortens, so 60 is about twice.
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -177,20 +178,73 @@ jobs:
       - run: cargo test --workspace --doc
 
       # The `.nvst` conformance suite, on every platform for the reason the
-      # cost guards below are: each case runs generated machine code, and code
+      # `cost-guards` job is: each case runs generated machine code, and code
       # generation is what differs per target.
       - name: Conformance suite
         run: cargo run --quiet -p nvs-cli -- test tests/conformance/
+
+  # ---------------------------------------------------------------------------
+  # The release-profile guards, on the same three platforms as `test`. A job of
+  # its own, beside `test` rather than inside it, so the release compile has its
+  # own deadline and its own cache: inside `test`, a Windows leg that timed out
+  # skipped the cache's save step and started cold on every run after it.
+  # ---------------------------------------------------------------------------
+  cost-guards:
+    name: cost guards / ${{ matrix.name }}
+    needs: changes
+    if: needs.changes.outputs.native == 'true'
+    runs-on: ${{ matrix.os }}
+    # Windows is the slow leg. On a partial cache hit the probe's step took 10 minutes, and the
+    # `nvs-cli` release build after it was still compiling 12 minutes in. That is at least 25 minutes
+    # for the whole job before its cache is warm, so 60 is roughly twice.
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            os: ubuntu-latest
+          - name: windows-x86_64
+            os: windows-latest
+          - name: macos-aarch64
+            os: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install toolchain
+        run: rustup toolchain install --no-self-update
+
+      # A key of its own: these are release artifacts, and `test` caches debug ones.
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: cost-guards-${{ matrix.name }}
+
+      # The warm-start budget runs through `bun nv`, so this job needs Bun and the tools' dependencies.
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - name: Install tool dependencies
+        run: bun install --frozen-lockfile
+
+      # The same placeholder the `test` job writes, so a guard that resolves the repository's
+      # `nvs.toml` finds the CA file it names.
+      - name: A placeholder for the compose CA
+        shell: bash
+        env:
+          MSYS_NO_PATHCONV: '1'
+        run: >
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1
+          -subj "/CN=Novis CI placeholder CA"
+          -keyout "$RUNNER_TEMP/ca.key" -out tests/db/ca.crt
 
       # Runs on every platform in the matrix, on purpose. These are the invariants
       # Novis's execution model rests on, they are properties of native code
       # generation, and they differ per platform: Windows unwinds through SEH, and
       # aarch64 is a different Cranelift backend entirely. The cost guards only run
       # in release, because the baselines they compare against are release figures
-      # — which is a second full compile of the workspace, and why a diff that
-      # cannot move a baseline does not pay for it (ADR 0143 § 2, amending 0026 § 1).
+      # — a full compile of the workspace beside the debug one `test` does, and why a
+      # diff that cannot move a baseline does not pay for it (ADR 0143 § 2, amending 0026 § 1).
       - name: Architecture invariants and cost guards
-        if: needs.changes.outputs.native == 'true'
         run: cargo test --release -p nvs-abi-probe
 
       # The binary's own cost guards, in release for the reason the probe's are, and on the same lane:
@@ -201,7 +255,6 @@ jobs:
       # on all three runners, and the scaling test measures nothing on a runner with fewer than four
       # logical CPUs.
       - name: Warm-start and core-scaling margins
-        if: needs.changes.outputs.native == 'true'
         shell: bash
         run: |
           cargo build --release -p nvs-cli
@@ -214,7 +267,6 @@ jobs:
       # and passes (`tools/nv/cmd/bench.ts` § *The warm-start figure*). A runner under that floor is as
       # quiet as a development machine, and a figure over budget there is a regression in the tree.
       - name: Warm-start budget
-        if: needs.changes.outputs.native == 'true'
         run: bun nv bench --warm-start --max-work-ms 6
 
   # ---------------------------------------------------------------------------
