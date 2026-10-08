@@ -10,6 +10,7 @@ removes it. So the default is refusal, and the allowlist is closed:
 | Any relative path: a `--config` or `--data` value, the entry file, or the `[log] target` file, `[opcache] file_cache_dir` or `[io] temp_root` of the configuration the service reads | a service starts in `System32` or `/`: a first-boot failure as an opaque service-manager code, and for the configuration's three a log, a cache or a temporary root in a directory nobody chose, under a grant made against the installing shell's |
 | A data folder the service cannot use, when the stored `--config` is that folder's own `nvs.toml` | that file is the service's whole configuration, so a service installed without it refuses to start at every boot |
 | An `--account` password on the command line | readable by other users; it is prompted, and is `secret` for its whole life (`rule:security/secret-qualifier`) |
+| On Linux, an `--account` this machine has no user for | systemd cannot start the unit as a `User=` that is not there, and the install's owners are written in that user's ids (`rule:packaging/a-service-runs-as-a-virtual-account`) |
 | Running from a bundle | `rule:packaging/a-bundle-may-not-install-itself` |
 
 **An argv with no `--config` is completed, not refused.** The stored argv gets `--config` and the
@@ -31,7 +32,7 @@ data folder (`rule:errors/engine-floor`), which is why the account's grant inclu
 `[log] target` of `stderr` is accepted like any other.
 
 Every surviving path is canonicalized and stored absolute. Each refusal is an `E0630`, `E0631`,
-`E0633`, `E0634` or `E0653` diagnostic naming what was refused and why — rows that share a reason share
+`E0633`, `E0634`, `E0653` or `E0654` diagnostic naming what was refused and why — rows that share a reason share
 a code — never a bare non-zero exit. The refusals run in front of `nvs service unit` too, so an
 operator learns what would have been refused without an elevated shell and without installing
 anything.

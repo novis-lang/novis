@@ -2063,6 +2063,7 @@ removes it. So the default is refusal, and the allowlist is closed:
 | Any relative path: a `--config` or `--data` value, the entry file, or the `[log] target` file, `[opcache] file_cache_dir` or `[io] temp_root` of the configuration the service reads | a service starts in `System32` or `/`: a first-boot failure as an opaque service-manager code, and for the configuration's three a log, a cache or a temporary root in a directory nobody chose, under a grant made against the installing shell's |
 | A data folder the service cannot use, when the stored `--config` is that folder's own `nvs.toml` | that file is the service's whole configuration, so a service installed without it refuses to start at every boot |
 | An `--account` password on the command line | readable by other users; it is prompted, and is `secret` for its whole life ([`security/secret-qualifier`](security.md#security-secret-qualifier)) |
+| On Linux, an `--account` this machine has no user for | systemd cannot start the unit as a `User=` that is not there, and the install's owners are written in that user's ids ([`packaging/a-service-runs-as-a-virtual-account`](packaging.md#packaging-a-service-runs-as-a-virtual-account)) |
 | Running from a bundle | [`packaging/a-bundle-may-not-install-itself`](packaging.md#packaging-a-bundle-may-not-install-itself) |
 
 **An argv with no `--config` is completed, not refused.** The stored argv gets `--config` and the
@@ -2084,7 +2085,7 @@ data folder ([`errors/engine-floor`](errors.md#errors-engine-floor)), which is w
 `[log] target` of `stderr` is accepted like any other.
 
 Every surviving path is canonicalized and stored absolute. Each refusal is an `E0630`, `E0631`,
-`E0633`, `E0634` or `E0653` diagnostic naming what was refused and why — rows that share a reason share
+`E0633`, `E0634`, `E0653` or `E0654` diagnostic naming what was refused and why — rows that share a reason share
 a code — never a bare non-zero exit. The refusals run in front of `nvs service unit` too, so an
 operator learns what would have been refused without an elevated shell and without installing
 anything.
@@ -2150,6 +2151,15 @@ directory the grant names that is not there is created by the install, because s
 nothing on the parent and so could never create it itself. An uninstall finds the data folder from the
 binary the platform holds for the service, revokes the same entries, and reads a path that is no
 longer there as already revoked.
+
+On Linux the unit runs as root unless `--account` names a user, which must exist — one that does not
+is an `E0654` before anything is installed — and the same list is spelled as owners and modes: the
+data folder becomes root's `0750` and its `nvs.toml` root's `0640`, both in the account's primary
+group, and each read/write path, created if missing, the account's own `0700`. A `--config` file
+outside the data folder keeps its owner and mode, and the install warns when the account cannot read
+it. Every path the service reads is then owned by root or by itself and writable by no group, which
+is what [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary) checks at boot. An uninstall gives each path back
+to root with the owner's bits of its mode only.
 
 <sub>See also [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink), [`packaging/a-service-answers-its-manager`](packaging.md#packaging-a-service-answers-its-manager). Decided in [0093](../decisions/0093.md), [0279](../decisions/0279.md).</sub>
 

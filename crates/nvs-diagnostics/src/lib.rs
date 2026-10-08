@@ -2998,6 +2998,20 @@ pub mod code {
          command with a folder that only administrators can change.",
     );
 
+    /// `nvs service install --account <name>` or `nvs service unit` on Linux
+    /// names an account the password database does not have.
+    ///
+    /// `rule:packaging/a-service-runs-as-a-virtual-account`'s Linux half gives
+    /// the account its data folder by owner and group, so the installer needs
+    /// the account's ids before it changes anything. A unit whose `User=` names
+    /// no account is one systemd fails to start at every boot, so the install
+    /// is refused in front of the manager rather than registered over it.
+    pub const E_SERVICE_NO_SUCH_ACCOUNT: Code = Code::new("E0654").card(
+        "On Linux, the account that `--account` names must exist before `nvs service` installs \
+         the service. The service runs as this account. Create the account first, for example \
+         with `useradd --system`, or name an account that exists.",
+    );
+
     // --- E07xx types, continued --------------------------------------------
     //
     // The E04xx band filled at `E0499`. Max-plus-one yields `E0500`, whose

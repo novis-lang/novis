@@ -54,6 +54,13 @@ every configuration file. It can write only to these folders in the data folder:
 It can also write to a log, cache or temporary folder that your configuration names. The service
 cannot change its own configuration.
 
+On Linux, the account must exist before you install the service. You can create one with
+`useradd --system --no-create-home shop`. The installer gives the data folder and its `nvs.toml` to
+`root`, and the group of the account can read them. The folders that the service writes to belong to
+the account, and only the account can open them. If your `--config` file is in another folder, the
+installer does not change it. It prints a warning when the account cannot read that file.
+`nvs service uninstall` makes all of these folders private to `root` again.
+
 ## The log
 
 A service has no terminal. When `nvs.toml` does not set `[log] target`, the service writes its log

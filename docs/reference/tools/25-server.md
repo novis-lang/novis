@@ -393,6 +393,7 @@ The installer checks the command first. When a check fails, it prints an error a
 | `serve` with no file needs a configuration with a `[[server.mount]]` entry that is on disk. | `E0630` |
 | Every path is a full path. This includes `--config`, `--data`, and `[log] target`, `[opcache] file_cache_dir` and `[io] temp_root` in the configuration. | `E0631` |
 | The installer can create and use the data folder, when the service reads the `nvs.toml` in it. | `E0653` |
+| On Linux, the account that `--account` names exists. | `E0654` |
 | The command line has no `--password`. Other users of the machine can read a command line. | `E0633` |
 | A bundled executable does not install itself. Install the `nvs` binary. | `E0634` |
 
@@ -427,6 +428,13 @@ The options of the installer:
 With `--account`, the service account can read the data folder and every configuration file. It can
 write only to the `cache`, `tmp`, `lsp` and `logs` folders in the data folder, and to a log, cache or
 temporary folder that the configuration names. The service cannot change its own configuration.
+
+On Linux, the installer sets owners and modes. The data folder belongs to `root` with mode `0750`,
+and its `nvs.toml` with mode `0640`. Both are in the group of the account, so the account can read
+them. Each folder that the service writes to belongs to the account, with mode `0700`. The
+installer creates such a folder when it does not exist. A `--config` file in another folder is not
+changed, and the installer prints a warning when the account cannot read it. `uninstall` gives
+every one of these paths back to `root`, readable only by `root`.
 
 A service has no terminal. When the configuration does not set `[log] target`, a service writes its
 log to `logs/nvs.log` in the data folder. When that file reaches `[log] max_size`, Novis renames it

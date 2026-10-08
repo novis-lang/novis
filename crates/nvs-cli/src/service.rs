@@ -16,8 +16,10 @@
 //!
 //! The codes are `E0630` (the argv names something other than a server),
 //! `E0631` (a relative path), `E0633` (a password on a command line),
-//! `E0634` (a bundle installing itself) and `E0653` (a data folder the
-//! service cannot use). § 2's table carries more rows than there are codes
+//! `E0634` (a bundle installing itself), `E0653` (a data folder the
+//! service cannot use) and `E0654` (a Linux `--account` this machine does not
+//! have, which is looked up after [`plan`], through the manager, because the
+//! lookup is the machine's). § 2's table carries more rows than there are codes
 //! here, because rows that share a reason share a code: the subcommand
 //! allowlist, `--fault-inject` and an argv the command line's own parser
 //! refuses are all "the stored argv names something a service manager must
@@ -40,6 +42,17 @@
 //! the data folder are read on the folder and its `nvs.toml`, and read/write
 //! on `cache/`, `tmp/`, `lsp/` and `logs/` alone, each inherited only inside
 //! its own subfolder.
+//!
+//! **On Linux the same list is owners and modes.** `nvs_config::data` creates
+//! the folder as root's `0700`, which a `User=` account could not even enter,
+//! so an install with `--account` gives the folder to root and the account's
+//! primary group at `0750`, its `nvs.toml` likewise at `0640`, and every
+//! read/write path to the account at `0700`, creating one that is missing.
+//! The account must exist, since its ids are what the steps are written in.
+//! Every path the service then reads is owned by root or by the account and
+//! writable by no group, so it passes `nvs_config::trust::check` made as that
+//! account; `registration`'s `owners` module states why, and an uninstall
+//! gives each path back to root, private.
 //!
 //! **What counts as a path is a closed list, not a guess.** Every `--config`
 //! and `--data` value in the argv, the entry file `serve`/`run` names, and the
@@ -268,6 +281,11 @@ pub(crate) struct Plan {
     cache_directory: Option<PathBuf>,
     /// [`Host::temp_root`], granted read/write.
     temp_root: Option<PathBuf>,
+    /// The Linux account `account` names, once
+    /// [`registration::resolve_account`] has looked it up: what § 4's grants
+    /// are spelled in on that platform. `None` for root, on Windows, and
+    /// before the lookup.
+    owner: Option<registration::Account>,
 }
 
 /// Whether a rendered unit is printed for review or written where the service
@@ -428,6 +446,7 @@ pub(crate) fn plan(request: &Request<'_>, host: &Host) -> Result<Plan, Diagnosti
         log_file: host.log_file.clone(),
         cache_directory: host.cache_directory.clone(),
         temp_root: host.temp_root.clone(),
+        owner: None,
     })
 }
 
@@ -1617,6 +1636,20 @@ pub(crate) mod registration {
         pub(crate) exe: Option<PathBuf>,
     }
 
+    /// A Linux account as the password database holds it: what `User=` names
+    /// in the unit, and the ids § 4's grants are spelled in there.
+    #[derive(Clone, PartialEq, Eq, Debug)]
+    pub(crate) struct Account {
+        /// The name `--account` gave.
+        pub(crate) name: String,
+        /// Its user id, which owns the paths the service writes.
+        pub(crate) uid: u32,
+        /// Its primary group, which systemd starts the service in when the
+        /// unit names no `Group=`, and which reads the data folder and its
+        /// `nvs.toml`.
+        pub(crate) gid: u32,
+    }
+
     /// One step a verb performs, in its platform's own terms.
     ///
     /// A union over both platforms rather than one enum each: the verbs are one
@@ -1661,6 +1694,21 @@ pub(crate) mod registration {
         Deregister { name: String },
         /// Take one granted entry away again.
         Revoke { account: String, path: PathBuf },
+        /// One path of § 4's grant list as Linux spells a grant: an owner, a
+        /// group and a mode. A directory the service writes in is created
+        /// first when it is not there (`create`), for the reason
+        /// [`Action::Grant`] creates one.
+        Own {
+            path: PathBuf,
+            uid: u32,
+            gid: u32,
+            mode: u32,
+            create: bool,
+        },
+        /// Give one path back to root, private: owner and group `root`, and
+        /// `mode`, which keeps no bit for the group or anyone else. A path
+        /// that is not there is already given back.
+        Disown { path: PathBuf, mode: u32 },
         /// Remove the event-log source's subkey.
         RemoveEventSource { name: String },
         /// Write § 5's rendered unit where systemd reads it.
@@ -1735,6 +1783,22 @@ pub(crate) mod registration {
             Err(std::io::Error::new(
                 std::io::ErrorKind::Unsupported,
                 "this service manager holds no registration to read back",
+            ))
+        }
+
+        /// The Linux account `name` names, which § 4's grants are spelled in
+        /// on that platform.
+        ///
+        /// # Errors
+        ///
+        /// `NotFound` when this machine has no such account, the password
+        /// database's own failure, and `Unsupported` from a manager whose
+        /// platform names an account in its grants rather than by its ids.
+        fn account(&self, name: &str) -> std::io::Result<Account> {
+            let _ = name;
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                "this service manager has no Linux accounts",
             ))
         }
     }
@@ -1866,6 +1930,152 @@ pub(crate) mod registration {
         out
     }
 
+    /// How one path of § 4's grant list is spelled on Linux, where a grant is
+    /// an owner, a group and a mode rather than an entry in an ACL.
+    #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+    enum Owned {
+        /// The data folder: root's, readable and searchable by the account's
+        /// group, `0750`.
+        Folder,
+        /// A configuration file inside the data folder: root's, readable by
+        /// the account's group, `0640`.
+        Config,
+        /// A directory the service writes in: the account's own, `0700`.
+        Writable,
+    }
+
+    impl Owned {
+        /// The mode the install gives the path.
+        fn mode(self) -> u32 {
+            match self {
+                Self::Folder => 0o750,
+                Self::Config => 0o640,
+                Self::Writable => 0o700,
+            }
+        }
+
+        /// The mode a path goes back to: the owner's bits of [`Owned::mode`]
+        /// and nothing for the group or anyone else, which is the mode
+        /// `nvs_config::data` creates the folder with.
+        fn private(self) -> u32 {
+            self.mode() & 0o700
+        }
+    }
+
+    /// [`granted`]'s list as [`Owned`] paths, which is the one list a Linux
+    /// install and uninstall walk.
+    ///
+    /// A read entry outside the data folder is left out: it is a `--config`
+    /// file the operator keeps elsewhere, and its owner and mode are theirs.
+    /// [`unreadable_configs`] names one the account cannot read instead.
+    fn owned(list: Vec<(PathBuf, bool)>, data_folder: Option<&Path>) -> Vec<(PathBuf, Owned)> {
+        list.into_iter()
+            .filter_map(|(path, write)| {
+                let owned = if write {
+                    Owned::Writable
+                } else if data_folder.is_some_and(|root| path == root) {
+                    Owned::Folder
+                } else if data_folder.is_some_and(|root| path.starts_with(root)) {
+                    Owned::Config
+                } else {
+                    return None;
+                };
+                Some((path, owned))
+            })
+            .collect()
+    }
+
+    /// The `--config` files of `plan` outside its data folder that `account`
+    /// cannot read, by the owner, group and mode bits a Linux kernel checks.
+    ///
+    /// A warning and never a refusal, and never a `chmod`: the file is the
+    /// operator's, and a supplementary group or an ACL this does not read may
+    /// give the account read all the same.
+    fn unreadable_configs(plan: &Plan, account: &Account) -> Vec<PathBuf> {
+        let data_folder = plan.data.as_ref().map(nvs_config::data::Folder::root);
+        grants(plan)
+            .into_iter()
+            .filter(|(path, write)| {
+                !write && !data_folder.is_some_and(|root| path.starts_with(root))
+            })
+            .map(|(path, _)| path)
+            .filter(|path| !readable_by(path, account))
+            .collect()
+    }
+
+    /// Whether `account` may read `path` by its owner, group and mode bits.
+    /// A path that cannot be examined reads as readable: the warning it would
+    /// raise could not be established.
+    #[cfg(unix)]
+    pub(crate) fn readable_by(path: &Path, account: &Account) -> bool {
+        use std::os::unix::fs::MetadataExt;
+
+        let Ok(meta) = std::fs::metadata(path) else {
+            return true;
+        };
+        let mode = meta.mode();
+        if meta.uid() == account.uid {
+            mode & 0o400 != 0
+        } else if meta.gid() == account.gid {
+            mode & 0o040 != 0
+        } else {
+            mode & 0o004 != 0
+        }
+    }
+
+    /// No Unix modes to read: every path reads as readable.
+    #[cfg(not(unix))]
+    fn readable_by(path: &Path, account: &Account) -> bool {
+        let _ = (path, account);
+        true
+    }
+
+    /// The account `plan` names, looked up through `site`'s manager on Linux,
+    /// where § 4's grants are spelled in its ids. Stored on the plan, so
+    /// [`install_actions`] stays a pure function of it.
+    ///
+    /// Nothing is stored for root, which owns every path already, or on
+    /// Windows, where a grant names the account itself.
+    ///
+    /// # Errors
+    ///
+    /// `E0654`, when the password database has no such account: systemd
+    /// would start the unit as a `User=` that is not there and fail at every
+    /// boot.
+    pub(crate) fn resolve_account(plan: &mut Plan, site: &Site<'_>) -> Result<(), Diagnostic> {
+        if site.platform != Platform::Linux {
+            return Ok(());
+        }
+        let Some(name) = plan.account.clone() else {
+            return Ok(());
+        };
+        let account = site
+            .manager
+            .account(&name)
+            .map_err(|why| no_such_account(&name, &why))?;
+        plan.owner = (account.uid != 0).then_some(account);
+        Ok(())
+    }
+
+    /// `E0654` for `name`, which the lookup could not find for `why`.
+    fn no_such_account(name: &str, why: &std::io::Error) -> Diagnostic {
+        let message = if why.kind() == std::io::ErrorKind::NotFound {
+            format!("the account `{name}` does not exist on this machine")
+        } else {
+            format!("the account `{name}` could not be looked up: {why}")
+        };
+        Diagnostic::error(code::E_SERVICE_NO_SUCH_ACCOUNT, message)
+            .with_note(
+                "the service runs as this account, and systemd cannot start it as an account \
+                 that does not exist"
+                    .to_owned(),
+            )
+            .with_help(format!(
+                "create the account first, for example with `useradd --system --no-create-home \
+                 {name}`, or name an account that exists"
+            ))
+    }
+
     /// `install`'s steps, in the order the platform takes them.
     pub(crate) fn install_actions(
         platform: Platform,
@@ -1927,6 +2137,25 @@ pub(crate) mod registration {
                 out.push(Action::Systemctl {
                     argv: vec!["daemon-reload".to_owned()],
                 });
+                // Where the Windows grants go: after the registration, and
+                // before the step that lets a boot start the service. Root
+                // owns everything already, so the owner is a named account.
+                if let Some(account) = &plan.owner {
+                    let data_folder = plan.data.as_ref().map(nvs_config::data::Folder::root);
+                    for (path, owned) in owned(grants(plan), data_folder) {
+                        out.push(Action::Own {
+                            path,
+                            uid: if owned == Owned::Writable {
+                                account.uid
+                            } else {
+                                0
+                            },
+                            gid: account.gid,
+                            mode: owned.mode(),
+                            create: owned == Owned::Writable,
+                        });
+                    }
+                }
                 if registration.start.enabled() {
                     out.push(Action::Systemctl {
                         argv: vec!["enable".to_owned(), plan.name.clone()],
@@ -1976,22 +2205,40 @@ pub(crate) mod registration {
                 });
                 out
             }
-            Platform::Linux => vec![
-                Action::Systemctl {
+            Platform::Linux => {
+                let mut out = vec![Action::Systemctl {
                     argv: vec![
                         "disable".to_owned(),
                         "--now".to_owned(),
                         stored.name.clone(),
                     ],
-                },
-                Action::RemoveUnit {
+                }];
+                // A unit with no `User=` ran as root, and the install gave
+                // root nothing.
+                if stored.account != "root" {
+                    let writable = Writable {
+                        data_folder: stored.data_folder.as_deref(),
+                        log_file: stored.log_file.as_deref(),
+                        cache_directory: stored.cache_directory.as_deref(),
+                        temp_root: stored.temp_root.as_deref(),
+                    };
+                    let list = granted(&stored.argv, writable);
+                    for (path, owned) in owned(list, stored.data_folder.as_deref()) {
+                        out.push(Action::Disown {
+                            path,
+                            mode: owned.private(),
+                        });
+                    }
+                }
+                out.push(Action::RemoveUnit {
                     path: destination(Delivery::Install, &stored.name, unit_root)
                         .expect("an installing delivery names a unit file"),
-                },
-                Action::Systemctl {
+                });
+                out.push(Action::Systemctl {
                     argv: vec!["daemon-reload".to_owned()],
-                },
-            ],
+                });
+                out
+            }
         }
     }
 
@@ -2064,6 +2311,25 @@ pub(crate) mod registration {
             Action::Revoke { account, path } => {
                 format!("revoke {account}'s access to {}", path.display())
             }
+            Action::Own {
+                path,
+                uid,
+                gid,
+                mode,
+                create,
+            } => format!(
+                "{}set {} to owner uid {uid}, group gid {gid}, mode {mode:04o}",
+                if *create {
+                    "create if missing and "
+                } else {
+                    ""
+                },
+                path.display()
+            ),
+            Action::Disown { path, mode } => format!(
+                "set {} back to owner root, group root, mode {mode:04o}",
+                path.display()
+            ),
             Action::RemoveEventSource { name } => {
                 format!("remove the event-log source `{name}` under {EVENT_SOURCES}")
             }
@@ -2142,8 +2408,10 @@ pub(crate) mod registration {
     /// registration the SCM refused because the name is taken is not followed
     /// by a deregistration of the service that holds the name. `PRESHUTDOWN`
     /// and the failure actions leave with the registration they were set on. A
-    /// directory a grant created stays: it is empty, and removing a directory is
-    /// not something an install that failed should be doing.
+    /// path given to the account on Linux goes back to root with the owner's
+    /// bits of its mode, which is how the data folder was created. A directory
+    /// a grant or an ownership step created stays: it is empty, and removing a
+    /// directory is not something an install that failed should be doing.
     pub(crate) fn undo_actions(applied: &[Action]) -> Vec<Action> {
         let mut out = Vec::new();
         for action in applied.iter().rev() {
@@ -2154,6 +2422,10 @@ pub(crate) mod registration {
                 Action::Grant { account, path, .. } => out.push(Action::Revoke {
                     account: account.clone(),
                     path: path.clone(),
+                }),
+                Action::Own { path, mode, .. } => out.push(Action::Disown {
+                    path: path.clone(),
+                    mode: mode & 0o700,
                 }),
                 Action::EventSource { name, .. } => {
                     out.push(Action::RemoveEventSource { name: name.clone() });
@@ -2175,6 +2447,7 @@ pub(crate) mod registration {
                 | Action::Failure { .. }
                 | Action::Deregister { .. }
                 | Action::Revoke { .. }
+                | Action::Disown { .. }
                 | Action::RemoveEventSource { .. }
                 | Action::RemoveUnit { .. }
                 | Action::Systemctl { .. }
@@ -2241,6 +2514,7 @@ pub(crate) mod registration {
         out: &mut dyn std::io::Write,
     ) -> Result<(), Refused> {
         let mut checked = plan(request, host).map_err(Refused::Installer)?;
+        resolve_account(&mut checked, site).map_err(Refused::Installer)?;
         if dry_run {
             if let Some(data) = &checked.data {
                 writeln!(out, "create the data folder {}", data.root().display())
@@ -2254,6 +2528,19 @@ pub(crate) mod registration {
         // A folder that could not be made is granted nothing.
         if !prepare_data(&checked).map_err(Refused::Installer)? {
             checked.data = None;
+        }
+        if let Some(account) = &checked.owner {
+            for path in unreadable_configs(&checked, account) {
+                eprintln!(
+                    "warning: the account `{}` cannot read `{}`\n  \
+                     note: the service reads this configuration file when it starts, and stops \
+                     when it cannot read it.\n  \
+                     help: give the account read access to the file, for example with `chgrp` \
+                     and `chmod g+r`.",
+                    account.name,
+                    path.display()
+                );
+            }
         }
         let actions = install_actions(site.platform, &checked, registration, site.unit_root);
         match apply_all(&actions, site) {
@@ -2337,6 +2624,14 @@ pub(crate) mod registration {
                     other => other.map(|()| None),
                 },
                 Action::Systemctl { argv } => systemctl(argv),
+                Action::Own {
+                    path,
+                    uid,
+                    gid,
+                    mode,
+                    create,
+                } => owners::own(path, *uid, *gid, *mode, *create).map(|()| None),
+                Action::Disown { path, mode } => owners::disown(path, *mode).map(|()| None),
                 Action::Register { .. }
                 | Action::Preshutdown { .. }
                 | Action::Failure { .. }
@@ -2382,6 +2677,155 @@ pub(crate) mod registration {
                 data_folder: None,
                 exe,
             })
+        }
+
+        fn account(&self, name: &str) -> std::io::Result<Account> {
+            owners::lookup(name)
+        }
+    }
+
+    /// § 4's grants as Linux spells them: `chown` and `chmod` on the paths
+    /// [`owned`] lists, and the password database that turns `--account` into
+    /// the ids they take.
+    ///
+    /// What the service then reads passes `nvs_config::trust::check` as that
+    /// account, because each path is owned by root or by the account and none
+    /// is writable by its group or anyone else: the data folder is root's
+    /// `0750`, its `nvs.toml` root's `0640`, and every directory the service
+    /// writes in the account's `0700`. The group bits give read and nothing
+    /// more, which is why the service cannot change its own configuration.
+    #[cfg(unix)]
+    mod owners {
+        use std::os::unix::fs::PermissionsExt;
+        use std::path::Path;
+
+        use super::Account;
+
+        /// `path` given to `uid` and `gid` with `mode`, after creating it when
+        /// `create` says it is a directory the service writes in. Its missing
+        /// parents get the default mode: the service has to reach the
+        /// directory through them.
+        pub(super) fn own(
+            path: &Path,
+            uid: u32,
+            gid: u32,
+            mode: u32,
+            create: bool,
+        ) -> std::io::Result<()> {
+            if create && !path.exists() {
+                std::fs::create_dir_all(path)?;
+            }
+            std::os::unix::fs::chown(path, Some(uid), Some(gid))?;
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode))
+        }
+
+        /// `path` given back to root with `mode`. The mode comes first, so the
+        /// path is private before its owner changes.
+        pub(super) fn disown(path: &Path, mode: u32) -> std::io::Result<()> {
+            match std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)) {
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+                other => other?,
+            }
+            std::os::unix::fs::chown(path, Some(0), Some(0))
+        }
+
+        /// The account `name` names, from the password database.
+        #[expect(
+            unsafe_code,
+            reason = "`getpwnam_r` has no spelling in `std`; it writes into a record and a \
+                      buffer this function owns, and is unsafe only because it is `extern`"
+        )]
+        pub(super) fn lookup(name: &str) -> std::io::Result<Account> {
+            let wanted = std::ffi::CString::new(name).map_err(|_| {
+                std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    "an account name cannot contain a NUL byte",
+                )
+            })?;
+            let mut buffer: Vec<libc::c_char> = vec![0; 4096];
+            loop {
+                let mut record = std::mem::MaybeUninit::<libc::passwd>::uninit();
+                let mut found: *mut libc::passwd = std::ptr::null_mut();
+                // SAFETY: a NUL-terminated name, a record and a buffer that
+                // outlive the call with the buffer's true length, and an
+                // out-pointer the call sets to the record or to null.
+                let status = unsafe {
+                    libc::getpwnam_r(
+                        wanted.as_ptr(),
+                        record.as_mut_ptr(),
+                        buffer.as_mut_ptr(),
+                        buffer.len(),
+                        &mut found,
+                    )
+                };
+                if status == libc::ERANGE && buffer.len() < 1 << 20 {
+                    buffer.resize(buffer.len() * 4, 0);
+                    continue;
+                }
+                if status != 0 {
+                    return Err(std::io::Error::from_raw_os_error(status));
+                }
+                if found.is_null() {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::NotFound,
+                        "no such account",
+                    ));
+                }
+                // SAFETY: a zero status with a non-null `found` means the call
+                // filled `record`, and `found` points at it.
+                let record = unsafe { record.assume_init() };
+                return Ok(Account {
+                    name: name.to_owned(),
+                    uid: record.pw_uid,
+                    gid: record.pw_gid,
+                });
+            }
+        }
+    }
+
+    /// No Unix owners on this platform: every step is `Unsupported`, which
+    /// is never reached, because [`Platform::host`] names Linux only where
+    /// there are.
+    #[cfg(not(unix))]
+    #[cfg_attr(
+        all(test, windows),
+        expect(
+            dead_code,
+            reason = "on Windows the applier `at_host` names is `scm::Scm`, and a case drives the \
+                      recording manager"
+        )
+    )]
+    mod owners {
+        use std::path::Path;
+
+        use super::Account;
+
+        fn unsupported() -> std::io::Error {
+            std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                "this platform has no Unix owners and modes",
+            )
+        }
+
+        pub(super) fn own(
+            path: &Path,
+            uid: u32,
+            gid: u32,
+            mode: u32,
+            create: bool,
+        ) -> std::io::Result<()> {
+            let _ = (path, uid, gid, mode, create);
+            Err(unsupported())
+        }
+
+        pub(super) fn disown(path: &Path, mode: u32) -> std::io::Result<()> {
+            let _ = (path, mode);
+            Err(unsupported())
+        }
+
+        pub(super) fn lookup(name: &str) -> std::io::Result<Account> {
+            let _ = name;
+            Err(unsupported())
         }
     }
 
@@ -2556,6 +3000,8 @@ pub(crate) mod registration {
                     Action::Scm { name, control } => ask(name, *control),
                     Action::WriteUnit { .. }
                     | Action::RemoveUnit { .. }
+                    | Action::Own { .. }
+                    | Action::Disown { .. }
                     | Action::Systemctl { .. } => Err(Error::new(
                         ErrorKind::Unsupported,
                         "a systemd action on Windows",
@@ -3222,10 +3668,24 @@ pub(crate) mod registration {
     #[derive(Debug, Default)]
     pub(crate) struct Recording {
         applied: Mutex<Vec<Action>>,
+        /// A machine with no account but root, for the case about `E0654`.
+        no_accounts: bool,
     }
 
     #[cfg(test)]
     impl Recording {
+        /// The uid and gid every account but root has on the recording
+        /// manager's machine.
+        pub(crate) const ID: u32 = 1001;
+
+        /// A recording manager on a machine where only root exists.
+        pub(crate) fn without_accounts() -> Self {
+            Self {
+                no_accounts: true,
+                ..Self::default()
+            }
+        }
+
         /// Everything applied through it, in order.
         pub(crate) fn applied(&self) -> Vec<Action> {
             self.applied
@@ -3243,6 +3703,21 @@ pub(crate) mod registration {
                 .unwrap_or_else(PoisonError::into_inner)
                 .push(action.clone());
             Ok(None)
+        }
+
+        fn account(&self, name: &str) -> std::io::Result<Account> {
+            let id = match name {
+                "root" => 0,
+                _ if self.no_accounts => {
+                    return Err(std::io::Error::from(std::io::ErrorKind::NotFound));
+                }
+                _ => Self::ID,
+            };
+            Ok(Account {
+                name: name.to_owned(),
+                uid: id,
+                gid: id,
+            })
         }
     }
 }
@@ -3274,10 +3749,15 @@ pub(crate) fn print_unit(
         Ok(host) => host,
         Err(diagnostic) => return refuse(diagnostic, &mut sources),
     };
-    let plan = match plan(&request, &host) {
+    let mut plan = match plan(&request, &host) {
         Ok(plan) => plan,
         Err(diagnostic) => return refuse(diagnostic, &mut sources),
     };
+    // The unit's `User=` has to name an account this machine has, which is
+    // the one check an install makes that `plan` cannot.
+    if let Err(diagnostic) = at_host(|site| registration::resolve_account(&mut plan, site)) {
+        return refuse(diagnostic, &mut sources);
+    }
 
     let text = if cfg!(windows) {
         format!(
@@ -4226,6 +4706,7 @@ mod tests {
                 log_file: None,
                 cache_directory: None,
                 temp_root: None,
+                owner: None,
             };
             let line = image_path(&plan);
 
@@ -4257,6 +4738,7 @@ mod tests {
             log_file: None,
             cache_directory: None,
             temp_root: None,
+            owner: None,
         };
         let text = unit(&plan);
         for line in [
@@ -4997,6 +5479,347 @@ mod tests {
         }
     }
 
+    /// The host and request of the Linux ownership cases: no `--config`, so
+    /// the service reads the data folder's `nvs.toml`; a log directory and a
+    /// temporary root outside the data folder; a cache inside it.
+    fn owned_host() -> Host {
+        Host {
+            log_file: Some(PathBuf::from(absolute("log/web.log"))),
+            cache_directory: Some(PathBuf::from(absolute(".nvsdata/cache/compiled"))),
+            temp_root: Some(PathBuf::from(absolute("tmp"))),
+            ..host_with_data()
+        }
+    }
+
+    /// The `Own` steps of a Linux install, as `(path, uid, gid, mode, create)`.
+    fn owns(actions: &[registration::Action]) -> Vec<(PathBuf, u32, u32, u32, bool)> {
+        actions
+            .iter()
+            .filter_map(|action| match action {
+                registration::Action::Own {
+                    path,
+                    uid,
+                    gid,
+                    mode,
+                    create,
+                } => Some((path.clone(), *uid, *gid, *mode, *create)),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// `rule:packaging/a-service-runs-as-a-virtual-account`'s Linux half: the
+    /// same grant list, spelled as owners and modes. The data folder and its
+    /// `nvs.toml` are root's and readable by the account's group; every folder
+    /// the service writes in is the account's own; an uninstall gives each one
+    /// back to root, private.
+    #[test]
+    fn a_linux_install_gives_the_grant_list_to_the_account_by_owner_and_mode() {
+        use registration::{Action, Platform, Recording};
+
+        let bare = vec!["serve".to_owned(), absolute("app/index.nvs")];
+        let mut named = request(&bare);
+        named.account = Some("nvs-web");
+        let root = unit_root("owners");
+        let manager = Recording::default();
+        let site = registration::Site {
+            platform: Platform::Linux,
+            unit_root: &root,
+            manager: &manager,
+        };
+        let mut checked = plan(&named, &owned_host()).expect("a plan");
+        registration::resolve_account(&mut checked, &site).expect("an account");
+        let actions =
+            registration::install_actions(Platform::Linux, &checked, &registration(), &root);
+
+        let id = Recording::ID;
+        let data = |tail: &str| PathBuf::from(absolute(&format!(".nvsdata/{tail}")));
+        let writable = |path: PathBuf| (path, id, id, 0o700, true);
+        assert_eq!(
+            owns(&actions),
+            [
+                (PathBuf::from(absolute(".nvsdata")), 0, id, 0o750, false),
+                (data("nvs.toml"), 0, id, 0o640, false),
+                writable(data("cache")),
+                writable(data("tmp")),
+                writable(data("lsp")),
+                writable(data("logs")),
+                writable(PathBuf::from(absolute("log"))),
+                writable(PathBuf::from(absolute("tmp"))),
+            ]
+        );
+        // From the grant list and nothing else: one step per entry, write
+        // entries the account's, read entries root's.
+        let grants = registration::grants(&checked);
+        assert_eq!(owns(&actions).len(), grants.len());
+        for ((path, write), (owned, uid, ..)) in grants.iter().zip(owns(&actions)) {
+            assert_eq!(*path, owned);
+            assert_eq!(*write, uid == id, "{}", path.display());
+        }
+        // After the unit and the reload, before `enable`.
+        assert!(matches!(actions[1], Action::Systemctl { ref argv } if argv[0] == "daemon-reload"));
+        assert!(matches!(actions[2], Action::Own { .. }));
+        assert!(matches!(actions.last(), Some(Action::Systemctl { argv }) if argv[0] == "enable"));
+
+        // The uninstall gives the same paths back to root, private.
+        let stored = registration::Stored {
+            name: "web".to_owned(),
+            argv: checked.argv.clone(),
+            account: "nvs-web".to_owned(),
+            log_file: owned_host().log_file,
+            cache_directory: owned_host().cache_directory,
+            temp_root: owned_host().temp_root,
+            data_folder: Some(PathBuf::from(absolute(".nvsdata"))),
+            exe: Some(PathBuf::from(absolute("bin/nvs"))),
+        };
+        let removed = registration::uninstall_actions(Platform::Linux, &stored, &root);
+        let disowned: Vec<(PathBuf, u32)> = removed
+            .iter()
+            .filter_map(|action| match action {
+                Action::Disown { path, mode } => Some((path.clone(), *mode)),
+                _ => None,
+            })
+            .collect();
+        let expected: Vec<(PathBuf, u32)> = owns(&actions)
+            .into_iter()
+            .map(|(path, _, _, mode, _)| (path, mode & 0o700))
+            .collect();
+        assert_eq!(disowned, expected);
+        assert_eq!(disowned[0].1, 0o700);
+        assert_eq!(disowned[1].1, 0o600);
+        // Stopped first, and the unit removed after.
+        assert!(matches!(&removed[0], Action::Systemctl { argv } if argv[0] == "disable"));
+        assert!(matches!(removed[1], Action::Disown { .. }));
+        assert!(matches!(
+            removed[removed.len() - 2],
+            Action::RemoveUnit { .. }
+        ));
+
+        // A dry run prints the steps, so `install` looks the account up on the
+        // way to them.
+        let mut printed = Vec::new();
+        registration::install(
+            &named,
+            &owned_host(),
+            &registration(),
+            &site,
+            true,
+            &mut printed,
+        )
+        .expect("a dry run");
+        let text = String::from_utf8(printed).expect("utf-8");
+        assert!(
+            text.contains(&format!(
+                "set {} to owner uid 0, group gid {id}, mode 0750",
+                absolute(".nvsdata")
+            )),
+            "{text}"
+        );
+        assert!(manager.applied().is_empty());
+
+        // With no account, or root, the unit runs as root and nothing changes
+        // owner; an uninstall of a unit with no `User=` gives nothing back.
+        for account in [None, Some("root")] {
+            let mut asked = request(&bare);
+            asked.account = account;
+            let mut checked = plan(&asked, &owned_host()).expect("a plan");
+            registration::resolve_account(&mut checked, &site).expect("an account");
+            let actions =
+                registration::install_actions(Platform::Linux, &checked, &registration(), &root);
+            assert!(owns(&actions).is_empty(), "{account:?}: {actions:?}");
+        }
+        let as_root = registration::Stored {
+            account: "root".to_owned(),
+            ..stored
+        };
+        assert!(
+            !registration::uninstall_actions(Platform::Linux, &as_root, &root)
+                .iter()
+                .any(|action| matches!(action, Action::Disown { .. }))
+        );
+    }
+
+    /// A Linux account that does not exist is `E0654`, before the manager is
+    /// asked for anything: systemd would fail to start the unit at every boot.
+    /// Windows names the account in its grants and looks nothing up.
+    #[test]
+    fn a_linux_install_for_an_account_that_does_not_exist_is_refused_before_the_manager() {
+        let argv = argv();
+        let mut named = request(&argv);
+        named.account = Some("nvs-web");
+        let root = unit_root("no-account");
+        for dry_run in [false, true] {
+            let manager = registration::Recording::without_accounts();
+            let site = registration::Site {
+                platform: registration::Platform::Linux,
+                unit_root: &root,
+                manager: &manager,
+            };
+            let refused = registration::install(
+                &named,
+                &host(),
+                &registration(),
+                &site,
+                dry_run,
+                &mut std::io::sink(),
+            )
+            .expect_err("an account that does not exist");
+            let registration::Refused::Installer(diagnostic) = refused else {
+                panic!("the manager was reached");
+            };
+            assert_eq!(coded(&diagnostic), code::E_SERVICE_NO_SUCH_ACCOUNT);
+            assert!(diagnostic.message.contains("`nvs-web`"), "{diagnostic:?}");
+            assert!(manager.applied().is_empty());
+        }
+
+        let manager = registration::Recording::without_accounts();
+        let site = registration::Site {
+            platform: registration::Platform::Windows,
+            unit_root: &root,
+            manager: &manager,
+        };
+        registration::install(
+            &named,
+            &host(),
+            &registration(),
+            &site,
+            false,
+            &mut std::io::sink(),
+        )
+        .expect("a Windows install looks no account up");
+    }
+
+    /// The ownership steps on a real filesystem, as the account running the
+    /// test: the modes come out as the rule states them, and every path the
+    /// service reads passes the trust check that account makes at boot.
+    #[cfg(unix)]
+    #[test]
+    fn the_ownership_steps_leave_modes_the_service_account_trusts() {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+
+        use registration::Manager;
+
+        let scratch = nvs_repo::scratch_private("service-owned");
+        let folder = nvs_config::data::Folder::new(scratch.join(".nvsdata"));
+        for path in [
+            folder.root().to_path_buf(),
+            folder.cache(),
+            folder.tmp(),
+            folder.lsp_root(),
+            folder.logs(),
+        ] {
+            nvs_config::data::create_private_root(&path).expect("a private folder");
+        }
+        std::fs::write(folder.config_file(), "").expect("an nvs.toml");
+        std::fs::set_permissions(folder.config_file(), std::fs::Permissions::from_mode(0o600))
+            .expect("a private nvs.toml");
+        let me = std::fs::metadata(folder.root()).expect("the folder");
+        let outside = scratch.join("outside").join("logs");
+
+        let bare = vec!["serve".to_owned(), absolute("app/index.nvs")];
+        let host = Host {
+            log_file: Some(outside.join("web.log")),
+            cache_directory: None,
+            temp_root: None,
+            data_folder: Some(folder.clone()),
+            ..host()
+        };
+        let mut checked = plan(&request(&bare), &host).expect("a plan");
+        let account = registration::Account {
+            name: "this-account".to_owned(),
+            uid: me.uid(),
+            gid: me.gid(),
+        };
+        checked.owner = Some(account.clone());
+        let root = unit_root("owned-units");
+        let actions = registration::install_actions(
+            registration::Platform::Linux,
+            &checked,
+            &registration(),
+            &root,
+        );
+        // Root's paths are this account's here: only root may give a path to
+        // root, and the trust check accepts either owner.
+        for action in &actions {
+            if let registration::Action::Own {
+                path,
+                uid,
+                gid,
+                mode,
+                create,
+            } = action
+            {
+                let action = registration::Action::Own {
+                    path: path.clone(),
+                    uid: if *uid == 0 { me.uid() } else { *uid },
+                    gid: *gid,
+                    mode: *mode,
+                    create: *create,
+                };
+                registration::Systemd
+                    .apply(&action)
+                    .unwrap_or_else(|error| panic!("{action:?}: {error}"));
+            }
+        }
+
+        let mode = |path: &Path| {
+            std::fs::metadata(path)
+                .unwrap_or_else(|error| panic!("{}: {error}", path.display()))
+                .mode()
+                & 0o7777
+        };
+        assert_eq!(mode(folder.root()), 0o750);
+        assert_eq!(mode(&folder.config_file()), 0o640);
+        for sub in [
+            folder.cache(),
+            folder.tmp(),
+            folder.lsp_root(),
+            folder.logs(),
+        ] {
+            assert_eq!(mode(&sub), 0o700, "{}", sub.display());
+            nvs_config::trust::check(&sub)
+                .unwrap_or_else(|why| panic!("{}: {}", sub.display(), why.message()));
+        }
+        assert_eq!(mode(&outside), 0o700, "the outside log folder is created");
+        nvs_config::trust::check_alone(&outside).expect("a trusted log folder");
+        nvs_config::trust::check(&folder.config_file()).expect("a trusted nvs.toml");
+        nvs_config::trust::check(folder.root()).expect("a trusted data folder");
+
+        // A path that is not there is already given back.
+        registration::Systemd
+            .apply(&registration::Action::Disown {
+                path: scratch.join("never-made"),
+                mode: 0o700,
+            })
+            .expect("a missing path is given back");
+
+        // A configuration file elsewhere is only read: another account with
+        // no read bit is named, and a world-readable file is not.
+        let elsewhere = scratch.join("elsewhere.toml");
+        std::fs::write(&elsewhere, "").expect("a configuration file");
+        std::fs::set_permissions(&elsewhere, std::fs::Permissions::from_mode(0o600))
+            .expect("a private file");
+        let stranger = registration::Account {
+            name: "another".to_owned(),
+            uid: me.uid().wrapping_add(1),
+            gid: me.gid().wrapping_add(1),
+        };
+        assert!(registration::readable_by(&elsewhere, &account));
+        assert!(!registration::readable_by(&elsewhere, &stranger));
+        std::fs::set_permissions(&elsewhere, std::fs::Permissions::from_mode(0o644))
+            .expect("a readable file");
+        assert!(registration::readable_by(&elsewhere, &stranger));
+
+        // The password database: root is uid 0, and a made-up name is not
+        // there.
+        let root_account = registration::Systemd.account("root").expect("root");
+        assert_eq!((root_account.uid, root_account.gid), (0, 0));
+        let missing = registration::Systemd
+            .account("nvs-no-such-account")
+            .expect_err("no such account");
+        assert_eq!(missing.kind(), std::io::ErrorKind::NotFound);
+    }
+
     /// `rule:packaging/a-service-is-one-stored-argv`: the three thin verbs go
     /// to the SCM directly on Windows and to `systemctl` on Linux **by argv**,
     /// which is `rule:core-classes/process-is-argv-only` — the service's name
@@ -5150,6 +5973,10 @@ mod tests {
             }
             self.applied.apply(action)
         }
+
+        fn account(&self, name: &str) -> std::io::Result<registration::Account> {
+            self.applied.account(name)
+        }
     }
 
     /// An install of `argv()` on `platform` through `manager`, which refuses
@@ -5230,7 +6057,8 @@ mod tests {
             })
         );
 
-        // Linux, stopped at `enable`: the unit is removed and systemd told.
+        // Linux, stopped at `enable`: the log directory and the cache go back
+        // to root last first, then the unit is removed and systemd told.
         let manager = Refusing::of(
             |action| matches!(action, Action::Systemctl { argv } if argv[0] == "enable"),
         );
@@ -5240,17 +6068,40 @@ mod tests {
             "{text}"
         );
         let applied = manager.applied.applied();
+        let log = PathBuf::from(absolute("log"));
+        let cache = PathBuf::from(absolute("cache"));
         assert!(
-            matches!(applied[2], Action::RemoveUnit { .. }),
+            matches!(&applied[2], Action::Own { path, .. } if *path == log),
+            "{applied:?}"
+        );
+        assert!(
+            matches!(&applied[3], Action::Own { path, .. } if *path == cache),
             "{applied:?}"
         );
         assert_eq!(
-            applied[3],
+            applied[4..6],
+            [
+                Action::Disown {
+                    path: cache,
+                    mode: 0o700
+                },
+                Action::Disown {
+                    path: log,
+                    mode: 0o700
+                },
+            ]
+        );
+        assert!(
+            matches!(applied[6], Action::RemoveUnit { .. }),
+            "{applied:?}"
+        );
+        assert_eq!(
+            applied[7],
             Action::Systemctl {
                 argv: vec!["daemon-reload".to_owned()]
             }
         );
-        assert_eq!(applied.len(), 4);
+        assert_eq!(applied.len(), 8);
     }
 
     /// The undo is built from what was applied and never from the plan. A
