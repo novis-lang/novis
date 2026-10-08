@@ -5185,6 +5185,7 @@ class, not an interface: a user class extends it directly. The tree is fixed and
 | `Core\Cli\NotInteractive` | `RuntimeError` | — |
 | `Core\Db\DbError` | `RuntimeError` | `$kind`, `$sqlState`, `$driverCode`, `$constraint`, `$sql` |
 | `Core\Db\RolledBack` | `RuntimeError` | `$reason` |
+| `Core\Ldap\LdapError` | `RuntimeError` | `$kind`, `$code` |
 | `Core\DeprecatedError` | `LogicError` | — |
 | `Core\Script\Finished` | — (the root) | — |
 
@@ -27895,6 +27896,35 @@ What one step of a schema plan can cost at worst, so that a deployment can run t
 | `Core\Db\Plan\Grade::Safe` | Cannot lose data, cannot fail on rows that already exist, and cannot hold a long lock. |
 | `Core\Db\Plan\Grade::Locking` | Cannot lose data, but can fail on existing rows or block writes for a long time — a unique key over data that already collides, `NOT NULL` on a populated column, a type change that rewrites the table. |
 | `Core\Db\Plan\Grade::Destructive` | Can lose data. Every drop is here, and so is SQLite's create-copy-drop-rename rebuild, which is a data copy however it is spelled. |
+
+<a id="enum-core-ldap-errorkind"></a>
+#### `Core\Ldap\ErrorKind`
+
+Why an LDAP operation failed. `Core\Ldap\LdapError::$kind` is one of these, and `$code` beside it is the LDAP result code the server sent.
+
+| Case | Meaning |
+|---|---|
+| `Core\Ldap\ErrorKind::InvalidCredentials` | The login or the password is wrong. An account that does not exist gives this kind too, so the error does not show which accounts exist. |
+| `Core\Ldap\ErrorKind::AccountDisabled` | The account is disabled. Active Directory sends this as `data 533`. |
+| `Core\Ldap\ErrorKind::AccountLocked` | The account is locked after too many wrong passwords. Active Directory sends this as `data 775`. |
+| `Core\Ldap\ErrorKind::PasswordExpired` | The password has expired. Active Directory sends this as `data 532`. |
+| `Core\Ldap\ErrorKind::MustChangePassword` | The user must set a new password before they can log in. Active Directory sends this as `data 773`. |
+| `Core\Ldap\ErrorKind::AccountExpired` | The account has expired. Active Directory sends this as `data 701`. |
+| `Core\Ldap\ErrorKind::NotAllowedNow` | The account may not log in at this time or from this computer. Active Directory sends this as `data 530` or `data 531`. |
+| `Core\Ldap\ErrorKind::EncryptionRequired` | The server needs an encrypted connection for this operation. |
+| `Core\Ldap\ErrorKind::PasswordPolicy` | The new password does not meet the directory's password rules. |
+| `Core\Ldap\ErrorKind::NoSuchObject` | The entry, or the base of the search, does not exist. |
+| `Core\Ldap\ErrorKind::AlreadyExists` | The entry, or the attribute value, already exists. |
+| `Core\Ldap\ErrorKind::InsufficientAccess` | The connection's account is not allowed to do this. |
+| `Core\Ldap\ErrorKind::ConstraintViolation` | The directory's schema does not allow this value or this change. |
+| `Core\Ldap\ErrorKind::SizeLimitExceeded` | The search found more entries than the server or the search allows. |
+| `Core\Ldap\ErrorKind::TimeLimitExceeded` | The search ran longer than the server allows. |
+| `Core\Ldap\ErrorKind::Referral` | The server sent a referral to another server. Novis never follows a referral. |
+| `Core\Ldap\ErrorKind::ReadOnly` | The server only allows reads, and the operation was a write. |
+| `Core\Ldap\ErrorKind::Unsupported` | The server does not support this operation or this option. |
+| `Core\Ldap\ErrorKind::Unavailable` | The server cannot be reached, or it closed the connection. |
+| `Core\Ldap\ErrorKind::Timeout` | The operation took longer than the connection's `timeout`. |
+| `Core\Ldap\ErrorKind::Protocol` | The server sent a message the LDAP protocol does not allow, or a result code no other kind covers. A `LdapError` you create yourself has this kind. |
 
 <a id="enum-core-queue-state"></a>
 #### `Core\Queue\State`
