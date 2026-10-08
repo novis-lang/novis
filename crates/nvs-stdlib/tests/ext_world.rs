@@ -169,6 +169,10 @@ const REFUSED: &[(&str, &str)] = &[
         "Core\\Ldap\\Filter",
         "It is the BER encoding the host sends to a directory, and a guest opens no directory.",
     ),
+    (
+        "Core\\Ldap\\Dn",
+        "It names an entry for the host to send to a directory, and a guest opens no directory.",
+    ),
     ("Core\\Db\\Write", REPORT),
     ("Core\\Db\\Column", REPORT),
     (

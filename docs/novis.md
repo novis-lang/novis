@@ -217,6 +217,7 @@ Conventions the whole file uses:
 | [`Core\Ldap\Entry`](#core-core-ldap-entry) |  |
 | [`Core\Ldap\Filter`](#core-core-ldap-filter) |  |
 | [`Core\Ldap\Dn`](#core-core-ldap-dn) |  |
+| [`Core\Ldap\Ad`](#core-core-ldap-ad) |  |
 | [`Core\Queue`](#core-core-queue) |  |
 | [`Core\Queue\Id`](#core-core-queue-id) |  |
 | [`Core\Queue\Stats`](#core-core-queue-stats) |  |
@@ -26637,6 +26638,93 @@ $dn->toString(): tainted string
 Returns the DN as text, with each special character in a value escaped.
 
 **Returns** `tainted string` — The text. `Dn::parse` reads it back as the same DN. The text is `tainted`, because a value in the DN may be.
+
+<a id="core-core-ldap-ad"></a>
+### `Core\Ldap\Ad`
+
+Keywords: memberOf, enabled, disabled, bitAnd, bitOr
+
+| Member | Signature |
+|---|---|
+| [`Core\Ldap\Ad::memberOf`](#core-core-ldap-ad-memberof) | `memberOf(Core\Ldap\Dn\|string $group, {nested?: bool}): Core\Ldap\Filter` |
+| [`Core\Ldap\Ad::enabled`](#core-core-ldap-ad-enabled) | `enabled(): Core\Ldap\Filter` |
+| [`Core\Ldap\Ad::disabled`](#core-core-ldap-ad-disabled) | `disabled(): Core\Ldap\Filter` |
+| [`Core\Ldap\Ad::bitAnd`](#core-core-ldap-ad-bitand) | `bitAnd(string $attribute, int $bits): Core\Ldap\Filter` |
+| [`Core\Ldap\Ad::bitOr`](#core-core-ldap-ad-bitor) | `bitOr(string $attribute, int $bits): Core\Ldap\Filter` |
+
+<a id="core-core-ldap-ad-memberof"></a>
+#### `Core\Ldap\Ad::memberOf`
+
+```nvs skip
+Core\Ldap\Ad::memberOf(Core\Ldap\Dn|string $group, {nested?: bool}): Core\Ldap\Filter
+```
+
+Matches the entries that are members of a group.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$group` | `Core\Ldap\Dn\|string` (sink) | The group's DN. A string cannot be `tainted`. Build the DN with `Core\Ldap\Dn::of` when a part of it comes from a user. |
+| `{nested: …}` | `bool` (default `false`) | With `true`, the filter also matches the members of a group that is itself a member of the group, at any depth. The default is `false`, which matches only the direct members. |
+
+**Returns** `Core\Ldap\Filter` — A `Core\Ldap\Filter`.
+
+<a id="core-core-ldap-ad-enabled"></a>
+#### `Core\Ldap\Ad::enabled`
+
+```nvs skip
+Core\Ldap\Ad::enabled(): Core\Ldap\Filter
+```
+
+Matches the entries whose account is not disabled. It tests the bit with the value `2` in `userAccountControl`, and matches when that bit is not set.
+
+**Returns** `Core\Ldap\Filter` — A `Core\Ldap\Filter`. An entry with no `userAccountControl`, such as a group, also matches. Combine it with a filter on `objectClass` to find only users.
+
+<a id="core-core-ldap-ad-disabled"></a>
+#### `Core\Ldap\Ad::disabled`
+
+```nvs skip
+Core\Ldap\Ad::disabled(): Core\Ldap\Filter
+```
+
+Matches the entries whose account is disabled. It tests the bit with the value `2` in `userAccountControl`, and matches when that bit is set.
+
+**Returns** `Core\Ldap\Filter` — A `Core\Ldap\Filter`.
+
+<a id="core-core-ldap-ad-bitand"></a>
+#### `Core\Ldap\Ad::bitAnd`
+
+```nvs skip
+Core\Ldap\Ad::bitAnd(string $attribute, int $bits): Core\Ldap\Filter
+```
+
+Matches the entries where a number attribute has every one of these bits set.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$attribute` | `string` (sink) | The attribute's name, such as `sAMAccountName`. It cannot be `tainted`. |
+| `$bits` | `int` | The bits to test, as one number, such as `2 \| 512`. |
+
+**Returns** `Core\Ldap\Filter` — A `Core\Ldap\Filter`.
+
+**Throws** `LogicError` — `$attribute` is not an attribute name.
+
+<a id="core-core-ldap-ad-bitor"></a>
+#### `Core\Ldap\Ad::bitOr`
+
+```nvs skip
+Core\Ldap\Ad::bitOr(string $attribute, int $bits): Core\Ldap\Filter
+```
+
+Matches the entries where a number attribute has at least one of these bits set.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$attribute` | `string` (sink) | The attribute's name, such as `sAMAccountName`. It cannot be `tainted`. |
+| `$bits` | `int` | The bits to test, as one number, such as `2 \| 512`. |
+
+**Returns** `Core\Ldap\Filter` — A `Core\Ldap\Filter`.
+
+**Throws** `LogicError` — `$attribute` is not an attribute name.
 
 <a id="core-core-queue"></a>
 ### `Core\Queue`

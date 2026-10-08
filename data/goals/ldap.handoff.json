@@ -1,26 +1,32 @@
 {
-  "state": "**Goal `ldap`, Stage 5 in progress; Stage 4 done but for a program-supplied CA.** `nvs-config` reads `[ldap.<name>]` and `[capabilities.ldap]`. `crates/nvs-stdlib/src/ldap/mod.rs` opens connections (`connect`, `open`) and runs `who_am_i`, `search` and `read`.\n\n**On `main`**: `Ldap\\Connection::whoami`/`search`/`read`, `Ldap\\Entries`, `Ldap\\Entry`, `Ldap\\Scope`, `Ldap\\Settings`, `Ldap\\Filter` whole (`parse` is a sink, `toString` is `tainted`), and now `Ldap\\Dn` whole: `parse` (a sink), `of` and `child` (`Qual::Launder` on the value), `parent(): ?Dn`, `rdnAttribute(): string`, `rdnValue(): tainted string`, `isWithin(Dn): bool`, `toString(): tainted string`. `Entry::dn()` returns a `Dn`, and `read`'s DN, `search`'s `base` and `Settings.base` are `Dn|string` with the `string` arm a sink. The type checker's help at a `tainted` DN names `Dn::of` (`carrier_help` in `crates/nvs-types/src/expr/args.rs`).\n\nADR 0278's `rdn(): {attribute, value}` is two readers, because a `Core` member cannot return a shape; `rule:core-classes/ldap-dn-is-the-launderer` says so. The text a `Dn` gives back is `tainted`, so a case that collects `$entry->dn()->toString()` uses `array<tainted string>`, and `Core\\Str::join` does not take one.\n\n`nvs_ldap::Dn` (`crates/nvs-ldap/src/dn.rs`) is RFC 4514's parser and escaper; its module doc says what it accepts. The Rust tests `a_filter_encodes_to_ber_with_no_text_step`, `a_tainted_value_cannot_change_a_filters_structure` and `dn_escapes_each_value_and_round_trips` pass against Samba.\n\nServer cases reach `samba-ad` (`tests/db/compose.yaml`) at `ldaps://localhost:16636`, or over cleartext at `ldap://127.0.0.1:16389` for an `open` case. `CN=Users` holds exactly `Administrator`, `Guest` and `krbtgt`.",
+  "state": "**Goal `ldap`, Stage 5 done; Stage 6 (typed values) is next. Stage 4 is done except for a CA that a program supplies.** `nvs-config` reads `[ldap.<name>]` and `[capabilities.ldap]`. `crates/nvs-stdlib/src/ldap/mod.rs` opens connections (`connect`, `open`) and runs `who_am_i`, `search` and `read`.\n\n**On `main`**: `Ldap\\Connection::whoami`/`search`/`read`, `Ldap\\Entries`, `Ldap\\Entry`, `Ldap\\Scope`, `Ldap\\Settings`, `Ldap\\Filter` whole, `Ldap\\Dn` whole, and now `Ldap\\Ad`: `memberOf(Dn|string, {nested})`, `enabled`, `disabled`, `bitAnd`, `bitOr`. The `Ldap\\Ad` bodies sit in `crates/nvs-stdlib/src/ldap/search.rs` beside the other filter constructors. The rule OIDs are consts there. `enabled` is `not` of the `.803` test on `userAccountControl` bit 2. The Rust test `ad_member_of_nested_uses_the_in_chain_rule` passes against Samba, and Samba also evaluates the in-chain rule: `memberOf(Domain Admins, {nested: true})` finds `Administrator` (`tests/conformance/core/ldap-ad-filters-match-on-the-test-directory.nvst`).\n\nThe text a `Dn` gives back is `tainted`, so `Filter->toString` over it is `tainted` too. A case comparing such text binds it as `tainted string`.\n\nServer cases reach `samba-ad` (`tests/db/compose.yaml`) at `ldaps://localhost:16636`, or over cleartext at `ldap://127.0.0.1:16389` for an `open` case. `CN=Users` holds exactly three users: `Administrator`, `Guest` and `krbtgt`. Guest and krbtgt are disabled.",
   "next": {
-    "stage": 5,
-    "title": "the filter builder and `Dn`",
+    "stage": 6,
+    "title": "typed values",
     "files": [
-      "crates/nvs-ldap/src/proto.rs",
-      "crates/nvs-stdlib/src/ldap/registry.rs",
       "crates/nvs-stdlib/src/ldap/search.rs",
+      "crates/nvs-stdlib/src/ldap/registry.rs",
       "crates/nvs-stdlib/tests/ldap.rs",
-      "tests/conformance/core/ldap-*.nvst"
+      "tests/conformance/core/ldap-typed-values.nvst"
     ],
     "items": [
       {
         "done": false,
-        "text": "**`Ldap\\Ad`: `memberOf(Dn|string, ?{nested: bool}): Filter`, `enabled()`, `disabled()`, `bitAnd(string, int)`, `bitOr(string, int)`** (ADR 0278 § 1 table, `rule:core-classes/ldap-filter-is-a-value`'s last sentence). `nested: true` is `nvs_ldap::Filter::Extensible` with rule `1.2.840.113556.1.4.1941` (`crates/nvs-ldap/src/proto.rs:82`); `bitAnd`/`bitOr` are `.803`/`.804`; `enabled`/`disabled` test `userAccountControl`'s bit 2. A new static class `AD` beside `FILTER` (`crates/nvs-stdlib/src/ldap/registry.rs:668`), bodies building with `filter_value` (`crates/nvs-stdlib/src/ldap/search.rs:195`), the DN read with `super::dn::dn_arg`, and `DN_OR_STRING` (`crates/nvs-stdlib/src/ldap/registry.rs:39`) for the parameter. Rust test `ad_member_of_nested_uses_the_in_chain_rule`; Samba returns nothing from the in-chain rule (ADR 0278 § 2), so the test checks the encoding and that the server accepts it. Three `.nvst` cases per member."
+        "text": "**`Ldap\\Sid` and the typed `Entry` readers for GUID, SID, FILETIME, intervals and GeneralizedTime** (`rule:core-classes/ldap-value-types`, ADR 0278 § 8). The readers read the same lists as `values_named` (`crates/nvs-stdlib/src/ldap/search.rs:128`), and the rows go on `ENTRY` (`crates/nvs-stdlib/src/ldap/registry.rs:507`). Rust test `object_guid_reads_as_a_uuid_with_ads_byte_order` in `crates/nvs-stdlib/tests/ldap.rs:429`'s neighbourhood; case `tests/conformance/core/ldap-typed-values.nvst`."
+      },
+      {
+        "done": false,
+        "text": "**`Ad\\AccountFlags` and `Ad\\GroupType`, readonly objects with one `bool` per flag, keeping unnamed bits** (`rule:core-classes/ldap-value-types`). Classes beside `AD` (`crates/nvs-stdlib/src/ldap/registry.rs:1184`)."
+      },
+      {
+        "done": false,
+        "text": "**Ranged attribute merge and the schema read once per pool** (`rule:core-classes/ldap-value-types`, ADR 0278 § 8). The search loop is `nvs_core_ldap_entries_advance` (`crates/nvs-stdlib/src/ldap/search.rs:370`)."
       }
     ]
   },
   "backlog": [
-    "Stage 5's `ldap-filters-and-dns-run` cases all pass now; only `ad_member_of_nested_uses_the_in_chain_rule` keeps the stage red (`data/goals/ldap.json`).",
-    "A program-supplied CA for `open` (`Settings.tls_ca_file` is `None` in `crates/nvs-stdlib/src/ldap/mod.rs`): Stage 4's one leftover, `docs/agent/goals/ldap.md`.",
-    "Stage 6 widens a filter's value to the typed values of `rule:core-classes/ldap-value-types`.",
-    "`rule:core-classes/ldap-dn-is-the-launderer` and `ldap-filter-is-a-value` are still `designed` in `data/rules/core-classes/`; mark them shipped with their guarding cases when Stage 5 closes."
+    "A CA a program supplies for `Ldap::open` (Stage 4 remainder, ADR 0278 § 2).",
+    "Stages 7 to 10: writes and passwords, `authenticate`, the AD extras, the feature proofs (`data/goals/ldap.json` checks).",
+    "ADR 0278 § 8 is not in the Stage 6 `[context] adrs`. Add `0278 §8` there if the rule fragment is not enough."
   ]
 }
