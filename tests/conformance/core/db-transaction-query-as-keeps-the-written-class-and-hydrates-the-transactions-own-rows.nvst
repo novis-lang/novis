@@ -25,7 +25,7 @@ class Report {
     // The parameter is what asserts the *static* answer: a member handing back
     // `Rows<Row>` through this receiver would not compile here at all, which is
     // the half no echoed value can show.
-    public static function of(Rows<Note> $rows): string
+    public static function of(Rows<Note> $rows): tainted string
     {
         return $rows->count() . " " . ($rows->first()?->text ?? "nothing");
     }

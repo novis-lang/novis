@@ -1,0 +1,48 @@
+--TEST--
+a request field read with `query`, `post`, `queryArray` or `postArray` is `tainted` text, so it reaches SQL only as a bound parameter, whether it is joined with `.`, interpolated, appended with `.=` or bound to a plain `string` — `rule:security/tainted-sources`, `rule:security/taint-propagation`
+--FILE--
+<?nvs
+var $db = Core\Db::connect("main");
+var $name = Core\Request::post("name");
+
+$db->query("select * from users where id = " . Core\Request::query("id"), []);
+$db->query("select * from users where name = '{$name}'", []);
+string $sql = "select * from users where id = ";
+$sql .= Core\Request::query("id");
+string $id = Core\Request::query("id") as string;
+array<string> $tags = Core\Request::queryArray("tag");
+string $first = Core\Request::postArray("item")[0] ?? "";
+
+// The bound parameter and the number conversion are the two accepted readings.
+$db->query("select * from users where id = ?", [Core\Request::query("id")]);
+int $page = Core\Request::query("page") as ?int ?? 1;
+--FILE nvs.toml--
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+  --> case.nvs:5:12
+%A
+error[E0401]: expected `string`, found `tainted string`
+  --> case.nvs:6:12
+%A
+error[E0401]: expected `string`, found `tainted string`
+  --> case.nvs:8:1
+%A
+error[E0401]: expected `string`, found `tainted string`
+  --> case.nvs:9:14
+%A
+error[E0401]: expected `array<string>`, found `array<tainted string>`
+   --> case.nvs:10:23
+%A
+error[E0401]: expected `string`, found `string|tainted string`
+   --> case.nvs:11:17
+%A
+error: aborting due to 6 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -6,9 +6,9 @@ text pulled out of `mixed` is `tainted` in every form, so a request value reache
 // tests/conformance/lang/mixed-text-converts-to-the-tainted-form-and-a-number-stays-clean.nvst.
 var $db = Core\Db::connect("main");
 
-// The two ways a request value reached a query as plain text.
-$db->query("select * from users where id = " . Core\Request::query("id"), []);
-string $id = Core\Request::query("id") as string;
+// The two ways a request body's value reached a query as plain text.
+$db->query("select * from users where id = " . Core\Request::json(), []);
+string $id = Core\Request::json() as string;
 
 // Each other way text leaves `mixed`, bound at the plain type.
 mixed $m = Core\Json::decode('"x"');

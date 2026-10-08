@@ -430,10 +430,13 @@ pub(crate) fn binary_result(
         // an unqualified one poisons the result on that axis, the same
         // "poisoned" shape `rule:types/declaration` already uses for mixed-type arithmetic —
         // `tainted` and `secret` poison independently of each other. A `mixed`
-        // operand poisons `tainted` too: text out of `mixed` is tainted.
+        // operand poisons `tainted` too: text out of `mixed` is tainted. The
+        // `tainted` bit is read with `carries_tainted`'s reach, so a
+        // `?tainted string` operand — `Core\Request::query`'s, `header`'s —
+        // poisons exactly as a `tainted string` does.
         BinaryOp::Concat => {
             let tainted = [lhs, rhs].iter().any(|&side| {
-                is_tainted(side, env.interner) || carries_unchecked(side, env.interner)
+                carries_tainted(side, env.interner) || carries_unchecked(side, env.interner)
             });
             let secret = is_secret(lhs, env.interner) || is_secret(rhs, env.interner);
             qualified_scalar(false, tainted, secret, env.interner)

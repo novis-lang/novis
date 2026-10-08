@@ -176,19 +176,19 @@
 //! the same way. The array is copy-on-write, so handing a reader a reference
 //! to part of it is safe — `json()`'s own argument for its document.
 //!
-//! **The `tainted` qualifier does not survive `mixed`.** `path` is a
-//! `tainted string` and the checker holds it to
-//! `rule:security/tainted-qualifier`'s
-//! sinks; `query` answers `mixed`, because § 9's bracket convention makes a
-//! value a `string` *or* a nested array, and `nvs_types` has no `tainted
-//! array<T>` — the qualifier axes are defined over `string` and `bytes`. So a
-//! program checks the answer out with `as`, and what it lands in is a plain
-//! `string`. `post` and `json` answer `mixed` for the same reason and are the
-//! same hole: a decoded JSON document is that same nested array, so the tainted
-//! array that closes one closes all three. That is the same hole `Core\Uri::parseQuery` already has and is
-//! not new here, but it is worth naming at the one member most likely to be the
-//! source of an injection: `Core\Request::header` and `::cookie`, which answer
-//! a `tainted string` directly, do carry it.
+//! **Each reader is typed by how many values it reads.** § 9's bracket
+//! convention makes a parameter a `string` *or* a nested array, so the reading
+//! is split by shape rather than answered as `mixed`: `query` and `post` answer
+//! `?tainted string` — one unbracketed value, and `null` for an absent name and
+//! for a bracketed one alike — and `queryArray` and `postArray` answer
+//! `array<tainted string>`, the one level of values a bracketed name built, a
+//! lone unbracketed value as a list of one, and a `ParseError` for a second
+//! level. Anything deeper is `queryAs`'s and `postAs`'s, read against a shape
+//! the program wrote. That is `rule:security/tainted-sources`'s typed reader:
+//! the qualifier sits on what a program reaches with no `as` in between, and
+//! the read costs no `mixed` dispatch at its use. `json` stays `mixed`, because
+//! a document is structure, and `rule:security/taint-propagation` taints text
+//! leaving it.
 
 use nvs_runtime::{
     BodyNeed, Ctx, Fault, HeldValue, Inbound, NvsArray, NvsStr, Scheme, Tag, ThrownClass, Value,
@@ -253,9 +253,18 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             names: &["name"],
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
-            return_ty: CoreTy::Mixed,
+            return_ty: CoreTy::Nullable(&CoreTy::TaintedStr),
             symbol: "nvs_core_request_query",
             doc: Some(&QUERY_DOC),
+        },
+        CoreMethod {
+            name: "queryArray",
+            names: &["name"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: FIELD_VALUES,
+            symbol: "nvs_core_request_query_array",
+            doc: Some(&QUERY_ARRAY_DOC),
         },
         CoreMethod {
             name: "queryAs",
@@ -352,9 +361,18 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             names: &["name"],
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
-            return_ty: CoreTy::Mixed,
+            return_ty: CoreTy::Nullable(&CoreTy::TaintedStr),
             symbol: "nvs_core_request_post",
             doc: Some(&POST_DOC),
+        },
+        CoreMethod {
+            name: "postArray",
+            names: &["name"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: FIELD_VALUES,
+            symbol: "nvs_core_request_post_array",
+            doc: Some(&POST_ARRAY_DOC),
         },
         CoreMethod {
             name: "postAs",
@@ -425,6 +443,10 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// no `tainted array<T>` for it to sit on instead.
 const HEADER_LINES: CoreTy = CoreTy::Array(&CoreTy::TaintedStr);
 
+/// `queryArray`'s and `postArray`'s answer: the values a bracketed name built,
+/// each one text from the peer.
+const FIELD_VALUES: CoreTy = CoreTy::Array(&CoreTy::TaintedStr);
+
 /// `Core\Request::method`'s reference card — `rule:core-api/reference-card`.
 const METHOD_DOC: MethodDoc = MethodDoc {
     short: "Returns the method of the request, such as `GET` or `POST`, as a case of \
@@ -470,22 +492,47 @@ const PATH_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Request::query`'s reference card — `rule:core-api/reference-card`.
 const QUERY_DOC: MethodDoc = MethodDoc {
-    short: "Returns one query-string parameter by its name. The query is read the same way \
-            `Core\\Uri::parseQuery` reads it, so `a[b]=c` gives a nested array under `a`.",
+    short: "Returns one query-string parameter by its name, as text. The query is read the same \
+            way `Core\\Uri::parseQuery` reads it.",
     params: &[ParamDoc {
         name: "name",
-        desc: "The parameter's name, decoded — the key as a form writes it, without brackets \
-               for a nested value.",
+        desc: "The parameter's name, decoded. Upper and lower case are different.",
         shape: &[],
     }],
-    ret: "The parameter's value as a `string`, a nested `array<mixed>` for a bracketed key, or \
-          `null` where the query carried no such name. Check it out with `as`, which throws on \
-          input the type does not fit rather than quietly yielding zero.",
+    ret: "The parameter's value as a `tainted string`, or `null` when the query has no parameter \
+          with this name. A name with square brackets, such as `tag[]=a`, also gives `null`. Read \
+          those values with `queryArray`. Use `as` to convert the text, for example `as ?int`.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "This program is not answering a request, or the query string holds percent \
-               escapes that decode to octets that are not UTF-8.",
+        desc: "This program is not answering a request, or the query string has percent \
+               escapes that decode to bytes that are not UTF-8.",
     }],
+};
+
+/// `Core\Request::queryArray`'s reference card — `rule:core-api/reference-card`.
+const QUERY_ARRAY_DOC: MethodDoc = MethodDoc {
+    short: "Returns every value of one query-string parameter that has square brackets, such as \
+            `tag[]=a&tag[]=b`.",
+    params: &[ParamDoc {
+        name: "name",
+        desc: "The parameter's name without the brackets. For `tag[]=a`, the name is `tag`.",
+        shape: &[],
+    }],
+    ret: "An `array<tainted string>`. `tag[]=a&tag[]=b` gives `[\"a\", \"b\"]`, and \
+          `filter[color]=red` gives `[\"color\" => \"red\"]`. A name without brackets gives an \
+          array with its one value. A name that is not in the query gives an empty array.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "This program is not answering a request, or the query string has percent \
+                   escapes that decode to bytes that are not UTF-8.",
+        },
+        ErrorDoc {
+            error: "ParseError",
+            desc: "A value under this name has a second pair of brackets, such as `tag[a][b]=c`. \
+                   Read nested values with `queryAs`.",
+        },
+    ],
 };
 
 /// The bag [`nvs_core_request_query_as`] and [`nvs_core_request_post_as`]
@@ -776,18 +823,19 @@ const FILES_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Request::post`'s reference card — `rule:core-api/reference-card`.
 const POST_DOC: MethodDoc = MethodDoc {
-    short: "Returns one submitted form field by its name. The fields are read the same way \
-            `query` reads them. The body can be `multipart/form-data`, where the parts that \
+    short: "Returns one submitted form field by its name, as text. The fields are read the same \
+            way `query` reads them. The body can be `multipart/form-data`, where the parts that \
             are not files are read, or urlencoded.",
     params: &[ParamDoc {
         name: "name",
-        desc: "The field's name, as the form declared it and without brackets for a nested value.",
+        desc: "The field's name, as the form declared it. Upper and lower case are different.",
         shape: &[],
     }],
-    ret: "The field's value as a `string`, a nested `array<mixed>` for a bracketed key, or `null` \
-          where the form carried no such name. Reading the body to its end is what this member \
-          does, so on a `multipart/form-data` request it is called **after** the `files()` walk, \
-          never before: the uploads are drained on the way to the last field.",
+    ret: "The field's value as a `tainted string`, or `null` when the form has no field with \
+          this name. A name with square brackets, such as `item[]=pen`, also gives `null`. Read \
+          those values with `postArray`. This method reads the body to its end. On a \
+          `multipart/form-data` request, call it **after** `files()`, because it skips the \
+          uploads on its way to the last field.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
@@ -805,6 +853,39 @@ const POST_DOC: MethodDoc = MethodDoc {
         ErrorDoc {
             error: "IOError",
             desc: "The connection failed under the body, or the peer stopped short of the \
+                   length it declared.",
+        },
+    ],
+};
+
+/// `Core\Request::postArray`'s reference card — `rule:core-api/reference-card`.
+const POST_ARRAY_DOC: MethodDoc = MethodDoc {
+    short: "Returns every value of one form field that has square brackets, such as \
+            `item[]=pen&item[]=book`.",
+    params: &[ParamDoc {
+        name: "name",
+        desc: "The field's name without the brackets. For `item[]=pen`, the name is `item`.",
+        shape: &[],
+    }],
+    ret: "An `array<tainted string>`. `item[]=pen&item[]=book` gives `[\"pen\", \"book\"]`, and \
+          `size[shirt]=M` gives `[\"shirt\" => \"M\"]`. A name without brackets gives an array \
+          with its one value. A name that is not in the form gives an empty array. Like `post`, \
+          this method reads the body to its end, so call it **after** `files()`.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "This program is not answering a request, or `body` or `bodyStream` already \
+                   read the body of this request.",
+        },
+        ErrorDoc {
+            error: "ParseError",
+            desc: "The body is not the form it says it is, a field has percent escapes that \
+                   decode to bytes that are not UTF-8, or a value under this name has a second \
+                   pair of brackets, such as `item[a][b]=c`. Read nested values with `postAs`.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The connection failed while the body was read, or the body ended before the \
                    length it declared.",
         },
     ],
@@ -1532,6 +1613,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_request_path" => (nvs_core_request_path as *const ()).cast(),
         "nvs_core_request_query" => (nvs_core_request_query as *const ()).cast(),
         "nvs_core_request_query_as" => (nvs_core_request_query_as as *const ()).cast(),
+        "nvs_core_request_query_array" => (nvs_core_request_query_array as *const ()).cast(),
         "nvs_core_request_header" => (nvs_core_request_header as *const ()).cast(),
         "nvs_core_request_client_ip" => (nvs_core_request_client_ip as *const ()).cast(),
         "nvs_core_request_scheme" => (nvs_core_request_scheme as *const ()).cast(),
@@ -1545,6 +1627,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_request_body_stream" => (nvs_core_request_body_stream as *const ()).cast(),
         "nvs_core_request_files" => (nvs_core_request_files as *const ()).cast(),
         "nvs_core_request_post" => (nvs_core_request_post as *const ()).cast(),
+        "nvs_core_request_post_array" => (nvs_core_request_post_array as *const ()).cast(),
         "nvs_core_request_post_as" => (nvs_core_request_post_as as *const ()).cast(),
         "nvs_core_request_part_name" => (nvs_core_request_part_name as *const ()).cast(),
         "nvs_core_request_part_filename" => (nvs_core_request_part_filename as *const ()).cast(),
@@ -2183,34 +2266,119 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Request::query(string $name): mixed` — spec § 15's query-string
-    /// reader, replacing `$_GET` and `filter_input(INPUT_GET, …)`.
+    /// `Core\Request::query(string $name): ?tainted string` — spec § 15's
+    /// query-string reader, replacing `$_GET` and `filter_input(INPUT_GET, …)`.
     ///
     /// The parse is [`crate::uri::parse_query`]'s and not a second one; the
-    /// module doc owns what that costs per call and why the answer is `mixed`.
+    /// module doc owns what that costs per call and why a bracketed name is
+    /// `null` here and `queryArray`'s instead.
     fn nvs_core_request_query(ctx, args: [1]) {
-        // Unreachable from source: the row's parameter is `CoreTy::Text`, so
-        // `E0401` refuses anything that is not a `string` before this runs.
-        let name = args[0].as_text().ok_or_else(|| {
-            Fault::fatal(format!(
-                "Core\\Request::query expected a `string` for the name, got tag {}",
-                args[0].tag_byte()
-            ))
-        })?;
+        let name = name_argument(&args[0], "query")?;
         let parsed = query_fields_of(ctx, "query")?;
-        let answer = parsed.get(name.as_bytes()).unwrap_or_else(Value::null);
-        // `get` borrows rather than retains, so the value being handed back
-        // needs a reference of its own, and the caller owns exactly that one.
+        Ok(single_field(parsed.get(name.as_bytes())))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Request::queryArray(string $name): array<tainted string>` — the
+    /// values a bracketed query parameter built, over [`nvs_core_request_query`]'s
+    /// parse; [`field_values`] owns what each shape of value answers.
+    fn nvs_core_request_query_array(ctx, args: [1]) {
+        let name = name_argument(&args[0], "queryArray")?;
+        let parsed = query_fields_of(ctx, "queryArray")?;
+        field_values(parsed.get(name.as_bytes()), "queryArray", "queryAs")
+    }
+}
+
+/// The name argument of `query`, `post` and their `Array` forms, as text.
+///
+/// Unreachable from source at any other tag: each row's parameter is
+/// `CoreTy::Text`, so `E0401` refuses anything that is not a `string` before a
+/// helper runs.
+fn name_argument<'a>(arg: &'a Value, member: &str) -> Result<&'a str, Fault> {
+    arg.as_text().ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\Request::{member} expected a `string` for the name, got tag {}",
+            arg.tag_byte()
+        ))
+    })
+}
+
+/// `query`'s and `post`'s answer for what the parse holds under one name: the
+/// text of an unbracketed value, and `null` for an absent name or a bracketed
+/// one, whose values are `queryArray`'s and `postArray`'s to read.
+fn single_field(found: Option<Value>) -> Value {
+    match found {
+        Some(value) if value.as_text().is_some() => {
+            // `get` borrows rather than retains, so the value being handed back
+            // needs a reference of its own, and the caller owns exactly that one.
+            #[expect(
+                unsafe_code,
+                reason = "the payload is live: the parsed set still holds its own \
+                          reference to it at this point and is dropped after"
+            )]
+            unsafe {
+                value.retain();
+            }
+            value
+        }
+        _ => Value::null(),
+    }
+}
+
+/// `queryArray`'s and `postArray`'s answer for what the parse holds under one
+/// name: an empty array for an absent name, a list of one for an unbracketed
+/// value, and a bracketed name's own array — keys and order as the peer wrote
+/// them — handed over by reference, since the parse is copy-on-write.
+///
+/// # Errors
+///
+/// `ParseError` where an element is itself an array: the answer is
+/// `array<tainted string>`, and a second level of brackets is a structure
+/// `nested`, the shape-reading member, reads against a declared type.
+fn field_values(found: Option<Value>, member: &str, nested: &str) -> Result<Value, Fault> {
+    let Some(value) = found else {
+        return Ok(Value::array(NvsArray::new()));
+    };
+    let Some(values) = value.as_array() else {
         #[expect(
             unsafe_code,
-            reason = "the payload is live: `parsed` still holds its own reference \
-                      to it at this point and is dropped after"
+            reason = "the payload is live: the parsed set still holds its own \
+                      reference to it, and the new list takes one of its own"
         )]
         unsafe {
-            answer.retain();
+            value.retain();
         }
-        Ok(answer)
+        let mut one = NvsArray::new();
+        one.append(value);
+        return Ok(Value::array(one));
+    };
+    let mut slot = 0;
+    while let Some(at) = values.next_slot(slot) {
+        if values.value_at(at).is_some_and(|v| v.as_array().is_some()) {
+            let message = format!(
+                "Core\\Request::{member}(): a value under this name has a second pair of \
+                 brackets. Read nested values with `{nested}`"
+            );
+            let issues = crate::issue::list([("", message.as_str())]);
+            return Err(Fault::thrown_with_issues(
+                ThrownClass::Parse,
+                message,
+                issues,
+            ));
+        }
+        slot = at + 1;
     }
+    drop(values);
+    #[expect(
+        unsafe_code,
+        reason = "the payload is live: the parsed set still holds its own reference \
+                  to it at this point and is dropped after"
+    )]
+    unsafe {
+        value.retain();
+    }
+    Ok(value)
 }
 
 nvs_runtime::nvs_helper! {
@@ -2290,7 +2458,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Request::post(string $name): mixed` — spec § 15's submitted-form
+    /// `Core\Request::post(string $name): ?tainted string` — spec § 15's submitted-form
     /// reader, replacing `$_POST` and `filter_input(INPUT_POST, …)`.
     ///
     /// [`nvs_core_request_query`]'s answer over a body instead of a query
@@ -2319,31 +2487,25 @@ nvs_runtime::nvs_helper! {
     /// both are bounded by [`REQUEST_BODY`] — `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`
     /// 's cap on form field text — and both are O(in-flight).
     fn nvs_core_request_post(ctx, args: [1]) {
-        // Unreachable from source: the row's parameter is `CoreTy::Text`, so
-        // `E0401` refuses anything that is not a `string` before this runs.
-        let name = args[0].as_text().ok_or_else(|| {
-            Fault::fatal(format!(
-                "Core\\Request::post expected a `string` for the name, got tag {}",
-                args[0].tag_byte()
-            ))
-        })?;
+        let name = name_argument(&args[0], "post")?;
         // Read before the claim, because it borrows the carrier immutably and
         // reading a header has no effect on the body.
         let declared = joined_field(inbound_of(ctx, "post")?, b"content-type");
         let parsed = form_of(ctx, declared, "post")?;
-        let answer = parsed.get(name.as_bytes()).unwrap_or_else(Value::null);
-        // `query`'s reason, and its wording: `get` borrows rather than retains,
-        // so the value being handed back needs a reference of its own and the
-        // caller owns exactly that one.
-        #[expect(
-            unsafe_code,
-            reason = "the payload is live: `parsed` still holds its own reference \
-                      to it at this point and is dropped after"
-        )]
-        unsafe {
-            answer.retain();
-        }
-        Ok(answer)
+        Ok(single_field(parsed.get(name.as_bytes())))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Request::postArray(string $name): array<tainted string>` — the
+    /// values a bracketed form field built, over [`nvs_core_request_post`]'s
+    /// reading, which it shares down to reading the body to its end;
+    /// [`field_values`] owns what each shape of value answers.
+    fn nvs_core_request_post_array(ctx, args: [1]) {
+        let name = name_argument(&args[0], "postArray")?;
+        let declared = joined_field(inbound_of(ctx, "postArray")?, b"content-type");
+        let parsed = form_of(ctx, declared, "postArray")?;
+        field_values(parsed.get(name.as_bytes()), "postArray", "postAs")
     }
 }
 
@@ -3878,7 +4040,8 @@ mod tests {
         nvs_core_request_part_content_current, nvs_core_request_part_content_iterate,
         nvs_core_request_part_content_type, nvs_core_request_part_filename,
         nvs_core_request_part_name, nvs_core_request_part_read_all, nvs_core_request_part_save_to,
-        nvs_core_request_post, nvs_core_request_post_as, nvs_core_request_query_as, scheme_text,
+        nvs_core_request_post, nvs_core_request_post_array, nvs_core_request_post_as,
+        nvs_core_request_query_as, scheme_text,
     };
     use crate::router::METHOD;
     use nvs_runtime::{
@@ -4530,9 +4693,75 @@ mod tests {
         );
     }
 
-    /// `query` reads one parameter under the bracket convention a form uses,
-    /// so `a[b]=c` answers an array under `a`, a name the query string does not
-    /// carry answers `null`, and an escape no `string` can hold is refused.
+    /// `queryArray` reads the one level of values a bracketed name built, keys
+    /// and order as written: an unbracketed value is a list of one, an absent
+    /// name is empty, and a second level of brackets is a `ParseError`.
+    // covers: Core\Request::queryArray
+    #[test]
+    fn query_array_answers_the_values_a_bracketed_name_built() {
+        fn values_of(query: &str, name: &str) -> String {
+            let mut ctx = Ctx::buffered();
+            ctx.set_inbound(Inbound::new("GET", "/", query));
+            let name = Value::str(nvs_runtime::NvsStr::new(name.as_bytes()));
+            let answer = nvs_runtime::call(
+                crate::request::nvs_core_request_query_array,
+                &mut ctx,
+                &[name],
+            );
+            let seen = match answer {
+                Err(_) => "refused".to_owned(),
+                Ok(value) => {
+                    let list = value.as_array().expect("`queryArray` answers an array");
+                    let mut seen = Vec::new();
+                    let mut slot = 0;
+                    while let Some(at) = list.next_slot(slot) {
+                        let key = list.key_at(at).expect("a live slot has a key");
+                        let text = list.value_at(at).expect("a live slot has a value");
+                        seen.push(format!(
+                            "{}={}",
+                            String::from_utf8_lossy(key.as_bytes()),
+                            text.as_text().expect("every value is text")
+                        ));
+                        slot = at + 1;
+                    }
+                    drop(list);
+                    #[expect(
+                        unsafe_code,
+                        reason = "the caller owns the one reference `queryArray` handed back"
+                    )]
+                    unsafe {
+                        value.release();
+                    }
+                    seen.join(",")
+                }
+            };
+            #[expect(
+                unsafe_code,
+                reason = "the driver built the name and the callee only borrowed it"
+            )]
+            unsafe {
+                name.release();
+            }
+            seen
+        }
+
+        assert_eq!(values_of("tag[]=a&tag[]=b", "tag"), "0=a,1=b");
+        assert_eq!(
+            values_of("filter[color]=red&filter[size]=M", "filter"),
+            "color=red,size=M"
+        );
+        assert_eq!(
+            values_of("tag=a", "tag"),
+            "0=a",
+            "one value is a list of one"
+        );
+        assert_eq!(values_of("page=2", "tag"), "", "an absent name is empty");
+        assert_eq!(values_of("tag[a][b]=c", "tag"), "refused");
+    }
+
+    /// `query` reads one unbracketed parameter as text, so a name the query
+    /// string does not carry and a bracketed name both answer `null`, and an
+    /// escape no `string` can hold is refused.
     // covers: Core\Request::query
     #[test]
     fn query_answers_one_parameter_under_the_bracket_convention() {
@@ -4581,7 +4810,12 @@ mod tests {
             "a name is matched exactly"
         );
         assert_eq!(query_of("page=2", "sort"), "null");
-        assert_eq!(query_of("filter[color]=red", "filter"), "array");
+        assert_eq!(
+            query_of("filter[color]=red", "filter"),
+            "null",
+            "a bracketed name is `queryArray`'s to read"
+        );
+        assert_eq!(query_of("tag[]=a&tag[]=b", "tag"), "null");
         assert_eq!(
             query_of("filter[color]=red", "filter[color]"),
             "null",
@@ -6012,6 +6246,14 @@ mod tests {
         answered
     }
 
+    /// `Core\Request::postArray(name)` on `ctx`, as [`posted`] calls `post`.
+    fn posted_array(ctx: &mut Ctx, name: &str) -> Result<Value, i32> {
+        let asked = Value::str(nvs_runtime::NvsStr::new(name.as_bytes()));
+        let answered = nvs_runtime::call(nvs_core_request_post_array, ctx, &[asked]);
+        dropped(asked);
+        answered
+    }
+
     /// [`posted`]'s answer as bytes, or `None` where the member answered the
     /// `null` a form with no such field is owed.
     fn field(ctx: &mut Ctx, name: &str) -> Option<Vec<u8>> {
@@ -6052,9 +6294,15 @@ mod tests {
             Some(&b"Q3 report"[..]),
             "the field written before the upload is buffered on the way past it"
         );
-        let nested = posted(&mut walked, "notes").expect("this form is readable");
-        assert!(
-            nested.array_ptr().is_some(),
+        assert_eq!(
+            field(&mut walked, "notes"),
+            None,
+            "a bracketed name is `postArray`'s to read, never `post`'s"
+        );
+        let nested = posted_array(&mut walked, "notes").expect("this form is readable");
+        assert_eq!(
+            nested.as_array().map(|values| values.count()),
+            Some(1),
             "§ 9's bracket convention is `query`'s over a form field too: `notes[first]` is \
              reached under `notes`, not under its whole written name"
         );
@@ -6074,7 +6322,7 @@ mod tests {
         // reads to the closing delimiter itself — the uploads drained on the
         // way, which is what makes the walk afterwards a refusal.
         let mut alone = uploading("multipart/form-data; boundary=X", Some(Chunks::of(MIXED)));
-        let after = posted(&mut alone, "notes").expect("a form is readable without a walk");
+        let after = posted_array(&mut alone, "notes").expect("a form is readable without a walk");
         assert!(
             after.array_ptr().is_some(),
             "the field after the upload is answered whether or not a walk went first"
@@ -6453,7 +6701,7 @@ mod tests {
             Some(&b"Q3 report"[..]),
             "and `post` parses the hold, where parsing the drained wire would answer nothing"
         );
-        let after = posted(&mut parted, "notes").expect("this form is readable");
+        let after = posted_array(&mut parted, "notes").expect("this form is readable");
         assert!(
             after.array_ptr().is_some(),
             "to the closing delimiter, so the field written after the file is answered too"

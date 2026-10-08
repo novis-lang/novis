@@ -21,7 +21,7 @@ foreach (Core\Request::files() as Core\Request\Part $part) {
 }
 
 // § 2: form fields and file parts are separated by the same parse, and `post()`
-// answers only the former. Its `mixed` is a form value, never a part.
+// answers only the former. Its `?tainted string` is a form value, never a part.
 Core\Request\Part $viaPost = Core\Request::post("upload");
 
 // § 3: the raw body is the bytes, undivided. A program that wants the parts
@@ -31,7 +31,7 @@ Core\Request\Part $viaBody = Core\Request::body();
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0401]: expected `Core\Request\Part`, found `mixed`
+error[E0401]: expected `Core\Request\Part`, found `null|tainted string`
 %A
 error[E0401]: expected `Core\Request\Part`, found `tainted string`
 %A

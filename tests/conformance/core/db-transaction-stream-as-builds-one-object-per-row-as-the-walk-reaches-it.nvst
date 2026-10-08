@@ -24,9 +24,9 @@ class Note {
 }
 
 class Label {
-    public string $shown;
+    public tainted string $shown;
 
-    public function constructor(string $shown)
+    public function constructor(tainted string $shown)
     {
         $this->shown = $shown;
     }
@@ -76,7 +76,7 @@ $db->transaction(fn (Transaction $tx): void => {
     }
     echo "derived ", $derived, " refused ", $held, "\n";
 
-    array<string> $shown = [];
+    array<tainted string> $shown = [];
     foreach ($tx->streamAs<Label>("select id, text from t order by id", []) as Label $label) {
         $shown[] = $label->shown;
     }

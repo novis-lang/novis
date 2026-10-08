@@ -1,0 +1,63 @@
+--TEST--
+`Core\Request::query` and `::post` return one unbracketed field as `?tainted string`, `null` for an absent name and for a bracketed one, and `queryArray` and `postArray` return the values a bracketed name built — `rule:security/tainted-sources`, `rule:security/taint-propagation`
+--FILE--
+<?nvs
+// covers: Core\Request::query
+// covers: Core\Request::post
+// covers: Core\Request::queryArray
+// covers: Core\Request::postArray
+try {
+    var $answered = Core\Test::request(
+        Core\Http\Method::Post,
+        "/search?q=red+shoes&page=2&page2=abc&tag[]=a&tag[]=b&filter[color]=red&deep[a][b]=c",
+        {
+            headers: ["Content-Type" => "application/x-www-form-urlencoded"],
+            body: "name=Ada&item[]=pen&item[]=book&size[shirt]=M" as bytes
+        }
+    );
+    echo $answered->body();
+} catch (RuntimeError $inside) {
+    // One field is text, typed where it is read, with no conversion first.
+    ?tainted string $q = Core\Request::query("q");
+    echo "q ", $q ?? "none", "\n";
+    // An absent name is `null`, so `??` supplies the default.
+    tainted string $sort = Core\Request::query("sort") ?? "newest";
+    echo "sort ", $sort, "\n";
+    // A number converts to a clean `int`, and text that is not one gives `null`.
+    int $page = Core\Request::query("page") as ?int ?? 1;
+    int $page2 = Core\Request::query("page2") as ?int ?? 1;
+    echo "page ", $page + 1, " ", $page2, "\n";
+    // A bracketed name is not one field.
+    echo "tag ", Core\Request::query("tag") ?? "null", "\n";
+    // Its values are `queryArray`'s, keys and order as written.
+    array<tainted string> $tags = Core\Request::queryArray("tag");
+    echo "tags ", Core\Str::join($tags, ","), "\n";
+    array<tainted string> $filter = Core\Request::queryArray("filter");
+    echo "color ", $filter["color"] ?? "none", "\n";
+    echo "one ", Core\Str::join(Core\Request::queryArray("q"), ","), "\n";
+    echo "absent ", Core\Arr::count(Core\Request::queryArray("missing")), "\n";
+    try {
+        Core\Request::queryArray("deep");
+    } catch (ParseError $nested) {
+        echo "deep ", $nested->message, "\n";
+    }
+    // `post` and `postArray` read the form the same way.
+    echo "name ", Core\Request::post("name") ?? "none", "\n";
+    echo "item ", Core\Request::post("item") ?? "null", "\n";
+    echo "items ", Core\Str::join(Core\Request::postArray("item"), ","), "\n";
+    echo "shirt ", Core\Request::postArray("size")["shirt"] ?? "none", "\n";
+}
+--EXPECT--
+q red shoes
+sort newest
+page 3 1
+tag null
+tags a,b
+color red
+one red shoes
+absent 0
+deep Core\Request::queryArray(): a value under this name has a second pair of brackets. Read nested values with `queryAs`
+name Ada
+item null
+items pen,book
+shirt M
