@@ -1,0 +1,48 @@
+--TEST--
+`Ldap\Entry::int` and `bool` throw `LogicError` naming the attribute for a value they cannot read: text is not a number, `1` is not `TRUE`, and a list is not one value — `rule:core-classes/ldap-value-types`
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+?Core\Ldap\Entry $admin = $corp->read("CN=Administrator,CN=Users,DC=example,DC=test", {select: ["cn", "adminCount", "objectClass"]});
+if ($admin == null) {
+    echo "no entry", "\n";
+} else {
+    try {
+        echo $admin->int("cn") ?? -1, "\n";
+    } catch (LogicError $wrong) {
+        echo $wrong->message, "\n";
+    }
+    // `adminCount` is the number 1. A yes-or-no value is only `TRUE` or `FALSE`.
+    try {
+        echo $admin->bool("adminCount") == true ? "true" : "false", "\n";
+    } catch (LogicError $wrong) {
+        echo $wrong->message, "\n";
+    }
+    try {
+        echo $admin->bool("cn") == true ? "true" : "false", "\n";
+    } catch (LogicError $wrong) {
+        echo $wrong->message, "\n";
+    }
+    try {
+        echo $admin->int("objectClass") ?? -1, "\n";
+    } catch (LogicError $wrong) {
+        echo $wrong->message, "\n";
+    }
+}
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+base = "DC=example,DC=test"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+Core\Ldap\Entry::int: a value of `cn` is not a whole number that fits in an `int`
+Core\Ldap\Entry::bool: a value of `adminCount` is not `TRUE` or `FALSE`
+Core\Ldap\Entry::bool: a value of `cn` is not `TRUE` or `FALSE`
+Core\Ldap\Entry::int: `objectClass` has 4 values. `strings` returns all of them

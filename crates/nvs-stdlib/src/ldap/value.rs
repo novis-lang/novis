@@ -1,4 +1,4 @@
-//! `Ldap\Entry`'s typed readers: a GUID as a `Core\Uuid`, a SID as an `Ldap\Sid`, a FILETIME or a GeneralizedTime as an `Instant`, an interval as a `Duration`, and AD's flag fields and account type
+//! `Ldap\Entry`'s typed readers: an INTEGER as an `int`, `TRUE`/`FALSE` as a `bool`, a GUID as a `Core\Uuid`, a SID as an `Ldap\Sid`, a FILETIME or a GeneralizedTime as an `Instant`, an interval as a `Duration`, and AD's flag fields and account type
 //!
 //! ADR 0278 § 8, `rule:core-classes/ldap-value-types`. Each reader finds the
 //! attribute's list as `string` does ([`super::search::values_named`]), reads
@@ -133,6 +133,34 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
+    /// `$entry->int(string $name): ?int` — an INTEGER, read by
+    /// [`nvs_ldap::value::int`].
+    fn nvs_core_ldap_entry_int(_ctx, args: [2]) {
+        let member = "int";
+        let Some((name, value)) = one_value(args, member)? else {
+            return Ok(Value::null());
+        };
+        nvs_ldap::value::int(value.as_bytes().unwrap_or_default())
+            .map(Value::int)
+            .map_err(|error| not_the_form(member, &name, error))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$entry->bool(string $name): ?bool` — `TRUE` or `FALSE`, read by
+    /// [`nvs_ldap::value::boolean`].
+    fn nvs_core_ldap_entry_bool(_ctx, args: [2]) {
+        let member = "bool";
+        let Some((name, value)) = one_value(args, member)? else {
+            return Ok(Value::null());
+        };
+        nvs_ldap::value::boolean(value.as_bytes().unwrap_or_default())
+            .map(Value::bool)
+            .map_err(|error| not_the_form(member, &name, error))
+    }
+}
+
+nvs_runtime::nvs_helper! {
     /// `$entry->instant(string $name): ?Instant` — a FILETIME or a
     /// GeneralizedTime, by [`instant_of`].
     fn nvs_core_ldap_entry_instant(_ctx, args: [2]) {
@@ -226,6 +254,8 @@ pub(super) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_ldap_entry_uuid" => (nvs_core_ldap_entry_uuid as *const ()).cast(),
         "nvs_core_ldap_entry_sid" => (nvs_core_ldap_entry_sid as *const ()).cast(),
         "nvs_core_ldap_entry_sids" => (nvs_core_ldap_entry_sids as *const ()).cast(),
+        "nvs_core_ldap_entry_int" => (nvs_core_ldap_entry_int as *const ()).cast(),
+        "nvs_core_ldap_entry_bool" => (nvs_core_ldap_entry_bool as *const ()).cast(),
         "nvs_core_ldap_entry_instant" => (nvs_core_ldap_entry_instant as *const ()).cast(),
         "nvs_core_ldap_entry_duration" => (nvs_core_ldap_entry_duration as *const ()).cast(),
         "nvs_core_ldap_entry_account_flags" => {

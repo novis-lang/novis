@@ -1,0 +1,40 @@
+--TEST--
+`Ldap\Entry::int` reads an INTEGER attribute as an `int` and `bool` reads `TRUE`/`FALSE` as a `bool`, and both return `null` for an attribute the entry does not have — `rule:core-classes/ldap-value-types`
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+array<string> $select = ["adminCount", "primaryGroupID", "isCriticalSystemObject"];
+?Core\Ldap\Entry $admin = $corp->read("CN=Administrator,CN=Users,DC=example,DC=test", {select: $select});
+?Core\Ldap\Entry $guest = $corp->read("CN=Guest,CN=Users,DC=example,DC=test", {select: $select});
+if ($admin == null || $guest == null) {
+    echo "no entry", "\n";
+} else {
+    // 513 is the RID of `Domain Users`, and 514 the RID of `Domain Guests`.
+    ?int $adminGroup = $admin->int("primaryGroupID");
+    ?int $guestGroup = $guest->int("primaryGroupID");
+    echo $adminGroup ?? -1, " ", $guestGroup ?? -1, "\n";
+    echo $admin->int("adminCount") ?? -1, "\n";
+    ?bool $critical = $admin->bool("isCriticalSystemObject");
+    echo $critical == true ? "critical" : "not critical", "\n";
+    // Guest is not in a protected group, so it has no `adminCount`.
+    echo $guest->int("adminCount") == null ? "null" : "a number", "\n";
+    echo $guest->bool("showInAdvancedViewOnly") == null ? "null" : "a bool", "\n";
+}
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+base = "DC=example,DC=test"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+513 514
+1
+critical
+null
+null

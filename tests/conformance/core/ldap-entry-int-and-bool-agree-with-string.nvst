@@ -1,0 +1,38 @@
+--TEST--
+For every number and every `TRUE`/`FALSE` attribute of an entry, `Ldap\Entry::int` agrees with `string` converted by `as ?int`, and `bool` agrees with `string` compared to `TRUE` — `rule:core-classes/ldap-value-types`
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+array<string> $numbers = ["adminCount", "primaryGroupID", "logonCount", "badPwdCount", "codePage", "countryCode"];
+array<string> $flags = ["isCriticalSystemObject"];
+?Core\Ldap\Entry $admin = $corp->read("CN=Administrator,CN=Users,DC=example,DC=test", {select: ["adminCount", "primaryGroupID", "logonCount", "badPwdCount", "codePage", "countryCode", "isCriticalSystemObject"]});
+if ($admin == null) {
+    echo "no entry", "\n";
+} else {
+    Core\Ldap\Entry $entry = $admin;
+    int $agree = 0;
+    foreach ($numbers as string $name) {
+        if ($entry->int($name) == ($entry->string($name) as ?int)) { $agree = $agree + 1; }
+    }
+    echo "int agrees for ", $agree, " of ", Core\Arr::count($numbers), "\n";
+    $agree = 0;
+    foreach ($flags as string $name) {
+        if ($entry->bool($name) == ($entry->string($name) == "TRUE")) { $agree = $agree + 1; }
+    }
+    echo "bool agrees for ", $agree, " of ", Core\Arr::count($flags), "\n";
+}
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+base = "DC=example,DC=test"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+int agrees for 6 of 6
+bool agrees for 1 of 1

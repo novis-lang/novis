@@ -22,6 +22,9 @@
 //!   and signed for `groupType`, read by [`flag_field`] as AD wrote it, so a
 //!   bit [`ACCOUNT_FLAGS`] or [`GROUP_TYPE_FLAGS`] does not name is kept.
 //!   `sAMAccountType` is one of the values [`account_type`] reads.
+//! - An INTEGER is RFC 4517 § 3.3.16's decimal text, read by [`int`] where
+//!   an `i64` holds it, and a Boolean is § 3.3.3's `TRUE` or `FALSE`, read
+//!   by [`boolean`] with the case exactly as the RFC writes it.
 
 use std::fmt;
 
@@ -45,6 +48,10 @@ pub enum ValueError {
     NotAFlagField,
     /// Not one of the `sAMAccountType` values AD defines.
     NotAnAccountType,
+    /// Not a decimal integer, or one past an `i64`.
+    NotAnInt,
+    /// Not `TRUE` or `FALSE`.
+    NotABoolean,
 }
 
 impl fmt::Display for ValueError {
@@ -58,6 +65,8 @@ impl fmt::Display for ValueError {
             Self::NotAGeneralizedTime => "is not a time",
             Self::NotAFlagField => "is not a 32-bit number of flags",
             Self::NotAnAccountType => "is not an account type",
+            Self::NotAnInt => "is not a whole number that fits in an `int`",
+            Self::NotABoolean => "is not `TRUE` or `FALSE`",
         })
     }
 }
@@ -250,6 +259,29 @@ fn integer(value: &[u8]) -> Option<i64> {
 #[must_use]
 pub fn is_integer(value: &[u8]) -> bool {
     integer(value).is_some()
+}
+
+/// An INTEGER value as the `i64` it writes.
+///
+/// # Errors
+///
+/// [`ValueError::NotAnInt`] for a value that is not a decimal integer, or is
+/// one no `i64` holds.
+pub fn int(value: &[u8]) -> Result<i64, ValueError> {
+    integer(value).ok_or(ValueError::NotAnInt)
+}
+
+/// A Boolean value as the `bool` it writes.
+///
+/// # Errors
+///
+/// [`ValueError::NotABoolean`] for anything but `TRUE` and `FALSE`.
+pub fn boolean(value: &[u8]) -> Result<bool, ValueError> {
+    match value {
+        b"TRUE" => Ok(true),
+        b"FALSE" => Ok(false),
+        _ => Err(ValueError::NotABoolean),
+    }
 }
 
 /// FILETIME ticks between 1601-01-01 and 1970-01-01.

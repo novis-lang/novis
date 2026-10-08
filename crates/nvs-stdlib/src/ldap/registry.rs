@@ -575,6 +575,24 @@ pub(crate) const ENTRY: CoreClass = CoreClass {
             doc: Some(&ENTRY_BYTES_DOC),
         },
         CoreMethod {
+            name: "int",
+            names: &["name"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Int),
+            symbol: "nvs_core_ldap_entry_int",
+            doc: Some(&ENTRY_INT_DOC),
+        },
+        CoreMethod {
+            name: "bool",
+            names: &["name"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Bool),
+            symbol: "nvs_core_ldap_entry_bool",
+            doc: Some(&ENTRY_BOOL_DOC),
+        },
+        CoreMethod {
             name: "uuid",
             names: &["name"],
             params: &[CoreTy::Text(Qual::Neutral)],
@@ -725,6 +743,32 @@ const ENTRY_TYPED_ERRORS: &[ErrorDoc] = &[ErrorDoc {
     desc: "The attribute has more than one value, or its value is not in the form this \
            function reads. The message names the attribute.",
 }];
+
+/// `Ldap\Entry::int`'s reference card — `rule:core-api/reference-card`.
+const ENTRY_INT_DOC: MethodDoc = MethodDoc {
+    short: "Returns a number attribute, such as `logonCount` or `primaryGroupID`, as an `int`.",
+    params: &[ATTRIBUTE_NAME_PARAM],
+    ret: "The number, or `null` when the entry has no value for the attribute.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The attribute has more than one value, or its value is not a whole number, or \
+               the number is too large for an `int`. The message names the attribute.",
+    }],
+};
+
+/// `Ldap\Entry::bool`'s reference card — `rule:core-api/reference-card`.
+const ENTRY_BOOL_DOC: MethodDoc = MethodDoc {
+    short: "Returns a yes-or-no attribute, such as `isCriticalSystemObject`, as a `bool`. The \
+            directory writes these values as `TRUE` and `FALSE`.",
+    params: &[ATTRIBUTE_NAME_PARAM],
+    ret: "`true` for `TRUE`, `false` for `FALSE`, or `null` when the entry has no value for the \
+          attribute.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The attribute has more than one value, or its value is not `TRUE` or `FALSE`. \
+               The message names the attribute.",
+    }],
+};
 
 /// `Ldap\Entry::uuid`'s reference card — `rule:core-api/reference-card`.
 const ENTRY_UUID_DOC: MethodDoc = MethodDoc {
