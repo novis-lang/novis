@@ -26131,7 +26131,7 @@ Keywords: whoami, authenticate, search, read, add, modify, delete, rename, setPa
 |---|---|
 | [`Core\Ldap\Connection->whoami`](#core-core-ldap-connection-whoami) | `whoami(): string` |
 | [`Core\Ldap\Connection->authenticate`](#core-core-ldap-connection-authenticate) | `authenticate(string $login, secret tainted string $password): void` |
-| [`Core\Ldap\Connection->search`](#core-core-ldap-connection-search) | `search(Core\Ldap\Filter $filter, {base?: Core\Ldap\Dn\|string, scope?: Core\Ldap\Scope, select?: array<string>, pageSize?: int, sizeLimit?: int}): Core\Ldap\Entries` |
+| [`Core\Ldap\Connection->search`](#core-core-ldap-connection-search) | `search(Core\Ldap\Filter $filter, {base?: Core\Ldap\Dn\|string, scope?: Core\Ldap\Scope, select?: array<string>, pageSize?: int, sizeLimit?: int, sort?: string, descending?: bool, offset?: int, window?: int}): Core\Ldap\Entries` |
 | [`Core\Ldap\Connection->read`](#core-core-ldap-connection-read) | `read(Core\Ldap\Dn\|string $dn, {select?: array<string>}): ?Core\Ldap\Entry` |
 | [`Core\Ldap\Connection->add`](#core-core-ldap-connection-add) | `add(Core\Ldap\Dn\|string $dn, array<mixed> $attributes): void` |
 | [`Core\Ldap\Connection->modify`](#core-core-ldap-connection-modify) | `modify(Core\Ldap\Dn\|string $dn, array<Core\Ldap\Change> $changes): void` |
@@ -26176,7 +26176,7 @@ Checks a user's login and password. It opens a new connection to the same server
 #### `Core\Ldap\Connection->search`
 
 ```nvs skip
-$connection->search(Core\Ldap\Filter $filter, {base?: Core\Ldap\Dn|string, scope?: Core\Ldap\Scope, select?: array<string>, pageSize?: int, sizeLimit?: int}): Core\Ldap\Entries
+$connection->search(Core\Ldap\Filter $filter, {base?: Core\Ldap\Dn|string, scope?: Core\Ldap\Scope, select?: array<string>, pageSize?: int, sizeLimit?: int, sort?: string, descending?: bool, offset?: int, window?: int}): Core\Ldap\Entries
 ```
 
 Finds the entries that match a filter. The server sends the entries in pages, and the next page is read when a `foreach` loop reaches it.
@@ -26189,10 +26189,14 @@ Finds the entries that match a filter. The server sends the entries in pages, an
 | `{select: …}` | `array<string>` (default `null`) | The attributes each entry has, such as `['cn', 'mail']`. Left out, an entry has every attribute the connection's account can read. |
 | `{pageSize: …}` | `int` (default `1000`) | How many entries the server sends at once. The default is 1000. |
 | `{sizeLimit: …}` | `int` (default `0`) | The most entries the search may find. The default, 0, is the server's own limit. |
+| `{sort: …}` | `string` (default `null`, sink) | The attribute the server sorts the entries by, such as `cn`. Left out, the entries come in the server's own order. |
+| `{descending: …}` | `bool` (default `false`) | `true` sorts from the largest value to the smallest. It needs `sort`. The default is `false`. |
+| `{offset: …}` | `int` (default `0`) | How many sorted entries the window skips. It needs `window`. The default is 0. |
+| `{window: …}` | `int` (default `0`) | How many sorted entries to return, starting after `offset`. It needs `sort`. With `{sort: 'cn', offset: 20, window: 10}`, the search returns entries 21 to 30. `total()` then returns how many entries there are in all. The default, 0, returns every entry. |
 
 **Returns** `Core\Ldap\Entries` — A `Core\Ldap\Entries`. Use it in a `foreach` loop to get each `Core\Ldap\Entry`.
 
-**Throws** `LogicError` — A name in `select` is not an attribute name, `pageSize` or `sizeLimit` is out of range, the search has no `base`, or the connection is closed.; `Core\Ldap\LdapError` — The server returned an error, such as `NoSuchObject` for a `base` that does not exist. A search that finds more entries than `sizeLimit` throws `SizeLimitExceeded` in the loop.
+**Throws** `LogicError` — A name in `select` or `sort` is not an attribute name, a number is out of range, `window`, `offset` or `descending` is given without the option it needs, the search has no `base`, or the connection is closed.; `Core\Ldap\LdapError` — The server returned an error, such as `NoSuchObject` for a `base` that does not exist. A search that finds more entries than `sizeLimit` throws `SizeLimitExceeded` in the loop.
 
 <a id="core-core-ldap-connection-read"></a>
 #### `Core\Ldap\Connection->read`
@@ -26342,11 +26346,12 @@ Checks whether an entry has a value. The server compares the value by the rules 
 <a id="core-core-ldap-entries"></a>
 ### `Core\Ldap\Entries`
 
-Keywords: references
+Keywords: references, total
 
 | Member | Signature |
 |---|---|
 | [`Core\Ldap\Entries->references`](#core-core-ldap-entries-references) | `references(): array<tainted string>` |
+| [`Core\Ldap\Entries->total`](#core-core-ldap-entries-total) | `total(): ?int` |
 
 <a id="core-core-ldap-entries-references"></a>
 #### `Core\Ldap\Entries->references`
@@ -26358,6 +26363,17 @@ $entries->references(): array<tainted string>
 Returns the URLs of other servers that the server named for this search. Novis does not connect to them. The URLs are `tainted`, because the server sent them.
 
 **Returns** `array<tainted string>` — The URLs in the order the server sent them. The list is complete after the loop ends, and it is empty when the server named no other server.
+
+<a id="core-core-ldap-entries-total"></a>
+#### `Core\Ldap\Entries->total`
+
+```nvs skip
+$entries->total(): ?int
+```
+
+Returns how many entries the whole sorted search found, when the search used the `window` option. The server counts them, so you can show a page number such as "page 3 of 12".
+
+**Returns** `?int` — The number of entries, or `null` when the search did not use `window`.
 
 <a id="core-core-ldap-entry"></a>
 ### `Core\Ldap\Entry`
