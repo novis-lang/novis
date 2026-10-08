@@ -10,7 +10,7 @@ if ($found == null) {
     Core\Ldap\Entry $staff = $found;
     var $attributes = $staff->toArray();
     int $disagree = 0;
-    foreach ($attributes as string $name => array<tainted bytes> $values) {
+    foreach ($attributes as tainted string $name => array<tainted bytes> $values) {
         if (!$staff->has($name)) {
             $disagree = $disagree + 1;
         }

@@ -14,7 +14,7 @@ var $leak = Core\Env::get($chosen);
 // value is `tainted` whatever the operator put there. It does not narrow to a
 // plain `string` on the way out, which is what makes the sinks downstream
 // still have to launder it.
-foreach (Core\Env::all() as string $name => string $value) {
+foreach (Core\Env::all() as tainted string $name => string $value) {
     echo $name, $value, "\n";
 }
 --EXPECT-ERROR--
@@ -25,10 +25,10 @@ error[E0401]: expected `string`, found `tainted string`
   |                           ^^^^^^^ this is `tainted string`
 
 error[E0401]: expected `string`, found `tainted string`
-   --> case.nvs:14:45
+   --> case.nvs:14:53
    |
-14 | foreach (Core\Env::all() as string $name => string $value) {
-   |                                             ^^^^^^^^^^^^^ this is `tainted string`
+14 | foreach (Core\Env::all() as tainted string $name => string $value) {
+   |                                                     ^^^^^^^^^^^^^ this is `tainted string`
 
 error: aborting due to 2 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

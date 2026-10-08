@@ -32,7 +32,7 @@ class Report {
     // `class<Reading>` variable. `$reading is $kind` then checks against it.
     public static function count(array<mixed> $readings, class<Reading> $kind): int {
         int $found = 0;
-        foreach ($readings as string $key => mixed $reading) {
+        foreach ($readings as mixed $reading) {
             if ($reading is $kind) {
                 $found += 1;
             }

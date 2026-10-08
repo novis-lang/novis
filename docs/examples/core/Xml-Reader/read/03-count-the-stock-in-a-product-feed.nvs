@@ -17,7 +17,7 @@ int $soldOut = 0;
 while ($node != null) {
     if ($node->name() == "product") {
         $products = $products + 1;
-        foreach ($node->attributes() as string $name => tainted string $value) {
+        foreach ($node->attributes() as tainted string $name => tainted string $value) {
             if ($name == "stock") {
                 // `as ?int` converts the text to a whole number. If that is not possible, the result is `null`.
                 int $count = $value as ?int ?? 0;

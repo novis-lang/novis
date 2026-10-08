@@ -13,7 +13,7 @@ if ($matched != null) {
     // The loop adds each capture as `name=value`.
     // This prints `Orders::item order=1042 item=3`.
     echo $matched->name() ?? "unnamed";
-    foreach ($matched->params() as string $name => mixed $value) {
+    foreach ($matched->params() as tainted string $name => mixed $value) {
         echo " ", $name, "=", $value as string;
     }
     echo "\n";

@@ -11,7 +11,7 @@ array<tainted string> $saved = [
 // The checked URLs are kept here. Your program sends the requests to them later.
 array<Core\Http\Target> $webhooks = [];
 
-foreach ($saved as string $customer => tainted string $url) {
+foreach ($saved as tainted string $customer => tainted string $url) {
     try {
         $webhooks[$customer] = Core\Http::allowUrl($url);
         echo $customer, ": saved", "\n";

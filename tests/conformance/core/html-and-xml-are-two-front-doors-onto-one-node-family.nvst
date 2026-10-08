@@ -11,7 +11,7 @@
 class Walk {
     public static function show(Core\Xml\Node $node, uint $depth): void {
         echo $depth, " ", Walk::kind($node), " ", $node->name(), " \"", $node->text(), "\"";
-        foreach ($node->attributes() as string $name => tainted string $value) {
+        foreach ($node->attributes() as tainted string $name => tainted string $value) {
             echo " ", $name, "=", $value;
         }
         echo "\n";

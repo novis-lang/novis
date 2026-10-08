@@ -11,9 +11,9 @@ final class Render {
         return $out;
     }
 
-    public static function keys(array<mixed> $a): string {
-        var $out = "";
-        foreach ($a as string $k => mixed $v) {
+    public static function keys(array<mixed> $a): tainted string {
+        tainted string $out = "";
+        foreach ($a as tainted string $k => mixed $v) {
             $out = $out . $k . ",";
         }
         return $out;

@@ -41,7 +41,7 @@ array<Core\Reflect\TypeKind> $expected = [
 
 uint $wrong = 0;
 
-foreach ($arrived as string $setting => mixed $value) {
+foreach ($arrived as tainted string $setting => mixed $value) {
     Core\Reflect\TypeKind $found = Core\Reflect::typeOf($value);
     if ($found == $expected[$setting]) {
         echo $setting, ": ", Settings::name($found), ", as expected\n";

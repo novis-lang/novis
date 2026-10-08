@@ -36,13 +36,13 @@ array<mixed> $values = [
 // Agreement over the whole sweep, counted: a chain that grew a comparison of
 // its own would still print a plausible answer on any single row.
 uint $union = 0;
-foreach ($values as string $key => mixed $v) {
+foreach ($values as tainted string $key => mixed $v) {
     if (($v is int|string) == ($v is int || $v is string)) { $union = $union + 1; }
 }
 echo "union agrees ", $union, "/", Core\Arr::count($values), "\n";
 
 uint $meet = 0;
-foreach ($values as string $key => mixed $w) {
+foreach ($values as tainted string $key => mixed $w) {
     if (($w is Alpha&Beta) == ($w is Alpha && $w is Beta)) { $meet = $meet + 1; }
 }
 echo "intersection agrees ", $meet, "/", Core\Arr::count($values), "\n";

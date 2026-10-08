@@ -12,6 +12,6 @@ array<tainted string> $back = Core\Signature::verify($token, $keys);
 echo "Coupon ", $back["coupon"], " for shop ", $back["shop"], "\n";
 
 // The values come back sorted by name, so this loop prints `coupon` first and `shop` second.
-foreach ($back as string $name => tainted string $value) {
+foreach ($back as tainted string $name => tainted string $value) {
     echo $name, "\n";
 }

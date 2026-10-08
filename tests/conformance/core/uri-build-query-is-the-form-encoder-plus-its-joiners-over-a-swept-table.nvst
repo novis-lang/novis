@@ -45,7 +45,7 @@ array<string> $subjects = [
 class Shape {
     public static function textual(array<mixed> $values): array<mixed> {
         array<mixed> $out = [];
-        foreach ($values as string $key => mixed $value) {
+        foreach ($values as tainted string $key => mixed $value) {
             ?array<mixed> $nested = $value as ?array<mixed>;
             if ($nested == null) {
                 $out[$key] = $value as bytes as string;

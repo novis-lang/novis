@@ -237,7 +237,7 @@
     "lang:types/widening-without-as": "e529d28265d3af00"
   },
   "syntax/values/bool-and-null.mdx": {
-    "lang:types/truthiness": "acf148c1e2179ac8"
+    "lang:types/truthiness": "cde4ed2f260d7d7c"
   },
   "syntax/values/enums.mdx": {
     "Core\\Audience": "690d2a6edc2eb591",
@@ -265,7 +265,7 @@
     "Core\\NormalForm": "2a7f4d239a0330f1",
     "Core\\Order": "4595f4191bdb28f9",
     "Core\\Queue\\State": "1e124e915d5e5234",
-    "Core\\Reflect\\TypeKind": "a1ec052e75d8fca9",
+    "Core\\Reflect\\TypeKind": "fa47a143a9fbfa68",
     "Core\\Response\\Redirect": "20235b5b589d8229",
     "Core\\Response\\SameSite": "36c681ae41db640d",
     "Core\\RoundMode": "debc7e6b1729c8c7",
@@ -273,7 +273,7 @@
     "Core\\SetOn": "a200841d5048a9d5",
     "Core\\Unit": "325e36d708bf2e5a",
     "Core\\Weekday": "2f056b0af834e8c0",
-    "Core\\Xml\\NodeKind": "432da8b0356a5c5c",
+    "Core\\Xml\\NodeKind": "cba861cdab59f2c5",
     "lang:enums/a-case-is-its-integer": "c8ba40a8e393513e",
     "lang:enums/a-union-of-cases-is-a-narrower-type": "0204f352d260f5b0",
     "lang:enums/an-enum-as-a-type": "4aedddc5b4996f6c",

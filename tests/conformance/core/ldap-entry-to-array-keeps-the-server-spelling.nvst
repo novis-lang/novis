@@ -9,7 +9,7 @@ var $corp = Core\Ldap::connect("corp");
 if ($admin == null) {
     echo "no entry", "\n";
 } else {
-    foreach ($admin->toArray() as string $name => array<tainted bytes> $values) {
+    foreach ($admin->toArray() as tainted string $name => array<tainted bytes> $values) {
         echo $name, ": ", Core\Arr::count($values), "\n";
     }
     echo "has a dn key: ", Core\Arr::hasKey($admin->toArray(), "dn") ? "yes" : "no", "\n";

@@ -37,7 +37,7 @@ class Outline
         echo $indent, Kind::name($node->kind());
         if ($node->kind() == Core\Xml\NodeKind::Element) {
             echo ' ', $node->name();
-            foreach ($node->attributes() as string $name => tainted string $value) {
+            foreach ($node->attributes() as tainted string $name => tainted string $value) {
                 echo ' ', $name, "=\"", $value, "\"";
             }
         }

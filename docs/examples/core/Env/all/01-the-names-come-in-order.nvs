@@ -5,9 +5,9 @@ var $all = Core\Env::all();
 
 // This loop compares each name with the one before it.
 // `Core\Str::compare` gives a number above 0 when the first name sorts after the second.
-string $previous = "";
+tainted string $previous = "";
 int $outOfOrder = 0;
-foreach ($all as string $name => tainted string $value) {
+foreach ($all as tainted string $name => tainted string $value) {
     if (Core\Str::compare($previous, $name) > 0) {
         $outOfOrder = $outOfOrder + 1;
     }

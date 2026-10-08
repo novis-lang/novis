@@ -8,10 +8,10 @@ class MailSettings {
 }
 
 class Settings {
-    public static function fill(mixed $settings, array<mixed> $values): string {
+    public static function fill(mixed $settings, array<mixed> $values): tainted string {
         var $info = Core\Reflect::forObject($settings);
-        string $skipped = "";
-        foreach ($values as string $key => mixed $value) {
+        tainted string $skipped = "";
+        foreach ($values as tainted string $key => mixed $value) {
             // A key that is not a property is reported and not written.
             if (!$info->hasProperty($key)) {
                 $skipped = $skipped . " " . $key;

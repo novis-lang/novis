@@ -41,7 +41,7 @@ echo "cdata: ", Chars::of(Root::of($cdata)), "\n";
 // The same expansion inside an attribute value, which is the other place a
 // reference may be written.
 Core\Xml\Node $attributes = Core\Xml::parse("<t k=\"&lt;&#38;&gt;\"/>");
-foreach (Root::of($attributes)->attributes() as string $name => tainted string $value) {
+foreach (Root::of($attributes)->attributes() as tainted string $name => tainted string $value) {
     echo "attribute ", $name, " = ", $value, "\n";
 }
 

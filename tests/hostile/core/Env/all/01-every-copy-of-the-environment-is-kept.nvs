@@ -11,11 +11,11 @@ Core\Config::set('memory', '32M');
 // The array is a copy, so a second call must return the old values.
 string $huge = Core\Str::repeat('x', 1000000);
 var $all = Core\Env::all();
-foreach ($all as string $name => tainted string $value) {
+foreach ($all as tainted string $name => tainted string $value) {
     $all[$name] = $huge;
 }
 int $changed = 0;
-foreach (Core\Env::all() as string $name => tainted string $value) {
+foreach (Core\Env::all() as tainted string $name => tainted string $value) {
     if ($value == $huge) {
         $changed = $changed + 1;
     }

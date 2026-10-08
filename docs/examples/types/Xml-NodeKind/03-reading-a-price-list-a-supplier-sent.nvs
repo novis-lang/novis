@@ -40,7 +40,7 @@ foreach ($doc->children() as Core\Xml\Node $prices) {
 
         $items = $items + 1;
         echo "item: ", Feed::label($child);
-        foreach ($child->attributes() as string $name => tainted string $value) {
+        foreach ($child->attributes() as tainted string $name => tainted string $value) {
             echo " (", $name, " ", $value, ")";
         }
         echo "\n";

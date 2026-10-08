@@ -26,6 +26,6 @@ foreach ($document->children() as Core\Xml\Node $root) {
 }
 
 // This prints host = db.example.com, port = 5432 and password = with nothing after it.
-foreach ($settings as string $name => tainted string $value) {
+foreach ($settings as tainted string $name => tainted string $value) {
     echo $name, " = ", $value, "\n";
 }

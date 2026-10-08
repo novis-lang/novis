@@ -54,7 +54,7 @@ array<mixed> $values = [
     "null" => null,
 ];
 
-foreach ($values as string $key => mixed $v) {
+foreach ($values as tainted string $key => mixed $v) {
     echo $key, ": iterable ", $v is iterable ? "yes" : "no", ", callable ", $v is callable ? "yes" : "no", "\n";
 }
 
@@ -64,7 +64,7 @@ foreach ($values as string $key => mixed $v) {
 // argument `rule:iteration/concrete-generic-implements` requires, and the walk
 // compares the label either way.
 uint $agrees = 0;
-foreach ($values as string $key => mixed $w) {
+foreach ($values as tainted string $key => mixed $w) {
     if (($w is iterable) == ($w is array || $w is Iterable<int> || $w is Iterator<int>)) {
         $agrees = $agrees + 1;
     }
@@ -74,7 +74,7 @@ echo "iterable agrees ", $agrees, "/", Core\Arr::count($values), "\n";
 // The two operators are disjoint over every value in the language: nothing is
 // both, and the object rows are where a shared "is an object" test would show.
 uint $both = 0;
-foreach ($values as string $key => mixed $x) {
+foreach ($values as tainted string $key => mixed $x) {
     if ($x is iterable && $x is callable) {
         $both = $both + 1;
     }
@@ -99,7 +99,7 @@ array<mixed> $fns = [
     "method reference" => Plain::label(...),
     "int" => 7,
 ];
-foreach ($fns as string $key => mixed $f) {
+foreach ($fns as tainted string $key => mixed $f) {
     echo $key, ": callable(int): string ", ($f is callable(int): string) ? "yes" : "no", "\n";
 }
 
@@ -108,7 +108,7 @@ foreach ($fns as string $key => mixed $f) {
 // `callable` would mean the marker had been put on something that is not a
 // callable.
 uint $without = 0;
-foreach ($fns as string $key => mixed $g) {
+foreach ($fns as tainted string $key => mixed $g) {
     if (($g is callable(int): string) && !($g is callable)) {
         $without = $without + 1;
     }

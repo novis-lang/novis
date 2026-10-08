@@ -7,7 +7,7 @@
 // line break is one space, and `\r\n` is one space rather than two.
 Core\Xml\Node $document = Core\Xml::parse("<a note=\"first\r\nsecond\nthird\tfourth\" tab=\"x&#9;y\" line=\"x&#10;y\"/>");
 foreach ($document->children() as Core\Xml\Node $a) {
-    foreach ($a->attributes() as string $name => tainted string $value) {
+    foreach ($a->attributes() as tainted string $name => tainted string $value) {
         echo $name, " = [", Core\Str::replace(Core\Str::replace($value, "\t", "<TAB>"), "\n", "<LF>"), "]\n";
     }
     // Writing the element back out spells the kept tab and line feed as

@@ -5,7 +5,7 @@
 
 array<mixed> $payload = ["id" => 4102, "name" => "Ada", "paid" => true, "note" => null];
 
-foreach ($payload as string $field => mixed $value) {
+foreach ($payload as tainted string $field => mixed $value) {
     if ($value is int) {
         echo $field, " is a whole number\n";
     } else if ($value is string) {

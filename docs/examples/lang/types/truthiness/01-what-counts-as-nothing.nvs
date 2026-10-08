@@ -12,7 +12,7 @@ array<mixed> $submitted = [
     "reply" => null,
 ];
 
-foreach ($submitted as string $field => mixed $value) {
+foreach ($submitted as tainted string $field => mixed $value) {
     if ($value) {
         echo $field, ": filled in\n";
     } else {

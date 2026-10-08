@@ -18,7 +18,7 @@ var $all = Core\Env::all();
 // outside the program's own text, so nothing here launders and the qualifier
 // reaches the end of the concatenation.
 tainted string $ours = "";
-foreach ($all as string $name => tainted string $value) {
+foreach ($all as tainted string $name => tainted string $value) {
     if (Core\Str::startsWith($name, "NVS_CASE_")) {
         $ours = $ours . $name . "=" . $value . ";";
     }
@@ -31,8 +31,8 @@ echo $ours, "\n";
 // the first has to answer the same way through the second.
 array<string> $names = ["NVS_CASE_A", "NVS_CASE_B", "NVS_CASE_C"];
 int $agreed = 0;
-foreach ($names as string $name) {
-    if (Core\Arr::hasKey($all, $name) && $all[$name] == Core\Env::get($name)) {
+foreach ($names as string $wanted) {
+    if (Core\Arr::hasKey($all, $wanted) && $all[$wanted] == Core\Env::get($wanted)) {
         $agreed = $agreed + 1;
     }
 }

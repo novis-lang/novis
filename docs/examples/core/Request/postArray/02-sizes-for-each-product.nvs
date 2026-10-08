@@ -3,6 +3,6 @@
 
 // The form sends `size[shirt]=M&size[hat]=L`, so `postArray` returns the keys "shirt" and "hat".
 // This prints "shirt: M" and "hat: L".
-foreach (Core\Request::postArray("size") as string $product => tainted string $size) {
+foreach (Core\Request::postArray("size") as tainted string $product => tainted string $size) {
     echo $product, ": ", $size, "\n";
 }

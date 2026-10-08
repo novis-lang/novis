@@ -3,7 +3,7 @@
 
 // `Core\Request::headers` returns each header name in lower case, with a list of its values.
 // This prints "host: example.com", then "user-agent: curl/8.5.0", then "accept: */*".
-foreach (Core\Request::headers() as string $name => array<tainted string> $values) {
+foreach (Core\Request::headers() as tainted string $name => array<tainted string> $values) {
     foreach ($values as tainted string $value) {
         echo $name, ": ", $value, "\n";
     }

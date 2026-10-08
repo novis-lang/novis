@@ -6,7 +6,7 @@
 // 1. Counts the names and the lines. `X-Trace` arrived in four cases, so it is one key.
 array<array<tainted string>> $headers = Core\Request::headers();
 uint $lines = 0;
-foreach ($headers as string $name => array<tainted string> $values) {
+foreach ($headers as array<tainted string> $values) {
     $lines = $lines + Core\Arr::count($values);
 }
 echo 'names: ', Core\Arr::count($headers), ', lines: ', $lines, "\n";

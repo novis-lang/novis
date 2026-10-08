@@ -17,7 +17,7 @@ class Handlers {
     public static function count(Core\Xml\Node $node): int {
         int $found = 0;
         if ($node->kind() == Core\Xml\NodeKind::Element) {
-            foreach ($node->attributes() as string $name => tainted string $value) {
+            foreach ($node->attributes() as tainted string $name => tainted string $value) {
                 if (Core\Str::startsWith($name, "on")) {
                     $found = $found + 1;
                 }

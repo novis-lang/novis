@@ -18,7 +18,7 @@ var $row = $rows[0];
 // The array holds the columns in the order the query asked for them. A column
 // with no value is in the array too, and its value is `null`.
 array<mixed> $whole = $row->toArray();
-foreach ($whole as string $name => mixed $value) {
+foreach ($whole as tainted string $name => mixed $value) {
     echo $name, ': ', $value ?? '-', "\n";
 }
 

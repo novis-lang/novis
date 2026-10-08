@@ -105,7 +105,7 @@ array<mixed> $values = [
 int $agreed = 0;
 int $held = 0;
 int $reflexive = 0;
-foreach ($values as string $kind => mixed $value) {
+foreach ($values as tainted string $kind => mixed $value) {
     bool $isNull = Ask::nullish($value);
     bool $same = Ask::sameAsNull($value);
     bool $reversed = Ask::nullIsSame($value);
@@ -130,7 +130,7 @@ array<mixed> $nulls = [null, $missing, $noFirst];
 
 int $nullAgreed = 0;
 int $nullHeld = 0;
-foreach ($nulls as string $spelling => mixed $nothing) {
+foreach ($nulls as tainted string $spelling => mixed $nothing) {
     bool $isNull2 = Ask::nullish($nothing);
     bool $same2 = Ask::sameAsNull($nothing);
     bool $reversed2 = Ask::nullIsSame($nothing);

@@ -38,7 +38,7 @@ array<string> $expected = ["seats", "label", "missed", "share", "price"];
 int $at = 0;
 uint $ordered = 0;
 uint $agreed = 0;
-foreach ($whole as string $name => mixed $value) {
+foreach ($whole as tainted string $name => mixed $value) {
     if ($at < 5 && $name == $expected[$at]) {
         $ordered = $ordered + 1;
     }

@@ -24,7 +24,7 @@ Core\Xml\Node $document = Core\Xml::parse(
 );
 Core\Xml\Node $row = Root::of($document);
 echo "name: ", $row->name(), "\n";
-foreach ($row->attributes() as string $name => tainted string $value) {
+foreach ($row->attributes() as tainted string $name => tainted string $value) {
     echo "  ", $name, " = ", $value, "\n";
 }
 
@@ -54,7 +54,7 @@ echo "row text: \"", $row->text(), "\"\n";
 Core\Xml\Node $prefixed = Core\Xml::parse("<x:a xmlns:x=\"urn:e\" x:k=\"v\"/>");
 Core\Xml\Node $element = Root::of($prefixed);
 echo "prefixed: ", $element->name(), "\n";
-foreach ($element->attributes() as string $name => tainted string $value) {
+foreach ($element->attributes() as tainted string $name => tainted string $value) {
     echo "  ", $name, " = ", $value, "\n";
 }
 

@@ -11,7 +11,7 @@ string $cookie = Core\SignedCookie::seal(Core\Json::encode($cart), $keys);
 // The next request sends the cookie back. The server opens it and adds a teapot.
 var $stored = Core\Json::decode(Core\SignedCookie::open($cookie, $keys)) as array<mixed>;
 array<int> $next = [];
-foreach ($stored as string $item => mixed $count) {
+foreach ($stored as tainted string $item => mixed $count) {
     $next[$item] = $count as int;
 }
 $next["teapot"] = 1;

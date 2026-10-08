@@ -80,7 +80,7 @@ int $agreements = 0;
 if (Core\Arr::count($shaped->roles) == 2 && Core\Arr::count($declared->roles) == 2) {
     $agreements = $agreements + 1;
 }
-foreach ($decoded->roles as string $at => tainted string $role) {
+foreach ($decoded->roles as tainted string $at => tainted string $role) {
     if ($shaped->roles[$at] == $role && $declared->roles[$at] == $role) {
         $agreements = $agreements + 1;
     }

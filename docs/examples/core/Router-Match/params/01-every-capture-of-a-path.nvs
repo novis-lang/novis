@@ -11,7 +11,7 @@ class Blog {
 if ($found != null) {
     // `params()` returns an array. Each key is the name in the route's path.
     // `%20` is already decoded, so this prints `year: 2026` and `slug: hello world`.
-    foreach ($found->params() as string $name => mixed $value) {
+    foreach ($found->params() as tainted string $name => mixed $value) {
         echo $name, ": ", $value as string, "\n";
     }
 }

@@ -10,7 +10,7 @@ uint $seen = 0;
 uint $round = 0;
 // This reads the list 200 times, so reading the headers takes longer than the rest of the request.
 while ($round < 200) {
-    foreach (Core\Request::headers() as string $name => array<tainted string> $values) {
+    foreach (Core\Request::headers() as tainted string $name => array<tainted string> $values) {
         $seen = $seen + 1;
     }
     $round = $round + 1;
