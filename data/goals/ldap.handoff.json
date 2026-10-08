@@ -1,34 +1,29 @@
 {
-  "state": "**Goal `ldap`, Stage 6 (typed values) in progress: the ranged merge and the per-pool schema are done, and `Entry::int`/`bool` and wiring the schema into the readers are open.** Stages 1 to 5 are done, and Stage 4 is done except for a CA that a program supplies. All eight names of `nvs-stdlib-ldap-typed-values` pass against `samba-ad`; the stage's other check, `ldap-typed-values-run`, still needs its two `.nvst` cases.\n\n**On `main`**: `Ldap\\Connection::whoami`/`search`/`read`, `Ldap\\Entries`, `Ldap\\Entry`, `Ldap\\Scope`, `Ldap\\Settings`, `Ldap\\Filter`, `Ldap\\Dn`, `Ldap\\Ad`, `Ldap\\Sid`, `Ad\\AccountFlags`, `Ad\\GroupType`, and `Entry`'s typed readers `uuid`, `sid`, `sids`, `instant`, `duration`, `accountFlags`, `groupType`, `accountType`. `nvs_ldap::Cursor::next` fetches every ranged attribute to its end (`crates/nvs-ldap/src/ranged.rs`). `nvs_ldap::schema` parses the subschema's `attributeTypes` into a `Syntax` per name, and `crate::ldap::schema(ctx, key, member)` reads it once per block pool per core (`crates/nvs-stdlib/src/ldap/mod.rs`' module doc). No reader consults the schema yet: an `Ldap\\Entry` holds only its DN and attributes, so it cannot reach its connection.\n\nServer cases reach `samba-ad` (`tests/db/compose.yaml`) at `ldaps://localhost:16636`. `CN=Users` holds exactly three users: `Administrator` (`userAccountControl` 512), `Guest` (66082, `pwdLastSet` 0) and `krbtgt`. `Domain Admins` is `groupType` -2147483646 and `CN=Administrators,CN=Builtin` is -2147483643 with more than one `member`. Samba answers a requested `member;range=0-0`. GUIDs, SIDs and times change each time the container is made, so a case asserts their shape, never the value.",
+  "state": "**Goal `ldap`, Stage 6 (typed values): every reader of ADR 0278 § 1's `Entry` roster is on `main`, and wiring the schema into the readers is the stage's last open item.** Stages 1 to 5 are done, and Stage 4 is done except for a CA that a program supplies. Both checks of Stage 6, `nvs-stdlib-ldap-typed-values` and `ldap-typed-values-run`, pass against `samba-ad`. Stage 7 (writes and passwords) is the earliest red check.\n\n**On `main`**: `Ldap\\Connection::whoami`/`search`/`read`, `Ldap\\Entries`, `Ldap\\Entry`, `Ldap\\Scope`, `Ldap\\Settings`, `Ldap\\Filter`, `Ldap\\Dn`, `Ldap\\Ad`, `Ldap\\Sid`, `Ad\\AccountFlags`, `Ad\\GroupType`, and `Entry`'s typed readers `int`, `bool`, `uuid`, `sid`, `sids`, `instant`, `duration`, `accountFlags`, `groupType`, `accountType`. `int` and `bool` read RFC 4517's INTEGER and `TRUE`/`FALSE` through `nvs_ldap::value::int`/`boolean`. `nvs_ldap::Cursor::next` fetches every ranged attribute to its end. `crate::ldap::schema(ctx, key, member)` reads the subschema once per block pool per core, and no reader consults it yet: an `Ldap\\Entry` holds only its DN and attributes, so it cannot reach its connection.\n\nServer cases reach `samba-ad` (`tests/db/compose.yaml`) at `ldaps://localhost:16636`. `CN=Users` holds exactly three users: `Administrator` (`userAccountControl` 512, `primaryGroupID` 513, `adminCount` 1, `isCriticalSystemObject` TRUE), `Guest` (66082, `pwdLastSet` 0, `primaryGroupID` 514, no `adminCount`) and `krbtgt`. `Domain Admins` is `groupType` -2147483646 and `CN=Administrators,CN=Builtin` is -2147483643 with more than one `member`. GUIDs, SIDs and times change each time the container is made, so a case asserts their shape, never the value.",
   "next": {
-    "stage": 6,
-    "title": "typed values",
-    "files": [
-      "crates/nvs-stdlib/src/ldap/value.rs",
-      "crates/nvs-stdlib/src/ldap/search.rs",
-      "crates/nvs-stdlib/src/ldap/registry.rs",
-      "crates/nvs-stdlib/src/ldap/mod.rs"
-    ],
+    "stage": 7,
+    "title": "writes and passwords",
+    "files": [],
+    "note": "one file set: `crates/nvs-ldap/src/conn.rs`, `crates/nvs-ldap/src/proto.rs`, `crates/nvs-stdlib/src/ldap/registry.rs`, a new `crates/nvs-stdlib/src/ldap/write.rs`.",
     "items": [
       {
         "done": false,
-        "text": "**`Entry::int` and `Entry::bool`** (ADR 0278 § 1's roster, `TRUE`/`FALSE` in § 8's table, `rule:core-classes/ldap-value-types`). Readers beside `instant` at `crates/nvs-stdlib/src/ldap/value.rs:138`, rows and cards in `crates/nvs-stdlib/src/ldap/registry.rs:71`, and three `.nvst` cases each."
+        "text": "**`Connection::modify` as one request, and `add`/`delete`/`rename`** (ADR 0278 § 1's roster, `rule:core-classes/ldap-value-types`'s \"a value is written in the form it is read\"). The wire operations go beside `Connection::search` at `crates/nvs-ldap/src/conn.rs:397`, the `Ldap\\Change` value and the four rows beside `ENTRY` in `crates/nvs-stdlib/src/ldap/registry.rs:531`. Closes `modify_applies_its_changes_in_one_request` and `typed_values_round_trip_through_a_write`, and `tests/conformance/core/ldap-add-modify-delete-rename.nvst`."
       },
       {
         "done": false,
-        "text": "**The readers take the base type from the schema** (`rule:core-classes/ldap-value-types`). `crate::ldap::schema` is at `crates/nvs-stdlib/src/ldap/mod.rs:603`. An `Ldap\\Entry` needs a slot naming its connection's key so `instant` picks FILETIME or GeneralizedTime by `Syntax`, not by the value's form; `entry_value` in `crates/nvs-stdlib/src/ldap/search.rs:393`'s file builds it."
+        "text": "**`setPassword`/`changePassword` over `unicodePwd`, encrypted only, and `compare`** (ADR 0278 § 1). `Connection::is_encrypted` at `crates/nvs-ldap/src/conn.rs:333` is the gate. Closes the other four names of `nvs-stdlib-ldap-writes-and-passwords` and `tests/conformance/core/ldap-set-password.nvst`."
       },
       {
         "done": false,
-        "text": "**The two `.nvst` cases of `ldap-typed-values-run`**: `tests/conformance/core/ldap-typed-values.nvst` and `tests/conformance/core/ldap-account-flags.nvst`, against `samba-ad`, beside the readers at `crates/nvs-stdlib/src/ldap/value.rs:85`."
+        "text": "**The readers take the base type from the schema** (`rule:core-classes/ldap-value-types`), Stage 6's last item. `crate::ldap::schema` is at `crates/nvs-stdlib/src/ldap/mod.rs:603`. `Entry` needs a slot for the schema it was read under, filled where `entry_value` builds it at `crates/nvs-stdlib/src/ldap/search.rs:121`; no check fails without it, so it may follow Stage 7."
       }
     ]
   },
   "backlog": [
-    "Stage 7, writes and passwords: `modify`, `add`, `delete`, `rename`, `compare`, `setPassword`, `changePassword` (ADR 0278 § 1; `docs/agent/goals/ldap.md`).",
-    "Stage 8, `authenticate` and AD's sub-codes (ADR 0278 § 10).",
-    "Stage 9, the AD extras: sort with VLV, deleted objects, DirSync, the Global Catalog.",
-    "Stage 10, the feature proofs for every `Core\\Ldap` group (`rule:testing/feature-proofs`).",
-    "Stage 4's rest: a CA that a program supplies in `Ldap\\Settings`."
+    "A CA a program supplies to `Ldap::open` (Stage 4's rest), ADR 0278 § 2.",
+    "`authenticate` and AD's sub-codes (Stage 8), ADR 0278 § 1 and § 10.",
+    "The AD extras: sort with VLV, deleted objects, DirSync, the Global Catalog (Stage 9).",
+    "The feature proofs for every `Core\\Ldap` group (Stage 10), `bun nv proofs --owed`."
   ]
 }

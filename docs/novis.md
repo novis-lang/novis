@@ -26208,7 +26208,7 @@ Returns the URLs of other servers that the server named for this search. Novis d
 <a id="core-core-ldap-entry"></a>
 ### `Core\Ldap\Entry`
 
-Keywords: dn, has, string, strings, bytes, uuid, sid, sids, instant, duration, accountFlags, groupType, accountType, toArray
+Keywords: dn, has, string, strings, bytes, int, bool, uuid, sid, sids, instant, duration, accountFlags, groupType, accountType, toArray
 
 | Member | Signature |
 |---|---|
@@ -26217,6 +26217,8 @@ Keywords: dn, has, string, strings, bytes, uuid, sid, sids, instant, duration, a
 | [`Core\Ldap\Entry->string`](#core-core-ldap-entry-string) | `string(string $name): ?tainted string` |
 | [`Core\Ldap\Entry->strings`](#core-core-ldap-entry-strings) | `strings(string $name): ?array<tainted string>` |
 | [`Core\Ldap\Entry->bytes`](#core-core-ldap-entry-bytes) | `bytes(string $name): ?tainted bytes` |
+| [`Core\Ldap\Entry->int`](#core-core-ldap-entry-int) | `int(string $name): ?int` |
+| [`Core\Ldap\Entry->bool`](#core-core-ldap-entry-bool) | `bool(string $name): ?bool` |
 | [`Core\Ldap\Entry->uuid`](#core-core-ldap-entry-uuid) | `uuid(string $name): ?Core\Uuid` |
 | [`Core\Ldap\Entry->sid`](#core-core-ldap-entry-sid) | `sid(string $name): ?Core\Ldap\Sid` |
 | [`Core\Ldap\Entry->sids`](#core-core-ldap-entry-sids) | `sids(string $name): ?array<Core\Ldap\Sid>` |
@@ -26305,6 +26307,40 @@ Returns the one value of an attribute as bytes, exactly as the server sent it. U
 **Returns** `?tainted bytes` — The value, or `null` when the entry has no value for the attribute.
 
 **Throws** `LogicError` — The attribute has more than one value.
+
+<a id="core-core-ldap-entry-int"></a>
+#### `Core\Ldap\Entry->int`
+
+```nvs skip
+$entry->int(string $name): ?int
+```
+
+Returns a number attribute, such as `logonCount` or `primaryGroupID`, as an `int`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The attribute's name, such as `mail`. Upper and lower case are the same. |
+
+**Returns** `?int` — The number, or `null` when the entry has no value for the attribute.
+
+**Throws** `LogicError` — The attribute has more than one value, or its value is not a whole number, or the number is too large for an `int`. The message names the attribute.
+
+<a id="core-core-ldap-entry-bool"></a>
+#### `Core\Ldap\Entry->bool`
+
+```nvs skip
+$entry->bool(string $name): ?bool
+```
+
+Returns a yes-or-no attribute, such as `isCriticalSystemObject`, as a `bool`. The directory writes these values as `TRUE` and `FALSE`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The attribute's name, such as `mail`. Upper and lower case are the same. |
+
+**Returns** `?bool` — `true` for `TRUE`, `false` for `FALSE`, or `null` when the entry has no value for the attribute.
+
+**Throws** `LogicError` — The attribute has more than one value, or its value is not `TRUE` or `FALSE`. The message names the attribute.
 
 <a id="core-core-ldap-entry-uuid"></a>
 #### `Core\Ldap\Entry->uuid`
