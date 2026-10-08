@@ -26974,7 +26974,7 @@ Matches the entries where a number attribute has at least one of these bits set.
 <a id="core-core-ldap-ad-accountflags"></a>
 ### `Core\Ldap\Ad\AccountFlags`
 
-Keywords: script, disabled, homeDirectoryRequired, lockedOut, passwordNotRequired, reversibleEncryption, temporaryDuplicateAccount, normalAccount, interdomainTrustAccount, workstationTrustAccount, serverTrustAccount, passwordNeverExpires, mnsLogonAccount, smartcardRequired, trustedForDelegation, notDelegated, useDesKeyOnly, noPreauthRequired, passwordExpired, trustedToAuthForDelegation, partialSecretsAccount, bits
+Keywords: script, disabled, homeDirectoryRequired, lockedOut, passwordNotRequired, reversibleEncryption, temporaryDuplicateAccount, normalAccount, interdomainTrustAccount, workstationTrustAccount, serverTrustAccount, passwordNeverExpires, mnsLogonAccount, smartcardRequired, trustedForDelegation, notDelegated, useDesKeyOnly, noPreauthRequired, passwordExpired, trustedToAuthForDelegation, partialSecretsAccount, bits, mustChangePassword, with
 
 | Member | Signature |
 |---|---|
@@ -27000,6 +27000,8 @@ Keywords: script, disabled, homeDirectoryRequired, lockedOut, passwordNotRequire
 | [`Core\Ldap\Ad\AccountFlags->trustedToAuthForDelegation`](#core-core-ldap-ad-accountflags-trustedtoauthfordelegation) | `trustedToAuthForDelegation(): bool` |
 | [`Core\Ldap\Ad\AccountFlags->partialSecretsAccount`](#core-core-ldap-ad-accountflags-partialsecretsaccount) | `partialSecretsAccount(): bool` |
 | [`Core\Ldap\Ad\AccountFlags->bits`](#core-core-ldap-ad-accountflags-bits) | `bits(): int` |
+| [`Core\Ldap\Ad\AccountFlags->mustChangePassword`](#core-core-ldap-ad-accountflags-mustchangepassword) | `mustChangePassword(): bool` |
+| [`Core\Ldap\Ad\AccountFlags->with`](#core-core-ldap-ad-accountflags-with) | `with({script?: bool, disabled?: bool, homeDirectoryRequired?: bool, passwordNotRequired?: bool, reversibleEncryption?: bool, temporaryDuplicateAccount?: bool, normalAccount?: bool, interdomainTrustAccount?: bool, workstationTrustAccount?: bool, serverTrustAccount?: bool, passwordNeverExpires?: bool, mnsLogonAccount?: bool, smartcardRequired?: bool, trustedForDelegation?: bool, notDelegated?: bool, useDesKeyOnly?: bool, noPreauthRequired?: bool, trustedToAuthForDelegation?: bool, partialSecretsAccount?: bool}): Core\Ldap\Ad\AccountFlags` |
 
 <a id="core-core-ldap-ad-accountflags-script"></a>
 #### `Core\Ldap\Ad\AccountFlags->script`
@@ -27243,10 +27245,54 @@ Returns `userAccountControl` as the number Active Directory stored, such as `512
 
 **Returns** `int` — The number, with every bit. It does not include the bits Active Directory computes.
 
+<a id="core-core-ldap-ad-accountflags-mustchangepassword"></a>
+#### `Core\Ldap\Ad\AccountFlags->mustChangePassword`
+
+```nvs skip
+$accountFlags->mustChangePassword(): bool
+```
+
+Checks whether the user must change the password at the next login. This is true when `pwdLastSet` is `0`. A search that selects `userAccountControl` also reads `pwdLastSet`.
+
+**Returns** `bool` — `true` when `pwdLastSet` is `0`, and `false` when it is not or the entry has no `pwdLastSet`.
+
+<a id="core-core-ldap-ad-accountflags-with"></a>
+#### `Core\Ldap\Ad\AccountFlags->with`
+
+```nvs skip
+$accountFlags->with({script?: bool, disabled?: bool, homeDirectoryRequired?: bool, passwordNotRequired?: bool, reversibleEncryption?: bool, temporaryDuplicateAccount?: bool, normalAccount?: bool, interdomainTrustAccount?: bool, workstationTrustAccount?: bool, serverTrustAccount?: bool, passwordNeverExpires?: bool, mnsLogonAccount?: bool, smartcardRequired?: bool, trustedForDelegation?: bool, notDelegated?: bool, useDesKeyOnly?: bool, noPreauthRequired?: bool, trustedToAuthForDelegation?: bool, partialSecretsAccount?: bool}): Core\Ldap\Ad\AccountFlags
+```
+
+Returns a copy with the flags you name set or cleared, such as `$flags->with({disabled: true})`. Every other bit stays as it is. `lockedOut` and `passwordExpired` are not options, because Active Directory computes them.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `{script: …}` | `bool` (default `null`) | `true` sets the flag and `false` clears it. Leave it out to keep the flag as it is. |
+| `{disabled: …}` | `bool` (default `null`) | `true` sets the flag and `false` clears it. Leave it out to keep the flag as it is. |
+| `{homeDirectoryRequired: …}` | `bool` (default `null`) | `true` sets the flag and `false` clears it. Leave it out to keep the flag as it is. |
+| `{passwordNotRequired: …}` | `bool` (default `null`) | `true` sets the flag and `false` clears it. Leave it out to keep the flag as it is. |
+| `{reversibleEncryption: …}` | `bool` (default `null`) | `true` sets the flag and `false` clears it. Leave it out to keep the flag as it is. |
+| `{temporaryDuplicateAccount: …}` | `bool` (default `null`) | `true` sets the flag and `false` clears it. Leave it out to keep the flag as it is. |
+| `{normalAccount: …}` | `bool` (default `null`) | `true` sets the flag and `false` clears it. Leave it out to keep the flag as it is. |
+| `{interdomainTrustAccount: …}` | `bool` (default `null`) | `true` sets the flag and `false` clears it. Leave it out to keep the flag as it is. |
+| `{workstationTrustAccount: …}` | `bool` (default `null`) | `true` sets the flag and `false` clears it. Leave it out to keep the flag as it is. |
+| `{serverTrustAccount: …}` | `bool` (default `null`) | `true` sets the flag and `false` clears it. Leave it out to keep the flag as it is. |
+| `{passwordNeverExpires: …}` | `bool` (default `null`) | `true` sets the flag and `false` clears it. Leave it out to keep the flag as it is. |
+| `{mnsLogonAccount: …}` | `bool` (default `null`) | `true` sets the flag and `false` clears it. Leave it out to keep the flag as it is. |
+| `{smartcardRequired: …}` | `bool` (default `null`) | `true` sets the flag and `false` clears it. Leave it out to keep the flag as it is. |
+| `{trustedForDelegation: …}` | `bool` (default `null`) | `true` sets the flag and `false` clears it. Leave it out to keep the flag as it is. |
+| `{notDelegated: …}` | `bool` (default `null`) | `true` sets the flag and `false` clears it. Leave it out to keep the flag as it is. |
+| `{useDesKeyOnly: …}` | `bool` (default `null`) | `true` sets the flag and `false` clears it. Leave it out to keep the flag as it is. |
+| `{noPreauthRequired: …}` | `bool` (default `null`) | `true` sets the flag and `false` clears it. Leave it out to keep the flag as it is. |
+| `{trustedToAuthForDelegation: …}` | `bool` (default `null`) | `true` sets the flag and `false` clears it. Leave it out to keep the flag as it is. |
+| `{partialSecretsAccount: …}` | `bool` (default `null`) | `true` sets the flag and `false` clears it. Leave it out to keep the flag as it is. |
+
+**Returns** `Core\Ldap\Ad\AccountFlags` — A new `Core\Ldap\Ad\AccountFlags`. The object you call it on does not change.
+
 <a id="core-core-ldap-ad-grouptype"></a>
 ### `Core\Ldap\Ad\GroupType`
 
-Keywords: system, global, domainLocal, universal, appBasic, appQuery, security, bits
+Keywords: system, global, domainLocal, universal, appBasic, appQuery, security, bits, with
 
 | Member | Signature |
 |---|---|
@@ -27258,6 +27304,7 @@ Keywords: system, global, domainLocal, universal, appBasic, appQuery, security, 
 | [`Core\Ldap\Ad\GroupType->appQuery`](#core-core-ldap-ad-grouptype-appquery) | `appQuery(): bool` |
 | [`Core\Ldap\Ad\GroupType->security`](#core-core-ldap-ad-grouptype-security) | `security(): bool` |
 | [`Core\Ldap\Ad\GroupType->bits`](#core-core-ldap-ad-grouptype-bits) | `bits(): int` |
+| [`Core\Ldap\Ad\GroupType->with`](#core-core-ldap-ad-grouptype-with) | `with({system?: bool, global?: bool, domainLocal?: bool, universal?: bool, appBasic?: bool, appQuery?: bool, security?: bool}): Core\Ldap\Ad\GroupType` |
 
 <a id="core-core-ldap-ad-grouptype-system"></a>
 #### `Core\Ldap\Ad\GroupType->system`
@@ -27346,6 +27393,27 @@ $groupType->bits(): int
 Returns `groupType` as the number Active Directory stored. A security group's number is negative, such as `-2147483646`.
 
 **Returns** `int` — The number, with every bit.
+
+<a id="core-core-ldap-ad-grouptype-with"></a>
+#### `Core\Ldap\Ad\GroupType->with`
+
+```nvs skip
+$groupType->with({system?: bool, global?: bool, domainLocal?: bool, universal?: bool, appBasic?: bool, appQuery?: bool, security?: bool}): Core\Ldap\Ad\GroupType
+```
+
+Returns a copy with the flags you name set or cleared, such as `$type->with({security: false})`. Every other bit stays as it is.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `{system: …}` | `bool` (default `null`) | `true` sets the flag and `false` clears it. Leave it out to keep the flag as it is. |
+| `{global: …}` | `bool` (default `null`) | `true` sets the flag and `false` clears it. Leave it out to keep the flag as it is. |
+| `{domainLocal: …}` | `bool` (default `null`) | `true` sets the flag and `false` clears it. Leave it out to keep the flag as it is. |
+| `{universal: …}` | `bool` (default `null`) | `true` sets the flag and `false` clears it. Leave it out to keep the flag as it is. |
+| `{appBasic: …}` | `bool` (default `null`) | `true` sets the flag and `false` clears it. Leave it out to keep the flag as it is. |
+| `{appQuery: …}` | `bool` (default `null`) | `true` sets the flag and `false` clears it. Leave it out to keep the flag as it is. |
+| `{security: …}` | `bool` (default `null`) | `true` sets the flag and `false` clears it. Leave it out to keep the flag as it is. |
+
+**Returns** `Core\Ldap\Ad\GroupType` — A new `Core\Ldap\Ad\GroupType`. The object you call it on does not change.
 
 <a id="core-core-queue"></a>
 ### `Core\Queue`
