@@ -1,0 +1,9 @@
+[server]
+health_path   = "/healthz"
+drain_timeout = "10s"
+
+# `cli.nvs` writes one file in a folder from `Core\IO::temporaryDir`, which is in the image's data
+# folder. The grant names that folder and nothing else.
+[capabilities.fs]
+read  = ["/usr/local/bin/.nvsdata/tmp"]
+write = ["/usr/local/bin/.nvsdata/tmp"]

@@ -80,6 +80,7 @@ jobs:
       proofs: ${{ steps.lanes.outputs.proofs }}
       db: ${{ steps.lanes.outputs.db }}
       browser: ${{ steps.lanes.outputs.browser }}
+      docker: ${{ steps.lanes.outputs.docker }}
       deep: ${{ steps.lanes.outputs.deep }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -687,6 +688,48 @@ jobs:
       - name: Host suite
         working-directory: editors/vscode
         run: xvfb-run -a npm run test:host -- --nvs ${{ github.workspace }}/target/debug/nvs
+
+  # ---------------------------------------------------------------------------
+  # Both release images, built from `docker/Dockerfile` around a binary this job compiles and
+  # run through `tests/docker/smoke.sh`. The release does the same with the binary it ships.
+  #
+  # ubuntu-22.04 rather than -latest: the images are Debian bookworm, glibc 2.36, and a binary
+  # linked on 24.04 needs 2.39, so it would not start in either of them. A debug build is enough,
+  # because what is under test is the image around the binary.
+  # ---------------------------------------------------------------------------
+  docker:
+    name: container images
+    needs: changes
+    if: needs.changes.outputs.docker == 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Install toolchain
+        run: rustup toolchain install --no-self-update
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: docker
+      - name: Build nvs
+        run: cargo build -p nvs-cli
+
+      # The layout the release's `Stage the release binaries` step makes, for one architecture.
+      - name: Stage the binary
+        run: |
+          set -euo pipefail
+          mkdir -p docker/bin/amd64 docker/bin/notices
+          cp target/debug/nvs docker/bin/amd64/nvs
+          cp LICENSE THIRD-PARTY-LICENSES.txt README.md CHANGELOG.md docker/bin/notices/
+
+      - name: Smoke test both images
+        run: |
+          set -euo pipefail
+          for variant in distroless debian; do
+            docker build docker --target "$variant" --platform linux/amd64 -t "novis-smoke:$variant"
+            bash tests/docker/smoke.sh "novis-smoke:$variant"
+          done
 
   # There is deliberately no doc-size job. Length guidance for a status field, a
   # milestone heading or an ADR decision cell is in AGENTS.md, addressed to the

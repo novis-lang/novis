@@ -1,0 +1,9 @@
+<?nvs
+// The entry file the image's default command serves. `/slow` waits four seconds before it
+// returns, so a test can stop the container while a request is still running.
+if (Core\Request::path() == '/slow') {
+    Core\Time::sleep(4s);
+    echo "slow done\n";
+} else {
+    echo "hello from docker\n";
+}

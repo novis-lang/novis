@@ -107,6 +107,10 @@ export const LANES: Record<string, string[]> = {
     "crates/nvs-server/src/slotted/", "tools/nv/test/html-later-polyfill.test.ts",
     "package.json", "bun.lock", ".github/workflows/",
   ],
+  // The release images' Dockerfile and the smoke test that runs them. A change in the binary
+  // itself reaches the images through the nightly's full run, and through the release, which
+  // smoke-tests every variant before it pushes one. Gates `docker`.
+  docker: ["docker/", "tests/docker/", ".github/workflows/"],
 };
 
 const DB_HARNESS = "tools/nv/cmd/db-matrix.ts";
