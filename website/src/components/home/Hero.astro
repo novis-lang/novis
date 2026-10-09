@@ -180,16 +180,20 @@ const panels = [
     }
   }
 
-  /* Two soft color fields and a dot grid that fades out at its edges. */
+  /* Three soft color fields and a dot grid. The mask fades the whole
+     backdrop out before it reaches any edge of its box, so no color field
+     and no dot stops at a line. */
   .backdrop {
     position: absolute;
     z-index: -1;
     inset: -3rem 0 -2rem;
     pointer-events: none;
+    -webkit-mask-image: radial-gradient(farthest-side at 50% 50%, black 55%, transparent 100%);
+    mask-image: radial-gradient(farthest-side at 50% 50%, black 55%, transparent 100%);
     background:
-      radial-gradient(38% 46% at 82% 38%, color-mix(in oklab, var(--nv-violet) 26%, transparent), transparent 70%),
-      radial-gradient(30% 40% at 58% 78%, color-mix(in oklab, var(--nv-crimson) 20%, transparent), transparent 70%),
-      radial-gradient(22% 30% at 12% 10%, color-mix(in oklab, var(--nv-gold) 10%, transparent), transparent 70%);
+      radial-gradient(34% 44% at 72% 42%, color-mix(in oklab, var(--nv-violet) 26%, transparent), transparent 70%),
+      radial-gradient(30% 36% at 44% 80%, color-mix(in oklab, var(--nv-crimson) 20%, transparent), transparent 70%),
+      radial-gradient(24% 30% at 28% 26%, color-mix(in oklab, var(--nv-gold) 10%, transparent), transparent 70%);
   }
   .backdrop::after {
     content: '';
@@ -197,14 +201,14 @@ const panels = [
     inset: 0;
     background-image: radial-gradient(color-mix(in oklab, var(--sl-color-white) 16%, transparent) 1px, transparent 1.5px);
     background-size: 22px 22px;
-    -webkit-mask-image: radial-gradient(ellipse 60% 70% at 70% 45%, black 10%, transparent 75%);
-    mask-image: radial-gradient(ellipse 60% 70% at 70% 45%, black 10%, transparent 75%);
+    -webkit-mask-image: radial-gradient(ellipse 50% 60% at 55% 45%, black 10%, transparent 80%);
+    mask-image: radial-gradient(ellipse 50% 60% at 55% 45%, black 10%, transparent 80%);
   }
   :global([data-theme='light']) .backdrop {
     background:
-      radial-gradient(38% 46% at 82% 38%, color-mix(in oklab, var(--nv-violet) 16%, transparent), transparent 70%),
-      radial-gradient(30% 40% at 58% 78%, color-mix(in oklab, var(--nv-crimson) 10%, transparent), transparent 70%),
-      radial-gradient(22% 30% at 12% 10%, color-mix(in oklab, var(--nv-gold) 14%, transparent), transparent 70%);
+      radial-gradient(34% 44% at 72% 42%, color-mix(in oklab, var(--nv-violet) 16%, transparent), transparent 70%),
+      radial-gradient(30% 36% at 44% 80%, color-mix(in oklab, var(--nv-crimson) 10%, transparent), transparent 70%),
+      radial-gradient(24% 30% at 28% 26%, color-mix(in oklab, var(--nv-gold) 14%, transparent), transparent 70%);
   }
 
   /* The title row spans both columns and is centred. It is a size
