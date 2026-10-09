@@ -164,7 +164,7 @@ import { needLine, sharedResources, takeSweepLock } from "../driver/sweep-lock.t
 import { type AcceptanceResult, type Check, PROGRAM_KINDS, acceptance, allReds, heldByGate, tiers, withSetups } from "../driver/accept.ts";
 import { type LegsOptions, legSteps, linuxLegs, startWslBuild } from "../driver/legs.ts";
 import { lastGreen, PlanSweep } from "../driver/runner.ts";
-import { awaitGate, CHAIN_FILE, gateShut, looperArgv, retireChain, startLooper } from "../driver/handover.ts";
+import { awaitGate, CHAIN_FILE, gateShut, looperArgv, putLooperFirst, retireChain, startLooper } from "../driver/handover.ts";
 import { writeGoalPlan } from "../renderers/goal-plan.ts";
 import { SelectStore } from "../select/store.ts";
 import { describeFull, fullRun } from "../select/full.ts";
@@ -1022,6 +1022,7 @@ async function serve(f: TurnFlags, state: RunState, fresh: boolean, touched: Tou
   if (found === null) return end("chain-error", "the live goal's plan did not read; `bun nv check` and `bun nv chain --check` say why");
   const { live, goal, labelOf, total } = found;
   if (fresh) step(live.num === null ? `side run: goal \`${live.slug}\`, ${placeOf(live, total)}` : `chain: resuming at goal \`${live.slug}\`, ${placeOf(live, total)}`, C.CYAN);
+  if (goal.waitFor || goal.handover) putLooperFirst();
   if (goal.waitFor && pending === null) {
     const w = goal.waitFor;
     const stop = await awaitGate(live.slug, w, {

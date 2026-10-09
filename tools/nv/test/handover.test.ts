@@ -1,7 +1,19 @@
 import { afterEach, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { type GateConsole, HANDOVER_SUBJECT, LOOPER_ENV, awaitGate, gateShut, looperArgv, retireChain, startLooper, waitAndHandoverProblems } from "../driver/handover.ts";
+import {
+  type GateConsole,
+  HANDOVER_SUBJECT,
+  LOOPER_ENV,
+  awaitGate,
+  currentPath,
+  gateShut,
+  looperArgv,
+  putLooperFirst,
+  retireChain,
+  startLooper,
+  waitAndHandoverProblems,
+} from "../driver/handover.ts";
 import { scratch, type Scratch } from "./scratch.ts";
 
 let tmp: Scratch | undefined;
@@ -102,9 +114,28 @@ test("a goal's wait gate and handover are checked where the schema cannot", () =
   expect(waitAndHandoverProblems("s", { handover: "looper" }, true)[0]).toContain("a side goal never hands the run over");
 });
 
-test("the looper the driver starts is NOVIS_LOOPER when set, and looper from PATH otherwise", () => {
+test("the looper the driver starts is NOVIS_LOOPER when set, and looper from the current Path otherwise", () => {
   expect(looperArgv({ [LOOPER_ENV]: " bun stub.ts " })).toEqual(["bun", "stub.ts"]);
   expect(looperArgv({}).length).toBe(1);
+  expect(currentPath("inherited-dir").endsWith("inherited-dir")).toBe(true);
+});
+
+test("a goal's looper goes first on the turn's PATH once, and NOVIS_LOOPER leaves PATH alone", () => {
+  const stubbed = { [LOOPER_ENV]: "bun stub.ts", PATH: "a" };
+  putLooperFirst(stubbed);
+  expect(stubbed.PATH).toBe("a");
+  const env: Record<string, string | undefined> = { PATH: process.env.PATH };
+  putLooperFirst(env);
+  const once = env.PATH;
+  putLooperFirst(env);
+  expect(env.PATH).toBe(once);
+});
+
+test("a wait gate whose program is looper runs the looper the handover would start", async () => {
+  tmp = scratch();
+  const stub = stubLooper(tmp, {});
+  expect(await gateShut({ argv: ["looper", "import", "--dry-run"], everyMin: 1 }, tmp.root, undefined, () => stub)).toBe("");
+  expect(calls(tmp)).toEqual(["import --dry-run"]);
 });
 
 /** A scratch repository with a chain of `goals`, each goal with its three files, all committed. */

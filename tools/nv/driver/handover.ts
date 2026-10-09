@@ -15,8 +15,13 @@
 // failure is reported and the start runs anyway, and only the start's exit decides. The run then ends
 // with a verdict `driver/respawn.ts` does not restart. A start that fails holds the run with looper's
 // error; the run carries `handing` in `.loop/run.json`, so the turn after a lifted hold retries the start
-// alone and never a session, since the chain it would read is gone. `NOVIS_LOOPER` names the looper to
-// run, split on whitespace, in place of the one on `PATH`, which is how a test hands it a stub.
+// alone and never a session, since the chain it would read is gone.
+//
+// **Which looper.** `NOVIS_LOOPER` names the looper to run, split on whitespace, which is how a test hands
+// it a stub. Otherwise it is `looper` on the `Path` the user's registry holds now, ahead of the one the run
+// inherited: `looper self-update` moves looper to a new directory, and a run that waits for that update
+// must find the new copy. A goal with either field has that directory put first on the turn's `PATH`, so
+// its sessions run the same looper.
 //
 // The handover refuses while `data/chain.json` names any goal but its own: deleting it would drop the rest
 // of the chain, which the goal's own work moves into looper's format first.
@@ -72,12 +77,16 @@ export function waitAndHandoverProblems(where: string, goal: { waitFor?: WaitFor
   return out;
 }
 
-/** Runs the gate's command once. Returns "" when the gate is open, or why it is shut. */
-export async function gateShut(w: WaitFor, root: string = ROOT, run: Run = runProc): Promise<string> {
+/**
+ * Runs the gate's command once. A command whose program is `looper` runs the looper `looperArgv` finds,
+ * the one the handover starts. Returns "" when the gate is open, or why it is shut.
+ */
+export async function gateShut(w: WaitFor, root: string = ROOT, run: Run = runProc, looper: () => string[] = looperArgv): Promise<string> {
   const shown = shownArgv(w.argv);
+  const argv = w.argv[0] === "looper" ? [...looper(), ...w.argv.slice(1)] : w.argv;
   let r: RunResult;
   try {
-    r = await run(w.argv, { cwd: root, timeoutMs: GATE_TIMEOUT_MS });
+    r = await run(argv, { cwd: root, timeoutMs: GATE_TIMEOUT_MS });
   } catch (e) {
     return `\`${shown}\` did not start: ${(e as Error).message.split("\n")[0]}`;
   }
@@ -153,10 +162,43 @@ export async function awaitGate(slug: string, w: WaitFor, c: GateConsole): Promi
   }
 }
 
-/** The looper to run: `NOVIS_LOOPER` split on whitespace, or `looper` from `PATH`. */
+/**
+ * The `Path` the user's registry holds now, then `inherited`. On Windows `looper self-update` moves looper
+ * to a new directory and rewrites the user's `Path`, and a run started before the update would still find
+ * the old copy, or none once it is pruned, so the registry is read on every call. Elsewhere it is
+ * `inherited` alone.
+ */
+export function currentPath(inherited: string = process.env.PATH ?? ""): string {
+  if (process.platform !== "win32") return inherited;
+  try {
+    const r = Bun.spawnSync(["reg", "query", "HKCU\\Environment", "/v", "Path"], { stdout: "pipe", stderr: "ignore" });
+    const m = /^\s*Path\s+REG_(?:EXPAND_)?SZ\s+(.*)$/im.exec(r.stdout.toString());
+    const user = (m?.[1] ?? "").trim().replace(/%([^%]+)%/g, (all, name: string) => process.env[name] ?? all);
+    return user ? `${user};${inherited}` : inherited;
+  } catch {
+    return inherited;
+  }
+}
+
+/** The looper to run: `NOVIS_LOOPER` split on whitespace, or `looper` on `currentPath`. */
 export function looperArgv(env: Record<string, string | undefined> = process.env): string[] {
   const words = (env[LOOPER_ENV] ?? "").trim().split(/\s+/).filter(Boolean);
-  return words.length > 0 ? words : [Bun.which("looper") ?? "looper"];
+  return words.length > 0 ? words : [Bun.which("looper", { PATH: currentPath(env.PATH ?? "") }) ?? "looper"];
+}
+
+/**
+ * Puts the directory of the looper `looperArgv` finds first on this process's `PATH`, so a session and a
+ * check the turn starts run the same looper as the gate and the handover. Changes nothing when looper is
+ * not found or `NOVIS_LOOPER` names it.
+ */
+export function putLooperFirst(env: Record<string, string | undefined> = process.env): void {
+  if ((env[LOOPER_ENV] ?? "").trim()) return;
+  const found = looperArgv(env)[0]!;
+  if (!/[\\/]/.test(found)) return;
+  const dir = dirname(found);
+  const sep = process.platform === "win32" ? ";" : ":";
+  const path = env.PATH ?? "";
+  if (path.split(sep)[0] !== dir) env.PATH = `${dir}${sep}${path}`;
 }
 
 /** The goals `data/chain.json` names, or null when it is absent or unreadable. */
