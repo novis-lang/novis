@@ -149,12 +149,30 @@ export interface Case {
   html: boolean;
 }
 
+/** The json-api case's order: one customer and 20 items, about 2 KB, the same bytes on every run. */
+const ORDER = readFileSync(join(COMPARE_DIR, "cases", "json-api", "order.json"), "utf8").trim();
+const orderInput = (body: string): Input => ({ method: "POST", path: "/orders", body, contentType: "application/json" });
+
 export const CASES: Case[] = [
   {
     id: "hello",
     concurrency: 64,
     timed: { method: "GET", path: "/" },
     inputs: [{ method: "GET", path: "/" }],
+    html: false,
+  },
+  {
+    id: "json-api",
+    concurrency: 64,
+    timed: orderInput(ORDER),
+    inputs: [
+      orderInput(ORDER),
+      // Each of these fails one check, so every peer must answer 422 with the same body.
+      orderInput(ORDER.replace('"qty":2', '"qty":0')),
+      orderInput(ORDER.replace('"qty":2', '"qty":"2"')),
+      orderInput('{"customer":'),
+      orderInput('{"customer":{"id":1,"name":"A","email":"a@example.com"},"items":[]}'),
+    ],
     html: false,
   },
 ];

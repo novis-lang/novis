@@ -52,6 +52,13 @@ A case is a folder under `cases/` with one program per peer: `main.nvs`, `index.
 others do not. Go compiles every case into its image once (`go/Dockerfile`), and Bun runs the case's
 `default { fetch }` under `bun/serve.ts`.
 
+`json-api` is built so its four answers are byte-equal. Money is integer cents, and the 20 percent tax
+is rounded half up by integer division, so no peer's float formatting shows. Keys are written in one
+fixed order. The items are sorted by a stable sort, largest total first, and `order.json` has two items
+with one total, so a peer whose sort is not stable disagrees. Every failed check answers 422 with one
+fixed body. Each peer checks types in its own language's usual way: Novis and Go decode into typed
+classes, PHP and Bun test the decoded value. The rules are the same set, never the same code.
+
 ## Agreement before timing
 
 A peer that answers wrongly and fast is the easiest way for a benchmark to report a win. A full run
