@@ -1,4 +1,15 @@
 {
+  "/reference/core/arr/": {
+    "feature": "Core\\Arr",
+    "hash": "0ab01194b1f88e7c",
+    "questions": [
+      "How do I work with arrays?",
+      "Sort, filter and combine lists of values",
+      "What functions are there for lists and maps?",
+      "How do I change an array without changing the original?",
+      "Find, count and group items in an array"
+    ]
+  },
   "/reference/core/arr/all/": {
     "feature": "Core\\Arr::all",
     "hash": "e4b2ac6bba1caf9e",
@@ -580,6 +591,2127 @@
       "Get a list without its last item",
       "Drop the final value from an array",
       "Return every item except the last one"
+    ]
+  },
+  "/reference/core/ast/": {
+    "feature": "Core\\Ast",
+    "hash": "35e95f9af878f03f",
+    "questions": [
+      "How do I read the structure of source code?",
+      "Parse a program into a syntax tree",
+      "How can I write my own code checker or linter?",
+      "Inspect code without running it"
+    ]
+  },
+  "/reference/core/ast/parse/": {
+    "feature": "Core\\Ast::parse",
+    "hash": "e7f527cdfa6aba01",
+    "questions": [
+      "How do I turn source code into a tree?",
+      "Check if a piece of code is valid syntax",
+      "Parse a source file without running it",
+      "How do I find the line of a syntax error in a string of code?",
+      "Write a rule that forbids certain code in a project"
+    ]
+  },
+  "/reference/core/ast-node/": {
+    "feature": "Core\\Ast\\Node",
+    "hash": "e9ed3d8941d19ee6",
+    "questions": [
+      "What is a node in a parsed source tree?",
+      "How do I walk a syntax tree?",
+      "Get the type and position of a part of the code",
+      "One part of parsed code, like a class or statement"
+    ]
+  },
+  "/reference/core/ast-node/children/": {
+    "feature": "Core\\Ast\\Node::children",
+    "hash": "9dee631deff4b832",
+    "questions": [
+      "How do I get the direct children of a tree node?",
+      "Step one level down in a syntax tree",
+      "List the methods and properties inside a class node",
+      "How do I tell a leaf node from a branch?",
+      "Print an outline of a file level by level"
+    ]
+  },
+  "/reference/core/ast-node/column/": {
+    "feature": "Core\\Ast\\Node::column",
+    "hash": "e1ca675d7ca17851",
+    "questions": [
+      "Which column does this piece of code start at?",
+      "How do I get the character position along a line?",
+      "Point at the exact place of a problem in a source line",
+      "Column number that counts accented letters as one character"
+    ]
+  },
+  "/reference/core/ast-node/kind/": {
+    "feature": "Core\\Ast\\Node::kind",
+    "hash": "0da40ca07564894b",
+    "questions": [
+      "How do I know what kind of statement a node is?",
+      "Tell a loop from a class declaration in a syntax tree",
+      "Count the loops in a source file",
+      "Get the construct name of a parsed code part",
+      "Check that a file only declares classes"
+    ]
+  },
+  "/reference/core/ast-node/line/": {
+    "feature": "Core\\Ast\\Node::line",
+    "hash": "e93420546b95532a",
+    "questions": [
+      "Which line does this part of the code start on?",
+      "How do I report a file and line number for a problem?",
+      "How many lines does a class cover?",
+      "Find lines with more than one statement"
+    ]
+  },
+  "/reference/core/ast-node/nodes/": {
+    "feature": "Core\\Ast\\Node::nodes",
+    "hash": "f5728f3cc829ed54",
+    "questions": [
+      "How do I get every node in a syntax tree?",
+      "Walk all nested parts of the code at any depth",
+      "Search a whole file for a certain construct",
+      "List everything inside a class, however deep",
+      "Which constructs does a source file use?"
+    ]
+  },
+  "/reference/core/ast-node/offset/": {
+    "feature": "Core\\Ast\\Node::offset",
+    "hash": "8db408026b667af4",
+    "questions": [
+      "How do I get the byte position of a code part?",
+      "Cut the source text of one function out of a file",
+      "Find which part of the code an editor cursor is on",
+      "Byte offset where a statement starts in the source"
+    ]
+  },
+  "/reference/core/attributes/": {
+    "feature": "Core\\Attributes",
+    "hash": "c3739f5e113a87a8",
+    "questions": [
+      "How do I read attributes on a class or method?",
+      "Read annotations written on code at compile time",
+      "What are attributes and how do I use them?",
+      "Get metadata attached to a property or parameter"
+    ]
+  },
+  "/reference/core/attributes/all/": {
+    "feature": "Core\\Attributes::all",
+    "hash": "b041ac54e19237f0",
+    "questions": [
+      "How do I get every attribute on a class?",
+      "Read several attributes of the same type from one method",
+      "List all permissions declared on a method",
+      "Get all validation rules on a property"
+    ]
+  },
+  "/reference/core/attributes/get/": {
+    "feature": "Core\\Attributes::get",
+    "hash": "60b32e15b328d5d9",
+    "questions": [
+      "How do I read one attribute from a parameter?",
+      "Get a single annotation value, or null if it is missing",
+      "Read a setting attached to a class with a default",
+      "Check if a method has a certain attribute"
+    ]
+  },
+  "/reference/core/bigint/": {
+    "feature": "Core\\BigInt",
+    "hash": "a5c8b87a7a7ae8b4",
+    "questions": [
+      "How do I work with numbers too large for an integer?",
+      "Arbitrary precision whole number math",
+      "How do I avoid integer overflow with very big numbers?",
+      "Calculate with integers that have hundreds of digits",
+      "What type holds a whole number of any size?"
+    ]
+  },
+  "/reference/core/bigint/abs/": {
+    "feature": "Core\\BigInt::abs",
+    "hash": "19e138617890ddef",
+    "questions": [
+      "How do I get the absolute value of a big number?",
+      "Remove the minus sign from a very large integer",
+      "Make a negative big integer positive",
+      "How far apart are two huge numbers?"
+    ]
+  },
+  "/reference/core/bigint/add/": {
+    "feature": "Core\\BigInt::add",
+    "hash": "49c9ea9fbd732d28",
+    "questions": [
+      "How do I add two very large numbers?",
+      "Sum big integers without overflow",
+      "Keep a running total that may grow past the integer limit",
+      "Why does plus not work on big integers?"
+    ]
+  },
+  "/reference/core/bigint/compareto/": {
+    "feature": "Core\\BigInt::compareTo",
+    "hash": "44980a72482a1f3f",
+    "questions": [
+      "How do I compare two big integers?",
+      "Which of two huge numbers is larger?",
+      "Check if two big numbers are equal",
+      "Sort a list of very large integers",
+      "Three-way comparison of arbitrary size numbers"
+    ]
+  },
+  "/reference/core/bigint/div/": {
+    "feature": "Core\\BigInt::div",
+    "hash": "7a016179969b5dce",
+    "questions": [
+      "How do I divide two very large integers?",
+      "Integer division of big numbers without the fraction",
+      "Divide huge numbers and round toward zero",
+      "Get the quotient of two big integers"
+    ]
+  },
+  "/reference/core/bigint/format/": {
+    "feature": "Core\\BigInt::format",
+    "hash": "3ff6bed80b34ae41",
+    "questions": [
+      "How do I convert a big integer to hexadecimal?",
+      "Write a large number in binary or another base",
+      "Print a big integer in base 36",
+      "Turn a huge number into a short text string for a URL",
+      "How do I store a big number as hex text?"
+    ]
+  },
+  "/reference/core/bigint/gcd/": {
+    "feature": "Core\\BigInt::gcd",
+    "hash": "150af6d48e513faa",
+    "questions": [
+      "How do I find the greatest common divisor of two numbers?",
+      "Reduce a fraction to its simplest form",
+      "Largest number that divides both values exactly",
+      "Greatest common factor of very large integers"
+    ]
+  },
+  "/reference/core/bigint/lcm/": {
+    "feature": "Core\\BigInt::lcm",
+    "hash": "44bcd1972e37b086",
+    "questions": [
+      "How do I find the least common multiple of two numbers?",
+      "Smallest number both values divide into",
+      "When do two repeating events happen together?",
+      "Lowest common multiple of large integers"
+    ]
+  },
+  "/reference/core/bigint/mod/": {
+    "feature": "Core\\BigInt::mod",
+    "hash": "d42388395eab1118",
+    "questions": [
+      "How do I get the remainder of a big integer division?",
+      "Modulo of very large numbers",
+      "What is left over when dividing huge integers?",
+      "Check if a big number is divisible by another"
+    ]
+  },
+  "/reference/core/bigint/mul/": {
+    "feature": "Core\\BigInt::mul",
+    "hash": "1a3eb0d081059f0d",
+    "questions": [
+      "How do I multiply two very large numbers?",
+      "Multiply big integers without overflow",
+      "Calculate a factorial that grows past the integer limit",
+      "Product of huge whole numbers"
+    ]
+  },
+  "/reference/core/bigint/neg/": {
+    "feature": "Core\\BigInt::neg",
+    "hash": "e808744f7135e1da",
+    "questions": [
+      "How do I flip the sign of a big integer?",
+      "Negate a very large number",
+      "Turn a positive big number into a negative one",
+      "Unary minus on an arbitrary size integer"
+    ]
+  },
+  "/reference/core/bigint/of/": {
+    "feature": "Core\\BigInt::of",
+    "hash": "43c03b31169c6655",
+    "questions": [
+      "How do I create a big integer from a regular int?",
+      "Convert an integer to an arbitrary precision number",
+      "Start a big number calculation from an int value",
+      "Wrap an int so it can grow without overflow"
+    ]
+  },
+  "/reference/core/bigint/ofuint/": {
+    "feature": "Core\\BigInt::ofUint",
+    "hash": "0dd2c8d092ce33f1",
+    "questions": [
+      "How do I create a big integer from an unsigned int?",
+      "Convert a uint larger than the int maximum to a big number",
+      "Turn a byte count or unsigned ID into a big integer",
+      "Big number from an unsigned 64-bit value"
+    ]
+  },
+  "/reference/core/bigint/parse/": {
+    "feature": "Core\\BigInt::parse",
+    "hash": "a58903e11e4db59d",
+    "questions": [
+      "How do I convert a string of digits to a big integer?",
+      "Read a very long number from text",
+      "Parse a hexadecimal string into a large number",
+      "Convert a number in JSON text to an arbitrary size integer",
+      "Read a number written in binary or base 36"
+    ]
+  },
+  "/reference/core/bigint/pow/": {
+    "feature": "Core\\BigInt::pow",
+    "hash": "83728d109eeb8ebf",
+    "questions": [
+      "How do I raise a big number to a power?",
+      "Calculate 2 to the power of 1000",
+      "Exponent of a very large integer",
+      "Compute huge powers exactly"
+    ]
+  },
+  "/reference/core/bigint/powmod/": {
+    "feature": "Core\\BigInt::powMod",
+    "hash": "70a9a381b2bf0601",
+    "questions": [
+      "How do I compute a power modulo a number?",
+      "Modular exponentiation for very large numbers",
+      "Raise to a huge power and take the remainder",
+      "Math for RSA or Diffie-Hellman key exchange",
+      "Fast power mod without building the full number"
+    ]
+  },
+  "/reference/core/bigint/shl/": {
+    "feature": "Core\\BigInt::shl",
+    "hash": "b89285f6ec1eea83",
+    "questions": [
+      "How do I shift a big integer left by some bits?",
+      "Multiply a large number by a power of two",
+      "Bit shift left on an arbitrary size integer",
+      "Why does the left shift operator not work on big numbers?"
+    ]
+  },
+  "/reference/core/bigint/shr/": {
+    "feature": "Core\\BigInt::shr",
+    "hash": "ceaf8f06f346db44",
+    "questions": [
+      "How do I shift a big integer right by some bits?",
+      "Divide a large number by a power of two and round down",
+      "Bit shift right on an arbitrary size integer",
+      "Drop the lowest bits of a huge number"
+    ]
+  },
+  "/reference/core/bigint/sign/": {
+    "feature": "Core\\BigInt::sign",
+    "hash": "56b25e8099bf8019",
+    "questions": [
+      "How do I check if a big integer is negative?",
+      "Is a very large number positive, negative or zero?",
+      "Get the sign of a big number",
+      "Test whether a big integer is zero"
+    ]
+  },
+  "/reference/core/bigint/sqrt/": {
+    "feature": "Core\\BigInt::sqrt",
+    "hash": "51e76ea00b8687a4",
+    "questions": [
+      "How do I get the square root of a big integer?",
+      "Integer square root of a very large number",
+      "Check if a huge number is a perfect square",
+      "Square root rounded down to a whole number"
+    ]
+  },
+  "/reference/core/bigint/sub/": {
+    "feature": "Core\\BigInt::sub",
+    "hash": "ea2914d8ae4d923b",
+    "questions": [
+      "How do I subtract two very large numbers?",
+      "Difference between two big integers",
+      "Take one huge number away from another",
+      "Why does minus not work on big integers?"
+    ]
+  },
+  "/reference/core/bigint/todecimal/": {
+    "feature": "Core\\BigInt::toDecimal",
+    "hash": "c709eb90c36da691",
+    "questions": [
+      "How do I convert a big integer to a decimal?",
+      "Use a large whole number in money calculations",
+      "Turn a big number into an exact decimal value",
+      "Continue big integer math with decimal division"
+    ]
+  },
+  "/reference/core/bigint/toint/": {
+    "feature": "Core\\BigInt::toInt",
+    "hash": "94c5016831453e23",
+    "questions": [
+      "How do I convert a big integer back to a regular int?",
+      "Get an int from a large number if it fits",
+      "Check whether a big number fits in an integer",
+      "Narrow an arbitrary size integer to 64 bits safely"
+    ]
+  },
+  "/reference/core/bigint/tostring/": {
+    "feature": "Core\\BigInt::toString",
+    "hash": "e0c18cdb5a3d3b40",
+    "questions": [
+      "How do I convert a big integer to a string?",
+      "Print a very large number with all its digits",
+      "Echo a big number in decimal",
+      "Count how many digits a huge number has"
+    ]
+  },
+  "/reference/core/bigint/touint/": {
+    "feature": "Core\\BigInt::toUint",
+    "hash": "48bbd60ce307ba16",
+    "questions": [
+      "How do I convert a big integer to an unsigned int?",
+      "Get a uint from a large number if it fits",
+      "Turn a big number into a 64-bit unsigned ID",
+      "Convert a big count back to a non-negative integer"
+    ]
+  },
+  "/reference/core/budget/": {
+    "feature": "Core\\Budget",
+    "hash": "22d887180cef2b3d",
+    "questions": [
+      "How much memory is my request using?",
+      "Check memory usage and memory limit of a request",
+      "How do I monitor memory in my program?",
+      "Measure memory used by one request, not the whole server"
+    ]
+  },
+  "/reference/core/budget/memoryheld/": {
+    "feature": "Core\\Budget::memoryHeld",
+    "hash": "0de296461ebf7344",
+    "questions": [
+      "How do I get the current memory usage?",
+      "How much memory does my code use right now?",
+      "Measure how much memory a piece of work costs",
+      "Bytes of memory currently in use by this request"
+    ]
+  },
+  "/reference/core/budget/memorylimit/": {
+    "feature": "Core\\Budget::memoryLimit",
+    "hash": "9b8b34915ea16fe9",
+    "questions": [
+      "What is the maximum memory my program may use?",
+      "How do I read the memory limit?",
+      "How much memory room is left before the limit?",
+      "Check if the request has no memory limit"
+    ]
+  },
+  "/reference/core/budget/memorypeak/": {
+    "feature": "Core\\Budget::memoryPeak",
+    "hash": "c4ff47b17d328df2",
+    "questions": [
+      "How do I get the peak memory usage?",
+      "Highest memory used at any point during a request",
+      "Find requests that come close to the memory limit",
+      "Maximum memory used so far, even after it was freed"
+    ]
+  },
+  "/reference/core/bytes/": {
+    "feature": "Core\\Bytes",
+    "hash": "d92644518e9446a6",
+    "questions": [
+      "How do I work with binary data?",
+      "Read and build raw byte buffers",
+      "Search and compare binary strings",
+      "What can I do with a byte string?",
+      "Functions for handling bytes instead of text"
+    ]
+  },
+  "/reference/core/bytes/at/": {
+    "feature": "Core\\Bytes::at",
+    "hash": "be3492db963e1256",
+    "questions": [
+      "How do I read one byte at a position as a number?",
+      "Get the numeric value of a byte in a buffer",
+      "Read the last byte of binary data",
+      "Check the first byte of a file against a known value"
+    ]
+  },
+  "/reference/core/bytes/compare/": {
+    "feature": "Core\\Bytes::compare",
+    "hash": "71821895003f22c9",
+    "questions": [
+      "How do I compare two binary buffers?",
+      "Sort binary keys in byte order",
+      "Which of two byte strings comes first?",
+      "Check if a binary key falls between two boundaries"
+    ]
+  },
+  "/reference/core/bytes/contains/": {
+    "feature": "Core\\Bytes::contains",
+    "hash": "0875078ac2c4a268",
+    "questions": [
+      "How do I check if binary data contains a byte sequence?",
+      "Does a buffer include certain bytes?",
+      "Search for a pattern anywhere in raw bytes",
+      "Test whether bytes appear inside a binary value"
+    ]
+  },
+  "/reference/core/bytes/endswith/": {
+    "feature": "Core\\Bytes::endsWith",
+    "hash": "5b2d3b6213126818",
+    "questions": [
+      "How do I check if binary data ends with certain bytes?",
+      "Does a buffer end with a newline or terminator?",
+      "Check whether a received chunk ends on a complete record",
+      "Test the last bytes of a binary value"
+    ]
+  },
+  "/reference/core/bytes/fill/": {
+    "feature": "Core\\Bytes::fill",
+    "hash": "1af3c4dcfffc13af",
+    "questions": [
+      "How do I create a buffer of zero bytes?",
+      "Make binary data of one byte repeated",
+      "Pad a record to a fixed size with a byte",
+      "Allocate a block of bytes all set to the same value"
+    ]
+  },
+  "/reference/core/bytes/indexof/": {
+    "feature": "Core\\Bytes::indexOf",
+    "hash": "1c3160fc6570b787",
+    "questions": [
+      "How do I find the position of bytes in a buffer?",
+      "Locate a byte sequence in binary data",
+      "Where does a delimiter first appear in raw bytes?",
+      "Search binary data starting from an offset"
+    ]
+  },
+  "/reference/core/bytes/join/": {
+    "feature": "Core\\Bytes::join",
+    "hash": "b195b3d3d7cc5c7c",
+    "questions": [
+      "How do I join several binary buffers into one?",
+      "Concatenate byte chunks with a separator",
+      "Put the pieces of a body back together",
+      "Combine a list of bytes values"
+    ]
+  },
+  "/reference/core/bytes/length/": {
+    "feature": "Core\\Bytes::length",
+    "hash": "cbb4c7af4e321254",
+    "questions": [
+      "How do I get the size of binary data in bytes?",
+      "Count the bytes in a buffer",
+      "Check that an upload is under a size limit",
+      "Byte length of a value, not character count"
+    ]
+  },
+  "/reference/core/bytes/pack/": {
+    "feature": "Core\\Bytes::pack",
+    "hash": "02ae91ffab80a3ae",
+    "questions": [
+      "How do I write numbers into a binary format?",
+      "Build a binary network message header",
+      "Encode an integer as 4 bytes big endian",
+      "Convert values to a fixed binary layout",
+      "Write little endian numbers into bytes"
+    ]
+  },
+  "/reference/core/bytes/repeat/": {
+    "feature": "Core\\Bytes::repeat",
+    "hash": "38e68462e31ff4a5",
+    "questions": [
+      "How do I repeat binary data several times?",
+      "Build a buffer from copies of a byte pattern",
+      "Make a test body of a fixed size",
+      "Repeat a multi-byte sequence n times"
+    ]
+  },
+  "/reference/core/bytes/slice/": {
+    "feature": "Core\\Bytes::slice",
+    "hash": "968633b2ce075595",
+    "questions": [
+      "How do I take part of a binary buffer?",
+      "Cut bytes out of binary data by offset and length",
+      "Get the last few bytes of a buffer",
+      "Extract a section of raw bytes"
+    ]
+  },
+  "/reference/core/bytes/startswith/": {
+    "feature": "Core\\Bytes::startsWith",
+    "hash": "76d2375970c8fa60",
+    "questions": [
+      "How do I check if binary data starts with certain bytes?",
+      "Detect a file type from its magic number",
+      "Does a buffer begin with a given prefix?",
+      "Check the first bytes of a file header"
+    ]
+  },
+  "/reference/core/bytes/unpack/": {
+    "feature": "Core\\Bytes::unpack",
+    "hash": "865ced843ced2475",
+    "questions": [
+      "How do I read numbers out of binary data?",
+      "Decode a binary network message header",
+      "Parse fields from a fixed binary layout",
+      "Read a big endian integer from bytes",
+      "Turn raw bytes back into numbers and text"
+    ]
+  },
+  "/reference/core/cache/": {
+    "feature": "Core\\Cache",
+    "hash": "9509d5d6e6f422ba",
+    "questions": [
+      "How do I cache values between requests?",
+      "Which cache should I use?",
+      "Keep data in memory across requests",
+      "Use Redis or an in-memory cache"
+    ]
+  },
+  "/reference/core/cache/local/": {
+    "feature": "Core\\Cache::local",
+    "hash": "b8df0a36806ffee0",
+    "questions": [
+      "Fastest cache with no network, per CPU core",
+      "How do I cache a value in this core's memory?",
+      "Cache data that can be rebuilt at any time",
+      "In-memory cache without locks for one worker"
+    ]
+  },
+  "/reference/core/cache/process/": {
+    "feature": "Core\\Cache::process",
+    "hash": "a4bf97d3acb8e201",
+    "questions": [
+      "How do I cache data for the whole server?",
+      "Share cached values between all cores of one server",
+      "In-memory cache that every request on this machine sees",
+      "Fetch a slow result once and reuse it in every request"
+    ]
+  },
+  "/reference/core/cache/shared/": {
+    "feature": "Core\\Cache::shared",
+    "hash": "38ae75f1b8ef5ac6",
+    "questions": [
+      "How do I use Redis as a cache?",
+      "Share a cache between several server machines",
+      "Configure an external cache store",
+      "Cache that every machine sees with the same value",
+      "What happens when the cache server is down?"
+    ]
+  },
+  "/reference/core/cache-secretentry/": {
+    "feature": "Core\\Cache\\SecretEntry",
+    "hash": "2b4de42e88fac836",
+    "questions": [
+      "How do I return a secret with its expiry time?",
+      "Store a token together with how long it is valid",
+      "What does the fill function for a cached secret return?",
+      "A secret value and its lifetime"
+    ]
+  },
+  "/reference/core/cache-secretentry/of/": {
+    "feature": "Core\\Cache\\SecretEntry::of",
+    "hash": "3f9a2240751d5872",
+    "questions": [
+      "How do I create a cached secret with an expiry time?",
+      "Use the token endpoint's expiry as the cache lifetime",
+      "Build the entry returned when fetching a missing secret",
+      "Pair an access token with how long it lasts"
+    ]
+  },
+  "/reference/core/cache-store/": {
+    "feature": "Core\\Cache\\Store",
+    "hash": "6c3cc8dd8f843f53",
+    "questions": [
+      "How do I save and read values in a cache?",
+      "Store and remove cached data by key",
+      "Methods for reading and writing a cache",
+      "Does changing a value change the cached copy?"
+    ]
+  },
+  "/reference/core/cache-store/forget/": {
+    "feature": "Core\\Cache\\Store::forget",
+    "hash": "76f2a2aa874d97f3",
+    "questions": [
+      "How do I delete a value from the cache?",
+      "Remove a cached key",
+      "Clear a cached value after the data changed",
+      "How do I remove several cache keys?"
+    ]
+  },
+  "/reference/core/cache-store/get/": {
+    "feature": "Core\\Cache\\Store::get",
+    "hash": "f2ae7f1cfc7ac246",
+    "questions": [
+      "How do I read a value from the cache?",
+      "Get a cached value by key, or null if missing",
+      "Read from cache and build the value when it is missing",
+      "Get a cached value with the right type"
+    ]
+  },
+  "/reference/core/cache-store/getsecret/": {
+    "feature": "Core\\Cache\\Store::getSecret",
+    "hash": "8bf4a9f2160eb295",
+    "questions": [
+      "How do I read an encrypted secret from the cache?",
+      "Cache an access token and fetch it when missing",
+      "Read a secret value after rotating keys",
+      "Only fetch a token once while other requests wait"
+    ]
+  },
+  "/reference/core/cache-store/put/": {
+    "feature": "Core\\Cache\\Store::put",
+    "hash": "ce5d8ce8afd29552",
+    "questions": [
+      "How do I store a value in the cache?",
+      "Cache a value with an expiry time",
+      "Save data under a key for ten minutes",
+      "Replace a value already in the cache"
+    ]
+  },
+  "/reference/core/cache-store/putsecret/": {
+    "feature": "Core\\Cache\\Store::putSecret",
+    "hash": "e89e7297b7579789",
+    "questions": [
+      "How do I store a secret in the cache safely?",
+      "Encrypt a value before caching it",
+      "Cache a password or token with a key",
+      "Rotate encryption keys for cached secrets"
+    ]
+  },
+  "/reference/core/cap/": {
+    "feature": "Core\\Cap",
+    "hash": "653a27238c66438e",
+    "questions": [
+      "How do I check what my program is allowed to do?",
+      "Check permissions like file write or network access",
+      "Turn off a feature when a permission is missing",
+      "What are capabilities and how do I test them?"
+    ]
+  },
+  "/reference/core/cap/has/": {
+    "feature": "Core\\Cap::has",
+    "hash": "38aaa54d4fd01b4d",
+    "questions": [
+      "How do I check if my code may write files?",
+      "Is network access allowed for this program?",
+      "Test whether a permission is granted before using a feature",
+      "Skip an optional feature when access is not allowed",
+      "Check a capability name and get true or false"
+    ]
+  },
+  "/reference/core/cldr/": {
+    "feature": "Core\\Cldr",
+    "hash": "e416f3bb1e068c58",
+    "questions": [
+      "How do I write correct plural words in many languages?",
+      "Plural rules for translations",
+      "Choose between 1 file and 2 files in any language",
+      "Language rules for counts and positions"
+    ]
+  },
+  "/reference/core/cldr/ordinalcategory/": {
+    "feature": "Core\\Cldr::ordinalCategory",
+    "hash": "5fb08faeebb9b641",
+    "questions": [
+      "How do I add st, nd, rd or th to a number?",
+      "Write 1st, 2nd, 3rd in a translated message",
+      "Ordinal suffix for a ranking or place number",
+      "Which form does a position number take in a language?"
+    ]
+  },
+  "/reference/core/cldr/pluralcategory/": {
+    "feature": "Core\\Cldr::pluralCategory",
+    "hash": "1ee4c9cbb078ecef",
+    "questions": [
+      "How do I choose singular or plural for a count?",
+      "Show 1 message or 2 messages correctly",
+      "Pick the plural form of a word in Polish or other languages",
+      "Which plural form does a number need in a language?",
+      "Translate messages with the right plural form"
+    ]
+  },
+  "/reference/core/cli/": {
+    "feature": "Core\\Cli",
+    "hash": "655543a9280d7bb2",
+    "questions": [
+      "How do I write a command-line program?",
+      "Work with the terminal from a script",
+      "How do I ask the user questions in a terminal program?",
+      "Read the terminal size and colors",
+      "What tools are there for building CLI tools?"
+    ]
+  },
+  "/reference/core/cli/arguments/": {
+    "feature": "Core\\Cli::arguments",
+    "hash": "05dbc992030a893e",
+    "questions": [
+      "How do I read command-line arguments?",
+      "Get the words a program was started with",
+      "How do I read options passed to my script?",
+      "Access the raw list of arguments without the program name",
+      "Is a command-line argument safe to use as a file path?"
+    ]
+  },
+  "/reference/core/cli/ask/": {
+    "feature": "Core\\Cli::ask",
+    "hash": "f5a4e1a6eeb29a7f",
+    "questions": [
+      "How do I ask the user for input in the terminal?",
+      "Read a line of text typed by the user",
+      "Prompt for a value and ask again if it is invalid",
+      "How do I ask a question while reading piped input?",
+      "Give a prompt a default answer when no one is there"
+    ]
+  },
+  "/reference/core/cli/colordepth/": {
+    "feature": "Core\\Cli::colorDepth",
+    "hash": "222ffa06e1f0c984",
+    "questions": [
+      "How do I check if the terminal supports colors?",
+      "Find out how many colors the terminal can show",
+      "Does the terminal support 256 colors or true color?",
+      "Respect the NO_COLOR setting in my program",
+      "Turn off colors when output goes to a file"
+    ]
+  },
+  "/reference/core/cli/confirm/": {
+    "feature": "Core\\Cli::confirm",
+    "hash": "b3974f3fcc48dc8e",
+    "questions": [
+      "How do I ask a yes or no question in the terminal?",
+      "Ask the user to confirm before deleting files",
+      "Prompt \"Are you sure?\" before a risky action",
+      "Make Enter mean yes or no by default",
+      "Get true or false from a yes/no prompt"
+    ]
+  },
+  "/reference/core/cli/displaywidth/": {
+    "feature": "Core\\Cli::displayWidth",
+    "hash": "8fb0a0448278df30",
+    "questions": [
+      "How many columns does a string take in the terminal?",
+      "Measure text width with emoji and Chinese characters",
+      "How do I align table columns with wide characters?",
+      "Pad text so terminal columns line up",
+      "Count screen columns instead of characters"
+    ]
+  },
+  "/reference/core/cli/escape/": {
+    "feature": "Core\\Cli::escape",
+    "hash": "ef66bea91870d5ed",
+    "questions": [
+      "How do I remove control characters from text before printing?",
+      "Make user input safe to show in a terminal",
+      "Stop text from changing the terminal or moving the cursor",
+      "Show escape sequences as visible symbols",
+      "Get terminal-safe text as a string value"
+    ]
+  },
+  "/reference/core/cli/height/": {
+    "feature": "Core\\Cli::height",
+    "hash": "5c8332c5bb0e41ee",
+    "questions": [
+      "How do I get the terminal height?",
+      "How many lines fit on the screen?",
+      "Show only as many rows as fit in the window",
+      "Find the number of rows in the terminal window",
+      "Print output one screen page at a time"
+    ]
+  },
+  "/reference/core/cli/istty/": {
+    "feature": "Core\\Cli::isTty",
+    "hash": "93747dd913790239",
+    "questions": [
+      "How do I check if output goes to a terminal or a file?",
+      "Detect if my program's input is piped",
+      "Is standard output a terminal?",
+      "Skip prompts when nobody is at the keyboard",
+      "Check if the script runs interactively"
+    ]
+  },
+  "/reference/core/cli/live/": {
+    "feature": "Core\\Cli::live",
+    "hash": "6e656affb7f73e70",
+    "questions": [
+      "How do I update a line in place in the terminal?",
+      "Redraw several lines of status while work runs",
+      "Show changing output without scrolling the screen",
+      "How do I make a live status display for a CLI?",
+      "Refresh a block of terminal text in place"
+    ]
+  },
+  "/reference/core/cli/multiselect/": {
+    "feature": "Core\\Cli::multiSelect",
+    "hash": "1cc7f36d4fbff981",
+    "questions": [
+      "How do I let the user pick several options from a list?",
+      "Choose more than one item in a terminal menu",
+      "Ask the user to select multiple choices by number",
+      "Checkbox-style selection in a command-line program",
+      "Let the user choose none, one or many items"
+    ]
+  },
+  "/reference/core/cli/progress/": {
+    "feature": "Core\\Cli::progress",
+    "hash": "de15897957e4788e",
+    "questions": [
+      "How do I show a progress bar in the terminal?",
+      "Display progress while processing many files",
+      "Add a progress bar to a command-line tool",
+      "Show how much work is done out of a total",
+      "Progress bar with a caption for a long task"
+    ]
+  },
+  "/reference/core/cli/secret/": {
+    "feature": "Core\\Cli::secret",
+    "hash": "38d7d6b6c4c009d2",
+    "questions": [
+      "How do I ask for a password in the terminal?",
+      "Read a password without showing what is typed",
+      "Hide user input at a prompt",
+      "Prompt for an API key without echoing it",
+      "Ask for a new password twice and compare"
+    ]
+  },
+  "/reference/core/cli/select/": {
+    "feature": "Core\\Cli::select",
+    "hash": "46a1934a04116f59",
+    "questions": [
+      "How do I let the user pick one option from a list?",
+      "Show a numbered menu in the terminal",
+      "Ask the user to choose one item",
+      "Pick a value from a list of choices in a CLI",
+      "Choose one option with a default when Enter is pressed"
+    ]
+  },
+  "/reference/core/cli/width/": {
+    "feature": "Core\\Cli::width",
+    "hash": "103db0a2e434a3fe",
+    "questions": [
+      "How do I get the terminal width?",
+      "How many characters fit on one line of the screen?",
+      "Draw a line across the full terminal width",
+      "Shorten a long path so it fits the screen",
+      "Wrap text to the size of the terminal window"
+    ]
+  },
+  "/reference/core/cli/write/": {
+    "feature": "Core\\Cli::write",
+    "hash": "e98d5132c3043166",
+    "questions": [
+      "How do I print to standard error?",
+      "Write text without a newline",
+      "Send output to stdout or stderr",
+      "How do I print progress messages separate from results?",
+      "Print text to the terminal safely"
+    ]
+  },
+  "/reference/core/cli-color/": {
+    "feature": "Core\\Cli\\Color",
+    "hash": "9234d8ed24552448",
+    "questions": [
+      "How do I use colors in terminal output?",
+      "What colors can I use for terminal text?",
+      "Named terminal colors like red and green",
+      "Use colors that still work on simple terminals"
+    ]
+  },
+  "/reference/core/cli-color/index/": {
+    "feature": "Core\\Cli\\Color::index",
+    "hash": "2968b904db3a1d63",
+    "questions": [
+      "How do I use one of the 256 terminal colors?",
+      "Pick a terminal color by its number",
+      "Use a gray shade from the terminal palette",
+      "Color text with a palette index from 0 to 255"
+    ]
+  },
+  "/reference/core/cli-color/rgb/": {
+    "feature": "Core\\Cli\\Color::rgb",
+    "hash": "6de061ff09e3f201",
+    "questions": [
+      "How do I use an RGB color in the terminal?",
+      "Print text in a custom brand color",
+      "Set terminal text color from red, green and blue values",
+      "Use 24-bit true color in a CLI",
+      "Fade a color from red to green based on a number"
+    ]
+  },
+  "/reference/core/cli-live/": {
+    "feature": "Core\\Cli\\Live",
+    "hash": "a1f508c135b2d11e",
+    "questions": [
+      "What is a live region in the terminal?",
+      "An area of the screen that redraws while work runs",
+      "How do I control an in-place terminal display?",
+      "Handle for updating terminal output in place"
+    ]
+  },
+  "/reference/core/cli-live/set/": {
+    "feature": "Core\\Cli\\Live::set",
+    "hash": "4cd4aade2f5cc5db",
+    "questions": [
+      "How do I replace the lines shown in a live display?",
+      "Change the text of a status line that updates in place",
+      "Set the rows of a redrawn terminal area",
+      "Show a shrinking table of tasks as they finish",
+      "Update a colored status row in place"
+    ]
+  },
+  "/reference/core/cli-progress/": {
+    "feature": "Core\\Cli\\Progress",
+    "hash": "7fcedd82f1039fdf",
+    "questions": [
+      "What object controls a progress bar?",
+      "Progress bar handle in a command-line program",
+      "How do I move a progress bar forward?",
+      "Update a terminal progress bar from my code"
+    ]
+  },
+  "/reference/core/cli-progress/advance/": {
+    "feature": "Core\\Cli\\Progress::advance",
+    "hash": "7c2729c8572aa59b",
+    "questions": [
+      "How do I move a progress bar forward by one step?",
+      "Advance a progress bar by many units at once",
+      "Change the label next to a progress bar",
+      "Mark one more item as done on a progress bar",
+      "Show the current file name beside a progress bar"
+    ]
+  },
+  "/reference/core/cli-style/": {
+    "feature": "Core\\Cli\\Style",
+    "hash": "581981d364527a59",
+    "questions": [
+      "How do I make terminal text bold or underlined?",
+      "Text styles for terminal output",
+      "Combine color and bold for console text",
+      "Reusable formatting for CLI messages"
+    ]
+  },
+  "/reference/core/cli-style/of/": {
+    "feature": "Core\\Cli\\Style::of",
+    "hash": "8c46524bf96f37f4",
+    "questions": [
+      "How do I create a bold red text style?",
+      "Set foreground and background color for terminal text",
+      "Make text italic, dim or struck through in the terminal",
+      "Build a style once and reuse it for many lines",
+      "Underline a heading in console output"
+    ]
+  },
+  "/reference/core/cli-text/": {
+    "feature": "Core\\Cli\\Text",
+    "hash": "d9d5d8eba3955ec1",
+    "questions": [
+      "What kind of value holds colored terminal text?",
+      "Combine plain and colored pieces of terminal text",
+      "Terminal text with colors and styles",
+      "Join styled text parts into one line"
+    ]
+  },
+  "/reference/core/cli-text/plain/": {
+    "feature": "Core\\Cli\\Text::plain",
+    "hash": "4dd30ca2f877883a",
+    "questions": [
+      "How do I turn a string into safe terminal text?",
+      "Print a file name without letting it control the terminal",
+      "Make uncolored text to join with colored text",
+      "Create a row of text for a live display"
+    ]
+  },
+  "/reference/core/cli-text/styled/": {
+    "feature": "Core\\Cli\\Text::styled",
+    "hash": "25c975470ea9080c",
+    "questions": [
+      "How do I print colored text in the terminal?",
+      "Apply a style to a piece of text",
+      "Highlight a search match in a line of output",
+      "Color user input safely in console output",
+      "Print a success message in green"
+    ]
+  },
+  "/reference/core/cli-text/text/": {
+    "feature": "Core\\Cli\\Text::text",
+    "hash": "c253502e43ebd0b1",
+    "questions": [
+      "How do I get the plain string from colored terminal text?",
+      "Remove colors and styles from terminal text",
+      "Write the same line in color to screen and plain to a log",
+      "Strip formatting before measuring text width"
+    ]
+  },
+  "/reference/core/command/": {
+    "feature": "Core\\Command",
+    "hash": "93c4bd6beddaa389",
+    "questions": [
+      "How do I build a CLI with subcommands?",
+      "Declare commands and options for a command-line tool",
+      "Parse command-line options into typed parameters",
+      "Generate help pages for my program's commands",
+      "What is the easiest way to make a multi-command CLI?"
+    ]
+  },
+  "/reference/core/command/completions/": {
+    "feature": "Core\\Command::completions",
+    "hash": "eb0201b40b9ad740",
+    "questions": [
+      "How do I add tab completion for my CLI?",
+      "Generate a bash or zsh completion script",
+      "Shell autocomplete for command names and options",
+      "Create a fish or PowerShell completion file",
+      "Let the shell finish my program's commands with Tab"
+    ]
+  },
+  "/reference/core/command/help/": {
+    "feature": "Core\\Command::help",
+    "hash": "b23f0764cd2990e3",
+    "questions": [
+      "How do I print a usage page for my CLI?",
+      "Generate help text for a command automatically",
+      "Show the list of all commands my program has",
+      "Display the options of one subcommand",
+      "Make a --help page without writing it by hand"
+    ]
+  },
+  "/reference/core/command/run/": {
+    "feature": "Core\\Command::run",
+    "hash": "6e4de3f3491c7f91",
+    "questions": [
+      "How do I run the command the user typed?",
+      "Dispatch command-line arguments to a handler method",
+      "Call the right function for a subcommand",
+      "Get the exit code from a command handler",
+      "What happens when the user types an unknown command?"
+    ]
+  },
+  "/reference/core/compress/": {
+    "feature": "Core\\Compress",
+    "hash": "43da3fbe4a0889fb",
+    "questions": [
+      "How do I compress and decompress data?",
+      "Work with gzip, brotli or zstd data",
+      "Safely unpack compressed data from users",
+      "Protect the server against zip bombs",
+      "Which compression formats are supported?"
+    ]
+  },
+  "/reference/core/compress/compress/": {
+    "feature": "Core\\Compress::compress",
+    "hash": "3b31571bfca26b51",
+    "questions": [
+      "How do I gzip a string?",
+      "Compress data before sending it over the network",
+      "Make data smaller with brotli or zstd",
+      "Compress bytes in one call",
+      "Create a zlib or deflate compressed block"
+    ]
+  },
+  "/reference/core/compress/compressor/": {
+    "feature": "Core\\Compress::compressor",
+    "hash": "fa2eec222884d76d",
+    "questions": [
+      "How do I compress data that arrives in chunks?",
+      "Start a streaming gzip compression",
+      "Compress a large file piece by piece",
+      "Incremental compression for data I do not have all at once"
+    ]
+  },
+  "/reference/core/compress/decompress/": {
+    "feature": "Core\\Compress::decompress",
+    "hash": "c05f2eab8b2f0a6a",
+    "questions": [
+      "How do I decompress gzip data?",
+      "Unzip compressed bytes back to the original",
+      "Limit the size of decompressed output",
+      "How do I stop a decompression bomb?",
+      "Decompress a request body safely"
+    ]
+  },
+  "/reference/core/compress/decompressor/": {
+    "feature": "Core\\Compress::decompressor",
+    "hash": "baecfe4202a2d034",
+    "questions": [
+      "How do I decompress data that arrives in chunks?",
+      "Stream decompression of a download",
+      "Unpack a gzip body piece by piece with a size limit",
+      "Incremental decompression with a total size cap"
+    ]
+  },
+  "/reference/core/compress-compressor/": {
+    "feature": "Core\\Compress\\Compressor",
+    "hash": "3ad8f4693dd26c8f",
+    "questions": [
+      "What object compresses data in pieces?",
+      "Streaming compressor for gzip and other formats",
+      "How does a compression stream work?",
+      "Compress data in parts and get one result"
+    ]
+  },
+  "/reference/core/compress-compressor/add/": {
+    "feature": "Core\\Compress\\Compressor::add",
+    "hash": "3673c84fa5c1a37e",
+    "questions": [
+      "How do I add a chunk to a compression stream?",
+      "Feed more data to a streaming compressor",
+      "Append pieces of text before compressing them",
+      "Add data to compress one part at a time"
+    ]
+  },
+  "/reference/core/compress-compressor/finish/": {
+    "feature": "Core\\Compress\\Compressor::finish",
+    "hash": "57a79f68fd0227a4",
+    "questions": [
+      "How do I get the result of a streaming compression?",
+      "Finish a compression stream and get the bytes",
+      "Close a compressor and return the compressed data",
+      "End a gzip stream after the last chunk"
+    ]
+  },
+  "/reference/core/compress-decompressor/": {
+    "feature": "Core\\Compress\\Decompressor",
+    "hash": "bbfee158a0847aa0",
+    "questions": [
+      "What object decompresses data in pieces?",
+      "Streaming decompressor with a size limit",
+      "How does a decompression stream work?",
+      "Decompress chunked data without running out of memory"
+    ]
+  },
+  "/reference/core/compress-decompressor/add/": {
+    "feature": "Core\\Compress\\Decompressor::add",
+    "hash": "554b9e39ee39283a",
+    "questions": [
+      "How do I feed a chunk to a decompression stream?",
+      "Add part of a compressed download to a decompressor",
+      "Pass compressed pieces as they arrive",
+      "Add data to decompress one part at a time"
+    ]
+  },
+  "/reference/core/compress-decompressor/finish/": {
+    "feature": "Core\\Compress\\Decompressor::finish",
+    "hash": "d2bbb96f3a147876",
+    "questions": [
+      "How do I get the result of a streaming decompression?",
+      "Finish a decompression stream and get the original bytes",
+      "What happens when chunked compressed data is invalid?",
+      "Close a decompressor and check the size limit"
+    ]
+  },
+  "/reference/core/config/": {
+    "feature": "Core\\Config",
+    "hash": "a0a82f9d61796521",
+    "questions": [
+      "How do I read server configuration settings from my program?",
+      "Change a setting for one request only",
+      "Where do I access values from the configuration file?",
+      "Can my code override a config setting while it runs?",
+      "Work with runtime configuration settings"
+    ]
+  },
+  "/reference/core/config/all/": {
+    "feature": "Core\\Config::all",
+    "hash": "6f7bcdca26bbd0fb",
+    "questions": [
+      "How do I list every configuration setting in force?",
+      "Get all settings as one array",
+      "Dump the whole current configuration",
+      "Which config values is this request using right now?",
+      "See every setting name and its value"
+    ]
+  },
+  "/reference/core/config/get/": {
+    "feature": "Core\\Config::get",
+    "hash": "01c6eb98197e2a6e",
+    "questions": [
+      "How do I read one configuration setting by name?",
+      "Get the current memory limit value",
+      "Read a single value from the config file",
+      "What is the current log level setting?",
+      "Check the value of a setting for this request"
+    ]
+  },
+  "/reference/core/config/restore/": {
+    "feature": "Core\\Config::restore",
+    "hash": "b938dcfd99e83860",
+    "questions": [
+      "How do I undo a setting change I made?",
+      "Reset a setting back to the config file value",
+      "Put a changed limit back to its default",
+      "Revert a per-request configuration change",
+      "Restore the original value of a setting"
+    ]
+  },
+  "/reference/core/config/set/": {
+    "feature": "Core\\Config::set",
+    "hash": "a0536231ab245d87",
+    "questions": [
+      "How do I change a configuration setting at runtime?",
+      "Raise the memory limit for one request",
+      "Override a config value for this request only",
+      "Increase the time limit for a slow job",
+      "Why did changing a setting return false?"
+    ]
+  },
+  "/reference/core/crypto/": {
+    "feature": "Core\\Crypto",
+    "hash": "5353fc7f993f3e22",
+    "questions": [
+      "How do I encrypt data safely?",
+      "Encryption, signing and key derivation tools",
+      "Which cryptography functions are built in?",
+      "Sign and verify messages with public keys",
+      "Protect data with a secret key"
+    ]
+  },
+  "/reference/core/crypto/agree/": {
+    "feature": "Core\\Crypto::agree",
+    "hash": "c4f9016f61377998",
+    "questions": [
+      "How do I create a shared secret with another server?",
+      "Key exchange using my key pair and their public key",
+      "Agree on a secret without sending it over the network",
+      "Do a Diffie-Hellman key exchange",
+      "Get the same secret on both sides of a connection"
+    ]
+  },
+  "/reference/core/crypto/derivekey/": {
+    "feature": "Core\\Crypto::deriveKey",
+    "hash": "6818ffe12c99e774",
+    "questions": [
+      "How do I turn a password into an encryption key?",
+      "Derive a key from a user password with a salt",
+      "Stretch a password with many rounds",
+      "Encrypt data with a key based on a passphrase",
+      "How many iterations should password key derivation use?"
+    ]
+  },
+  "/reference/core/crypto/expandkey/": {
+    "feature": "Core\\Crypto::expandKey",
+    "hash": "b5337119845c58a7",
+    "questions": [
+      "How do I make several keys from one shared secret?",
+      "Derive a key from random material with a context label",
+      "Turn a key exchange result into an encryption key",
+      "Create separate keys for different purposes from one root key",
+      "Expand a master key into sub keys"
+    ]
+  },
+  "/reference/core/crypto/generatekey/": {
+    "feature": "Core\\Crypto::generateKey",
+    "hash": "cd7db82f74ea1726",
+    "questions": [
+      "How do I generate a random encryption key?",
+      "Create a new secret key for encrypting data",
+      "Make a 32 byte random key",
+      "Generate a symmetric key",
+      "Get a fresh key nobody has to remember"
+    ]
+  },
+  "/reference/core/crypto/generatekeypair/": {
+    "feature": "Core\\Crypto::generateKeyPair",
+    "hash": "4db61a27c7ddd782",
+    "questions": [
+      "How do I generate a public and private key pair?",
+      "Create a new Ed25519 signing key",
+      "Make a key pair for signing or key exchange",
+      "Generate an elliptic curve private key",
+      "Create keys for digital signatures"
+    ]
+  },
+  "/reference/core/crypto/open/": {
+    "feature": "Core\\Crypto::open",
+    "hash": "168fb283915c57f6",
+    "questions": [
+      "How do I decrypt a message encrypted with a key?",
+      "Decrypt data and check nobody changed it",
+      "Why does decrypting my message throw an error?",
+      "Read back encrypted data with the same key",
+      "Detect tampered ciphertext when decrypting"
+    ]
+  },
+  "/reference/core/crypto/seal/": {
+    "feature": "Core\\Crypto::seal",
+    "hash": "87c4d5d49648b068",
+    "questions": [
+      "How do I encrypt a message with a secret key?",
+      "Encrypt data so nobody can change it",
+      "Authenticated encryption with AES-GCM or ChaCha20",
+      "Encrypt a string so a browser can decrypt it",
+      "Encrypt without choosing an IV or padding"
+    ]
+  },
+  "/reference/core/crypto/sign/": {
+    "feature": "Core\\Crypto::sign",
+    "hash": "62b7185ac7e39421",
+    "questions": [
+      "How do I digitally sign a message?",
+      "Create a signature with my private key",
+      "Sign data so others can prove I sent it",
+      "Make an ECDSA or Ed25519 signature",
+      "Sign a payload with an RSA key"
+    ]
+  },
+  "/reference/core/crypto/verify/": {
+    "feature": "Core\\Crypto::verify",
+    "hash": "23992da99f21ef56",
+    "questions": [
+      "How do I check a digital signature?",
+      "Verify a signed message with a public key",
+      "Was this message signed by the right sender?",
+      "Check that signed data was not changed",
+      "Validate an RSA or Ed25519 signature"
+    ]
+  },
+  "/reference/core/crypto-keypair/": {
+    "feature": "Core\\Crypto\\KeyPair",
+    "hash": "d7dc343b4401f543",
+    "questions": [
+      "What is a key pair object?",
+      "Work with a private key and its public key",
+      "Store and load my own private key",
+      "Private key for signing and key exchange"
+    ]
+  },
+  "/reference/core/crypto-keypair/publickey/": {
+    "feature": "Core\\Crypto\\KeyPair::publicKey",
+    "hash": "dc35f736fd56a258",
+    "questions": [
+      "How do I get the public key from a private key?",
+      "Extract the public half of a key pair",
+      "Which key do I send to the other side?",
+      "Share my public key so others can verify signatures"
+    ]
+  },
+  "/reference/core/crypto-keypair/read/": {
+    "feature": "Core\\Crypto\\KeyPair::read",
+    "hash": "16cb78de16f0b6e6",
+    "questions": [
+      "How do I load a private key from a PEM file?",
+      "Read a PKCS#8 private key",
+      "Load a service account private key",
+      "Import an RSA private key for signing",
+      "Why does loading my encrypted private key file fail?"
+    ]
+  },
+  "/reference/core/crypto-keypair/write/": {
+    "feature": "Core\\Crypto\\KeyPair::write",
+    "hash": "5db99a97a64a173c",
+    "questions": [
+      "How do I save a private key to a file?",
+      "Export a private key as bytes",
+      "Keep my key pair across server restarts",
+      "Write a private key in PKCS#8 format"
+    ]
+  },
+  "/reference/core/crypto-publickey/": {
+    "feature": "Core\\Crypto\\PublicKey",
+    "hash": "5bdec467126b079b",
+    "questions": [
+      "What is a public key object?",
+      "Use a public key another server sent me",
+      "Work with public keys for checking signatures",
+      "Handle the public half of a key pair"
+    ]
+  },
+  "/reference/core/crypto-publickey/kind/": {
+    "feature": "Core\\Crypto\\PublicKey::kind",
+    "hash": "21204595618784b3",
+    "questions": [
+      "How do I find out what type a public key is?",
+      "Is this key Ed25519, P-256 or RSA?",
+      "Check the algorithm of a public key",
+      "Can this key verify signatures or only do key exchange?"
+    ]
+  },
+  "/reference/core/crypto-publickey/read/": {
+    "feature": "Core\\Crypto\\PublicKey::read",
+    "hash": "d400c62cac6da16c",
+    "questions": [
+      "How do I load a public key from a JWK?",
+      "Import a public key sent by a browser",
+      "Read a public key in SPKI format",
+      "Parse and validate a received public key",
+      "Load an RSA public key to check signatures"
+    ]
+  },
+  "/reference/core/crypto-publickey/write/": {
+    "feature": "Core\\Crypto\\PublicKey::write",
+    "hash": "f4f4f0038e96f22f",
+    "questions": [
+      "How do I export a public key as JSON Web Key?",
+      "Send my public key to a browser",
+      "Convert a public key to SPKI bytes",
+      "Export a public key in raw format",
+      "Save a public key so another program can read it"
+    ]
+  },
+  "/reference/core/csrf/": {
+    "feature": "Core\\Csrf",
+    "hash": "3cb92d6ca4bf7eb3",
+    "questions": [
+      "How do I protect forms against CSRF attacks?",
+      "Stop other sites from submitting forms as my user",
+      "Cross-site request forgery protection",
+      "Add anti-forgery tokens to forms"
+    ]
+  },
+  "/reference/core/csrf/issue/": {
+    "feature": "Core\\Csrf::issue",
+    "hash": "f93f0e23dd5000d2",
+    "questions": [
+      "How do I create a CSRF token for a form?",
+      "Generate an anti-forgery token for a session",
+      "Put a hidden security token in my form",
+      "Make a token to send in a request header"
+    ]
+  },
+  "/reference/core/csrf/verify/": {
+    "feature": "Core\\Csrf::verify",
+    "hash": "37e2f03307294682",
+    "questions": [
+      "How do I check a CSRF token from a form?",
+      "Validate the anti-forgery token on submit",
+      "Reject a request with a bad form token",
+      "Is this submitted token valid for the session?"
+    ]
+  },
+  "/reference/core/csv/": {
+    "feature": "Core\\Csv",
+    "hash": "1b10d1dcecc985c7",
+    "questions": [
+      "How do I work with CSV files?",
+      "Read and write comma separated values",
+      "Import and export spreadsheet data as CSV",
+      "Handle CSV with a header row or semicolons"
+    ]
+  },
+  "/reference/core/csv/format/": {
+    "feature": "Core\\Csv::format",
+    "hash": "a95e56cd0a19c26f",
+    "questions": [
+      "How do I write an array of rows as CSV?",
+      "Export data to a CSV string",
+      "Create a CSV file with a header row",
+      "Turn rows into text a spreadsheet can open",
+      "Quote fields with commas when writing CSV"
+    ]
+  },
+  "/reference/core/csv/parse/": {
+    "feature": "Core\\Csv::parse",
+    "hash": "02bd84eb1ad0f1f0",
+    "questions": [
+      "How do I parse a CSV string into an array?",
+      "Read rows from CSV text",
+      "Use the first CSV line as column names",
+      "Split CSV with semicolon as the separator",
+      "Convert CSV text to arrays of fields"
+    ]
+  },
+  "/reference/core/csv/rows/": {
+    "feature": "Core\\Csv::rows",
+    "hash": "aec1aca3d91b523c",
+    "questions": [
+      "How do I read a large CSV file line by line?",
+      "Loop over CSV records without loading the whole file",
+      "Stream rows from a CSV file",
+      "Read a CSV file bigger than memory",
+      "Process an open CSV file one record at a time"
+    ]
+  },
+  "/reference/core/db/": {
+    "feature": "Core\\Db",
+    "hash": "8cef9f558c1bc1c6",
+    "questions": [
+      "How do I connect to a database?",
+      "Work with MySQL, PostgreSQL or SQLite",
+      "Database access and safe queries",
+      "Open a database connection from my program"
+    ]
+  },
+  "/reference/core/db/connect/": {
+    "feature": "Core\\Db::connect",
+    "hash": "214ce783004f6909",
+    "questions": [
+      "How do I connect to the database named in my config?",
+      "Open a database connection without a password in code",
+      "Reuse the same database connection in a request",
+      "Get a database connection by name",
+      "Set a timeout when connecting to the database"
+    ]
+  },
+  "/reference/core/db/inlist/": {
+    "feature": "Core\\Db::inList",
+    "hash": "21bed5296e66dee2",
+    "questions": [
+      "How do I pass an array to a SQL IN clause?",
+      "Bind a list of ids to one placeholder",
+      "Query where id is in a list of values",
+      "Use NOT IN with a list safely",
+      "Avoid building question marks for IN by hand"
+    ]
+  },
+  "/reference/core/db/open/": {
+    "feature": "Core\\Db::open",
+    "hash": "bf8ea49515f5b665",
+    "questions": [
+      "How do I connect to a database with host and password?",
+      "Open a SQLite database file",
+      "Connect to a database chosen at runtime",
+      "Database connection for each customer or tenant",
+      "Connect to PostgreSQL with my own settings"
+    ]
+  },
+  "/reference/core/db/quoteidentifier/": {
+    "feature": "Core\\Db::quoteIdentifier",
+    "hash": "32ad13236b117afa",
+    "questions": [
+      "How do I safely use a table name from user input?",
+      "Validate a column name for a SQL query",
+      "Put a dynamic column name in an ORDER BY",
+      "Escape a table or column name",
+      "Prevent SQL injection in identifiers"
+    ]
+  },
+  "/reference/core/db-column/": {
+    "feature": "Core\\Db\\Column",
+    "hash": "d010d6d14b61edb2",
+    "questions": [
+      "How do I get column information from a query result?",
+      "Read the metadata of result columns",
+      "Describe the columns a query returns",
+      "Find column names and types of a result"
+    ]
+  },
+  "/reference/core/db-column/name/": {
+    "feature": "Core\\Db\\Column::name",
+    "hash": "2ca18d063562b8d2",
+    "questions": [
+      "How do I get the column names of a query result?",
+      "Print table headings from a SQL result",
+      "Read a column alias from a query",
+      "List result columns even when no rows match"
+    ]
+  },
+  "/reference/core/db-column/nullable/": {
+    "feature": "Core\\Db\\Column::nullable",
+    "hash": "ab3b119ec8ddfa86",
+    "questions": [
+      "How do I check if a result column can be NULL?",
+      "Can this database column be empty?",
+      "Find out if a column allows null values",
+      "Handle columns that may have no value"
+    ]
+  },
+  "/reference/core/db-column/type/": {
+    "feature": "Core\\Db\\Column::type",
+    "hash": "6b408b4700499729",
+    "questions": [
+      "How do I get the data type of a result column?",
+      "Is this query column an integer, text or date?",
+      "Check a column type the same way on every database",
+      "Find the declared SQL type of a column"
+    ]
+  },
+  "/reference/core/db-connection/": {
+    "feature": "Core\\Db\\Connection",
+    "hash": "d01ce25b743d91ff",
+    "questions": [
+      "How do I connect to a database and run SQL?",
+      "Work with an open database connection",
+      "How do I run queries and statements against a database?",
+      "What can I do with a database connection?",
+      "Talk to a SQL database from my program"
+    ]
+  },
+  "/reference/core/db-connection/close/": {
+    "feature": "Core\\Db\\Connection::close",
+    "hash": "8cce74ddfef5ad8b",
+    "questions": [
+      "How do I close a database connection early?",
+      "Give a database connection back to the pool before the request ends",
+      "Release the database connection when I am done with it",
+      "Free a database connection so other requests can use it",
+      "Is it an error to close a connection twice?"
+    ]
+  },
+  "/reference/core/db-connection/driver/": {
+    "feature": "Core\\Db\\Connection::driver",
+    "hash": "87e954271641f2b3",
+    "questions": [
+      "How do I find out which database system I am connected to?",
+      "Check if the connection is Postgres, MySQL or SQLite",
+      "Which kind of database does this connection use?",
+      "Run different SQL depending on the database type",
+      "Detect the database backend at runtime"
+    ]
+  },
+  "/reference/core/db-connection/execute/": {
+    "feature": "Core\\Db\\Connection::execute",
+    "hash": "95c203ff0eb15922",
+    "questions": [
+      "How do I insert a row into a database table?",
+      "Run an update or delete statement and get the number of changed rows",
+      "Get the id of the row I just inserted",
+      "How do I create a table with SQL?",
+      "Run a SQL statement with placeholder values safely",
+      "How many rows did my update change?"
+    ]
+  },
+  "/reference/core/db-connection/executemany/": {
+    "feature": "Core\\Db\\Connection::executeMany",
+    "hash": "29536ca1460d84cf",
+    "questions": [
+      "How do I insert many rows with one call?",
+      "Run the same statement once for each set of values",
+      "Bulk insert a list of records into a table",
+      "Batch write rows to a database",
+      "How do I import a list of records into a table quickly?"
+    ]
+  },
+  "/reference/core/db-connection/isopen/": {
+    "feature": "Core\\Db\\Connection::isOpen",
+    "hash": "4ea9a3a4f0840d5a",
+    "questions": [
+      "How do I check if a database connection is still open?",
+      "Was this connection already closed?",
+      "Test whether I can still use a database connection",
+      "Avoid an error from using a closed connection",
+      "Check the connection before a cleanup step writes to the database"
+    ]
+  },
+  "/reference/core/db-connection/query/": {
+    "feature": "Core\\Db\\Connection::query",
+    "hash": "b193bbdfa8582e86",
+    "questions": [
+      "How do I run a select query and get the rows?",
+      "Read rows from a database table",
+      "Run a SQL query with parameters",
+      "How do I fetch all results of a query into memory?",
+      "Prevent SQL injection when reading data",
+      "Loop over the results of a database query"
+    ]
+  },
+  "/reference/core/db-connection/queryas/": {
+    "feature": "Core\\Db\\Connection::queryAs",
+    "hash": "5bc02b7518f55b9c",
+    "questions": [
+      "How do I map query rows to objects of my class?",
+      "Read database rows straight into typed objects",
+      "Turn each result row into an instance of a class",
+      "Map table columns to class properties automatically",
+      "How do I get typed results from a select query?"
+    ]
+  },
+  "/reference/core/db-connection/serverversion/": {
+    "feature": "Core\\Db\\Connection::serverVersion",
+    "hash": "465ced7f7bb91c5a",
+    "questions": [
+      "How do I get the database server version?",
+      "Which version of the database am I connected to?",
+      "Check the database version before using a newer feature",
+      "Read the version string of PostgreSQL or MySQL",
+      "Find out the SQLite library version"
+    ]
+  },
+  "/reference/core/db-connection/stream/": {
+    "feature": "Core\\Db\\Connection::stream",
+    "hash": "3aedf73d94f37f6f",
+    "questions": [
+      "How do I read a huge query result without running out of memory?",
+      "Read rows one at a time from a large table",
+      "Process millions of rows with constant memory",
+      "Iterate over a big result set without loading it all",
+      "Unbuffered query for a large table"
+    ]
+  },
+  "/reference/core/db-connection/streamas/": {
+    "feature": "Core\\Db\\Connection::streamAs",
+    "hash": "6878d8765384d323",
+    "questions": [
+      "How do I read a large table as objects one row at a time?",
+      "Stream query results into typed objects without loading them all",
+      "Map rows of a big result to a class with low memory",
+      "Process a table larger than memory as class instances",
+      "Iterate over millions of rows as objects"
+    ]
+  },
+  "/reference/core/db-connection/transaction/": {
+    "feature": "Core\\Db\\Connection::transaction",
+    "hash": "62763db5c5906003",
+    "questions": [
+      "How do I run several queries in a database transaction?",
+      "Commit or roll back a group of database changes",
+      "All or nothing database writes",
+      "How do I roll back a transaction on error?",
+      "Use a savepoint inside a transaction",
+      "Retry a transaction after a deadlock"
+    ]
+  },
+  "/reference/core/db-plan/": {
+    "feature": "Core\\Db\\Plan",
+    "hash": "32d749c63e5e0b35",
+    "questions": [
+      "What changes would bring my database in line with the schema?",
+      "Preview a database migration before running it",
+      "List the differences between a schema and a database",
+      "How do I see a migration plan?"
+    ]
+  },
+  "/reference/core/db-plan/steps/": {
+    "feature": "Core\\Db\\Plan::steps",
+    "hash": "56b2d7d056cf2b89",
+    "questions": [
+      "How do I list each step of a migration plan?",
+      "Check if the database is already up to date with the schema",
+      "Read the changes a schema migration will make, in order",
+      "Is my database schema in sync?",
+      "Stop a deployment before a migration step that needs review"
+    ]
+  },
+  "/reference/core/db-plan-step/": {
+    "feature": "Core\\Db\\Plan\\Step",
+    "hash": "e0c0e860c783b03c",
+    "questions": [
+      "What does one step of a migration plan contain?",
+      "Inspect a single schema change before it runs",
+      "How risky is one database migration step?",
+      "Read the SQL and risk of a schema change"
+    ]
+  },
+  "/reference/core/db-plan-step/grade/": {
+    "feature": "Core\\Db\\Plan\\Step::grade",
+    "hash": "ac3d48061623a9d8",
+    "questions": [
+      "How do I tell if a migration step can lose data?",
+      "Check whether a schema change will lock a table",
+      "Is this database migration safe to run unattended?",
+      "Hold risky migration steps for a maintenance window",
+      "Find destructive steps in a schema plan"
+    ]
+  },
+  "/reference/core/db-plan-step/isrefused/": {
+    "feature": "Core\\Db\\Plan\\Step::isRefused",
+    "hash": "409d63df7568f051",
+    "questions": [
+      "Why does my migration not drop an old table?",
+      "Find tables in the database that the schema does not declare",
+      "How do I drop a column the schema no longer has?",
+      "Which migration steps will never run automatically?",
+      "Warn about leftover tables from an older release"
+    ]
+  },
+  "/reference/core/db-plan-step/reason/": {
+    "feature": "Core\\Db\\Plan\\Step::reason",
+    "hash": "086e1b96539a967c",
+    "questions": [
+      "Why is a migration step considered risky?",
+      "Get a readable explanation of a schema change",
+      "Show why a deployment stopped at a migration step",
+      "Write release notes describing database changes",
+      "Log a human explanation for each migration step"
+    ]
+  },
+  "/reference/core/db-plan-step/sql/": {
+    "feature": "Core\\Db\\Plan\\Step::sql",
+    "hash": "f4505c5b8e6d319e",
+    "questions": [
+      "How do I see the SQL a migration step will run?",
+      "Export migration SQL for a database admin to review",
+      "Run one schema change by hand",
+      "Save the whole migration as SQL to a file",
+      "Get the drop statement for an unused table"
+    ]
+  },
+  "/reference/core/db-row/": {
+    "feature": "Core\\Db\\Row",
+    "hash": "ecf4386f99fd92f8",
+    "questions": [
+      "How do I read column values from a query result row?",
+      "Get a typed value out of a database row",
+      "Read a column by name from a result row",
+      "What can I do with one row of a query?"
+    ]
+  },
+  "/reference/core/db-row/bool/": {
+    "feature": "Core\\Db\\Row::bool",
+    "hash": "032bbb7eba889ff8",
+    "questions": [
+      "How do I read a boolean column from the database?",
+      "Read a TINYINT(1) flag as true or false",
+      "Get a yes or no value from a row",
+      "Convert a 0 or 1 column to a boolean"
+    ]
+  },
+  "/reference/core/db-row/bytes/": {
+    "feature": "Core\\Db\\Row::bytes",
+    "hash": "b3f39468f0c8cf32",
+    "questions": [
+      "How do I read a BLOB column?",
+      "Read binary data such as an image from a database row",
+      "Get a BYTEA or BINARY column as bytes",
+      "Load a stored file or hash from the database"
+    ]
+  },
+  "/reference/core/db-row/date/": {
+    "feature": "Core\\Db\\Row::date",
+    "hash": "3a10b9b9a4174ffa",
+    "questions": [
+      "How do I read a DATE column from the database?",
+      "Get a calendar day such as a due date from a row",
+      "Read a birthday column without a time",
+      "Find rows whose date has passed"
+    ]
+  },
+  "/reference/core/db-row/decimal/": {
+    "feature": "Core\\Db\\Row::decimal",
+    "hash": "28fcc3c511796484",
+    "questions": [
+      "How do I read a money column without rounding errors?",
+      "Read a DECIMAL or NUMERIC column exactly",
+      "Get a price from the database as an exact number",
+      "Add up order totals stored as decimals"
+    ]
+  },
+  "/reference/core/db-row/float/": {
+    "feature": "Core\\Db\\Row::float",
+    "hash": "72862e9db4f8b1ae",
+    "questions": [
+      "How do I read a FLOAT or DOUBLE column?",
+      "Get a floating point number from a database row",
+      "Read a REAL column such as a temperature",
+      "Read a coordinate stored as a double"
+    ]
+  },
+  "/reference/core/db-row/get/": {
+    "feature": "Core\\Db\\Row::get",
+    "hash": "a989a4844313ec0b",
+    "questions": [
+      "How do I read a column when I do not know its type?",
+      "Get a raw column value from a row",
+      "Read any column and convert it myself",
+      "Copy rows between tables without knowing the column types"
+    ]
+  },
+  "/reference/core/db-row/has/": {
+    "feature": "Core\\Db\\Row::has",
+    "hash": "cc3db5fc8a84ce41",
+    "questions": [
+      "How do I check if a result row has a column?",
+      "Does this row contain a column with a given name?",
+      "Test a column name before reading it to avoid an error",
+      "Read only the columns a request asked for"
+    ]
+  },
+  "/reference/core/db-row/instant/": {
+    "feature": "Core\\Db\\Row::instant",
+    "hash": "ec14acb24665c467",
+    "questions": [
+      "How do I read a TIMESTAMPTZ column?",
+      "Read a timestamp with time zone from the database",
+      "Get the moment an order was paid from a row",
+      "Read a datetimeoffset column"
+    ]
+  },
+  "/reference/core/db-row/int/": {
+    "feature": "Core\\Db\\Row::int",
+    "hash": "5bdc55c190d73532",
+    "questions": [
+      "How do I read an integer column from a row?",
+      "Get a whole number such as an id or count from the database",
+      "Read an INT or BIGINT column",
+      "Use zero when an integer column is null"
+    ]
+  },
+  "/reference/core/db-row/string/": {
+    "feature": "Core\\Db\\Row::string",
+    "hash": "f1226ffc7f4b7d68",
+    "questions": [
+      "How do I read a text column from a database row?",
+      "Get a VARCHAR or TEXT value from a query result",
+      "Read a name column as a string",
+      "Read a JSON or ENUM column as text"
+    ]
+  },
+  "/reference/core/db-row/time/": {
+    "feature": "Core\\Db\\Row::time",
+    "hash": "a7ec4a222ed8f067",
+    "questions": [
+      "How do I read a TIME column?",
+      "Get a time of day such as opening hours from a row",
+      "Read an hour and minute value from the database",
+      "Find shops open at a given hour"
+    ]
+  },
+  "/reference/core/db-row/toarray/": {
+    "feature": "Core\\Db\\Row::toArray",
+    "hash": "d9e77ded4466e054",
+    "questions": [
+      "How do I convert a database row to an array?",
+      "Get all columns of a row as key value pairs",
+      "Return query rows as JSON",
+      "Print a row when I do not know its columns"
+    ]
+  },
+  "/reference/core/db-row/uint/": {
+    "feature": "Core\\Db\\Row::uint",
+    "hash": "be8798a21f725931",
+    "questions": [
+      "How do I read an UNSIGNED integer column?",
+      "Read a file size or count that is never negative",
+      "Get a non-negative whole number from a row",
+      "Read a BIGINT UNSIGNED value too large for a signed integer"
+    ]
+  },
+  "/reference/core/db-row/uuid/": {
+    "feature": "Core\\Db\\Row::uuid",
+    "hash": "335aab1b84fce9cc",
+    "questions": [
+      "How do I read a UUID column from the database?",
+      "Get a uniqueidentifier value from a row",
+      "Read a GUID primary key",
+      "Look up rows by a UUID that came in as text"
+    ]
+  },
+  "/reference/core/db-rows/": {
+    "feature": "Core\\Db\\Rows",
+    "hash": "5feab76ae3a12da9",
+    "questions": [
+      "What does a database query return?",
+      "Work with the full result of a select query",
+      "Loop over all rows a query returned",
+      "Read a query result held in memory"
+    ]
+  },
+  "/reference/core/db-rows/all/": {
+    "feature": "Core\\Db\\Rows::all",
+    "hash": "2d309a6e667a7e0b",
+    "questions": [
+      "How do I get all query results as an array?",
+      "Turn a result set into a list of rows",
+      "Pass every row of a query to another function",
+      "Read the rows of one query more than once"
+    ]
+  },
+  "/reference/core/db-rows/column/": {
+    "feature": "Core\\Db\\Rows::column",
+    "hash": "a3e90cb17ed78557",
+    "questions": [
+      "How do I get one column from every row as a list?",
+      "Get a list of ids from a query",
+      "Pluck a single column out of a result set",
+      "Read a column by its position in the result"
+    ]
+  },
+  "/reference/core/db-rows/columns/": {
+    "feature": "Core\\Db\\Rows::columns",
+    "hash": "088bbcbc75e06841",
+    "questions": [
+      "How do I list every column a query result has?",
+      "Read column types and nullability from a result",
+      "Describe all result columns at once, even with no rows",
+      "Write a CSV header row from a query"
+    ]
+  },
+  "/reference/core/db-rows/count/": {
+    "feature": "Core\\Db\\Rows::count",
+    "hash": "1300db0fb952be70",
+    "questions": [
+      "How do I count the rows a select returned?",
+      "How many results did my search find?",
+      "Check if a query returned no rows",
+      "Work out how many pages a result list needs"
+    ]
+  },
+  "/reference/core/db-rows/first/": {
+    "feature": "Core\\Db\\Rows::first",
+    "hash": "4c701351d129bb76",
+    "questions": [
+      "How do I get just the first row of a query?",
+      "Fetch a single record by id",
+      "Return null when a lookup finds nothing",
+      "Read one row from a result as my own class"
+    ]
+  },
+  "/reference/core/db-rows/value/": {
+    "feature": "Core\\Db\\Rows::value",
+    "hash": "0c1cb4eeb47bea8e",
+    "questions": [
+      "How do I get a single value from a query?",
+      "Read the result of select count(*)",
+      "Get the first column of the first row",
+      "Fetch one scalar value from the database"
+    ]
+  },
+  "/reference/core/db-schema/": {
+    "feature": "Core\\Db\\Schema",
+    "hash": "332db3a8c402b47b",
+    "questions": [
+      "How do I describe the tables my database should have?",
+      "Manage database migrations from a schema definition",
+      "Keep a database in sync with a declared schema",
+      "Compare my schema with the real database"
+    ]
+  },
+  "/reference/core/db-schema/applyincludingrisky/": {
+    "feature": "Core\\Db\\Schema::applyIncludingRisky",
+    "hash": "c14d8856476861f1",
+    "questions": [
+      "How do I run a migration that locks a table or rewrites data?",
+      "Apply schema changes even when they are not safe",
+      "Force a risky database migration to run",
+      "Run a migration step that is held back as unsafe"
+    ]
+  },
+  "/reference/core/db-schema/applysafe/": {
+    "feature": "Core\\Db\\Schema::applySafe",
+    "hash": "3def186ffa1f6b8e",
+    "questions": [
+      "How do I migrate a database on deploy?",
+      "Create missing tables and columns automatically",
+      "Apply only safe schema changes",
+      "Add a column to a table that already has rows",
+      "Run a migration that can never lose data"
+    ]
+  },
+  "/reference/core/db-schema/fromarray/": {
+    "feature": "Core\\Db\\Schema::fromArray",
+    "hash": "7acda36fc4aa405a",
+    "questions": [
+      "How do I define a database schema as an array?",
+      "Load a schema description from JSON",
+      "Declare tables, columns and indexes in code",
+      "Validate a schema definition before using it"
+    ]
+  },
+  "/reference/core/db-schema/planagainst/": {
+    "feature": "Core\\Db\\Schema::planAgainst",
+    "hash": "84f233738c35e0e3",
+    "questions": [
+      "How do I see what a migration would change without running it?",
+      "Compare a schema to a live database",
+      "Check on startup whether the database matches the schema",
+      "Dry run a database migration",
+      "Find the differences between my tables and the database"
+    ]
+  },
+  "/reference/core/db-schema/toarray/": {
+    "feature": "Core\\Db\\Schema::toArray",
+    "hash": "9c41fee7e2e76bf9",
+    "questions": [
+      "How do I export a schema to an array or JSON?",
+      "Save a database schema to a file",
+      "Compare two schema definitions for equality",
+      "Check that a stored schema file is still up to date"
+    ]
+  },
+  "/reference/core/str/": {
+    "feature": "Core\\Str",
+    "hash": "0b29d37afa80c854",
+    "questions": [
+      "How do I work with text and strings?",
+      "Search, cut and change the case of text",
+      "Functions for strings that handle emoji and accents",
+      "Measure, split and join strings",
+      "What string functions are available?"
     ]
   },
   "/reference/core/str/after/": {

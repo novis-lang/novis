@@ -1,5 +1,5 @@
 {
-  "state": "**Side goal `search-questions`: stage 2 is done.** `website/src/data/questions.json` has 95 entries for `Core\\Str` and `Core\\Arr` member pages, each `{ feature, hash, questions }` and stamped. `tools/nv/cmd/site.ts` has `questionSources`, `--check questions` (stale and broken fail, owed does not), `--questions --status | --owed [AREA] [--limit N] | --stamp URL...` and the wrap gate in `wrapProblems`; its module doc § *The questions* is the home of how they work. `rule:testing/website-pages-are-stamped` says questions are stamped as the page is. `Banner.astro` reads the new shape. The Astro build with the new banner is *not checked*: run `bun nv site --build` once before stage 3 lands much.\n\n`--questions --status` today: core 1031 owed, config 31, cli 25, pages 146, nothing stale. Under Git Bash, pass URLs with `MSYS_NO_PATHCONV=1` (playbook § *Running things*).",
+  "state": "**Side goal `search-questions`: stage 3 is under way.** `website/src/data/questions.json` has 299 stamped entries: every `Core\\Str` and `Core\\Arr` member page, both class pages, and every Core page from `ast` through `db-schema` alphabetically (`ast`, `ast-node`, `attributes`, `bigint`, `budget`, `bytes`, `cache*`, `cap`, `cldr`, `cli*`, `command`, `compress*`, `config`, `crypto*`, `csrf`, `csv`, `db`, `db-column`, `db-connection`, `db-plan*`, `db-row`, `db-rows`, `db-schema`). `tools/nv/cmd/site.ts` module doc § *The questions* is the home of how they work.\n\n`--questions --status` today: core 827 owed, config 31, cli 25, pages 146, nothing stale. `bun nv site --check questions` is green. Under Git Bash, pass URLs with `MSYS_NO_PATHCONV=1` (playbook § *Running things*).\n\nThe Astro build with the new banner is *not checked*: `bun nv site --build` fails at once because this worktree has no `website/node_modules`. Run `bun install` under `website/` once, then build.\n\nThe rustdoc gate is green: `bun nv verify --doc` passed after the `child_watch.rs`, `dispatch.rs` and `service.rs` link fixes.\n\nThe driver's three LDAP \"selection misses\" (`Ldap-Ad-AccountFlags/passwordExpired/01`, `passwordNeverExpires/01`, `Ldap-Connection/add/01`) are in the acceptance log's `diverged` list: the same tree gave a different exit code on two runs. They are flaky, they are not caused by this branch (it touches only `website/` and doc comments), and this session did not chase them. If they stay red on the next sweep, they need an owner on `main`.",
   "next": {
     "stage": 3,
     "title": "the Core reference",
@@ -9,13 +9,12 @@
     "items": [
       {
         "done": false,
-        "text": "**Questions for the Core classes after `Arr` and `Str`, alphabetically, as many per session as fit**: `bun nv site --questions --owed core --limit 40` prints what each page's questions are written from; four to six per page, at most 15 words, no other language's function names, then `--questions --stamp` each URL. Split classes over subagents, one class group each. The class pages themselves (`/reference/core/arr/`, `/reference/core/str/`) are owed too. Anchor: `website/src/data/questions.json:1`, the material from `tools/nv/cmd/site.ts:486`."
+        "text": "**Questions for the Core classes from `debug` onwards, alphabetically, as many per session as fit** (`rule:testing/website-pages-are-stamped`): dump `bun nv site --questions --owed core --limit 2000` to `.agent-tmp/`, split it into about five groups of 35 to 45 pages by class, and send one general-purpose subagent per group. Each writes `{ url: [questions] }` to its own scratch file. Read every file yourself, merge, then `--questions --stamp` the URLs. Four to six questions per page, at most 15 words, no other language's function names, no word from the user-text table (\"refused\" slipped in twice), no question repeated word for word on two pages. Next classes: `debug`, `decimal`, `encoding`, `env`, `fatal`, `hash`, `hash-stream`, `heap`, `html`, `http*`, `io*`, `json`, `jwe*`, `jwt*`, `ldap*`. Anchor: `website/src/data/questions.json:1`, the material from `tools/nv/cmd/site.ts:486`."
       }
     ]
   },
   "backlog": [
-    "Stage 4, configuration and CLI pages (`docs/agent/goals/side/search-questions.md` § Stage 4).",
-    "Stage 5, the handwritten pages (same, § Stage 5).",
-    "Stage 6, owed fails and the second measurement (same, § Stage 6); the switch is `questionProblems` in `tools/nv/cmd/site.ts`."
+    "Questions for `config` (31), `cli` (25) and `pages` (146) once core is done — the goal's later stages, `docs/agent/goals/side/search-questions.md`.",
+    "The blind-query measurement of two builds — goal's standing decisions."
   ]
 }
