@@ -3,9 +3,10 @@
 #
 #     bash tests/docker/smoke.sh <image> [port]
 #
-# It runs the image the ways `docs/docker.md` tells a user to: each CLI subcommand on `app/`, the
-# default command serving `app/main.nvs` under the hardened flags of the guide's Compose file, and
-# a `docker stop` while a request is still running, which must finish that request and exit 0. The
+# It runs the image the ways `docs/docker.md` tells a user to: with no command, which prints the
+# help and exits 0, each CLI subcommand on `app/`, `serve app/main.nvs` under the hardened flags of
+# the guide's Compose file, and a `docker stop` while a request is still running, which must finish
+# that request and exit 0. The
 # image is built by the caller -- `release.yml` before it pushes, `ci.yml`'s `docker` job on a change
 # to the image -- so this file only runs it. Exits non-zero if any check fails.
 set -u
@@ -30,6 +31,11 @@ docker image inspect "$image" --format 'user={{.Config.User}} stop={{.Config.Sto
 [ "$(docker image inspect "$image" --format '{{.Config.User}}')" = "nonroot:nonroot" ]; check $? "runs as nonroot"
 [ "$(docker image inspect "$image" --format '{{.Config.StopSignal}}')" = "SIGTERM" ]; check $? "stops with SIGTERM"
 
+echo "== no command"
+[ "$(docker image inspect "$image" --format '{{json .Config.Cmd}}')" = '["--help"]' ]; check $? "the default command is --help"
+out="$(docker run --rm "$image" 2>&1)"; code=$?
+[ "$code" = 0 ] && has "$out" "Usage:"; check $? "an empty docker run prints the help and exits 0 (exit $code)"
+
 echo "== the CLI"
 out="$(docker run --rm "$image" --version 2>&1)"; has "$out" "nvs "; check $? "--version: $out"
 docker run --rm "$image" info >/dev/null 2>&1; check $? "info"
@@ -43,10 +49,11 @@ docker run --rm -v "$app:/app:ro" "$image" check main.nvs >/dev/null 2>&1; check
 
 echo "== serve, with the Compose file's flags"
 docker run -d --name "$name" -p "127.0.0.1:$port:8000" -v "$app:/app:ro" -v "$data:/usr/local/bin/.nvsdata" \
-  --read-only --cap-drop ALL --security-opt no-new-privileges:true "$image" >/dev/null
+  --read-only --cap-drop ALL --security-opt no-new-privileges:true \
+  "$image" serve /app/main.nvs --listen 0.0.0.0:8000 >/dev/null
 for _ in $(seq 1 50); do curl -fsS "http://127.0.0.1:$port/healthz" >/dev/null 2>&1 && break; sleep 0.2; done
 body="$(curl -fsS "http://127.0.0.1:$port/" 2>&1)"
-[ "$body" = "hello from docker" ]; check $? "the default command serves /app/main.nvs: $body"
+[ "$body" = "hello from docker" ]; check $? "serve /app/main.nvs answers: $body"
 code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$port/healthz")"
 [ "$code" = 200 ]; check $? "health_path returns 200 while accepting"
 

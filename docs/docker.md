@@ -15,6 +15,9 @@ once, so `serve`, `run` and `test` are all the same tag with a different command
 [§ *Serving an application*](#serving-an-application) and [§ *Using it as a CLI*](#using-it-as-a-cli)
 are two ways to run it, not two things to install.
 
+The image runs nothing by itself. You always give the command: `serve` with its options, or `run`
+with a script. A `docker run` with no command prints the help of `nvs` and exits with code 0.
+
 The images are built by [.github/workflows/release.yml](../.github/workflows/release.yml) from the
 same binaries the release archives carry, so `ghcr.io/novis-lang/novis:X.Y.Z` and
 `nvs-X.Y.Z-linux-x86_64.tar.gz` contain the identical bytes. [docs/release.md](release.md) is the
@@ -54,20 +57,19 @@ Both are `linux/amd64` and `linux/arm64`; Docker picks for you.
 
 ## Serving an application
 
-The image expects your application mounted at **`/app`**, with its entry point at
-**`/app/main.nvs`**:
+Mount your application at **`/app`** and name its entry file in the `serve` command. With the
+[project layout](../website/src/content/docs/guides/how-to-use/project-layout.mdx) the website
+teaches, that is `public/index.nvs`:
 
 ```sh
-docker run --rm -p 8000:8000 -v "$PWD:/app:ro" ghcr.io/novis-lang/novis:0.4.1
+docker run --rm -p 8000:8000 \
+  -v "$PWD:/app:ro" -v novis-data:/usr/local/bin/.nvsdata \
+  ghcr.io/novis-lang/novis:0.4.1 serve /app/public/index.nvs --listen 0.0.0.0:8000
 ```
 
-That is the whole default command spelled out:
+The volume keeps the compile cache between containers (§ *The data folder*).
 
-```
-nvs serve /app/main.nvs --listen 0.0.0.0:8000
-```
-
-> **If you override the command, keep `--listen 0.0.0.0:8000`.**
+> **Every `serve` command in a container needs `--listen 0.0.0.0:8000`.**
 > `rule:http-server/the-server-block-is-boot-class`'s default is
 > `127.0.0.1:8000` — correct on a workstation, and inside a container it means the port is
 > published, the process is running and every connection is refused. The failure reads like a
@@ -89,10 +91,12 @@ in it. With no `./nvs.toml`, step 3 reads `nvs.toml` in the data folder.
 `cache/`, the folders `Core\IO::temporaryDir` makes in `tmp/`, editor stubs in `lsp/`, a service's
 log in `logs/`, and the `nvs.toml` the first run writes when it finds none. In both images that is
 **`/usr/local/bin/.nvsdata`**, and the image ships it already made: empty, owned by `nonroot`, mode
-`0700`. So the default command works as it is, with nothing passed.
+`0700`. So `serve` and `run` both work with nothing mounted there.
 
 The folder is inside the container, so what `nvs` writes there is gone when the container is
-removed. Two ways to keep it:
+removed. A one-time `run` does not need it again. A `serve` container should keep it, or every
+new container compiles every program again, and under `read_only` it needs a mount to write at
+all. Two ways to keep it:
 
 - **Mount a volume on `/usr/local/bin/.nvsdata`.** A named volume starts as a copy of the image's
   folder, so it is owned by `nonroot` from the first run. A bind mount must be a host folder owned
@@ -165,6 +169,7 @@ or you get intermittent 502s — `rule:http-server/the-server-block-is-boot-clas
 services:
   app:
     image: ghcr.io/novis-lang/novis:0.4.1
+    command: ["serve", "/app/public/index.nvs", "--listen", "0.0.0.0:8000"]
     ports: ["8000:8000"]
     volumes:
       - ./app:/app:ro

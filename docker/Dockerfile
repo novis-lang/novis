@@ -74,10 +74,9 @@ COPY --chmod=0755 bin/${TARGETARCH}/nvs /usr/local/bin/nvs
 COPY bin/notices/ /usr/share/doc/novis/
 COPY --from=nvsdata --chown=nonroot:nonroot --chmod=0700 /.nvsdata /usr/local/bin/.nvsdata
 
-# The convention the default command below rests on: mount your application at `/app`, with its
-# entry point at `/app/main.nvs`. It is also where `nvs` looks for `./nvs.toml` (ADR 0103 § 1
-# step 2), so a mounted tree's own configuration is found with nothing passed on the command
-# line.
+# Where a user mounts their application. `nvs` looks for `./nvs.toml` here (ADR 0103 § 1 step 2),
+# so a mounted tree's own configuration is found with nothing passed on the command line, and a
+# relative path in the user's command resolves against the mount.
 WORKDIR /app
 
 # Documentation, not a rule — it publishes nothing by itself. 8000 is ADR 0097 § 5's default
@@ -98,12 +97,13 @@ STOPSIGNAL SIGTERM
 # `docker run … novis:X.Y.Z run script.nvs`, `… test tests/`, `… --version`.
 ENTRYPOINT ["nvs"]
 
-# `--listen 0.0.0.0:8000` is load-bearing and is the one thing to keep when overriding this.
-# ADR 0097 § 5's default is `127.0.0.1:8000`, which inside a container means the port is
-# published, the container is running, and every connection is refused — the failure looks like
-# a networking problem and is a loopback bind. `docs/docker.md` says so where the override is
-# offered.
-CMD ["serve", "/app/main.nvs", "--listen", "0.0.0.0:8000"]
+# The image runs nothing of its own. The user's command picks `serve` or `run` and every option,
+# and an empty `docker run` prints the help and exits 0. `--help` rather than no `CMD`, because a
+# bare `nvs` prints the same text and exits 2, which Compose and CI read as a failure. A `serve`
+# command needs `--listen 0.0.0.0:8000`: ADR 0097 § 5's default is `127.0.0.1:8000`, the
+# container's own loopback, which a published port never reaches. `docs/docker.md` says so in
+# every serve example.
+CMD ["--help"]
 
 # ---------------------------------------------------------------------------------------------
 # Stage `debian` — the `-debian` tag: the same binary, in an image you can get inside.
@@ -131,7 +131,7 @@ EXPOSE 8000
 USER nonroot:nonroot
 STOPSIGNAL SIGTERM
 ENTRYPOINT ["nvs"]
-CMD ["serve", "/app/main.nvs", "--listen", "0.0.0.0:8000"]
+CMD ["--help"]
 
 # ---------------------------------------------------------------------------------------------
 # There is deliberately no `LABEL` block in this file.
