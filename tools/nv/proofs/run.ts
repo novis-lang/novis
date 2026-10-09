@@ -9,7 +9,8 @@
 // written for the binary a person ships. `proofBinary` runs cargo every time, and cargo rebuilds when
 // what the binary is built from changed. `releaseBinary` is `target/release/`, which the perf ledger
 // measures on, and it too is cargo's to bring up to date: a build that has nothing to do costs cargo's
-// own look at its fingerprints.
+// own look at its fingerprints. Both hand back a pinned copy of the binary (`lib/relink.ts`), so a build
+// another process makes while the programs run does not move the file they run.
 //
 // Which programs run is the selection's (`tools/nv/select/`), and `cmd/proofs.ts` makes it; this file
 // runs every program it is handed. What a program used is recorded in a second run of it, on the covws
@@ -33,7 +34,7 @@ import { inPart } from "../lib/reads.ts";
 import { record } from "../lib/written.ts";
 import { proofReadsSlot, SelectStore } from "../select/store.ts";
 import { cargoLines, progress } from "../lib/progress.ts";
-import { linked } from "../lib/relink.ts";
+import { linked, pinned } from "../lib/relink.ts";
 import { gapTitle, knownGap } from "./collect.ts";
 import { read } from "./roster.ts";
 
@@ -150,7 +151,7 @@ async function builtBinary(build: typeof RELEASE, recorded: boolean): Promise<Bi
     const tail = built.stderr.trimEnd().split("\n").slice(-15).join("\n");
     return `\`${command}\` failed (exit ${built.code}):\n${tail}`;
   }
-  return { path, key: build.key, runs: build.key, ...(recorded ? { recorded } : {}) };
+  return { path: pinned(path), key: build.key, runs: build.key, ...(recorded ? { recorded } : {}) };
 }
 
 /** A binary named with `--nvs`, taken as it is and remembered by its bytes. */
