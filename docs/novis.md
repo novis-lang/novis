@@ -12633,7 +12633,7 @@ Starts the program at `$path` with the arguments in `$argv`, and returns at once
 | `{env: …}` | `array<string>` (default `null`) | The environment variables of the program, as name => value. This replaces all of them, so a variable that is not in the array is not set. Without it, the program gets the same variables as this program. A `secret` value must be revealed first. |
 | `{timeout: …}` | `Core\Time\Duration` (default `null`) | The longest time the program may run, counted from the start. When it passes, the program is stopped and a `TimeoutError` is thrown. |
 
-**Returns** `Core\Process\Handle` — A `Core\Process\Handle` for the running program. Other requests keep running while this one waits on the handle. The program is stopped when the request that started it ends.
+**Returns** `Core\Process\Handle` — A `Core\Process\Handle` for the running program. Other requests keep running while this one waits on the handle. Call `wait` or `kill` on it before your script or request ends. A program that is still running then is stopped, and Novis reports an error.
 
 **Throws** `RuntimeError` — `process.exec` does not allow this program, or it is a `.bat`, `.cmd` or `.ps1` file. Those are not allowed on any platform, because Windows starts them through a shell. It is also thrown when `cwd` is a relative path, when an `env` name is empty or has a `=` in it, or when `timeout` is zero or shorter.; `IOError` — The program could not be started. For example, nothing is at the path, the file is not a program, or the `cwd` folder does not exist.
 
@@ -12757,7 +12757,7 @@ Closes the program's standard input, waits until the program ends, and returns i
 $handle->kill(): void
 ```
 
-Stops the program at once, whatever it is doing. If the program has already ended, `kill` does nothing and throws no error. A program that nobody stops is stopped when the request that started it ends.
+Stops the program at once, whatever it is doing. If the program has already ended, `kill` does nothing and throws no error. Call `kill` or `wait` before your script or request ends. A program that is still running then is stopped, and Novis reports an error.
 
 **Returns** `void` — Nothing. Call `wait` afterwards to get the exit code. It is not `0` for a program that was stopped.
 

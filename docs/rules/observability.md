@@ -424,8 +424,8 @@ opaque total.
 
 A child process reports no wall time of its own, so its event carries the parent-observed wall alone
 and no split, and its result point is the handle's `wait` ([`core-classes/process-spawn`](core-classes.md#core-classes-process-spawn)) — a
-handle the program stops reading from is killed with its task and leaves the event unjoined, which is
-what a cancelled child reads as either way. The histogram [`observability/default-series`](observability.md#observability-default-series) names is
+handle the program never waits for is killed when the program ends and leaves the event unjoined,
+which is what a cancelled child reads as either way. The histogram [`observability/default-series`](observability.md#observability-default-series) names is
 the three isolate kinds and is not widened by this: a child process's cost is the child's, and the
 series answers what spawning an isolate costs this runtime.
 

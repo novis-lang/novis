@@ -6,8 +6,8 @@ After `kill()`, call `wait()` to get the exit code. A program that was stopped d
 On Linux and macOS the exit code is `-1`.
 
 If the program has already ended, `kill()` does nothing and throws no error. So you can call it
-without checking first. A program that nobody stops is stopped when the request that started it
-ends.
+without checking first. Call `kill()` or `wait()` before your script or request ends. A program
+that is still running then is stopped, and an error is reported.
 
 **The examples below** stop a program that never ends, call `kill()` on a program that has already
 ended, and read only the first lines of a long output.
