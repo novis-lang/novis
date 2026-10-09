@@ -7,7 +7,11 @@ directories and paths it looked up, from the log `nvs` and the test binaries wri
 is recorded by part: its global tables, and the paths an `[[app]]` block that applies to the entry file
 could be keyed on. An edit of the repository's own `nvs.toml` moves only the parts it changed, and the
 test that resolves that file whole runs on every edit of it. A selection turns
-the change since the recorded tree into keys and looks the atoms up under them. An atom that is new,
+the change since the recorded tree into keys and looks the atoms up under them. **A run counts the
+moment each atom's run is recorded**, not when the whole run ends: the atom is stamped with the tree the
+run's selection was read at, the next selection reads it against the change since that tree, and a
+verdict judged and not yet recorded is kept the same way, so a run that is killed loses only the atoms
+still running. The run that moves the recorded tree clears the stamps it covers. An atom that is new,
 last red, owed or diverged runs too, and so does every atom when a global file changes. Nothing else
 starts. A bench is judged on the release build, so `bun nv affected --run` judges only the benches the
 change itself reaches, and the loop judges every selected bench, owed, red and new ones included,
