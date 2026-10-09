@@ -1,25 +1,24 @@
 {
-  "state": "**Goal `ldap`, Stage 10 (the feature proofs) is under way.** Stages 1 to 5 and 7 to 9 are done. Stage 4 lacks only a CA a program supplies, and Stage 6 lacks only wiring the schema into the readers. `bun nv proofs --verify --group 'Core\\Ldap\\Connection'` passes: nothing owed, 36 examples and 12 attacks ok.\n\n**The proofs runner runs at most two `requires: samba-ad` programs at once** (`SAMBA_AD_JOBS` in `tools/nv/proofs/run.ts`). With a full pool of eight, Samba ran past the blocks' 5 s `timeout`, and connects, calls and setups failed at random. The Connection group now takes about 5 minutes.\n\n**Five `Core\\Ldap` features still owe proofs.** `bun nv proofs --owed --limit 1000 | grep -i ldap` lists them: `LdapError` (about, examples, hostile, tests), and the enums `ErrorKind`, `Tls`, `Scope` and `Ad\\AccountType` (about, examples, tests). An enum is not attacked and not benchmarked.\n\n**The whole-roster check also counts features outside this goal.** Most of what `bun nv proofs --gate` names is `Core\\Str` stale perf, `lang` and `Core\\Db`. The check `dossier-the-whole-roster-owes-nothing-with-core-ldap` in `data/goals/ldap.json` cannot pass from `Core\\Ldap` work alone.\n\n**Two blocks reach `samba-ad`.** `[ldap.corp]` binds as the read-only `Reader`; `[ldap.corp-accounts]` binds as `Administrator` and is granted only to the write proofs' directories. A write attack clears its unit with `Leftovers::clear` (playbook, *Writing a test case*). Every long loop in an attack catches its call and stops at the first error. Check a draft with `bun nv proofs --run --id '<feature>' --show`.\n\n**Samba is slow and drops connections.** A 20000-part filter, a 1 MB cookie or a 10000-name `select` makes Samba close the connection, and every later call on it throws `Unavailable`, so an attack puts such a step last and catches every call. The examples filter on `department` `Sales` (Anna Berg, Carla Diaz) because write proofs add users at the same time.",
+  "state": "**Goal `ldap`, Stage 10 (the feature proofs): every `Core\\Ldap` check but one passes.** Stages 1 to 5 and 7 to 9 are done. Stage 4 lacks only a CA a program supplies, and Stage 6 lacks only wiring the schema into the readers. `bun nv proofs --owed --limit 1000 | grep -i ldap` prints nothing. Every `bun nv proofs --verify --group 'Core\\Ldap…'` check in `data/goals/ldap.json` passes, and so does the plain-comments check.\n\n**`LdapError`, `ErrorKind`, `Tls`, `Scope` and `Ad\\AccountType` have their proofs** under `docs/examples/types/Ldap-*/` and `tests/hostile/types/Ldap-LdapError/`. Their tests are `covers:` markers on existing `.nvst` cases. Their grants are `[[app]] root` entries in `nvs.toml`. A root must name a directory that exists, or every program fails with `E0605`.\n\n**The `changes` attack loops twenty times, not a hundred** (playbook, *Writing a test case*). It now takes 14 to 23 s of its 120 s limit.\n\n**The one red check is `dossier-the-whole-roster-owes-nothing-with-core-ldap`**, which runs `bun nv proofs --gate` and wants `nothing owed in the whole roster`. The roster owes 153 features outside this goal: 39 `Core\\Str` (stale perf), about 60 `Core\\Db`, `Core\\Uuid`, `Core\\Process`, `Core\\Request` and many `lang:types/*`. **This needs the user.** One option is to narrow the check to the `Core\\Ldap` features, for example by adding a `--group` for each `Core\\Ldap` class to `--gate`. The other is to keep the check and close the other debt here. No session changed the check.\n\n**Samba is slow and drops connections.** A huge filter, cookie or `select` makes Samba close the connection, and every later call on it throws `Unavailable`. An attack puts such a step last and catches every call. The proofs runner runs at most two `requires: samba-ad` programs at once.",
   "next": {
     "stage": 10,
-    "title": "the feature proofs, the error and the enums",
+    "title": "the feature proofs, the whole roster",
     "files": [],
-    "note": "one file set: `docs/examples/core/Ldap-*/`, `tests/hostile/core/Ldap-LdapError/`, the `.nvst` cases under `tests/conformance/core/` and `crates/nvs-stdlib/tests/ldap.rs`.",
+    "note": "one file set: `tools/nv/cmd/proofs.ts`, `data/goals/ldap.json` and the benches under `benches/members/core/Str/`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Ldap\\LdapError` owes nothing** (`rule:testing/feature-proofs`): the class is named at `crates/nvs-types/src/error_lib.rs:206` and its `kind` enum at `crates/nvs-stdlib/src/ldap/registry.rs:2905`. Tests are `covers:` markers on cases that catch it, such as `tests/conformance/core/ldap-authenticate-wrong-password.nvst:4` and `crates/nvs-stdlib/tests/ldap.rs:1840`. Its attack copies `Leftovers::clear` if it writes, and catches every call."
+        "text": "**Get the user's decision on `dossier-the-whole-roster-owes-nothing-with-core-ldap`** (`rule:testing/feature-proofs`). The gate is `tools/nv/cmd/proofs.ts:243`. Until then, close the cheap part of the debt the check names."
       },
       {
         "done": false,
-        "text": "**`Core\\Ldap\\ErrorKind`, `Tls`, `Scope` and `Ad\\AccountType` owe nothing** (`rule:testing/feature-proofs`): about, three examples and tests each. Their cards are in `crates/nvs-stdlib/src/ldap/registry.rs:2905`; `bun nv proofs --id '<enum>'` prints the paths."
+        "text": "**Re-measure the 39 stale `Core\\Str` benches** (`rule:testing/feature-proofs`, perf): `bun nv proofs --group 'Core\\Str' --record-perf`. The staleness comes from `crates/nvs-stdlib/src/str.rs:1` changing after the last measurement."
       }
     ]
   },
   "backlog": [
-    "The whole-roster gate names `Core\\Str`, `lang` and `Core\\Db` debts this goal does not own (`bun nv proofs --gate`).",
-    "Stage 4: a CA a program supplies (goal prose, Stage 4).",
-    "Stage 6: the schema wired into the readers (goal prose, Stage 6).",
-    "A run against a Windows Server VM is the user's check by hand (goal prose, *Standing decisions*)."
+    "Stage 4: a CA a program supplies to `Core\\Ldap::open` (ADR 0278 § 2).",
+    "Stage 6: wire the cached schema into the entry readers (ADR 0278).",
+    "Every `Core\\Ldap` enum and `LdapError` has one example. The policy asks for one, and three would be better (`docs/examples/README.md`)."
   ]
 }
