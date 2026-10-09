@@ -2,6 +2,7 @@
   "live": "ldap",
   "goals": [
     "ldap",
+    "looper-ready",
     "decision-records-retired",
     "class-scoped-enums",
     "nvs-code",
