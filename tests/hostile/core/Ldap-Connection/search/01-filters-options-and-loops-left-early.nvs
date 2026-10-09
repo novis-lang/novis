@@ -1,0 +1,108 @@
+<?nvs
+// Attack: a program searches with values that look like filter syntax, with bad options,
+// with very large filters, and with loops it leaves early. Each search must return entries
+// or throw an error, no value may change a filter, and nothing may crash.
+// hostile: timeout-ms 90000
+// requires: samba-ad
+
+class Count
+{
+    // Reads every entry of a search and returns how many there were.
+    public static function all(Core\Ldap\Entries $entries): uint
+    {
+        uint $count = 0;
+        foreach ($entries as Core\Ldap\Entry $entry) {
+            $count = $count + 1;
+        }
+        return $count;
+    }
+}
+
+var $corp = Core\Ldap::connect('corp');
+string $company = 'OU=Company,DC=example,DC=test';
+
+// 1. Values from a request that look like filter syntax. None of them may find anybody.
+array<string> $values = ['*', 'Anna Berg)(cn=*', '*)(|(cn=*', "\x00", '\\2a', ')', '(', ''];
+uint $found = 0;
+uint $threw = 0;
+foreach ($values as string $text) {
+    tainted string $value = $text;
+    try {
+        $found = $found + Count::all($corp->search(Core\Ldap\Filter::equals('cn', $value), { base: $company }));
+    } catch (Throwable $error) {
+        $threw = $threw + 1;
+    }
+    try {
+        $found = $found + Count::all($corp->search(Core\Ldap\Filter::startsWith('cn', $value), { base: $company }));
+    } catch (Throwable $error) {
+        $threw = $threw + 1;
+    }
+    try {
+        $found = $found + Count::all($corp->search(Core\Ldap\Filter::endsWith('cn', $value), { base: $company }));
+    } catch (Throwable $error) {
+        $threw = $threw + 1;
+    }
+}
+echo '1 found: ', $found, ', threw: ', $threw, "\n";
+
+// 2. Options that are out of range, missing what they need, or name things that do not exist.
+var $everyone = Core\Ldap\Filter::present('cn');
+$found = 0;
+$threw = 0;
+try { $found = $found + Count::all($corp->search($everyone, { base: $company, pageSize: 0 })); } catch (Throwable $error) { $threw = $threw + 1; }
+try { $found = $found + Count::all($corp->search($everyone, { base: $company, pageSize: 4000000000 })); } catch (Throwable $error) { $threw = $threw + 1; }
+try { $found = $found + Count::all($corp->search($everyone, { base: $company, sizeLimit: 1 })); } catch (Throwable $error) { $threw = $threw + 1; }
+try { $found = $found + Count::all($corp->search($everyone, { base: $company, window: 2 })); } catch (Throwable $error) { $threw = $threw + 1; }
+try { $found = $found + Count::all($corp->search($everyone, { base: $company, offset: 2 })); } catch (Throwable $error) { $threw = $threw + 1; }
+try { $found = $found + Count::all($corp->search($everyone, { base: $company, descending: true })); } catch (Throwable $error) { $threw = $threw + 1; }
+try { $found = $found + Count::all($corp->search($everyone, { base: $company, sort: 'cn', offset: 4000000000, window: 4000000000 })); } catch (Throwable $error) { $threw = $threw + 1; }
+try { $found = $found + Count::all($corp->search($everyone, { base: $company, sort: '(cn=*)' })); } catch (Throwable $error) { $threw = $threw + 1; }
+try { $found = $found + Count::all($corp->search($everyone, { base: $company, select: ['', '*', '+', "cn\x00"] })); } catch (Throwable $error) { $threw = $threw + 1; }
+try { $found = $found + Count::all($corp->search($everyone, { base: 'OU=Nowhere,DC=example,DC=test' })); } catch (Throwable $error) { $threw = $threw + 1; }
+try { $found = $found + Count::all($corp->search($everyone, { base: 'not a name' })); } catch (Throwable $error) { $threw = $threw + 1; }
+try { $found = $found + Count::all($corp->search($everyone, { base: $company, showDeleted: true })); } catch (Throwable $error) { $threw = $threw + 1; }
+echo '2 found: ', $found, ', threw: ', $threw, "\n";
+
+// 3. Five hundred searches of one entry per page, each left after its first entry.
+uint $i = 0;
+$found = 0;
+while ($i < 500) {
+    foreach ($corp->search($everyone, { base: $company, pageSize: 1, select: ['cn'] }) as Core\Ldap\Entry $entry) {
+        $found = $found + 1;
+        break;
+    }
+    $i = $i + 1;
+}
+echo '3 found: ', $found, "\n";
+
+// 4. A filter nested very deep, and a filter with very many parts.
+// The server may close the connection, and then the next search throws an error.
+var $deep = Core\Ldap\Filter::present('cn');
+$i = 0;
+$threw = 0;
+try {
+    while ($i < 100000) {
+        $deep = Core\Ldap\Filter::not($deep);
+        $i = $i + 1;
+    }
+    Count::all($corp->search($deep, { base: $company }));
+} catch (Throwable $error) {
+    $threw = $threw + 1;
+}
+array<Core\Ldap\Filter> $parts = [];
+$i = 0;
+while ($i < 20000) {
+    $parts[] = Core\Ldap\Filter::equals('cn', 'person ' . $i);
+    $i = $i + 1;
+}
+try {
+    Count::all($corp->search(Core\Ldap\Filter::any(...$parts), { base: $company }));
+} catch (Throwable $error) {
+    $threw = $threw + 1;
+}
+try {
+    Count::all($corp->search($everyone, { base: $company }));
+} catch (Throwable $error) {
+    $threw = $threw + 1;
+}
+echo '4 threw: ', $threw, "\n";

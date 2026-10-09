@@ -2,6 +2,7 @@
 Core\Ldap::connect binds as its block, `whoami` returns that identity, `search` finds an entry by an equality filter and `read` reads the same entry by its DN — ADR 0278 § 1, § 5 and § 6
 --FILE--
 <?nvs
+// covers: Core\Ldap\Connection::search
 var $corp = Core\Ldap::connect("corp");
 echo "bound as: ", $corp->whoami(), "\n";
 

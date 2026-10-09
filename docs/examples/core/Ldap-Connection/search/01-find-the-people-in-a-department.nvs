@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to find every person in one department.
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect("corp");
+
+// `Filter::all` matches an entry only when every filter inside it matches.
+var $sales = Core\Ldap\Filter::all(
+    Core\Ldap\Filter::equals("objectClass", "user"),
+    Core\Ldap\Filter::equals("department", "Sales"),
+);
+
+// `base` is where the search starts, and `select` names the attributes each entry has.
+var $people = $corp->search($sales, {base: "OU=Company,DC=example,DC=test", select: ["cn", "mail"]});
+
+// The `foreach` loop reads one entry at a time. This prints Anna Berg and Carla Diaz.
+foreach ($people as Core\Ldap\Entry $person) {
+    echo $person->string("cn") ?? "", ": ", $person->string("mail") ?? "no address", "\n";
+}
