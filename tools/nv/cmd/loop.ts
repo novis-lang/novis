@@ -120,7 +120,7 @@ import { head } from "../lib/git.ts";
 import { run as runProc } from "../lib/proc.ts";
 import { AGAIN, LOGDIR, RUN_ENV, RUNDIR, driverChanged, driverFiles, launch, ledger, loadRun, openingLine, pendingJudge, saveRun, type LaunchOptions, type RunState } from "../driver/launch.ts";
 import { respawn } from "../driver/respawn.ts";
-import { AllowWatch, loadSeen, record as recordAllow, saveSeen, settle as settleAllow } from "../driver/allow.ts";
+import { AllowWatch, loadSeen, record as recordAllow, saveSeen, settle as settleAllow } from "./allow.ts";
 import { insideWorktree, landing, launchSide } from "../driver/side.ts";
 import { docGate, ownerGate, sweepDisk } from "../driver/gates.ts";
 import { bringUp, preflight } from "./services.ts";

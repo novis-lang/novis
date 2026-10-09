@@ -23,6 +23,7 @@ interface Command {
 
 const COMMANDS: Record<string, () => Promise<Command>> = {
   affected: () => import("./cmd/affected.ts"),
+  allow: () => import("./cmd/allow.ts"),
   audit: () => import("./cmd/audit.ts"),
   bench: () => import("./cmd/bench.ts"),
   benches: () => import("./cmd/benches.ts"),

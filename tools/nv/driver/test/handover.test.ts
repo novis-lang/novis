@@ -1,7 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { SETTINGS } from "../allow.ts";
+import { SETTINGS } from "../../cmd/allow.ts";
 import {
   type GateConsole,
   HANDOVER_SUBJECT,

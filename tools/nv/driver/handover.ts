@@ -14,7 +14,7 @@
 // sessions their permissions: `.claude/settings.json` takes the allow entries `LOOPER_ALLOW` and a
 // PreToolUse hook that runs `looper guard`, beside every entry it has, the `bun nv guard` hook among them,
 // and is committed by that path alone. A session never edits its own permission file, so the driver does
-// it, and an uncommitted edit somebody else left there holds the run, as `allow.ts` leaves one alone. Then
+// it, and an uncommitted edit somebody else left there holds the run, as `cmd/allow.ts` leaves one alone. Then
 // it runs `looper project add .`, `looper loop add` and `looper loop start` in the tree. Only the start
 // decides: the first two are reported when they fail, and a start looper refuses with a message that the
 // loop runs `already` counts as started. The run then ends with a verdict `driver/respawn.ts` does not
@@ -36,7 +36,7 @@ import { dirname, join } from "node:path";
 import { goalFiles } from "../lib/chain.ts";
 import { ROOT } from "../lib/paths.ts";
 import { run as runProc, type RunResult } from "../lib/proc.ts";
-import { SETTINGS, withRules } from "./allow.ts";
+import { SETTINGS, withRules } from "../cmd/allow.ts";
 
 /** A goal's `waitFor`: the command, the text it must print and must not, and the minutes between two runs of it. */
 export interface WaitFor {
