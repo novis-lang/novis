@@ -942,9 +942,9 @@ entry = "benches/members/core/Ldap/open.nvs"
 [app.capabilities.ldap]
 open = ["127.0.0.1"]
 
-# `Core\Ldap\Entry`'s and `Core\Ldap\Ad\GroupType`'s proof programs
-# read the seeded `OU=Company` through `[ldap.corp]`, so each tree of them is granted that one block
-# and nothing else.
+# The proof programs of `Core\Ldap`'s classes other than `Core\Ldap` itself read the seeded
+# `OU=Company` through `[ldap.corp]`, so each tree of them is granted that one block and nothing
+# else.
 [[app]]
 root = "docs/examples/core/Ldap-Entry"
 
@@ -995,6 +995,24 @@ connect = ["corp"]
 
 [[app]]
 root = "benches/members/core/Ldap-Ad-AccountFlags"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+root = "docs/examples/core/Ldap-Connection"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+root = "tests/hostile/core/Ldap-Connection"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+root = "benches/members/core/Ldap-Connection"
 
 [app.capabilities.ldap]
 connect = ["corp"]

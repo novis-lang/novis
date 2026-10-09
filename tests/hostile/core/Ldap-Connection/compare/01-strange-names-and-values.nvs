@@ -1,0 +1,89 @@
+<?nvs
+// Attack: a program compares strange names, strange values and missing entries.
+// Each one must return `true` or `false` or throw an error, and nothing may crash.
+// hostile: timeout-ms 60000
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect('corp');
+string $anna = 'CN=Anna Berg,OU=Company,DC=example,DC=test';
+
+// 1. Attribute names that look like filters or options, and a very long name.
+array<string> $attributes = [
+    '*',
+    '',
+    '   ',
+    '(department=*)',
+    'department;binary',
+    'member;range=0-1',
+    "department\x00",
+    'DEPARTMENT',
+    Core\Str::repeat('d', 100000),
+];
+uint $yes = 0;
+uint $threw = 0;
+foreach ($attributes as string $attribute) {
+    try {
+        if ($corp->compare($anna, $attribute, 'Sales')) {
+            $yes = $yes + 1;
+        }
+    } catch (Throwable $error) {
+        $threw = $threw + 1;
+    }
+}
+echo '1 true: ', $yes, ', threw: ', $threw, "\n";
+
+// 2. Values that look like filters, values of other types and a very long value.
+array<mixed> $values = [
+    '*',
+    '',
+    'Sales)(department=*',
+    "Sales\x00",
+    -1,
+    3.5,
+    true,
+    Core\Str::repeat('S', 1000000),
+];
+$yes = 0;
+$threw = 0;
+foreach ($values as mixed $value) {
+    try {
+        if ($corp->compare($anna, 'department', $value)) {
+            $yes = $yes + 1;
+        }
+    } catch (Throwable $error) {
+        $threw = $threw + 1;
+    }
+}
+echo '2 true: ', $yes, ', threw: ', $threw, "\n";
+
+// 3. Entries that do not exist, names that are not entry names, and a very long name.
+array<string> $entries = [
+    'CN=Nobody,OU=Company,DC=example,DC=test',
+    'not a name',
+    '',
+    'CN=Anna Berg,OU=Company,DC=example,DC=test,DC=other',
+    'CN=' . Core\Str::repeat('a', 100000) . ',OU=Company,DC=example,DC=test',
+];
+$yes = 0;
+$threw = 0;
+foreach ($entries as string $entry) {
+    try {
+        if ($corp->compare($entry, 'department', 'Sales')) {
+            $yes = $yes + 1;
+        }
+    } catch (Throwable $error) {
+        $threw = $threw + 1;
+    }
+}
+echo '3 true: ', $yes, ', threw: ', $threw, "\n";
+
+// 4. Two thousand compares in a row. Nothing may be left behind.
+uint $i = 0;
+$yes = 0;
+while ($i < 2000) {
+    if ($corp->compare($anna, 'department', $i % 2 == 0 ? 'Sales' : 'Warehouse')) {
+        $yes = $yes + 1;
+    }
+    $i = $i + 1;
+}
+echo '4 true: ', $yes, "\n";
