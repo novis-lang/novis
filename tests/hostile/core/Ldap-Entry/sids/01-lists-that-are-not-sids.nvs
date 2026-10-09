@@ -1,0 +1,51 @@
+<?nvs
+// Attack: a program reads lists of DNs, text and a GUID as a list of SIDs. Each of these
+// must return `null` or throw an error, and nothing may crash.
+// hostile: timeout-ms 60000
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect('corp');
+var $found = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['tokenGroups', 'objectGUID', 'mail', 'memberOf'] });
+
+if ($found != null) {
+    Core\Ldap\Entry $person = $found;
+
+    // 1. A list of DNs, text and a GUID, read as SIDs, ten thousand times each.
+    array<string> $wrong = ['memberOf', 'mail', 'objectGUID'];
+    uint $threw = 0;
+    uint $i = 0;
+    while ($i < 10000) {
+        foreach ($wrong as string $name) {
+            try {
+                echo Core\Arr::count($person->sids($name) ?? []), "\n";
+            } catch (LogicError $refusal) {
+                $threw = $threw + 1;
+            }
+        }
+        $i = $i + 1;
+    }
+    echo '1 threw: ', $threw, "\n";
+
+    // 2. Names a user typed. A name the entry does not have returns `null`.
+    array<string> $typed = ['', '*', 'tokenGroups;binary', "tokenGroups\x00", Core\Str::repeat('x', 100000)];
+    uint $empty = 0;
+    foreach ($typed as string $typedName) {
+        try {
+            if ($person->sids($typedName) == null) {
+                $empty = $empty + 1;
+            }
+        } catch (Throwable $error) {
+            echo "2 threw\n";
+        }
+    }
+    echo '2 null: ', $empty, "\n";
+
+    // 3. The real list of SIDs, read one hundred thousand times.
+    uint $count = 0;
+    $i = 0;
+    while ($i < 100000) {
+        $count = $count + Core\Arr::count($person->sids('tokenGroups') ?? []);
+        $i = $i + 1;
+    }
+    echo '3 sids: ', $count, "\n";
+}

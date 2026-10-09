@@ -1,0 +1,2 @@
+no SID
+Core\Ldap\Entry::sid: a value of `mail` is not a SID
