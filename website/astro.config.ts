@@ -96,6 +96,8 @@ export default defineConfig({
         SocialIcons: './src/components/SocialIcons.astro',
         // No title on the front page, whose hero holds the page's <h1>.
         PageTitle: './src/components/PageTitle.astro',
+        // Starlight's search, with pages found by name listed above Pagefind's results.
+        Search: './src/components/Search.astro',
       },
       expressiveCode: {
         shiki: {
