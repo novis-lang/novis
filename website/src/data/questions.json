@@ -1,0 +1,617 @@
+{
+  "/reference/core/arr/all/": [
+    "How do I check if every item in an array matches a condition?",
+    "Do all elements of a list pass a test?",
+    "Test whether all values meet a rule",
+    "Validate that each item in a list is correct"
+  ],
+  "/reference/core/arr/any/": [
+    "How do I check if any item in an array matches a condition?",
+    "Does at least one element pass a test?",
+    "Test whether some value in a list meets a rule",
+    "Return true if one of the items matches"
+  ],
+  "/reference/core/arr/append/": [
+    "How do I add an item to the end of an array?",
+    "Push a value onto a list",
+    "Add one element at the end of a list",
+    "Append a single value to an array"
+  ],
+  "/reference/core/arr/appendall/": [
+    "How do I join two lists into one?",
+    "Concatenate several arrays end to end",
+    "Add all items of one list to the end of another",
+    "Combine many arrays into one list and keep duplicates"
+  ],
+  "/reference/core/arr/average/": [
+    "How do I calculate the average of an array of numbers?",
+    "Get the mean value of a list",
+    "Find the average price in a list exactly",
+    "Compute the arithmetic mean of numbers"
+  ],
+  "/reference/core/arr/chunk/": [
+    "How do I split an array into smaller arrays of equal size?",
+    "Break a list into batches of ten items",
+    "Divide an array into groups of a fixed size",
+    "Split a list into pages of rows",
+    "Process items in chunks of a given size"
+  ],
+  "/reference/core/arr/column/": [
+    "How do I get one field from every row in an array?",
+    "Extract a single column from a list of records",
+    "Pluck the id of every item in a list of rows",
+    "Get all email values from database results",
+    "Build a lookup table of rows indexed by id"
+  ],
+  "/reference/core/arr/contains/": [
+    "How do I check if an array contains a value?",
+    "Is this item in my list?",
+    "Test whether a list includes a given element",
+    "Search an array for a value and get true or false",
+    "Check if a value exists in an array with strict comparison"
+  ],
+  "/reference/core/arr/count/": [
+    "How do I count the items in an array?",
+    "Get the number of elements in a list",
+    "How many values are in my array?",
+    "Find the length or size of an array",
+    "How do I get the size of a list?"
+  ],
+  "/reference/core/arr/countby/": [
+    "How do I count how often each value appears in an array?",
+    "Count occurrences of every item in a list",
+    "Count records grouped by a field",
+    "Build a tally of orders per day",
+    "Get the frequency of each value in a list"
+  ],
+  "/reference/core/arr/diff/": [
+    "How do I find the values in one array that are not in another?",
+    "Get the difference between two lists",
+    "Which items are missing from the second list?",
+    "Compare two arrays and return what only the first has",
+    "Find keys that are new in one array"
+  ],
+  "/reference/core/arr/fill/": [
+    "How do I create an array with the same value repeated?",
+    "Make a list of n copies of one value",
+    "Create a list filled with zeros",
+    "Build an array of a given length with a default value"
+  ],
+  "/reference/core/arr/fillkeys/": [
+    "How do I create an array from keys with the same value for each?",
+    "Set one default value for every key in a list",
+    "Build a map where every given key has the same value",
+    "Turn a list of names into keys with a starting value"
+  ],
+  "/reference/core/arr/filter/": [
+    "How do I filter an array with a condition?",
+    "Remove items from a list that do not match",
+    "Keep only the elements that pass a test",
+    "Select the rows of an array where a field matches",
+    "Remove empty values from a list"
+  ],
+  "/reference/core/arr/find/": [
+    "How do I find the first item in an array that matches a condition?",
+    "Search a list of records for the first match",
+    "Get the first element that passes a test",
+    "Find a user in a list by a field value"
+  ],
+  "/reference/core/arr/findkey/": [
+    "How do I find the key of the first item that matches a condition?",
+    "Get the index of the first element that passes a test",
+    "Which position in the list matches my check?",
+    "Find the key of a record by a field value"
+  ],
+  "/reference/core/arr/first/": [
+    "How do I get the first element of an array?",
+    "Read the first item of a list",
+    "Get the first value of a map without knowing its key",
+    "Return the value of the first entry in an array"
+  ],
+  "/reference/core/arr/firstkey/": [
+    "How do I get the key of the first element in an array?",
+    "Find the first key of a map",
+    "Which key does the first entry of my array have?",
+    "Get the name of the first key in an array"
+  ],
+  "/reference/core/arr/flatten/": [
+    "How do I flatten an array of arrays by one level?",
+    "Merge a list of lists into one list",
+    "Combine nested arrays into a single flat array, one level only",
+    "Join the inner arrays of an array into one list"
+  ],
+  "/reference/core/arr/flattendeep/": [
+    "How do I flatten a deeply nested array completely?",
+    "Remove every level of nesting from an array",
+    "Recursively flatten nested lists into one list",
+    "Get all values from a multi level array as a flat list"
+  ],
+  "/reference/core/arr/flip/": [
+    "How do I swap the keys and values of an array?",
+    "Turn values into keys and keys into values",
+    "Invert a map so each value points to its key",
+    "Exchange keys with values in a list"
+  ],
+  "/reference/core/arr/from/": [
+    "How do I convert a generator to an array?",
+    "Turn an iterator into a list",
+    "Collect all values of an iterable into an array",
+    "Read the first five values of an endless sequence into a list",
+    "Create an array from anything I can loop over with foreach"
+  ],
+  "/reference/core/arr/fromkeysandvalues/": [
+    "How do I combine a list of keys and a list of values?",
+    "Pair two lists into a map",
+    "Use one array as keys and another as values",
+    "Make an associative array from column names and a CSV row",
+    "Zip keys and values together into one array"
+  ],
+  "/reference/core/arr/groupby/": [
+    "How do I group the items of an array by a field?",
+    "Split a list of records into groups by category",
+    "Collect rows that share a value into separate arrays",
+    "Group orders by customer"
+  ],
+  "/reference/core/arr/haskey/": [
+    "How do I check if a key exists in an array?",
+    "Test whether an array has an entry under a given key",
+    "Does my map contain this key?",
+    "Check if a key is set even when its value is null",
+    "Is there an element at this index in the list?"
+  ],
+  "/reference/core/arr/intersect/": [
+    "How do I find the values two arrays have in common?",
+    "Get the intersection of two lists",
+    "Which items appear in both lists?",
+    "Keep only the elements that are also in another array",
+    "Find shared keys between two arrays"
+  ],
+  "/reference/core/arr/isempty/": [
+    "How do I check if an array is empty?",
+    "Test whether a list has no items",
+    "Does my array have any elements at all?",
+    "Check that a list is not empty",
+    "How can I tell an empty array from one holding null?"
+  ],
+  "/reference/core/arr/islist/": [
+    "How do I check if an array is a plain list?",
+    "Are the keys of my array numbered 0, 1, 2 in order?",
+    "Check whether an array has sequential numeric keys",
+    "Will my array become a JSON array or a JSON object?",
+    "Test if an array is a list or a map"
+  ],
+  "/reference/core/arr/keyof/": [
+    "How do I find the key of a value in an array?",
+    "Get the index of an item in a list",
+    "Find the position of a value in an array",
+    "Which key holds this value?",
+    "Search a list for a value and return its index"
+  ],
+  "/reference/core/arr/keys/": [
+    "How do I get all the keys of an array?",
+    "List every key of a map",
+    "Get the key names of an array as a list",
+    "Return all the keys from an array in order"
+  ],
+  "/reference/core/arr/last/": [
+    "How do I get the last element of an array?",
+    "Read the last item of a list",
+    "Get the most recently added value in an array",
+    "Return the value of the final entry in a list"
+  ],
+  "/reference/core/arr/lastkey/": [
+    "How do I get the key of the last element in an array?",
+    "Find the last key of a map",
+    "Get the highest index of a list",
+    "Which key does the final entry of my array have?"
+  ],
+  "/reference/core/arr/map/": [
+    "How do I change every value in an array with a function?",
+    "Apply a function to each item of a list",
+    "Transform all elements of an array and keep the keys",
+    "Convert a list of numbers to a list of strings"
+  ],
+  "/reference/core/arr/mapkeys/": [
+    "How do I change the keys of an array with a function?",
+    "Index a list of records by their id",
+    "Re key an array using a field of each item",
+    "Turn a list of rows into a map keyed by name"
+  ],
+  "/reference/core/arr/max/": [
+    "How do I find the largest value in an array?",
+    "Get the maximum number in a list",
+    "Find the highest score in a list",
+    "Get the longest width for a table column"
+  ],
+  "/reference/core/arr/min/": [
+    "How do I find the smallest value in an array?",
+    "Get the minimum number in a list",
+    "Find the lowest item in a list",
+    "Get the earliest date from a list of dates"
+  ],
+  "/reference/core/arr/overlay/": [
+    "How do I merge two arrays so later values replace earlier ones?",
+    "Combine settings with defaults, overriding keys from the right",
+    "Overwrite values in one array with values from another",
+    "Merge maps by key with the last value winning",
+    "Apply user options on top of default options"
+  ],
+  "/reference/core/arr/overlaydeep/": [
+    "How do I merge nested arrays recursively?",
+    "Deep merge two configuration arrays",
+    "Combine nested settings trees key by key",
+    "Recursively override values in a multi level array"
+  ],
+  "/reference/core/arr/padend/": [
+    "How do I pad an array at the end to a fixed length?",
+    "Fill the end of a list with a value until it has n items",
+    "Add copies of a value after the last item",
+    "Make a list a minimum length by padding the end"
+  ],
+  "/reference/core/arr/padstart/": [
+    "How do I pad an array at the start to a fixed length?",
+    "Fill the beginning of a list with a value until it has n items",
+    "Add copies of a value in front of an array",
+    "Make a list a minimum length by padding the front"
+  ],
+  "/reference/core/arr/prepend/": [
+    "How do I add an item to the start of an array?",
+    "Insert a value at the beginning of a list",
+    "Put an element in front of the first item",
+    "Add values to the front of an array"
+  ],
+  "/reference/core/arr/product/": [
+    "How do I multiply all the numbers in an array?",
+    "Get the product of a list of values",
+    "Multiply every item of a list together",
+    "Apply several discounts one after another"
+  ],
+  "/reference/core/arr/range/": [
+    "How do I create a list of numbers from 1 to 10?",
+    "Generate a sequence of integers between two numbers",
+    "Make an array of numbers counting down",
+    "Create a number range with a step of two",
+    "Build a list of page numbers"
+  ],
+  "/reference/core/arr/reduce/": [
+    "How do I reduce an array to a single value?",
+    "Combine all items of a list into one result with a function",
+    "Fold a list with an accumulator and a start value",
+    "Build one string from all elements of an array"
+  ],
+  "/reference/core/arr/replacerange/": [
+    "How do I replace a range of items in an array?",
+    "Remove elements from the middle of a list",
+    "Insert values into a list at a position",
+    "Replace part of an array with other values",
+    "Delete several items from an array by index"
+  ],
+  "/reference/core/arr/reverse/": [
+    "How do I reverse the order of an array?",
+    "Turn a list around so the last item comes first",
+    "Get the elements of a list in opposite order",
+    "Reverse an array and keep its keys"
+  ],
+  "/reference/core/arr/shapeas/": [
+    "How do I convert an array into a typed object or shape?",
+    "Read form data into a class with typed fields",
+    "Validate and convert query parameters to the right types",
+    "Turn a decoded JSON array into a typed record",
+    "Map request input to a class and get all field errors"
+  ],
+  "/reference/core/arr/slice/": [
+    "How do I get part of an array?",
+    "Take the first ten items of a list",
+    "Extract a range of elements from an array by position",
+    "Get a sub array from an offset with a length",
+    "Return the last three values of a list"
+  ],
+  "/reference/core/arr/sort/": [
+    "How do I sort an array by its values?",
+    "Sort a list of numbers from smallest to largest",
+    "Sort items in descending order",
+    "Sort a list of records by a field",
+    "Sort an array with a custom compare function"
+  ],
+  "/reference/core/arr/sortbykey/": [
+    "How do I sort an array by its keys?",
+    "Order a map alphabetically by key name",
+    "Sort a map by key in descending order",
+    "Sort keys as numbers and keep every key"
+  ],
+  "/reference/core/arr/sum/": [
+    "How do I add up all the numbers in an array?",
+    "Get the total of a list of values",
+    "Sum the prices in a list exactly",
+    "Calculate the total of a shopping cart"
+  ],
+  "/reference/core/arr/underlay/": [
+    "How do I merge arrays so existing values are kept?",
+    "Add default values only for keys that are missing",
+    "Combine two maps where the first value wins",
+    "Fill in missing keys from another array without overwriting"
+  ],
+  "/reference/core/arr/unique/": [
+    "How do I remove duplicate values from an array?",
+    "Make every value in a list unique",
+    "Delete repeated items from a list",
+    "Keep one record per email address",
+    "Get distinct values from an array"
+  ],
+  "/reference/core/arr/values/": [
+    "How do I get all values of an array without the keys?",
+    "Renumber the keys of a list from zero",
+    "Reindex an array after filtering it",
+    "Turn a map into a plain list of its values",
+    "Remove gaps in the numbering of a list"
+  ],
+  "/reference/core/arr/withoutfirst/": [
+    "How do I remove the first element of an array?",
+    "Get a list without its first item",
+    "Drop the first value from an array",
+    "Return every item except the first one",
+    "Take the rest of a list after the first element"
+  ],
+  "/reference/core/arr/withoutlast/": [
+    "How do I remove the last element of an array?",
+    "Get a list without its last item",
+    "Drop the final value from an array",
+    "Return every item except the last one"
+  ],
+  "/reference/core/str/after/": [
+    "How do I get the text after a separator?",
+    "Take the part of a string after a character",
+    "Get the file extension from a file name",
+    "Read the value after the colon in a line",
+    "Substring after the first occurrence of a text"
+  ],
+  "/reference/core/str/at/": [
+    "How do I get the character at a position in a string?",
+    "Get the first letter of a string",
+    "Read the last character of a text",
+    "How do I get one character by its index?",
+    "Character at index in a string"
+  ],
+  "/reference/core/str/before/": [
+    "How do I get the text before a separator?",
+    "Take the part of a string before a character",
+    "Remove the file extension from a file name",
+    "Get the user name before the @ in an email address",
+    "Substring before the first occurrence of a text"
+  ],
+  "/reference/core/str/chunk/": [
+    "How do I split a string into pieces of equal size?",
+    "Divide a text into groups of four characters",
+    "Break a long string into fixed length parts",
+    "Split text every n characters"
+  ],
+  "/reference/core/str/codepoints/": [
+    "How do I get the Unicode number of each character?",
+    "Get the character codes of a string",
+    "Convert a string to a list of Unicode numbers",
+    "What is the numeric code of a character?",
+    "Find invisible characters in a text"
+  ],
+  "/reference/core/str/compare/": [
+    "How do I compare two strings for sorting?",
+    "Which string comes first in alphabetical order?",
+    "Sort a list of strings without caring about upper and lower case",
+    "Natural sort so file2 comes before file10",
+    "Compare text alphabetically"
+  ],
+  "/reference/core/str/contains/": [
+    "How do I check if a string contains a word?",
+    "Does a text include another text?",
+    "Search for a substring in a string",
+    "Find out if a string has a certain piece of text",
+    "Check if text appears inside a string"
+  ],
+  "/reference/core/str/countof/": [
+    "How do I count how many times a word appears in a string?",
+    "Count the occurrences of a substring",
+    "How many times does a character appear in a text?",
+    "Number of matches of a text in a string",
+    "Count the commas in a line"
+  ],
+  "/reference/core/str/endswith/": [
+    "How do I check if a string ends with some text?",
+    "Does a text end with a suffix?",
+    "Check the file extension at the end of a name",
+    "Test the ending of a string"
+  ],
+  "/reference/core/str/fold/": [
+    "How do I compare two strings ignoring case?",
+    "Case insensitive comparison of text",
+    "Check if two words are equal without caring about upper and lower case",
+    "Make a key for case insensitive lookup",
+    "Match an email address however it was typed"
+  ],
+  "/reference/core/str/format/": [
+    "How do I insert values into a string template?",
+    "Format a number with two decimals",
+    "Fill placeholders like %s and %d in a text",
+    "Build a formatted string with a width and padding",
+    "Print a number in hexadecimal"
+  ],
+  "/reference/core/str/fromcodepoint/": [
+    "How do I get a character from its Unicode number?",
+    "Convert a character code to a string",
+    "Make a symbol from its code number",
+    "Turn a country code into a flag emoji"
+  ],
+  "/reference/core/str/fromcodepoints/": [
+    "How do I build a string from a list of Unicode numbers?",
+    "Convert an array of character codes to text",
+    "Turn several code numbers into one string",
+    "Rebuild a string from its character codes"
+  ],
+  "/reference/core/str/graphemes/": [
+    "How do I split a string into its characters?",
+    "Get an array of every character in a text",
+    "Loop over the letters of a string",
+    "Turn a string into a list of characters with emoji kept whole",
+    "Split a word into single letters"
+  ],
+  "/reference/core/str/indexof/": [
+    "How do I find the position of a word in a string?",
+    "Where does a substring first appear in a text?",
+    "Find the index of the first match",
+    "Search a string and get the position",
+    "Find text in a string ignoring upper and lower case"
+  ],
+  "/reference/core/str/isempty/": [
+    "How do I check if a string is empty?",
+    "Test whether a text has no characters",
+    "Is this string blank or empty?",
+    "Check for an empty string"
+  ],
+  "/reference/core/str/join/": [
+    "How do I join an array of strings into one string?",
+    "Combine a list of words with a comma between them",
+    "Concatenate strings with a separator",
+    "Turn an array into a comma separated text",
+    "Put lines back together into one text"
+  ],
+  "/reference/core/str/lastindexof/": [
+    "How do I find the last position of a word in a string?",
+    "Where does a substring appear for the last time?",
+    "Find the last occurrence of a character in a text",
+    "Search a string from the end",
+    "Find the last slash in a file path"
+  ],
+  "/reference/core/str/length/": [
+    "How do I count the characters in a string?",
+    "How long is a string?",
+    "Get the number of letters in a text",
+    "How many characters does a text have, counting emoji as one?",
+    "String length in characters"
+  ],
+  "/reference/core/str/lines/": [
+    "How do I split a text into lines?",
+    "Get an array of lines from a string",
+    "Read each line of a multiline string",
+    "Split text at line breaks for Windows and Linux"
+  ],
+  "/reference/core/str/lower/": [
+    "How do I convert a string to lowercase?",
+    "Make all letters of a text small",
+    "Change text to lower case with accents",
+    "Lowercase a string"
+  ],
+  "/reference/core/str/lowerfirst/": [
+    "How do I make the first letter of a string lowercase?",
+    "Lowercase only the first character",
+    "Change the first capital letter to small",
+    "Uncapitalize a word"
+  ],
+  "/reference/core/str/normalize/": [
+    "Why are two strings that look the same not equal?",
+    "How do I normalize Unicode text?",
+    "Make accented letters compare as equal",
+    "Convert full-width digits to normal digits",
+    "Store and compare text in one fixed form"
+  ],
+  "/reference/core/str/padend/": [
+    "How do I pad a string on the right?",
+    "Add spaces after a text to a fixed width",
+    "Left align text in a column",
+    "Fill the end of a string until it is long enough"
+  ],
+  "/reference/core/str/padstart/": [
+    "How do I add leading zeros to a number?",
+    "Pad a string on the left to a fixed length",
+    "Right align text by adding spaces in front",
+    "Fill the start of a string until it is long enough"
+  ],
+  "/reference/core/str/repeat/": [
+    "How do I repeat a string several times?",
+    "Make a line of dashes in the terminal",
+    "Copy a text n times into one string",
+    "Indent text with repeated spaces"
+  ],
+  "/reference/core/str/replace/": [
+    "How do I replace text in a string?",
+    "Find and replace a word in a text",
+    "Replace every occurrence of a substring",
+    "Replace text ignoring upper and lower case",
+    "Replace only the first match in a string"
+  ],
+  "/reference/core/str/replaceall/": [
+    "How do I replace several different words at once?",
+    "Replace many texts in one call with a map",
+    "Fill placeholders like {name} in a template",
+    "Swap two words in a string",
+    "Find and replace with a list of pairs"
+  ],
+  "/reference/core/str/replacerange/": [
+    "How do I replace part of a string at a position?",
+    "Insert text into a string at an index",
+    "Delete characters from a string by position",
+    "Overwrite a range of characters in a text"
+  ],
+  "/reference/core/str/reverse/": [
+    "How do I reverse a string?",
+    "Write a text backwards",
+    "Reverse the order of characters without breaking accents",
+    "Flip a word to check if it is a palindrome"
+  ],
+  "/reference/core/str/slice/": [
+    "How do I get a substring by position?",
+    "Cut a part out of a string",
+    "Take the first few characters of a text",
+    "Get the last three characters of a string",
+    "Extract part of a string from an offset with a length"
+  ],
+  "/reference/core/str/split/": [
+    "How do I split a string by a separator?",
+    "Break a text into an array at every comma",
+    "Turn a comma separated string into a list",
+    "Divide a string into parts with a delimiter",
+    "Split a string into at most two parts"
+  ],
+  "/reference/core/str/startswith/": [
+    "How do I check if a string starts with some text?",
+    "Does a text begin with a prefix?",
+    "Check the beginning of a string",
+    "Test if a URL starts with https"
+  ],
+  "/reference/core/str/trim/": [
+    "How do I remove spaces at both ends of a string?",
+    "Trim whitespace from the start and end of a text",
+    "Strip leading and trailing spaces",
+    "Clean up spaces and line breaks around user input",
+    "Remove quotes around a string"
+  ],
+  "/reference/core/str/trimend/": [
+    "How do I remove trailing spaces from a string?",
+    "Remove the line break at the end of a line",
+    "Remove whitespace at the end of a text only",
+    "Remove the trailing slash from a URL",
+    "Trim the right side of a string"
+  ],
+  "/reference/core/str/trimstart/": [
+    "How do I remove leading spaces from a string?",
+    "Remove whitespace at the start of a text only",
+    "Remove leading zeros from a number string",
+    "Trim the left side of a string"
+  ],
+  "/reference/core/str/upper/": [
+    "How do I convert a string to uppercase?",
+    "Make all letters of a text capital",
+    "Change text to upper case with accents",
+    "Uppercase a whole string"
+  ],
+  "/reference/core/str/upperfirst/": [
+    "How do I capitalize the first letter of a string?",
+    "Make only the first character uppercase",
+    "Capitalize a word",
+    "Start a sentence with a capital letter"
+  ],
+  "/reference/core/str/wrap/": [
+    "How do I wrap long text to a fixed width?",
+    "Break a long line into shorter lines at spaces",
+    "Word wrap a paragraph at 80 characters",
+    "Insert line breaks so no line is too long",
+    "Wrap text with <br> instead of newlines"
+  ]
+}

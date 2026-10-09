@@ -1,0 +1,20 @@
+---
+/**
+ * Banner override: Starlight's banner, then the page's search questions from
+ * src/data/questions.json. The questions are the words a visitor types before
+ * they know a method's name ("How do I remove duplicate values from an
+ * array?"). They live in an attribute that Pagefind indexes
+ * (`data-pagefind-index-attrs`), so the search finds them and the page shows
+ * no extra text. The banner is inside the `<main data-pagefind-body>` of
+ * every page, which is why the questions are here.
+ */
+import Default from '@astrojs/starlight/components/Banner.astro'
+import questions from '../data/questions.json'
+
+const base = import.meta.env.BASE_URL.replace(/\/+$/, '')
+const path = Astro.url.pathname.slice(base.length).replace(/\/?$/, '/')
+const list = (questions as Record<string, string[]>)[path]
+---
+
+<Default />
+{list && <span data-pagefind-index-attrs="data-questions" data-questions={list.join(' ')} />}

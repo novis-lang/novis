@@ -98,6 +98,8 @@ export default defineConfig({
         PageTitle: './src/components/PageTitle.astro',
         // Starlight's search, with pages found by name listed above Pagefind's results.
         Search: './src/components/Search.astro',
+        // Starlight's banner, then the page's search questions in an attribute Pagefind indexes.
+        Banner: './src/components/Banner.astro',
       },
       expressiveCode: {
         shiki: {
