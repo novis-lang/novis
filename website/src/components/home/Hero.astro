@@ -73,9 +73,11 @@ const phrases = [
     <h1 id="_top" data-page-title>
       <span class="brand">Novis-Lang</span>
       <span class="headline"
-        >The programming language for <span class="noted"
-          >web applications<span class="note"
-            ><span class="sr-only"> (</span>and the command line<span class="sr-only">)</span></span
+        >The programming language for <span class="noted-end"
+          ><span class="noted"
+            >web applications<span class="note"
+              ><span class="sr-only"> (</span>and the command line<span class="sr-only">)</span></span
+            ></span
           >.</span
         ></span
       >
@@ -696,15 +698,19 @@ const phrases = [
   }
 
   /* "and the command line" is small gold text just below "web
-     applications.", its right edge in line with the full stop. It stays out
+     applications", its right edge in line with the last "s". It stays out
      of the line, so the sentence reads on without it. A screen reader reads
-     it in brackets after the two words. The two words and the full stop are
-     one inline block that never wraps, with room below it for the note, so
-     only their line is taller. The note's line box is as tall as its text
+     it in brackets after the two words. The two words are one inline block
+     with room below it for the note, so only their line is taller, and the
+     full stop after them never wraps onto a line of its own. The note's
+     line box is as tall as its text
      size. --note-gap moves it up from the bottom of the words' line box,
      which is about 0.13em under their baseline, by that much and by the room
      above the note's tall letters, so those letters start 5px under the
      baseline. */
+  .noted-end {
+    white-space: nowrap;
+  }
   .noted {
     --note-size: max(0.8rem, 0.28em);
     --note-gap: calc(5px - 0.13em - var(--note-size) * 0.14);
