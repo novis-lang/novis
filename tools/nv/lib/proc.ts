@@ -42,6 +42,12 @@ export interface RunResult {
 
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 
+/** The first non-empty line of a failed process's output that starts `error`, or its last one, or that `what` exited `code`. */
+export function failLine(out: string, code: number, what: string): string {
+  const lines = out.replace(/\r\n/g, "\n").split("\n").map((l) => l.trim()).filter(Boolean);
+  return lines.find((l) => l.startsWith("error")) ?? lines.at(-1) ?? `\`${what}\` exited ${code}`;
+}
+
 /**
  * `argv` with a bare program name replaced by its path on `PATH`. On Windows, `Bun.spawn` handed an
  * `env` finds only an `.exe` by a bare name, so `npm`, which is `npm.cmd`, fails to start unless

@@ -65,8 +65,6 @@ describe("the loop driver's boundary", () => {
     ];
     const left = moved.filter(([from, to]) => existsSync(join(ROOT, from)) || !existsSync(join(ROOT, to))).map(([from]) => from);
 
-    const defines = (path: string, name: string) =>
-      new RegExp(`^export\\s+(?:async\\s+)?(?:function\\*?|const|let|class)\\s+${name}\\b`, "m").test(readFileSync(join(ROOT, path), "utf8"));
     const symbols: [string, string, string][] = [
       ["sweepOver", "tools/nv/cmd/loop.ts", "tools/nv/accept/sweep.ts"],
       ["sweepIds", "tools/nv/cmd/loop.ts", "tools/nv/accept/sweep.ts"],
@@ -78,4 +76,28 @@ describe("the loop driver's boundary", () => {
     }
     expect(left).toEqual([]);
   });
+
+  test("the check runners have one home", () => {
+    const left: string[] = [];
+    for (const name of ["preflight", "bringUp"]) {
+      for (const file of tsFiles("tools/nv/driver")) if (defines(file, name)) left.push(`${name} in ${file}`);
+      if (!defines("tools/nv/cmd/services.ts", name)) left.push(`${name} not in tools/nv/cmd/services.ts`);
+    }
+    for (const file of ["tools/nv/accept/sweep.ts", "tools/nv/cmd/legs.ts"]) if (!/\blegsOptions\(/.test(read(file))) left.push(`${file} builds the legs' options without legsOptions`);
+    left.push(...unregistered(["suite", "legs", "services"]));
+    expect(left).toEqual([]);
+  });
 });
+
+const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
+
+/** Whether `path` exports a function, constant or class `name`. */
+function defines(path: string, name: string): boolean {
+  return new RegExp(`^export\\s+(?:async\\s+)?(?:function\\*?|const|let|class)\\s+${name}\\b`, "m").test(read(path));
+}
+
+/** Each of `commands` that `main.ts`'s `COMMANDS` does not map to its own module. */
+function unregistered(commands: string[]): string[] {
+  const main = read("tools/nv/main.ts");
+  return commands.filter((c) => !new RegExp(`^\\s+"?${c}"?: \\(\\) => import\\("\\./cmd/${c}\\.ts"\\)`, "m").test(main)).map((c) => `${c} is not registered in tools/nv/main.ts`);
+}

@@ -62,7 +62,7 @@
 // however it ends.
 //
 // The first turn of a run refuses a disk with less than `--min-free-gb` free, then preflights the live
-// goal's Docker daemon and brings up its `env.docker` services (`driver/gates.ts`).
+// goal's Docker daemon and brings up its `env.docker` services (`cmd/services.ts`).
 //
 // `--side <slug>`, ahead of every other argument, puts any mode above on side goal `slug` instead of the
 // live goal: it sets `NOVIS_SIDE_GOAL`, which `nv orient`, `nv session` and every turn and session of the run
@@ -128,7 +128,8 @@ import { AGAIN, LOGDIR, RUN_ENV, RUNDIR, driverChanged, driverFiles, launch, led
 import { respawn } from "../driver/respawn.ts";
 import { AllowWatch, loadSeen, record as recordAllow, saveSeen, settle as settleAllow } from "../driver/allow.ts";
 import { insideWorktree, landing, launchSide } from "../driver/side.ts";
-import { bringUp, docGate, enoughDisk, ownerGate, preflight, sweepDisk } from "../driver/gates.ts";
+import { docGate, enoughDisk, ownerGate, sweepDisk } from "../driver/gates.ts";
+import { bringUp, preflight } from "./services.ts";
 import { chainGoals, type Goal, goalPlan, leaveGoal, liveGoal, SIDE_ENV, sideGoal } from "../lib/chain.ts";
 import { ROOT } from "../lib/paths.ts";
 import { ENV as PROGRESS_ENV, readProgress } from "../lib/progress.ts";

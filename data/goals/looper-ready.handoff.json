@@ -1,26 +1,31 @@
 {
-  "state": "**Goal `looper-ready`, Stage 2 is done on disk; Stage 3 is next.** `tools/nv/accept/` holds the moved shared code plus `sweep.ts` (`sweepOver`, `sweepIds`), the process tree is `tools/nv/lib/proctree.ts`, `featureMatches` is in `tools/nv/accept/accept.ts` and `NUMBER_CITE` in `tools/nv/lib/prose.ts`. The tests of code that stays in the driver or a loop command are under `tools/nv/driver/test/`, `loop-stats.test.ts` among them. `tools/nv/test/driver-boundary.test.ts` holds both Stage 2 titles and passes; Stages 3 to 6 add their own titles to the same file.\n\nThe user's calls and the writer's are the goal file's § *Standing decisions*; no session re-decides one. The cutover's runbook is `docs/agent/looper-cutover.md`, and the cutover is not this goal's work. `bun test -t <regex>` that matches no test exits 0, so every check here asks for the exact `Ran N tests across 1 file` line.",
+  "state": "**Goal `looper-ready`, Stages 2 and 3 are done on disk; Stage 4 is next.** `bun nv suite` (`tools/nv/cmd/suite.ts`) judges one `nvs-suite` check through `PlanSweep` and the shared `suiteVerdict` (`tools/nv/accept/runner.ts`). `bun nv legs` (`tools/nv/cmd/legs.ts`) builds its options with `legsOptions` (`tools/nv/accept/legs.ts`), the builder `sweepOver` also calls. `bun nv services --up` (`tools/nv/cmd/services.ts`) owns `preflight` and `bringUp`, and `cmd/loop.ts` imports them from there. A command finds its goal through `namedPlan` in `tools/nv/lib/chain.ts`: `--goal`, else `LOOPER_GOAL`, else the current goal. `tools/nv/test/driver-boundary.test.ts` holds the Stage 2 and 3 titles, and they pass. Stages 4 to 6 add their own titles to the same file.\n\nThe user's calls and the goal writer's calls are the goal file's § *Standing decisions*, and no session re-decides one. The cutover's runbook is `docs/agent/looper-cutover.md`, and the cutover is not this goal's work. `bun test -t <regex>` that matches no test exits 0, so every check here asks for the exact `Ran N tests across 1 file` line.",
   "next": {
-    "stage": 3,
-    "title": "the check runners",
+    "stage": 4,
+    "title": "the session hooks",
     "files": [],
-    "note": "one file set: `tools/nv/accept/`, `tools/nv/driver/gates.ts`, `tools/nv/cmd/loop.ts`, `tools/nv/main.ts`, new `tools/nv/cmd/{suite,legs,services}.ts`, `tools/nv/test/`.",
+    "note": ". One file set: `tools/nv/cmd/loop.ts`, `tools/nv/driver/{side,allow,gates}.ts`, `tools/nv/cmd/guard.ts`, `tools/nv/main.ts`, new `tools/nv/cmd/{sweep,benches,side,allow}.ts`, `tools/nv/test/`.",
     "items": [
       {
         "done": false,
-        "text": "**`bun nv suite`** — builds an `nvs-suite` `Check` from its argv and judges it through `PlanSweep` (`tools/nv/accept/runner.ts:580` `suite`, `tools/nv/accept/runner.ts:597` `judgeSuite`); registered in `COMMANDS` at `tools/nv/main.ts:24`, tested in `tools/nv/test/suite.test.ts`. Specified by the goal's Stage 3 section."
+        "text": "**`bun nv benches [--owed]`**: `benchTurn` (`tools/nv/cmd/loop.ts:701`) moves to `cmd/benches.ts`. `nv loop --benches` (`tools/nv/cmd/loop.ts:1342`) and its usage lines go. The guard's heavy-run rule moves to `benches` (`tools/nv/cmd/guard.ts:546`). Specified by the goal's Stage 4 section."
       },
       {
         "done": false,
-        "text": "**`bun nv legs`** — the Linux legs by hand over `linuxLegs` (`tools/nv/accept/legs.ts:354`) and `startWslBuild` (`tools/nv/accept/legs.ts:320`), reading the goal through `lib/chain.ts`; tested in `tools/nv/test/legs-cmd.test.ts`."
+        "text": "**`bun nv side --prepare <slug>`**: `prepare` and `seedStore` (`tools/nv/driver/side.ts:61`, `tools/nv/driver/side.ts:100`) move to `cmd/side.ts`, and `launchSide` calls them there. Specified by the goal's Stage 4 section."
       },
       {
         "done": false,
-        "text": "**`bun nv services --up`** — `preflight` and `bringUp` (`tools/nv/driver/gates.ts:87`, `tools/nv/driver/gates.ts:110`) move out of the driver so the command and the driver share them; tested in `tools/nv/test/services.test.ts`, and the Stage 3 title of `tools/nv/test/driver-boundary.test.ts` added."
+        "text": "**`bun nv allow --learn <events.jsonl>`**: `AllowWatch`, `record`, `owed`, `nvCommands` and `settle` (`tools/nv/driver/allow.ts:164`, `tools/nv/driver/allow.ts:215`, `tools/nv/driver/allow.ts:287`) move to `cmd/allow.ts`. Specified by the goal's Stage 4 section."
+      },
+      {
+        "done": false,
+        "text": "**`bun nv sweep [--done]`**: the after-session sequence in `serve()`, from the `sweep: \"done\"` skip (`tools/nv/cmd/loop.ts:1119`) through `fullRunTurn` (`tools/nv/cmd/loop.ts:680`), `setFloorSince` (`tools/nv/cmd/loop.ts:1178`) and `sweepDisk` (`tools/nv/cmd/loop.ts:1184`), becomes one function in `cmd/sweep.ts` that `serve()` calls. It writes `.loop/last-sweep.md` and always exits 0. This is the largest slice, so it may fill a session on its own."
       }
     ]
   },
   "backlog": [
-    "Stage 4 the session hooks, Stage 5 the wrap and pack sections, Stage 6 the runbook's commands: `docs/agent/goals/looper-ready.md`."
+    "Stage 5: `bun nv plan --apply`, `bun nv pack` and `lib/written.ts`'s `LOOPER_WRITTEN` (goal file § Stage 5).",
+    "Stage 6: the runbook's hook table names only registered commands (goal file § Stage 6)."
   ]
 }
