@@ -1,0 +1,80 @@
+<?nvs
+// Attack: a program finds a deleted account and keeps using it as if it were active.
+// Each step should return a value or throw an error, and nothing may crash.
+// hostile: timeout-ms 60000
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect('corp-accounts');
+string $unit = 'OU=Hostile Deleted,DC=example,DC=test';
+string $user = 'CN=Gone User,' . $unit;
+array<string> $leftovers = [$user, $unit];
+foreach ($leftovers as string $left) {
+    try {
+        $corp->delete($left);
+    } catch (Core\Ldap\LdapError $missing) {
+    }
+}
+$corp->add($unit, ['objectClass' => 'organizationalUnit']);
+$corp->add($user, ['objectClass' => 'user', 'sAMAccountName' => 'gone.user']);
+var $live = $corp->read($user, { select: ['objectSid'] });
+string $sid = $live?->sid('objectSid')?->toString() ?? '';
+// The deleted account no longer is in the unit, so the unit can be deleted now.
+$corp->delete($user);
+$corp->delete($unit);
+
+var $bySid = Core\Ldap\Filter::equals('objectSid', $sid);
+foreach ($corp->search($bySid, { showDeleted: true }) as Core\Ldap\Entry $gone) {
+    // 1. Every reader on an entry that lost most of its attributes.
+    uint $empty = 0;
+    uint $threw = 0;
+    array<string> $names = ['mail', 'sAMAccountName', 'userAccountControl', 'whenChanged', 'objectGUID', 'isDeleted', 'lastKnownParent'];
+    foreach ($names as string $name) {
+        try {
+            if ($gone->string($name) == null) {
+                $empty = $empty + 1;
+            }
+            $gone->strings($name);
+            $gone->bytes($name);
+            $gone->bool($name);
+            $gone->int($name);
+            $gone->instant($name);
+            $gone->uuid($name);
+            $gone->sid($name);
+            $gone->accountFlags();
+        } catch (Throwable $error) {
+            $threw = $threw + 1;
+        }
+    }
+    echo '1 empty: ', $empty, ', threw: ', $threw, "\n";
+
+    // 2. One hundred thousand checks in a row. Nothing may be left behind.
+    uint $yes = 0;
+    uint $i = 0;
+    while ($i < 100000) {
+        if ($gone->isDeleted()) {
+            $yes = $yes + 1;
+        }
+        $i = $i + 1;
+    }
+    echo '2 deleted: ', $yes, "\n";
+
+    // 3. Logging in as the deleted account, changing it, and giving it a new password.
+    // The server may close the connection after the last one, so it is the last step.
+    uint $failed = 0;
+    try {
+        $corp->authenticate($gone->dn()->toString(), 'Back-Again-7-Aa');
+    } catch (Throwable $error) {
+        $failed = $failed + 1;
+    }
+    try {
+        $corp->modify($gone->dn(), [Core\Ldap\Change::replace('description', 'back again')]);
+    } catch (Throwable $error) {
+        $failed = $failed + 1;
+    }
+    try {
+        $corp->setPassword($gone->dn(), 'Back-Again-7-Aa');
+    } catch (Throwable $error) {
+        $failed = $failed + 1;
+    }
+    echo '3 threw: ', $failed, "\n";
+}
