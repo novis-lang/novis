@@ -1,0 +1,35 @@
+--TEST--
+`passwordExpired` and `lockedOut` read the flags AD computes, not `userAccountControl`: a user who must change the password has an expired password that `bits()` does not show, and nobody is locked out — `rule:core-classes/ldap-value-types`
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+array<string> $logins = ["anna.berg", "carla.diaz"];
+foreach ($logins as string $login) {
+    var $found = $corp->search(Core\Ldap\Filter::equals("sAMAccountName", $login), {select: ["userAccountControl"]});
+    foreach ($found as Core\Ldap\Entry $entry) {
+        ?Core\Ldap\Ad\AccountFlags $flags = $entry->accountFlags();
+        if ($flags == null) {
+            echo $login, ": no flags", "\n";
+        } else {
+            echo $login, ": expired ", $flags->passwordExpired() ? "yes" : "no",
+                ", in bits ", ($flags->bits() & 8388608) != 0 ? "yes" : "no",
+                ", locked out ", $flags->lockedOut() ? "yes" : "no", "\n";
+        }
+    }
+}
+// covers: Core\Ldap\Ad\AccountFlags::passwordExpired, Core\Ldap\Ad\AccountFlags::lockedOut
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+base = "OU=Company,DC=example,DC=test"
+user = "CN=Reader,OU=Company,DC=example,DC=test"
+password = "Novis-reader-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+anna.berg: expired no, in bits no, locked out no
+carla.diaz: expired yes, in bits no, locked out no

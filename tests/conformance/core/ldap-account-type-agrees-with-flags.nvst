@@ -1,5 +1,5 @@
 --TEST--
-Across the whole domain, `accountType()` agrees with the flags: `User` for a normal account, `Machine` for a computer or a domain controller, `Group` or `Alias` by the group's scope, and every flag reader agrees with `bits()` — `rule:core-classes/ldap-value-types`
+Across the whole domain, `accountType()` agrees with the flags: `User` for a normal account, `Machine` for a computer or a domain controller, `Group` or `Alias` by the group's scope, and every reader of a flag AD stores agrees with `bits()`, which leaves out the two AD computes, `lockedOut` and `passwordExpired` — `rule:core-classes/ldap-value-types`
 --FILE--
 <?nvs
 var $corp = Core\Ldap::connect("corp");
@@ -21,7 +21,7 @@ foreach ($corp->search($either, {select: ["userAccountControl", "groupType", "sA
             $typeAgrees = $typeAgrees && $kind == Core\Ldap\Ad\AccountType::User;
         }
         int $sum = ($flags->script() ? 1 : 0) + ($flags->disabled() ? 2 : 0)
-            + ($flags->homeDirectoryRequired() ? 8 : 0) + ($flags->lockedOut() ? 16 : 0)
+            + ($flags->homeDirectoryRequired() ? 8 : 0)
             + ($flags->passwordNotRequired() ? 32 : 0) + ($flags->reversibleEncryption() ? 128 : 0)
             + ($flags->temporaryDuplicateAccount() ? 256 : 0) + ($flags->normalAccount() ? 512 : 0)
             + ($flags->interdomainTrustAccount() ? 2048 : 0) + ($flags->workstationTrustAccount() ? 4096 : 0)
@@ -29,9 +29,9 @@ foreach ($corp->search($either, {select: ["userAccountControl", "groupType", "sA
             + ($flags->mnsLogonAccount() ? 131072 : 0) + ($flags->smartcardRequired() ? 262144 : 0)
             + ($flags->trustedForDelegation() ? 524288 : 0) + ($flags->notDelegated() ? 1048576 : 0)
             + ($flags->useDesKeyOnly() ? 2097152 : 0) + ($flags->noPreauthRequired() ? 4194304 : 0)
-            + ($flags->passwordExpired() ? 8388608 : 0) + ($flags->trustedToAuthForDelegation() ? 16777216 : 0)
+            + ($flags->trustedToAuthForDelegation() ? 16777216 : 0)
             + ($flags->partialSecretsAccount() ? 67108864 : 0);
-        $readersAgree = $readersAgree && $sum == ($flags->bits() & 100614075);
+        $readersAgree = $readersAgree && $sum == ($flags->bits() & 92225451);
     }
     ?Core\Ldap\Ad\GroupType $type = $entry->groupType();
     if ($type != null) {

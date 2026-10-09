@@ -2713,13 +2713,18 @@ port = 1
 from = "shop@example.com"
 timeout = "5s"
 
-# `Core\Ldap::connect`'s proof programs open this block, on `[mail.shop]`'s footing: port 1 on
-# loopback has no listener, so every dial is refused and every run ends with the same `LdapError`
-# and no password sent. The cases that reach Samba write their own `[ldap.corp]` beside them.
+# The `Core\Ldap` proof programs open this block. It reaches the `samba-ad` service of
+# `tests/db/compose.yaml` over LDAPS and binds as the read-only `Reader` that service seeds, so a
+# program that opens it carries `// requires: samba-ad`, and the runner starts the service first.
+# `localhost` is a name the test leaf's SAN has, and `tls_ca_file` is the CA that signed it. The
+# conformance cases that write to the directory carry an `[ldap.corp]` of their own, bound as the
+# administrator.
 [ldap.corp]
-url = "ldaps://127.0.0.1:1"
-user = "CN=Reader,CN=Users,DC=example,DC=test"
-password = "Example-Pw1"
+url = "ldaps://localhost:16636"
+base = "DC=example,DC=test"
+user = "CN=Reader,OU=Company,DC=example,DC=test"
+password = "Novis-reader-1"
+tls_ca_file = "tests/db/ca.crt"
 timeout = "5s"
 
 # The backend `rule:core-classes/queue-storage-is-a-table`'s schema had no hand-written list for, and

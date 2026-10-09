@@ -365,6 +365,23 @@ services:
   # and appending needs no edit of the provisioned file. The key is copied because Samba refuses a key
   # file it does not own, and `server.key` is uid 999's.
   #
+  # The second script, `20-novis-seed`, writes one fixed directory into the provisioned domain, so a
+  # proof program's output is the same on every boot. `samba-tool` writes the database files directly,
+  # so the seed is done before Samba starts and healthy already means seeded. A marker file makes it
+  # run once per container: a restart keeps the domain and skips it, and a recreated container
+  # provisions and seeds again. Everything is under `OU=Company`, and no name in it is one a test
+  # creates or counts: the tests write `OU=Shop`, `Staff` and more, and count what `CN=Users` holds.
+  #
+  # `CN=Reader,OU=Company,DC=example,DC=test`, password `Novis-reader-1`, is the account the root
+  # `nvs.toml`'s `[ldap.corp]` binds as: an ordinary user, who can read the directory and change
+  # nothing in it. The users `anna.berg`, `ben.kohl` (password never expires), `carla.diaz` (must
+  # change the password, so AD computes the password as expired) and `dora.lind` (disabled), all with
+  # the password `Novis-user-1`; the security groups `Employees` (all four, and `Managers` nested in
+  # it) and `Managers` (`anna.berg`); and the distribution group `Newsletter` (`ben.kohl`,
+  # `carla.diaz`). A user's DN is its full name, `CN=Anna Berg,OU=Company,DC=example,DC=test`. GUIDs,
+  # SIDs and timestamps differ per boot and a search returns entries in no fixed order, so an
+  # example's `.out` prints neither.
+  #
   # `INSECURE_LDAP` sets `ldap server require strong auth = no`, so a simple bind on 389 without TLS is
   # accepted and `rule:security/ldap-cleartext-bind-is-granted-per-host`'s granted path can be tested.
   # Without it Samba answers that bind `strongerAuthRequired`. The health check binds over LDAPS and
@@ -396,6 +413,34 @@ services:
           'tls cafile = /certs/ca.crt' >> /etc/samba/smb.conf
         EOF
         chmod 755 /entrypoint.d/10-novis-tls
+        cat > /entrypoint.d/20-novis-seed <<'EOF'
+        #!/bin/sh
+        set -e
+        [ -f /var/lib/samba/private/novis-seeded ] && exit 0
+        samba-tool ou add OU=Company --description="The company and the people who work there"
+        samba-tool user add Reader Novis-reader-1 --userou=OU=Company \
+          --description="Reads the directory for the proof programs"
+        samba-tool user setexpiry Reader --noexpiry
+        samba-tool group add Employees --groupou=OU=Company --description="Everyone who works here"
+        samba-tool group add Managers --groupou=OU=Company --description="Employees who manage a team"
+        samba-tool group add Newsletter --groupou=OU=Company --group-type=Distribution \
+          --mail-address=newsletter@example.test --description="Receives the weekly newsletter"
+        samba-tool user add anna.berg Novis-user-1 --userou=OU=Company --given-name=Anna --surname=Berg \
+          --mail-address=anna.berg@example.test --department=Sales --job-title=Manager
+        samba-tool user add ben.kohl Novis-user-1 --userou=OU=Company --given-name=Ben --surname=Kohl \
+          --mail-address=ben.kohl@example.test --department=Warehouse
+        samba-tool user setexpiry ben.kohl --noexpiry
+        samba-tool user add carla.diaz Novis-user-1 --userou=OU=Company --given-name=Carla --surname=Diaz \
+          --mail-address=carla.diaz@example.test --department=Sales --must-change-at-next-login
+        samba-tool user add dora.lind Novis-user-1 --userou=OU=Company --given-name=Dora --surname=Lind \
+          --mail-address=dora.lind@example.test --department=Warehouse
+        samba-tool user disable dora.lind
+        samba-tool group addmembers Employees anna.berg,ben.kohl,carla.diaz,dora.lind,Managers
+        samba-tool group addmembers Managers anna.berg
+        samba-tool group addmembers Newsletter ben.kohl,carla.diaz
+        touch /var/lib/samba/private/novis-seeded
+        EOF
+        chmod 755 /entrypoint.d/20-novis-seed
         exec /entrypoint.sh
     ports:
       - "127.0.0.1:16389:389"
