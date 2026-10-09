@@ -1,22 +1,27 @@
 <?nvs
 // Measures reading the output of a running program part by part, as a server does to show the log of a long job.
-// bench: iterations 256
+// bench: iterations 512 -- each round also writes the line it reads back, and the ramp needs a batch of 256 on some runs
 // bench: calls 0
 // bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {
-        // `/usr/bin/yes` on Linux and macOS, and a `cmd.exe` loop on Windows. Neither stops by itself.
-        string $path = "/usr/bin/yes";
-        array<string> $arguments = ["a line of output"];
+        // `/bin/sh` runs `cat` on Linux and macOS, and `cmd.exe` runs a loop on Windows.
+        // Both print each line of input back as soon as they read it.
+        string $path = "/bin/sh";
+        array<string> $arguments = ["-c", "exec cat"];
         if (Core\Path::SEPARATOR == "\\") {
             $path = "C:\\Windows\\System32\\cmd.exe";
-            $arguments = ["/c", "for /l %i in (0,0,1) do @type C:\\Windows\\System32\\cmd.exe"];
+            $arguments = ["/v:on", "/c", "for /l %i in (0,0,1) do @(set /p line=& <nul set /p =!line!)"];
         }
         var $program = Core\Process::spawn($path, $arguments);
+        bytes $line = "a line of output\n" as bytes;
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
+            // The program prints one line for each line it reads.
+            // So each read returns exactly that one line.
+            $program->writeStdin($line);
             ?bytes $part = $program->readStdout();
             // The total depends on every part, so no read can be skipped.
             if ($part != null) {
@@ -34,4 +39,4 @@ class Bench {
     }
 }
 
-echo Bench::run(256), "\n";
+echo Bench::run(512), "\n";

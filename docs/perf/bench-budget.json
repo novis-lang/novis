@@ -1,5 +1,5 @@
 {
-  "total": 111833694,
+  "total": 111835743,
   "benches": {
     "benches/members/core/Arr/all.nvs": 1542,
     "benches/members/core/Arr/any.nvs": 1542,
@@ -476,7 +476,7 @@
     "benches/members/core/Path/withExtension.nvs": 774,
     "benches/members/core/Process-Handle/kill.nvs": 511,
     "benches/members/core/Process-Handle/readStderr.nvs": 1551,
-    "benches/members/core/Process-Handle/readStdout.nvs": 1551,
+    "benches/members/core/Process-Handle/readStdout.nvs": 3600,
     "benches/members/core/Process-Handle/wait.nvs": 411,
     "benches/members/core/Process-Handle/writeStdin.nvs": 1294,
     "benches/members/core/Process-Result/exitCode.nvs": 3082,
