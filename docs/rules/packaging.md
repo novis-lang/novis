@@ -1770,14 +1770,15 @@ A request has one instance per extension it calls ([`packaging/a-fresh-instance-
 component cannot be re-entered, so a second task of the same request calling the same extension waits
 until the first call returns.
 
-**Not on disk.** `nvs_ext::call::Request::call` is the call, a future that parks on a pending import
+**On disk.** `nvs_ext::call::Request::call` is the call, a future that parks on a pending import
 and yields at every tick, and a second task of the request waits for the instance
-(`crates/nvs-ext/tests/call.rs`, whose core is a one-thread run queue). `benches/abi-probe` proves the bridge with a
-component guest under its `wasm-probe` feature: a `corosensei` coroutine polls `call_async`, a pending
-host import parks it, a second coroutine runs a whole guest call on the thread while the first is
-parked inside wasm, an epoch tick yields a long call to a sibling, and the CPU deadline traps a call
-that keeps yielding. The core there is a model of one run queue and a waker per task; neither
-`nvs-host`'s scheduler nor its `RemoteWake` drives a guest call yet.
+(`crates/nvs-ext/tests/call.rs`). `nvs_host::block_on::block_on_yielding` drives it on the calling
+task (`crates/nvs-cli/src/extensions.rs`). Its waker fires the core's `RemoteWake`. A tick's yield
+fires that wake and then parks, so the task runs again behind the core's ready tasks at the reactor's
+next poll, with no deadline armed; a pending import parks until its own wake
+(`crates/nvs-host/src/block_on.rs`). `benches/abi-probe` proves the bridge with a component guest
+under its `wasm-probe` feature: a second coroutine runs a whole guest call on the thread while the
+first is parked inside wasm, and the CPU deadline traps a call that keeps yielding.
 
 <sub>See also [`packaging/a-guest-runs-under-the-requests-budget`](packaging.md#packaging-a-guest-runs-under-the-requests-budget), [`packaging/a-fresh-instance-per-request`](packaging.md#packaging-a-fresh-instance-per-request). Decided in [0246](../decisions/0246.md).</sub>
 
