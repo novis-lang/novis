@@ -48,6 +48,21 @@ foreach ($corp->search(Core\Ldap\Filter::all(Core\Ldap\Filter::equals("objectCla
     $found = $found + (($user->accountFlags()?->disabled() ?? false) ? 1 : 0);
 }
 echo "disabled by filter: ", $found, "\n";
+// covers: Core\Ldap\Ad\AccountFlags::script, Core\Ldap\Ad\AccountFlags::disabled
+// covers: Core\Ldap\Ad\AccountFlags::homeDirectoryRequired, Core\Ldap\Ad\AccountFlags::lockedOut
+// covers: Core\Ldap\Ad\AccountFlags::passwordNotRequired, Core\Ldap\Ad\AccountFlags::reversibleEncryption
+// covers: Core\Ldap\Ad\AccountFlags::temporaryDuplicateAccount, Core\Ldap\Ad\AccountFlags::normalAccount
+// covers: Core\Ldap\Ad\AccountFlags::interdomainTrustAccount, Core\Ldap\Ad\AccountFlags::workstationTrustAccount
+// covers: Core\Ldap\Ad\AccountFlags::serverTrustAccount, Core\Ldap\Ad\AccountFlags::passwordNeverExpires
+// covers: Core\Ldap\Ad\AccountFlags::mnsLogonAccount, Core\Ldap\Ad\AccountFlags::smartcardRequired
+// covers: Core\Ldap\Ad\AccountFlags::trustedForDelegation, Core\Ldap\Ad\AccountFlags::notDelegated
+// covers: Core\Ldap\Ad\AccountFlags::useDesKeyOnly, Core\Ldap\Ad\AccountFlags::noPreauthRequired
+// covers: Core\Ldap\Ad\AccountFlags::passwordExpired, Core\Ldap\Ad\AccountFlags::trustedToAuthForDelegation
+// covers: Core\Ldap\Ad\AccountFlags::partialSecretsAccount, Core\Ldap\Ad\AccountFlags::bits
+// covers: Core\Ldap\Ad\GroupType::system, Core\Ldap\Ad\GroupType::global
+// covers: Core\Ldap\Ad\GroupType::domainLocal, Core\Ldap\Ad\GroupType::universal
+// covers: Core\Ldap\Ad\GroupType::appBasic, Core\Ldap\Ad\GroupType::appQuery
+// covers: Core\Ldap\Ad\GroupType::security, Core\Ldap\Ad\GroupType::bits
 --COPY--
 ../../db/ca.crt
 --FILE nvs.toml--

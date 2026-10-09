@@ -34,6 +34,7 @@ if ($type != null) {
     echo "universal: ", $universal->bits(), " ", $universal->global() ? "yes" : "no", " ", $universal->universal() ? "yes" : "no", "\n";
     echo "original: ", $type->bits(), "\n";
 }
+// covers: Core\Ldap\Ad\AccountFlags::with, Core\Ldap\Ad\GroupType::with
 --COPY--
 ../../db/ca.crt
 --FILE nvs.toml--
