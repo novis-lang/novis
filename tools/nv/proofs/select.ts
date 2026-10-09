@@ -223,8 +223,9 @@ export async function planBenches(reach: Reach[], judge: (path: string) => Promi
  * release `nvs`, as `bun nv scaling --growth` judges it, and then its recording run (`recordBench`) on the
  * covws debug `nvs`, with green when the growth found nothing or only what the bench's `// proof: gap`
  * marker records. The benches are judged in `planBenches`'s order, which skips a bench whose changed
- * items are already proven, and every bench is judged before any is recorded, so no ramp shares the
- * machine with a debug run. A skipped bench keeps its figure, and the tree then moves past the change.
+ * items are already proven. Each bench is recorded right after it is judged, and one at a time, so no
+ * ramp shares the machine with a debug run and a run stopped part of the way keeps every bench it
+ * finished. A skipped bench keeps its figure, and the tree then moves past the change.
  * With no bench selected, the store is not touched. Returns how many benches the change reached and
  * ran, each skipped one with the benches that proved it, and the red ones, or why the release build
  * failed.
@@ -258,22 +259,25 @@ export async function runBenches(say: (line: string) => void = () => {}): Promis
         const s = sel.selected.get(benchId(path))!;
         return { path, items: changedItems(s) };
       });
+      const { nvs } = await buildCovws({ onLine: cargoLines("benches: building the covws debug nvs") });
+      const ran = new Set<string>();
+      // Each bench is recorded as soon as it is judged, so a run stopped part of the way keeps every
+      // verdict it reached, and the next run selects only the benches still owed.
       const plan = await planBenches(reach, async (path) => {
         say(`benches: ${verdicts.size + 1}/${chosen.length} judging ${path}`);
         const g = await growthOf(path, opts, true);
         const green = g.findings.length === 0 || knownGap(read(path)) !== null;
         verdicts.set(path, green ? "green" : "red");
         if (!green) red.push({ path, findings: g.findings });
+        say(`benches: ${verdicts.size}/${chosen.length} recording ${path}`);
+        await recordBench(rec, nvs, join(rec.dir, "bench"), path, green ? "green" : "red");
+        ran.add(benchId(path));
         return !green;
       });
-      const { nvs } = await buildCovws({ onLine: cargoLines("benches: building the covws debug nvs") });
       // A skipped bench keeps its recorded footprint, so the tree moves past it too. Only a green bench
       // is skipped, and one an earlier run owed is green again.
-      const ran = new Set([...plan.skipped.keys()].map(benchId));
-      for (const id of ran) store.setVerdict(id, "green");
-      for (const [i, path] of plan.ran.entries()) {
-        say(`benches: ${i + 1}/${plan.ran.length} recording ${path}`);
-        await recordBench(rec, nvs, join(rec.dir, "bench"), path, verdicts.get(path)!);
+      for (const path of plan.skipped.keys()) {
+        store.setVerdict(benchId(path), "green");
         ran.add(benchId(path));
       }
       advance(store, change, sel, ran, graph);
