@@ -11,7 +11,7 @@ class Attack
     // So one of the two paths throws an `IOError`, and the other one starts a program.
     public static function echoPath(): string
     {
-        if (Core\Path::SEPARATOR == "\\") {
+        if (Core\Env::OS == 'Windows') {
             return "C:\\Windows\\System32\\cmd.exe";
         }
         return '/bin/echo';
@@ -19,7 +19,7 @@ class Attack
 
     public static function echoArguments(string $word): array<string>
     {
-        if (Core\Path::SEPARATOR == "\\") {
+        if (Core\Env::OS == 'Windows') {
             return ['/c', 'echo', $word];
         }
         return [$word];
@@ -29,7 +29,7 @@ class Attack
     // On Windows, `cmd.exe` prints its own file in a loop. An `echo` loop there is too slow.
     public static function endless(): Core\Process\Handle
     {
-        if (Core\Path::SEPARATOR == "\\") {
+        if (Core\Env::OS == 'Windows') {
             return Core\Process::spawn(
                 "C:\\Windows\\System32\\cmd.exe",
                 ['/c', 'for /l %i in (0,0,1) do @type C:\\Windows\\System32\\cmd.exe'],

@@ -10,7 +10,7 @@ class Bench {
         // Both print each line of input back to the error output as soon as they read it.
         string $path = "/bin/sh";
         array<string> $arguments = ["-c", "exec cat >&2"];
-        if (Core\Path::SEPARATOR == "\\") {
+        if (Core\Env::OS == "Windows") {
             $path = "C:\\Windows\\System32\\cmd.exe";
             $arguments = ["/v:on", "/c", "for /l %i in (0,0,1) do @(set /p line=& <nul 1>&2 set /p =!line!)"];
         }
