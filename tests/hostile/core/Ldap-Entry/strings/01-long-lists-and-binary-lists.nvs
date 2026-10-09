@@ -1,0 +1,41 @@
+<?nvs
+// Attack: a program reads the same list of values many times, and reads binary
+// values as a list of text. The list must stay the same size, a binary value must
+// throw an error, and nothing may crash.
+// hostile: timeout-ms 60000
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect('corp');
+var $found = $corp->read('CN=Employees,OU=Company,DC=example,DC=test', { select: ['member', 'objectGUID', 'objectSid'] });
+
+if ($found != null) {
+    Core\Ldap\Entry $group = $found;
+
+    // 1. The member list, read one hundred thousand times. Each call makes a new
+    // array, and none of them may be left behind.
+    uint $members = 0;
+    uint $i = 0;
+    while ($i < 100000) {
+        $members = $members + Core\Arr::count($group->strings('member') ?? []);
+        $i = $i + 1;
+    }
+    echo '1 members counted: ', $members, "\n";
+
+    // 2. Binary values read as text. Each one throws an error.
+    uint $threw = 0;
+    $i = 0;
+    while ($i < 10000) {
+        try {
+            $group->strings($i % 2 == 0 ? 'objectGUID' : 'objectSid');
+        } catch (LogicError $refusal) {
+            $threw = $threw + 1;
+        }
+        $i = $i + 1;
+    }
+    echo '2 threw: ', $threw, "\n";
+
+    // 3. A changed copy of the list. The entry still returns its own list.
+    array<tainted string> $copy = $group->strings('member') ?? [];
+    $copy[] = 'CN=Administrator,CN=Users,DC=example,DC=test';
+    echo '3 copy: ', Core\Arr::count($copy), ', entry: ', Core\Arr::count($group->strings('member') ?? []), "\n";
+}

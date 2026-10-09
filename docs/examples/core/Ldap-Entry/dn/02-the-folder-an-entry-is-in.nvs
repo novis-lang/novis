@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to find the folder that contains an entry.
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect("corp");
+var $person = $corp->read("CN=Anna Berg,OU=Company,DC=example,DC=test", {select: ["cn"]});
+
+if ($person != null) {
+    // This prints the whole DN.
+    echo $person->dn()->toString(), "\n";
+
+    // `parent` removes the first part of the DN.
+    // This prints `OU=Company,DC=example,DC=test`.
+    var $folder = $person->dn()->parent();
+    if ($folder != null) {
+        echo $folder->toString(), "\n";
+    }
+}

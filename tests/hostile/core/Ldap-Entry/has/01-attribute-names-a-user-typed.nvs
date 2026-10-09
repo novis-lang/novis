@@ -1,0 +1,57 @@
+<?nvs
+// Attack: a program checks attribute names that a user typed. Strange names must
+// return `false` or throw an error, and nothing may crash.
+// hostile: timeout-ms 60000
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect('corp');
+var $found = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['mail', 'memberOf', 'objectGUID'] });
+
+if ($found != null) {
+    Core\Ldap\Entry $person = $found;
+    // 1. Names that look like filters, options or other attributes, and very long names.
+    array<string> $typed = [
+        '*',
+        '',
+        '   ',
+        '(mail=*)',
+        'mail;binary',
+        'memberOf;range=0-1',
+        "mail\x00",
+        'MAİL',
+        Core\Str::repeat('m', 100000),
+    ];
+    uint $hits = 0;
+    uint $threw = 0;
+    foreach ($typed as string $name) {
+        try {
+            if ($person->has($name)) {
+                $hits = $hits + 1;
+            }
+        } catch (Throwable $error) {
+            $threw = $threw + 1;
+        }
+    }
+    echo '1 found: ', $hits, ', threw: ', $threw, "\n";
+
+    // 2. Two hundred thousand checks in a row. Nothing may be left behind.
+    array<string> $names = ['mail', 'title', 'MEMBEROF', 'objectguid'];
+    uint $yes = 0;
+    uint $i = 0;
+    while ($i < 200000) {
+        if ($person->has($names[($i % 4) as int])) {
+            $yes = $yes + 1;
+        }
+        $i = $i + 1;
+    }
+    echo '2 true: ', $yes, "\n";
+
+    // 3. Every name `toArray` returns is one `has` finds.
+    uint $missing = 0;
+    foreach ($person->toArray() as tainted string $attribute => array<tainted bytes> $values) {
+        if (!$person->has($attribute)) {
+            $missing = $missing + 1;
+        }
+    }
+    echo '3 missing: ', $missing, "\n";
+}

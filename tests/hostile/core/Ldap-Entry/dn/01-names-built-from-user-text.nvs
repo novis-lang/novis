@@ -1,0 +1,64 @@
+<?nvs
+// Attack: a program reads the DN of the same entries many times, and builds new
+// DNs from text a user typed. Every DN stays one entry's path, and nothing may crash.
+// hostile: timeout-ms 60000
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect('corp');
+
+// 1. Read the DN of every person in the company fifty thousand times.
+// Each call makes a new `Dn`, and none of them may be left behind.
+var $people = $corp->search(Core\Ldap\Filter::equals('objectClass', 'user'), { base: 'OU=Company,DC=example,DC=test', select: ['cn'] });
+array<Core\Ldap\Entry> $entries = [];
+foreach ($people as Core\Ldap\Entry $person) {
+    $entries[] = $person;
+}
+uint $letters = 0;
+uint $i = 0;
+while ($i < 50000) {
+    foreach ($entries as Core\Ldap\Entry $entry) {
+        $letters = $letters + Core\Str::length($entry->dn()->rdnValue());
+    }
+    $i = $i + 1;
+}
+echo '1 read ', Core\Arr::count($entries), " names\n";
+
+// 2. Names a user typed, added to a DN with `child`. A comma, `=` or a quote
+// is part of the name, so each DN points to no entry and `read` returns `null`.
+array<string> $typed = [
+    'x,OU=Company',
+    'Anna Berg,OU=Company',
+    '*',
+    "\")(cn=*",
+    Core\Str::repeat('a', 100000),
+    '',
+];
+uint $missing = 0;
+uint $threw = 0;
+foreach ($typed as string $text) {
+    try {
+        var $built = Core\Ldap\Dn::parse('OU=Company,DC=example,DC=test')->child('CN', $text);
+        if ($corp->read($built, { select: ['cn'] }) == null) {
+            $missing = $missing + 1;
+        }
+    } catch (Throwable $error) {
+        $threw = $threw + 1;
+    }
+}
+echo '2 missing: ', $missing, ', threw: ', $threw, "\n";
+
+// 3. Walk from one DN up to the top. `parent` returns `null` at the top.
+try {
+    var $anna = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['cn'] });
+    if ($anna != null) {
+        uint $steps = 0;
+        ?Core\Ldap\Dn $at = $anna->dn();
+        while ($at != null) {
+            $at = $at?->parent();
+            $steps = $steps + 1;
+        }
+        echo '3 steps to the top: ', $steps, "\n";
+    }
+} catch (Throwable $walk) {
+    echo "3 threw\n";
+}

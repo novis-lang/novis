@@ -942,6 +942,26 @@ entry = "benches/members/core/Ldap/open.nvs"
 [app.capabilities.ldap]
 open = ["127.0.0.1"]
 
+# `Core\Ldap\Entry`'s proof programs read the seeded `OU=Company` through `[ldap.corp]`, so each
+# tree of them is granted that one block and nothing else.
+[[app]]
+root = "docs/examples/core/Ldap-Entry"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+root = "tests/hostile/core/Ldap-Entry"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+root = "benches/members/core/Ldap-Entry"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
 # `Core\Db\Column`'s proof programs, granted the same way and for the same reason: a description is
 # read off a statement, so every one of these opens `[db.notes]` by name and asks for nothing else.
 [[app]]

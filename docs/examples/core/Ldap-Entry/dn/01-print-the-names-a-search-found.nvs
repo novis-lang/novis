@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to print the name of every entry a search finds.
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect("corp");
+var $sales = $corp->search(Core\Ldap\Filter::equals("department", "Sales"), {select: ["cn"]});
+
+// `rdnValue` returns the first part of the DN without `CN=`.
+// A search returns entries in no fixed order, so the names are sorted.
+array<tainted string> $names = [];
+foreach ($sales as Core\Ldap\Entry $person) {
+    $names[] = $person->dn()->rdnValue();
+}
+
+// This prints `Anna Berg` and `Carla Diaz`.
+foreach (Core\Arr::sort($names) as tainted string $name) {
+    echo $name, "\n";
+}
