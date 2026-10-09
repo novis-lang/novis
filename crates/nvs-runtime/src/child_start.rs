@@ -1,11 +1,16 @@
 //! How a `Core\Process` child is started: with its three pipes and no other
-//! handle of this process's, and on Windows inside a job that ends it when this
-//! process ends.
+//! handle of this process's, and so that it ends when this process ends,
+//! however this process ends.
 //!
 //! [`crate::capability::exec_with`] starts every child through [`spawn`], and
-//! this is the half of that door that has to say `windows-sys`. A child is a
-//! program a request chose, so what it is given is a request-isolation
+//! this is the half of that door that talks to the operating system. A child
+//! is a program a request chose, so what it is given is a request-isolation
 //! question: a handle it inherits is a handle the request can reach.
+//!
+//! While this process runs, a child ends with the task that started it:
+//! [`crate::HeldChild`]'s `Drop` kills and reaps a spawned one, and `run` waits
+//! for its own. Neither runs when this process is killed or crashes, and what
+//! ends the child then is the platform's section below.
 //!
 //! The child is the only process this module answers for. What the child
 //! starts on its own is the child's business, and nothing here tracks it or
@@ -31,10 +36,7 @@
 //! stable toolchain has no way to pass one to `Command`
 //! (`CommandExt::raw_attribute` is unstable), so that case is not covered.
 //!
-//! While this process runs, a child ends with the task that started it:
-//! [`crate::HeldChild`]'s `Drop` kills and reaps a spawned one, and `run` waits
-//! for its own. Neither runs when this process is killed or crashes, so every
-//! child is also put into one job object that this process creates the first
+//! Every child is put into one job object that this process creates the first
 //! time it starts a child, with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`. The job's
 //! only handle is held in a static and never closed here. The operating system
 //! closes it when this process ends, however it ends, and that ends every child
@@ -55,36 +57,65 @@
 //! every thread on the machine, which costs more than starting the process
 //! does.
 //!
-//! # Other platforms
+//! # Linux and macOS
 //!
 //! `std` opens every descriptor close-on-exec, so a child gets its three pipes
-//! and nothing else. Nothing ends a child when this process is killed there.
+//! and nothing else. `std` starts it with `posix_spawn`, which costs the same
+//! however much memory this process has, and any thread may start one while
+//! another does. A `pre_exec` hook would make `std` fork this whole process
+//! instead, so this module adds none.
+//!
+//! Nothing in the kernel ends a child when its parent ends without a hook in
+//! the child, so [`crate::child_watch`] starts a watcher: a second copy of the
+//! `nvs` binary, started with the first child and connected to this process
+//! by a socket. Each child is sent to it as it starts. When this process ends,
+//! however it ends, the watcher reads the end of the socket and kills every
+//! child that is still running. That module's doc owns the mechanism: a pidfd
+//! per child on Linux, a `kqueue` exit registration on macOS.
+//!
+//! Two cases are not covered. A child that runs a set-user-ID program runs as
+//! another user, and the watcher may have no permission to kill it. A watcher
+//! that is killed itself ends nothing. This process finds it gone at the next
+//! child start, writes a warning to the log and starts a new one, and the
+//! children the old one tracked are no longer ended when this process is
+//! killed.
+//!
+//! Other Unix systems start a child the same way and have no watcher.
 //!
 //! **What it spends:** on Windows, one job handle per `nvs` process that has
-//! started a child, held until that process ends. Nothing on other platforms.
+//! started a child, held until that process ends. On Linux and macOS, one
+//! watcher process per `nvs` process that has started a child, one message per
+//! child start, and on Linux one descriptor in the watcher per child that is
+//! still running.
 
 use std::io;
 use std::process::{Child, Command};
 
-/// Starts `command` with no handle of this process's but the pipes it names.
+/// Starts `command` with no handle of this process's but the pipes it names,
+/// and returns the child with a warning for the log when it is not ended if
+/// this process is killed.
 ///
 /// # Errors
 ///
 /// What the operating system said about starting the child, or on Windows about
 /// putting it into the job. A child that started and could not be put into the
-/// job is killed and reaped before the error comes back.
+/// job is killed and reaped before the error comes back. The watcher never
+/// makes a start fail.
 #[cfg(not(windows))]
-pub(crate) fn spawn(command: &mut Command) -> io::Result<Child> {
-    command.spawn()
+pub(crate) fn spawn(command: &mut Command) -> io::Result<(Child, Option<String>)> {
+    let child = command.spawn()?;
+    let warning = crate::child_watch::track(&child);
+    Ok((child, warning))
 }
 
-/// See the other arm.
+/// See the other arm. A child that is in the job always ends with this
+/// process, so there is never a warning.
 ///
 /// # Errors
 ///
 /// See the other arm.
 #[cfg(windows)]
-pub(crate) fn spawn(command: &mut Command) -> io::Result<Child> {
+pub(crate) fn spawn(command: &mut Command) -> io::Result<(Child, Option<String>)> {
     use std::os::windows::process::CommandExt;
     use windows_sys::Win32::System::Threading::CREATE_SUSPENDED;
 
@@ -98,7 +129,7 @@ pub(crate) fn spawn(command: &mut Command) -> io::Result<Child> {
         let _ = child.wait();
         return Err(err);
     }
-    Ok(child)
+    Ok((child, None))
 }
 
 /// The Windows calls [`spawn`] makes.

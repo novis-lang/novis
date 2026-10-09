@@ -173,9 +173,13 @@ response is not rewritten — and after the throw or `FATAL` that ended the prog
 mistake the compiler can see, and it does not compile (`E0852`). A grandchild is the child's own
 business.
 
-**Not on disk.** On Linux and macOS nothing yet ends a child when nvs itself is killed; on Windows
-every child runs in a job of the nvs process that ends it then. A child started
-inside a `Core\Task` child task is ended and reported when that task ends, and under `nvs run` that
+When nvs itself is killed, a job object ends the child on Windows, and on Linux and macOS a watcher
+process that nvs starts beside its first child does. Two children outlive a killed nvs there: one
+running a set-user-ID program, which the watcher may have no permission to kill, and one started
+before the watcher itself was killed. nvs finds a killed watcher at its next child start, writes a
+`warn` record to the log and starts another.
+
+**Not on disk.** A child started inside a `Core\Task` child task is ended and reported when that task ends, and under `nvs run` that
 report does not change the exit status.
 
 Both members take the same options bag, [`core-classes/process-options`](core-classes.md#core-classes-process-options), and its `timeout` bounds

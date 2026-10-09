@@ -2301,8 +2301,9 @@ mod tests {
             ("/srv/BUILD.PS1", "ps1"),
             ("/srv/Build.Ps1", "ps1"),
         ] {
-            let refused = nvs_runtime::capability::exec(&ctx, Path::new(target), &[], RUN_MEMBER)
-                .expect_err("a second command-line parser is not a target this API has");
+            let refused =
+                nvs_runtime::capability::exec(&mut ctx, Path::new(target), &[], RUN_MEMBER)
+                    .expect_err("a second command-line parser is not a target this API has");
             let Fault::Thrown(class, message) = refused else {
                 panic!("§ 4's refusal is catchable, like every refusal this member writes");
             };
@@ -2322,7 +2323,7 @@ mod tests {
         // kind reaches the spawn, so the refusals are about the kind and not about the door being
         // shut. Nothing is at this path, so what comes back is the operating system's answer.
         let missing =
-            nvs_runtime::capability::exec(&ctx, Path::new("/srv/say.bat.gz"), &[], RUN_MEMBER)
+            nvs_runtime::capability::exec(&mut ctx, Path::new("/srv/say.bat.gz"), &[], RUN_MEMBER)
                 .expect_err("nothing is at that path");
         let Fault::Thrown(class, message) = missing else {
             panic!("a failed spawn is catchable too — `rule:security/denial-is-a-runtime-error`");
@@ -2387,7 +2388,7 @@ mod tests {
 
         let mut ctx = Ctx::buffered();
         ctx.set_config(granting("[capabilities.process]\nexec = true\n"));
-        let child = nvs_runtime::capability::exec(&ctx, &me, &["--list"], RUN_MEMBER)
+        let child = nvs_runtime::capability::exec(&mut ctx, &me, &["--list"], RUN_MEMBER)
             .expect("`exec = true` admits an ordinary executable");
         let listing = wait_off_core(child, u64::MAX, None)
             .expect("the child never ended")

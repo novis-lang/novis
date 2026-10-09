@@ -1667,6 +1667,12 @@ enum Deny {
 }
 
 fn main() -> ExitCode {
+    // First of all: this binary is also the process that ends this one's
+    // children when this one is killed, and that copy runs nothing else.
+    if let Some(status) = nvs_runtime::child_watch::main_if_asked() {
+        return status;
+    }
+
     // Before the footer read below, because a bundled application serves
     // requests too and the hook is what puts a panic under one of them into
     // that request's log. It claims nothing else: every command here is a CLI

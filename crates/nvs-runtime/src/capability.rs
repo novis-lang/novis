@@ -1347,9 +1347,10 @@ pub fn temp_root(config: Option<&nvs_config::Config>) -> Option<PathBuf> {
 /// server's own stdout — a request reaching a descriptor no capability named, and one that no
 /// `Core\Process` member would have to ask for.
 ///
-/// **The child inherits no other handle of this process's, and on Windows it ends when this
-/// process ends, however it ends.** `crates/nvs-runtime/src/child_start.rs` owns how a child is
-/// started, and says what each platform does.
+/// **The child inherits no other handle of this process's, and it ends when this process ends,
+/// however it ends.** `crates/nvs-runtime/src/child_start.rs` owns how a child is started, and
+/// says what each platform does. A child that will not be ended if this process is killed starts
+/// anyway, and a `Warn` record in the log says so.
 ///
 /// **A shell target is refused here, on every platform**, `rule:core-classes/process-refuses-a-shell-target`: a `.bat`, `.cmd` or `.ps1`
 /// runs by handing a command line to `cmd.exe` or `powershell.exe`, which re-parses the arguments
@@ -1375,7 +1376,7 @@ pub fn temp_root(config: Option<&nvs_config::Config>) -> Option<PathBuf> {
 /// [`io_failure`]'s `IOError` when the spawn itself fails — nothing is at `program`, or it is not
 /// executable.
 ///
-pub fn exec(ctx: &Ctx, program: &Path, argv: &[&str], member: &str) -> Result<Child, Fault> {
+pub fn exec(ctx: &mut Ctx, program: &Path, argv: &[&str], member: &str) -> Result<Child, Fault> {
     exec_with(ctx, program, argv, &Launch::default(), member)
 }
 
@@ -1408,7 +1409,7 @@ pub struct Launch<'a> {
 /// name is empty or has a `=` or a NUL in it, or whose value has a NUL in it. The operating
 /// system cannot pass any of those on as written.
 pub fn exec_with(
-    ctx: &Ctx,
+    ctx: &mut Ctx,
     program: &Path,
     argv: &[&str],
     launch: &Launch<'_>,
@@ -1457,7 +1458,12 @@ pub fn exec_with(
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    crate::child_start::spawn(&mut command).map_err(|err| io_failure(member, program, &err))
+    let (child, warning) =
+        crate::child_start::spawn(&mut command).map_err(|err| io_failure(member, program, &err))?;
+    if let Some(warning) = warning {
+        crate::floor::report(ctx, &crate::floor::note(nvs_render::Level::Warn, &warning));
+    }
+    Ok(child)
 }
 
 /// The path [`exec`] hands the operating system: `program` itself, or a bare name spelled against
@@ -1711,9 +1717,14 @@ mod tests {
     /// message names the capability in the spelling `nvs.toml` grants it under.
     #[test]
     fn a_child_starts_only_where_process_exec_is_granted() {
-        let ctx = Ctx::buffered();
-        let denied = exec(&ctx, Path::new("/usr/bin/convert"), &["-version"], MEMBER)
-            .expect_err("a context with no configuration grants nothing");
+        let mut ctx = Ctx::buffered();
+        let denied = exec(
+            &mut ctx,
+            Path::new("/usr/bin/convert"),
+            &["-version"],
+            MEMBER,
+        )
+        .expect_err("a context with no configuration grants nothing");
         let Fault::Thrown(class, message) = denied else {
             panic!(
                 "a denial is a throw and never a fatal — `rule:security/denial-is-a-runtime-error`"
@@ -1932,7 +1943,7 @@ mod tests {
             ("/deploy/RELEASE.CMD", "cmd"),
             ("/srv/build.ps1", "ps1"),
         ] {
-            let refused = exec(&ctx, Path::new(target), &[], MEMBER)
+            let refused = exec(&mut ctx, Path::new(target), &[], MEMBER)
                 .expect_err("a second command-line parser is not a target this API has");
             let Fault::Thrown(class, message) = refused else {
                 panic!("§ 4's refusal is catchable, like every other one this module writes");

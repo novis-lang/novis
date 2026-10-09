@@ -557,3 +557,156 @@ fn a_spawned_process_holds_none_of_nvs_s_handles_and_only_it_ends_when_nvs_is_ki
         "what the child started on its own keeps running after `nvs` ends"
     );
 }
+
+/// A program that starts a shell, which starts `sleep` in the background on its
+/// own and prints its own process id and then the `sleep`'s. Both keep running
+/// for two minutes. `nvs` passes the line on and sleeps too.
+#[cfg(unix)]
+const STARTS_A_SHELL_AND_A_SLEEP: &str = r#"<?nvs
+Core\Process\Handle $child = Core\Process::spawn(
+    "/bin/sh",
+    ["-c", 'sleep 120 & echo "$$ $!"; wait']
+);
+?bytes $pids = $child->readStdout();
+echo ($pids ?? "" as bytes) as string, "\n";
+Core\Time::sleep(120s);
+"#;
+
+/// When `nvs` is killed, the process its program started ends with it, and what
+/// that process started on its own does not. The kill is `SIGKILL`, so no
+/// destructor in `nvs` runs: only the watcher `nvs` started beside its first
+/// child can end the child. The watcher ignores the `SIGINT` a Ctrl-C sends
+/// the terminal's process group, and exits once it has ended the child.
+// covers: Core\Process::spawn
+#[cfg(unix)]
+#[test]
+fn a_spawned_process_ends_when_nvs_is_killed_and_what_it_started_does_not() {
+    use std::io::{BufRead, BufReader};
+    use std::process::{Child, Stdio};
+    use std::time::{Duration, Instant};
+
+    /// Ends `nvs` and every process the case saw, however the case ends. The
+    /// `sleep` is still running when the case passes, so this always has work
+    /// to do.
+    struct Leftovers {
+        nvs: Child,
+        pids: Vec<u32>,
+    }
+    impl Drop for Leftovers {
+        fn drop(&mut self) {
+            let _ = self.nvs.kill();
+            let _ = self.nvs.wait();
+            for pid in &self.pids {
+                let _ = nvs_repo::spawn("kill", &[])
+                    .args(["-KILL", &pid.to_string()])
+                    .output();
+            }
+        }
+    }
+
+    /// Whether `pid` is a process that has not ended. A process that has ended
+    /// and not been reaped yet is a zombie, state `Z`, and counts as ended.
+    fn running(pid: u32) -> bool {
+        let listed = nvs_repo::spawn("ps", &[])
+            .args(["-o", "stat=", "-p", &pid.to_string()])
+            .output()
+            .expect("`ps` runs");
+        let state = String::from_utf8_lossy(&listed.stdout);
+        let state = state.trim();
+        !state.is_empty() && !state.starts_with('Z')
+    }
+
+    /// The processes whose parent is `parent`.
+    fn children_of(parent: u32) -> Vec<u32> {
+        let listed = nvs_repo::spawn("ps", &[])
+            .args(["-A", "-o", "pid=", "-o", "ppid="])
+            .output()
+            .expect("`ps` runs");
+        String::from_utf8_lossy(&listed.stdout)
+            .lines()
+            .filter_map(|line| {
+                let mut ids = line.split_whitespace().map(str::parse::<u32>);
+                match (ids.next(), ids.next()) {
+                    (Some(Ok(pid)), Some(Ok(ppid))) if ppid == parent => Some(pid),
+                    _ => None,
+                }
+            })
+            .collect()
+    }
+
+    /// Waits up to twenty seconds for `pid` to end.
+    fn ends(pid: u32, what: &str) {
+        let since = Instant::now();
+        while running(pid) {
+            assert!(since.elapsed() < Duration::from_secs(20), "{what}");
+            std::thread::sleep(Duration::from_millis(100));
+        }
+    }
+
+    let dir = scratch("spawned-process-parent-death");
+    fs::write(dir.join("main.nvs"), STARTS_A_SHELL_AND_A_SLEEP).unwrap();
+    fs::write(
+        dir.join("nvs.toml"),
+        "[capabilities.process]\nexec = true\n",
+    )
+    .unwrap();
+    let nvs = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(dir.join(".nvsdata"))
+        .args(["run", "main.nvs"])
+        .current_dir(&dir)
+        .env_remove("NOVIS_NO_INIT")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("the `nvs` binary this test was built beside runs");
+    let mut left = Leftovers {
+        nvs,
+        pids: Vec::new(),
+    };
+
+    let mut line = String::new();
+    BufReader::new(left.nvs.stdout.take().expect("standard output is piped"))
+        .read_line(&mut line)
+        .expect("`nvs` prints a line");
+    left.pids = line
+        .split_whitespace()
+        .map(|pid| {
+            pid.parse()
+                .unwrap_or_else(|_| panic!("the line is two process ids: {line:?}"))
+        })
+        .collect();
+    let &[child, grandchild] = left.pids.as_slice() else {
+        panic!("the line is two process ids: {line:?}");
+    };
+    let watchers: Vec<u32> = children_of(left.nvs.id())
+        .into_iter()
+        .filter(|&pid| pid != child)
+        .collect();
+    let &[watcher] = watchers.as_slice() else {
+        panic!("`nvs` started one process beside its child: {watchers:?}");
+    };
+    left.pids.push(watcher);
+    assert!(running(child), "the child runs while `nvs` does");
+    assert!(running(grandchild), "the `sleep` runs while `nvs` does");
+
+    let _ = nvs_repo::spawn("kill", &[])
+        .args(["-INT", &watcher.to_string()])
+        .output();
+    std::thread::sleep(Duration::from_millis(500));
+    assert!(running(watcher), "the watcher ignores `SIGINT`");
+
+    left.nvs.kill().expect("`nvs` is still running");
+    left.nvs.wait().expect("`nvs` is reaped");
+
+    ends(child, "the child ends with `nvs`");
+    ends(watcher, "the watcher exits once `nvs` is gone");
+    // The watcher kills only the processes `nvs` started, so a `sleep` it
+    // reached as well would be gone well within this.
+    std::thread::sleep(Duration::from_secs(1));
+    assert!(
+        running(grandchild),
+        "what the child started on its own keeps running after `nvs` ends"
+    );
+}
