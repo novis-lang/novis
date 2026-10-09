@@ -15,6 +15,11 @@
 // is green, and moving the base can lose nothing. An atom that ran red stays `red`, selected again.
 // `owed` is written over whatever verdict the store holds, so an atom another process ran green after
 // this run read its selection is owed too and runs once more: a concurrent run costs a run, never a miss.
+//
+// A run counts before `advance`: `record` writes each atom's run the moment it ends, stamped with the
+// tree the run's selection was read at (`store.ts`), so a run that is killed, times out or crashes
+// loses only the atoms still running, and the next selection reads each stamped atom against the change
+// since its own tree. `advance` then clears the stamps the new base covers (`settle`).
 
 import { copyFileSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { cpus } from "node:os";
@@ -28,7 +33,7 @@ import { run } from "../lib/proc.ts";
 import { recordName } from "../proofs/run.ts";
 import { caseDef, caseId, treeOf } from "./atoms.ts";
 import { buildScripts, type Generated, generatedDigest, generatedIncludes, generatedMeta } from "./build.ts";
-import { snapshot } from "./change.ts";
+import { snapshot, treeSig } from "./change.ts";
 import { CovMap, type Extracted, extract, ItemIndex, type Recorded, recordedIn, recordsIn } from "./extract.ts";
 import { fileWild, fnKey, WILD } from "./keys.ts";
 import { type ChangeSet, changedItems, embedders, graphScope, recordOverlayMarkers, rustFiles, type Selection } from "./select.ts";
@@ -548,7 +553,22 @@ export function advance(store: SelectStore, change: ChangeSet, sel: Selection | 
   for (const g of generatedIncludes(change.view.values(), (f) => scope.pkgOf(f), root)) store.setMeta(generatedMeta(store.platform, g), generatedDigest(scripts.get(g.pkg), g.name));
   store.setBase(change.tree.commit, change.tree.overlay);
   recordOverlayMarkers(store, change.tree.overlay, root);
+  settle(store, treeSig(change.tree), sel, ran);
   return { owed };
+}
+
+/**
+ * Clears each stamp the base, now the tree `sig` names, covers: a stamp of that tree; the stamp of an
+ * atom `sel` selected that did not run, which is owed or red; and the stamp of an atom `sel` read against
+ * its own tree and did not select, whose last run holds on this tree too. A stamp another process wrote
+ * after `sel` was read is kept. Then every tree no atom is stamped with is deleted, and every judged
+ * verdict taken on another tree.
+ */
+function settle(store: SelectStore, sig: string, sel: Selection | null, ran: Set<string>): void {
+  const at = store.treeN(sig);
+  const seen = sel?.stamps ?? new Map<string, number>();
+  store.unstamp((id, n) => n === at || (sel !== null && (sel.selected.has(id) ? !ran.has(id) : seen.get(id) === n)));
+  store.dropStale(sig);
 }
 
 /** A change that selects every atom, for a store with no recorded tree: every Rust file scanned as it is
@@ -568,5 +588,6 @@ export async function fullChange(root: string = ROOT, why = "the store has no re
     view,
     tree,
     full: true,
+    root,
   };
 }

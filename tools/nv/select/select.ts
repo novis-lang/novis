@@ -12,6 +12,15 @@
 //         + every atom, when a global file changed
 //         + every proof program, when code only an optimized build compiles changed and has no twin
 //
+// A run counts the moment it is recorded, not when the run ends: an atom whose last run was recorded
+// after the base was taken is stamped with the tree that run was taken at (`store.ts`), and the three
+// lines above that read a change read, for that atom, the change since its own tree. One that last ran
+// on the tree as it is now is selected only by its verdict, a divergence, or a definition the caller
+// names. The change since a stamped tree is read as the change since the base is (`sinceStamps`): the
+// stamped tree keeps its overlay's Rust items and marker scans, every other file is as its commit holds
+// it, and a Rust file of its overlay with no items kept is taken whole. A tree that cannot be read
+// again selects every atom stamped with it.
+//
 // Nothing outside `run` is started. `explain` says for one atom which key selected it, the path and
 // item the key came from, and for a key reached through the reference graph the item that reached it.
 
@@ -27,12 +36,12 @@ import { buildScripts, envReaders, generatedDigest, generatedIncludes, generated
 import { ANCHOR_ANY, CALLS_ANY, COVERS_ANY, markerKeys, scannedFor } from "../proofs/markers.ts";
 import { LEDGER, LEDGER_WHOLE, ledgerMoved, ledgerSigns, PERF_ANY } from "../proofs/ledger.ts";
 import { anchorScan, isAnchorFile } from "../proofs/roster.ts";
-import { blobAt, type Change, changedBetween, changedPaths, commitOf, diskDigest, namedChanges, sinceOverlay, snapshot } from "./change.ts";
+import { blobAt, type Change, changedBetween, changedPaths, commitOf, diskDigest, namedChanges, sinceOverlay, snapshot, treeSig } from "./change.ts";
 import { diffFile, referenceWalk, type ExtraDefines, type ItemChange, type Moved, type Origin, type Scope, Universe } from "./items.ts";
 import { elsewhereOnly, gitTexts, platformOf, profileReader } from "./profile.ts";
 import { ALL_CARDS, ALL_CLASSES, configKey, fileWild, kindOf, pathKeys, pkgTestsKey, PROFILE_ONLY, ROOT_CONFIG, testsKey, WILD } from "./keys.ts";
 import { blockPaths, configKeys } from "./config.ts";
-import { type AtomKind, kindOfAtom, type Overlay, type SelectStore } from "./store.ts";
+import { type AtomKind, kindOfAtom, type Overlay, type RunTree, type SelectStore } from "./store.ts";
 
 /** Files whose change selects every atom: the toolchain, the lock file, a manifest, and the two tools
  * every footprint's meaning rests on. */
@@ -72,6 +81,14 @@ export interface ChangeSet {
   /** A change that stands for everything, and `view` is a scan of every Rust file: the store had no
    * tree to compare with, or the scanner itself changed. */
   full?: boolean;
+  /** For each tree an atom is stamped with (`SelectStore.stamps`), by its row, the change since that
+   * tree to this one: what `query` reads that atom against. A tree that could not be compared gives a
+   * change to everything, and the tree this change was read at gives an empty one. A tree that is the
+   * base has none, and its atoms are read against this change. Absent for a change not read since the
+   * base, which reads every atom against itself. */
+  stamped?: Map<number, ChangeSet>;
+  /** The repository the change was read in; `ROOT` when absent. */
+  root?: string;
 }
 
 /** The workspace graph as the reference walk's scope: a file's package is the one whose directory holds it, a
@@ -166,7 +183,7 @@ export async function scanAt(rev: string, files: string[], root: string = ROOT):
  * sat under, is keyed on a path that must still be there: one that is not stops every program that
  * reads the file, so the file moves whole.
  */
-async function rootConfigKeys(store: SelectStore, changes: Change[], since: string, until: string | null, fromBase: boolean, root: string): Promise<string[]> {
+async function rootConfigKeys(overlay: Overlay, changes: Change[], since: string, until: string | null, fromBase: boolean, root: string): Promise<string[]> {
   const edited = changes.some((c) => c.path === ROOT_CONFIG);
   const gone = changes.filter((c) => c.status === "deleted").map((c) => c.path.toLowerCase());
   if (!edited && gone.length === 0) return [];
@@ -175,7 +192,7 @@ async function rootConfigKeys(store: SelectStore, changes: Change[], since: stri
   const after = until ? text(await blobAt(until, ROOT_CONFIG, root)) : existsSync(onDisk) ? readFileSync(onDisk, "utf8") : null;
   let keys: string[] = [];
   if (edited) {
-    const before = fromBase && ROOT_CONFIG in store.overlay() ? null : text(await blobAt(since, ROOT_CONFIG, root));
+    const before = fromBase && ROOT_CONFIG in overlay ? null : text(await blobAt(since, ROOT_CONFIG, root));
     keys = configKeys(ROOT_CONFIG, before, after, root);
   }
   const blocks = after === null ? null : blockPaths(ROOT_CONFIG, after, root);
@@ -210,34 +227,51 @@ export interface ChangeOptions {
   paths?: string[];
   graph?: Graph | null;
   root?: string;
+  /** A tree an atom's last run was taken at, to read the change since in place of the base's, with
+   * every Rust file's items now (the change since the base's `view`) and the tree as it is now. */
+  from?: { tree: RunTree; view: Map<string, FileItems>; now: { commit: string; overlay: Overlay } };
 }
 
-/** The keys that moved between `since` and the working tree. */
+/** A change that moves nothing, read at the tree `view` is of. */
+function nothing(view: Map<string, FileItems>): ChangeSet {
+  return { since: "", changes: [], moved: new Map(), global: null, rustFiles: 0, itemChanges: 0, wideFiles: [], items: [], view };
+}
+
+/** A change that moves everything, for the reason `why`. */
+function everything(view: Map<string, FileItems>, why: string): ChangeSet {
+  return { ...nothing(view), moved: new Map([[WILD, { path: why, how: "global" }]]), global: why };
+}
+
+/** The keys that moved between `since` and the working tree. Read since the base, it also reads the
+ * change since each tree an atom is stamped with (`ChangeSet.stamped`). */
 export async function computeChange(store: SelectStore, opts: ChangeOptions = {}): Promise<ChangeSet> {
   const root = opts.root ?? ROOT;
-  const base = store.base();
+  const from = opts.from;
+  const base = from ? from.tree.commit : store.base();
   const sinceRev = opts.since ?? base;
   if (!sinceRev) throw new Error("the store has no recorded tree: run `bun nv select --seed` first, or name one with --since");
   const since = await commitOf(sinceRev, root);
   const until = opts.until ? await commitOf(opts.until, root) : null;
   // The tree is taken first, so a file written while the change is read is a change again next time.
-  const tree = until ? undefined : await snapshot(root);
+  const tree = until ? undefined : from ? from.now : await snapshot(root);
   const fromBase = opts.since === undefined && !until && !opts.paths;
+  const overlay = from ? from.tree.overlay : store.overlay();
   let changes = until ? await changedBetween(since, until, root) : opts.paths ? await namedChanges(opts.paths, since, root) : await changedPaths(since, root);
-  if (fromBase) changes = sinceOverlay(changes, store.overlay(), root);
+  if (fromBase) changes = sinceOverlay(changes, overlay, root);
   const moved: Moved = new Map();
   const emit = (key: string, origin: Origin) => {
     if (!moved.has(key)) moved.set(key, origin);
   };
   const global = changes.find((c) => isGlobal(c.path))?.path ?? null;
   for (const c of changes) for (const k of pathKeys(c.path, c.status !== "modified")) emit(k, { path: c.path, how: "path" });
-  for (const k of await rootConfigKeys(store, changes, since, until, fromBase, root)) emit(k, { path: ROOT_CONFIG, how: "path" });
+  for (const k of await rootConfigKeys(overlay, changes, since, until, fromBase, root)) emit(k, { path: ROOT_CONFIG, how: "path" });
   if (global) emit(WILD, { path: global, how: "global" });
-  for (const [k, origin] of await scanKeys(store, changes, since, until, fromBase, root)) emit(k, origin);
+  const markers = from ? (from.tree.markers as Record<string, Scanned>) : fromBase ? storedMarkers(store) : {};
+  for (const [k, origin] of await scanKeys(changes, since, until, fromBase ? overlay : {}, markers, root)) emit(k, origin);
 
   const graph = opts.graph === undefined ? await metadata() : opts.graph;
   const scope = graphScope(graph);
-  const stored = store.allItems();
+  const stored = from ? from.view : store.allItems();
   // Every Rust file's items as the store last scanned them, or every Rust file as it is now when the
   // store holds no scan.
   const files = stored.size > 0 ? stored : new Map(scanItems(await rustFiles(root), root).map((f) => [f.file, f]));
@@ -249,8 +283,25 @@ export async function computeChange(store: SelectStore, opts: ChangeOptions = {}
   // The scan is of the recorded tree, overlay and all, so it stands for the commit alone only when the
   // overlay is empty.
   let before: Map<string, FileItems>;
-  const scanIsSince = base !== null && (fromBase || (since === (await commitOf(base, root)) && Object.keys(store.overlay()).length === 0));
-  if (scanIsSince && stored.size > 0) {
+  // Since a stamped tree: each file of its overlay as that tree keeps it, and every other file as its
+  // commit holds it. A Rust file of the overlay the tree keeps no items for is taken whole.
+  const unknown: string[] = [];
+  const scanIsSince = !from && base !== null && (fromBase || (since === (await commitOf(base, root)) && Object.keys(store.overlay()).length === 0));
+  if (from) {
+    before = new Map();
+    const kept = new Map(from.tree.items.map((f) => [f.file, f]));
+    const atCommit: string[] = [];
+    for (const f of rust) {
+      if (!(f in overlay)) {
+        if (changes.find((c) => c.path === f)?.status !== "added") atCommit.push(f);
+      } else if (overlay[f] !== null) {
+        const items = kept.get(f);
+        if (items) before.set(f, items);
+        else unknown.push(f);
+      }
+    }
+    if (atCommit.length > 0) for (const [f, items] of await scanAt(since, [...new Set([...atCommit, ...classBatch(stored)])], root)) if (atCommit.includes(f)) before.set(f, items);
+  } else if (scanIsSince && stored.size > 0) {
     before = new Map(rust.flatMap((f) => (stored.has(f) ? [[f, stored.get(f)!] as const] : [])));
     const missing = rust.filter((f) => !stored.has(f) && changes.find((c) => c.path === f)?.status !== "added");
     if (missing.length > 0) for (const [f, items] of await scanAt(since, missing, root)) before.set(f, items);
@@ -266,7 +317,7 @@ export async function computeChange(store: SelectStore, opts: ChangeOptions = {}
     : new Map(scanItems(batch, root).filter((f) => present.includes(f.file)).map((f) => [f.file, f]));
 
   const itemChanges: ItemChange[] = [];
-  const wideFiles: string[] = [];
+  const wideFiles: string[] = [...unknown];
   for (const f of rust) {
     const d = diffFile(before.get(f) ?? null, after.get(f) ?? null);
     if (d.wide) wideFiles.push(f);
@@ -294,7 +345,8 @@ export async function computeChange(store: SelectStore, opts: ChangeOptions = {}
     const inputsMoved = script ? changes.filter((c) => isInput(c.path, script.inputs)) : [];
     const recorded = store.meta(generatedMeta(store.platform, g));
     const now = generatedDigest(script, g.name);
-    const stale = inputsMoved.length > 0 && (!script || script.ranAt < newest(inputsMoved));
+    // The digests kept are the base's, so since a stamped tree any input that moved counts.
+    const stale = inputsMoved.length > 0 && (from !== undefined || !script || script.ranAt < newest(inputsMoved));
     if (stale || recorded === null || recorded !== now) {
       const item = view.get(g.file)?.items.find((i) => i.id === g.id);
       if (item) itemChanges.push({ file: g.file, id: g.id, how: "changed", item });
@@ -326,6 +378,7 @@ export async function computeChange(store: SelectStore, opts: ChangeOptions = {}
     const pkg = c.how === "added" && isTest(c.item) ? scope.pkgOf(c.file) : null;
     if (pkg && graph) for (const name of landsIn(graph, pkg, c.file)) emit(testsKey(name), { path: c.file, item: c.id, how: c.how });
   }
+  const stamped = fromBase && !from && tree ? await sinceStamps(store, tree, view, graph, root) : undefined;
   return {
     since,
     ...(until ? { until } : {}),
@@ -339,7 +392,41 @@ export async function computeChange(store: SelectStore, opts: ChangeOptions = {}
     items: itemChanges,
     view,
     ...(tree ? { tree } : {}),
+    ...(stamped ? { stamped } : {}),
+    root,
   };
+}
+
+/**
+ * The change since each tree an atom is stamped with, to `now`, whose items `view` holds. The tree
+ * `now` is moves nothing and the base's tree is left out. A tree whose row is gone, or whose change
+ * cannot be read (its commit is no longer in the repository), moves everything.
+ */
+async function sinceStamps(store: SelectStore, now: { commit: string; overlay: Overlay }, view: Map<string, FileItems>, graph: Graph | null, root: string): Promise<Map<number, ChangeSet>> {
+  const out = new Map<number, ChangeSet>();
+  const trees = store.stampTrees();
+  if (trees.size === 0) return out;
+  const nowSig = treeSig(now);
+  const base = store.base();
+  const baseSig = base === null ? null : treeSig({ commit: base, overlay: store.overlay() });
+  for (const [n, t] of trees) {
+    if (t === null) out.set(n, everything(view, "the tree its last run was taken at is not kept"));
+    else if (t.sig === nowSig) out.set(n, nothing(view));
+    else if (t.sig !== baseSig) {
+      try {
+        out.set(n, await computeChange(store, { graph, root, from: { tree: t.tree, view, now } }));
+      } catch (e) {
+        out.set(n, everything(view, `the tree its last run was taken at could not be compared: ${(e as Error).message.split("\n")[0]}`));
+      }
+    }
+  }
+  return out;
+}
+
+/** What `trees` keeps for the tree `tree`, whose Rust items `view` holds. */
+export function runTree(tree: { commit: string; overlay: Overlay }, view: Map<string, FileItems>, root: string = ROOT): RunTree {
+  const items = Object.keys(tree.overlay).flatMap((p) => (tree.overlay[p] !== null && view.has(p) ? [view.get(p)!] : []));
+  return { commit: tree.commit, overlay: tree.overlay, items, markers: overlayMarkers(tree.overlay, root) };
 }
 
 /** Whether item `i` can be a test a binary runs: a test-only function, or a test-only macro call that
@@ -376,29 +463,37 @@ const readByScans = (path: string) => {
  * its paths (`Scanned`), so the next change knows what that text named. A path whose bytes moved since
  * the overlay was taken is left out, and its earlier text counts as unknown. */
 export function recordOverlayMarkers(store: SelectStore, overlay: Overlay, root: string = ROOT): void {
+  store.setMeta(markersMeta(store.platform), JSON.stringify(overlayMarkers(overlay, root)));
+}
+
+/** What the proof scans read of each path of `overlay` whose bytes on disk are still the ones it names. */
+function overlayMarkers(overlay: Overlay, root: string): Record<string, Scanned> {
   const out: Record<string, Scanned> = {};
   for (const [path, digest] of Object.entries(overlay)) {
     if (!readByScans(path)) continue;
     if (digest === null) out[path] = scanned(path, null);
     else if (diskDigest(path, root) === digest) out[path] = scanned(path, readFileSync(join(root, path), "utf8"));
   }
-  store.setMeta(markersMeta(store.platform), JSON.stringify(out));
+  return out;
+}
+
+/** What the proof scans read of the base's overlay paths, as `recordOverlayMarkers` kept it. */
+function storedMarkers(store: SelectStore): Record<string, Scanned> {
+  try {
+    return JSON.parse(store.meta(markersMeta(store.platform)) ?? "{}") as Record<string, Scanned>;
+  } catch {
+    return {};
+  }
 }
 
 /** The `covers:`, `calls:`, `anchor:` and `perf:` keys `changes` move: what each changed file the proof
- * scans read names in its text before and after. A file whose earlier text is not known moves every
+ * scans read names in its text before and after. A path of the recorded tree's `overlay` was as
+ * `recorded` says, and one it leaves out is not known. A file whose earlier text is not known moves every
  * key of each kind it is scanned for, and a file whose class-name consts changed moves every `anchor:`
  * key. A change to the perf ledger moves `LEDGER_WHOLE` and the `perf:` key of each feature whose rows
  * differ, or every `perf:` key when its earlier text is not known. */
-async function scanKeys(store: SelectStore, changes: Change[], since: string, until: string | null, fromBase: boolean, root: string): Promise<Map<string, Origin>> {
+async function scanKeys(changes: Change[], since: string, until: string | null, overlay: Overlay, recorded: Record<string, Scanned>, root: string): Promise<Map<string, Origin>> {
   const out = new Map<string, Origin>();
-  const overlay = fromBase ? store.overlay() : {};
-  let recorded: Record<string, Scanned> = {};
-  try {
-    recorded = fromBase ? JSON.parse(store.meta(markersMeta(store.platform)) ?? "{}") : {};
-  } catch {
-    recorded = {};
-  }
   const text = (b: Uint8Array | null) => (b === null ? null : new TextDecoder().decode(b));
   for (const c of changes) {
     if (!readByScans(c.path)) continue;
@@ -499,6 +594,9 @@ export interface Selection {
   /** Known atoms that no longer exist: their file is gone from disk, or their kind is listed in full
    * (`QueryOptions.complete`) and the listing lacks them. The run that moves the tree forgets them. */
   gone: string[];
+  /** Each atom read against the change since its own tree (`ChangeSet.stamped`), with the tree's row:
+   * the run that moves the tree clears the stamp of each one it did not select. */
+  stamps?: Map<string, number>;
 }
 
 export interface QueryOptions {
@@ -515,8 +613,17 @@ export interface QueryOptions {
   ran?: Map<string, string[]>;
 }
 
-/** The atoms `change` selects. */
+/**
+ * The atoms `change` selects. An atom stamped with a tree is read against the change since that tree
+ * (`ChangeSet.stamped`), so one that last ran on the tree as it is now is selected only by its verdict,
+ * a divergence or a definition the caller names. Every run recorded through `store` from here on is
+ * taken as run on the tree `change` was read at (`SelectStore.runAt`).
+ */
 export function query(store: SelectStore, change: ChangeSet, opts: QueryOptions = {}): Selection {
+  if (change.tree) {
+    const tree = change.tree;
+    store.runAt(treeSig(tree), () => runTree(tree, change.view, change.root ?? ROOT));
+  }
   const selected = new Map<string, Selected>();
   const add = (id: string, why: Why, key?: { key: string; origin: Origin }) => {
     const was = selected.get(id);
@@ -530,8 +637,15 @@ export function query(store: SelectStore, change: ChangeSet, opts: QueryOptions 
   const known: Record<string, number> = {};
   const gone: string[] = [];
   const knownIds = new Set<string>();
+  // Each stamped atom is read against the change since the tree its last run was taken at.
+  const stamps = change.stamped ? store.stamps() : new Map<string, number>();
+  const changeOf = (id: string): ChangeSet => {
+    const n = stamps.get(id);
+    return (n !== undefined && change.stamped!.get(n)) || change;
+  };
   // A definition is files, so only an atom whose files are among the changed paths can have a new one.
-  const touched = touchesDef(change);
+  const touchers = new Map<ChangeSet, (id: string) => boolean>();
+  const touched = (c: ChangeSet, id: string) => (touchers.get(c) ?? touchers.set(c, touchesDef(c)).get(c)!)(id);
   const complete = new Set(opts.complete ?? []);
   const listed = new Set(complete.size > 0 ? (opts.discovered ?? []) : []);
   const present = (id: string, kind: AtomKind) => stillThere(id) && (!complete.has(kind) || listed.has(id));
@@ -542,7 +656,8 @@ export function query(store: SelectStore, change: ChangeSet, opts: QueryOptions 
       continue;
     }
     known[a.kind] = (known[a.kind] ?? 0) + 1;
-    if (change.global) add(a.id, "global", { key: WILD, origin: change.moved.get(WILD)! });
+    const c = changeOf(a.id);
+    if (c.global) add(a.id, "global", { key: WILD, origin: c.moved.get(WILD)! });
     else if (a.keys === 0) add(a.id, "new");
     else if (a.verdict === "red") add(a.id, "red");
     else if (a.verdict === "owed") {
@@ -551,9 +666,9 @@ export function query(store: SelectStore, change: ChangeSet, opts: QueryOptions 
     }
     else if (opts.defs?.has(a.id)) {
       if (opts.defs.get(a.id) !== a.def) add(a.id, "def");
-    } else if (touched(a.id)) {
-      const def = change.until ? null : currentDef(a.id);
-      if (change.until || (def !== null && def !== a.def)) add(a.id, "def");
+    } else if (touched(c, a.id)) {
+      const def = c.until ? null : currentDef(a.id);
+      if (c.until || (def !== null && def !== a.def)) add(a.id, "def");
     }
   }
   for (const id of opts.discovered ?? []) {
@@ -565,12 +680,27 @@ export function query(store: SelectStore, change: ChangeSet, opts: QueryOptions 
   const goneIds = new Set(gone);
   // A footprint a diverged run recorded may be cut short, so the atom runs whatever changed.
   for (const id of store.divergences().keys()) if (knownIds.has(id) && !goneIds.has(id) && stillThere(id)) add(id, "diverged");
-  if (change.global || change.moved.size === 0) return { change, selected, known, gone };
+  for (const c of new Set([change, ...(change.stamped?.values() ?? [])])) {
+    byKeys(store, c, (id) => changeOf(id) === c && !goneIds.has(id) && stillThere(id), atoms, add, opts);
+  }
+  return { change, selected, known, gone, stamps };
+}
+
+/** Selects each atom `accept` takes whose footprint holds a key `change` moved. */
+function byKeys(
+  store: SelectStore,
+  change: ChangeSet,
+  accept: (id: string) => boolean,
+  atoms: { id: string; kind: AtomKind }[],
+  add: (id: string, why: Why, key?: { key: string; origin: Origin }) => void,
+  opts: QueryOptions,
+): void {
+  if (change.global || change.moved.size === 0) return;
   // Code only an optimized build compiles never ran on the build that records, so no footprint holds it.
   const profile = change.moved.get(PROFILE_ONLY);
   if (profile) {
-    for (const a of atoms) if (a.kind === "proof" && stillThere(a.id)) add(a.id, "key", { key: PROFILE_ONLY, origin: profile });
-    for (const id of opts.discovered ?? []) if (kindOfAtom(id) === "proof") add(id, "key", { key: PROFILE_ONLY, origin: profile });
+    for (const a of atoms) if (a.kind === "proof" && accept(a.id)) add(a.id, "key", { key: PROFILE_ONLY, origin: profile });
+    for (const id of opts.discovered ?? []) if (kindOfAtom(id) === "proof" && accept(id)) add(id, "key", { key: PROFILE_ONLY, origin: profile });
   }
 
   const exact = new Map<string, number>();
@@ -615,7 +745,7 @@ export function query(store: SelectStore, change: ChangeSet, opts: QueryOptions 
     return change.moved.get(prefix) ?? { path: "", how: "path" };
   };
   for (const [id, keys] of store.atomsUnderIds(exact)) {
-    if (goneIds.has(id) || !stillThere(id)) continue;
+    if (!accept(id)) continue;
     for (const key of keys) add(id, "key", { key, origin: originOf(key) });
   }
   // A footprint holding its package's one `tests:` key is under an added test only when a binary it runs
@@ -628,14 +758,13 @@ export function query(store: SelectStore, change: ChangeSet, opts: QueryOptions 
   }
   for (const [pkg, origin] of pkgs) {
     for (const id of store.atomsUnder([pkgTestsKey(pkg)]).keys()) {
-      if (goneIds.has(id) || !stillThere(id)) continue;
+      if (!accept(id)) continue;
       const ran = kindOfAtom(id) === "test" ? [id.slice(5)] : opts.ran?.get(id);
       if (ran === undefined && store.footprint(id).some((k) => k.startsWith(`${pkgTestsKey(pkg)}/`))) continue;
       const hit = ran === undefined ? pkgTestsKey(pkg) : ran.map(testsKey).find((k) => change.moved.has(k));
       if (hit !== undefined) add(id, "key", { key: hit, origin: change.moved.get(hit) ?? origin });
     }
   }
-  return { change, selected, known, gone };
 }
 
 /** What `discover` found: every atom the tree names now, and the kinds it lists in full. */
@@ -701,11 +830,14 @@ export function explain(store: SelectStore, sel: Selection, id: string): string[
     if (s.keys.length > 20) out.push(`  ... and ${s.keys.length - 20} more key(s)`);
     return out;
   }
-  out.push(`${id}: not selected; its footprint holds ${atom!.keys} key(s) and none of them moved`);
+  const n = sel.stamps?.get(id);
+  const own = n === undefined ? undefined : sel.change.stamped?.get(n);
+  if (own && own.changes.length === 0 && own.moved.size === 0) return [`${id}: not selected; its last run was ${atom!.verdict} on the tree as it is now`];
+  out.push(`${id}: not selected; its footprint holds ${atom!.keys} key(s) and none of them moved${own ? " since the tree its last run was taken at" : ""}`);
   const fp = store.footprint(id);
   const byFile = new Map<string, number>();
   for (const k of fp) if (k.startsWith("fn:")) byFile.set(k.slice(3, k.indexOf("#")), (byFile.get(k.slice(3, k.indexOf("#"))) ?? 0) + 1);
-  for (const c of sel.change.changes) {
+  for (const c of (own ?? sel.change).changes) {
     const held = byFile.get(c.path);
     if (held) out.push(`  ${c.path} changed; this atom ran ${held} item(s) of it, none of the ones that changed`);
     else if (isRust(c.path)) out.push(`  ${c.path} changed; this atom ran none of its code`);

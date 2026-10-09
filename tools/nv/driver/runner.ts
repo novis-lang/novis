@@ -1,9 +1,10 @@
 // The acceptance sweep on the selection store (`tools/nv/select/`). `PlanSweep.open` reads the change
 // since the store's tree once, asks the store which atoms it reaches, and groups the plan's checks into
 // atoms (`select/checks.ts`). `reached` says whether a check has a picked atom, and `check` runs only the
-// picked atoms of a reached check, records every one, and judges the check. `close` moves the store's
-// tree past the change, green or red: an atom that ran records its footprint and verdict, and an atom
-// the change reached that did not run is owed (`record.ts` `advance`).
+// picked atoms of a reached check, records every one the moment it ends, and judges the check, so a
+// sweep that is killed loses only the atoms still running (`store.ts`). `close` moves the store's tree
+// past the change, green or red: an atom that ran keeps its footprint and verdict, and an atom the
+// change reached that did not run is owed (`record.ts` `advance`).
 //
 // Every run records, whatever it is:
 //
@@ -628,8 +629,9 @@ export class PlanSweep {
         const o = await capture([t.exe], t.dir, env);
         const ext = await this.rec.keysOf(rec, [t.exe, covwsNvs()]);
         const verdict: AtomVerdict = o.code === 0 && ext ? "green" : "red";
-        this.store.recordRun(id, { def: "", verdict, keys: testKeys(ext, name) });
+        // The lines first, so a binary recorded green always has the lines of that run.
         putTestGreen(this.store, name, verdict, o.out);
+        this.store.recordRun(id, { def: "", verdict, keys: testKeys(ext, name) });
         this.exeVerdict.set(name, verdict);
         if (verdict === "red") {
           const failed = o.out.split(/\r?\n/).filter((l) => l.startsWith("test ") && l.trimEnd().endsWith("FAILED")).map((l) => l.split(/\s+/)[1]);

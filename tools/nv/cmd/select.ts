@@ -55,7 +55,7 @@ const USAGE = `usage: bun nv select [--since REV [--until REV]] [--paths PATH ..
   --kinds K,...   with --seed: only these kinds (case, proof, test, nv)
   --limit N       with --seed: at most N atoms of each kind
   --jobs N        with --seed: how many runs and extractions at once
-  --resume        with --seed: skip every atom that already has a footprint
+  --resume        with --seed: skip every atom whose last run was green, recorded since the base or on this tree
   --full          run and record every atom that is not heavy, move the recorded tree, and report each
                   selection miss: an atom red now that the selection did not pick
   --mutate FILE   apply each batch of edits FILE lists, run every atom that is not heavy on a copy of

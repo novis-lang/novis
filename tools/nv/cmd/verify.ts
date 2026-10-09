@@ -40,8 +40,10 @@
 // selected or when a later step that uses the binary runs. A step that is not selected is not started,
 // and prints `--` with the summary of its last green run. `--no-cache` selects everything.
 //
-// Every run records: each atom that ran records its footprint and verdict in the store, green or red.
-// The run then moves the store's tree to the one it was selected against (`record.ts` `advance`),
+// Every run records: each atom that ran records its footprint and verdict in the store, green or red,
+// the moment it ends, stamped with the tree the run was selected against, so a run that is killed
+// halfway is not paid for again (`store.ts`). A run that ends then moves the store's tree to that one
+// (`record.ts` `advance`),
 // whether it was green or red: every atom the change selected that this run did not run is marked
 // owed first, so a proof program, another case tree or a step `--fast` skipped stays selected for
 // whoever runs it next, and a red atom stays selected as red until a run of it is green. So the run
@@ -482,9 +484,10 @@ async function runTests(r: Run, s: Step): Promise<[number, string]> {
     recording.push(
       r.rec.keysOf(recordName(id), [j.argv[0]!, nvs]).then((ext) => {
         const verdict: Verdict = code === 0 && ext ? "green" : "red";
+        // The lines first, so a binary recorded green always has the lines of that run.
+        putTestGreen(r.store, j.name, verdict, text);
         r.store.recordRun(id, { def: "", verdict, keys: testKeys(ext, j.name) });
         r.ran.add(id);
-        putTestGreen(r.store, j.name, verdict, text);
       }),
     );
   };

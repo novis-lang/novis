@@ -15,8 +15,10 @@
 // (`Recorder.pin`), so a rebuild by another process during the run changes nothing they record. The
 // test executables start the build's own `nvs`, the path they were compiled with.
 //
-// The heavy checks keep the floor gate's own cadence and are not run here. The store's tree then moves
-// past the change, as after any sweep.
+// The heavy checks keep the floor gate's own cadence and are not run here. Each atom's run counts the
+// moment it is recorded, stamped with the tree the selection was read at (`store.ts`), so a selected
+// run after a full run that was killed skips what it finished; the full run itself runs everything
+// again. The store's tree then moves past the change, as after any sweep.
 //
 // A selection miss is an atom red in this run that the selection did not pick. The selection picks every
 // atom last red, owed or never recorded, and every atom the tree names that the store does not know, so

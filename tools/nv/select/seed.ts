@@ -33,6 +33,8 @@ import { type Extracted, recordedIn } from "./extract.ts";
 import { allowedWide } from "../keys/escape.ts";
 import { readsKeys, testsKey, WILD } from "./keys.ts";
 import { advance, chunks, fullChange, pool, Recorder, recordCases } from "./record.ts";
+import { treeSig } from "./change.ts";
+import { runTree } from "./select.ts";
 import { type AtomKind, type Keyed, type SelectStore, type Verdict } from "./store.ts";
 
 export { privateDir } from "./record.ts";
@@ -41,8 +43,8 @@ export interface SeedOptions {
   kinds?: AtomKind[];
   /** At most this many atoms of each kind, for a trial. */
   limit?: number;
-  /** Skip every atom already recorded green on this platform: a seed that stopped goes on, and a red
-   * atom runs again. */
+  /** Skip every atom whose last run on this platform was green, recorded since the base or on the tree
+   * as it is now: a seed that stopped goes on, and a red atom runs again. */
   resume?: boolean;
   jobs?: number;
   say?: (line: string) => void;
@@ -111,6 +113,8 @@ export async function seed(store: SelectStore, opts: SeedOptions = {}): Promise<
   const build = await buildCovws({ tests: kinds.includes("test") });
   say("select: scanning every Rust file");
   const change = await fullChange(root, "a seed");
+  const here = treeSig(change.tree!);
+  store.runAt(here, () => runTree(change.tree!, change.view, root));
   const graph = await metadata();
   const r = await Recorder.open(store, change.view, graph, "seed", { root, say });
   store.setMeta(`build:${store.platform}`, build.nvs);
@@ -127,7 +131,12 @@ export async function seed(store: SelectStore, opts: SeedOptions = {}): Promise<
       k.unmapped += ext.unmapped;
     }
   };
-  const recorded = new Set(opts.resume ? store.atoms().filter((a) => a.keys > 0 && a.verdict === "green").map((a) => a.id) : []);
+  // A green atom stamped with a tree keeps its stamp, so the selection reads it against the change since
+  // that tree; one with no stamp holds on the base's tree, so it is skipped only when that is this one.
+  const base = store.base();
+  const atBase = base !== null && treeSig({ commit: base, overlay: store.overlay() }) === here;
+  const stamps = store.stamps();
+  const recorded = new Set(opts.resume ? store.atoms().filter((a) => a.keys > 0 && a.verdict === "green" && (atBase || stamps.has(a.id))).map((a) => a.id) : []);
   const limit = <T>(xs: T[], id: (x: T) => string) => {
     const left = xs.filter((x) => !recorded.has(id(x)));
     return opts.limit ? left.slice(0, opts.limit) : left;
