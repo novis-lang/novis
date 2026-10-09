@@ -2,7 +2,7 @@
 /**
  * The front page's hero, in two rows. The first is the page's one `<h1>`,
  * centred across the full width: the name Novis-Lang, the headline with a
- * small badge "and the command line" below its words "web applications", and
+ * small note "and the command line" below its words "web applications", and
  * the slogan. The second is the tagline, the two calls to action and the facts
  * beside a code window with three small web programs. The programs come in
  * through the named slots `html`, `sql` and `secret`, because the site
@@ -76,8 +76,8 @@ const phrases = [
         >The programming language for <span class="noted"
           >web applications<span class="note"
             ><span class="sr-only"> (</span>and the command line<span class="sr-only">)</span></span
-          ></span
-        >.</span
+          >.</span
+        ></span
       >
       <span class="slogan" data-slogan>
         <span class="slogan-text nv-gradient-text">Fast. <span class="keep">Secure by default.</span></span>
@@ -695,52 +695,35 @@ const phrases = [
     text-wrap: pretty;
   }
 
-  /* "and the command line" is a small badge just below "web applications",
-     as wide as the two words, with its text centred. It stays out of the
-     line, so the sentence reads on without it. A screen reader reads it in
-     brackets after the two words. The two words are an inline block with
-     room below them for the badge, so only their line is taller. The badge
-     is 1.6 times its text size tall, and its top edge is the bottom of the
-     words' line box. The descenders of the two "p"s reach a little further
-     down, so they overhang the badge. The badge is drawn behind the words. */
+  /* "and the command line" is small gold text just below "web
+     applications.", its right edge in line with the full stop. It stays out
+     of the line, so the sentence reads on without it. A screen reader reads
+     it in brackets after the two words. The two words and the full stop are
+     one inline block that never wraps, with room below it for the note, so
+     only their line is taller. The note's line box is as tall as its text
+     size. --note-gap moves it up from the bottom of the words' line box,
+     which is about 0.13em under their baseline, by that much and by the room
+     above the note's tall letters, so those letters start 5px under the
+     baseline. */
   .noted {
-    --note-size: max(0.75rem, 0.26em);
+    --note-size: max(0.8rem, 0.28em);
+    --note-gap: calc(5px - 0.13em - var(--note-size) * 0.14);
     position: relative;
-    isolation: isolate;
     display: inline-block;
-    padding-block-end: calc(var(--note-size) * 1.6 + 2px);
+    padding-block-end: calc(var(--note-size) + var(--note-gap));
     white-space: nowrap;
   }
   .note {
     position: absolute;
-    z-index: -1;
-    inset-inline: 0;
+    inset-inline-end: 0;
     inset-block-end: 0;
-    padding: 0.2em 0.6em;
-    border: 1px solid color-mix(in oklab, var(--sl-color-accent) 35%, transparent);
-    border-radius: var(--nv-radius-pill);
-    background: var(--nv-wash);
     font-size: var(--note-size);
     font-weight: 700;
-    line-height: 1.2;
-    letter-spacing: 0.01em;
-    text-align: center;
+    line-height: 1;
+    letter-spacing: 0;
     white-space: nowrap;
-    color: var(--sl-color-text-accent);
-    pointer-events: none;
-  }
-  @media (prefers-contrast: more) {
-    .note {
-      border-color: currentColor;
-    }
-  }
-  .note::before {
-    content: '+ ';
-    content: '+ ' / '';
-    color: var(--nv-gold);
-  }
-  :global(:root[data-theme='light']) .note::before {
     color: var(--nv-gold-text);
+    pointer-events: none;
   }
   @keyframes note-in {
     from {
