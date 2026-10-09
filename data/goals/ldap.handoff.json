@@ -1,5 +1,5 @@
 {
-  "state": "**Goal `ldap`, Stage 10 (the feature proofs): every `Core\\Ldap` check but one passes.** Stages 1 to 5 and 7 to 9 are done. Stage 4 lacks only a CA a program supplies, and Stage 6 lacks only wiring the schema into the readers. `bun nv proofs --owed --limit 0` names no `Core\\Ldap` feature.\n\n**The one red check is `dossier-the-whole-roster-owes-nothing-with-core-ldap`** (`bun nv proofs --gate`, wants `nothing owed in the whole roster`). It reads every feature in the repository, not this goal's. **The run is held on it: the user decides** whether the check is narrowed to the `Core\\Ldap` groups (the other stage-10 checks already cover them) or this goal also closes the roster's debt. No session changed the check.\n\n**The roster now owes 114 features, down from 153**, all outside this goal. Re-measured this session: `Core\\Str` (39), `Core\\Uuid`, `Core\\Taint`, `Core\\Process`, `Core\\Process\\Result`, `Core\\Process\\Handle` (all but `readStderr`), `Core\\Request\\Part`. Still owed: `Core\\Process\\Handle::readStderr` (its bench's bytes per op grow, slope 1.16), `Core\\Request\\Mount` (2, the calibration failed on a busy machine), about 55 `Core\\Db` (stale perf), 29 `lang:programs/*` and `lang:types/*` perf, and `about` for `directive:log.target` and `lang:testing/running-tests-nvs-test`.\n\n**The clock figures recorded this session are noisy**: the loop's own work was on the CPU, and many rows read `0.0 ns`. The counts columns are what the gate judges.",
+  "state": "**Goal `ldap`, Stage 10 (the feature proofs): every `Core\\Ldap` check but one passes.** Stages 1 to 5 and 7 to 9 are done. Stage 4 lacks only a CA a program supplies, and Stage 6 lacks only wiring the schema into the readers. `bun nv proofs --owed --limit 0` names no `Core\\Ldap` feature.\n\n**The one red check is `dossier-the-whole-roster-owes-nothing-with-core-ldap`** (`bun nv proofs --gate`, wants `nothing owed in the whole roster`). It reads every feature in the repository, not this goal's. **The user decided: the check stays as it is, and this goal closes the whole roster's debt** (`docs/agent/goals/ldap.md` § *Standing decisions*). No session narrows, splits or skips it, and no session asks again.\n\n**The roster now owes 114 features, down from 153**, all outside this goal. Re-measured this session: `Core\\Str` (39), `Core\\Uuid`, `Core\\Taint`, `Core\\Process`, `Core\\Process\\Result`, `Core\\Process\\Handle` (all but `readStderr`), `Core\\Request\\Part`. Still owed: `Core\\Process\\Handle::readStderr` (its bench's bytes per op grow, slope 1.16), `Core\\Request\\Mount` (2, the calibration failed on a busy machine), about 55 `Core\\Db` (stale perf), 29 `lang:programs/*` and `lang:types/*` perf, and `about` for `directive:log.target` and `lang:testing/running-tests-nvs-test`.\n\n**The clock figures recorded this session are noisy**: the loop's own work was on the CPU, and many rows read `0.0 ns`. The counts columns are what the gate judges.",
   "next": {
     "stage": 10,
     "title": "the feature proofs, the whole roster",
@@ -11,18 +11,17 @@
     "items": [
       {
         "done": false,
-        "text": "**Apply the user's decision on `dossier-the-whole-roster-owes-nothing-with-core-ldap`** (`rule:testing/feature-proofs`). The gate is `tools/nv/cmd/proofs.ts:243`; the check is in `data/goals/ldap.json`. If it is narrowed, the goal is met and the session writes `DONE` after `bun nv verify --doc` and `bun nv owners --closes ldap`."
+        "text": "**Re-measure `Core\\Request\\Mount` and the `Core\\Db` groups on an idle machine** (`rule:testing/feature-proofs`): `bun nv proofs --group 'Core\\Request\\Mount' --record-perf`, then the same for each `Core\\Db…` class, one `--group` per class. The gate is `tools/nv/cmd/proofs.ts:243`, and the ledger is `docs/perf/members.ndjson:1`."
       },
       {
         "done": false,
-        "text": "**If the debt is kept, re-measure `Core\\Request\\Mount` and the `Core\\Db` groups on an idle machine** (`rule:testing/feature-proofs`): `bun nv proofs --group 'Core\\Request\\Mount' --record-perf`, same for each `Core\\Db…` class. The ledger is `docs/perf/members.ndjson:1`."
+        "text": "**Then the 29 `lang:*` perf rows and the two long `about.md` files** (`rule:testing/feature-proofs`): `bun nv proofs --group 'lang:types' --record-perf` and the same for `lang:programs`; rewrite `docs/examples/config/log-target/about.md:1` and `docs/examples/lang/testing/running-tests-nvs-test/about.md:1` under 160 words (AGENTS.md § *Text an end user reads*)."
       }
     ]
   },
   "backlog": [
     "`Core\\Process\\Handle::readStderr`'s bench grows in bytes per op as its batches double; fix it or mark it `// proof: gap` (`rule:testing/feature-proofs`).",
     "`Core\\Request\\Part::content`, `readAll` and `saveTo` declare `complexity linear` and have no `.scale.nvs` (benches/members/README.md).",
-    "29 `lang:*` features owe perf and two features owe `about` (`bun nv proofs --owed`).",
     "Stage 4: a CA a program supplies. Stage 6: wire the schema into the readers (goal prose)."
   ]
 }
