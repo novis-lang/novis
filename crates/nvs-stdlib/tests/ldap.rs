@@ -583,6 +583,7 @@ fn a_filter_nests_at_most_max_filter_depth_levels() {
     assert_eq!(error.position, 2 * nvs_ldap::MAX_FILTER_DEPTH + 1);
 }
 
+// covers: Core\Ldap\Ad::memberOf
 #[test]
 fn ad_member_of_nested_uses_the_in_chain_rule() {
     // `Ldap\Ad::memberOf($group, {nested: true})`: RFC 4511's extensible
@@ -635,6 +636,61 @@ fn ad_member_of_nested_uses_the_in_chain_rule() {
     // The server accepts the rule. What it returns for it is the server's
     // own evaluation, so only the request's success is asserted.
     found(&mut ctx, key, &Filter::Encoded(nested(&group).to_ber()));
+}
+
+// covers: Core\Ldap\Ad::enabled, Core\Ldap\Ad::disabled
+// covers: Core\Ldap\Ad::bitAnd, Core\Ldap\Ad::bitOr
+#[test]
+fn ad_bit_rules_carry_the_number_in_decimal() {
+    // `Ldap\Ad::bitAnd` and `bitOr`: AD's `LDAP_MATCHING_RULE_BIT_AND` and
+    // `_BIT_OR`, with the bits as decimal digits. `disabled` is `bitAnd` on
+    // `userAccountControl`'s `ACCOUNTDISABLE` bit, and `enabled` its negation.
+    let bits = |rule: &str, attribute: &str, value: &str| Filter::Extensible {
+        rule: Some(rule.to_owned()),
+        attribute: Some(attribute.to_owned()),
+        value: value.as_bytes().to_vec(),
+        dn_attributes: false,
+    };
+    let disabled = bits("1.2.840.113556.1.4.803", "userAccountControl", "2");
+    let mut expected = vec![0xa9, 0x2f, 0x81, 0x16];
+    expected.extend_from_slice(b"1.2.840.113556.1.4.803");
+    expected.extend_from_slice(&[0x82, 0x12]);
+    expected.extend_from_slice(b"userAccountControl");
+    expected.extend_from_slice(&[0x83, 0x01, b'2']);
+    assert_eq!(disabled.to_ber(), expected);
+    let enabled = Filter::Not(Box::new(disabled.clone()));
+    let either = bits("1.2.840.113556.1.4.804", "userAccountControl", "18");
+    let security = bits("1.2.840.113556.1.4.803", "groupType", "2147483648");
+    for filter in [&disabled, &enabled, &either, &security] {
+        let back = Filter::from_ber(&filter.to_ber()).expect("the encoding reads back");
+        assert_eq!(&back, filter, "{}", filter.to_text());
+    }
+    assert_eq!(
+        enabled.to_text(),
+        "(!(userAccountControl:1.2.840.113556.1.4.803:=2))"
+    );
+    assert_eq!(
+        either.to_text(),
+        "(userAccountControl:1.2.840.113556.1.4.804:=18)"
+    );
+
+    let Some(ca) = samba() else { return };
+    let mut ctx = ctx_over(&corp(&ca));
+    let key = ldap::connect(&mut ctx, "corp").expect("the block opens");
+    let user = |filter: &Filter| {
+        Filter::And(vec![
+            Filter::Equal("objectClass".to_owned(), b"user".to_vec()),
+            filter.clone(),
+        ])
+    };
+    let on = |ctx: &mut nvs_runtime::Ctx, filter: &Filter| {
+        found(ctx, key, &Filter::Encoded(user(filter).to_ber()))
+    };
+    assert!(on(&mut ctx, &enabled).iter().any(|dn| dn == ADMIN));
+    assert!(!on(&mut ctx, &disabled).iter().any(|dn| dn == ADMIN));
+    // The administrator's `NORMAL_ACCOUNT` bit, 512, is one of 2 | 512.
+    let normal = bits("1.2.840.113556.1.4.804", "userAccountControl", "514");
+    assert!(on(&mut ctx, &normal).iter().any(|dn| dn == ADMIN));
 }
 
 // covers: Core\Ldap\Dn::parse, Core\Ldap\Dn::of, Core\Ldap\Dn::child, Core\Ldap\Dn::parent
@@ -740,6 +796,8 @@ fn object_guid_reads_as_a_uuid_with_ads_byte_order() {
     assert_eq!(octets[8] >> 6, 0b10, "the RFC 9562 variant, {octets:02x?}");
 }
 
+// covers: Core\Ldap\Sid::parse, Core\Ldap\Sid::toString, Core\Ldap\Sid::bytes
+// covers: Core\Ldap\Sid::domain, Core\Ldap\Sid::rid
 #[test]
 fn object_sid_reads_as_its_s_1_5_21_text() {
     use nvs_ldap::{Sid, SidTextError, ValueError};

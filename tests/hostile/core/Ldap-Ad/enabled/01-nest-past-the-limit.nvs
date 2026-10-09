@@ -1,0 +1,29 @@
+<?nvs
+// Attack: a program puts `enabled` inside `not` again and again, far past the
+// deepest filter allowed. It should throw an error, and must not crash.
+
+// 1. Two hundred levels of `not`, one level at a time.
+uint $levels = 0;
+try {
+    Core\Ldap\Filter $at = Core\Ldap\Ad::enabled();
+    while ($levels < 200) {
+        $at = Core\Ldap\Filter::not($at);
+        $levels = $levels + 1;
+    }
+    echo "1 built\n";
+} catch (LogicError $refusal) {
+    echo '1 refused after ', $levels, " levels\n";
+}
+
+// 2. Many filters in one `any`.
+try {
+    array<Core\Ldap\Filter> $many = [];
+    uint $i = 0;
+    while ($i < 50000) {
+        $many[] = Core\Ldap\Ad::enabled();
+        $i = $i + 1;
+    }
+    echo '2 length: ', Core\Str::length(Core\Ldap\Filter::any(...$many)->toString()), "\n";
+} catch (Throwable $error) {
+    echo "2 threw\n";
+}

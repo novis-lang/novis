@@ -1,0 +1,1 @@
+(&(objectClass=user)(memberOf=CN=Sales\5c, North,OU=Groups,DC=example,DC=test))

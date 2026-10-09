@@ -1,0 +1,5 @@
+<?nvs
+// Shows the filter for accounts that are disabled or locked out.
+
+// 2 is "disabled" and 16 is "locked out". One of the two is enough.
+echo Core\Ldap\Ad::bitOr('userAccountControl', 2 | 16)->toString(), "\n";

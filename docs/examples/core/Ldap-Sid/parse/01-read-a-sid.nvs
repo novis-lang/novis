@@ -1,0 +1,7 @@
+<?nvs
+// Shows how to read SID text and get its last number.
+
+var $admins = Core\Ldap\Sid::parse('S-1-5-32-544');
+// This prints S-1-5-32-544 and then 544.
+echo $admins->toString(), "\n";
+echo $admins->rid(), "\n";

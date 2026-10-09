@@ -1,0 +1,9 @@
+<?nvs
+// Shows how to match the disabled users whose name starts with a text.
+
+var $filter = Core\Ldap\Filter::all(
+    Core\Ldap\Filter::equals('objectClass', 'user'),
+    Core\Ldap\Filter::startsWith('sAMAccountName', 'temp'),
+    Core\Ldap\Ad::disabled(),
+);
+echo $filter->toString(), "\n";

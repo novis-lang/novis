@@ -1,0 +1,8 @@
+<?nvs
+// Shows how the length of the bytes grows with the numbers in the SID.
+
+array<string> $texts = ['S-1-1-0', 'S-1-5-32-544', 'S-1-5-21-1004336348-1177238915-682003330-1105'];
+// This prints 12, 16 and 28.
+foreach ($texts as string $text) {
+    echo Core\Bytes::length(Core\Ldap\Sid::parse($text)->bytes()), "\n";
+}

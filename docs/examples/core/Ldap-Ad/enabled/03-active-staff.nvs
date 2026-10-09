@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to match the users of a group whose account is not disabled.
+
+var $staff = Core\Ldap\Dn::parse('CN=Staff,OU=Groups,DC=example,DC=test');
+var $filter = Core\Ldap\Filter::all(
+    Core\Ldap\Filter::equals('objectClass', 'user'),
+    Core\Ldap\Ad::memberOf($staff),
+    Core\Ldap\Ad::enabled(),
+);
+echo $filter->toString(), "\n";

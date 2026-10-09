@@ -20,6 +20,8 @@ echo Core\Ldap\Sid::parse("S-1-5-21-4294967295")->rid(), "\n";
 // An authority of 2^32 or more is written in hex, with `0x`.
 echo Core\Ldap\Sid::parse("S-1-0x010000000000-7")->toString(), "\n";
 echo Core\Ldap\Sid::parse("S-1-0x000000000005-7")->toString(), "\n";
+// covers: Core\Ldap\Sid::toString, Core\Ldap\Sid::bytes, Core\Ldap\Sid::domain
+// covers: Core\Ldap\Sid::rid
 --EXPECT--
 S-1-5-32-544
 01020000000000052000000020020000

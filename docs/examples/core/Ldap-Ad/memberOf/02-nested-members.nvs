@@ -1,0 +1,6 @@
+<?nvs
+// Shows the filter for every member of a group, through nested groups too.
+
+var $staff = Core\Ldap\Dn::parse('CN=Staff,OU=Groups,DC=example,DC=test');
+// The filter uses a rule that only Active Directory understands.
+echo Core\Ldap\Ad::memberOf($staff, { nested: true })->toString(), "\n";

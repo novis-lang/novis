@@ -1,0 +1,6 @@
+<?nvs
+// Shows the filter for the direct members of a group.
+
+var $staff = Core\Ldap\Dn::parse('CN=Staff,OU=Groups,DC=example,DC=test');
+// This prints (memberOf=CN=Staff,OU=Groups,DC=example,DC=test).
+echo Core\Ldap\Ad::memberOf($staff)->toString(), "\n";

@@ -1,0 +1,24 @@
+<?nvs
+// Measures how fast `bitOr` builds a bit filter, as a program does to find accounts with one of several settings.
+// bench: iterations 100000
+// bench: calls 0
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        // The count so far chooses the bits, so the loop cannot be left out.
+        array<int> $bits = [2 | 16, 2 | 8, 65536 | 2];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            var $filter = Core\Ldap\Ad::bitOr('groupType', $bits[($total % 3) as int]);
+            $total = $total + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(100000), "\n";

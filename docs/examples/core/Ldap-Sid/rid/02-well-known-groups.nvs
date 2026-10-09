@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to find the well-known groups in a list of group SIDs.
+
+array<string> $groups = [
+    'S-1-5-21-1004336348-1177238915-682003330-513',
+    'S-1-5-21-1004336348-1177238915-682003330-1120',
+    'S-1-5-21-1004336348-1177238915-682003330-512',
+];
+// This prints Domain Users, other and Domain Admins.
+foreach ($groups as string $text) {
+    int $rid = Core\Ldap\Sid::parse($text)->rid();
+    if ($rid == 512) {
+        echo "Domain Admins\n";
+    } else if ($rid == 513) {
+        echo "Domain Users\n";
+    } else {
+        echo "other\n";
+    }
+}

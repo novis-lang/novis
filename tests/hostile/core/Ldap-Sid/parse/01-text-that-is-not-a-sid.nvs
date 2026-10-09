@@ -1,0 +1,41 @@
+<?nvs
+// Attack: a program reads very long and broken texts as SIDs. Each text should
+// throw a `LogicError` or give a SID, and the program must keep running.
+
+// 1. A number with a million digits.
+try {
+    var $digits = Core\Ldap\Sid::parse('S-1-5-' . Core\Str::repeat('9', 1000000));
+    echo '1 ', $digits->toString(), "\n";
+} catch (LogicError $refusal) {
+    echo "1 refused\n";
+}
+
+// 2. A hundred thousand numbers.
+try {
+    var $numbers = Core\Ldap\Sid::parse('S-1-5' . Core\Str::repeat('-1', 100000));
+    echo '2 ', $numbers->toString(), "\n";
+} catch (LogicError $refusal) {
+    echo "2 refused\n";
+}
+
+// 3. An authority one past the largest, in hex and in decimal.
+array<string> $texts = ['S-1-0x1000000000000-1', 'S-1-281474976710656-1', 'S-1-0x-1', 'S-1--5-1'];
+foreach ($texts as string $text) {
+    try {
+        var $wide = Core\Ldap\Sid::parse($text);
+        echo '3 ', $wide->toString(), "\n";
+    } catch (LogicError $refusal) {
+        echo "3 refused\n";
+    }
+}
+
+// 4. Empty parts, spaces and a sign.
+array<string> $odd = ['', 'S-1-', 'S-1-5-', 'S-1-5- 1', 'S-1-5-+1', "S-1-5-1\n", 'S-1-5-１'];
+foreach ($odd as string $text) {
+    try {
+        var $blank = Core\Ldap\Sid::parse($text);
+        echo '4 ', $blank->toString(), "\n";
+    } catch (LogicError $refusal) {
+        echo "4 refused\n";
+    }
+}

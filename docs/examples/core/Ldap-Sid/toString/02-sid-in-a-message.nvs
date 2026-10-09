@@ -1,0 +1,7 @@
+<?nvs
+// Shows how to put the text of a SID into a log message.
+
+var $user = Core\Ldap\Sid::parse('S-1-5-21-1004336348-1177238915-682003330-1105');
+string $message = 'Account ' . $user->toString() . ' logged in';
+// This prints the message with the full SID in it.
+echo $message, "\n";

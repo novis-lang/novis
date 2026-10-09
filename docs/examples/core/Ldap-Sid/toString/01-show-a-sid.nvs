@@ -1,0 +1,6 @@
+<?nvs
+// Shows how to print a SID as text.
+
+var $everyone = Core\Ldap\Sid::parse('S-1-1-0');
+// This prints S-1-1-0.
+echo $everyone->toString(), "\n";

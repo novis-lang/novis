@@ -1,0 +1,28 @@
+<?nvs
+// Measures how fast `enabled` builds its filter and joins it with another, as a program does before it lists active users.
+// bench: iterations 100000
+// bench: calls 0
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        // The count so far chooses the other filter, so the loop cannot be left out.
+        array<Core\Ldap\Filter> $kinds = [
+            Core\Ldap\Filter::equals('objectClass', 'user'),
+            Core\Ldap\Filter::equals('objectClass', 'computer'),
+            Core\Ldap\Filter::present('mail'),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            var $filter = Core\Ldap\Filter::all($kinds[($total % 3) as int], Core\Ldap\Ad::enabled());
+            $total = $total + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(100000), "\n";

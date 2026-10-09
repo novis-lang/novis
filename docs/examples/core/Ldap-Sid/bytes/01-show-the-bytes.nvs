@@ -1,0 +1,6 @@
+<?nvs
+// Shows the binary form of a SID, written as hex.
+
+var $admins = Core\Ldap\Sid::parse('S-1-5-32-544');
+// This prints 01020000000000052000000020020000.
+echo Core\Encoding::toHex($admins->bytes()), "\n";

@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to build the group's DN when its name comes from a user.
+
+// A name from a form is `tainted`. `child` escapes the comma in it.
+tainted string $name = 'Sales, North';
+var $group = Core\Ldap\Dn::parse('OU=Groups,DC=example,DC=test')->child('CN', $name);
+var $members = Core\Ldap\Filter::all(
+    Core\Ldap\Filter::equals('objectClass', 'user'),
+    Core\Ldap\Ad::memberOf($group),
+);
+echo $members->toString(), "\n";

@@ -1,0 +1,10 @@
+<?nvs
+// Shows what happens when the attribute name is not a name.
+
+try {
+    Core\Ldap\Ad::bitOr('userAccountControl)(cn=*', 2);
+    echo "built\n";
+} catch (LogicError $refusal) {
+    // A name has only letters, digits and `-`, so this prints not a name.
+    echo "not a name\n";
+}

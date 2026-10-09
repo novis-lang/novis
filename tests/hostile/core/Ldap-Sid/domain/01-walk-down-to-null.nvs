@@ -1,0 +1,28 @@
+<?nvs
+// Attack: a program removes the last number of a SID again and again, past the end.
+// It should reach `null` after fourteen steps, and the program must keep running.
+
+// 1. Walk from fifteen numbers down to one.
+uint $steps = 0;
+Core\Ldap\Sid $at = Core\Ldap\Sid::parse('S-1-5' . Core\Str::repeat('-4294967295', 15));
+while (true) {
+    var $up = $at->domain();
+    if ($up == null) {
+        break;
+    } else {
+        $at = $up;
+        $steps = $steps + 1;
+    }
+}
+echo '1 steps: ', $steps, ', last: ', $at->toString(), "\n";
+
+// 2. `domain` on a SID with one number, many times.
+uint $nulls = 0;
+var $everyone = Core\Ldap\Sid::parse('S-1-1-0');
+while ($nulls < 100000) {
+    if ($everyone->domain() != null) {
+        break;
+    }
+    $nulls = $nulls + 1;
+}
+echo '2 nulls: ', $nulls, "\n";
