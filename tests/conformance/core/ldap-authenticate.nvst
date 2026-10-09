@@ -2,6 +2,7 @@
 `authenticate` accepts a user's right password, takes a `tainted` login, and leaves the connection it is called on logged in as the block — `rule:security/ldap-pool-is-bound-as-its-block`
 --FILE--
 <?nvs
+// covers: Core\Ldap\Connection::authenticate
 var $corp = Core\Ldap::connect("corp");
 var $owners = "CN=Owners,OU=Owners,DC=example,DC=test";
 
