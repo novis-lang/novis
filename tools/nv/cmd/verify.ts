@@ -151,6 +151,8 @@ const STEP_ATOMS = ["fmt", "lints", "directives", "template", "owners", "nv", "f
 
 const RESULT_RE = /test result: \w+\. (\d+) passed; (\d+) failed/g;
 const CASES_RE = /(\d+) passed, (\d+) failed, (\d+) skipped/g;
+/** The line `runCases` prints when passed cases left no recording: how many, and each case. */
+const UNRECORDED_RE = /^(\d+) passed case\(s\) left no recording: (.*)$/m;
 const WARN_RE = /^(warning|error)(\[[^\]]+\])?: (.*)$/gm;
 
 /** The `covws` build's directory of binaries. */
@@ -552,16 +554,19 @@ async function runTests(r: Run, s: Step): Promise<[number, string]> {
 
 // ---- the case trees --------------------------------------------------------------------------------
 
-/** A case tree's step: the selected cases, recorded. */
+/** A case tree's step: the selected cases, recorded, run on a copy of the covws `nvs` (`Recorder.pin`) so
+ * a rebuild by another process while the cases run changes nothing they record. A passed case that left
+ * no recording is red, and the output's `UNRECORDED_RE` line names it. */
 async function runCases(r: Run, s: Step): Promise<[number, string]> {
   const cases = casesToRun(r, s.name);
   const total = caseFiles().filter((p) => p.startsWith(`tests/${s.name}/`)).length;
   const jobs = cpus().length || 4;
-  const got = await recordCases(r.rec, covwsNvs(), cases, { jobs, batch: 128, onBatch: (done, all) => stepDetail(s.name, `${done}/${all} cases`) });
+  const got = await recordCases(r.rec, r.rec.pin(covwsNvs()), cases, { jobs, batch: 128, onBatch: (done, all) => stepDetail(s.name, `${done}/${all} cases`) });
   for (const p of cases) r.ran.add(caseId(p));
   const red = [...got.verdicts.values()].filter((v) => v === "red").length;
   const head = `${cases.length} of ${total} case(s) of tests/${s.name} selected`;
-  return [red > 0 || got.failed > 0 ? 1 : 0, `${head}\n${got.out}\n${got.passed} passed, ${got.failed} failed, ${got.skipped} skipped\n`];
+  const lost = got.unrecorded.length ? `${got.unrecorded.length} passed case(s) left no recording: ${got.unrecorded.join(", ")}\n` : "";
+  return [red > 0 || got.failed > 0 ? 1 : 0, `${head}\n${got.out}\n${lost}${got.passed} passed, ${got.failed} failed, ${got.skipped} skipped\n`];
 }
 
 // ---- the tools' own gate ---------------------------------------------------------------------------
@@ -764,7 +769,14 @@ export const summaries: Record<string, (out: string) => string> = {
     const m = all.at(-1);
     if (!m) return "ran, but printed no `N passed` line -- check the log";
     const of = /^(\d+) of (\d+) case\(s\)/m.exec(out);
-    return `${m[1]} passed, ${m[2]} failed` + (Number(m[3]) ? `, ${m[3]} skipped` : "") + (of && of[1] !== of[2] ? `  (${of[1]} of ${of[2]} selected)` : "");
+    const lost = UNRECORDED_RE.exec(out);
+    const names = lost ? lost[2]!.split(", ") : [];
+    return (
+      `${m[1]} passed, ${m[2]} failed` +
+      (Number(m[3]) ? `, ${m[3]} skipped` : "") +
+      (of && of[1] !== of[2] ? `  (${of[1]} of ${of[2]} selected)` : "") +
+      (lost ? ` -- ${lost[1]} passed case(s) left no recording and are red: ${names.slice(0, 2).join(", ")}${names.length > 2 ? ", ..." : ""} (\`coverage lost:\` in the log)` : "")
+    );
   },
   extension(out) {
     const m = /(\d+)\s+passing/.exec(out);

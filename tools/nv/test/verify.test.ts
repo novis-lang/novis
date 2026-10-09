@@ -88,6 +88,13 @@ describe("summaries", () => {
     const out = "12 of 400 case(s) of tests/conformance selected\n8 passed, 0 failed, 0 skipped\n4 passed, 0 failed, 0 skipped\n\n12 passed, 0 failed, 0 skipped\n";
     expect(summaries.cases!(out)).toBe("12 passed, 0 failed  (12 of 400 selected)");
   });
+
+  test("passed cases that left no recording are counted and the first two named, since they are red with nothing failed", () => {
+    const out = "12 of 400 case(s) of tests/conformance selected\ncoverage lost: batch 1/1 of tests/conformance (12 cases): 3 passed case(s) left no recording\n\n3 passed case(s) left no recording: tests/conformance/a.nvst, tests/conformance/b.nvst, tests/conformance/c.nvst\n12 passed, 0 failed, 0 skipped\n";
+    expect(summaries.cases!(out)).toBe(
+      "12 passed, 0 failed  (12 of 400 selected) -- 3 passed case(s) left no recording and are red: tests/conformance/a.nvst, tests/conformance/b.nvst, ... (`coverage lost:` in the log)",
+    );
+  });
 });
 
 describe("the test build", () => {

@@ -44,13 +44,25 @@ export interface Recorded {
   log: string | null;
 }
 
-/** Every recorded atom in `dir`, by record name: `<name>-<pid>.profraw`, or `<name>-<signature>_<n>.profraw`
- * from a merge pool (`%Nm`), and `<name>.log`. */
+/** Every recorded atom in `dir`, by record name (`recordsIn`). A `dir` that does not exist holds none, and
+ * any other error reading it is thrown: a directory that cannot be listed is never taken for an empty one. */
 export function recordedIn(dir: string): Map<string, Recorded> {
+  let files: string[];
+  try {
+    files = readdirSync(dir);
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") return new Map();
+    throw e;
+  }
+  return recordsIn(dir, files);
+}
+
+/** The recorded atoms among `files`, the names in `dir`, by record name: `<name>-<pid>.profraw`, or
+ * `<name>-<signature>_<n>.profraw` from a merge pool (`%Nm`), and `<name>.log`. */
+export function recordsIn(dir: string, files: string[]): Map<string, Recorded> {
   const out = new Map<string, Recorded>();
-  if (!existsSync(dir)) return out;
   const get = (name: string) => out.get(name) ?? out.set(name, { name, profraws: [], log: null }).get(name)!;
-  for (const f of readdirSync(dir)) {
+  for (const f of files) {
     const raw = /^(.*)-\d+(?:_\d+)?\.profraw$/.exec(f);
     if (raw) get(raw[1]!).profraws.push(join(dir, f));
     else if (f.endsWith(".log")) get(f.slice(0, -4)).log = join(dir, f);

@@ -2,9 +2,9 @@ import { describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { sinceOverlay } from "../select/change.ts";
-import { CovMap } from "../select/extract.ts";
+import { CovMap, recordedIn } from "../select/extract.ts";
 import { ALL_NAMES, pathKeys, readsKeys, spawnKeys } from "../select/keys.ts";
-import { advance, caseLabels, depInfoPaths, NO_ADVANCE_ENV, Recorder } from "../select/record.ts";
+import { advance, caseLabels, depInfoPaths, lostBlock, NO_ADVANCE_ENV, Recorder } from "../select/record.ts";
 import { type ChangeSet, query } from "../select/select.ts";
 import { SelectStore } from "../select/store.ts";
 import { digest } from "../keys/scan.ts";
@@ -156,6 +156,31 @@ describe("the readers a recorded run needs", () => {
     const out = "SKIP tests\\a.nvst — no php\r\nFAIL tests\\b\\c.nvst\r\n  want 1\n1 passed, 1 failed, 1 skipped\n";
     expect([...caseLabels(out, "FAIL")]).toEqual(["tests/b/c.nvst"]);
     expect([...caseLabels(out, "SKIP")]).toEqual(["tests/a.nvst"]);
+  });
+
+  test("a batch with passed cases that left no recording prints both listings, and a recording only the second one saw", () => {
+    const lost = ["tests/t/a.nvst", "tests/t/b.nvst", "tests/t/c.nvst", "tests/t/d.nvst"];
+    const block = lostBlock({ tree: "tests/t", index: 2, batches: 3, size: 128, lost, listed: 124, listError: null, parent: true, dir: "exists", fresh: ["tests~t~b.nvst-77.profraw", "tests~t~b.nvst.log"] });
+    expect(block).toBe(
+      "coverage lost: batch 2/3 of tests/t (128 cases): 4 passed case(s) left no recording\n" +
+        "  cases: tests/t/a.nvst, tests/t/b.nvst, tests/t/c.nvst (+1 more)\n" +
+        "  at extraction: 124 recorded atom(s) listed; parent recorded: yes; directory: exists\n" +
+        "  listed again: 1 .profraw, 1 .log, 0 other: tests~t~b.nvst-77.profraw, tests~t~b.nvst.log\n" +
+        "  1 of the 4 have a recording now, so the listing at extraction time missed files that were there: tests/t/b.nvst\n",
+    );
+    const gone = lostBlock({ tree: "tests/t", index: 1, batches: 1, size: 1, lost: ["tests/t/a.nvst"], listed: 0, listError: "EPERM", parent: false, dir: "EPERM", fresh: "EPERM" });
+    expect(gone).toContain("at extraction: listing threw EPERM; parent recorded: no; directory: EPERM\n  listed again: threw EPERM\n");
+  });
+
+  test("a record directory that cannot be listed is an error, and one that does not exist is empty", () => {
+    const s = scratch();
+    try {
+      expect(recordedIn(join(s.root, "absent")).size).toBe(0);
+      s.put("file", "");
+      expect(() => recordedIn(join(s.root, "file"))).toThrow();
+    } finally {
+      s.cleanup();
+    }
   });
 
   test("a dep-info file's paths are read, an escaped space kept and a path outside the repository dropped", () => {

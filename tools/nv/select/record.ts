@@ -29,7 +29,7 @@ import { recordName } from "../proofs/run.ts";
 import { caseDef, caseId, treeOf } from "./atoms.ts";
 import { buildScripts, type Generated, generatedDigest, generatedIncludes, generatedMeta } from "./build.ts";
 import { snapshot } from "./change.ts";
-import { CovMap, type Extracted, extract, ItemIndex, type Recorded, recordedIn } from "./extract.ts";
+import { CovMap, type Extracted, extract, ItemIndex, type Recorded, recordedIn, recordsIn } from "./extract.ts";
 import { fileWild, fnKey, WILD } from "./keys.ts";
 import { type ChangeSet, changedItems, embedders, graphScope, recordOverlayMarkers, rustFiles, type Selection } from "./select.ts";
 import type { Keyed, SelectStore, Verdict } from "./store.ts";
@@ -270,8 +270,68 @@ export interface CaseRun {
   skipped: number;
   /** Each case, with its verdict. */
   verdicts: Map<string, Verdict>;
+  /** Each case that passed and left no recording, which makes it red. */
+  unrecorded: string[];
   processes: number;
 }
+
+/** What one batch of `recordCases` lost: the passed cases that left no recording, and what the case
+ * directory looked like when it was listed for extraction and again once the batch was extracted. */
+export interface LostBatch {
+  tree: string;
+  /** The batch's place among its tree's batches, from 1. */
+  index: number;
+  batches: number;
+  size: number;
+  lost: string[];
+  /** How many atoms the listing at extraction time held, and the error it threw, if it threw one. */
+  listed: number;
+  listError: string | null;
+  /** Whether the `nvs test` parent left a recording. */
+  parent: boolean;
+  /** "exists", "missing", or what reading the directory's status threw. */
+  dir: string;
+  /** The directory's names once the batch was extracted, or what listing it threw. Extraction deletes
+   * what it read, so a name here is one the first listing did not see or could not use. */
+  fresh: string[] | string;
+}
+
+const few = (xs: string[], n: number): string => xs.slice(0, n).join(", ") + (xs.length > n ? ` (+${xs.length - n} more)` : "");
+
+/** The few lines a batch with lost recordings adds to the step's output. When the second listing finds a
+ * recording of a lost case, it says so: the first listing missed a file that was there. */
+export function lostBlock(b: LostBatch): string {
+  const out = [
+    `coverage lost: batch ${b.index}/${b.batches} of ${b.tree} (${b.size} cases): ${b.lost.length} passed case(s) left no recording`,
+    `  cases: ${few(b.lost, 3)}`,
+    `  at extraction: ${b.listError ? `listing threw ${b.listError}` : `${b.listed} recorded atom(s) listed`}; parent recorded: ${b.parent ? "yes" : "no"}; directory: ${b.dir}`,
+  ];
+  if (typeof b.fresh === "string") out.push(`  listed again: threw ${b.fresh}`);
+  else {
+    const profraws = b.fresh.filter((f) => f.endsWith(".profraw")).length;
+    const logs = b.fresh.filter((f) => f.endsWith(".log")).length;
+    out.push(`  listed again: ${profraws} .profraw, ${logs} .log, ${b.fresh.length - profraws - logs} other${b.fresh.length ? `: ${few(b.fresh, 4)}` : ""}`);
+    const now = recordsIn("", b.fresh);
+    const found = b.lost.filter((p) => now.has(recordName(p)));
+    out.push(
+      found.length > 0
+        ? `  ${found.length} of the ${b.lost.length} have a recording now, so the listing at extraction time missed files that were there: ${few(found, 3)}`
+        : `  none of the ${b.lost.length} has a recording now`,
+    );
+  }
+  return out.join("\n") + "\n";
+}
+
+/** What reading `dir`'s status gives: "exists", "missing", or the error it threw. */
+function dirState(dir: string): string {
+  try {
+    return statSync(dir, { throwIfNoEntry: false }) ? "exists" : "missing";
+  } catch (e) {
+    return errText(e);
+  }
+}
+
+const errText = (e: unknown): string => (e as NodeJS.ErrnoException).code ?? (e as Error).message.split("\n")[0]!;
 
 /** The labels a `nvs test` report names as failed, or as skipped. */
 export function caseLabels(out: string, word: "FAIL" | "SKIP"): Set<string> {
@@ -291,7 +351,7 @@ const CASES_RE = /(\d+) passed, (\d+) failed, (\d+) skipped/;
  * records every case. The `nvs test` parent is recorded too, and what it ran is part of every case of
  * its batch; its listings of the tree are not, since what else a tree holds decides nothing about one
  * case's verdict. A case that failed, that left no record and was not skipped, or whose batch ran out
- * of time is red.
+ * of time is red. A batch with a passed case that left no record adds `lostBlock`'s lines to the output.
  */
 export async function recordCases(
   r: Recorder,
@@ -302,10 +362,11 @@ export async function recordCases(
   const root = o.root ?? ROOT;
   const byTree = new Map<string, string[]>();
   for (const f of cases) (byTree.get(treeOf(f)) ?? byTree.set(treeOf(f), []).get(treeOf(f))!).push(f);
-  const result: CaseRun = { out: "", passed: 0, failed: 0, skipped: 0, verdicts: new Map(), processes: 0 };
+  const result: CaseRun = { out: "", passed: 0, failed: 0, skipped: 0, verdicts: new Map(), unrecorded: [], processes: 0 };
   let done = 0;
   for (const [tree, all] of byTree) {
-    for (const batch of chunks(all, o.batch ?? 64)) {
+    const batches = chunks(all, o.batch ?? 64);
+    for (const [index, batch] of batches.entries()) {
       const dir = join(r.dir, "cases");
       rmSync(dir, { recursive: true, force: true });
       mkdirSync(dir, { recursive: true });
@@ -332,7 +393,16 @@ export async function recordCases(
       const parentRec = recordedIn(parent).get("p");
       const parentKeys: Keyed = parentRec ? (await r.extract(parentRec, [nvs])).keys : new Map();
       for (const k of [...parentKeys.keys()]) if (/^(dir|exists|tree):/.test(k)) parentKeys.delete(k);
-      const recorded = recordedIn(dir);
+      // A listing that throws is kept as the error and an empty listing, so every case of the batch is
+      // red and the error is named in the output.
+      let recorded = new Map<string, Recorded>();
+      let listError: string | null = null;
+      try {
+        recorded = recordedIn(dir);
+      } catch (e) {
+        listError = errText(e);
+      }
+      const lost = p.timedOut || !counts ? [] : batch.filter((path) => !recorded.has(recordName(path)) && !failed.has(path) && !skipped.has(path));
       await pool(batch, o.jobs, async (path) => {
         const got = recorded.get(recordName(path));
         const ext = got ? await r.extract(got, [nvs]) : null;
@@ -344,6 +414,16 @@ export async function recordCases(
         result.verdicts.set(path, verdict);
         result.processes += ext?.processes ?? 0;
       });
+      if (lost.length > 0) {
+        let fresh: string[] | string;
+        try {
+          fresh = readdirSync(dir);
+        } catch (e) {
+          fresh = errText(e);
+        }
+        result.unrecorded.push(...lost);
+        result.out += lostBlock({ tree, index: index + 1, batches: batches.length, size: batch.length, lost, listed: recorded.size, listError, parent: !!parentRec, dir: dirState(dir), fresh });
+      }
       done += batch.length;
       o.onBatch?.(done, cases.length);
     }
