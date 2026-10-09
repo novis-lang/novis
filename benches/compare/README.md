@@ -59,6 +59,22 @@ with one total, so a peer whose sort is not stable disagrees. Every failed check
 fixed body. Each peer checks types in its own language's usual way: Novis and Go decode into typed
 classes, PHP and Bun test the decoded value. The rules are the same set, never the same code.
 
+`html-page` builds its 100 products again on every request and escapes each name and the search term
+the way each peer's own documentation says to: an html template in Novis, `htmlspecialchars` in PHP,
+`Bun.escapeHTML` in Bun and `html/template` in Go. The timed term holds `<`, `>`, `&`, `"` and `'` and
+no `+`, because `html/template` alone also escapes `+` and that difference is not one the comparison
+maps away. Prices are integer cents formatted with integer division, for `json-api`'s reason.
+
+`wait` sleeps 50 ms on each peer's own timer at 1000 connections, so its memory figure is what 1000
+requests in flight cost. The FPM pool is `phpChildren(1000)`, 2000 workers, because a worker is held
+for the whole sleep and a pool smaller than the open connections stops rather than slows (the proxied
+leg's `php/pool.conf.in`). `nvs serve` keeps its defaults here as everywhere: in this container it
+states no per-request memory cap and prints no clamp at boot, so its in-flight ceiling is
+`max_in_flight` and no request is answered `503`. A run whose `wait` row shows a `503` in its status
+codes is measuring the ceiling and not the timer, and the Novis stack needs a `limits.memory` that
+affords 1000 before its number stands; `nvs` reads `nvs.toml` from its working directory, not from
+the program's.
+
 ## Agreement before timing
 
 A peer that answers wrongly and fast is the easiest way for a benchmark to report a win. A full run

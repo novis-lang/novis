@@ -153,6 +153,10 @@ export interface Case {
 const ORDER = readFileSync(join(COMPARE_DIR, "cases", "json-api", "order.json"), "utf8").trim();
 const orderInput = (body: string): Input => ({ method: "POST", path: "/orders", body, contentType: "application/json" });
 
+/** The html-page case's search term: every character an HTML escaper must replace, and no `+`, which `html/template` also escapes. */
+const SEARCH_TERM = `<b>"Tea" & 'Cups'</b>`;
+const productsInput = (term: string): Input => ({ method: "GET", path: `/products?q=${encodeURIComponent(term)}` });
+
 export const CASES: Case[] = [
   {
     id: "hello",
@@ -173,6 +177,25 @@ export const CASES: Case[] = [
       orderInput('{"customer":'),
       orderInput('{"customer":{"id":1,"name":"A","email":"a@example.com"},"items":[]}'),
     ],
+    html: false,
+  },
+  {
+    id: "html-page",
+    concurrency: 64,
+    timed: productsInput(SEARCH_TERM),
+    inputs: [
+      productsInput(SEARCH_TERM),
+      { method: "GET", path: "/products" },
+      productsInput("tea"),
+      productsInput("café"),
+    ],
+    html: true,
+  },
+  {
+    id: "wait",
+    concurrency: 1000,
+    timed: { method: "GET", path: "/wait" },
+    inputs: [{ method: "GET", path: "/wait" }],
     html: false,
   },
 ];
