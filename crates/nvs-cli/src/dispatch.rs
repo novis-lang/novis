@@ -20,7 +20,7 @@
 //! same two states a `Type=notify` unit is told on Linux — and a
 //! [`hosted::Reporting`] for the checkpoints a stop advances. Both are values
 //! on every platform so that a case drives the whole machine without an SCM,
-//! which is [`hosted`]'s own reason; only `platform` is Windows, and it is
+//! which is [`hosted`](mod@hosted)'s own reason; only `platform` is Windows, and it is
 //! the thinnest layer there is: one struct into `SetServiceStatus`.
 //!
 //! **A drain a manager asked for is the same drain a signal begins.** The
