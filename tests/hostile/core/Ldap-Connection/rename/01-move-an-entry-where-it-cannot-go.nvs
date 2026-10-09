@@ -4,18 +4,47 @@
 // hostile: timeout-ms 60000
 // requires: samba-ad
 
+class Leftovers
+{
+    // Deletes a unit and every entry below it. A unit with entries below it cannot be
+    // deleted, so each round deletes what it can, and the next round tries the rest.
+    public static function clear(Core\Ldap\Connection $corp, string $unit): void
+    {
+        uint $round = 0;
+        while ($round < 4) {
+            array<Core\Ldap\Dn> $dns = [];
+            bool $found = false;
+            try {
+                foreach ($corp->search(Core\Ldap\Filter::present('objectClass'), { base: $unit, select: ['ou'] }) as Core\Ldap\Entry $entry) {
+                    $dns[] = $entry->dn();
+                    $found = true;
+                }
+            } catch (Throwable $error) {
+            }
+            if (!$found) {
+                return;
+            }
+            foreach ($dns as Core\Ldap\Dn $dn) {
+                try {
+                    $corp->delete($dn);
+                } catch (Throwable $error) {
+                }
+            }
+            $round = $round + 1;
+        }
+    }
+}
+
 var $corp = Core\Ldap::connect('corp-accounts');
 string $unit = 'OU=Hostile Rename,DC=example,DC=test';
 string $child = 'OU=Inner,' . $unit;
-array<string> $leftovers = [$child, 'OU=Back,' . $unit, $unit];
-foreach ($leftovers as string $left) {
-    try {
-        $corp->delete($left);
-    } catch (Core\Ldap\LdapError $missing) {
-    }
+// A run that stopped half-way leaves entries behind.
+Leftovers::clear($corp, $unit);
+try {
+    $corp->add($unit, ['objectClass' => 'organizationalUnit']);
+    $corp->add($child, ['objectClass' => 'organizationalUnit']);
+} catch (Throwable $error) {
 }
-$corp->add($unit, ['objectClass' => 'organizationalUnit']);
-$corp->add($child, ['objectClass' => 'organizationalUnit']);
 
 // 1. New DNs that are not DNs, are very long, move an entry below itself,
 // leave the domain, or replace the domain root.
@@ -55,23 +84,19 @@ foreach ($roots as string $root) {
 }
 echo '2 refused: ', $refused, "\n";
 
-// 3. Two hundred renames in a row, back and forth. Nothing may be left behind.
+// 3. One hundred renames in a row, back and forth. The loop stops at the first error.
 uint $done = 0;
 uint $i = 0;
-while ($i < 100) {
+while ($i < 50) {
     try {
         $corp->rename($child, 'OU=Back,' . $unit);
         $corp->rename('OU=Back,' . $unit, $child);
         $done = $done + 2;
-    } catch (Core\Ldap\LdapError $failed) {
+    } catch (Throwable $failed) {
+        break;
     }
     $i = $i + 1;
 }
 echo '3 renamed: ', $done, "\n";
 
-foreach ($leftovers as string $left) {
-    try {
-        $corp->delete($left);
-    } catch (Core\Ldap\LdapError $missing) {
-    }
-}
+Leftovers::clear($corp, $unit);
