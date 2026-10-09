@@ -40,6 +40,13 @@
 // narrowed sweep that passes ends on `GREEN` instead, since it has not asked the whole plan. Every sweep
 // records what it ran, and moves the store's tree past the change, green or red.
 //
+// `bun nv loop --benches` is a turn's bench pass alone (`benchTurn`): every bench the selection picks,
+// owed, red, new or reached, is judged on the release build and recorded, under the sweep lock. It is how
+// a person pays the bench debt `bun nv affected --run` leaves, without waiting for the floor gate, and it
+// resumes a pass that was stopped, since each bench is recorded the moment it is judged. `--owed` narrows
+// it to the benches selected for being owed; a bench never recorded stays unrecorded, and the next pass
+// without `--owed` picks it up. It exits 0 when no bench is red, and 1 otherwise.
+//
 
 // `bun nv loop` with none of those modes is the run. Started by hand, with no `NOVIS_LOOP_RUN`, it is
 // `driver/respawn.ts`: it names the run and starts one turn after another, each its own process. A turn
@@ -156,12 +163,12 @@ import { writeGoalPlan } from "../renderers/goal-plan.ts";
 import { SelectStore } from "../select/store.ts";
 import { describeFull, fullRun } from "../select/full.ts";
 
-export const summary = "the loop driver: one turn with no mode, or the live goal's plan: nv loop [--side <slug>] --list|--run|--goal-only [--full] [--collect] [--gate-shut] [--stage <label>] [--name <text>] [--feature <id>] | --goal";
+export const summary = "the loop driver: one turn with no mode, or the live goal's plan: nv loop [--side <slug>] --list|--run|--goal-only [--full] [--collect] [--gate-shut] [--stage <label>] [--name <text>] [--feature <id>] | --goal | --benches [--owed]";
 
 const RUN = ".loop/run.json";
 
 const USAGE =
-  "bun nv loop [--side <slug>] [--model <m>] [--effort <e>] [--permission-mode <p>] [--max-sessions <n>] [--max-stalls <n>] [--max-retries <n>] [--max-limit-wait <seconds>] [--max-result-lines <n>] [--max-input-lines <n>] [--max-line-chars <n>] [--full-output] [--no-status] [--no-hold] [--min-free-gb <n>] [--keep-runs <n>] | --list|--run|--goal-only [--full] [--collect] [--gate-shut] [--stage <label>] [--name <text>] [--feature <id>] | --goal";
+  "bun nv loop [--side <slug>] [--model <m>] [--effort <e>] [--permission-mode <p>] [--max-sessions <n>] [--max-stalls <n>] [--max-retries <n>] [--max-limit-wait <seconds>] [--max-result-lines <n>] [--max-input-lines <n>] [--max-line-chars <n>] [--full-output] [--no-status] [--no-hold] [--min-free-gb <n>] [--keep-runs <n>] | --list|--run|--goal-only [--full] [--collect] [--gate-shut] [--stage <label>] [--name <text>] [--feature <id>] | --goal | --benches [--owed]";
 
 /** The session prompt every turn's session opens with. */
 const PROMPT = "docs/agent/session-prompt.md";
@@ -866,15 +873,15 @@ async function fullRunTurn(note: (line: string) => void): Promise<string> {
  * Every bench the selection picks, owed, red, new or reached, judged and recorded by `runBenches`. This
  * is where the loop pays the bench debt the sessions' `nv verify` and every `bun nv affected --run`
  * leave behind. A bench's growth is read off the cores as a perf guard's is, so the pass holds the sweep
- * lock. Returns a red line naming the red benches, or the release build that failed, and "" when there
- * is neither.
+ * lock. With `owedOnly`, only the benches selected for being owed run. Returns a red line naming the red
+ * benches, or the release build that failed, and "" when there is neither.
  */
-async function benchTurn(note: (line: string) => void): Promise<string> {
+async function benchTurn(note: (line: string) => void, owedOnly = false): Promise<string> {
   const { runBenches } = await import("../proofs/select.ts");
   const lock = await takeSweepLock({ note });
   let got: Awaited<ReturnType<typeof runBenches>>;
   try {
-    got = await runBenches(note);
+    got = await runBenches(note, owedOnly ? (s) => s.why === "owed" : undefined);
   } finally {
     lock.release();
   }
@@ -1464,6 +1471,12 @@ export async function run(args: string[]): Promise<number> {
     args = args.slice(2);
   }
   if (args.length === 1 && args[0] === "--goal") return await goalView();
+
+  if (args[0] === "--benches" && (args.length === 1 || (args.length === 2 && args[1] === "--owed"))) {
+    const red = await benchTurn((l) => console.log(l), args[1] === "--owed");
+    if (red) console.log(red);
+    return red ? 1 : 0;
+  }
 
   const mode = args[0];
   if (mode === undefined || !["--list", "--run", "--goal-only"].includes(mode)) {

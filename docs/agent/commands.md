@@ -225,8 +225,8 @@ then the sweep over exactly the checks it named, and a binary or case verify ran
 twice.
 
 **`nv guard` refuses the commands that run more than a change reaches**: `cargo test` with no target
-and no filter, `bun nv loop --goal-only` or `--run` over the whole plan, `bun nv proofs --verify` or
-`--run` over every feature, and `bun nv verify --no-cache`. A person runs them by hand; the loop
+and no filter, `bun nv loop --goal-only` or `--run` over the whole plan, `bun nv loop --benches`, `bun nv
+proofs --verify` or `--run` over every feature, and `bun nv verify --no-cache`. A person runs them by hand; the loop
 driver is not a tool call, so the guard never sees it. To look
 into one test, name it: `cargo test --test <name>` or `cargo test --lib <filter>`.
 

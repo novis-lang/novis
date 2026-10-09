@@ -45,7 +45,7 @@ import { read } from "./roster.ts";
 import { cargoLines } from "../lib/progress.ts";
 import { loadUnrecorded, unrecorded } from "../lib/reads.ts";
 import type { Recorder } from "../select/record.ts";
-import type { ChangeSet, Selection } from "../select/select.ts";
+import type { ChangeSet, Selected, Selection } from "../select/select.ts";
 import { type Keyed, SelectStore, type Verdict } from "../select/store.ts";
 import { progress } from "../lib/progress.ts";
 import { type Binary, divergence, HANG_FACTOR, jobsFor, type Pass, type Program, recordingRun, recordName, type Result, type RunOptions, runPrograms, spawnProof, type What } from "./run.ts";
@@ -225,7 +225,7 @@ export async function planBenches(reach: Reach[], judge: (path: string) => Promi
 
 /**
  * Runs the benches the change since the store's tree selects: every one, or with `only` the selected ones
- * whose `bench:` id it names. Each is judged by its perf proof's growth (`growthOf`) on the release
+ * whose `bench:` id it names or whose selection it accepts. Each is judged by its perf proof's growth (`growthOf`) on the release
  * `nvs`, as `bun nv scaling --growth` judges it, and then recorded (`recordBench`) on the covws debug
  * `nvs`, with green when the growth found nothing or only what the bench's `// proof: gap` marker
  * records. The benches are judged in `planBenches`'s order, which skips a bench whose changed items are
@@ -238,7 +238,7 @@ export async function planBenches(reach: Reach[], judge: (path: string) => Promi
  * benches it chose and ran, each skipped one with the
  * benches that proved it, and the red ones, or why the release build failed.
  */
-export async function runBenches(say: (line: string) => void = () => {}, only?: Set<string>): Promise<{ reached: number; ran: number; skipped: Map<string, string[]>; red: RedBench[] } | string> {
+export async function runBenches(say: (line: string) => void = () => {}, only?: Set<string> | ((s: Selected) => boolean)): Promise<{ reached: number; ran: number; skipped: Map<string, string[]>; red: RedBench[] } | string> {
   const { advance, benchFiles, benchId, changedItems, computeChange, fullChange, metadata, query, Recorder } = await engine();
   const { DEFAULT_WSL_NVS, growthOf } = await import("../cmd/scaling.ts");
   const { knownGap } = await import("./collect.ts");
@@ -254,7 +254,11 @@ export async function runBenches(say: (line: string) => void = () => {}, only?: 
     }
     const all = benchFiles();
     const sel = query(store, change, { discovered: all.map(benchId) });
-    const chosen = all.filter((p) => sel.selected.has(benchId(p)) && (only === undefined || only.has(benchId(p))));
+    const named = (s: Selected) => only === undefined || (typeof only === "function" ? only(s) : only.has(s.id));
+    const chosen = all.filter((p) => {
+      const s = sel.selected.get(benchId(p));
+      return s !== undefined && named(s);
+    });
     if (chosen.length === 0) return { reached: 0, ran: 0, skipped: new Map(), red: [] };
     const built = await releaseBinary();
     if (typeof built === "string") return built;
