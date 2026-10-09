@@ -9,6 +9,12 @@ them and runs `bun nv site --stamp`, the same way it owes the feature's proofs. 
 `bun nv site --check` over the whole tree, so a stale page the wrap did not attribute is still caught
 before a merge. A stamp is written by whoever reread the page, never to quiet the check.
 
+**A page's search questions are stamped as the page is.** Each entry of `website/src/data/questions.json`
+records the feature its questions were written from and that feature's hash, and an entry whose hash
+moved is stale. The wrap refuses stale questions the session made stale itself, `bun nv site --check
+questions` catches the rest, and `bun nv site --questions --stamp` is run by whoever rewrote or reread
+them. The questions are not a feature proof.
+
 Every snippet a page shows lives under `website/snippets/`, and that same CI step checks each file
 beside it against the real binary. A `.err` is the diagnostic `nvs check` must report for a program that
 does not compile. A `.out` is what `nvs run` must print with exit 0. A `.http.out` is the response body

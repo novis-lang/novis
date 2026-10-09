@@ -621,16 +621,29 @@ that fits it.
 `rule:testing/a-directory-of-programs-is-one-test-program`
 
 A directory handed to `nvs test` that holds `.nvs` files is one program: the runner writes an entry
-that requires every `.nvs` file under the directory, subdirectories walked, in name order, and runs
-that program's test table. The entry is never put on disk, its statements never run — no entry's do
-under `nvs test` — and its one job is to bring every file into the compile.
+that requires every `.nvs` file under the directory that no other file under it requires,
+subdirectories walked, in name order, and runs that program's test table. The entry is never put on
+disk, and its one job is to bring every file into the compile.
 
-The directory carries its own bootstrap. `autoload` declarations reach the program the way they
-reach any program, through a file the entry requires, so a directory whose tests use the
-application's classes holds one file that requires the application's bootstrap file, and every
-other file in it requires nothing. A directory holding no such file compiles as it is, which is
-right for tests that need no class outside themselves and reports `E0306` for the rest, exactly as
-running the same files by hand would.
+The directory carries its own `autoload` map. Declarations reach the program the way they reach any
+program, through a file the entry requires. Run over a project's root — `nvs test .`, the command
+the website teaches — that file is the project's own entry file, so tests written under the autoload
+root, beside the classes they test or in a class of their own, need nothing else, and the editor
+lends them the same map because the root owns them. A directory of tests outside every autoload root
+— a project's `tests/` — holds one file that requires the application's bootstrap, and every other
+file in it requires nothing; the editor needs that file to lend the map, and the project's root still
+runs as one program with both. A directory holding no such file compiles as it is, which is right
+for tests that need no class outside themselves and reports `E0306` for the rest, exactly as running
+the same files by hand would.
+
+- **A file another file requires is reached through it.** `require` has no once-only guard
+  ([`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct)) and `Core\Test::request` runs the
+  program, requires included, so an entry that required the project's entry beside a bootstrap that
+  requires it would run it twice per request. The edges are the ones the name-resolution walk
+  resolves, so the runner agrees with the build on what a path names, and a directory whose files
+  hold no `require` walks nothing first.
+- **One program per call.** A second path beside a program is refused with a sentence about the
+  count: `nvs test .` over the root is how a project with tests in two places runs them together.
 
 - **Name order, not test order.** The order the files are required in decides nothing a reader can
   see: classes are reported in name order and methods in declaration order, whatever brought them in.
@@ -695,6 +708,12 @@ session made stale itself: the session that changes a feature rereads the pages 
 them and runs `bun nv site --stamp`, the same way it owes the feature's proofs. CI's `proofs` job runs
 `bun nv site --check` over the whole tree, so a stale page the wrap did not attribute is still caught
 before a merge. A stamp is written by whoever reread the page, never to quiet the check.
+
+**A page's search questions are stamped as the page is.** Each entry of `website/src/data/questions.json`
+records the feature its questions were written from and that feature's hash, and an entry whose hash
+moved is stale. The wrap refuses stale questions the session made stale itself, `bun nv site --check
+questions` catches the rest, and `bun nv site --questions --stamp` is run by whoever rewrote or reread
+them. The questions are not a feature proof.
 
 Every snippet a page shows lives under `website/snippets/`, and that same CI step checks each file
 beside it against the real binary. A `.err` is the diagnostic `nvs check` must report for a program that
