@@ -1,0 +1,493 @@
+---
+/**
+ * Agentic programming: a framed panel with a gradient edge, unlike the open
+ * sections around it. On one side, what `nvs` gives a coding agent and the
+ * agents `nvs agent init` knows; on the other, the four commands an agent runs
+ * to find a method, check its file, read an error code and check again, as a
+ * timeline. Two columns from 64rem, stacked below.
+ *
+ * Each step's `out` is copied from what the release `nvs` prints for that
+ * command, cut to its first lines. Change it when that output changes.
+ */
+import { Icon } from '@astrojs/starlight/components'
+import Rich from './Rich.astro'
+import { withBase } from '~/lib/base'
+
+const points = [
+  {
+    icon: 'open-book',
+    title: 'The documentation is in `nvs`',
+    text: '`nvs agent find` and `nvs agent show` print the documentation of each class, method, setting and error code. It always matches the version you installed.',
+  },
+  {
+    icon: 'rocket',
+    title: 'One command sets up your project',
+    text: '`nvs agent init` writes an `AGENTS.md` file and the files your agent reads.',
+  },
+  {
+    icon: 'approve-check-circle',
+    title: 'Errors after every edit',
+    text: 'In Claude Code and Cursor, `nvs` checks each `.nvs` file after the agent edits it. The agent sees the errors at once.',
+  },
+]
+
+const agents = ['Claude Code', 'Cursor', 'Codex', 'GitHub Copilot', 'OpenCode']
+
+type Step = { label: string; cmd: string; out: string[]; kind: 'info' | 'error' | 'ok' }
+const steps: Step[] = [
+  {
+    label: 'The agent looks up a method',
+    cmd: 'nvs agent find length',
+    out: ['Core\\Str::length(string $s): uint', 'Core\\Bytes::length(bytes $b): uint'],
+    kind: 'info',
+  },
+  {
+    label: 'It checks the file it wrote',
+    cmd: 'nvs check app.nvs',
+    out: ['error[E0401]: expected `int`, found `uint`', '  --> app.nvs:4:14'],
+    kind: 'error',
+  },
+  {
+    label: 'It reads what the error means',
+    cmd: 'nvs agent show E0401',
+    out: ['code: E0401  A value has a type that this place does not accept.'],
+    kind: 'info',
+  },
+  {
+    label: 'It fixes the code and checks again',
+    cmd: 'nvs check app.nvs',
+    out: ['no errors'],
+    kind: 'ok',
+  },
+]
+---
+
+<section class="home-section agents not-content" id="agents" aria-labelledby="agents-title">
+  <div class="panel nv-reveal">
+    <div class="copy">
+      <span class="badge">
+        <Icon name="star" size="0.9rem" />
+        Agentic programming
+      </span>
+      <h2 id="agents-title">Let a coding agent write your Novis code</h2>
+      <p class="lead">
+        <Rich text="`nvs` contains the full documentation of the language and its library. A coding agent looks up what it needs, and the compiler checks every file it writes." />
+      </p>
+
+      <ul class="points" role="list">
+        {
+          points.map((p) => (
+            <li>
+              <div class="point-head">
+                <span class="nv-icon-tile">
+                  <Icon name={p.icon as any} size="1.2rem" />
+                </span>
+                <h3>
+                  <Rich text={p.title} />
+                </h3>
+              </div>
+              <p>
+                <Rich text={p.text} />
+              </p>
+            </li>
+          ))
+        }
+      </ul>
+
+      <div class="works">
+        <span class="works-label">Works with</span>
+        <ul role="list">
+          {agents.map((a) => <li>{a}</li>)}
+        </ul>
+      </div>
+
+      <div class="links">
+        <a class="nv-button nv-button-primary" href={withBase('/reference/cli/nvs-agent-init/')}>
+          Set up your project
+          <Icon name="right-arrow" size="1rem" />
+        </a>
+        <a class="nv-button nv-button-secondary" href={withBase('/reference/cli/nvs-agent/')}>
+          All agent commands
+          <Icon name="right-arrow" size="1rem" />
+        </a>
+      </div>
+    </div>
+
+    <figure class="session">
+      <figcaption>
+        <span class="pulse" aria-hidden="true"></span>
+        A coding agent at work
+      </figcaption>
+      <ol role="list">
+        {
+          steps.map((s, i) => (
+            <li class:list={['step', s.kind]}>
+              <span class="node" aria-hidden="true">
+                {s.kind === 'error' ? (
+                  <Icon name="close" size="0.85rem" />
+                ) : s.kind === 'ok' ? (
+                  <Icon name="approve-check" size="0.85rem" />
+                ) : (
+                  i + 1
+                )}
+              </span>
+              <div class="step-body">
+                <p class="step-label">{s.label}</p>
+                <div class="console">
+                  <code class="cmd">
+                    <span class="prompt" aria-hidden="true">
+                      $
+                    </span>
+                    {s.cmd}
+                  </code>
+                  {s.out.map((line) => (
+                    <code class="out">{line}</code>
+                  ))}
+                </div>
+              </div>
+            </li>
+          ))
+        }
+      </ol>
+    </figure>
+  </div>
+</section>
+
+<style>
+  .home-section {
+    margin-block: var(--nv-space-9) 0;
+  }
+
+  /* A gradient edge: the surface fills the padding box, the gradient shows
+     through the transparent border. A dot grid and two soft glows sit behind
+     the content. */
+  .panel {
+    position: relative;
+    isolation: isolate;
+    display: grid;
+    gap: var(--nv-space-7);
+    padding: var(--nv-space-7);
+    overflow: hidden;
+    border: 1px solid transparent;
+    border-radius: calc(var(--nv-radius-lg) * 1.5);
+    background:
+      linear-gradient(var(--nv-surface), var(--nv-surface)) padding-box,
+      var(--nv-gradient-line) border-box;
+    box-shadow: var(--nv-shadow-lg);
+  }
+  .panel::before,
+  .panel::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+  }
+  .panel::before {
+    background-image: radial-gradient(color-mix(in oklab, var(--sl-color-white) 16%, transparent) 1px, transparent 1px);
+    background-size: 18px 18px;
+    mask-image: radial-gradient(ellipse 80% 70% at 100% 0%, black, transparent 75%);
+  }
+  .panel::after {
+    background:
+      radial-gradient(45% 55% at 100% 0%, color-mix(in oklab, var(--nv-violet) 26%, transparent), transparent 70%),
+      radial-gradient(40% 50% at 0% 100%, color-mix(in oklab, var(--nv-crimson) 16%, transparent), transparent 70%);
+  }
+  @media (min-width: 64rem) {
+    .panel {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+      align-items: center;
+    }
+  }
+
+  .copy {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--nv-space-4);
+    min-width: 0;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    padding: 0.3em 0.8em;
+    border-radius: var(--nv-radius-pill);
+    background: var(--nv-gold);
+    color: var(--nv-on-gold);
+    font-size: var(--sl-text-xs);
+    font-weight: 750;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  h2 {
+    margin: 0;
+    font-size: clamp(1.75rem, 1.2rem + 2.2vw, 2.6rem);
+    font-weight: 800;
+    line-height: 1.12;
+    letter-spacing: -0.03em;
+    color: var(--sl-color-white);
+    text-wrap: balance;
+  }
+  .lead {
+    margin: 0;
+    font-size: var(--sl-text-lg);
+    line-height: 1.6;
+    color: var(--sl-color-gray-2);
+    text-wrap: pretty;
+  }
+
+  .points {
+    display: grid;
+    gap: var(--nv-space-4);
+    margin: var(--nv-space-2) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  .points li {
+    display: flex;
+    flex-direction: column;
+    gap: var(--nv-space-2);
+  }
+  .point-head {
+    display: flex;
+    align-items: center;
+    gap: var(--nv-space-3);
+  }
+  h3 {
+    margin: 0;
+    font-size: var(--sl-text-base);
+    font-weight: 750;
+    line-height: 1.3;
+    color: var(--sl-color-white);
+  }
+  .points p {
+    margin: 0;
+    padding-inline-start: calc(2.5rem + var(--nv-space-3));
+    font-size: var(--sl-text-sm);
+    line-height: 1.6;
+    color: var(--sl-color-gray-2);
+  }
+
+  .works {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--nv-space-2) var(--nv-space-3);
+  }
+  .works-label {
+    font-size: var(--sl-text-xs);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--sl-color-gray-3);
+  }
+  .works ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--nv-space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .works li {
+    padding: 0.2em 0.75em;
+    border: 1px solid var(--nv-hairline-strong);
+    border-radius: var(--nv-radius-pill);
+    background: var(--nv-surface-2);
+    font-size: var(--sl-text-xs);
+    font-weight: 650;
+    color: var(--sl-color-white);
+  }
+
+  .links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--nv-space-3);
+    margin-block-start: var(--nv-space-2);
+  }
+  .links .nv-button {
+    font-size: var(--sl-text-sm);
+  }
+
+  /* The session: a timeline of four steps on a line in the signature
+     gradient. Each step is a numbered node and a small console. */
+  .session {
+    margin: 0;
+    min-width: 0;
+    padding: var(--nv-space-5);
+    border: 1px solid var(--nv-hairline);
+    border-radius: var(--nv-radius-lg);
+    background: color-mix(in oklab, var(--nv-ink) 55%, var(--nv-surface));
+    box-shadow: var(--nv-shadow-md);
+  }
+  :global(:root[data-theme='light']) .session {
+    background: var(--nv-surface);
+  }
+  figcaption {
+    display: flex;
+    align-items: center;
+    gap: var(--nv-space-2);
+    margin-block-end: var(--nv-space-4);
+    font-size: var(--sl-text-xs);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--sl-color-gray-3);
+  }
+  .pulse {
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 50%;
+    background: var(--nv-ok);
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--nv-ok) 60%, transparent);
+  }
+  ol {
+    position: relative;
+    display: grid;
+    gap: var(--nv-space-4);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  ol::before {
+    content: '';
+    position: absolute;
+    inset-block: 1rem;
+    inset-inline-start: calc(1rem - 1px);
+    width: 2px;
+    border-radius: 2px;
+    background: linear-gradient(180deg, var(--sl-color-accent), var(--nv-crimson), var(--nv-ok));
+    opacity: 0.6;
+  }
+  .step {
+    position: relative;
+    display: grid;
+    grid-template-columns: 2rem minmax(0, 1fr);
+    gap: var(--nv-space-3);
+    align-items: start;
+  }
+  .node {
+    display: grid;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    border: 1px solid color-mix(in oklab, var(--sl-color-accent) 45%, transparent);
+    border-radius: 50%;
+    background: var(--nv-surface-2);
+    font-family: var(--sl-font-mono);
+    font-size: var(--sl-text-xs);
+    font-weight: 700;
+    color: var(--sl-color-text-accent);
+  }
+  .error .node {
+    border-color: color-mix(in oklab, var(--nv-danger) 60%, transparent);
+    background: color-mix(in oklab, var(--nv-danger) 18%, var(--nv-surface-2));
+    color: var(--nv-danger);
+  }
+  .ok .node {
+    border-color: color-mix(in oklab, var(--nv-ok) 60%, transparent);
+    background: color-mix(in oklab, var(--nv-ok) 18%, var(--nv-surface-2));
+    color: var(--nv-ok);
+  }
+  .step-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--nv-space-2);
+    min-width: 0;
+  }
+  .step-label {
+    display: flex;
+    align-items: center;
+    min-height: 2rem;
+    margin: 0;
+    font-size: var(--sl-text-sm);
+    font-weight: 700;
+    color: var(--sl-color-white);
+  }
+  .console {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    padding: 0.6rem 0.8rem;
+    overflow-x: auto;
+    border: 1px solid var(--nv-hairline);
+    border-radius: var(--nv-radius);
+    background: var(--nv-code-bg);
+    font-family: var(--sl-font-mono);
+    font-size: 0.75rem;
+    line-height: 1.5;
+  }
+  .error .console {
+    box-shadow: inset 3px 0 0 var(--nv-danger);
+  }
+  .ok .console {
+    box-shadow: inset 3px 0 0 var(--nv-ok);
+  }
+  .console code {
+    display: block;
+    padding: 0;
+    border: 0;
+    background: none;
+    font-family: inherit;
+    font-size: inherit;
+    white-space: pre;
+  }
+  .cmd {
+    font-weight: 650;
+    color: var(--sl-color-white);
+  }
+  .prompt {
+    margin-inline-end: 0.6em;
+    font-weight: 700;
+    color: var(--nv-gold);
+  }
+  :global(:root[data-theme='light']) .prompt {
+    color: var(--nv-crimson-text);
+  }
+  /* An output line wraps, so a narrow screen shows all of it. */
+  .out {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    color: var(--sl-color-gray-2);
+  }
+  .error .out {
+    color: var(--nv-danger);
+  }
+  .ok .out {
+    color: var(--nv-ok);
+  }
+
+  @keyframes pulse {
+    0% {
+      box-shadow: 0 0 0 0 color-mix(in oklab, var(--nv-ok) 60%, transparent);
+    }
+    100% {
+      box-shadow: 0 0 0 0.5rem transparent;
+    }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .pulse {
+      animation: pulse 2s var(--nv-ease) infinite;
+    }
+  }
+
+  @media (max-width: 49.99rem) {
+    .home-section {
+      margin-block-start: var(--nv-space-8);
+    }
+    .panel {
+      gap: var(--nv-space-6);
+      padding: var(--nv-space-5);
+    }
+    .lead {
+      font-size: var(--sl-text-base);
+    }
+    .points p {
+      padding-inline-start: 0;
+    }
+    .session {
+      padding: var(--nv-space-4);
+    }
+  }
+</style>
