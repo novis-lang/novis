@@ -29,6 +29,42 @@
         "done"
       ]
     },
+    "waitFor": {
+      "type": "object",
+      "properties": {
+        "argv": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "want": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "absent": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "everyMin": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "argv",
+        "everyMin"
+      ],
+      "additionalProperties": false
+    },
+    "handover": {
+      "enum": [
+        "looper"
+      ]
+    },
     "files": {
       "type": "array",
       "items": {
