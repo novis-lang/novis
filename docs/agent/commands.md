@@ -355,7 +355,7 @@ afterwards. The edits are reverted in a `finally`, and a batch fails when `git s
 runs the test binaries a change reaches and every `.nvst` case, and the loop's sweep after each session
 runs every acceptance check the change reached. The heavy ones — the fuzz run, the
 valgrind sweep and the WSL leg, the release-profile guards, the database matrix, the checks never
-memoized — wait for the floor gate (`tools/nv/cmd/loop.ts`'s `FLOOR_GATE_EVERY`) and for the sweep a
+memoized — wait for the floor gate (`tools/nv/cmd/sweep.ts`'s `FLOOR_GATE_EVERY`) and for the sweep a
 goal is reached on. Nothing is dropped: an atom the change reached that a run did not start is `owed`
 in the store, and stays selected until a run of it is green.
 

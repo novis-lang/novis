@@ -76,6 +76,7 @@ const COMMANDS: Record<string, () => Promise<Command>> = {
   services: () => import("./cmd/services.ts"),
   splice: () => import("./cmd/splice.ts"),
   suite: () => import("./cmd/suite.ts"),
+  sweep: () => import("./cmd/sweep.ts"),
   try: () => import("./cmd/try.ts"),
   verify: () => import("./cmd/verify.ts"),
   "webcrypto-vectors": () => import("./cmd/webcrypto-vectors.ts"),

@@ -78,24 +78,13 @@
 // overloaded, or the CLI failed is swept and run again inside the same turn, and one whose stream dropped
 // is rejoined with `claude --resume`: `driver/sweep.ts` says how and how often.
 //
-// The acceptance sweep behind it is every check in the plan, carried or the goal's own, and what starts
-// is what the session's change reached. The heavy checks (`accept.ts`'s `heldByGate`: the release
-// profile, fuzz, TSan, the database matrix and the checks never memoized, but never a setup command,
-// which the fixtures behind it need) and the Linux legs are held in nine turns of ten (`FLOOR_GATE_EVERY`, counted in the store as `floor-gate:since`), and a heavy check a held
-// sweep reached is owed until the gate opens. On the turn the gate opens by its count, the full run
-// (`select/full.ts`, `bun nv select --full`) comes first: every atom that is not heavy runs and records,
-// and a selection miss it finds is a red of the sweep. A scoped sweep that is green with checks held runs again over the whole
-// plan, collecting every red, since a goal is never reached on a held check. That goal-end sweep runs the
-// heavy checks and legs its goal reached, and on one goal end in three (`HEAVY_FULL_EVERY`, counted in the
-// store as `heavy-full:since`) every one of them, the safety net for the keys their twins record. Whenever
-// the floor gate is open, by its count or for a goal end, every bench the selection picks, owed, red, new
-// or reached, is then judged on the release build and recorded (`cmd/benches.ts`'s `benchTurn`, which
-// `bun nv benches` runs by hand, through `proofs/select.ts`'s
-// `runBenches`), and a red bench is a red of the sweep. Sessions leave benches owed and `bun nv affected
-// --run` judges only the ones its change reached, so this is where the rest are paid. After every sweep the disk is swept (`nv disk --clean`'s policy). A sweep that
-// would reach the goal also runs the goal-end gates, rustdoc and owner, and a goal is reached only when
-// the sweep and both gates are green. Then `advance` makes the next goal on the chain live, commits
-// `data/chain.json`, brings up its services, and the run goes on; after the last goal the chain is complete.
+// The sweep behind it is `bun nv sweep`'s, `cmd/sweep.ts`'s `afterSession` called in-process: the floor
+// gate's cadence, the acceptance sweep over every check in the plan, the benches on an open gate, the
+// disk, and on a sweep that would reach the goal the rustdoc and owner gates. That module says what each
+// does. A goal is reached only when the sweep and both gates are green. Then `advance` makes the next goal
+// on the chain live, commits `data/chain.json`, brings up its services, and the run goes on; after the last
+// goal the chain is complete. Sessions leave benches owed and `bun nv affected --run` judges only the ones
+// its change reached, so the sweep's bench turn is where the rest are paid.
 //
 // A goal whose record has `waitFor` starts no session while that command is red: the turn idles and runs it
 // again on its cadence. A reached goal whose record says `handover: "looper"` is not switched from: the
@@ -122,7 +111,7 @@ import { AGAIN, LOGDIR, RUN_ENV, RUNDIR, driverChanged, driverFiles, launch, led
 import { respawn } from "../driver/respawn.ts";
 import { AllowWatch, loadSeen, record as recordAllow, saveSeen, settle as settleAllow } from "./allow.ts";
 import { insideWorktree, landing, launchSide } from "../driver/side.ts";
-import { docGate, ownerGate, sweepDisk } from "../driver/gates.ts";
+import { afterSession, type SweepVoice } from "./sweep.ts";
 import { bringUp, preflight } from "./services.ts";
 import { chainGoals, type Goal, goalPlan, leaveGoal, liveGoal, SIDE_ENV, sideGoal } from "../lib/chain.ts";
 import { ROOT } from "../lib/paths.ts";
@@ -156,14 +145,12 @@ import { type Caps, DEFAULT_CAPS, Renderer } from "../driver/transcript.ts";
 import { ENV as WRITES_ENV } from "../lib/written.ts";
 import { holdOrigin } from "../accept/origin.ts";
 import { sharedResources } from "../accept/sweep-lock.ts";
-import { benchTurn } from "./benches.ts";
-import { type Check, allReds, featureMatches, heldByGate, tiers, withSetups } from "../accept/accept.ts";
+import { type Check, featureMatches, heldByGate, tiers, withSetups } from "../accept/accept.ts";
 import { lastGreen, PlanSweep } from "../accept/runner.ts";
 import { type Current, livePlan, nameOf, type Progress, stageLabels, sweepOver } from "../accept/sweep.ts";
 import { awaitGate, CHAIN_FILE, gateShut, looperArgv, putLooperFirst, retireChain, startLooper } from "../driver/handover.ts";
 import { writeGoalPlan } from "../renderers/goal-plan.ts";
-import { SelectStore } from "../select/store.ts";
-import { describeFull, fullRun } from "../select/full.ts";
+
 
 export const summary = "the loop driver: one turn with no mode, or the live goal's plan: nv loop [--side <slug>] --list|--run|--goal-only [--full] [--collect] [--gate-shut] [--stage <label>] [--name <text>] [--feature <id>] | --goal";
 
@@ -174,21 +161,6 @@ const USAGE =
 
 /** The session prompt every turn's session opens with. */
 const PROMPT = "docs/agent/session-prompt.md";
-/** Turns since the sweep last ran the heavy checks and the Linux legs, in the selection store's `meta`. */
-const FLOOR_META = "floor-gate:since";
-/**
- * One sweep in this many runs the heavy checks and the Linux legs. A regression only they see waits at
- * most this many sessions to be named; every other check runs in the sweep after the change that reached it.
- */
-const FLOOR_GATE_EVERY = 10;
-/** Goal ends since the last one that ran every heavy check and Linux leg, in the store's `meta`. */
-const HEAVY_FULL_META = "heavy-full:since";
-/**
- * One goal end in this many runs every heavy check and both Linux legs, whatever changed: the safety net
- * for the keys their twins record. Every other goal end runs the ones its change reached, so a heavy
- * check the keys missed waits at most this many goals to be named.
- */
-const HEAVY_FULL_EVERY = 3;
 
 interface Filters {
   stage?: string;
@@ -640,55 +612,6 @@ function standIn(): string[] | null {
   return words.length > 0 ? words : null;
 }
 
-/** The count the store's `meta` holds under `key`, or `missing` when it holds none. */
-function metaCount(key: string, missing: number): number {
-  const store = new SelectStore();
-  try {
-    const raw = store.meta(key);
-    const since = raw === null ? NaN : Number(raw);
-    return Number.isInteger(since) && since >= 0 ? since : missing;
-  } finally {
-    store.close();
-  }
-}
-
-function setMetaCount(key: string, count: number): void {
-  const store = new SelectStore();
-  try {
-    store.setMeta(key, String(count));
-  } finally {
-    store.close();
-  }
-}
-
-/** Turns since the floor gate last opened; a store that holds no count opens it, the safe direction. */
-function floorSince(): number {
-  return metaCount(FLOOR_META, FLOOR_GATE_EVERY);
-}
-
-/**
- * `bun nv select --full` inside a turn: every atom that is not heavy runs and records, and the store's
- * tree moves past the change. `fullRun` takes the sweep lock itself while a plan check needs the origin.
- * Returns a red line naming the selection misses, or a covws build that failed, and "" when there is
- * neither.
- */
-async function fullRunTurn(note: (line: string) => void): Promise<string> {
-  const store = new SelectStore();
-  try {
-    const r = await fullRun(store, { say: note });
-    for (const line of describeFull(r)) note(line);
-    if (r.buildFailed) return "full run: the covws build failed";
-    if (r.misses.length === 0) return "";
-    const named = r.misses.slice(0, 5).map((m) => m.id).join(", ");
-    return `full run: ${r.misses.length} selection miss(es), red now and not selected by the change that broke them: ${named}${r.misses.length > 5 ? ", ..." : ""}`;
-  } finally {
-    store.close();
-  }
-}
-
-function setFloorSince(since: number): void {
-  setMetaCount(FLOOR_META, since);
-}
 
 /**
  * One turn of the run; the module doc says what it does and what it does not do yet. It owns the console
@@ -1081,84 +1004,24 @@ async function serve(f: TurnFlags, state: RunState, fresh: boolean, touched: Tou
     }
   }
 
-  // The sweep, over the goal's list as the session left it.
+  // The sweep, over the goal's list as the session left it: `bun nv sweep`'s, in-process.
   const again = selected({});
   if (again === null) return end("chain-error", "the goal's plan did not read after the session; `bun nv check` and `bun nv chain --check` say why");
-  const all = again.goal.checks as Check[];
-  // A goal whose record says `sweep: "done"` is swept only when a session claims it is reached, so a
-  // session that carries on is followed straight by the next one.
-  if (again.goal.sweep === "done" && !line.startsWith("DONE")) {
-    step(`acceptance check: not run -- goal \`${live.slug}\` is swept only after a session that reports DONE`, C.CYAN);
-    TICKER.set({ phase: "between sessions" });
+  const voice: SweepVoice = {
+    step: (l) => step(l, C.CYAN),
+    note: (l) => say(`   ${l}`, C.GRAY),
+    ledger,
+    phase: (phase, total) => TICKER.set(total === undefined ? { phase } : { phase, total, done: 0 }),
+    progress: sweepProgress,
+  };
+  const input = { slug: live.slug, goal: again.goal, done: line.startsWith("DONE"), session: number, keepRuns: f.keepRuns, onDone: (c: Check, ok: boolean) => results.set(c.id, ok) };
+  const result = await afterSession(input, voice);
+  TICKER.set({ phase: "between sessions" });
+  if (result.skipped) {
     CONSOLE.closeSession();
     return onward();
   }
-  const since = floorSince() + 1;
-  let open = since >= FLOOR_GATE_EVERY;
-  // Every check but a heavy one: what starts is what this session's change reached, carried or the
-  // goal's own, and what was owed before it. A setup command is never held, since the fixtures read
-  // what it writes.
-  const heldBack = open ? [] : all.filter(heldByGate);
-  const scoped = all.filter((c) => !heldBack.includes(c));
-  // On the floor gate's cadence the full run comes first: every atom that is not heavy runs and records,
-  // so the sweep after it reaches the heavy checks, the Linux legs and whatever is red. A selection miss
-  // it finds is a red of this sweep.
-  let missed = "";
-  if (open) {
-    step("full run: every atom that is not heavy runs and records, and a red one the selection did not pick is a selection miss", C.CYAN);
-    TICKER.set({ phase: "full run" });
-    missed = await fullRunTurn((l) => say(`   ${l}`, C.GRAY));
-    if (missed) ledger(`       ${missed}`);
-  }
-  step(`acceptance check: every check a change reached${open ? ", the heavy ones and the Linux legs with them" : ` (heavy checks and the Linux legs held, 1 session in ${FLOOR_GATE_EVERY})`}`, C.CYAN);
-  const checkedAt = performance.now();
-  const progress = sweepProgress(again.labelOf, checkedAt);
-  const onDone = (c: Check, ok: boolean) => results.set(c.id, ok);
-  TICKER.set({ phase: "acceptance sweep", total: scoped.length, done: 0 });
-  // Every red is collected: a carried check that went red must not keep the goal's own checks behind it
-  // from being judged.
-  let { result, secs } = await sweepOver(again.goal, scoped, again.labelOf, { full: false, collect: true, legs: true, gateOpen: open, onDone, progress });
-  let cost = `${secs}s over ${result.ran} check(s), ${result.answered} not reached`;
-  // Only a sweep that would reach the goal pays for the two goal-end gates. They ask about the goal's own
-  // work, which the scoped sweep has just passed, so they run on the gate-open sweep red or green, and one
-  // session sees every finding.
-  let reaching = result.fail === "";
-  if (result.fail === "" && heldBack.length > 0) {
-    // On the safety net's cadence of goal ends, every heavy check and leg runs, whatever this goal changed.
-    const goalEnds = metaCount(HEAVY_FULL_META, HEAVY_FULL_EVERY) + 1;
-    const heavyAll = goalEnds >= HEAVY_FULL_EVERY;
-    const which = heavyAll ? `every heavy check and leg, 1 goal end in ${HEAVY_FULL_EVERY}` : "what this goal changed";
-    step(`scoped sweep green with ${heldBack.length} check(s) held -- opening the floor gate over ${which} before the goal is reached`, C.CYAN);
-    ledger(`       goal cost: ${cost}, ${heldBack.length} held (scoped; opening the floor gate${heavyAll ? " over every heavy check" : ""})`);
-    open = true;
-    reaching = true;
-    TICKER.set({ phase: "acceptance sweep, floor gate open", total: all.length, done: 0 });
-    ({ result, secs } = await sweepOver(again.goal, all, again.labelOf, { full: false, collect: true, legs: true, gateOpen: true, heavyAll, onDone, progress }));
-    cost = `${secs}s over ${result.ran} check(s), ${result.answered} not reached`;
-    setMetaCount(HEAVY_FULL_META, heavyAll ? 0 : goalEnds);
-  }
-  // With the floor gate open, every selected bench is judged after the sweep, and a red bench is a red
-  // of the sweep, as it is of `bun nv affected --run`.
-  let benchRed = "";
-  if (open) {
-    step("benches: every selected bench, owed, red, new or reached, is judged on the release build and recorded", C.CYAN);
-    TICKER.set({ phase: "benches, floor gate open" });
-    benchRed = await benchTurn((l) => say(`   ${l}`, C.GRAY));
-    if (benchRed) ledger(`       ${benchRed}`);
-  }
-  setFloorSince(open ? 0 : since);
-  for (const red of [missed, benchRed]) if (red) result = { ...result, fail: result.fail ? allReds([result.fail, red]) : red };
-  step(`acceptance check done in ${mmss((performance.now() - checkedAt) / 1000)}`, C.CYAN);
-  ledger(`       goal cost: ${cost}${open ? "" : `, ${heldBack.length} held (floor gate shut)`}`);
-  // Every session: the sweep has just left the build warm, nothing is building, and a day of builds is what fills `target/`.
-  TICKER.set({ phase: "cleaning disk" });
-  ledger(`       ${await sweepDisk(f.keepRuns, (l) => say(`   ${l}`, C.GRAY))}`);
-  const gateSay = (l: string) => step(l, C.CYAN);
-  const docsRed = reaching ? await docGate(number, gateSay) : "";
-  if (docsRed) ledger(`       doc gate: ${docsRed}`);
-  const ownerRed = reaching ? await ownerGate(live.slug, number, gateSay) : "";
-  if (ownerRed) ledger(`       owner gate: ${ownerRed}`);
-  TICKER.set({ phase: "between sessions" });
+  const { docsRed, ownerRed } = result;
   // The verdict on this session is the last thing that belongs in its log.
   CONSOLE.closeSession();
   if (result.fail === "" && !docsRed && !ownerRed) {

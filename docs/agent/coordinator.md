@@ -366,7 +366,7 @@ the change did not reach is not started, so a sweep over the whole plan runs wha
 reached, carried or the goal's own, and a floor regression is named in the session that caused it. The
 driver holds only the heavy checks (`isHeavy` in `tools/nv/accept/accept.ts`: the release profile and
 its cost guards, fuzz, TSan, the database matrix, and the checks never memoized) with the WSL leg and
-the valgrind sweep, and opens the gate every `FLOOR_GATE_EVERY` sessions — `tools/nv/cmd/loop.ts` is
+the valgrind sweep, and opens the gate every `FLOOR_GATE_EVERY` sessions — `tools/nv/cmd/sweep.ts` is
 that number's only home. They build what no recorded run builds, so each is keyed on a twin of its run
 on the covws build, and a leg on the fixtures and suites it runs again (`heavyTwin` and `legAtoms` in
 `tools/nv/select/checks.ts`). A held check is not a green one: a sweep that held anything reports `held`

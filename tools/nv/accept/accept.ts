@@ -25,7 +25,7 @@
 // and what the plan asks beyond them, a test a check names or a suite's `minPassing`, is judged from
 // the store's last green runs. A suite below its `minPassing` is `short`, reported and never green.
 //
-// The floor gate is the turn's (`cmd/loop.ts`), and the WSL leg and the valgrind sweep are
+// The floor gate is the sweep after a session's (`cmd/sweep.ts`), and the WSL leg and the valgrind sweep are
 // `accept/legs.ts`'s, which the turn starts as `beside`.
 
 import { dirname } from "node:path";
