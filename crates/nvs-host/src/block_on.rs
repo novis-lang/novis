@@ -120,6 +120,52 @@ pub fn block_on<F: Future>(future: F) -> Option<F::Output> {
     }
 }
 
+/// Drives `future` to its end on this task, for a future that wakes itself to
+/// give the core up: a guest call does that at every epoch tick
+/// (`rule:packaging/a-guest-call-yields-on-its-core`).
+///
+/// The loop is [`block_on`]'s with two additions. After a `Pending` poll it
+/// runs `between`, and polls again at once when that did some work. And a poll
+/// that ends with this drive already woken is a **yield**: the task goes behind
+/// every task that is ready and behind the readiness the core's reactor
+/// collects next, then polls again. No deadline is armed for it and the core
+/// waits on no clock. On a core with a reactor the yield fires a permission and
+/// then parks, so the reactor's next poll, which does not block while that
+/// poke is queued, puts the task back on the run queue. `between` runs before
+/// the permission is fired, because sending a guest's request can park this
+/// task on the same reactor, and that park would collect the permission. A poll
+/// that ends without a wake parks as [`block_on`]'s does, until the waker
+/// fires.
+///
+/// A cancellation does not end the drive. The future runs to its end and the
+/// caller meets the cancellation at its next safepoint; a guest call's own CPU
+/// deadline is what bounds it.
+///
+/// What it spends beyond [`block_on`]: one `RemoteWake` issued and collected
+/// per yield on a core, and nothing held between yields.
+pub fn block_on_yielding<F: Future>(future: F, mut between: impl FnMut() -> bool) -> F::Output {
+    let signal = Arc::new(Signal::here());
+    let waker = Waker::from(Arc::clone(&signal));
+    let mut cx = Context::from_waker(&waker);
+    let mut future = pin!(future);
+    loop {
+        signal.woken.store(false, Ordering::SeqCst);
+        if let Poll::Ready(value) = future.as_mut().poll(&mut cx) {
+            signal.disarm();
+            return value;
+        }
+        if between() {
+            continue;
+        }
+        if signal.woken.load(Ordering::SeqCst) {
+            signal.yield_turn();
+        } else {
+            // `false` is a cancellation, which this drive runs through.
+            let _ = signal.park();
+        }
+    }
+}
+
 /// What one drive shares with every clone of its waker: whether a wake has
 /// happened, and how to reach the thing that is waiting.
 ///
@@ -201,6 +247,32 @@ impl Signal {
                 }
                 true
             }
+        }
+    }
+
+    /// Gives the core up for one turn without waiting for anything, ignoring a
+    /// cancellation as [`block_on_yielding`] does.
+    fn yield_turn(&self) {
+        match &self.route {
+            Route::Core { permit } => {
+                // Fired before the suspend: the reactor drains it only after
+                // the run queue empties, so the task is parked by then and the
+                // drained id moves it to the back of the queue. A permission the
+                // poll's own wake fired already is a second id in the same
+                // drain, and the drain counts one wake for both.
+                self.arm(permit);
+                if let Some(wake) = lock(permit).take() {
+                    // As in `wake_by_ref`: a failed poke loses promptness, not
+                    // the wake.
+                    let _ = wake.wake();
+                }
+                let _ = suspend_current(Waiting::Parked);
+            }
+            Route::Yield => {
+                let _ = suspend_current(Waiting::Yielded);
+            }
+            // No other task runs on this thread, so the turn is over at once.
+            Route::Thread(_) => {}
         }
     }
 
@@ -401,6 +473,105 @@ mod tests {
         // was holding goes with it.
         assert_eq!(sched.cancel(id), 1);
         sched.run();
+    }
+
+    /// How many polls a yielding future below makes before it is ready.
+    const YIELDS: usize = 64;
+
+    /// A future that wakes itself and answers `Pending` until its `YIELDS + 1`th
+    /// poll, the way a guest call does at each epoch tick, counting into `polls`.
+    fn yielding(polls: Rc<Cell<usize>>) -> impl Future<Output = usize> {
+        std::future::poll_fn(move |cx| {
+            polls.set(polls.get() + 1);
+            if polls.get() <= YIELDS {
+                cx.waker().wake_by_ref();
+                return Poll::Pending;
+            }
+            Poll::Ready(polls.get())
+        })
+    }
+
+    /// `rule:packaging/a-guest-call-yields-on-its-core`: a future that wakes
+    /// itself inside its poll gives the core up for one turn and waits on no
+    /// clock. Two such drives on one core alternate poll for poll, so neither
+    /// runs ahead of the other. At every poll of the second, the first is
+    /// waiting with no deadline armed, which is what keeps a yield from costing
+    /// a timer period.
+    #[test]
+    fn a_yielding_drive_waits_on_no_deadline_and_alternates_with_its_neighbour() {
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+
+        let first = Rc::new(Cell::new(0_usize));
+        let counted = Rc::clone(&first);
+        sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
+            assert_eq!(block_on_yielding(yielding(counted), || false), YIELDS + 1);
+        });
+        // Each poll of the second drive records how far the first had got, and
+        // how many deadlines the core held while it waited.
+        let seen = Rc::new(std::cell::RefCell::new(Vec::new()));
+        let record = Rc::clone(&seen);
+        let watched = Rc::clone(&first);
+        sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
+            let polls = Rc::new(Cell::new(0_usize));
+            let mine = Rc::clone(&polls);
+            let watching = std::future::poll_fn(move |cx| {
+                let timers = with_current(|reactor| reactor.timers().len());
+                record.borrow_mut().push((watched.get(), timers));
+                mine.set(mine.get() + 1);
+                if mine.get() <= YIELDS {
+                    cx.waker().wake_by_ref();
+                    return Poll::Pending;
+                }
+                Poll::Ready(())
+            });
+            block_on_yielding(watching, || false);
+        });
+
+        let report = run_until_idle(&mut sched).expect("the loop failed");
+        assert_eq!(report.finished, 2);
+        assert_eq!(report.parked, 0);
+        assert_eq!(first.get(), YIELDS + 1);
+        let seen = seen.borrow();
+        assert_eq!(seen.len(), YIELDS + 1);
+        for (turn, &(ahead, timers)) in seen.iter().enumerate() {
+            assert_eq!(
+                ahead,
+                turn + 1,
+                "the first drive did not poll exactly once between two polls of the second"
+            );
+            assert_eq!(timers, Some(0), "a yield armed a deadline");
+        }
+        assert_eq!(
+            with_current(|reactor| reactor.remote_waits()),
+            Some(0),
+            "a yield left a permission outstanding"
+        );
+    }
+
+    /// Off a core the yield is over at once, and `between` doing some work sends
+    /// the drive round again without a wake: here the future is ready only once
+    /// `between` has run, and nothing ever fires its waker.
+    #[test]
+    fn off_a_core_a_drive_polls_again_after_between_did_some_work() {
+        let polls = Rc::new(Cell::new(0_usize));
+        assert_eq!(
+            block_on_yielding(yielding(Rc::clone(&polls)), || false),
+            YIELDS + 1
+        );
+
+        let sent = Cell::new(false);
+        let answer = block_on_yielding(
+            std::future::poll_fn(|_| {
+                if sent.get() {
+                    Poll::Ready("answered")
+                } else {
+                    Poll::Pending
+                }
+            }),
+            || !sent.replace(true),
+        );
+        assert_eq!(answer, "answered");
     }
 
     /// A future that never finishes and reports its own drop.

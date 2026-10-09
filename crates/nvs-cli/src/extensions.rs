@@ -18,7 +18,7 @@
 //! `nvs_runtime::extension::Extensions` over one `nvs_ext::call::Request`, made at the run's first
 //! call. It copies each argument into an `nvs_ext::convert::Value` with no type in hand, and
 //! `Request::call_values` converts it by the manifest. The call is a future polled on the calling
-//! task: between two polls the task parks for up to one epoch tick, so the other tasks on the core
+//! task: at each epoch tick the task gives the core up for one turn, so the other tasks on the core
 //! run (`rule:packaging/a-guest-call-yields-on-its-core`). A failure throws the class
 //! `Failure::outcome` names (`rule:packaging/a-guest-crash-throws`). A limit runs the request's
 //! limit handler, then is a `FATAL` (`rule:errors/on-limit`).
@@ -78,8 +78,7 @@
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
-use std::task::{Context, Poll, Wake, Waker};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use nvs_config::cache::{Digest, artifact_key, content_hash, env_hash};
 use nvs_config::resolve::Origin;
@@ -632,33 +631,13 @@ impl nvs_runtime::extension::Extensions for Calls {
     }
 }
 
-/// Runs `call` to the end on the calling task. Between two polls it runs `between`, and polls
-/// again at once when that did some work, or parks the task for up to a tick.
-fn drive<T>(call: impl Future<Output = T>, mut between: impl FnMut() -> bool) -> T {
-    let waker = Waker::from(Arc::new(Unpark(std::thread::current())));
-    let mut cx = Context::from_waker(&waker);
-    let mut call = std::pin::pin!(call);
-    loop {
-        if let Poll::Ready(out) = call.as_mut().poll(&mut cx) {
-            return out;
-        }
-        if between() {
-            continue;
-        }
-        let deadline = Instant::now() + nvs_ext::call::TICK;
-        if nvs_runtime::host::with_current(|host| host.park(Some(deadline))).is_none() {
-            std::thread::park_timeout(nvs_ext::call::TICK);
-        }
-    }
-}
-
-/// A waker that unparks the thread that polls.
-struct Unpark(std::thread::Thread);
-
-impl Wake for Unpark {
-    fn wake(self: Arc<Self>) {
-        self.0.unpark();
-    }
+/// Runs `call` to the end on the calling task, with `nvs_host::block_on::block_on_yielding`.
+/// Between two polls it runs `between`, and polls again at once when that did some work. At each
+/// epoch tick the guest wakes its own call, and the task gives the core up for one turn, behind
+/// the core's other ready tasks, with no deadline armed. A pending import parks the task until the
+/// import's wake, which reaches the core from any thread.
+fn drive<T>(call: impl Future<Output = T>, between: impl FnMut() -> bool) -> T {
+    nvs_host::block_on::block_on_yielding(call, between)
 }
 
 /// `value` as it crosses into a guest.
