@@ -2155,6 +2155,48 @@ fn show_deleted_finds_a_deleted_entry() {
     );
 }
 
+/// The attributes of an OU added with only its `objectClass`.
+fn unit() -> [nvs_ldap::Attribute; 1] {
+    [nvs_ldap::Attribute {
+        name: "objectClass".to_owned(),
+        values: vec![b"organizationalUnit".to_vec()],
+    }]
+}
+
+// covers: Core\Ldap\Connection::rename
+#[test]
+fn rename_moves_an_entry_under_a_new_parent_and_refuses_text_that_is_not_a_dn() {
+    let Some(ca) = samba() else { return };
+    let mut ctx = ctx_over(&corp(&ca));
+    let key = ldap::connect(&mut ctx, "corp").expect("the block opens");
+    let (first, second) = (format!("OU=Atlas,{BASE}"), format!("OU=Harbor,{BASE}"));
+    let (from, to) = (format!("OU=Desk,{first}"), format!("OU=Counter,{second}"));
+    for dn in [&from, &to, &first, &second] {
+        ldap::delete(&mut ctx, key, dn).ok();
+    }
+    for dn in [&first, &second, &from] {
+        ldap::add(&mut ctx, key, dn, &unit()).expect("the OU is added");
+    }
+
+    ldap::rename(&mut ctx, key, &from, &to).expect("the rename succeeds");
+    let old = ldap::read(&mut ctx, key, &from, &["ou"]).expect("the read succeeds");
+    assert!(old.is_none(), "nothing is left at the old DN");
+    let moved = ldap::read(&mut ctx, key, &to, &["ou"])
+        .expect("the read succeeds")
+        .expect("the entry is at its new DN");
+    let name = moved.get("ou").and_then(|values| values.first());
+    assert!(name.is_some_and(|value| value == b"Counter"), "{name:?}");
+
+    let refused = ldap::rename(&mut ctx, key, &to, "Counter")
+        .expect_err("text that is not a DN is refused")
+        .message();
+    assert!(refused.contains("is not a DN"), "{refused}");
+
+    for dn in [&to, &first, &second] {
+        ldap::delete(&mut ctx, key, dn).expect("the OU is deleted");
+    }
+}
+
 /// The DNs of the OUs a DirSync from `cookie` returns, and the cookie it ends with.
 fn synced(ctx: &mut nvs_runtime::Ctx, key: u64, cookie: &[u8]) -> (Vec<String>, Vec<u8>) {
     let units = Filter::Equal("objectClass".to_owned(), b"organizationalUnit".to_vec());

@@ -1,0 +1,59 @@
+--TEST--
+`rename` gives an entry a new name in place, then moves it under another parent with a `Dn`, and the entry keeps its GUID through both — ADR 0278 § 9
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+string $first = "OU=Atlas Two,DC=example,DC=test";
+string $second = "OU=Harbor Two,DC=example,DC=test";
+array<string> $leftovers = ["OU=Desk," . $first, "OU=Counter," . $first, "OU=Counter," . $second, $first, $second];
+foreach ($leftovers as string $left) {
+    try {
+        $corp->delete($left);
+    } catch (Core\Ldap\LdapError $gone) {
+    }
+}
+$corp->add($first, ["objectClass" => "organizationalUnit"]);
+$corp->add($second, ["objectClass" => "organizationalUnit"]);
+$corp->add("OU=Desk," . $first, ["objectClass" => "organizationalUnit"]);
+string $guid = $corp->read("OU=Desk," . $first, {select: ["objectGUID"]})?->uuid("objectGUID")?->toString() ?? "";
+
+$corp->rename("OU=Desk," . $first, "OU=Counter," . $first);
+echo "old name: ", $corp->read("OU=Desk," . $first) == null ? "gone" : "still there", "\n";
+
+$corp->rename(Core\Ldap\Dn::parse("OU=Counter," . $first), Core\Ldap\Dn::parse("OU=Counter," . $second));
+var $moved = $corp->read("OU=Counter," . $second, {select: ["ou", "objectGUID"]});
+echo "moved: ", $moved?->string("ou") ?? "missing", "\n";
+echo "same GUID: ", ($moved?->uuid("objectGUID")?->toString() ?? "none") == $guid ? "yes" : "no", "\n";
+
+try {
+    $corp->rename("OU=Counter," . $second, "Counter");
+} catch (LogicError $notADn) {
+    echo "LogicError\n";
+}
+try {
+    $corp->rename("OU=Nowhere," . $second, "OU=Elsewhere," . $second);
+} catch (Core\Ldap\LdapError $missing) {
+    echo $missing->kind == Core\Ldap\ErrorKind::NoSuchObject ? "NoSuchObject" : "other", "\n";
+}
+
+$corp->delete("OU=Counter," . $second);
+$corp->delete($first);
+$corp->delete($second);
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+base = "DC=example,DC=test"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+old name: gone
+moved: Counter
+same GUID: yes
+LogicError
+NoSuchObject

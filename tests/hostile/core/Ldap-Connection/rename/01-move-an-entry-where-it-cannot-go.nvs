@@ -1,0 +1,77 @@
+<?nvs
+// Attack: a program tries to rename an entry to strange or impossible places. Each step
+// should throw an error or work, and nothing may crash.
+// hostile: timeout-ms 60000
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect('corp-accounts');
+string $unit = 'OU=Hostile Rename,DC=example,DC=test';
+string $child = 'OU=Inner,' . $unit;
+array<string> $leftovers = [$child, 'OU=Back,' . $unit, $unit];
+foreach ($leftovers as string $left) {
+    try {
+        $corp->delete($left);
+    } catch (Core\Ldap\LdapError $missing) {
+    }
+}
+$corp->add($unit, ['objectClass' => 'organizationalUnit']);
+$corp->add($child, ['objectClass' => 'organizationalUnit']);
+
+// 1. New DNs that are not DNs, are very long, move an entry below itself,
+// leave the domain, or replace the domain root.
+array<string> $targets = [
+    '',
+    'Inner',
+    'OU=Inner,',
+    'OU=Inner\\,DC=evil,' . $unit,
+    'OU=' . Core\Str::repeat('x', 100000) . ',' . $unit,
+    'OU=Loop,' . $child,
+    'OU=Inner,DC=other,DC=test',
+    'OU=Inner,CN=Deleted Objects,DC=example,DC=test',
+    'DC=example,DC=test',
+    "OU=Inner\x00,DC=example,DC=test",
+];
+uint $threw = 0;
+foreach ($targets as string $target) {
+    try {
+        $corp->rename($child, $target);
+        $corp->rename($target, $child);
+    } catch (Throwable $error) {
+        $threw = $threw + 1;
+    }
+}
+echo '1 threw: ', $threw, "\n";
+
+// 2. Renaming the domain root, and the unit with an entry below it.
+uint $refused = 0;
+array<string> $roots = ['DC=example,DC=test', $unit];
+foreach ($roots as string $root) {
+    try {
+        $corp->rename($root, 'OU=Swapped,DC=example,DC=test');
+        $corp->rename('OU=Swapped,DC=example,DC=test', $root);
+    } catch (Throwable $error) {
+        $refused = $refused + 1;
+    }
+}
+echo '2 refused: ', $refused, "\n";
+
+// 3. Two hundred renames in a row, back and forth. Nothing may be left behind.
+uint $done = 0;
+uint $i = 0;
+while ($i < 100) {
+    try {
+        $corp->rename($child, 'OU=Back,' . $unit);
+        $corp->rename('OU=Back,' . $unit, $child);
+        $done = $done + 2;
+    } catch (Core\Ldap\LdapError $failed) {
+    }
+    $i = $i + 1;
+}
+echo '3 renamed: ', $done, "\n";
+
+foreach ($leftovers as string $left) {
+    try {
+        $corp->delete($left);
+    } catch (Core\Ldap\LdapError $missing) {
+    }
+}
