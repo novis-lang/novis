@@ -1,0 +1,11 @@
+{
+  "lead": "A write proof against `samba-ad` must clear its unit's whole subtree before it adds the unit again.",
+  "body": "A run that stops half-way leaves a child under the unit, so `delete($unit)` throws a non-leaf error that the setup catches, and the next `add($unit)` throws `AlreadyExists` on every later run. Copy the `Leftovers::clear` class from `tests/hostile/core/Ldap-Connection/add/01-add-what-cannot-be-added.nvs`, which deletes what a subtree search finds in rounds, and catch the setup `add`.",
+  "files": [
+    "tests/hostile/core/Ldap-Connection/add/01-add-what-cannot-be-added.nvs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tests/hostile/core/Ldap-Connection/add/01-add-what-cannot-be-added.nvs:Leftovers"
+  }
+}
