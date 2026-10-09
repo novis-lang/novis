@@ -1,31 +1,33 @@
 {
-  "state": "**Goal `ldap`, Stage 10 (the feature proofs) is under way.** Stages 1 to 5 and 7 to 9 are done; Stage 4 lacks only a CA a program supplies, and Stage 6 lacks only wiring the schema into the readers. `Core\\Ldap`, `Core\\Ldap\\Filter`, `Core\\Ldap\\Dn`, `Core\\Ldap\\Sid`, `Core\\Ldap\\Ad` and `Core\\Ldap\\Change` owe nothing: every member has an `about.md`, three examples, an attack, a bench with a recorded figure in `docs/perf/members.ndjson`, and a `covers:` marker on a Rust test (and on a `.nvst` case for an instance member).\n\n**Every flag reader is a feature that owes every proof.** `data/proofs/policy.json` has no exclusion by kind, so the 24 features of `Core\\Ldap\\Ad\\AccountFlags` and the 9 of `Core\\Ldap\\Ad\\GroupType` each owe an `about.md`, three examples, an attack and a bench. Their tests are done. **No program can build a flag object without a live entry** (only `Entry::accountFlags` and `Entry::groupType` return one), so their examples, attacks and benches wait for the `samba-ad` footing too, with `Connection`, `Entries`, `Entry` and `Changes`.\n\n**A proof program can now say `// requires: samba-ad`.** `servicesFor` in `tools/nv/proofs/run.ts` runs `docker compose -f tests/db/compose.yaml up -d --wait samba-ad` once per process before the first program carrying it; `spawnProof` throws the reason when that fails, and the example, attack and `--bless` paths turn it into a plain FAIL. The three tree READMEs document the marker. Nothing yet carries it, and the domain is still empty.\n\n**A filter nests at most 100 levels** (`rule:core-classes/ldap-filter-is-a-value`). **How proofs run with no server today**: the root `nvs.toml` has an `[ldap.corp]` block at `ldaps://127.0.0.1:1`, a closed port, and one `[[app]] entry` per proof program that needs a grant. In a proof program, a catch variable or a `var` reused in one file with another type does not compile (E0406): name each `LogicError` catch `$refusal` and each `Throwable` catch `$error`. An instance member's `covers:` line in a `.nvst` case goes at the end of the `--FILE--` block.",
+  "state": "**Goal `ldap`, Stage 10 (the feature proofs) is under way.** Stages 1 to 5 and 7 to 9 are done; Stage 4 lacks only a CA a program supplies, and Stage 6 lacks only wiring the schema into the readers. `Core\\Ldap`, `Core\\Ldap\\Filter`, `Core\\Ldap\\Dn`, `Core\\Ldap\\Sid`, `Core\\Ldap\\Ad` and `Core\\Ldap\\Change` owe nothing.\n\n**The `samba-ad` domain is seeded, and the root `[ldap.corp]` reaches it.** The `20-novis-seed` script in `tests/db/compose.yaml` writes `OU=Company` before Samba starts (its comment lists every user, group and password), so healthy means seeded. The root `nvs.toml`'s `[ldap.corp]` binds over LDAPS at `localhost:16636` as the read-only `CN=Reader,OU=Company,DC=example,DC=test`, with `base` and `tls_ca_file`. A proof program that opens it carries `// requires: samba-ad`. The `Core\\Ldap::connect` examples 01 and 03 and its attack now run live, and their `.out` show seeded people. All 52 live `.nvst` cases and the Rust `ldap` and `samba` tests pass on the seeded domain.\n\n**Every flag reader is a feature that owes every proof** (`data/proofs/policy.json` has no exclusion by kind). `Entry::accountFlags` and `Entry::groupType` are the only way to get a flag object, so the `AccountFlags` and `GroupType` proofs read seeded entries: `carla.diaz` has `mustChangePassword` and a computed `passwordExpired`, `dora.lind` is `disabled`, `ben.kohl` has `passwordNeverExpires`, `Newsletter` is a distribution group, and `Employees`/`Managers` are global security groups.\n\n**Traps for a live proof.** A search returns entries in no fixed order, and GUIDs, SIDs and timestamps differ per boot, so an example sorts what it prints and never prints those. A catch variable or a `var` reused in one file with another type does not compile (E0406): name each `LogicError` catch `$refusal` and each `Throwable` catch `$error`. An instance member's `covers:` line in a `.nvst` case goes at the end of the `--FILE--` block.",
   "next": {
     "stage": 10,
-    "title": "the feature proofs, the `samba-ad` footing the user decided on",
-    "files": [],
-    "note": "one file set: `tests/db/compose.yaml`, the root `nvs.toml`, `docs/examples/core/Ldap/`.",
+    "title": "the feature proofs, read from the seeded directory",
+    "files": [
+      "docs/examples/core/Ldap-Entry/",
+      "tests/hostile/core/Ldap-Entry/",
+      "benches/members/core/Ldap-Entry/",
+      "tests/conformance/core/ldap-entry-*.nvst"
+    ],
     "items": [
       {
         "done": false,
-        "text": "**A seed step writes one fixed set of users and groups into the empty `EXAMPLE.TEST` domain** (`rule:testing/feature-proofs`; the service is `tests/db/compose.yaml:375`), so every `.out` is stable. It is idempotent, runs as part of the service coming up healthy (so `servicesFor` at `tools/nv/proofs/run.ts:85` needs no second step), and the names are neutral (`Staff`, `Shop`), never a reporter's."
+        "text": "**`Core\\Ldap\\Entry` owes nothing** (`rule:testing/feature-proofs`; `bun nv proofs --id 'Core\\Ldap\\Entry::toArray'` prints the paths). `toArray` is at `crates/nvs-stdlib/src/ldap/search.rs:682`, and `groupType` and `accountType` are at `crates/nvs-stdlib/src/ldap/value.rs:226`. Each example, attack and bench carries `// requires: samba-ad` and reads `OU=Company` through `[ldap.corp]`. `--bless` each example and read its `.out`."
       },
       {
         "done": false,
-        "text": "**The root `nvs.toml`'s `[ldap.corp]` points at the container's LDAPS port with the test CA** (line 2719 of the root file; the service is `tests/db/compose.yaml:375`), and the `Core\\Ldap::connect` and `open` examples that print the closed-port error gain `// requires: samba-ad`, are rewritten to show a real sign-in, and are re-blessed."
+        "text": "**`Core\\Ldap\\Ad\\AccountFlags` and `Core\\Ldap\\Ad\\GroupType` owe nothing**, reading flags from the seeded users and groups (`crates/nvs-stdlib/src/ldap/flags.rs:18`). Their tests are done. They owe the about page, the examples, the attack and the bench."
       },
       {
         "done": false,
-        "text": "**The first class proved against the live directory: `Core\\Ldap\\Entry`** (`bun nv proofs --id 'Core\\Ldap\\Entry::toArray'` prints the paths; the members are at `crates/nvs-stdlib/src/ldap/search.rs:682`), each program carrying `// requires: samba-ad`."
+        "text": "**`Core\\Ldap\\Entries` (`references`, `total`) and `Core\\Ldap\\Changes` (`cookie`)**, whose Rust `covers:` marker is missing too (`crates/nvs-stdlib/tests/ldap.rs:1`)."
       }
     ]
   },
   "backlog": [
-    "**Decided by the user: `Connection`, `Entries`, `Entry`, `Changes` and the two flag classes prove themselves against the real `samba-ad` service**, never through a skip entry in `data/proofs/policy.json`. After the footing lands, each class gets its `about.md`, examples, attack and bench.",
-    "`Ad::memberOf` with a string does not check that the string is a DN: `memberOf('not a DN')` returns `(memberOf=not a DN)`, which matches nothing (`crates/nvs-stdlib/src/ldap/search.rs`, `nvs_core_ldap_ad_member_of`).",
-    "Every `Dn` member parses the slot text again (`crates/nvs-stdlib/src/ldap/dn.rs`' module doc), so walking up an n-level DN with `parent` is O(n²).",
-    "`nv try` does not apply an `[[app]]` grant from the root `nvs.toml`, so a probe of a granted member needs `nv proofs --bless` instead (`tools/nv/cmd/try.ts`).",
-    "Stage 4: a CA a program supplies to `Ldap::open` (`docs/agent/goals/ldap.md`).",
-    "Stage 6: wiring the schema into the readers (`crates/nvs-ldap/src/schema.rs`)."
+    "`Core\\Ldap\\Connection::setPassword`, `changePassword` and `compare` owe every proof. A write needs an account of its own that a proof creates and deletes, because `Reader` changes nothing (`rule:testing/feature-proofs`).",
+    "Stage 6: wire the schema into the readers (`docs/agent/goals/ldap.md`).",
+    "Stage 4: a CA a program supplies (`docs/agent/goals/ldap.md`).",
+    "A run against a Windows Server evaluation VM is the user's to do by hand."
   ]
 }
