@@ -62,6 +62,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import type { Goal } from "../lib/chain.ts";
 import * as machine from "../lib/machine.ts";
 import { ROOT } from "../lib/paths.ts";
 import { run } from "../lib/proc.ts";
@@ -108,6 +109,25 @@ export interface LegsOptions {
   onStep?: () => void;
   /** The processes, replaced under test. Each one left out is the real one. */
   seams?: Partial<LegsSeams>;
+}
+
+/**
+ * The legs' options over `checks`, the checks a sweep reached of `goal`: its fixtures and suites, every
+ * `setup` check of the whole goal, its fixture list, `env.valgrind.skip` and `env.wsl.targetDir`.
+ * `sweepOver` and `bun nv legs` both build them here.
+ */
+export function legsOptions(goal: Pick<Goal, "checks" | "files" | "env">, checks: Check[], o: Omit<LegsOptions, "programs" | "suites" | "setups" | "files" | "valgrindSkip" | "wslTarget">): LegsOptions {
+  return {
+    programs: checks.filter((c) => PROGRAM_KINDS.has(c.kind)),
+    suites: checks.filter((c) => c.kind === "nvs-suite"),
+    // From the whole goal, not `checks`: a setup check is heavy, so a shut floor gate holds it back while
+    // the leg still runs the fixtures that read what it writes.
+    setups: (goal.checks as Check[]).filter((c) => c.setup === true),
+    files: goal.files,
+    valgrindSkip: goal.env.valgrind?.skip ?? [],
+    wslTarget: goal.env.wsl?.targetDir ?? null,
+    ...o,
+  };
 }
 
 /** Everything the legs start or ask the machine, as one replaceable set. */

@@ -21,6 +21,9 @@ const GOALS = "docs/agent/goals";
 /** Set to a side goal's slug in every process of a side run: the driver, its turns and their sessions. */
 export const SIDE_ENV = "NOVIS_SIDE_GOAL";
 
+/** The goal a looper hook names for the command it runs, which a command's `--goal` overrides. */
+export const LOOPER_GOAL_ENV = "LOOPER_GOAL";
+
 /** A slug as a goal file names it. */
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -160,6 +163,18 @@ export function sidePlan(slug: string, root: string = ROOT): Goal | null {
   if (plan === undefined) return null;
   const wsl = plan.env.wsl;
   return wsl?.targetDir ? { ...plan, env: { ...plan.env, wsl: { ...wsl, targetDir: `${wsl.targetDir}-side-${slug}` } } } : plan;
+}
+
+/**
+ * The plan a command run by hand or by a hook works against: goal `slug`, its `--goal`, else the goal
+ * `LOOPER_GOAL_ENV` names, each the chain's record or a side goal's (`sidePlan`), else `currentPlan`'s.
+ * Null when the goal named has no record, or none is named and no goal is current.
+ */
+export function namedPlan(slug: string | undefined, root: string = ROOT): { slug: string; goal: Goal } | null {
+  const named = slug ?? ((process.env[LOOPER_GOAL_ENV] ?? "").trim() || undefined);
+  if (named === undefined) return currentPlan(root);
+  const goal = goalPlan(named, root) ?? sidePlan(named, root);
+  return goal === null ? null : { slug: named, goal };
 }
 
 /**

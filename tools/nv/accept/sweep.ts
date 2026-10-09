@@ -7,8 +7,8 @@
 // each read through `lib/chain.ts` and nothing else.
 
 import { chainGoals, type Goal, goalPlan, liveGoal, SIDE_ENV, sideGoal, sidePlan } from "../lib/chain.ts";
-import { type AcceptanceResult, type Check, PROGRAM_KINDS, acceptance, allReds } from "./accept.ts";
-import { type LegsOptions, legSteps, linuxLegs, startWslBuild } from "./legs.ts";
+import { type AcceptanceResult, type Check, acceptance, allReds } from "./accept.ts";
+import { legSteps, legsOptions, linuxLegs, startWslBuild } from "./legs.ts";
 import { holdOrigin, type Origin } from "./origin.ts";
 import { PlanSweep } from "./runner.ts";
 import { needLine, sharedResources, takeSweepLock } from "./sweep-lock.ts";
@@ -107,15 +107,7 @@ export async function sweepOver(
   p.note(`${since}; ${n} of ${checks.length} check(s) reached, the other ${checks.length - n} not started`);
   // The two Linux legs, over the fixtures and suites this sweep reaches. They start with the overlap tier,
   // beside the release builds, and the release tier measures only once they end (`acceptance`'s `beside`).
-  const legs: LegsOptions = {
-    programs: checks.filter((c) => PROGRAM_KINDS.has(c.kind)),
-    suites: checks.filter((c) => c.kind === "nvs-suite"),
-    // From the whole goal, not `checks`: a setup check is heavy, so a shut floor gate holds it back while
-    // the leg still runs the fixtures that read what it writes.
-    setups: (goal.checks as Check[]).filter((c) => c.setup === true),
-    files: goal.files,
-    valgrindSkip: goal.env.valgrind?.skip ?? [],
-    wslTarget: goal.env.wsl?.targetDir ?? null,
+  const legs = legsOptions(goal, checks, {
     gateOpen: o.gateOpen ?? false,
     reached: (leg) => o.full || sweep.legReached(leg),
     onGreen: (leg) => sweep.legGreen(leg),
@@ -124,7 +116,7 @@ export async function sweepOver(
     onRun: p.run,
     onPlan: p.plan,
     onStep: p.step,
-  };
+  });
   // The legs run only with the floor gate open; a leg the change reached with the gate shut is owed.
   const runLegs = o.legs === true && o.gateOpen === true;
   // A sweep that uses the origin, a Linux leg or a perf guard takes the lock, which another tree's sweep
