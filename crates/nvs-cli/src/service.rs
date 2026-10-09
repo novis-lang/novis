@@ -1976,7 +1976,7 @@ pub(crate) mod registration {
     }
 
     /// § 4's grant list for a checked plan, as `(path, write)` pairs: what an
-    /// install on Windows grants a named account, and what [`unit`](super::unit) opens with
+    /// install on Windows grants a named account, and what [`super::unit`] opens with
     /// `ReadWritePaths=`. One list, so the two platforms cannot drift apart.
     pub(crate) fn grants(plan: &Plan) -> Vec<(PathBuf, bool)> {
         granted(

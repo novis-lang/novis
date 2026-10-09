@@ -1,5 +1,5 @@
 {
-  "state": "**Goal `ldap`, Stage 10 (the feature proofs): every check in `data/goals/ldap.json` passes.** `bun nv proofs --gate` prints `nothing owed in the whole roster (1390 features)`, so `dossier-the-whole-roster-owes-nothing-with-core-ldap` is green. The user's decision stands (`docs/agent/goals/ldap.md` § *Standing decisions*): the check reads the whole roster, and no session narrows it.\n\nThe roster's debt was closed by re-measuring `Core\\Request\\Mount`, every `Core\\Db` class and the `lang:programs` and `lang:types` rows on an idle machine, by rewriting the `Core\\Process\\Handle::readStderr` bench so each read returns one known line, and by bringing two `about.md` files under 160 words.\n\nThe next sweep should find the goal reached. If a check is red there, it is a regression, not open work.",
+  "state": "**Goal `ldap`, Stage 10 (the feature proofs): reached.** `bun nv proofs --gate` prints `nothing owed in the whole roster (1390 features)`, `bun nv owners --closes ldap` names no gap, and `bun nv verify --doc` is green. The decisions that the goal's prose held are in the LDAP rule fragments under `docs/rules/security/` and `docs/rules/core-classes/` (`bun nv brief --where ldap` lists all six).\n\n`verify --doc` was red because of five rustdoc links that do not resolve on Windows. Two named items that exist only on Linux and macOS, in `crates/nvs-runtime/src/child_watch.rs`. One was an ambiguous link in `crates/nvs-cli/src/dispatch.rs`, and one was a redundant link target in `crates/nvs-cli/src/service.rs`. All are fixed.",
   "next": {
     "stage": 10,
     "title": "the feature proofs",
@@ -10,13 +10,11 @@
     "items": [
       {
         "done": false,
-        "text": "**Confirm the driver's sweep finds every `ldap` check green** (`rule:testing/feature-proofs`): if it does not, the red line names the feature; re-measure it with `bun nv proofs --record-perf --id <feature> --force` on an idle machine. The gate is `tools/nv/cmd/proofs.ts:243`, the ledger `docs/perf/members.ndjson:1`."
+        "text": "**The driver's sweep finds every `ldap` check green** (`rule:testing/feature-proofs`). If a check is red, it is a regression. The gate is `tools/nv/cmd/proofs.ts:243`."
       }
     ]
   },
   "backlog": [
-    "`Core\\Request\\Part::content`, `readAll` and `saveTo` declare `complexity linear` and have no `.scale.nvs` (benches/members/README.md).",
-    "Stage 4: a CA a program supplies. Stage 6: wire the schema into the readers (`docs/agent/goals/ldap.md`).",
-    "The selection store reports three diverged atoms (`lang/types/every-binding-has-a-type` 01 and 02, `Test-Response/jsonAs` 01) that run every time until the recording and judged runs agree (`tools/nv/select/record.ts`)."
+    "A run against a Windows Server evaluation VM is the user's to do by hand (`docs/agent/goals/ldap.md` § *Standing decisions*)."
   ]
 }
