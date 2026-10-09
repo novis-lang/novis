@@ -1,0 +1,39 @@
+# Go: nginx with TLS in front of `net/http`, with `GOMAXPROCS` set to the budget.
+#
+# One file per peer, as `benches/proxied/` has, so two stacks are never up at once by accident.
+# nginx and `oha` come from `compose.common.yaml`. `bun nv bench-compare` sets every variable below.
+
+name: nvs-compare-go
+
+services:
+  app:
+    # Every case is compiled into the image, one binary per case folder; `go/Dockerfile` says how.
+    build:
+      context: .
+      dockerfile: go/Dockerfile
+    image: nvs-compare-go:local
+
+    cpus: ${BACKEND_CPUS:?the driver sets BACKEND_CPUS}
+
+    # The Go runtime reads the host's core count, not the container's quota, so the budget is set here.
+    environment:
+      GOMAXPROCS: ${BACKEND_CPUS:?the driver sets BACKEND_CPUS}
+
+    command: ["/srv/${CASE:?the driver sets CASE}"]
+
+    # A TCP connect: not every case has a route at `/`.
+    healthcheck:
+      test: ["CMD", "nc", "-z", "127.0.0.1", "8080"]
+      interval: 1s
+      timeout: 3s
+      retries: 60
+      start_period: 2s
+
+  nginx:
+    extends: { file: compose.common.yaml, service: nginx }
+    depends_on:
+      app:
+        condition: service_healthy
+
+  oha:
+    extends: { file: compose.common.yaml, service: oha }

@@ -87,6 +87,9 @@ __pycache__/
 /benches/proxied/.bin/
 /benches/proxied/generated/
 
+# The comparison's rendered FPM pool and its self-signed TLS certificate (benches/compare/README.md).
+/benches/compare/generated/
+
 # The Docker build context's staged binaries (docs/docker.md § *Building an
 # image locally*). `docker/Dockerfile` compiles nothing: the release workflow
 # unpacks the published archives into here, so these are release outputs that

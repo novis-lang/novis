@@ -12,6 +12,8 @@ members = ["crates/*", "benches/*"]
 # `bun nv bench-load` verifies against. `benches/serve-probe/` next to it is a
 # crate and is not excluded: it is that leg's generator. `benches/proxied/` is compose files,
 # an nginx and a PHP configuration and a Dockerfile, for the same reason.
+# `benches/compare/` is the same shape for `bun nv bench-compare`, with a case
+# program per peer beside them.
 # `benches/results/` is JSON: the loop's acceptance sweep writes a `--record` row
 # there, which `.gitignore` covers, and the image component's guest-against-native
 # figures are committed there, so it is a directory of data and never a crate.
@@ -27,7 +29,7 @@ members = ["crates/*", "benches/*"]
 # are compiled for `wasm32-wasip2` by a build script, never for the host as
 # members (`rule:packaging/the-first-party-components-are-built-in`).
 exclude = ["benches/userland", "benches/members", "benches/serve", "benches/proxied",
-           "benches/results", "benches/scaling", "vendor", "extensions"]
+           "benches/compare", "benches/results", "benches/scaling", "vendor", "extensions"]
 
 # ---------------------------------------------------------------------------
 # Shared package metadata. Every crate inherits these with `x.workspace = true`.

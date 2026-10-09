@@ -65,18 +65,21 @@ export function up(stack: string, env: Record<string, string>, ...services: stri
   if (done.code !== 0) throw new Error(`\`docker compose -f ${basename(stack)} up ${services.join(" ")}\` failed with ${done.code}`);
 }
 
-/** Tears a stack down, including its network. Never throws: this runs in a `finally`. */
-export function down(stack: string): void {
+/**
+ * Tears a stack down, including its network. Never throws: this runs in a `finally`. `env` is for a compose
+ * file that requires its variables, which compose checks even on `down`.
+ */
+export function down(stack: string, env: Record<string, string> = {}): void {
   try {
-    compose(stack, ["down", "-v", "--remove-orphans"], {}, true);
+    compose(stack, ["down", "-v", "--remove-orphans"], env, true);
   } catch {
     // The stack may already be gone, or docker with it; neither is this run's failure.
   }
 }
 
 /** What a service printed, for the failure message. A generator only ever sees a reset socket. */
-export function logsOf(stack: string, service: string): string {
-  const done = compose(stack, ["logs", "--no-color", "--tail", "40", service], {}, true);
+export function logsOf(stack: string, service: string, env: Record<string, string> = {}): string {
+  const done = compose(stack, ["logs", "--no-color", "--tail", "40", service], env, true);
   return done.stdout + done.stderr;
 }
 
@@ -97,12 +100,13 @@ export interface Load {
  * One `oha` pass from inside the stack's own network, as parsed JSON. In-network rather than against the
  * published port: on Windows a published port goes through Docker Desktop's userland proxy, which is a
  * cost no peer pays in production and which is large enough at these rates to be the thing measured.
- * The stack names its generator service `oha`.
+ * The stack names its generator service `oha`. `flags` go to `oha` before the URL, such as `--insecure`
+ * against a self-signed certificate.
  */
-export function ohaOnce(stack: string, url: string, requests: number, concurrency: number, env: Record<string, string>): Arm {
+export function ohaOnce(stack: string, url: string, requests: number, concurrency: number, env: Record<string, string>, flags: string[] = []): Arm {
   const done = compose(
     stack,
-    ["run", "--rm", "--no-deps", "oha", "-n", String(requests), "-c", String(concurrency), "--no-tui", "--output-format", "json", url],
+    ["run", "--rm", "--no-deps", "oha", "-n", String(requests), "-c", String(concurrency), "--no-tui", "--output-format", "json", ...flags, url],
     env,
     true,
   );
@@ -120,10 +124,19 @@ export function ohaOnce(stack: string, url: string, requests: number, concurrenc
  * opcache's first compile and the JITs' first traces are start-up costs, and a proxied origin that has
  * been up for a while is what these legs are about.
  */
-export function ohaArm(stack: string, url: string, o: Load, env: Record<string, string>, kind: string, label: string, detail: string): Arm {
-  ohaOnce(stack, url, Math.max(50, Math.min(o.requests, 500)), o.concurrency, env);
+export function ohaArm(
+  stack: string,
+  url: string,
+  o: Load,
+  env: Record<string, string>,
+  kind: string,
+  label: string,
+  detail: string,
+  flags: string[] = [],
+): Arm {
+  ohaOnce(stack, url, Math.max(50, Math.min(o.requests, 500)), o.concurrency, env, flags);
   const passes: Arm[] = [];
-  for (let i = 0; i < o.reps; i++) passes.push(ohaOnce(stack, url, o.requests, o.concurrency, env));
+  for (let i = 0; i < o.reps; i++) passes.push(ohaOnce(stack, url, o.requests, o.concurrency, env, flags));
   const rates = passes.map((p) => p.summary.requestsPerSec as number);
   const top = Math.max(...rates);
   const best = passes[rates.indexOf(top)]!;

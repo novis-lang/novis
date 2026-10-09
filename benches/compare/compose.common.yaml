@@ -1,0 +1,44 @@
+# The two services every peer's stack shares: nginx terminating TLS, and the `oha` generator.
+#
+# Each `compose.<peer>.yaml` beside this file takes both with `extends`, so the proxy and the generator
+# are declared once and cannot drift between peers. `benches/compare/README.md` owns why the stacks are
+# shaped this way, and `benches/proxied/README.md` the decisions this leg shares with that one.
+#
+# The three standing decisions every compose file in this repository follows -- images pinned to a
+# patch version, no data volumes, host ports on `127.0.0.1` and never the standard number -- are
+# `tests/db/compose.yaml`'s header, which is their only home.
+#
+# This file is never brought up on its own: it names no backend.
+
+services:
+  nginx:
+    image: nginx:1.29.3-alpine
+
+    # The same number in every stack, and more than any backend budget, so nginx is not what is measured.
+    cpus: 4
+
+    volumes:
+      # The peer's entry in `tools/nv/cmd/bench-compare.ts` names which config: `nginx/http.conf` for a
+      # backend that speaks HTTP, `nginx/fastcgi.conf` for PHP-FPM. The driver sets `NGINX_CONF`.
+      - ./nginx/${NGINX_CONF:?the driver sets NGINX_CONF}:/etc/nginx/nginx.conf:ro
+      # Self-signed, made by the driver at the first run into this git-ignored folder.
+      - ./generated/tls:/etc/nginx/tls:ro
+
+    ports:
+      - "127.0.0.1:${NGINX_PORT:?the driver sets NGINX_PORT}:443"
+
+    # nginx's own answer, never the backend's: not every case has a route at `/`.
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --no-check-certificate -O /dev/null https://127.0.0.1/.nginx-health || exit 1"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+      start_period: 1s
+
+  # Behind a profile so `up` never starts it, and driven by `docker compose run --rm oha ...` from inside
+  # the stack's network. The same digest `benches/proxied/` pins, for the same reason.
+  oha:
+    image: ghcr.io/hatoo/oha@sha256:3ec3dbf549ea197793482d47a6324797411406bbf438c2fe8b91f244ec641a2f
+    profiles: ["gen"]
+    cpus: 4
+    entrypoint: ["oha"]

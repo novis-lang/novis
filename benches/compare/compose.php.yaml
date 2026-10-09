@@ -1,0 +1,37 @@
+# PHP: nginx with TLS in front of PHP-FPM, with a static pool, opcache and the tracing JIT.
+#
+# One file per peer, as `benches/proxied/` has, so two stacks are never up at once by accident.
+# nginx and `oha` come from `compose.common.yaml`. `bun nv bench-compare` sets every variable below.
+
+name: nvs-compare-php
+
+services:
+  app:
+    image: php:8.5.9-fpm
+
+    cpus: ${BACKEND_CPUS:?the driver sets BACKEND_CPUS}
+
+    working_dir: /app
+    volumes:
+      - ./cases/${CASE:?the driver sets CASE}:/app:ro
+      # The proxied leg's opcache settings, shared rather than copied.
+      - ../proxied/php/opcache.ini:/usr/local/etc/php/conf.d/zz-opcache.ini:ro
+      # Rendered by the driver from `benches/proxied/php/pool.conf.in` before every `up`, sized from the
+      # case's concurrency. That template's header is why it is rendered and how it is sized.
+      - ./generated/pool.conf:/usr/local/etc/php-fpm.d/zz-bench.conf:ro
+
+    healthcheck:
+      test: ["CMD-SHELL", "php -r 'exit(@fsockopen(\"127.0.0.1\", 9000) ? 0 : 1);'"]
+      interval: 1s
+      timeout: 3s
+      retries: 60
+      start_period: 2s
+
+  nginx:
+    extends: { file: compose.common.yaml, service: nginx }
+    depends_on:
+      app:
+        condition: service_healthy
+
+  oha:
+    extends: { file: compose.common.yaml, service: oha }

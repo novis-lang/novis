@@ -1,0 +1,41 @@
+# Bun: nginx with TLS in front of `Bun.serve`, one process per CPU of the budget sharing the port.
+#
+# One file per peer, as `benches/proxied/` has, so two stacks are never up at once by accident.
+# nginx and `oha` come from `compose.common.yaml`. `bun nv bench-compare` sets every variable below.
+
+name: nvs-compare-bun
+
+services:
+  app:
+    image: oven/bun:1.3.5-slim
+
+    cpus: ${BACKEND_CPUS:?the driver sets BACKEND_CPUS}
+
+    # `bun/serve.ts` starts this many processes, each with `reusePort`. One per CPU of the budget is
+    # Bun's own advice for using more than one core.
+    environment:
+      WORKERS: ${BACKEND_CPUS:?the driver sets BACKEND_CPUS}
+
+    volumes:
+      - ./cases/${CASE:?the driver sets CASE}:/app:ro
+      - ./bun/serve.ts:/srv/serve.ts:ro
+
+    command: ["bun", "/srv/serve.ts"]
+
+    # A TCP connect, made by Bun itself because the slim image has no curl: not every case has a
+    # route at `/`.
+    healthcheck:
+      test: ["CMD", "bun", "-e", "(await Bun.connect({ hostname: '127.0.0.1', port: 8080, socket: { data() {} } })).end()"]
+      interval: 1s
+      timeout: 3s
+      retries: 60
+      start_period: 2s
+
+  nginx:
+    extends: { file: compose.common.yaml, service: nginx }
+    depends_on:
+      app:
+        condition: service_healthy
+
+  oha:
+    extends: { file: compose.common.yaml, service: oha }

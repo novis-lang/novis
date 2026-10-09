@@ -1,0 +1,43 @@
+# Novis: nginx with TLS in front of `nvs serve`, with its defaults.
+#
+# One file per peer, as `benches/proxied/` has, so two stacks are never up at once by accident.
+# nginx and `oha` come from `compose.common.yaml`. `bun nv bench-compare` sets every variable below.
+
+name: nvs-compare-nvs
+
+services:
+  app:
+    # The proxied leg's image: the same Dockerfile, the same tag, built from this checkout.
+    build:
+      context: ../..
+      dockerfile: benches/proxied/Dockerfile
+      target: source
+      args:
+        NVS_BUILD_COMMIT: ${NVS_BUILD_COMMIT:-}
+    image: nvs-bench-serve:local
+
+    # `nvs serve` starts one worker per CPU it can see, which is more than the quota, so the quota is
+    # the bound -- as it is for every peer.
+    cpus: ${BACKEND_CPUS:?the driver sets BACKEND_CPUS}
+
+    volumes:
+      - ./cases/${CASE:?the driver sets CASE}:/app:ro
+
+    command: ["serve", "/app/main.nvs", "--listen", "0.0.0.0:8080"]
+
+    # A TCP connect: not every case has a route at `/`.
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080"]
+      interval: 1s
+      timeout: 3s
+      retries: 60
+      start_period: 2s
+
+  nginx:
+    extends: { file: compose.common.yaml, service: nginx }
+    depends_on:
+      app:
+        condition: service_healthy
+
+  oha:
+    extends: { file: compose.common.yaml, service: oha }

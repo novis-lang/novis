@@ -264,8 +264,8 @@ function digests(): Record<string, string> {
   return out;
 }
 
-/** The opcache keys that would move a number, parsed out of the committed ini. */
-function effectivePhp(): Record<string, string> {
+/** The opcache keys that would move a number, parsed out of the committed ini. `bench-compare` mounts the same ini. */
+export function effectivePhp(): Record<string, string> {
   const wanted = new Set(["opcache.enable", "opcache.jit", "opcache.jit_buffer_size", "opcache.validate_timestamps", "opcache.memory_consumption"]);
   const out: Record<string, string> = {};
   for (const raw of splitlines(readFileSync(join(BENCH_DIR, "php", "opcache.ini"), "utf8"))) {
