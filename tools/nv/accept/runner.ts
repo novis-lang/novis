@@ -97,6 +97,37 @@ async function capture(argv: string[], cwd: string, env?: Record<string, string>
 const none = (fail: string): Verdict => ({ fail, short: "" });
 const green: Verdict = { fail: "", short: "" };
 
+/** What a suite's verdict is read from: each case's last verdict and skip, whether it is on disk, and
+ * what `nvs test` printed this sweep. */
+export interface SuiteFacts {
+  verdict(atom: string): AtomVerdict | undefined;
+  skipped(path: string): boolean | null;
+  onDisk(path: string): boolean;
+  out: string;
+}
+
+/**
+ * A suite's verdict over `cases`, every case of its trees: each one green, each case `c` names on disk
+ * and not skipped, and `c.minPassing` cases passing, the last reported as `short`. The sweep and
+ * `bun nv suite` both judge a suite here.
+ */
+export function suiteVerdict(c: Check, cases: string[], label: string, f: SuiteFacts): Verdict {
+  const red = cases.filter((p) => f.verdict(caseId(p)) !== "green");
+  if (red.length > 0) {
+    const more = red.length > 3 ? `, +${red.length - 3} more` : "";
+    const why = f.out.split("\n").find((l) => l.startsWith(`FAIL ${red[0]}`));
+    return none(`${label}: ${red.length} case(s) failed: ${red.slice(0, 3).join(", ")}${more}${why ? ` -- ${why.trim()}` : ""}`);
+  }
+  for (const kase of c.cases ?? []) {
+    const want = kase.replaceAll("\\", "/");
+    if (!f.onDisk(kase)) return none(`${label}: case ${want} is not written yet`);
+    if (f.skipped(want)) return none(`${label}: case ${want} was skipped, so nothing ran it`);
+  }
+  const passing = cases.filter((p) => f.skipped(p) !== true).length;
+  const floor = c.minPassing;
+  return { fail: "", short: floor !== undefined && passing < floor ? `${label}: only ${passing} passing case(s), wanted at least ${floor}` : "" };
+}
+
 /**
  * The variables a check's command runs with beyond the recorder's. A command that runs the pipeline's
  * `nvs` itself has the compile cache off. A `command` check that does not measure the release CLI has
@@ -147,6 +178,9 @@ export interface OpenOptions {
   /** Pick every heavy check and both Linux legs, whatever changed: the loop's safety net for their keys,
    * on its cadence of goal ends. */
   heavyAll?: boolean;
+  /** The `nvs` every run uses in place of the covws build, which is then not built: `bun nv suite`'s
+   * `NVS_BIN`. */
+  nvs?: string;
 }
 
 /** One sweep over a plan: the change it reads, what that reaches, and the runs it makes. */
@@ -280,6 +314,7 @@ export class PlanSweep {
   /** The covws `nvs`, built once by the workspace build `nv verify` also runs. */
   private binary(): Promise<string | { fail: string }> {
     this.cli ??= (async () => {
+      if (this.o.nvs !== undefined) return this.o.nvs;
       this.say("cargo build (covws)");
       const { env, args } = covwsCargo();
       const r = await capture(["cargo", "build", "--quiet", ...args], ROOT, env);
@@ -592,24 +627,14 @@ export class PlanSweep {
     return this.judgeSuite(c, g, label);
   }
 
-  /** A suite's verdict from the store: every case of its trees green, each named case on disk and not
-   * skipped, and `minPassing` cases passing, the last reported as `short`. */
+  /** A suite's verdict from the store (`suiteVerdict`). */
   private judgeSuite(c: Check, g: Grouped, label = this.labelOf(c)): Verdict {
-    const cases = g.cases ?? [];
-    const red = cases.filter((p) => this.store.atom(caseId(p))?.verdict !== "green");
-    if (red.length > 0) {
-      const more = red.length > 3 ? `, +${red.length - 3} more` : "";
-      const why = this.caseOut.split("\n").find((l) => l.startsWith(`FAIL ${red[0]}`));
-      return none(`${label}: ${red.length} case(s) failed: ${red.slice(0, 3).join(", ")}${more}${why ? ` -- ${why.trim()}` : ""}`);
-    }
-    for (const kase of c.cases ?? []) {
-      const want = kase.replaceAll("\\", "/");
-      if (!onDisk(kase)) return none(`${label}: case ${want} is not written yet`);
-      if (caseSkipped(this.store, want)) return none(`${label}: case ${want} was skipped, so nothing ran it`);
-    }
-    const passing = cases.filter((p) => caseSkipped(this.store, p) !== true).length;
-    const floor = c.minPassing;
-    return { fail: "", short: floor !== undefined && passing < floor ? `${label}: only ${passing} passing case(s), wanted at least ${floor}` : "" };
+    return suiteVerdict(c, g.cases ?? [], label, {
+      verdict: (id) => this.store.atom(id)?.verdict,
+      skipped: (p) => caseSkipped(this.store, p),
+      onDisk,
+      out: this.caseOut,
+    });
   }
 
   // ---- test binaries -----------------------------------------------------------------------------
