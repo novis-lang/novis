@@ -1,0 +1,38 @@
+<?nvs
+// Attack: a program sets and clears every flag in turn and reads the number each time, to push it
+// past what 32 bits can hold. The number must stay a 32-bit `groupType`, and nothing may crash.
+// hostile: timeout-ms 60000
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect('corp');
+
+try {
+    var $type = $corp->read('CN=Employees,OU=Company,DC=example,DC=test', { select: ['groupType'] })?->groupType();
+    if ($type != null) {
+        Core\Ldap\Ad\GroupType $changed = $type;
+
+        // 1. Every flag set, one hundred thousand times. The smallest and largest number are kept.
+        int $low = 0;
+        int $high = 0;
+        uint $i = 0;
+        while ($i < 100000) {
+            bool $on = $i % 2 == 0;
+            $changed = $changed->with({ system: $on, global: $on, domainLocal: $on, universal: $on, appBasic: $on, appQuery: $on, security: $on });
+            int $bits = $changed->bits();
+            if ($bits < $low) {
+                $low = $bits;
+            }
+            if ($bits > $high) {
+                $high = $bits;
+            }
+            $i = $i + 1;
+        }
+        echo '1 low: ', $low, ' high: ', $high, "\n";
+
+        // 2. Every flag cleared. Only the bits no flag names are left.
+        var $none = $changed->with({ system: false, global: false, domainLocal: false, universal: false, appBasic: false, appQuery: false, security: false });
+        echo '2 bits: ', $none->bits(), "\n";
+    }
+} catch (Throwable $error) {
+    echo "threw\n";
+}

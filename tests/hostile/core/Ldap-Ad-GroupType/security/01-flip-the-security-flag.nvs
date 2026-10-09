@@ -1,0 +1,44 @@
+<?nvs
+// Attack: a program flips the security flag of every group many times, and checks it each time.
+// The answer must always match the flag that was set, and nothing may crash.
+// hostile: timeout-ms 60000
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect('corp');
+array<string> $dns = [
+    'CN=Employees,OU=Company,DC=example,DC=test',
+    'CN=Newsletter,OU=Company,DC=example,DC=test',
+];
+
+// 1. The flag set and cleared fifty thousand times on each group. A wrong answer is counted.
+uint $wrong = 0;
+foreach ($dns as string $dn) {
+    try {
+        var $found = $corp->read($dn, { select: ['groupType'] })?->groupType();
+        if ($found != null) {
+            Core\Ldap\Ad\GroupType $type = $found;
+            uint $i = 0;
+            while ($i < 50000) {
+                bool $on = $i % 3 == 0;
+                if ($type->with({ security: $on })->security() != $on) {
+                    $wrong = $wrong + 1;
+                }
+                $i = $i + 1;
+            }
+        }
+    } catch (Throwable $error) {
+        echo "1 threw\n";
+    }
+}
+echo '1 wrong: ', $wrong, "\n";
+
+// 2. Every other flag set at once. The security flag must stay as it was.
+try {
+    var $list = $corp->read('CN=Newsletter,OU=Company,DC=example,DC=test', { select: ['groupType'] })?->groupType();
+    if ($list != null) {
+        var $all = $list->with({ system: true, global: true, domainLocal: true, universal: true, appBasic: true, appQuery: true });
+        echo '2 security: ', $all->security() ? 'yes' : 'no', ' bits: ', $all->bits(), "\n";
+    }
+} catch (Throwable $error) {
+    echo "2 threw\n";
+}
