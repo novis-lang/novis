@@ -235,6 +235,10 @@ windows-sys = { version = "0.61", features = [
     # the entries it accounts for. `crates/nvs-config/src/trust.rs` is the one caller.
     "Win32_System_SystemServices",
     "Win32_System_Threading",
+    # `CreateJobObjectW`, `SetInformationJobObject` and `AssignProcessToJobObject`: every
+    # `Core\Process` child runs in one job per `nvs` process, which ends the children still in it
+    # when `nvs` ends. `crates/nvs-runtime/src/child_start.rs` is the one caller.
+    "Win32_System_JobObjects",
     # `K32GetProcessMemoryInfo`: `Core\Os::residentBytes` is ADR 0148 § 12's `ru_maxrss`, and the
     # peak working set is what Windows keeps in its place. `crates/nvs-runtime/src/os.rs` is the one
     # caller, and it takes the `kernel32` entry point so that no import library is added with it.

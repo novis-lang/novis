@@ -406,3 +406,154 @@ fn nvs_run_ends_with_the_status_its_reference_table_names() {
     assert_eq!(wrong.status.code(), Some(2), "the command line was wrong");
     assert!(wrong.stdout.is_empty(), "nothing ran");
 }
+
+/// A program that starts PowerShell, which starts a second PowerShell on its
+/// own and prints its own process id and then the second one's. Both keep
+/// running for two minutes. `nvs` passes the line on and sleeps too.
+///
+/// `-NoNewWindow` makes `Start-Process` call `CreateProcess` with handle
+/// inheritance, so the grandchild inherits every inheritable handle the child
+/// has.
+#[cfg(windows)]
+const STARTS_A_CHILD_AND_A_GRANDCHILD: &str = r#"<?nvs
+Core\Process\Handle $child = Core\Process::spawn(
+    "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+    ["-NoProfile", "-Command", '$g = Start-Process -PassThru -NoNewWindow -FilePath powershell.exe -ArgumentList "-NoProfile -Command Start-Sleep 120"; "$PID $($g.Id)"; Start-Sleep 120']
+);
+?bytes $pids = $child->readStdout();
+echo ($pids ?? "" as bytes) as string, "\n";
+Core\Time::sleep(120s);
+"#;
+
+/// When `nvs` is killed, the process its program started ends with it, and what
+/// that process started on its own does not. Neither of them holds `nvs`'s own
+/// standard output. The kill is `TerminateProcess`, so no destructor in `nvs`
+/// runs: only the operating system closing `nvs`'s handles can end the child.
+///
+/// Each half is its own assertion. A child that inherited `nvs`'s standard
+/// output passes it on to the grandchild, which keeps running and keeps that
+/// pipe open, so the read here does not end when `nvs` does. A child outside a
+/// job that ends with `nvs` is still running after the kill. A grandchild
+/// inside that job is not.
+// covers: Core\Process::spawn
+#[cfg(windows)]
+#[test]
+fn a_spawned_process_holds_none_of_nvs_s_handles_and_only_it_ends_when_nvs_is_killed() {
+    use std::io::Read;
+    use std::process::{Child, Stdio};
+    use std::sync::mpsc;
+    use std::time::{Duration, Instant};
+
+    /// Ends `nvs` and every process the case saw, however the case ends. The
+    /// grandchild is still running when the case passes, so this always has
+    /// work to do.
+    struct Leftovers {
+        nvs: Child,
+        pids: Vec<u32>,
+    }
+    impl Drop for Leftovers {
+        fn drop(&mut self) {
+            let _ = self.nvs.kill();
+            let _ = self.nvs.wait();
+            for pid in &self.pids {
+                let _ = nvs_repo::spawn("taskkill", &[])
+                    .args(["/F", "/PID", &pid.to_string()])
+                    .output();
+            }
+        }
+    }
+
+    fn running(pid: u32) -> bool {
+        let listed = nvs_repo::spawn("tasklist", &[])
+            .args(["/FI", &format!("PID eq {pid}"), "/FO", "CSV", "/NH"])
+            .output()
+            .expect("`tasklist` runs");
+        String::from_utf8_lossy(&listed.stdout).contains(&format!("\"{pid}\""))
+    }
+
+    let dir = scratch("spawned-process-isolation");
+    fs::write(dir.join("main.nvs"), STARTS_A_CHILD_AND_A_GRANDCHILD).unwrap();
+    fs::write(
+        dir.join("nvs.toml"),
+        "[capabilities.process]\nexec = true\n",
+    )
+    .unwrap();
+    let nvs = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(dir.join(".nvsdata"))
+        .args(["run", "main.nvs"])
+        .current_dir(&dir)
+        .env_remove("NOVIS_NO_INIT")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("the `nvs` binary this test was built beside runs");
+    let mut left = Leftovers {
+        nvs,
+        pids: Vec::new(),
+    };
+
+    // Each chunk of `nvs`'s output, and `None` at its end.
+    let mut stdout = left.nvs.stdout.take().expect("standard output is piped");
+    let (tell, heard) = mpsc::channel::<Option<Vec<u8>>>();
+    std::thread::spawn(move || {
+        let mut chunk = [0_u8; 256];
+        loop {
+            match stdout.read(&mut chunk) {
+                Ok(0) | Err(_) => {
+                    let _ = tell.send(None);
+                    return;
+                }
+                Ok(read) => {
+                    let _ = tell.send(Some(chunk[..read].to_vec()));
+                }
+            }
+        }
+    });
+
+    let mut printed = Vec::new();
+    while !printed.contains(&b'\n') {
+        match heard.recv_timeout(Duration::from_secs(60)) {
+            Ok(Some(chunk)) => printed.extend(chunk),
+            other => panic!("`nvs` printed no line: {other:?}, {printed:?}"),
+        }
+    }
+    let line = String::from_utf8_lossy(&printed);
+    left.pids = line
+        .split_whitespace()
+        .map(|pid| {
+            pid.parse()
+                .unwrap_or_else(|_| panic!("the line is two process ids: {line:?}"))
+        })
+        .collect();
+    let &[child, grandchild] = left.pids.as_slice() else {
+        panic!("the line is two process ids: {line:?}");
+    };
+    assert!(running(child), "the child runs while `nvs` does");
+    assert!(running(grandchild), "the grandchild runs while `nvs` does");
+
+    left.nvs.kill().expect("`nvs` is still running");
+    left.nvs.wait().expect("`nvs` is reaped");
+    let killed = Instant::now();
+
+    let ended = heard.recv_timeout(Duration::from_secs(20));
+    assert!(
+        matches!(ended, Ok(None)),
+        "`nvs`'s standard output ends when `nvs` does, not when its child does: {ended:?}"
+    );
+    while running(child) {
+        assert!(
+            killed.elapsed() < Duration::from_secs(20),
+            "the child ends with `nvs`"
+        );
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    // A job ends all of its processes at once, so a grandchild in it would be
+    // gone well within this.
+    std::thread::sleep(Duration::from_secs(1));
+    assert!(
+        running(grandchild),
+        "what the child started on its own keeps running after `nvs` ends"
+    );
+}

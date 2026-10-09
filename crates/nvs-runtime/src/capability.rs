@@ -1347,6 +1347,10 @@ pub fn temp_root(config: Option<&nvs_config::Config>) -> Option<PathBuf> {
 /// server's own stdout — a request reaching a descriptor no capability named, and one that no
 /// `Core\Process` member would have to ask for.
 ///
+/// **The child inherits no other handle of this process's, and on Windows it ends when this
+/// process ends, however it ends.** `crates/nvs-runtime/src/child_start.rs` owns how a child is
+/// started, and says what each platform does.
+///
 /// **A shell target is refused here, on every platform**, `rule:core-classes/process-refuses-a-shell-target`: a `.bat`, `.cmd` or `.ps1`
 /// runs by handing a command line to `cmd.exe` or `powershell.exe`, which re-parses the arguments
 /// this door never built, so an argv Novis passed correctly becomes a shell string again by the time
@@ -1452,9 +1456,8 @@ pub fn exec_with(
         .args(argv)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|err| io_failure(member, program, &err))
+        .stderr(Stdio::piped());
+    crate::child_start::spawn(&mut command).map_err(|err| io_failure(member, program, &err))
 }
 
 /// The path [`exec`] hands the operating system: `program` itself, or a bare name spelled against
