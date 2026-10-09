@@ -5454,6 +5454,16 @@ pub mod code {
          that gets this text must say so. Write `tainted string`, or write `tainted` before a \
          shape, as in `$data as tainted {name: string}`.",
     );
+    /// A call to a member on `nvs_stdlib::registry::MUST_USE_MEMBERS` written
+    /// as a statement of its own, so its result is thrown away
+    /// (`rule:core-classes/process-spawn`). The roster row carries the help
+    /// line, which says what the result is for. A result assigned to a
+    /// variable that is never read is not this error.
+    pub const E_RESULT_NOT_USED: Code = Code::new("E0852").card(
+        "The result of this call is not used. The program needs the result to finish what the \
+         call started. Keep the result in a variable and use it. For example, keep the handle \
+         that `Core\\Process::spawn` returns, and call `wait()` or `kill()` on it.",
+    );
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.

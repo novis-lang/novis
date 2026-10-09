@@ -1,0 +1,38 @@
+--TEST--
+A `Core\Process::spawn` call written as a statement of its own does not compile, because nothing can call `wait()` or `kill()` on a handle that is thrown away, and a handle kept in a variable, or used in the same statement, compiles — `rule:core-classes/process-spawn`
+--FILE--
+<?nvs
+// covers: Core\Process::spawn
+// The accepted half that runs is
+// tests/conformance/core/process-spawn-a-waited-or-killed-child-is-no-error-at-the-end.nvst.
+use Core\Process;
+
+// The three ways to write the statement: the full name, the imported name and
+// the full name in parentheses.
+Core\Process::spawn("/bin/cat", []);
+Process::spawn("/bin/cat", []);
+(Core\Process::spawn("/bin/cat", []));
+
+// Each of these uses the handle, so none of them is an error. A handle kept in
+// a variable that is never read compiles as well.
+Core\Process\Handle $kept = Core\Process::spawn("/bin/cat", []);
+$kept->wait();
+Process::spawn("/bin/cat", [])->kill();
+var $unread = Core\Process::spawn("/bin/cat", []);
+--FILE nvs.toml--
+[capabilities.process]
+exec = true
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0852]: the result of `Core\Process::spawn` is not used
+  --> case.nvs:9:1
+%A
+error[E0852]: the result of `Core\Process::spawn` is not used
+   --> case.nvs:10:1
+%A
+error[E0852]: the result of `Core\Process::spawn` is not used
+   --> case.nvs:11:2
+%A
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

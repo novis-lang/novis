@@ -22,7 +22,9 @@ on its own is not one, and `run` always waits, so it never is. The program has e
 cannot be caught; it is reported the way an uncaught throw is — an `error` record on standard error
 and exit status `1` under `nvs run`, an `error` record in the request's log under `nvs serve`, whose
 response is not rewritten — and after the throw or `FATAL` that ended the program, when one did. A
-grandchild is the child's own business.
+`spawn` call written as a statement of its own throws its handle away, so it is the one form of this
+mistake the compiler can see, and it does not compile (`E0852`). A grandchild is the child's own
+business.
 
 **Not on disk.** On Linux and macOS nothing yet ends a child when nvs itself is killed; on Windows
 every child runs in a job of the nvs process that ends it then. A child started

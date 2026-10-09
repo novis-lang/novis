@@ -229,7 +229,9 @@ pub(crate) fn check_condition(
 /// ([`crate::expr_table::ExprTypeTable::is_never_stmt`]), because
 /// `crate::returns` counts that statement as an exit. A method call that some
 /// subtype overrides is not recorded: nothing yet checks an override's return
-/// type against the one it replaces, so the code that runs may return.
+/// type against the one it replaces, so the code that runs may return. A call
+/// whose result must be used is refused here too, by [`reject_unused_result`],
+/// because a statement is the one position that throws a result away.
 pub(crate) fn check_expr_stmt(
     expr: &Expr,
     live: &mut Live,
@@ -262,8 +264,38 @@ pub(crate) fn check_expr_stmt(
             if matches!(env.interner.get(ty), Ty::Never) && !dispatched {
                 env.exprs.record_never_stmt(expr.span);
             }
+            reject_unused_result(inner, env);
         }
     }
+}
+
+/// `E_RESULT_NOT_USED`: a call to a member on
+/// `nvs_stdlib::registry::MUST_USE_MEMBERS`, written as a statement of its
+/// own, so nothing can ever read its result.
+///
+/// It reads the call [`check_expr`] has just recorded on the span, so an
+/// imported class name and parentheses reach the same declaring class and
+/// member as the full name does. A call nested inside a larger statement, such
+/// as `Core\Process::spawn(…)->wait();`, is the receiver of that statement's
+/// own call and is never looked at here.
+fn reject_unused_result(inner: &Expr, env: &mut Env<'_>) {
+    let Some(ExprInfo::Call(call) | ExprInfo::ClassRefCall(call)) = env.exprs.lookup(inner.span)
+    else {
+        return;
+    };
+    let Some(help) = nvs_stdlib::registry::must_use_help(&call.class.to_string(), &call.method)
+    else {
+        return;
+    };
+    let member = format!("{}::{}", call.class, call.method);
+    env.diags.report(
+        Diagnostic::error(
+            code::E_RESULT_NOT_USED,
+            format!("the result of `{member}` is not used"),
+        )
+        .with_primary(inner.span, "this result is not kept in a variable")
+        .with_help(help),
+    );
 }
 
 /// The dispatch: one arm per AST expression variant, each either a couple of

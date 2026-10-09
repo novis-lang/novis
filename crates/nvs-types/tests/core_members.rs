@@ -627,3 +627,38 @@ fn a_key_no_settings_arm_declares_is_one_diagnostic() {
         "{typo:?}"
     );
 }
+
+/// `rule:core-classes/process-spawn`: a `Core\Process::spawn` call written as
+/// a statement of its own throws away the only handle that can `wait()` or
+/// `kill()` the child, so it is `E_RESULT_NOT_USED` — once per statement,
+/// parenthesized or not.
+// covers: Core\Process::spawn
+#[test]
+fn a_spawn_call_written_as_a_statement_is_a_result_not_used() {
+    let diags = check_in_method(
+        "Core\\Process::spawn(\"/bin/cat\", []);\n\
+         (Core\\Process::spawn(\"/bin/cat\", []));\n",
+    );
+    assert_eq!(
+        diags
+            .iter()
+            .filter(|d| d.code == Some(code::E_RESULT_NOT_USED))
+            .count(),
+        2,
+        "{diags:?}"
+    );
+}
+
+/// The other half: a handle kept in a variable, one used in the same
+/// statement, and one kept and never read all compile. Only the statement
+/// whose value is the call itself is checked.
+#[test]
+fn a_spawn_handle_that_is_kept_or_used_compiles() {
+    let diags = check_in_method(
+        "Core\\Process\\Handle $kept = Core\\Process::spawn(\"/bin/cat\", []);\n\
+         $kept->wait();\n\
+         Core\\Process::spawn(\"/bin/cat\", [])->kill();\n\
+         var $unread = Core\\Process::spawn(\"/bin/cat\", []);\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+}

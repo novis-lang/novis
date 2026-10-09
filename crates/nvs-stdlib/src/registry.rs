@@ -3678,6 +3678,40 @@ pub fn takes_prepared(class: &str, method: &str) -> bool {
         .any(|(owner, name)| *owner == class && *name == method)
 }
 
+/// The closed roster of members whose result a program must use, each with
+/// the help line its diagnostic prints. A call to one written as a statement
+/// of its own does not compile (`E_RESULT_NOT_USED`), and
+/// `nvs_types::expr::check_expr_stmt` is the one place that checks it.
+///
+/// A member belongs here when its result is the only way to finish what the
+/// call started, so a statement that throws the result away is always a
+/// mistake. `Core\Process::spawn` is the one row: its handle is the only way to
+/// call `wait()` or `kill()`, and `rule:core-classes/process-spawn` reports a
+/// child nobody waited for or killed as an error when the program ends. This
+/// roster moves the one case that is certain to compile time.
+///
+/// A roster rather than a field on [`CoreMethod`], for the reason
+/// [`GENERIC_CLASSES`] gives, and keyed by the declaring class as
+/// [`WRITTEN_CLASS_MEMBERS`] is, because that is the class
+/// `nvs_types::expr::calls` resolves a call to. Only the statement is checked:
+/// a result assigned to a variable that is never read compiles, because
+/// telling that apart needs flow analysis this checker does not do.
+pub const MUST_USE_MEMBERS: &[(&str, &str, &str)] = &[(
+    crate::process::NAME,
+    "spawn",
+    "keep the handle in a variable, then call `wait()` or `kill()` on it before the program ends",
+)];
+
+/// The help line for `class::method` if it is one of [`MUST_USE_MEMBERS`].
+#[must_use]
+pub fn must_use_help(class: &str, method: &str) -> Option<&'static str> {
+    nvs_footprint::class(class);
+    MUST_USE_MEMBERS
+        .iter()
+        .find(|(owner, name, _)| *owner == class && *name == method)
+        .map(|(_, _, help)| *help)
+}
+
 /// The closed roster of `Core`-owned **generic** classes, each with the type
 /// parameters it declares, in order — spec § 9's three collections.
 ///
@@ -5550,6 +5584,29 @@ mod tests {
                 member.variadic().is_none(),
                 "`{owner}::{name}` is variadic, so its last argument is its own tail"
             );
+        }
+    }
+
+    /// Every member on [`MUST_USE_MEMBERS`] is a registered row with a result
+    /// to use: a `void` member's call is a statement and nothing else, so a
+    /// row for one would refuse every call to it.
+    #[test]
+    fn every_must_use_member_is_a_registered_row_with_a_result() {
+        for (owner, name, help) in MUST_USE_MEMBERS {
+            let class = self::class(owner).unwrap_or_else(|| {
+                panic!("`{owner}` is on the must-use roster and is not a registered class");
+            });
+            let member = class
+                .members()
+                .find(|member| member.name == *name)
+                .unwrap_or_else(|| {
+                    panic!("`{owner}::{name}` is on the must-use roster and is no row")
+                });
+            assert!(
+                !matches!(member.return_ty, CoreTy::Void),
+                "`{owner}::{name}` returns `void`, so it has no result to use"
+            );
+            assert!(!help.is_empty(), "`{owner}::{name}` has no help line");
         }
     }
 
