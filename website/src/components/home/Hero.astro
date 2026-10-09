@@ -235,7 +235,6 @@ const phrases = [
     if (drum === null || phrases.length < 3 || hero === null) continue
     const motion = matchMedia('(prefers-reduced-motion: no-preference)')
     let turn = 0
-    let busyUntil = 0
     let clicked = false
     let onScreen = true
     let timer = 0
@@ -261,13 +260,12 @@ const phrases = [
       void drum.offsetHeight
       root.setAttribute('data-animate', '')
     }
-    // One step on, never more. The turn only grows, so the drum always turns the same
-    // way, also from the last phrase back to the first. A step asked for while the
-    // last one is still turning is dropped.
+    // One step on from the phrase the drum is turning to. The turn only grows, so the
+    // drum always turns the same way, also from the last phrase back to the first. A
+    // step that comes while the drum is still turning moves the target on, and the
+    // browser turns the drum from where it is to the new target in one movement, so
+    // fast clicks run through the phrases quickly.
     const step = () => {
-      const now = performance.now()
-      if (now < busyUntil) return
-      busyUntil = now + (motion.matches ? 900 : 0)
       turn += 1
       drum.style.setProperty('--turn', String(turn))
     }
@@ -302,6 +300,7 @@ const phrases = [
 
     root.addEventListener('click', () => {
       clicked = true
+      root.setAttribute('data-clicked', '')
       update()
       step()
     })
@@ -680,6 +679,11 @@ const phrases = [
   @media (prefers-reduced-motion: no-preference) {
     [data-animate] .drum {
       transition: transform 850ms cubic-bezier(0.62, 0, 0.28, 1.08);
+    }
+    /* After a click every turn starts at full speed and slows into place, so
+       the drum answers the click at once, also when it is still turning. */
+    [data-animate][data-clicked] .drum {
+      transition: transform 650ms cubic-bezier(0.2, 0.9, 0.3, 1.04);
     }
   }
 
