@@ -7,11 +7,20 @@
  * home-screen icon is ours to add. Authored here rather than in the config's
  * `head` array because only a component sees the resolved base path — a base
  * passed as `--base` on the CLI never reaches astro.config.ts.
+ *
+ * The Latin files of the two typefaces are preloaded, so the first paint
+ * already uses them and the text does not reflow when they arrive. Vite
+ * names a file by its content, so these URLs are the ones the fonts' own
+ * CSS requests and the browser fetches each file once.
  */
 import Default from '@astrojs/starlight/components/Head.astro'
+import sansLatin from '@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-latin-wght-normal.woff2?url'
+import monoLatin from '@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2?url'
 
 import { withBase } from '~/lib/base'
 ---
 
 <Default><slot /></Default>
+<link rel="preload" href={sansLatin} as="font" type="font/woff2" crossorigin />
+<link rel="preload" href={monoLatin} as="font" type="font/woff2" crossorigin />
 <link rel="apple-touch-icon" sizes="180x180" href={withBase('/apple-touch-icon.png')} />

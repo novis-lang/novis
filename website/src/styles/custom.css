@@ -271,6 +271,107 @@
   }
 }
 
+/* ========================================================== page width */
+
+/* On a window wider than --nv-page-width, the header's contents, the sidebar,
+   the page and the table of contents stay together as one centered column,
+   and the extra width is split evenly to its left and right. The header's
+   glass bar still spans the window. The media query repeats the width,
+   because a custom property cannot be used in one. */
+:root {
+  --nv-page-width: 90rem;
+}
+@media (min-width: 90rem) {
+  :root {
+    --nv-gutter: calc((100vw - var(--nv-page-width)) / 2);
+  }
+  .page > header.header {
+    padding-inline: calc(var(--sl-nav-pad-x) + var(--nv-gutter));
+  }
+  .sidebar-pane {
+    inset-inline-start: var(--nv-gutter);
+  }
+  .main-frame {
+    padding-inline: calc(var(--sl-content-inline-start, 0rem) + var(--nv-gutter)) var(--nv-gutter);
+  }
+  /* Starlight's table of contents is fixed and runs to the window's edge.
+     This is the width of the column it sits in, by Starlight's own formula
+     for that column, so it stops at the column's edge. */
+  .right-sidebar {
+    width: max(
+      var(--sl-sidebar-width),
+      var(--sl-sidebar-width) +
+        (var(--nv-page-width) - var(--sl-content-inline-start, 0rem) - var(--sl-content-width) - var(--sl-sidebar-width)) / 2
+    );
+  }
+
+  /* The space beside the column shows a quiet copy of the home page's
+     backdrop: a patch of the dot grid and two soft color fields on each
+     side. They do not move. Every one of them is a circle whose size is a
+     share of the space's width, so they keep their shape and only grow or
+     shrink with the window, and each fades out before the column.
+     The largest circle is as wide as the space. Below 300px it is not
+     shown, and from 300px to 500px it fades in. --nv-backdrop-in is that
+     share, a number from 0 to 1: tan(atan2(a, b)) is a / b, which is how
+     CSS divides one length by another. */
+  body::before,
+  body::after {
+    --nv-side-left: calc(var(--nv-gutter) / 2);
+    --nv-side-right: calc(100% - var(--nv-gutter) / 2);
+    --nv-backdrop-in: clamp(0, tan(atan2(var(--nv-gutter) - 300px, 200px)), 1);
+    content: '';
+    position: fixed;
+    z-index: -1;
+    inset: 0;
+    pointer-events: none;
+    opacity: var(--nv-backdrop-in);
+  }
+  body::before {
+    background-image: radial-gradient(color-mix(in oklab, var(--sl-color-white) 11%, transparent) 1px, transparent 1.5px);
+    background-size: 22px 22px;
+    -webkit-mask-image:
+      radial-gradient(circle calc(var(--nv-gutter) * 0.5) at var(--nv-side-left) 48%, black 30%, transparent),
+      radial-gradient(circle calc(var(--nv-gutter) * 0.5) at var(--nv-side-right) 48%, black 30%, transparent);
+    mask-image:
+      radial-gradient(circle calc(var(--nv-gutter) * 0.5) at var(--nv-side-left) 48%, black 30%, transparent),
+      radial-gradient(circle calc(var(--nv-gutter) * 0.5) at var(--nv-side-right) 48%, black 30%, transparent);
+  }
+  body::after {
+    background-image:
+      radial-gradient(
+        circle calc(var(--nv-gutter) * 0.5) at var(--nv-side-left) 30%,
+        color-mix(in oklab, var(--nv-violet) 16%, transparent),
+        transparent 70%
+      ),
+      radial-gradient(
+        circle calc(var(--nv-gutter) * 0.42) at var(--nv-side-left) 68%,
+        color-mix(in oklab, var(--nv-gold) 8%, transparent),
+        transparent 70%
+      ),
+      radial-gradient(
+        circle calc(var(--nv-gutter) * 0.42) at var(--nv-side-right) 28%,
+        color-mix(in oklab, var(--nv-violet) 12%, transparent),
+        transparent 70%
+      ),
+      radial-gradient(
+        circle calc(var(--nv-gutter) * 0.5) at var(--nv-side-right) 66%,
+        color-mix(in oklab, var(--nv-crimson) 12%, transparent),
+        transparent 70%
+      );
+  }
+  :root[data-theme='light'] body::before,
+  :root[data-theme='light'] body::after {
+    opacity: calc(var(--nv-backdrop-in) * 0.7);
+  }
+}
+/* Like the home page's backdrop, this is only decoration. */
+@media (prefers-contrast: more), (prefers-reduced-transparency: reduce), (forced-colors: active), print {
+  body::before,
+  body::after {
+    display: none;
+  }
+}
+
 /* ================================================================ base */
 
 html {
@@ -1398,6 +1499,19 @@ main:has(.home-hero) > .content-panel {
     translate: 0 0;
   }
 }
+/* Moving to another page of the site fades the old page out and the new one
+   in over 300ms. Browsers without cross-document view transitions change
+   the page at once, as does a reader who has asked for less motion. */
+@media (prefers-reduced-motion: no-preference) {
+  @view-transition {
+    navigation: auto;
+  }
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 300ms;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   @supports (animation-timeline: view()) {
     .nv-reveal {
