@@ -2,6 +2,7 @@
 A `modify` whose second change fails applies none of its changes, `removeAll` and `replace` with a list in one `modify` leave exactly that list, and `add` or `rename` onto a DN already taken throws `AlreadyExists` — `rule:core-classes/ldap-value-types`
 --FILE--
 <?nvs
+// covers: Core\Ldap\Connection::modify
 var $corp = Core\Ldap::connect("corp");
 array<string> $leftovers = ["OU=Gallery,DC=example,DC=test", "OU=Studio,DC=example,DC=test"];
 foreach ($leftovers as string $left) {

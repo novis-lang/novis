@@ -1053,9 +1053,9 @@ root = "benches/members/core/Ldap-Connection"
 [app.capabilities.ldap]
 connect = ["corp"]
 
-# The proof programs of `setPassword`, `changePassword`, `rename` and `isDeleted` write to the
-# directory, so they open `[ldap.corp-accounts]`, which logs in as the administrator, and no other
-# program is granted it. Each program adds its own unit and user outside `OU=Company` and deletes both again,
+# The proof programs of `setPassword`, `changePassword`, `rename`, `modify`, `delete` and
+# `isDeleted` write to the directory, so they open `[ldap.corp-accounts]`, which logs in as the
+# administrator, and no other program is granted it. Each program adds its own unit and user outside `OU=Company` and deletes both again,
 # so a reader of the seed never sees them.
 [[app]]
 root = "docs/examples/core/Ldap-Connection/setPassword"
@@ -1125,6 +1125,42 @@ connect = ["corp-accounts"]
 
 [[app]]
 entry = "benches/members/core/Ldap-Connection/rename.nvs"
+
+[app.capabilities.ldap]
+connect = ["corp-accounts"]
+
+[[app]]
+root = "docs/examples/core/Ldap-Connection/modify"
+
+[app.capabilities.ldap]
+connect = ["corp-accounts"]
+
+[[app]]
+root = "tests/hostile/core/Ldap-Connection/modify"
+
+[app.capabilities.ldap]
+connect = ["corp-accounts"]
+
+[[app]]
+entry = "benches/members/core/Ldap-Connection/modify.nvs"
+
+[app.capabilities.ldap]
+connect = ["corp-accounts"]
+
+[[app]]
+root = "docs/examples/core/Ldap-Connection/delete"
+
+[app.capabilities.ldap]
+connect = ["corp-accounts"]
+
+[[app]]
+root = "tests/hostile/core/Ldap-Connection/delete"
+
+[app.capabilities.ldap]
+connect = ["corp-accounts"]
+
+[[app]]
+entry = "benches/members/core/Ldap-Connection/delete.nvs"
 
 [app.capabilities.ldap]
 connect = ["corp-accounts"]

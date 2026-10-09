@@ -1,0 +1,86 @@
+<?nvs
+// Attack: a program tries to make changes that are wrong, very large or not allowed.
+// Each step should throw an error or work, and nothing may crash.
+// hostile: timeout-ms 60000
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect('corp-accounts');
+string $unit = 'OU=Hostile Modify,DC=example,DC=test';
+try {
+    $corp->delete($unit);
+} catch (Core\Ldap\LdapError $missing) {
+}
+$corp->add($unit, ['objectClass' => 'organizationalUnit']);
+
+// 1. Attribute names that are not names, unknown, or owned by the server.
+array<string> $names = ['', 'bad name', 'description;x', 'noSuchAttribute', 'objectGUID', 'objectSid', 'ou', 'objectClass'];
+uint $threw = 0;
+foreach ($names as string $name) {
+    try {
+        $corp->modify($unit, [Core\Ldap\Change::replace($name, 'x')]);
+    } catch (Throwable $error) {
+        $threw = $threw + 1;
+    }
+}
+echo '1 threw: ', $threw, "\n";
+
+// 2. An empty list, a value with no LDAP form, a zero byte and a value of one million characters.
+uint $refused = 0;
+try {
+    $corp->modify($unit, []);
+} catch (Throwable $error) {
+    $refused = $refused + 1;
+}
+try {
+    $corp->modify($unit, [Core\Ldap\Change::replace('description', 1.5)]);
+} catch (Throwable $error) {
+    $refused = $refused + 1;
+}
+try {
+    $corp->modify($unit, [Core\Ldap\Change::replace('description', "a\x00b")]);
+} catch (Throwable $error) {
+    $refused = $refused + 1;
+}
+try {
+    $corp->modify($unit, [Core\Ldap\Change::replace('description', Core\Str::repeat('x', 1000000))]);
+} catch (Throwable $error) {
+    $refused = $refused + 1;
+}
+echo '2 refused: ', $refused, "\n";
+
+// 3. One request with five thousand changes, then a DN that does not exist.
+array<Core\Ldap\Change> $many = [];
+uint $i = 0;
+while ($i < 5000) {
+    $many[] = Core\Ldap\Change::replace('description', 'value ' . $i);
+    $i = $i + 1;
+}
+try {
+    $corp->modify($unit, $many);
+    echo '3 many: applied', "\n";
+} catch (Throwable $error) {
+    echo '3 many: threw', "\n";
+}
+try {
+    $corp->modify('OU=Nowhere,' . $unit, [Core\Ldap\Change::replace('description', 'x')]);
+} catch (Core\Ldap\LdapError $notFound) {
+    echo '3 missing: threw', "\n";
+}
+
+// 4. Two hundred changes in a row on the same entry.
+uint $done = 0;
+$i = 0;
+while ($i < 200) {
+    try {
+        $corp->modify($unit, [Core\Ldap\Change::replace('description', 'round ' . $i)]);
+        $done = $done + 1;
+    } catch (Core\Ldap\LdapError $failed) {
+    }
+    $i = $i + 1;
+}
+echo '4 changed: ', $done, "\n";
+
+try {
+    $corp->delete($unit);
+} catch (Core\Ldap\LdapError $missing) {
+}

@@ -1301,6 +1301,7 @@ fn texts(ctx: &mut nvs_runtime::Ctx, key: u64, dn: &str, name: &str) -> Option<V
 
 // covers: Core\Ldap\Change::add, Core\Ldap\Change::remove
 // covers: Core\Ldap\Change::removeAll, Core\Ldap\Change::replace
+// covers: Core\Ldap\Connection::modify
 #[test]
 fn modify_applies_its_changes_in_one_request() {
     use nvs_ldap::{Change, ChangeKind, proto};
@@ -2195,6 +2196,43 @@ fn rename_moves_an_entry_under_a_new_parent_and_refuses_text_that_is_not_a_dn() 
     for dn in [&to, &first, &second] {
         ldap::delete(&mut ctx, key, dn).expect("the OU is deleted");
     }
+}
+
+// covers: Core\Ldap\Connection::delete
+#[test]
+fn delete_removes_a_leaf_and_refuses_an_entry_with_one_below_it() {
+    let Some(ca) = samba() else { return };
+    let mut ctx = ctx_over(&corp(&ca));
+    let key = ldap::connect(&mut ctx, "corp").expect("the block opens");
+    let parent = format!("OU=Quay,{BASE}");
+    let child = format!("OU=Shed,{parent}");
+    for dn in [&child, &parent] {
+        ldap::delete(&mut ctx, key, dn).ok();
+    }
+    for dn in [&parent, &child] {
+        ldap::add(&mut ctx, key, dn, &unit()).expect("the OU is added");
+    }
+
+    let refused = ldap::delete(&mut ctx, key, &parent)
+        .expect_err("an entry with one below it is refused")
+        .message();
+    assert!(refused.contains("LDAP result 66"), "{refused}");
+    assert!(
+        ldap::read(&mut ctx, key, &child, &[])
+            .expect("the read succeeds")
+            .is_some(),
+        "a refused delete removes nothing"
+    );
+
+    for dn in [&child, &parent] {
+        ldap::delete(&mut ctx, key, dn).expect("the OU is deleted");
+        let gone = ldap::read(&mut ctx, key, dn, &[]).expect("the read succeeds");
+        assert!(gone.is_none(), "nothing is left at {dn}");
+    }
+    let missing = ldap::delete(&mut ctx, key, &parent)
+        .expect_err("a second delete has nothing to delete")
+        .message();
+    assert!(missing.contains("NoSuchObject"), "{missing}");
 }
 
 /// The DNs of the OUs a DirSync from `cookie` returns, and the cookie it ends with.
