@@ -31,6 +31,16 @@
 //! with anything but a socket on its standard input exits at once, so a program
 //! that sets [`WATCHER`] for a child of its own gets no watcher out of it.
 //!
+//! The watcher works in batches. After each turn it sleeps for `BATCH` before
+//! it waits again, and every message and child exit that arrived meanwhile is
+//! handled in the next turn. A send while the watcher sleeps wakes no process,
+//! so it costs the sending thread only the `sendmsg` call. A watcher that
+//! waited again at once would be woken by every send and every child exit,
+//! and the thread that sends pays for that wakeup while it holds the mutex
+//! below, so every other thread starting a child waits behind it. A watcher
+//! with nothing to handle waits with no timeout, so an idle `nvs` does not
+//! wake it. The end of `nvs` is seen up to `BATCH` late.
+//!
 //! A child is sent to the watcher right after `spawn` returns, while its
 //! `Child` is not yet waited for, so its process id cannot have been reused.
 //! One `sendmsg` per child, under a mutex held only for that call. The first
@@ -65,8 +75,11 @@
 //!
 //! **What it spends:** one watcher process per `nvs` process that has started
 //! a child, until that process ends; one socket pair; one message per child
-//! start. On Linux, one descriptor in the watcher per child that is still
-//! running.
+//! start, which waits in the socket for up to `BATCH`; one watcher wakeup per
+//! `BATCH` while children start or exit, and none while nothing happens. A
+//! send that finds the socket's buffer full waits for the watcher's next turn.
+//! On Linux, one descriptor in the watcher per child that is still running or
+//! exited in the last `BATCH`.
 
 use std::process::ExitCode;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -135,6 +148,7 @@ mod unix {
     use std::path::PathBuf;
     use std::process::{Child, Command, ExitCode, Stdio};
     use std::sync::{Mutex, PoisonError};
+    use std::time::Duration;
 
     #[cfg(target_os = "linux")]
     pub(super) use super::linux as platform;
@@ -272,9 +286,19 @@ mod unix {
         }
     }
 
-    /// Turns `watch` until `nvs` is gone.
+    /// How long the watcher sleeps after a turn before it waits again. What
+    /// arrives meanwhile is handled together in the next turn.
+    const BATCH: Duration = Duration::from_millis(2);
+
+    /// How many events one turn takes from the kernel. The socket's messages
+    /// are one event however many are waiting; each child exit is one.
+    pub(super) const EVENTS: usize = 256;
+
+    /// Turns `watch` until `nvs` is gone, sleeping [`BATCH`] after each turn.
     fn serve(watch: &mut platform::Watch) -> io::Result<()> {
-        while watch.turn(None)? {}
+        while watch.turn(None)? {
+            std::thread::sleep(BATCH);
+        }
         Ok(())
     }
 
@@ -307,7 +331,7 @@ mod linux {
     use std::os::unix::net::UnixStream;
     use std::time::Duration;
 
-    use super::unix::checked;
+    use super::unix::{EVENTS, checked};
 
     /// What this process sends for one child: its process id as the tag, and
     /// a pidfd for it.
@@ -479,7 +503,7 @@ mod linux {
         /// Waits up to `timeout`, or with no limit for `None`, and handles what
         /// arrived. Returns `false` once `nvs` is gone.
         pub(crate) fn turn(&mut self, timeout: Option<Duration>) -> io::Result<bool> {
-            let mut events = [libc::epoll_event { events: 0, u64: 0 }; 64];
+            let mut events = [libc::epoll_event { events: 0, u64: 0 }; EVENTS];
             let wait = timeout.map_or(-1, |timeout| {
                 libc::c_int::try_from(timeout.as_millis()).unwrap_or(libc::c_int::MAX)
             });
@@ -756,7 +780,7 @@ mod macos {
         /// Waits up to `timeout`, or with no limit for `None`, and handles what
         /// arrived. Returns `false` once `nvs` is gone.
         pub(crate) fn turn(&mut self, timeout: Option<Duration>) -> io::Result<bool> {
-            let mut events = [event(0, 0, 0, 0); 64];
+            let mut events = [event(0, 0, 0, 0); super::unix::EVENTS];
             let limit = timeout.map(|timeout| libc::timespec {
                 tv_sec: libc::time_t::try_from(timeout.as_secs()).unwrap_or(libc::time_t::MAX),
                 tv_nsec: libc::c_long::from(timeout.subsec_nanos()),
