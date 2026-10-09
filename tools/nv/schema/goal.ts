@@ -73,6 +73,14 @@ export const goalShape = s.object({
   position: s.optional(s.enum("last")),
   /** `done` sweeps the acceptance list only after a session that reports DONE; unset sweeps after every session. */
   sweep: s.optional(s.enum("done")),
+  /**
+   * A command that must pass before the driver starts a session on the goal: it exits 0 and prints every
+   * `want` string on stdout or stderr. While it does not, the driver idles and runs it again every
+   * `everyMin` minutes, spending no session; `driver/handover.ts`.
+   */
+  waitFor: s.optional(s.object({ argv: s.array(s.string()), want: s.optional(s.array(s.string())), everyMin: s.int() })),
+  /** `looper`: once the goal is reached, the driver deletes it and the chain and starts looper's main loop, and its own run ends; `driver/handover.ts`. */
+  handover: s.optional(s.enum("looper")),
   /** The fixtures its checks run. */
   files: s.array(s.string()),
   context,

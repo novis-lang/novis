@@ -103,6 +103,11 @@
 // the sweep and both gates are green. Then `advance` makes the next goal on the chain live, commits
 // `data/chain.json`, brings up its services, and the run goes on; after the last goal the chain is complete.
 //
+// A goal whose record has `waitFor` starts no session while that command is red: the turn idles and runs it
+// again on its cadence. A reached goal whose record says `handover: "looper"` is not switched from: the
+// driver deletes it with `data/chain.json`, starts looper's main loop, and the run ends on `HANDED OVER`.
+// `driver/handover.ts` says how both behave.
+//
 // A DONE the sweep refuses gets a retry session, `DONE_RETRIES` per goal. A turn that does not simply go on
 // ends in a verdict, and `afterTurn` settles it: a repairable one gets a repair session with
 // `docs/agent/repair-prompt.md` and the verdict, `REPAIRS_PER_GOAL` per goal; one that needs a person holds
@@ -159,6 +164,7 @@ import { needLine, sharedResources, takeSweepLock } from "../driver/sweep-lock.t
 import { type AcceptanceResult, type Check, PROGRAM_KINDS, acceptance, allReds, heldByGate, tiers, withSetups } from "../driver/accept.ts";
 import { type LegsOptions, legSteps, linuxLegs, startWslBuild } from "../driver/legs.ts";
 import { lastGreen, PlanSweep } from "../driver/runner.ts";
+import { awaitGate, CHAIN_FILE, gateShut, looperArgv, retireChain, startLooper } from "../driver/handover.ts";
 import { writeGoalPlan } from "../renderers/goal-plan.ts";
 import { SelectStore } from "../select/store.ts";
 import { describeFull, fullRun } from "../select/full.ts";
@@ -669,11 +675,24 @@ function finish(state: RunState, reason: string, done = false): number {
 }
 
 /**
- * How a turn ended when the run does not simply go on. `budget`, `chain-complete` and `side-green` are a run
- * that ended as asked; `asked` is a stop someone pressed or wrote; the rest are verdicts a person may need to
- * answer.
+ * How a turn ended when the run does not simply go on. `budget`, `chain-complete`, `side-green` and
+ * `handed-over` are a run that ended as asked; `asked` is a stop someone pressed or wrote; the rest are
+ * verdicts a person may need to answer.
  */
-type Kind = "asked" | "budget" | "chain-complete" | "side-green" | "blocked" | "stalled" | "done-claim" | "cli-failed" | "chain-error" | "wall" | "wall-timeout";
+type Kind =
+  | "asked"
+  | "budget"
+  | "chain-complete"
+  | "side-green"
+  | "handed-over"
+  | "handover-failed"
+  | "blocked"
+  | "stalled"
+  | "done-claim"
+  | "cli-failed"
+  | "chain-error"
+  | "wall"
+  | "wall-timeout";
 
 interface Ended {
   kind: Kind;
@@ -687,7 +706,7 @@ const end = (kind: Kind, reason: string): Ended => ({ kind, reason });
  * session left it, and everything the next turn reads is read from disk, so a lifted hold starts a fresh
  * turn. `asked` is left out because someone said to end the run, and `chain-complete` has nothing left.
  */
-const HOLD_KINDS = new Set<Kind>(["blocked", "stalled", "done-claim", "cli-failed", "chain-error", "wall"]);
+const HOLD_KINDS = new Set<Kind>(["blocked", "stalled", "done-claim", "cli-failed", "chain-error", "wall", "handover-failed"]);
 /**
  * The held verdicts a session can answer without a person, so each first gets a repair session: the next
  * turn's session is given `REPAIR_PROMPT` and the verdict in place of the session prompt. `blocked` asks the
@@ -715,6 +734,8 @@ interface Carried {
   repair: string;
   /** The verdict the run last held on, as `[kind, reason]`, or empty. */
   last_hand: string[];
+  /** The goal whose handover to looper has begun and not finished, or "". */
+  handing: string;
 }
 
 function carried(state: RunState): Carried {
@@ -725,6 +746,7 @@ function carried(state: RunState): Carried {
     repairs: Number(s.repairs) || 0,
     repair: String(s.repair ?? ""),
     last_hand: Array.isArray(s.last_hand) ? s.last_hand.map(String) : [],
+    handing: String(s.handing ?? ""),
   };
 }
 
@@ -745,7 +767,7 @@ export function checkOf(fail: string): string {
  */
 async function afterTurn(state: RunState, f: TurnFlags, out: Ended): Promise<number> {
   const { kind, reason } = out;
-  if (kind === "budget" || kind === "chain-complete" || kind === "side-green") return finish(state, reason, true);
+  if (kind === "budget" || kind === "chain-complete" || kind === "side-green" || kind === "handed-over") return finish(state, reason, true);
   const c = carried(state);
   if (REPAIR_KINDS.has(kind) && !c.repair && c.repairs < REPAIRS_PER_GOAL) {
     carry(state, { repairs: c.repairs + 1, repair: `${kind}: ${reason}` });
@@ -992,11 +1014,36 @@ async function serve(f: TurnFlags, state: RunState, fresh: boolean, touched: Tou
   // no session: it writes the sweep into that session's log and judges it below.
   const pending = pendingJudge(state);
   state.judge = {};
+  // A handover a hold interrupted is finished before anything reads the chain, which it has deleted.
+  const handing = carried(state).handing;
+  if (handing && pending === null) return handOver(state, handing);
   if (state.served >= f.maxSessions && pending === null) return end("budget", `hit --max-sessions (${f.maxSessions})`);
   const found = selected({});
   if (found === null) return end("chain-error", "the live goal's plan did not read; `bun nv check` and `bun nv chain --check` say why");
   const { live, goal, labelOf, total } = found;
   if (fresh) step(live.num === null ? `side run: goal \`${live.slug}\`, ${placeOf(live, total)}` : `chain: resuming at goal \`${live.slug}\`, ${placeOf(live, total)}`, C.CYAN);
+  if (goal.waitFor && pending === null) {
+    const w = goal.waitFor;
+    const stop = await awaitGate(live.slug, w, {
+      check: () => gateShut(w),
+      sleep: (seconds, until) => wait(seconds, until),
+      stopReason: () => CONTROL.stopReason(),
+      paused: () => CONTROL.pauseReason() !== "",
+      hold: () => holdPause(ledger),
+      takeRetry: () => CONTROL.takeRetry(),
+      pending: () => CONTROL.pending(),
+      note: (l) => {
+        step(l, C.YELLOW);
+        ledger(`## ${l}`);
+      },
+      phase: (text) => TICKER.set({ phase: text || "between sessions" }),
+      now: () => performance.now() / 1000,
+      park: (on) => {
+        CONTROL.parked = on;
+      },
+    });
+    if (stop) return end("asked", stop);
+  }
   // On every turn: a Docker Desktop a session started is in that turn's job and ends when the turn exits,
   // so the daemon is checked, and started again if it is gone, before each session and each sweep.
   const down = (await preflight(goal.env.docker, (l) => say(`   ${l}`, C.GRAY))) || (await bringUp(goal.env.docker, (l) => say(`   ${l}`, C.GRAY)));
@@ -1347,6 +1394,7 @@ async function serve(f: TurnFlags, state: RunState, fresh: boolean, touched: Tou
     say(`GOAL REACHED: ${live.slug}`, C.GREEN);
     // A side goal is never switched from: its run ends, and a person lands the branch.
     if (live.num === null) return end("side-green", landing(live.slug, goal.env.wsl?.targetDir ?? null));
+    if (again.goal.handover === "looper") return handOver(state, live.slug);
     const switched = await advance(state, live.slug);
     if (switched !== null) return switched;
     verdict(false, `goal reached -- the run carries on with \`${liveGoal()?.slug ?? "?"}\``);
@@ -1435,6 +1483,36 @@ async function advance(state: RunState, from: string): Promise<Ended | null> {
   state.stalls = 0;
   carry(state, { done_retries: 0, retry_check: "", repairs: 0 });
   return null;
+}
+
+/**
+ * The handover, once goal `slug`, which says `handover: "looper"`, is reached: the goal and the chain are
+ * deleted and committed, and looper's main loop is started. `handing` is carried from before the first
+ * deletion, so a turn after a hold that ended a failed attempt finishes the handover and never reads the
+ * chain; it is dropped again when the chain was left whole. Returns `handed-over`, which ends the run, or
+ * `handover-failed`, which holds it.
+ */
+async function handOver(state: RunState, slug: string): Promise<Ended> {
+  step(`chain: goal \`${slug}\` hands the run to looper -- its files and ${CHAIN_FILE} are deleted, and looper's main loop starts`, C.CYAN);
+  carry(state, { handing: slug });
+  saveRun(state);
+  const retired = await retireChain(slug);
+  if (retired) {
+    if (existsSync(join(ROOT, CHAIN_FILE))) carry(state, { handing: "" });
+    saveRun(state);
+    return end("handover-failed", `handover to looper: ${retired}`);
+  }
+  ledger(`## goal \`${slug}\` and ${CHAIN_FILE} are deleted, and looper's main loop starts`);
+  const failed = await startLooper(ROOT, looperArgv(), runProc, (l) => step(l, C.GRAY));
+  if (failed) {
+    return end(
+      "handover-failed",
+      `handover to looper: goal \`${slug}\` and ${CHAIN_FILE} are deleted and committed, and looper's main loop did not start -- ${failed}. Start it by hand (\`looper loop start\`), or fix what looper said and lift the hold to retry the start; this driver never runs a session again`,
+    );
+  }
+  carry(state, { handing: "" });
+  saveRun(state);
+  return end("handed-over", `HANDED OVER: goal \`${slug}\` is reached, and looper's main loop runs this project from here (\`looper status\`). This driver's run ends for good`);
 }
 
 /** What a sweep inside a turn says: one grey line per check and per process it starts, stamped with the sweep's clock. */

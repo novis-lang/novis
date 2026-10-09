@@ -44,6 +44,7 @@ import { chain as chainType } from "../schema/chain.ts";
 import { goal as goalType, sideGoal as sideGoalType } from "../schema/goal.ts";
 import { RECORDS } from "../schema/index.ts";
 import { writeGoalPlan } from "../renderers/goal-plan.ts";
+import { waitAndHandoverProblems } from "../driver/handover.ts";
 import { type GoalValue, type ManifestShared, manifestFindings } from "./orient.ts";
 
 export const summary = "the loop's goal chain, over data/chain.json: nv chain --check | --new | --move | --remove";
@@ -187,6 +188,7 @@ async function check(): Promise<number> {
     }
     if (!handoffs.has(g.slug)) problems.push(`${where(g)}: no data/goals/${g.slug}.handoff.json -- the first session has no group to take`);
     if (records.has(g.slug)) audit(records.get(g.slug), `data/goals/${g.slug}.json`, g.md);
+    if (records.has(g.slug)) problems.push(...waitAndHandoverProblems(where(g), records.get(g.slug), false));
     if (ahead(g) && !text.includes("\n## Why here") && !provesFeatures(text)) {
       notes.push(`${g.md}: no \`## Why here\` section. The order is a dependency chain and that section is the only home of the reason this goal sits where it does`);
     }
@@ -230,6 +232,7 @@ async function check(): Promise<number> {
     if (!h1Of(text).startsWith("# Side goal ")) problems.push(`${md}: its H1 is ${JSON.stringify(h1Of(text).slice(0, 60))}; a side goal's opens \`# Side goal — \``);
     if (!sideHandoffs.has(slug)) problems.push(`side goal \`${slug}\`: no data/goals/side/${slug}.handoff.json`);
     if (sideRecords.has(slug)) audit(sideRecords.get(slug), `data/goals/side/${slug}.json`, md);
+    if (sideRecords.has(slug)) problems.push(...waitAndHandoverProblems(`side goal \`${slug}\``, sideRecords.get(slug), true));
   }
   for (const slug of landedSides) {
     problems.push(
