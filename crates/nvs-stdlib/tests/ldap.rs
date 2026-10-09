@@ -1395,6 +1395,7 @@ fn modify_applies_its_changes_in_one_request() {
     );
 }
 
+// covers: Core\Ldap\Connection::add
 #[test]
 fn typed_values_round_trip_through_a_write() {
     use nvs_ldap::value::{
@@ -1800,6 +1801,7 @@ fn login_user(ctx: &mut nvs_runtime::Ctx, key: u64, cn: &str, password: &str) ->
     dn
 }
 
+// covers: Core\Ldap\Connection::authenticate
 #[test]
 fn authenticate_binds_on_its_own_connection_and_closes_it() {
     use nvs_ldap::proto;

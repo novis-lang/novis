@@ -1,0 +1,91 @@
+<?nvs
+// Attack: a program tries to add entries that are wrong, very large or not allowed.
+// Each step should throw an error or work, and nothing may crash.
+// hostile: timeout-ms 60000
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect('corp-accounts');
+string $unit = 'OU=Hostile Add,DC=example,DC=test';
+try {
+    $corp->delete($unit);
+} catch (Core\Ldap\LdapError $missing) {
+}
+$corp->add($unit, ['objectClass' => 'organizationalUnit']);
+
+// 1. DNs that are not DNs, a parent that does not exist, and a DN that is already there.
+array<string> $dns = ['', 'not a dn', 'OU=', 'OU=Child,OU=Nowhere,DC=example,DC=test', $unit];
+uint $threw = 0;
+foreach ($dns as string $dn) {
+    try {
+        $corp->add($dn, ['objectClass' => 'organizationalUnit']);
+    } catch (Throwable $error) {
+        $threw = $threw + 1;
+    }
+}
+echo '1 threw: ', $threw, "\n";
+
+// 2. No attributes, attribute names that are not names, and values the server owns.
+array<array<mixed>> $bad = [
+    [],
+    ['' => 'x', 'objectClass' => 'organizationalUnit'],
+    ['bad name' => 'x', 'objectClass' => 'organizationalUnit'],
+    ['noSuchAttribute' => 'x', 'objectClass' => 'organizationalUnit'],
+    ['objectSid' => 'x', 'objectClass' => 'organizationalUnit'],
+    ['objectClass' => 'noSuchClass'],
+];
+uint $refused = 0;
+foreach ($bad as array<mixed> $attributes) {
+    try {
+        $corp->add('OU=Bad,' . $unit, $attributes);
+    } catch (Throwable $error) {
+        $refused = $refused + 1;
+    }
+    try {
+        $corp->delete('OU=Bad,' . $unit);
+    } catch (Core\Ldap\LdapError $missing) {
+    }
+}
+echo '2 refused: ', $refused, "\n";
+
+// 3. A value with no LDAP form, a zero byte, a value of one million characters and ten thousand values.
+array<mixed> $values = [1.5, "a\x00b", Core\Str::repeat('x', 1000000)];
+uint $handled = 0;
+foreach ($values as mixed $value) {
+    try {
+        $corp->add('OU=Value,' . $unit, ['objectClass' => 'organizationalUnit', 'description' => $value]);
+        $corp->delete('OU=Value,' . $unit);
+    } catch (Throwable $error) {
+    }
+    $handled = $handled + 1;
+}
+array<string> $many = [];
+uint $i = 0;
+while ($i < 10000) {
+    $many[] = 'phone ' . $i;
+    $i = $i + 1;
+}
+try {
+    $corp->add('OU=Many,' . $unit, ['objectClass' => 'organizationalUnit', 'telephoneNumber' => $many]);
+    $corp->delete('OU=Many,' . $unit);
+} catch (Throwable $error) {
+}
+echo '3 handled: ', $handled + 1, "\n";
+
+// 4. Two hundred entries added and deleted in a row.
+uint $done = 0;
+$i = 0;
+while ($i < 200) {
+    try {
+        $corp->add('OU=Round,' . $unit, ['objectClass' => 'organizationalUnit']);
+        $corp->delete('OU=Round,' . $unit);
+        $done = $done + 1;
+    } catch (Core\Ldap\LdapError $failed) {
+    }
+    $i = $i + 1;
+}
+echo '4 added: ', $done, "\n";
+
+try {
+    $corp->delete($unit);
+} catch (Core\Ldap\LdapError $missing) {
+}
