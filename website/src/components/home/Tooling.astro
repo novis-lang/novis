@@ -109,6 +109,12 @@ const commands = [
     box-shadow: var(--nv-shadow-lg);
     color: var(--term-text);
   }
+  /* With more contrast or forced colors the terminal is its plain ground. */
+  @media (prefers-contrast: more), (forced-colors: active) {
+    .terminal {
+      background: var(--term-bg);
+    }
+  }
   .bar {
     display: flex;
     align-items: center;

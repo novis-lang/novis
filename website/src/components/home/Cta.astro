@@ -72,6 +72,18 @@ import { withBase } from '~/lib/base'
     -webkit-mask-image: radial-gradient(70% 90% at 100% 0%, black, transparent 75%);
     mask-image: radial-gradient(70% 90% at 100% 0%, black, transparent 75%);
   }
+  /* The rings are decoration, hidden with more contrast, less transparency
+     or forced colors. With more contrast the text is fully opaque. */
+  @media (prefers-contrast: more), (prefers-reduced-transparency: reduce), (forced-colors: active) {
+    .rings {
+      display: none;
+    }
+  }
+  @media (prefers-contrast: more) {
+    p {
+      opacity: 1;
+    }
+  }
   h2 {
     margin: 0;
     font-size: clamp(1.6rem, 1.2rem + 1.8vw, 2.4rem);

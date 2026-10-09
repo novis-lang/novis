@@ -4,7 +4,8 @@
  * THREE brand colors and two neutral ends, in the palette block at the top of
  * :root. Every other color on the site is derived from them with color-mix()
  * or relative oklch(), so re-tinting the site is editing that one block. A
- * color literal belongs there and nowhere else.
+ * color literal belongs there and nowhere else, except the Display-P3 copy
+ * of the three brand colors right below it.
  *
  *   --nv-crimson  the logo's base color. Primary buttons, the start of the
  *                 signature gradient, brand moments. Never links or hovers.
@@ -43,6 +44,8 @@
  *
  * Motion is transform, opacity and color only, and stops entirely under
  * prefers-reduced-motion. The header is the one element with backdrop-filter.
+ * The reader's other preferences (more or less contrast, less transparency,
+ * forced colors, inverted colors) are the last section of this file.
  */
 
 :root {
@@ -157,6 +160,17 @@
   /* The dimmed page behind the search dialog: the page's own ground, not
      Starlight's gray. */
   --sl-color-backdrop-overlay: color-mix(in oklab, var(--nv-ground) 72%, transparent);
+}
+
+/* The same three brand colors on a wide-gamut display: the lightness and
+   hue of the sRGB values above, with the extra chroma Display-P3 has room
+   for. Every color derived from them follows. */
+@media (color-gamut: p3) {
+  :root {
+    --nv-crimson: oklch(0.485 0.215 15.7);
+    --nv-violet: oklch(0.529 0.275 284);
+    --nv-gold: oklch(0.825 0.19 79.9);
+  }
 }
 
 @supports (color: oklch(from white l c h)) {
@@ -978,7 +992,9 @@ mobile-starlight-toc nav {
   color: var(--sl-color-text-accent);
 }
 
-/* Large heading text in the signature gradient. Both stops clear 4.5:1. */
+/* Large heading text in the signature gradient. Both stops clear 4.5:1.
+   With more contrast it is the text color; with forced colors, the
+   system's. */
 .nv-gradient-text,
 .hero h1 {
   background: var(--nv-gradient);
@@ -986,6 +1002,14 @@ mobile-starlight-toc nav {
   background-clip: text;
   color: transparent;
   -webkit-text-fill-color: transparent;
+}
+@media (prefers-contrast: more) {
+  .nv-gradient-text,
+  .hero h1 {
+    background: none;
+    color: var(--sl-color-white);
+    -webkit-text-fill-color: currentColor;
+  }
 }
 @media (forced-colors: active) {
   .nv-gradient-text,
@@ -1401,5 +1425,90 @@ main:has(.home-hero) > .content-panel {
   .sl-link-button:hover svg,
   .sl-link-card:hover .icon {
     transform: none;
+  }
+}
+
+/* ===================================================== reader preferences */
+
+/* Less transparency: the glass header and every translucent panel and
+   overlay are opaque. The decorative color fields, dot grids and sheens are
+   hidden by the components that draw them, under the same query. */
+@media (prefers-reduced-transparency: reduce) {
+  :root,
+  :root[data-theme='light'] {
+    --nv-glass: var(--nv-glass-solid);
+    --sl-color-backdrop-overlay: var(--nv-glass-solid);
+  }
+}
+
+/* More contrast: muted text moves towards the text color, hairlines are
+   drawn about three times as strong, and the glass is opaque. Gradient
+   text is solid (see .nv-gradient-text); the components hide their
+   decorative layers. */
+@media (prefers-contrast: more) {
+  :root {
+    --sl-color-gray-2: color-mix(in oklab, var(--nv-fog) 92%, var(--nv-ground));
+    --sl-color-gray-3: color-mix(in oklab, var(--nv-fog) 82%, var(--nv-ground));
+    --nv-hairline: color-mix(in oklab, var(--nv-fog) 46%, var(--nv-ground));
+    --nv-hairline-strong: color-mix(in oklab, var(--nv-fog) 64%, var(--nv-ground));
+  }
+  :root[data-theme='light'] {
+    --sl-color-gray-2: color-mix(in oklab, var(--nv-fog) 6%, var(--nv-ink));
+    --sl-color-gray-3: color-mix(in oklab, var(--nv-fog) 14%, var(--nv-ink));
+    --nv-hairline: color-mix(in oklab, var(--nv-ink) 46%, var(--nv-fog));
+    --nv-hairline-strong: color-mix(in oklab, var(--nv-ink) 64%, var(--nv-fog));
+  }
+  :root,
+  :root[data-theme='light'] {
+    --nv-faint: var(--sl-color-gray-3);
+    --nv-quiet: var(--sl-color-gray-2);
+    --nv-glass: var(--nv-glass-solid);
+  }
+}
+
+/* Less contrast: hairlines a little softer. Text keeps its contrast. */
+@media (prefers-contrast: less) {
+  :root {
+    --nv-hairline: color-mix(in oklab, var(--nv-fog) 8%, var(--nv-ground));
+  }
+  :root[data-theme='light'] {
+    --nv-hairline: color-mix(in oklab, var(--nv-ink) 7%, var(--nv-fog));
+  }
+}
+
+/* The header has no blur behind an opaque ground. */
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .page > header.header {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* A translucent panel is a solid card. */
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active) {
+  .nv-glass {
+    border-color: var(--nv-hairline-strong);
+    background: var(--nv-surface);
+  }
+}
+
+/* Forced colors, under which browsers also match prefers-contrast: custom:
+   a focus ring in the system's highlight color, on the element or on the
+   card around a focused link. */
+@media (forced-colors: active) {
+  :where(a, button, input, select, summary, textarea, [tabindex]):focus-visible,
+  .sl-link-card:has(a:focus-visible) {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+}
+
+/* Inverted colors: an image is inverted back, so the logo and any
+   screenshot look as drawn. */
+@media (inverted-colors: inverted) {
+  img,
+  picture,
+  video {
+    filter: invert(1);
   }
 }

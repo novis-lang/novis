@@ -87,6 +87,13 @@ import Rich from './Rich.astro'
       order: 2;
     }
   }
+  /* With more contrast or forced colors the card is its plain surface. */
+  @media (prefers-contrast: more), (forced-colors: active) {
+    .row,
+    .row.flip {
+      background: var(--nv-surface);
+    }
+  }
   .text {
     display: flex;
     flex-direction: column;

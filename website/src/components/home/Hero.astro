@@ -521,6 +521,22 @@ const phrases = [
       background: CanvasText;
     }
   }
+  /* The color fields, the dot grid and the glow behind the bar are only
+     decoration. With more contrast, less transparency or forced colors they
+     are hidden, and with more contrast the name is solid text. */
+  @media (prefers-contrast: more), (prefers-reduced-transparency: reduce), (forced-colors: active) {
+    .backdrop,
+    .brand::before {
+      display: none;
+    }
+  }
+  @media (prefers-contrast: more) {
+    .brand {
+      background: none;
+      color: var(--sl-color-white);
+      -webkit-text-fill-color: currentColor;
+    }
+  }
 
   /* The slogan is one grid cell. The slogan's own text and every phrase of
      the rotator sit in it on top of each other, so the cell is always as
@@ -805,6 +821,13 @@ const phrases = [
   }
   .tabs button:focus-visible {
     outline-offset: -2px;
+  }
+  /* With forced colors the line under the selected tab is drawn in the
+     system's highlight color, so the selection does not depend on a tint. */
+  @media (forced-colors: active) {
+    .tabs button[aria-selected='true']::after {
+      background: Highlight;
+    }
   }
 
   /* Without the script: the panels one under the other, each with a label. */

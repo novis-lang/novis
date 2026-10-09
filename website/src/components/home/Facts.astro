@@ -113,4 +113,10 @@ const facts = [
       transform: none;
     }
   }
+  /* With less transparency or more contrast a card is opaque. */
+  @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+    .fact {
+      background: var(--nv-surface);
+    }
+  }
 </style>

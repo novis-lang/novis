@@ -157,6 +157,12 @@ const points = [
       var(--nv-surface);
     box-shadow: var(--nv-shadow-md);
   }
+  /* With more contrast or forced colors the diagram is its plain surface. */
+  @media (prefers-contrast: more), (forced-colors: active) {
+    .diagram {
+      background: var(--nv-surface);
+    }
+  }
   .diagram svg {
     display: block;
     width: 100%;
