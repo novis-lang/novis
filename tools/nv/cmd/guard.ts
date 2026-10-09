@@ -543,7 +543,7 @@ function heavyRun(all: string[], cwd: string): string | null {
     const narrowed = rest.some((w) => /^--(?:stage|name|feature)(?:=|$)/.test(w));
 
     if (cmd === "loop" && (rest[0] === "--goal-only" || rest[0] === "--run") && !narrowed) return `\`bun nv loop ${rest[0]}\` runs the whole plan, whatever your change reaches`;
-    if (cmd === "loop" && rest[0] === "--benches") return "`bun nv loop --benches` judges every owed bench on the release build, whatever your change reaches; the loop runs it on the floor gate's cadence";
+    if (cmd === "benches") return "`bun nv benches` judges every bench the selection picks on the release build, whatever your change reaches; the loop runs it on the floor gate's cadence";
     if (cmd === "proofs" && rest.some((w) => w === "--verify" || w === "--run") && !rest.some((w) => /^--(?:id|only|group)(?:=|$)/.test(w))) {
       return "`bun nv proofs` over every feature runs each one's examples and attacks, whatever your change reaches";
     }

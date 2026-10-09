@@ -89,6 +89,7 @@ const CASES: Record<string, { deny: [Tool, Record<string, unknown>][]; allow: [T
       ["Bash", { command: "bun nv proofs --verify" }],
       ["Bash", { command: "bun nv verify --no-cache" }],
       ["PowerShell", { command: "bun nv select --full" }],
+      ["Bash", { command: "bun nv benches --owed" }],
     ],
     allow: [
       ["Bash", { command: "cargo test --lib html::tests 2>&1 | tail -20" }],

@@ -40,13 +40,6 @@
 // narrowed sweep that passes ends on `GREEN` instead, since it has not asked the whole plan. Every sweep
 // records what it ran, and moves the store's tree past the change, green or red.
 //
-// `bun nv loop --benches` is a turn's bench pass alone (`benchTurn`): every bench the selection picks,
-// owed, red, new or reached, is judged on the release build and recorded, under the sweep lock. It is how
-// a person pays the bench debt `bun nv affected --run` leaves, without waiting for the floor gate, and it
-// resumes a pass that was stopped, since each bench is recorded the moment it is judged. `--owed` narrows
-// it to the benches selected for being owed; a bench never recorded stays unrecorded, and the next pass
-// without `--owed` picks it up. It exits 0 when no bench is red, and 1 otherwise.
-//
 
 // `bun nv loop` with none of those modes is the run. Started by hand, with no `NOVIS_LOOP_RUN`, it is
 // `driver/respawn.ts`: it names the run and starts one turn after another, each its own process. A turn
@@ -96,7 +89,8 @@
 // heavy checks and legs its goal reached, and on one goal end in three (`HEAVY_FULL_EVERY`, counted in the
 // store as `heavy-full:since`) every one of them, the safety net for the keys their twins record. Whenever
 // the floor gate is open, by its count or for a goal end, every bench the selection picks, owed, red, new
-// or reached, is then judged on the release build and recorded (`benchTurn`, through `proofs/select.ts`'s
+// or reached, is then judged on the release build and recorded (`cmd/benches.ts`'s `benchTurn`, which
+// `bun nv benches` runs by hand, through `proofs/select.ts`'s
 // `runBenches`), and a red bench is a red of the sweep. Sessions leave benches owed and `bun nv affected
 // --run` judges only the ones its change reached, so this is where the rest are paid. After every sweep the disk is swept (`nv disk --clean`'s policy). A sweep that
 // would reach the goal also runs the goal-end gates, rustdoc and owner, and a goal is reached only when
@@ -121,14 +115,14 @@
 
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { KEEP_RUNS, MIN_FREE_GB } from "./disk.ts";
+import { enoughDisk, KEEP_RUNS, MIN_FREE_GB } from "./disk.ts";
 import { head } from "../lib/git.ts";
 import { run as runProc } from "../lib/proc.ts";
 import { AGAIN, LOGDIR, RUN_ENV, RUNDIR, driverChanged, driverFiles, launch, ledger, loadRun, openingLine, pendingJudge, saveRun, type LaunchOptions, type RunState } from "../driver/launch.ts";
 import { respawn } from "../driver/respawn.ts";
 import { AllowWatch, loadSeen, record as recordAllow, saveSeen, settle as settleAllow } from "../driver/allow.ts";
 import { insideWorktree, landing, launchSide } from "../driver/side.ts";
-import { docGate, enoughDisk, ownerGate, sweepDisk } from "../driver/gates.ts";
+import { docGate, ownerGate, sweepDisk } from "../driver/gates.ts";
 import { bringUp, preflight } from "./services.ts";
 import { chainGoals, type Goal, goalPlan, leaveGoal, liveGoal, SIDE_ENV, sideGoal } from "../lib/chain.ts";
 import { ROOT } from "../lib/paths.ts";
@@ -161,7 +155,8 @@ import { Tree as ProcTree } from "../lib/proctree.ts";
 import { type Caps, DEFAULT_CAPS, Renderer } from "../driver/transcript.ts";
 import { ENV as WRITES_ENV } from "../lib/written.ts";
 import { holdOrigin } from "../accept/origin.ts";
-import { sharedResources, takeSweepLock } from "../accept/sweep-lock.ts";
+import { sharedResources } from "../accept/sweep-lock.ts";
+import { benchTurn } from "./benches.ts";
 import { type Check, allReds, featureMatches, heldByGate, tiers, withSetups } from "../accept/accept.ts";
 import { lastGreen, PlanSweep } from "../accept/runner.ts";
 import { type Current, livePlan, nameOf, type Progress, stageLabels, sweepOver } from "../accept/sweep.ts";
@@ -170,12 +165,12 @@ import { writeGoalPlan } from "../renderers/goal-plan.ts";
 import { SelectStore } from "../select/store.ts";
 import { describeFull, fullRun } from "../select/full.ts";
 
-export const summary = "the loop driver: one turn with no mode, or the live goal's plan: nv loop [--side <slug>] --list|--run|--goal-only [--full] [--collect] [--gate-shut] [--stage <label>] [--name <text>] [--feature <id>] | --goal | --benches [--owed]";
+export const summary = "the loop driver: one turn with no mode, or the live goal's plan: nv loop [--side <slug>] --list|--run|--goal-only [--full] [--collect] [--gate-shut] [--stage <label>] [--name <text>] [--feature <id>] | --goal";
 
 const RUN = ".loop/run.json";
 
 const USAGE =
-  "bun nv loop [--side <slug>] [--model <m>] [--effort <e>] [--permission-mode <p>] [--max-sessions <n>] [--max-stalls <n>] [--max-retries <n>] [--max-limit-wait <seconds>] [--max-result-lines <n>] [--max-input-lines <n>] [--max-line-chars <n>] [--full-output] [--no-status] [--no-hold] [--min-free-gb <n>] [--keep-runs <n>] | --list|--run|--goal-only [--full] [--collect] [--gate-shut] [--stage <label>] [--name <text>] [--feature <id>] | --goal | --benches [--owed]";
+  "bun nv loop [--side <slug>] [--model <m>] [--effort <e>] [--permission-mode <p>] [--max-sessions <n>] [--max-stalls <n>] [--max-retries <n>] [--max-limit-wait <seconds>] [--max-result-lines <n>] [--max-input-lines <n>] [--max-line-chars <n>] [--full-output] [--no-status] [--no-hold] [--min-free-gb <n>] [--keep-runs <n>] | --list|--run|--goal-only [--full] [--collect] [--gate-shut] [--stage <label>] [--name <text>] [--feature <id>] | --goal";
 
 /** The session prompt every turn's session opens with. */
 const PROMPT = "docs/agent/session-prompt.md";
@@ -689,30 +684,6 @@ async function fullRunTurn(note: (line: string) => void): Promise<string> {
   } finally {
     store.close();
   }
-}
-
-/**
- * Every bench the selection picks, owed, red, new or reached, judged and recorded by `runBenches`. This
- * is where the loop pays the bench debt the sessions' `nv verify` and every `bun nv affected --run`
- * leave behind. A bench's growth is read off the cores as a perf guard's is, so the pass holds the sweep
- * lock. With `owedOnly`, only the benches selected for being owed run. Returns a red line naming the red
- * benches, or the release build that failed, and "" when there is neither.
- */
-async function benchTurn(note: (line: string) => void, owedOnly = false): Promise<string> {
-  const { runBenches } = await import("../proofs/select.ts");
-  const lock = await takeSweepLock({ note });
-  let got: Awaited<ReturnType<typeof runBenches>>;
-  try {
-    got = await runBenches(note, owedOnly ? (s) => s.why === "owed" : undefined);
-  } finally {
-    lock.release();
-  }
-  if (typeof got === "string") return `benches: the release build failed: ${got.split("\n")[0]}`;
-  for (const r of got.red) note(`benches: RED ${r.path}: ${r.findings.join("; ")}`);
-  note(`benches: ${got.reached} selected, ${got.ran} judged and recorded, ${got.skipped.size} skipped as proven, ${got.red.length} red`);
-  if (got.red.length === 0) return "";
-  const named = got.red.slice(0, 5).map((r) => r.path).join(", ");
-  return `benches: ${got.red.length} red bench(es), their growth failed: ${named}${got.red.length > 5 ? ", ..." : ""}`;
 }
 
 function setFloorSince(since: number): void {
@@ -1337,15 +1308,6 @@ function sweepProgress(labelOf: (n: number) => string, begun: number): Progress 
 const PROGRESS_DIR = join(ROOT, RUNDIR, "progress");
 
 export async function run(args: string[]): Promise<number> {
-  // A person runs `--benches` in a terminal, so its builds paint their progress there, not in the run's
-  // directory the status row reads.
-  if (args[0] === "--benches" && (args.length === 1 || (args.length === 2 && args[1] === "--owed"))) {
-    const owed = args[1] === "--owed";
-    console.log(`benches: judging every ${owed ? "owed bench" : "bench the selection picks, owed, red, new or reached"} on the release build, then recording it`);
-    const red = await benchTurn((l) => console.log(`  ${l}`), owed);
-    if (red) console.log(red);
-    return red ? 1 : 0;
-  }
   process.env[PROGRESS_ENV] = PROGRESS_DIR;
   // `--side <slug>` goes first and says which goal every mode below works on, through the variable the
   // turns and their sessions inherit.
