@@ -3,8 +3,8 @@
  * One part of the sponsoring page, chosen by `show`: the ways to give
  * (config/site.mjs SPONSOR_CHANNELS), the tiers, the quarterly reports, or the
  * people and companies who gave and want to be named (src/data/sponsors.json).
- * No part ever prints what one sponsor gave: a tier is the only figure that
- * belongs to a person, and it is a range.
+ * A sponsor's amount is printed only when the sponsor asked for it, which is
+ * the only time their entry has an `amount`.
  *
  * `show="partners"` is the home page's strip: it renders nothing until there
  * is a Partner.
@@ -23,6 +23,8 @@ interface Sponsor {
   tier: string
   url?: string
   logo?: string
+  amount?: number
+  per?: 'month' | 'once'
 }
 
 interface Report {
@@ -40,6 +42,8 @@ const euro = (n: number) =>
   new Intl.NumberFormat('en-IE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n)
 const link = (url: string) => (url.startsWith('/') ? withBase(url) : url)
 const inTier = (id: string) => sponsors.filter((s) => s.tier === id)
+const amountOf = (s: Sponsor) =>
+  s.amount === undefined ? '' : ` (${euro(s.amount)}${s.per === 'once' ? ' once' : ' per month'})`
 const partners = inTier('partner')
 const named = sponsors.length
 ---
@@ -137,7 +141,18 @@ const named = sponsors.length
                   {people.map((s) => {
                     const body =
                       withLogo.has(t.id) && s.logo ? <img src={withBase(s.logo)} alt={s.name} loading="lazy" /> : s.name
-                    return <li>{s.url ? <a href={s.url} {...externalLinkAttrs(s.url)}>{body}</a> : body}</li>
+                    return (
+                      <li>
+                        {s.url ? (
+                          <a href={s.url} {...externalLinkAttrs(s.url)}>
+                            {body}
+                          </a>
+                        ) : (
+                          body
+                        )}
+                        {amountOf(s) && <span class="amount">{amountOf(s)}</span>}
+                      </li>
+                    )
                   })}
                 </ul>
               </section>
@@ -213,6 +228,9 @@ const named = sponsors.length
     margin: 0;
     padding: 0;
     list-style: none;
+  }
+  .amount {
+    color: var(--nv-quiet);
   }
   .logos img {
     display: block;

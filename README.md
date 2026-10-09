@@ -89,9 +89,9 @@ by a company: a sole proprietorship (*Einzelunternehmen*) in Austria, owned and 
 of Novis. When the team is bigger and sponsoring makes it possible, we will found a *FlexCo* named
 Novis-Lang — the *Flexible Kapitalgesellschaft*, a form of company Austria introduced in 2024 for startups
 and growing companies — so that we can employ people and rent an office. You can give through GitHub
-Sponsors, Ko-fi, Liberapay, PayPal or a bank transfer. The website's sponsoring page lists the tiers and
-the sponsors who want to be named, and publishes a report every quarter: how many gave, the total, and
-what we spent it on — never who gave how much.
+Sponsors, Ko-fi, Liberapay, PayPal or a bank transfer. The website's sponsoring page lists the tiers, and
+publishes a report every quarter: how many gave, the total, and what we spent it on. By default, nothing
+about you is published — not your name and not your amount. We show them only if you ask us to.
 
 Whatever form the company takes, Novis is open source and always will be, it is under the MIT licence and
 always will be, and the open-source code is all of Novis — there is no paid edition or paywalls. We may sell additional services
