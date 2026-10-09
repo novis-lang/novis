@@ -188,7 +188,11 @@
       "Bash(bun nv services:*)",
       "PowerShell(bun nv services:*)",
       "Bash(bun nv suite:*)",
-      "PowerShell(bun nv suite:*)"
+      "PowerShell(bun nv suite:*)",
+      "Bash(bun nv benches:*)",
+      "PowerShell(bun nv benches:*)",
+      "Bash(bun nv side:*)",
+      "PowerShell(bun nv side:*)"
     ]
   }
 }
