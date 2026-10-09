@@ -360,6 +360,7 @@ fn peer(answer: Vec<u8>) -> u16 {
     port
 }
 
+// covers: Core\Ldap\Connection::search
 #[test]
 fn a_size_limit_the_server_hit_throws() {
     // One entry, then a `SearchResultDone` with `sizeLimitExceeded` (4): what
@@ -2259,7 +2260,7 @@ fn synced(ctx: &mut nvs_runtime::Ctx, key: u64, cookie: &[u8]) -> (Vec<String>, 
     (found, changes.cookie().to_vec())
 }
 
-// covers: Core\Ldap\Changes::cookie
+// covers: Core\Ldap\Changes::cookie, Core\Ldap\Connection::changes
 #[test]
 fn dirsync_returns_only_what_changed_since_its_cookie() {
     let Some(ca) = samba() else { return };

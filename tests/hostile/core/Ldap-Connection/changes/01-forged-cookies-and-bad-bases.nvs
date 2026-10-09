@@ -1,0 +1,73 @@
+<?nvs
+// Attack: a program leaves many loops early, and calls `changes` with forged cookies, bad bases
+// and bad attribute names. Each call must return entries or throw an error, and nothing may crash.
+// hostile: timeout-ms 90000
+// requires: samba-ad
+
+class Count
+{
+    // Reads every entry of the changes and returns how many there were.
+    public static function all(Core\Ldap\Changes $changes): uint
+    {
+        uint $count = 0;
+        foreach ($changes as Core\Ldap\Entry $entry) {
+            $count = $count + 1;
+        }
+        return $count;
+    }
+}
+
+var $corp = Core\Ldap::connect('corp');
+var $units = Core\Ldap\Filter::equals('objectClass', 'organizationalUnit');
+
+// 1. One hundred calls, each left after its first entry. Nothing may be left behind.
+uint $i = 0;
+uint $found = 0;
+uint $threw = 0;
+while ($i < 100) {
+    try {
+        foreach ($corp->changes($units, { select: ['ou'] }) as Core\Ldap\Entry $entry) {
+            $found = $found + 1;
+            break;
+        }
+    } catch (Throwable $error) {
+        $threw = $threw + 1;
+    }
+    $i = $i + 1;
+}
+echo '1 found: ', $found, ', threw: ', $threw, "\n";
+
+// 2. Cookies the server never sent: random bytes, a cut cookie, a very long one.
+// The server may close the connection, and then every later call throws an error.
+tainted bytes $good = Core\Bytes::fill(8, 1);
+try {
+    var $real = $corp->changes($units, { select: ['ou'] });
+    Count::all($real);
+    $good = $real->cookie();
+} catch (Throwable $error) {
+}
+array<tainted bytes> $cookies = [
+    Core\Bytes::fill(1, 0),
+    Core\Random::bytes(64),
+    Core\Bytes::slice($good, 0, 10),
+    Core\Bytes::repeat($good, 2),
+    Core\Random::bytes(1000000),
+];
+$threw = 0;
+foreach ($cookies as tainted bytes $cookie) {
+    try {
+        Count::all($corp->changes($units, { select: ['ou'], cookie: $cookie }));
+    } catch (Throwable $error) {
+        $threw = $threw + 1;
+    }
+}
+echo '2 threw: ', $threw, "\n";
+
+// 3. Bases that are not the root of the domain, and attribute names that are not names.
+$threw = 0;
+try { Count::all($corp->changes($units, { base: 'OU=Company,DC=example,DC=test' })); } catch (Throwable $error) { $threw = $threw + 1; }
+try { Count::all($corp->changes($units, { base: 'DC=other,DC=test' })); } catch (Throwable $error) { $threw = $threw + 1; }
+try { Count::all($corp->changes($units, { base: 'not a name' })); } catch (Throwable $error) { $threw = $threw + 1; }
+try { Count::all($corp->changes($units, { select: ['', '(ou=*)', "ou\x00"] })); } catch (Throwable $error) { $threw = $threw + 1; }
+try { Count::all($corp->changes($units, { select: Core\Arr::fill(10000, 'ou') })); } catch (Throwable $error) { $threw = $threw + 1; }
+echo '3 threw: ', $threw, "\n";
