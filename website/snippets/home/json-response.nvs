@@ -1,4 +1,13 @@
 <?nvs
-// This program answers a web request with JSON.
-// A shape becomes a JSON object, with its keys in the order they are written.
-Core\Response::json({ status: "ok", version: 3 });
+// `Core\Json::encode` writes any value as JSON on one line.
+array<string> $lines = [
+    // A shape becomes a JSON object. Its keys stay in the order they are written.
+    Core\Json::encode({ status: "ok", version: 3 }),
+    // A list becomes a JSON array.
+    Core\Json::encode(["red", "green", "blue"]),
+    // A string gets quotes, and each quote inside it is escaped.
+    Core\Json::encode("Say \"hi\""),
+];
+
+// `Core\Response::text` sends the three lines exactly as they are.
+Core\Response::text(Core\Str::join($lines, "\n"));
