@@ -1,10 +1,14 @@
 # Novis in a container
 
-Official images are published to the GitHub Container Registry on every release:
+Each release publishes official images to the GitHub Container Registry:
 
 ```sh
-docker pull ghcr.io/novis-lang/novis:0.0.1
+docker pull ghcr.io/novis-lang/novis:0.4.1
 ```
+
+`0.4.1` in this guide stands for the version you use. Until the first release there is no image to
+pull. [§ *Building an image locally*](#building-an-image-locally) makes the same image from a
+binary you built yourself.
 
 One image holds one binary. `nvs` is the compiler, the server, the test runner and the CLI at
 once, so `serve`, `run` and `test` are all the same tag with a different command —
@@ -273,15 +277,30 @@ cp target/x86_64-unknown-linux-gnu/release/nvs docker/bin/amd64/nvs
 cp LICENSE THIRD-PARTY-LICENSES.txt README.md CHANGELOG.md docker/bin/notices/
 
 docker build docker --target distroless --platform linux/amd64 -t novis:dev
+bash tests/docker/smoke.sh novis:dev
 ```
 
 `--target debian` builds the other variant. `docker/bin/` is ignored by git; the release workflow
 fills it from the published archives, which is what makes the image's bytes and the archive's the
-same bytes.
+same bytes. `tests/docker/smoke.sh` runs the image the ways this guide describes and exits non-zero
+when one of them fails. The release runs it on each variant before it pushes, and CI runs it when
+`docker/` changes.
 
-To build from source instead — a development image, not a release one —
-[benches/proxied/Dockerfile](../benches/proxied/Dockerfile) already does that, with cargo cache
-mounts and the toolchain pinned to `rust-toolchain.toml`.
+**Build the binary against glibc 2.36 or older.** Both images are Debian bookworm, and a binary
+linked against a newer glibc does not start in them, and the error names a missing `GLIBC_`
+version. Ubuntu 22.04 links against 2.35, which is why the release builds there. On a newer host,
+or on Windows, the `build` stage of [benches/proxied/Dockerfile](../benches/proxied/Dockerfile)
+compiles one in a bookworm container, with the toolchain pinned to `rust-toolchain.toml`:
+
+```sh
+docker build -f benches/proxied/Dockerfile --target build -t novis-build .
+docker create --name novis-build novis-build
+docker cp novis-build:/out/nvs docker/bin/amd64/nvs
+docker rm novis-build
+```
+
+A release binary also has its debug sections compressed (§ *Verifying an image*). A local build
+skips that step, so its image is larger. The size is the only difference.
 
 ## Why not Alpine or `scratch`
 

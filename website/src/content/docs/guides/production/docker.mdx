@@ -26,6 +26,9 @@ ENTRYPOINT ["nvs"]
 CMD ["serve", "/app/public/index.nvs", "--listen", "0.0.0.0:8000"]
 ```
 
+This image is Debian 12, which has glibc 2.36. Build `nvs` on a system with the same glibc or an
+older one, such as Ubuntu 22.04. A binary built on a newer system does not start in this image.
+
 ## Listen on every address
 
 `nvs serve` listens on `127.0.0.1:8000` when nothing else is set. Inside a container, that address
