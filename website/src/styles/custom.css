@@ -1499,19 +1499,6 @@ main:has(.home-hero) > .content-panel {
     translate: 0 0;
   }
 }
-/* Moving to another page of the site fades the old page out and the new one
-   in over 300ms. Browsers without cross-document view transitions change
-   the page at once, as does a reader who has asked for less motion. */
-@media (prefers-reduced-motion: no-preference) {
-  @view-transition {
-    navigation: auto;
-  }
-}
-::view-transition-old(root),
-::view-transition-new(root) {
-  animation-duration: 300ms;
-}
-
 @media (prefers-reduced-motion: no-preference) {
   @supports (animation-timeline: view()) {
     .nv-reveal {
