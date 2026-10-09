@@ -188,13 +188,13 @@ One file set: `tools/nv/cmd/`, `tools/nv/schema/`, `tools/nv/lib/`, `tools/nv/re
   `:286`), the record-number form of `rules` (`:719-753`, `:1582-1592`), "decided in" (`:764-765`),
   `runNumbers` (`:1345-1398`) and the "A decision record" pairing in `SHAPE_IMPLIES` (`:103`).
   `data/schema/goal.schema.json` and `side_goal.schema.json` are rendered again.
-- **`nv session`** stops counting records (`session.ts:223-229`, `:253`, `:1064-1067`, `:1118`, `:1159`,
-  `:1631`) and gating on them (`:504-510`, `:1053`). **`nv chain`** loses the `docs/decisions/`
+- **`nv session`** stops counting records (`session.ts:117-123`, `:142`, `:829-833`, `:884`, `:925`,
+  `:1299`) and gating on them (`:391-397`, `:819`). **`nv chain`** loses the `docs/decisions/`
   exemption (`chain.ts:25`, `:77-81`). **`nv audit`** loses `HISTORY` and `RECORD_HISTORY`
   (`audit.ts:18-19`, `:193-195`, `:264-269`) and adds `docs/decisions/`, `data/decisions/` and
   `docs/adr/` to `LEGACY` (`:219`). **`nv loop-stats`** drops its `adr` category (`:98`, `:586-587`).
   **`nv reference`** drops `ADR_PAREN_RE` (`:80-81`, `:229`).
-- **The plan field "ADR slices landed"** goes from `schema/plan-status.ts:15`, `plan.ts:35`,
+- **The plan field "ADR slices landed"** goes from `schema/plan-status.ts:15`, `plan.ts:44`,
   `orient.ts:111`, `docs/implementation-plan.md:38-40` and AGENTS.md's field list.
 - **The website** loses `decisionRecord()` (`website/config/site.mjs`, `renderers/website-core.ts:116-124`)
   and the `adrs` list of a class (`website-core.ts:347`, `:381`, `:504`, `:641`, `website/src/lib/core.ts`).

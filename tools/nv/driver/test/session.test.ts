@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { manifestProblems, nextGroupItems, parseEdits, parseWrap, stripTrailers, validateHandoff } from "../../cmd/session.ts";
+import { manifestProblems, nextGroupItems, stripTrailers, validateHandoff } from "../../cmd/session.ts";
+import { parseEdits, parseWrap } from "../../lib/wrap.ts";
 import { handoffValue, type Unread } from "../../lib/handoff.ts";
 import { scratch } from "../../test/scratch.ts";
 

@@ -1,24 +1,33 @@
-// `bun nv plan`: the read-only modes over the implementation plan. `--show M8` prints a milestone's
-// scope file whole, `--show M8:lead` its first paragraph and `--show M8:verify` its `**Verify:**`
-// paragraph, its acceptance test. `--get <Field>` prints one field of the status block, unwrapped.
-// `--past` prints one line per milestone the program is behind, and whether it is complete. `--check`
-// reports the status fields' sizes, and fails when a milestone record disagrees with its scope file or the chain.
+// `bun nv plan`: the modes over the implementation plan. `--show M8` prints a milestone's scope file
+// whole, `--show M8:lead` its first paragraph and `--show M8:verify` its `**Verify:**` paragraph, its
+// acceptance test. `--get <Field>` prints one field of the status block, unwrapped. `--past` prints one
+// line per milestone the program is behind, and whether it is complete. `--check` reports the status
+// fields' sizes, and fails when a milestone record disagrees with its scope file or the chain.
+//
+// `--apply <wrap-file | ->` is the one mode that writes. It takes a wrap file's `## plan:`, `## plan-edit:`
+// and `## milestone:` sections, checks them with `planChecks`, and writes them only when every one is
+// sound; `--dry` checks and writes nothing. `bun nv session --wrap` calls the same `planChecks` and
+// `apply*` functions for those sections, so a wrap and a hook that runs `--apply` write the plan alike.
 //
 // The roster and the status block are read from the `milestone` and `plan_status` records under
 // `data/plan/`. A milestone's scope is prose, `docs/plan/<id>.md`, and its H1 is where the body starts.
+// Each reader and writer takes the repository root, so a test runs them over a scratch tree.
 
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { chainGoals, liveGoal } from "../lib/chain.ts";
+import { chainGoals, liveGoal, sideGoal } from "../lib/chain.ts";
 import { ROOT } from "../lib/paths.ts";
-import { load, pathOf } from "../lib/store.ts";
+import { pyRepr } from "../lib/py.ts";
+import { load, pathOf, write as writeRecord } from "../lib/store.ts";
+import { head, inOrder, nbytes, normalize, occurrences, parseEdits, parseWrap, PLAN_KINDS, type Section, thousands } from "../lib/wrap.ts";
+import { record } from "../lib/written.ts";
 import { milestone as milestoneType } from "../schema/milestone.ts";
 import { planStatus } from "../schema/plan-status.ts";
 import { collect, FIRST_FUTURE_MILESTONE, registers } from "./owners.ts";
 
-export const summary = "the plan, read-only: nv plan --show M8[:lead|:verify] | --get <Field> | --past | --stale | --check";
+export const summary = "the plan: nv plan --show M8[:lead|:verify] | --get <Field> | --past | --check | --apply <wrap-file | -> [--dry]";
 
-const PLAN = "docs/implementation-plan.md";
+export const PLAN = "docs/implementation-plan.md";
 
 /** A milestone id; its number is its place in the program, and the suffix does not move it. */
 const MILESTONE = /^M(\d+)[A-Z]?$/;
@@ -44,8 +53,8 @@ export interface Entry {
 }
 
 /** Every milestone, in the table's order. */
-export function milestones(): Entry[] {
-  return load(milestoneType)
+export function milestones(root: string = ROOT): Entry[] {
+  return load(milestoneType, root)
     .sort((a, b) => a.value.order - b.value.order)
     .map((m) => ({ id: m.id, rel: `docs/plan/${m.id.toLowerCase()}.md`, record: pathOf(milestoneType, m.id) }));
 }
@@ -108,8 +117,8 @@ function repr(s: string): string {
 }
 
 /** A milestone file's text below its H1, with the blank lines at either end cut off. */
-export function bodyOf(entry: Entry): string {
-  const text = readFileSync(join(ROOT, entry.rel), "utf8").replace(/\r\n/g, "\n");
+export function bodyOf(entry: Entry, root: string = ROOT): string {
+  const text = readFileSync(join(root, entry.rel), "utf8").replace(/\r\n/g, "\n");
   const lines = text.split("\n");
   const at = lines.findIndex((l) => H1.test(l));
   return (at < 0 ? text : lines.slice(at + 1).join("\n")).replace(/^\n+|\n+$/g, "");
@@ -129,8 +138,8 @@ export function leadParagraph(entry: Entry): string {
 }
 
 /** The `**Verify:**` or `**Verified:**` paragraph, or `""` when the milestone has none. */
-export function verifyParagraph(entry: Entry): string {
-  const lines = bodyOf(entry).split("\n");
+export function verifyParagraph(entry: Entry, root: string = ROOT): string {
+  const lines = bodyOf(entry, root).split("\n");
   const at = lines.findIndex((l) => l.startsWith("**Verify:**") || l.startsWith("**Verified:**"));
   if (at < 0) return "";
   const buf: string[] = [];
@@ -262,8 +271,8 @@ const FIELD_AIM_FALLBACK = 400;
 const FIELD_CEILING_X_FALLBACK = 5;
 
 /** The per-field byte aim and the ceiling a growing edit may not cross, both read out of the plan's leading comment. */
-export function fieldLimits(): { aim: number; ceiling: number } {
-  const planText = readFileSync(join(ROOT, PLAN), "utf8");
+export function fieldLimits(root: string = ROOT): { aim: number; ceiling: number } {
+  const planText = readFileSync(join(root, PLAN), "utf8");
   const aimHit = /Aim for ~(\d+) bytes a field/.exec(planText);
   const aim = aimHit ? Number(aimHit[1]) : FIELD_AIM_FALLBACK;
   const xHit = /over (\d+)x that/.exec(planText);
@@ -271,8 +280,8 @@ export function fieldLimits(): { aim: number; ceiling: number } {
 }
 
 /** The status block's fields in the plan's order, each with its text as one paragraph. */
-export function planFields(): [string, string][] {
-  const status = load(planStatus)[0]!.value as Record<string, string>;
+export function planFields(root: string = ROOT): [string, string][] {
+  const status = load(planStatus, root)[0]!.value as Record<string, string>;
   return FIELDS.map(([name, key]) => [name, status[key]!.trim()]);
 }
 
@@ -415,6 +424,262 @@ function check(): number {
   return 0;
 }
 
+// ------------------------------------------------------------------------ the wrap's plan sections
+
+/** The plan's line width, the `> ` prefix included. */
+const PLAN_WIDTH = 100;
+const FIELD_LINE = /^> \*\*([^*:]+):\*\*\s*(.*)$/;
+/**
+ * A `## plan:` body over `RETYPE_BYTES` whose 8-word runs are at least `RETYPE_OVERLAP` already in the
+ * field, and which is not a cut below `RETYPE_SHRINK` of it, is the field typed out again: `## plan-edit:`
+ * sends only the sentence that moved.
+ */
+const RETYPE_BYTES = 1_500;
+const RETYPE_OVERLAP = 0.7;
+const RETYPE_SHRINK = 0.6;
+
+/** The milestone a `## milestone:` section names, matched on its id whatever its case. */
+export function resolveMilestone(arg: string, root: string = ROOT): Entry | null {
+  const want = arg.trim().toUpperCase();
+  return milestones(root).find((m) => m.id === want) ?? null;
+}
+
+/** The fraction of `next`'s 8-word runs that appear verbatim in `old`. */
+function verbatimOverlap(next: string, old: string): number {
+  const grams = (t: string) => {
+    const w = t.split(/\s+/).filter(Boolean);
+    const out = new Set<string>();
+    for (let i = 0; i + 8 <= w.length; i++) out.add(w.slice(i, i + 8).join("\0"));
+    return out;
+  };
+  const gn = grams(next);
+  if (gn.size === 0) return 0;
+  const go = grams(old);
+  return [...gn].filter((g) => go.has(g)).length / gn.size;
+}
+
+/** A refusal only when the edit leaves the field both over the ceiling and bigger than it was. */
+function growthRefusal(kind: string, field: string, before: string, after: string, ceiling: number): string | null {
+  const was = nbytes(before);
+  const now = nbytes(after);
+  if (now <= was || now <= ceiling) return null;
+  const cut = now - Math.max(ceiling, was);
+  const how = kind === "plan-edit" ? "a `--- old` quoting the stale sentence with an empty `--- new` drops it" : "send the replacement shorter";
+  return (
+    `\`## ${kind}: ${field}\` -- leaves the field at ${thousands(now)} B, +${now - was} B ` +
+    `and past its ${thousands(ceiling)} B ceiling. A field is status and is overwritten, not appended ` +
+    `to. Cut at least ${cut} B of it in this same section (${how}), or take the new text ` +
+    "where it belongs -- a per-file gap to that crate's module doc `# Known gaps`, a trap to " +
+    "`## playbook:`, what landed to the commit body. An edit that leaves the field no bigger " +
+    "than it is now is always taken."
+  );
+}
+
+/**
+ * What is wrong with the plan, plan-edit and milestone sections among `sections`, each section checked
+ * against the field as the sections before it leave it. Every other kind is skipped.
+ */
+export function planChecks(sections: Section[], root: string = ROOT): string[] {
+  const errors: string[] = [];
+  const fields = planFields(root);
+  const names = new Map(fields.map(([n]) => [n.toLowerCase(), n]));
+  const working = new Map(fields.map(([n, t]) => [n.toLowerCase(), t]));
+  const { ceiling } = fieldLimits(root);
+  const side = sideGoal(root);
+  const noField = (s: Section) => `\`## ${s.kind}: ${s.arg}\` -- no such field, and this tool does not add one. The block has: ${[...names.values()].join(", ")}`;
+
+  for (const s of inOrder(sections)) {
+    if (!PLAN_KINDS.includes(s.kind)) continue;
+    if (side) {
+      // The plan's status block and the milestone files are the chain run's state, and a side
+      // branch that rewrote them would overwrite main's when it lands.
+      errors.push(`\`## ${s.kind}: ${s.arg}\` -- a side run does not write the plan; say what it changed in the handoff, and the landing commit carries it`);
+      continue;
+    }
+    const key = s.arg.toLowerCase();
+    if (s.kind === "plan") {
+      if (!names.has(key)) {
+        errors.push(noField(s));
+        continue;
+      }
+      const next = normalize(s.body);
+      const old = working.get(key)!;
+      const share = verbatimOverlap(next, old);
+      const len = [...next].length;
+      if (len > RETYPE_BYTES && share >= RETYPE_OVERLAP && len > [...old].length * RETYPE_SHRINK) {
+        errors.push(
+          `\`## plan: ${s.arg}\` -- ${thousands(len)} B, and ${Math.round(share * 100)}% of it is already ` +
+            "on disk word for word. That is a retype, not a rewrite: use " +
+            `\`## plan-edit: ${s.arg}\` with \`--- old\` / \`--- new\` fragments and send only ` +
+            `the sentence that moved. (A real rewrite overlaps less than ${Math.round(RETYPE_OVERLAP * 100)}% and is taken as it stands.)`,
+        );
+        continue;
+      }
+      const grown = growthRefusal("plan", s.arg, old, next, ceiling);
+      if (grown) {
+        errors.push(grown);
+        continue;
+      }
+      working.set(key, next);
+    } else if (s.kind === "plan-edit") {
+      if (!names.has(key)) {
+        errors.push(noField(s));
+        continue;
+      }
+      const { pairs, errors: bad } = parseEdits(s.body);
+      errors.push(...bad.map((b) => `\`## plan-edit: ${s.arg}\` -- ${b}`));
+      let text = working.get(key)!;
+      for (const [old, next] of pairs) {
+        if (!old) continue;
+        const hits = occurrences(text, old);
+        if (hits !== 1) {
+          const where = hits === 0 ? "is not in that field" : `appears ${hits} times in it`;
+          errors.push(
+            `\`## plan-edit: ${s.arg}\` -- the \`--- old\` fragment ${where}, so nothing ` +
+              "was changed. Quote a longer run, exactly as the field reads (it is one " +
+              `paragraph, single-spaced; \`bun nv plan --get ${pyRepr(s.arg)}\` prints ` +
+              `it): ${pyRepr(head(old, 70))}`,
+          );
+          continue;
+        }
+        text = text.replace(old, () => next);
+      }
+      const grown = growthRefusal("plan-edit", s.arg, working.get(key)!, text, ceiling);
+      if (grown) {
+        errors.push(grown);
+        continue;
+      }
+      working.set(key, text);
+    } else {
+      const entry = resolveMilestone(s.arg, root);
+      if (entry === null) {
+        errors.push(`\`## milestone: ${s.arg}\` -- the plan's table lists no such milestone, and this tool does not add one. It has: ${milestones(root).map((m) => m.id).join(", ")}`);
+      } else if (!existsSync(join(root, entry.rel))) {
+        errors.push(`\`## milestone: ${s.arg}\` -- ${entry.rel} does not exist`);
+      }
+    }
+  }
+  return errors;
+}
+
+/** The status block's fields in the plan's Markdown: name, first line, one past the last line, and the joined text. */
+function findFields(lines: string[]): [string, number, number, string][] {
+  const fields: [string, number, number, string[]][] = [];
+  let started = false;
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i]!;
+    if (raw.startsWith(">")) {
+      started = true;
+      const m = FIELD_LINE.exec(raw);
+      if (m) fields.push([m[1]!.trim(), i, i + 1, [m[2]!.trim()]]);
+      else if (fields.length) {
+        const body = raw.replace(/^> ?/, "").trim();
+        if (body) {
+          fields[fields.length - 1]![2] = i + 1;
+          fields[fields.length - 1]![3].push(body);
+        }
+      }
+    } else if (started) break;
+  }
+  return fields.map(([n, a, b, p]) => [n, a, b, p.join(" ").trim()]);
+}
+
+/** `**Name:** text` wrapped greedily at word boundaries to the block's width, a long word on a line of its own. */
+function renderField(name: string, text: string): string[] {
+  const out: string[] = [];
+  let line = "";
+  for (const word of `**${name}:** ${text}`.split(/\s+/).filter(Boolean)) {
+    if (line && [...line].length + 1 + [...word].length > PLAN_WIDTH - 2) {
+      out.push(line);
+      line = word;
+    } else line = line ? `${line} ${word}` : word;
+  }
+  if (line) out.push(line);
+  return out;
+}
+
+/**
+ * Rewrites one status field to `next`, in the plan's Markdown and in its record, and returns the field's
+ * name and its text before. The field is matched by name, whatever its case.
+ */
+function writeField(arg: string, next: string | ((old: string) => string), dry: boolean, root: string): { name: string; old: string; now: string } {
+  const lines = readFileSync(join(root, PLAN), "utf8").split("\n");
+  const [name, start, end, old] = findFields(lines).find(([n]) => n.toLowerCase() === arg.toLowerCase())!;
+  const now = typeof next === "string" ? next : next(old);
+  if (!dry) {
+    const rewritten = [...lines.slice(0, start), ...renderField(name, now).map((l) => `> ${l}`), ...lines.slice(end)];
+    writeFileSync(join(root, PLAN), rewritten.join("\n"));
+    const key = FIELDS.find(([n]) => n === name)?.[1];
+    if (key) {
+      const status = { ...(load(planStatus, root)[0]!.value as Record<string, string>), [key]: now };
+      writeRecord(planStatus, planStatus.name, status as any, root);
+    }
+  }
+  return { name, old, now };
+}
+
+export function applyPlan(s: Section, dry: boolean, root: string = ROOT): string {
+  const { name, old, now } = writeField(s.arg, normalize(s.body), dry, root);
+  return `plan: ${name}  ${nbytes(old)} -> ${nbytes(now)} bytes`;
+}
+
+/** One field with the fragments the section names replaced; `planChecks` has proved each `--- old` matches once. */
+export function applyPlanEdit(s: Section, dry: boolean, root: string = ROOT): string {
+  const { pairs } = parseEdits(s.body);
+  const { name, old, now } = writeField(s.arg, (text) => pairs.reduce((t, [was, next]) => t.replace(was, () => next), text), dry, root);
+  const { ceiling } = fieldLimits(root);
+  const was = nbytes(old);
+  const is = nbytes(now);
+  let note = `plan-edit: ${name}  ${pairs.length} fragment(s), ${was} -> ${is} bytes`;
+  // Only when the field grew and the ceiling a growing edit may not cross is close: this says the next
+  // growing edit will be refused, which is the one thing worth knowing ahead of it.
+  const headroom = ceiling - is;
+  if (is > was && headroom < Math.floor(ceiling / 4)) {
+    note +=
+      `  (+${is - was} B; ${Math.max(headroom, 0)} B left under the ${ceiling} B` +
+      " ceiling -- past it a growing edit is refused, so the next one replaces a" +
+      " sentence rather than adding one)";
+  }
+  return note;
+}
+
+export function applyMilestone(s: Section, dry: boolean, root: string = ROOT): string {
+  const entry = resolveMilestone(s.arg, root)!;
+  const body = s.body.replace(/^\n+|\n+$/g, "");
+  let note = `milestone: ${entry.id} in ${entry.rel}, ${nbytes(bodyOf(entry, root))} -> ${nbytes(body)} bytes`;
+  if (dry) return note;
+  const lines = readFileSync(join(root, entry.rel), "utf8").split("\n");
+  const at = lines.findIndex((l) => H1.test(l));
+  const top = at < 0 ? [`# ${entry.id}`] : lines.slice(0, at + 1);
+  writeFileSync(join(root, entry.rel), `${top.join("\n")}\n\n${body}\n`);
+  if (!verifyParagraph(entry, root)) note += "  !! no `**Verify:**` paragraph -- nothing can call this milestone done";
+  return note;
+}
+
+/**
+ * `--apply`: checks the plan sections of the wrap text `text` and, unless `dry`, writes them. Exit 0 with
+ * a line per section, or 1 with every problem and nothing written. A wrap with no plan section is 0.
+ */
+export function apply(text: string, dry: boolean, root: string = ROOT): { code: number; lines: string[] } {
+  const parsed = parseWrap(text.replace(/\r\n/g, "\n"));
+  const sections = inOrder(parsed.sections.filter((s) => PLAN_KINDS.includes(s.kind)));
+  const errors = [...parsed.errors, ...planChecks(sections, root)];
+  if (errors.length) return { code: 1, lines: ["nv plan --apply: NOTHING was written:", ...errors.map((e) => `  - ${e}`)] };
+  if (!sections.length) return { code: 0, lines: ["nv plan --apply: no `## plan:`, `## plan-edit:` or `## milestone:` section, nothing to write"] };
+  const lines = [`nv plan --apply: ${dry ? "would apply" : "applied"} ${sections.length} section(s)`];
+  for (const s of sections) {
+    lines.push(`  ${s.kind === "plan" ? applyPlan(s, dry, root) : s.kind === "plan-edit" ? applyPlanEdit(s, dry, root) : applyMilestone(s, dry, root)}`);
+    if (dry) continue;
+    if (s.kind === "milestone") record(join(root, resolveMilestone(s.arg, root)!.rel));
+    else record(join(root, PLAN), join(root, pathOf(planStatus, planStatus.name)));
+  }
+  return { code: 0, lines };
+}
+
+const USAGE =
+  "usage: bun nv plan --show M8[:lead|:verify] | --get <Field> | --past | --check | --apply <wrap-file | -> [--dry]\n" +
+  "  --apply writes a wrap's `## plan:`, `## plan-edit:` and `## milestone:` sections; `-` reads the wrap on stdin";
+
 export async function run(args: string[]): Promise<number> {
   const [flag, value, ...rest] = args;
   if ((flag === "--show" || flag === "--get") && value !== undefined && rest.length === 0) {
@@ -422,7 +687,18 @@ export async function run(args: string[]): Promise<number> {
   }
   if (flag === "--past" && value === undefined) return past();
   if (flag === "--check" && value === undefined) return check();
-  console.error("usage: bun nv plan --show M8[:lead|:verify] | --get <Field> | --past | --check\n" +
-    "  a status field or a milestone is rewritten by `bun nv session --wrap`'s `## plan:` and `## milestone:` sections");
+  if (flag === "--apply" && value !== undefined && rest.every((a) => a === "--dry")) {
+    let text: string;
+    if (value === "-") text = await Bun.stdin.text();
+    else if (existsSync(value)) text = readFileSync(value, "utf8");
+    else {
+      console.error(`nv plan --apply: no such file: ${value}`);
+      return 2;
+    }
+    const { code, lines } = apply(text, rest.length > 0);
+    for (const line of lines) console.log(line);
+    return code;
+  }
+  console.error(USAGE);
   return 2;
 }
