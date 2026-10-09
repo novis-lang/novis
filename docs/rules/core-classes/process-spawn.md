@@ -24,7 +24,8 @@ and exit status `1` under `nvs run`, an `error` record in the request's log unde
 response is not rewritten — and after the throw or `FATAL` that ended the program, when one did. A
 grandchild is the child's own business.
 
-**Not on disk.** Nothing yet ends a child when nvs itself is killed, on any platform. A child started
+**Not on disk.** On Linux and macOS nothing yet ends a child when nvs itself is killed; on Windows
+every child runs in a job of the nvs process that ends it then. A child started
 inside a `Core\Task` child task is ended and reported when that task ends, and under `nvs run` that
 report does not change the exit status.
 
