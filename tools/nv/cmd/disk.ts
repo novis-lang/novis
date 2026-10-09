@@ -252,6 +252,13 @@ export function freeGb(path: string = ROOT): number {
   }
 }
 
+/** Whether the disk has room for a run. Returns "" when it has, or the refusal. */
+export function enoughDisk(minFreeGb: number, root: string = ROOT): string {
+  const free = freeGb(root);
+  if (minFreeGb <= 0 || free >= minFreeGb) return "";
+  return `${free.toFixed(1)}G free, and a run needs ${minFreeGb}G. \`bun nv disk\` says what holds it, and \`--clean\` drops the superseded build generations; --min-free-gb 0 starts anyway.`;
+}
+
 function now(): number {
   return Date.now() / 1000;
 }
