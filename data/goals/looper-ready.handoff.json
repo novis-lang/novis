@@ -1,23 +1,27 @@
 {
-  "state": "**Goal `looper-ready`, Stages 2 and 3 are done; Stage 4 lacks only `bun nv sweep` and the boundary test.** `bun nv benches [--owed]` (`tools/nv/cmd/benches.ts`) holds `benchTurn`; `nv loop --benches` is gone. `bun nv side --prepare` (`tools/nv/cmd/side.ts`) holds `prepare` and `seedStore`. `bun nv allow --learn <events.jsonl>` is `tools/nv/cmd/allow.ts`: the whole of the old `driver/allow.ts` moved there with its test (`tools/nv/test/allow.test.ts`), plus `learn` and `run`; `cmd/loop.ts:123` and `driver/handover.ts` import from it. Checks `looper-ready-nv-benches`, `looper-ready-nv-side-prepare` and `looper-ready-nv-allow-learn` pass by hand.\n\nThe boundary test's *the session hooks have one home* is not written yet: it fails until `sweep` lands, so the slice that lands it adds the test too.\n\nThe user's calls are the goal file's § *Standing decisions*. `bun test -t <regex>` that matches no test exits 0, so every check asks for the exact `Ran N tests across 1 file` line. The goal prose still cites `driver/allow.ts:NN` anchors; the code is at `tools/nv/cmd/allow.ts` now.",
+  "state": "**Goal `looper-ready`, Stages 2 to 4 are done; Stage 5 is next.** `bun nv sweep` is `tools/nv/cmd/sweep.ts`: `afterSession` holds the floor gate's cadence (`FLOOR_GATE_EVERY`, `HEAVY_FULL_EVERY` and their meta keys moved there), the full run, the scoped and open sweeps, the bench turn, the disk and the goal-end gates, and writes or removes `.loop/last-sweep.md`; `serve()` in `tools/nv/cmd/loop.ts` calls it with a `SweepVoice` over the console. The gates module moved out of the driver to `tools/nv/accept/gates.ts`, since a command may not import `driver/`. The boundary test's *the session hooks have one home* is written and passes. Every Stage 4 check passes by hand.\n\nThe user's calls are the goal file's § *Standing decisions*. `bun test -t <regex>` that matches no test exits 0, so every check asks for the exact `Ran N tests across 1 file` line. The goal prose still cites stale `cmd/loop.ts`, `driver/gates.ts` and `driver/allow.ts` anchors; the code is in `cmd/sweep.ts`, `accept/gates.ts` and `cmd/allow.ts` now.",
   "next": {
-    "stage": 4,
-    "title": "the session hooks",
+    "stage": 5,
+    "title": "the wrap sections, the pack sections and the written paths",
     "files": [],
-    "note": "one file set: `tools/nv/cmd/loop.ts`, `tools/nv/driver/gates.ts`, `tools/nv/main.ts`, new `tools/nv/cmd/sweep.ts`, `tools/nv/test/`.",
+    "note": "one file set: `tools/nv/cmd/session.ts`, `tools/nv/cmd/plan.ts`, `tools/nv/cmd/orient.ts`, new `tools/nv/cmd/pack.ts`, `tools/nv/lib/written.ts`, `tools/nv/main.ts`, `tools/nv/test/`.",
     "items": [
       {
         "done": false,
-        "text": "**`bun nv sweep [--done]`**: the after-session sequence in `serve()` (`tools/nv/cmd/loop.ts:757`), from the `sweep: \"done\"` skip (`tools/nv/cmd/loop.ts:1088`) through `fullRunTurn` (`tools/nv/cmd/loop.ts:675`), the floor gate (`FLOOR_GATE_EVERY`, `tools/nv/cmd/loop.ts:183`), the bench pass, `setFloorSince`, `sweepDisk` and the doc and owner gates, into one function in `cmd/sweep.ts` that `serve()` calls; it writes `.loop/last-sweep.md`, removes it when green, and always exits 0. Test `test/after-session.test.ts` with a runner passed in, under the four titles of check `looper-ready-nv-sweep`. Specified by the goal's Stage 4 section."
+        "text": "**`lib/written.ts` writes `LOOPER_WRITTEN` too**: each path is appended to the file `NOVIS_LOOP_WRITES` names and to the one `LOOPER_WRITTEN` names, each only when set (`tools/nv/lib/written.ts:9`). Test `test/written.test.ts` under the titles its Stage 5 check names. Specified by the goal's Stage 5 section."
       },
       {
         "done": false,
-        "text": "**The boundary test's *the session hooks have one home*** in `tools/nv/test/driver-boundary.test.ts:80`: `prepare`, `seedStore`, `AllowWatch`, `settle`, `benchTurn` defined nowhere under `driver/` or in a loop command, `cmd/loop.ts` not parsing `--benches`, and `sweep`, `benches`, `side`, `allow` registered (its `defines` and `unregistered` helpers)."
+        "text": "**`bun nv plan --apply`**: `writeField`, `applyPlan`, `applyPlanEdit`, `applyMilestone` (`tools/nv/cmd/session.ts:1324-1365`) move to `tools/nv/cmd/plan.ts`, and `applyWrap` (`tools/nv/cmd/session.ts:1566`) calls them there; the plan arms of `validate` run under `--apply`, and a side worktree is still refused. Test `test/plan-apply.test.ts`. Specified by the goal's Stage 5 section."
+      },
+      {
+        "done": false,
+        "text": "**`bun nv pack`**: `manifest` (`tools/nv/cmd/orient.ts:348`) and the `run*` sections from `runRules` (`tools/nv/cmd/orient.ts:719`) on move to new `tools/nv/cmd/pack.ts`; TRAPS stays in `orient`. Register `pack` in `tools/nv/main.ts`, rewrite goal `decision-records-retired`'s anchors into the moved code, and add *the wrap and orient sections have one home* to `tools/nv/test/driver-boundary.test.ts`. Test `test/pack.test.ts`. Specified by the goal's Stage 5 section."
       }
     ]
   },
   "backlog": [
-    "Stage 5, the wrap and pack sections: the goal's Stage 5 section.",
-    "Stage 6, the runbook's hook table and `commands.md` entries for the new commands: the goal's Stage 6 section."
+    "Stage 6: the runbook's hook table and `docs/agent/commands.md` name `bun nv sweep [--goal] [--done] [--keep-runs] [--session]` and the other new commands, and the boundary test reads the table (goal Stage 6 section).",
+    "The goal prose's stale anchors for the moved code, rewritten when the goal next needs them (`docs/agent/goals/looper-ready.md`)."
   ]
 }

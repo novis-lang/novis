@@ -87,6 +87,27 @@ describe("the loop driver's boundary", () => {
     left.push(...unregistered(["suite", "legs", "services"]));
     expect(left).toEqual([]);
   });
+
+  test("the session hooks have one home", () => {
+    const left: string[] = [];
+    const homes: [string, string][] = [
+      ["prepare", "tools/nv/cmd/side.ts"],
+      ["seedStore", "tools/nv/cmd/side.ts"],
+      ["AllowWatch", "tools/nv/cmd/allow.ts"],
+      ["settle", "tools/nv/cmd/allow.ts"],
+      ["benchTurn", "tools/nv/cmd/benches.ts"],
+      ["afterSession", "tools/nv/cmd/sweep.ts"],
+    ];
+    const driven = [...tsFiles("tools/nv/driver"), ...LOOP_COMMANDS];
+    for (const [name, home] of homes) {
+      for (const file of driven) if (defines(file, name) || definesLocal(file, name)) left.push(`${name} in ${file}`);
+      if (!defines(home, name)) left.push(`${name} not in ${home}`);
+    }
+    if (/["']--benches["']/.test(read("tools/nv/cmd/loop.ts"))) left.push("tools/nv/cmd/loop.ts still parses --benches");
+    if (!/\bafterSession\(/.test(read("tools/nv/cmd/loop.ts"))) left.push("tools/nv/cmd/loop.ts sweeps without afterSession");
+    left.push(...unregistered(["sweep", "benches", "side", "allow"]));
+    expect(left).toEqual([]);
+  });
 });
 
 const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
@@ -94,6 +115,11 @@ const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
 /** Whether `path` exports a function, constant or class `name`. */
 function defines(path: string, name: string): boolean {
   return new RegExp(`^export\\s+(?:async\\s+)?(?:function\\*?|const|let|class)\\s+${name}\\b`, "m").test(read(path));
+}
+
+/** Whether `path` defines a function, constant or class `name` it does not export. */
+function definesLocal(path: string, name: string): boolean {
+  return new RegExp(`^(?:async\\s+)?(?:function\\*?|const|let|class)\\s+${name}\\b`, "m").test(read(path));
 }
 
 /** Each of `commands` that `main.ts`'s `COMMANDS` does not map to its own module. */
