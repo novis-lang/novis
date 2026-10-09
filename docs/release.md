@@ -16,7 +16,7 @@ exactly one trigger, and it is a person choosing `Run workflow`.
 | 2 | `test` — the whole of [ci.yml](../.github/workflows/ci.yml), called, not copied | nothing |
 | 3 | `build` — seven targets, each at the version being released | nothing |
 | 4 | `publish` — bump, changelog, commit, tag, push, draft release | **everything, at once** |
-| 5 | `docker` — two image variants, from the binaries step 3 built | the immutable image tags |
+| 5 | `docker` — two image variants, from the binaries step 3 built, each smoke-tested by `tests/docker/smoke.sh` before it is pushed | the immutable image tags; in a dry run, nothing |
 
 Then, on the click that publishes the draft, [release-promote.yml](../.github/workflows/release-promote.yml)
 moves `latest` and the `MAJOR.MINOR` image tags. It rebuilds nothing — it re-points a tag at a
@@ -237,5 +237,5 @@ has to be done again on the next release.
 | A release went out wrong | The draft is a draft. Delete it, delete the tag, revert the one `chore(release)` commit. **Unless `docker` ran** — a pushed image tag is the one write here that force-pushing a branch does not undo, and § *Recalling a published image* above is that procedure. Do it in that order: deleting the git tag is what unblocks moving `latest` back. |
 | `docker pull` says *denied* or asks for a login | The package is still private. Setup § 6 — it is a one-time switch and it is not the repository's own visibility. |
 | The `docker` job failed after the release was tagged | Re-run that job alone; it needs nothing from the earlier jobs but their artifacts, and `fail-fast: false` means a variant that already succeeded is not redone. It names the same tags, but the re-run's **digest differs** — the image config records a build time — so the abandoned attempt is left as an untagged version in the package. Then dispatch `release-promote.yml` with the tag, since the publish click has already been and gone. |
-| The `docker` job failed *before* the release was tagged | It cannot: it `needs: [plan, publish]`. There is no state where an image exists for a version the repository has no tag for. |
+| The `docker` job failed *before* the release was tagged | Only a dry run gets there, and a dry run pushes nothing, so no image exists for a version the repository has no tag for. Its failure is the smoke test or the image build, and the step log names which check. `tests/docker/smoke.sh` runs the same checks locally — [docs/docker.md](docker.md) § *Building an image locally*. |
 | `latest` did not move | It moves on *publish*, not on draft (see step 6 above), and `nv release` refuses to move it backwards onto a version older than the newest tag. Dispatch `release-promote.yml` to retry. |

@@ -456,10 +456,15 @@ jobs:
   # No `environment:` on this job. `publish` above already took the human click, and a second
   # gate here would ask for approval in the middle of a run that is already committed — the tag
   # is pushed by then, so there would be nothing left to approve.
+  #
+  # Each variant is built for amd64 first and run through `tests/docker/smoke.sh`, and nothing is
+  # pushed unless that passes. A dry run has no `publish`, so it runs this job up to and including
+  # the smoke test and stops there: it logs in nowhere, pushes nothing and signs nothing.
   # ---------------------------------------------------------------------------
   docker:
     name: container images (${{ matrix.variant }})
-    needs: [plan, publish]
+    needs: [plan, build, publish]
+    if: ${{ !cancelled() && needs.build.result == 'success' && (inputs.dry_run || needs.publish.result == 'success') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -481,10 +486,11 @@ jobs:
     steps:
       # At the tag, not at `main`: `main` takes commits from an unattended loop and may be
       # several past the release by now. The Dockerfile and the tag
-      # arithmetic must both be the ones this version was cut from.
+      # arithmetic must both be the ones this version was cut from. A dry run made no tag, so it
+      # checks out the commit it was dispatched at, which is the one `build` compiled.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ needs.plan.outputs.tag }}
+          ref: ${{ inputs.dry_run && github.sha || needs.plan.outputs.tag }}
           # `--docker-tags` reads `git rev-parse` and the tag list, so the history has to be here.
           fetch-depth: 0
           persist-credentials: false
@@ -540,10 +546,31 @@ jobs:
 
       - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
 
+      # The amd64 image alone, loaded into this runner's Docker under a local name, so the smoke
+      # test runs the same Dockerfile stage and the same binary the push below publishes. The push
+      # builds it again from the builder's cache.
+      - name: Build the amd64 image for the smoke test
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        with:
+          context: docker
+          file: docker/Dockerfile
+          target: ${{ matrix.variant }}
+          platforms: linux/amd64
+          load: true
+          tags: novis-smoke:${{ matrix.variant }}
+          provenance: false
+
+      - name: Smoke test
+        shell: bash
+        env:
+          VARIANT: ${{ matrix.variant }}
+        run: bash tests/docker/smoke.sh "novis-smoke:$VARIANT"
+
       # The per-run token again, and the only registry authentication in this repository. No PAT:
       # `GITHUB_TOKEN` can write packages owned by this repository's owner, so there is no
       # long-lived registry credential to store, rotate or leak.
-      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+      - if: ${{ !inputs.dry_run }}
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -563,6 +590,7 @@ jobs:
             org.opencontainers.image.documentation=${{ github.server_url }}/${{ github.repository }}/blob/${{ needs.plan.outputs.tag }}/docs/docker.md
 
       - id: tags
+        if: ${{ !inputs.dry_run }}
         name: The tags this variant claims
         shell: bash
         env:
@@ -574,6 +602,7 @@ jobs:
             --image "$IMAGE" --variant "$VARIANT" --github-output
 
       - id: build
+        if: ${{ !inputs.dry_run }}
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
           context: docker
@@ -594,13 +623,15 @@ jobs:
       #     gh attestation verify oci://ghcr.io/novis-lang/novis:0.1.0 --repo novis-lang/novis
       # `push-to-registry` stores it beside the image as an OCI referrer, so it travels with the
       # image instead of being something a user has to know to go and look up.
-      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
+      - if: ${{ !inputs.dry_run }}
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
         with:
           subject-name: ghcr.io/${{ github.repository }}
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
 
       - name: Summary
+        if: ${{ !inputs.dry_run }}
         shell: bash
         env:
           TAGS: ${{ steps.tags.outputs.tags }}
