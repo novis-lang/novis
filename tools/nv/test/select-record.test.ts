@@ -160,7 +160,7 @@ describe("the readers a recorded run needs", () => {
 
   test("a batch with passed cases that left no recording prints both listings, and a recording only the second one saw", () => {
     const lost = ["tests/t/a.nvst", "tests/t/b.nvst", "tests/t/c.nvst", "tests/t/d.nvst"];
-    const block = lostBlock({ tree: "tests/t", index: 2, batches: 3, size: 128, lost, listed: 124, listError: null, parent: true, dir: "exists", fresh: ["tests~t~b.nvst-77.profraw", "tests~t~b.nvst.log"] });
+    const block = lostBlock({ tree: "tests/t", index: 2, batches: 3, size: 128, lost, listed: 124, listError: null, relooked: [], parent: true, dir: "exists", fresh: ["tests~t~b.nvst-77.profraw", "tests~t~b.nvst.log"] });
     expect(block).toBe(
       "coverage lost: batch 2/3 of tests/t (128 cases): 4 passed case(s) left no recording\n" +
         "  cases: tests/t/a.nvst, tests/t/b.nvst, tests/t/c.nvst (+1 more)\n" +
@@ -168,8 +168,10 @@ describe("the readers a recorded run needs", () => {
         "  listed again: 1 .profraw, 1 .log, 0 other: tests~t~b.nvst-77.profraw, tests~t~b.nvst.log\n" +
         "  1 of the 4 have a recording now, so the listing at extraction time missed files that were there: tests/t/b.nvst\n",
     );
-    const gone = lostBlock({ tree: "tests/t", index: 1, batches: 1, size: 1, lost: ["tests/t/a.nvst"], listed: 0, listError: "EPERM", parent: false, dir: "EPERM", fresh: "EPERM" });
+    const gone = lostBlock({ tree: "tests/t", index: 1, batches: 1, size: 1, lost: ["tests/t/a.nvst"], listed: 0, listError: "EPERM", relooked: [], parent: false, dir: "EPERM", fresh: "EPERM" });
     expect(gone).toContain("at extraction: listing threw EPERM; parent recorded: no; directory: EPERM\n  listed again: threw EPERM\n");
+    const missed = lostBlock({ tree: "tests/t", index: 1, batches: 1, size: 2, lost: ["tests/t/a.nvst", "tests/t/b.nvst"], listed: 2, listError: null, relooked: ["tests/t/a.nvst"], parent: true, dir: "exists", fresh: [] });
+    expect(missed).toContain("directory: exists\n  1 of the 2 are in that listing when looked up again, so the lookup missed names it held: tests/t/a.nvst\n  listed again: 0 .profraw");
   });
 
   test("a red case gets its reason, and a red case no FAIL line or lost recording explains is listed with it", () => {

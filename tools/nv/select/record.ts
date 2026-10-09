@@ -277,10 +277,12 @@ export interface CaseRun {
   processes: number;
 }
 
+const NO_RECORDING = "it left no recording";
+
 /** Why one case of a batch is red, or null when it is green: the verdict and its reason are one test. */
 export function redReason(c: { failed: boolean; recorded: boolean; skipped: boolean; timedOut: boolean; counted: boolean }): string | null {
   if (c.failed) return "it failed";
-  if (!c.recorded && !c.skipped) return "it left no recording";
+  if (!c.recorded && !c.skipped) return NO_RECORDING;
   if (c.timedOut) return "its batch ran out of time";
   if (!c.counted) return "its batch printed no count line";
   return null;
@@ -319,6 +321,9 @@ export interface LostBatch {
   /** How many atoms the listing at extraction time held, and the error it threw, if it threw one. */
   listed: number;
   listError: string | null;
+  /** The lost cases the listing at extraction time holds when each is looked up again: a case here was
+   * listed, and the lookup that judged it missed it. */
+  relooked: string[];
   /** Whether the `nvs test` parent left a recording. */
   parent: boolean;
   /** "exists", "missing", or what reading the directory's status threw. */
@@ -330,14 +335,16 @@ export interface LostBatch {
 
 const few = (xs: string[], n: number): string => xs.slice(0, n).join(", ") + (xs.length > n ? ` (+${xs.length - n} more)` : "");
 
-/** The few lines a batch with lost recordings adds to the step's output. When the second listing finds a
- * recording of a lost case, it says so: the first listing missed a file that was there. */
+/** The few lines a batch with lost recordings adds to the step's output. When the first listing holds a
+ * lost case under a second lookup, it says so: the lookup missed, not the listing. When the second
+ * listing finds a recording of a lost case, it says so: the first listing missed a file that was there. */
 export function lostBlock(b: LostBatch): string {
   const out = [
     `coverage lost: batch ${b.index}/${b.batches} of ${b.tree} (${b.size} cases): ${b.lost.length} passed case(s) left no recording`,
     `  cases: ${few(b.lost, 3)}`,
     `  at extraction: ${b.listError ? `listing threw ${b.listError}` : `${b.listed} recorded atom(s) listed`}; parent recorded: ${b.parent ? "yes" : "no"}; directory: ${b.dir}`,
   ];
+  if (b.relooked.length > 0) out.push(`  ${b.relooked.length} of the ${b.lost.length} are in that listing when looked up again, so the lookup missed names it held: ${few(b.relooked, 3)}`);
   if (typeof b.fresh === "string") out.push(`  listed again: threw ${b.fresh}`);
   else {
     const profraws = b.fresh.filter((f) => f.endsWith(".profraw")).length;
@@ -382,8 +389,10 @@ const CASES_RE = /(\d+) passed, (\d+) failed, (\d+) skipped/;
  * Runs `cases` through `nvs test --cases <list> --record <dir>`, one tree and one batch at a time, and
  * records every case. The `nvs test` parent is recorded too, and what it ran is part of every case of
  * its batch; its listings of the tree are not, since what else a tree holds decides nothing about one
- * case's verdict. A case that failed, that left no record and was not skipped, or whose batch ran out
- * of time is red. A batch with a passed case that left no record adds `lostBlock`'s lines to the output.
+ * case's verdict. A case is red for the reason `redReason` gives: it failed, it left no record and was
+ * not skipped, or its batch ran out of time or printed no count line. Each case's record is looked up
+ * once per batch, and both its verdict and the batch's lost list are read from that one lookup, so a
+ * batch with a passed case red for a missing record always adds `lostBlock`'s lines to the output.
  */
 export async function recordCases(
   r: Recorder,
@@ -434,13 +443,17 @@ export async function recordCases(
       } catch (e) {
         listError = errText(e);
       }
-      const lost = p.timedOut || !counts ? [] : batch.filter((path) => !recorded.has(recordName(path)) && !failed.has(path) && !skipped.has(path));
+      // One lookup per case, before any extraction starts: the verdict and the lost list are both read
+      // from it, so a case red for a missing recording is always one the lost block names.
+      const found = new Map(batch.map((path) => [path, recorded.get(recordName(path)) ?? null]));
+      const reasons = new Map(batch.map((path) => [path, redReason({ failed: failed.has(path), recorded: found.get(path) !== null, skipped: skipped.has(path), timedOut: p.timedOut, counted: !!counts })]));
+      const lost = p.timedOut || !counts ? [] : batch.filter((path) => reasons.get(path) === NO_RECORDING);
       await pool(batch, o.jobs, async (path) => {
-        const got = recorded.get(recordName(path));
+        const got = found.get(path) ?? null;
         const ext = got ? await r.extract(got, [nvs]) : null;
         const keys: Keyed = new Map(parentKeys);
         for (const [k, d] of ext?.keys ?? []) keys.set(k, d);
-        const why = redReason({ failed: failed.has(path), recorded: !!got, skipped: skipped.has(path), timedOut: p.timedOut, counted: !!counts });
+        const why = reasons.get(path) ?? null;
         const verdict: Verdict = why === null ? "green" : "red";
         if (why !== null) result.reds.set(path, `${why} (batch ${index + 1}/${batches.length} of ${tree}: exit ${p.code}, ${p.stderr.length} byte(s) on stderr, ${recorded.size} recorded)`);
         r.record(caseId(path), caseDef(path, root), verdict, keys);
@@ -456,7 +469,8 @@ export async function recordCases(
           fresh = errText(e);
         }
         result.unrecorded.push(...lost);
-        result.out += lostBlock({ tree, index: index + 1, batches: batches.length, size: batch.length, lost, listed: recorded.size, listError, parent: !!parentRec, dir: dirState(dir), fresh });
+        const relooked = lost.filter((path) => recorded.has(recordName(path)));
+        result.out += lostBlock({ tree, index: index + 1, batches: batches.length, size: batch.length, lost, listed: recorded.size, listError, relooked, parent: !!parentRec, dir: dirState(dir), fresh });
       }
       done += batch.length;
       o.onBatch?.(done, cases.length);
