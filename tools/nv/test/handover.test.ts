@@ -1,10 +1,14 @@
 import { afterEach, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { SETTINGS } from "../driver/allow.ts";
 import {
   type GateConsole,
   HANDOVER_SUBJECT,
   LOOPER_ENV,
+  LOOPER_GUARD,
+  SETTINGS_SUBJECT,
+  admitLooper,
   awaitGate,
   currentPath,
   gateShut,
@@ -13,7 +17,9 @@ import {
   retireChain,
   startLooper,
   waitAndHandoverProblems,
+  withLooperGuard,
 } from "../driver/handover.ts";
+import { ROOT } from "../lib/paths.ts";
 import { scratch, type Scratch } from "./scratch.ts";
 
 let tmp: Scratch | undefined;
@@ -141,8 +147,8 @@ test("a wait gate whose program is looper runs the looper the handover would sta
   expect(calls(tmp)).toEqual(["import --dry-run"]);
 });
 
-/** A scratch repository with a chain of `goals`, each goal with its three files, all committed. */
-function repo(goals: string[]): { t: Scratch; git: (...args: string[]) => string } {
+/** A scratch repository with a chain of `goals`, each goal with its three files, and `extra`, all committed. */
+function repo(goals: string[], extra: Record<string, string> = {}): { t: Scratch; git: (...args: string[]) => string } {
   const t = scratch();
   const git = (...args: string[]) => {
     const r = Bun.spawnSync(["git", ...args], { cwd: t.root, stdout: "pipe", stderr: "pipe" });
@@ -161,6 +167,7 @@ function repo(goals: string[]): { t: Scratch; git: (...args: string[]) => string
     t.put(`docs/agent/goals/${g}.md`, `# ${g}\n`);
   }
   t.put("other.txt", "kept\n");
+  for (const [p, text] of Object.entries(extra)) t.put(p, text);
   git("add", ".");
   git("commit", "-q", "-m", "start");
   return { t, git };
@@ -198,10 +205,12 @@ function stubLooper(t: Scratch, exits: Record<string, [number, string]>): string
   t.put(
     "stub.ts",
     [
-      'import { appendFileSync, readFileSync } from "node:fs";',
+      'import { appendFileSync, existsSync, readFileSync } from "node:fs";',
       'import { join } from "node:path";',
       "const args = process.argv.slice(2);",
-      'appendFileSync(join(import.meta.dir, "calls.txt"), args.join(" ") + "\\n");',
+      'const settings = existsSync(".claude/settings.json") ? readFileSync(".claude/settings.json", "utf8") : "";',
+      'const admitted = settings.includes(\'"looper guard"\') && settings.includes("Bash(looper:*)") && settings.includes("PowerShell(looper:*)");',
+      'appendFileSync(join(import.meta.dir, "calls.txt"), args.join(" ") + (admitted ? " [admitted]" : "") + "\\n");',
       'const [code, said] = JSON.parse(readFileSync(join(import.meta.dir, "exits.json"), "utf8"))[args.slice(0, 2).join(" ")] ?? [0, ""];',
       "if (said) console.error(said);",
       "process.exit(code);",
@@ -212,25 +221,113 @@ function stubLooper(t: Scratch, exits: Record<string, [number, string]>): string
 
 const calls = (t: Scratch) => readFileSync(join(t.root, "calls.txt"), "utf8").trim().split("\n");
 
-test("the handover registers the project, adds looper's main loop and starts it", async () => {
-  tmp = scratch();
-  expect(await startLooper(tmp.root, stubLooper(tmp, {}))).toBe("");
-  expect(calls(tmp)).toEqual(["project add .", "loop add", "loop start"]);
+/** A settings file in the tree's own layout: one guard hook, a short allowlist, and a key the handover never reads. */
+const SETTINGS_TEXT = `{
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "Read|Bash|PowerShell", "hooks": [ { "type": "command", "command": "bun nv guard" } ] }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(bun nv verify:*)",
+      "PowerShell(bun nv verify:*)"
+    ]
+  },
+  "env": { "KEEP": "1" }
+}
+`;
+
+/** What the handover makes of `SETTINGS_TEXT`: two allow entries and the `looper guard` hook appended, every other byte kept. */
+const ADMITTED_TEXT = `{
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "Read|Bash|PowerShell", "hooks": [ { "type": "command", "command": "bun nv guard" } ] },
+      { "matcher": "Read|Bash|PowerShell", "hooks": [ { "type": "command", "command": "looper guard" } ] }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(bun nv verify:*)",
+      "PowerShell(bun nv verify:*)",
+      "Bash(looper:*)",
+      "PowerShell(looper:*)"
+    ]
+  },
+  "env": { "KEEP": "1" }
+}
+`;
+
+const settingsIn = (t: Scratch) => readFileSync(join(t.root, SETTINGS), "utf8");
+
+test("the handover adds looper's allow entries and guard hook once, keeps the bun nv guard hook, and commits the settings alone", async () => {
+  const { t, git } = repo([], { [SETTINGS]: SETTINGS_TEXT });
+  tmp = t;
+  // Another agent's edit in the same tree stays out of the commit.
+  t.put("other.txt", "edited\n");
+  expect(await admitLooper(t.root)).toBe("");
+  expect(settingsIn(t)).toBe(ADMITTED_TEXT);
+  expect(git("log", "-1", "--format=%s")).toBe(SETTINGS_SUBJECT);
+  expect(git("show", "--name-only", "--format=", "HEAD")).toBe(SETTINGS);
+  expect(git("status", "--porcelain")).toBe("M other.txt");
+  // A second call finds both in place, and changes and commits nothing.
+  expect(await admitLooper(t.root)).toBe("");
+  expect(settingsIn(t)).toBe(ADMITTED_TEXT);
+  expect(git("rev-list", "--count", "HEAD")).toBe("2");
+}, 60_000);
+
+test("the handover adds only what the settings lack", async () => {
+  const half = SETTINGS_TEXT.replace('"PowerShell(bun nv verify:*)"', '"PowerShell(bun nv verify:*)",\n      "Bash(looper:*)",\n      "PowerShell(looper:*)"');
+  const { t } = repo([], { [SETTINGS]: half });
+  tmp = t;
+  expect(await admitLooper(t.root)).toBe("");
+  expect(settingsIn(t)).toBe(ADMITTED_TEXT);
+}, 60_000);
+
+test("the looper guard hook goes into the tree's own settings file without losing an entry", () => {
+  const text = readFileSync(join(ROOT, SETTINGS), "utf8");
+  const before = JSON.parse(text);
+  const after = JSON.parse(withLooperGuard(text));
+  expect(after.hooks.PreToolUse.slice(0, -1)).toEqual(before.hooks.PreToolUse);
+  expect(after.hooks.PreToolUse.at(-1)).toEqual({ matcher: "Read|Bash|PowerShell", hooks: [{ type: "command", command: LOOPER_GUARD }] });
+  expect(after.permissions).toEqual(before.permissions);
 });
+
+test("an uncommitted edit to the settings holds the handover before looper runs, and is left as it is", async () => {
+  const { t, git } = repo([], { [SETTINGS]: SETTINGS_TEXT });
+  tmp = t;
+  const theirs = SETTINGS_TEXT.replace('"KEEP": "1"', '"KEEP": "2"');
+  t.put(SETTINGS, theirs);
+  const held = await startLooper(t.root, stubLooper(t, {}));
+  expect(held).toContain("has an uncommitted edit");
+  expect(existsSync(join(t.root, "calls.txt"))).toBe(false);
+  expect(settingsIn(t)).toBe(theirs);
+  expect(git("rev-list", "--count", "HEAD")).toBe("1");
+}, 60_000);
+
+test("the handover writes the settings, registers the project, adds looper's main loop and starts it, in that order", async () => {
+  const { t, git } = repo([], { [SETTINGS]: SETTINGS_TEXT });
+  tmp = t;
+  expect(await startLooper(t.root, stubLooper(t, {}))).toBe("");
+  expect(calls(t)).toEqual(["project add . [admitted]", "loop add [admitted]", "loop start [admitted]"]);
+  expect(git("log", "-1", "--format=%s")).toBe(SETTINGS_SUBJECT);
+}, 60_000);
 
 test("a main loop that already exists, or already runs, counts as started", async () => {
-  tmp = scratch();
+  const { t } = repo([], { [SETTINGS]: ADMITTED_TEXT });
+  tmp = t;
   const said: string[] = [];
-  const stub = stubLooper(tmp, { "loop add": [1, "error: Project mwl has a main loop already."], "loop start": [1, "error: the loop has a worker already."] });
-  expect(await startLooper(tmp.root, stub, undefined, (l) => said.push(l))).toBe("");
-  expect(calls(tmp)).toEqual(["project add .", "loop add", "loop start"]);
-  expect(said[1]).toContain("the start runs anyway");
-  expect(said[2]).toContain("the main loop runs already");
-});
+  const stub = stubLooper(t, { "loop add": [1, "error: Project mwl has a main loop already."], "loop start": [1, "error: the loop has a worker already."] });
+  expect(await startLooper(t.root, stub, undefined, (l) => said.push(l))).toBe("");
+  expect(calls(t)).toEqual(["project add . [admitted]", "loop add [admitted]", "loop start [admitted]"]);
+  expect(said[2]).toContain("the start runs anyway");
+  expect(said[3]).toContain("the main loop runs already");
+}, 60_000);
 
 test("a looper start that fails is the error the run holds on, naming what loop add said too", async () => {
-  tmp = scratch();
-  const failed = await startLooper(tmp.root, stubLooper(tmp, { "loop add": [1, "error: add refused"], "loop start": [2, "error: no server"] }));
+  const { t } = repo([], { [SETTINGS]: ADMITTED_TEXT });
+  tmp = t;
+  const failed = await startLooper(t.root, stubLooper(t, { "loop add": [1, "error: add refused"], "loop start": [2, "error: no server"] }));
   expect(failed).toContain("loop start` exited 2: error: no server");
   expect(failed).toContain("loop add` exited 1: error: add refused");
-});
+}, 60_000);

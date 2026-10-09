@@ -1488,7 +1488,8 @@ async function advance(state: RunState, from: string): Promise<Ended | null> {
 
 /**
  * The handover, once goal `slug`, which says `handover: "looper"`, is reached: the goal and the chain are
- * deleted and committed, and looper's main loop is started. `handing` is carried from before the first
+ * deleted and committed, `.claude/settings.json` takes looper's allow entries and guard hook, and
+ * looper's main loop is started (`startLooper`). `handing` is carried from before the first
  * deletion, so a turn after a hold that ended a failed attempt finishes the handover and never reads the
  * chain; it is dropped again when the chain was left whole. Returns `handed-over`, which ends the run, or
  * `handover-failed`, which holds it.
@@ -1508,7 +1509,7 @@ async function handOver(state: RunState, slug: string): Promise<Ended> {
   if (failed) {
     return end(
       "handover-failed",
-      `handover to looper: goal \`${slug}\` and ${CHAIN_FILE} are deleted and committed, and looper's main loop did not start -- ${failed}. Start it by hand (\`looper loop start\`), or fix what looper said and lift the hold to retry the start; this driver never runs a session again`,
+      `handover to looper: goal \`${slug}\` and ${CHAIN_FILE} are deleted and committed, and looper's main loop did not start -- ${failed}. Fix what it names and lift the hold to retry the settings and the start; this driver never runs a session again`,
     );
   }
   carry(state, { handing: "" });

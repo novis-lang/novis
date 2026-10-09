@@ -10,12 +10,17 @@
 // session to halt. A gate that opens lets the turn go on to its session as if it had never waited.
 //
 // **The handover.** A reached goal that says `handover: "looper"` is not switched from: the driver deletes
-// its prose, record and handoff record and `data/chain.json`, commits those paths alone, then runs `looper
-// project add .`, `looper loop add` and `looper loop start` in the tree. Only the start decides: the first
-// two are reported when they fail, and a start looper refuses with a message that the loop runs `already`
-// counts as started. The run then ends with a verdict `driver/respawn.ts` does not restart. A start that fails holds the run with looper's
-// error; the run carries `handing` in `.loop/run.json`, so the turn after a lifted hold retries the start
-// alone and never a session, since the chain it would read is gone.
+// its prose, record and handoff record and `data/chain.json`, commits those paths alone, then gives looper's
+// sessions their permissions: `.claude/settings.json` takes the allow entries `LOOPER_ALLOW` and a
+// PreToolUse hook that runs `looper guard`, beside every entry it has, the `bun nv guard` hook among them,
+// and is committed by that path alone. A session never edits its own permission file, so the driver does
+// it, and an uncommitted edit somebody else left there holds the run, as `allow.ts` leaves one alone. Then
+// it runs `looper project add .`, `looper loop add` and `looper loop start` in the tree. Only the start
+// decides: the first two are reported when they fail, and a start looper refuses with a message that the
+// loop runs `already` counts as started. The run then ends with a verdict `driver/respawn.ts` does not
+// restart. A settings step or a start that fails holds the run with its error; the run carries `handing`
+// in `.loop/run.json`, so the turn after a lifted hold retries the settings and the start alone and never
+// a session, since the chain it would read is gone. Each step skips what is in place already.
 //
 // **Which looper.** `NOVIS_LOOPER` names the looper to run, split on whitespace, which is how a test hands
 // it a stub. Otherwise it is `looper` on the `Path` the user's registry holds now, ahead of the one the run
@@ -31,6 +36,7 @@ import { dirname, join } from "node:path";
 import { goalFiles } from "../lib/chain.ts";
 import { ROOT } from "../lib/paths.ts";
 import { run as runProc, type RunResult } from "../lib/proc.ts";
+import { SETTINGS, withRules } from "./allow.ts";
 
 /** A goal's `waitFor`: the command, the text it must print and must not, and the minutes between two runs of it. */
 export interface WaitFor {
@@ -45,6 +51,12 @@ export const CHAIN_FILE = "data/chain.json";
 export const LOOPER_ENV = "NOVIS_LOOPER";
 /** The subject of the commit that hands the run to looper. */
 export const HANDOVER_SUBJECT = "chore(goals): the loop moves onto looper";
+/** The allow entries looper's sessions need, which the handover adds to `.claude/settings.json`. */
+export const LOOPER_ALLOW = ["Bash(looper:*)", "PowerShell(looper:*)"];
+/** The command of looper's PreToolUse hook, which the handover adds beside the `bun nv guard` hook. */
+export const LOOPER_GUARD = "looper guard";
+/** The subject of the commit that gives looper's sessions their permissions. */
+export const SETTINGS_SUBJECT = "build(loop): the allowlist and the guard hook take looper";
 
 const GATE_TIMEOUT_MS = 10 * 60 * 1000;
 const LOOPER_TIMEOUT_MS = 2 * 60 * 1000;
@@ -244,15 +256,106 @@ export async function retireChain(slug: string, root: string = ROOT, run: Run = 
   return "";
 }
 
+/** The index of the `]` or `}` that closes the bracket opened just before `from`, or -1. */
+function closingBracket(text: string, from: number): number {
+  let depth = 0;
+  for (let i = from; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === '"') {
+      for (i++; i < text.length && text[i] !== '"'; i++) if (text[i] === "\\") i++;
+    } else if (ch === "[" || ch === "{") depth++;
+    else if (ch === "]" || ch === "}") {
+      if (depth === 0) return i;
+      depth--;
+    }
+  }
+  return -1;
+}
+
+/**
+ * The settings text with a PreToolUse entry that runs `looper guard` appended to `hooks.PreToolUse`, on
+ * a line of its own in the one-line form the file's entries have, and every other byte kept.
+ */
+export function withLooperGuard(text: string): string {
+  const m = /"PreToolUse"\s*:\s*\[/.exec(text);
+  if (!m) throw new Error(`${SETTINGS} has no hooks.PreToolUse array`);
+  const open = m.index + m[0].length;
+  const close = closingBracket(text, open);
+  if (close < 0) throw new Error(`${SETTINGS} has a hooks.PreToolUse array that never closes`);
+  const lineStart = text.lastIndexOf("\n", m.index) + 1;
+  const outer = /^[ \t]*/.exec(text.slice(lineStart))![0];
+  const body = text.slice(open, close).trimEnd();
+  const entry = `{ "matcher": "Read|Bash|PowerShell", "hooks": [ { "type": "command", "command": ${JSON.stringify(LOOPER_GUARD)} } ] }`;
+  const joined = `${body.trim() === "" ? "" : `${body},`}\n${outer}  ${entry}\n${outer}`;
+  const out = text.slice(0, open) + joined + text.slice(close);
+  JSON.parse(out);
+  return out;
+}
+
+interface SettingsShape {
+  permissions?: { allow?: string[] };
+  hooks?: { PreToolUse?: { hooks?: { command?: string }[] }[] };
+}
+
+/**
+ * Gives looper's sessions their permissions: adds `LOOPER_ALLOW` and the `looper guard` hook to
+ * `.claude/settings.json` where it lacks them, keeping every other entry and the file's layout, and
+ * commits that path alone. Returns "" when the file has them, or why it does not. An uncommitted edit to
+ * the file is somebody's work, so it is left as it is and the reason says so.
+ */
+export async function admitLooper(root: string = ROOT, run: Run = runProc): Promise<string> {
+  const path = join(root, SETTINGS);
+  let text: string;
+  let settings: SettingsShape;
+  try {
+    text = readFileSync(path, "utf8");
+    settings = JSON.parse(text) as SettingsShape;
+  } catch (e) {
+    return `${SETTINGS} could not be read: ${(e as Error).message.split("\n")[0]}`;
+  }
+  const allow = settings.permissions?.allow ?? [];
+  const rules = LOOPER_ALLOW.filter((r) => !allow.includes(r));
+  const guarded = (settings.hooks?.PreToolUse ?? []).some((e) => (e.hooks ?? []).some((h) => h.command === LOOPER_GUARD));
+  if (rules.length === 0 && guarded) return "";
+  const diff = await run(["git", "diff", "--quiet", "HEAD", "--", SETTINGS], { cwd: root });
+  if (diff.code !== 0) return `${SETTINGS} has an uncommitted edit, so looper's allow entries and \`${LOOPER_GUARD}\` hook are not added to it; commit or discard that edit, then lift the hold`;
+  let next: string;
+  try {
+    next = withRules(text, rules);
+    if (!guarded) next = withLooperGuard(next);
+  } catch (e) {
+    return (e as Error).message.split("\n")[0]!;
+  }
+  writeFileSync(path, next);
+  const msg = join(root, ".agent-tmp", "handover-settings-msg.txt");
+  mkdirSync(dirname(msg), { recursive: true });
+  const added = [...rules.map((r) => `\`${r}\``), ...(guarded ? [] : [`the \`${LOOPER_GUARD}\` hook`])];
+  writeFileSync(msg, `${SETTINGS_SUBJECT}\n\nAdded by the loop's driver as it hands the run to looper: ${added.join(", ")}.\n`);
+  try {
+    const committed = await run(["git", "commit", "-q", "-F", msg, "--only", "--", SETTINGS], { cwd: root });
+    if (committed.code !== 0) {
+      writeFileSync(path, text);
+      return `the commit of ${SETTINGS} failed: ${firstLine(committed)}`;
+    }
+  } finally {
+    rmSync(msg, { force: true });
+  }
+  return "";
+}
+
 /** Looper's refusal of something that is in place already: a project, a loop, or a loop that runs. */
 const ALREADY = /\balready\b/i;
 
 /**
- * `looper project add .`, `looper loop add`, then `looper loop start`, in the tree. Returns "" once the
- * start has passed, or looper refused it because the loop runs already. Otherwise returns the error that
- * holds the run, which names what each earlier step said when it failed too.
+ * `admitLooper`, then `looper project add .`, `looper loop add` and `looper loop start`, in the tree.
+ * Returns "" once the start has passed, or looper refused it because the loop runs already. Otherwise
+ * returns the error that holds the run: the settings step's, before looper runs at all, or the start's,
+ * which names what each earlier looper step said when it failed too.
  */
 export async function startLooper(root: string = ROOT, looper: string[] = looperArgv(), run: Run = runProc, say: (line: string) => void = () => {}): Promise<string> {
+  const admitted = await admitLooper(root, run);
+  if (admitted) return admitted;
+  say(`looper: ${SETTINGS} has looper's allow entries and the \`${LOOPER_GUARD}\` hook`);
   const call = async (...words: string[]) => {
     const argv = [...looper, ...words];
     try {
