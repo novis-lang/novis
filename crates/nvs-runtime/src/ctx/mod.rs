@@ -1639,7 +1639,10 @@ impl Drop for Ctx {
         // child still running holds its working directory and whatever it has
         // open, so on Windows it is what makes the sweep's deletion fail, and
         // it is also the one resource whose release is a *kill* rather than a
-        // close. [`HeldChild`]'s `Drop` is that kill.
+        // close. [`HeldChild`]'s `Drop` is that kill. A child the program left
+        // running without a `wait()` or a `kill()` is reported first, and
+        // `Ctx::end_abandoned_children` owns why.
+        self.end_abandoned_children();
         drop(std::mem::take(&mut self.spawned_children));
         crate::sweep::at_script_end(self);
         // A failure that ended the request still owns its exception object,

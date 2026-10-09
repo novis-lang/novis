@@ -326,7 +326,8 @@ const SPAWN_DOC: MethodDoc = MethodDoc {
         TIMEOUT_DOC,
     ],
     ret: "A `Core\\Process\\Handle` for the running program. Other requests keep running while this \
-          one waits on the handle. The program is stopped when the request that started it ends.",
+          one waits on the handle. Call `wait` or `kill` on it before your script or request \
+          ends. A program that is still running then is stopped, and Novis reports an error.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
@@ -375,11 +376,15 @@ const HANDLE_PATH_SLOT: usize = 1;
 /// this class's own is *which* table: a child is filed against the task, and
 /// [`nvs_runtime::HeldChild`]'s `Drop` **kills** it, so a handle the program
 /// stops reading from leaves no process behind. A descriptor is given back when
-/// a request ends; a child has to be ended.
+/// a request ends; a child has to be ended. A child still running then that the
+/// program never called `wait()` or `kill()` on is also reported as an error,
+/// by [`nvs_runtime::Ctx::end_abandoned_children`].
 ///
 /// **What it spends:** one object allocation of two slots, plus the handle and
 /// up to three pipes [`nvs_runtime::Ctx::hold_spawned_child`] accounts for —
-/// O(children in flight), charged to the task that spawned them.
+/// O(children in flight), charged to the task that spawned them. The error
+/// adds one flag and a copy of the program's path per child, and one
+/// `try_wait` per child still held when the task ends.
 pub(crate) const HANDLE: CoreClass = CoreClass {
     name: HANDLE_NAME,
     doc: Some(&HANDLE_CARD),
@@ -448,8 +453,8 @@ const HANDLE_CARD: ClassDoc = ClassDoc {
     short: "A program that `Core\\Process::spawn` started and that may still be running. \
             `readStdout` and `readStderr` read its output a part at a time, and `writeStdin` \
             writes to its input. `wait` waits for the end and returns a `Core\\Process\\Result`, \
-            and `kill` stops the program at once. A program that is still running when the \
-            request ends is stopped.",
+            and `kill` stops the program at once. Call one of them before your script or request \
+            ends. A program that is still running then is stopped, and Novis reports an error.",
 };
 
 /// `Core\Process\Handle::readStdout`'s reference card — `rule:core-api/reference-card`.
@@ -547,8 +552,9 @@ const HANDLE_WAIT_DOC: MethodDoc = MethodDoc {
 /// `Core\Process\Handle::kill`'s reference card — `rule:core-api/reference-card`.
 const HANDLE_KILL_DOC: MethodDoc = MethodDoc {
     short: "Stops the program at once, whatever it is doing. If the program has already ended, \
-            `kill` does nothing and throws no error. A program that nobody stops is stopped when \
-            the request that started it ends.",
+            `kill` does nothing and throws no error. Call `kill` or `wait` before your script or \
+            request ends. A program that is still running then is stopped, and Novis reports an \
+            error.",
     params: &[],
     ret: "Nothing. Call `wait` afterwards to get the exit code. It is not `0` for a program that \
           was stopped.",
@@ -1214,6 +1220,7 @@ nvs_runtime::nvs_helper! {
         )?;
         let mut held = HeldChild::new(child);
         held.deadline = options.until();
+        program.clone_into(&mut held.program);
         held.spawn_event = ctx.open_spawn(nvs_runtime::SpawnForm::Process);
         let key = ctx.hold_spawned_child(held);
         #[expect(
@@ -1468,6 +1475,9 @@ nvs_runtime::nvs_helper! {
                 "{HANDLE_NAME}::wait was asked of a child this task does not hold"
             )));
         };
+        // The program called `wait()`, so the end of the program does not
+        // report this child — `nvs_runtime::Ctx::end_abandoned_children`.
+        held.settled = true;
         let open = held.spawn_event.take();
         let (held, drained) = nvs_host::blocking::run(move || {
             let mut held = held;
@@ -2098,7 +2108,7 @@ mod tests {
         }
     }
 
-    /// `rule:core-classes/process-spawn`'s "a child still running when its task ends is killed",
+    /// `rule:core-classes/process-spawn`'s "one still running then is killed and reaped",
     /// which is the half of the rule no program can observe and every operator eventually does.
     ///
     /// The observation is the child's own output pipe, taken out of the table before the context
@@ -2147,6 +2157,130 @@ mod tests {
                 "the child outlived the task that spawned it: its output pipe never reached its \
                  end, so something is still running that nothing is charged for",
             );
+    }
+
+    /// The child's output pipe, taken out of the table so its end can be watched, and a channel
+    /// that is told when that end is reached — the observation
+    /// [`a_spawned_child_is_killed_when_its_task_ends`] makes, for a child still in the table.
+    fn watch_stdout(ctx: &mut Ctx, handle: Value) -> std::sync::mpsc::Receiver<()> {
+        let (key, _path) = super::handle_of(handle, "test").expect("`spawn` answered a handle");
+        let pipe = ctx
+            .spawned_child_mut(key)
+            .expect("the child is this context's")
+            .stdout
+            .take()
+            .expect("the door pipes all three of a child's streams");
+        let (done, ended) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let mut sink = Vec::new();
+            let mut pipe = pipe;
+            let _ = pipe.read_to_end(&mut sink);
+            let _ = done.send(());
+        });
+        ended
+    }
+
+    /// `rule:core-classes/process-spawn`'s error, on a context answering a request, which is
+    /// where a request under `nvs serve` ends: a child still running that the program never
+    /// waited for or killed is stopped, and the request's log gets one `error` record stamped
+    /// with that request's id and naming the program. Nothing is reported twice.
+    #[test]
+    fn a_child_left_running_is_stopped_and_logged_as_an_error_of_its_request() {
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(granting("[capabilities.process]\nexec = true\n"));
+        ctx.set_diagnostic_sink(nvs_runtime::OutputSink::Buffer(Vec::new()));
+        ctx.set_inbound(nvs_runtime::Inbound::new("GET", "/jobs", ""));
+        let request = ctx.trace_context().trace_id_hex();
+        let handle = spawn_on(&mut ctx, SLEEPER);
+        let ended = watch_stdout(&mut ctx, handle);
+        #[expect(
+            unsafe_code,
+            reason = "this scope owns the handle `spawn` built, and the child itself is \
+                      the context's rather than the handle's"
+        )]
+        unsafe {
+            handle.release();
+        }
+
+        assert!(
+            ctx.end_abandoned_children(),
+            "a child the program never waited for or killed was still running, and nothing was \
+             reported"
+        );
+        ended
+            .recv_timeout(std::time::Duration::from_secs(10))
+            .expect("the child was reported but is still running");
+        let line = String::from_utf8(
+            ctx.take_buffered_diagnostic()
+                .expect("a buffered channel hands its bytes back"),
+        )
+        .expect("a JSON Lines line is text");
+        let doc: serde_json::Value =
+            serde_json::from_str(line.trim_end()).expect("the floor writes one JSON object");
+        let me = std::env::current_exe().expect("a test binary knows its own path");
+        assert_eq!(doc["level"].as_str(), Some("error"), "{line}");
+        assert_eq!(
+            doc["request_id"].as_str(),
+            Some(request.as_str()),
+            "the record is not the request's: {line}"
+        );
+        assert_eq!(doc["fields"]["program"].as_str(), me.to_str(), "{line}");
+        assert!(
+            doc["msg"]
+                .as_str()
+                .is_some_and(|msg| msg.contains("`wait()` or `kill()`")),
+            "the message does not say what to call: {line}"
+        );
+        assert!(
+            !ctx.end_abandoned_children(),
+            "a child already stopped and reported was reported again"
+        );
+    }
+
+    /// The other side of [`a_child_left_running_is_stopped_and_logged_as_an_error_of_its_request`]:
+    /// a child the program killed and never waited for, one it waited for, and one that exited by
+    /// itself are none of them an error, because the end of the program cut none of them off.
+    #[test]
+    fn a_killed_waited_or_finished_child_is_no_error_at_the_end() {
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(granting("[capabilities.process]\nexec = true\n"));
+        ctx.set_diagnostic_sink(nvs_runtime::OutputSink::Buffer(Vec::new()));
+        let quick = &["--exact", "process::tests::no_test_has_this_name"];
+
+        let killed = spawn_on(&mut ctx, SLEEPER);
+        nvs_runtime::call(super::nvs_core_process_handle_kill, &mut ctx, &[killed])
+            .expect("a live child is one the operating system will end");
+        let waited = spawn_on(&mut ctx, quick);
+        let result = nvs_runtime::call(super::nvs_core_process_handle_wait, &mut ctx, &[waited])
+            .expect("a child that ends by itself is one to be waited for");
+        let finished = spawn_on(&mut ctx, quick);
+        let ended = watch_stdout(&mut ctx, finished);
+        ended
+            .recv_timeout(std::time::Duration::from_secs(10))
+            .expect("a child that runs no test ends by itself");
+        // The end of the output comes a moment before the end of the process.
+        std::thread::sleep(std::time::Duration::from_millis(500));
+
+        assert!(
+            !ctx.end_abandoned_children(),
+            "a child the program settled, or one that ended by itself, was reported"
+        );
+        assert_eq!(
+            ctx.take_buffered_diagnostic().as_deref(),
+            Some(&[][..]),
+            "nothing was cut off, so nothing is written"
+        );
+        #[expect(
+            unsafe_code,
+            reason = "this scope owns the three handles `spawn` built and the result `wait` \
+                      answered with"
+        )]
+        unsafe {
+            result.release();
+            killed.release();
+            waited.release();
+            finished.release();
+        }
     }
 
     /// `rule:core-classes/process-refuses-a-shell-target`, driven through the door [`super::nvs_core_process_run`] calls, on a context

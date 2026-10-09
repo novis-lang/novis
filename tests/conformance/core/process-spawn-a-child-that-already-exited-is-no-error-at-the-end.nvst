@@ -1,0 +1,29 @@
+--TEST--
+A child that exited by itself before the program ended is no error, even though the program never called `wait()` or `kill()` on it: the end of the program cut nothing off — `rule:core-classes/process-spawn`
+--FILE--
+<?nvs
+// covers: Core\Process::spawn
+// The child prints one line and exits. The program reads its output to the
+// end and then gives it time to exit, because the end of the output comes a
+// moment before the end of the process. The run has to exit with 0.
+
+string $path = "/bin/echo";
+array<string> $arguments = ["done"];
+if (Core\Path::SEPARATOR == "\\") {
+    $path = "C:\\Windows\\System32\\cmd.exe";
+    $arguments = ["/c", "echo done"];
+}
+Core\Process\Handle $child = Core\Process::spawn($path, $arguments);
+string $said = "";
+?bytes $part = $child->readStdout();
+while ($part != null) {
+    $said = $said . ($part as string);
+    $part = $child->readStdout();
+}
+Core\Time::sleep(500ms);
+echo Core\Str::trim($said), "\n";
+--FILE nvs.toml--
+[capabilities.process]
+exec = true
+--EXPECT--
+done

@@ -1,0 +1,28 @@
+--TEST--
+A child the program waited for, and a child it killed and never waited for, end the program without an error, because the program decided how each one ended — `rule:core-classes/process-spawn`
+--FILE--
+<?nvs
+// covers: Core\Process::spawn
+// Both children read their input to the end and would run until the program
+// stops them. The first one is waited for, which closes its input so it ends
+// by itself. The second one is killed and never waited for. The case states no
+// error expectation, so the run has to exit with 0.
+
+string $path = "/bin/cat";
+if (Core\Path::SEPARATOR == "\\") {
+    $path = "C:\\Windows\\System32\\sort.exe";
+}
+
+Core\Process\Handle $waited = Core\Process::spawn($path, []);
+Core\Process\Result $done = $waited->wait();
+echo "waited exit=", $done->exitCode(), "\n";
+
+Core\Process\Handle $killed = Core\Process::spawn($path, []);
+$killed->kill();
+echo "killed\n";
+--FILE nvs.toml--
+[capabilities.process]
+exec = true
+--EXPECT--
+waited exit=0
+killed

@@ -3626,6 +3626,7 @@ fn run_run(
     // failure, reported as the fatal it is rather than unwinding out of `main`.
     if let Err(panic) = finished.outcome {
         eprintln!("FATAL: {}", panic.message());
+        ctx.end_abandoned_children();
         return ExitCode::FAILURE;
     }
 
@@ -3634,7 +3635,7 @@ fn run_run(
         return ExitCode::FAILURE;
     };
 
-    match outcome {
+    let code = match outcome {
         Ok(_) => ExitCode::SUCCESS,
         // `exit`/`exit(n)` ended the program the way it meant to, so the
         // status it named becomes this process's and nothing is reported —
@@ -3655,7 +3656,16 @@ fn run_run(
             eprintln!("FATAL: {}", ctx.take_thrown().message());
             ExitCode::FAILURE
         }
+    };
+    // `rule:core-classes/process-spawn`: a process the script started and left
+    // running without a `wait()` or a `kill()` is stopped here and reported as
+    // an error. After the report of how the script ended, so an uncaught throw
+    // or a `FATAL` comes first, and here rather than in the context's `Drop` so
+    // the run exits with `1`, as it does for an uncaught throw.
+    if ctx.end_abandoned_children() {
+        return ExitCode::FAILURE;
     }
+    code
 }
 
 /// Runs a tree of `.nvst` cases and turns the summary into an exit code.

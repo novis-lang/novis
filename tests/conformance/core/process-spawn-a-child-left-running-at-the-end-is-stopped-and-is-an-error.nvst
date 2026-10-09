@@ -1,0 +1,23 @@
+--TEST--
+A child `Core\Process::spawn` started is stopped when the program ends, and one still running that the program never waited for or killed is an error on standard error that fails the run — `rule:core-classes/process-spawn`
+--FILE--
+<?nvs
+// covers: Core\Process::spawn
+// The child reads its input to the end, and the program holds that input open,
+// so it is still running when the last statement returns. Nothing catches the
+// error: the program has already ended, so it is reported the way an uncaught
+// throw is, after everything the program printed, and the run exits with 1.
+
+string $path = "/bin/cat";
+if (Core\Path::SEPARATOR == "\\") {
+    $path = "C:\\Windows\\System32\\sort.exe";
+}
+Core\Process\Handle $child = Core\Process::spawn($path, []);
+echo "started\n";
+--FILE nvs.toml--
+[capabilities.process]
+exec = true
+--EXPECT--
+started
+--EXPECTF-ERROR--
+{"level":"error","msg":"A process started with `Core\\Process::spawn` was still running when the program ended, so it was stopped. Call `wait()` or `kill()` on its handle before the program ends.","fields":{"program":"%s"}}

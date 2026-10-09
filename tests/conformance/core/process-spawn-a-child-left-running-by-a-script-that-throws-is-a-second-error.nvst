@@ -1,0 +1,21 @@
+--TEST--
+A script that ends with an uncaught throw while a child it never waited for is still running reports both errors, the throw first and the child after it — `rule:core-classes/process-spawn`
+--FILE--
+<?nvs
+// covers: Core\Process::spawn
+// The throw ends the program, and the child is still reading its input. The
+// throw is reported first because it ended the program. The child is stopped
+// after that, and its error follows on the next line.
+
+string $path = "/bin/cat";
+if (Core\Path::SEPARATOR == "\\") {
+    $path = "C:\\Windows\\System32\\sort.exe";
+}
+Core\Process\Handle $child = Core\Process::spawn($path, []);
+throw new RuntimeError("the script fails while its child runs");
+--FILE nvs.toml--
+[capabilities.process]
+exec = true
+--EXPECTF-ERROR--
+{"level":"error","msg":"the script fails while its child runs","fields":{"class":"RuntimeError"},"nodes":[{"function":"<script>","file":"case.nvs","line":%d}]}
+{"level":"error","msg":"A process started with `Core\\Process::spawn` was still running when the program ended, so it was stopped. Call `wait()` or `kill()` on its handle before the program ends.","fields":{"program":"%s"}}

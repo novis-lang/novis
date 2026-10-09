@@ -108,11 +108,13 @@ pub trait HeldReader: std::fmt::Debug + std::any::Any {
 /// `Core\Process\Handle`'s members read and write through.
 ///
 /// **A child never outlives the task that started it** —
-/// `rule:core-classes/process-spawn`, and this type's [`Drop`] is the whole of
-/// the mechanism: the child is killed and then reaped, so a handle the program
-/// stopped reading from leaves neither a running process nor a zombie entry in
-/// the operating system's table behind it. A bare [`std::process::Child`] drops
-/// without doing either, which is why the table holds this and not the child.
+/// `rule:core-classes/process-spawn`. This type's [`Drop`] is the kill: the
+/// child is killed and then reaped, so a handle the program stopped reading
+/// from leaves neither a running process nor a zombie entry in the operating
+/// system's table behind it. A bare [`std::process::Child`] drops without doing
+/// either, which is why the table holds this and not the child. The report that
+/// rule makes of a child cut off this way is [`Ctx::end_abandoned_children`]'s,
+/// which runs before the drop and leaves it nothing to kill.
 ///
 /// A pipe is taken out for the length of one read or write and put back
 /// afterwards, because the read happens on the blocking pool and
@@ -149,6 +151,15 @@ pub struct HeldChild {
     /// member reads it before it touches the child, and one that parks reads
     /// it again for as long as it is parked.
     pub deadline: Option<std::time::Instant>,
+    /// Whether the program has called `wait()` or `kill()` on this child's
+    /// handle. [`HeldChild::kill`] sets it, and so does the `wait` member.
+    /// [`Ctx::end_abandoned_children`] reads it: a child still running at the
+    /// end of the program with this unset is the error
+    /// `rule:core-classes/process-spawn` names.
+    pub settled: bool,
+    /// The path the child was started on, which that error names. Empty for a
+    /// child started by something other than `Core\Process::spawn`.
+    pub program: String,
 }
 
 impl HeldChild {
@@ -163,6 +174,8 @@ impl HeldChild {
             exited: None,
             spawn_event: None,
             deadline: None,
+            settled: false,
+            program: String::new(),
             child: Some(child),
         }
     }
@@ -187,6 +200,7 @@ impl HeldChild {
     ///
     /// Whatever the operating system said about the signal.
     pub fn kill(&mut self) -> std::io::Result<bool> {
+        self.settled = true;
         let Some(child) = self.child.as_mut() else {
             return Ok(false);
         };
@@ -429,6 +443,58 @@ impl Ctx {
         if let Some(slot) = self.spawned_children.get_mut(index) {
             *slot = Some(child);
         }
+    }
+
+    /// Ends every child this task holds that is still running although the
+    /// program never called `wait()` or `kill()` on its handle, reports each one
+    /// as an error, and answers whether there was one —
+    /// `rule:core-classes/process-spawn`.
+    ///
+    /// A child that already exited on its own is not reported, and neither is
+    /// one [`HeldChild::settled`] says the program waited for or killed: the
+    /// error is a process the end of the program cut off. A child a `wait` has
+    /// taken out of the table is skipped too, since the program did call it.
+    ///
+    /// The record goes through [`crate::floor::report`], so it reaches what
+    /// every floor record reaches: standard error for `nvs run`, and the
+    /// request's log, stamped with its ids, for a served request. `nvs run`
+    /// calls this itself, after it reports how the script ended, so it can also
+    /// set the exit code; every other context reaches it from its own `Drop`.
+    ///
+    /// **What it spends:** one `try_wait` per child still in the table, once,
+    /// when the task ends, and nothing for a task that spawned none.
+    pub fn end_abandoned_children(&mut self) -> bool {
+        let mut abandoned = Vec::new();
+        for held in self.spawned_children.iter_mut().flatten() {
+            if held.settled {
+                continue;
+            }
+            let Some(child) = held.child.as_mut() else {
+                continue;
+            };
+            if !matches!(child.try_wait(), Ok(None)) {
+                continue;
+            }
+            // Killed and reaped here rather than in the drop, so the record
+            // below is only written once the process is gone.
+            let _ = held.kill();
+            let _ = held.reap();
+            abandoned.push(std::mem::take(&mut held.program));
+        }
+        for program in &abandoned {
+            let mut record = crate::floor::note(
+                nvs_render::Level::Error,
+                "A process started with `Core\\Process::spawn` was still running when the \
+                 program ended, so it was stopped. Call `wait()` or `kill()` on its handle \
+                 before the program ends.",
+            );
+            record
+                .envelope
+                .fields
+                .push(("program".to_owned(), crate::floor::text(program)));
+            crate::floor::report(self, &record);
+        }
+        !abandoned.is_empty()
     }
 
     /// How many children this task is still holding, live or reaped — what
