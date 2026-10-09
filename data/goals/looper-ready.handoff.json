@@ -1,27 +1,26 @@
 {
-  "state": "**Goal `looper-ready`, Stages 2 to 4 are done; Stage 5 is next.** `bun nv sweep` is `tools/nv/cmd/sweep.ts`: `afterSession` holds the floor gate's cadence (`FLOOR_GATE_EVERY`, `HEAVY_FULL_EVERY` and their meta keys moved there), the full run, the scoped and open sweeps, the bench turn, the disk and the goal-end gates, and writes or removes `.loop/last-sweep.md`; `serve()` in `tools/nv/cmd/loop.ts` calls it with a `SweepVoice` over the console. The gates module moved out of the driver to `tools/nv/accept/gates.ts`, since a command may not import `driver/`. The boundary test's *the session hooks have one home* is written and passes. Every Stage 4 check passes by hand.\n\nThe user's calls are the goal file's § *Standing decisions*. `bun test -t <regex>` that matches no test exits 0, so every check asks for the exact `Ran N tests across 1 file` line. The goal prose still cites stale `cmd/loop.ts`, `driver/gates.ts` and `driver/allow.ts` anchors; the code is in `cmd/sweep.ts`, `accept/gates.ts` and `cmd/allow.ts` now.",
+  "state": "**Goal `looper-ready`, Stages 2 to 4 are done; Stage 5 is two thirds in.** `lib/written.ts` appends each path to the ledger `NOVIS_LOOP_WRITES` names and to the one `LOOPER_WRITTEN` (`LOOPER_ENV`) names, and `test/written.test.ts` passes. `bun nv plan --apply <wrap-file | -> [--dry]` is in `tools/nv/cmd/plan.ts`: `planChecks` (the plan, plan-edit and milestone arms of `validate`, with the side-run refusal), `writeField`, `applyPlan`, `applyPlanEdit`, `applyMilestone` and `apply` moved there, and `nv session --wrap` calls them. The wrap-file parser (`Section`, `parseWrap`, `parseEdits`, `normalize`, `inOrder`) is `tools/nv/lib/wrap.ts`, so `plan.ts` and `session.ts` share it without importing each other. Every plan reader and writer takes a `root`, which is how `test/plan-apply.test.ts` runs over a scratch tree, and its three titles pass. `decision-records-retired`'s `session.ts` and `plan.ts` anchors are rewritten to the new lines. Its `orient.ts` anchors move with the pack slice.\n\nThe user's calls are the goal file's § *Standing decisions*. `bun test -t <regex>` that matches no test exits 0, so every check asks for the exact `Ran N tests across 1 file` line. The goal prose still cites stale `cmd/loop.ts`, `driver/gates.ts`, `driver/allow.ts` and `session.ts` line anchors. The code is in `cmd/sweep.ts`, `accept/gates.ts`, `cmd/allow.ts` and `cmd/plan.ts` now.",
   "next": {
     "stage": 5,
     "title": "the wrap sections, the pack sections and the written paths",
     "files": [],
-    "note": "one file set: `tools/nv/cmd/session.ts`, `tools/nv/cmd/plan.ts`, `tools/nv/cmd/orient.ts`, new `tools/nv/cmd/pack.ts`, `tools/nv/lib/written.ts`, `tools/nv/main.ts`, `tools/nv/test/`.",
+    "note": "one file set: `tools/nv/cmd/orient.ts`, new `tools/nv/cmd/pack.ts`, `tools/nv/main.ts`, `tools/nv/test/`, `docs/agent/goals/decision-records-retired.md`.",
     "items": [
       {
         "done": false,
-        "text": "**`lib/written.ts` writes `LOOPER_WRITTEN` too**: each path is appended to the file `NOVIS_LOOP_WRITES` names and to the one `LOOPER_WRITTEN` names, each only when set (`tools/nv/lib/written.ts:9`). Test `test/written.test.ts` under the titles its Stage 5 check names. Specified by the goal's Stage 5 section."
+        "text": "**`bun nv pack`**: `manifest` (`tools/nv/cmd/orient.ts:348`) and `runRules` (`tools/nv/cmd/orient.ts:719`), `runAdrs`, `runMap`, `runShapes`, `runPlan`, `runMilestones` and `runNumbers` move to new `tools/nv/cmd/pack.ts`, and `orient` calls them there. TRAPS stays in `orient`. `pack` is registered in `tools/nv/main.ts:73`. The goal is `--goal`, else `LOOPER_GOAL` (`LOOPER_GOAL_ENV`, `tools/nv/lib/chain.ts:25`), else the live goal; the stage is `--stage`, else `LOOPER_STAGE`, else the handoff's next stage. Test `test/pack.test.ts` under its check's three titles. Rewrite the `orient.ts` anchors at `docs/agent/goals/decision-records-retired.md:187` to the new file and lines. Specified by the goal's Stage 5 section."
       },
       {
         "done": false,
-        "text": "**`bun nv plan --apply`**: `writeField`, `applyPlan`, `applyPlanEdit`, `applyMilestone` (`tools/nv/cmd/session.ts:1324-1365`) move to `tools/nv/cmd/plan.ts`, and `applyWrap` (`tools/nv/cmd/session.ts:1566`) calls them there; the plan arms of `validate` run under `--apply`, and a side worktree is still refused. Test `test/plan-apply.test.ts`. Specified by the goal's Stage 5 section."
+        "text": "**The wrap and orient sections have one home**: a test in `tools/nv/test/driver-boundary.test.ts:1` under that title fails while any moved function is defined in `cmd/session.ts` or `cmd/orient.ts`, or while `main.ts` does not register `pack`. Specified by the goal's Stage 5 section."
       },
       {
         "done": false,
-        "text": "**`bun nv pack`**: `manifest` (`tools/nv/cmd/orient.ts:348`) and the `run*` sections from `runRules` (`tools/nv/cmd/orient.ts:719`) on move to new `tools/nv/cmd/pack.ts`; TRAPS stays in `orient`. Register `pack` in `tools/nv/main.ts`, rewrite goal `decision-records-retired`'s anchors into the moved code, and add *the wrap and orient sections have one home* to `tools/nv/test/driver-boundary.test.ts`. Test `test/pack.test.ts`. Specified by the goal's Stage 5 section."
+        "text": "**Stage 6, the runbook names the commands**: `docs/agent/looper-cutover.md:1` hook table and `docs/agent/commands.md:1` brought to the commands as built (`plan --apply` takes `--dry`), and *every command the cutover runbook names is registered* in `tools/nv/test/driver-boundary.test.ts:1`. Specified by the goal's Stage 6 section."
       }
     ]
   },
   "backlog": [
-    "Stage 6: the runbook's hook table and `docs/agent/commands.md` name `bun nv sweep [--goal] [--done] [--keep-runs] [--session]` and the other new commands, and the boundary test reads the table (goal Stage 6 section).",
-    "The goal prose's stale anchors for the moved code, rewritten when the goal next needs them (`docs/agent/goals/looper-ready.md`)."
+    "The goal prose's stale anchors (`cmd/loop.ts`, `driver/gates.ts`, `driver/allow.ts`, `session.ts` lines) — `docs/agent/goals/looper-ready.md`, rewrite when Stage 6 touches the runbook."
   ]
 }
