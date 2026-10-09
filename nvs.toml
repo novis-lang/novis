@@ -1201,6 +1201,50 @@ entry = "benches/members/core/Ldap-Connection/delete.nvs"
 [app.capabilities.ldap]
 connect = ["corp-accounts"]
 
+# The proof programs of `Core\Ldap\LdapError` and of `Core\Ldap`'s enums read `[ldap.corp]`, and are
+# granted that one block. Their attack fails on purpose and writes nothing.
+[[app]]
+root = "docs/examples/types/Ldap-LdapError"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+root = "tests/hostile/types/Ldap-LdapError"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+root = "docs/examples/types/Ldap-ErrorKind"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+root = "docs/examples/types/Ldap-Scope"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+root = "docs/examples/types/Ldap-Ad-AccountType"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+# `Core\Ldap\Tls`'s example opens the test server's plain `ldap://` port on loopback, so it is granted
+# that one host for `open` and for `cleartext`, and `net.internal` lets the address through.
+[[app]]
+root = "docs/examples/types/Ldap-Tls"
+
+[app.capabilities.ldap]
+open = ["127.0.0.1"]
+cleartext = ["127.0.0.1"]
+
+[app.capabilities.net]
+internal = ["127.0.0.1"]
+
 # `Core\Db\Column`'s proof programs, granted the same way and for the same reason: a description is
 # read off a statement, so every one of these opens `[db.notes]` by name and asks for nothing else.
 [[app]]
