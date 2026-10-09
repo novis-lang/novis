@@ -123,12 +123,26 @@ const SPAWN_MEMBER: &str = "Core\\Process::spawn";
 
 /// How much one [`nvs_core_process_handle_read_stdout`] takes at a time.
 ///
-/// A syscall-count choice and not a footprint one: the buffer is this call's
-/// own and what comes back is a `bytes` the size of what was actually read, so
-/// a bigger number costs nothing a child that writes little ever pays. Larger
-/// than a pipe's own buffer on every platform this runs on, so a chunk is one
-/// read rather than a loop.
+/// A syscall-count choice and not a footprint one: what comes back is a
+/// `bytes` the size of what was actually read, and the buffer the read lands in
+/// is [`READ_BUFFER`], so a bigger number costs nothing a child that writes
+/// little ever pays. Larger than a pipe's own buffer on every platform this
+/// runs on, so a chunk is one read rather than a loop.
 const CHUNK: usize = 64 * 1024;
+
+std::thread_local! {
+    /// The [`CHUNK`]-byte buffer [`chunk_of`] reads into, one per thread that
+    /// reads a child's pipe.
+    ///
+    /// **Spends `CHUNK` bytes per such thread**, held for the thread's life and
+    /// not per request, to buy a read that neither allocates nor zeroes `CHUNK`
+    /// bytes on every call: a child that writes a line at a time is read a line
+    /// at a time, and the zeroing was most of what such a read cost. Only the
+    /// bytes the read just wrote are ever copied out, so what an earlier read
+    /// left in the rest of the buffer is never seen by any caller.
+    static READ_BUFFER: std::cell::RefCell<Box<[u8]>> =
+        std::cell::RefCell::new(vec![0u8; CHUNK].into_boxed_slice());
+}
 
 /// The registry row. See [`crate::registry::CLASSES`].
 pub(crate) const CLASS: CoreClass = CoreClass {
@@ -1356,13 +1370,11 @@ fn off_core<T: Send + 'static>(
     done.ok_or_else(|| timed_out(&format!("{HANDLE_NAME}::{member}")))
 }
 
-/// One chunk off a child's pipe, read where [`off_core`] runs it.
+/// One chunk off a child's pipe, read where [`off_core`] runs it, into this
+/// thread's [`READ_BUFFER`] and copied out at the size the read returned.
 fn chunk_of<R: Read>(mut pipe: R) -> (R, std::io::Result<Vec<u8>>) {
-    let mut held = vec![0u8; CHUNK];
-    let read = pipe.read(&mut held).map(|read| {
-        held.truncate(read);
-        held
-    });
+    let read =
+        READ_BUFFER.with_borrow_mut(|buffer| pipe.read(buffer).map(|read| buffer[..read].to_vec()));
     (pipe, read)
 }
 
@@ -1548,9 +1560,27 @@ mod tests {
     use crate::registry;
 
     use super::{
-        CLASS, CoreTy, EXIT_CODE_SLOT, HANDLE, HANDLE_NAME, Path, RESULT, RESULT_NAME, RUN_MEMBER,
-        Read, STDERR_SLOT, wait_off_core,
+        CHUNK, CLASS, CoreTy, EXIT_CODE_SLOT, HANDLE, HANDLE_NAME, Path, RESULT, RESULT_NAME,
+        RUN_MEMBER, Read, STDERR_SLOT, chunk_of, wait_off_core,
     };
+
+    /// [`chunk_of`] reuses one buffer per thread, so each read returns exactly
+    /// the bytes that read produced: a short read after a long one carries
+    /// nothing from the long one, and a read of more than [`CHUNK`] bytes stops
+    /// at `CHUNK`.
+    #[test]
+    fn a_chunk_is_exactly_what_its_own_read_returned() {
+        let long = vec![b'L'; CHUNK + 10];
+        let (rest, first) = chunk_of(&long[..]);
+        assert_eq!(first.expect("a slice reads").len(), CHUNK);
+        assert_eq!(rest.len(), 10);
+
+        let (_, second) = chunk_of(&b"hi"[..]);
+        assert_eq!(second.expect("a slice reads"), b"hi");
+
+        let (_, ended) = chunk_of(&b""[..]);
+        assert!(ended.expect("a slice reads").is_empty());
+    }
 
     /// The five spellings a port of PHP's shell family would reach for. None of them is a member
     /// of this class, because [`super::nvs_core_process_run`] is all five: they differ only in
