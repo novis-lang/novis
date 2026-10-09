@@ -48,7 +48,7 @@
 // and no secrets. No code path here reads a token.
 
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync, appendFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync, appendFileSync } from "node:fs";
 import { join, resolve as resolvePath } from "node:path";
 import { deflateRawSync, gzipSync } from "node:zlib";
 import { parse as parseToml } from "smol-toml";
@@ -517,10 +517,15 @@ export function zip(stem: string, files: ArchiveFile[]): Uint8Array {
 
 /**
  * Archive one built binary with the notices it must ship beside, and write its `.sha256` beside it.
- * The binary is not stripped: `[profile.release]` keeps `debug = "line-tables-only"` to keep backtraces
- * useful in production, and stripping would spend that to save bytes.
+ * The binary is not stripped: `[profile.release]` keeps `debug = "line-tables-only"` so a production
+ * backtrace names file and line. A Linux binary's debug sections are zlib-compressed instead, which
+ * keeps every byte of that and shrinks the binary by more than half: inlining under `lto` and
+ * `codegen-units = 1` makes the inlined-call records most of its size. The standard library's
+ * symbolizer reads compressed sections, and pays for it when a backtrace is first symbolized: the
+ * sections are decompressed into memory once per process, never per request. Windows keeps its
+ * debug info in a PDB that is not shipped, so its binary has no sections to compress.
  */
-function packageBinary(root: string, version: string, target: string, name: string, kind: string, outDir: string): string {
+async function packageBinary(root: string, version: string, target: string, name: string, kind: string, outDir: string): Promise<string> {
   const exe = target.includes("windows") ? "nvs.exe" : "nvs";
   const built = join(root, "target", target, "release", exe);
   if (!existsSync(built) || !statSync(built).isFile()) die(`${built} does not exist; build before packaging`);
@@ -530,7 +535,16 @@ function packageBinary(root: string, version: string, target: string, name: stri
     mode,
     mtime: Math.floor(statSync(path).mtimeMs / 1000),
   });
-  const files = [read(built, 0o755, exe)];
+  mkdirSync(outDir, { recursive: true });
+  let binary = read(built, 0o755, exe);
+  if (target.includes("linux")) {
+    const compressed = join(outDir, `.${exe}-compressed`);
+    const r = await runProc(["objcopy", "--compress-debug-sections=zlib", built, compressed], { timeoutMs: 600_000 });
+    if (r.code !== 0) die(`objcopy --compress-debug-sections=zlib ${built} failed: ${r.stderr.trim()}`);
+    binary = { ...read(compressed, 0o755, exe), mtime: binary.mtime };
+    rmSync(compressed);
+  }
+  const files = [binary];
   for (const extra of ARCHIVE_EXTRAS) {
     const source = join(root, extra);
     if (!existsSync(source)) die(`${extra} is missing; every archive ships it (\`rule:packaging/the-third-party-notice-is-generated-never-written-by-hand\`)`);
@@ -541,7 +555,6 @@ function packageBinary(root: string, version: string, target: string, name: stri
   const stem = `nvs-${version}-${name}`;
   const archiveName = kind === "zip" ? `${stem}.zip` : `${stem}.tar.gz`;
   const bytes = kind === "zip" ? zip(stem, files) : tarGz(stem, files, Math.floor(Date.now() / 1000));
-  mkdirSync(outDir, { recursive: true });
   writeFileSync(join(outDir, archiveName), bytes);
   const digest = createHash("sha256").update(bytes).digest("hex");
   writeFileSync(join(outDir, `${archiveName}.sha256`), `${digest}  ${archiveName}\n`);
@@ -777,7 +790,7 @@ export async function run(args: string[]): Promise<number> {
       case "--package": {
         const [version, target, name, out] = ["--version", "--target", "--name", "--out"].map((o) => values.get(o) ?? "");
         if (!(version && target && name && out)) die("--package needs --version, --target, --name and --out");
-        console.log(packageBinary(ROOT, version!, target!, name!, archive, resolvePath(out!)));
+        console.log(await packageBinary(ROOT, version!, target!, name!, archive, resolvePath(out!)));
         return 0;
       }
 

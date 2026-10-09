@@ -258,8 +258,10 @@ That is the same verb the release archives use, because it is the same mechanism
 names for a digest that was already attested under its version tag, so verifying either verifies
 the same statement.
 
-Images are **not** stripped, for the reason the archives are not: `[profile.release]` keeps
-`debug = "line-tables-only"` so a production backtrace names lines.
+The binary in an image is not stripped. A backtrace from it shows the file and line of each
+frame. Its debug information is compressed, so the binary is less than half the size it would
+be otherwise. Rust prints a backtrace only when `RUST_BACKTRACE=1` is set. The first one a
+process prints takes longer, because the debug information is decompressed into memory then.
 
 ## Building an image locally
 

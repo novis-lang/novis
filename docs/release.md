@@ -190,7 +190,9 @@ sha256sum --check --ignore-missing SHA256SUMS
 Archives are deliberately **not** stripped. `[profile.release]` in [Cargo.toml](../Cargo.toml)
 keeps `debug = "line-tables-only"` so a production backtrace names lines; stripping the shipped
 binary would spend exactly what that setting buys, to save bytes — which AGENTS.md's priority
-ordering puts last.
+ordering puts last. A Linux binary's debug sections are zlib-compressed by `bun nv release
+--package` instead, which keeps all of it at well under half the size; that function's doc comment says
+why the sections are that large and what the first backtrace costs.
 
 ## Recalling a published image
 
