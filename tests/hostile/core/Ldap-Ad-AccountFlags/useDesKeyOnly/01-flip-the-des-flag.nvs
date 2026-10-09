@@ -1,0 +1,33 @@
+<?nvs
+// Attack: a program turns the flag on and off many times next to the flags around its bit.
+// `useDesKeyOnly` must only report its own bit, and nothing may crash.
+// hostile: timeout-ms 60000
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect('corp');
+
+try {
+    var $found = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['userAccountControl'] })?->accountFlags();
+    if ($found != null) {
+        Core\Ldap\Ad\AccountFlags $flags = $found;
+
+        // 1. The flag turned on and off one hundred thousand times, with the bits beside it set the other way.
+        uint $wrong = 0;
+        uint $i = 0;
+        while ($i < 100000) {
+            bool $on = $i % 2 == 0;
+            var $changed = $flags->with({ useDesKeyOnly: $on, notDelegated: !$on, noPreauthRequired: !$on });
+            if ($changed->useDesKeyOnly() != $on) {
+                $wrong = $wrong + 1;
+            }
+            $i = $i + 1;
+        }
+        echo '1 wrong: ', $wrong, "\n";
+
+        // 2. Every other Kerberos flag set. `useDesKeyOnly` must still be `false`.
+        var $others = $flags->with({ notDelegated: true, noPreauthRequired: true, trustedToAuthForDelegation: true, smartcardRequired: true });
+        echo '2 des only: ', $others->useDesKeyOnly() ? 'yes' : 'no', ' bits: ', $others->bits(), "\n";
+    }
+} catch (Throwable $error) {
+    echo "threw\n";
+}
