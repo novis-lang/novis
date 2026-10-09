@@ -26,3 +26,4 @@ Each runs in a worktree of its own, started by hand with `bun nv loop --side <sl
 | Goal | What it builds | State | Milestone | Stages |
 |---|---|---|---|---|
 | [`compare-page`](goals/side/compare-page.md) | Novis, PHP, Bun and Go compared end to end, measured by one command, shown on the website | side |  | **2** four peers behind one TLS proxy · **3** the four cases · **4** the Novis fact the table needs and nothing tests · **5** the feature scenarios · **6** the page · **7** the first recorded run |
+| [`search-questions`](goals/side/search-questions.md) | every website page carries search questions, stamped and checked like the page itself | side |  | **2** the stamp and the check · **3** the Core reference · **4** configuration and CLI · **5** the handwritten pages · **6** owed fails, and the second measurement |
