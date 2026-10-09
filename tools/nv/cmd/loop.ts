@@ -1457,6 +1457,15 @@ function sweepProgress(labelOf: (n: number) => string, begun: number): Progress 
 const PROGRESS_DIR = join(ROOT, RUNDIR, "progress");
 
 export async function run(args: string[]): Promise<number> {
+  // A person runs `--benches` in a terminal, so its builds paint their progress there, not in the run's
+  // directory the status row reads.
+  if (args[0] === "--benches" && (args.length === 1 || (args.length === 2 && args[1] === "--owed"))) {
+    const owed = args[1] === "--owed";
+    console.log(`benches: judging every ${owed ? "owed bench" : "bench the selection picks, owed, red, new or reached"} on the release build, then recording it`);
+    const red = await benchTurn((l) => console.log(`  ${l}`), owed);
+    if (red) console.log(red);
+    return red ? 1 : 0;
+  }
   process.env[PROGRESS_ENV] = PROGRESS_DIR;
   // `--side <slug>` goes first and says which goal every mode below works on, through the variable the
   // turns and their sessions inherit.
@@ -1471,12 +1480,6 @@ export async function run(args: string[]): Promise<number> {
     args = args.slice(2);
   }
   if (args.length === 1 && args[0] === "--goal") return await goalView();
-
-  if (args[0] === "--benches" && (args.length === 1 || (args.length === 2 && args[1] === "--owed"))) {
-    const red = await benchTurn((l) => console.log(l), args[1] === "--owed");
-    if (red) console.log(red);
-    return red ? 1 : 0;
-  }
 
   const mode = args[0];
   if (mode === undefined || !["--list", "--run", "--goal-only"].includes(mode)) {
