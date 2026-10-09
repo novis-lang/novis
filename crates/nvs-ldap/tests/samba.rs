@@ -12,11 +12,12 @@
 //! the server up for the acceptance sweep, which is where these assert. CI's
 //! `database` job sets `NVS_LDAP_SAMBA`, which turns the skip into a failure.
 //!
-//! **Three cases use a local listener and always run.** Two prove that nothing
+//! **Four cases use a local listener and always run.** Two prove that nothing
 //! reached the wire, which only a listener on our side can show. The third is
 //! a scripted peer that answers a cleartext bind `strongerAuthRequired`: this
 //! Samba is configured to accept one, so that refusal has to come from
-//! somewhere else.
+//! somewhere else. The fourth is a peer that answers late, which no real
+//! server does on demand.
 
 use std::io::{Read, Write};
 use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
@@ -277,6 +278,40 @@ fn a_controller_refusing_a_cleartext_bind_is_encryption_required() {
         "the message carries the password: {}",
         error.message()
     );
+}
+
+/// A request whose deadline passed leaves its answer on the wire. The next
+/// request reads it, drops it and reads its own.
+#[test]
+fn a_late_answer_to_a_request_that_timed_out_is_dropped() {
+    // Answers every bind with success, and the first one a second late.
+    fn late_first(id: i64) -> Option<Vec<u8>> {
+        if id == 1 {
+            thread::sleep(Duration::from_secs(1));
+        }
+        let mut out = Writer::new();
+        out.constructed(tag::SEQUENCE, |msg| {
+            msg.integer(tag::INTEGER, id);
+            msg.constructed(0x61, |result| {
+                result.integer(tag::ENUMERATED, 0);
+                result.octets(tag::OCTET_STRING, b"");
+                result.octets(tag::OCTET_STRING, b"");
+            });
+        });
+        Some(out.into_bytes())
+    }
+    let (port, _received) = peer(late_first);
+    let mut connection =
+        open(&format!("ldap://127.0.0.1:{port}"), Tls::None, true, None).expect("the peer accepts");
+    connection.set_deadline(Some(Instant::now() + Duration::from_millis(200)));
+    let error = connection
+        .bind(ADMIN, PASSWORD)
+        .expect_err("the first answer is too late");
+    assert_eq!(error.kind(), Kind::Timeout);
+    connection.set_deadline(Some(Instant::now() + Duration::from_secs(10)));
+    connection
+        .bind(ADMIN, PASSWORD)
+        .expect("the second bind reads past the late answer");
 }
 
 #[test]

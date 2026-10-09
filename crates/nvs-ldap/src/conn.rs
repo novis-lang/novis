@@ -2,7 +2,10 @@
 //!
 //! The sequencing is this crate's own, as `rule:core-classes/db-crate-boundary`
 //! asks. One operation is outstanding at a time, so every answer must carry
-//! the ID of the request just sent, and anything else is [`Kind::Protocol`].
+//! the ID of the request just sent. An answer with a lower ID is to a request
+//! the caller stopped waiting for, after its deadline passed or a read failed,
+//! and arrives late; it is read and dropped, so the connection stays usable.
+//! Any other ID is [`Kind::Protocol`].
 //! Every read is [`nvs_host::net`]'s park, so a request waiting on the
 //! directory hands its core back rather than holding it, and nothing here
 //! needs a second scheduler (`rule:concurrency/one-scheduler`).
@@ -640,6 +643,9 @@ impl Connection {
                 if self.inbox.len() >= total {
                     let incoming = proto::decode(&self.inbox[..total])?;
                     self.inbox.drain(..total);
+                    if abandoned(incoming.id, id) {
+                        continue;
+                    }
                     return self.answer(incoming, id, operation);
                 }
             }
@@ -691,6 +697,14 @@ impl Connection {
         }
         Ok(incoming)
     }
+}
+
+/// Whether `answer` is the ID of a request sent before `outstanding` on this
+/// connection, and so an answer nobody is waiting for any more. IDs count up
+/// from 1 and wrap to 1 after `i32::MAX`, so a late answer from before the
+/// wrap is not recognised and is [`Kind::Protocol`].
+fn abandoned(answer: i64, outstanding: i32) -> bool {
+    answer > 0 && answer < i64::from(outstanding)
 }
 
 fn succeeded(operation: &str, result: &LdapResult) -> Result<(), Error> {
