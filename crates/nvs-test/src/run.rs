@@ -544,9 +544,17 @@ fn spawn(
 /// is [`Command::output`]'s behaviour too; what this rules out is the case that
 /// actually happens, a program wedged with its pipes still open.
 ///
-/// The kill is likewise what lets this return at all when the deadline passes:
-/// the pipes close with the process, and that is what ends the two readers,
-/// which the scope cannot be left without.
+/// When the deadline passes, the child is killed and reaped, and the readers
+/// get [`KILLED_GRACE`] to see their pipes close. Usually they do: the pipes
+/// close with the process. They stay open when a process the child started
+/// inherited them and outlives it — on Windows every handle the child could
+/// pass on is inherited — so a reader still blocked after the grace is left
+/// running rather than joined, and this returns anyway. The readers are plain
+/// threads that own their pipes for exactly that reason. A reader left behind
+/// keeps its stack and the bytes it has read until the last writer closes the
+/// pipe, then ends on its own; if that never happens before this process
+/// exits, the exit reclaims both. So the wait is bounded by `limit` plus
+/// [`KILLED_GRACE`] whatever the child left behind.
 ///
 /// # Errors
 ///
@@ -554,73 +562,89 @@ fn spawn(
 /// a wedged case reports as one failure with a reason on it rather than as a
 /// suite that never finished. Otherwise as [`Child::wait`].
 fn wait_within(child: &mut Child, limit: Duration, program: &Path) -> io::Result<Output> {
-    let mut out = child
+    let out = child
         .stdout
         .take()
         .ok_or_else(|| io::Error::other("the child's standard output was not a pipe"))?;
-    let mut err = child
+    let err = child
         .stderr
         .take()
         .ok_or_else(|| io::Error::other("the child's standard error was not a pipe"))?;
     let deadline = Instant::now() + limit;
 
-    thread::scope(|scope| {
-        // Each reader reports through the channel as well as through its join
-        // handle: the handle is how the bytes come back, and the channel is the
-        // only one of the two that can be waited on with a deadline.
-        let (report, reported) = mpsc::channel::<()>();
-        let reading_out = scope.spawn({
-            let report = report.clone();
-            move || {
-                let mut bytes = Vec::new();
-                let read = out.read_to_end(&mut bytes);
-                drop(report);
-                read.map(|_| bytes)
-            }
-        });
-        let reading_err = scope.spawn(move || {
-            let mut bytes = Vec::new();
-            let read = err.read_to_end(&mut bytes);
-            drop(report);
-            read.map(|_| bytes)
-        });
+    // Each reader reports through the channel as well as through its join
+    // handle: the handle is how the bytes come back, and the channel is the
+    // only one of the two that can be waited on with a deadline.
+    let (report, reported) = mpsc::channel::<()>();
+    let reading_out = drain(out, report.clone());
+    let reading_err = drain(err, report);
 
-        // Both senders dropped is both pipes at end of file. `RecvTimeoutError`
-        // either way — a timeout, or a disconnect once the second one goes —
-        // so what separates them is which came first, and the deadline is the
-        // only question being asked.
-        let mut overran = false;
-        while !overran {
-            match reported.recv_timeout(deadline.saturating_duration_since(Instant::now())) {
-                Err(mpsc::RecvTimeoutError::Disconnected) => break,
-                Err(mpsc::RecvTimeoutError::Timeout) => overran = true,
-                Ok(()) => {}
-            }
-        }
-        if overran {
-            let _ = child.kill();
-        }
+    if !closed_by(&reported, deadline) {
+        let _ = child.kill();
+        // Reaped so the killed process does not linger as a zombie; its exit
+        // status says nothing the error below does not.
+        let _ = child.wait();
+        // Whether the readers finish within the grace or not, the case has
+        // already failed, so their bytes are not read: a finished reader's
+        // handle drops with its thread already ended, and a blocked one's
+        // drops with the thread left running, as the doc above says.
+        let _ = closed_by(&reported, Instant::now() + KILLED_GRACE);
+        return Err(io::Error::new(
+            io::ErrorKind::TimedOut,
+            format!(
+                "`{}` did not finish within {}s and was killed",
+                program.display(),
+                limit.as_secs()
+            ),
+        ));
+    }
 
-        let panicked = |_| io::Error::other("the thread reading the child's output panicked");
-        let stdout = reading_out.join().map_err(panicked)??;
-        let stderr = reading_err.join().map_err(panicked)??;
-        let status = child.wait()?;
-        if overran {
-            return Err(io::Error::new(
-                io::ErrorKind::TimedOut,
-                format!(
-                    "`{}` did not finish within {}s and was killed",
-                    program.display(),
-                    limit.as_secs()
-                ),
-            ));
-        }
-        Ok(Output {
-            status,
-            stdout,
-            stderr,
-        })
+    let panicked = |_| io::Error::other("the thread reading the child's output panicked");
+    let stdout = reading_out.join().map_err(panicked)??;
+    let stderr = reading_err.join().map_err(panicked)??;
+    let status = child.wait()?;
+    Ok(Output {
+        status,
+        stdout,
+        stderr,
     })
+}
+
+/// How long [`wait_within`] waits for the readers once it has killed a child
+/// that overran. Long enough for a killed process's pipes to close on a loaded
+/// host, short enough that a case whose pipes some other process still holds
+/// fails in seconds.
+const KILLED_GRACE: Duration = Duration::from_secs(2);
+
+/// Reads `pipe` to its end on a thread of its own, and drops `report` when the
+/// read ends, so the receiver sees every reader finish.
+///
+/// A plain thread rather than a scoped one, and owning the pipe, because
+/// [`wait_within`] may return while the read is still blocked.
+fn drain(
+    mut pipe: impl Read + Send + 'static,
+    report: mpsc::Sender<()>,
+) -> thread::JoinHandle<io::Result<Vec<u8>>> {
+    thread::spawn(move || {
+        let mut bytes = Vec::new();
+        let read = pipe.read_to_end(&mut bytes);
+        drop(report);
+        read.map(|_| bytes)
+    })
+}
+
+/// Whether every sender of `reported` was dropped before `by`.
+///
+/// `RecvTimeoutError` either way — a timeout, or a disconnect once the last
+/// sender goes — so what separates them is which came first.
+fn closed_by(reported: &mpsc::Receiver<()>, by: Instant) -> bool {
+    loop {
+        match reported.recv_timeout(by.saturating_duration_since(Instant::now())) {
+            Err(mpsc::RecvTimeoutError::Disconnected) => return true,
+            Err(mpsc::RecvTimeoutError::Timeout) => return false,
+            Ok(()) => {}
+        }
+    }
 }
 
 /// One report block: a label, then the text indented under it.
@@ -887,11 +911,74 @@ mod tests {
             "the wait ended for the wrong reason: {error}"
         );
         // Generous by two orders of magnitude over the deadline: what would
-        // fail here is the wait never ending, and the reader threads holding
-        // the scope open past the kill is the way that happens.
+        // fail here is the wait never ending after the kill.
         assert!(
             began.elapsed() < Duration::from_secs(20),
             "the deadline passed but the wait did not end: {:?}",
+            began.elapsed()
+        );
+    }
+
+    /// How long the grandchild below keeps the pipes open. Past the wait the
+    /// test below allows itself, so a wait that joined the readers fails it.
+    const GRANDCHILD_LIVES: Duration = Duration::from_secs(10);
+
+    /// Spawned by the process below, inheriting its standard output and error,
+    /// which are the runner's pipes. Short-lived, so the process it leaves
+    /// behind after the test is gone soon after.
+    #[test]
+    #[ignore = "spawned by name by the process below; it exists to hold its pipes open"]
+    fn a_grandchild_that_outlives_its_parent() {
+        thread::sleep(GRANDCHILD_LIVES);
+    }
+
+    /// The child of the test below: it starts the grandchild above, which
+    /// inherits the pipes, and waits for it, then for a minute more. It is
+    /// killed long before either ends.
+    #[test]
+    #[ignore = "spawned by name by the case below; it exists in order to be killed"]
+    fn a_process_that_leaves_a_grandchild_holding_its_pipes() {
+        let exe = std::env::current_exe().expect("this test binary has a path");
+        let mut grandchild = nvs_repo::spawn(exe, &[])
+            .args([
+                "--ignored",
+                "--exact",
+                "run::tests::a_grandchild_that_outlives_its_parent",
+            ])
+            .spawn()
+            .expect("the grandchild starts");
+        let _ = grandchild.wait();
+        thread::sleep(Duration::from_secs(60));
+    }
+
+    #[test]
+    fn a_killed_case_returns_while_a_grandchild_still_holds_its_pipes() {
+        let exe = std::env::current_exe().expect("this test binary has a path");
+        let cwd = nvs_repo::scratch("test-killed-grandchild");
+        let began = Instant::now();
+        let error = spawn(
+            &exe,
+            &[
+                "--ignored".as_ref(),
+                "--exact".as_ref(),
+                "run::tests::a_process_that_leaves_a_grandchild_holding_its_pipes".as_ref(),
+            ],
+            &cwd,
+            &[],
+            Duration::from_secs(1),
+        )
+        .expect_err("a process that never exits was waited on all the way to its end");
+
+        assert_eq!(
+            error.kind(),
+            io::ErrorKind::TimedOut,
+            "the wait ended for the wrong reason: {error}"
+        );
+        // The deadline plus the grace is three seconds. A wait that joined the
+        // readers would last until the grandchild exits, at ten.
+        assert!(
+            began.elapsed() < GRANDCHILD_LIVES - Duration::from_secs(2),
+            "the wait lasted as long as the grandchild held the pipes: {:?}",
             began.elapsed()
         );
     }
