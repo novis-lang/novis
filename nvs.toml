@@ -1017,6 +1017,46 @@ root = "benches/members/core/Ldap-Connection"
 [app.capabilities.ldap]
 connect = ["corp"]
 
+# The proof programs of `setPassword` and `changePassword` write to the directory, so they open
+# `[ldap.corp-accounts]`, which logs in as the administrator, and no other program is granted it.
+# Each program adds its own unit and user outside `OU=Company` and deletes both again, so a reader
+# of the seed never sees them.
+[[app]]
+root = "docs/examples/core/Ldap-Connection/setPassword"
+
+[app.capabilities.ldap]
+connect = ["corp-accounts"]
+
+[[app]]
+root = "tests/hostile/core/Ldap-Connection/setPassword"
+
+[app.capabilities.ldap]
+connect = ["corp-accounts"]
+
+[[app]]
+entry = "benches/members/core/Ldap-Connection/setPassword.nvs"
+
+[app.capabilities.ldap]
+connect = ["corp-accounts"]
+
+[[app]]
+root = "docs/examples/core/Ldap-Connection/changePassword"
+
+[app.capabilities.ldap]
+connect = ["corp-accounts"]
+
+[[app]]
+root = "tests/hostile/core/Ldap-Connection/changePassword"
+
+[app.capabilities.ldap]
+connect = ["corp-accounts"]
+
+[[app]]
+entry = "benches/members/core/Ldap-Connection/changePassword.nvs"
+
+[app.capabilities.ldap]
+connect = ["corp-accounts"]
+
 # `Core\Db\Column`'s proof programs, granted the same way and for the same reason: a description is
 # read off a statement, so every one of these opens `[db.notes]` by name and asks for nothing else.
 [[app]]
@@ -2799,6 +2839,18 @@ url = "ldaps://localhost:16636"
 base = "DC=example,DC=test"
 user = "CN=Reader,OU=Company,DC=example,DC=test"
 password = "Novis-reader-1"
+tls_ca_file = "tests/db/ca.crt"
+timeout = "5s"
+
+# The `Core\Ldap\Connection` password proof programs open this block. It reaches the same `samba-ad`
+# service as `[ldap.corp]`, but logs in as the administrator that service seeds, because only an
+# administrator may set another account's password. The grants above give it to those programs
+# alone.
+[ldap.corp-accounts]
+url = "ldaps://localhost:16636"
+base = "DC=example,DC=test"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
 tls_ca_file = "tests/db/ca.crt"
 timeout = "5s"
 
