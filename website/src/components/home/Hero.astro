@@ -17,7 +17,21 @@
  *
  * The `<h1>` carries Starlight's title id, so the skip link lands on it;
  * src/components/PageTitle.astro renders no other title on this page.
- * The glow behind it is static radial gradients: no filter, no animation.
+ *
+ * The slogan turns through a list of short phrases, one every few seconds,
+ * each swinging down out of view as the next swings in from above. A click
+ * on it shows the next phrase and ends the automatic turning for the rest of
+ * the page view. The phrases are a separate, aria-hidden copy laid
+ * over the slogan, so a screen reader reads the slogan alone and never hears
+ * a change. Without the script the slogan stands still. When the reader asks
+ * for less motion it also stands still, and a click swaps the phrase without
+ * the swing. The turning waits while the hero is off-screen or the tab is
+ * hidden.
+ *
+ * The bar under the name grows from its centre on load, and a glow behind it
+ * breathes slowly. The three color fields behind the title drift and swell.
+ * All of this motion is transform and opacity alone, and none of it runs when
+ * the reader asks for less motion.
  */
 import { Icon } from '@astrojs/starlight/components'
 import { INSTALL } from '@config/site.mjs'
@@ -30,16 +44,42 @@ const panels = [
   { slot: 'sql', label: 'SQL', result: 'The compiler stops SQL injection before the program runs.' },
   { slot: 'secret', label: 'Secrets', result: 'The compiler keeps the password out of the page.' },
 ] as const
+
+// The phrases the slogan turns through after its own first one, in order.
+// Each repeats something a section further down the page says.
+const phrases = [
+  'Agentic coding is easy.',
+  'No SQL injection.',
+  'HTML escapes itself.',
+  'Secrets stay secret.',
+  'Every request on its own.',
+  'Null is checked.',
+  'Typed JSON.',
+  'Tests in your code.',
+  'All tools built in.',
+] as const
 ---
 
 <section class="home-hero not-content" aria-labelledby="_top">
-  <div class="backdrop" aria-hidden="true"></div>
+  <div class="backdrop" aria-hidden="true">
+    <i class="field field-violet"></i>
+    <i class="field field-crimson"></i>
+    <i class="field field-gold"></i>
+  </div>
 
   <div class="title">
     <h1 id="_top" data-page-title>
       <span class="brand">Novis-Lang</span>
       <span class="headline">The programming language for web applications.</span>
-      <span class="slogan nv-gradient-text">Fast. <span class="keep">Secure by default.</span></span>
+      <span class="slogan" data-slogan>
+        <span class="slogan-text nv-gradient-text">Fast. <span class="keep">Secure by default.</span></span>
+        <span class="rotator" aria-hidden="true">
+          <span class="phrase nv-gradient-text" data-phrase data-state="in">
+            Fast. <span class="keep">Secure by default.</span>
+          </span>
+          {phrases.map((p) => <span class="phrase nv-gradient-text" data-phrase>{p}</span>)}
+        </span>
+      </span>
     </h1>
   </div>
 
@@ -166,6 +206,59 @@ const panels = [
     list.hidden = false
     root.setAttribute('data-tabs-ready', '')
   }
+
+  // Turns the slogan through its phrases. Without this script the slogan stays as it is.
+  // The rotation runs only when the reader allows motion, and it waits while the hero is
+  // off-screen or the tab is hidden. A click shows the next phrase and ends the rotation.
+  const HOLD = 3400
+  for (const root of document.querySelectorAll<HTMLElement>('[data-slogan]')) {
+    const phrases = [...root.querySelectorAll<HTMLElement>('[data-phrase]')]
+    const hero = root.closest<HTMLElement>('.home-hero')
+    if (phrases.length < 2 || hero === null) continue
+    const motion = matchMedia('(prefers-reduced-motion: no-preference)')
+    let current = 0
+    let clicked = false
+    let onScreen = true
+    let timer = 0
+
+    const show = (index: number) => {
+      phrases.forEach((phrase, i) => {
+        if (i === index) phrase.dataset.state = 'in'
+        else if (i === current) phrase.dataset.state = 'out'
+        else delete phrase.dataset.state
+      })
+      current = index
+    }
+    const next = () => show((current + 1) % phrases.length)
+
+    const update = () => {
+      const active = motion.matches || clicked
+      if (!active && current !== 0) show(0)
+      root.toggleAttribute('data-running', active)
+      const rotate = motion.matches && !clicked && onScreen && !document.hidden
+      if (rotate && timer === 0) timer = window.setInterval(next, HOLD)
+      if (!rotate && timer !== 0) {
+        window.clearInterval(timer)
+        timer = 0
+      }
+    }
+
+    root.addEventListener('click', () => {
+      clicked = true
+      update()
+      next()
+    })
+    motion.addEventListener('change', update)
+    document.addEventListener('visibilitychange', update)
+    new IntersectionObserver((entries) => {
+      onScreen = entries.some((entry) => entry.isIntersecting)
+      hero.toggleAttribute('data-offscreen', !onScreen)
+      update()
+    }).observe(hero)
+
+    root.setAttribute('data-slogan-ready', '')
+    update()
+  }
 </script>
 
 <style>
@@ -188,18 +281,92 @@ const panels = [
 
   /* Three soft color fields and a dot grid. The mask fades the whole
      backdrop out before it reaches any edge of its box, so no color field
-     and no dot stops at a line. */
+     and no dot stops at a line. Each field is its own element, an ellipse
+     drawn by a radial gradient that fills it, so it can move without being
+     painted again. */
   .backdrop {
     position: absolute;
     z-index: -1;
     inset: -3rem 0 -2rem;
+    overflow: hidden;
     pointer-events: none;
     -webkit-mask-image: radial-gradient(farthest-side at 50% 50%, black 55%, transparent 100%);
     mask-image: radial-gradient(farthest-side at 50% 50%, black 55%, transparent 100%);
-    background:
-      radial-gradient(34% 44% at 72% 42%, color-mix(in oklab, var(--nv-violet) 26%, transparent), transparent 70%),
-      radial-gradient(30% 36% at 44% 80%, color-mix(in oklab, var(--nv-crimson) 20%, transparent), transparent 70%),
-      radial-gradient(24% 30% at 28% 26%, color-mix(in oklab, var(--nv-gold) 10%, transparent), transparent 70%);
+  }
+  .field {
+    position: absolute;
+    background: radial-gradient(closest-side, var(--glow), transparent 70%);
+  }
+  .field-violet {
+    --glow: color-mix(in oklab, var(--nv-violet) 26%, transparent);
+    inset: -2% -6% 14% 38%;
+  }
+  .field-crimson {
+    --glow: color-mix(in oklab, var(--nv-crimson) 20%, transparent);
+    inset: 44% 26% -16% 14%;
+  }
+  .field-gold {
+    --glow: color-mix(in oklab, var(--nv-gold) 10%, transparent);
+    inset: -4% 48% 44% 4%;
+  }
+  :global([data-theme='light']) .field-violet {
+    --glow: color-mix(in oklab, var(--nv-violet) 16%, transparent);
+  }
+  :global([data-theme='light']) .field-crimson {
+    --glow: color-mix(in oklab, var(--nv-crimson) 10%, transparent);
+  }
+  :global([data-theme='light']) .field-gold {
+    --glow: color-mix(in oklab, var(--nv-gold) 14%, transparent);
+  }
+  /* The fields drift and swell slowly. The three durations share no
+     common beat, so the picture never repeats in a way the eye can follow.
+     Only transform and opacity change. */
+  @keyframes drift-violet {
+    0% {
+      transform: translate(0, 0) scale(1);
+    }
+    50% {
+      transform: translate(-7%, 6%) scale(1.12);
+    }
+    100% {
+      transform: translate(-3%, -5%) scale(0.94);
+    }
+  }
+  @keyframes drift-crimson {
+    0% {
+      transform: translate(0, 0) scale(1);
+      opacity: 1;
+    }
+    50% {
+      transform: translate(9%, -7%) scale(1.15);
+      opacity: 0.75;
+    }
+    100% {
+      transform: translate(4%, 4%) scale(0.92);
+      opacity: 1;
+    }
+  }
+  @keyframes drift-gold {
+    0% {
+      transform: translate(0, 0) scale(1);
+    }
+    50% {
+      transform: translate(8%, 10%) scale(1.2);
+    }
+    100% {
+      transform: translate(-4%, 4%) scale(1.05);
+    }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .field-violet {
+      animation: drift-violet 23s ease-in-out infinite alternate;
+    }
+    .field-crimson {
+      animation: drift-crimson 29s ease-in-out -7s infinite alternate;
+    }
+    .field-gold {
+      animation: drift-gold 17s ease-in-out -4s infinite alternate;
+    }
   }
   .backdrop::after {
     content: '';
@@ -281,6 +448,7 @@ const panels = [
     color: transparent;
     -webkit-text-fill-color: transparent;
   }
+  .brand::before,
   .brand::after {
     content: '';
     position: absolute;
@@ -292,6 +460,57 @@ const panels = [
     border-radius: 999px;
     background: var(--nv-gradient-line);
   }
+  /* A soft glow behind the bar: the same bar, blurred once and drawn
+     behind the text. */
+  .brand::before {
+    z-index: -1;
+    filter: blur(0.08em);
+    opacity: 0.55;
+  }
+  /* On load the bar grows from its centre, and the glow behind it then
+     breathes slowly for as long as the page is open. */
+  @keyframes bar-in {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+  @keyframes glow-in {
+    from {
+      transform: scaleX(0);
+      opacity: 0;
+    }
+    to {
+      transform: scaleX(1);
+      opacity: 0.4;
+    }
+  }
+  @keyframes glow-breathe {
+    from {
+      transform: scaleX(1) scaleY(1);
+      opacity: 0.4;
+    }
+    to {
+      transform: scaleX(1.15) scaleY(1.8);
+      opacity: 0.9;
+    }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .brand::after {
+      animation: bar-in 900ms cubic-bezier(0.16, 1, 0.3, 1) 150ms both;
+    }
+    .brand::before {
+      animation:
+        glow-in 900ms cubic-bezier(0.16, 1, 0.3, 1) 150ms both,
+        glow-breathe 1.8s ease-in-out 1050ms infinite alternate;
+    }
+    .home-hero[data-offscreen] .field,
+    .home-hero[data-offscreen] .brand::before {
+      animation-play-state: paused;
+    }
+  }
   @media (forced-colors: active) {
     .brand {
       background: none;
@@ -302,13 +521,76 @@ const panels = [
       background: CanvasText;
     }
   }
+
+  /* The slogan is one grid cell. The slogan's own text and every phrase of
+     the rotator sit in it on top of each other, so the cell is always as
+     large as the largest of them and the line never changes size. Without
+     the script, the rotator is invisible and the slogan's own text shows.
+     While the rotator runs, the slogan's own text is invisible and stays
+     there for screen readers; the rotator is hidden from them. */
   .slogan {
+    display: grid;
+    perspective: 40rem;
+  }
+  .slogan-text,
+  .rotator,
+  .phrase {
+    grid-area: 1 / 1;
+  }
+  .rotator {
+    display: grid;
+    visibility: hidden;
+  }
+  .slogan-text,
+  .phrase {
+    justify-self: center;
+    align-self: start;
     /* Room for descenders inside the clipped background. */
     padding-block-end: 0.06em;
   }
   /* The slogan breaks after "Fast." when it needs two lines. */
   .slogan .keep {
     display: inline-block;
+  }
+  [data-slogan-ready] {
+    cursor: pointer;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  [data-running] .slogan-text {
+    opacity: 0;
+  }
+  [data-running] .rotator {
+    visibility: visible;
+  }
+
+  /* A phrase waits above the line, turned away. It swings down into place,
+     and then on down and away while the next one comes in. */
+  .phrase {
+    opacity: 0;
+    transform: translateY(-0.45em) rotateX(80deg);
+    transform-origin: 50% 0;
+  }
+  .phrase[data-state='in'] {
+    opacity: 1;
+    transform: none;
+  }
+  .phrase[data-state='out'] {
+    opacity: 0;
+    transform: translateY(0.45em) rotateX(-80deg);
+    transform-origin: 50% 100%;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .phrase[data-state='in'] {
+      transition:
+        transform 700ms cubic-bezier(0.2, 0.9, 0.3, 1) 260ms,
+        opacity 420ms ease-out 260ms;
+    }
+    .phrase[data-state='out'] {
+      transition:
+        transform 550ms cubic-bezier(0.55, 0, 0.75, 0.3),
+        opacity 340ms ease-in;
+    }
   }
 
   .text {
