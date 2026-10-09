@@ -10,12 +10,6 @@ import Rich from './Rich.astro'
 
 const facts = [
   {
-    icon: 'rocket',
-    title: 'Compiled to machine code',
-    text: 'Each file is compiled the first time it is needed. You never run a build step.',
-    href: '/in-depth/concepts/compiled/',
-  },
-  {
     icon: 'warning',
     title: 'Input is tainted',
     text: 'Text from a request must be checked or escaped before it reaches a database, a shell or a page.',
@@ -32,6 +26,12 @@ const facts = [
     title: 'One program',
     text: '`nvs` runs your code, serves web requests, runs your tests and formats your files.',
     href: '/reference/cli/one-binary/',
+  },
+  {
+    icon: 'rocket',
+    title: 'Compiled to machine code',
+    text: 'Each file is compiled the first time it is needed. You never run a build step.',
+    href: '/in-depth/concepts/compiled/',
   },
 ] as const
 ---

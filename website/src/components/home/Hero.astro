@@ -44,10 +44,16 @@ const panels = [
   </div>
 
   <div class="copy">
-    <p class="tagline">
-      Novis is a programming language for web applications and the command line. It compiles your code to
-      machine code. The compiler checks every value that comes from outside.
-    </p>
+    <div class="text">
+      <p class="intro">
+        Novis is a programming language for{' '}
+        <span class="noted">web applications<span class="note"><span class="sr-only"> (</span>and the command line<span class="sr-only">)</span></span></span>.
+      </p>
+      <p class="tagline">
+        You can build a business app, a website, an API or any other web service with it. The tools that a modern
+        web application needs are built in.
+      </p>
+    </div>
     <div class="actions">
       <a class="nv-button nv-button-primary" href={withBase(INSTALL.href)}>
         Install Novis
@@ -305,13 +311,75 @@ const panels = [
     display: inline-block;
   }
 
+  .text {
+    display: flex;
+    flex-direction: column;
+    gap: var(--nv-space-2);
+    max-width: 34rem;
+  }
   .tagline {
     margin: 0;
-    max-width: 34rem;
     font-size: var(--sl-text-lg);
     line-height: 1.65;
     color: var(--sl-color-gray-2);
     text-wrap: pretty;
+  }
+
+  /* The first sentence, a little larger. Its tall lines leave room for the
+     note above "web applications" on whichever line those words land. */
+  .intro {
+    margin: 0;
+    padding-block-start: 0.7em;
+    font-size: var(--sl-text-xl);
+    font-weight: 650;
+    line-height: 1.9;
+    letter-spacing: -0.01em;
+    color: var(--sl-color-white);
+    text-wrap: balance;
+  }
+  .noted {
+    position: relative;
+    white-space: nowrap;
+  }
+  /* "and the command line" is a small note written above "web applications",
+     tilted a little, like a word added to a finished sentence. It stays out
+     of the line, so the sentence reads on without it. A screen reader reads
+     it in brackets after the two words. */
+  .note {
+    position: absolute;
+    inset-inline-start: 50%;
+    inset-block-end: 98%;
+    translate: -50% 0;
+    rotate: -4deg;
+    font-size: 0.68em;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    color: var(--sl-color-text-accent);
+    pointer-events: none;
+  }
+  .note::before {
+    content: '+ ';
+    color: var(--nv-gold);
+  }
+  :global(:root[data-theme='light']) .note::before {
+    color: var(--nv-gold-text);
+  }
+  @keyframes note-in {
+    from {
+      opacity: 0;
+      translate: -50% 0.4em;
+    }
+    to {
+      opacity: 1;
+      translate: -50% 0;
+    }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .note {
+      animation: note-in 420ms var(--nv-ease) 650ms both;
+    }
   }
 
   .actions {
@@ -552,6 +620,9 @@ const panels = [
     }
     .tagline {
       font-size: var(--sl-text-base);
+    }
+    .intro {
+      font-size: var(--sl-text-lg);
     }
     .actions {
       width: 100%;
