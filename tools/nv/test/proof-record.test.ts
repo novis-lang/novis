@@ -6,7 +6,7 @@ import { covwsNvs } from "../lib/covws.ts";
 import { abs } from "../lib/paths.ts";
 import { run } from "../lib/proc.ts";
 import { ENV as READS_ENV, readModules } from "../lib/reads.ts";
-import { divergence, HANG_FACTOR, hostileLimitMs, PROOF_BINARY, PROOF_BUILD, RECORD_ENV, type Ran, proofRecording, recordingLimitMs, recordName, type Result, spawnProof, timedOut } from "../proofs/run.ts";
+import { divergence, HANG_FACTOR, hostileLimitMs, PROOF_BINARY, PROOF_BUILD, RECORD_ENV, type Ran, proofRecording, recordingLimitMs, recordName, type Result, servicesFor, spawnProof, timedOut } from "../proofs/run.ts";
 import { judgeThenRecord, longestFirst, recordProgram } from "../proofs/select.ts";
 import { proofId } from "../select/atoms.ts";
 import { Recorder } from "../select/record.ts";
@@ -156,6 +156,11 @@ describe("the judged run and the recording run", () => {
     expect(PROOF_BINARY).toBe(`target/proof/${process.platform === "win32" ? "nvs.exe" : "nvs"}`);
     expect(PROOF_BUILD.argv).toEqual(["cargo", "build", "--profile", "proof", "--bin", "nvs"]);
     expect(PROOF_BUILD.path).toBe(PROOF_BINARY);
+  });
+
+  test("a program without a `requires:` service marker needs no service and never touches Docker", async () => {
+    expect(await servicesFor("<?nvs\n// requires: unix\necho 1;\n")).toBeNull();
+    expect(await servicesFor("<?nvs\n// Shows a samba-ad search.\necho 1;\n")).toBeNull();
   });
 
   test("an unlogged judged run drops the footprint log it would inherit, and a recorded run keeps its own", async () => {

@@ -71,6 +71,33 @@ const UNIMPL_RE = /^(?:\/\/|#)\s*requires:\s*unimplemented/m;
 /** `// requires: unix`: the program needs what this build has only on Unix — a Unix-domain socket, or a load average. */
 const UNIX_RE = /^(?:\/\/|#)\s*requires:\s*unix\b/m;
 
+/** `// requires: samba-ad`: the program talks to the Samba AD directory in `tests/db/compose.yaml`. */
+const SAMBA_AD_RE = /^(?:\/\/|#)\s*requires:\s*samba-ad\b/m;
+const COMPOSE = "tests/db/compose.yaml";
+/** A cold Samba provisions its domain before it reports healthy. */
+const SERVICE_UP_TIMEOUT_MS = 600_000;
+/** Each service's `up -d --wait`, started once per process by the first program that names it: null
+ * when it came up healthy, and the failure otherwise, which every program that names it then carries. */
+const servicesUp = new Map<string, Promise<string | null>>();
+
+/** Brings up what `source` says it requires, and says why it could not; null when it needs nothing or
+ * everything it needs is up. A program without a `requires:` service marker never touches Docker. */
+export function servicesFor(source: string): Promise<string | null> {
+  if (!SAMBA_AD_RE.test(source)) return Promise.resolve(null);
+  const service = "samba-ad";
+  let up = servicesUp.get(service);
+  if (!up) {
+    progress(`proofs: bringing up \`${service}\` (a cold first boot takes about half a minute)`);
+    const argv = ["docker", "compose", "-f", COMPOSE, "up", "-d", "--wait", service];
+    up = runProc(argv, { cwd: ROOT, timeoutMs: SERVICE_UP_TIMEOUT_MS }).then(
+      (r) => (r.code === 0 ? null : `needs \`${service}\`, and \`${argv.join(" ")}\` failed (exit ${r.code}): ${r.stderr.trim().split(/\r?\n/).at(-1) ?? ""}`),
+      (e) => `needs \`${service}\`, and Docker could not be started: ${e instanceof Error ? e.message : String(e)}`,
+    );
+    servicesUp.set(service, up);
+  }
+  return up;
+}
+
 /** Why a program is not run on this host, or null when it is. A skip is never remembered as green. */
 export function skipReason(source: string): string | null {
   if (UNIMPL_RE.test(source)) return "marked `requires: unimplemented`";
@@ -199,8 +226,12 @@ export function proofRecording(proof: string, dir: string | undefined = process.
  * it where its reader sees it; every other proof runs under the repository root's. `record` names the
  * directory the run is recorded into, which defaults to `NV_PROOF_RECORD`, and variables its processes
  * get beside the recording's. With `unlogged` and no record directory, the run writes no footprint log,
- * not even the one this process inherited. */
+ * not even the one this process inherited. A proof marked `requires: samba-ad` runs once that service is
+ * up (`servicesFor`), and throws the reason when it cannot be brought up. */
 export async function spawnProof(argv: string[], proof: string, timeoutMs: number, record?: { dir?: string; env?: Record<string, string>; unlogged?: boolean }): Promise<Ran> {
+  const source = existsSync(abs(proof)) ? readFileSync(abs(proof), "utf8") : "";
+  const missing = await servicesFor(source);
+  if (missing) throw new Error(missing);
   const feed = abs(sibling(proof, ".in"));
   const request = sibling(proof, ".nvsr");
   const peer = sibling(proof, ".nvsp");
@@ -262,7 +293,12 @@ async function runExample(nvs: string, path: string, unlogged = false): Promise<
   const source = read(path);
   const skip = skipReason(source);
   if (skip) return ["skip", skip];
-  const out = await spawnProof([nvs, "run", path], path, EXAMPLE_TIMEOUT_MS, unlogged ? { unlogged } : undefined);
+  let out: Ran;
+  try {
+    out = await spawnProof([nvs, "run", path], path, EXAMPLE_TIMEOUT_MS, unlogged ? { unlogged } : undefined);
+  } catch (e) {
+    return ["fail", `could not run: ${e instanceof Error ? e.message : String(e)}`];
+  }
   if (out.timedOut) return ["fail", `timed out after ${EXAMPLE_TIMEOUT_MS / 1000}s`, out];
   const want = declaredExit(source);
   if (out.code !== want) {
@@ -289,6 +325,12 @@ export async function bless(nvs: string, paths: string[]): Promise<{ lines: stri
     if (skip) {
       // What a skipped program prints here is not what it prints where it runs.
       lines.push(`  FAIL  ${path} is ${skip}: bless it on a host that runs it`);
+      failed = true;
+      continue;
+    }
+    const missing = await servicesFor(read(path));
+    if (missing) {
+      lines.push(`  FAIL  ${path} ${missing}`);
       failed = true;
       continue;
     }

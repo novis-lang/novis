@@ -125,6 +125,8 @@ weakened to go green is worse than no case: it reports that a thing was tried an
     // proof: gap <gap id>          it breaks something; the gap record says what, not this file
     // requires: unimplemented      skip: the feature does not run yet
     // requires: unix               skip on Windows: it opens a Unix-domain socket
+    // requires: samba-ad           it talks to the directory in tests/db/compose.yaml, which the
+                                    runner brings up first, and it fails where that cannot be done
 
 A case runs with nothing on its standard input. A sibling `<name>.in` is sent to it instead, byte
 for byte, so an attack on a member that reads input can deliver bytes no `.nvs` file can spell —

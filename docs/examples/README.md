@@ -234,3 +234,10 @@ because this build has no such transport there. So does an example that reads a 
 not keep, such as `Core\Os::loadAverage`'s. It runs everywhere else, and `--bless` refuses it
 on a host that skips it: its `.out` is written on Linux, where it runs. An example that only shows
 the grant being refused prints the same on both, so it carries no such line and runs everywhere.
+
+## `// requires: samba-ad`
+
+An example that talks to a directory carries that line. Before the first such program in a run, the
+runner brings up the `samba-ad` service of `tests/db/compose.yaml` with `docker compose up -d
+--wait`, once, and leaves it running. Where that fails, as on a host with no Docker, every program
+carrying the line fails with the reason. A program without the line never touches Docker.
