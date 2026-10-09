@@ -2255,8 +2255,16 @@ SystemCallFilter=@system-service
 outside them — derived from the same list a Windows install applies as ACLs. The data folder and its
 `nvs.toml` stay read-only. Each path carries systemd's `-` prefix: a listed path missing at start fails
 the whole unit with `226/NAMESPACE`, while a skipped one leaves the server running with the one warning
-an unusable folder gets. A path is quoted where it has a space, a quote or a backslash, and a `%` is
-doubled, since systemd expands specifiers in a path setting.
+an unusable folder gets.
+
+**No value is written into the unit raw.** Every `ExecStart` word, the binary included, and every
+`ReadWritePaths=` path is quoted when it is empty, is a lone `;`, or has a space, a quote, a backslash or
+a control character; inside the quotes `\` and `"` are escaped and a control character is written
+`\xNN`. systemd decodes backslash escapes inside quotes and outside, ends a command at a bare `;`, and
+ends a setting at a newline, so none of them can split a word or add a line. A `%` is doubled
+everywhere, `Description=` included, because systemd expands specifiers in every word; a `$` is doubled
+in an `ExecStart` argument, because systemd expands variables in the arguments and not in the binary.
+An uninstall reads the binary and the argv back out of `ExecStart` through the exact inverse.
 
 **`ProtectHome=true` unless the service needs a home directory.** `true` masks `/home`, `/root` and
 `/run/user` and every path under them, a `ReadWritePaths=` entry included — systemd drops a path nested

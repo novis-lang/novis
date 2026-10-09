@@ -735,19 +735,27 @@ pub(crate) fn decode(line: &str) -> Vec<String> {
 /// `ReadWritePaths=` is the write half of [`registration::grants`], and
 /// `ProtectHome=` is `read-only` only for a service that needs a home
 /// directory; the module doc says why each is what it is.
+///
+/// No value the plan carries is written raw: each `ExecStart` word is an
+/// [`exec_word`], each `ReadWritePaths=` entry a [`unit_path`], and the `%`
+/// of a name is doubled in `Description=`, so none of them can split a word,
+/// be expanded by systemd or start a line of its own.
 pub(crate) fn unit(plan: &Plan) -> String {
-    let exe = plan.exe.display();
     let mut out = String::new();
     out.push_str("[Unit]\n");
-    out.push_str(&format!("Description=Novis service {}\n", plan.name));
+    out.push_str(&format!(
+        "Description=Novis service {}\n",
+        plan.name.replace('%', "%%")
+    ));
     out.push_str("After=network.target\n\n");
 
     out.push_str("[Service]\n");
     out.push_str("Type=notify\n");
-    out.push_str(&format!("ExecStart={exe}"));
+    out.push_str("ExecStart=");
+    out.push_str(&exec_word(&plan.exe.display().to_string(), true));
     for word in &plan.argv {
         out.push(' ');
-        out.push_str(&shell_word(word));
+        out.push_str(&exec_word(word, false));
     }
     out.push('\n');
     out.push_str("WatchdogSec=30\n");
@@ -804,29 +812,80 @@ fn under_a_home(path: &Path) -> bool {
 /// when it is missing: a listed path missing at start fails the whole unit
 /// with `226/NAMESPACE`, and a skipped one leaves the server running with the
 /// one warning any unusable folder gets. Every `%` is doubled, because systemd
-/// expands `%` specifiers in a path setting, and the word is quoted where it
-/// has a space, a quote or a backslash, which systemd's list parser would
-/// otherwise split or unescape.
+/// expands `%` specifiers in a path setting, and the word is then a
+/// [`unit_word`]. systemd expands no `$` in this setting, so a `$` stays single.
 fn unit_path(path: &Path) -> String {
-    let word = format!("-{}", path.display()).replace('%', "%%");
-    if word.contains([' ', '\t', '"', '\'', '\\']) {
-        format!("\"{}\"", word.replace('\\', "\\\\").replace('"', "\\\""))
+    unit_word(&format!("-{}", path.display()).replace('%', "%%"))
+}
+
+/// One word of a systemd `ExecStart`: the binary when `binary` is set, and
+/// one argument of the stored argv otherwise.
+///
+/// Every `%` is doubled, because systemd expands `%` specifiers in every word.
+/// Every `$` of an argument is doubled, because systemd expands `$VAR` and
+/// `${VAR}` in the arguments when it starts the service; it expands none in
+/// the binary, so a `$` there stays single. The word is then a [`unit_word`].
+fn exec_word(word: &str, binary: bool) -> String {
+    let word = word.replace('%', "%%");
+    if binary {
+        unit_word(&word)
     } else {
-        word
+        unit_word(&word.replace('$', "$$"))
     }
 }
 
-/// One word of a systemd `ExecStart`, quoted only where it has to be.
-fn shell_word(word: &str) -> String {
-    if word.is_empty() || word.contains([' ', '\t', '"', '\'']) {
-        format!("\"{}\"", word.replace('\\', "\\\\").replace('"', "\\\""))
-    } else {
-        word.to_owned()
+/// A word of a systemd word list, written so systemd reads it back unchanged.
+///
+/// It is quoted when it is empty, is `;`, or has a space, a quote, a backslash
+/// or a control character. Inside the quotes `\` and `"` are escaped and a
+/// control character is written `\xNN`. systemd decodes backslash escapes
+/// inside quotes and outside, so a bare backslash would be read as the start of
+/// one; a bare `;` ends an `ExecStart` command; and a bare newline would end
+/// the setting and start a line of its own. Every other word is written as it
+/// is.
+fn unit_word(word: &str) -> String {
+    let plain = !word.is_empty()
+        && word != ";"
+        && !word.chars().any(|character| {
+            matches!(character, ' ' | '"' | '\'' | '\\') || character.is_ascii_control()
+        });
+    if plain {
+        return word.to_owned();
     }
+    let mut out = String::with_capacity(word.len() + 2);
+    out.push('"');
+    for character in word.chars() {
+        match character {
+            '\\' | '"' => {
+                out.push('\\');
+                out.push(character);
+            }
+            _ if character.is_ascii_control() => {
+                out.push_str(&format!("\\x{:02x}", u32::from(character)));
+            }
+            _ => out.push(character),
+        }
+    }
+    out.push('"');
+    out
 }
 
-/// An `ExecStart` line read back into the words [`shell_word`] wrote it from,
-/// which is how a Linux uninstall learns what it is undoing.
+/// An `ExecStart` line read back into the binary and the argv
+/// [`exec_word`] wrote it from, which is how a Linux uninstall learns what it
+/// is undoing: the words of [`shell_words`], with each `$$` of an argument
+/// halved.
+fn exec_words(line: &str) -> Vec<String> {
+    let mut words = shell_words(line);
+    for word in words.iter_mut().skip(1) {
+        *word = word.replace("$$", "$");
+    }
+    words
+}
+
+/// A systemd word list read back into the words [`unit_word`] wrote it from,
+/// the way systemd reads one: split at whitespace outside quotes, with `"` and
+/// `'` quotes removed, backslash escapes decoded inside quotes and outside,
+/// and each `%%` halved. An escape systemd does not know is kept as written.
 ///
 /// [`decode`] is the same half of the Windows round trip, and the two are
 /// separate because the encodings are: `CommandLineToArgvW`'s backslash rule
@@ -834,38 +893,80 @@ fn shell_word(word: &str) -> String {
 /// third encoding neither platform reads.
 fn shell_words(line: &str) -> Vec<String> {
     let mut out = Vec::new();
-    let mut current = String::new();
-    let mut quoted = false;
-    let mut escaped = false;
+    // Bytes, because `\xNN` writes one byte and the word is UTF-8 only whole.
+    let mut current = Vec::new();
+    let mut quote = None;
     let mut started = false;
-    for character in line.chars() {
-        if escaped {
-            current.push(character);
-            escaped = false;
-            continue;
-        }
+    let mut characters = line.chars();
+    let finish = |bytes: Vec<u8>| String::from_utf8_lossy(&bytes).replace("%%", "%");
+    while let Some(character) = characters.next() {
         match character {
-            '\\' if quoted => escaped = true,
-            '"' => {
-                quoted = !quoted;
+            '\\' => {
+                unescape(&mut characters, &mut current);
                 started = true;
             }
-            ' ' | '\t' if !quoted => {
+            '"' | '\'' if quote.is_none() => {
+                quote = Some(character);
+                started = true;
+            }
+            _ if quote == Some(character) => quote = None,
+            ' ' | '\t' if quote.is_none() => {
                 if started {
-                    out.push(std::mem::take(&mut current));
+                    out.push(finish(std::mem::take(&mut current)));
                     started = false;
                 }
             }
             _ => {
-                current.push(character);
+                let mut buffer = [0; 4];
+                current.extend_from_slice(character.encode_utf8(&mut buffer).as_bytes());
                 started = true;
             }
         }
     }
     if started {
-        out.push(current);
+        out.push(finish(current));
     }
     out
+}
+
+/// The escape after a backslash [`shell_words`] read, decoded into `out` as
+/// systemd decodes it: `\\`, `\"`, `\'`, `\s` for a space, the C escapes
+/// `\a \b \f \n \r \t \v`, and `\xNN` for the byte `NN`. Any other escape,
+/// and a backslash that ends the line, is kept as written.
+fn unescape(characters: &mut std::str::Chars<'_>, out: &mut Vec<u8>) {
+    let hex = characters
+        .as_str()
+        .get(1..3)
+        .filter(|digits| digits.bytes().all(|byte| byte.is_ascii_hexdigit()))
+        .and_then(|digits| u8::from_str_radix(digits, 16).ok());
+    let Some(character) = characters.next() else {
+        out.push(b'\\');
+        return;
+    };
+    let byte = match character {
+        '\\' => b'\\',
+        '"' => b'"',
+        '\'' => b'\'',
+        's' => b' ',
+        'a' => 0x07,
+        'b' => 0x08,
+        'f' => 0x0c,
+        'n' => b'\n',
+        'r' => b'\r',
+        't' => b'\t',
+        'v' => 0x0b,
+        'x' if hex.is_some() => {
+            characters.nth(1);
+            hex.unwrap_or_default()
+        }
+        _ => {
+            let mut buffer = [0; 4];
+            out.push(b'\\');
+            out.extend_from_slice(character.encode_utf8(&mut buffer).as_bytes());
+            return;
+        }
+    };
+    out.push(byte);
 }
 
 /// What a service manager is told this process is doing, and the whole set.
@@ -2667,7 +2768,7 @@ pub(crate) mod registration {
                 if let Some(command) = line.strip_prefix("ExecStart=") {
                     // The first word is the binary the unit names, and the
                     // stored argv is the rest.
-                    let mut words = shell_words(command).into_iter();
+                    let mut words = exec_words(command).into_iter();
                     exe = words.next().map(PathBuf::from);
                     argv = words.collect();
                 } else if let Some(user) = line.strip_prefix("User=") {
@@ -4774,7 +4875,10 @@ mod tests {
         ] {
             assert!(text.contains(line), "missing `{line}` in\n{text}");
         }
-        assert!(text.contains(&format!("ExecStart={} serve", absolute("bin/nvs"))));
+        assert!(text.contains(&format!(
+            "ExecStart={} serve",
+            exec_word(&absolute("bin/nvs"), true)
+        )));
         // No data folder and no configured path: nothing is granted write, so
         // nothing is opened.
         assert!(!text.contains("ReadWritePaths="), "{text}");
@@ -4961,6 +5065,108 @@ mod tests {
 
         // systemd expands `%` in a path setting, so a literal one is doubled.
         assert_eq!(unit_path(Path::new("/srv/100%")), "-/srv/100%%");
+    }
+
+    /// A plan for the binary `exe` and the stored argv `argv`, with nothing
+    /// else configured.
+    fn plan_running(exe: &str, argv: Vec<String>) -> Plan {
+        Plan {
+            name: "web".to_owned(),
+            exe: PathBuf::from(exe),
+            argv,
+            account: None,
+            memory_max: None,
+            privileged_port: false,
+            data: None,
+            reads_data_config: false,
+            log_file: None,
+            cache_directory: None,
+            temp_root: None,
+            owner: None,
+        }
+    }
+
+    /// The one `ExecStart` line of a unit, without its key.
+    fn exec_start(text: &str) -> &str {
+        let lines: Vec<&str> = text
+            .lines()
+            .filter(|line| line.starts_with("ExecStart"))
+            .collect();
+        assert_eq!(lines.len(), 1, "{text}");
+        lines[0]
+            .strip_prefix("ExecStart=")
+            .expect("an `ExecStart=` setting")
+    }
+
+    /// `rule:packaging/the-generated-unit-is-hardened`: systemd decodes
+    /// backslash escapes in every `ExecStart` word, expands `%` in every word
+    /// and `$` in every argument, ends the command at a bare `;` and the
+    /// setting at a newline, so each of those is escaped.
+    #[test]
+    fn an_exec_start_word_is_escaped_the_way_systemd_reads_it() {
+        assert_eq!(exec_word("100%", false), "100%%");
+        assert_eq!(exec_word("/opt/100%/nvs", true), "/opt/100%%/nvs");
+        // A backslash alone is enough to quote the word.
+        assert_eq!(exec_word(r"C:\nvs\nvs", true), r#""C:\\nvs\\nvs""#);
+        assert_eq!(exec_word("$HOME", false), "$$HOME");
+        assert_eq!(exec_word("/opt/$bin/nvs", true), "/opt/$bin/nvs");
+        assert_eq!(exec_word("a b", false), "\"a b\"");
+        assert_eq!(exec_word(";", false), "\";\"");
+        assert_eq!(exec_word("", false), "\"\"");
+        assert_eq!(exec_word("a\nb", false), r#""a\x0ab""#);
+        assert_eq!(exec_word("%$ \\\"\n;", false), r#""%%$$ \\\"\x0a;""#);
+        assert_eq!(exec_word("serve", false), "serve");
+    }
+
+    /// An uninstall reads the binary and the argv back out of `ExecStart`, so
+    /// the encoder's round trip is the property: every word reads back as it
+    /// was, and no word starts a line of its own.
+    #[test]
+    fn an_exec_start_line_reads_back_the_words_it_was_written_from() {
+        let exe = "/opt/my nvs%/$bin/nvs";
+        let argv: Vec<String> = [
+            "serve",
+            "%",
+            "\\",
+            "${HOME}",
+            "$HOME",
+            "with space",
+            "trailing\\",
+            ";",
+            "",
+            "line\nUser=root",
+        ]
+        .map(str::to_owned)
+        .to_vec();
+        let text = unit(&plan_running(exe, argv.clone()));
+        let command = exec_start(&text);
+        assert!(
+            !text.lines().any(|line| line.starts_with("User=")),
+            "{text}"
+        );
+
+        let mut words = exec_words(command).into_iter();
+        assert_eq!(words.next().as_deref(), Some(exe), "{command}");
+        assert_eq!(words.collect::<Vec<_>>(), argv, "{command}");
+    }
+
+    /// A newline in a granted path is escaped like any control character, so
+    /// the path stays one word of `ReadWritePaths=` and adds no line.
+    #[test]
+    fn a_control_character_in_a_writable_path_adds_no_line_to_the_unit() {
+        let folder = "/srv/log\nUser=root";
+        assert_eq!(unit_path(Path::new(folder)), r#""-/srv/log\x0aUser=root""#);
+
+        let plan = Plan {
+            log_file: Some(PathBuf::from(format!("{folder}/web.log"))),
+            ..plan_running("/usr/bin/nvs", vec!["serve".to_owned()])
+        };
+        let text = unit(&plan);
+        assert!(
+            !text.lines().any(|line| line.starts_with("User=")),
+            "{text}"
+        );
+        assert_eq!(opened(&text), [format!("-{folder}")]);
     }
 
     /// `ProtectHome=true` masks every path under `/home`, `/root` and
