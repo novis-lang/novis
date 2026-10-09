@@ -246,6 +246,35 @@ export async function spawnProof(argv: string[], proof: string, timeoutMs: numbe
   if (recording.NVS_FOOTPRINT_LOG) mkdirSync(dirname(recording.NVS_FOOTPRINT_LOG), { recursive: true });
   const env: Record<string, string | undefined> = { LLVM_PROFILE_FILE: DISCARD_PROFILE, ...process.env, ...record?.env, ...recording };
   if (record?.unlogged && !recording.NVS_FOOTPRINT_LOG) delete env.NVS_FOOTPRINT_LOG;
+  const release = SAMBA_AD_RE.test(source) ? await sambaSlot() : () => {};
+  try {
+    return await spawnTimed(argv, env, feed, timeoutMs);
+  } finally {
+    release();
+  }
+}
+
+/** How many programs marked `requires: samba-ad` run at once, whatever the pool's width. One Samba
+ * directory answers all of them, and a full pool of them slows it past the `timeout` the proof blocks
+ * in `nvs.toml` set, so a call or a TLS handshake fails and the same program ends differently each run. */
+const SAMBA_AD_JOBS = 2;
+let sambaRunning = 0;
+const sambaWaiting: (() => void)[] = [];
+
+/** Waits for one of `SAMBA_AD_JOBS` slots, and gives the function that frees it. A freed slot passes
+ * straight to the next waiter. */
+async function sambaSlot(): Promise<() => void> {
+  if (sambaRunning < SAMBA_AD_JOBS) sambaRunning++;
+  else await new Promise<void>((go) => sambaWaiting.push(go));
+  return () => {
+    const next = sambaWaiting.shift();
+    if (next) next();
+    else sambaRunning--;
+  };
+}
+
+/** Runs `argv` once under `timeoutMs`, which starts when the process does. */
+async function spawnTimed(argv: string[], env: Record<string, string | undefined>, feed: string, timeoutMs: number): Promise<Ran> {
   const started = performance.now();
   const child = Bun.spawn(argv, {
     cwd: ROOT,
