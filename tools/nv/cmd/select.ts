@@ -25,7 +25,7 @@
 // A plan check is a group of atoms (`select/checks.ts`); what it is made of does not depend on what
 // changed, so `--explain CHECK` prints that first, whether or not the store has a tree to compare with.
 
-import type { Check } from "../driver/accept.ts";
+import type { Check } from "../accept/accept.ts";
 import { metadata } from "../keys/graph.ts";
 import { currentPlan } from "../lib/chain.ts";
 import { describeGroup, grouped, planContext, twinBinaries } from "../select/checks.ts";

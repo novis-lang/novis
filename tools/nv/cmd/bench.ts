@@ -104,7 +104,7 @@ import { createServer, connect, type AddressInfo, type Socket } from "node:net";
 import { cpus, machine, release } from "node:os";
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync, appendFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
-import { signalOwned, Tree } from "../driver/proctree.ts";
+import { signalOwned, Tree } from "../lib/proctree.ts";
 import { ROOT } from "../lib/paths.ts";
 import { ArgError, fixed, parseArgs, pyInt, pyRepr, splitlines } from "../lib/py.ts";
 import { unrecorded } from "../lib/reads.ts";

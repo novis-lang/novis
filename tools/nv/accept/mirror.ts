@@ -31,7 +31,7 @@ import { copyFileSync, existsSync, mkdirSync } from "node:fs";
 import { dirname, isAbsolute, join } from "node:path";
 import { ROOT } from "../lib/paths.ts";
 import { run } from "../lib/proc.ts";
-import { Tree } from "./proctree.ts";
+import { Tree } from "../lib/proctree.ts";
 
 /** The scratch index the snapshot is taken through, under the repository root. */
 export const INDEX = ".agent-tmp/wsl-mirror/index";

@@ -26,7 +26,7 @@ import { metadata } from "../keys/graph.ts";
 import { ROOT } from "../lib/paths.ts";
 import { run } from "../lib/proc.ts";
 import { readLog, readModules } from "../lib/reads.ts";
-import type { TestExe } from "../driver/accept.ts";
+import type { TestExe } from "../accept/accept.ts";
 import { divergence, proofBinary, recordingRun, recordName } from "../proofs/run.ts";
 import { judgeKept } from "../proofs/select.ts";
 import { caseFiles, caseId, nvDef, nvId, proofDef, proofId, proofPrograms, testId } from "./atoms.ts";

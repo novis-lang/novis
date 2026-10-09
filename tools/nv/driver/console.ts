@@ -42,7 +42,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, 
 import { dirname, join } from "node:path";
 import { ROOT } from "../lib/paths.ts";
 import { cookConsole } from "../lib/tty.ts";
-import type { Tree } from "./proctree.ts";
+import type { Tree } from "../lib/proctree.ts";
 import { cut, keyRow } from "./status.ts";
 
 const WIN = process.platform === "win32";

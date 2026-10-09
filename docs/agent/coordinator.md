@@ -48,7 +48,7 @@ harness settings and nothing else.
 | `tools/nv/cmd/orient.ts` | `bun nv orient`: the whole of a session's step 1, narrowed by the goal's `context` manifest. Slices the live files; holds no copy. `--audit` says what the pack cost. **The driver runs it and pipes the output to the session on stdin** — a session that fetched its own paid three calls and ~20k for a 13k pack, because the harness spills a result that size to a file and reading it back costs more than the pack. |
 | `tools/nv/cmd/loop-stats.ts` | `bun nv loop-stats`: what the last run's sessions actually cost, measured out of `.loop/logs/`. Every constant this design rests on, re-derived rather than remembered. `--attribute` charges the context to whatever fetched it. |
 | `tools/nv/cmd/loop.ts` | `bun nv loop`: the driver, and the run above it, with `tools/nv/driver/` beside it. One process of it is one **turn** — a session and the boundary behind it — so a driver change takes effect at the next session, whoever made it. § *The run* below is the only home for what a turn decides. |
-| `tools/nv/driver/proctree.ts` | A child process and everything it started, as one thing that can be frozen, thawed, killed and reaped, and the only way `nv` kills a process: a Job Object on Windows, never a bare process id. What `h` is made of. |
+| `tools/nv/lib/proctree.ts` | A child process and everything it started, as one thing that can be frozen, thawed, killed and reaped, and the only way `nv` kills a process: a Job Object on Windows, never a bare process id. What `h` is made of. |
 | `tools/nv/driver/respawn.ts` | The launcher: `bun nv loop` typed by hand, with no `NOVIS_LOOP_RUN` in its environment, starts `bun nv loop` again for every turn, and is the only process that lives as long as a run. It holds no loop logic: it names the run in each turn's environment and waits. |
 | `docs/agent/optimization-prompt.md` | The prompt for an optimization pass, which a person runs by hand; the driver runs none. It owns what a pass may change and what it may only propose. |
 | `docs/agent/playbook.md` | The traps a session paid for once: the contract here, one file per bullet under `docs/agent/playbook/`. Append-mostly, and outlives every session. |
@@ -310,7 +310,7 @@ Windows a second leg, in WSL, runs them and every `nvs-suite` check again agains
 because a JIT is exactly where a calling-convention divergence between two targets hides; then the
 valgrind sweep runs every fixture under `--leak-check=full` (in WSL on Windows, directly on Linux). Both
 run on every sweep, and each is remembered only when it is green on a sweep with the floor gate open
-(`tools/nv/driver/legs.ts`). The `cargo-*` checks run once — except the
+(`tools/nv/accept/legs.ts`). The `cargo-*` checks run once — except the
 ones whose `stage` starts `0`, which run **before** the native leg, so an unfinished catch-up item is
 what the ledger names rather than a later stage's fixture.
 
@@ -364,7 +364,7 @@ the dozen the goal is working on — carried into the goal's plan as a view (`go
 `tools/nv/lib/chain.ts`), so a walked goal keeps its checks and a goal switch copies nothing. A check
 the change did not reach is not started, so a sweep over the whole plan runs what the session's change
 reached, carried or the goal's own, and a floor regression is named in the session that caused it. The
-driver holds only the heavy checks (`isHeavy` in `tools/nv/driver/accept.ts`: the release profile and
+driver holds only the heavy checks (`isHeavy` in `tools/nv/accept/accept.ts`: the release profile and
 its cost guards, fuzz, TSan, the database matrix, and the checks never memoized) with the WSL leg and
 the valgrind sweep, and opens the gate every `FLOOR_GATE_EVERY` sessions — `tools/nv/cmd/loop.ts` is
 that number's only home. They build what no recorded run builds, so each is keyed on a twin of its run
@@ -467,7 +467,7 @@ not the unattended one every measurement over the ledger assumes.
 
 - **`h`, or `.loop/halt`, freezes the session where it stands** — `claude` and every process under it,
   a running `cargo` included — and `h` again, or deleting the file, lets all of it carry on from the same
-  instruction. Nothing is lost and nothing is re-sent: it is a suspend, not a kill (`tools/nv/driver/proctree.ts`:
+  instruction. Nothing is lost and nothing is re-sent: it is a suspend, not a kill (`tools/nv/lib/proctree.ts`:
   a Job Object on Windows, the process group on POSIX). The status line says `HALTED` and for how long.
   The one thing a long freeze can cost is the API stream; the session then exits as a dropped stream and
   the driver rejoins its transcript with `--resume`, exactly as for a drop nobody caused.

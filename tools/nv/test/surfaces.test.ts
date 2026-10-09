@@ -4,7 +4,7 @@
 
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import type { Check } from "../driver/accept.ts";
+import type { Check } from "../accept/accept.ts";
 import { featureMatches } from "../cmd/loop.ts";
 import { readSession } from "../cmd/loop-stats.ts";
 import { ROOT } from "../lib/paths.ts";

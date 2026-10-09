@@ -11,7 +11,7 @@
 // A check with no name of its own is named by its `file`, so `--name` reaches a fixture's check too.
 //
 // `bun nv loop --goal` prints the goal table `[g]` prints, one row per stage, without a run. Its results
-// are the checks whose atoms the selection store last recorded green (`driver/runner.ts` `lastGreen`),
+// are the checks whose atoms the selection store last recorded green (`accept/runner.ts` `lastGreen`),
 // as the status row's are, and its session number is `.loop/run.json`'s `index`. No session runs under
 // this command, so the table's last
 // line names none. The table is as wide as the terminal, or 100
@@ -19,17 +19,17 @@
 // under a UTF-8 locale.
 //
 // `bun nv loop --run` takes the same three filters, at least one of them, and runs each check they
-// select once, every atom of it, through `driver/runner.ts`'s `PlanSweep`, recording each run. It prints
+// select once, every atom of it, through `accept/runner.ts`'s `PlanSweep`, recording each run. It prints
 // one line per check, `ok`, `FAIL` with the
 // line the ledger would quote, or `SHORT` for a suite below its `minPassing`, then `run: N green, M red`.
 // What each process is doing goes to stderr as it starts. A session proves its own check this way, one
-// command at a time, rather than by starting a sweep. It and every sweep below hold `driver/origin.ts`'s
+// command at a time, rather than by starting a sweep. It and every sweep below hold `accept/origin.ts`'s
 // listener up while they run a check that talks to it, as the fixture of `examples/http.nvs` does. A sweep
-// below that uses the origin, a Linux leg or a perf guard first takes `driver/sweep-lock.ts`'s lock, so one
+// below that uses the origin, a Linux leg or a perf guard first takes `accept/sweep-lock.ts`'s lock, so one
 // tree on this machine uses them at a time; a sweep that uses none of them, and `--run`, do not take it.
 //
-// `bun nv loop --goal-only` is the acceptance sweep, `driver/accept.ts`'s `acceptance` over
-// `driver/runner.ts`'s `PlanSweep`: the change since the selection store's tree is read once, and a
+// `bun nv loop --goal-only` is the acceptance sweep, `accept/accept.ts`'s `acceptance` over
+// `accept/runner.ts`'s `PlanSweep`: the change since the selection store's tree is read once, and a
 // check is started only when the change reaches one of its atoms (`select/checks.ts`), each check in the
 // tiers' order, with a stop at the first red. A check the change does not reach prints nothing, and the
 // sweep says how many there were. It ends on `NOT GREEN: <the red check's line>` or `GOAL REACHED`.
@@ -129,7 +129,7 @@ import { respawn } from "../driver/respawn.ts";
 import { AllowWatch, loadSeen, record as recordAllow, saveSeen, settle as settleAllow } from "../driver/allow.ts";
 import { insideWorktree, landing, launchSide } from "../driver/side.ts";
 import { bringUp, docGate, enoughDisk, ownerGate, preflight, sweepDisk } from "../driver/gates.ts";
-import { chainGoals, type Goal, goalPlan, leaveGoal, liveGoal, SIDE_ENV, sideGoal, sidePlan } from "../lib/chain.ts";
+import { chainGoals, type Goal, goalPlan, leaveGoal, liveGoal, SIDE_ENV, sideGoal } from "../lib/chain.ts";
 import { ROOT } from "../lib/paths.ts";
 import { ENV as PROGRESS_ENV, readProgress } from "../lib/progress.ts";
 import { goal as goalType } from "../schema/goal.ts";
@@ -156,14 +156,14 @@ import {
   wallAfter,
 } from "../driver/sweep.ts";
 import { C, CONSOLE, CONTROL, HALT, clock, LiveSession, PAUSE, RETRY, SAY, SLICES, STOP, TICKER, VERIFY, consoleMode, hms, holdPause, mmss, say, step, verdict, wait } from "../driver/console.ts";
-import { Tree as ProcTree } from "../driver/proctree.ts";
+import { Tree as ProcTree } from "../lib/proctree.ts";
 import { type Caps, DEFAULT_CAPS, Renderer } from "../driver/transcript.ts";
 import { ENV as WRITES_ENV } from "../lib/written.ts";
-import { holdOrigin, type Origin } from "../driver/origin.ts";
-import { needLine, sharedResources, takeSweepLock } from "../driver/sweep-lock.ts";
-import { type AcceptanceResult, type Check, PROGRAM_KINDS, acceptance, allReds, heldByGate, tiers, withSetups } from "../driver/accept.ts";
-import { type LegsOptions, legSteps, linuxLegs, startWslBuild } from "../driver/legs.ts";
-import { lastGreen, PlanSweep } from "../driver/runner.ts";
+import { holdOrigin } from "../accept/origin.ts";
+import { sharedResources, takeSweepLock } from "../accept/sweep-lock.ts";
+import { type Check, allReds, heldByGate, tiers, withSetups } from "../accept/accept.ts";
+import { lastGreen, PlanSweep } from "../accept/runner.ts";
+import { type Current, livePlan, nameOf, type Progress, stageLabels, sweepOver } from "../accept/sweep.ts";
 import { awaitGate, CHAIN_FILE, gateShut, looperArgv, putLooperFirst, retireChain, startLooper } from "../driver/handover.ts";
 import { writeGoalPlan } from "../renderers/goal-plan.ts";
 import { SelectStore } from "../select/store.ts";
@@ -223,10 +223,6 @@ function parse(args: string[]): Filters | null {
   return out;
 }
 
-/** The check's name as the driver prints it: its own, or its fixture's run line. */
-function nameOf(c: Check): string {
-  return c.name ?? `run ${[...(c.args ?? []), c.file ?? ""].join(" ")}`.trimEnd();
-}
 
 function stageMatches(label: string, number: number, want: string): boolean {
   // A bare number names that stage alone, so `1` never reaches stages 10 to 12 through the prefix.
@@ -259,49 +255,11 @@ function line(c: Check, label: string): string {
   return `${head} ${nameOf(c)}: ${driver} ${(c.args ?? []).join(" ")}`;
 }
 
-/** The goal a run works on: the live goal and its place on the chain, or a side goal, whose place is null. */
-interface Current {
-  slug: string;
-  num: number | null;
-}
-
 /** Where `live` stands, as the driver prints it: `12 of 179`, or `a side goal, off the chain`. */
 function placeOf(live: Current, total: number): string {
   return live.num === null ? "a side goal, off the chain" : `${live.num} of ${total}`;
 }
 
-/**
- * The goal this process works on, its plan and the chain's length, or null once the reason it has none is
- * printed. It is the side goal `SIDE_ENV` names, with `sidePlan`'s plan, or else the live goal, with
- * `goalPlan`'s: the goal's own record.
- */
-function livePlan(): { live: Current; goal: Goal; total: number } | null {
-  const goals = chainGoals();
-  const side = sideGoal();
-  if (side !== null) {
-    const goal = sidePlan(side);
-    if (goal === null) {
-      console.error(`nv loop: the side goal \`${side}\` has no record at data/goals/side/${side}.json`);
-      return null;
-    }
-    return { live: { slug: side, num: null }, goal, total: goals.length };
-  }
-  if (process.env[SIDE_ENV]) {
-    console.error(`nv loop: ${SIDE_ENV} names \`${process.env[SIDE_ENV]}\`, and there is no docs/agent/goals/side/<slug>.md by that name`);
-    return null;
-  }
-  const live = liveGoal(goals);
-  if (live === null) {
-    console.error("nv loop: data/chain.json names no live goal on the chain, so there is no plan to read");
-    return null;
-  }
-  const goal = goalPlan(live.slug);
-  if (goal === null) {
-    console.error(`nv loop: the live goal \`${live.slug}\` has no record at data/goals/${live.slug}.json`);
-    return null;
-  }
-  return { live, goal, total: goals.length };
-}
 
 /** `path`'s JSON object, or an empty one when it is absent or not an object. */
 function jsonObject(path: string): Record<string, unknown> {
@@ -333,10 +291,9 @@ function selected(filters: Filters): { live: Current; goal: Goal; total: number;
   const found = livePlan();
   if (found === null) return null;
   const { live, goal } = found;
-  const labels = new Map(goal.stages.map((s) => [s.number, `${s.number} ${s.title}`]));
-  const labelOf = (n: number) => labels.get(n) ?? String(n);
+  const labelOf = stageLabels(goal);
   if (filters.stage !== undefined && !goal.stages.some((s) => stageMatches(labelOf(s.number), s.number, filters.stage!))) {
-    console.error(`nv loop: no stage of \`${live.slug}\` is \`${filters.stage}\`; its stages are ${[...labels.values()].map((l) => `\`${l}\``).join(", ")}`);
+    console.error(`nv loop: no stage of \`${live.slug}\` is \`${filters.stage}\`; its stages are ${goal.stages.map((s) => `\`${labelOf(s.number)}\``).join(", ")}`);
     return null;
   }
   const shown = (goal.checks as Check[]).filter(
@@ -404,133 +361,6 @@ async function runChecks(filters: Filters): Promise<number> {
   return red === 0 ? 0 : 1;
 }
 
-/** How a sweep reports itself: each process as it starts, each check the change reaches as it starts, and any other line. The Linux legs' steps are counted before the sweep starts, then the legs say when they begin and each step they finish. */
-interface Progress {
-  run: (what: string) => void;
-  trace: (c: Check) => void;
-  note: (text: string) => void;
-  count: (steps: number) => void;
-  plan: (steps: number) => void;
-  step: () => void;
-}
-
-/**
- * One acceptance sweep over `checks`, on the selection store: the change since its tree is read once,
- * only the checks it reaches start, every run records, and the store's tree moves past the change when
- * the sweep ends, green or red. `onDone` is called with each check's verdict once the sweep ends, which
- * is how a caller learns them without a second run.
- */
-async function sweepOver(
-  goal: Goal,
-  checks: Check[],
-  labelOf: (n: number) => string,
-  o: { full: boolean; collect: boolean; legs?: boolean; gateOpen?: boolean; heavyAll?: boolean; onDone?: (c: Check, green: boolean) => void; progress?: Progress },
-): Promise<{ result: AcceptanceResult; secs: number; owed: number }> {
-  const started = Date.now();
-  const p: Progress = o.progress ?? {
-    run: (what) => console.error(`  .. ${what}`),
-    trace: (c) => console.error(`  check ${nameOf(c)} [${labelOf(c.stage)}]`),
-    note: (text) => console.error(`  ${text}`),
-    count: () => {},
-    plan: () => {},
-    step: () => {},
-  };
-  const sweep = await PlanSweep.open(goal.checks as Check[], labelOf, { full: o.full, heavyAll: o.heavyAll === true, onRun: p.run, say: p.note });
-  const reachedOf = new Map<string, boolean>();
-  const reached = (c: Check) => {
-    let r = reachedOf.get(c.id);
-    if (r === undefined) reachedOf.set(c.id, (r = sweep.reached(c)));
-    return r;
-  };
-  const n = checks.filter(reached).length;
-  const c = sweep.change;
-  const since = c.full ? (c.global ?? "everything") : `${c.changes.length} path(s) changed since the recorded tree`;
-  p.note(`${since}; ${n} of ${checks.length} check(s) reached, the other ${checks.length - n} not started`);
-  // The two Linux legs, over the fixtures and suites this sweep reaches. They start with the overlap tier,
-  // beside the release builds, and the release tier measures only once they end (`acceptance`'s `beside`).
-  const legs: LegsOptions = {
-    programs: checks.filter((c) => PROGRAM_KINDS.has(c.kind)),
-    suites: checks.filter((c) => c.kind === "nvs-suite"),
-    // From the whole goal, not `checks`: a setup check is heavy, so a shut floor gate holds it back while
-    // the leg still runs the fixtures that read what it writes.
-    setups: (goal.checks as Check[]).filter((c) => c.setup === true),
-    files: goal.files,
-    valgrindSkip: goal.env.valgrind?.skip ?? [],
-    wslTarget: goal.env.wsl?.targetDir ?? null,
-    gateOpen: o.gateOpen ?? false,
-    reached: (leg) => o.full || sweep.legReached(leg),
-    onGreen: (leg) => sweep.legGreen(leg),
-    onRed: (leg) => sweep.legRed(leg),
-    label: labelOf,
-    onRun: p.run,
-    onPlan: p.plan,
-    onStep: p.step,
-  };
-  // The legs run only with the floor gate open; a leg the change reached with the gate shut is owed.
-  const runLegs = o.legs === true && o.gateOpen === true;
-  // A sweep that uses the origin, a Linux leg or a perf guard takes the lock, which another tree's sweep
-  // using one of them may hold. The time spent waiting for it is not this sweep's cost.
-  const need = sharedResources(checks.filter(reached), runLegs, legs.reached);
-  p.note(needLine(need));
-  const asked = Date.now();
-  const lock = need.lock ? await takeSweepLock({ note: p.note }) : null;
-  const waited = Date.now() - asked;
-  let result: AcceptanceResult;
-  let owed = 0;
-  let origin: Origin | null = null;
-  let legsRun: Promise<string> | null = null;
-  try {
-    if (runLegs) {
-      p.count(legSteps(legs));
-      p.note("the Linux legs run every fixture and suite again on Linux: they keep the floor gate's cadence, and run when the change reached one of those or code only Linux compiles");
-      startWslBuild(legs);
-    }
-    if (need.origin) {
-      origin = await holdOrigin();
-      p.note(origin.line);
-    }
-    result = await acceptance(checks, {
-      label: labelOf,
-      sweep,
-      reached,
-      judged: (x) => sweep.judged(x),
-      collect: o.collect,
-      trace: p.trace,
-      ...(runLegs
-        ? {
-            beside: () => {
-              const run = linuxLegs(legs);
-              legsRun = run;
-              return run.then(
-                () => {},
-                () => {},
-              );
-            },
-          }
-        : {}),
-    });
-    // A sweep that stopped at a red check reports that red alone, as it would have at any later tier; a
-    // collecting sweep that returned before the overlap tier runs the legs now.
-    if (runLegs && (result.fail === "" || o.collect)) {
-      const red = await (legsRun ?? linuxLegs(legs));
-      if (red) result = { ...result, fail: result.fail ? allReds([result.fail, red]) : red };
-    }
-  } finally {
-    origin?.close();
-    lock?.release();
-    const closed = sweep.close();
-    owed = closed.owed;
-    const ran = Object.entries(closed.ran).map(([k, n]) => `${n} ${k}`).join(", ");
-    p.note(`the sweep ran ${ran || "no atom"}; ${owed} atom(s) the change reached and nothing ran stay owed`);
-    if (closed.diverged.size > 0) {
-      p.note(`${closed.diverged.size} atom(s) ended differently on the recording run than on the judged run, and run every time until they agree:`);
-      for (const [id, why] of [...closed.diverged].sort(([a], [b]) => (a < b ? -1 : 1))) p.note(`  diverged  ${id}: ${why}`);
-    }
-  }
-  for (const x of checks) o.onDone?.(x, result.verdicts.get(x.id) ?? false);
-  return { result, secs: Math.round((Date.now() - started - waited) / 1000), owed };
-}
-
 /** The acceptance sweep over the checks the filters select, or over the whole plan. */
 async function goalOnly(filters: Filters): Promise<number> {
   const found = selected(filters);
@@ -554,29 +384,6 @@ async function goalOnly(filters: Filters): Promise<number> {
   if (narrowed) console.log("GREEN: every check the filters select passes");
   else if (filters.shut) console.log("GREEN: every check but the heavy ones passes; the floor gate has still to run those and the Linux legs");
   else console.log("GOAL REACHED: every acceptance check passes, the WSL leg and the valgrind sweep with them");
-  return 0;
-}
-
-
-/**
- * The sweep over the plan's checks whose ids are in `ids`, every red collected: what `nv affected --run`
- * runs once it has chosen them. Exits 0 when every one is green, 1 when one is red, and 2 when there is
- * no plan.
- */
-export async function sweepIds(ids: Set<string>): Promise<number> {
-  const found = selected({});
-  if (found === null) return 2;
-  const { goal, labelOf } = found;
-  const chosen = (goal.checks as Check[]).filter((c) => ids.has(c.id));
-  if (chosen.length === 0) return 0;
-  console.log(`running ${chosen.length} acceptance ${chosen.length === 1 ? "check" : "checks"} (collecting every red)`);
-  const { result, secs } = await sweepOver(goal, chosen, labelOf, { full: false, collect: true });
-  console.log(`cost: ${secs}s, ${result.ran} run, ${result.answered} not reached by the change, of ${chosen.length}`);
-  if (result.fail !== "") {
-    console.log(`NOT GREEN: ${result.fail}`);
-    return 1;
-  }
-  console.log("GREEN: every acceptance check the change reaches passes");
   return 0;
 }
 

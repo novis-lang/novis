@@ -1,14 +1,14 @@
 // The acceptance sweep's two Linux legs: the WSL leg and the valgrind sweep. `linuxLegs` runs both and
 // returns the ledger's line, or "" when both are green, skipped or not reached by the change. The turn
 // starts it when the native sweep reaches its overlap tier with every earlier tier green, beside the
-// release builds, and the release tier measures only once it has ended (`driver/accept.ts`).
+// release builds, and the release tier measures only once it has ended (`accept/accept.ts`).
 //
 // **The WSL leg** is Windows only. It builds the CLI inside the default WSL distro, into the goal's
 // `env.wsl.targetDir`, and runs every fixture the sweep reached and every `nvs-suite` check against that
 // Linux build. A JIT is where a calling-convention divergence hides, and this leg is what finds one. The
 // build is `cargo build --quiet` over the whole workspace through `bash -lc`, so cargo comes from the
 // distro's login `PATH`. The build and every fixture run from a copy of the working tree on the distro's
-// own disk, which `tools/nv/driver/mirror.ts` brings up to date before each build. The build may start
+// own disk, which `tools/nv/accept/mirror.ts` brings up to date before each build. The build may start
 // early with `startWslBuild`, beside the cargo tier, and `linuxLegs` then waits for it.
 //
 // That sync deletes every ignored file in the copy, so a file a `setup` check writes, such as a fixture's
@@ -35,7 +35,7 @@
 // skips both with a trace line. Neither skip is a failure.
 //
 // **The origin.** `examples/http.nvs` talks to `http://127.0.0.1:8099`. Inside WSL, with its default NAT
-// networking, the listener `tools/nv/driver/origin.ts` holds on the Windows side is not reachable at that
+// networking, the listener `tools/nv/accept/origin.ts` holds on the Windows side is not reachable at that
 // address, so the WSL leg holds an origin of its own inside the distro. The distro has no `bun`, and the
 // tools add no new Python, so the origin is the Linux `nvs` the leg just built: `nvs serve` over a
 // short program this module writes under `.agent-tmp/legs/` and deletes when the origin stops. The program answers `/ok` with `ok`
@@ -67,7 +67,7 @@ import { ROOT } from "../lib/paths.ts";
 import { run } from "../lib/proc.ts";
 import { type Check, type Outcome, PROGRAM_KINDS, allReds, firstErrLine, judgeCommand, judgeProgram, judgeTests, programFailLine } from "./accept.ts";
 import { mirrorPath, q, syncMirror, wslPath } from "./mirror.ts";
-import { signalOwned } from "./proctree.ts";
+import { signalOwned } from "../lib/proctree.ts";
 
 export { wslPath };
 import { type Origin, DELAY_MS, HOST, PORT, holdOrigin } from "./origin.ts";

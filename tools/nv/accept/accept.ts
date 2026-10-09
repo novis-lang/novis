@@ -2,7 +2,7 @@
 // record and what its run printed, whether it is green. The judging functions are exported on their
 // own, because each is a pure function of a check and what its process printed, and
 // `tools/nv/test/accept.test.ts` pins them from recorded output. What runs a check is
-// `driver/runner.ts`, on the selection store.
+// `accept/runner.ts`, on the selection store.
 //
 // `acceptance` is the whole sweep: `tiers` puts every check in the order the sweep runs it, a check the
 // change does not reach is not started, and the sweep stops at its first red unless it collects. The
@@ -26,7 +26,7 @@
 // the store's last green runs. A suite below its `minPassing` is `short`, reported and never green.
 //
 // The floor gate is the turn's (`cmd/loop.ts`), and the WSL leg and the valgrind sweep are
-// `driver/legs.ts`'s, which the turn starts as `beside`.
+// `accept/legs.ts`'s, which the turn starts as `beside`.
 
 import { dirname } from "node:path";
 
@@ -559,7 +559,7 @@ export const BUILD_FAILED = /^the (native|workspace test|release) build failed/;
 
 export interface AcceptanceOptions {
   label: (n: number) => string;
-  /** What runs and judges one check: `driver/runner.ts`'s `Runner`, or a stand-in under test. `batch` is
+  /** What runs and judges one check: `accept/runner.ts`'s `Runner`, or a stand-in under test. `batch` is
    * told each tier's reached checks before the first of them runs. `prebuild` is handed the release
    * tier's reached checks when the goal fixtures tier starts, and builds what they will build. Once
    * `stop` is aborted it kills the build in progress and starts no other; its promise never rejects. */

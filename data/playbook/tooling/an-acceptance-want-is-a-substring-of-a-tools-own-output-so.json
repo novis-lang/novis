@@ -6,6 +6,6 @@
   ],
   "until": {
     "kind": "gone",
-    "arg": "tools/nv/driver/accept.ts:want"
+    "arg": "tools/nv/accept/accept.ts:want"
   }
 }

@@ -4,7 +4,7 @@
 // packages there, copies in the git-ignored files a sweep reads, and starts the worktree's own `bun nv
 // loop --side <slug>` inside it. Every turn then roots itself at the worktree, its `.loop/`, its `target/`
 // and its `.agent-tmp/`, so a side run and the chain run share no build and no working tree. The one file
-// they share is `driver/sweep-lock.ts`'s lock, which lets one of them sweep at a time.
+// they share is `accept/sweep-lock.ts`'s lock, which lets one of them sweep at a time.
 //
 // The copies come from the main tree and are never links, and a file already in the worktree is kept.
 // The selection store is copied the same way (`seedStore`): its footprints name the tree's items and

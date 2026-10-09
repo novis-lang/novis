@@ -93,7 +93,7 @@ cargo install cargo-fuzz --locked
 
 `rust-src` is not optional here: `tools/tsan.sh` builds the standard library from source under the thread
 sanitizer, and without that component the leg stops before it compiles anything of Novis's. `git` is what
-the WSL leg syncs its copy of the tree with (`tools/nv/driver/mirror.ts`), and Ubuntu's WSL image usually
+the WSL leg syncs its copy of the tree with (`tools/nv/accept/mirror.ts`), and Ubuntu's WSL image usually
 has it already. `time` is `/usr/bin/time`, which the machine probe uses to measure one fixture; without it
 the probe records less and the valgrind sweep still runs.
 
@@ -170,7 +170,7 @@ bun nv verify                                            # build, fmt, test, the
 ```
 
 The WSL leg and the valgrind sweep are the driver's: every `bun nv loop` sweep runs them once the native
-sweep is green (`tools/nv/driver/legs.ts`).
+sweep is green (`tools/nv/accept/legs.ts`).
 
 From M4B onward, one more one-time step, because the extension-host tier downloads a VS Code build and
 the acceptance run must never go to the network:

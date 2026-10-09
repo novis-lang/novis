@@ -21,7 +21,7 @@ const PIPELINE = ["tools/nv", "examples", "tests", "docs/examples", "benches/mem
 const ALLOWED: Record<string, string> = {
   "tools/nv/cmd/disk.ts": "it measures and sweeps the hand build's files, and runs none of them",
   "tools/nv/keys/escape.ts": "it recognises a test that names the hand build",
-  "tools/nv/driver/legs.ts": "off Windows, the valgrind sweep builds `target/debug` itself just before it runs it",
+  "tools/nv/accept/legs.ts": "off Windows, the valgrind sweep builds `target/debug` itself just before it runs it",
 };
 
 /** A line that is only a comment, in any of the languages under `PIPELINE`. */

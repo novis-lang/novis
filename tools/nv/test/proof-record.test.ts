@@ -63,7 +63,7 @@ describe("the modules a recorded `nv proofs` names", () => {
   const JUDGING = ["tools/nv/cmd/proofs.ts", "tools/nv/proofs/run.ts", "tools/nv/proofs/select.ts", "tools/nv/proofs/collect.ts", "tools/nv/proofs/roster.ts", "tools/nv/proofs/markers.ts", "tools/nv/proofs/ledger.ts", "tools/nv/proofs/perf.ts"];
   // The selection engine, the crate graph, the recorder and the driver, which decide what runs and what
   // the store remembers.
-  const ENGINE = ["tools/nv/select/select.ts", "tools/nv/select/items.ts", "tools/nv/select/change.ts", "tools/nv/select/record.ts", "tools/nv/select/extract.ts", "tools/nv/select/atoms.ts", "tools/nv/keys/graph.ts", "tools/nv/driver/accept.ts", "tools/nv/driver/runner.ts"];
+  const ENGINE = ["tools/nv/select/select.ts", "tools/nv/select/items.ts", "tools/nv/select/change.ts", "tools/nv/select/record.ts", "tools/nv/select/extract.ts", "tools/nv/select/atoms.ts", "tools/nv/keys/graph.ts", "tools/nv/accept/accept.ts", "tools/nv/accept/runner.ts"];
 
   test("the command names the judging modules and none of the engine, and loading the engine for a recording names none of it", async () => {
     const script = [

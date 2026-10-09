@@ -41,8 +41,8 @@
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { type Check, isHeavy } from "../driver/accept.ts";
-import { PlanSweep } from "../driver/runner.ts";
+import { type Check, isHeavy } from "../accept/accept.ts";
+import { PlanSweep } from "../accept/runner.ts";
 import { type Graph, metadata } from "../keys/graph.ts";
 import { currentPlan } from "../lib/chain.ts";
 import { ROOT } from "../lib/paths.ts";
@@ -380,7 +380,7 @@ export async function run(args: string[]): Promise<number> {
     console.log("affected: GREEN -- nothing the change reaches is due");
     return 0;
   }
-  const { sweepIds } = await import("./loop.ts");
+  const { sweepIds } = await import("../accept/sweep.ts");
   const code = await sweepIds(ids);
   return code === 0 ? 0 : code === 2 ? 2 : 1;
 }

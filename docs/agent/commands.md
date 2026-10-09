@@ -191,7 +191,7 @@ cargo test --lib a_filter                              # every crate's unit test
 nothing else builds; they stay as they are, and `bun nv disk` sweeps their old copies by rank
 (§ *Disk*). The loop driver keeps the
 same rule: an acceptance check written `cargo test -p <crate>`, bare or with one `--test <name>`, runs
-that crate's binaries off one shared `cargo test --no-run` (`tools/nv/driver/accept.ts`).
+that crate's binaries off one shared `cargo test --no-run` (`tools/nv/accept/accept.ts`).
 
 ## Verifying
 
@@ -689,7 +689,7 @@ file operation on that 9p mount is a round trip to Windows. A build barely shows
 compile out of `~/.cargo` and the target directory is off the mount. A fixture does: `nvs run` from the
 repository root resolves every `[[app]]` root in `nvs.toml` before the program starts, and that took 1.5s
 per fixture over the mount against 0.02s from ext4, and a `tests/conformance/` run reads every case file
-on top. `tools/nv/driver/mirror.ts` keeps the copy at `<env.wsl.targetDir>-src/<checkout>` and brings it
+on top. `tools/nv/accept/mirror.ts` keeps the copy at `<env.wsl.targetDir>-src/<checkout>` and brings it
 to the working tree before every WSL build, so a stale copy is not a failure mode. The sync is git's own:
 a tree taken through a scratch index, and a pack of only what changed sent into the distro as one stream,
 so no per-file question crosses the mount. An unchanged tree syncs in about 0.4s and the first sync takes

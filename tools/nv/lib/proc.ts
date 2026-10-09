@@ -10,7 +10,7 @@
 // has exited, the timeout and the signal reach only what it left behind, so a process holding its
 // pipes open cannot keep a run waiting.
 
-import { Tree } from "../driver/proctree.ts";
+import { Tree } from "./proctree.ts";
 import { DISCARD_PROFILE, ROOT } from "./paths.ts";
 import { erase } from "./progress.ts";
 

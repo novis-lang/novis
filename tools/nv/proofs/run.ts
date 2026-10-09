@@ -28,7 +28,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 import { digest } from "../keys/scan.ts";
 import { abs, DISCARD_PROFILE, ROOT } from "../lib/paths.ts";
-import { Tree } from "../driver/proctree.ts";
+import { Tree } from "../lib/proctree.ts";
 import { run as runProc } from "../lib/proc.ts";
 import { inPart } from "../lib/reads.ts";
 import { record } from "../lib/written.ts";

@@ -14,7 +14,7 @@
 // component, which `rust-toolchain.toml` names.
 
 import { existsSync, statSync } from "node:fs";
-import type { TestExe } from "../driver/accept.ts";
+import type { TestExe } from "../accept/accept.ts";
 import { abs } from "./paths.ts";
 import { run } from "./proc.ts";
 
@@ -124,6 +124,6 @@ export async function buildCovws(opts: CovwsOptions = {}): Promise<CovwsBuild> {
   if (!existsSync(nvs)) throw new Error(`the covws build left no ${nvs}`);
   // The driver's module is loaded for the test executables alone, so a command that needs this file for
   // the build's paths, or builds `nvs` alone, does not load the driver.
-  const tests = opts.tests ? (await import("../driver/accept.ts")).testExecutables(await cargo(["test", "--no-run"])) : new Map<string, TestExe[]>();
+  const tests = opts.tests ? (await import("../accept/accept.ts")).testExecutables(await cargo(["test", "--no-run"])) : new Map<string, TestExe[]>();
   return { triple: hostTriple(), dir, nvs, tests };
 }

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { changeOf, reason, reasons, splitBenches } from "../cmd/affected.ts";
-import { isHeavy as heavy } from "../driver/accept.ts";
+import { isHeavy as heavy } from "../accept/accept.ts";
 import type { Selected } from "../select/select.ts";
 
 describe("nv affected", () => {

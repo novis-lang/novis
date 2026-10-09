@@ -9,7 +9,7 @@
 // - every Rust test executable of the covws build (`seed.ts` `seedTests`);
 // - the tools' `tsc` and every tools test file (`nvtests.ts`);
 // - every check of the plan that a shut floor gate does not hold and that is its own atom, a fixture or a
-//   command, `bun nv` ones among them, as the sweep runs it (`driver/runner.ts` `PlanSweep`).
+//   command, `bun nv` ones among them, as the sweep runs it (`accept/runner.ts` `PlanSweep`).
 //
 // The cases and the proof programs run a copy of the covws `nvs` taken when the build ends
 // (`Recorder.pin`), so a rebuild by another process during the run changes nothing they record. The
@@ -27,11 +27,11 @@
 // run finds the atom green again, and makes the command exit 1.
 
 import { cpus } from "node:os";
-import type { Check } from "../driver/accept.ts";
-import { heldByGate, tiers } from "../driver/accept.ts";
-import { holdOrigin } from "../driver/origin.ts";
-import { PlanSweep } from "../driver/runner.ts";
-import { needLine, sharedResources, takeSweepLock } from "../driver/sweep-lock.ts";
+import type { Check } from "../accept/accept.ts";
+import { heldByGate, tiers } from "../accept/accept.ts";
+import { holdOrigin } from "../accept/origin.ts";
+import { PlanSweep } from "../accept/runner.ts";
+import { needLine, sharedResources, takeSweepLock } from "../accept/sweep-lock.ts";
 import { currentPlan } from "../lib/chain.ts";
 import { buildCovws } from "../lib/covws.ts";
 import { ROOT } from "../lib/paths.ts";
@@ -180,7 +180,7 @@ export async function fullRun(store: SelectStore, opts: FullOptions = {}): Promi
       });
     }
     // The plan checks take the sweep lock and hold the origin up by the rule a sweep follows
-    // (`driver/sweep-lock.ts`): a fixture of `examples/http.nvs` needs both. No leg runs here, and a
+    // (`accept/sweep-lock.ts`): a fixture of `examples/http.nvs` needs both. No leg runs here, and a
     // heavy check only when it is a setup.
     if (kinds.has("check")) {
       const own = ownChecks(plan, (c) => sweep.groups.get(c.id)?.how);

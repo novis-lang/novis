@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { holdOrigin, withOrigin } from "../driver/origin.ts";
+import { holdOrigin, withOrigin } from "../accept/origin.ts";
 
 const PORT = 18099;
 

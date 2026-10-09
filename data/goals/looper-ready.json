@@ -12,7 +12,8 @@
       "tools/nv/cmd/plan.ts",
       "tools/nv/cmd/guard.ts",
       "tools/nv/lib/written.ts",
-      "tools/nv/main.ts"
+      "tools/nv/main.ts",
+      "tools/nv/accept"
     ],
     "rules": [
       "tooling/the-repository-tools-are-one-bun-program"
