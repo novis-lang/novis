@@ -1,0 +1,46 @@
+<?nvs
+// Attack: a program reads `domainLocal` from every built-in group many times over.
+// Every answer must be the same each time, and nothing may crash.
+// hostile: timeout-ms 60000
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect('corp');
+
+// 1. Every built-in group read, and `domainLocal` checked one thousand times on each.
+uint $groups = 0;
+uint $changed = 0;
+try {
+    var $groupsFound = $corp->search(
+        Core\Ldap\Filter::equals('objectClass', 'group'),
+        { base: 'CN=Builtin,DC=example,DC=test', select: ['groupType'] },
+    );
+    foreach ($groupsFound as Core\Ldap\Entry $group) {
+        var $found = $group->groupType();
+        if ($found != null) {
+            Core\Ldap\Ad\GroupType $type = $found;
+            $groups = $groups + 1;
+            bool $first = $type->domainLocal();
+            uint $i = 0;
+            while ($i < 1000) {
+                if ($type->domainLocal() != $first) {
+                    $changed = $changed + 1;
+                }
+                $i = $i + 1;
+            }
+        }
+    }
+} catch (Throwable $error) {
+    echo "1 threw\n";
+}
+echo '1 groups read: ', $groups > 0 ? 'yes' : 'no', ' changed: ', $changed, "\n";
+
+// 2. The flag cleared on a copy. The group read from the directory must keep it.
+try {
+    var $builtin = $corp->read('CN=Users,CN=Builtin,DC=example,DC=test', { select: ['groupType'] })?->groupType();
+    if ($builtin != null) {
+        var $copy = $builtin->with({ domainLocal: false });
+        echo '2 original: ', $builtin->domainLocal() ? 'yes' : 'no', ' copy: ', $copy->domainLocal() ? 'yes' : 'no', "\n";
+    }
+} catch (Throwable $error) {
+    echo "2 threw\n";
+}

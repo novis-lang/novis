@@ -1,0 +1,30 @@
+<?nvs
+// Attack: a program builds a chain of a million copies that switch between the two application
+// flags. The last copy must have the right flags, and nothing may crash.
+// hostile: timeout-ms 60000
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect('corp');
+
+try {
+    var $found = $corp->read('CN=Managers,OU=Company,DC=example,DC=test', { select: ['groupType'] })?->groupType();
+    if ($found != null) {
+        Core\Ldap\Ad\GroupType $type = $found;
+
+        // 1. Each copy is made from the copy before it, one million times.
+        Core\Ldap\Ad\GroupType $changed = $type;
+        uint $i = 0;
+        while ($i < 1000000) {
+            bool $query = $i % 2 == 0;
+            $changed = $changed->with({ appQuery: $query, appBasic: !$query });
+            $i = $i + 1;
+        }
+        // The last round is odd, so the query flag is cleared.
+        echo '1 appQuery: ', $changed->appQuery() ? 'yes' : 'no', ' appBasic: ', $changed->appBasic() ? 'yes' : 'no', "\n";
+
+        // 2. The group read from the directory has no application flag.
+        echo '2 original: ', $type->appQuery() ? 'yes' : 'no', "\n";
+    }
+} catch (Throwable $error) {
+    echo "threw\n";
+}

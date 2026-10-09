@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to count the application groups that a search finds.
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect("corp");
+var $found = $corp->search(
+    Core\Ldap\Filter::equals("objectClass", "group"),
+    {base: "OU=Company,DC=example,DC=test", select: ["groupType"]},
+);
+
+uint $count = 0;
+foreach ($found as Core\Ldap\Entry $group) {
+    var $type = $group->groupType();
+    if ($type != null && $type->appBasic()) {
+        $count = $count + 1;
+    }
+}
+
+// This directory has no application groups, so this prints `0`.
+echo $count, "\n";

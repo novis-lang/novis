@@ -1,0 +1,36 @@
+<?nvs
+// Attack: a program gives a group no scope, or all three scopes at once, and reads `global` each time.
+// `global` must only report its own flag, and nothing may crash.
+// hostile: timeout-ms 60000
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect('corp');
+
+try {
+    var $found = $corp->read('CN=Employees,OU=Company,DC=example,DC=test', { select: ['groupType'] })?->groupType();
+    if ($found != null) {
+        Core\Ldap\Ad\GroupType $type = $found;
+
+        // 1. No scope at all. `global` must be `false`.
+        var $none = $type->with({ global: false, domainLocal: false, universal: false });
+        echo '1 global: ', $none->global() ? 'yes' : 'no', ' bits: ', $none->bits(), "\n";
+
+        // 2. All three scopes at once. `global` must be `true`.
+        var $all = $type->with({ global: true, domainLocal: true, universal: true });
+        echo '2 global: ', $all->global() ? 'yes' : 'no', ' bits: ', $all->bits(), "\n";
+
+        // 3. The scope changed one hundred thousand times. A wrong answer is counted.
+        uint $wrong = 0;
+        uint $i = 0;
+        while ($i < 100000) {
+            bool $on = $i % 2 == 0;
+            if ($type->with({ global: $on, universal: !$on })->global() != $on) {
+                $wrong = $wrong + 1;
+            }
+            $i = $i + 1;
+        }
+        echo '3 wrong: ', $wrong, "\n";
+    }
+} catch (Throwable $error) {
+    echo "threw\n";
+}

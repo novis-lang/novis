@@ -1,0 +1,11 @@
+<?nvs
+// Shows that `global` returns `true` for a group with the global scope.
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect("corp");
+var $type = $corp->read("CN=Employees,OU=Company,DC=example,DC=test", {select: ["groupType"]})?->groupType();
+
+if ($type != null) {
+    // This prints `global: true`.
+    echo "global: ", $type->global() ? "true" : "false", "\n";
+}
