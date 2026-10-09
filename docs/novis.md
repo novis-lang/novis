@@ -11028,7 +11028,7 @@ Serializes `$value` as JSON text. It can be a scalar, an array, an anonymous obj
 | `{pretty: …}` | `bool` (default `false`) | Indent the output across lines, as `JSON_PRETTY_PRINT` does; the default is one line. |
 | `{escapeUnicode: …}` | `bool` (default `false`) | Write every non-ASCII character as a `\uXXXX` escape, as `json_encode` does by default; the default here keeps UTF-8 as it is. |
 
-**Returns** `string` — The JSON text.
+**Returns** `string` — The JSON text. It is a `tainted string` when `$value` can contain text from outside the program. That is a `tainted` string, or a `mixed` or `object` value, anywhere inside it.
 
 **Throws** `LogicError` — `$value` holds something JSON cannot spell: a `NaN` or infinite `float`, a value of a type with no JSON encoding, an instance of a class without `#[Json\Derive]`, or nesting past 1024 levels.
 
@@ -16309,7 +16309,7 @@ Turns a value into `bytes` that `decode()` can read back. The value can be a num
 |---|---|---|
 | `$value` | `mixed` | The value to turn into bytes. Two places that point to the same object still point to one object after `decode()`. |
 
-**Returns** `bytes` — The bytes. If `$value` is `tainted`, the bytes are also `tainted`.
+**Returns** `bytes` — The bytes. They are `tainted` when `$value` can contain text from outside the program. That is a `tainted` string, or a `mixed` or `object` value, anywhere inside it. Then `decode()` needs `Core\Taint::assertTrustedBytes` first.
 
 **Throws** `LogicError` — `$value` contains a callable, an open file or connection, or an object with a `secret` property. It is also thrown when arrays and objects are nested more than 256 levels deep.
 
@@ -16324,7 +16324,7 @@ Builds the value again from the `bytes` that `encode()` returned. It reads only 
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$payload` | `bytes` (sink) | The bytes that `encode()` returned. |
+| `$payload` | `bytes` (sink) | The bytes that `encode()` returned. If they are `tainted` and your program wrote them itself, call `Core\Taint::assertTrustedBytes` on them first. |
 
 **Returns** `mixed` — The value. An object in it is a new object of the class with the same name in this program, and its constructor does not run.
 
@@ -20404,7 +20404,7 @@ Writes one log record — the same record, through the same writer, the engine i
 <a id="core-core-taint"></a>
 ### `Core\Taint`
 
-Keywords: taint, tainted, assertTrusted, trust, untrusted input, injection, sanitize, allowlist, escape hatch, validation, assertTrusted
+Keywords: taint, tainted, assertTrusted, trust, untrusted input, injection, sanitize, allowlist, escape hatch, validation, assertTrusted, assertTrustedBytes
 
 `Core\Taint::assertTrusted` answers its operand with the `tainted` qualifier dropped, on your own written
 authority. Every other way out of `tainted` is *sink-named*: `Core\Html::escape` for HTML text,
@@ -20433,6 +20433,7 @@ first, whose answer is still `tainted`, and asserts second; the other order does
 | Member | Signature |
 |---|---|
 | [`Core\Taint::assertTrusted`](#core-core-taint-asserttrusted) | `assertTrusted(string $value, string $reason): string` |
+| [`Core\Taint::assertTrustedBytes`](#core-core-taint-asserttrustedbytes) | `assertTrustedBytes(bytes $value, string $reason): bytes` |
 
 <a id="core-core-taint-asserttrusted"></a>
 #### `Core\Taint::assertTrusted`
@@ -20448,7 +20449,23 @@ Returns a `tainted string` as a plain `string`. Use it only after your own check
 | `$value` | `string` (launder) | The value your program has checked. A plain `string` is also allowed, and the result is the same text. |
 | `$reason` | `string` (neutral) | What was checked, and why the value can be trusted. It is written for the people who read the code. The program never reads it. |
 
-**Returns** `string` — The same text as a plain `string`. Nothing is escaped or removed. A `secret` value does not compile here, so call `Core\Secret::reveal` on it first.
+**Returns** `string` — The same text as a plain `string`. Nothing is escaped or removed. A `secret` value does not compile here, so call `Core\Secret::reveal` on it first. For `tainted bytes`, use `assertTrustedBytes()`.
+
+<a id="core-core-taint-asserttrustedbytes"></a>
+#### `Core\Taint::assertTrustedBytes`
+
+```nvs skip
+Core\Taint::assertTrustedBytes(bytes $value, string $reason): bytes
+```
+
+Returns `tainted bytes` as plain `bytes`. Use it after your own check, for example when `Core\Serialize::decode` reads bytes that your program wrote itself.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$value` | `bytes` (launder) | The bytes your program has checked. Plain `bytes` are also allowed, and the result is the same bytes. |
+| `$reason` | `string` (neutral) | What was checked, and why the bytes can be trusted. It is written for the people who read the code. The program never reads it. |
+
+**Returns** `bytes` — The same bytes as plain `bytes`. Nothing is changed. A `secret` value does not compile here, so call `Core\Secret::revealBytes` on it first.
 
 <a id="core-core-secret"></a>
 ### `Core\Secret`
@@ -26883,7 +26900,7 @@ Matches the entries that every one of the filters matches.
 
 **Returns** `Core\Ldap\Filter` — A `Core\Ldap\Filter`.
 
-**Throws** `LogicError` — No filter is given.
+**Throws** `LogicError` — No filter is given, or the new filter has more than 100 levels of `all`, `any` and `not` inside each other.
 
 <a id="core-core-ldap-filter-any"></a>
 #### `Core\Ldap\Filter::any`
@@ -26900,7 +26917,7 @@ Matches the entries that at least one of the filters matches.
 
 **Returns** `Core\Ldap\Filter` — A `Core\Ldap\Filter`.
 
-**Throws** `LogicError` — No filter is given.
+**Throws** `LogicError` — No filter is given, or the new filter has more than 100 levels of `all`, `any` and `not` inside each other.
 
 <a id="core-core-ldap-filter-not"></a>
 #### `Core\Ldap\Filter::not`
@@ -26917,6 +26934,8 @@ Matches the entries that the filter does not match.
 
 **Returns** `Core\Ldap\Filter` — A `Core\Ldap\Filter`.
 
+**Throws** `LogicError` — The new filter has more than 100 levels of `all`, `any` and `not` inside each other.
+
 <a id="core-core-ldap-filter-parse"></a>
 #### `Core\Ldap\Filter::parse`
 
@@ -26932,7 +26951,7 @@ Reads LDAP filter text, such as `(&(objectClass=user)(cn=Ann))`, and returns the
 
 **Returns** `Core\Ldap\Filter` — A `Core\Ldap\Filter`. Its `toString` returns text that `parse` reads back as the same filter.
 
-**Throws** `LogicError` — The text is not a filter, or it has a name that is not an attribute name. The message gives the position of the first wrong character.
+**Throws** `LogicError` — The text is not a filter, it has a name that is not an attribute name, or it has more than 100 levels of filters inside each other. The message gives the position of the first wrong character.
 
 <a id="core-core-ldap-filter-tostring"></a>
 #### `Core\Ldap\Filter->toString`
