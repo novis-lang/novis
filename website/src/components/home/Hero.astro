@@ -1,10 +1,12 @@
 ---
 /**
- * The front page's hero: the page's one `<h1>` with the slogan as its second
- * line, the tagline, the two calls to action, and a code window with three
- * small web programs. The programs come in through the named slots `html`,
- * `sql` and `secret`, because the site checker finds a page's snippets in the
- * page itself. Two columns from 64rem, stacked below.
+ * The front page's hero, in two rows. The first is the page's one `<h1>`,
+ * centred across the full width: the name Novis-Lang, the headline and the
+ * slogan. The second is the tagline, the two calls to action and the facts
+ * beside a code window with three small web programs. The programs come in
+ * through the named slots `html`, `sql` and `secret`, because the site
+ * checker finds a page's snippets in the page itself. The second row has two
+ * columns from 64rem; below that it is stacked, and its text is centred too.
  *
  * The window is a tablist once the script below has run. Without the script
  * the tablist stays hidden and the three panels are shown one under the
@@ -33,17 +35,15 @@ const panels = [
 <section class="home-hero not-content" aria-labelledby="_top">
   <div class="backdrop" aria-hidden="true"></div>
 
-  <div class="copy">
-    <a class="pill" href={withBase('/guides/why-novis/')}>
-      <span class="nv-chip">Why Novis?</span>
-      <span class="pill-text">What the compiler checks</span>
-      <Icon name="right-arrow" size="1rem" />
-    </a>
+  <div class="title">
     <h1 id="_top" data-page-title>
       <span class="brand">Novis-Lang</span>
       <span class="headline">The programming language for web applications.</span>
       <span class="slogan nv-gradient-text">Fast. <span class="keep">Secure by default.</span></span>
     </h1>
+  </div>
+
+  <div class="copy">
     <p class="tagline">
       Novis is a programming language for web applications and the command line. It compiles your code to
       machine code. The compiler checks every value that comes from outside.
@@ -173,8 +173,9 @@ const panels = [
   }
   @media (min-width: 64rem) {
     .home-hero {
-      grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
-      gap: var(--nv-space-6);
+      grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+      gap: var(--nv-space-7) var(--nv-space-7);
+      align-items: start;
       padding-block: var(--nv-space-8) var(--nv-space-7);
     }
   }
@@ -206,64 +207,37 @@ const panels = [
       radial-gradient(22% 30% at 12% 10%, color-mix(in oklab, var(--nv-gold) 14%, transparent), transparent 70%);
   }
 
-  /* The column is a size container, so the name above the headline can be
-     sized to its width. */
+  /* The title row spans both columns and is centred. It is a size
+     container, so the name can be sized to its width. */
+  .title {
+    grid-column: 1 / -1;
+    container-type: inline-size;
+    text-align: center;
+  }
+
   .copy {
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
-    gap: var(--nv-space-5);
-    container-type: inline-size;
-  }
-
-  .pill {
-    display: inline-flex;
     align-items: center;
-    gap: var(--nv-space-2);
-    max-width: 100%;
-    padding: 0.25rem 0.75rem 0.25rem 0.3rem;
-    border: 1px solid var(--nv-hairline-strong);
-    border-radius: var(--nv-radius-pill);
-    background: var(--nv-surface);
-    color: var(--sl-color-gray-2);
-    font-size: var(--sl-text-sm);
-    font-weight: 600;
-    text-decoration: none;
-    white-space: nowrap;
-    box-shadow: var(--nv-shadow-sm);
-    transition:
-      border-color var(--nv-fast) var(--nv-ease),
-      color var(--nv-fast) var(--nv-ease),
-      transform var(--nv-fast) var(--nv-ease);
+    gap: var(--nv-space-5);
+    text-align: center;
   }
-  .pill .nv-chip,
-  .pill svg {
-    flex-shrink: 0;
-  }
-  .pill-text {
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .pill svg {
-    transition: transform var(--nv-fast) var(--nv-ease);
-  }
-  .pill:hover {
-    border-color: var(--sl-color-accent);
-    color: var(--sl-color-white);
-  }
-  .pill:hover svg {
-    transform: translateX(3px);
-  }
-  .pill:active {
-    transform: scale(0.98);
+  @media (min-width: 64rem) {
+    .copy {
+      align-items: flex-start;
+      padding-block-start: var(--nv-space-4);
+      text-align: start;
+    }
   }
 
   h1 {
     display: flex;
     flex-direction: column;
+    align-items: center;
     gap: 0.12em;
-    margin: 0;
-    font-size: clamp(2.1rem, 1.5rem + 1.9vw, 3rem);
+    max-width: 52rem;
+    margin: 0 auto;
+    font-size: clamp(2.1rem, 1.4rem + 2.2vw, 3.4rem);
     font-weight: 800;
     line-height: 1.06;
     letter-spacing: -0.035em;
@@ -274,14 +248,13 @@ const panels = [
   }
   /* The project's name, the trademark: the one line of the page set larger
      than the headline, in a gradient from the text color into violet and
-     crimson, over a short bar in the signature line. Its size follows the
-     column's width, so the one line always fits the column. */
+     crimson, over a short centred bar in the signature line. Its size
+     follows the row's width, so the one line always fits. */
   .brand {
     position: relative;
-    align-self: flex-start;
     margin-block-end: 0.32em;
     padding-block-end: 0.12em;
-    font-size: clamp(2.5rem, 17cqi, 5.4rem);
+    font-size: clamp(2.5rem, 16cqi, 7rem);
     font-weight: 900;
     line-height: 1;
     letter-spacing: -0.045em;
@@ -301,7 +274,7 @@ const panels = [
   .brand::after {
     content: '';
     position: absolute;
-    inset-inline-start: 0.04em;
+    inset-inline-start: calc(50% - 0.8em);
     inset-block-end: -0.12em;
     width: 1.6em;
     height: 0.07em;
@@ -340,12 +313,14 @@ const panels = [
   .actions {
     display: flex;
     flex-wrap: wrap;
+    justify-content: center;
     gap: var(--nv-space-3);
   }
 
   .meta {
     display: flex;
     flex-wrap: wrap;
+    justify-content: center;
     gap: var(--nv-space-2) var(--nv-space-5);
     margin: 0;
     padding: 0;
@@ -361,17 +336,18 @@ const panels = [
   .meta svg {
     color: var(--sl-color-text-accent);
   }
+  @media (min-width: 64rem) {
+    .actions,
+    .meta {
+      justify-content: flex-start;
+    }
+  }
 
   /* ------------------------------------------------------------ the window */
   .stage {
     min-width: 0;
   }
-  @media (min-width: 64rem) {
-    .stage {
-      align-self: start;
-      margin-block-start: var(--nv-space-7);
-    }
-  }
+
   .window {
     position: relative;
     margin: 0;
@@ -578,10 +554,6 @@ const panels = [
     }
     .actions .nv-button {
       flex: 1 1 12rem;
-      justify-content: center;
-    }
-    .pill {
-      width: 100%;
       justify-content: center;
     }
     .server {
