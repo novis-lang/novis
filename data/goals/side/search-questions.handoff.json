@@ -1,31 +1,21 @@
 {
-  "state": "**Side goal `search-questions`: the proof test landed, the stamp has not.** `website/src/data/questions.json` has 425 questions for the 95 `Core\\Str` and `Core\\Arr` pages, keyed by URL, with no feature and no hash. `website/src/components/Banner.astro` writes them into an attribute Pagefind indexes. Nothing in `tools/nv` reads the file yet. The goal's prose has the proof test's numbers and the method.",
+  "state": "**Side goal `search-questions`: stage 2 is done.** `website/src/data/questions.json` has 95 entries for `Core\\Str` and `Core\\Arr` member pages, each `{ feature, hash, questions }` and stamped. `tools/nv/cmd/site.ts` has `questionSources`, `--check questions` (stale and broken fail, owed does not), `--questions --status | --owed [AREA] [--limit N] | --stamp URL...` and the wrap gate in `wrapProblems`; its module doc § *The questions* is the home of how they work. `rule:testing/website-pages-are-stamped` says questions are stamped as the page is. `Banner.astro` reads the new shape. The Astro build with the new banner is *not checked*: run `bun nv site --build` once before stage 3 lands much.\n\n`--questions --status` today: core 1031 owed, config 31, cli 25, pages 146, nothing stale. Under Git Bash, pass URLs with `MSYS_NO_PATHCONV=1` (playbook § *Running things*).",
   "next": {
-    "stage": 2,
-    "title": "the stamp and the check",
-    "files": [],
-    "note": "one file set: `tools/nv/cmd/site.ts`, `tools/nv/test/site-questions.test.ts` (new), `website/src/data/questions.json`, `website/src/components/Banner.astro`.",
+    "stage": 3,
+    "title": "the Core reference",
+    "files": [
+      "website/src/data/questions.json"
+    ],
     "items": [
       {
         "done": false,
-        "text": "**The entry shape and the hash**: `{ feature, hash, questions }` per URL, the hash from `featureHash` for a reference page and from the file for a handwritten one. Anchor: `tools/nv/cmd/site.ts:215`."
-      },
-      {
-        "done": false,
-        "text": "**`--check questions`, `--questions --status`, `--owed` and `--stamp`**, built like `staleness`, with the unit test. Anchor: `tools/nv/cmd/site.ts:261`."
-      },
-      {
-        "done": false,
-        "text": "**The wrap gate** for stale questions the session made itself, beside the one for pages. Anchor: `tools/nv/cmd/site.ts:295`."
-      },
-      {
-        "done": false,
-        "text": "**Stamp the 95 entries on disk** and switch the banner to the new shape. Anchor: `website/src/components/Banner.astro:1`."
+        "text": "**Questions for the Core classes after `Arr` and `Str`, alphabetically, as many per session as fit**: `bun nv site --questions --owed core --limit 40` prints what each page's questions are written from; four to six per page, at most 15 words, no other language's function names, then `--questions --stamp` each URL. Split classes over subagents, one class group each. The class pages themselves (`/reference/core/arr/`, `/reference/core/str/`) are owed too. Anchor: `website/src/data/questions.json:1`, the material from `tools/nv/cmd/site.ts:486`."
       }
     ]
   },
   "backlog": [
-    "Then stages 3 to 6 in order (docs/agent/goals/side/search-questions.md).",
-    "Then the goal's end gates: `bun nv verify --doc` and `bun nv owners --closes search-questions` (docs/agent/goals/side/search-questions.md)."
+    "Stage 4, configuration and CLI pages (`docs/agent/goals/side/search-questions.md` § Stage 4).",
+    "Stage 5, the handwritten pages (same, § Stage 5).",
+    "Stage 6, owed fails and the second measurement (same, § Stage 6); the switch is `questionProblems` in `tools/nv/cmd/site.ts`."
   ]
 }
