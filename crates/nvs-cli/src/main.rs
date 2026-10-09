@@ -441,7 +441,9 @@ enum Command {
         /// The counts are the same on every machine for the same program and
         /// binary, which is what `bun nv proofs --record-perf` keeps them
         /// for (`rule:testing/bench-counters`). Stdout is untouched, so a
-        /// program's own output is what it always was.
+        /// program's own output is what it always was. A counted run starts
+        /// no queue worker, even when `[queue] workers` is set, so jobs in
+        /// the queue stay there.
         #[arg(long, conflicts_with_all = ["dump_ir", "dump_asm"])]
         count: bool,
         /// Answer the request this file describes, rather than run as a
@@ -3103,11 +3105,15 @@ fn run_run(
     // `queue_for` is the same resolution boot already accepted
     // (`nvs_config::queue`), so a refusal is impossible by the time this runs
     // and `.ok()` is not swallowing one. `workers = 0` is § 2's enqueue-only
-    // deployment and starts nothing.
+    // deployment and starts nothing, and so is a `--count` run: a worker runs
+    // on this thread whenever the script yields, so its database handshake and
+    // its polls would land in the per-thread allocation counters the count
+    // line reads, at a size that depends on scheduling rather than on the
+    // program (`rule:testing/bench-counters`).
     let queued = nvs_config::queue::queue_for(&snapshot.config, &std::collections::BTreeMap::new())
         .ok()
         .flatten()
-        .filter(|bounds| bounds.workers > 0)
+        .filter(|bounds| bounds.workers > 0 && !count)
         .and_then(|bounds| {
             let block = snapshot.config.db.get(&bounds.connection)?.clone();
             Some((bounds, block))

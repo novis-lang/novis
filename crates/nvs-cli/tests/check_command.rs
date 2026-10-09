@@ -285,3 +285,43 @@ fn check_count_prints_what_each_phase_produced() {
     assert!(counts[4].1 > 0, "{stderr}");
     assert!(stderr.contains("count: statements="), "{stderr}");
 }
+
+/// `nvs run --count` starts no queue worker, whatever `[queue] workers` says:
+/// a worker's turns would land in the counts. The SQLite file is the witness,
+/// because the worker's connect is what creates it; the uncounted run first
+/// shows that this configuration does start one.
+#[test]
+fn run_count_starts_no_queue_worker() {
+    let config = "[db.jobs]\ndriver = \"sqlite\"\npath = \"jobs.db\"\n\n\
+                  [queue]\nconnection = \"jobs\"\nworkers = 1\n";
+    let program = "<?nvs\nCore\\Time::sleep(200ms);\necho \"done\\n\";\n";
+    let run_in = |case: &str, count: bool| {
+        let dir = scratch(case);
+        fs::write(dir.join("nvs.toml"), config).unwrap();
+        fs::write(dir.join("main.nvs"), program).unwrap();
+        let data = nvs_repo::scratch_private("nvsdata");
+        let mut command = Command::new(env!("CARGO_BIN_EXE_nvs"));
+        command.arg("--data").arg(&*data).arg("run");
+        if count {
+            command.arg("--count");
+        }
+        let run = command
+            .arg("main.nvs")
+            .current_dir(&dir)
+            .output()
+            .expect("the `nvs` binary this test was built beside runs");
+        let stderr = String::from_utf8_lossy(&run.stderr).into_owned();
+        assert_eq!(run.status.code(), Some(0), "{stderr}");
+        assert_eq!(String::from_utf8_lossy(&run.stdout), "done\n", "{stderr}");
+        (dir.join("jobs.db").exists(), stderr)
+    };
+
+    let (opened, stderr) = run_in("queue-uncounted", false);
+    assert!(
+        opened,
+        "an uncounted run started no worker to compare with: {stderr}"
+    );
+    let (opened, stderr) = run_in("queue-counted", true);
+    assert!(!opened, "a counted run started a queue worker: {stderr}");
+    assert!(!stderr.contains("queue worker"), "{stderr}");
+}
