@@ -19,7 +19,10 @@ export interface Citation {
   line: number;
 }
 
-const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})/;
+/** A goal named by its number. Every one is a defect, because the number is a position. */
+export const NUMBER_CITE = /(?<![`\w])[Gg]oals?\s+\d+/g;
+
+const FENCE_OPEN =/^ {0,3}(`{3,}|~{3,})/;
 const HEADING = /^ {0,3}(#{1,6})(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*$/;
 const RULE = /rule:([a-z0-9][a-z0-9-]*\/[a-z0-9][a-z0-9-]*)/g;
 const DECISION = /(?:\bADRs? (\d{4})\b|decisions\/(\d{4})\.md|(?<![\w.])(\d{4}) §)/g;

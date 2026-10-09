@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { TICKER, hms, mmss } from "../driver/console.ts";
-import { Tree } from "../lib/proctree.ts";
-import { DEFAULT_CAPS, Renderer } from "../driver/transcript.ts";
+import { TICKER, hms, mmss } from "../console.ts";
+import { Tree } from "../../lib/proctree.ts";
+import { DEFAULT_CAPS, Renderer } from "../transcript.ts";
 
 /** Every line `say` wrote while `fn` ran, without colour. */
 function printed(fn: () => void): string[] {

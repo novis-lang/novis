@@ -1,8 +1,8 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { run } from "../lib/proc.ts";
-import { ROOT } from "../lib/paths.ts";
+import { run } from "../../lib/proc.ts";
+import { ROOT } from "../../lib/paths.ts";
 import {
   BLIND_WAIT,
   INTERRUPTED,
@@ -18,7 +18,7 @@ import {
   standingLimit,
   waitOutLimit,
   wallAfter,
-} from "../driver/sweep.ts";
+} from "../sweep.ts";
 
 const made: string[] = [];
 afterAll(() => {

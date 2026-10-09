@@ -46,14 +46,13 @@ import { RECORDS } from "../schema/index.ts";
 import { writeGoalPlan } from "../renderers/goal-plan.ts";
 import { waitAndHandoverProblems } from "../driver/handover.ts";
 import { type GoalValue, type ManifestShared, manifestFindings } from "./orient.ts";
+import { NUMBER_CITE } from "../lib/prose.ts";
 
 export const summary = "the loop's goal chain, over data/chain.json: nv chain --check | --new | --move | --remove";
 
 const GOALS = "docs/agent/goals";
 const README = `${GOALS}/README.md`;
 
-/** A goal named by its number. Every one is a defect, because the number is a position. */
-export const NUMBER_CITE = /(?<![`\w])[Gg]oals?\s+\d+/g;
 /** A goal's own header, the one place a number still stands until the prose is renamed by slug. */
 const SHOWN_HEADER = /#\s*Loop goal \d+|#\s*Goal \d+ --|\*\*Goal \d+ —/g;
 export const OWN_HEADER = /^#\s*Loop goal \d+|^#\s*Goal \d+ --|^\*\*Goal \d+ —/;

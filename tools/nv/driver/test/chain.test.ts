@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { chainGoals, currentPlan, gatesInFrontOfGroups, type Goal, goalPlan, liveGoal, setLive, SIDE_ENV, sideGoal, sidePlan } from "../lib/chain.ts";
-import { goneCitations } from "../cmd/chain.ts";
-import { load, write } from "../lib/store.ts";
-import { chain } from "../schema/chain.ts";
-import { goal, sideGoal as sideGoalType } from "../schema/goal.ts";
-import { scratch, type Scratch } from "./scratch.ts";
+import { chainGoals, currentPlan, gatesInFrontOfGroups, type Goal, goalPlan, liveGoal, setLive, SIDE_ENV, sideGoal, sidePlan } from "../../lib/chain.ts";
+import { goneCitations } from "../../cmd/chain.ts";
+import { load, write } from "../../lib/store.ts";
+import { chain } from "../../schema/chain.ts";
+import { goal, sideGoal as sideGoalType } from "../../schema/goal.ts";
+import { scratch, type Scratch } from "../../test/scratch.ts";
 
 let tmp: Scratch | undefined;
 afterEach(() => {

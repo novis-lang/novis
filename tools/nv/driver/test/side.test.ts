@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { landing, sideBranch, sideDir } from "../driver/side.ts";
+import { landing, sideBranch, sideDir } from "../side.ts";
 
 describe("a side run's landing steps", () => {
   test("name the goal's worktree, its branch and the three files that are deleted", () => {

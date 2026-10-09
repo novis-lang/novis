@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { AllowWatch, NV_NEVER, PROMOTE_AFTER, SETTINGS, covered, nvCommands, owed, prefixOf, prefixesOf, record, type Seen, withRules } from "../driver/allow.ts";
-import { ROOT } from "../lib/paths.ts";
+import { AllowWatch, NV_NEVER, PROMOTE_AFTER, SETTINGS, covered, nvCommands, owed, prefixOf, prefixesOf, record, type Seen, withRules } from "../allow.ts";
+import { ROOT } from "../../lib/paths.ts";
 
 describe("prefixOf", () => {
   test("takes two plain words, three for `bun nv` and `gh`, and a binary's path alone", () => {

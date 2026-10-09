@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { NUMBER_CITE } from "../cmd/chain.ts";
+import { NUMBER_CITE } from "../lib/prose.ts";
 import { chainGoals, liveGoal } from "../lib/chain.ts";
 import { ROOT } from "../lib/paths.ts";
 import { GOAL_PLAN, renderGoalPlan } from "../renderers/goal-plan.ts";

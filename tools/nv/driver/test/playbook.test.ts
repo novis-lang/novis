@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { blocks, decided, declaration, expiryReport, holds, ignoredOf, retire, triage } from "../cmd/playbook.ts";
-import { readPlaybook } from "../lib/playbook-fragments.ts";
-import { load, write } from "../lib/store.ts";
-import { goal } from "../schema/goal.ts";
-import { playbookBullet, playbookSection } from "../schema/playbook.ts";
-import { scratch } from "./scratch.ts";
+import { blocks, decided, declaration, expiryReport, holds, ignoredOf, retire, triage } from "../../cmd/playbook.ts";
+import { readPlaybook } from "../../lib/playbook-fragments.ts";
+import { load, write } from "../../lib/store.ts";
+import { goal } from "../../schema/goal.ts";
+import { playbookBullet, playbookSection } from "../../schema/playbook.ts";
+import { scratch } from "../../test/scratch.ts";
 
 const TODAY = new Date(2026, 8, 24);
 

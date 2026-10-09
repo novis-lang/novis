@@ -161,7 +161,7 @@ import { type Caps, DEFAULT_CAPS, Renderer } from "../driver/transcript.ts";
 import { ENV as WRITES_ENV } from "../lib/written.ts";
 import { holdOrigin } from "../accept/origin.ts";
 import { sharedResources, takeSweepLock } from "../accept/sweep-lock.ts";
-import { type Check, allReds, heldByGate, tiers, withSetups } from "../accept/accept.ts";
+import { type Check, allReds, featureMatches, heldByGate, tiers, withSetups } from "../accept/accept.ts";
 import { lastGreen, PlanSweep } from "../accept/runner.ts";
 import { type Current, livePlan, nameOf, type Progress, stageLabels, sweepOver } from "../accept/sweep.ts";
 import { awaitGate, CHAIN_FILE, gateShut, looperArgv, putLooperFirst, retireChain, startLooper } from "../driver/handover.ts";
@@ -230,14 +230,6 @@ function stageMatches(label: string, number: number, want: string): boolean {
   if (/^\d+$/.test(w)) return w === String(number);
   const l = label.toLowerCase();
   return l.startsWith(w) || l.slice(String(number).length + 1).startsWith(w);
-}
-
-/** Whether `--feature <id>` shows the check: a proofs check named for the feature, or one whose `--group` or `--id` is it. */
-export function featureMatches(c: Check, id: string): boolean {
-  const named = /^proofs: (.+?)(?: \(\d+\/\d+\))?$/.exec(c.name ?? "");
-  if (named?.[1] === id) return true;
-  const argv = c.argv ?? [];
-  return argv.some((a, i) => (a === "--group" || a === "--id") && argv[i + 1] === id);
 }
 
 /** One check as `--list` prints it: what a session reads to decide whether a `want` is producible. */

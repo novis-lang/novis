@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import { ROOT } from "../lib/paths.ts";
-import { type Plan, type Results, Session, cut, goalTable, keyRow, statusRow } from "../driver/status.ts";
+import { ROOT } from "../../lib/paths.ts";
+import { type Plan, type Results, Session, cut, goalTable, keyRow, statusRow } from "../status.ts";
 
 const plan: Plan = {
   slug: "demo",

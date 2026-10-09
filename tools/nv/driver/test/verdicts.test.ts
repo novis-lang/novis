@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { checkOf } from "../cmd/loop.ts";
-import { claudeArgs } from "../driver/launch.ts";
-import { apiErrorStatus, nthWait, OVERLOAD_BACKOFF, RESUME_BACKOFF, streamDropped } from "../driver/sweep.ts";
+import { checkOf } from "../../cmd/loop.ts";
+import { claudeArgs } from "../launch.ts";
+import { apiErrorStatus, nthWait, OVERLOAD_BACKOFF, RESUME_BACKOFF, streamDropped } from "../sweep.ts";
 
 describe("the exits that are not crashes", () => {
   test("an overload is the terminal event's status, never a number in its text", () => {

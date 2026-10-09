@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { addModule } from "../cmd/goal.ts";
-import { load, write } from "../lib/store.ts";
-import { chain } from "../schema/chain.ts";
-import { goal } from "../schema/goal.ts";
-import { scratch, type Scratch } from "./scratch.ts";
+import { addModule } from "../../cmd/goal.ts";
+import { load, write } from "../../lib/store.ts";
+import { chain } from "../../schema/chain.ts";
+import { goal } from "../../schema/goal.ts";
+import { scratch, type Scratch } from "../../test/scratch.ts";
 
 let tmp: Scratch | undefined;
 afterEach(() => {

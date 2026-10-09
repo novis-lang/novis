@@ -1,8 +1,8 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { SESSION_TOOLS, StdinGate, claudeArgs, driverChanged, driverFiles, launch, loadRun, openingLine, pendingJudge, runName, saveRun } from "../driver/launch.ts";
-import { ROOT } from "../lib/paths.ts";
+import { SESSION_TOOLS, StdinGate, claudeArgs, driverChanged, driverFiles, launch, loadRun, openingLine, pendingJudge, runName, saveRun } from "../launch.ts";
+import { ROOT } from "../../lib/paths.ts";
 
 const made: string[] = [];
 afterAll(() => {

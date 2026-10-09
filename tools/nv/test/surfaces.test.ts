@@ -1,17 +1,14 @@
 // The `nv` commands a session or the hook reaches by name, run against this tree: `brief --where`,
-// `guard --check`, `orient --traps`, `loop --list` with its filters, and `loop-stats --guard`'s count.
+// `guard --check`, `orient --traps` and `loop --list` with its filters.
 // Each test fails when the command stops answering the question a session asks it.
 
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import type { Check } from "../accept/accept.ts";
-import { featureMatches } from "../cmd/loop.ts";
-import { readSession } from "../cmd/loop-stats.ts";
+import { type Check, featureMatches } from "../accept/accept.ts";
 import { ROOT } from "../lib/paths.ts";
 import { run } from "../lib/proc.ts";
 import { load } from "../lib/store.ts";
 import { playbookBullet } from "../schema/playbook.ts";
-import { scratch } from "./scratch.ts";
 
 const MAIN = join(ROOT, "tools", "nv", "main.ts");
 const nv = (...args: string[]) => run([process.execPath, MAIN, ...args], { cwd: ROOT, timeoutMs: 60_000 });
@@ -62,21 +59,5 @@ describe("the commands a session reaches by name", () => {
     expect(featureMatches(check({ argv: ["bun", "nv", "proofs", "--verify", "--group", "Core\\Str"] }), "Core\\Str")).toBe(true);
     expect(featureMatches(check({ argv: ["bun", "nv", "proofs", "--id", "Core\\Str::length"] }), "Core\\Str::length")).toBe(true);
     expect(featureMatches(check({ name: "proofs: Core\\Str", argv: ["bun", "nv", "proofs", "--group", "Core\\Arr"] }), "Core\\Uri")).toBe(false);
-  });
-
-  test("loop-stats --guard counts a denied call under the rule that denied it", () => {
-    const t = scratch();
-    try {
-      const events = [
-        { type: "assistant", message: { id: "m1", content: [{ type: "tool_use", id: "t1", name: "Bash", input: { command: "cat a.rs" } }] } },
-        { type: "user", message: { content: [{ type: "tool_result", tool_use_id: "t1", is_error: true, content: "PreToolUse:Bash hook error: guard: whole-read: use nv peek" }] } },
-        { type: "assistant", message: { id: "m2", content: [{ type: "tool_use", id: "t2", name: "Bash", input: { command: "ls" } }] } },
-        { type: "user", message: { content: [{ type: "tool_result", tool_use_id: "t2", content: "a.rs" }] } },
-      ];
-      t.put("session.jsonl", events.map((e) => JSON.stringify(e)).join("\n"));
-      expect(readSession(join(t.root, "session.jsonl"))!.guard).toEqual({ "whole-read": 1 });
-    } finally {
-      t.cleanup();
-    }
   });
 });

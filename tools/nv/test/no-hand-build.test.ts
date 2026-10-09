@@ -59,7 +59,7 @@ describe("the pipeline never runs a hand build", () => {
       .filter((hit) => {
         const [file = "", , ...rest] = hit.split(":");
         const line = rest.join(":");
-        return !file.startsWith("tools/nv/test/") && !(file in ALLOWED) && !COMMENT.test(line);
+        return !file.startsWith("tools/nv/test/") && !file.startsWith("tools/nv/driver/test/") && !(file in ALLOWED) && !COMMENT.test(line);
       });
     expect(found).toEqual([]);
   });

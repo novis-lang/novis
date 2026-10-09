@@ -36,7 +36,8 @@ import { ANCHOR_RE, type BookSection, type Bullet, type GoalValue, manifestFindi
 import { bodyOf, type Entry, FIELDS, fieldLimits, H1, milestones, planFields, verifyParagraph } from "./plan.ts";
 import { CITATION, Rulebook } from "./rules.ts";
 import { wrapGate } from "./site.ts";
-import { NUMBER_CITE, OWN_HEADER } from "./chain.ts";
+import { OWN_HEADER } from "./chain.ts";
+import { NUMBER_CITE } from "../lib/prose.ts";
 import { GOAL_PLAN, writeGoalPlan } from "../renderers/goal-plan.ts";
 import { anchors, bulletValue } from "../lib/playbook-fragments.ts";
 import { blocks, declaration, EXPIRY, expiryReport, retire } from "./playbook.ts";

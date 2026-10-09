@@ -12,7 +12,7 @@
   ],
   "guardedBy": [
     "tools/nv/lib/chain.ts",
-    "tools/nv/test/chain.test.ts",
+    "tools/nv/driver/test/chain.test.ts",
     "tools/nv/cmd/loop.ts",
     "tools/nv/cmd/chain.ts"
   ]

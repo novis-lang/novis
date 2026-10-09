@@ -1,7 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { SETTINGS } from "../driver/allow.ts";
+import { SETTINGS } from "../allow.ts";
 import {
   type GateConsole,
   HANDOVER_SUBJECT,
@@ -18,9 +18,9 @@ import {
   startLooper,
   waitAndHandoverProblems,
   withLooperGuard,
-} from "../driver/handover.ts";
-import { ROOT } from "../lib/paths.ts";
-import { scratch, type Scratch } from "./scratch.ts";
+} from "../handover.ts";
+import { ROOT } from "../../lib/paths.ts";
+import { scratch, type Scratch } from "../../test/scratch.ts";
 
 let tmp: Scratch | undefined;
 afterEach(() => {

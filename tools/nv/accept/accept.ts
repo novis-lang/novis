@@ -55,6 +55,14 @@ export interface Check {
   overlap?: boolean;
 }
 
+/** Whether `--feature <id>` shows the check: a proofs check named for the feature, or one whose `--group` or `--id` is it. */
+export function featureMatches(c: Check, id: string): boolean {
+  const named = /^proofs: (.+?)(?: \(\d+\/\d+\))?$/.exec(c.name ?? "");
+  if (named?.[1] === id) return true;
+  const argv = c.argv ?? [];
+  return argv.some((a, i) => (a === "--group" || a === "--id") && argv[i + 1] === id);
+}
+
 /** What one process did: its exit status and both streams, kept apart. */
 export interface Outcome {
   code: number;

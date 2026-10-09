@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { manifestProblems, nextGroupItems, parseEdits, parseWrap, stripTrailers, validateHandoff } from "../cmd/session.ts";
-import { handoffValue, type Unread } from "../lib/handoff.ts";
-import { scratch } from "./scratch.ts";
+import { manifestProblems, nextGroupItems, parseEdits, parseWrap, stripTrailers, validateHandoff } from "../../cmd/session.ts";
+import { handoffValue, type Unread } from "../../lib/handoff.ts";
+import { scratch } from "../../test/scratch.ts";
 
 describe("nv session handoffValue", () => {
   test("a handoff's state names the goal by slug, and its next group is a lead, a checklist and what follows", () => {
