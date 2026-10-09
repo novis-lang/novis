@@ -3,6 +3,7 @@
   "goals": [
     "ldap",
     "looper-ready",
+    "looper-cutover",
     "decision-records-retired",
     "class-scoped-enums",
     "nvs-code",

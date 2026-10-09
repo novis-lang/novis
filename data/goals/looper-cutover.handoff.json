@@ -1,0 +1,30 @@
+{
+  "state": "**Goal `looper-cutover` has not started.** Its record's `waitFor` holds every session until the installed looper imports Novis without loss (`looper import --from nv --dry-run` exits 0, names `docs/goals/compare-page.md`, and prints no line with `dropped` or `lost`). The driver re-runs that command every 30 minutes and spends no session meanwhile. Once the goal is reached, the driver hands the run to looper itself (`handover: \"looper\"`, `tools/nv/driver/handover.ts`).\n\nThe spec is `docs/agent/looper-cutover.md`; the goal file says which stage runs which of its sections, and its § *Standing decisions* holds every call the runbook left open. No session re-decides one, and no session writes BLOCKED. Nothing the running driver loads is deleted or changed in what it does.\n\nAs the goal was written, `looper import --from nv --dry-run` wrote no side goal, noted every suite check as judged by its summary line alone, and noted 1189 playbook bullets that lost their `until`. `mwl` was not registered with looper. The installed importer refused this goal's record outright: `unknown field waitFor`, so the gate also waits for an importer that carries `waitFor` and `handover` into a goal's `extra`.",
+  "next": {
+    "stage": 2,
+    "title": "register and configure",
+    "files": [
+      "looper.toml",
+      "tools/git-hooks/commit-msg",
+      ".gitignore"
+    ],
+    "items": [
+      {
+        "done": false,
+        "text": "**Register and write `looper.toml`** (`docs/agent/looper-cutover.md:47`, the runbook's § 1): `looper project add .`, then every guess it made fixed against § 1, and the user's calls the goal file's Stage 2 lists. Check each key name against `looper --help` and looper's `design.md`, and record any name that differs in this handoff."
+      },
+      {
+        "done": false,
+        "text": "**The commit-msg hook** (`tools/git-hooks/commit-msg:1`, the runbook's § 1): it passes a commit with the trailer check alone when `looper` is not on `PATH`, and runs `looper hook commit-msg` when it is."
+      },
+      {
+        "done": false,
+        "text": "**`looper doctor` exits 0** (`docs/agent/looper-cutover.md:195`, the runbook's § 8 last bullet), including `./target/debug/nvs.exe` counting as the `nvs` an allow entry names."
+      }
+    ]
+  },
+  "backlog": [
+    "Stage 3: the import, `nv-loop-retired` first on looper's chain, and the nv chain shrunk to this goal (`docs/agent/looper-cutover.md:61`).",
+    "Stage 4: the hooks and checks of § 3, AGENTS.md's loop rules, the readers of § 5 that can work without `data/chain.json`, and the first sync (`docs/agent/looper-cutover.md:80`)."
+  ]
+}

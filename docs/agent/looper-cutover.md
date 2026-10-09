@@ -1,16 +1,21 @@
 # Moving the loop onto looper: the cutover runbook
 
 The cutover replaces Novis's own loop driver with looper, the external loop tool, and deletes the
-driver. It runs interactively, never from inside a loop session, because it deletes the program that
-runs the loop. It starts when both halves of the preparation are reached:
+driver. It runs without a person, in two goals. Goal `looper-cutover`
+([goals/looper-cutover.md](goals/looper-cutover.md)) runs under the old driver, does § 0 to § 6 and § 8,
+and deletes nothing the driver loads. Once it is reached, the driver hands the run to looper itself.
+Then `nv-loop-retired`, the goal it writes first on looper's chain, runs under looper and does § 7's
+proof and deletes. This file is the spec both goals follow, and the goal file holds the calls
+this file leaves open. It starts when both halves of the preparation are reached:
 
 - **The Novis half**: the chain goal that moves the shared code out of `tools/nv/driver/` and splits
   every hook out as a `bun nv` command. It is reached when its slug is gone from `data/chain.json` and
   `bun test ./tools/nv/test/driver-boundary.test.ts` passes whole.
 - **The looper half**: looper's goals for project prompts and `[orient] extra`, wrap extension
   sections and checks, the after-session hook and hook timeouts, side loops, the playbook directory
-  and `until` trailers, sync opt-outs, and the `nv` importer. `looper --version` names a release that
-  has all of them.
+  and `until` trailers, sync opt-outs, and the `nv` importer. The installed looper has all of them
+  when the `waitFor` gate in goal `looper-cutover`'s record opens, and the goal file's § *Why here*
+  says why that gate cannot open early.
 
 Looper's `docs/upgrade-guide.md`, Part 1 and Part 3, is the general procedure. This file holds only what
 is specific to Novis, in the order the steps run. A step here that contradicts the guide wins for Novis.
@@ -34,12 +39,10 @@ is specific to Novis, in the order the steps run. A step here that contradicts t
 ## 0. Before anything moves
 
 1. `looper --version` runs and `looper status` exits 0.
-2. **No run is live.** No live `.loop/running` in the main tree. The side worktrees are checked the
-   same way and left alone (§ 6). A run that is live is stopped by the user at a session boundary.
-3. The main tree is clean and on `main`. The work happens on a branch in
-   `.agent-tmp/worktrees/looper-migration`, and lands only when § 7 is green.
-4. `bun nv loop --goal-only` on the live goal, saved under `.agent-tmp/looper-migration/`. That is the
-   sweep § 7 compares against.
+2. **The old driver runs this, on `main`.** Its run is the one live run in the main tree, and its
+   sessions commit each slice on `main`. No session deletes, or changes what it does, any file the
+   driver loads. The side worktrees are left alone (§ 6).
+3. Nothing is saved to compare against: the first session under looper is § 7's proof.
 
 ## 1. Register, then fix each guess
 
@@ -102,14 +105,18 @@ Where looper exports other names, the argv passes flags.
 - **AGENTS.md**: the loop and goal parts become the guide's *Goals and the loop* block — `looper orient
   --full`, `looper verify`, `looper wrap <file>`. That covers § *Where to look*'s first row, rules 4 and 6,
   § *Session workflow* and the chain bullets in § *Keep each slice small*. Every domain rule stays.
-- **`.claude/settings.json`** is the user's to approve. It gains `Bash(looper:*)` and
+- **`.claude/settings.json`** is the user's to approve, so no session edits it: `nv-loop-retired`'s
+  handoff names the change for the user. It gains `Bash(looper:*)` and
   `PowerShell(looper:*)` and the `looper guard` hook. It loses the `bun nv` entries for `chain`,
   `goal`, `loop`, `loop-stats`, `orient`, `playbook` and `session`, Bash at `:15`, `:27`, `:33`, `:34`,
   `:36`, `:41`, `:53` and PowerShell at `:98`, `:110`, `:116`, `:117`, `:119`, `:124`, `:136`.
 
 ## 5. What reads the old goal data, and moves with it
 
-Each item is re-pointed at looper's goal files, or deleted with what it serves:
+Each item is re-pointed at looper's goal files, or deleted with what it serves. Goal `looper-cutover`
+does the part that leaves the old driver working: a reader outside the driver's code learns to work
+when `data/chain.json` is gone, and behaves as before while it is there. `nv-loop-retired` does the
+rest.
 
 - **`tools/nv/lib/chain.ts`**, the one reader of goals and the chain for the tools that stay:
   `cmd/affected.ts:47`, `cmd/select.ts:30`, `cmd/plan.ts:12`, `cmd/owners.ts:46`, `cmd/holes.ts:35`,
@@ -153,24 +160,25 @@ Each item is re-pointed at looper's goal files, or deleted with what it serves:
 
 ## 7. Prove it, then delete
 
-1. `looper lint` is green, and `looper sync --check` exits 0.
-2. `looper check` on the live goal gives the results the saved `bun nv loop --goal-only` gave.
-3. One real session: `looper loop start`, and `looper loop stop` once the session runs. Its wrap
-   commits, including a `## plan:` section, and its status line is read. `bun nv sweep` wrote
-   `.loop/last-sweep.md` or found nothing red.
+1. `looper lint` is green, and `looper sync --check` exits 0. Goal `looper-cutover`'s checks hold this.
+2. The driver's handover deletes `data/chain.json` and `looper-cutover`'s files, commits them as
+   `chore(goals): the loop moves onto looper`, and runs `looper loop start`.
+3. The first session under looper, `nv-loop-retired`'s first stage, is the proof: its wrap commits,
+   including a `## plan:` section, and its status line is read. `bun nv sweep` wrote
+   `.loop/last-sweep.md` or found nothing red. What fails here is fixed before anything is deleted.
 
-Only then, and as the last change, delete: `tools/nv/cmd/{loop,chain,goal,session,orient,loop-stats,playbook}.ts`
+Only then, and as the last change, `nv-loop-retired` deletes: `tools/nv/cmd/{loop,chain,goal,session,orient,loop-stats,playbook}.ts`
 and their `main.ts` entries, `tools/nv/driver/` with `tools/nv/driver/test/`, `data/chain.json`,
 `data/goals/`, `data/playbook/`, `docs/agent/goals/`, `docs/agent/goal-plan.md`,
 `renderers/goal-plan.ts`, the four schemas of § 5, and `docs/agent/{session,repair}-prompt.md` once every
 rule they hold is in AGENTS.md. `docs/agent/coordinator.md`, `loop-authoring.md` and `playbook.md`
-describe the driver: the user decides whether each is deleted or rewritten for looper. Then
-`lib/written.ts` stops writing `NOVIS_LOOP_WRITES`, and the main tree's `.loop/` is emptied with its
-`.gitignore` line kept.
+describe the driver, and the goal file's § *Standing decisions* says what becomes of each. Then
+`lib/written.ts` stops writing `NOVIS_LOOP_WRITES`, and the old driver's files are deleted from the
+main tree's `.loop/`, with its `.gitignore` line kept. Looper's own files there stay.
 
-The commits are the guide's three, `chore(goals): import goals into the looper format`,
-`chore(tools): drop the project loop driver for looper` and `docs(agent): point the loop rules at
-looper`.
+The commits are the guide's three: `chore(goals): import goals into the looper format` in goal
+`looper-cutover`, then `chore(tools): drop the project loop driver for looper` and `docs(agent): point
+the loop rules at looper` in `nv-loop-retired`.
 
 ## 8. The first sync
 

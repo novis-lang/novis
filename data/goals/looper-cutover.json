@@ -1,0 +1,231 @@
+{
+  "title": "Novis's goals, checks, hooks and rules are in looper's format, and the next goal on looper's chain deletes the old driver",
+  "milestone": null,
+  "position": "last",
+  "waitFor": {
+    "argv": [
+      "looper",
+      "import",
+      "--from",
+      "nv",
+      "--dry-run"
+    ],
+    "want": [
+      "docs/goals/compare-page.md"
+    ],
+    "absent": [
+      "dropped",
+      "lost"
+    ],
+    "everyMin": 30
+  },
+  "handover": "looper",
+  "files": [],
+  "context": {
+    "modules": [
+      "docs/agent/looper-cutover.md",
+      "tools/nv/driver/handover.ts",
+      "tools/nv/lib/chain.ts",
+      "tools/nv/main.ts"
+    ],
+    "rules": [
+      "tooling/the-repository-tools-are-one-bun-program"
+    ],
+    "adrs": [],
+    "shapes": [
+      "A commit message",
+      "A code comment"
+    ],
+    "playbook": [
+      "Tooling > the end",
+      "Tooling > one call reads",
+      "Tooling > a commit message",
+      "Tooling > another agent"
+    ],
+    "plan": [
+      "Open now",
+      "Blocking"
+    ],
+    "milestones": []
+  },
+  "stages": [
+    {
+      "number": 2,
+      "title": "register and configure",
+      "summary": "Registers the project with looper and writes `looper.toml` with the user's calls, the guard, the budget and the disk gate."
+    },
+    {
+      "number": 3,
+      "title": "import",
+      "summary": "Imports every goal, both side goals and the playbook into looper's format, puts `nv-loop-retired` first on looper's chain, and leaves `data/chain.json` naming this goal alone."
+    },
+    {
+      "number": 4,
+      "title": "hooks, checks and rules",
+      "summary": "Wires each hook and check of the runbook's § 3 into `looper.toml`, moves the loop rules in AGENTS.md onto looper's commands, and runs the first sync."
+    }
+  ],
+  "checks": [
+    {
+      "id": "looper-cutover-config-holds-the-calls",
+      "kind": "command",
+      "stage": 2,
+      "name": "the committed `looper.toml` holds the user's calls: long subjects, no harvest, no floor carry, a sweep after every session, the prose scope and the sync opt-outs",
+      "argv": [
+        "git",
+        "grep",
+        "-l",
+        "--all-match",
+        "-F",
+        "-e",
+        "subject_max = 120",
+        "-e",
+        "harvest = false",
+        "-e",
+        "carry_to_floor = false",
+        "-e",
+        "sweep = \"every\"",
+        "-e",
+        "Text an end user reads",
+        "-e",
+        "docs/decisions/README.md",
+        "-e",
+        "docs/agent/commands.md",
+        "-e",
+        "docs/agent/conventions.md",
+        "-e",
+        "docs/agent/doc-style.md",
+        "HEAD",
+        "--",
+        "looper.toml"
+      ],
+      "want": [
+        "looper.toml"
+      ]
+    },
+    {
+      "id": "looper-cutover-doctor",
+      "kind": "command",
+      "stage": 2,
+      "name": "`looper doctor` finds nothing drifted in the project's config and nothing missing on this machine",
+      "argv": [
+        "looper",
+        "doctor"
+      ]
+    },
+    {
+      "id": "looper-cutover-lint",
+      "kind": "command",
+      "stage": 3,
+      "name": "`looper lint` finds no problem in the goal files, the chain and the README",
+      "argv": [
+        "looper",
+        "lint"
+      ]
+    },
+    {
+      "id": "looper-cutover-chain-imported",
+      "kind": "command",
+      "stage": 3,
+      "name": "looper's chain starts with `nv-loop-retired` and then holds every goal the nv chain had behind this one, in order",
+      "argv": [
+        "git",
+        "show",
+        "HEAD:docs/goals/README.md"
+      ],
+      "want": [
+        "(nv-loop-retired.md)",
+        "(decision-records-retired.md)",
+        "(class-scoped-enums.md)",
+        "(nvs-code.md)",
+        "(pdf.md)",
+        "(spreadsheet.md)"
+      ]
+    },
+    {
+      "id": "looper-cutover-side-goals-imported",
+      "kind": "command",
+      "stage": 3,
+      "name": "both side goals are committed goal files in looper's format",
+      "argv": [
+        "git",
+        "ls-files",
+        "--error-unmatch",
+        "docs/goals/compare-page.md",
+        "docs/goals/search-questions.md"
+      ]
+    },
+    {
+      "id": "looper-cutover-nv-chain-holds-this-goal-alone",
+      "kind": "command",
+      "stage": 3,
+      "name": "`data/chain.json` names `looper-cutover` alone, so the handover drops no goal",
+      "argv": [
+        "bun",
+        "nv",
+        "chain",
+        "--check"
+      ],
+      "want": [
+        "the run stands on `looper-cutover`, 1 of 1"
+      ]
+    },
+    {
+      "id": "looper-cutover-compare-page-worktree-kept",
+      "kind": "command",
+      "stage": 3,
+      "name": "the `compare-page` side worktree is still there, on its own branch",
+      "argv": [
+        "git",
+        "-C",
+        ".agent-tmp/worktrees/side/compare-page",
+        "rev-parse",
+        "--abbrev-ref",
+        "HEAD"
+      ],
+      "want": [
+        "side/compare-page"
+      ]
+    },
+    {
+      "id": "looper-cutover-search-questions-worktree-kept",
+      "kind": "command",
+      "stage": 3,
+      "name": "the `search-questions` side worktree is still there, on its own branch",
+      "argv": [
+        "git",
+        "-C",
+        ".agent-tmp/worktrees/side/search-questions",
+        "rev-parse",
+        "--abbrev-ref",
+        "HEAD"
+      ],
+      "want": [
+        "side/search-questions"
+      ]
+    },
+    {
+      "id": "looper-cutover-sync-check",
+      "kind": "command",
+      "stage": 4,
+      "name": "`looper sync --check` finds every managed file and block as the templates write it",
+      "argv": [
+        "looper",
+        "sync",
+        "--check"
+      ]
+    },
+    {
+      "id": "looper-cutover-verify",
+      "kind": "command",
+      "stage": 4,
+      "name": "`bun nv verify` is green with the hooks wired and the readers re-pointed",
+      "argv": [
+        "bun",
+        "nv",
+        "verify"
+      ]
+    }
+  ],
+  "env": {}
+}
