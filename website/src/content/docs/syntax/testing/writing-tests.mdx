@@ -83,7 +83,8 @@ The report for this file:
 - `nvs test main.nvs` runs the tests in `main.nvs` and in the files it loads. `autoload` loads
   only the classes the program uses.
 - `nvs test .` runs every `.nvs` file in the current folder and its subfolders as one program.
-  Run it from your project folder to run every test in the project.
+  Run it from your project folder to run every test in the project. Tests in a `tests` folder
+  need one file there that requires your entry file.
 - `--filter Text` runs only the tests whose name contains `Text`. A test name is `Class::method`,
   so `--filter OrderTest::` runs one class.
 - `--list` prints every test and where it is written, without running them.

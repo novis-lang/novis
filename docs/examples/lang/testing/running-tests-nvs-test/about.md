@@ -6,7 +6,8 @@ a class do not run under `nvs test`.
 
 `nvs test .` runs every `.nvs` file in a folder and its subfolders as one program, so you do not
 need a list of files. Run it in your project folder. Your entry file is in that folder, so every
-test can use the classes its `autoload` line loads.
+test can use the classes its `autoload` line loads. Tests in a `tests` folder need one file there
+that requires your entry file.
 
 `--filter <text>` runs only the tests whose name contains that text. The name of a test is
 `Class::method`, so `--filter CartTest::` runs one class. `--list` prints the tests and where each

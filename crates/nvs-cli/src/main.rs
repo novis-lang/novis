@@ -557,6 +557,9 @@ enum Command {
     /// every `.nvs` file in it and in its subfolders. Run `nvs test .` in your
     /// project folder to run every test in the project. The entry file is in
     /// that folder, so its `autoload` line loads your classes for every test.
+    /// The tests can be under `src/`, or in a `tests/` folder with one
+    /// `bootstrap.nvs` that requires the entry file. A file that another file
+    /// in the folder requires is loaded once, through that file.
     /// Any other path is a `.nvst` case file or a folder of `.nvst` files. A
     /// folder with both kinds of file is an error, because the two kinds have
     /// different reports.
@@ -3705,7 +3708,9 @@ fn run_test(
         };
     if programs.iter().any(Option::is_some) {
         let [Some(program)] = programs.as_slice() else {
-            eprintln!("error: a program's `#[Test]` methods and `.nvst` cases are run separately");
+            eprintln!(
+                "error: `nvs test` runs one program at a time. Pass one `.nvs` file or one folder. To run every test in a project, run `nvs test .` in the project folder. Run `.nvst` cases in a separate call."
+            );
             return ExitCode::FAILURE;
         };
         if cases.is_some() || record.is_some() {
@@ -3886,8 +3891,8 @@ enum Program {
     /// A `.nvs` file: the program it starts.
     File(PathBuf),
     /// A directory holding `.nvs` files: one program whose entry requires
-    /// every one of them, in name order
-    /// (`rule:testing/a-directory-of-programs-is-one-test-program`).
+    /// every one of them that no other one requires, in name order
+    /// ([`unrequired`], `rule:testing/a-directory-of-programs-is-one-test-program`).
     Directory { dir: PathBuf, files: Vec<PathBuf> },
 }
 
@@ -3948,7 +3953,9 @@ impl Program {
                 {
                     name.insert(0, '#');
                 }
-                front_end_synthesized(&dir.join(name), &directory_entry(dir, files), extensions)
+                let entry = dir.join(name);
+                let roots = unrequired(&entry, dir, files);
+                front_end_synthesized(&entry, &directory_entry(dir, &roots), extensions)
             }
         }
     }
@@ -3981,6 +3988,51 @@ fn programs_under(
         }
     }
     Ok(())
+}
+
+/// The files of a directory of programs that no other file in it requires, in
+/// the order [`programs_under`] found them.
+///
+/// `require` runs every time it is reached, and `Core\Test::request` runs the
+/// program's statements, so an entry that required a file another file in the
+/// directory requires too would run that file twice per request: a project's
+/// entry file, required by the project and again by a `tests/bootstrap.nvs`.
+/// The edges are the ones the name-resolution walk resolves
+/// ([`nvs_hir::Loaded::requires`]), so this agrees with the build on what a
+/// path names. A directory where no file's text holds `require` has no edge
+/// to find and walks nothing; any other pays one walk without the type phase,
+/// and its diagnostics are dropped because the real compile reports them.
+fn unrequired(entry: &std::path::Path, dir: &std::path::Path, files: &[PathBuf]) -> Vec<PathBuf> {
+    let requires =
+        |file: &PathBuf| std::fs::read_to_string(file).is_ok_and(|text| text.contains("require"));
+    if !files.iter().any(requires) {
+        return files.to_vec();
+    }
+    let mut map = SourceMap::new();
+    map.overlay(entry, directory_entry(dir, files));
+    let Ok(id) = map.load(entry) else {
+        return files.to_vec();
+    };
+    let mut diags = Diagnostics::new();
+    let stmts = parse_file(map.file(id), &mut diags);
+    let (_, loaded, _) = nvs_hir::resolve_program(
+        id,
+        stmts,
+        &mut map,
+        nvs_hir::CoreRoster::Trusted,
+        &mut diags,
+    );
+    let required: std::collections::HashSet<PathBuf> = loaded
+        .iter()
+        .filter(|file| file.id != id)
+        .flat_map(|file| file.requires.iter().map(|&(_, target)| target))
+        .filter_map(|target| map.file(target).path().map(nvs_diagnostics::canonical_key))
+        .collect();
+    files
+        .iter()
+        .filter(|file| !required.contains(&nvs_diagnostics::canonical_key(file)))
+        .cloned()
+        .collect()
 }
 
 /// The entry a directory of programs is run through: one `require` per file,

@@ -111,10 +111,11 @@ fn a_subdirectory_is_run_on_its_own() {
     assert_eq!(names(&document, "tests"), ["HelperTest::addition"]);
 }
 
-/// The layout the website teaches: tests under the autoload root, beside the
-/// class or in a class of their own, run with `nvs test .` over the project's
-/// root and no bootstrap. A test class nothing references runs too, since the
-/// directory requires every file rather than only what the entry reaches.
+/// The first layout the website teaches: tests under the autoload root, beside
+/// the class or in a class of their own, run with `nvs test .` over the
+/// project's root and no bootstrap. A test class nothing references runs too,
+/// since the directory requires every file rather than only what the entry
+/// reaches.
 #[test]
 fn a_project_root_runs_the_tests_beside_its_classes() {
     let document = document(&["--format", "json"], "beside");
@@ -125,6 +126,35 @@ fn a_project_root_runs_the_tests_beside_its_classes() {
             "Shop\\Orders\\OrderTest::nothingReferencesThisClass"
         ]
     );
+}
+
+/// The second layout: a `tests/` folder whose bootstrap requires the entry,
+/// run over the project's root beside a test under `src/`. The entry is
+/// required once, through the bootstrap, so a request runs it once and its
+/// body is not printed twice.
+#[test]
+fn a_project_root_requires_the_entry_its_bootstrap_requires_once() {
+    let document = document(&["--format", "json"], "split");
+    assert_eq!(
+        names(&document, "tests"),
+        [
+            "HomeTest::theClassesResolveThroughTheBootstrap",
+            "HomeTest::theEntryRunsOncePerRequest",
+            "Shop\\Cart::totalIsThree"
+        ]
+    );
+    let (out, err, ok) = run_test(&[], &fixture("split"));
+    assert!(ok, "{out}{err}");
+}
+
+/// `nvs test` runs one program, so a second program path is refused with a
+/// sentence about the count, not about the kind of file.
+#[test]
+fn two_programs_in_one_call_are_refused() {
+    let beside = fixture("beside");
+    let (_, err, ok) = run_test(&[beside.to_str().expect("a UTF-8 path")], &fixture("shop"));
+    assert!(!ok);
+    assert!(err.contains("runs one program at a time"), "{err}");
 }
 
 /// The two suites share no report, so a directory holding both kinds of file
