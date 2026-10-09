@@ -34,6 +34,9 @@ test("the wait gate is open when its command exits 0 and prints every wanted str
 test("the wait gate is shut on a failing command, a missing wanted string, or a command that does not start", async () => {
   expect(await gateShut({ argv: echo(3, "no such importer"), everyMin: 1 })).toContain("exited 3: no such importer");
   expect(await gateShut({ argv: echo(0, "imported docs/goals/a.md"), want: ["compare-page.md"], everyMin: 1 })).toContain('printed no "compare-page.md"');
+  const lossy = { argv: echo(0, "would write docs/goals/compare-page.md\nnote: 3 bullet(s) lost their until"), want: ["compare-page.md"], absent: ["dropped", "lost"], everyMin: 1 };
+  expect(await gateShut(lossy)).toContain('still printed "note: 3 bullet(s) lost their until"');
+  expect(await gateShut({ ...lossy, argv: echo(0, "would write docs/goals/compare-page.md") })).toBe("");
   expect(await gateShut({ argv: ["nv-no-such-program-anywhere"], everyMin: 1 })).toContain("did not start");
 });
 
@@ -109,8 +112,8 @@ test("a stop during the wait ends the run, and a hold during it is taken before 
 
 test("a goal's wait gate and handover are checked where the schema cannot", () => {
   expect(waitAndHandoverProblems("g", { waitFor: { argv: ["looper"], everyMin: 15 }, handover: "looper" }, false)).toEqual([]);
-  const bad = waitAndHandoverProblems("g", { waitFor: { argv: [], want: [""], everyMin: 0 } }, false);
-  expect(bad.length).toBe(3);
+  const bad = waitAndHandoverProblems("g", { waitFor: { argv: [], want: [""], absent: [""], everyMin: 0 } }, false);
+  expect(bad.length).toBe(4);
   expect(waitAndHandoverProblems("s", { handover: "looper" }, true)[0]).toContain("a side goal never hands the run over");
 });
 
@@ -186,8 +189,11 @@ test("the handover refuses while the chain names another goal, and deletes nothi
   expect(existsSync(join(t.root, "docs/agent/goals/cutover.md"))).toBe(true);
 }, 60_000);
 
-/** A stub looper under the scratch root: it logs each call and exits with the code `exits` gives its verb. */
-function stubLooper(t: Scratch, exits: Record<string, number>): string[] {
+/**
+ * A stub looper under the scratch root: it logs each call, and for a call whose first two words `exits`
+ * names, prints the message and exits with the code given there.
+ */
+function stubLooper(t: Scratch, exits: Record<string, [number, string]>): string[] {
   t.put("exits.json", JSON.stringify(exits));
   t.put(
     "stub.ts",
@@ -196,8 +202,8 @@ function stubLooper(t: Scratch, exits: Record<string, number>): string[] {
       'import { join } from "node:path";',
       "const args = process.argv.slice(2);",
       'appendFileSync(join(import.meta.dir, "calls.txt"), args.join(" ") + "\\n");',
-      'const code = JSON.parse(readFileSync(join(import.meta.dir, "exits.json"), "utf8"))[args[1]] ?? 0;',
-      'if (code) console.error(`error: ${args[1]} refused`);',
+      'const [code, said] = JSON.parse(readFileSync(join(import.meta.dir, "exits.json"), "utf8"))[args.slice(0, 2).join(" ")] ?? [0, ""];',
+      "if (said) console.error(said);",
       "process.exit(code);",
     ].join("\n"),
   );
@@ -206,23 +212,25 @@ function stubLooper(t: Scratch, exits: Record<string, number>): string[] {
 
 const calls = (t: Scratch) => readFileSync(join(t.root, "calls.txt"), "utf8").trim().split("\n");
 
-test("the handover adds looper's main loop and starts it", async () => {
+test("the handover registers the project, adds looper's main loop and starts it", async () => {
   tmp = scratch();
   expect(await startLooper(tmp.root, stubLooper(tmp, {}))).toBe("");
-  expect(calls(tmp)).toEqual(["loop add", "loop start"]);
+  expect(calls(tmp)).toEqual(["project add .", "loop add", "loop start"]);
 });
 
-test("a main loop that already exists is started all the same", async () => {
+test("a main loop that already exists, or already runs, counts as started", async () => {
   tmp = scratch();
   const said: string[] = [];
-  expect(await startLooper(tmp.root, stubLooper(tmp, { add: 1 }), undefined, (l) => said.push(l))).toBe("");
-  expect(calls(tmp)).toEqual(["loop add", "loop start"]);
-  expect(said[0]).toContain("the start runs anyway");
+  const stub = stubLooper(tmp, { "loop add": [1, "error: Project mwl has a main loop already."], "loop start": [1, "error: the loop has a worker already."] });
+  expect(await startLooper(tmp.root, stub, undefined, (l) => said.push(l))).toBe("");
+  expect(calls(tmp)).toEqual(["project add .", "loop add", "loop start"]);
+  expect(said[1]).toContain("the start runs anyway");
+  expect(said[2]).toContain("the main loop runs already");
 });
 
 test("a looper start that fails is the error the run holds on, naming what loop add said too", async () => {
   tmp = scratch();
-  const failed = await startLooper(tmp.root, stubLooper(tmp, { add: 1, start: 2 }));
-  expect(failed).toContain("loop start` exited 2: error: start refused");
+  const failed = await startLooper(tmp.root, stubLooper(tmp, { "loop add": [1, "error: add refused"], "loop start": [2, "error: no server"] }));
+  expect(failed).toContain("loop start` exited 2: error: no server");
   expect(failed).toContain("loop add` exited 1: error: add refused");
 });

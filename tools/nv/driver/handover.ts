@@ -2,18 +2,18 @@
 // must pass before the driver starts a session on the goal, and `handover: "looper"`, which ends this
 // driver's run for good once the goal is reached and starts looper's main loop in its place.
 //
-// **The wait gate.** While `waitFor.argv` exits non-zero, or prints none of a `want` string on stdout or
-// stderr, the turn starts no session: it says once what it waits for, puts it on the status line, and runs
-// the command again every `everyMin` minutes. A wait spends no session and counts no stall, since nothing
-// ran that could commit. The console stays live through it: `r` or `.loop/retry` runs the command now,
+// **The wait gate.** While `waitFor.argv` exits non-zero, misses a `want` string on stdout and stderr, or
+// prints a line that holds an `absent` string, the turn starts no session: it says once what it waits for,
+// puts it on the status line, and runs the command again every `everyMin` minutes. A wait spends no
+// session and counts no stall, since nothing ran that could commit. The console stays live through it: `r` or `.loop/retry` runs the command now,
 // `s` or `.loop/stop` ends the run, `p` or `.loop/pause` holds it as between two sessions, and `h` has no
 // session to halt. A gate that opens lets the turn go on to its session as if it had never waited.
 //
 // **The handover.** A reached goal that says `handover: "looper"` is not switched from: the driver deletes
 // its prose, record and handoff record and `data/chain.json`, commits those paths alone, then runs `looper
-// loop add` and `looper loop start` in the tree. `loop add` refuses a loop that already exists, so its
-// failure is reported and the start runs anyway, and only the start's exit decides. The run then ends
-// with a verdict `driver/respawn.ts` does not restart. A start that fails holds the run with looper's
+// project add .`, `looper loop add` and `looper loop start` in the tree. Only the start decides: the first
+// two are reported when they fail, and a start looper refuses with a message that the loop runs `already`
+// counts as started. The run then ends with a verdict `driver/respawn.ts` does not restart. A start that fails holds the run with looper's
 // error; the run carries `handing` in `.loop/run.json`, so the turn after a lifted hold retries the start
 // alone and never a session, since the chain it would read is gone.
 //
@@ -32,10 +32,11 @@ import { goalFiles } from "../lib/chain.ts";
 import { ROOT } from "../lib/paths.ts";
 import { run as runProc, type RunResult } from "../lib/proc.ts";
 
-/** A goal's `waitFor`: the command, the text it must print, and the minutes between two runs of it. */
+/** A goal's `waitFor`: the command, the text it must print and must not, and the minutes between two runs of it. */
 export interface WaitFor {
   argv: string[];
   want?: string[];
+  absent?: string[];
   everyMin: number;
 }
 
@@ -72,6 +73,7 @@ export function waitAndHandoverProblems(where: string, goal: { waitFor?: WaitFor
     if (w.argv.length === 0 || w.argv[0]!.trim() === "") out.push(`${where}: \`waitFor.argv\` is empty, so there is no command to wait on`);
     if (!Number.isInteger(w.everyMin) || w.everyMin < 1) out.push(`${where}: \`waitFor.everyMin\` is ${w.everyMin}; it is a whole number of minutes, 1 or more`);
     if ((w.want ?? []).some((x) => x === "")) out.push(`${where}: \`waitFor.want\` holds an empty string, which every output contains`);
+    if ((w.absent ?? []).some((x) => x === "")) out.push(`${where}: \`waitFor.absent\` holds an empty string, which every line contains`);
   }
   if (goal.handover !== undefined && side) out.push(`${where}: a side goal never hands the run over; \`handover\` belongs to a goal on the chain`);
   return out;
@@ -95,6 +97,8 @@ export async function gateShut(w: WaitFor, root: string = ROOT, run: Run = runPr
   const out = `${r.stdout}\n${r.stderr}`;
   const missing = (w.want ?? []).filter((x) => !out.includes(x));
   if (missing.length > 0) return `\`${shown}\` passed and printed no ${missing.map((m) => JSON.stringify(m)).join(", ")}`;
+  const found = out.split(/\r?\n/).find((l) => (w.absent ?? []).some((x) => l.includes(x)));
+  if (found !== undefined) return `\`${shown}\` passed and still printed ${JSON.stringify(found.trim().slice(0, 200))}`;
   return "";
 }
 
@@ -240,27 +244,41 @@ export async function retireChain(slug: string, root: string = ROOT, run: Run = 
   return "";
 }
 
+/** Looper's refusal of something that is in place already: a project, a loop, or a loop that runs. */
+const ALREADY = /\balready\b/i;
+
 /**
- * `looper loop add`, then `looper loop start`, in the tree. Returns "" once the start has passed, or the
- * error that holds the run, which names what `loop add` said when it failed too.
+ * `looper project add .`, `looper loop add`, then `looper loop start`, in the tree. Returns "" once the
+ * start has passed, or looper refused it because the loop runs already. Otherwise returns the error that
+ * holds the run, which names what each earlier step said when it failed too.
  */
 export async function startLooper(root: string = ROOT, looper: string[] = looperArgv(), run: Run = runProc, say: (line: string) => void = () => {}): Promise<string> {
-  const call = async (verb: string) => {
-    const argv = [...looper, "loop", verb];
+  const call = async (...words: string[]) => {
+    const argv = [...looper, ...words];
     try {
       return await run(argv, { cwd: root, timeoutMs: LOOPER_TIMEOUT_MS });
     } catch (e) {
       return { argv, code: -1, stdout: "", stderr: `did not start: ${(e as Error).message.split("\n")[0]}`, timedOut: false, aborted: false };
     }
   };
-  const added = await call("add");
-  const addSaid = added.code === 0 ? "" : `\`${shownArgv(added.argv)}\` exited ${added.code}${firstLine(added) ? `: ${firstLine(added)}` : ""}`;
-  say(added.code === 0 ? "looper: the main loop is added" : `looper: ${addSaid} -- a loop that already exists is fine, so the start runs anyway`);
-  const started = await call("start");
-  if (started.code === 0) {
-    say("looper: the main loop is started");
+  const said = (r: RunResult) => `\`${shownArgv(r.argv)}\` exited ${r.code}${r.timedOut ? " (timed out)" : ""}${firstLine(r) ? `: ${firstLine(r)}` : ""}`;
+  const earlier: string[] = [];
+  for (const [words, done] of [
+    [["project", "add", "."], "the project is registered"],
+    [["loop", "add"], "the main loop is added"],
+  ] as const) {
+    const r = await call(...words);
+    if (r.code === 0) say(`looper: ${done}`);
+    else {
+      earlier.push(said(r));
+      say(`looper: ${said(r)} -- the start runs anyway, and decides`);
+    }
+  }
+  const started = await call("loop", "start");
+  const already = started.code !== 0 && ALREADY.test(`${started.stdout}\n${started.stderr}`);
+  if (started.code === 0 || already) {
+    say(already ? `looper: ${said(started)} -- the main loop runs already` : "looper: the main loop is started");
     return "";
   }
-  const startSaid = `\`${shownArgv(started.argv)}\` exited ${started.code}${started.timedOut ? " (timed out)" : ""}${firstLine(started) ? `: ${firstLine(started)}` : ""}`;
-  return addSaid ? `${startSaid}; before it, ${addSaid}` : startSaid;
+  return earlier.length > 0 ? `${said(started)}; before it, ${earlier.join("; ")}` : said(started);
 }
