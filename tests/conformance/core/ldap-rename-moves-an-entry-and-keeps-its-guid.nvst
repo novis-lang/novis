@@ -2,6 +2,7 @@
 `rename` gives an entry a new name in place, then moves it under another parent with a `Dn`, and the entry keeps its GUID through both — ADR 0278 § 9
 --FILE--
 <?nvs
+// covers: Core\Ldap\Connection::rename
 var $corp = Core\Ldap::connect("corp");
 string $first = "OU=Atlas Two,DC=example,DC=test";
 string $second = "OU=Harbor Two,DC=example,DC=test";
