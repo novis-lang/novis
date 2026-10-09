@@ -14,9 +14,15 @@
 target/
 **/target/
 
-# The unattended loop's logs and scratch, neither of which any build reads.
+# The unattended loop's logs and scratch, and the tools' own state -- `.cache/` is the
+# test-selection store, gigabytes of it. No build reads any of them.
 .loop/
 .agent-tmp/
+.cache/
+
+# The counters an instrumented binary writes into whatever directory it was started in. No build
+# reads them, and a stray run can leave hundreds beside the sources.
+**/*.profraw
 
 # Version control and editor state.
 .git/
@@ -24,9 +30,12 @@ target/
 .vscode/
 .idea/
 
-# The website and its dependency tree -- not part of the workspace `cargo build` walks.
+# The tools' and the website's dependency trees, and the editor test host's downloaded VS Code --
+# none of them part of the workspace `cargo build` walks.
+node_modules/
 website/
 editors/*/node_modules/
+editors/*/.vscode-test/
 
 # Fuzzing corpora and artifacts: large, and regenerated rather than compiled.
 fuzz/corpus/
