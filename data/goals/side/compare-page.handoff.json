@@ -1,24 +1,20 @@
 {
-  "state": "**Side goal `compare-page`, stage 3 in progress.** `bun nv bench-compare` (`tools/nv/cmd/bench-compare.ts`) runs `CASES` `hello` and `json-api`. `benches/compare/cases/json-api/` holds `order.json` (20 items, two with one total so an unstable sort disagrees) and the four programs; `CASES` reads `order.json` and checks one 200 and four 422 inputs. `benches/compare/README.md` § *One program per case per peer* says why the case's answers are byte-equal. `bun nv bench-compare --smoke` runs green in Docker: `hello: 4 peers agree`, `json-api: 4 peers agree`. `nv verify` stops at its conformance step on six `tests/conformance/core/ldap-*.nvst` cases (a live LDAP server's leftover state, outside this goal's file set), so its later steps did not run; `bun test tools/nv/test/bench-compare.test.ts` is green.\n\nThe driver's acceptance sweep is red on `serve-isolation` (stage 4), `--scenarios` (stage 5) and the page (stage 6): each is an artefact not written yet, not a regression.",
+  "state": "**Side goal `compare-page`, stage 3 done; stage 4 next.** `bun nv bench-compare` (`tools/nv/cmd/bench-compare.ts`) runs all four `CASES`: `hello`, `json-api`, `html-page` (`GET /products?q=`, 100 rows, the term `<b>\"Tea\" & 'Cups'</b>` escaped, `html: true`, plus a no-term, a plain and a non-ASCII input) and `wait` (`GET /wait`, 50 ms timer, concurrency 1000). Each case folder under `benches/compare/cases/` holds its four programs. `benches/compare/README.md` § *One program per case per peer* says why `html-page` and `wait` are built as they are, including why `nvs serve` keeps its defaults in `wait`.\n\n`bun nv bench-compare --smoke` is green in Docker for all four cases. A short recorded run (3000 requests, 1 rep, not kept) had every peer answer `200` 3000 times in `wait`, with no `503` from Novis. `nvs serve` prints no clamp line in the bench image. That run showed Novis at 0.39x of best in `wait` (p50 81 ms against Go's 62 ms); see the backlog. `bun test tools/nv/test/bench-compare.test.ts` is green.\n\nThe driver's acceptance sweep is red on `serve-isolation` (stage 4), `--scenarios` (stage 5) and the page (stage 6). Each is an artefact not written yet, not a regression.",
   "next": {
-    "stage": 3,
-    "title": "the four cases",
+    "stage": 4,
+    "title": "the Novis fact the table needs and nothing tests",
     "files": [],
-    "note": "one file set: `benches/compare/cases/` (one folder per case, four programs each) and `tools/nv/cmd/bench-compare.ts`'s `CASES`.",
+    "note": "one file set: `crates/nvs-cli/tests/serve_isolation.rs` (new), modelled on the `nvs serve` harness in `crates/nvs-cli/tests/live_edit.rs`.",
     "items": [
       {
         "done": false,
-        "text": "**html-page**: `GET /products?q=<term>`, a 100-row table built in memory, the term (with `<`, `>`, `&`, `\"`, `'`) escaped into the heading, `html: true`. Goal prose § *Stage 3*. Anchor: `tools/nv/cmd/bench-compare.ts:156`, `benches/compare/cases/json-api/main.nvs:1`."
-      },
-      {
-        "done": false,
-        "text": "**wait**: a 50 ms timer, concurrency 1000; check `phpChildren(1000)` sizes the pool. `nvs serve` under its default config prints at start that its memory budget affords 62 requests in flight, below 1000: decide from `rule:http-server/two-deployments-and-nothing-a-proxy-owns` and the README whether the case raises `server.max_in_flight`/`limits.memory` in a config beside `main.nvs` or records the default, and say which in the README. Anchor: `tools/nv/cmd/bench-compare.ts:70`, `benches/compare/compose.nvs.yaml:26`."
+        "text": "**serve-isolation**: `a_static_set_by_one_request_is_not_seen_by_the_next`. A served program sets a class static, and the next request on the same worker reads it unset. Goal prose § *Stage 4*. The harness to copy is the `launch`/`get` pair at `crates/nvs-cli/tests/live_edit.rs:101` and `crates/nvs-cli/tests/live_edit.rs:199`."
       }
     ]
   },
   "backlog": [
-    "Stage 4: `crates/nvs-cli/tests/serve_isolation.rs`, the `serve-isolation` check — goal prose § *Stage 4*.",
-    "Stage 5: `bench-compare --scenarios` — goal prose § *Stage 5*.",
-    "Stage 6: `website/src/content/docs/in-depth/compare.mdx` — goal prose § *Stage 6*."
+    "Stage 5: `bench-compare --scenarios`, goal prose § *Stage 5*.",
+    "Stage 6: `website/src/content/docs/in-depth/compare.mdx`, goal prose § *Stage 6*.",
+    "`wait`: Novis reached 0.39x of best at 1000 connections on one CPU, with no `503`. The page reports it as measured, since the standing decisions keep the runtime unchanged. Why it is slower is not checked."
   ]
 }
