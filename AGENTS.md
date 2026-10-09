@@ -197,7 +197,9 @@ language, and the text has to work for them on the first read.
   they will catch. A term they need and may not know gets a few plain words the first time:
   "a grapheme (what a person counts as one character)".
 - **PHP is mentioned once, at most, and at the top.** Most readers looked up a Novis feature, not a
-  migration guide. "now that casts are gone" is history and tells them nothing they can use.
+  migration guide. "now that casts are gone" is history and tells them nothing they can use. The
+  comparison page under *In depth* is the one exception: it names PHP, Bun and Go wherever its tables
+  and results need them.
 - **No internals and no history.** No ADR numbers, no rule ids, no crate or Rust names, no
   milestone, nothing about how the behaviour came to be.
 - **Keep it short.** Up to four lines at the top of the file, one or two lines above a step. A
