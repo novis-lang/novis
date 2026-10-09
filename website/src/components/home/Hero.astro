@@ -1,8 +1,8 @@
 ---
 /**
  * The front page's hero, in two rows. The first is the page's one `<h1>`,
- * centred across the full width: the name Novis-Lang, the headline with the
- * small note "and the command line" above its words "web applications", and
+ * centred across the full width: the name Novis-Lang, the headline with a
+ * small badge "and the command line" above its words "web applications", and
  * the slogan. The second is the tagline, the two calls to action and the facts
  * beside a code window with three small web programs. The programs come in
  * through the named slots `html`, `sql` and `secret`, because the site
@@ -19,15 +19,16 @@
  * The `<h1>` carries Starlight's title id, so the skip link lands on it;
  * src/components/PageTitle.astro renders no other title on this page.
  *
- * The slogan turns through a list of short phrases, one every few seconds,
- * each swinging down out of view as the next swings in from above. A click
- * on it shows the next phrase and ends the automatic turning for the rest of
- * the page view. The phrases are a separate, aria-hidden copy laid
- * over the slogan, so a screen reader reads the slogan alone and never hears
- * a change. Without the script the slogan stands still. When the reader asks
- * for less motion it also stands still, and a click swaps the phrase without
- * the swing. The turning waits while the hero is off-screen or the tab is
- * hidden.
+ * The slogan turns through a list of short phrases, one every few seconds.
+ * The phrases are written on the faces of a drum that turns downwards: the
+ * current phrase rolls down over the bottom of the drum as the next comes
+ * over the top. A click shows the next phrase and ends the automatic turning
+ * for the rest of the page view. The drum is a separate, aria-hidden copy
+ * laid over the slogan, so a screen reader reads the slogan alone and never
+ * hears a change. Without the script the slogan stands still. When the
+ * reader asks for less motion it also stands still, and a click swaps the
+ * phrase without the turn. The turning waits while the hero is off-screen or
+ * the tab is hidden.
  *
  * The bar under the name grows from its centre on load, and a glow behind it
  * breathes slowly. The three color fields behind the title drift and swell.
@@ -81,10 +82,20 @@ const phrases = [
       <span class="slogan" data-slogan>
         <span class="slogan-text nv-gradient-text">Fast. <span class="keep">Secure by default.</span></span>
         <span class="rotator" aria-hidden="true">
-          <span class="phrase nv-gradient-text" data-phrase data-state="in">
-            Fast. <span class="keep">Secure by default.</span>
+          <span class="axle">
+            <span class="drum" data-drum>
+              <span class="phrase" data-phrase>
+                <span class="nv-gradient-text">Fast. <span class="keep">Secure by default.</span></span>
+              </span>
+              {
+                phrases.map((p) => (
+                  <span class="phrase" data-phrase>
+                    <span class="nv-gradient-text">{p}</span>
+                  </span>
+                ))
+              }
+            </span>
           </span>
-          {phrases.map((p) => <span class="phrase nv-gradient-text" data-phrase>{p}</span>)}
         </span>
       </span>
     </h1>
@@ -210,46 +221,87 @@ const phrases = [
     root.setAttribute('data-tabs-ready', '')
   }
 
-  // Turns the slogan through its phrases. Without this script the slogan stays as it is.
-  // The rotation runs only when the reader allows motion, and it waits while the hero is
-  // off-screen or the tab is hidden. A click shows the next phrase and ends the rotation.
+  // Turns the slogan's drum one phrase at a time. Without this script the slogan stays as
+  // it is. The drum turns by itself only when the reader allows motion, and it waits while
+  // the hero is off-screen or the tab is hidden. A click turns it one phrase on and ends
+  // the turning by itself.
   const HOLD = 3400
   for (const root of document.querySelectorAll<HTMLElement>('[data-slogan]')) {
+    const drum = root.querySelector<HTMLElement>('[data-drum]')
     const phrases = [...root.querySelectorAll<HTMLElement>('[data-phrase]')]
     const hero = root.closest<HTMLElement>('.home-hero')
-    if (phrases.length < 2 || hero === null) continue
+    if (drum === null || phrases.length < 3 || hero === null) continue
     const motion = matchMedia('(prefers-reduced-motion: no-preference)')
-    let current = 0
+    let turn = 0
+    let busyUntil = 0
     let clicked = false
     let onScreen = true
     let timer = 0
+    let frame = 0
 
-    const show = (index: number) => {
-      phrases.forEach((phrase, i) => {
-        if (i === index) phrase.dataset.state = 'in'
-        else if (i === current) phrase.dataset.state = 'out'
-        else delete phrase.dataset.state
-      })
-      current = index
+    // The phrases sit on the faces of a ring. Each face is as tall as the line, and the
+    // radius leaves a gap of a quarter of that height between two faces, so the face
+    // above the front one is out of sight while the drum stands still.
+    phrases.forEach((phrase, i) => phrase.style.setProperty('--i', String(i)))
+    root.style.setProperty('--step', `${360 / phrases.length}deg`)
+    const measure = () => {
+      const radius = (drum.offsetHeight * 1.25) / (2 * Math.sin(Math.PI / phrases.length))
+      root.style.setProperty('--radius', `${radius}px`)
     }
-    const next = () => show((current + 1) % phrases.length)
+    new ResizeObserver(measure).observe(drum)
+    measure()
+
+    // Sets the turn with the transition off, so the drum is simply there.
+    const place = (next: number) => {
+      root.removeAttribute('data-animate')
+      turn = next
+      drum.style.setProperty('--turn', String(turn))
+      void drum.offsetHeight
+      root.setAttribute('data-animate', '')
+    }
+    // One step on, never more. The turn only grows, so the drum always turns the same
+    // way, also from the last phrase back to the first. A step asked for while the
+    // last one is still turning is dropped.
+    const step = () => {
+      const now = performance.now()
+      if (now < busyUntil) return
+      busyUntil = now + (motion.matches ? 900 : 0)
+      turn += 1
+      drum.style.setProperty('--turn', String(turn))
+    }
+
+    // The automatic turning is a chain of timeouts, and each step waits for a frame
+    // the browser draws. A hidden or off-screen page draws no frame and runs no step,
+    // and when it shows again the chain starts over with a full hold.
+    const stop = () => {
+      window.clearTimeout(timer)
+      window.cancelAnimationFrame(frame)
+      timer = 0
+      frame = 0
+    }
+    const schedule = () => {
+      timer = window.setTimeout(() => {
+        frame = window.requestAnimationFrame(() => {
+          frame = 0
+          step()
+          schedule()
+        })
+      }, HOLD)
+    }
 
     const update = () => {
       const active = motion.matches || clicked
-      if (!active && current !== 0) show(0)
+      if (!active && turn !== 0) place(0)
       root.toggleAttribute('data-running', active)
       const rotate = motion.matches && !clicked && onScreen && !document.hidden
-      if (rotate && timer === 0) timer = window.setInterval(next, HOLD)
-      if (!rotate && timer !== 0) {
-        window.clearInterval(timer)
-        timer = 0
-      }
+      if (!rotate) stop()
+      else if (timer === 0 && frame === 0) schedule()
     }
 
     root.addEventListener('click', () => {
       clicked = true
       update()
-      next()
+      step()
     })
     motion.addEventListener('change', update)
     document.addEventListener('visibilitychange', update)
@@ -259,6 +311,7 @@ const phrases = [
       update()
     }).observe(hero)
 
+    place(0)
     root.setAttribute('data-slogan-ready', '')
     update()
   }
@@ -541,31 +594,33 @@ const phrases = [
     }
   }
 
-  /* The slogan is one grid cell. The slogan's own text and every phrase of
-     the rotator sit in it on top of each other, so the cell is always as
-     large as the largest of them and the line never changes size. Without
-     the script, the rotator is invisible and the slogan's own text shows.
-     While the rotator runs, the slogan's own text is invisible and stays
-     there for screen readers; the rotator is hidden from them. */
+  /* The slogan is one grid cell. The slogan's own text and the rotator sit
+     in it on top of each other, and every phrase of the rotator sits in one
+     cell of its own grid, so the line is always as large as the largest
+     phrase and never changes size. Without the script, the rotator is
+     invisible and the slogan's own text shows. While the rotator runs, the
+     slogan's own text is invisible and stays there for screen readers; the
+     rotator is hidden from them. */
   .slogan {
     display: grid;
-    perspective: 40rem;
+    margin-block-start: 0.3em;
   }
   .slogan-text,
   .rotator,
+  .axle,
+  .drum,
   .phrase {
     grid-area: 1 / 1;
   }
-  .rotator {
-    display: grid;
-    visibility: hidden;
-  }
-  .slogan-text,
-  .phrase {
+  .slogan-text {
     justify-self: center;
     align-self: start;
-    /* Room for descenders inside the clipped background. */
-    padding-block-end: 0.06em;
+  }
+  /* Room above and below the letters inside the clipped background, so
+     no accent, ascender or descender loses its color. */
+  .slogan-text,
+  .phrase > span {
+    padding-block: 0.1em 0.16em;
   }
   /* The slogan breaks after "Fast." when it needs two lines. */
   .slogan .keep {
@@ -583,32 +638,46 @@ const phrases = [
     visibility: visible;
   }
 
-  /* A phrase waits above the line, turned away. It swings down into place,
-     and then on down and away while the next one comes in. */
+  /* The phrases are written on the faces of a drum that turns on a
+     horizontal axis. The script sets the angle between two faces (--step),
+     the radius of the ring (--radius), each face's place on the ring (--i)
+     and how many steps the drum has turned (--turn). The axle pushes the
+     drum back by its radius, so the front face lies in the page's own plane
+     and is drawn at exactly the size of the slogan's own text. Only the
+     drum's turn is animated, and only once the script has put the drum in
+     place (data-animate). A turn rolls the front phrase down over the
+     bottom of the drum while the next comes over the top. The rotator
+     reaches a little above and below the line, and its mask fades the
+     faces out there, so they darken as they curve away and never cover the
+     headline or the text below. */
+  .rotator {
+    display: grid;
+    visibility: hidden;
+    margin-block: -0.2em;
+    padding-block: 0.2em;
+    perspective: 7em;
+    -webkit-mask-image: linear-gradient(transparent, black 0.2em, black calc(100% - 0.2em), transparent);
+    mask-image: linear-gradient(transparent, black 0.2em, black calc(100% - 0.2em), transparent);
+  }
+  .axle {
+    display: grid;
+    transform-style: preserve-3d;
+    transform: translateZ(calc(var(--radius, 0px) * -1));
+  }
+  .drum {
+    display: grid;
+    transform-style: preserve-3d;
+    transform: rotateX(calc(var(--turn, 0) * var(--step, 0deg) * -1));
+  }
   .phrase {
-    opacity: 0;
-    transform: translateY(-0.45em) rotateX(80deg);
-    transform-origin: 50% 0;
-  }
-  .phrase[data-state='in'] {
-    opacity: 1;
-    transform: none;
-  }
-  .phrase[data-state='out'] {
-    opacity: 0;
-    transform: translateY(0.45em) rotateX(-80deg);
-    transform-origin: 50% 100%;
+    display: grid;
+    place-items: center;
+    backface-visibility: hidden;
+    transform: rotateX(calc(var(--i, 0) * var(--step, 0deg))) translateZ(var(--radius, 0px));
   }
   @media (prefers-reduced-motion: no-preference) {
-    .phrase[data-state='in'] {
-      transition:
-        transform 700ms cubic-bezier(0.2, 0.9, 0.3, 1) 260ms,
-        opacity 420ms ease-out 260ms;
-    }
-    .phrase[data-state='out'] {
-      transition:
-        transform 550ms cubic-bezier(0.55, 0, 0.75, 0.3),
-        opacity 340ms ease-in;
+    [data-animate] .drum {
+      transition: transform 850ms cubic-bezier(0.62, 0, 0.28, 1.08);
     }
   }
 
@@ -626,32 +695,41 @@ const phrases = [
     text-wrap: pretty;
   }
 
-  /* "and the command line" is a small note written above "web applications",
-     tilted a little, like a word added to a finished sentence. It stays out
-     of the line, so the sentence reads on without it. A screen reader reads
-     it in brackets after the two words. The two words are an inline block
-     with room above them for the note, so only their line is taller and the
-     note never touches the line above. */
+  /* "and the command line" is a small badge just above "web applications",
+     as wide as the two words, with its text centred. It stays out of the
+     line, so the sentence reads on without it. A screen reader reads it in
+     brackets after the two words. The two words are an inline block with
+     room above them for the badge, so only their line is taller and the
+     badge never touches the line above. The badge is 1.6 times its text
+     size tall, with a 0.35 gap above it. */
   .noted {
-    --note-size: max(0.8rem, 0.3em);
+    --note-size: max(0.75rem, 0.26em);
     position: relative;
     display: inline-block;
-    padding-block-start: calc(var(--note-size) + 0.24em);
+    padding-block-start: calc(var(--note-size) * 1.95 + 2px + 0.14em);
     white-space: nowrap;
   }
   .note {
     position: absolute;
-    inset-inline-start: 50%;
-    inset-block-start: 0.13em;
-    translate: -50% 0;
-    rotate: -3deg;
+    inset-inline: 0;
+    inset-block-start: 0.35em;
+    padding: 0.2em 0.6em;
+    border: 1px solid color-mix(in oklab, var(--sl-color-accent) 35%, transparent);
+    border-radius: var(--nv-radius-pill);
+    background: var(--nv-wash);
     font-size: var(--note-size);
     font-weight: 700;
-    line-height: 1;
+    line-height: 1.2;
     letter-spacing: 0.01em;
+    text-align: center;
     white-space: nowrap;
     color: var(--sl-color-text-accent);
     pointer-events: none;
+  }
+  @media (prefers-contrast: more) {
+    .note {
+      border-color: currentColor;
+    }
   }
   .note::before {
     content: '+ ';
@@ -664,11 +742,11 @@ const phrases = [
   @keyframes note-in {
     from {
       opacity: 0;
-      translate: -50% 0.4em;
+      translate: 0 0.4em;
     }
     to {
       opacity: 1;
-      translate: -50% 0;
+      translate: 0 0;
     }
   }
   @media (prefers-reduced-motion: no-preference) {
