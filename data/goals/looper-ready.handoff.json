@@ -1,32 +1,26 @@
 {
-  "state": "**Goal `looper-ready`, Stage 2 under way: the moves have landed.** `tools/nv/accept/` holds `accept`, `runner`, `origin`, `sweep-lock`, `legs` and `mirror`, kept by name through `git mv`, plus the new `sweep.ts` with `sweepOver`, `sweepIds`, `livePlan`, `nameOf`, `stageLabels` and the `Progress` type; the process tree is `tools/nv/lib/proctree.ts`. Every importer, the playbook's `until: gone` anchors, `LEG_KEYS` in `select/checks.ts` and the docs that named the old paths point at the new homes. `bun nv loop` imports them from there, and `bun nv affected --run` reaches `sweepIds` without the loop command.\n\nThe user's calls and the writer's are the goal file's § *Standing decisions*; no session re-decides one. The cutover's runbook is `docs/agent/looper-cutover.md`, and the cutover is not this goal's work. `bun test -t <regex>` that matches no test exits 0, so every check here asks for the exact `Ran N tests across 1 file` line.\n\n`bun x tsc --noEmit -p . --noUnusedLocals` is a quick way to find the imports a move leaves unused; the five it still names outside this work were there before it.",
+  "state": "**Goal `looper-ready`, Stage 2 is done on disk; Stage 3 is next.** `tools/nv/accept/` holds the moved shared code plus `sweep.ts` (`sweepOver`, `sweepIds`), the process tree is `tools/nv/lib/proctree.ts`, `featureMatches` is in `tools/nv/accept/accept.ts` and `NUMBER_CITE` in `tools/nv/lib/prose.ts`. The tests of code that stays in the driver or a loop command are under `tools/nv/driver/test/`, `loop-stats.test.ts` among them. `tools/nv/test/driver-boundary.test.ts` holds both Stage 2 titles and passes; Stages 3 to 6 add their own titles to the same file.\n\nThe user's calls and the writer's are the goal file's § *Standing decisions*; no session re-decides one. The cutover's runbook is `docs/agent/looper-cutover.md`, and the cutover is not this goal's work. `bun test -t <regex>` that matches no test exits 0, so every check here asks for the exact `Ran N tests across 1 file` line.",
   "next": {
-    "stage": 2,
-    "title": "the shared code leaves the driver",
-    "files": [
-      "tools/nv/driver/",
-      "tools/nv/accept/",
-      "tools/nv/lib/",
-      "tools/nv/cmd/loop.ts",
-      "tools/nv/cmd/chain.ts",
-      "tools/nv/cmd/loop-stats.ts",
-      "tools/nv/test/"
-    ],
+    "stage": 3,
+    "title": "the check runners",
+    "files": [],
+    "note": "one file set: `tools/nv/accept/`, `tools/nv/driver/gates.ts`, `tools/nv/cmd/loop.ts`, `tools/nv/main.ts`, new `tools/nv/cmd/{suite,legs,services}.ts`, `tools/nv/test/`.",
     "items": [
       {
         "done": false,
-        "text": "**The stragglers** — `featureMatches` (`tools/nv/cmd/loop.ts:236`) moves to `tools/nv/accept/`, `NUMBER_CITE` (`tools/nv/cmd/chain.ts:56`) to `tools/nv/lib/prose.ts`, and `readSession`'s use in `tools/nv/test/surfaces.test.ts:9` leaves the loop command; tests of code that stays in `tools/nv/driver/` or a loop command move to `tools/nv/driver/test/` (`nvTestFiles`, `tools/nv/select/atoms.ts:75`, still finds them). The tests of moved code (`accept`, `legs`, `origin`, `proctree`, `runner-*`, `sweep-lock`) stay in `tools/nv/test/`."
+        "text": "**`bun nv suite`** — builds an `nvs-suite` `Check` from its argv and judges it through `PlanSweep` (`tools/nv/accept/runner.ts:580` `suite`, `tools/nv/accept/runner.ts:597` `judgeSuite`); registered in `COMMANDS` at `tools/nv/main.ts:24`, tested in `tools/nv/test/suite.test.ts`. Specified by the goal's Stage 3 section."
       },
       {
         "done": false,
-        "text": "**The boundary test** — `tools/nv/test/driver-boundary.test.ts` with the two titles the Stage 2 check names: no `from`/`import()` specifier outside `tools/nv/driver/` and the seven loop commands resolves into them (`tools/nv/main.ts:24` `COMMANDS` excepted, and at least 100 files read), and no moved file or function is left at its old path (`tools/nv/accept/sweep.ts:82` `sweepOver`)."
+        "text": "**`bun nv legs`** — the Linux legs by hand over `linuxLegs` (`tools/nv/accept/legs.ts:354`) and `startWslBuild` (`tools/nv/accept/legs.ts:320`), reading the goal through `lib/chain.ts`; tested in `tools/nv/test/legs-cmd.test.ts`."
+      },
+      {
+        "done": false,
+        "text": "**`bun nv services --up`** — `preflight` and `bringUp` (`tools/nv/driver/gates.ts:87`, `tools/nv/driver/gates.ts:110`) move out of the driver so the command and the driver share them; tested in `tools/nv/test/services.test.ts`, and the Stage 3 title of `tools/nv/test/driver-boundary.test.ts` added."
       }
     ]
   },
   "backlog": [
-    "Stage 3: `bun nv suite`, `bun nv legs` and `bun nv services --up`, the driver calling their code, and the one-home test.",
-    "Stage 4: `bun nv sweep` (writes `.loop/last-sweep.md`, exits 0), `bun nv benches [--owed]` replacing `bun nv loop --benches`, `bun nv side --prepare`, `bun nv allow --learn`, and the one-home test.",
-    "Stage 5: `bun nv plan --apply`, `bun nv pack`, `LOOPER_WRITTEN` in `tools/nv/lib/written.ts`, and goal `decision-records-retired`'s moved anchors.",
-    "Stage 6: the cutover runbook's hook table and `docs/agent/commands.md` match the commands as built, and a test holds the table to `main.ts`."
+    "Stage 4 the session hooks, Stage 5 the wrap and pack sections, Stage 6 the runbook's commands: `docs/agent/goals/looper-ready.md`."
   ]
 }
