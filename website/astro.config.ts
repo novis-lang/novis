@@ -134,11 +134,11 @@ export default defineConfig({
         },
       },
       head: [
-        // The browser chrome takes the page ground of each theme: --nv-ink and
-        // --nv-fog in src/styles/custom.css, as the browser computes them. A
-        // meta tag cannot read a CSS variable, so these two follow the palette
-        // by hand.
-        { tag: 'meta', attrs: { name: 'theme-color', content: '#0d0e1d', media: '(prefers-color-scheme: dark)' } },
+        // The browser chrome takes the page ground of each theme: --nv-ground
+        // and --nv-fog in src/styles/custom.css, as the browser computes them.
+        // A meta tag cannot read a CSS variable, so these two follow the
+        // palette by hand.
+        { tag: 'meta', attrs: { name: 'theme-color', content: '#111111', media: '(prefers-color-scheme: dark)' } },
         { tag: 'meta', attrs: { name: 'theme-color', content: '#fafaff', media: '(prefers-color-scheme: light)' } },
         { tag: 'meta', attrs: { property: 'og:site_name', content: SITE_TITLE } },
       ],

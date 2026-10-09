@@ -41,7 +41,7 @@ const points = [
           points.map((p) => (
             <li>
               <span class="nv-icon-tile">
-                <Icon name={p.icon as any} size="1.15rem" />
+                <Icon name={p.icon as any} size="1.2rem" />
               </span>
               <span>
                 <Rich text={p.text} />
@@ -132,13 +132,10 @@ const points = [
   }
   .points li {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: var(--nv-space-3);
     color: var(--sl-color-gray-2);
     line-height: 1.6;
-  }
-  .points li > span:last-child {
-    padding-block-start: 0.45rem;
   }
   .links {
     display: flex;
@@ -160,7 +157,7 @@ const points = [
       var(--nv-surface);
     box-shadow: var(--nv-shadow-md);
   }
-  svg {
+  .diagram svg {
     display: block;
     width: 100%;
     height: auto;

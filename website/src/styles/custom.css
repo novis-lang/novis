@@ -16,10 +16,13 @@
  *                 badges, the table of contents' current-item marker. As a
  *                 fill it carries dark text; as text on the light theme it is
  *                 darkened (--nv-gold-text).
- *   --nv-ink / --nv-fog  the two ends of the neutral ramp: a deep blue-black
- *                 and a near-white, both a few percent violet. Ink is the
- *                 dark theme's ground and the light theme's text; fog is the
- *                 reverse.
+ *   --nv-ink / --nv-fog  the two ends of the light theme's neutral ramp: a
+ *                 deep blue-black and a near-white, both a few percent
+ *                 violet. Ink is the light theme's text, and the ground of
+ *                 the blocks that stay dark in both themes; fog is the light
+ *                 theme's ground and the dark theme's text.
+ *   --nv-ground   the dark theme's page, a neutral #111 with no tint. The
+ *                 dark theme's grays, surfaces and hairlines mix fog into it.
  *
  * The signature gradient (--nv-gradient) runs crimson into violet. It paints
  * large headings, the header's hairline, a hovered card's border and call-to-
@@ -49,6 +52,7 @@
   --nv-gold: #ffb703;
   --nv-ink: color-mix(in oklab, var(--nv-violet) 5%, #090b14);
   --nv-fog: color-mix(in oklab, var(--nv-violet) 3%, #ffffff);
+  --nv-ground: #111111;
 
   /* ---------------------------------------------------------------- scales */
   --nv-space-1: 0.25rem;
@@ -84,17 +88,17 @@
   /* Neutral ramp: fog into ink in the steps Starlight's own grays use, which
      is what keeps Starlight's contrast ratios. */
   --sl-color-white: var(--nv-fog);
-  --sl-color-gray-1: color-mix(in oklab, var(--nv-fog) 92%, var(--nv-ink));
-  --sl-color-gray-2: color-mix(in oklab, var(--nv-fog) 78%, var(--nv-ink));
-  --sl-color-gray-3: color-mix(in oklab, var(--nv-fog) 58%, var(--nv-ink));
-  --sl-color-gray-4: color-mix(in oklab, var(--nv-fog) 34%, var(--nv-ink));
-  --sl-color-gray-5: color-mix(in oklab, var(--nv-fog) 19%, var(--nv-ink));
-  --sl-color-gray-6: color-mix(in oklab, var(--nv-fog) 8%, var(--nv-ink));
-  --sl-color-black: var(--nv-ink);
+  --sl-color-gray-1: color-mix(in oklab, var(--nv-fog) 92%, var(--nv-ground));
+  --sl-color-gray-2: color-mix(in oklab, var(--nv-fog) 78%, var(--nv-ground));
+  --sl-color-gray-3: color-mix(in oklab, var(--nv-fog) 58%, var(--nv-ground));
+  --sl-color-gray-4: color-mix(in oklab, var(--nv-fog) 34%, var(--nv-ground));
+  --sl-color-gray-5: color-mix(in oklab, var(--nv-fog) 19%, var(--nv-ground));
+  --sl-color-gray-6: color-mix(in oklab, var(--nv-fog) 8%, var(--nv-ground));
+  --sl-color-black: var(--nv-ground);
   --sl-color-bg-sidebar: var(--sl-color-black);
   --sl-color-hairline: var(--nv-hairline);
   --sl-color-hairline-shade: var(--nv-hairline);
-  --sl-color-bg-inline-code: color-mix(in oklab, var(--nv-fog) 11%, var(--nv-ink));
+  --sl-color-bg-inline-code: color-mix(in oklab, var(--nv-fog) 11%, var(--nv-ground));
 
   /* Violet: -low is a dark fill, -accent draws borders and fills (3:1),
      -high is link text (8.7:1 on the page). Fallback first. */
@@ -113,12 +117,12 @@
   --nv-grad-b: var(--sl-color-accent-high);
 
   /* Surfaces, hairlines, glass. */
-  --nv-surface: color-mix(in oklab, var(--nv-fog) 4%, var(--nv-ink));
-  --nv-surface-2: color-mix(in oklab, var(--nv-fog) 8%, var(--nv-ink));
-  --nv-hairline: color-mix(in oklab, var(--nv-fog) 11%, var(--nv-ink));
-  --nv-hairline-strong: color-mix(in oklab, var(--nv-fog) 22%, var(--nv-ink));
-  --nv-glass: color-mix(in oklab, var(--nv-ink) 72%, transparent);
-  --nv-glass-solid: color-mix(in oklab, var(--nv-fog) 3%, var(--nv-ink));
+  --nv-surface: color-mix(in oklab, var(--nv-fog) 4%, var(--nv-ground));
+  --nv-surface-2: color-mix(in oklab, var(--nv-fog) 8%, var(--nv-ground));
+  --nv-hairline: color-mix(in oklab, var(--nv-fog) 11%, var(--nv-ground));
+  --nv-hairline-strong: color-mix(in oklab, var(--nv-fog) 22%, var(--nv-ground));
+  --nv-glass: color-mix(in oklab, var(--nv-ground) 72%, transparent);
+  --nv-glass-solid: color-mix(in oklab, var(--nv-fog) 3%, var(--nv-ground));
   --nv-wash: color-mix(in oklab, var(--sl-color-accent) 18%, transparent);
   --nv-wash-soft: color-mix(in oklab, var(--sl-color-accent) 9%, transparent);
   --nv-hover: color-mix(in oklab, var(--nv-fog) 7%, transparent);
@@ -146,12 +150,13 @@
 
   /* The ground under a code block, wired into Expressive Code by
      astro.config.ts. */
-  --nv-code-bg: color-mix(in oklab, var(--nv-fog) 5%, var(--nv-ink));
+  --nv-code-bg: color-mix(in oklab, var(--nv-fog) 5%, var(--nv-ground));
 
   --nv-selection: color-mix(in oklab, var(--sl-color-accent) 45%, var(--nv-ink));
 
-  /* The dimmed page behind the search dialog: ink, not Starlight's gray. */
-  --sl-color-backdrop-overlay: color-mix(in oklab, var(--nv-ink) 72%, transparent);
+  /* The dimmed page behind the search dialog: the page's own ground, not
+     Starlight's gray. */
+  --sl-color-backdrop-overlay: color-mix(in oklab, var(--nv-ground) 72%, transparent);
 }
 
 @supports (color: oklch(from white l c h)) {
@@ -501,6 +506,41 @@ starlight-tabs [role='tab']:active {
   vertical-align: 0.08em;
 }
 
+/* The output or the diagnostic under a snippet (src/components/Snippet.astro):
+   its title is a flat strip across the whole block, not an editor tab, and a
+   line above the strip parts it from the code. A diagnostic's strip keeps the
+   red of its frame. */
+:is(.expressive-code.snippet-cli, .expressive-code.snippet-http, [data-snippet-part='diagnostic'] .expressive-code)
+  .frame.has-title
+  .header {
+  border-top: 1px solid var(--nv-hairline-strong);
+  background: var(--nv-surface-2);
+}
+[data-snippet-part='diagnostic'] .expressive-code .frame.has-title .header {
+  border-top-color: color-mix(in oklab, var(--nv-danger) 45%, var(--nv-hairline));
+  background: color-mix(in oklab, var(--nv-danger) 10%, var(--nv-surface-2));
+}
+:is(.expressive-code.snippet-cli, .expressive-code.snippet-http, [data-snippet-part='diagnostic'] .expressive-code)
+  .frame.has-title
+  .header
+  .title {
+  padding-block: 0.4rem;
+  border-radius: 0;
+  background: transparent;
+  font-size: var(--sl-text-xs);
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+.expressive-code:is(.snippet-cli, .snippet-http) .frame.has-title .header .title {
+  color: var(--sl-color-gray-2);
+}
+:is(.expressive-code.snippet-cli, .expressive-code.snippet-http, [data-snippet-part='diagnostic'] .expressive-code)
+  .frame.has-title
+  .header
+  .title::after {
+  display: none;
+}
+
 /* ======================================================= buttons */
 
 /* .nv-button is a link styled as a button, for pages and components that
@@ -742,21 +782,28 @@ starlight-theme-select select {
 
 /* ====================================================== mobile menu */
 
-/* A 44px tap target, as a rounded tile rather than Starlight's white disc. */
+/* A 44px tap target, as a rounded tile rather than Starlight's white disc.
+   The icon is centred in it on both axes. */
 :root {
   --sl-menu-button-size: 2.75rem;
 }
 starlight-menu-button button {
+  justify-content: center;
+  align-items: center;
   border: 1px solid var(--nv-hairline-strong);
   border-radius: var(--nv-radius);
   background-color: var(--nv-surface-2);
   color: var(--sl-color-white);
   box-shadow: var(--nv-shadow-sm);
-  padding: 0.6rem;
+  padding: 0;
   transition:
     background-color var(--nv-fast) var(--nv-ease),
     border-color var(--nv-fast) var(--nv-ease),
     transform var(--nv-fast) var(--nv-ease);
+}
+starlight-menu-button button svg {
+  width: 1.25rem;
+  height: 1.25rem;
 }
 starlight-menu-button button:active {
   transform: scale(0.94);
@@ -1299,6 +1346,15 @@ main:has(.home-hero) > .content-panel:first-child {
 }
 main:has(.home-hero) > .content-panel {
   border-top: 0;
+}
+/* On a phone, every button of the front page takes the full width, with its
+   text centred. */
+@media (max-width: 49.99rem) {
+  main:has(.home-hero) :is(.home-section, .cta) .nv-button {
+    flex: 1 1 100%;
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 /* ================================================================ motion */

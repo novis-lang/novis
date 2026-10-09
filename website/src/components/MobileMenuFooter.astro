@@ -2,8 +2,9 @@
 /**
  * MobileMenuFooter override: the site navigation (hidden from the header on
  * small screens) followed by the default social icons and theme switcher.
- * The sidebar renders it at its foot; on a page without a sidebar it is the
- * whole of the mobile menu (see PageFrame.astro).
+ * Each area's tile shows its subtitle under its label, as the header does on
+ * a wide screen. The sidebar renders it at its foot; on a page without a
+ * sidebar it is the whole of the mobile menu (see PageFrame.astro).
  */
 import Default from '@astrojs/starlight/components/MobileMenuFooter.astro'
 import { AREAS, INSTALL } from '@config/site.mjs'
@@ -11,14 +12,27 @@ import { withBase } from '~/lib/base'
 ---
 
 <nav class="nv-mobile-nav" aria-label="Site">
-  {AREAS.map((area) => <a href={withBase(area.href)}>{area.label}</a>)}
-  <a href={withBase(INSTALL.href)}>{INSTALL.label}</a>
-  <a href={withBase('/sponsoring/')}>Sponsoring</a>
+  {
+    AREAS.map((area) => (
+      <a href={withBase(area.href)}>
+        <span class="label">{area.label}</span>
+        <span class="subtitle">{area.subtitle}</span>
+      </a>
+    ))
+  }
+  <a href={withBase(INSTALL.href)}>
+    <span class="label">{INSTALL.label}</span>
+    <span class="subtitle">Build and set up nvs</span>
+  </a>
+  <a href={withBase('/sponsoring/')}>
+    <span class="label">Sponsoring</span>
+    <span class="subtitle">Support the project</span>
+  </a>
 </nav>
 <Default><slot /></Default>
 
 <style>
-  /* Two columns of 44px tiles. */
+  /* Two columns of tiles, each at least 44px high. */
   .nv-mobile-nav {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -28,18 +42,30 @@ import { withBase } from '~/lib/base'
   }
   .nv-mobile-nav a {
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 0.1rem;
+    text-align: start;
     min-height: 2.75rem;
-    padding-inline: var(--nv-space-4);
+    padding: var(--nv-space-2) var(--nv-space-4);
     border: 1px solid var(--nv-hairline);
     border-radius: var(--nv-radius);
     background-color: var(--nv-surface);
-    color: var(--sl-color-white);
-    font-weight: 650;
     text-decoration: none;
     transition:
       background-color var(--nv-fast) var(--nv-ease),
       border-color var(--nv-fast) var(--nv-ease);
+  }
+  .label {
+    color: var(--sl-color-white);
+    font-weight: 650;
+    line-height: 1.3;
+  }
+  .subtitle {
+    font-size: var(--sl-text-xs);
+    line-height: 1.3;
+    color: var(--sl-color-gray-3);
   }
   .nv-mobile-nav a:hover,
   .nv-mobile-nav a:active {

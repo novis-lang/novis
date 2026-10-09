@@ -21,14 +21,16 @@ import Rich from './Rich.astro'
   <div class="rows">
     <article class="row nv-reveal">
       <div class="text">
-        <span class="nv-icon-tile"><Icon name="warning" size="1.25rem" /></span>
-        <h3>Text from a request in a database query</h3>
+        <div class="head">
+          <span class="nv-icon-tile"><Icon name="warning" size="1.25rem" /></span>
+          <h3>Text from a request in a database query</h3>
+        </div>
         <p>
           <Rich
             text="A value from a request is a `tainted string`. It cannot become part of the text of a query. You send it as a parameter instead."
           />
         </p>
-        <a class="nv-more"href={withBase('/guides/why-novis/tainted-input/')}>
+        <a class="nv-more" href={withBase('/guides/why-novis/tainted-input/')}>
           How tainted input works <Icon name="right-arrow" size="1rem" />
         </a>
       </div>
@@ -37,12 +39,14 @@ import Rich from './Rich.astro'
 
     <article class="row flip nv-reveal">
       <div class="text">
-        <span class="nv-icon-tile"><Icon name="padlock" size="1.25rem" /></span>
-        <h3>A password in the output</h3>
+        <div class="head">
+          <span class="nv-icon-tile"><Icon name="padlock" size="1.25rem" /></span>
+          <h3>A password in the output</h3>
+        </div>
         <p>
           <Rich text="A password or a key is a `secret string`. Code that prints it or writes it to a log does not compile." />
         </p>
-        <a class="nv-more"href={withBase('/guides/why-novis/secret-values/')}>
+        <a class="nv-more" href={withBase('/guides/why-novis/secret-values/')}>
           How secret values work <Icon name="right-arrow" size="1rem" />
         </a>
       </div>
@@ -87,6 +91,13 @@ import Rich from './Rich.astro'
     display: flex;
     flex-direction: column;
     align-items: flex-start;
+    gap: var(--nv-space-3);
+  }
+  /* The icon stands beside the heading, centred on it; a long heading wraps
+     beside the icon. */
+  .head {
+    display: flex;
+    align-items: center;
     gap: var(--nv-space-3);
   }
   .nv-icon-tile {

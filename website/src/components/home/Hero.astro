@@ -40,6 +40,7 @@ const panels = [
       <Icon name="right-arrow" size="1rem" />
     </a>
     <h1 id="_top" data-page-title>
+      <span class="brand">Novis-Lang</span>
       <span class="headline">The programming language for web applications.</span>
       <span class="slogan nv-gradient-text">Fast. <span class="keep">Secure by default.</span></span>
     </h1>
@@ -205,11 +206,14 @@ const panels = [
       radial-gradient(22% 30% at 12% 10%, color-mix(in oklab, var(--nv-gold) 14%, transparent), transparent 70%);
   }
 
+  /* The column is a size container, so the name above the headline can be
+     sized to its width. */
   .copy {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
     gap: var(--nv-space-5);
+    container-type: inline-size;
   }
 
   .pill {
@@ -267,6 +271,53 @@ const panels = [
   }
   h1 > span {
     text-wrap: balance;
+  }
+  /* The project's name, the trademark: the one line of the page set larger
+     than the headline, in a gradient from the text color into violet and
+     crimson, over a short bar in the signature line. Its size follows the
+     column's width, so the one line always fits the column. */
+  .brand {
+    position: relative;
+    align-self: flex-start;
+    margin-block-end: 0.32em;
+    padding-block-end: 0.12em;
+    font-size: clamp(2.5rem, 17cqi, 5.4rem);
+    font-weight: 900;
+    line-height: 1;
+    letter-spacing: -0.045em;
+    white-space: nowrap;
+    background: linear-gradient(
+      100deg,
+      var(--sl-color-white) 0%,
+      var(--sl-color-white) 28%,
+      var(--nv-grad-b) 62%,
+      var(--nv-grad-a) 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+  }
+  .brand::after {
+    content: '';
+    position: absolute;
+    inset-inline-start: 0.04em;
+    inset-block-end: -0.12em;
+    width: 1.6em;
+    height: 0.07em;
+    min-height: 3px;
+    border-radius: 999px;
+    background: var(--nv-gradient-line);
+  }
+  @media (forced-colors: active) {
+    .brand {
+      background: none;
+      color: CanvasText;
+      -webkit-text-fill-color: CanvasText;
+    }
+    .brand::after {
+      background: CanvasText;
+    }
   }
   .slogan {
     /* Room for descenders inside the clipped background. */
@@ -527,6 +578,10 @@ const panels = [
     }
     .actions .nv-button {
       flex: 1 1 12rem;
+      justify-content: center;
+    }
+    .pill {
+      width: 100%;
       justify-content: center;
     }
     .server {
