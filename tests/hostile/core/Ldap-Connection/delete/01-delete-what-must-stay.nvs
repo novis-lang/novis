@@ -1,0 +1,75 @@
+<?nvs
+// Attack: a program tries to delete entries that must stay, and DNs that are wrong or very long.
+// Each step should throw an error or work, and nothing may crash.
+// hostile: timeout-ms 60000
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect('corp-accounts');
+string $unit = 'OU=Hostile Delete,DC=example,DC=test';
+string $child = 'OU=Inner,' . $unit;
+array<string> $leftovers = [$child, $unit];
+foreach ($leftovers as string $left) {
+    try {
+        $corp->delete($left);
+    } catch (Core\Ldap\LdapError $missing) {
+    }
+}
+$corp->add($unit, ['objectClass' => 'organizationalUnit']);
+$corp->add($child, ['objectClass' => 'organizationalUnit']);
+
+// 1. The domain root, the container of deleted entries, the schema, and a unit with an entry below it.
+array<string> $kept = [
+    'DC=example,DC=test',
+    'CN=Deleted Objects,DC=example,DC=test',
+    'CN=Schema,CN=Configuration,DC=example,DC=test',
+    $unit,
+];
+uint $refused = 0;
+foreach ($kept as string $dn) {
+    try {
+        $corp->delete($dn);
+    } catch (Core\Ldap\LdapError $refusal) {
+        $refused = $refused + 1;
+    }
+}
+echo '1 refused: ', $refused, "\n";
+
+// 2. DNs that are not DNs, have a zero byte, are very long, or name another domain.
+array<string> $wrong = [
+    '',
+    'Inner',
+    'OU=Inner,',
+    "OU=Inner\x00,DC=example,DC=test",
+    'OU=' . Core\Str::repeat('x', 100000) . ',' . $unit,
+    'OU=Inner,DC=other,DC=test',
+];
+uint $threw = 0;
+foreach ($wrong as string $dn) {
+    try {
+        $corp->delete($dn);
+    } catch (Throwable $error) {
+        $threw = $threw + 1;
+    }
+}
+echo '2 threw: ', $threw, "\n";
+
+// 3. One hundred units added and deleted in a row. Nothing may be left behind.
+uint $done = 0;
+uint $i = 0;
+while ($i < 100) {
+    try {
+        $corp->add('OU=Again,' . $unit, ['objectClass' => 'organizationalUnit']);
+        $corp->delete('OU=Again,' . $unit);
+        $done = $done + 1;
+    } catch (Core\Ldap\LdapError $failed) {
+    }
+    $i = $i + 1;
+}
+echo '3 deleted: ', $done, "\n";
+
+foreach ($leftovers as string $left) {
+    try {
+        $corp->delete($left);
+    } catch (Core\Ldap\LdapError $missing) {
+    }
+}

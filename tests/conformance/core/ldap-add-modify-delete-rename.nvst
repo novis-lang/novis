@@ -2,6 +2,7 @@
 `add` writes a new entry, `modify` applies `Change::add`, `remove`, `removeAll` and `replace` in one request, `rename` gives the entry a new name below another parent, and `delete` removes it, with an `int`, a `bool` and a `Dn` written in the form they are read — `rule:core-classes/ldap-value-types`
 --FILE--
 <?nvs
+// covers: Core\Ldap\Connection::modify, Core\Ldap\Connection::delete
 var $corp = Core\Ldap::connect("corp");
 var $admin = Core\Ldap\Dn::parse("CN=Administrator,CN=Users,DC=example,DC=test");
 
