@@ -1,0 +1,32 @@
+{
+  "updated": "2026-10-09",
+  "tiers": [
+    {
+      "id": "partner",
+      "name": "Partner",
+      "from": 500,
+      "shows": "Your logo and link on this page, on the home page and in the README."
+    },
+    {
+      "id": "sponsor",
+      "name": "Sponsor",
+      "from": 100,
+      "shows": "Your logo and link on this page."
+    },
+    {
+      "id": "backer",
+      "name": "Backer",
+      "from": 25,
+      "shows": "Your name in its own section on this page."
+    },
+    {
+      "id": "supporter",
+      "name": "Supporter",
+      "from": 5,
+      "shows": "Your name in the list on this page."
+    }
+  ],
+  "sponsors": [],
+  "unnamed": 0,
+  "reports": []
+}

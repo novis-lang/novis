@@ -50,6 +50,32 @@ export const AREAS = [
 export const INSTALL = { label: 'Install', href: '/install/' }
 
 /**
+ * The ways to give money, in the order the sponsoring page lists them. A
+ * channel whose `url` is empty has no account yet: the page shows it as
+ * opening soon. Set the URL when the account exists. Bank transfer has no
+ * URL by design: it points at the legal notice, where the contact is.
+ */
+export const SPONSOR_CHANNELS = [
+  {
+    label: 'GitHub Sponsors',
+    url: '',
+    text: 'Monthly or once, with your GitHub account. GitHub keeps no fee when you give from a personal account.',
+  },
+  { label: 'Ko-fi', url: '', text: 'Once or monthly, by card or PayPal. No account needed.' },
+  {
+    label: 'Liberapay',
+    url: '',
+    text: 'Weekly, monthly or yearly. Liberapay is a nonprofit and keeps no fee.',
+  },
+  { label: 'PayPal', url: '', text: 'Once, any amount.' },
+  {
+    label: 'Bank transfer',
+    url: '/impressum/',
+    text: 'For companies. Write to us and you get an invoice from us.',
+  },
+]
+
+/**
  * Deep link into the repository tree (for e.g. `docs/rules/security/tainted-sources.md`).
  * @param {string} repoRelativePath
  * @returns {string}

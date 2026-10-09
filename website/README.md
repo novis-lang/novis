@@ -39,7 +39,8 @@ renders them all at build time, and a member's prose is its `about.md`.
 | `src/pages/reference/[area]/[...slug].astro` | human | the one route that renders every Configuration and CLI page and both landing pages |
 | `../docs/examples/**` | the proofs sweep | each member's `about.md` and examples, read in place by `src/lib/feature.ts`; the site holds no copy. `bun nv proofs --run` runs each example and diffs it against its `.out` file |
 | `config/spec-overrides.mjs` | human | corrections for spec table rows the renderer cannot read — every fix goes here, never into the renderer |
-| `config/site.mjs` | human | **all placeholder URLs live here** — swap them once to go live. It also holds `AREAS`, the four areas the header, the footer, the sidebars and `llms.txt` are built from |
+| `config/site.mjs` | human | **all placeholder URLs live here** — swap them once to go live. It also holds `AREAS`, the four areas the header, the footer, the sidebars and `llms.txt` are built from, and `SPONSOR_CHANNELS`, the ways to give money |
+| `src/data/sponsors.json` | human | the sponsor tiers, the sponsors who want to be named (`name`, `tier`, optional `url` and `logo` under `public/`), the count of those who do not (`unnamed`), and the quarterly reports (`period`, `donors`, `income` after fees, `costs`). Never an amount per sponsor. `src/components/Sponsors.astro` renders it |
 | `config/external-links.mjs` | human | the rule that a link off the site opens in a new tab with `rel="noopener noreferrer nofollow"` — except the project's own repository and Discord links, which open in a new tab with no `rel`: an integration decorates content links at build time, and a component spreads `externalLinkAttrs(href)` onto any anchor it writes itself |
 
 

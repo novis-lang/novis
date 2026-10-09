@@ -1,0 +1,240 @@
+---
+/**
+ * One part of the sponsoring page, chosen by `show`: the ways to give
+ * (config/site.mjs SPONSOR_CHANNELS), the tiers, the quarterly reports, or the
+ * people and companies who gave and want to be named (src/data/sponsors.json).
+ * No part ever prints what one sponsor gave: a tier is the only figure that
+ * belongs to a person, and it is a range.
+ *
+ * `show="partners"` is the home page's strip: it renders nothing until there
+ * is a Partner.
+ */
+import { SPONSOR_CHANNELS } from '@config/site.mjs'
+import { externalLinkAttrs } from '@config/external-links.mjs'
+import data from '@data/sponsors.json'
+import { withBase } from '~/lib/base'
+
+interface Props {
+  show: 'channels' | 'tiers' | 'reports' | 'sponsors' | 'partners'
+}
+
+interface Sponsor {
+  name: string
+  tier: string
+  url?: string
+  logo?: string
+}
+
+interface Report {
+  period: string
+  donors: number
+  income: number
+  costs: { what: string; amount: number }[]
+}
+
+const { show } = Astro.props
+const sponsors = data.sponsors as Sponsor[]
+const reports = data.reports as Report[]
+const withLogo = new Set(['partner', 'sponsor'])
+const euro = (n: number) =>
+  new Intl.NumberFormat('en-IE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n)
+const link = (url: string) => (url.startsWith('/') ? withBase(url) : url)
+const inTier = (id: string) => sponsors.filter((s) => s.tier === id)
+const partners = inTier('partner')
+const named = sponsors.length
+---
+
+{
+  show === 'channels' && (
+    <ul class="nv-sponsors channels not-content">
+      {SPONSOR_CHANNELS.map((c) => (
+        <li>
+          {c.url ? (
+            <a href={link(c.url)} {...externalLinkAttrs(c.url)}>
+              {c.label}
+            </a>
+          ) : (
+            <span class="label">
+              {c.label} <span class="soon">opens soon</span>
+            </span>
+          )}
+          <span class="text">{c.text}</span>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+{
+  show === 'tiers' && (
+    <table class="nv-sponsors tiers">
+      <thead>
+        <tr>
+          <th>Tier</th>
+          <th>Per month</th>
+          <th>What we show</th>
+        </tr>
+      </thead>
+      <tbody>
+        {data.tiers.map((t) => (
+          <tr>
+            <td>{t.name}</td>
+            <td>{euro(t.from)} or more</td>
+            <td>{t.shows}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
+{
+  show === 'reports' &&
+    (reports.length === 0 ? (
+      <p>The first report comes after the first quarter with donations.</p>
+    ) : (
+      reports.map((r) => (
+        <div class="nv-sponsors report">
+          <h3>{r.period}</h3>
+          <p>
+            {r.donors} {r.donors === 1 ? 'person or company' : 'people and companies'} gave {euro(r.income)}, after
+            the fees of the platforms.
+          </p>
+          <table>
+            <thead>
+              <tr>
+                <th>Spent on</th>
+                <th>Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {r.costs.map((c) => (
+                <tr>
+                  <td>{c.what}</td>
+                  <td>{euro(c.amount)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))
+    ))
+}
+
+{
+  show === 'sponsors' &&
+    (named + data.unnamed === 0 ? (
+      <p>Nobody yet. You can be the first.</p>
+    ) : (
+      <div class="nv-sponsors list not-content">
+        {data.tiers.map((t) => {
+          const people = inTier(t.id)
+          return (
+            people.length > 0 && (
+              <section>
+                <h3>{t.name}s</h3>
+                <ul class={withLogo.has(t.id) ? 'logos' : 'names'}>
+                  {people.map((s) => {
+                    const body =
+                      withLogo.has(t.id) && s.logo ? <img src={withBase(s.logo)} alt={s.name} loading="lazy" /> : s.name
+                    return <li>{s.url ? <a href={s.url} {...externalLinkAttrs(s.url)}>{body}</a> : body}</li>
+                  })}
+                </ul>
+              </section>
+            )
+          )
+        })}
+        {data.unnamed > 0 && (
+          <p class="unnamed">
+            {named > 0 ? 'And' : 'So far,'} {data.unnamed} {data.unnamed === 1 ? 'person gave' : 'people gave'} without
+            their name. Thank you.
+          </p>
+        )}
+        <p class="updated">Last updated on {data.updated}.</p>
+      </div>
+    ))
+}
+
+{
+  show === 'partners' && partners.length > 0 && (
+    <div class="nv-sponsors partners not-content">
+      <span class="label">Partners</span>
+      <ul class="logos">
+        {partners.map((s) => {
+          const body = s.logo ? <img src={withBase(s.logo)} alt={s.name} loading="lazy" /> : s.name
+          return <li>{s.url ? <a href={s.url} {...externalLinkAttrs(s.url)}>{body}</a> : body}</li>
+        })}
+      </ul>
+    </div>
+  )
+}
+
+<style>
+  .nv-sponsors.channels {
+    display: grid;
+    gap: var(--nv-space-3);
+    margin: var(--nv-space-4) 0;
+    padding: 0;
+    list-style: none;
+  }
+  .channels li {
+    display: grid;
+    gap: var(--nv-space-1);
+    padding: var(--nv-space-3) var(--nv-space-4);
+    border: 1px solid var(--nv-hairline);
+    border-radius: var(--nv-radius);
+    background: var(--nv-surface);
+  }
+  .channels a,
+  .channels .label {
+    font-weight: 700;
+  }
+  .channels .soon {
+    margin-inline-start: var(--nv-space-2);
+    font-weight: 400;
+    font-size: var(--sl-text-sm);
+    color: var(--nv-quiet);
+  }
+  .channels .text {
+    color: var(--nv-quiet);
+  }
+  .list section + section {
+    margin-block-start: var(--nv-space-5);
+  }
+  .list h3 {
+    margin: 0 0 var(--nv-space-2);
+  }
+  .logos,
+  .names {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--nv-space-3) var(--nv-space-5);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .logos img {
+    display: block;
+    max-height: 3rem;
+    max-width: 12rem;
+  }
+  .unnamed,
+  .updated {
+    margin-block-start: var(--nv-space-4);
+  }
+  .updated {
+    font-size: var(--sl-text-sm);
+    color: var(--nv-quiet);
+  }
+  .partners {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--nv-space-4);
+    margin-block: var(--nv-space-5);
+  }
+  .partners .label {
+    font-weight: 700;
+  }
+</style>

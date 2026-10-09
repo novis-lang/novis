@@ -88,10 +88,10 @@ That is where sponsors come in — maybe you?! Sponsors help us cover those fixe
 by a company: a sole proprietorship (*Einzelunternehmen*) in Austria, owned and run by Roland, the creator
 of Novis. When the team is bigger and sponsoring makes it possible, we will found a *FlexCo* named
 Novis-Lang — the *Flexible Kapitalgesellschaft*, a form of company Austria introduced in 2024 for startups
-and growing companies — so that we can employ people and rent an office. Sponsor money will go through the
-[Open Source Collective](https://opencollective.com/), which keeps it for the project and shows every
-payment in and out in public; we are paid from it by sending invoices and receipts, and those are public
-too.
+and growing companies — so that we can employ people and rent an office. You can give through GitHub
+Sponsors, Ko-fi, Liberapay, PayPal or a bank transfer. The website's sponsoring page lists the tiers and
+the sponsors who want to be named, and publishes a report every quarter: how many gave, the total, and
+what we spent it on — never who gave how much.
 
 Whatever form the company takes, Novis is open source and always will be, it is under the MIT licence and
 always will be, and the open-source code is all of Novis — there is no paid edition or paywalls. We may sell additional services
