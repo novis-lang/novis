@@ -1,0 +1,77 @@
+<?nvs
+// Attack: a program sends cookies it made up: empty, random, cut short and very long.
+// Each one should return entries or throw an error, and nothing may crash.
+// hostile: timeout-ms 60000
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect('corp');
+var $sales = Core\Ldap\Filter::equals('department', 'Sales');
+
+// A real cookie to start from.
+tainted bytes $real = Core\Bytes::fill(0, 0);
+try {
+    var $first = $corp->changes($sales, { select: ['cn'] });
+    foreach ($first as Core\Ldap\Entry $person) {
+    }
+    $real = $first->cookie();
+    echo '0 real cookie: ', Core\Bytes::length($real) > 0 ? 'yes' : 'no', "\n";
+} catch (Throwable $error) {
+    echo '0 threw: ', $error::class, "\n";
+}
+
+// 1. Made-up cookies: empty, random bytes, and the first 8 bytes of the real one.
+array<tainted bytes> $forged = [
+    Core\Bytes::fill(0, 0),
+    Core\Random::bytes(64),
+    Core\Bytes::slice($real, 0, 8),
+];
+foreach ($forged as tainted bytes $cookie) {
+    try {
+        var $changes = $corp->changes($sales, { select: ['cn'], cookie: $cookie });
+        uint $read = 0;
+        foreach ($changes as Core\Ldap\Entry $person) {
+            $read = $read + 1;
+        }
+        echo '1 read: ', $read, "\n";
+    } catch (Throwable $error) {
+        echo '1 threw: ', $error::class, "\n";
+    }
+}
+
+// 2. The real cookie read one hundred thousand times from one result.
+try {
+    var $again = $corp->changes($sales, { select: ['cn'], cookie: $real });
+    foreach ($again as Core\Ldap\Entry $person) {
+    }
+    uint $length = 0;
+    uint $i = 0;
+    while ($i < 100000) {
+        $length = $length + Core\Bytes::length($again->cookie());
+        $i = $i + 1;
+    }
+    echo '2 read: ', $length > 0 ? 'yes' : 'no', "\n";
+} catch (Throwable $error) {
+    echo '2 threw: ', $error::class, "\n";
+}
+
+// 3. The connection still works after the made-up cookies.
+try {
+    var $after = $corp->changes($sales, { select: ['cn'] });
+    uint $people = 0;
+    foreach ($after as Core\Ldap\Entry $person) {
+        $people = $people + 1;
+    }
+    echo '3 people: ', $people, "\n";
+} catch (Throwable $error) {
+    echo '3 threw: ', $error::class, "\n";
+}
+
+// 4. A cookie of one megabyte. The server closes the connection, and the call throws an error.
+try {
+    var $huge = $corp->changes($sales, { select: ['cn'], cookie: Core\Bytes::fill(1048576, 0) });
+    foreach ($huge as Core\Ldap\Entry $person) {
+    }
+    echo "4 no error\n";
+} catch (Throwable $error) {
+    echo '4 threw: ', $error::class, "\n";
+}

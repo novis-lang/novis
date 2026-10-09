@@ -1,0 +1,24 @@
+<?nvs
+// Shows how to store the cookie as text, and use it in the next run.
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect("corp");
+var $sales = Core\Ldap\Filter::equals("department", "Sales");
+
+// The first run reads every person in Sales.
+var $first = $corp->changes($sales, {select: ["cn"]});
+foreach ($first as Core\Ldap\Entry $person) {
+}
+
+// The cookie is bytes. `toBase64` makes text from it, which you can save
+// in a database or a file.
+tainted string $saved = Core\Encoding::toBase64($first->cookie());
+
+// The next run starts from the saved cookie. Nobody changed a person in
+// Sales in between, so this prints 0.
+var $next = $corp->changes($sales, {select: ["cn"], cookie: Core\Encoding::fromBase64($saved)});
+int $changed = 0;
+foreach ($next as Core\Ldap\Entry $person) {
+    $changed = $changed + 1;
+}
+echo $changed, "\n";

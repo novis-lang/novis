@@ -2016,6 +2016,7 @@ fn sorted_names(
     (names, total)
 }
 
+// covers: Core\Ldap\Entries::total
 #[test]
 fn sort_and_a_vlv_window_return_the_requested_slice() {
     let Some(ca) = samba() else { return };
@@ -2174,6 +2175,7 @@ fn synced(ctx: &mut nvs_runtime::Ctx, key: u64, cookie: &[u8]) -> (Vec<String>, 
     (found, changes.cookie().to_vec())
 }
 
+// covers: Core\Ldap\Changes::cookie
 #[test]
 fn dirsync_returns_only_what_changed_since_its_cookie() {
     let Some(ca) = samba() else { return };
