@@ -2,6 +2,7 @@
 Over every value `read` returns for `objectClass`, `compare` returns `true`, and it returns `false` for a class the entry does not have — ADR 0278 § 9
 --FILE--
 <?nvs
+// covers: Core\Ldap\Connection::compare
 var $corp = Core\Ldap::connect("corp");
 var $admin = "CN=Administrator,CN=Users,DC=example,DC=test";
 ?Core\Ldap\Entry $found = $corp->read($admin);

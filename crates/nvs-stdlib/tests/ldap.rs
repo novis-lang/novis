@@ -1521,6 +1521,7 @@ fn binds(ca: &PathBuf, dn: &str, password: &str) -> Result<(), String> {
         .map_err(|fault| fault.message())
 }
 
+// covers: Core\Ldap\Connection::setPassword, Core\Ldap\Connection::changePassword
 #[test]
 fn set_password_and_change_password_use_unicode_pwd() {
     use nvs_ldap::conn::unicode_pwd;
@@ -1660,6 +1661,7 @@ fn a_password_policy_refusal_is_its_own_kind() {
     delete_user(&mut ctx, key, "Editors");
 }
 
+// covers: Core\Ldap\Connection::compare
 #[test]
 fn compare_returns_a_bool_and_throws_on_error() {
     use nvs_ldap::proto;

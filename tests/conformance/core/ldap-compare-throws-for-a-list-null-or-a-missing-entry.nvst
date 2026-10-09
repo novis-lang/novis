@@ -2,6 +2,7 @@
 `compare` takes exactly one value, so a list and `null` throw `LogicError` before anything is sent, and an entry that does not exist throws `Core\Ldap\LdapError` with the kind `NoSuchObject` — ADR 0278 § 9
 --FILE--
 <?nvs
+// covers: Core\Ldap\Connection::compare
 var $corp = Core\Ldap::connect("corp");
 var $admin = "CN=Administrator,CN=Users,DC=example,DC=test";
 

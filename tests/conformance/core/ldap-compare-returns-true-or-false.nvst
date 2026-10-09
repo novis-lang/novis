@@ -2,6 +2,7 @@
 `compare` returns `true` when the entry has the value and `false` when it does not, matches text by the attribute's rules so case does not count in `description`, and writes an `int` and a `Dn` the way a write does — ADR 0278 § 9
 --FILE--
 <?nvs
+// covers: Core\Ldap\Connection::compare
 var $corp = Core\Ldap::connect("corp");
 var $library = Core\Ldap\Dn::parse("OU=Library,DC=example,DC=test");
 var $admin = "CN=Administrator,CN=Users,DC=example,DC=test";
