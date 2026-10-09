@@ -12,19 +12,19 @@
     "items": [
       {
         "done": false,
-        "text": "**The record** — one new record, its number checked against `docs/decisions/` right before it is written: every `Novis\\Spreadsheet` class, member and options shape, the write and read type tables, the style fields and their layering, the defaults, the template syntax, the formula helpers, the reader options, the limits, the error kinds, the tradeoffs, and the user's calls as decided. Its front matter amends ADR 0123 (built in, CSV through the component, the cell cap and the concept-mapping table dropped), ADR 0166 (the streamed-part bound) and ADR 0247's built-in count."
+        "text": "**The record** — one new record, its number checked against `docs/decisions/` right before it is written: every `Novis\\Spreadsheet` class, member and options shape, the write and read type tables, the style fields and their layering, the defaults, the template syntax, the formula helpers, the reader options, the limits, the error kinds, the tradeoffs, and the user's calls as decided. Its front matter amends ADR 0123 (built in, CSV through the component, the cell cap and the concept-mapping table dropped), ADR 0166 (the streamed-part bound) and ADR 0247's built-in count. `docs/decisions/0281.md:1`"
       },
       {
         "done": false,
-        "text": "**The fragments** — the five `spreadsheet-*` fragments and `decompression-bound` rewritten to the new decisions, and the five new ids the Stage 2 check reads, listed in the goal's Stage 2. Then `docs/plan/m17.md` Part 3 through a `## milestone: M17` wrap section."
+        "text": "**The fragments** — the five `spreadsheet-*` fragments and `decompression-bound` rewritten to the new decisions, and the five new ids the Stage 2 check reads, listed in the goal's Stage 2. Then `docs/plan/m17.md` Part 3 through a `## milestone: M17` wrap section. `docs/rules/core-classes/spreadsheet-bulk-boundary.md:1`"
       },
       {
         "done": false,
-        "text": "**`wit/spreadsheet.wit`** resource-shaped: a `writer`, a `reader` over a byte source and a `template`, with its two tests in `crates/nvs-stdlib/tests/ext_world.rs`. The record decides how the guest reads byte ranges — a host import or a pull loop in the Novis half — and why, against request latency."
+        "text": "**`wit/spreadsheet.wit`** resource-shaped: a `writer`, a `reader` over a byte source and a `template`, with its two tests in `crates/nvs-stdlib/tests/ext_world.rs`. The record decides how the guest reads byte ranges — a host import or a pull loop in the Novis half — and why, against request latency. `wit/spreadsheet.wit:1`"
       },
       {
         "done": false,
-        "text": "**The proofs checks the record makes possible** — one `bun nv proofs --verify --group '<class>'` check per class the record names, in Stage 14 of `data/goals/spreadsheet.json`, and a `cargo deny` over the component's own `wasm32-wasip2` graph in the form goal `pdf` added."
+        "text": "**The proofs checks the record makes possible** — one `bun nv proofs --verify --group '<class>'` check per class the record names, in Stage 14 of `data/goals/spreadsheet.json`, and a `cargo deny` over the component's own `wasm32-wasip2` graph in the form goal `pdf` added. `docs/goals/spreadsheet.md:1`"
       }
     ]
   },
