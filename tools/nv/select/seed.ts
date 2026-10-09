@@ -5,7 +5,7 @@
 // (`record.ts`):
 //
 // - the case trees, a batch of cases at a time through `recordCases`;
-// - every proof program of the roster, judged by `runPrograms` on the uninstrumented proof binary
+// - every proof program of the roster, judged by `judgeKept` on the uninstrumented proof binary
 //   (`target/proof`), then run once more on the covws debug `nvs` by `recordingRun` for its footprint;
 //   a recording run that ends differently from the judged run marks the program diverged;
 // - every Rust test executable of the build, one process each in its package directory, with
@@ -27,7 +27,8 @@ import { ROOT } from "../lib/paths.ts";
 import { run } from "../lib/proc.ts";
 import { readLog, readModules } from "../lib/reads.ts";
 import type { TestExe } from "../driver/accept.ts";
-import { divergence, proofBinary, recordingRun, recordName, runPrograms } from "../proofs/run.ts";
+import { divergence, proofBinary, recordingRun, recordName } from "../proofs/run.ts";
+import { judgeKept } from "../proofs/select.ts";
 import { caseFiles, caseId, nvDef, nvId, proofDef, proofId, proofPrograms, testId } from "./atoms.ts";
 import { type Extracted, recordedIn } from "./extract.ts";
 import { allowedWide } from "../keys/escape.ts";
@@ -174,7 +175,7 @@ export async function seedProofs(ctx: Ctx, programs: { what: "examples" | "hosti
     mkdirSync(dir, { recursive: true });
     // Every program of the batch is judged before any is recorded, so a judged run never shares the
     // machine with the slower recording runs.
-    const pass = await runPrograms(bin, batch, { valgrind: false, strict: false });
+    const pass = await judgeKept(ctx.r.store, bin, batch, { valgrind: false, strict: false });
     await pool(batch, ctx.jobs, async ({ what, path }) => {
       const id = proofId(path);
       const result = pass.results.get(`${what}:${path}`);

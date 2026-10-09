@@ -5,6 +5,9 @@ import { describe, expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
 import { join } from "node:path";
 import { scanItems } from "../keys/scan.ts";
+import type { Result } from "../proofs/run.ts";
+import { judgeKept } from "../proofs/select.ts";
+import { proofId } from "../select/atoms.ts";
 import { advance } from "../select/record.ts";
 import { computeChange, query, type Selection } from "../select/select.ts";
 import { type RunTree, SelectStore } from "../select/store.ts";
@@ -206,6 +209,31 @@ describe("a judged verdict", () => {
       r.t.cleanup();
     }
   }, 180_000);
+});
+
+describe("a proof program judged and not recorded", () => {
+  const SQRT = "docs/examples/core/Math/sqrt/01-square-roots.nvs";
+  const opts = { valgrind: false, strict: false, unlogged: true };
+
+  test("keeps its verdict the moment it is judged, and is not judged again on the same tree", async () => {
+    const s = new SelectStore(":memory:", "test-os");
+    try {
+      s.runAt("t", () => ({ commit: "c", overlay: {}, items: [], markers: {} }));
+      // `bun` stands in for `nvs`: it cannot run the program, so the verdict is a failure.
+      const first = await judgeKept(s, { path: process.execPath, key: "k", runs: "k", recorded: true }, [{ what: "examples", path: SQRT }], opts);
+      const judged = first.results.get(`examples:${SQRT}`)!;
+      expect(s.judged<Result>(proofId(SQRT), s.judgedKey("proof native lenient")!)).toEqual(judged);
+      // A binary that does not exist would fail for another reason, so the same reason means no run.
+      const again = await judgeKept(s, { path: "no-such-nvs", key: "k", runs: "k", recorded: true }, [{ what: "examples", path: SQRT }], opts);
+      expect(again.results.get(`examples:${SQRT}`)).toEqual(judged);
+      expect(again.width).toBeGreaterThan(0);
+      s.runAt("u", () => ({ commit: "c", overlay: { "x.txt": "1" }, items: [], markers: {} }));
+      const elsewhere = await judgeKept(s, { path: "no-such-nvs", key: "k", runs: "k", recorded: true }, [{ what: "examples", path: SQRT }], opts);
+      expect(elsewhere.results.get(`examples:${SQRT}`)?.why).not.toBe(judged.why);
+    } finally {
+      s.close();
+    }
+  }, 120_000);
 });
 
 describe("a store made before stamps", () => {

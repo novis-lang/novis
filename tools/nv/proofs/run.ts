@@ -574,6 +574,9 @@ export interface RunOptions {
   /** The judged runs write no footprint log, not even one this process inherited: the selection records
    * each program on its own recording run instead. */
   unlogged?: boolean;
+  /** Called with each program's result the moment it is final: at once, or for one that ran out of
+   * time beside others, once its run alone ends. */
+  onResult?: (program: Program, result: Result) => void;
 }
 
 export interface Result {
@@ -601,7 +604,7 @@ export interface Program {
 }
 
 /** Runs every program named, once each, in one pool; each of `unchanged` is reported green without a
- * run. */
+ * run. `opts.onResult` hears each result of a program that ran as soon as it is final. */
 export async function runPrograms(bin: Binary, programs: Program[], opts: RunOptions, unchanged: Set<string> = new Set()): Promise<Pass> {
   const results = new Map<string, Result>();
   const todo: Program[] = [];
@@ -634,7 +637,9 @@ export async function runPrograms(bin: Binary, programs: Program[], opts: RunOpt
       const t = todo[next++]!;
       await runOne(t);
       ran++;
-      if (results.get(`${t.what}:${t.path}`)!.verdict === "fail") failed++;
+      const got = results.get(`${t.what}:${t.path}`)!;
+      if (got.verdict === "fail") failed++;
+      if (got.ran?.timedOut !== true) opts.onResult?.(t, got);
       say();
     }
   };
@@ -643,6 +648,7 @@ export async function runPrograms(bin: Binary, programs: Program[], opts: RunOpt
   for (const t of todo.filter((p) => again.has(`${p.what}:${p.path}`))) {
     progress(`proofs: ${t.path} ran out of time beside others, so it runs once more alone`);
     await runOne(t);
+    opts.onResult?.(t, results.get(`${t.what}:${t.path}`)!);
   }
   return { results, width, seconds: (performance.now() - started) / 1000 };
 }
