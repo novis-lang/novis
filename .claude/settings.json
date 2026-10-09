@@ -192,7 +192,9 @@
       "Bash(bun nv benches:*)",
       "PowerShell(bun nv benches:*)",
       "Bash(bun nv side:*)",
-      "PowerShell(bun nv side:*)"
+      "PowerShell(bun nv side:*)",
+      "Bash(bun nv allow:*)",
+      "PowerShell(bun nv allow:*)"
     ]
   }
 }
