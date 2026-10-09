@@ -1,7 +1,6 @@
 {
-  "live": "ldap",
+  "live": "looper-ready",
   "goals": [
-    "ldap",
     "looper-ready",
     "looper-cutover",
     "decision-records-retired",
