@@ -277,6 +277,9 @@ One file set: `docs/examples/core/Ldap*/`, `tests/hostile/core/Ldap*/`, `benches
   empty password, a bind over plain `ldap://` to a host the cleartext grant does not name, a server that answers a search with a million entries
   under a small memory cap, a `member` range that never ends, a server that never answers, and a
   continuation reference to another host.
+- **The rest of the roster**: Stage 10 also closes every feature outside `Core\Ldap` that still owes a
+  proof, because its last check gates the whole roster (§ *Standing decisions*).
+  `bun nv proofs --owed --limit 1000` lists them.
 - **Pinned by** the Stage 10 checks, and by the per-class checks Stage 2's record added.
 
 ## Standing decisions
@@ -296,6 +299,10 @@ One file set: `docs/examples/core/Ldap*/`, `tests/hostile/core/Ldap*/`, `benches
   - Both `Ldap::connect('<block>')` and `Ldap::open(Settings)`, the same as `Core\Db`.
   - A general LDAPv3 client with AD helpers under `Ldap\Ad`, tested against Samba AD only.
   - All four AD extras are in: sort with VLV, deleted objects, incremental sync and the Global Catalog.
+  - The whole-roster check `dossier-the-whole-roster-owes-nothing-with-core-ldap` stays as it is:
+    it runs `bun nv proofs --gate` over the whole roster, not over `Core\Ldap` alone. Stage 10 is
+    reached only when the whole roster owes nothing, so this goal's sessions close the debt outside
+    `Core\Ldap` too. No session narrows, splits or skips the check.
 - **The goal writer's calls, not confirmed by the user, also standing.**
   - The namespace is `Core\Ldap`, Native like `Core\Db`, with no Cargo feature
     (`rule:core-classes/db-crate-boundary`). `ldap.connect` and `ldap.open` are deny-by-default.
