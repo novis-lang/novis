@@ -182,7 +182,9 @@
       "Bash(cargo search:*)",
       "Bash(cargo info:*)",
       "Bash(cargo deny:*)",
-      "Bash(rustup target:*)"
+      "Bash(rustup target:*)",
+      "Bash(bun nv bench-compare:*)",
+      "PowerShell(bun nv bench-compare:*)"
     ]
   }
 }
