@@ -1,0 +1,2 @@
+513
+Core\Ldap\Entry::int: a value of `department` is not a whole number that fits in an `int`

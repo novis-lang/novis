@@ -1,0 +1,32 @@
+<?nvs
+// Measures how fast `bool` reads one yes-or-no value, as a program does before it lets anyone delete an account.
+// bench: iterations 400000
+// bench: calls 0
+// bench: complexity constant
+// requires: samba-ad
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $corp = Core\Ldap::connect("corp");
+        var $found = $corp->read("CN=Administrator,CN=Users,DC=example,DC=test", {select: ["isCriticalSystemObject"]});
+        if ($found == null) {
+            return 0;
+        }
+        Core\Ldap\Entry $admin = $found;
+        // The count so far chooses the attribute, so the loop cannot be left out.
+        array<string> $names = ["isCriticalSystemObject", "showInAdvancedViewOnly"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            if ($admin->bool($names[($total % 2) as int]) ?? false) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 3;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

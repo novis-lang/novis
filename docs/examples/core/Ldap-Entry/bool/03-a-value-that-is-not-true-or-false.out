@@ -1,0 +1,1 @@
+Core\Ldap\Entry::bool: a value of `department` is not `TRUE` or `FALSE`
