@@ -107,7 +107,7 @@ import { recordName } from "../proofs/run.ts";
 import { caseFiles, caseId, nvTestFiles, nvTestId } from "../select/atoms.ts";
 import { buildScripts } from "../select/build.ts";
 import { WILD, repoPath } from "../select/keys.ts";
-import { advance, depInfoPaths, fullChange, pool, putTestGreen, Recorder, recordCases, testGreen } from "../select/record.ts";
+import { advance, depInfoPaths, fullChange, pool, putTestGreen, Recorder, recordCases, testGreen, unexplainedReds } from "../select/record.ts";
 import { type ChangeSet, computeChange, discover, type Selection, query, rustFiles } from "../select/select.ts";
 import { NV_TSC, runNvTest, runTsc } from "../select/nvtests.ts";
 import { nvKeys, testKeys } from "../select/seed.ts";
@@ -566,7 +566,8 @@ async function runCases(r: Run, s: Step): Promise<[number, string]> {
   const red = [...got.verdicts.values()].filter((v) => v === "red").length;
   const head = `${cases.length} of ${total} case(s) of tests/${s.name} selected`;
   const lost = got.unrecorded.length ? `${got.unrecorded.length} passed case(s) left no recording: ${got.unrecorded.join(", ")}\n` : "";
-  return [red > 0 || got.failed > 0 ? 1 : 0, `${head}\n${got.out}\n${lost}${got.passed} passed, ${got.failed} failed, ${got.skipped} skipped\n`];
+  const silent = red > 0 ? unexplainedReds(got) : "";
+  return [red > 0 || got.failed > 0 ? 1 : 0, `${head}\n${got.out}\n${lost}${silent}${got.passed} passed, ${got.failed} failed, ${got.skipped} skipped\n`];
 }
 
 // ---- the tools' own gate ---------------------------------------------------------------------------

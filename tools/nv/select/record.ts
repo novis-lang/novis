@@ -272,7 +272,39 @@ export interface CaseRun {
   verdicts: Map<string, Verdict>;
   /** Each case that passed and left no recording, which makes it red. */
   unrecorded: string[];
+  /** Each red case, with why it is red and what its batch's `nvs test` ended with (`redReason`). */
+  reds: Map<string, string>;
   processes: number;
+}
+
+/** Why one case of a batch is red, or null when it is green: the verdict and its reason are one test. */
+export function redReason(c: { failed: boolean; recorded: boolean; skipped: boolean; timedOut: boolean; counted: boolean }): string | null {
+  if (c.failed) return "it failed";
+  if (!c.recorded && !c.skipped) return "it left no recording";
+  if (c.timedOut) return "its batch ran out of time";
+  if (!c.counted) return "its batch printed no count line";
+  return null;
+}
+
+/**
+ * The lines that name each red case the output does not already explain: a red case is explained by its
+ * `FAIL` line or by the list of passed cases that left no recording. Every other red case is listed with
+ * its reason, grouped by reason, so a step that is red while every case passed says why.
+ */
+export function unexplainedReds(got: CaseRun): string {
+  const failed = caseLabels(got.out, "FAIL");
+  const lost = new Set(got.unrecorded);
+  const byWhy = new Map<string, string[]>();
+  for (const [path, v] of got.verdicts) {
+    if (v !== "red" || failed.has(path) || lost.has(path)) continue;
+    const why = got.reds.get(path) ?? "no reason was kept";
+    (byWhy.get(why) ?? byWhy.set(why, []).get(why)!).push(path);
+  }
+  if (byWhy.size === 0) return "";
+  const n = [...byWhy.values()].reduce((a, xs) => a + xs.length, 0);
+  const out = [`${n} case(s) are red, and nothing above says why:`];
+  for (const [why, paths] of byWhy) out.push(`  ${paths.length}: ${why}: ${few(paths, 3)}`);
+  return out.join("\n") + "\n";
 }
 
 /** What one batch of `recordCases` lost: the passed cases that left no recording, and what the case
@@ -362,7 +394,7 @@ export async function recordCases(
   const root = o.root ?? ROOT;
   const byTree = new Map<string, string[]>();
   for (const f of cases) (byTree.get(treeOf(f)) ?? byTree.set(treeOf(f), []).get(treeOf(f))!).push(f);
-  const result: CaseRun = { out: "", passed: 0, failed: 0, skipped: 0, verdicts: new Map(), unrecorded: [], processes: 0 };
+  const result: CaseRun = { out: "", passed: 0, failed: 0, skipped: 0, verdicts: new Map(), unrecorded: [], reds: new Map(), processes: 0 };
   let done = 0;
   for (const [tree, all] of byTree) {
     const batches = chunks(all, o.batch ?? 64);
@@ -408,7 +440,9 @@ export async function recordCases(
         const ext = got ? await r.extract(got, [nvs]) : null;
         const keys: Keyed = new Map(parentKeys);
         for (const [k, d] of ext?.keys ?? []) keys.set(k, d);
-        const verdict: Verdict = failed.has(path) || (!got && !skipped.has(path)) || p.timedOut || !counts ? "red" : "green";
+        const why = redReason({ failed: failed.has(path), recorded: !!got, skipped: skipped.has(path), timedOut: p.timedOut, counted: !!counts });
+        const verdict: Verdict = why === null ? "green" : "red";
+        if (why !== null) result.reds.set(path, `${why} (batch ${index + 1}/${batches.length} of ${tree}: exit ${p.code}, ${p.stderr.length} byte(s) on stderr, ${recorded.size} recorded)`);
         r.record(caseId(path), caseDef(path, root), verdict, keys);
         r.store.putVerdict(caseSkipSlot(path), "", skipped.has(path) ? "skip" : "");
         result.verdicts.set(path, verdict);
