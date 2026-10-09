@@ -2,6 +2,7 @@
 `read` and a search's `base` take a `Dn`, `Entry::dn` returns one, and a `tainted` name built into a `Dn` reads no other entry — ADR 0278 § 7 and `rule:core-classes/ldap-dn-is-the-launderer`
 --FILE--
 <?nvs
+// covers: Core\Ldap\Connection::read
 var $corp = Core\Ldap::connect("corp");
 var $users = Core\Ldap\Dn::parse("CN=Users,DC=example,DC=test");
 var $admin = $corp->read($users->child("CN", "Administrator"), {select: ["cn"]});

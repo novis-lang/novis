@@ -1,0 +1,83 @@
+<?nvs
+// Attack: a program reads strange names, strange attribute lists and very large entries.
+// Each read must return an entry or `null` or throw an error, and nothing may crash.
+// hostile: timeout-ms 60000
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect('corp');
+string $anna = 'CN=Anna Berg,OU=Company,DC=example,DC=test';
+
+// 1. Names that are not entry names, names outside the directory and a very long name.
+array<string> $entries = [
+    '',
+    'not a name',
+    'CN=*,OU=Company,DC=example,DC=test',
+    'CN=Anna Berg,OU=Company,DC=example,DC=test,DC=other',
+    "CN=Anna Berg\x00,OU=Company,DC=example,DC=test",
+    'CN=' . Core\Str::repeat('a', 100000) . ',OU=Company,DC=example,DC=test',
+];
+uint $found = 0;
+uint $threw = 0;
+foreach ($entries as string $entry) {
+    try {
+        if ($corp->read($entry) != null) {
+            $found = $found + 1;
+        }
+    } catch (Throwable $error) {
+        $threw = $threw + 1;
+    }
+}
+echo '1 found: ', $found, ', threw: ', $threw, "\n";
+
+// 2. Attribute lists with options, filters, empty names and very many names.
+array<array<string>> $lists = [
+    [''],
+    ['*'],
+    ['+'],
+    ['1.1'],
+    ['(cn=*)'],
+    ['member;range=0-1'],
+    ["cn\x00"],
+    [Core\Str::repeat('c', 100000)],
+    Core\Arr::fill(10000, 'cn'),
+];
+$found = 0;
+$threw = 0;
+foreach ($lists as array<string> $list) {
+    try {
+        if ($corp->read($anna, { select: $list }) != null) {
+            $found = $found + 1;
+        }
+    } catch (Throwable $error) {
+        $threw = $threw + 1;
+    }
+}
+echo '2 found: ', $found, ', threw: ', $threw, "\n";
+
+// 3. Names from a request, added with `child`. None of them may reach Anna Berg.
+var $company = Core\Ldap\Dn::parse('OU=Company,DC=example,DC=test');
+array<string> $requested = ['Anna Berg,OU=Company', '*', 'Anna Berg)(cn=*', '', "\x00"];
+$found = 0;
+$threw = 0;
+foreach ($requested as string $name) {
+    tainted string $value = $name;
+    try {
+        if ($corp->read($company->child('CN', $value)) != null) {
+            $found = $found + 1;
+        }
+    } catch (Throwable $error) {
+        $threw = $threw + 1;
+    }
+}
+echo '3 found: ', $found, ', threw: ', $threw, "\n";
+
+// 4. Two thousand reads of every attribute in a row. Nothing may be left behind.
+uint $i = 0;
+$found = 0;
+while ($i < 2000) {
+    if ($corp->read($anna) != null) {
+        $found = $found + 1;
+    }
+    $i = $i + 1;
+}
+echo '4 found: ', $found, "\n";

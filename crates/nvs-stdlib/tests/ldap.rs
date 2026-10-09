@@ -238,6 +238,7 @@ fn everything(filter: &Filter, page_size: u32, size_limit: u32) -> SearchRequest
     }
 }
 
+// covers: Core\Ldap\Connection::whoami
 #[test]
 fn a_pooled_connection_is_always_bound_as_its_block() {
     let Some(ca) = samba() else { return };
@@ -296,6 +297,7 @@ fn a_pooled_connection_is_always_bound_as_its_block() {
     );
 }
 
+// covers: Core\Ldap\Connection::read
 #[test]
 fn an_attribute_name_matches_without_case_and_keeps_the_servers_case() {
     let Some(ca) = samba() else { return };
