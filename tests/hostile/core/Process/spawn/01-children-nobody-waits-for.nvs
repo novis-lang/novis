@@ -1,7 +1,9 @@
 <?nvs
 // Attack: `Core\Process::spawn` starts many programs that the script never waits for, and feeds a
-// large input to programs that have already ended. The runtime should stop every program and must not crash.
+// large input to programs that have already ended. The runtime should stop every program when the
+// script ends, report an error for them, and must not crash.
 // hostile: timeout-ms 60000
+// hostile: ends-early 6 exit
 
 class Attack
 {
@@ -92,6 +94,8 @@ while ($ran < 200) {
 echo $ran, " programs ran\n";
 
 // 6. The script ends while one more endless program is running and has printed one part.
+// No `wait()` or `kill()` is called for steps 3 and 6, so the runtime stops them and reports an error.
+echo "step 6\n";
 var $last = Attack::endless();
 $last->readStdout();
 echo "the runtime is still standing\n";

@@ -10,6 +10,8 @@ A program that keeps every part `Core\Process\Handle::readStdout` returns is sto
 // so a red case fails with a line of output rather than taking the host with it.
 // On Windows the child types `cmd.exe` itself in an endless loop: an `echo` loop
 // writes a few kilobytes a second there, so it reaches no ceiling in 300 s.
+// The child never ends by itself and the `FATAL` ends the program before any
+// `wait()` or `kill()`, so the stopped child is the second error on stderr.
 
 string $path = "/usr/bin/yes";
 array<string> $arguments = ["a line that repeats and repeats"];
@@ -46,3 +48,4 @@ memory = "16M"
 before
 --EXPECTF-ERROR--
 FATAL: the request exceeded its memory limit — %d bytes held against a ceiling of 16777216, of which 1048576 is reserved for the limit handler, when an allocation of %d bytes was refused
+{"level":"error","msg":"A process started with `Core\\Process::spawn` was still running when the program ended, so it was stopped. Call `wait()` or `kill()` on its handle before the program ends.","fields":{"program":"%s"}}
