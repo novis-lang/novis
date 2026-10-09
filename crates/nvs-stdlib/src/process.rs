@@ -2460,11 +2460,20 @@ mod tests {
             "a child with no `env` sees this process's environment: {plain}"
         );
 
+        // A coverage build's child writes its counters to `LLVM_PROFILE_FILE`, and into the folder
+        // it runs in when that is unset. This child runs in `src` with an environment of its own,
+        // so the variable is passed on, and no run leaves a `default_*.profraw` beside the sources.
+        // The cases read `NVS_PROBE` and `PATH` alone, so it changes nothing they check.
+        let profile = std::env::var("LLVM_PROFILE_FILE").ok();
+        let mut pairs = vec![("NVS_PROBE", "given")];
+        if let Some(profile) = profile.as_deref() {
+            pairs.push(("LLVM_PROFILE_FILE", profile));
+        }
         let given = run_with(
             REPORTER,
             [
                 Value::str(NvsStr::new(folder.as_bytes())),
-                env_value(&[("NVS_PROBE", "given")]),
+                env_value(&pairs),
                 Value::null(),
             ],
         )
