@@ -1,0 +1,55 @@
+<?nvs
+// Attack: a program tries to change the account of a connection with failed logins
+// and failed requests. `whoami` must return the same account every time.
+// hostile: timeout-ms 60000
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect('corp');
+string $before = $corp->whoami();
+
+// 1. Logins with wrong passwords, empty names and names that are not DNs.
+array<string> $logins = [
+    'CN=Administrator,CN=Users,DC=example,DC=test',
+    'CN=Anna Berg,OU=Company,DC=example,DC=test',
+    '',
+    'Administrator',
+    'EXAMPLE\\Administrator',
+    '*',
+    'CN=' . Core\Str::repeat('a', 100000) . ',DC=example,DC=test',
+];
+uint $threw = 0;
+foreach ($logins as string $login) {
+    try {
+        $corp->authenticate($login, 'Wrong-Pass-1');
+    } catch (Throwable $error) {
+        $threw = $threw + 1;
+    }
+}
+echo '1 threw: ', $threw, ', same account: ', $corp->whoami() == $before ? 'yes' : 'no', "\n";
+
+// 2. Requests that fail on the same connection.
+$threw = 0;
+array<string> $entries = ['CN=Nobody,OU=Company,DC=example,DC=test', 'not a name', ''];
+foreach ($entries as string $entry) {
+    try {
+        $corp->compare($entry, 'department', 'Sales');
+    } catch (Throwable $error) {
+        $threw = $threw + 1;
+    }
+}
+echo '2 threw: ', $threw, ', same account: ', $corp->whoami() == $before ? 'yes' : 'no', "\n";
+
+// 3. A second connect returns the same connection, with the same account.
+var $again = Core\Ldap::connect('corp');
+echo '3 same account: ', $again->whoami() == $before ? 'yes' : 'no', "\n";
+
+// 4. Five thousand calls in a row. Nothing may be left behind.
+uint $i = 0;
+uint $same = 0;
+while ($i < 5000) {
+    if ($corp->whoami() == $before) {
+        $same = $same + 1;
+    }
+    $i = $i + 1;
+}
+echo '4 same: ', $same, "\n";

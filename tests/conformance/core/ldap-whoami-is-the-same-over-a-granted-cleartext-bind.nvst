@@ -2,6 +2,7 @@
 A block with `tls = "none"` on a host `[capabilities.ldap] cleartext` grants binds over plain `ldap://`, and `whoami` returns the same identity it returns over LDAPS — ADR 0278 § 2 and § 5
 --FILE--
 <?nvs
+// covers: Core\Ldap\Connection::whoami
 // The `plain` block sends its password without TLS. Only a test server on
 // this machine may be reached that way. The copied `ca.crt` is for the `corp`
 // block, and the case is skipped where the test server is not running.
