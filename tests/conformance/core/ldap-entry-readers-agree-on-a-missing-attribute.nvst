@@ -18,6 +18,8 @@ if ($admin == null) {
     echo "strings: ", $admin->strings("sAMAccountName") == null ? "null" : "a list", "\n";
     echo "bytes: ", $admin->bytes("sAMAccountName") == null ? "null" : "a value", "\n";
 }
+// covers: Core\Ldap\Entry::dn, Core\Ldap\Entry::has, Core\Ldap\Entry::string
+// covers: Core\Ldap\Entry::strings, Core\Ldap\Entry::bytes
 --COPY--
 ../../db/ca.crt
 --FILE nvs.toml--

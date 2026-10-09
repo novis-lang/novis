@@ -40,6 +40,8 @@ if ($admin == null) {
         echo Core\Str::contains($list->message, "`strings`") ? "sid: throws, names strings" : $list->message, "\n";
     }
 }
+// covers: Core\Ldap\Entry::uuid, Core\Ldap\Entry::sid, Core\Ldap\Entry::sids
+// covers: Core\Ldap\Entry::instant, Core\Ldap\Entry::duration
 --COPY--
 ../../db/ca.crt
 --FILE nvs.toml--

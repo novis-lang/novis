@@ -28,6 +28,7 @@ foreach ($corp->search($deleted, {select: ["name"], showDeleted: true}) as Core\
 echo "found some: ", $found >= 1 ? "yes" : "no", "\n";
 echo "disagree: ", $disagree, "\n";
 echo "not deleted: ", $live, "\n";
+// covers: Core\Ldap\Entry::isDeleted
 --COPY--
 ../../db/ca.crt
 --FILE nvs.toml--

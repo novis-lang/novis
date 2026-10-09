@@ -14,6 +14,7 @@ if ($admin == null) {
     }
     echo "has a dn key: ", Core\Arr::hasKey($admin->toArray(), "dn") ? "yes" : "no", "\n";
 }
+// covers: Core\Ldap\Entry::toArray
 --COPY--
 ../../db/ca.crt
 --FILE nvs.toml--

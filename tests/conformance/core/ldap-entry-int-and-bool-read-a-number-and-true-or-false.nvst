@@ -20,6 +20,7 @@ if ($admin == null || $guest == null) {
     echo $guest->int("adminCount") == null ? "null" : "a number", "\n";
     echo $guest->bool("showInAdvancedViewOnly") == null ? "null" : "a bool", "\n";
 }
+// covers: Core\Ldap\Entry::int, Core\Ldap\Entry::bool
 --COPY--
 ../../db/ca.crt
 --FILE nvs.toml--

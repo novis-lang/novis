@@ -144,7 +144,7 @@ fn selected(value: &Value, member: &str) -> Result<Vec<String>, Fault> {
 }
 
 /// An `Ldap\Entry` over `entry`.
-fn entry_value(entry: nvs_ldap::Entry) -> Value {
+pub(super) fn entry_value(entry: nvs_ldap::Entry) -> Value {
     let mut attributes = NvsArray::new();
     for attribute in entry.attributes {
         let mut values = NvsArray::new();
