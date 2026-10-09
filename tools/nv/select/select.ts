@@ -448,7 +448,7 @@ export interface Selected {
   id: string;
   kind: AtomKind;
   why: Why;
-  /** For `key`, and for `owed` with `owed` set: each changed key the footprint holds, with where it came
+  /** For `key`, `owed`, `red` and `diverged`: each changed key the footprint holds, with where it came
    * from. */
   keys: { key: string; origin: Origin }[];
   /** For `owed`: the changed keys the atom was owed for, null or absent when it was owed for another
@@ -462,6 +462,33 @@ export function changedItems(s: Selected): string[] | null {
   if (s.why === "key") return [...new Set(s.keys.map((k) => k.key))];
   if (s.why === "owed" && s.owed) return [...new Set([...s.owed, ...s.keys.map((k) => k.key)])];
   return null;
+}
+
+/**
+ * Which atoms `change` may have given a new definition: each case, proof, test and bench one of its
+ * paths is a file of, and each proof and bench beside a changed `nvs.toml`.
+ */
+export function touchesDef(change: ChangeSet): (id: string) => boolean {
+  const ids = new Set<string>();
+  for (const c of change.changes) {
+    ids.add(`case:${c.path}`);
+    ids.add(`nvtest:${c.path}`);
+    ids.add(`proof:${c.path.replace(/\.(out|in)$/, ".nvs")}`);
+    const bench = benchOf(c.path);
+    if (bench) ids.add(`bench:${bench}`);
+  }
+  const tomlDirs = new Set(change.changes.filter((c) => c.path.endsWith("/nvs.toml")).map((c) => dirname(c.path)));
+  return (id) => ids.has(id) || ((id.startsWith("proof:") || id.startsWith("bench:")) && tomlDirs.has(dirname(id.slice(id.indexOf(":") + 1))));
+}
+
+/**
+ * Whether the change itself reaches a selected atom: it moved a key the atom's footprint holds, changed
+ * the atom's definition (`touched`, from `touchesDef`), or changed a file every atom depends on. An atom
+ * selected only because it was owed, red, diverged or never recorded before the change is not reached
+ * by it.
+ */
+export function reachedByChange(s: Selected, touched: (id: string) => boolean): boolean {
+  return s.why === "key" || s.why === "def" || s.why === "global" || s.keys.length > 0 || touched(s.id);
 }
 
 export interface Selection {
@@ -494,7 +521,7 @@ export function query(store: SelectStore, change: ChangeSet, opts: QueryOptions 
   const add = (id: string, why: Why, key?: { key: string; origin: Origin }) => {
     const was = selected.get(id);
     if (was) {
-      if (key && (was.why === "key" || (was.why === "owed" && was.owed))) was.keys.push(key);
+      if (key && was.why !== "def" && was.why !== "new") was.keys.push(key);
       return;
     }
     selected.set(id, { id, kind: kindOfAtom(id), why, keys: key ? [key] : [] });
@@ -504,15 +531,7 @@ export function query(store: SelectStore, change: ChangeSet, opts: QueryOptions 
   const gone: string[] = [];
   const knownIds = new Set<string>();
   // A definition is files, so only an atom whose files are among the changed paths can have a new one.
-  const defTouched = new Set<string>();
-  for (const c of change.changes) {
-    defTouched.add(`case:${c.path}`);
-    defTouched.add(`nvtest:${c.path}`);
-    defTouched.add(`proof:${c.path.replace(/\.(out|in)$/, ".nvs")}`);
-    const bench = benchOf(c.path);
-    if (bench) defTouched.add(`bench:${bench}`);
-  }
-  const tomlDirs = new Set(change.changes.filter((c) => c.path.endsWith("/nvs.toml")).map((c) => dirname(c.path)));
+  const touched = touchesDef(change);
   const complete = new Set(opts.complete ?? []);
   const listed = new Set(complete.size > 0 ? (opts.discovered ?? []) : []);
   const present = (id: string, kind: AtomKind) => stillThere(id) && (!complete.has(kind) || listed.has(id));
@@ -532,7 +551,7 @@ export function query(store: SelectStore, change: ChangeSet, opts: QueryOptions 
     }
     else if (opts.defs?.has(a.id)) {
       if (opts.defs.get(a.id) !== a.def) add(a.id, "def");
-    } else if (defTouched.has(a.id) || ((a.kind === "proof" || a.kind === "bench") && tomlDirs.has(dirname(a.id.slice(a.id.indexOf(":") + 1))))) {
+    } else if (touched(a.id)) {
       const def = change.until ? null : currentDef(a.id);
       if (change.until || (def !== null && def !== a.def)) add(a.id, "def");
     }

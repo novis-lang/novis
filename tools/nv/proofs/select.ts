@@ -23,7 +23,9 @@
 //
 // A bench is recorded the same way under its own atom, `bench:<path>` (`recordBench`), in one run at its
 // smallest batch, and its verdict is its perf proof's growth. `runBenches` runs the benches a change
-// selects, which `bun nv affected --run` asks for after `nv verify`.
+// selects. `bun nv affected --run` asks it, after `nv verify`, for the ones the change itself reached; the
+// loop asks it for every selected bench, owed and red ones included, whenever its floor gate is open for
+// a goal-end sweep.
 //
 // The selection engine, the crate graph and the recorder are loaded by `engine`, through
 // `loadUnrecorded`: they decide which programs run and what the store remembers, and none of them
@@ -219,18 +221,19 @@ export async function planBenches(reach: Reach[], judge: (path: string) => Promi
 }
 
 /**
- * Runs every bench the change since the store's tree selects: its perf proof's growth (`growthOf`) on the
- * release `nvs`, as `bun nv scaling --growth` judges it, and then its recording run (`recordBench`) on the
- * covws debug `nvs`, with green when the growth found nothing or only what the bench's `// proof: gap`
- * marker records. The benches are judged in `planBenches`'s order, which skips a bench whose changed
- * items are already proven. Each bench is recorded right after it is judged, and one at a time, so no
- * ramp shares the machine with a debug run and a run stopped part of the way keeps every bench it
- * finished. A skipped bench keeps its figure, and the tree then moves past the change.
- * With no bench selected, the store is not touched. Returns how many benches the change reached and
- * ran, each skipped one with the benches that proved it, and the red ones, or why the release build
- * failed.
+ * Runs the benches the change since the store's tree selects: every one, or with `only` the selected ones
+ * whose `bench:` id it names. Each is judged by its perf proof's growth (`growthOf`) on the release
+ * `nvs`, as `bun nv scaling --growth` judges it, and then recorded (`recordBench`) on the covws debug
+ * `nvs`, with green when the growth found nothing or only what the bench's `// proof: gap` marker
+ * records. The benches are judged in `planBenches`'s order, which skips a bench whose changed items are
+ * already proven. Each bench is recorded right after it is judged, and one at a time, so no ramp shares
+ * the machine with a debug run and a run stopped part of the way keeps every bench it finished. A
+ * skipped bench keeps its figure, and the tree then moves past the change: a selected bench `only`
+ * leaves out is marked owed with the changed items it was selected for, or kept red. With no bench to
+ * run, the store is not touched. Returns how many benches it chose and ran, each skipped one with the
+ * benches that proved it, and the red ones, or why the release build failed.
  */
-export async function runBenches(say: (line: string) => void = () => {}): Promise<{ reached: number; ran: number; skipped: Map<string, string[]>; red: RedBench[] } | string> {
+export async function runBenches(say: (line: string) => void = () => {}, only?: Set<string>): Promise<{ reached: number; ran: number; skipped: Map<string, string[]>; red: RedBench[] } | string> {
   const { advance, benchFiles, benchId, changedItems, computeChange, fullChange, metadata, query, Recorder } = await engine();
   const { DEFAULT_WSL_NVS, growthOf } = await import("../cmd/scaling.ts");
   const { knownGap } = await import("./collect.ts");
@@ -246,7 +249,7 @@ export async function runBenches(say: (line: string) => void = () => {}): Promis
     }
     const all = benchFiles();
     const sel = query(store, change, { discovered: all.map(benchId) });
-    const chosen = all.filter((p) => sel.selected.has(benchId(p)));
+    const chosen = all.filter((p) => sel.selected.has(benchId(p)) && (only === undefined || only.has(benchId(p))));
     if (chosen.length === 0) return { reached: 0, ran: 0, skipped: new Map(), red: [] };
     const built = await releaseBinary();
     if (typeof built === "string") return built;

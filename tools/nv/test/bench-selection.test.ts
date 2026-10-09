@@ -2,7 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { benchDef, benchFiles, benchOf } from "../select/atoms.ts";
 import type { Moved } from "../select/items.ts";
 import { advance } from "../select/record.ts";
-import { type ChangeSet, discover, query } from "../select/select.ts";
+import { splitBenches } from "../cmd/affected.ts";
+import { type ChangeSet, discover, query, reachedByChange, touchesDef } from "../select/select.ts";
 import { SelectStore } from "../select/store.ts";
 import { scratch } from "./scratch.ts";
 
@@ -62,6 +63,47 @@ describe("the bench atom", () => {
       expect(s.atom(LENGTH)!.verdict).toBe("green");
       s.recordRun(SORT, { def: "", verdict: "green", keys: new Map([["fn:crates/s/src/arr.rs#sort", ""]]) });
       expect(benches(s, change([]))).toEqual([]);
+    } finally {
+      s.close();
+      t.cleanup();
+    }
+  });
+
+  test("a change reaches an owed bench only through a key it holds, and a bench left out stays owed with its items", () => {
+    const t = scratch();
+    const s = store();
+    const ADDED = "bench:benches/members/core/Arr/added.nvs";
+    const UNRECORDED = "bench:benches/members/core/Arr/old.nvs";
+    try {
+      const sortKey = "fn:crates/s/src/arr.rs#sort";
+      const first = { ...change([[sortKey, "crates/s/src/arr.rs"]]), tree: { commit: "c1", overlay: {} } };
+      advance(s, first, query(s, first), new Set(), null, t.root);
+      // Owed for no key, as a run that cannot name its changed items leaves an atom.
+      s.owe([LENGTH]);
+      expect(s.atom(SORT)!.owedItems).toEqual([sortKey]);
+      expect(s.atom(LENGTH)!.owedItems).toBeNull();
+
+      const moved = change([["class:core\\str", "crates/s/src/str.rs"]]);
+      const c = { ...moved, changes: [...moved.changes, { path: "benches/members/core/Arr/added.nvs", status: "added" as const }], tree: { commit: "c2", overlay: {} } };
+      const sel = query(s, c, { discovered: [SORT, LENGTH, ADDED, UNRECORDED] });
+      const touched = touchesDef(c);
+      const reached = (id: string) => reachedByChange(sel.selected.get(id)!, touched);
+      // `LENGTH` was owed from before, and the change also moved a key its footprint holds.
+      expect(sel.selected.get(LENGTH)!.why).toBe("owed");
+      expect(reached(LENGTH)).toBe(true);
+      expect(reached(SORT)).toBe(false);
+      expect(reached(ADDED)).toBe(true);
+      expect(reached(UNRECORDED)).toBe(false);
+      const split = splitBenches(sel.selected.values(), touched);
+      expect(split.judged.map((b) => b.id)).toEqual([ADDED, LENGTH]);
+      expect(split.before).toBe(2);
+
+      // The run judged `LENGTH` alone, so `SORT` keeps the items it was owed for.
+      s.recordRun(LENGTH, { def: "", verdict: "green", keys: new Map([["class:core\\str", ""]]) });
+      advance(s, c, sel, new Set([LENGTH]), null, t.root);
+      expect(s.atom(SORT)!.verdict).toBe("owed");
+      expect(s.atom(SORT)!.owedItems).toEqual([sortKey]);
+      expect(s.atom(LENGTH)!.verdict).toBe("green");
     } finally {
       s.close();
       t.cleanup();

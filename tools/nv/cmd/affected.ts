@@ -18,19 +18,22 @@
 // path each came from. The other atoms the change reaches (proof programs, other case trees, the plan's
 // own checks) are counted: verify marks them owed, and whoever runs them next pays.
 //
-// **The bench half** is every bench under `benches/members/` the change reaches, or that is new, red or
-// owed. `--run` judges each one's growth on the release build and records its footprint after verify
-// (`runBenches` in `proofs/select.ts`), so a bench verify marked owed is paid for here.
+// **The bench half** is every bench under `benches/members/` the change itself reaches: the change moved
+// a key in its footprint or changed its own files, or a file every atom depends on (`reachedByChange` in
+// `select/select.ts`). `--run` judges each one's growth on the release build and records its footprint
+// after verify (`runBenches` in `proofs/select.ts`). A bench selected only for being owed, red or never
+// recorded from before the change is counted, not judged: it stays as it is, and the loop's floor gate
+// judges it with every other selected bench.
 //
 // **The acceptance half** is the plan's checks the change reaches (`select/checks.ts`): the checks
 // of the live plan, or of the side goal `NOVIS_SIDE_GOAL` names. A check reached through a key the change
 // moved, or through its own record changing, is due, less the heavy ones: a check that builds or
 // measures the release profile, fuzz, TSan, the database matrix, the two Linux legs and a check that is
-// never memoized. Those are named as deferred, and the loop's floor gate runs them. A check reached only
-// because its atoms were owed, red or never recorded before the change was red before the change, and
-// stays so until the goal is reached, so it is not due.
+// never memoized. Those are named as deferred, and the loop's floor gate runs them. A check whose atoms
+// were all picked only for being owed, red or never recorded before the change, none of them reached by
+// the change itself, was red before the change and stays so until the goal is reached, so it is not due.
 //
-// `--run` runs `nv verify` when it has anything to run, then the benches, then sweeps the checks that were due. A test
+// `--run` runs `nv verify` when it has anything to run, then the benches the change reached, then sweeps the checks that were due. A test
 // binary or case verify ran green is not picked again, so a check made of those is not started twice.
 //
 // Exits 0 when nothing reached is due, or when `--run` ran it green; 1 when something reached is due, or
@@ -46,7 +49,7 @@ import { ROOT } from "../lib/paths.ts";
 import { passthrough, run as proc } from "../lib/proc.ts";
 import { ENV as WRITES_ENV } from "../lib/written.ts";
 import { LEGS } from "../select/checks.ts";
-import { describe, type Selected } from "../select/select.ts";
+import { describe, reachedByChange, type Selected, touchesDef } from "../select/select.ts";
 import { verifyPlan } from "./verify.ts";
 
 export const summary = "what a change reaches and exactly what verifying it runs: nv affected [--since <rev> | --paths <p>...] [--run | --json]";
@@ -96,8 +99,11 @@ export interface Plan {
     /** Atoms the change reaches that verify does not run, by kind: they stay owed. */
     others: Record<string, number>;
   };
-  /** The benches the change reaches, which `--run` judges and records after verify. */
+  /** The benches the change itself reaches, which `--run` judges and records after verify. */
   benches: VerifyAtom[];
+  /** How many benches are selected only for being owed, red or never recorded from before the change:
+   * the loop's floor gate judges them. */
+  benchesBefore: number;
   acceptance: { checks: ReachedCheck[]; legs: Reached[] };
 }
 
@@ -159,17 +165,33 @@ export function reason(s: Selected): string {
 }
 
 /** The reasons a reached check's picked atoms give, each once, and whether all of them are from before
- * the change: owed, red, diverged or never recorded. */
-export function reasons(atoms: string[], picked: Map<string, Selected>): { by: string[]; before: boolean } {
+ * the change: picked only for being owed, red, diverged or never recorded, none of them reached by the
+ * change itself (`reachedByChange`, with `touched` from `touchesDef`). */
+export function reasons(atoms: string[], picked: Map<string, Selected>, touched: (id: string) => boolean = () => false): { by: string[]; before: boolean } {
   const by = new Set<string>();
   let before = true;
   for (const a of atoms) {
     const s = picked.get(a);
     if (!s) continue;
     by.add(reason(s));
-    if (s.why !== "owed" && s.why !== "red" && s.why !== "new" && s.why !== "diverged") before = false;
+    if (reachedByChange(s, touched)) before = false;
   }
   return { by: [...by].sort(), before: before && by.size > 0 };
+}
+
+/** The selected benches split in two: the ones the change itself reaches, which `--run` judges, and how
+ * many are selected only for being owed, red or never recorded from before the change, which wait for
+ * the loop's floor gate. */
+export function splitBenches(picked: Iterable<Selected>, touched: (id: string) => boolean): { judged: VerifyAtom[]; before: number } {
+  const judged: VerifyAtom[] = [];
+  let before = 0;
+  for (const s of picked) {
+    if (s.kind !== "bench") continue;
+    if (reachedByChange(s, touched)) judged.push({ id: s.id, why: reason(s) });
+    else before++;
+  }
+  judged.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return { judged, before };
 }
 
 export async function plan(change: Change, graph: Graph | null): Promise<Plan> {
@@ -182,6 +204,7 @@ export async function plan(change: Change, graph: Graph | null): Promise<Plan> {
   if (v.steps.length > 0) for (const s of v.sel.selected.keys()) if (s.startsWith("step:")) inVerify.add(s);
   const others: Record<string, number> = {};
   for (const s of v.sel.selected.values()) if (!inVerify.has(s.id) && s.kind !== "step" && s.kind !== "bench") others[s.kind] = (others[s.kind] ?? 0) + 1;
+  const benches = splitBenches(v.sel.selected.values(), touchesDef(v.change));
   const out: Plan = {
     change,
     verify: {
@@ -192,7 +215,8 @@ export async function plan(change: Change, graph: Graph | null): Promise<Plan> {
       cases: Object.values(v.cases).flatMap((cs) => cs.map((p) => ({ id: `case:${p}`, why: why(`case:${p}`) }))),
       others,
     },
-    benches: [...v.sel.selected.values()].filter((s) => s.kind === "bench").map((s) => ({ id: s.id, why: reason(s) })).sort((a, b) => (a.id < b.id ? -1 : 1)),
+    benches: benches.judged,
+    benchesBefore: benches.before,
     acceptance: { checks: [], legs: [] },
   };
   const found = currentPlan();
@@ -202,10 +226,11 @@ export async function plan(change: Change, graph: Graph | null): Promise<Plan> {
   const label = (n: number) => labels.get(n) ?? String(n);
   const sweep = await PlanSweep.open(checks, label, { full: false });
   try {
+    const touched = touchesDef(sweep.sel.change);
     for (const c of checks) {
       if (!sweep.reached(c)) continue;
       const g = sweep.groups.get(c.id);
-      const { by, before } = reasons(g?.atoms ?? [], sweep.sel.selected);
+      const { by, before } = reasons(g?.atoms ?? [], sweep.sel.selected, touched);
       // A check that was red before the change stays red until the goal is reached.
       if (before) continue;
       out.acceptance.checks.push({ id: c.id, name: c.name ?? c.file ?? c.id, by: by.length > 0 ? by : [c.memoize === false ? "never memoized" : "what it names beyond its atoms is not in the store"], deferred: isHeavy(c), before });
@@ -266,6 +291,7 @@ function print(p: Plan, asked: string[] | undefined): void {
   console.log(`\nbenches -- \`bun nv affected --run\` judges the growth of ${p.benches.length} bench(es) and records each:`);
   for (const b of p.benches.slice(0, 8)) console.log(`  ${b.id.slice(b.id.indexOf(":") + 1)}  <- ${b.why}`);
   if (p.benches.length > 8) console.log(`  +${p.benches.length - 8} more`);
+  if (p.benchesBefore > 0) console.log(`  ${p.benchesBefore} bench(es) owed, red or never recorded from before the change wait for the loop's floor gate, which judges every selected bench`);
 
   const run = due(p);
   const deferred = p.acceptance.checks.filter((x) => x.deferred).length + p.acceptance.legs.length;
@@ -329,16 +355,17 @@ export async function run(args: string[]): Promise<number> {
   if (!doRun) return owes(p) ? 1 : 0;
 
   // What was due is chosen before verify runs: verify moves the store's tree and marks what it did not run
-  // owed, so a plan read after it would take the change's own checks for debts from before.
+  // owed, so a plan read after it would take the change's own checks and benches for debts from before.
   const ids = new Set(due(p).map((x) => x.id));
+  const benches = new Set(p.benches.map((b) => b.id));
   if (p.verify.steps.length > 0) {
     console.log("");
     if ((await passthrough(["bun", "nv", "verify"], { timeoutMs: 3 * 60 * 60 * 1000 })) !== 0) return 1;
   }
-  if (p.benches.length > 0) {
+  if (benches.size > 0) {
     console.log("");
     const { runBenches } = await import("../proofs/select.ts");
-    const got = await runBenches((line) => console.log(`  ${line}`));
+    const got = await runBenches((line) => console.log(`  ${line}`), benches);
     if (typeof got === "string") {
       console.error(`affected: ${got}`);
       return 1;

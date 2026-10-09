@@ -6,7 +6,8 @@
 //
 // `sharedResources` decides it from the checks a sweep reached and the legs it runs. A sweep that uses any
 // of the three takes this lock before its first check and gives it back after its last: `cmd/loop.ts`'s
-// `sweepOver`, and `select/full.ts`'s full run around the plan checks it runs with the origin up. Only a
+// `sweepOver`, `select/full.ts`'s full run around the plan checks it runs with the origin up, and
+// `cmd/loop.ts`'s `benchTurn`, whose benches read their growth off the cores. Only a
 // sweep that needs the origin holds it up. A sweep that uses none of them takes neither the lock nor the
 // origin, so it never waits, and it never closes a listener that a sweep holding the lock is still using.
 //

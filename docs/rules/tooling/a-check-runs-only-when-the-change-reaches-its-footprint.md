@@ -9,7 +9,9 @@ could be keyed on. An edit of the repository's own `nvs.toml` moves only the par
 test that resolves that file whole runs on every edit of it. A selection turns
 the change since the recorded tree into keys and looks the atoms up under them. An atom that is new,
 last red, owed or diverged runs too, and so does every atom when a global file changes. Nothing else
-starts. `tools/nv/select/` is the one engine all four ask, `select.ts` there holds the rule and
+starts. A bench is judged on the release build, so `bun nv affected --run` judges only the benches the
+change itself reaches, and the loop judges every selected bench, owed, red and new ones included,
+whenever its floor gate is open. `tools/nv/select/` is the one engine all four ask, `select.ts` there holds the rule and
 `keys.ts` the keys, and `bun nv select --explain <atom>` says why one atom was chosen or not.
 
 What coverage cannot see is closed over the reference graph `tools/nv-scan --items` reads: a const, a

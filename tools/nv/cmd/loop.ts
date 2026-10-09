@@ -87,7 +87,11 @@
 // and a selection miss it finds is a red of the sweep. A scoped sweep that is green with checks held runs again over the whole
 // plan, collecting every red, since a goal is never reached on a held check. That goal-end sweep runs the
 // heavy checks and legs its goal reached, and on one goal end in three (`HEAVY_FULL_EVERY`, counted in the
-// store as `heavy-full:since`) every one of them, the safety net for the keys their twins record. After every sweep the disk is swept (`nv disk --clean`'s policy). A sweep that
+// store as `heavy-full:since`) every one of them, the safety net for the keys their twins record. Whenever
+// the floor gate is open, by its count or for a goal end, every bench the selection picks, owed, red, new
+// or reached, is then judged on the release build and recorded (`benchTurn`, through `proofs/select.ts`'s
+// `runBenches`), and a red bench is a red of the sweep. Sessions leave benches owed and `bun nv affected
+// --run` judges only the ones its change reached, so this is where the rest are paid. After every sweep the disk is swept (`nv disk --clean`'s policy). A sweep that
 // would reach the goal also runs the goal-end gates, rustdoc and owner, and a goal is reached only when
 // the sweep and both gates are green. Then `advance` makes the next goal on the chain live, commits
 // `data/chain.json`, brings up its services, and the run goes on; after the last goal the chain is complete.
@@ -858,6 +862,30 @@ async function fullRunTurn(note: (line: string) => void): Promise<string> {
   }
 }
 
+/**
+ * Every bench the selection picks, owed, red, new or reached, judged and recorded by `runBenches`. This
+ * is where the loop pays the bench debt the sessions' `nv verify` and every `bun nv affected --run`
+ * leave behind. A bench's growth is read off the cores as a perf guard's is, so the pass holds the sweep
+ * lock. Returns a red line naming the red benches, or the release build that failed, and "" when there
+ * is neither.
+ */
+async function benchTurn(note: (line: string) => void): Promise<string> {
+  const { runBenches } = await import("../proofs/select.ts");
+  const lock = await takeSweepLock({ note });
+  let got: Awaited<ReturnType<typeof runBenches>>;
+  try {
+    got = await runBenches(note);
+  } finally {
+    lock.release();
+  }
+  if (typeof got === "string") return `benches: the release build failed: ${got.split("\n")[0]}`;
+  for (const r of got.red) note(`benches: RED ${r.path}: ${r.findings.join("; ")}`);
+  note(`benches: ${got.reached} selected, ${got.ran} judged and recorded, ${got.skipped.size} skipped as proven, ${got.red.length} red`);
+  if (got.red.length === 0) return "";
+  const named = got.red.slice(0, 5).map((r) => r.path).join(", ");
+  return `benches: ${got.red.length} red bench(es), their growth failed: ${named}${got.red.length > 5 ? ", ..." : ""}`;
+}
+
 function setFloorSince(since: number): void {
   setMetaCount(FLOOR_META, since);
 }
@@ -1283,8 +1311,17 @@ async function serve(f: TurnFlags, state: RunState, fresh: boolean, touched: Tou
     cost = `${secs}s over ${result.ran} check(s), ${result.answered} not reached`;
     setMetaCount(HEAVY_FULL_META, heavyAll ? 0 : goalEnds);
   }
+  // With the floor gate open, every selected bench is judged after the sweep, and a red bench is a red
+  // of the sweep, as it is of `bun nv affected --run`.
+  let benchRed = "";
+  if (open) {
+    step("benches: every selected bench, owed, red, new or reached, is judged on the release build and recorded", C.CYAN);
+    TICKER.set({ phase: "benches, floor gate open" });
+    benchRed = await benchTurn((l) => say(`   ${l}`, C.GRAY));
+    if (benchRed) ledger(`       ${benchRed}`);
+  }
   setFloorSince(open ? 0 : since);
-  if (missed) result = { ...result, fail: result.fail ? allReds([result.fail, missed]) : missed };
+  for (const red of [missed, benchRed]) if (red) result = { ...result, fail: result.fail ? allReds([result.fail, red]) : red };
   step(`acceptance check done in ${mmss((performance.now() - checkedAt) / 1000)}`, C.CYAN);
   ledger(`       goal cost: ${cost}${open ? "" : `, ${heldBack.length} held (floor gate shut)`}`);
   // Every session: the sweep has just left the build warm, nothing is building, and a day of builds is what fills `target/`.
