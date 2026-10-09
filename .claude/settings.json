@@ -196,7 +196,8 @@
       "Bash(bun nv allow:*)",
       "PowerShell(bun nv allow:*)",
       "Bash(bun nv sweep:*)",
-      "PowerShell(bun nv sweep:*)"
+      "PowerShell(bun nv sweep:*)",
+      "Bash(bunx tsc:*)"
     ]
   }
 }
