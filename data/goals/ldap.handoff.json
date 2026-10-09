@@ -1,33 +1,33 @@
 {
-  "state": "**Goal `ldap`, Stage 10 (the feature proofs) is under way.** Stages 1 to 5 and 7 to 9 are done; Stage 4 lacks only a CA a program supplies, and Stage 6 lacks only wiring the schema into the readers. `Core\\Ldap`, `Core\\Ldap\\Filter`, `Core\\Ldap\\Dn`, `Core\\Ldap\\Sid`, `Core\\Ldap\\Ad` and `Core\\Ldap\\Change` owe nothing.\n\n**The `samba-ad` domain is seeded, and the root `[ldap.corp]` reaches it.** The `20-novis-seed` script in `tests/db/compose.yaml` writes `OU=Company` before Samba starts (its comment lists every user, group and password), so healthy means seeded. The root `nvs.toml`'s `[ldap.corp]` binds over LDAPS at `localhost:16636` as the read-only `CN=Reader,OU=Company,DC=example,DC=test`, with `base` and `tls_ca_file`. A proof program that opens it carries `// requires: samba-ad`. The `Core\\Ldap::connect` examples 01 and 03 and its attack now run live, and their `.out` show seeded people. All 52 live `.nvst` cases and the Rust `ldap` and `samba` tests pass on the seeded domain.\n\n**Every flag reader is a feature that owes every proof** (`data/proofs/policy.json` has no exclusion by kind). `Entry::accountFlags` and `Entry::groupType` are the only way to get a flag object, so the `AccountFlags` and `GroupType` proofs read seeded entries: `carla.diaz` has `mustChangePassword` and a computed `passwordExpired`, `dora.lind` is `disabled`, `ben.kohl` has `passwordNeverExpires`, `Newsletter` is a distribution group, and `Employees`/`Managers` are global security groups.\n\n**Traps for a live proof.** A search returns entries in no fixed order, and GUIDs, SIDs and timestamps differ per boot, so an example sorts what it prints and never prints those. A catch variable or a `var` reused in one file with another type does not compile (E0406): name each `LogicError` catch `$refusal` and each `Throwable` catch `$error`. An instance member's `covers:` line in a `.nvst` case goes at the end of the `--FILE--` block.",
+  "state": "**Goal `ldap`, Stage 10 (the feature proofs) is under way.** Stages 1 to 5 and 7 to 9 are done; Stage 4 lacks only a CA a program supplies, and Stage 6 lacks only wiring the schema into the readers. `Core\\Ldap`, `Core\\Ldap\\Filter`, `Core\\Ldap\\Dn`, `Core\\Ldap\\Sid`, `Core\\Ldap\\Ad` and `Core\\Ldap\\Change` owe nothing.\n\n**Every `Core\\Ldap\\Entry` member has its tests proof.** The Rust unit test `every_entry_reader_reads_its_own_form` in `crates/nvs-stdlib/src/ldap/value.rs` calls all 17 readers through `call` on an in-memory entry, and six `ldap-*.nvst` cases carry `covers:` lines for them. Each of the 17 still owes `about.md`, three examples, one attack and one bench: `bun nv proofs --verify --group 'Core\\Ldap\\Entry'` lists them.\n\n**The `samba-ad` domain is seeded, and the root `[ldap.corp]` reaches it.** The `20-novis-seed` script in `tests/db/compose.yaml` writes `OU=Company` before Samba starts (its comment lists every user, group and password). The root `nvs.toml`'s `[ldap.corp]` binds over LDAPS at `localhost:16636` as the read-only `CN=Reader,OU=Company,DC=example,DC=test`. A proof program that opens it carries `// requires: samba-ad`, and a bench does too (`benches/members/README.md`). `docs/examples/core/Ldap/connect/` is the model for an example, an attack and a bench.\n\n**Seeded facts a proof can print:** `carla.diaz` has `mustChangePassword` and a computed `passwordExpired`, `dora.lind` is `disabled`, `ben.kohl` has `passwordNeverExpires`, `Newsletter` is a distribution group, and `Employees`/`Managers` are global security groups.\n\n**Traps for a live proof.** A search returns entries in no fixed order, and GUIDs, SIDs and timestamps differ per boot, so an example sorts what it prints and never prints those. A catch variable or a `var` reused in one file with another type does not compile (E0406): name each `LogicError` catch `$refusal` and each `Throwable` catch `$error`. An instance member's `covers:` line in a `.nvst` case goes at the end of the `--FILE--` block.",
   "next": {
     "stage": 10,
     "title": "the feature proofs, read from the seeded directory",
     "files": [
       "docs/examples/core/Ldap-Entry/",
       "tests/hostile/core/Ldap-Entry/",
-      "benches/members/core/Ldap-Entry/",
-      "tests/conformance/core/ldap-entry-*.nvst"
+      "benches/members/core/Ldap-Entry/"
     ],
+    "note": "Take the members a few at a time; each owes `about.md`, three examples with `.out` from `--bless`, one attack and one bench.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Ldap\\Entry` owes nothing** (`rule:testing/feature-proofs`; `bun nv proofs --id 'Core\\Ldap\\Entry::toArray'` prints the paths). `toArray` is at `crates/nvs-stdlib/src/ldap/search.rs:682`, and `groupType` and `accountType` are at `crates/nvs-stdlib/src/ldap/value.rs:226`. Each example, attack and bench carries `// requires: samba-ad` and reads `OU=Company` through `[ldap.corp]`. `--bless` each example and read its `.out`."
+        "text": "**The text readers `dn`, `has`, `string`, `strings`, `bytes` and `toArray` owe nothing** (`rule:testing/feature-proofs`). They are at `crates/nvs-stdlib/src/ldap/search.rs:682` to `crates/nvs-stdlib/src/ldap/search.rs:760`. Each program carries `// requires: samba-ad` and reads `OU=Company` through `[ldap.corp]`."
       },
       {
         "done": false,
-        "text": "**`Core\\Ldap\\Ad\\AccountFlags` and `Core\\Ldap\\Ad\\GroupType` owe nothing**, reading flags from the seeded users and groups (`crates/nvs-stdlib/src/ldap/flags.rs:18`). Their tests are done. They owe the about page, the examples, the attack and the bench."
+        "text": "**The typed readers `int`, `bool`, `uuid`, `sid`, `sids`, `instant`, `duration` and `isDeleted` owe nothing**, at `crates/nvs-stdlib/src/ldap/value.rs:85` to `crates/nvs-stdlib/src/ldap/value.rs:187` and `crates/nvs-stdlib/src/ldap/search.rs:708`. An example never prints a GUID, SID or timestamp, only what it compares to."
       },
       {
         "done": false,
-        "text": "**`Core\\Ldap\\Entries` (`references`, `total`) and `Core\\Ldap\\Changes` (`cookie`)**, whose Rust `covers:` marker is missing too (`crates/nvs-stdlib/tests/ldap.rs:1`)."
+        "text": "**The AD readers `accountFlags`, `groupType` and `accountType` owe nothing**, at `crates/nvs-stdlib/src/ldap/value.rs:206` to `crates/nvs-stdlib/src/ldap/value.rs:248`, reading the seeded users and groups."
       }
     ]
   },
   "backlog": [
-    "`Core\\Ldap\\Connection::setPassword`, `changePassword` and `compare` owe every proof. A write needs an account of its own that a proof creates and deletes, because `Reader` changes nothing (`rule:testing/feature-proofs`).",
-    "Stage 6: wire the schema into the readers (`docs/agent/goals/ldap.md`).",
-    "Stage 4: a CA a program supplies (`docs/agent/goals/ldap.md`).",
-    "A run against a Windows Server evaluation VM is the user's to do by hand."
+    "`Core\\Ldap\\Ad\\AccountFlags` and `Core\\Ldap\\Ad\\GroupType` owe `about.md`, examples, an attack and a bench for every member (`crates/nvs-stdlib/src/ldap/flags.rs`); their tests are paid.",
+    "`Core\\Ldap\\Entries` (`references`, `total`) and `Core\\Ldap\\Changes` (`cookie`) owe every proof, and a Rust `covers:` marker (`crates/nvs-stdlib/tests/ldap.rs`).",
+    "`Core\\Ldap\\Connection` (`setPassword`, `changePassword`, `compare`) owes every proof (`crates/nvs-stdlib/tests/ldap.rs:1525`, `crates/nvs-stdlib/tests/ldap.rs:1664`).",
+    "Stage 4: a CA a program supplies. Stage 6: wiring the schema into the readers."
   ]
 }
