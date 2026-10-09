@@ -1,8 +1,9 @@
 ---
 /**
  * The front page's hero, in two rows. The first is the page's one `<h1>`,
- * centred across the full width: the name Novis-Lang, the headline and the
- * slogan. The second is the tagline, the two calls to action and the facts
+ * centred across the full width: the name Novis-Lang, the headline with the
+ * small note "and the command line" above its words "web applications", and
+ * the slogan. The second is the tagline, the two calls to action and the facts
  * beside a code window with three small web programs. The programs come in
  * through the named slots `html`, `sql` and `secret`, because the site
  * checker finds a page's snippets in the page itself. The second row has two
@@ -70,7 +71,13 @@ const phrases = [
   <div class="title">
     <h1 id="_top" data-page-title>
       <span class="brand">Novis-Lang</span>
-      <span class="headline">The programming language for web applications.</span>
+      <span class="headline"
+        >The programming language for <span class="noted"
+          >web applications<span class="note"
+            ><span class="sr-only"> (</span>and the command line<span class="sr-only">)</span></span
+          ></span
+        >.</span
+      >
       <span class="slogan" data-slogan>
         <span class="slogan-text nv-gradient-text">Fast. <span class="keep">Secure by default.</span></span>
         <span class="rotator" aria-hidden="true">
@@ -85,10 +92,6 @@ const phrases = [
 
   <div class="copy">
     <div class="text">
-      <p class="intro">
-        Novis is a programming language for{' '}
-        <span class="noted">web applications<span class="note"><span class="sr-only"> (</span>and the command line<span class="sr-only">)</span></span></span>.
-      </p>
       <p class="tagline">
         You can build a business app, a website, an API or any other web service with it. The tools that a modern
         web application needs are built in.
@@ -623,33 +626,26 @@ const phrases = [
     text-wrap: pretty;
   }
 
-  /* The first sentence, a little larger. Its tall lines leave room for the
-     note above "web applications" on whichever line those words land. */
-  .intro {
-    margin: 0;
-    padding-block-start: 0.7em;
-    font-size: var(--sl-text-xl);
-    font-weight: 650;
-    line-height: 1.9;
-    letter-spacing: -0.01em;
-    color: var(--sl-color-white);
-    text-wrap: balance;
-  }
-  .noted {
-    position: relative;
-    white-space: nowrap;
-  }
   /* "and the command line" is a small note written above "web applications",
      tilted a little, like a word added to a finished sentence. It stays out
      of the line, so the sentence reads on without it. A screen reader reads
-     it in brackets after the two words. */
+     it in brackets after the two words. The two words are an inline block
+     with room above them for the note, so only their line is taller and the
+     note never touches the line above. */
+  .noted {
+    --note-size: max(0.8rem, 0.3em);
+    position: relative;
+    display: inline-block;
+    padding-block-start: calc(var(--note-size) + 0.24em);
+    white-space: nowrap;
+  }
   .note {
     position: absolute;
     inset-inline-start: 50%;
-    inset-block-end: 98%;
+    inset-block-start: 0.13em;
     translate: -50% 0;
-    rotate: -4deg;
-    font-size: 0.68em;
+    rotate: -3deg;
+    font-size: var(--note-size);
     font-weight: 700;
     line-height: 1;
     letter-spacing: 0.01em;
@@ -659,6 +655,7 @@ const phrases = [
   }
   .note::before {
     content: '+ ';
+    content: '+ ' / '';
     color: var(--nv-gold);
   }
   :global(:root[data-theme='light']) .note::before {
@@ -925,9 +922,6 @@ const phrases = [
     }
     .tagline {
       font-size: var(--sl-text-base);
-    }
-    .intro {
-      font-size: var(--sl-text-lg);
     }
     .actions {
       width: 100%;
