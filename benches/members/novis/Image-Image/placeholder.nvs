@@ -13,7 +13,7 @@ class Bench {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            string $text = Image::placeholder($photo, $kinds[$total % 2]);
+            string $text = Image::placeholder($photo, $kinds[($i % 2) as int]);
             $total = $total + Core\Str::length($text);
             $i = $i + 1;
         }
