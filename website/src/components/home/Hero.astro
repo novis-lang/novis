@@ -2,7 +2,7 @@
 /**
  * The front page's hero, in two rows. The first is the page's one `<h1>`,
  * centred across the full width: the name Novis-Lang, the headline with a
- * small badge "and the command line" above its words "web applications", and
+ * small badge "and the command line" below its words "web applications", and
  * the slogan. The second is the tagline, the two calls to action and the facts
  * beside a code window with three small web programs. The programs come in
  * through the named slots `html`, `sql` and `secret`, because the site
@@ -695,24 +695,27 @@ const phrases = [
     text-wrap: pretty;
   }
 
-  /* "and the command line" is a small badge just above "web applications",
+  /* "and the command line" is a small badge just below "web applications",
      as wide as the two words, with its text centred. It stays out of the
      line, so the sentence reads on without it. A screen reader reads it in
      brackets after the two words. The two words are an inline block with
-     room above them for the badge, so only their line is taller and the
-     badge never touches the line above. The badge is 1.6 times its text
-     size tall, with a 0.35 gap above it. */
+     room below them for the badge, so only their line is taller. The badge
+     is 1.6 times its text size tall, and its top edge is the bottom of the
+     words' line box. The descenders of the two "p"s reach a little further
+     down, so they overhang the badge. The badge is drawn behind the words. */
   .noted {
     --note-size: max(0.75rem, 0.26em);
     position: relative;
+    isolation: isolate;
     display: inline-block;
-    padding-block-start: calc(var(--note-size) * 1.95 + 2px + 0.14em);
+    padding-block-end: calc(var(--note-size) * 1.6 + 2px);
     white-space: nowrap;
   }
   .note {
     position: absolute;
+    z-index: -1;
     inset-inline: 0;
-    inset-block-start: 0.35em;
+    inset-block-end: 0;
     padding: 0.2em 0.6em;
     border: 1px solid color-mix(in oklab, var(--sl-color-accent) 35%, transparent);
     border-radius: var(--nv-radius-pill);
@@ -742,7 +745,7 @@ const phrases = [
   @keyframes note-in {
     from {
       opacity: 0;
-      translate: 0 0.4em;
+      translate: 0 -0.4em;
     }
     to {
       opacity: 1;
