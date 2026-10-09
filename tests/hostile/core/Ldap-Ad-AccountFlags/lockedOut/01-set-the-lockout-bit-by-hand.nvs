@@ -1,0 +1,32 @@
+<?nvs
+// Attack: a program tries to lock an account itself, by setting every flag a program may set.
+// `lockedOut` must only come from the server, and nothing may crash.
+// hostile: timeout-ms 60000
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect('corp');
+
+try {
+    var $found = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['userAccountControl'] })?->accountFlags();
+    if ($found != null) {
+        Core\Ldap\Ad\AccountFlags $flags = $found;
+
+        // 1. Every flag set. `lockedOut` must still be `false`.
+        var $all = $flags->with({ script: true, disabled: true, homeDirectoryRequired: true, passwordNotRequired: true, reversibleEncryption: true, temporaryDuplicateAccount: true, normalAccount: true, interdomainTrustAccount: true, workstationTrustAccount: true, serverTrustAccount: true, passwordNeverExpires: true, mnsLogonAccount: true, smartcardRequired: true, trustedForDelegation: true, notDelegated: true, useDesKeyOnly: true, noPreauthRequired: true, trustedToAuthForDelegation: true, partialSecretsAccount: true });
+        echo '1 locked out: ', $all->lockedOut() ? 'yes' : 'no', "\n";
+
+        // 2. The account read again one thousand times. A wrong answer is counted.
+        uint $wrong = 0;
+        uint $i = 0;
+        while ($i < 1000) {
+            var $again = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['userAccountControl'] })?->accountFlags();
+            if ($again == null || $again->lockedOut()) {
+                $wrong = $wrong + 1;
+            }
+            $i = $i + 1;
+        }
+        echo '2 wrong: ', $wrong, "\n";
+    }
+} catch (Throwable $error) {
+    echo "threw\n";
+}

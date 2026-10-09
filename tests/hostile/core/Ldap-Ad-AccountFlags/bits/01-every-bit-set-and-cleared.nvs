@@ -1,0 +1,38 @@
+<?nvs
+// Attack: a program sets and clears every flag in turn and reads the number each time, to push it
+// past what 32 bits can hold. The number must stay a 32-bit `userAccountControl`, and nothing may crash.
+// hostile: timeout-ms 60000
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect('corp');
+
+try {
+    var $flags = $corp->read('CN=Ben Kohl,OU=Company,DC=example,DC=test', { select: ['userAccountControl'] })?->accountFlags();
+    if ($flags != null) {
+        Core\Ldap\Ad\AccountFlags $changed = $flags;
+
+        // 1. Every flag set and cleared, one hundred thousand times. The smallest and largest number are kept.
+        int $low = 0;
+        int $high = 0;
+        uint $i = 0;
+        while ($i < 100000) {
+            bool $on = $i % 2 == 0;
+            $changed = $changed->with({ script: $on, disabled: $on, homeDirectoryRequired: $on, passwordNotRequired: $on, reversibleEncryption: $on, temporaryDuplicateAccount: $on, normalAccount: $on, interdomainTrustAccount: $on, workstationTrustAccount: $on, serverTrustAccount: $on, passwordNeverExpires: $on, mnsLogonAccount: $on, smartcardRequired: $on, trustedForDelegation: $on, notDelegated: $on, useDesKeyOnly: $on, noPreauthRequired: $on, trustedToAuthForDelegation: $on, partialSecretsAccount: $on });
+            int $bits = $changed->bits();
+            if ($i == 0 || $bits < $low) {
+                $low = $bits;
+            }
+            if ($bits > $high) {
+                $high = $bits;
+            }
+            $i = $i + 1;
+        }
+        echo '1 low: ', $low, ' high: ', $high, "\n";
+
+        // 2. Every flag cleared. Only the bits no flag names are left.
+        var $none = $changed->with({ script: false, disabled: false, homeDirectoryRequired: false, passwordNotRequired: false, reversibleEncryption: false, temporaryDuplicateAccount: false, normalAccount: false, interdomainTrustAccount: false, workstationTrustAccount: false, serverTrustAccount: false, passwordNeverExpires: false, mnsLogonAccount: false, smartcardRequired: false, trustedForDelegation: false, notDelegated: false, useDesKeyOnly: false, noPreauthRequired: false, trustedToAuthForDelegation: false, partialSecretsAccount: false });
+        echo '2 bits: ', $none->bits(), "\n";
+    }
+} catch (Throwable $error) {
+    echo "threw\n";
+}

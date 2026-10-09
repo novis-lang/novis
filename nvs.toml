@@ -981,6 +981,24 @@ root = "benches/members/core/Ldap-Ad-GroupType"
 [app.capabilities.ldap]
 connect = ["corp"]
 
+[[app]]
+root = "docs/examples/core/Ldap-Ad-AccountFlags"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+root = "tests/hostile/core/Ldap-Ad-AccountFlags"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+root = "benches/members/core/Ldap-Ad-AccountFlags"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
 # `Core\Db\Column`'s proof programs, granted the same way and for the same reason: a description is
 # read off a statement, so every one of these opens `[db.notes]` by name and asks for nothing else.
 [[app]]

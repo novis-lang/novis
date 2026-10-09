@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to find the people who must change their password at the next login.
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect("corp");
+var $found = $corp->search(
+    Core\Ldap\Filter::equals("objectClass", "user"),
+    {base: "OU=Company,DC=example,DC=test", select: ["userAccountControl"]},
+);
+
+array<tainted string> $names = [];
+foreach ($found as Core\Ldap\Entry $person) {
+    var $flags = $person->accountFlags();
+    if ($flags != null && $flags->mustChangePassword()) {
+        $names[] = $person->dn()->rdnValue();
+    }
+}
+
+// The server sends entries in no fixed order, so the names are sorted.
+// This prints `Carla Diaz`.
+foreach (Core\Arr::sort($names) as tainted string $name) {
+    echo $name, "\n";
+}

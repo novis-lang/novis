@@ -1,0 +1,31 @@
+<?nvs
+// Measures how fast `with` makes a changed copy of an account's flags, as a program does before it disables an account.
+// bench: iterations 400000
+// bench: calls 0
+// bench: complexity constant
+// requires: samba-ad
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $corp = Core\Ldap::connect("corp");
+        var $found = $corp->read("CN=Anna Berg,OU=Company,DC=example,DC=test", {select: ["userAccountControl"]})?->accountFlags();
+        if ($found == null) {
+            return 0;
+        }
+        Core\Ldap\Ad\AccountFlags $flags = $found;
+        // Each round sets the flag from the total of the round before, so the loop cannot be left out.
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            if ($flags->with({disabled: $total % 2 == 0})->disabled()) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 2;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

@@ -1,0 +1,48 @@
+<?nvs
+// Attack: a program reads the same people many times and changes every flag of a copy, to make
+// `mustChangePassword` give a wrong result. Each wrong result is counted, and nothing may crash.
+// hostile: timeout-ms 60000
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect('corp');
+
+try {
+    // 1. Two people read five hundred times. Only Carla Diaz must change her password.
+    uint $wrong = 0;
+    uint $i = 0;
+    while ($i < 500) {
+        var $carla = $corp->read('CN=Carla Diaz,OU=Company,DC=example,DC=test', { select: ['userAccountControl'] })?->accountFlags();
+        var $anna = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['userAccountControl'] })?->accountFlags();
+        if ($carla == null || !$carla->mustChangePassword()) {
+            $wrong = $wrong + 1;
+        }
+        if ($anna == null || $anna->mustChangePassword()) {
+            $wrong = $wrong + 1;
+        }
+        $i = $i + 1;
+    }
+    echo '1 wrong: ', $wrong, "\n";
+
+    // 2. Every flag of a copy changed one hundred thousand times. The copy must keep the value.
+    var $found = $corp->read('CN=Carla Diaz,OU=Company,DC=example,DC=test', { select: ['userAccountControl'] })?->accountFlags();
+    if ($found != null) {
+        Core\Ldap\Ad\AccountFlags $changed = $found;
+        uint $lost = 0;
+        uint $round = 0;
+        while ($round < 100000) {
+            bool $on = $round % 2 == 0;
+            $changed = $changed->with({ disabled: $on, normalAccount: !$on, passwordNeverExpires: $on, passwordNotRequired: $on });
+            if (!$changed->mustChangePassword()) {
+                $lost = $lost + 1;
+            }
+            $round = $round + 1;
+        }
+        echo '2 lost: ', $lost, "\n";
+    }
+
+    // 3. A group has no account flags, so there is nothing to read.
+    var $group = $corp->read('CN=Employees,OU=Company,DC=example,DC=test', { select: ['userAccountControl'] })?->accountFlags();
+    echo '3 group: ', $group == null ? 'null' : 'flags', "\n";
+} catch (Throwable $error) {
+    echo "threw\n";
+}

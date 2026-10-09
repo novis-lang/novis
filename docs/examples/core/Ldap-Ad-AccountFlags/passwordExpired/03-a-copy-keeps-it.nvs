@@ -1,0 +1,13 @@
+<?nvs
+// Shows that a copy made with `with` keeps `passwordExpired`, because a program cannot change it.
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect("corp");
+var $flags = $corp->read("CN=Anna Berg,OU=Company,DC=example,DC=test", {select: ["userAccountControl"]})?->accountFlags();
+
+if ($flags != null) {
+    // Anna Berg's password is still valid.
+    // Clearing `passwordNeverExpires` does not change that. This prints `false` twice.
+    echo $flags->passwordExpired() ? "true" : "false", "\n";
+    echo $flags->with({passwordNeverExpires: false})->passwordExpired() ? "true" : "false", "\n";
+}
