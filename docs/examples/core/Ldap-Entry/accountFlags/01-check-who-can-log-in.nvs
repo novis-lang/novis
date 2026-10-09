@@ -1,0 +1,24 @@
+<?nvs
+// Shows how to check which accounts are disabled.
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect("corp");
+array<string> $dns = [
+    "CN=Anna Berg,OU=Company,DC=example,DC=test",
+    "CN=Dora Lind,OU=Company,DC=example,DC=test",
+];
+
+foreach ($dns as string $dn) {
+    var $person = $corp->read($dn, {select: ["userAccountControl"]});
+    if ($person == null) {
+        continue;
+    }
+    // `accountFlags` returns one `bool` for each flag of `userAccountControl`.
+    // This prints `Anna Berg: can log in` and `Dora Lind: disabled`.
+    var $flags = $person->accountFlags();
+    if ($flags != null && $flags->disabled()) {
+        echo $person->dn()->rdnValue(), ": disabled\n";
+    } else {
+        echo $person->dn()->rdnValue(), ": can log in\n";
+    }
+}

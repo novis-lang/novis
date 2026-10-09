@@ -1,0 +1,49 @@
+<?nvs
+// Attack: a program reads the account type of every entry under the domain, and of entries
+// read without `sAMAccountType`. Each call must return a type, return `null` or throw an error.
+// hostile: timeout-ms 60000
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect('corp');
+
+// 1. Every entry in the domain, read with `sAMAccountType`, many times each.
+uint $typed = 0;
+uint $none = 0;
+uint $threw = 0;
+try {
+    var $found = $corp->search(Core\Ldap\Filter::present('objectClass'), { base: 'DC=example,DC=test', select: ['sAMAccountType'] });
+    foreach ($found as Core\Ldap\Entry $entry) {
+        uint $i = 0;
+        while ($i < 200) {
+            try {
+                if ($entry->accountType() == null) {
+                    $none = $none + 1;
+                } else {
+                    $typed = $typed + 1;
+                }
+            } catch (LogicError $refusal) {
+                $threw = $threw + 1;
+            }
+            $i = $i + 1;
+        }
+    }
+} catch (Throwable $error) {
+    echo "1 threw\n";
+}
+echo '1 typed: ', $typed, ' null: ', $none, ' threw: ', $threw, "\n";
+
+// 2. One account read without `sAMAccountType`, so the type is never there.
+try {
+    var $person = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['cn', 'sAMAccountName'] });
+    uint $missing = 0;
+    uint $round = 0;
+    while ($round < 100000) {
+        if ($person?->accountType() == null) {
+            $missing = $missing + 1;
+        }
+        $round = $round + 1;
+    }
+    echo '2 null: ', $missing, "\n";
+} catch (Throwable $error) {
+    echo "2 threw\n";
+}

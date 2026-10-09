@@ -1,0 +1,29 @@
+<?nvs
+// Measures how fast `accountType` reads what kind of account an entry is, as a program does to keep only people.
+// bench: iterations 400000
+// bench: calls 0
+// bench: complexity constant
+// requires: samba-ad
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $corp = Core\Ldap::connect("corp");
+        var $found = $corp->read("CN=Anna Berg,OU=Company,DC=example,DC=test", {select: ["sAMAccountType"]});
+        if ($found == null) {
+            return 0;
+        }
+        Core\Ldap\Entry $person = $found;
+        // Each round uses the total of the round before, so the loop cannot be left out.
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            if ($person->accountType() == Core\Ldap\Ad\AccountType::User) {
+                $total = $total + 1 + $total % 2;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to count the people among the entries of a search.
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect("corp");
+var $found = $corp->search(
+    Core\Ldap\Filter::present("sAMAccountType"),
+    {base: "OU=Company,DC=example,DC=test", select: ["sAMAccountType"]},
+);
+
+// `OU=Company` has five users and three groups.
+// This prints `5 people, 3 other entries`.
+uint $people = 0;
+uint $other = 0;
+foreach ($found as Core\Ldap\Entry $entry) {
+    if ($entry->accountType() == Core\Ldap\Ad\AccountType::User) {
+        $people = $people + 1;
+    } else {
+        $other = $other + 1;
+    }
+}
+echo $people, " people, ", $other, " other entries\n";

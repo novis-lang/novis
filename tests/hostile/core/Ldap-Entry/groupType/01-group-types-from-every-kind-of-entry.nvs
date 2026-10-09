@@ -1,0 +1,55 @@
+<?nvs
+// Attack: a program reads a group type from entries that are not groups, and changes it many times.
+// Each call must return a group type, return `null` or throw an error, and nothing may crash.
+// hostile: timeout-ms 60000
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect('corp');
+array<string> $dns = [
+    'DC=example,DC=test',
+    'OU=Company,DC=example,DC=test',
+    'CN=Anna Berg,OU=Company,DC=example,DC=test',
+    'CN=Employees,OU=Company,DC=example,DC=test',
+    'CN=Newsletter,OU=Company,DC=example,DC=test',
+];
+
+// 1. Every kind of entry, with and without `groupType` selected, read many times.
+uint $none = 0;
+uint $threw = 0;
+foreach ($dns as string $dn) {
+    try {
+        var $plain = $corp->read($dn, { select: ['cn'] });
+        var $selected = $corp->read($dn, { select: ['groupType'] });
+        uint $i = 0;
+        while ($i < 5000) {
+            if ($plain?->groupType() == null) {
+                $none = $none + 1;
+            }
+            if ($selected?->groupType() == null) {
+                $none = $none + 1;
+            }
+            $i = $i + 1;
+        }
+    } catch (Throwable $error) {
+        $threw = $threw + 1;
+    }
+}
+echo '1 null: ', $none, ' threw: ', $threw, "\n";
+
+// 2. The security flag and every scope set and cleared, one hundred thousand times.
+try {
+    var $found = $corp->read('CN=Employees,OU=Company,DC=example,DC=test', { select: ['groupType'] });
+    var $type = $found?->groupType();
+    if ($type != null) {
+        Core\Ldap\Ad\GroupType $changed = $type;
+        uint $round = 0;
+        while ($round < 100000) {
+            bool $on = $round % 2 == 0;
+            $changed = $changed->with({ security: $on, system: $on, global: !$on, universal: $on, domainLocal: $on });
+            $round = $round + 1;
+        }
+        echo '2 bits: ', $changed->bits(), "\n";
+    }
+} catch (Throwable $error) {
+    echo "2 threw\n";
+}
