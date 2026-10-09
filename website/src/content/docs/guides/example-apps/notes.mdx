@@ -39,23 +39,23 @@ the same folder. Your notes are kept there, so they are still there after a rest
 ## Run the tests
 
 ```sh
-nvs test tests/
+nvs test .
 ```
 
-`nvs test` reads every file in the folder `tests` as one program and runs each `#[Test]` method:
+`nvs test .` reads every `.nvs` file in the folder as one program and runs each `#[Test]` method:
 
 ```txt
-  AppTest
+  Notes\AppTest
     ✓ theHomePageShowsTheForm          12.4 ms
     ✓ aFormWithNoTitleShowsTheProblem  0.5 ms
     ✓ theApiChecksTheJson              0.2 ms
     ✓ aMissingNoteIsNotFound           0.4 ms
-  DraftTest
+  Notes\DraftTest
     ✓ aTitleAndATextAreValid           0.1 ms
     ✓ aTitleWithOnlySpacesIsNotValid   0.1 ms
     ✓ aLongTitleIsNotValid             0.1 ms
     ✓ anEmptyTextIsValid               0.0 ms
-  StoreTest
+  Notes\StoreTest
     ✓ aSavedNoteCanBeFound             0.6 ms
     ✓ theNewestNoteIsFirst             0.3 ms
     ✓ aMissingNoteIsNull               0.2 ms
@@ -72,14 +72,12 @@ notes/
     index.nvs          the entry file: every request starts here
   src/
     App.nvs            the routes, and the method that sends each request to its route
+    AppTest.nvs        sends requests to the app and checks the responses
     Draft.nvs          a note from the form or the API, and the checks on it
+    DraftTest.nvs      tests the checks on a new note
     Note.nvs           a saved note
     Pages.nvs          the HTML pages
     Store.nvs          reads and saves notes in the database
-  tests/
-    bootstrap.nvs      loads the entry file, so the tests can use every class
-    AppTest.nvs        sends requests to the app and checks the responses
-    DraftTest.nvs      tests the checks on a new note
     StoreTest.nvs      tests saving and reading notes
 ```
 
@@ -126,10 +124,10 @@ curl http://127.0.0.1:8000/api/notes
 
 1. Copy the folder `apps/notes` and give it the name of your app.
 2. Choose a namespace for your app, for example `Shop`. Change `namespace Notes;` in each file
-   under `src/`. Change the `autoload` line in `public/index.nvs` and the `use` lines in the tests.
+   under `src/`, and the `autoload` line in `public/index.nvs`.
 3. In `nvs.toml`, rename the database `notes` and its file. Change the name in
    `[capabilities.db]` and in the call to `Core\Db::connect` in `src/App.nvs`.
-4. Delete the classes you do not need, and their tests. Run `nvs test tests/` after each change.
+4. Delete the classes you do not need, and their tests. Run `nvs test .` after each change.
 
 Notes has no login. Anybody who can open the page can write a note. Before you put an app like this
 on the internet, add a login and a [CSRF token](/reference/core/csrf/) to each form. Then read the

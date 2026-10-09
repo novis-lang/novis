@@ -1,0 +1,4 @@
+<?nvs
+autoload 'Shop' from '../src';
+
+echo (new Shop\Cart())->total();

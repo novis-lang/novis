@@ -1,4 +1,6 @@
 <?nvs
+namespace Notes;
+
 use Core\Http\Method;
 use Core\Str;
 use Core\Test;

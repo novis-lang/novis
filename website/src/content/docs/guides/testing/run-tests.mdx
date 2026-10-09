@@ -37,11 +37,12 @@ A failed assertion prints the value it got and the value it expected:
 When a test fails, `nvs test` exits with the status `1`. Your build stops there. A skipped test is
 not a failure.
 
-## Run a whole folder
+## Run every test in a project
 
-`nvs test tests/` reads every `.nvs` file in the folder, and in the folders under it. Novis reads
-them as one program and runs every test in it. One file in the folder requires your entry file,
-so the tests can use your classes.
+`nvs test .` reads every `.nvs` file in the current folder, and in the folders under it. Novis
+reads them as one program and runs every test in it. Run it from your project folder. Your entry
+file is in that folder, so the tests can use your classes. Read
+[Project layout](/guides/how-to-use/project-layout/) for where the tests go.
 
 ## Useful options
 

@@ -552,14 +552,14 @@ enum Command {
     /// Run a program's `#[Test]` methods, or a tree of `.nvst` conformance
     /// cases.
     ///
-    /// Which one runs is read off the path. A `.nvs` file is a program, and
-    /// its `#[Test]` methods run. A directory holding `.nvs` files is one
-    /// program made of every `.nvs` file under it, in name order: put one file
-    /// in the directory that requires your application's bootstrap file, and
-    /// every test file in it sees the classes that file loads. Anything else
-    /// is a `.nvst` case file or a directory walked for `*.nvst`. A directory
-    /// holding both kinds of file is refused, and the two kinds never run in
-    /// one invocation: they report differently and share no summary.
+    /// The path decides which one runs. A `.nvs` file is a program, and its
+    /// `#[Test]` methods run. A folder with `.nvs` files is one program made of
+    /// every `.nvs` file in it and in its subfolders. Run `nvs test .` in your
+    /// project folder to run every test in the project. The entry file is in
+    /// that folder, so its `autoload` line loads your classes for every test.
+    /// Any other path is a `.nvst` case file or a folder of `.nvst` files. A
+    /// folder with both kinds of file is an error, because the two kinds have
+    /// different reports.
     ///
     /// Exits non-zero if any case or any test failed; a skipped one is not a
     /// failure.
@@ -3988,9 +3988,10 @@ fn programs_under(
 /// spelled with `/`, which a literal path accepts on every platform.
 ///
 /// Under `nvs test` the entry's statements never run, so the requires only
-/// bring each file into the compile; a file in the directory that requires
-/// the application's bootstrap is what gives the whole directory its
-/// `autoload` map.
+/// bring each file into the compile. A file in the directory that declares
+/// the `autoload` map, or requires the file that does, gives the whole
+/// directory that map: run over a project's root, that is the project's own
+/// entry file.
 fn directory_entry(dir: &std::path::Path, files: &[PathBuf]) -> String {
     let mut text = String::from("<?nvs\n");
     for file in files {

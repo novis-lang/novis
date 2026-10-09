@@ -1,7 +1,8 @@
 <?nvs
+namespace Notes;
+
 use Core\Str;
 use Core\Test;
-use Notes\Draft;
 
 // Tests for the checks on a new note.
 final class DraftTest {

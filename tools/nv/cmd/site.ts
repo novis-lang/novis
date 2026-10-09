@@ -1026,7 +1026,7 @@ export function guidesProblems(root: string = ROOT): string[] {
 }
 
 /** The example apps' directory: each directory in it is one app, with `nvs.toml`, `public/index.nvs` and
- * `tests/`. */
+ * its classes and their tests under `src/`. */
 export const APPS = "apps";
 /** How long an app's server has to answer `/` with a `200` once started. The debug build compiles every
  * file before it binds the socket. */
@@ -1046,7 +1046,7 @@ function freePort(): Promise<number> {
 }
 
 /**
- * The `apps` part: every app under `APPS` passes `nvs test tests/`, and `nvs serve public/index.nvs`
+ * The `apps` part: every app under `APPS` passes `nvs test .`, and `nvs serve public/index.nvs`
  * answers `GET /` with a `200` within `BOOT_MS`. Both run in the app's own directory, as its page tells
  * a reader to, and every file the run left there that was not there before (the app's database) is
  * deleted afterwards.
@@ -1060,10 +1060,10 @@ export async function appsProblems(nvs: string, root: string = ROOT): Promise<st
     const cwd = join(root, app);
     const before = new Set(filesUnder(root, app));
     try {
-      const test = await runProc([nvs, "test", "tests/"], { cwd, timeoutMs: 10 * 60_000, env: { NOVIS_NO_INIT: "1" } });
+      const test = await runProc([nvs, "test", "."], { cwd, timeoutMs: 10 * 60_000, env: { NOVIS_NO_INIT: "1" } });
       if (test.code !== 0) {
         const tail = (test.stdout + test.stderr).trim().split("\n").slice(-15);
-        problems.push(`${app}: \`nvs test tests/\` exited ${test.code}`, ...tail.map((l) => `  ${l}`));
+        problems.push(`${app}: \`nvs test .\` exited ${test.code}`, ...tail.map((l) => `  ${l}`));
       }
       const port = await freePort();
       const stop = new AbortController();

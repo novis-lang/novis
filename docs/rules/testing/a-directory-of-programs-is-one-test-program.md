@@ -3,12 +3,20 @@ that requires every `.nvs` file under the directory, subdirectories walked, in n
 that program's test table. The entry is never put on disk, its statements never run — no entry's do
 under `nvs test` — and its one job is to bring every file into the compile.
 
-The directory carries its own bootstrap. `autoload` declarations reach the program the way they
-reach any program, through a file the entry requires, so a directory whose tests use the
-application's classes holds one file that requires the application's bootstrap file, and every
-other file in it requires nothing. A directory holding no such file compiles as it is, which is
-right for tests that need no class outside themselves and reports `E0306` for the rest, exactly as
-running the same files by hand would.
+The directory carries its own `autoload` map. Declarations reach the program the way they reach any
+program, through a file the entry requires. Run over a project's root — `nvs test .`, the one way the
+website teaches — that file is the project's own entry file, so tests written under the autoload
+root, beside the classes they test or in a class of their own, need nothing else, and the editor
+lends them the same map because the root owns them. A directory of tests outside every autoload root
+instead holds one file that requires the application's bootstrap, and every other file in it
+requires nothing. A directory holding no such file compiles as it is, which is right for tests that
+need no class outside themselves and reports `E0306` for the rest, exactly as running the same files
+by hand would.
+
+- **The entry is in the tree once.** `require` has no once-only guard
+  (`rule:statements/require-is-the-only-inclusion-construct`), and `Core\Test::request` runs the
+  program's statements, so a tree holding both the entry and a bootstrap that requires it runs the
+  entry twice per request.
 
 - **Name order, not test order.** The order the files are required in decides nothing a reader can
   see: classes are reported in name order and methods in declaration order, whatever brought them in.

@@ -3,10 +3,11 @@
 //! runs without an entry that lists each file
 //! (`rule:testing/a-directory-of-programs-is-one-test-program`).
 //!
-//! The fixture is an application laid out the way the testing reference
-//! describes one: a bootstrap under `public/` that declares the `autoload`,
-//! classes under `src/`, and a `tests/` directory whose `bootstrap.nvs`
-//! requires the bootstrap and whose test files require nothing.
+//! Two fixtures. `beside` is laid out the way the website teaches: an entry
+//! under `public/` that declares the `autoload`, and classes and their tests
+//! under `src/`, run over the project's root. `shop` keeps its tests in a
+//! `tests/` directory outside the autoload root, whose `bootstrap.nvs`
+//! requires the entry and whose test files require nothing.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -108,6 +109,22 @@ fn listing_a_directory_names_each_tests_own_file() {
 fn a_subdirectory_is_run_on_its_own() {
     let document = document(&["--format", "json"], "shop/tests/unit");
     assert_eq!(names(&document, "tests"), ["HelperTest::addition"]);
+}
+
+/// The layout the website teaches: tests under the autoload root, beside the
+/// class or in a class of their own, run with `nvs test .` over the project's
+/// root and no bootstrap. A test class nothing references runs too, since the
+/// directory requires every file rather than only what the entry reaches.
+#[test]
+fn a_project_root_runs_the_tests_beside_its_classes() {
+    let document = document(&["--format", "json"], "beside");
+    assert_eq!(
+        names(&document, "tests"),
+        [
+            "Shop\\Cart::totalIsThree",
+            "Shop\\Orders\\OrderTest::nothingReferencesThisClass"
+        ]
+    );
 }
 
 /// The two suites share no report, so a directory holding both kinds of file

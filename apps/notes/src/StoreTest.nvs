@@ -1,8 +1,8 @@
 <?nvs
+namespace Notes;
+
 use Core\Db;
 use Core\Test;
-use Notes\Draft;
-use Notes\Store;
 
 // Tests for saving and reading notes. They use the database `scratch`, which is kept in memory.
 final class StoreTest {

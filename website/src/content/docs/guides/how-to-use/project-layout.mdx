@@ -1,7 +1,7 @@
 ---
 title: Project layout
 covers: []
-description: Where the entry file, your classes, the tests and nvs.toml go in a Novis project.
+description: Where the entry file, your classes, their tests and nvs.toml go in a Novis project.
 ---
 
 A Novis web application is one folder. This is a layout that works well for most projects:
@@ -13,10 +13,8 @@ shop/
     index.nvs            the entry file: every request starts here
   src/
     Orders/Order.nvs     the class App\Orders\Order
+    Orders/OrderTest.nvs the tests for App\Orders\Order
     Orders/Store.nvs     the class App\Orders\Store
-  tests/
-    bootstrap.nvs        requires public/index.nvs, so the tests find every class
-    OrderTest.nvs
 ```
 
 ## The entry file
@@ -41,14 +39,19 @@ searched.
 
 ## Tests
 
-`nvs test tests/` runs every test in the `tests` folder. Novis reads the whole folder as one
-program. One file in it requires the entry file, so the tests can use the same `autoload` line.
-Read [Running tests](/guides/testing/run-tests/) for more.
+A test is a method with `#[Test]`. You can write it in the class it tests. You can also write it
+in a class of its own under `src/`, such as `App\Orders\OrderTest` in `src/Orders/OrderTest.nvs`.
+You do not need a separate folder for tests.
+
+`nvs test .` runs every test in the project. Run it from the `shop` folder. Novis reads every
+`.nvs` file in the folder and its subfolders as one program. The entry file is one of them, so
+every test can use your classes. Read [Running tests](/guides/testing/run-tests/) for more.
 
 ## Do and don't
 
 - Do keep one entry file for each application, and send every request to it.
 - Do put each class in its own file under `src/`, with a path that matches its namespace.
+- Do put the tests under `src/` too, and run them with `nvs test .`.
 - Do run `nvs` from the folder that has `nvs.toml`, or pass `--config`.
 - Don't put files that clients must not read under `public/`.
 - Don't load classes with `require`. Use `autoload`, so the compiler can find every class.
