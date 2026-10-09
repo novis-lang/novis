@@ -1,0 +1,10 @@
+<?nvs
+// Shows changes with values that are not text.
+
+// An `int` is sent as its digits, and a `bool` as TRUE or FALSE.
+array<Core\Ldap\Change> $changes = [
+    Core\Ldap\Change::replace('employeeNumber', 1042),
+    Core\Ldap\Change::replace('msExchHideFromAddressLists', true),
+];
+// This prints 2.
+echo Core\Arr::count($changes), "\n";

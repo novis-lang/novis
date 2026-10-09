@@ -1,0 +1,12 @@
+<?nvs
+// Shows how `replace` removes an attribute.
+
+// With `null` or an empty list, `replace` removes the attribute.
+// It also works when the user has no value there.
+array<string> $none = [];
+array<Core\Ldap\Change> $changes = [
+    Core\Ldap\Change::replace('pager', null),
+    Core\Ldap\Change::replace('mobile', $none),
+];
+// This prints 2.
+echo Core\Arr::count($changes), "\n";

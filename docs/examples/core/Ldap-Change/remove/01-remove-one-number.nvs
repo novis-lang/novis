@@ -1,0 +1,7 @@
+<?nvs
+// Shows how to prepare a change that removes one phone number from a user.
+
+var $old = Core\Ldap\Change::remove('otherTelephone', '+43 1 111 2222');
+// The other numbers of `otherTelephone` stay. This prints 1.
+array<Core\Ldap\Change> $changes = [$old];
+echo Core\Arr::count($changes), "\n";

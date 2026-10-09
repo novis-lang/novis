@@ -1299,6 +1299,8 @@ fn texts(ctx: &mut nvs_runtime::Ctx, key: u64, dn: &str, name: &str) -> Option<V
     })
 }
 
+// covers: Core\Ldap\Change::add, Core\Ldap\Change::remove
+// covers: Core\Ldap\Change::removeAll, Core\Ldap\Change::replace
 #[test]
 fn modify_applies_its_changes_in_one_request() {
     use nvs_ldap::{Change, ChangeKind, proto};

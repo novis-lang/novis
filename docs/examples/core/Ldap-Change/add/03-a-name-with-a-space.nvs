@@ -1,0 +1,10 @@
+<?nvs
+// Shows the error for a name that is not an attribute name.
+
+try {
+    var $change = Core\Ldap\Change::add('phone number', '+43 1 234 5678');
+    echo "the change is ready\n";
+} catch (LogicError $refusal) {
+    // A name has no spaces, so this prints the error message.
+    echo $refusal->message, "\n";
+}

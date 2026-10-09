@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to build one change for each attribute in a list.
+
+array<string> $names = ['pager', 'mobile', 'facsimileTelephoneNumber'];
+array<Core\Ldap\Change> $changes = [];
+foreach ($names as string $name) {
+    $changes[] = Core\Ldap\Change::removeAll($name);
+}
+// This prints 3.
+echo Core\Arr::count($changes), "\n";

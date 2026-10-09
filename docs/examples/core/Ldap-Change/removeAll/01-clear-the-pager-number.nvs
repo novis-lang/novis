@@ -1,0 +1,7 @@
+<?nvs
+// Shows how to prepare a change that removes an attribute from a user.
+
+var $clear = Core\Ldap\Change::removeAll('pager');
+// The user has no `pager` value after `modify` sends this list. This prints 1.
+array<Core\Ldap\Change> $changes = [$clear];
+echo Core\Arr::count($changes), "\n";

@@ -1,0 +1,7 @@
+<?nvs
+// Shows how to prepare a change that sets a user's description.
+
+var $text = Core\Ldap\Change::replace('description', 'Works in the Shop team');
+// The old description is gone after `modify` sends this list. This prints 1.
+array<Core\Ldap\Change> $changes = [$text];
+echo Core\Arr::count($changes), "\n";
