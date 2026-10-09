@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to list the other servers that the directory names for a search.
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect("corp");
+
+// This search reads the entries directly below the top of the directory.
+var $entries = $corp->search(Core\Ldap\Filter::present("objectClass"), {
+    scope: Core\Ldap\Scope::OneLevel,
+    select: ["cn"],
+});
+
+int $count = 0;
+foreach ($entries as Core\Ldap\Entry $entry) {
+    $count = $count + 1;
+}
+
+// Some parts of the directory are on other servers. The server sends a URL for each part.
+// Novis does not connect to them. This prints three URLs.
+foreach ($entries->references() as tainted string $url) {
+    echo $url, "\n";
+}

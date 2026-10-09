@@ -359,6 +359,7 @@ fn a_search_pages_past_a_thousand_entries_holding_one_page() {
     );
 }
 
+// covers: Core\Ldap\Entries::references
 #[test]
 fn a_continuation_reference_is_returned_and_not_followed() {
     let Some(ca) = samba() else { return };

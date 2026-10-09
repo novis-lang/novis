@@ -1,0 +1,60 @@
+<?nvs
+// Attack: a program reads the list of other servers many times, changes its copy, and
+// runs many searches that name them. Novis must not connect to them, and nothing may crash.
+// hostile: timeout-ms 60000
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect('corp');
+var $every = Core\Ldap\Filter::present('objectClass');
+
+try {
+    var $entries = $corp->search($every, { scope: Core\Ldap\Scope::Subtree, select: ['cn'] });
+    uint $read = 0;
+    foreach ($entries as Core\Ldap\Entry $entry) {
+        $read = $read + 1;
+    }
+
+    // 1. The list, read one hundred thousand times. Each call makes a new array,
+    // and none of them may be left behind.
+    uint $urls = 0;
+    uint $i = 0;
+    while ($i < 100000) {
+        $urls = $urls + Core\Arr::count($entries->references());
+        $i = $i + 1;
+    }
+    echo '1 urls counted: ', $urls, "\n";
+
+    // 2. A changed copy of the list. The search still returns its own list.
+    array<tainted string> $copy = $entries->references();
+    $copy[] = 'ldap://attacker.example.test/';
+    echo '2 copy: ', Core\Arr::count($copy), ', search: ', Core\Arr::count($entries->references()), "\n";
+} catch (Throwable $error) {
+    echo '1 threw: ', $error::class, "\n";
+}
+
+// 3. Many searches that name other servers, one after another on the same connection.
+try {
+    uint $total = 0;
+    uint $round = 0;
+    while ($round < 100) {
+        var $again = $corp->search($every, { scope: Core\Ldap\Scope::OneLevel, select: ['cn'] });
+        foreach ($again as Core\Ldap\Entry $entry) {
+        }
+        $total = $total + Core\Arr::count($again->references());
+        $round = $round + 1;
+    }
+    echo '3 urls: ', $total, "\n";
+} catch (Throwable $error) {
+    echo '3 threw: ', $error::class, "\n";
+}
+
+// 4. A search stopped after its first entry, then its list read. Reading it must not fail.
+try {
+    var $partial = $corp->search($every, { scope: Core\Ldap\Scope::Subtree, select: ['cn'] });
+    foreach ($partial as Core\Ldap\Entry $entry) {
+        break;
+    }
+    echo '4 urls so far: ', Core\Arr::count($partial->references()), "\n";
+} catch (Throwable $error) {
+    echo '4 threw: ', $error::class, "\n";
+}

@@ -1,0 +1,70 @@
+<?nvs
+// Attack: a program asks for sorted windows with very large and negative numbers,
+// and reads the total many times. Each bad window should throw an error, and nothing may crash.
+// hostile: timeout-ms 60000
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect('corp');
+var $users = Core\Ldap\Filter::equals('objectClass', 'user');
+string $base = 'OU=Company,DC=example,DC=test';
+
+// 1. A window that starts far past the end of the list. The total is still the whole count.
+try {
+    var $far = $corp->search($users, { base: $base, sort: 'cn', offset: 2000000000, window: 10 });
+    uint $read = 0;
+    foreach ($far as Core\Ldap\Entry $entry) {
+        $read = $read + 1;
+    }
+    echo '1 read: ', $read, ', total: ', $far->total() ?? -1, "\n";
+} catch (Throwable $error) {
+    echo '1 threw: ', $error::class, "\n";
+}
+
+// 2. A negative offset, a negative window and the largest numbers. Each one throws an error.
+array<int> $offsets = [-1, 0, -2147483648, 9223372036854775807];
+array<int> $windows = [5, -5, 2147483647, 9223372036854775807];
+array<int> $steps = [0, 1, 2, 3];
+foreach ($steps as int $n) {
+    try {
+        var $bad = $corp->search($users, { base: $base, sort: 'cn', offset: $offsets[$n], window: $windows[$n] });
+        echo '2 total: ', $bad->total() ?? -1, "\n";
+    } catch (Throwable $error) {
+        echo '2 threw: ', $error::class, "\n";
+    }
+}
+
+// 3. A window with no sort. It throws an error before the search is sent.
+try {
+    $corp->search($users, { base: $base, window: 10 });
+    echo "3 no error\n";
+} catch (Throwable $error) {
+    echo '3 threw: ', $error::class, "\n";
+}
+
+// 4. One search, its total read one hundred thousand times.
+try {
+    var $all = $corp->search($users, { base: $base, sort: 'cn', window: 100000 });
+    int $sum = 0;
+    uint $i = 0;
+    while ($i < 100000) {
+        $sum = $sum + ($all->total() ?? 0);
+        $i = $i + 1;
+    }
+    echo '4 sum: ', $sum, "\n";
+} catch (Throwable $error) {
+    echo '4 threw: ', $error::class, "\n";
+}
+
+// 5. Many windowed searches, one after another, on the same connection.
+try {
+    int $seen = 0;
+    int $k = 0;
+    while ($k < 200) {
+        var $page = $corp->search($users, { base: $base, sort: 'cn', offset: $k % 7, window: 1 });
+        $seen = $seen + ($page->total() ?? 0);
+        $k = $k + 1;
+    }
+    echo '5 seen: ', $seen, "\n";
+} catch (Throwable $error) {
+    echo '5 threw: ', $error::class, "\n";
+}

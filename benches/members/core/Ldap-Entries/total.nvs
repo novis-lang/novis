@@ -1,0 +1,28 @@
+<?nvs
+// Measures how fast `total` returns the count of a sorted search, as a program does to print a page number.
+// bench: iterations 400000
+// bench: calls 0
+// bench: complexity constant
+// requires: samba-ad
+
+class Bench {
+    public static function run(uint $rounds): int {
+        var $corp = Core\Ldap::connect("corp");
+        var $people = $corp->search(Core\Ldap\Filter::equals("objectClass", "user"), {
+            base: "OU=Company,DC=example,DC=test",
+            select: ["cn"],
+            sort: "cn",
+            window: 2,
+        });
+        // Each round uses the sum so far, so the loop cannot be left out.
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total % 1000 + ($people->total() ?? 0);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

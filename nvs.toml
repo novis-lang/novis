@@ -964,6 +964,42 @@ root = "benches/members/core/Ldap-Entry"
 connect = ["corp"]
 
 [[app]]
+root = "docs/examples/core/Ldap-Entries"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+root = "tests/hostile/core/Ldap-Entries"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+root = "benches/members/core/Ldap-Entries"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+root = "docs/examples/core/Ldap-Changes"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+root = "tests/hostile/core/Ldap-Changes"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+root = "benches/members/core/Ldap-Changes"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
 root = "docs/examples/core/Ldap-Ad-GroupType"
 
 [app.capabilities.ldap]
