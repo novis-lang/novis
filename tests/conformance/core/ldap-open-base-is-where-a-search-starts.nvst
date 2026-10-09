@@ -2,6 +2,7 @@
 A `base` in `Ldap\Settings` is where a search that names no `base` starts, and a search that names one starts there instead — ADR 0278 § 2 and § 5
 --FILE--
 <?nvs
+// covers: Core\Ldap\Tls
 // This connection sends its password without TLS. Only the test server on
 // this machine may be reached that way, and the case is skipped where it is
 // not running.

@@ -1,0 +1,31 @@
+<?nvs
+// Shows how to tell people, computers and groups apart in Active Directory.
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect("corp");
+
+class Kind {
+    // `accountType()` returns a `Core\Ldap\Ad\AccountType` case, or `null` when the entry has none.
+    public static function of(Core\Ldap\Entry $entry): string {
+        var $type = $entry->accountType();
+        if ($type == Core\Ldap\Ad\AccountType::User) {
+            return "a person";
+        }
+        if ($type == Core\Ldap\Ad\AccountType::Machine) {
+            return "a computer";
+        }
+        if ($type == Core\Ldap\Ad\AccountType::Group || $type == Core\Ldap\Ad\AccountType::Alias) {
+            return "a group";
+        }
+        return "something else";
+    }
+}
+
+// This prints `Anna Berg: a person` and `Domain Users: a group`.
+array<string> $names = ["CN=Anna Berg,OU=Company,DC=example,DC=test", "CN=Domain Users,CN=Users,DC=example,DC=test"];
+foreach ($names as string $name) {
+    var $entry = $corp->read($name, {select: ["cn", "sAMAccountType"]});
+    if ($entry != null) {
+        echo $entry->string("cn") ?? "", ": ", Kind::of($entry), "\n";
+    }
+}
