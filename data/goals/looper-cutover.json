@@ -104,16 +104,6 @@
       ]
     },
     {
-      "id": "looper-cutover-doctor",
-      "kind": "command",
-      "stage": 2,
-      "name": "`looper doctor` finds nothing drifted in the project's config and nothing missing on this machine",
-      "argv": [
-        "looper",
-        "doctor"
-      ]
-    },
-    {
       "id": "looper-cutover-lint",
       "kind": "command",
       "stage": 3,

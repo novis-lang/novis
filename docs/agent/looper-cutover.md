@@ -105,11 +105,13 @@ Where looper exports other names, the argv passes flags.
 - **AGENTS.md**: the loop and goal parts become the guide's *Goals and the loop* block — `looper orient
   --full`, `looper verify`, `looper wrap <file>`. That covers § *Where to look*'s first row, rules 4 and 6,
   § *Session workflow* and the chain bullets in § *Keep each slice small*. Every domain rule stays.
-- **`.claude/settings.json`** is the user's to approve, so no session edits it: `nv-loop-retired`'s
-  handoff names the change for the user. It gains `Bash(looper:*)` and
-  `PowerShell(looper:*)` and the `looper guard` hook. It loses the `bun nv` entries for `chain`,
-  `goal`, `loop`, `loop-stats`, `orient`, `playbook` and `session`, Bash at `:15`, `:27`, `:33`, `:34`,
-  `:36`, `:41`, `:53` and PowerShell at `:98`, `:110`, `:116`, `:117`, `:119`, `:124`, `:136`.
+- **`.claude/settings.json`** is the user's to approve, so no session edits it. It gains
+  `Bash(looper:*)`, `PowerShell(looper:*)` and a PreToolUse hook that runs `looper guard`, beside the
+  `bun nv guard` hook, which stays. The driver's handover adds and commits these before it starts
+  looper (§ 7 step 2, `tools/nv/driver/handover.ts`), because a session under looper needs them.
+  It loses the `bun nv` entries for `chain`, `goal`, `loop`, `loop-stats`, `orient`, `playbook` and
+  `session`, Bash at `:15`, `:27`, `:33`, `:34`, `:36`, `:41`, `:53` and PowerShell at `:98`, `:110`,
+  `:116`, `:117`, `:119`, `:124`, `:136`: `nv-loop-retired`'s handoff names that change for the user.
 
 ## 5. What reads the old goal data, and moves with it
 
@@ -162,7 +164,8 @@ rest.
 
 1. `looper lint` is green, and `looper sync --check` exits 0. Goal `looper-cutover`'s checks hold this.
 2. The driver's handover deletes `data/chain.json` and `looper-cutover`'s files, commits them as
-   `chore(goals): the loop moves onto looper`, and runs `looper loop start`.
+   `chore(goals): the loop moves onto looper`, adds § 4's looper entries to `.claude/settings.json`
+   and commits that path alone, and runs `looper loop start`.
 3. The first session under looper, `nv-loop-retired`'s first stage, is the proof: its wrap commits,
    including a `## plan:` section, and its status line is read. `bun nv sweep` wrote
    `.loop/last-sweep.md` or found nothing red. What fails here is fixed before anything is deleted.
@@ -193,4 +196,5 @@ Part 3 of the guide, with these differences:
   win, and the difference is said once in AGENTS.md.
 - No decision record is reshaped.
 - `looper doctor` is green, which includes `./target/debug/nvs.exe` counting as the `nvs` an allow
-  entry names.
+  entry names. It fails until `.claude/settings.json` has the `looper guard` hook, which the handover
+  writes, so it is a check of `nv-loop-retired`'s first stage and not of goal `looper-cutover`.

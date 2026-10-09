@@ -7,15 +7,18 @@ The loop moves onto looper, the external loop tool, without a person. This goal 
 loop sessions under the driver it replaces. When it is reached:
 
 - **`looper.toml` holds the user's calls**, every hook and check is wired to its `bun nv` command, and
-  `looper lint`, `looper doctor` and `looper sync --check` exit 0.
+  `looper lint` and `looper sync --check` exit 0. `looper doctor` is not judged here: it needs the
+  `looper guard` hook, which only the handover writes, so it is a check of `nv-loop-retired`'s first
+  stage.
 - **Every goal still on the chain and both side goals are goal files in looper's format**, with
   `nv-loop-retired` first on looper's chain. `data/chain.json` names this goal alone.
 - **Nothing the running driver loads is deleted or changed in what it does.** Deleting the driver is
   `nv-loop-retired`'s work, under looper.
 
 Then the driver itself hands over (`handover: "looper"`, `tools/nv/driver/handover.ts`): it deletes this
-goal's record, prose and handoff and `data/chain.json`, commits them, starts looper's main loop and ends
-its own run for good.
+goal's record, prose and handoff and `data/chain.json`, commits them, adds `Bash(looper:*)`,
+`PowerShell(looper:*)` and the `looper guard` hook to `.claude/settings.json` and commits that, then
+starts looper's main loop and ends its own run for good.
 
 **[looper-cutover.md](../looper-cutover.md) is this goal's spec.** It holds every step's detail, and
 this file names which stage does which of its sections and the calls the runbook leaves open.
@@ -81,8 +84,8 @@ One file set: `docs/goals/` (new), the playbook directory, `data/goals/`, `docs/
 One file set: `looper.toml`, `AGENTS.md`, `docs/agent/commands.md`, `.gitignore`, `.gitattributes`,
 `crates/nvs-stdlib/tests/spec_registry_coverage.rs`, `tools/nv/test/`.
 
-- **The runbook's § 3, § 4 and § 8.** § 4's `.claude/settings.json` change is not made (§ *Standing
-  decisions*).
+- **The runbook's § 3, § 4 and § 8.** § 4's `.claude/settings.json` change is not made by a session
+  (§ *Standing decisions*), and § 8's `looper doctor` is not run as a check here.
 - **What reads the old goal data works without it** (the runbook's § 5). Each reader that this goal
   can change without touching what the driver does is re-pointed at looper's goal files, or made to
   work when `data/chain.json` is absent: `spec_registry_coverage.rs` and the tests under
@@ -95,7 +98,9 @@ One file set: `looper.toml`, `AGENTS.md`, `docs/agent/commands.md`, `.gitignore`
 The first goal of looper's chain, written in Stage 3, with these stages in this order:
 
 1. **The first session under looper is the proof** (the runbook's § 7 steps 2 and 3): its wrap
-   commits and its status line is read. A sweep or an orient that fails is fixed here first.
+   commits and its status line is read. A sweep or an orient that fails is fixed here first. This
+   stage's check is `looper doctor`, which passes once the handover has written the `looper guard`
+   hook.
 2. **The readers.** Every reader of `data/chain.json`, `data/goals/` and `data/playbook/` the runbook's
    § 5 names is re-pointed at looper's goal files or deleted with what it serves, including
    `lib/chain.ts`, `bun nv plan --check`, `bun nv render --check`, `bun nv check`'s four schemas,
@@ -110,8 +115,8 @@ The first goal of looper's chain, written in Stage 3, with these stages in this 
    rewritten to point at looper. Only text about the old driver itself is deleted. Then
    `docs/agent/looper-cutover.md` is deleted, and `bun nv links` is green.
 
-Its checks: `bun nv verify` and `looper lint` exit 0, and no file under `tools/` imports a deleted
-path.
+Its checks: `looper doctor` exits 0 in the first stage, `bun nv verify` and `looper lint` exit 0, and
+no file under `tools/` imports a deleted path.
 
 ## Standing decisions
 
@@ -129,7 +134,8 @@ path.
   same slice. No other check edit is allowed.
 - **A goal that left the chain before this goal ran is dropped** from the Stage 3 checks in the same
   slice, and the handoff says so. That includes a side goal that landed, whose worktree check goes too.
-- **`.claude/settings.json` is not edited by a session.** The change the runbook's § 4 names is
+- **`.claude/settings.json` is not edited by a session**, neither this goal's nor `nv-loop-retired`'s.
+  The driver's handover adds what looper needs (the runbook's § 4). The entries § 4 says it loses are
   written into `nv-loop-retired`'s handoff for the user.
 - **The side worktrees under `.agent-tmp/worktrees/side/` are never touched**, nor their branches or
   their `.loop/`.

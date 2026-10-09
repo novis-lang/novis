@@ -16,15 +16,11 @@
       {
         "done": false,
         "text": "**The commit-msg hook** (`tools/git-hooks/commit-msg:1`, the runbook's § 1): it passes a commit with the trailer check alone when `looper` is not on `PATH`, and runs `looper hook commit-msg` when it is."
-      },
-      {
-        "done": false,
-        "text": "**`looper doctor` exits 0** (`docs/agent/looper-cutover.md:195`, the runbook's § 8 last bullet), including `./target/debug/nvs.exe` counting as the `nvs` an allow entry names."
       }
     ]
   },
   "backlog": [
-    "Stage 3: the import, `nv-loop-retired` first on looper's chain, and the nv chain shrunk to this goal (`docs/agent/looper-cutover.md:61`).",
+    "Stage 3: the import, `nv-loop-retired` first on looper's chain with `looper doctor` as its first stage's check, and the nv chain shrunk to this goal (`docs/agent/looper-cutover.md:61`). `looper doctor` is not this goal's check: it needs the `looper guard` hook, which the driver's handover writes into `.claude/settings.json`, and no session edits that file.",
     "Stage 4: the hooks and checks of § 3, AGENTS.md's loop rules, the readers of § 5 that can work without `data/chain.json`, and the first sync (`docs/agent/looper-cutover.md:80`)."
   ]
 }
