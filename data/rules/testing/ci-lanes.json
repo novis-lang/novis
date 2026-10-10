@@ -1,9 +1,7 @@
 {
   "title": "One workflow holds every job, and three lanes decide which of them a run needs",
   "status": "shipped",
-  "because": [
-    "0143"
-  ],
+  "because": [],
   "seeAlso": [
     "testing/lane-table",
     "testing/the-deep-lane",
@@ -11,6 +9,7 @@
     "testing/unknown-base-runs-everything"
   ],
   "guardedBy": [
-    ".github/workflows/ci.yml"
+    ".github/workflows/ci.yml",
+    ".github/workflows/release.yml"
   ]
 }

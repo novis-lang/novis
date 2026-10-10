@@ -175,7 +175,7 @@ jobs:
     name: verify
     needs: plan
     uses: ./.github/workflows/ci.yml
-    # Every gate in that file forced on. A push runs the lane its own diff needs (ADR 0143); a
+    # Every gate in that file forced on. A push runs the lane its own diff needs (`rule:testing/ci-lanes`); a
     # release runs all of it, out of the same definition, so the two cannot drift apart.
     with:
       full: true

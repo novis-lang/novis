@@ -1001,7 +1001,7 @@ dependency changes, and it keeps the build from depending on network access or o
   generator and on fetched sources, and the reviewable diff, which is how a human notices a new
   component at all, would be gone.
 
-<sub>See also [`testing/lane-table`](testing.md#testing-lane-table), [`testing/ci-lanes`](testing.md#testing-ci-lanes). Decided in [0143](../decisions/0143.md).</sub>
+<sub>See also [`testing/lane-table`](testing.md#testing-lane-table), [`testing/ci-lanes`](testing.md#testing-ci-lanes).</sub>
 
 <a id="testing-debug-mode-directive"></a>
 
@@ -1359,7 +1359,7 @@ against itself, never whether Novis got faster in an absolute sense.
 - **Callgrind as the gate on every pull request.** Its emulation is one to two orders of magnitude
   slower, which every pull request would pay, and it runs on only one of the three CI platforms.
 
-<sub>See also [`testing/perf-secondary-figures`](testing.md#testing-perf-secondary-figures), [`testing/perf-history-file`](testing.md#testing-perf-history-file), [`testing/bench-counters`](testing.md#testing-bench-counters), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger). Decided in [0143](../decisions/0143.md), [0228](../decisions/0228.md).</sub>
+<sub>See also [`testing/perf-secondary-figures`](testing.md#testing-perf-secondary-figures), [`testing/perf-history-file`](testing.md#testing-perf-history-file), [`testing/bench-counters`](testing.md#testing-bench-counters), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger). Decided in [0228](../decisions/0228.md).</sub>
 
 <a id="testing-perf-secondary-figures"></a>
 
@@ -1524,7 +1524,18 @@ release gate in the same edit.
 
 Nothing has left the suite. What a push skips is work whose answer its own diff cannot change.
 
-<sub>See also [`testing/lane-table`](testing.md#testing-lane-table), [`testing/the-deep-lane`](testing.md#testing-the-deep-lane), [`testing/a-deferred-job-is-skipped-never-absent`](testing.md#testing-a-deferred-job-is-skipped-never-absent), [`testing/unknown-base-runs-everything`](testing.md#testing-unknown-base-runs-everything). Decided in [0143](../decisions/0143.md).</sub>
+The lanes spend nothing from security, latency or simplicity of the language. The dependency policy
+still gates every change that can alter the dependency set, and the sanitizer still gates every
+change to a crate that holds unsafe code. What they cost is one table to read before a job is added,
+and a job the nightly shows the push lane should have run is one entry in that table.
+
+**Declined:**
+- **A second workflow holding the heavy jobs.** It needs a second copy of the toolchain and cache
+  setup, and the release gate would be put together from two files that drift apart.
+- **Deleting the jobs a push defers.** Miri and the fuzzers are the memory-safety evidence a
+  JIT-compiled runtime has to keep producing. The question is only how often they run.
+
+<sub>See also [`testing/lane-table`](testing.md#testing-lane-table), [`testing/the-deep-lane`](testing.md#testing-the-deep-lane), [`testing/a-deferred-job-is-skipped-never-absent`](testing.md#testing-a-deferred-job-is-skipped-never-absent), [`testing/unknown-base-runs-everything`](testing.md#testing-unknown-base-runs-everything).</sub>
 
 <a id="testing-lane-table"></a>
 
@@ -1550,7 +1561,19 @@ develops or pushes from, so no platform's coverage is ever traded away by a path
 contributor who never sees a Windows failure until the nightly is precisely the one who cannot
 reproduce it.
 
-<sub>See also [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/unknown-base-runs-everything`](testing.md#testing-unknown-base-runs-everything), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms). Decided in [0143](../decisions/0143.md).</sub>
+**Declined:**
+- **A third-party path-filter action.** It would sit on the critical path of every run, pinned and
+  audited by whoever updates it, to compute a diff this repository's own tools already compute. The
+  supply chain is a security question.
+- **Narrowing the platform matrix by path**, so a push builds one platform unless its diff looks
+  native. It is the largest saving on offer. It rests on a claim nothing enforces, that a change
+  outside the native crates cannot change per-platform behaviour, and that claim is false as soon as
+  a front-end change alters what gets compiled or a command-line change touches a path, a line ending
+  or a file mode.
+- **A workflow-level path filter.** It breaks required status checks
+  ([`testing/a-deferred-job-is-skipped-never-absent`](testing.md#testing-a-deferred-job-is-skipped-never-absent)).
+
+<sub>See also [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/unknown-base-runs-everything`](testing.md#testing-unknown-base-runs-everything), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms).</sub>
 
 <a id="testing-unknown-base-runs-everything"></a>
 
@@ -1564,7 +1587,7 @@ base commit it can diff against. Every such case resolves to **every lane true**
 The failure mode of guessing wrong in the other direction is a merged commit nothing checked, and
 there is no version of this that is worth one of those.
 
-<sub>See also [`testing/lane-table`](testing.md#testing-lane-table), [`testing/ci-lanes`](testing.md#testing-ci-lanes). Decided in [0143](../decisions/0143.md).</sub>
+<sub>See also [`testing/lane-table`](testing.md#testing-lane-table), [`testing/ci-lanes`](testing.md#testing-ci-lanes).</sub>
 
 <a id="testing-the-deep-lane"></a>
 
@@ -1582,7 +1605,10 @@ The fuzz corpus is cached between nightly runs and each target's budget is large
 could afford. A run that starts from what every previous night found is strictly more coverage than
 a per-push run that starts from nothing, and it costs the push lane nothing at all.
 
-<sub>See also [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/probes-on-is-a-tested-configuration`](testing.md#testing-probes-on-is-a-tested-configuration), [`testing/valgrind-on-wsl`](testing.md#testing-valgrind-on-wsl). Decided in [0143](../decisions/0143.md).</sub>
+The unsafe audit's counts gate nothing, so a tool install on every push bought a number no push was
+blocked by. It returns to the push lane when it becomes a hard gate.
+
+<sub>See also [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/probes-on-is-a-tested-configuration`](testing.md#testing-probes-on-is-a-tested-configuration), [`testing/valgrind-on-wsl`](testing.md#testing-valgrind-on-wsl).</sub>
 
 <a id="testing-a-deferred-job-is-skipped-never-absent"></a>
 
@@ -1597,7 +1623,7 @@ a required status check; a workflow filtered out by a path rule never reports at
 check on it waits forever. The second is a branch that cannot be merged, discovered by whoever turns
 branch protection on months from now.
 
-<sub>See also [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/lane-table`](testing.md#testing-lane-table). Decided in [0143](../decisions/0143.md).</sub>
+<sub>See also [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/lane-table`](testing.md#testing-lane-table).</sub>
 
 <a id="testing-every-push-gets-a-verdict"></a>
 
@@ -1612,4 +1638,4 @@ reads, and what a loop committing one slice at a time needs.
 The concurrency group is keyed by event as well, so a long nightly never sits in front of a short
 push.
 
-<sub>See also [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/lane-table`](testing.md#testing-lane-table). Decided in [0143](../decisions/0143.md).</sub>
+<sub>See also [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/lane-table`](testing.md#testing-lane-table).</sub>

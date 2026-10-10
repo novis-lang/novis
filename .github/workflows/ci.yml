@@ -6,7 +6,7 @@ on:
   pull_request:
   workflow_dispatch:
   # The deep lane, nightly: every job, unconditionally. A push runs only what its own diff can break
-  # (ADR 0143) — never a narrower set of platforms, only a narrower set of jobs — so what this
+  # (`rule:testing/ci-lanes`) — never a narrower set of platforms, only a narrower set of jobs — so what this
   # catches is what no push runs at all: Miri, the fuzzers and the unsafe audit. GitHub reads
   # `schedule` only from the default branch, `landing`, whose `ci.yml` has this same cron and
   # dispatches this workflow on `main`. A `workflow_dispatch` is the deep lane too (`FULL` below).
@@ -42,7 +42,7 @@ env:
 # `github.event_name` is in the group so a 25-minute nightly never sits in front of an 8-minute
 # push. Cancellation is for pull requests only: a run on `main` is what a bisect reads later, and
 # the loop commits one slice at a time, so cancelling the previous commit's run throws away the
-# verdict on the very commit someone will want one for. ADR 0143 § 6.
+# verdict on the very commit someone will want one for. `rule:testing/every-push-gets-a-verdict`.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -60,7 +60,7 @@ jobs:
   # ---------------------------------------------------------------------------
   # Which lanes this run needs. Every gated job below reads one boolean from
   # here, and the table deciding them is `tools/nv/cmd/ci-changes.ts` — one home, and
-  # answerable locally with `--base HEAD~1` without pushing anything. ADR 0143.
+  # answerable locally with `--base HEAD~1` without pushing anything. `rule:testing/lane-table`.
   #
   # `blob:none` is what keeps the full history cheap: `git diff --name-only`
   # reads trees, never file contents, so no blob older than HEAD is fetched.
@@ -110,7 +110,7 @@ jobs:
   # them. This is a public repository: which host a contributor pushes from is
   # unknowable, so no platform's coverage may rest on an assumption about who is
   # developing on what. What the gate skips is a run that changed no build input
-  # at all — an ADR, a plan status block, a playbook bullet. ADR 0143 § 2.
+  # at all — an ADR, a plan status block, a playbook bullet. `rule:testing/lane-table`.
   # ---------------------------------------------------------------------------
   test:
     name: test / ${{ matrix.name }}
@@ -244,7 +244,7 @@ jobs:
       # aarch64 is a different Cranelift backend entirely. The cost guards only run
       # in release, because the baselines they compare against are release figures
       # — a full compile of the workspace beside the debug one `test` does, and why a
-      # diff that cannot move a baseline does not pay for it (ADR 0143 § 2, `rule:testing/perf-two-mechanisms`).
+      # diff that cannot move a baseline does not pay for it (`rule:testing/lane-table`, `rule:testing/perf-two-mechanisms`).
       - name: Architecture invariants and cost guards
         run: cargo test --release -p nvs-abi-probe
 
@@ -941,7 +941,7 @@ jobs:
 
   # Nightly and at release only. The counts it writes gate nothing, and a `cargo install
   # cargo-geiger` per push bought a number no push was ever blocked by. It becomes a push-lane job
-  # again on the day it becomes a hard gate. ADR 0143 § 5.
+  # again on the day it becomes a hard gate. `rule:testing/the-deep-lane`.
   unsafe-audit:
     name: unsafe audit
     needs: changes
@@ -980,7 +980,7 @@ jobs:
   # every time is the same 60s repeated, while 300s starting from everything
   # every previous night found is coverage that accumulates. Neither is the full
   # 1h M1 corpus/fuzz verification run, which is a one-time gate recorded in
-  # docs/implementation-plan.md's status block. ADR 0143 § 5.
+  # docs/implementation-plan.md's status block. `rule:testing/the-deep-lane`.
   # ---------------------------------------------------------------------------
   fuzz-smoke:
     name: fuzz smoke / ${{ matrix.target }}

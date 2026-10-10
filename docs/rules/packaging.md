@@ -1433,7 +1433,7 @@ commit.** CI fails otherwise, and correctly: the notice is a licence obligation,
 ([`testing/ci-lanes`](testing.md#testing-ci-lanes)); they are what make a hold, a vendored fork and this rule enforceable
 rather than aspirational.
 
-<sub>See also [`testing/attribution-is-diffed-in-ci`](testing.md#testing-attribution-is-diffed-in-ci), [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`packaging/one-bump-one-commit`](packaging.md#packaging-one-bump-one-commit), [`packaging/the-sweep-is-fired-by-a-human`](packaging.md#packaging-the-sweep-is-fired-by-a-human), [`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand). Decided in [0143](../decisions/0143.md).</sub>
+<sub>See also [`testing/attribution-is-diffed-in-ci`](testing.md#testing-attribution-is-diffed-in-ci), [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`packaging/one-bump-one-commit`](packaging.md#packaging-one-bump-one-commit), [`packaging/the-sweep-is-fired-by-a-human`](packaging.md#packaging-the-sweep-is-fired-by-a-human), [`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand).</sub>
 
 <a id="packaging-one-bump-one-commit"></a>
 
@@ -1490,7 +1490,7 @@ in between. Deferring a bump never makes the next one cheaper.
 - **A dependency policy per subsystem.** The premises the guards encode are shared, and a sweep that
   is not one procedure is run inconsistently.
 
-<sub>See also [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), [`packaging/a-dependency-move-proves-two-things`](packaging.md#packaging-a-dependency-move-proves-two-things), [`packaging/one-bump-one-commit`](packaging.md#packaging-one-bump-one-commit), [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms). Decided in [0143](../decisions/0143.md).</sub>
+<sub>See also [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), [`packaging/a-dependency-move-proves-two-things`](packaging.md#packaging-a-dependency-move-proves-two-things), [`packaging/one-bump-one-commit`](packaging.md#packaging-one-bump-one-commit), [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms).</sub>
 
 <a id="packaging-an-extension-is-a-sandboxed-wasm-component"></a>
 

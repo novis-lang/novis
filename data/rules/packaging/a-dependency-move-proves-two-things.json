@@ -1,9 +1,7 @@
 {
   "title": "A dependency move never fixes a guard test by editing its threshold, and it regenerates the attribution file in the same commit",
   "status": "shipped",
-  "because": [
-    "0143"
-  ],
+  "because": [],
   "seeAlso": [
     "testing/attribution-is-diffed-in-ci",
     "testing/ci-lanes",
