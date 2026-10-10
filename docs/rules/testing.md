@@ -1440,7 +1440,7 @@ It changes nothing about the historical dashboard, whose headline metric stays t
 count. Which workloads populate that dashboard is a benchmark-design question rather than a language
 decision, and it grows as real compiled programs exist to measure.
 
-<sub>See also [`testing/perf-secondary-figures`](testing.md#testing-perf-secondary-figures), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms). Decided in [0100](../decisions/0100.md).</sub>
+<sub>See also [`testing/perf-secondary-figures`](testing.md#testing-perf-secondary-figures), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms).</sub>
 
 <a id="testing-valgrind-on-wsl"></a>
 

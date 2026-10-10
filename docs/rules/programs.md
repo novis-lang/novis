@@ -28,7 +28,9 @@ tools that touch production credentials, customer data or a shell gets the same 
 program with no HTTP request in it — argv-only process spawning, a `secret` that cannot reach a log,
 an interpolated query that does not compile, and a finished tool that is one file with no interpreter
 to install. It justifies no new milestone and no reordering; where a slice would serve it at the cost
-of a web application's, it loses.
+of a web application's, it loses. The greenfield web application is what makes a language with no
+ecosystem viable at all, and the second audience lacks that property: a team with Python tooling
+already has working tools.
 
 **The safety properties are how Novis is built, not who it is built for.** They are also why this does
 not end where a typed, incompatible dialect of an existing language ended before: that one's value depended on a package
@@ -55,7 +57,7 @@ team can pick Novis, not *which* teams it is for.
   is blocking, and produces a language with no dependency story and no framework, the two things
   every user meets first ([`programs/slice-ranking`](programs.md#programs-slice-ranking)).
 
-<sub>See also [`programs/three-claims`](programs.md#programs-three-claims), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`programs/slice-ranking`](programs.md#programs-slice-ranking), [`programs/first-party-framework`](programs.md#programs-first-party-framework). Decided in [0100](../decisions/0100.md).</sub>
+<sub>See also [`programs/three-claims`](programs.md#programs-three-claims), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`programs/slice-ranking`](programs.md#programs-slice-ranking), [`programs/first-party-framework`](programs.md#programs-first-party-framework).</sub>
 
 <a id="programs-three-claims"></a>
 

@@ -2,7 +2,6 @@
   "title": "A file whose first two bytes are `#!` starts in code mode, and its first line is trivia",
   "status": "shipped",
   "because": [
-    "0100",
     "0099",
     "0095"
   ],
@@ -14,6 +13,8 @@
     "ide/one-grammar-one-tree"
   ],
   "guardedBy": [
-    "tests/conformance/core/a-shebang-line-opens-code.nvst"
+    "tests/conformance/core/a-shebang-line-opens-code.nvst",
+    "crates/nvs-syntax/src/lexer.rs",
+    "crates/nvs-syntax/tests/trivia.rs"
   ]
 }

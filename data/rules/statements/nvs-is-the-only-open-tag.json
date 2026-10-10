@@ -1,9 +1,7 @@
 {
   "title": "`<?nvs` is the only code-mode open tag; `<?php` is refused",
   "status": "shipped",
-  "because": [
-    "0100"
-  ],
+  "because": [],
   "seeAlso": [
     "statements/exit-is-the-only-termination-keyword"
   ],

@@ -38,7 +38,7 @@ before any `?>` is `E0009`.
   teach, the trade [`types/no-legacy-cast`](types.md#types-no-legacy-cast) and [`expressions/no-keyword-logical-operators`](expressions.md#expressions-no-keyword-logical-operators) also
   refuse.
 
-<sub>See also [`statements/exit-is-the-only-termination-keyword`](statements.md#statements-exit-is-the-only-termination-keyword). Decided in [0100](../decisions/0100.md).</sub>
+<sub>See also [`statements/exit-is-the-only-termination-keyword`](statements.md#statements-exit-is-the-only-termination-keyword).</sub>
 
 <a id="statements-a-qualified-name-is-absolute"></a>
 

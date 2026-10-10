@@ -19,4 +19,18 @@ need it and carries a comment saying why.
 
 **Neither Python nor Bun is a toolchain dependency.** A missing twin skips that engine with a warning
 and an uninstalled engine is narrowed away with `--engines`, so neither can turn a build, a test or a
-loop session red — nothing outside this suite reads any of it.
+loop session red — nothing outside this suite reads any of it. The cost is that a default run is
+slower, because CPython is far behind the other engines on these loops and pays that on every rep;
+`--engines nvs,php` and the case patterns are the escape. Every twin is one more file to keep in
+step, and the byte-identical gate is what stops one rotting silently.
+
+**Declined:**
+- **A Python column transliterated from the PHP cases.** A transliteration measures how badly one
+  language writes another's idiom, and the arithmetic exception is stated as one so it is not read
+  as licence for more.
+- **PyPy as well as CPython, or instead of it.** CPython is what a tool is actually run under, and a
+  second Python engine doubles the twins to sharpen a comparison the command-line audience never
+  meets. `--engines` makes adding one later a flag.
+- **Leaving Bun out because the command-line audience is not switching from it.** Bun is the
+  closest engine to what Novis is trying to be, a fast JIT behind a scripting surface with the
+  batteries in the binary, so its numbers are the ones that test this project's own claims.

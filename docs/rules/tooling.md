@@ -37,7 +37,26 @@ Windows with no edit; Windows gains no kernel shebang support, and its distribut
 single-file executable. This is one lexer branch at offset 0: no parser rule, HIR shape or runtime
 behaviour changes.
 
-<sub>See also [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag), [`statements/exit-is-the-only-termination-keyword`](statements.md#statements-exit-is-the-only-termination-keyword), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree). Decided in [0100](../decisions/0100.md), [0099](../decisions/0099.md), [0095](../decisions/0095.md).</sub>
+**It is a second way a file may begin, and not a second spelling of one.** `<?nvs` separates code
+from the template text around it, and a shebang file has no template text: the marker the operating
+system already requires selects a file kind, a program rather than a template. Every scripting
+engine strips a leading `#!` line, and PHP does too, yet PHP still needs `<?php` on line 2. Python,
+Ruby, Perl, Node and `sh` are in code mode from byte 0. The cost is one sentence of language surface,
+and there is no runtime, latency or memory consequence.
+
+**Declined:**
+- **`<?nvs` still required after a shebang, as PHP requires `<?php`.** One file opening, one rule,
+  but it charges every CLI script a disambiguation that cannot arise. PHP pays it for files older
+  than its command-line mode, and Novis has none.
+- **A second extension, `.nvss`, in code mode from byte 0.** The shebang has to be in the file
+  anyway, so an extension is a second thing to get right, and it splits tooling, editor
+  associations and `require` resolution for no gain.
+- **Every file in code mode by default, with an opt-in for template mode.** The cleanest design
+  from the command line, declined on scope: it overturns inline HTML and `<?=` to save one line in
+  a CLI script. It is the alternative to reopen if the template half of the language is ever
+  reconsidered on its own terms.
+
+<sub>See also [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag), [`statements/exit-is-the-only-termination-keyword`](statements.md#statements-exit-is-the-only-termination-keyword), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree). Decided in [0099](../decisions/0099.md), [0095](../decisions/0095.md).</sub>
 
 <a id="tooling-no-repl"></a>
 
@@ -68,7 +87,7 @@ wherever Novis is compared to Python. It reopens only on evidence that "what is 
 build, and what would be built then is a debugger-shaped inspector over a paused isolate, not a
 general evaluator.
 
-<sub>See also [`tooling/python-claims`](tooling.md#tooling-python-claims), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate), [`testing/test-attribute`](testing.md#testing-test-attribute), [`errors/debug-dump`](errors.md#errors-debug-dump), [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file), [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink). Decided in [0100](../decisions/0100.md), [0092](../decisions/0092.md).</sub>
+<sub>See also [`tooling/python-claims`](tooling.md#tooling-python-claims), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate), [`testing/test-attribute`](testing.md#testing-test-attribute), [`errors/debug-dump`](errors.md#errors-debug-dump), [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file), [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink). Decided in [0092](../decisions/0092.md).</sub>
 
 <a id="tooling-reflection-and-source-parsing-are-core-features"></a>
 
@@ -114,6 +133,16 @@ somebody else.** It is [`programs/audience`](programs.md#programs-audience)'s ex
 second audience below the first and never above it — and it adds no priority, reorders nothing, and
 schedules no milestone of its own.
 
+Python holds the quick script through three things Novis takes none of: the REPL and the notebook,
+being allowed to be wrong and still run, and a numeric stack that is C and Fortran under a Python
+surface. So Novis does not compete there. Handing a Python program to a colleague means a virtualenv,
+an interpreter version or a bundler; a Novis tool is one file. At the command line the missing
+ecosystem also costs far less than on the web: what a quick tool imports — an HTTP client, JSON, CSV,
+regex, a URI parser, hashing, a path type, an argument parser — is already in `Core`. And the
+standing top findings of a Python tooling review, a shell command built from a string, a secret in a
+log line and an interpolated query, are each a compile error here and cannot be retrofitted into
+Python.
+
 **Permitted:** that a Novis CLI program ships as one file with no interpreter, virtualenv or package
 install; that argument parsing, help, completions, colour, prompts and progress are in the binary;
 that any function may suspend, so there is no `async` split through the library; that shelling out
@@ -135,7 +164,16 @@ and no numeric or machine-learning stack and no route to one ([`security/no-ffi`
 No check enforces a forbidden phrasing and none should; the rule exists so a reviewer has something
 to point at.
 
-<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/three-claims`](programs.md#programs-three-claims), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`tooling/no-repl`](tooling.md#tooling-no-repl), [`tooling/bench-engine-list-is-data`](tooling.md#tooling-bench-engine-list-is-data), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/no-ffi`](security.md#security-no-ffi), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host), [`tooling/commands-are-compiled`](tooling.md#tooling-commands-are-compiled), [`concurrency/one-scheduler`](concurrency.md#concurrency-one-scheduler). Decided in [0100](../decisions/0100.md).</sub>
+**Declined:**
+- **Saying nothing about Python.** The command-line surface is built either way, and the two
+  readings of it lead to different builds: a REPL and dynamic escapes under one, neither under the
+  other. A question that changes what gets built is a decision.
+- **Aiming at the prototype: a REPL, relaxed type rules for a script, an unchecked mode.** That niche
+  is decided by the package index and the notebook, and Novis has neither. Loosening the rules to
+  compete there spends the one durable difference, that being wrong does not compile, on a market it
+  cannot win ([`tooling/no-repl`](tooling.md#tooling-no-repl)).
+
+<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/three-claims`](programs.md#programs-three-claims), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`tooling/no-repl`](tooling.md#tooling-no-repl), [`tooling/bench-engine-list-is-data`](tooling.md#tooling-bench-engine-list-is-data), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/no-ffi`](security.md#security-no-ffi), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host), [`tooling/commands-are-compiled`](tooling.md#tooling-commands-are-compiled), [`concurrency/one-scheduler`](concurrency.md#concurrency-one-scheduler).</sub>
 
 <a id="tooling-echo-always-has-a-sink"></a>
 
@@ -1540,9 +1578,23 @@ need it and carries a comment saying why.
 
 **Neither Python nor Bun is a toolchain dependency.** A missing twin skips that engine with a warning
 and an uninstalled engine is narrowed away with `--engines`, so neither can turn a build, a test or a
-loop session red — nothing outside this suite reads any of it.
+loop session red — nothing outside this suite reads any of it. The cost is that a default run is
+slower, because CPython is far behind the other engines on these loops and pays that on every rep;
+`--engines nvs,php` and the case patterns are the escape. Every twin is one more file to keep in
+step, and the byte-identical gate is what stops one rotting silently.
 
-<sub>See also [`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks), [`testing/perf-secondary-figures`](testing.md#testing-perf-secondary-figures), [`tooling/python-claims`](tooling.md#tooling-python-claims), [`programs/three-claims`](programs.md#programs-three-claims). Decided in [0100](../decisions/0100.md).</sub>
+**Declined:**
+- **A Python column transliterated from the PHP cases.** A transliteration measures how badly one
+  language writes another's idiom, and the arithmetic exception is stated as one so it is not read
+  as licence for more.
+- **PyPy as well as CPython, or instead of it.** CPython is what a tool is actually run under, and a
+  second Python engine doubles the twins to sharpen a comparison the command-line audience never
+  meets. `--engines` makes adding one later a flag.
+- **Leaving Bun out because the command-line audience is not switching from it.** Bun is the
+  closest engine to what Novis is trying to be, a fast JIT behind a scripting surface with the
+  batteries in the binary, so its numbers are the ones that test this project's own claims.
+
+<sub>See also [`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks), [`testing/perf-secondary-figures`](testing.md#testing-perf-secondary-figures), [`tooling/python-claims`](tooling.md#tooling-python-claims), [`programs/three-claims`](programs.md#programs-three-claims).</sub>
 
 <a id="tooling-telemetry-is-two-opt-ins"></a>
 

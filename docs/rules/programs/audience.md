@@ -15,7 +15,9 @@ tools that touch production credentials, customer data or a shell gets the same 
 program with no HTTP request in it — argv-only process spawning, a `secret` that cannot reach a log,
 an interpolated query that does not compile, and a finished tool that is one file with no interpreter
 to install. It justifies no new milestone and no reordering; where a slice would serve it at the cost
-of a web application's, it loses.
+of a web application's, it loses. The greenfield web application is what makes a language with no
+ecosystem viable at all, and the second audience lacks that property: a team with Python tooling
+already has working tools.
 
 **The safety properties are how Novis is built, not who it is built for.** They are also why this does
 not end where a typed, incompatible dialect of an existing language ended before: that one's value depended on a package
