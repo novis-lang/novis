@@ -1300,7 +1300,7 @@ syntax.
 - **The cast kept for `array` and `object` only.** Every target has the same `as` spelling, and
   keeping two of seven has no principled line.
 
-<sub>See also [`types/conversion`](types.md#types-conversion). Decided in [0049](../decisions/0049.md).</sub>
+<sub>See also [`types/conversion`](types.md#types-conversion).</sub>
 
 <a id="types-type-alias"></a>
 

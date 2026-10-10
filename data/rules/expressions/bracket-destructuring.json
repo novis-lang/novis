@@ -1,9 +1,7 @@
 {
   "title": "`list(...)` does not parse; `[...]` is the only destructuring target",
   "status": "shipped",
-  "because": [
-    "0049"
-  ],
+  "because": [],
   "seeAlso": [
     "expressions/no-keyword-logical-operators"
   ],

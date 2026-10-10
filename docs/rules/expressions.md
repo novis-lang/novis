@@ -409,7 +409,7 @@ destructuring leaf already needs a type, so no PHP `list()` site parsed unedited
 - **Freeing `list` as an identifier at the same time.** That is a reserved-word question with its own
   compatibility surface, unrelated to which destructuring spelling survives.
 
-<sub>See also [`expressions/no-keyword-logical-operators`](expressions.md#expressions-no-keyword-logical-operators). Decided in [0049](../decisions/0049.md).</sub>
+<sub>See also [`expressions/no-keyword-logical-operators`](expressions.md#expressions-no-keyword-logical-operators).</sub>
 
 <a id="expressions-defaulting-assignment"></a>
 

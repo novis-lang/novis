@@ -24,11 +24,21 @@ if ($x) { ?>html<?nvs }   // unaffected — reopening mid-block was always legal
 
 `<?=` is untouched: it was never a spelling of `<?nvs`, it is sugar for `<?nvs echo`.
 
+`<?php` and `<?nvs` always produced the same token past the parser, so the second tag preserved no
+behaviour, only a spelling, and [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name) rules out a second spelling
+of one construct. Converting a file that opens with `<?php` is a five-character substitution with
+nothing to analyse.
+
 One file shape reaches code mode without a tag, and it is not a second spelling of one. A file whose first
 two bytes are `#!` continues in code mode as if `<?nvs` stood there; writing the tag in a shebang file
 before any `?>` is `E0009`.
 
-<sub>See also [`statements/exit-is-the-only-termination-keyword`](statements.md#statements-exit-is-the-only-termination-keyword). Decided in [0049](../decisions/0049.md), [0100](../decisions/0100.md).</sub>
+**Declined:**
+- **`<?php` as a permanent alias of `<?nvs`.** It differs in nothing, so it buys only a second thing to
+  teach, the trade [`types/no-legacy-cast`](types.md#types-no-legacy-cast) and [`expressions/no-keyword-logical-operators`](expressions.md#expressions-no-keyword-logical-operators) also
+  refuse.
+
+<sub>See also [`statements/exit-is-the-only-termination-keyword`](statements.md#statements-exit-is-the-only-termination-keyword). Decided in [0100](../decisions/0100.md).</sub>
 
 <a id="statements-a-qualified-name-is-absolute"></a>
 
@@ -234,7 +244,7 @@ other three are refused for the behaviour each names, not for being PHP-shaped.
 - **An automatic once-guard as `require`'s only mode.** A template partial required in a loop would
   silently run once, trading one silent PHP behaviour for another.
 
-<sub>See also [`statements/a-required-file-shares-declarations-not-locals`](statements.md#statements-a-required-file-shares-declarations-not-locals), [`statements/a-require-expression-is-mixed`](statements.md#statements-a-require-expression-is-mixed), [`errors/propagation`](errors.md#errors-propagation). Decided in [0049](../decisions/0049.md).</sub>
+<sub>See also [`statements/a-required-file-shares-declarations-not-locals`](statements.md#statements-a-required-file-shares-declarations-not-locals), [`statements/a-require-expression-is-mixed`](statements.md#statements-a-require-expression-is-mixed), [`errors/propagation`](errors.md#errors-propagation).</sub>
 
 <a id="statements-a-required-file-shares-declarations-not-locals"></a>
 
@@ -635,9 +645,22 @@ process-termination keyword Novis keeps.* The code is `E0228`.
 The pair had no behavioural difference to preserve: both parsed to one shape with one argument, and both
 were type-checked and lowered identically. Of ten other languages with a termination primitive, every one
 keeps at most one plain spelling of it; where a second primitive exists it is a genuinely different
-behaviour — skips cleanup, cannot be caught, crashes instead of exiting — never a bare synonym.
+behaviour — skips cleanup, cannot be caught, crashes instead of exiting — never a bare synonym. PHP's
+`die` is itself a borrowed name without its meaning: Perl's `die` raises a catchable error distinct from
+Perl's `exit`, and PHP kept the word but made it a plain duplicate. A second spelling of one construct is
+what [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name) rules out, and rewriting `die(...)` to `exit(...)` is
+a rename with the argument unchanged.
 
-<sub>See also [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag). Decided in [0049](../decisions/0049.md).</sub>
+**Declined:**
+- **`die` as a permanent alias of `exit`.** It differs in nothing, so it buys only a second thing to
+  teach.
+- **`die` as a second tier, the way Ruby has `exit!` or Python `os._exit`.** No such distinction exists
+  in the request or process model to hang a second keyword on, and inventing one only to keep two
+  spellings solves nothing.
+- **Dropping only one of `die` and `<?php`.** Both are duplicate spellings with no behavioural
+  difference ([`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag)), so keeping one would need a reason neither has.
+
+<sub>See also [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag).</sub>
 
 <a id="statements-a-body-never-falls-off-its-end"></a>
 
