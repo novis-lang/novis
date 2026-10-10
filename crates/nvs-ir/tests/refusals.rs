@@ -87,14 +87,12 @@ const ALLOWLIST: &[(&str, &str)] = &[];
 const CEILING: usize = 0;
 
 /// What `bun nv holes` opens: the `nv` program and the script entry that names
-/// it, the chain that names the live goal, that goal's prose and record, the
-/// carried item list, the diagnostic registry, and the two crates that lower.
+/// it, the goal files that name the live goal and hold its items and checks,
+/// the carried item list, the diagnostic registry, and the two crates that lower.
 const HOLES_READS: &[&str] = &[
     "package.json",
     "tools/nv",
-    "data/chain.json",
-    "data/goals",
-    "docs/agent/goals",
+    "docs/goals",
     "docs/agent/carried-refusals.md",
     "crates/nvs-diagnostics/src/lib.rs",
     "crates/nvs-ir/src",
