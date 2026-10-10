@@ -5,4 +5,4 @@
   `PREFERENCE` in the same commit, because that command fails if the two disagree. The dependency
   sweep is a pass the user fires by hand
   (`rule:packaging/a-dependency-break-is-absorbed-never-forwarded`); never start it as a side
-  effect. [until: gone tools/nv/cmd/gen-attribution.ts:PREFERENCE]
+  effect. `until: gone tools/nv/cmd/gen-attribution.ts:PREFERENCE`

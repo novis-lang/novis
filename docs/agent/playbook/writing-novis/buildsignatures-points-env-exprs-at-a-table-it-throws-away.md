@@ -4,4 +4,4 @@
   is not the fix either: `nvs_ir::lower::lower_decl_type` consults `declared_ty` *first*, so every
   property annotation would silently change lowering path. Carry what a later pass needs across on
   its own, the way `SignatureTable::property_default_types` does.
-  [until: gone crates/nvs-types/src/signatures.rs:let mut placeholder_exprs]
+  `until: gone crates/nvs-types/src/signatures.rs:let mut placeholder_exprs`

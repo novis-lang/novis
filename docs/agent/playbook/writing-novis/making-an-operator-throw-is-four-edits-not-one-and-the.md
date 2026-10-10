@@ -4,4 +4,4 @@
   instruction has an `Inst::on_error` edge to leave on. The roster is the `fallible` arm, the
   codegen guard, the same rule in `nvs_runtime::helpers` for the tagged path a `mixed` operand
   takes, and every `.nvst` that used the old answer as an *instrument*, so grep for the shape (`1.0
-  /`, `/ 0.0`), not the feature. [until: gone crates/nvs-ir/src/lower/operator.rs:fallible]
+  /`, `/ 0.0`), not the feature. `until: gone crates/nvs-ir/src/lower/operator.rs:fallible`

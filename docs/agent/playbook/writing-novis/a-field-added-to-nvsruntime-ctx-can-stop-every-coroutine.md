@@ -4,4 +4,4 @@
   nvs-stdlib` tests panicking inside a cargo registry path. `nvs_host::scheduler::start` boxes the
   context across and asserts `size_of_val(&entry) <= CORO_TRANSFER_LIMIT`; keep anything new out of
   the entry closure, and note `Finished` is over the limit and never crosses. See `crates/nvs-host/src/scheduler.rs`.
-  [until: gone crates/nvs-host/src/scheduler.rs:CORO_TRANSFER_LIMIT]
+  `until: gone crates/nvs-host/src/scheduler.rs:CORO_TRANSFER_LIMIT`

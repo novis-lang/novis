@@ -4,4 +4,4 @@
   them at `crates/nvs-runtime/src/object.rs:3460`, so an edit there runs both
   `a-property-that-was-never-written-is-read-as-a-throw.nvst` and
   `an-optional-field-is-absent-and-a-nullable-one-is-null.nvst`.
-  [until: exists docs/rules/classes/an-unwritten-property-read-throws.md:shape]
+  `until: exists docs/rules/classes/an-unwritten-property-read-throws.md:shape`

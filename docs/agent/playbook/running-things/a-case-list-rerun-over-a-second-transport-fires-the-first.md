@@ -3,4 +3,4 @@
   panicked in the `let Location::Server(..) = .. else` arms that were `unreachable!`. Read every
   match on `nvs_db::matrix::Location` before adding a leg, and gate a case on what the *leg* carries
   — `handshake.rs`'s `upgrades` asks for an anchor — rather than on which driver it is.
-  [until: gone crates/nvs-db/tests/handshake.rs:fn upgrades]
+  `until: gone crates/nvs-db/tests/handshake.rs:fn upgrades`

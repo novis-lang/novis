@@ -4,4 +4,4 @@
   --all-targets`, which is the only leg that builds the test copy at all. Give each such item its
   own `#[cfg_attr(test, expect(dead_code, reason = …))]`, and reach for `cargo clippy --all-targets`
   rather than `cargo build` while a seam still has no caller.
-  [until: gone crates/nvs-cli/src/service.rs:the subcommands that reach this seam]
+  `until: gone crates/nvs-cli/src/service.rs:the subcommands that reach this seam`

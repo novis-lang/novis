@@ -4,4 +4,4 @@
   way to separate. Withhold the server for that assertion — `nvs.lsp.enable` false, wait for its entries
   to clear, run the task, restore it in a `finally` — as
   `editors/vscode/test/host/surfaces.test.ts:112` does.
-  [until: gone crates/nvs-lsp/src/diagnostics.rs:code_description: None]
+  `until: gone crates/nvs-lsp/src/diagnostics.rs:code_description: None`

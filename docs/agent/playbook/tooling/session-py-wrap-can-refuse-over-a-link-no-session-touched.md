@@ -5,4 +5,4 @@
   `docs/rules/packaging.md` — `git show HEAD:<file>` showed the line unchanged, so "this session's"
   was about which resolver ran rather than about the diff. Write a fragment's links to resolve from
   the *chapter*, `bun nv rules --render`, and confirm with `bun nv links`.
-  [until: gone tools/nv/cmd/rules.ts:--render]
+  `until: gone tools/nv/cmd/rules.ts:--render`

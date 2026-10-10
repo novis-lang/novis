@@ -3,4 +3,4 @@
   session's own edits moved them, and the pack prints whatever now sits at the number under the
   heading "the code your item anchors". When a printed window does not match the item, do not read
   around the number: `bun nv peek --locate <symbol>` or a `:re:` target lands first time.
-  [until: gone tools/nv/cmd/orient.ts:THE CODE YOUR ITEM ANCHORS]
+  `until: gone tools/nv/cmd/orient.ts:THE CODE YOUR ITEM ANCHORS`

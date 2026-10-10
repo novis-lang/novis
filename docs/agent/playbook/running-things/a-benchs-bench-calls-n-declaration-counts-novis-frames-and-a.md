@@ -4,4 +4,4 @@
   Declare `calls` for the Novis functions a round enters, and read `allocations` and `bytes` to see
   that the native work really happened — one rendering counts 23.9 allocations and 1,157 bytes per
   op while its `calls` figure stays at zero. See `crates/nvs-stdlib/src/debug.rs`.
-  [until: gone crates/nvs-stdlib/src/debug.rs:Core\Debug::render]
+  `until: gone crates/nvs-stdlib/src/debug.rs:Core\Debug::render`

@@ -2,4 +2,4 @@
   another item names is filed there.** The tool's totals are right; only the attribution is a guess,
   so an item reads as closed while its headline half is unwritten. When an item's prose names a
   shape, grep the shape (`grep -rn '&\$x' crates/nvs-ir/src`) before believing the site list is the
-  whole item. See `tools/nv/cmd/holes.ts`. [until: gone tools/nv/cmd/holes.ts:--item]
+  whole item. See `tools/nv/cmd/holes.ts`. `until: gone tools/nv/cmd/holes.ts:--item`

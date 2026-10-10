@@ -3,4 +3,4 @@
   has an empty stem, falls under the fourteen-character floor, and the gate never asks for the case
   that catches it, which is the wrong direction for a ratchet. Write a refusal a case will assert as
   a literal that opens with real text; the name constants are worth less here than the gate is. See `crates/nvs-stdlib/tests/conformance_coverage.rs`.
-  [until: gone crates/nvs-stdlib/tests/conformance_coverage.rs:fn fault_sites]
+  `until: gone crates/nvs-stdlib/tests/conformance_coverage.rs:fn fault_sites`

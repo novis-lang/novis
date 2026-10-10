@@ -4,4 +4,4 @@
   path relative to the file that wrote it — so `@example doc-comments.nvs`, sitting beside the file it
   names, is refused for being in no walked directory. Write the walked directory into the path and let
   `..` carry the resolution: `@example ../examples/doc-comments.nvs` passes both halves.
-  [until: gone crates/nvs-hir/src/members.rs:let walked = written.components()]
+  `until: gone crates/nvs-hir/src/members.rs:let walked = written.components()`

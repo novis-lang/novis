@@ -4,4 +4,4 @@
   `tools/nv/select/record.ts` (a sweep, `bun nv verify`, `bun nv select --seed`), which starts every
   recorded run with its cache empty or off, and set `NOVIS_NO_FILE_CACHE=1` on any recording run
   started by hand.
-  [until: gone tools/nv/select/record.ts:NOVIS_NO_FILE_CACHE]
+  `until: gone tools/nv/select/record.ts:NOVIS_NO_FILE_CACHE`

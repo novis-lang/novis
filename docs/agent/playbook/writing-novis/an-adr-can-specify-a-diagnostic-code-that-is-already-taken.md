@@ -4,4 +4,4 @@
   `W1xxx` band sits at the foot of `crates/nvs-diagnostics/src/lib.rs`. The number an ADR states is
   a claim to check against that file, not a fact to copy; when it is wrong, fold the ADR body in the
   same commit and move everything naming the old code (the goal's prose, a test name in a check of
-  `data/goals/<slug>.json`) with it. [until: gone crates/nvs-diagnostics/src/lib.rs:E_INSTANCE_METHOD_CALLED_STATICALLY]
+  `data/goals/<slug>.json`) with it. `until: gone crates/nvs-diagnostics/src/lib.rs:E_INSTANCE_METHOD_CALLED_STATICALLY`

@@ -3,4 +3,4 @@
   sockets and hold a connection to a memory ceiling, so they are timing-sensitive, and a check run while `cargo build --release` saturates the machine can
   miss a frame that arrives every other time. Before treating a red *named* test as the regression
   that outranks your item, run that one test and then its whole crate suite — if both pass, it was
-  load and the ledger's next line will not repeat it. See `tools/nv/accept/accept.ts`. [until: gone tools/nv/accept/accept.ts:judgeTests]
+  load and the ledger's next line will not repeat it. See `tools/nv/accept/accept.ts`. `until: gone tools/nv/accept/accept.ts:judgeTests`

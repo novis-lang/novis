@@ -4,4 +4,4 @@
   `tests/conformance/core/a-route-capture-is-the-value-the-match-converted-not-the-segment-text.nvst`
   turned a green case red with a `case.nvs:18` against a `case.nvs:19` and nothing else changed.
   Keep a comment rewrite the same number of lines when the case pins a diagnostic, or update the
-  expectation in the same edit. [until: gone tests/conformance/core/a-route-capture-is-the-value-the-match-converted-not-the-segment-text.nvst:--EXPECTF-ERROR--]
+  expectation in the same edit. `until: gone tests/conformance/core/a-route-capture-is-the-value-the-match-converted-not-the-segment-text.nvst:--EXPECTF-ERROR--`

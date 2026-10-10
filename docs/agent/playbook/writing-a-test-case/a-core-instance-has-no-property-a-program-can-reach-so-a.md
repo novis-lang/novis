@@ -3,4 +3,4 @@
   allowed: bool, ...`, but `$d->allowed` does not compile; `CoreTy::Instance`'s doc comment is the
   rule. Check `CoreTy::Instance` before transcribing any rule that writes a `Core` value's fields
   with a colon.
-  [until: gone crates/nvs-stdlib/src/registry.rs:no constructor, no property and no subclass]
+  `until: gone crates/nvs-stdlib/src/registry.rs:no constructor, no property and no subclass`

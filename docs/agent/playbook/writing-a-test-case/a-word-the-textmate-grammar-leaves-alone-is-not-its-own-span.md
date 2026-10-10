@@ -4,4 +4,4 @@
   `spans.filter((s) => s.text === "Currency")` finds the coloured occurrence alone. Assert a negative
   as an absence (`filter(…).length === 0`) or against the whole run the way `names.test.ts`'s
   `plain(" Base {")` does, never by expecting an uncoloured span to exist.
-  [until: gone editors/vscode/test/grammar/tokenize.ts]
+  `until: gone editors/vscode/test/grammar/tokenize.ts`

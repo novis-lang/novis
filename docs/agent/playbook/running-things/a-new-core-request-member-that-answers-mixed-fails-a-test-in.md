@@ -3,4 +3,4 @@
   `every_request_member_returning_outside_data_returns_it_tainted` asserts the *exact set* of rows
   under the `Core\Request` prefix that answer an unqualified type, so a row answering `mixed` lands in it and the
   assertion reads "closed at eight". Add the row to the set and rewrite the count and the sentence
-  naming `query` and `post` as the known hole. [until: gone crates/nvs-types/src/core_lib.rs:every_request_member_returning_outside_data_returns_it_tainted]
+  naming `query` and `post` as the known hole. `until: gone crates/nvs-types/src/core_lib.rs:every_request_member_returning_outside_data_returns_it_tainted`

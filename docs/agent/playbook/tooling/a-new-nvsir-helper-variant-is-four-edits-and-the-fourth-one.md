@@ -4,4 +4,4 @@
   hand-kept `Vec` nothing checks; miss it and everything builds and passes until the first program
   reaching the helper dies inside `cranelift-jit` with *"can't resolve symbol nvs_your_helper"*.
   Grep the symbol name you just added and expect **three** hits outside the runtime's own
-  definition. [until: gone crates/nvs-runtime/src/helpers.rs:fn symbols]
+  definition. `until: gone crates/nvs-runtime/src/helpers.rs:fn symbols`

@@ -3,4 +3,4 @@
   bag fails `every_member_parameter_carries_a_qualifier_classification` and may not be listed beside
   the members already there; classify the bag `CoreTy::Text(Qual::…)`. `crates/nvs-stdlib/tests/capability.rs`'s
   `an_open_file_is_an_object_and_never_a_resource` is the other: it sweeps every row for a
-  `Core\IO\File` parameter, so it is red only under `--test capability`. [until: gone crates/nvs-stdlib/tests/capability.rs:an_open_file_is_an_object_and_never_a_resource]
+  `Core\IO\File` parameter, so it is red only under `--test capability`. `until: gone crates/nvs-stdlib/tests/capability.rs:an_open_file_is_an_object_and_never_a_resource`

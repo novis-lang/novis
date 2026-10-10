@@ -4,4 +4,4 @@
   `Qual::Neutral` is the mark for a parse that checks its text and answers an object
   (`crates/nvs-stdlib/src/time.rs:251`), and classifying a row means deleting its line from
   `registry.rs`'s `UNCLASSIFIED` ratchet in the same edit.
-  [until: gone crates/nvs-types/src/expr/quals.rs:tainted_result(return_ty, interner) != return_ty]
+  `until: gone crates/nvs-types/src/expr/quals.rs:tainted_result(return_ty, interner) != return_ty`

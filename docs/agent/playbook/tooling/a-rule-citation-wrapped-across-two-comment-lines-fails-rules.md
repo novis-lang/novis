@@ -4,4 +4,4 @@
   read the first half as a rule id that does not exist and `bun nv rules --render` has exited 1 ever since —
   which lands on whoever next edits `docs/rules/`, because `bun nv session --wrap` runs both for them.
   Reword the sentence so the token sits on one line rather than breaking one across a wrap.
-  [until: gone tools/nv/cmd/rules.ts:rules-py:examples]
+  `until: gone tools/nv/cmd/rules.ts:rules-py:examples`

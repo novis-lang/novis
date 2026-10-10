@@ -3,4 +3,4 @@
   language server links, so a `println!` in an `nvs-stdlib` unit test reads exactly like one in a
   member body, and clippy denies `print_stderr` workspace-wide, so `eprintln!` is not the repair.
   Carry the detail in the `assert_eq!` message instead, which is where a reader of the failure
-  looks anyway. See `crates/nvs-lsp/tests/stdout_policy.rs`. [until: gone crates/nvs-lsp/tests/stdout_policy.rs:no_crate_the_server_links_writes_to_stdout]
+  looks anyway. See `crates/nvs-lsp/tests/stdout_policy.rs`. `until: gone crates/nvs-lsp/tests/stdout_policy.rs:no_crate_the_server_links_writes_to_stdout`

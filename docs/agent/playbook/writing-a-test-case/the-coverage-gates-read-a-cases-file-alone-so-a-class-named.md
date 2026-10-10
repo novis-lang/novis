@@ -2,4 +2,4 @@
   attributes nothing.** `Attribution::holders` attributes a `->member(` only to classes named in the
   body or a registered return type. Write the receiver's class name inside the body, in a comment if
   nowhere else, or `every_part_one_member_has_a_conformance_case` fails naming the member. See `crates/nvs-stdlib/tests/corpus/mod.rs`.
-  [until: gone crates/nvs-stdlib/tests/corpus/mod.rs:fn holders]
+  `until: gone crates/nvs-stdlib/tests/corpus/mod.rs:fn holders`

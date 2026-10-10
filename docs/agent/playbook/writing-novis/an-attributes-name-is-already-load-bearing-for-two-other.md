@@ -5,4 +5,4 @@
   reference the autoloader places by prefix. A rule on what an attribute name resolves to has
   to exempt the first and leave the second alone;
   `tests/conformance/lang/a-class-named-only-by-an-attribute-is-autoloaded.nvst` and the
-  `json-derive-*` cases are what fail first. [until: gone tests/conformance/lang/a-class-named-only-by-an-attribute-is-autoloaded.nvst:#[]
+  `json-derive-*` cases are what fail first. `until: gone tests/conformance/lang/a-class-named-only-by-an-attribute-is-autoloaded.nvst:#[`

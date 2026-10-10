@@ -4,4 +4,4 @@
   errors on `[capabilities.net]`. `target/debug/nvs.exe test <case.nvst>` runs one case the way the
   suite does and honours the extra sections; for a single-file case `bun nv try` is still the cheap way
   to capture an `--EXPECTF-ERROR--` block — paste only the `error[...]` line and the `-->` line
-  under it. [until: gone tools/nv/cmd/try.ts:--FILE--]
+  under it. `until: gone tools/nv/cmd/try.ts:--FILE--`

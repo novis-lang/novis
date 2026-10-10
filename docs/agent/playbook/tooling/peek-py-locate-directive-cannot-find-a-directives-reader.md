@@ -3,4 +3,4 @@
   by anything in the tree" for a whole goal on that evidence, while `Ctx::output_limit` had been
   reading it through `configured_bytes("max_output")` since it landed. Locate a *symbol*; find a
   directive with `bun nv peek "crates/**/*.rs:re:<key>"`, which reads the string literals too. See `tools/nv/cmd/peek.ts`.
-  [until: gone tools/nv/cmd/peek.ts:--locate]
+  `until: gone tools/nv/cmd/peek.ts:--locate`

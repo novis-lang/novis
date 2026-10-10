@@ -4,4 +4,4 @@
   checker at all and a fixture written to test inference dies in `check_src`'s parse assertion rather
   than in the assertion it was written for. Relax it there, for an anonymous function's list alone, before writing
   any checker test that omits a parameter type.
-  [until: gone crates/nvs-syntax/src/parser/expr.rs:"expected a parameter type"]
+  `until: gone crates/nvs-syntax/src/parser/expr.rs:"expected a parameter type"`

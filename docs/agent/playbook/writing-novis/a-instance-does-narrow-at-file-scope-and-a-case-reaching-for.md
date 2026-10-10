@@ -2,4 +2,4 @@
   class.** `var $found = Core\Regex::match($s, $p); if ($found == null) { … } else { … }` compiles,
   and inside the `else` the receiver is the class type. The neighbouring trap — a `?array<T>` that
   cannot be indexed even after a `!= null` guard — is about the element type, so do not wrap every
-  nullable in a `public static function`. See `crates/nvs-stdlib/src/regex.rs`. [until: gone crates/nvs-stdlib/src/regex.rs:Core\Regex::match]
+  nullable in a `public static function`. See `crates/nvs-stdlib/src/regex.rs`. `until: gone crates/nvs-stdlib/src/regex.rs:Core\Regex::match`

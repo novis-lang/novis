@@ -4,4 +4,4 @@
   leaves seven for the comment, and a doc comment on the enclosing `fn` is outside once the body
   does anything before the guard. Put the declaration in the body immediately above the `let`,
   within seven lines — the failure reads as the phrase missing when it was one line too high.
-  [until: gone crates/nvs-stdlib/tests/conformance_coverage.rs:DECLARATION_WINDOW]
+  `until: gone crates/nvs-stdlib/tests/conformance_coverage.rs:DECLARATION_WINDOW`

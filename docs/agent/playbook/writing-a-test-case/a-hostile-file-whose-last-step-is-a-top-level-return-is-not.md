@@ -4,4 +4,4 @@
   says is reported as `declares ends-early, but ran to its last line`. Keep `ends-early` for a limit,
   an uncaught throw or `exit`, and run `bun nv proofs --run --group <group>` while
   you still have the file open rather than leaving it to the driver's acceptance check. See `tools/nv/proofs/run.ts`.
-  [until: gone tools/nv/proofs/run.ts:ran to its last line]
+  `until: gone tools/nv/proofs/run.ts:ran to its last line`

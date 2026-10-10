@@ -4,4 +4,4 @@
   is a bare `CoreTy::Instance` — a `CoreTy::Nullable(&CoreTy::Instance(…))` is excluded. So a class reached only through a nullable answer needs
   its name written inside `--FILE--`, in a comment if nowhere else; the `--TEST--` title is not read at
   all. See `crates/nvs-stdlib/tests/corpus/mod.rs`.
-  [until: gone crates/nvs-stdlib/tests/corpus/mod.rs:fn holders]
+  `until: gone crates/nvs-stdlib/tests/corpus/mod.rs:fn holders`

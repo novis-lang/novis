@@ -3,4 +3,4 @@
   `answer` takes the `Completion` before the deferred queue drains, so an `afterResponse` `echo`
   reaches a buffer nobody reads. Pin a cross-request claim at the boot (`[session] backend =
   "local"` is `E0626`) and an after-the-answer claim from the caller's side.
-  [until: gone crates/nvs-stdlib/src/test.rs:Core\Test::request]
+  `until: gone crates/nvs-stdlib/src/test.rs:Core\Test::request`

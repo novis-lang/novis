@@ -3,4 +3,4 @@
   *is*, but nothing derives the DDL in the three `queue-*-sqlite.nvst` cases or the bind arrays in
   `crates/nvs-stdlib/tests/queue.rs` (`push`, `push_keyed`, `push_marked`) and
   `crates/nvs-stdlib/tests/queue_sqlite.rs` (`push_in_two`), so a wider insert meets a narrower table. Grep `nvs_jobs` across `crates/` and `tests/` before running
-  anything, and add the slot to every list that grep names. [until: gone crates/nvs-stdlib/tests/queue.rs:push_marked]
+  anything, and add the slot to every list that grep names. `until: gone crates/nvs-stdlib/tests/queue.rs:push_marked`

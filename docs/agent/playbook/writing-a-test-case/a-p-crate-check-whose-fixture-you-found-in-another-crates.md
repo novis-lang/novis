@@ -4,4 +4,4 @@
   holds `hook_of`, which builds the same arity-1 callable out of `ClassTable`, `MethodRow` and the
   `CALLABLE_*` constants — all of them `nvs-runtime`'s own surface, so nothing has to move crates.
   Grep the crate the check names for `ClassTable::new` before concluding its `args` is the wrong half.
-  [until: gone crates/nvs-runtime/src/ctx/hooks.rs:fn hook_of]
+  `until: gone crates/nvs-runtime/src/ctx/hooks.rs:fn hook_of`

@@ -4,4 +4,4 @@
   alike — neither compiler-owned roster was refused anywhere, because every resolver short-circuits on
   those names before the symbol table and nothing ever looked at the declaration. Probe the precedent
   with `target/debug/nvs.exe check` on a two-line file before budgeting a one-line
-  addition. See `tools/nv/cmd/orient.ts`. [until: gone tools/nv/cmd/orient.ts:const TRIAGE]
+  addition. See `tools/nv/cmd/orient.ts`. `until: gone tools/nv/cmd/orient.ts:const TRIAGE`

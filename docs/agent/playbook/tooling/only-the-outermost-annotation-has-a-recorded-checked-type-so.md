@@ -4,4 +4,4 @@
   *inside* an annotation (`?T`'s target, an `array<T>` element) gets the `match
   &ty.kind` fallback, where every name-shaped atom is `Ty::Object`. Read the whole annotation's
   `declared_ty` and take the piece off the checked type — `?T` interns as `T|null`, so its target is
-  that union minus `CheckedTy::Null`. See `crates/nvs-types/src/lower.rs`. [until: gone crates/nvs-types/src/lower.rs:lower_type_at_depth]
+  that union minus `CheckedTy::Null`. See `crates/nvs-types/src/lower.rs`. `until: gone crates/nvs-types/src/lower.rs:lower_type_at_depth`

@@ -2,4 +2,4 @@
   The gate wants the message cased, and `Core\Command::completions`'s refusal is reachable, not from
   a command line. `--RUN--\ntest\n` runs the file's `#[Test]` methods, so the case is a `#[Test]`
   echoing `$e->message`; an empty `--EXPECTF-ERROR--` claims the run failed. See `crates/nvs-stdlib/tests/conformance_coverage.rs`.
-  [until: gone crates/nvs-stdlib/tests/conformance_coverage.rs:const DECLARATION: &str]
+  `until: gone crates/nvs-stdlib/tests/conformance_coverage.rs:const DECLARATION: &str`

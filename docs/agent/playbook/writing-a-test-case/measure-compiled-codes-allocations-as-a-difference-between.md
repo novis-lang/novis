@@ -3,4 +3,4 @@
   `call_callable` its retained argument slice once per call, so "400 passes allocated what 4 did"
   holds where "allocated nothing" cannot. Pair it with a control arm that *does* allocate per
   access; only with no callback (`sort($list)`) is an absolute bound right. See `crates/nvs-runtime/src/callable.rs`.
-  [until: gone crates/nvs-runtime/src/callable.rs:call_callable]
+  `until: gone crates/nvs-runtime/src/callable.rs:call_callable`

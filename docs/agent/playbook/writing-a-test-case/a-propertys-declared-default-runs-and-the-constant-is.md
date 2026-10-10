@@ -3,4 +3,4 @@
   constants it accepts.** `public int $n = 4;` reaches the slot of every fresh instance, inherited
   defaults included, because `nvs_runtime::NvsObj::new` writes a per-class image the descriptor
   carries. A union is read one level deep. A `decimal` and a non-empty array literal
-  are still `E0472` at a property, and a `static` property is skipped entirely. See `crates/nvs-diagnostics/src/lib.rs`. [until: gone crates/nvs-diagnostics/src/lib.rs:E0472]
+  are still `E0472` at a property, and a `static` property is skipped entirely. See `crates/nvs-diagnostics/src/lib.rs`. `until: gone crates/nvs-diagnostics/src/lib.rs:E0472`

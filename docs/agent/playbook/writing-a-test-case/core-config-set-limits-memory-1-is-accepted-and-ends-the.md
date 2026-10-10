@@ -3,4 +3,4 @@
   passes. An attack that churns a budget down to its smallest accepted value therefore fatals at
   round zero, and every section under it never runs while the case still reports as a pass — a clean
   fatal is one. Churn between values the program still fits in, and put the deliberate exhaustion
-  last. See `crates/nvs-stdlib/src/config.rs`. [until: gone crates/nvs-stdlib/src/config.rs:limits.memory]
+  last. See `crates/nvs-stdlib/src/config.rs`. `until: gone crates/nvs-stdlib/src/config.rs:limits.memory`

@@ -4,4 +4,4 @@
   which reads like a broken `gh` or a stale run rather than what it is, jobs that were never started.
   `gh api repos/<owner>/<repo>/check-runs/<job id>/annotations` prints the sentence itself, the job
   id being the one in that `log not found`, and nothing else in the API carries it. See `.github/workflows/ci.yml`.
-  [until: gone .github/workflows/ci.yml:runs-on]
+  `until: gone .github/workflows/ci.yml:runs-on`

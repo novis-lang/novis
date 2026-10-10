@@ -6,4 +6,4 @@
   -d docker-desktop -- ls /mnt/wsl /mnt/host/wsl` beside the leg's own `ls /mnt/wsl` is the tell.
   Docker creates a missing source root-owned 755 and the `redis` image binds as uid 999 whatever
   `user:` says, so the `certs` service chowns it.
-  [until: gone tests/db/compose.yaml:/mnt/host/wsl]
+  `until: gone tests/db/compose.yaml:/mnt/host/wsl`

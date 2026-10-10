@@ -5,4 +5,4 @@
   test would make the lookup rule public. Ask `lookup` a near
   miss instead: `http.client.pool_idlex` must resolve to `http` and not to `http.client.pool_idle`,
   which pins the same dot-boundary claim through the API the registry already exports.
-  [until: gone crates/nvs-config/src/directive.rs:pub(crate) fn governs]
+  `until: gone crates/nvs-config/src/directive.rs:pub(crate) fn governs`

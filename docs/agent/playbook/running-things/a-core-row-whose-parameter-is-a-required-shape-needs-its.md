@@ -5,4 +5,4 @@
   `every_registry_row_names_one_parameter_per_positional_slot` forbids that very name on a positional
   slot — and a shape is positional. Amend the spec row to `{…} $settings` rather than the registry
   row, as that parser's comment on `Core\Task::all` says.
-  [until: gone crates/nvs-stdlib/src/registry.rs:every_registry_row_names_one_parameter_per_positional_slot]
+  `until: gone crates/nvs-stdlib/src/registry.rs:every_registry_row_names_one_parameter_per_positional_slot`

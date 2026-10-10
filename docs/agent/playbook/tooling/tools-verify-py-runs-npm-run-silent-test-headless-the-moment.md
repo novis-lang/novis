@@ -4,4 +4,4 @@
   compiled cases under `out/test/<name>/` and exits 1 when there are none, so naming a stage cannot
   fake it green and the loop's `want` list stays red until each suite is real. Add one by creating
   `test/<name>/*.test.ts` — nothing registers it elsewhere.
-  [until: gone editors/vscode/scripts/headless.mjs:ORDER]
+  `until: gone editors/vscode/scripts/headless.mjs:ORDER`

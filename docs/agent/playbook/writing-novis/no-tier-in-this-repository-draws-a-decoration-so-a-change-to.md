@@ -2,4 +2,4 @@
   someone opens an editor.** `test:headless` runs the reveal state machine and the position
   conversion in plain Node, and the extension-host tier does not render; the README's *No pixel
   tier* says why neither will. A CSS change here is a proposal, not a landed fix — say so, and get
-  it looked at before writing it down as one. See `editors/vscode/README.md`. [until: gone editors/vscode/README.md:No pixel tier]
+  it looked at before writing it down as one. See `editors/vscode/README.md`. `until: gone editors/vscode/README.md:No pixel tier`

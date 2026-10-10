@@ -4,4 +4,4 @@
   `E0101 expected ';'` and never `E0120`. Probe a new type-position refusal from a parameter or
   return type, where nothing backs out, and say in its doc comment that the statement head is the
   one position it does not reach. See `crates/nvs-syntax/src/parser/stmt.rs`.
-  [until: gone crates/nvs-syntax/src/parser/stmt.rs:diags_len]
+  `until: gone crates/nvs-syntax/src/parser/stmt.rs:diags_len`

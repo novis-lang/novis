@@ -4,4 +4,4 @@
   parser's clean refusal, which only covers a deep *literal*. Probe an attack's nesting step with
   `target/debug/nvs.exe run` first, and bound the member the way
   `crates/nvs-stdlib/src/db/schema.rs`'s `DEPTH_LIMIT` does.
-  [until: gone crates/nvs-stdlib/src/db/schema.rs:DEPTH_LIMIT]
+  `until: gone crates/nvs-stdlib/src/db/schema.rs:DEPTH_LIMIT`

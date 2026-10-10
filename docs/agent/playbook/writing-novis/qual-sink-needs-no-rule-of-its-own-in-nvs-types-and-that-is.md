@@ -3,4 +3,4 @@
   (`nvs_types::core_lib`), so a sink parameter's refusal is ordinary assignability, and grepping for code that reads `Qual::Sink`
   finds `crates/nvs-stdlib` and nothing else. What needs a checker rule is the opposite shape, a
   sink whose parameter is `mixed` (`Core\Debug::dump`, `Core\Serialize::encode`), where nothing
-  below the call can still see the qualifier; those live in `expr/quals.rs`. [until: gone crates/nvs-stdlib/src/serialize.rs:Core\Serialize::encode]
+  below the call can still see the qualifier; those live in `expr/quals.rs`. `until: gone crates/nvs-stdlib/src/serialize.rs:Core\Serialize::encode`

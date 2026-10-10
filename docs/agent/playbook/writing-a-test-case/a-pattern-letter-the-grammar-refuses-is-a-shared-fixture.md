@@ -4,4 +4,4 @@
   pattern string (`"yyyy-` and `format(\"`) before widening a closed grammar, and pick the
   replacement from the letters CLDR reserves and gives no field (`j`, `J`, `C`, `l`).
   Two cases also count the alphabet and the field roster in one `--EXPECT--`. See `crates/nvs-stdlib/src/cldr.rs`.
-  [until: gone crates/nvs-stdlib/src/cldr.rs:is not a pattern letter]
+  `until: gone crates/nvs-stdlib/src/cldr.rs:is not a pattern letter`

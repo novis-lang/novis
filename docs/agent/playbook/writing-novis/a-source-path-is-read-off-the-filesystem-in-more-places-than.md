@@ -5,4 +5,4 @@
   `rule:config/an-application-is-its-entry-file-path`'s `[[app]]` blocks, refusing the run with
   `E0605` after the program compiled cleanly. Before changing a byte source, `grep -n
   'canonicalize\|read_to_string' crates/` for the other readers.
-  [until: gone crates/nvs-cli/src/main.rs:trust::canonical]
+  `until: gone crates/nvs-cli/src/main.rs:trust::canonical`

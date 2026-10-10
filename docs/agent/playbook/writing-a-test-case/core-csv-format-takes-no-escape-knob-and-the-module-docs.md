@@ -4,4 +4,4 @@
   spelling of an inner quote is doubling. A case planning to turn `{escape:}` on the writer against
   `fputcsv`'s fifth argument has nothing to turn; what it can measure is that PHP's `""` dialect is
   this writer's.
-  [until: gone crates/nvs-stdlib/src/csv.rs:are the three knobs every real CSV dialect]
+  `until: gone crates/nvs-stdlib/src/csv.rs:are the three knobs every real CSV dialect`

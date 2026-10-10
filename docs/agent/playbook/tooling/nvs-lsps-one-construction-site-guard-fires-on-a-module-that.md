@@ -5,4 +5,4 @@
   test whose message is about *building* one. Widen it by asserting that a module outside those
   three names the type only behind a `&` and in an import, which is what the test's own comment
   already claims, rather than by adding the module to the list.
-  [until: gone crates/nvs-lsp/tests/index.rs:names SymbolIndex other than behind]
+  `until: gone crates/nvs-lsp/tests/index.rs:names SymbolIndex other than behind`

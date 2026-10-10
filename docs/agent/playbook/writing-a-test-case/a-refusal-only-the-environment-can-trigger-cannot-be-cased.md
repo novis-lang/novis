@@ -2,4 +2,4 @@
   owed, not exempt.** `Core\IO::stdin` throwing when stdin is a terminal asked for a case that
   cannot exist (a case runs through `Command::output` with `Stdio::null`), and an "unreachable from
   source" comment would be a lie. Fix the condition or move the rule where it can be asserted. See `crates/nvs-stdlib/tests/conformance_coverage.rs`.
-  [until: gone crates/nvs-stdlib/tests/conformance_coverage.rs:const DECLARATION: &str]
+  `until: gone crates/nvs-stdlib/tests/conformance_coverage.rs:const DECLARATION: &str`

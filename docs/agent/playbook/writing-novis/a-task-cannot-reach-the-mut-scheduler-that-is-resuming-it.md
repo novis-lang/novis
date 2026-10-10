@@ -4,4 +4,4 @@
   flags, pending children — lives in an `Rc<RefCell<..>>` the scheduler publishes in a thread-local
   for the length of its turn (`scheduler.rs`, as `crate::reactor` does). Never call
   `Coroutine::force_unwind` from a task's own stack: teardown belongs on the scheduler's stack, so
-  cancellation marks and the next turn unwinds. [until: gone crates/nvs-host/src/scheduler.rs:force_unwind]
+  cancellation marks and the next turn unwinds. `until: gone crates/nvs-host/src/scheduler.rs:force_unwind`

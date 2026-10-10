@@ -5,4 +5,4 @@
   refuse one, so the marks written on the arms reach nothing — `Core\Socket` split `send` and
   `sendBytes` into two members for exactly this. Decide whether the member
   has to accept tainted data *before* spelling a union, and take that split if it does.
-  [until: gone crates/nvs-stdlib/src/registry.rs:CoreTy::classification]
+  `until: gone crates/nvs-stdlib/src/registry.rs:CoreTy::classification`

@@ -3,4 +3,4 @@
   --reps 9`, pop, rebuild. The base run should reproduce the ledger's own sweep row for row; without
   it a small move is indistinguishable from a quiet machine. Budget two release rebuilds and the
   harness re-printing every stashed file it has seen, twice; a `git worktree` avoids the re-print and
-  pays a full cold build, which is worse. See `tools/nv/cmd/bench.ts`. [until: gone tools/nv/cmd/bench.ts:--reps]
+  pays a full cold build, which is worse. See `tools/nv/cmd/bench.ts`. `until: gone tools/nv/cmd/bench.ts:--reps`

@@ -4,4 +4,4 @@
   like a name-resolution bug in the case you just wrote. Every `Core\IO` case has that section, so
   nothing is wrong with the case. `target/debug/nvs.exe test <path.nvst>` understands the format,
   takes a single file, and is the same harness `nv verify` uses; keep `bun nv try` for a snippet with no
-  config block. [until: exists tools/nv/cmd/try.ts:nvs.toml]
+  config block. `until: exists tools/nv/cmd/try.ts:nvs.toml`

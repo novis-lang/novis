@@ -4,4 +4,4 @@
   `nvs_runtime::CARRIER_HTML_MARKUP` — a search for `Core\\Html\\Markup` in `registry.rs` returns zero
   hits. Grep
   the owning module for `pub const CLASS`/`NAME`, or `registry.rs` for `crate::<module>::`, and confirm
-  membership there rather than by the class's spelled name. [until: gone crates/nvs-stdlib/src/registry.rs:nvs_runtime::CARRIER_HTML_MARKUP]
+  membership there rather than by the class's spelled name. `until: gone crates/nvs-stdlib/src/registry.rs:nvs_runtime::CARRIER_HTML_MARKUP`

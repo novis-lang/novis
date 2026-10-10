@@ -2,4 +2,4 @@
   the `Edit` tool has to make.** A block runs from `<<<<<<< OLD` to the first `=======` after it, so
   a block whose own text quotes those markers ends in the middle of itself. The failure does not
   look like a parse error: it looks like a stale anchor in whatever file the truncated block landed
-  on. See `tools/nv/cmd/splice.ts`. [until: gone tools/nv/cmd/splice.ts:<<<<<<< OLD]
+  on. See `tools/nv/cmd/splice.ts`. `until: gone tools/nv/cmd/splice.ts:<<<<<<< OLD`

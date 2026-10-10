@@ -4,4 +4,4 @@
   a connection-only member arrives as a buried element diff. Add the name to
   `crates/nvs-stdlib/src/db/registry.rs`'s `BEYOND_QUERYABLE`, which the test checks from both ends;
   a "two rosters are identical" guard needs its exception set spelled as data the guard also checks.
-  [until: gone crates/nvs-stdlib/src/db/registry.rs:BEYOND_QUERYABLE]
+  `until: gone crates/nvs-stdlib/src/db/registry.rs:BEYOND_QUERYABLE`

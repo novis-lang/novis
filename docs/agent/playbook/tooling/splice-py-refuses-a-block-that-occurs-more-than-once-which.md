@@ -4,4 +4,4 @@
   byte-perfect, and a single wrong space fails the whole patch. Use `Edit` with `replace_all` once
   per indentation level, with a leading newline inside `old_string` so a 12-space block cannot match
   inside a 16-space line, and keep `nv splice` for the blocks that really are one of a kind. See `tools/nv/cmd/splice.ts`.
-  [until: gone tools/nv/cmd/splice.ts:<<<<<<< OLD]
+  `until: gone tools/nv/cmd/splice.ts:<<<<<<< OLD`

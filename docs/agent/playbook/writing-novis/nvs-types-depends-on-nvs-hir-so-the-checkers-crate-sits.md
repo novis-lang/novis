@@ -3,4 +3,4 @@
   through `nvs_types::string_lit` — is a dependency cycle Cargo refuses, not a call-site change, and the
   compile error names `and_then` or a trait bound rather than the cycle. Move the shared routine down to
   `nvs-syntax`, which `nvs-hir`, `nvs-types` and `nvs-ir` all already depend on, and leave a `pub use`
-  where it was so no call site moves. See `crates/nvs-types/Cargo.toml`. [until: gone crates/nvs-types/Cargo.toml:nvs-hir.workspace]
+  where it was so no call site moves. See `crates/nvs-types/Cargo.toml`. `until: gone crates/nvs-types/Cargo.toml:nvs-hir.workspace`

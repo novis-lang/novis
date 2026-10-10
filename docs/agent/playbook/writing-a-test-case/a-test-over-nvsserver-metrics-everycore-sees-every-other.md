@@ -4,4 +4,4 @@
   Give the case its own `route` label and assert on that series by name
   (`crates/nvs-runtime/src/metrics.rs:1249`), and hold the cores alive across the gather with a
   `Barrier` — a thread that exited is indistinguishable from one the roster never reached.
-  [until: gone crates/nvs-runtime/src/metrics.rs:static CORES]
+  `until: gone crates/nvs-runtime/src/metrics.rs:static CORES`

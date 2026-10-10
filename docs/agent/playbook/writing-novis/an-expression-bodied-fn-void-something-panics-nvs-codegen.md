@@ -3,4 +3,4 @@
   `nvs-codegen does not lower an operand used before it is defined`, while `fn (): void => {
   M::run(); }` and `fn (): int => M::n()` both run, so it is the `void` return that is unlowerable.
   Write the braces; the panic names neither the anonymous function nor its return type. See `crates/nvs-codegen/src/emit.rs`.
-  [until: gone crates/nvs-codegen/src/emit.rs:used before it is defined]
+  `until: gone crates/nvs-codegen/src/emit.rs:used before it is defined`

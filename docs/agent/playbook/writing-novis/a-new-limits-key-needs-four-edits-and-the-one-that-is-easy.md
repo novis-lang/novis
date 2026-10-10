@@ -5,4 +5,4 @@
   its `Ctx` reader but no `unit_of` arm never reaches `[limits]` and answers its default — nothing
   refuses, only the number is wrong. The roster is the `Limits` field, the `DIRECTIVES` row, the
   `unit_of` arm, and the reader.
-  [until: gone crates/nvs-config/src/value.rs:fn unit_of]
+  `until: gone crates/nvs-config/src/value.rs:fn unit_of`

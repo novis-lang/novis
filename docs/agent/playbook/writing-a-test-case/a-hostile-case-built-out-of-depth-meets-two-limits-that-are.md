@@ -5,4 +5,4 @@
   diagnostic, which the hostile runner counts as a failure.
   Run the candidate with `target/debug/nvs.exe run` first, keep a legal nest near a dozen
   parentheses, and write the nested type out — `array<array<string>> $t = [["leaf"]];`. See `crates/nvs-syntax/src/parser/mod.rs`.
-  [until: gone crates/nvs-syntax/src/parser/mod.rs:MAX_RECURSION_DEPTH]
+  `until: gone crates/nvs-syntax/src/parser/mod.rs:MAX_RECURSION_DEPTH`

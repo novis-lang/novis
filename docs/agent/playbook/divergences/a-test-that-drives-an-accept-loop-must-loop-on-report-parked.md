@@ -5,4 +5,4 @@
   answer and no end of file. It fails on windows-x86_64
   and passes on the other legs; drive with `serve.rs`'s
   `run_the_core`, which is `nvs-cli`'s worker loop with a deadline on it.
-  [until: gone crates/nvs-server/src/serve.rs:fn run_the_core]
+  `until: gone crates/nvs-server/src/serve.rs:fn run_the_core`

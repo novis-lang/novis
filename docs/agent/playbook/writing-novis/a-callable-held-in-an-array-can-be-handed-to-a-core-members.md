@@ -3,4 +3,4 @@
   Core\Out::capture($body, {through: $filter}) }` over an `array<callable>` lowers and runs, because
   the call is `nvs_runtime::call_callable`, not a lowered `Call`. A `mixed` is not implicitly
   narrowed, so `array<string> $row = ["a", $cell]` over a `mixed $cell` is `E0401`. See `crates/nvs-runtime/src/callable.rs`.
-  [until: gone crates/nvs-runtime/src/callable.rs:call_callable]
+  `until: gone crates/nvs-runtime/src/callable.rs:call_callable`

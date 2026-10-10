@@ -4,4 +4,4 @@
   `lower_binary`); the sixth is `lower_expr`'s own dispatch arm, which routes `$x == null` to
   `lower_null_identity` when one side is the literal,
   so a row added to `lower_binary` is dead for the spelling every test writes and a null value
-  compares unequal to `null`. See `crates/nvs-ir/src/lower/expr.rs`. [until: gone crates/nvs-ir/src/lower/expr.rs:lower_isset_operand]
+  compares unequal to `null`. See `crates/nvs-ir/src/lower/expr.rs`. `until: gone crates/nvs-ir/src/lower/expr.rs:lower_isset_operand`

@@ -4,4 +4,4 @@
   j.state <> 1` drops the driving row for a claimed job, taking that arm with it. Drive it from
   `(select ? as jid, ? as qname) r`, give each table its own `left join` carrying its own predicate,
   and prepare it against a live server before writing the doc comment. See `crates/nvs-stdlib/src/queue.rs`.
-  [until: gone crates/nvs-stdlib/src/queue.rs:delete j, d]
+  `until: gone crates/nvs-stdlib/src/queue.rs:delete j, d`

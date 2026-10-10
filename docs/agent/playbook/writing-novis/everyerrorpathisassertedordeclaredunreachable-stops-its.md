@@ -4,4 +4,4 @@
   the phrase to the `Fault::`, which `cargo fmt` can push past by breaking a method chain. Name the
   mechanism without the prefix ("fatal rather than thrown") and put the comment over a bare
   `Err(Fault::fatal(…))` rather than over a closure chain. See `crates/nvs-stdlib/tests/conformance_coverage.rs`.
-  [until: gone crates/nvs-stdlib/tests/conformance_coverage.rs:every_error_path_is_asserted]
+  `until: gone crates/nvs-stdlib/tests/conformance_coverage.rs:every_error_path_is_asserted`

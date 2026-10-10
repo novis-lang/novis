@@ -4,4 +4,4 @@
   no test reaches without installing an exception class table first. Assert the sentence from Rust and
   pin the class from the `.nvst` or hostile case that catches it by name, the way
   `tests/hostile/core/Cli/select/01-a-menu-nobody-can-answer.nvs` catches `LogicError`.
-  [until: gone tests/hostile/core/Cli/select/01-a-menu-nobody-can-answer.nvs:LogicError]
+  `until: gone tests/hostile/core/Cli/select/01-a-menu-nobody-can-answer.nvs:LogicError`

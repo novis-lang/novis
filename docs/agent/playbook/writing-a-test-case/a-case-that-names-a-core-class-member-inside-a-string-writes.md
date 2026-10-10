@@ -3,4 +3,4 @@
   exactly those characters. `bun nv gaps --errors` drops a site only when the literal run before the
   message's first format hole appears in the suite, so assert `Core\Str::startsWith($e->message,
   '…')` with the prefix spelled out, not a tail a dependency bump will rewrite. See `tools/nv/cmd/gaps.ts`.
-  [until: gone tools/nv/cmd/gaps.ts:--errors]
+  `until: gone tools/nv/cmd/gaps.ts:--errors`

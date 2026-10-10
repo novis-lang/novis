@@ -5,4 +5,4 @@
   the faithful one. `bun nv proofs` builds
   its own binary first, `target/proof/` for `--bless`, `--run` and `--verify` and `target/release/`
   for `--record-perf`, so make every `crates/` edit of the group before the first of those calls,
-  because each edit buys another build. [until: gone tools/nv/proofs/run.ts:releaseBinary]
+  because each edit buys another build. `until: gone tools/nv/proofs/run.ts:releaseBinary`

@@ -4,4 +4,4 @@
   so editing one leaves a helper declared at two arities — a runtime panic in `nvs_helper!`'s `args:
   [N]` check, not a build error. `grep -c 'name: "<member>"' crates/nvs-stdlib/src/db/registry.rs`
   and expect `2`; a `nv splice` "block appears 2 times" refusal is the same tell. See `crates/nvs-stdlib/src/db/registry.rs`.
-  [until: gone crates/nvs-stdlib/src/db/registry.rs:TRANSACTION]
+  `until: gone crates/nvs-stdlib/src/db/registry.rs:TRANSACTION`

@@ -3,4 +3,4 @@
   `Core\Arr::chunk($long, 25000)` over 100000 entries, 20000 times, is two billion entry copies: it
   ran 3m23s in a debug build against a declared `timeout-ms 60000`, where the same 20000 repeats of
   `Core\Arr::firstKey` cost nothing because that member reads one end. Divide the repeat count by the entries the member walks, and
-  time the file yourself before committing it. See `crates/nvs-stdlib/src/arr.rs`. [until: gone crates/nvs-stdlib/src/arr.rs:Core\Arr::firstKey]
+  time the file yourself before committing it. See `crates/nvs-stdlib/src/arr.rs`. `until: gone crates/nvs-stdlib/src/arr.rs:Core\Arr::firstKey`

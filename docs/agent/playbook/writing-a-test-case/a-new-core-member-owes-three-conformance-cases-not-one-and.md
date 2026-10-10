@@ -3,4 +3,4 @@
   `every_core_class_has_a_conformance_floor_of_three` counts distinct case files per member, and a
   repeated question does not. Budget three shapes, run `cargo test --test
   conformance_coverage` first, and never add to `BELOW_THE_FLOOR`. See `crates/nvs-stdlib/tests/conformance_coverage.rs`.
-  [until: gone crates/nvs-stdlib/tests/conformance_coverage.rs:const FLOOR: usize = 3]
+  `until: gone crates/nvs-stdlib/tests/conformance_coverage.rs:const FLOOR: usize = 3`

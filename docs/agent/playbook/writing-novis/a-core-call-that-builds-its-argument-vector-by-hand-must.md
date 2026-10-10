@@ -3,4 +3,4 @@
   `lower_call_args` and lowered `$params` without staging it on `owned_temporaries`, so every
   `Core\Router::url("…", ["id" => 7])` leaked one array header per call. Run `MSYS_NO_PATHCONV=1 wsl.exe -- bash tools/leak-check.sh <fixture>`
   from the Bash tool, and pin it as `a_resolved_route_link_releases_its_params_array` does. See `crates/nvs-ir/src/lower/tests.rs`.
-  [until: gone crates/nvs-ir/src/lower/tests.rs:a_resolved_route_link_releases_its_params_array]
+  `until: gone crates/nvs-ir/src/lower/tests.rs:a_resolved_route_link_releases_its_params_array`

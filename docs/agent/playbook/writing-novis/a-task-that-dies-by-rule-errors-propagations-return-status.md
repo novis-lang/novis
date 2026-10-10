@@ -4,4 +4,4 @@
   and then an uncaught exception at the `Core\Task::map` call site: the child's `ctx.pending()` was
   the safepoint's own record of the teardown. Ask `Ctx::cancelled()` before `pending()` (as
   `nvs_host::group::Child::run` does) and leave a cancelled child's slot empty; every collector of a child context owes the
-  same check. [until: gone crates/nvs-host/src/group.rs:cancelled()]
+  same check. `until: gone crates/nvs-host/src/group.rs:cancelled()`

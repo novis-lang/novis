@@ -4,4 +4,4 @@
   back asking for seven cases nobody meant to owe. Freeze the rendering at a construct the corpus
   already reaches — a second `string` argument does it — and leave the shape that opens a column to
   the crate's own Rust test.
-  [until: gone crates/nvs-lsp/tests/coverage.rs:every_request_answers_every_construct]
+  `until: gone crates/nvs-lsp/tests/coverage.rs:every_request_answers_every_construct`

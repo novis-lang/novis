@@ -3,4 +3,4 @@
   })?;` covers nothing if "unreachable from source" sits more than `DECLARATION_WINDOW` lines above
   the token (the Rust closure's own lines count), and a second site further down never sees it. Put one
   short declaration immediately above each site, each ending with its own reason. See `crates/nvs-stdlib/tests/conformance_coverage.rs`.
-  [until: gone crates/nvs-stdlib/tests/conformance_coverage.rs:const DECLARATION_WINDOW]
+  `until: gone crates/nvs-stdlib/tests/conformance_coverage.rs:const DECLARATION_WINDOW`

@@ -3,4 +3,4 @@
   so `nvs_array_append`'s refusal moves `budget::live_bytes` by a couple of hundred bytes while
   `nvs_array_set`'s moves it by nothing. Assert "allocated nothing" on the primitives that answer a
   degenerate value, and assert the status plus the unchanged operand on the ones that answer a
-  status. See `crates/nvs-runtime/src/ctx/limits.rs`. [until: gone crates/nvs-runtime/src/ctx/limits.rs:pub fn memory_breach]
+  status. See `crates/nvs-runtime/src/ctx/limits.rs`. `until: gone crates/nvs-runtime/src/ctx/limits.rs:pub fn memory_breach`

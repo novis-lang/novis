@@ -2,4 +2,4 @@
   predicates silently loses its false columns and still looks like a shorter tally. `bool as int` is
   not a conversion at all — it is `E0708`, whose help line names the spelling to use — so the way to
   show a predicate's answer is `$b ? 1 : 0`, or a two-line helper returning a character. See `crates/nvs-diagnostics/src/lib.rs`.
-  [until: gone crates/nvs-diagnostics/src/lib.rs:E0708]
+  `until: gone crates/nvs-diagnostics/src/lib.rs:E0708`

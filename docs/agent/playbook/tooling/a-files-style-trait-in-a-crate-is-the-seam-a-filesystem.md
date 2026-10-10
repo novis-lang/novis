@@ -4,4 +4,4 @@
   *lexically* silently makes every case a statement about paths no symlink was in — `Path::exists`
   `stat`s rather than `lstat`s, so a fake `exists` must follow links too. Grep `impl <Trait> for`
   before adding a method, and give the fake the resolving behaviour rather than the identity one. See `crates/nvs-config/src/resolve.rs`.
-  [until: gone crates/nvs-config/src/resolve.rs:exists]
+  `until: gone crates/nvs-config/src/resolve.rs:exists`

@@ -4,4 +4,4 @@
   platform canonicalizer first and Win32 normalizes `nothing\..` out before the syscall while
   `realpath` stops at the missing component. Use a `..` whose parent exists
   (`io-within-resolves-and-then-proves-containment.nvst` does) or a name that merely contains `..`.
-  [until: gone crates/nvs-config/src/capability.rs:realpath]
+  `until: gone crates/nvs-config/src/capability.rs:realpath`

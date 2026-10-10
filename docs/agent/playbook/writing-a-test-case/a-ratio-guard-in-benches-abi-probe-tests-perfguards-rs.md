@@ -4,4 +4,4 @@
   to under 1x in the full binary and is healthy alone, its placed half starved of the cores it fans
   out onto. Every guard there takes `serialised()` first and
   `every_guard_in_this_binary_takes_the_lock` counts the line, so write a new one holding it.
-  [until: gone benches/abi-probe/tests/perf_guards.rs:fn serialised]
+  `until: gone benches/abi-probe/tests/perf_guards.rs:fn serialised`

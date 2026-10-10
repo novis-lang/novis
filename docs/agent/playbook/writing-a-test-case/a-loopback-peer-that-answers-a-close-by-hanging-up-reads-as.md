@@ -4,4 +4,4 @@
   `ResetWithoutClosingHandshake`. A case asserting `null` after a close rests on the read loop in
   `crates/nvs-stdlib/src/http/socket.rs` reading a failure after *this* end closed as the end; one
   about the *peer* closing has to make the peer flush first.
-  [until: gone crates/nvs-stdlib/src/http/transport.rs:talking_origin]
+  `until: gone crates/nvs-stdlib/src/http/transport.rs:talking_origin`

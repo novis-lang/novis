@@ -4,4 +4,4 @@
   literal, so adding "which this crate does not lower yet" to a consistency panic raises the count.
   The tell is a red `cargo test --test refusals` while `bun nv holes` reports `UNATTRIBUTED: 0`; a
   claim of a lowering gap goes in the crate docs' known-gaps section, and the panic keeps what it
-  said. [until: gone tools/nv/cmd/holes.ts:REFUSAL]
+  said. `until: gone tools/nv/cmd/holes.ts:REFUSAL`

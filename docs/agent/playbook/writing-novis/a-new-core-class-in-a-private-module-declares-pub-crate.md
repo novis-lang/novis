@@ -3,4 +3,4 @@
   `pub const CLASS` into a private `mod` warns `unreachable pub item`, which the workspace lint
   policy makes a `nv verify` failure. Every private domain module (`env.rs`, `cap.rs`, `out.rs`)
   spells `CLASS` and `address` `pub(crate)`.
-  [until: gone crates/nvs-stdlib/src/json.rs:pub const CLASS: CoreClass]
+  `until: gone crates/nvs-stdlib/src/json.rs:pub const CLASS: CoreClass`

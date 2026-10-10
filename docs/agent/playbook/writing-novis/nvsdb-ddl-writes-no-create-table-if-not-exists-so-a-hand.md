@@ -4,4 +4,4 @@
   `crates/nvs-db/src/ddl.rs:1210` asserts the absence — because a plan is computed from the current
   state. So the command that ran the list
   has to become a convergence in the same slice, and any column the value adds has to be nullable to
-  arrive as a `Safe` step on a table that already has rows. [until: gone crates/nvs-db/src/ddl.rs:mysql_declares_an_index_inside_its_create_table_having_no_if_not_exists]
+  arrive as a `Safe` step on a table that already has rows. `until: gone crates/nvs-db/src/ddl.rs:mysql_declares_an_index_inside_its_create_table_having_no_if_not_exists`

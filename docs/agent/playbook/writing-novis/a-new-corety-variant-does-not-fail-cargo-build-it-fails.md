@@ -3,4 +3,4 @@
   `nvs-cli/src/meta.rs` and `nvs-types/src/core_lib.rs` carry wildcards, while `ast.rs`'s `mentions`
   is exhaustive on purpose and lives under `#[cfg(test)]`. Add the `mentions` arm in the same edit
   as the variant, and do not trust a green `cargo check`.
-  [until: gone crates/nvs-stdlib/src/ast.rs:fn mentions]
+  `until: gone crates/nvs-stdlib/src/ast.rs:fn mentions`

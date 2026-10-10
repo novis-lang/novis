@@ -5,4 +5,4 @@
   finds first. Add no release on a new `Err` path out of `Host::start_isolate` or either spawn
   helper; `crates/nvs-ir/src/lower/expr.rs:3243` proves it, and `copy_graph` leaves the root's
   reference alone for the same reason.
-  [until: gone crates/nvs-stdlib/src/script.rs:let crossing = args]
+  `until: gone crates/nvs-stdlib/src/script.rs:let crossing = args`

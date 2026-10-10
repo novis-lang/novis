@@ -4,4 +4,4 @@
   `[lints.rust]` + `[lints.clippy]` copied verbatim from `Cargo.toml`'s `[workspace.lints.*]` (both
   tables, or the crate silently loses every clippy lint), set `unsafe_code = "deny"`, and say in a
   comment which call needs it — `crates/nvs-config/Cargo.toml` is the shape.
-  [until: gone Cargo.toml:unsafe_code = "forbid"]
+  `until: gone Cargo.toml:unsafe_code = "forbid"`

@@ -4,4 +4,4 @@
   class with zero-argument members, as `Core\Regex\Match` and `Core\Process\Result` do. And
   `nvs_types::core_lib::qual_of` reads `Text`/`Blob` at the top level and inside a `Variadic` only,
   so `Array(&CoreTy::Text(Qual::Sink))` marks nothing; the ordinary argument check refuses a tainted element.
-  [until: gone crates/nvs-stdlib/src/script.rs:crate::instance::SHAPE_ROSTER]
+  `until: gone crates/nvs-stdlib/src/script.rs:crate::instance::SHAPE_ROSTER`

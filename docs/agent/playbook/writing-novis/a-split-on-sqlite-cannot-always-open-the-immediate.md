@@ -4,4 +4,4 @@
   `rule:concurrency/enqueue-commits-with-your-write` says commits with the caller's write. Branch on
   `depth()`: `begin_immediate` at zero and `begin(None, false)`'s savepoint inside one, which is
   `nvs_stdlib::queue`'s `sqlite_opened`.
-  [until: gone crates/nvs-db/src/sqlite.rs:immediate transaction is an outermost one]
+  `until: gone crates/nvs-db/src/sqlite.rs:immediate transaction is an outermost one`

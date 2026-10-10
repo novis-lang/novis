@@ -4,4 +4,4 @@
   compile finish between the two reads and the count comes back one short. Re-run `bun
   nv verify` before believing it: the site is `crates/nvs-cli/src/script.rs:1709` and it is
   nothing a stdlib or docs session touched.
-  [until: gone crates/nvs-cli/src/script.rs:a reader was answered once and then waited the compile out]
+  `until: gone crates/nvs-cli/src/script.rs:a reader was answered once and then waited the compile out`

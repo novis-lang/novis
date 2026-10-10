@@ -4,4 +4,4 @@
   `E0309: 'Slug' has no method named 'tryParse'` — only `parse` is reachable. Write `parse` with a
   `catch` where you wanted the pair, and never put `tryParse` on a user class in a `docs/reference/`
   example, because `bun nv reference` (`tools/nv/cmd/reference.ts`) compiles every one of them.
-  [until: gone crates/nvs-types/src/iter_lib.rs:tryParse]
+  `until: gone crates/nvs-types/src/iter_lib.rs:tryParse`

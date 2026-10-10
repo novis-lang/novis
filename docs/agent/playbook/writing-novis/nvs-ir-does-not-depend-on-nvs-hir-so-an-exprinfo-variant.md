@@ -5,4 +5,4 @@
   crate nvs_hir` at the signature, which reads as a missing `use` and is not one. Convert to
   `String` at the `self.exprs.lookup(...)` site and let the helper take `&[String]`, rather than adding
   the dependency.
-  [until: gone crates/nvs-types/src/expr_table.rs:nvs_hir::QName]
+  `until: gone crates/nvs-types/src/expr_table.rs:nvs_hir::QName`

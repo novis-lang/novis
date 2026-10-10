@@ -4,4 +4,4 @@
   points at — and what to pass there is a decision rather than a mechanical fill-in. Grep
   `super::run_run` before changing that signature, and answer for the bundle first: nothing stands in
   front of it to have handed it anything, so its answer is almost always the absent one.
-  [until: gone crates/nvs-cli/src/bundle.rs:super::run_run]
+  `until: gone crates/nvs-cli/src/bundle.rs:super::run_run`

@@ -5,4 +5,4 @@
   answer — nothing — and an unannotated parameter still has nothing to take. Read that function's
   three passes before budgeting the registry rows: the callback argument has to be deferred the way
   the bag is, in a slice of its own.
-  [until: gone crates/nvs-types/src/expr/args.rs:unplaced_expectation]
+  `until: gone crates/nvs-types/src/expr/args.rs:unplaced_expectation`

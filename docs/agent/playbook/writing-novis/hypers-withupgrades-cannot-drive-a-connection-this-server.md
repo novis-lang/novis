@@ -4,4 +4,4 @@
   plain `self` method giving back `io` and `read_buf` after the plain `Future for Connection` ends
   at a `101` without shutting the socket. Drive the connection through `Pin::new(&mut conn)` in a
   `poll_fn` rather than moving it into `block_on`; `Connection` is `Unpin`. See `crates/nvs-cli/src/serve.rs`.
-  [until: gone crates/nvs-cli/src/serve.rs:into_parts]
+  `until: gone crates/nvs-cli/src/serve.rs:into_parts`

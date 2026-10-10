@@ -4,4 +4,4 @@
   `[limits]` also carries the reserve pair, the recursion cap and others. Subtract the keys some
   `limits.*` row carves out of the block before comparing the pair, which is what
   `every_budget_with_a_ceiling_answers_the_request_and_the_operator_differently` does.
-  [until: gone crates/nvs-config/tests/directives.rs:every_budget_with_a_ceiling_answers_the_request_and_the_operator_differently]
+  `until: gone crates/nvs-config/tests/directives.rs:every_budget_with_a_ceiling_answers_the_request_and_the_operator_differently`

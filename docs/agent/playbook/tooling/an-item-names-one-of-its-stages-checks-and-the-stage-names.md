@@ -3,4 +3,4 @@
   over a second crate whose test has never been written is the same slice's, and the driver stops at
   the first failure, holding the whole acceptance list at that stage. One `bun nv loop --list
   --stage <n>` before starting lists every check the slice owes. See `tools/nv/cmd/orient.ts`.
-  [until: gone tools/nv/cmd/orient.ts:YOUR ITEM]
+  `until: gone tools/nv/cmd/orient.ts:YOUR ITEM`

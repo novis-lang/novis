@@ -4,4 +4,4 @@
   => 2` still came out with one arm because `parse_ternary`'s else called `parse_assignment`, which
   re-entered `parse_catch`; `parse_ternary_else` is the same body over `parse_ternary`, for the else
   branch only. A unit test in `crates/nvs-syntax/src/parser/tests/expr.rs` is
-  what catches it, not a `.nvst`. [until: gone crates/nvs-syntax/src/parser/expr.rs:parse_assignment_inner]
+  what catches it, not a `.nvst`. `until: gone crates/nvs-syntax/src/parser/expr.rs:parse_assignment_inner`

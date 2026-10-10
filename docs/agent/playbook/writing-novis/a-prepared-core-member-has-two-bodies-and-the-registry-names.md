@@ -5,4 +5,4 @@
   second symbol, `nvs_core_router_link`, which does the work. For any member
   `rule:expressions/intrinsic-constant-arguments` prepares rather than folds, grep the crate for a sibling
   symbol before believing the body the row points at.
-  [until: gone crates/nvs-stdlib/src/router.rs:nvs_core_router_link]
+  `until: gone crates/nvs-stdlib/src/router.rs:nvs_core_router_link`

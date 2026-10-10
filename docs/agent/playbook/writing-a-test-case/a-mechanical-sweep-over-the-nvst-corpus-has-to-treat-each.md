@@ -3,4 +3,4 @@
   because a `--FILE <path>--` or `--CLEAN--` program in the same case mentions the same name, and
   licenses an edit in one section on the strength of a use in another. Split on `^--[A-Z]` and scope
   both the backward search for the declaration (a stacked run of declarations is the common shape, so
-  not the previous line only) and the "used elsewhere" check to the enclosing section. [until: gone crates/nvs-test/src/case.rs:--FILE <relative/path>--]
+  not the previous line only) and the "used elsewhere" check to the enclosing section. `until: gone crates/nvs-test/src/case.rs:--FILE <relative/path>--`

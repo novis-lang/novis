@@ -5,4 +5,4 @@
   names verbatim, so renaming would have turned an earlier stage red. Search
   every check's `tests` in `data/goals/<slug>.json` for the name the tree already has before
   renaming anything, and where both names are claimed, the claim the two differ on is what the
-  second test asserts. [until: gone tools/nv/cmd/orient.ts:const TRIAGE]
+  second test asserts. `until: gone tools/nv/cmd/orient.ts:const TRIAGE`

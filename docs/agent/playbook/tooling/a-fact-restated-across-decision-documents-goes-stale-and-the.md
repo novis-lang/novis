@@ -4,4 +4,4 @@
   nothing when a link is withdrawn. Before adding to any roster, grep for the total; the fix that sticks is a table in the owning rule
   that names the code registry it must agree with (`nvs_types::derive::ATTRIBUTES` for
   `rule:core-classes/derive-attribute`), and amendments that state no number.
-  [until: gone crates/nvs-types/src/derive.rs:rule:core-classes/derive-attribute]
+  `until: gone crates/nvs-types/src/derive.rs:rule:core-classes/derive-attribute`

@@ -2,4 +2,4 @@
   counts for neither.** The floor is per class; `corpus::Attribution` attributes `->member(` to the
   classes a case mentions, so three cases writing `$db->stream(` leave `Core\Db\Transaction::stream`
   at zero. Add a `$db->transaction(fn (Core\Db\Transaction $tx) => …)` half, and run `cargo test -p
-  nvs-stdlib --test conformance_coverage` before `nv verify`. See `crates/nvs-stdlib/tests/corpus/mod.rs`. [until: gone crates/nvs-stdlib/tests/corpus/mod.rs:Attribution]
+  nvs-stdlib --test conformance_coverage` before `nv verify`. See `crates/nvs-stdlib/tests/corpus/mod.rs`. `until: gone crates/nvs-stdlib/tests/corpus/mod.rs:Attribution`

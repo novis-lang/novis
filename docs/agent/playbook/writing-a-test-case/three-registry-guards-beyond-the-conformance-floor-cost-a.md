@@ -3,4 +3,4 @@
   `MethodDoc`; `no_member_revalidates_a_string_argument` reads the source, so `Value::as_str_bytes`
   then any `from_utf8` fails it even in an error message; and a class declaring `slots` must declare
   `instance` members too. See `crates/nvs-stdlib/src/registry.rs`.
-  [until: gone crates/nvs-stdlib/src/registry.rs:fn no_registry_card_cites_an_adr]
+  `until: gone crates/nvs-stdlib/src/registry.rs:fn no_registry_card_cites_an_adr`

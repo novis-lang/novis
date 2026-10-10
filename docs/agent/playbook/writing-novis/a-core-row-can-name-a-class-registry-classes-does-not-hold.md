@@ -4,4 +4,4 @@
   `CoreTy::Instance("Throwable")` resolves like any class; that test reads `CLASSES` alone and its
   `EXCEPTION_TREE` list is the second roster. A rule stated over `registry.rs`'s rows is not the
   whole rule wherever another crate answers for a class.
-  [until: gone crates/nvs-stdlib/src/registry.rs:EXCEPTION_TREE]
+  `until: gone crates/nvs-stdlib/src/registry.rs:EXCEPTION_TREE`

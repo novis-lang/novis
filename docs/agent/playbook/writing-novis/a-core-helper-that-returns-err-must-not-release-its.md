@@ -3,4 +3,4 @@
   still on the temporaries stack when `emit_fallible` builds the fault edge, so the landing block
   already releases it on every `Err` — an added `release()` is `thread caused non-unwinding panic.
   aborting.` inside `nvs_value_release`. `nvs_ir::lower::TemporaryKind`'s doc says it: `Transferred`
-  is released on the error edge only, and that edge is the caller's. See `crates/nvs-ir/src/lower/mod.rs`. [until: gone crates/nvs-ir/src/lower/mod.rs:ArgOwnership::Transferred]
+  is released on the error edge only, and that edge is the caller's. See `crates/nvs-ir/src/lower/mod.rs`. `until: gone crates/nvs-ir/src/lower/mod.rs:ArgOwnership::Transferred`

@@ -4,4 +4,4 @@
   a bare `span.mtk<N>` with only its theme colour. `nvs/redactions` returning nothing looks exactly
   like a filter that failed to apply, and `Novis: Restart Language Server` fixes it. The
   status item and the `nvs.lsp.trace.server` channel answer it without guessing.
-  [until: gone editors/vscode/src/redactions.ts:filter: blur]
+  `until: gone editors/vscode/src/redactions.ts:filter: blur`

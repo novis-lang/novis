@@ -3,4 +3,4 @@
   only when the left side is `null`, and a `match` arm's increment runs only for the arm that
   matched, as in PHP. `echo "made: ", Cell::make()->count++, "\n";` prints `made: ` before `make` runs,
   so a case whose operand has a side effect has to expect the interleaving. See `tests/conformance/lang/an-increment-in-value-position-answers-one-of-its-two-numbers.nvst`.
-  [until: gone tests/conformance/lang/an-increment-in-value-position-answers-one-of-its-two-numbers.nvst:++]
+  `until: gone tests/conformance/lang/an-increment-in-value-position-answers-one-of-its-two-numbers.nvst:++`

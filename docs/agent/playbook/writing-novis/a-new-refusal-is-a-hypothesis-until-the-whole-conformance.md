@@ -5,4 +5,4 @@
   arms its own `get`-only property from its constructor, turning the rule scope-shaped rather than
   blanket. Write the refusal, run `./target/debug/nvs.exe test tests/conformance`, then write the
   case that pins it — a case written first pins only what you believed.
-  [until: gone crates/nvs-diagnostics/src/lib.rs:E0787]
+  `until: gone crates/nvs-diagnostics/src/lib.rs:E0787`

@@ -5,4 +5,4 @@
   variadic tail wants the collected array where it has the first element — the variadic one dies as
   `misaligned pointer dereference`. Write one case per *declaration* shape the callee can have, not per call site: see
   `nvs_types::signatures::MethodSig`.
-  [until: gone crates/nvs-types/src/signatures.rs:MethodSig]
+  `until: gone crates/nvs-types/src/signatures.rs:MethodSig`

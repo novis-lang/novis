@@ -3,4 +3,4 @@
   until it is added to that test's `HANDLES`, and a member answering `tainted` fails `nvs-types`'
   `a_verified_signature_does_not_launder_its_claims` until it joins that roster. Run `cargo test -p
   nvs-stdlib -p nvs-types`, not just the first, and write the sentence each list wants beside the entry. See `crates/nvs-stdlib/src/registry.rs`.
-  [until: gone crates/nvs-stdlib/src/registry.rs:a_class_with_slots_has_instance_members_and_the_reverse]
+  `until: gone crates/nvs-stdlib/src/registry.rs:a_class_with_slots_has_instance_members_and_the_reverse`

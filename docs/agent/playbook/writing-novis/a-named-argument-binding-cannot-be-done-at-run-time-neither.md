@@ -3,4 +3,4 @@
   in `nvs_types::expr::calls` and lowers the result, so a feature binding a runtime map to a
   callee's parameters must record the names somewhere new and emit them from the lowering. And
   `nvs_runtime::abi::call` requires `arity` initialized values, so a call built with fewer is
-  unsound rather than wrong. See `crates/nvs-runtime/src/object.rs`. [until: gone crates/nvs-runtime/src/object.rs:pub struct MethodRow]
+  unsound rather than wrong. See `crates/nvs-runtime/src/object.rs`. `until: gone crates/nvs-runtime/src/object.rs:pub struct MethodRow`

@@ -3,4 +3,4 @@
   index never moves: `benches/members/core/Html/escape.nvs` reads `"Tom & Jerry"` (15 escaped
   characters) on every one of its rounds, so its figure is one input's figure. Chain on
   `($total + $i) % N` and check the printed total differs from `rounds × first size`.
-  [until: gone benches/members/core/Html/escape.nvs:$total % 3]
+  `until: gone benches/members/core/Html/escape.nvs:$total % 3`

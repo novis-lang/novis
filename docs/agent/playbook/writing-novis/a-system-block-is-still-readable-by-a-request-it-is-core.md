@@ -4,4 +4,4 @@
   answers off the snapshot's own table for any dotted key, and only `set` consults the directive's
   class and returns `false` for `Class::System`. `ctx.config().and_then(|c|
   c.get("trace.propagate"))` is the whole read, the shape `http.rs`'s `bound_of` and `redirects_of`
-  already use; `System` only stops a request *changing* it. [until: gone crates/nvs-config/src/request.rs:Class::System]
+  already use; `System` only stops a request *changing* it. `until: gone crates/nvs-config/src/request.rs:Class::System`

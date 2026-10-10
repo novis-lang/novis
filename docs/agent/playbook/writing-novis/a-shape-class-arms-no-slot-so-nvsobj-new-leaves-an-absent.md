@@ -4,4 +4,4 @@
   `{a?: int}` has to write `Value::unset()` into the slot itself — leave it and `{a?: int}` and
   `{a: ?int}` hold the same thing, which is two types that intern apart reading as one. `NvsObj::new`'s
   own doc comment names the never-written marker, which is exactly what makes the omission look
-  impossible. See `crates/nvs-ir/src/lower/mod.rs`. [until: gone crates/nvs-ir/src/lower/mod.rs:defaults: Vec::new()]
+  impossible. See `crates/nvs-ir/src/lower/mod.rs`. `until: gone crates/nvs-ir/src/lower/mod.rs:defaults: Vec::new()`

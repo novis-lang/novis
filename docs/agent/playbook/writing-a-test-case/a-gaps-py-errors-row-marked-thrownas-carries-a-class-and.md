@@ -3,4 +3,4 @@
   so `catch (Throwable $e)` reaches both and says nothing; the discriminating clause is `catch
   (LogicError $e)` or `catch (ParseError $e)`, and two on one `try` compile at file scope with
   separate binding names. The roster is `nvs_runtime::throwable::ThrownClass`'s doc comment. See `crates/nvs-runtime/src/abi.rs`.
-  [until: gone crates/nvs-runtime/src/abi.rs:thrown_as]
+  `until: gone crates/nvs-runtime/src/abi.rs:thrown_as`

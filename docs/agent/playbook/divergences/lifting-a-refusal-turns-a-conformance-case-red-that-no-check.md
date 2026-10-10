@@ -3,4 +3,4 @@
   the conversion roster invalidated that case's whole `--EXPECTF-ERROR--` block — help text and `%s:NN`
   anchors included, for the rows that still refuse too. `grep -rn` the diagnostic code and the target's
   own spelling across `tests/conformance/` before widening any acceptance.
-  [until: gone tests/conformance/lang/an-object-target-naming-no-class-cannot-be-converted-to.nvst]
+  `until: gone tests/conformance/lang/an-object-target-naming-no-class-cannot-be-converted-to.nvst`

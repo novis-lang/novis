@@ -5,4 +5,4 @@
   Place `-e` with the same exact test the bare literal's arm uses (`wants_decimal`, not
   `placed_literal`), and run `nvs test tests/conformance` with a case passing a literal to a numeric
   union before believing a placement change is contained.
-  [until: gone crates/nvs-types/src/expr/literals.rs:wants_decimal]
+  `until: gone crates/nvs-types/src/expr/literals.rs:wants_decimal`

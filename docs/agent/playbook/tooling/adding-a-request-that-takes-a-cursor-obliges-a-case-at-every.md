@@ -4,4 +4,4 @@
   `documentHighlight` and `typeHierarchy` are 26 cases each, while `codeLens`, asked of the whole
   document, owed one. Price the row with `nvs lsp-test tests/lsp/ --coverage` before landing the
   variant, and take the cursor placements from `tests/lsp/actions/`, which is already one case per
-  construct. [until: gone crates/nvs-lsp/src/coverage.rs:which is the ratchet]
+  construct. `until: gone crates/nvs-lsp/src/coverage.rs:which is the ratchet`

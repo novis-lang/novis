@@ -2,4 +2,4 @@
   four tests of work.** The driver's line names one test; the check's `tests` list may hold several,
   all unwritten. Size the item from the check's whole list with one `grep -rn` over the names, which
   also separates a name the tree pins elsewhere from one nobody has written. See `tools/nv/accept/accept.ts`.
-  [until: gone tools/nv/accept/accept.ts:did not run]
+  `until: gone tools/nv/accept/accept.ts:did not run`

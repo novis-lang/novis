@@ -4,4 +4,4 @@
   its `args` for exactly that reason (`tools/nv/accept/accept.ts`), so a missing `"run"` is never
   what is wrong with a red one. Reproduce a program check as `target/debug/nvs.exe run <file>` and
   judge stdout alone — `exact` compares `stdoutLines` and never reads stderr, so a fixture whose
-  stderr is full of warnings can still be green. [until: gone tools/nv/cmd/orient.ts:const TRIAGE]
+  stderr is full of warnings can still be green. `until: gone tools/nv/cmd/orient.ts:const TRIAGE`

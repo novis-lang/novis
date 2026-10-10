@@ -4,4 +4,4 @@
   failing`, which reads exactly like a check that fixed itself rather than an intermittent one. Before
   concluding a red floor check is stale, `grep -n failing .loop/logs/<run>-console.log` and read the
   run's own output — the per-suite lines, the failing test names and the assertion are all in it. See `tools/nv/accept/accept.ts`.
-  [until: gone tools/nv/accept/accept.ts:firstErrLine]
+  `until: gone tools/nv/accept/accept.ts:firstErrLine`

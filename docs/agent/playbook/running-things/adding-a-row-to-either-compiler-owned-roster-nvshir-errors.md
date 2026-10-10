@@ -4,4 +4,4 @@
   `lower/tests.rs`'s `a_file_with_no_class_still_carries_every_compiler_declared_class`. A new § 10 class owes the `TREE`
   row, `nvs_runtime::ThrownClass`'s variant, its `name()` arm, its `ALL` entry, that assertion, and the
   spec's own tree drawing; a new interface owes its `RESERVED` row and that assertion.
-  [until: gone crates/nvs-ir/src/lower/tests.rs:a_file_with_no_class_still_carries_every_compiler_declared_class]
+  `until: gone crates/nvs-ir/src/lower/tests.rs:a_file_with_no_class_still_carries_every_compiler_declared_class`

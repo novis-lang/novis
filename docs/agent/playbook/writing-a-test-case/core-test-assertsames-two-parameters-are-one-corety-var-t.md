@@ -3,4 +3,4 @@
   subject is then `E0401: expected 'null', found 'mixed'` at the *second* argument, which reads as
   "this member refuses a null comparison" and is only the signature. `mixed $nothing = null;` then
   `assertSame($nothing, $subject)` is the only way to ask identity's symmetry through this member. See `crates/nvs-stdlib/src/test.rs`.
-  [until: gone crates/nvs-stdlib/src/test.rs:Core\Test::assertSame]
+  `until: gone crates/nvs-stdlib/src/test.rs:Core\Test::assertSame`

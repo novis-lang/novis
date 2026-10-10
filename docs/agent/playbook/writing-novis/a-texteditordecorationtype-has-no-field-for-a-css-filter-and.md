@@ -3,4 +3,4 @@
   clip-path: inset(0)"` — the declaration is closed with `none` and the rest follows it. The clip is not optional: a blur bleeds about its radius past the decorated
   range, and `overflow` cannot cut it back because a decoration is a non-replaced inline box. A colour belongs in a `ThemeColor` field
   (`rule:ide/novis-ships-names-not-colours`).
-  [until: gone editors/vscode/src/redactions.ts:filter: blur]
+  `until: gone editors/vscode/src/redactions.ts:filter: blur`

@@ -3,4 +3,4 @@
   `Notify::install` writes a process-global `OnceLock`, so this case's recorder also collects what a
   served life running beside it in the same binary reports. Re-run `bun nv verify` before
   reading it as yours; fixing it means scoping that global, not editing the case.
-  [until: gone crates/nvs-cli/src/service.rs:fn install]
+  `until: gone crates/nvs-cli/src/service.rs:fn install`

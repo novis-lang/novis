@@ -3,4 +3,4 @@
   catches `RuntimeError` and is green only because `nvs test` runs the entry with a request in
   front; the message "there is no request here" identifies it, the trace frame does not. Catch
   `LogicError`; `rule:security/request-state-throws-in-an-isolate` says why.
-  [until: gone crates/nvs-cli/tests/fixtures/runner/in-process-request.nvs:RuntimeError]
+  `until: gone crates/nvs-cli/tests/fixtures/runner/in-process-request.nvs:RuntimeError`

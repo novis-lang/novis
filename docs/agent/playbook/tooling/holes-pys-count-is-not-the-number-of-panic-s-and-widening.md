@@ -4,4 +4,4 @@
   last hole, and wording cannot separate the two in either direction. The recognizer takes the
   construct **and** the claim's shape ("only lowers X", "has no arm for"); the fix is to make the
   *source* declare its kind, as `CodegenError` does with `Internal` versus `Unsupported`, and an
-  audit of every site is the work, not the pattern. See `tools/nv/cmd/holes.ts`. [until: gone tools/nv/cmd/holes.ts:REFUSAL]
+  audit of every site is the work, not the pattern. See `tools/nv/cmd/holes.ts`. `until: gone tools/nv/cmd/holes.ts:REFUSAL`

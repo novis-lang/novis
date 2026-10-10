@@ -4,4 +4,4 @@
   (`sqlite-wasm-rs` beside `libsqlite3-sys`) is reported exactly like the real one. Write it a
   `no-native-code` row naming the target gate rather than hunting for where it got linked in, and
   run `bun nv gen-attribution` after, not only `--check-c-deps`: `THIRD-PARTY-LICENSES.txt` is a
-  second gate with a separate failure. [until: gone tools/nv/cmd/gen-attribution.ts:--check-c-deps]
+  second gate with a separate failure. `until: gone tools/nv/cmd/gen-attribution.ts:--check-c-deps`

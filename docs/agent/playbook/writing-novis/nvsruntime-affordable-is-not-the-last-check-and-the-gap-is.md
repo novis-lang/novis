@@ -3,4 +3,4 @@
   a `Core\Str` producer handed exactly `isize::MAX` cleared it and panicked in `str_layout`'s two
   `expect`s — a FATAL out of the fallible `NvsStr::try_build`. The shape to recognise is a member whose size check and allocation are
   two different expressions, and the boundary count is the largest the first accepts, not a round number. See `crates/nvs-stdlib/src/str.rs`.
-  [until: gone crates/nvs-stdlib/src/str.rs:nvs_runtime::affordable]
+  `until: gone crates/nvs-stdlib/src/str.rs:nvs_runtime::affordable`

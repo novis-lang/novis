@@ -3,4 +3,4 @@
   instance members to the same emptiness, with a `HANDLES` list for the classes whose slots
   something *else* reads (`Core\Regex\Pattern`, `Core\Script\Handle`, `Core\IO\Lines`, …). A class
   registered ahead of its readers declares `slots: &[]` and gains them in the same slice as the
-  members, rather than joining `HANDLES` — that list is for state read from outside the class. See `crates/nvs-stdlib/src/registry.rs`. [until: gone crates/nvs-stdlib/src/registry.rs:const HANDLES]
+  members, rather than joining `HANDLES` — that list is for state read from outside the class. See `crates/nvs-stdlib/src/registry.rs`. `until: gone crates/nvs-stdlib/src/registry.rs:const HANDLES`

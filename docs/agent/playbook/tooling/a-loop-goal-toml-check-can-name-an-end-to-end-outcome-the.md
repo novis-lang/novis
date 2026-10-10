@@ -3,4 +3,4 @@
   non-cancelled ending to the drain seam and `nvs_stdlib::script::run_exit_hooks` is what refuses a
   `FATAL`, so an empty-log assertion there guards the other crate's half and gating the ending out of
   the host would put one policy in two homes. Assert the half the named crate owns — the ending it
-  handed over — and cite the seam that refuses it. See `tools/nv/cmd/orient.ts`. [until: gone tools/nv/cmd/orient.ts:const TRIAGE]
+  handed over — and cite the seam that refuses it. See `tools/nv/cmd/orient.ts`. `until: gone tools/nv/cmd/orient.ts:const TRIAGE`

@@ -4,4 +4,4 @@
   the nested election alone — which is why
   `tests/conformance/core/cache-get-secret-fill-asking-for-its-own-key-is-a-logic-error.nvst` passes
   an inner `{fill: …}`. Write the inner call with its own `fill` when the attack is the self-wait.
-  [until: gone tests/conformance/core/cache-get-secret-fill-asking-for-its-own-key-is-a-logic-error.nvst:LogicError]
+  `until: gone tests/conformance/core/cache-get-secret-fill-asking-for-its-own-key-is-a-logic-error.nvst:LogicError`

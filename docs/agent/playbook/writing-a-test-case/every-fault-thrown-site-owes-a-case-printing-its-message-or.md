@@ -3,4 +3,4 @@
   across every case file, so a message that interpolates a dependency's text cannot be asserted.
   Give a refusal a fixed sentence, and satisfy the gate with `catch (LogicError $e) { echo
   $e->message, "\n"; }`. See `crates/nvs-stdlib/tests/conformance_coverage.rs`.
-  [until: gone crates/nvs-stdlib/tests/conformance_coverage.rs:const DECLARATION: &str]
+  `until: gone crates/nvs-stdlib/tests/conformance_coverage.rs:const DECLARATION: &str`

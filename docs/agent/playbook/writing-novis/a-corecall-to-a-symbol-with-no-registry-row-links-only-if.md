@@ -5,4 +5,4 @@
   free; a rowless symbol needs its
   own `.chain([...])` there beside `address`'s arm, plus a term in
   `every_registered_member_has_an_implementation_address`' arithmetic. The `.chain` entry has no compile-time gate.
-  [until: gone crates/nvs-stdlib/src/lib.rs:fn symbols]
+  `until: gone crates/nvs-stdlib/src/lib.rs:fn symbols`

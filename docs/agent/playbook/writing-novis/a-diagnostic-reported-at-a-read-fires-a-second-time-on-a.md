@@ -4,4 +4,4 @@
   LIMIT = 9;` has no type, so it folds to nothing *because* it was refused) and `E0727` (`const
   secret bytes BLOB = "b";` cannot fold because there is no `bytes` literal). Before reporting on a
   use of a declaration, return early for each type another diagnostic
-  already refused, naming it. See `crates/nvs-diagnostics/src/lib.rs`. [until: gone crates/nvs-diagnostics/src/lib.rs:E0792]
+  already refused, naming it. See `crates/nvs-diagnostics/src/lib.rs`. `until: gone crates/nvs-diagnostics/src/lib.rs:E0792`

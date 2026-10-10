@@ -4,4 +4,4 @@
   `"## Heading"`, or nothing for a whole file under 400 lines, and the path may be a glob, so one target
   can sweep a crate. `--locate <symbol> ...` answers with `file:line` and no bodies, which is what a
   handoff's anchors are made of; reach for it instead of a `grep`, then a `sed`, then another
-  `grep`. See `tools/nv/cmd/peek.ts`. [until: gone tools/nv/cmd/peek.ts:re:]
+  `grep`. See `tools/nv/cmd/peek.ts`. `until: gone tools/nv/cmd/peek.ts:re:`

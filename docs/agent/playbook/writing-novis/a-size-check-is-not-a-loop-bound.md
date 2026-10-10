@@ -4,4 +4,4 @@
   appending nothing — an unbounded spin on the request path that builds, is correct, and returns.
   Look for a loop whose iteration count is the caller's count rather than the result's size; the
   size seams cannot see it, and both members short-circuit on an empty subject now. See `crates/nvs-stdlib/src/bytes.rs`.
-  [until: gone crates/nvs-stdlib/src/bytes.rs:Core\Bytes::repeat]
+  `until: gone crates/nvs-stdlib/src/bytes.rs:Core\Bytes::repeat`

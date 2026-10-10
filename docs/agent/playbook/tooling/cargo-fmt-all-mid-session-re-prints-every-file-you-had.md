@@ -3,4 +3,4 @@
   pass costs far more than its own output. `bun nv verify` formats as step 1 and its
   `formatted N file(s)` line is the tell; write formatted code and there is nothing to re-print, and
   never run a rewriting tool over open files except `bun nv session --wrap`, where the session ends. See `tools/nv/cmd/verify.ts`.
-  [until: gone tools/nv/cmd/verify.ts:formatted]
+  `until: gone tools/nv/cmd/verify.ts:formatted`

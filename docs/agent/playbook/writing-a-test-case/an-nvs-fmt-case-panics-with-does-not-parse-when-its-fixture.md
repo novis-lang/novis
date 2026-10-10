@@ -2,4 +2,4 @@
   than the grammar.** `format` refuses on any error the parse reported, and the parse reports
   `rule:classes/no-free-functions-or-constants` too, so a top-level `function` in a fixture reads as a
   syntax error in the panic. Put a fixture's code in a class's `public static function`, the shape
-  `examples/match.nvs` already has. [until: gone crates/nvs-fmt/src/lib.rs:d.is_error()]
+  `examples/match.nvs` already has. `until: gone crates/nvs-fmt/src/lib.rs:d.is_error()`

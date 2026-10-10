@@ -3,4 +3,4 @@
   `bun nv owners --check --reasons` is still a floor check after `--reasons` stands for nothing, and
   a parser that dropped it would exit 2 on a stage that passed sessions ago. Leave the flag accepted
   and doing nothing, say that in its `--help`, and fold what it used to add into the gate's default. See `tools/nv/cmd/owners.ts`.
-  [until: gone tools/nv/cmd/owners.ts:--reasons]
+  `until: gone tools/nv/cmd/owners.ts:--reasons`

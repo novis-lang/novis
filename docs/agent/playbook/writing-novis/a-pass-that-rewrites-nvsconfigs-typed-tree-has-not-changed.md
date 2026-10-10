@@ -4,4 +4,4 @@
   before the snapshot is built, and `app::canonicalize` is a misleading model because
   `Snapshot::build` reads `resolved.config.app` directly. Run `nvs config dump` in a scratch
   directory: a value still spelled as the operator typed it says the rewrite did not land.
-  [until: gone crates/nvs-config/src/snapshot.rs:fn retype]
+  `until: gone crates/nvs-config/src/snapshot.rs:fn retype`

@@ -4,4 +4,4 @@
   needs `--including-risky`. Read `base_grade` before writing an expectation from a stage's prose,
   keep the construct the *rule* mandates, and assert the two halves apart rather than dropping the
   index to make the sentence true. See `crates/nvs-db/src/ddl.rs`.
-  [until: gone crates/nvs-db/src/ddl.rs:An index is built over every existing row]
+  `until: gone crates/nvs-db/src/ddl.rs:An index is built over every existing row`

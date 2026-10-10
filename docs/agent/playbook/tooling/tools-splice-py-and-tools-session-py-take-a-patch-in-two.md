@@ -3,4 +3,4 @@
   `--- <path>`, then `<<<<<<< OLD` / `=======` / `>>>>>>> NEW` around each block — while a wrap
   file's `## plan-edit:` is `--- old` / `--- new`, and writing the wrap form into a splice patch is
   refused with a message that names the fix but not the shape. `bun nv splice --help`
-  prints the invocation forms and the patch format. See `tools/nv/cmd/splice.ts`. [until: gone tools/nv/cmd/splice.ts:<<<<<<< OLD]
+  prints the invocation forms and the patch format. See `tools/nv/cmd/splice.ts`. `until: gone tools/nv/cmd/splice.ts:<<<<<<< OLD`

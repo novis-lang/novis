@@ -4,4 +4,4 @@
   it can be. Same family: `Core\Arr::append`'s second parameter is one element, so
   `Core\Arr::append($a, $b)` over two arrays is `E0401: expected int, found array<int>`; build the
   combined array with a `foreach` and one `append` per element. See `crates/nvs-types/src/ty.rs`.
-  [until: gone crates/nvs-types/src/ty.rs:Array(TypeId)]
+  `until: gone crates/nvs-types/src/ty.rs:Array(TypeId)`

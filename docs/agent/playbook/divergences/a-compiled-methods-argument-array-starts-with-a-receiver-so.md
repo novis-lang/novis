@@ -4,4 +4,4 @@
   arguments reads one `Value` past its slice with no diagnostic — the tell is an answer that is a
   neighbouring argument or a plausible zero. Call through `nvs_codegen::Unit`'s `call_static`,
   `call_on_new_instance` or `build_fixture`; `raw_function` is for `benches/abi-probe`'s timed loops
-  only. [until: gone crates/nvs-codegen/src/lib.rs:fn raw_function]
+  only. `until: gone crates/nvs-codegen/src/lib.rs:fn raw_function`

@@ -5,4 +5,4 @@
   field there again; `cargo build` caught it as *field specified more than once*, and
   nothing before that did. For a repeated one-line insertion write the whole run as a
   `bun nv splice --patch` file, which matches every block before it writes a byte.
-  [until: gone tools/nv/cmd/splice.ts:<<<<<<< OLD]
+  `until: gone tools/nv/cmd/splice.ts:<<<<<<< OLD`

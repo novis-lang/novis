@@ -2,4 +2,4 @@
   reported as `docs/novis.md unchanged`.** The generator asks `nvs meta` for the registry rather
   than parsing `registry.rs`, and `cargo test -p nvs-stdlib` does not rebuild the binary either, so
   a card fix that passes its own gate can still ship the old sentence. After fixing a `MethodDoc`,
-  `cargo build` and *then* `bun nv reference`. [until: gone tools/nv/cmd/reference.ts:nvs meta]
+  `cargo build` and *then* `bun nv reference`. `until: gone tools/nv/cmd/reference.ts:nvs meta`

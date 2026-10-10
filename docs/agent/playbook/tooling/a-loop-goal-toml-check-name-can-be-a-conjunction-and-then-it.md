@@ -3,4 +3,4 @@
   half is missing, so the landed half earns nothing and the report cannot say which one is the work.
   The tell is the `_and_` in the name: grep each half's claim separately, and split the entry into
   one name per half rather than waiting for a single test to become writable. See `tools/nv/cmd/orient.ts`.
-  [until: gone tools/nv/cmd/orient.ts:const TRIAGE]
+  `until: gone tools/nv/cmd/orient.ts:const TRIAGE`

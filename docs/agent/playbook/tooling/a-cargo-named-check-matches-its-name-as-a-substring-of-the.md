@@ -3,4 +3,4 @@
   `two_body_spellings_in_one_spec_are_refused` is green under `..._refused_naming_both`, so
   `did not run` can mean *named differently* rather than *not written*. `judgeTests` in
   `tools/nv/accept/accept.ts` is the matcher: grep the crate for what the name *describes*, then rename that test rather than landing a
-  twin beside it. [until: gone tools/nv/accept/accept.ts:judgeTests]
+  twin beside it. `until: gone tools/nv/accept/accept.ts:judgeTests`

@@ -4,4 +4,4 @@
   out with `docker compose -f tests/db/compose.yaml cp mysql:/certs/ca.crt <abs path>`. A *relative*
   path resolves against the crate directory, so the first case panics inside `open` with a bare
   `NotFound` and every later one reports `Once instance has previously been poisoned`, which reads
-  as a broken fixture. [until: gone crates/nvs-db/src/matrix.rs:NVS_DB_MATRIX_CA]
+  as a broken fixture. `until: gone crates/nvs-db/src/matrix.rs:NVS_DB_MATRIX_CA`

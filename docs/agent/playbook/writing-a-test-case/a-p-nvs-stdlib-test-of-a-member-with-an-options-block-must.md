@@ -4,4 +4,4 @@
   for the default is a `FATAL` that reads like the member refusing the arrays. Read the
   option's `Const::` default in the registry row's `CoreOption` list before building the argument
   slice — a `Const::EnumCase` arrives as `Value::int(<case index>)` and only a `Const::Null` one
-  arrives as `Value::null()`. See `crates/nvs-stdlib/src/arr.rs`. [until: gone crates/nvs-stdlib/src/arr.rs:Const::EnumCase]
+  arrives as `Value::null()`. See `crates/nvs-stdlib/src/arr.rs`. `until: gone crates/nvs-stdlib/src/arr.rs:Const::EnumCase`

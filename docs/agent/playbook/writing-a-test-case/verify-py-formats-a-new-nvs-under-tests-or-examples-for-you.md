@@ -4,4 +4,4 @@
   file into it — quotes, spacing and brace placement, never what a `.out` recorded — so only a bare
   `cargo test` still fails on one. Leave an example or a bench in its neighbours' style: those trees
   are not corpus, and formatting one only diverges it.
-  [until: gone crates/nvs-fmt/tests/identity.rs:the_identity_printer_reproduces_every_corpus_file]
+  `until: gone crates/nvs-fmt/tests/identity.rs:the_identity_printer_reproduces_every_corpus_file`

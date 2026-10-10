@@ -3,4 +3,4 @@
   inherits the anchor, so one wrong range in the manifest sends session after session to the wrong
   code with the right name printed over it. Trust the *name* in the comment over the digits beside
   it — `bun nv peek --locate <Type>` is the half that survives the file moving — and repair
-  the manifest's range when you find one off. See `tools/nv/cmd/orient.ts`. [until: gone tools/nv/cmd/orient.ts:modules]
+  the manifest's range when you find one off. See `tools/nv/cmd/orient.ts`. `until: gone tools/nv/cmd/orient.ts:modules`

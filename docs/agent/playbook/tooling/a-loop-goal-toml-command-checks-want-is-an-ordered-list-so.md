@@ -4,4 +4,4 @@
   by table name, so the dump is alphabetical and the check read as unwritten work forever.
   Before writing output to satisfy a `want`, ask whether the order it names is one the data
   can have — and when it is not, fix the `want` and say in the goal's prose which ordering is real. See `tools/nv/cmd/orient.ts`.
-  [until: gone tools/nv/cmd/orient.ts:const TRIAGE]
+  `until: gone tools/nv/cmd/orient.ts:const TRIAGE`

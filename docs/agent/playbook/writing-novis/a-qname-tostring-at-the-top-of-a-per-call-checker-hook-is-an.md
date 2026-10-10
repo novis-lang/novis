@@ -4,4 +4,4 @@
   wrong count or a `TryFromIntError(NegOverflow)` panic, passes alone, and passes
   with the change stashed — `git stash push -- crates/<touched>` is the whole bisect. Test the
   `&str` half of the roster row first and stringify only after it matches. See `crates/nvs-cli/src/script.rs`.
-  [until: gone crates/nvs-cli/src/script.rs:ten_thousand_concurrent_cold_requests_compile_the_file_exactly_once]
+  `until: gone crates/nvs-cli/src/script.rs:ten_thousand_concurrent_cold_requests_compile_the_file_exactly_once`

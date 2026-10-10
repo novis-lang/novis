@@ -4,4 +4,4 @@
   (`crates/nvs-codegen/src/emit.rs:585`), so a change to what a `Core` call site carries written
   against `Call` reaches nothing. Read the `emit` arm for the variant first, and copy
   `InstKind::ShapeCodecConst` when what you add is a compile-time constant the member reads off
-  its own `args`. [until: gone crates/nvs-ir/src/ir.rs:CoreCall]
+  its own `args`. `until: gone crates/nvs-ir/src/ir.rs:CoreCall`

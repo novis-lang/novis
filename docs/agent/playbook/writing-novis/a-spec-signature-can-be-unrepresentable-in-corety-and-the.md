@@ -4,4 +4,4 @@
   alone. Before transcribing a spec row whose **result** is qualified, read the neighbouring class's
   module doc: `crates/nvs-stdlib/src/jwt.rs`'s *a claim is text* section had the whole trade worked
   out already.
-  [until: gone crates/nvs-stdlib/src/registry.rs:there is no `tainted array<T>` in `nvs_types`]
+  `until: gone crates/nvs-stdlib/src/registry.rs:tainted array<T>`

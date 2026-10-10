@@ -4,4 +4,4 @@
   per case — a case reading it reads whatever its neighbours have already done to it. Take
   `nvs_runtime::Drain::detached()` for anything a case has to be able to *not* drain, and end what
   the case started by withdrawing it rather than by draining the process.
-  [until: gone crates/nvs-cli/src/serve.rs:struct EndsTheServer]
+  `until: gone crates/nvs-cli/src/serve.rs:struct EndsTheServer`

@@ -2,4 +2,4 @@
   differ by more than a quarter on a case prints a note naming that case, and on `00-baseline`, which
   is subtracted from every row, it means that run's ratios are all shifted. Re-run before quoting,
   and do not reason about a small row move from a sweep carrying that note. See `tools/nv/cmd/bench.ts`.
-  [until: gone tools/nv/cmd/bench.ts:00-baseline]
+  `until: gone tools/nv/cmd/bench.ts:00-baseline`

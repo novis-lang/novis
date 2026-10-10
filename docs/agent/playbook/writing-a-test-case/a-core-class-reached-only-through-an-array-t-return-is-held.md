@@ -4,4 +4,4 @@
   attributes nothing to `Core\Reflect\MethodInfo` and the floor of three fails over members the
   case plainly asks. Write the class's own name in, which a `foreach (… as Core\Reflect\MethodInfo
   $row)` binding already does.
-  [until: gone crates/nvs-stdlib/tests/corpus/mod.rs:CoreTy::Instance(made)]
+  `until: gone crates/nvs-stdlib/tests/corpus/mod.rs:CoreTy::Instance(made)`

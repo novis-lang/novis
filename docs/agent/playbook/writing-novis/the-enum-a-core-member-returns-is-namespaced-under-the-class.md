@@ -4,4 +4,4 @@
   spells; the registry's own `MODE_NAME` at `crates/nvs-stdlib/src/env.rs:267` is
   `r"Core\Env\Mode"`, and `E0303 no matching declaration` is what the short spelling gets. Read the
   `*_NAME` constant beside the `CoreMethod` row before writing an enum case into an example.
-  [until: gone crates/nvs-stdlib/src/env.rs:Core\Env\Mode]
+  `until: gone crates/nvs-stdlib/src/env.rs:Core\Env\Mode`

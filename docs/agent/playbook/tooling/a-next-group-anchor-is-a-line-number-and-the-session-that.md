@@ -3,4 +3,4 @@
   the wrong place, with nothing in the pack to say so. Trust the symbol name in the item, not the
   code beside it — `bun nv peek --locate <sym> ...` re-derives every anchor in one call —
   and resolve the next group's anchors after the last commit, not before it. See `tools/nv/cmd/orient.ts`.
-  [until: gone tools/nv/cmd/orient.ts:## Next group]
+  `until: gone tools/nv/cmd/orient.ts:## Next group`

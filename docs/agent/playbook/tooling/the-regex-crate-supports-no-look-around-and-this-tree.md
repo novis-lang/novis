@@ -4,4 +4,4 @@
   so the failing import and the working one differ by one word. For a right-hand boundary alone
   neither is needed: a `match_indices` walk plus one `chars().next()` check, as `corpus::mentions`
   in `crates/nvs-stdlib/tests/corpus/mod.rs` does.
-  [until: gone crates/nvs-stdlib/Cargo.toml:fancy-regex]
+  `until: gone crates/nvs-stdlib/Cargo.toml:fancy-regex`

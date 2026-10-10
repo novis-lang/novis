@@ -4,4 +4,4 @@
   `core_lib::lower` all stop compiling, while `classification`, `spelled` and `is_text_like` in
   `registry.rs` itself keep compiling and quietly answer wrong for the new spelling. Grep a rare
   variant (`CoreTy::SecretTaintedStr`) to get every arm in one call, and check the three `registry.rs` methods by hand.
-  [until: gone crates/nvs-stdlib/src/xml.rs:every_text_position_is_tainted]
+  `until: gone crates/nvs-stdlib/src/xml.rs:every_text_position_is_tainted`

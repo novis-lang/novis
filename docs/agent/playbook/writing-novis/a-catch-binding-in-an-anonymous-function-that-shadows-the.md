@@ -3,4 +3,4 @@
   captures `$full`, which is not bound in the enclosing frame" and points at nothing near the
   `catch`. Rename the anonymous function's exception binding; a program hitting this panic is looking for a
   shadowed binding, not a capture it wrote.
-  [until: gone crates/nvs-ir/src/lower/expr.rs:which is not bound]
+  `until: gone crates/nvs-ir/src/lower/expr.rs:which is not bound`

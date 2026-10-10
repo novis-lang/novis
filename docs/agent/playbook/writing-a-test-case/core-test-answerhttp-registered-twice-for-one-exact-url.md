@@ -3,4 +3,4 @@
   match wins, so an example that reads a stream, "connects again" and expects new events prints the
   first body twice. Give the second connection its own URL (a query such as `?after=2` is the
   honest one), and read `nvs agent show 'Core\Test::answerHttp'` for the matching order. See `crates/nvs-stdlib/src/test.rs`.
-  [until: gone crates/nvs-stdlib/src/test.rs:Core\Test::answerHttp]
+  `until: gone crates/nvs-stdlib/src/test.rs:Core\Test::answerHttp`

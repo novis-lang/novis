@@ -5,4 +5,4 @@
   (`crates/nvs-server/src/serve.rs:1373`). Hold one of those connections in flight with a body three
   bytes short: `crate::body::Pull::next_chunk` parks the run with its place in the admission count
   still taken, so two requests in flight is a state, not a race.
-  [until: gone crates/nvs-server/src/serve.rs:nvs_host::Worker]
+  `until: gone crates/nvs-server/src/serve.rs:nvs_host::Worker`

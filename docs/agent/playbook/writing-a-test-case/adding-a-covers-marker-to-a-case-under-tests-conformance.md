@@ -3,4 +3,4 @@
   anchor, counted from the `<?nvs` of the `--FILE--` block, so one inserted comment renumbers all of
   them while the case still reads as untouched. Put the marker and the `NN + 1` bumps in one
   `bun nv splice` patch, then run `target/debug/nvs.exe test <path.nvst>` before believing it.
-  [until: gone crates/nvs-test/src/case.rs:EXPECTF-ERROR]
+  `until: gone crates/nvs-test/src/case.rs:EXPECTF-ERROR`

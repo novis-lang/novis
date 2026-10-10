@@ -4,4 +4,4 @@
   closed with its Test Explorer never written. Read an all-green ledger against the goal prose's
   `## Stage` sections and the stage labels `bun nv loop --list` prints from the goal's record — a
   stage with no check is the hole — and name cases in `want` the way `cargo-named` names tests. See `tools/nv/accept/accept.ts`.
-  [until: gone tools/nv/accept/accept.ts:judgeCommand]
+  `until: gone tools/nv/accept/accept.ts:judgeCommand`

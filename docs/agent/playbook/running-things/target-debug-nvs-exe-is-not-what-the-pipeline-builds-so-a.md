@@ -3,4 +3,4 @@
   run `target/covws/<host triple>/debug/nvs.exe` (`tools/nv/lib/covws.ts`), and only a `cargo build`
   by hand writes `target/debug`. Where a bullet or a habit names `target/debug/nvs.exe`, run the covws
   binary, or `cargo build` first.
-  [until: gone tools/nv/lib/covws.ts:covwsNvs]
+  `until: gone tools/nv/lib/covws.ts:covwsNvs`

@@ -4,4 +4,4 @@
   std::fs::File, ...)` and a `use std::fs::File;` both fail a gate about effects on a signature that
   performs none. Make the helper generic over `W: Write`, or infer the type from the door that
   answered it. See `crates/nvs-stdlib/tests/capability.rs`.
-  [until: gone crates/nvs-stdlib/tests/capability.rs:reaches_the_os_only_through_the_gate]
+  `until: gone crates/nvs-stdlib/tests/capability.rs:reaches_the_os_only_through_the_gate`

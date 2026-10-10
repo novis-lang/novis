@@ -4,4 +4,4 @@
   classification existed and not a list to join. Classify instead —
   `CoreTy::Blob(Qual::Contagious)` for a member that reshapes octets and learns nothing about where
   they came from, and it is accepted inside a `CoreTy::Union` member too. See `crates/nvs-stdlib/src/registry.rs`.
-  [until: gone crates/nvs-stdlib/src/registry.rs:every_member_parameter_carries_a_qualifier_classification]
+  `until: gone crates/nvs-stdlib/src/registry.rs:every_member_parameter_carries_a_qualifier_classification`

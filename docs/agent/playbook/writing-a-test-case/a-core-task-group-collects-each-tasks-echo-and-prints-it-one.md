@@ -4,4 +4,4 @@
   tasks need not start in field order. Write the trace into a
   `public static string` and echo it after the group returns, which is what
   `tests/conformance/task/a-wait-parks-only-the-calling-task-and-answers-a-value.nvst` does.
-  [until: gone tests/conformance/task/a-wait-parks-only-the-calling-task-and-answers-a-value.nvst:Core\Time::sleep]
+  `until: gone tests/conformance/task/a-wait-parks-only-the-calling-task-and-answers-a-value.nvst:Core\Time::sleep`

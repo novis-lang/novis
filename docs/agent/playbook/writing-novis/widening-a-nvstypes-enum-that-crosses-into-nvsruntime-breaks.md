@@ -4,4 +4,4 @@
   replaced in the checker is a compile error two crates away. Grep `nvs_types::` across
   `crates/nvs-cli/src/main.rs` before pricing such a slice, and decide the bridge's answer for the new
   arm in that slice rather than from the build.
-  [until: gone crates/nvs-cli/src/main.rs:nvs_types::commands::ArgConv::]
+  `until: gone crates/nvs-cli/src/main.rs:nvs_types::commands::ArgConv::`

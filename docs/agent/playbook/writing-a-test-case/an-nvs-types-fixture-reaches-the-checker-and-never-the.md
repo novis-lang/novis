@@ -3,4 +3,4 @@
   `check_src` and its siblings run `parse_file` → `resolve_file` → `check_program`, and
   `check_declarations` — where `rule:core-api/identifier-casing` is answered — is in none of them,
   so the fixture reads an empty `Diagnostics` and looks like unbuilt work. Call
-  `common::check_declarations_only` for a declaration-shape refusal. [until: gone crates/nvs-types/tests/common/mod.rs:check_declarations_only]
+  `common::check_declarations_only` for a declaration-shape refusal. `until: gone crates/nvs-types/tests/common/mod.rs:check_declarations_only`

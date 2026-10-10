@@ -5,4 +5,4 @@
   `every_registered_member_has_an_implementation_address` in `crates/nvs-stdlib/src/lib.rs` counts
   the row-less ones as a literal, failing as `left: N / right: N-1`. The roster is the `const`, the
   `address()` arm, the `.chain([…])` in `symbols()` and that literal.
-  [until: gone crates/nvs-stdlib/src/lib.rs:every_registered_member_has_an_implementation_address]
+  `until: gone crates/nvs-stdlib/src/lib.rs:every_registered_member_has_an_implementation_address`
