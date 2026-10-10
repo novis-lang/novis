@@ -1,6 +1,5 @@
 // A session's wrap file, parsed: its `## kind: arg` sections and the `--- old` / `--- new` pairs of a
-// `## plan-edit:`. `bun nv session --wrap` applies every section, and `bun nv plan --apply` applies the plan
-// sections alone, so both read the file through this module.
+// `## plan-edit:`. `bun nv plan --apply` reads the file through this module and applies its plan sections.
 
 import { pyRepr } from "./py.ts";
 

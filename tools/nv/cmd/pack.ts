@@ -1,7 +1,6 @@
 // `bun nv pack`: the sections of the orientation pack only Novis has a form for, for one goal and one
 // stage. They are the rules, the decision-record sections, the scoped map, the convention shapes, the
-// plan fields, the milestones and the next free numbers, in the order `bun nv orient` prints them, and
-// `orient` calls the `run*` functions here for its own pack. The traps stay in `orient`.
+// plan fields, the milestones and the next free numbers, in that order. The traps are `looper orient`'s.
 //
 // The goal is `--goal`, else `LOOPER_GOAL_ENV`, else the chain's live goal, read through `lib/chain.ts`.
 // The stage is `--stage`, else `LOOPER_STAGE_ENV`, else the goal's first stage not marked done. The goal's
@@ -9,7 +8,7 @@
 // `context` at all prints no section.
 //
 // The output is one buffer for the process: `begin` empties it, every section appends to it, and
-// `printed` and `costs` read it back, so `orient` interleaves its own sections with these in one pack.
+// `printed` and `costs` read it back.
 // Every reader takes the root `begin` names, which is how a test runs the pack over a scratch tree.
 //
 //   bun nv pack                         the live goal, at its live stage
@@ -549,7 +548,7 @@ export async function runMap(m: Manifest): Promise<void> {
     return;
   }
   if (m.modules.length === 0) {
-    warn("[context] modules is empty, so the map is not printed at all. A goal that touches code must name the files it touches; `bun nv orient --full` prints all of them.");
+    warn("[context] modules is empty, so the map is not printed at all. A goal that touches code must name the files it touches.");
     return;
   }
   let shown = 0;
@@ -606,9 +605,8 @@ export async function runMap(m: Manifest): Promise<void> {
   }
   emit();
   const also = extra > 0 ? `, plus ${extra} file(s) it names outside them` : "";
-  emit(`${shown} of ${total} crate and editor module(s) are in scope${also}. For one that is not,`);
-  emit("`bun nv orient --full` prints the whole map -- and if you needed it, the manifest is");
-  emit("missing a pattern.");
+  emit(`${shown} of ${total} crate and editor module(s) are in scope${also}. If you needed one that`);
+  emit("is not, the manifest is missing a pattern.");
   for (const pat of rest.filter((p) => !hitPats.has(p))) {
     warn(`[context] modules pattern ${pyRepr(pat)} matches no file in the tree -- it moved, or the glob is wrong. The shape does not have to be Rust: any tracked file resolves.`);
   }
@@ -625,7 +623,7 @@ export function runShapes(m: Manifest): void {
   }
   for (const [shape, implied] of SHAPE_IMPLIES) {
     if (m.shapes.includes(shape) && !m.shapes.includes(implied)) {
-      warn(`[context] shapes names ${pyRepr(shape)} without ${pyRepr(implied)}. One decision is both files, in one commit, and \`nv session --wrap\` refuses a rulebook left half-written -- add ${pyRepr(implied)} to the manifest`);
+      warn(`[context] shapes names ${pyRepr(shape)} without ${pyRepr(implied)}. One decision is both files, in one commit -- add ${pyRepr(implied)} to the manifest`);
     }
   }
   section("THE SHAPES YOU ARE ABOUT TO WRITE", `${CONVENTIONS}, filtered to [context] shapes`);

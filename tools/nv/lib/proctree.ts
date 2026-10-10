@@ -1,8 +1,8 @@
 // A child process and everything it started, as one thing: freeze it, thaw it, kill it, and kill what it
 // left behind once it has exited. Every program `nv` starts is wrapped in one the moment `Bun.spawn`
-// returns: `proc.run`, `proc.passthrough`, the proof runner, and the loop's session, which `nv loop`
-// halts by freezing it, since a frozen agent whose `cargo build` keeps writing `target/` is not halted.
-// Carrying on resumes every process at the instruction it stopped on.
+// returns: `proc.run`, `proc.passthrough` and the proof runner. Freezing a process freezes everything it
+// started, since a frozen parent whose `cargo build` keeps writing `target/` is not halted. Carrying on
+// resumes every process at the instruction it stopped on.
 //
 // Nothing is ever killed by a process id alone. Windows keeps a process's creator id after the creator
 // exits and later gives that number to a new process, so a tree read from creator ids alone can reach

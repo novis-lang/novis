@@ -112,14 +112,14 @@ deleted, `bun nv links` is green, and so are `bun nv verify` and `looper lint`.
 
 ### State
 
-**Stages 1, 2 and 3 are done; stage 4's docs are done and its tool and crate comments are not.**
-`bun nv links`, `looper lint` and `looper verify` are green on this tree.
+**Stages 1, 2 and 3 are done. Stage 4's docs are done. Some of its tool comments and all of its crate
+comments are not.** `bun nv verify` is green on this tree.
 
-- Landed: `docs/agent/loop-authoring.md` is rewritten around looper's goal format, with § 1 to § 9 kept
-  in place; `commands.md`, `conventions.md`, `doc-style.md`, `doc-cleanup.md`, `dependency-update.md`,
-  `optimization-prompt.md`, `guard-name-debt.md`, `user-report.md` and `CONTRIBUTING.md` name no
-  deleted command and no `data/goals/` path; `tools/nv/cmd/plan.ts` names `bun nv plan --apply` as the
-  plan's writer.
+- Landed: `wrapGate`, `wrapProblems`, `FEEDS` and `Staleness.staleAt` are deleted from
+  `tools/nv/cmd/site.ts` with their test, since nothing called them. `applyPlan` still has a caller
+  (`tools/nv/cmd/plan.ts:671`). `bun nv disk --clean` no longer refuses on `.loop/running`: looper keeps
+  its run state in its own store and writes no such file, so the refusal could never fire. The
+  comments in the files the last handoff listed name no deleted command.
 - `docs/goals/decision-records-retired.md:542` quotes line spans of `loop-authoring.md` and
   `commands.md` that this group moved. That goal's first session re-derives them with a grep.
 - `bun nv disk --clean` ran after every session under the old driver. Nothing runs it now, and
@@ -131,18 +131,19 @@ that no longer exist. No session edits that file, so removing them is the user's
 
 ### Next
 
-**Stage 4: the tool comments and messages that name a deleted command** — one file set under `tools/`.
+**Stage 4: the rest of the tool comments that name the old driver** — one file set under `tools/`.
+`git grep -n -E "the driver|loop driver|nv (loop|session|orient|playbook)" -- tools/` lists them.
+Skip `db-matrix.ts`, whose "driver" is a database driver.
 
-- [ ] **Comments naming a deleted command** `tools/nv/cmd/pack.ts:1`, then
-  `tools/nv/cmd/brief.ts:21` and `:134`, `tools/nv/cmd/site.ts:56` and
-  `:290`, `tools/nv/lib/wrap.ts:2`, `tools/nv/accept/gates.ts:9`, `tools/nv/accept/sweep-lock.ts:18`,
-  `tools/nv/accept/sweep.ts:3` and `:38-54`, `tools/nv/lib/proctree.ts:3`, `tools/nv/lib/progress.ts:6`,
-  `tools/nv/proofs/run.ts:60`, `tools/nv/lib/machine.ts:18`, `tools/nv/cmd/verify.ts:90`,
-  `tools/git-hooks/commit-msg:11`, `tools/leak-check.sh:3`.
-- [ ] **`bun nv disk` still waits on the old driver's `.loop/running`** (`tools/nv/cmd/disk.ts:10`,
-  `:75`). Delete the wait, or point it at a file looper writes.
-- [ ] **Callers**: whether `applyPlan` in `tools/nv/cmd/plan.ts:621` and `wrapGate` in
-  `tools/nv/cmd/site.ts:290` still have one; delete what has none.
+- [ ] **Comments** `tools/nv/cmd/allow.ts:23`, `tools/nv/cmd/owners.ts:13`, `tools/nv/cmd/peek.ts:508`,
+  `tools/nv/cmd/proofs.ts:27` and `:406`, `tools/nv/cmd/side.ts:17`, `tools/nv/cmd/sweep.ts:59`,
+  `tools/nv/cmd/verify.ts:8`, `tools/nv/lib/chain.ts:21`, `tools/nv/accept/accept.ts:1`,
+  `tools/nv/accept/sweep.ts:16`, `tools/nv/lib/covws.ts:126`, `tools/nv/test/proof-record.test.ts:64`.
+- [ ] **`tools/nv/cmd/audit.ts:8`, `:51`, `:93` and `:202`** name "the driver's toml". Check whether the
+  copies it guards still exist, and delete what guards a file that cannot come back.
+- [ ] **Readers with no caller**: `readProgress` (`tools/nv/lib/progress.ts:192`) is read only by its test,
+  and `.agent-tmp/verify-progress.json` (`tools/nv/cmd/verify.ts:122`) by nothing. Delete them, or say
+  who reads them.
 
 ### Backlog
 

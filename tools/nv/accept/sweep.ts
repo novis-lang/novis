@@ -1,7 +1,7 @@
 // The acceptance sweep over a goal's checks, on the selection store: `sweepOver` runs the checks a change
 // reaches, with the Linux legs, the origin and the sweep lock when the checks need them, and `sweepIds` is
-// the sweep `bun nv affected --run` runs over the check ids it chose. The loop driver's turn, `nv loop
-// --goal-only` and `nv affected` all call these, so the sweep a hook runs is the one a turn runs.
+// the sweep `bun nv affected --run` runs over the check ids it chose. `nv sweep` and `nv affected` both
+// call these, so the sweep after a session is the one a person runs.
 //
 // `livePlan` is the goal a process works on: the side goal `SIDE_ENV` names, or else the chain's live goal,
 // each read through `lib/chain.ts` and nothing else.
@@ -35,23 +35,23 @@ export function livePlan(): { live: Current; goal: Goal; total: number } | null 
   if (side !== null) {
     const goal = sidePlan(side);
     if (goal === null) {
-      console.error(`nv loop: the side goal \`${side}\` has no goal file at docs/goals/${side}.md`);
+      console.error(`nv: the side goal \`${side}\` has no goal file at docs/goals/${side}.md`);
       return null;
     }
     return { live: { slug: side, num: null }, goal, total: goals.length };
   }
   if (process.env[SIDE_ENV]) {
-    console.error(`nv loop: ${SIDE_ENV} names \`${process.env[SIDE_ENV]}\`, and there is no docs/goals/<slug>.md by that name`);
+    console.error(`nv: ${SIDE_ENV} names \`${process.env[SIDE_ENV]}\`, and there is no docs/goals/<slug>.md by that name`);
     return null;
   }
   const live = liveGoal(goals);
   if (live === null) {
-    console.error("nv loop: the chain in docs/goals/README.md names no live goal, so there is no plan to read");
+    console.error("nv: the chain in docs/goals/README.md names no live goal, so there is no plan to read");
     return null;
   }
   const goal = goalPlan(live.slug);
   if (goal === null) {
-    console.error(`nv loop: the live goal \`${live.slug}\` has no goal file at docs/goals/${live.slug}.md`);
+    console.error(`nv: the live goal \`${live.slug}\` has no goal file at docs/goals/${live.slug}.md`);
     return null;
   }
   return { live, goal, total: goals.length };

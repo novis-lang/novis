@@ -87,7 +87,7 @@
 // Every process verify starts is killed with the processes it started when it runs out of time, and a
 // test binary or case batch that fails has what it left running killed (`lib/proc.ts`).
 //
-// `.agent-tmp/verify-progress.json` names the step in flight, for the loop driver's status line.
+// `.agent-tmp/verify-progress.json` names the step in flight, for whoever watches the run.
 //
 // Exits 0 when every step is green, 1 when one is red, and 2 on a bad argument or a `--wait` with nothing
 // to collect.

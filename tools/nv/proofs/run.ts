@@ -57,8 +57,8 @@ const EXE = process.platform === "win32" ? "nvs.exe" : "nvs";
 export const PROOF_BINARY = `target/proof/${EXE}`;
 export const RELEASE_BINARY = `target/release/${EXE}`;
 
-/** The two optimized builds. The release build is the argv `bun nv loop`'s acceptance sweep runs, so
- * both share one set of artefacts under `target/release/`. */
+/** The two optimized builds. The release build is the argv the acceptance sweep runs, so both share one
+ * set of artefacts under `target/release/`. */
 export const PROOF_BUILD = { name: "proof binary", key: "proof", path: PROOF_BINARY, argv: ["cargo", "build", "--profile", "proof", "--bin", "nvs"] };
 const RELEASE = { name: "release binary", key: "release", path: RELEASE_BINARY, argv: ["cargo", "build", "--release", "-p", "nvs-cli"] };
 

@@ -2,10 +2,9 @@
 // text never goes into what the command prints, because an agent reads that output and pays for every
 // line of it. It goes to one of two places, or to none:
 //
-//   - with `NV_PROGRESS_DIR` set, to `<dir>/<pid>.json`, which the loop driver sets for every session and
-//     check it starts. `readProgress` reads the directory back, and `nv loop` puts the text on its status
-//     row after the session's current tool call. The file is written at most four times a second and is
-//     deleted when the command exits; a file whose process is gone is deleted by the next read;
+//   - with `NV_PROGRESS_DIR` set, to `<dir>/<pid>.json`, which `readProgress` reads back. The file is
+//     written at most four times a second and is deleted when the command exits; a file whose process
+//     is gone is deleted by the next read;
 //   - otherwise, with stderr a terminal, to one line on stderr that is rewritten in place and ends in how
 //     long the command has run. Any write to stdout or stderr erases the line first, so the output a person
 //     reads is the same as without it. The next `progress` call paints the line again;

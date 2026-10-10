@@ -14,9 +14,8 @@
 // The lock is the file `.agent-tmp/sweep.lock` under the main tree, which every worktree of the repository
 // resolves to the same path. It is created only when absent, and it names the process that holds it and
 // that process's tree. A sweep that finds it held waits, and tries again every `POLL_MS`. A file whose
-// process has exited is stale, since a driver killed in a sweep leaves one, and the next sweep deletes it
-// and takes the lock. `nv loop --run` does not take it: a session proving one check does not wait out
-// another tree's whole sweep.
+// process has exited is stale, since a sweep killed part way leaves one, and the next sweep deletes it
+// and takes the lock.
 //
 // What it spends: a sweep that uses a shared resource and finds another such sweep running waits for it, up
 // to that sweep's length. A sweep that takes no lock still loads the cores under a locked sweep's perf
