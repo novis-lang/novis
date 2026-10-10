@@ -92,6 +92,13 @@ first, not the most careful version a peer allows. `escape` prints the term with
 template literal, Go's `html/template` and a Novis html template. Where the documented way does not
 escape, the developer calls an escaper, so the result is `your-code` and not `no`.
 
+- `cores` and `waiting` send no requests of their own. Each times a case the way a full run does, on
+  a fresh stack per pass, with the run's `--requests` and `--reps`.
+- `cores` times hello at one cpu and at four. Throughput that grows by 2x or more is `built-in`, or
+  `your-code` where the peer's program carries a launcher to use the cores, as Bun's `serve.ts` does.
+  Less than 2x is `no`. nginx and `oha` each have four cpus, so near their ceiling the four-cpu
+  figure measures them and not the backend. The evidence keeps both figures, so a result read at
+  that ceiling shows as one.
 - `isolation` sends 20 requests one after another. Each writes a static or module value from `?v=`
   and prints the value it found first. One request that found another's value makes the result `no`,
   because no code the developer writes gives a module back its first state.
@@ -110,6 +117,11 @@ escape, the developer calls an escaper, so the result is `your-code` and not `no
 - `headers` reads hello's response for `X-Content-Type-Options: nosniff`, a frame policy
   (`X-Frame-Options` or a `frame-ancestors` CSP) and a `Referrer-Policy`. Any one missing is
   `your-code`.
+- `waiting` times the wait case at one cpu. Every request answered `200` is `built-in`, or
+  `one-setting` where the peer needs a setting before it holds 1000 connections: FPM's
+  `pm.max_children`, whose default pool is a handful of workers. Any other answer is `no`. The memory
+  per request is `memory.peak` less the idle `memory.current`, over the requests in flight at once,
+  which is the concurrency or the run's `--requests` if that is smaller.
 - `live-edit` serves a copy of its folder under `generated/`, changes `version 1` to `version 2` in
   the copy, and polls for 20 seconds. The stacks run in their production setting, so PHP's opcache
   does not check timestamps and Bun runs without `--hot`. An edit that never shows is

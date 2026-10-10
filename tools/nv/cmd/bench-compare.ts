@@ -300,6 +300,17 @@ export interface Probe {
   dir: string;
 }
 
+/** What a row that times a case can do against one peer. */
+export interface Timer {
+  /** The peer's `id` in `PEERS`. */
+  peer: string;
+  /** Requests each pass sends, and connections the case holds open. */
+  requests: number;
+  concurrency: number;
+  /** One fresh, timed pass of the row's case at a backend budget of `cpus`, with its memory. */
+  pass(cpus: number): Promise<PeerResult>;
+}
+
 export interface Scenario {
   id: string;
   /** The folder under `benches/compare/` and the program folder in it the stack serves. */
@@ -311,7 +322,49 @@ export interface Scenario {
   copy?: boolean;
   /** The result of a peer that has nothing to run for this row, with the documentation that says so. */
   fixed?: Record<string, RowResult>;
-  probe(p: Probe): Promise<RowResult>;
+  /** A row about requests: sent to one stack the driver brings up. */
+  probe?(p: Probe): Promise<RowResult>;
+  /** A row about a figure: times the case in `cases/` named by `case`, each pass on a fresh stack. */
+  timed?(t: Timer): Promise<RowResult>;
+}
+
+/** The factor from one cpu to four below which a peer is not using the extra cores. */
+export const CORES_SCALING = 2;
+
+/** The code each peer's program carries only to use more than one core, where it carries any. */
+export const CORES_IN_CODE: Record<string, string> = { bun: "a launcher that starts one reusePort process per cpu" };
+
+/**
+ * Throughput that grows by `CORES_SCALING` or more from one cpu to four uses the cores: built in, or
+ * `your-code` where the peer needs a launcher of its own for it. Less than that is `no`.
+ */
+export function coresResult(one: PeerResult, four: PeerResult, inCode: string | undefined): RowResult {
+  const scaling = Number((four.requests_per_sec / one.requests_per_sec).toFixed(2));
+  const evidence = {
+    requests_per_sec_1_cpu: Math.round(one.requests_per_sec),
+    requests_per_sec_4_cpus: Math.round(four.requests_per_sec),
+    scaling,
+    errors: one.errors + four.errors,
+    code: inCode ?? null,
+  };
+  if (!(scaling >= CORES_SCALING)) return { result: "no", evidence };
+  return { result: inCode === undefined ? "built-in" : "your-code", evidence };
+}
+
+/** The setting each peer needs before it holds the wait case's connections, where it needs one. */
+export const WAITING_SETTING: Record<string, string> = { php: "pm.max_children" };
+
+/**
+ * Every request answered `200` is built in, or `one-setting` where the peer needs `WAITING_SETTING` for
+ * it. A failed request is `no`. The memory each request in flight costs is the evidence beside it:
+ * `memory.peak` less the idle `memory.current`, over the requests that can be in flight at once.
+ */
+export function waitingResult(r: PeerResult, inFlight: number, setting: string | undefined): RowResult {
+  const failed = r.errors + Object.entries(r.status_codes).reduce((n, [code, count]) => (code === "200" ? n : n + count), 0);
+  const kib = r.memory_peak_bytes === null || r.memory_idle_bytes === null ? null : Number(((r.memory_peak_bytes - r.memory_idle_bytes) / inFlight / 1024).toFixed(1));
+  const evidence = { in_flight: inFlight, kib_per_request: kib, failed_requests: failed };
+  if (failed > 0) return { result: "no", evidence };
+  return setting === undefined ? { result: "built-in", evidence } : { result: "one-setting", setting, evidence };
 }
 
 /** Requests the isolation row sends, one after another, each writing its own value. */
@@ -457,6 +510,12 @@ function ok(reply: Reply, what: string): Reply {
 /** The rows, in the order the page shows them. `benches/compare/README.md` § *The feature scenarios* is why each is built so. */
 export const SCENARIOS: Scenario[] = [
   {
+    id: "cores",
+    tree: "cases",
+    case: "hello",
+    timed: async (t) => coresResult(await t.pass(1), await t.pass(4), CORES_IN_CODE[t.peer]),
+  },
+  {
     id: "isolation",
     tree: "scenarios",
     case: "isolation",
@@ -523,6 +582,12 @@ export const SCENARIOS: Scenario[] = [
     tree: "cases",
     case: "hello",
     probe: async (p) => headersResult(ok(await p.get("/"), "hello").headers),
+  },
+  {
+    id: "waiting",
+    tree: "cases",
+    case: "wait",
+    timed: async (t) => waitingResult(await t.pass(1), Math.min(t.requests, t.concurrency), WAITING_SETTING[t.peer]),
   },
   {
     id: "live-edit",
@@ -772,9 +837,19 @@ async function replyOf(peer: Peer, path: string, method = "GET", extra: Record<s
  * Brings the peer's stack up fresh for one row, runs the row's probe against it, and always tears it down.
  * A peer the row gives a fixed result runs nothing, and a row that does not serve brings nothing up.
  */
-async function scenarioPass(peer: Peer, s: Scenario, ctx: PeerCtx): Promise<RowResult> {
+async function scenarioPass(peer: Peer, s: Scenario, ctx: PeerCtx, load: Load): Promise<RowResult> {
   const fixed = s.fixed?.[peer.id];
   if (fixed !== undefined) return fixed;
+  if (s.timed !== undefined) {
+    const c = CASES.find((k) => k.id === s.case)!;
+    const loadOf = { ...load, concurrency: c.concurrency };
+    return await s.timed({
+      peer: peer.id,
+      requests: load.requests,
+      concurrency: c.concurrency,
+      pass: async (cpus) => (await onePass(peer, c, { ...ctx, cpus, concurrency: c.concurrency, tree: "cases" }, loadOf)).result!,
+    });
+  }
   if (s.copy === true) {
     rmSync(join(GENERATED, s.case), { recursive: true, force: true });
     cpSync(join(COMPARE_DIR, s.tree, s.case), join(GENERATED, s.case), { recursive: true });
@@ -785,7 +860,7 @@ async function scenarioPass(peer: Peer, s: Scenario, ctx: PeerCtx): Promise<RowR
   peer.prepare?.(ctx);
   try {
     if (s.serves !== false) up(stack, env, "app", "nginx");
-    return await s.probe({
+    return await s.probe!({
       peer: peer.id,
       dir: join(COMPARE_DIR, ctx.tree, ctx.case),
       exec: (command) => {
@@ -880,11 +955,11 @@ function help(): string {
   ].join("\n");
 }
 
-/** Connections a scenario's stack is sized for: none of the rows here puts the backend under load. */
+/** Connections a probed row's stack is sized for: a probe puts no load on the backend. A timed row uses its case's. */
 const SCENARIO_CONCURRENCY = 8;
 
 /** `--scenarios`: every row against every peer, one fresh stack per pair, one line per row. */
-async function scenarios(o: Options, cpus: number, commit: string): Promise<number> {
+async function scenarios(o: Options, cpus: number, commit: string, load: Load): Promise<number> {
   if (o.record !== null) throw new Fail("--scenarios records nothing; drop --record or --scenarios");
   const rows = SCENARIOS.filter((s) => o.row === null || s.id === o.row);
   if (rows.length === 0) throw new Fail(`--row ${o.row}: no such row; the rows are ${SCENARIOS.map((s) => s.id).join(", ")}`);
@@ -892,7 +967,7 @@ async function scenarios(o: Options, cpus: number, commit: string): Promise<numb
     const byPeer = new Map<string, RowResult>();
     for (const peer of PEERS) {
       console.log(`  ${s.id}: ${peer.label} ...`);
-      byPeer.set(peer.id, await scenarioPass(peer, s, { cpus, concurrency: SCENARIO_CONCURRENCY, tree: s.tree, case: s.case, commit }));
+      byPeer.set(peer.id, await scenarioPass(peer, s, { cpus, concurrency: SCENARIO_CONCURRENCY, tree: s.tree, case: s.case, commit }, load));
     }
     console.log(rowLine(s.id, byPeer));
     for (const peer of PEERS) {
@@ -923,7 +998,7 @@ async function main(o: Options): Promise<number> {
   if (o.smoke && o.record !== null) throw new Fail("--smoke records nothing; drop --record or --smoke");
 
   ensureCert();
-  if (o.scenarios) return await scenarios(o, cpus, commit);
+  if (o.scenarios) return await scenarios(o, cpus, commit, { requests, concurrency: SCENARIO_CONCURRENCY, reps });
   const ctxOf = (c: Case): PeerCtx => ({ cpus, concurrency: c.concurrency, tree: "cases", case: c.id, commit });
 
   // Agreement before any timing. `--smoke` checks it on the timed pass itself, since it records nothing.

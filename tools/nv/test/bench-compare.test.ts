@@ -11,6 +11,7 @@ import {
   checkResult,
   comparable,
   configResult,
+  coresResult,
   crashResult,
   csrfResult,
   ESCAPE_TERM,
@@ -26,6 +27,7 @@ import {
   type RowResult,
   SCENARIOS,
   stackEnv,
+  waitingResult,
 } from "../cmd/bench-compare.ts";
 
 const ctx = { cpus: 4, concurrency: 64, tree: "cases", case: "hello", commit: "abc1234" };
@@ -143,7 +145,45 @@ describe("the feature scenarios", () => {
   });
 
   test("the rows run in the goal's order, and each id once", () => {
-    expect(SCENARIOS.map((s) => s.id)).toEqual(["isolation", "crash", "escape", "taint", "secret", "csrf", "headers", "live-edit", "config"]);
+    expect(SCENARIOS.map((s) => s.id)).toEqual(["cores", "isolation", "crash", "escape", "taint", "secret", "csrf", "headers", "waiting", "live-edit", "config"]);
+  });
+
+  test("every row either probes a stack or times a case, never both, and a timed row names a case", () => {
+    for (const s of SCENARIOS) {
+      expect(s.probe === undefined).toBe(s.timed !== undefined);
+      if (s.timed !== undefined) expect(CASES.some((c) => c.id === s.case)).toBe(true);
+    }
+  });
+
+  const timed = (rps: number, over: Partial<PeerResult> = {}): PeerResult => ({
+    requests_per_sec: rps,
+    median_requests_per_sec: rps,
+    p50_ms: 1,
+    p99_ms: 2,
+    errors: 0,
+    status_codes: { "200": 300 },
+    memory_idle_bytes: 10 * 1048576,
+    memory_peak_bytes: 20 * 1048576,
+    settings: {},
+    ...over,
+  });
+
+  test("cores is built in from twice the throughput at four cpus, your-code where a launcher does it, and no below that", () => {
+    expect(coresResult(timed(1000), timed(3500), undefined)).toEqual({
+      result: "built-in",
+      evidence: { requests_per_sec_1_cpu: 1000, requests_per_sec_4_cpus: 3500, scaling: 3.5, errors: 0, code: null },
+    });
+    expect(coresResult(timed(1000), timed(2000), "a launcher").result).toBe("your-code");
+    expect(coresResult(timed(1000), timed(1100), undefined).result).toBe("no");
+    expect(coresResult(timed(1000), timed(1100), "a launcher").result).toBe("no");
+  });
+
+  test("waiting fails on any request not answered 200, and its memory is per request in flight", () => {
+    expect(waitingResult(timed(100), 1000, undefined)).toEqual({ result: "built-in", evidence: { in_flight: 1000, kib_per_request: 10.2, failed_requests: 0 } });
+    expect(waitingResult(timed(100), 1000, "pm.max_children").result).toBe("one-setting");
+    expect(waitingResult(timed(100, { status_codes: { "200": 290, "503": 10 } }), 1000, undefined).evidence.failed_requests).toBe(10);
+    expect(waitingResult(timed(100, { errors: 1 }), 1000, "pm.max_children").result).toBe("no");
+    expect(waitingResult(timed(100, { memory_peak_bytes: null }), 1000, undefined).evidence.kib_per_request).toBeNull();
   });
 
   test("a fixed result says why in its evidence, and a documentation link is a URL", () => {
