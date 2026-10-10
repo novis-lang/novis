@@ -2,7 +2,6 @@
   "title": "One written attribute per format generates a codec, and it is matched by resolved name",
   "status": "shipped",
   "because": [
-    "0071",
     "0067",
     "0102"
   ],

@@ -1176,7 +1176,7 @@ other file — cached, hot-reloadable, traceable and coverable with no special c
 ([`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate)) — and it is why reconstructing an object from a
 payload is a question the runtime never has to answer.
 
-<sub>See also [`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate), [`concurrency/a-payload-refuses-secret-and-keeps-its-qualifiers`](concurrency.md#concurrency-a-payload-refuses-secret-and-keeps-its-qualifiers). Decided in [0084](../decisions/0084.md), [0071](../decisions/0071.md).</sub>
+<sub>See also [`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate), [`concurrency/a-payload-refuses-secret-and-keeps-its-qualifiers`](concurrency.md#concurrency-a-payload-refuses-secret-and-keeps-its-qualifiers). Decided in [0084](../decisions/0084.md).</sub>
 
 <a id="concurrency-a-jobs-budget-and-grants-are-recorded-at-enqueue"></a>
 

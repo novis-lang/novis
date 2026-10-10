@@ -115,7 +115,7 @@
 //! # An issue's `path` is the wire key, under every nesting that encloses it
 //!
 //! A `decodeAs<array<C>>` reports `2.name`, a nested class's field
-//! `address.city` and a list field's bad element `tags.3` — § 5's own spelling,
+//! `address.city` and a list field's bad element `tags.3` — `rule:core-classes/derive-reports-every-field`'s own spelling,
 //! and `rule:core-classes/derive-reports-every-field`'s dotted path, built by
 //! [`path_of`] out of a prefix each nesting extends by one segment.
 //! [`decode_nested`] runs the nested class's own field list under an `address.`
@@ -2442,7 +2442,7 @@ unsafe fn decode_each(
 /// the constructor run only if none was.
 ///
 /// `at` is the element's position when this object came out of a list, and is
-/// the whole of what a list adds to § 5's issue paths — `2.name` rather than
+/// the whole of what a list adds to `rule:core-classes/derive-reports-every-field`'s issue paths — `2.name` rather than
 /// `name`.
 ///
 /// # Safety
@@ -2545,7 +2545,7 @@ enum DecodeFailure {
 /// accumulation is one vector either way, and only the last statement knows
 /// which door it goes out of.
 ///
-/// `prefix` is what § 5's issue paths are rooted at: `""` at the top, `2.`
+/// `prefix` is what `rule:core-classes/derive-reports-every-field`'s issue paths are rooted at: `""` at the top, `2.`
 /// inside a list's third element, `2.address.` inside that element's nested
 /// `address`. It is a string rather than an index because nesting is
 /// unbounded and a list position is only its first level.
@@ -2619,7 +2619,7 @@ unsafe fn decode_fields(
                     ))));
                 }
             },
-            // § 5's accumulation, and the one place a nested object's issues
+            // `rule:core-classes/derive-reports-every-field`'s accumulation, and the one place a nested object's issues
             // join the enclosing object's: they already carry their own rooted
             // paths, so this is an append rather than a re-rooting.
             Err(DecodeFailure::Issues(mut nested)) => issues.append(&mut nested),
@@ -2850,7 +2850,7 @@ unsafe fn convert_field(
     let converted = match field.ty {
         // `rule:core-classes/derive-field-list`'s nested class and its inline
         // shape, both decoded by running a field list over this key's object —
-        // which is why § 5's paths are dotted in the first place. What differs
+        // which is why `rule:core-classes/derive-reports-every-field`'s paths are dotted in the first place. What differs
         // is only where that list is read from, which [`Contract`] answers.
         CodecTy::Class | CodecTy::Shape => {
             #[expect(
@@ -2861,7 +2861,7 @@ unsafe fn convert_field(
             return unsafe { decode_nested(ctx, contract, index, found, prefix) };
         }
         // `rule:core-classes/derive-field-list`'s list field, decoded one element at a time under a
-        // path this key extends — the second nesting § 5's dotted path covers.
+        // path this key extends — the second nesting `rule:core-classes/derive-reports-every-field`'s dotted path covers.
         CodecTy::List => {
             #[expect(
                 unsafe_code,
@@ -3194,7 +3194,7 @@ fn cases_of<'a>(
 /// failure.
 ///
 /// The element's issue path is the field's own path with the position appended
-/// — `tags.3`, which is § 5's own example — and an element that is a class, a
+/// — `tags.3`, which is `rule:core-classes/derive-reports-every-field`'s own example — and an element that is a class, a
 /// shape or a list of either nests once further, `authors.1.name` and
 /// `grid.2.0`.
 ///
@@ -3455,7 +3455,7 @@ unsafe fn decode_element(
 /// path is one concatenation. With no field it names the enclosing object
 /// itself, which is the prefix with its trailing dot dropped.
 ///
-/// The dotted spelling is the one the § 5 example already uses for a nested
+/// The dotted spelling is the one the `rule:core-classes/derive-reports-every-field` example already uses for a nested
 /// field, so a caller walking a list's issues reads the same path grammar it
 /// reads for `address.city`.
 fn path_of(prefix: &str, field: Option<&str>) -> String {

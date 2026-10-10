@@ -72,7 +72,7 @@ new Models\User();        // refused: it names `Models\User`, which does not exi
 exist; a qualified name is absolute here. Did you mean `App\Models\User`?* A short name for a class in the
 same namespace, every `use` path, and `Core\Str::length($s)` are unaffected.
 
-<sub>See also [`statements/no-fallback-to-the-root-namespace`](statements.md#statements-no-fallback-to-the-root-namespace), [`statements/a-leading-separator-does-not-parse`](statements.md#statements-a-leading-separator-does-not-parse), [`statements/one-function-resolves-every-name`](statements.md#statements-one-function-resolves-every-name), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name). Decided in [0113](../decisions/0113.md), [0112](../decisions/0112.md), [0071](../decisions/0071.md).</sub>
+<sub>See also [`statements/no-fallback-to-the-root-namespace`](statements.md#statements-no-fallback-to-the-root-namespace), [`statements/a-leading-separator-does-not-parse`](statements.md#statements-a-leading-separator-does-not-parse), [`statements/one-function-resolves-every-name`](statements.md#statements-one-function-resolves-every-name), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name). Decided in [0113](../decisions/0113.md), [0112](../decisions/0112.md).</sub>
 
 <a id="statements-no-fallback-to-the-root-namespace"></a>
 

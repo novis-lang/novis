@@ -2,8 +2,8 @@
 `Core\Json::decodeAs<T>` decodes a field whose type is another derived class, and a promoted constructor parameter is a field like any other — `rule:core-classes/derive-attribute`, `rule:core-classes/derive-field-list` and `rule:core-classes/derive-reports-every-field`
 --FILE--
 <?nvs
-// § 2: a field is "another class that itself has a codec". `Address` is
-// written the long way and `Person` the way § 1's own example is — promoted
+// `rule:core-classes/derive-field-list`: a field is "another class that itself has a codec". `Address` is
+// written the long way and `Person` the way `rule:core-classes/derive-attribute`'s own example is — promoted
 // constructor parameters — so one document exercises both spellings of a
 // declaration, which the derive pass reads through one view.
 #[Core\Json\Derive]
@@ -39,7 +39,7 @@ echo "zip=", $p->address->zip, "\n";
 // came in is the document that goes back out.
 echo "round=", Core\Json::encode($p), "\n";
 
-// § 5's dotted issue path is what the nesting is for: the inner object's
+// `rule:core-classes/derive-reports-every-field`'s dotted issue path is what the nesting is for: the inner object's
 // failures are reported under the field that holds it, and they accumulate
 // with the outer object's rather than throwing at the first one.
 try {

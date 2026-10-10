@@ -2,8 +2,7 @@
   "title": "`#[Api]` may add to the generated document and may not contradict the code",
   "status": "shipped",
   "because": [
-    "0085",
-    "0071"
+    "0085"
   ],
   "seeAlso": [
     "attributes/access-is-a-required-sibling",

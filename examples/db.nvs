@@ -7,10 +7,9 @@
 use Core\Db;
 use Core\Db\Row;
 
-// ADR 0071 § 1: the attribute is matched nominally, and it is written out in
-// full because a `use Core\Db;` binds the *class* `Db` and never lets
-// `Db\Derive` name the attribute (ADR 0113 § 1 — a qualified name is
-// absolute).
+// `#[Core\Db\Derive]` makes the class readable from a row. It is written with
+// its full name. `use Core\Db;` imports only the class `Db`, so `Db\Derive`
+// would not name the attribute.
 #[Core\Db\Derive]
 class Person
 {

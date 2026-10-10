@@ -3,8 +3,7 @@
   "status": "shipped",
   "because": [
     "0113",
-    "0112",
-    "0071"
+    "0112"
   ],
   "seeAlso": [
     "statements/no-fallback-to-the-root-namespace",

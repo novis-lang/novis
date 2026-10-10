@@ -127,7 +127,7 @@ built** — a second-rate implementation of somebody else's specification is a s
 own forever. Anything about *Novis's own* compiler or scheduler has no possible crate and is ours by nature.
 It is the same split the project already lives with: Cranelift compiles, and the IR lowering into it is
 ours; `serde_json` parses, and the derive that emits Novis IR from Novis types
-([0071](../decisions/0071.md)) could not be a crate if we wanted it to be. When a feature is half of each,
+(`rule:core-classes/derive-attribute`) could not be a crate if we wanted it to be. When a feature is half of each,
 say which half is which before writing either.
 
 **Checked-return call sites go through one code path.** See `rule:errors/propagation`: a missing

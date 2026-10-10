@@ -555,7 +555,7 @@ either — it encodes as an object keyed by its field names.
 The decode half is part of the same contract, so a type that encodes also decodes, and no program
 hand-writes the step that turns decoded data back into an object.
 
-<sub>See also [`core-api/required-optional-and-nullable`](core-api.md#core-api-required-optional-and-nullable), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`classes/serialize-is-a-closed-format`](classes.md#classes-serialize-is-a-closed-format), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`types/object-top`](types.md#types-object-top). Decided in [0063](../decisions/0063.md), [0071](../decisions/0071.md).</sub>
+<sub>See also [`core-api/required-optional-and-nullable`](core-api.md#core-api-required-optional-and-nullable), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`classes/serialize-is-a-closed-format`](classes.md#classes-serialize-is-a-closed-format), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`types/object-top`](types.md#types-object-top). Decided in [0063](../decisions/0063.md).</sub>
 
 <a id="core-api-qualifier-behaviour-is-declared"></a>
 
@@ -856,9 +856,7 @@ they are separate questions, and both already have a spelling.
 
 Nullability is a property of the **type** and optionality is a property of the constructor parameter's
 **default**; neither borrows the other's meaning. Encoding is the plain inverse: every field is always
-emitted, including a `null` one. There is no omit-when-null option, because an asymmetric encoder is a
-round-trip bug that only shows up in the value that happens to be absent — and adding one later, conditioned
-on the field having a default, is purely additive.
+emitted, including a `null` one.
 
 **One row is designed, not shipped.** `?T $x = null` needs a written `= null` parameter default, which
 the checker still refuses — `crates/nvs-types/src/defaults.rs`'s own gap, not this table's. The other
@@ -871,7 +869,12 @@ field to carry a constant and is filled by nothing, so the call that asks for an
 document is refused while compiling rather than answered with a guess: `E0820` at a document door and
 `E0806` at a row's.
 
-<sub>See also [`core-api/written-participation`](core-api.md#core-api-written-participation), [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null), [`core-api/the-marker-never-reaches-a-program`](core-api.md#core-api-the-marker-never-reaches-a-program), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0071](../decisions/0071.md), [0063](../decisions/0063.md).</sub>
+**Declined:**
+- **An omit-when-null option.** An asymmetric encoder is a round-trip bug that shows only in the
+  value that happens to be absent. One conditioned on the field having a default can be added later
+  without changing anything here, once a real interoperability case needs it.
+
+<sub>See also [`core-api/written-participation`](core-api.md#core-api-written-participation), [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null), [`core-api/the-marker-never-reaches-a-program`](core-api.md#core-api-the-marker-never-reaches-a-program), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0063](../decisions/0063.md).</sub>
 
 <a id="core-api-omission-is-not-a-written-null"></a>
 

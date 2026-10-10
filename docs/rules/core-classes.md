@@ -1284,7 +1284,7 @@ language's own `as`, so `Core\Db` never grows a second stringification table. Ev
 yields is `tainted` where its type can carry it, which closes stored injection by the same mechanism
 as reflected. The same table is read the other way by [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed).
 
-<sub>See also [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed), [`types/decimal`](types.md#types-decimal), [`types/uint`](types.md#types-uint), [`types/conversion`](types.md#types-conversion). Decided in [0067](../decisions/0067.md), [0063](../decisions/0063.md), [0071](../decisions/0071.md), [0145](../decisions/0145.md).</sub>
+<sub>See also [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed), [`types/decimal`](types.md#types-decimal), [`types/uint`](types.md#types-uint), [`types/conversion`](types.md#types-conversion). Decided in [0067](../decisions/0067.md), [0063](../decisions/0063.md), [0145](../decisions/0145.md).</sub>
 
 <a id="core-classes-db-streaming"></a>
 
@@ -1447,7 +1447,7 @@ own spelling of a default are each normalized out on both sides. The acceptance 
 property — apply a schema, introspect it back, and the resulting plan is **empty**, on all five
 backends. Every normalization rule exists because that property failed without it.
 
-<sub>See also [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`types/arrays`](types.md#types-arrays). Decided in [0145](../decisions/0145.md), [0090](../decisions/0090.md), [0071](../decisions/0071.md), [0067](../decisions/0067.md).</sub>
+<sub>See also [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`types/arrays`](types.md#types-arrays). Decided in [0145](../decisions/0145.md), [0090](../decisions/0090.md), [0067](../decisions/0067.md).</sub>
 
 <a id="core-classes-schema-vocabulary-is-closed"></a>
 
@@ -1682,9 +1682,24 @@ never a namespace prefix, so `use Core\Json;` followed by `#[Json\Derive]` names
 This is a carve-out of exactly one sentence, and it is the only one: attribute *retrieval* stays
 structural, unchanged ([`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval)). Every future compiler-recognized
 attribute joins the closed list; nothing else is ever matched by name. The list itself is a single
-table in the compiler, which is what stops a per-record running total from going stale.
+table in the compiler (`nvs_types::derive::ATTRIBUTES`), and a rule adding an entry says its attribute
+joins the list and states no running total, because a count restated beside each entry goes stale.
 
-<sub>See also [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`core-classes/derive-generates-what-is-missing`](core-classes.md#core-classes-derive-generates-what-is-missing), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval). Decided in [0071](../decisions/0071.md), [0067](../decisions/0067.md), [0102](../decisions/0102.md).</sub>
+The nominal match is what lets the compiler generate code from an attribute at all: it acts on
+**this** attribute, and never on a framework's own literal that happens to have the same shape. The
+list is also the control on the attribute surface. Each entry is cheap to add, and a set of
+attributes added because they were cheap is a second, undocumented language, so each entry is
+argued on its own.
+
+**Declined:**
+- **Matching a compiler-recognized attribute structurally**, the way retrieval matches. The
+  derive's payload is an empty shape, which structurally matches every attribute in a program, and
+  even a non-empty one would generate code from a third-party literal that happens to fit.
+- **One shared `#[Derive]` and `#[Field]` for both formats.** It forces a JSON key and a column
+  name to be the same string, which is wrong often enough that two attributes would be needed at
+  once. A class using both formats with the same rename writes it twice, and that is visible.
+
+<sub>See also [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`core-classes/derive-generates-what-is-missing`](core-classes.md#core-classes-derive-generates-what-is-missing), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval). Decided in [0067](../decisions/0067.md), [0102](../decisions/0102.md).</sub>
 
 <a id="core-classes-derive-field-list"></a>
 
@@ -1702,7 +1717,10 @@ lists are literally the same declaration, so this costs nothing. It is worth its
 decode is an ordinary `new`: the generated decoder fills locals and calls the constructor, so a
 decoded object is indistinguishable from a hand-built one and every invariant the constructor
 establishes still holds. A `lateinit` property cannot be a field, being by definition not
-constructor-assigned.
+constructor-assigned; `readonly` is unaffected, because the constructor assigns it like any other.
+Because the two lists are checked to agree at compile time, `fromJson(toJson($x))` rebuilding `$x`
+is a property of the mechanism rather than of the care taken writing two functions, and a renamed
+property breaks loudly: every reader of the old key gets a missing-field issue with its path.
 
 A field's type must be codec-reachable — a scalar, one of the named `Core` value types, an enum, an
 inline shape, an `array<T>` or `?T` of one of those, or another class that itself has a codec.
@@ -1718,10 +1736,22 @@ above, and a class keeping it as a parameter anyway stays well formed — it sti
 program can still build one itself. What such a class cannot do is be **decoded**: the contract names
 no key for that position, and a default carried on a field cannot be read for a position that has no
 field. So the refusal is of the call that asks for a whole instance out of a document or a row rather
-than of the declaration, at every door that reads a derived codec. There is no whole-class naming policy — that would make a wire
-format depend on a setting rather than on the source.
+than of the declaration, at every door that reads a derived codec. A field's default key or column
+is the property's own name, exactly, with no case mapping between the two.
 
-<sub>See also [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`core-classes/derive-reports-every-field`](core-classes.md#core-classes-derive-reports-every-field), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types). Decided in [0071](../decisions/0071.md), [0067](../decisions/0067.md).</sub>
+**Declined:**
+- **Building the object without its constructor**, the way a serializer for a language with no
+  constructors does. Every decoded object would be one that never ran its class's invariants, and
+  the deliberately narrow reflection bypass of [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws)
+  would become a hot path.
+- **Deriving from the constructor's parameters alone.** The encoder has nothing to read for a
+  parameter that is not promoted, and the two halves would come from two lists that can disagree
+  in silence, which is the failure hand-written codecs already have.
+- **A whole-class naming policy** such as `snake_case`. It is a mode string
+  ([`core-api/shape-rules`](core-api.md#core-api-shape-rules) R11), and it makes a wire format depend on a setting rather than on
+  the source being read.
+
+<sub>See also [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`core-classes/derive-reports-every-field`](core-classes.md#core-classes-derive-reports-every-field), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types). Decided in [0067](../decisions/0067.md).</sub>
 
 <a id="core-classes-derive-reports-every-field"></a>
 
@@ -1739,14 +1769,24 @@ located. For a row decode it is the column name. `ParseError` carries the list; 
 class was added for it, because `ParseError` is already exactly the right node: *input did not match
 a format this code declared*.
 
-The accumulator is allocated only when the first issue is recorded, so the successful path — every
-request that is not an error — allocates nothing for it.
+A whole list is the point: a submitted form has to tell its user about every bad field at once, not
+one per round trip.
 
-One thing the record describes has not landed: `Core\Db\DbError` has no `issues` slot of its own, so
-the row half's per-field refusals are reported on a `ParseError` instead. Gap 4 in
-`crates/nvs-stdlib/src/db/mod.rs` is where that is recorded.
+`Core\Db\DbError` has no `issues` slot of its own yet, so the row half's per-field refusals are
+reported on a `ParseError` instead. Gap 4 in `crates/nvs-stdlib/src/db/mod.rs` is where that is
+recorded.
 
-<sub>See also [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`core-classes/db-error`](core-classes.md#core-classes-db-error), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy). Decided in [0071](../decisions/0071.md), [0067](../decisions/0067.md).</sub>
+- **Memory:** the accumulator is allocated only when the first issue is recorded, so the successful
+  path — every request that is not an error — allocates nothing for it.
+
+**Declined:**
+- **Reporting the first failed field only.** It suits a configuration file and fails a form, whose
+  user would be told about one mistake at a time.
+- **A new exception class per format.** The closed `Throwable` set exists so that `catch` is
+  learnable ([`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy)), and what was missing was a field on an existing
+  class, not a new class.
+
+<sub>See also [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`core-classes/db-error`](core-classes.md#core-classes-db-error), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy). Decided in [0067](../decisions/0067.md).</sub>
 
 <a id="core-classes-derive-generates-what-is-missing"></a>
 
@@ -1776,7 +1816,20 @@ per field, and paid on the encoding side by a refcount pair per level of the doc
 member runs. Footprint is O(derived classes in compiled code), not O(objects) and not O(requests), and
 a program that neither carries the attribute nor writes a half pays nothing at all, including no pass.
 
-<sub>See also [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`types/anonymous-object`](types.md#types-anonymous-object), [`types/shape-type`](types.md#types-shape-type). Decided in [0071](../decisions/0071.md), [0063](../decisions/0063.md).</sub>
+**Declined:**
+- **Hand-written codecs only.** A ten-property class costs twenty lines per format that restate the
+  property list above them, and an encoder and a decoder that drift apart fail in silence.
+- **Encoding every public property with no attribute.** A class's public shape would be a wire
+  contract nobody wrote ([`core-api/written-participation`](core-api.md#core-api-written-participation)).
+- **A derive for the graph copy.** It already handles every object with no opt-in, so a derive would
+  be a second path to an operation that works ([`classes/two-copy-depths`](classes.md#classes-two-copy-depths)).
+- **Validation in the codec.** Checking that a value looks right belongs to `Core\Validate` and user
+  code, and folding it in is how a derive attribute grows into a framework.
+- **Omitting a `null` field and a naming policy** are declined where their rules live
+  ([`core-api/required-optional-and-nullable`](core-api.md#core-api-required-optional-and-nullable), [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list)). Until either
+  exists, a payload that needs one takes a hand-written encoder.
+
+<sub>See also [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`types/anonymous-object`](types.md#types-anonymous-object), [`types/shape-type`](types.md#types-shape-type). Decided in [0063](../decisions/0063.md).</sub>
 
 <a id="core-classes-ldap-filter-is-a-value"></a>
 

@@ -6,10 +6,10 @@
 // `rule:core-classes/derive-field-list`'s: a row is a flat list of columns, so a nested object is not a
 // column type however well it maps to JSON. `Handle` carries a derive of its
 // own and is still refused here, which is the half that a rule copied from the
-// JSON pass would get wrong — § 2's "another class that itself has a codec"
+// JSON pass would get wrong — `rule:core-classes/derive-field-list`'s "another class that itself has a codec"
 // admits exactly this field for `#[Json\Derive]`.
 //
-// `$cache` is a `Handle` too, and § 3's escape hatch takes it off the mapping
+// `$cache` is a `Handle` too, and `rule:core-classes/derive-field-list`'s escape hatch takes it off the mapping
 // in writing, so it is examined and accepted before `$h` is reached: a rule
 // refusing the type's *appearance* rather than its presence in the contract
 // would name both properties and still look right on the second half alone.

@@ -106,7 +106,7 @@ pub(super) fn row_object(
 /// "losslessly or throws" is what decides the two integer types against each
 /// other, exactly as [`ROW`]'s own typed readers do.
 ///
-/// **§ 5's `path` is the column name**, which that section says outright for
+/// **`rule:core-classes/derive-reports-every-field`'s `path` is the column name**, which that rule says outright for
 /// the `Db` half, so a list element's position rides in its message rather
 /// than in a dotted path.
 ///
@@ -2746,7 +2746,7 @@ mod tests {
     /// Naming the column is the item rather than a nicety. § 6 has field names
     /// match column names exactly and `AS` as the way to rename, so at a table
     /// of forty columns the path is the only thing separating "one of these did
-    /// not match" from a fix — [ADR 0071 § 5](/docs/decisions/0071.md)
+    /// not match" from a fix — `rule:core-classes/derive-reports-every-field`
     /// is where the `issues` list this reads back is specified, and the throw is
     /// a `ParseError` for the reason [`hydrate`]'s own docs give.
     ///

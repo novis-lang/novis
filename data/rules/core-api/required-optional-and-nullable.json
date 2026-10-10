@@ -2,7 +2,6 @@
   "title": "Required, optional and nullable are three separate questions: nullability belongs to the type and optionality to the default",
   "status": "designed",
   "because": [
-    "0071",
     "0063"
   ],
   "seeAlso": [

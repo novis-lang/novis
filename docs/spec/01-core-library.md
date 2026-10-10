@@ -601,7 +601,7 @@ no magic hook and no structural encoding of public properties
 (`rule:core-api/written-participation`). An inline shape
 (`rule:types/object-top`) is the one instance that needs neither, encoding as a
 JSON object keyed by its field names — it has no declaration to carry a codec, and
-[ADR 0071 § 7](../decisions/0071.md) owns why that is not the same rule. A `secret` value cannot be encoded at all
+`rule:core-classes/derive-generates-what-is-missing` owns why that is not the same rule. A `secret` value cannot be encoded at all
 (`rule:security/secret-qualifier`).
 
 Both halves are generated from a class's own declared properties by the opt-in `#[Json\Derive]`
@@ -748,7 +748,7 @@ Members are readonly properties, not `getX()` accessors: `$e->message`, `$e->pre
 `$e->location`. `ParseError` and `Core\Db\DbError` carry one more — `issues: array<Core\Issue>`, where
 `type Core\Issue = {path: string, message: string};` — so a failed decode reports **every** offending field
 at once rather than the first, each located by a dotted path (`"address.city"`, `"tags.3"`) or, for a row, by
-its column name ([ADR 0071 § 5](../decisions/0071.md)). It is empty on any error that has no field
+its column name (`rule:core-classes/derive-reports-every-field`). It is empty on any error that has no field
 list to report. There is no `getCode()`: an `int` code with no declared meaning is what a user-defined
 subclass with a typed property does properly. `Throwable`'s message is a `secret` sink
 (`rule:security/secret-qualifier`). Resource-limit reports are **not**

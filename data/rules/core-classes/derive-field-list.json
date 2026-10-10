@@ -2,7 +2,6 @@
   "title": "The field list is the declared property list, and every field is a constructor parameter of the same name",
   "status": "shipped",
   "because": [
-    "0071",
     "0067"
   ],
   "seeAlso": [

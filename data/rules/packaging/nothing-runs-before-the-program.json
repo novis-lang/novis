@@ -2,8 +2,7 @@
   "title": "Nothing in a package runs before your program does",
   "status": "designed",
   "because": [
-    "0081",
-    "0071"
+    "0081"
   ],
   "seeAlso": [
     "packaging/a-package-is-its-digest",

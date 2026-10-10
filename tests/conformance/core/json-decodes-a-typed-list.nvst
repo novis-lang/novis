@@ -14,7 +14,7 @@ class Point {
     }
 }
 
-// § 2: a decode is an ordinary `new`, so a list decode is that `new` run once
+// `rule:core-classes/derive-field-list`: a decode is an ordinary `new`, so a list decode is that `new` run once
 // per element — the type argument names the element's class and the result is
 // an `array<Point>`, not the `array<mixed>` a plain `decode` answers with.
 var $points = Core\Json::decodeAs<array<Point>>(
@@ -40,7 +40,7 @@ echo "round=", Core\Json::encode($points), "\n";
 // a failure to construct.
 echo "empty=", Core\Arr::count(Core\Json::decodeAs<array<Point>>("[]")), "\n";
 
-// § 5 accumulates within an element and the list stops at the first bad one:
+// `rule:core-classes/derive-reports-every-field` accumulates within an element and the list stops at the first bad one:
 // element 1 reports both of its own failures, element 2's missing field is
 // never reached, and every path carries the position. A list refused anywhere
 // is refused entirely — a shorter `array<Point>` than the document held would

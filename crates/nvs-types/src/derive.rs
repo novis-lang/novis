@@ -5,9 +5,11 @@
 //! # One pass, two formats
 //!
 //! [`Format`] is the only thing anything below branches on, and it is checked
-//! for each of its two values over the same class. `rule:core-classes/derive-attribute` states §§ 2, 3, 5
-//! and 7 once, for "a derived codec", so they are written here once and asked
-//! of both: the two formats differ in their **type map** — JSON's is § 2's
+//! for each of its two values over the same class. The derive rules
+//! (`rule:core-classes/derive-field-list`, `rule:core-classes/derive-reports-every-field`,
+//! `rule:core-classes/derive-generates-what-is-missing`) are stated once, for
+//! "a derived codec", so they are written here once and asked
+//! of both: the two formats differ in their **type map** — JSON's is `rule:core-classes/derive-field-list`'s
 //! reachable set, a row's is `rule:core-classes/db-column-types`'s — in the attribute pair that names them, and in nothing else. Two
 //! passes that agreed today would be two passes that disagree the first time
 //! one of those sections is amended.
@@ -56,9 +58,9 @@ use crate::{Ctx, Env, span_text, strip_sigil};
 ///
 /// A `Name` written at an attribute site is resolved with
 /// [`nvs_hir::resolve_ref`] and compared against these — so `#[Core\Json\Derive]`
-/// and a `use Core\Json;`d `#[Json\Derive]` are the same attribute, and no
+/// and a `use Core\Json\Derive;`d `#[Derive]` are the same attribute, and no
 /// spelling of a userland name is any of them. Extended, never widened, and
-/// each entry owes its own argued ADR section.
+/// each entry owes its own argued rule.
 ///
 /// A name on this roster names no shape, so [`crate::attributes`]'s `rule:attributes/attach-sites-and-forms` rule does not apply to it and what its payload may hold is the
 /// recognizing pass's own question: `#[Json\Derive]`/`#[Json\Field]` are this
@@ -443,7 +445,7 @@ pub const FIELD: &str = r"Core\Json\Field";
 
 /// `#[Db\Derive]` — `rule:core-classes/derive-attribute`'s opt-in again, on a class, for the row half
 /// of the same table. It generates `Core\Db\Codec`'s `fromRow` and nothing
-/// else: § 7 makes this format one-directional, because a write is
+/// else: `rule:core-classes/derive-generates-what-is-missing` makes this format one-directional, because a write is
 /// `rule:core-classes/db-one-api`'s explicit statement plus
 /// bound parameters and a generated `INSERT` is the ORM that ADR settled
 /// against.
@@ -555,7 +557,7 @@ pub const DEPRECATED: &str = r"Core\Deprecated";
 /// One of `rule:core-classes/derive-attribute`'s two derived formats — the only thing this pass
 /// branches on.
 ///
-/// Every rule of §§ 2, 3, 5 and 7 is stated once and asked of both; what a
+/// Every derive rule is stated once and asked of both; what a
 /// format supplies is its attribute pair, the codec members a class may
 /// hand-write instead, and its **type map**. A third format would be a third
 /// variant and no new pass.
@@ -564,7 +566,7 @@ pub enum Format {
     /// `#[Json\Derive]` — spec § 6's `Core\Json\Codec`, both halves.
     Json,
     /// `#[Db\Derive]` — spec § 6's `Core\Db\Codec`, which declares `fromRow`
-    /// alone (§ 7).
+    /// alone (`rule:core-classes/derive-generates-what-is-missing`).
     Db,
 }
 
@@ -573,7 +575,7 @@ impl Format {
     ///
     /// A loop rather than a choice, because a class may carry both attributes:
     /// a row read into an object that is then encoded is the ordinary case,
-    /// and the two contracts are independent — § 3's own reason for two
+    /// and the two contracts are independent — `rule:core-classes/derive-attribute`'s own reason for two
     /// `Field` attributes rather than one.
     const ALL: [Self; 2] = [Self::Json, Self::Db];
 
@@ -612,7 +614,7 @@ impl Format {
         }
     }
 
-    /// § 3's escape hatch, spelled for this format — the fix half of every
+    /// `rule:core-classes/derive-field-list`'s escape hatch, spelled for this format — the fix half of every
     /// refusal below.
     const fn skip_hint(self) -> &'static str {
         match self {
@@ -621,7 +623,7 @@ impl Format {
         }
     }
 
-    /// § 3's signature, spelled for this format.
+    /// `rule:core-classes/derive-field-list`'s signature, spelled for this format.
     const fn field_signature(self) -> &'static str {
         match self {
             Self::Json => r"#[Json\Field(name?: string, skip?: bool)]",
@@ -630,9 +632,9 @@ impl Format {
     }
 
     /// The codec members a class may hand-write itself, all of which it has to
-    /// write for § 7's "the attribute generates nothing" to apply.
+    /// write for `rule:core-classes/derive-generates-what-is-missing`'s "the attribute generates nothing" to apply.
     ///
-    /// Two for JSON and one for a row, which is what makes § 7's
+    /// Two for JSON and one for a row, which is what makes `rule:core-classes/derive-generates-what-is-missing`'s
     /// one-directional rule a row in this table rather than a branch: a class
     /// that writes `fromRow` has left the `#[Db\Derive]` on it nothing to do.
     const fn halves(self) -> &'static [&'static str] {
@@ -865,7 +867,7 @@ pub fn shape_class_label(sorted_fields: &[String]) -> String {
 /// this in one place still: the four `Core` value types of
 /// [`DB_COLUMN_CLASSES`] that are not an `Instant` erase to [`CodecTy::Class`]
 /// and are told from a codec-carrying class by their label alone, which is what
-/// `nvs_stdlib::db::row` reads. § 2's compile-time refusal of a genuinely
+/// `nvs_stdlib::db::row` reads. `rule:core-classes/derive-field-list`'s compile-time refusal of a genuinely
 /// unreachable type is this module's gap 1.
 /// An inline shape keeps **both** halves of what it loses — the class a decode
 /// constructs and the contract holding its field types — because a class label
@@ -893,7 +895,7 @@ fn codec_ty(
     match nested_of(declared, interner) {
         Nested::Array(elem) => return list_erasure(elem, interner, enums),
         Nested::Shape(names) => {
-            // § 2's inline shape reached as a field, keeping both halves the
+            // `rule:core-classes/derive-field-list`'s inline shape reached as a field, keeping both halves the
             // erasure would otherwise drop: the class a decode constructs,
             // named the way a literal of those same fields names it, and the
             // per-field wire types that label cannot carry.
@@ -928,7 +930,7 @@ fn codec_ty(
         // and the reachable set is what keeps it out of a JSON document.
         Ty::Bytes | Ty::TaintedBytes => Erased::wire(CodecTy::Bytes),
         Ty::Mixed => Erased::wire(CodecTy::Mixed),
-        // § 2's "another class that itself has a codec", and the one `Core`
+        // `rule:core-classes/derive-field-list`'s "another class that itself has a codec", and the one `Core`
         // value type that is a wire type instead. The label is what
         // `crate::layout` keys on and `nvs_ir::lower::lower_file` joins
         // through, so `nvs-codegen` can resolve it to a descriptor; an
@@ -952,7 +954,7 @@ fn codec_ty(
                 shape: None,
             }
         }
-        // § 2's enum. What travels is the roster and not the name: `rule:enums/representation` reserves an enum tag that nothing writes, so by the time a case
+        // `rule:core-classes/derive-field-list`'s enum. What travels is the roster and not the name: `rule:enums/representation` reserves an enum tag that nothing writes, so by the time a case
         // is a value it is the integer behind it, and a decoder has nothing to
         // resolve a name against. The membership test is therefore the whole
         // of the decode — see `nvs_stdlib::EnumCases`.
@@ -967,7 +969,7 @@ fn codec_ty(
     }
 }
 
-/// § 2's list field, erased. The element goes through [`codec_ty`] once and
+/// `rule:core-classes/derive-field-list`'s list field, erased. The element goes through [`codec_ty`] once and
 /// comes back as a [`CodecElement`] chain, so a second `List` is one more link
 /// rather than a type this has no room for: `array<array<Tag>>` and
 /// `array<{n: int}>` describe themselves in full.
@@ -1093,7 +1095,7 @@ fn enum_cases(
 /// recorded as the walk reaches it and resolved by [`resolve_field_types`].
 ///
 /// Carries the *null-stripped* declared type, because `?T` is reachable
-/// exactly when `T` is, and the property's own span, because § 2's refusal is
+/// exactly when `T` is, and the property's own span, because `rule:core-classes/derive-field-list`'s refusal is
 /// at the declaration that wrote the field rather than at the `decodeAs<T>`
 /// that would later fail on it.
 #[derive(Debug)]
@@ -1119,7 +1121,7 @@ pub struct CodecFieldSite {
 /// must not depend on which file declared it first.
 ///
 /// **What it refuses is the unreachable set**, and the JSON half of the
-/// erasure now answers for all of it: § 2 lists a `decimal`, an `Instant`, an
+/// erasure now answers for all of it: `rule:core-classes/derive-field-list` lists a `decimal`, an `Instant`, an
 /// enum, an inline shape, an `array<T>` and a nested codec-carrying class as
 /// reachable, and each of those — at any depth of `array<…>`, since
 /// [`list_erasure`]'s chain describes every level — erases to a wire type
@@ -1603,7 +1605,7 @@ impl DecodeSite {
 /// **The reachable set, not the written class's own fields.** A field typed as
 /// another deriving class is filled from the same document, so its text fields
 /// receive the same octets; `seen` is what stops the walk on a class holding a
-/// field of its own type, which § 2 admits.
+/// field of its own type, which `rule:core-classes/derive-field-list` admits.
 ///
 /// One report per property however many sites decode into it: the fix is one
 /// `tainted` on one declaration, and repeating it once per call would report
@@ -1864,7 +1866,7 @@ fn json_reachable(
         // Everything else: `bytes` has no JSON spelling (`rule:types/bytes` makes it a
         // separate type for that reason), `object`, `callable` and `iterable`
         // name no contract, and a union of two non-`null` arms gives a
-        // decoder nothing to pick between — § 2 lists none of them.
+        // decoder nothing to pick between — `rule:core-classes/derive-field-list` lists none of them.
         _ => false,
     }
 }
@@ -1880,13 +1882,13 @@ fn class_has_codec(
         return true;
     }
     match signatures.get(class) {
-        // § 7's hand-written half, either one of them: a class writing only
+        // `rule:core-classes/derive-generates-what-is-missing`'s hand-written half, either one of them: a class writing only
         // `toJson` gets the decoder generated, so one declared half is a
         // codec as much as two are.
         Some(sig) => {
             sig.methods.contains_key(ENCODE)
                 || sig.methods.contains_key(DECODE)
-                // A `Core` value type — § 2's `Instant`, `Duration`, `Uuid`
+                // A `Core` value type — `rule:core-classes/derive-field-list`'s `Instant`, `Duration`, `Uuid`
                 // and their siblings — declares no member for this to find:
                 // which of them has a wire form is `nvs_stdlib::json`'s
                 // roster, not this pass's, and that crate's § *A value type
@@ -1901,7 +1903,7 @@ fn class_has_codec(
 }
 
 /// Records `decl`'s [`DerivedCodec`] for each of [`Format`]'s two values it
-/// opts into, reporting every `rule:core-classes/derive-field-list`/§ 3/§ 6 rule it breaks.
+/// opts into, reporting every `rule:core-classes/derive-field-list` and `rule:security/derived-codec-qualifiers` rule it breaks.
 ///
 /// A no-op — not even a walk of the members — for a class with no recognized
 /// attribute, which `rule:core-classes/derive-generates-what-is-missing` requires: "a program with no derive attribute
@@ -1935,7 +1937,7 @@ fn check_class_format(
     // itself, so a class writing every half gets nothing from it. Reported
     // before anything is collected and returning without a codec, because
     // "generates nothing" is the rule rather than a description of the error.
-    // For a row that is one member, § 7's one-directional rule reaching the
+    // For a row that is one member, `rule:core-classes/derive-generates-what-is-missing`'s one-directional rule reaching the
     // same conclusion one step earlier.
     if format
         .halves()
@@ -1973,7 +1975,7 @@ fn check_class_format(
     // Whether any property was *refused* rather than skipped — see the empty
     // contract check below, which a refusal must not also report.
     let mut refused = false;
-    // § 2's declaration order, over both spellings of a declaration: the
+    // `rule:core-classes/derive-field-list`'s declaration order, over both spellings of a declaration: the
     // members in the order they are written, and the constructor's promoted
     // parameters at the point the constructor itself appears. Walking the
     // members rather than concatenating two lists is what keeps the encode
@@ -2000,8 +2002,8 @@ fn check_class_format(
             }
         }
     }
-    // § 2's field list is the declared property list, so no property is an
-    // empty wire contract — § 7's rule about an attribute with no effect,
+    // `rule:core-classes/derive-field-list`'s field list is the declared property list, so no property is an
+    // empty wire contract — `rule:core-classes/derive-generates-what-is-missing`'s rule about an attribute with no effect,
     // reaching the other way a derive can generate nothing. The codec is
     // still recorded: the program does not run with an error reported, and
     // recording it keeps every reader of the table off a special case.
