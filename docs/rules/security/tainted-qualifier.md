@@ -35,3 +35,9 @@ at the cost of one written reason per call site.
   a test happens to drive the value into the sink.
 - **A separate analysis pass beside the checker.** An optional pass can be skipped or silenced, and that
   is not the guarantee of a checker that refuses to compile the program.
+- **Tainting a shape hydrated from a request on its own**, without `tainted {…}` written. The
+  declaration would then understate the value, and a type that is not what it says is worse than a
+  long one.
+- **Writing `tainted` on each field of a request shape by hand, as the only form.** It is correct but
+  long enough that programs stop writing it, and `rule:security/tainted-sources` is only worth as much
+  as the declarations that carry it forward.

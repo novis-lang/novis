@@ -51,11 +51,28 @@ The read is deliberately **not** widened to `?T`: optionality and nullability ar
 (`rule:core-api/required-optional-and-nullable`), and one language does not answer "the key may be
 absent" two different ways in two containers.
 
+The optional key exists for request input. Without it, a field the client may omit has to be declared
+`?T`, and "the client may leave this out" and "the client may send `null` here" collapse into one fact,
+which is the ambiguity `rule:errors/ambiguous-input-refused` refuses everywhere else.
+
+**Memory:** one `bool` per shape field, in the interned type descriptor. That is one per distinct type
+in the program, and nothing per value or per request.
+
 **Declined:**
+- **A read of an optional field that answers `?T`.** It merges optionality into nullability at exactly
+  the site a program acts on the difference, and gives an absent key a second answer beside the throw
+  an absent array key gives.
+- **Refusing a bare read of an optional field.** A refusal has to name a replacement, and the
+  replacement is `$p->a ?? $default`, which the throwing read already admits.
+- **A shaped `array<T>`, typed key by key.** `array<T>` is homogeneous and invariant with one interned
+  descriptor per header, so a per-key array would be a second array family with its own variance.
+  Converting into a shape at the boundary is the safer half of that trade.
 - **The `interface` keyword for a shape.** An `interface` is a nominal, `implements`-declared,
   method-bearing contract, and a structural, property-only meaning would give one keyword two
   meanings (`rule:statements/nothing-gets-a-second-name`).
-- **Exact-match shapes, with no width subtyping.** They are stricter for no safety gained, and force
-  re-wrapping a value that already has every field a caller reads.
+- **Exact-match shapes, with no width subtyping, or an option that refuses extra fields.** They are
+  stricter for no safety gained, force re-wrapping a value that already has every field a caller
+  reads, and let a client that adds a field break a server. An option choosing between the two
+  behaviours is a flag `rule:core-api/shape-rules` refuses.
 - **A shape that requires a method.** A shape is data only. Behaviour belongs to a declared class or
   interface.

@@ -1159,8 +1159,14 @@ at the cost of one written reason per call site.
   a test happens to drive the value into the sink.
 - **A separate analysis pass beside the checker.** An optional pass can be skipped or silenced, and that
   is not the guarantee of a checker that refuses to compile the program.
+- **Tainting a shape hydrated from a request on its own**, without `tainted {…}` written. The
+  declaration would then understate the value, and a type that is not what it says is worse than a
+  long one.
+- **Writing `tainted` on each field of a request shape by hand, as the only form.** It is correct but
+  long enough that programs stop writing it, and [`security/tainted-sources`](security.md#security-tainted-sources) is only worth as much
+  as the declarations that carry it forward.
 
-<sub>See also [`security/tainted-sources`](security.md#security-tainted-sources), [`security/taint-propagation`](security.md#security-taint-propagation), [`security/sink-predicate`](security.md#security-sink-predicate), [`types/grammar`](types.md#types-grammar). Decided in [0157](../decisions/0157.md), [0279](../decisions/0279.md).</sub>
+<sub>See also [`security/tainted-sources`](security.md#security-tainted-sources), [`security/taint-propagation`](security.md#security-taint-propagation), [`security/sink-predicate`](security.md#security-sink-predicate), [`types/grammar`](types.md#types-grammar). Decided in [0279](../decisions/0279.md).</sub>
 
 <a id="security-tainted-sources"></a>
 
