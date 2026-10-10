@@ -1,12 +1,15 @@
 {
   "title": "The hole is `$_`, it appears exactly once on a right side, and nowhere else at all",
   "status": "designed",
-  "because": [
-    "0098"
-  ],
+  "because": [],
   "seeAlso": [
     "expressions/pipeline-substitution",
     "expressions/pipeline-precedence"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "tests/conformance/reject/a-pipeline-hole-appears-exactly-once-and-only-on-a-right-side.nvst",
+    "tests/conformance/reject/pipeline/a-right-side-with-no-hole-is-refused.nvst",
+    "tests/conformance/reject/pipeline/a-right-side-with-two-holes-is-refused.nvst",
+    "tests/conformance/reject/pipeline/a-hole-outside-a-pipeline-is-refused.nvst"
+  ]
 }

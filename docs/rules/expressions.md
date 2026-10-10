@@ -3,7 +3,7 @@
 
 # Expressions
 
-*4 of 31 rules below are **designed** rather than shipped, and are marked where they appear.*
+*4 of 32 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="expressions-truthy-positions"></a>
 
@@ -685,7 +685,36 @@ Nothing about the `Core` roster, scalar methods or any security property changes
 Str::format($_, $n)` is refused for the same reason the nested call is. There is no callable allocated
 and no dynamic dispatch.
 
-<sub>See also [`expressions/pipeline-hole-once`](expressions.md#expressions-pipeline-hole-once), [`expressions/pipeline-precedence`](expressions.md#expressions-pipeline-precedence), [`expressions/method-reference`](expressions.md#expressions-method-reference). Decided in [0098](../decisions/0098.md).</sub>
+The operator exists for reading order. A three-deep composition of `Core` calls reads inside-out when
+it is nested, and a pipeline reads in the order it runs while every step still names the class it
+calls. That class name is what a reviewer reads authority off — `Path::` cannot touch the disk, `IO::`
+can — so the composition keeps the signal a fluent method would erase. A hole depends on no
+argument-order convention: it reaches any argument slot, an instance method (`$_->group(1)`), an index
+(`$_["email"]`), a closure in a variable and `new`. Userland classes need no annotation and no
+registration, because the class is written at the call site and resolves the way it always does.
+
+The cost is one more operator on the surface, spent on simplicity of reading, and two ways to write
+one composition.
+
+**Declined:**
+- **Methods on scalars** (`$s->trim()->upper()`). They erase the class name from the call site, need
+  a scalar-to-`Core` map in the type checker instead of a parser rewrite, and collide with `->` on a
+  `mixed` receiver, where it already means instance access.
+- **A `|>` that applies a callable at run time.** Every step would need `Class::method(...)` as a
+  value, and most `Core` methods take a trailing options argument, so they are not unary: nearly every
+  step would carry a closure wrapper and read worse than the nesting it replaces. Resolving the right
+  side by name at run time is a spelling [`expressions/method-reference`](expressions.md#expressions-method-reference) already closed. The shared
+  token's habit is caught by `E0129` ([`expressions/pipeline-hole-once`](expressions.md#expressions-pipeline-hole-once)).
+- **First-argument insertion with no hole.** It cannot reach a second slot
+  (`Arr::contains($haystack, $needle)`), it makes a call's arity depend on its context, and userland
+  is not bound to put the subject first, so the rule would carry an exception.
+- **A different token** — `~>`, `->>`, `==>`. `->>` is one glyph from `->`, `==>` is one from `=>`, and
+  `~>` loses the recognition `|>` has across many languages while the lexer would still have to know
+  `|>` to catch the habit.
+- **A marker attribute that opts a class into fluent calls.** It would make resolution open-world and
+  cost the compile-time determinism of name resolution.
+
+<sub>See also [`expressions/pipeline-hole-once`](expressions.md#expressions-pipeline-hole-once), [`expressions/pipeline-precedence`](expressions.md#expressions-pipeline-precedence), [`expressions/method-reference`](expressions.md#expressions-method-reference).</sub>
 
 <a id="expressions-pipeline-precedence"></a>
 
@@ -707,7 +736,7 @@ Substituting a single hole commutes with the surrounding operator, so `$a |> Str
 groups as `Str::upper($a) . "!"` and the parenthesis trap a callable-applying pipeline has cannot
 arise.
 
-<sub>See also [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution), [`expressions/pipeline-hole-once`](expressions.md#expressions-pipeline-hole-once), [`expressions/catch-expression-precedence`](expressions.md#expressions-catch-expression-precedence). Decided in [0098](../decisions/0098.md).</sub>
+<sub>See also [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution), [`expressions/pipeline-hole-once`](expressions.md#expressions-pipeline-hole-once), [`expressions/catch-expression-precedence`](expressions.md#expressions-catch-expression-precedence).</sub>
 
 <a id="expressions-pipeline-hole-once"></a>
 
@@ -729,9 +758,29 @@ enforceable, and `crates/nvs-diagnostics/src/lib.rs` is the registry that alloca
 | `E0131` | `$_` appears anywhere outside the right side of a `\|>` | says the hole has no meaning there |
 
 Exactly one hole is what makes substitution total: no temporary, no double evaluation, and an emitted
-tree identical to the nested spelling's.
+tree identical to the nested spelling's. `E0129`'s note on a callable is what makes sharing the token
+with PHP affordable: the habit of piping into a callable stops at compile time, at the character where
+it goes wrong, and is named.
 
-<sub>See also [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution), [`expressions/pipeline-precedence`](expressions.md#expressions-pipeline-precedence). Decided in [0098](../decisions/0098.md).</sub>
+**Declined:**
+- **`$$` as the hole.** `$$name` is the variable-variable syntax, which `E0202` refuses by name, and
+  reusing the token for something unrelated is a collision.
+
+<sub>See also [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution), [`expressions/pipeline-precedence`](expressions.md#expressions-pipeline-precedence).</sub>
+
+<a id="expressions-no-null-skipping-pipeline"></a>
+
+## There is no null-skipping pipeline step
+
+`rule:expressions/no-null-skipping-pipeline`
+
+There is no `?|>`. A pipeline step that returns `?T` hands its `null` to the next step like any other
+value, so a chain through a nullable result is split with an `if` where the `null` is handled.
+
+A second operator needs a second reason: evidence that a `?T` in the middle of a composition breaks
+chains often enough to cost more than the `if` does.
+
+<sub>See also [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution), [`expressions/pipeline-hole-once`](expressions.md#expressions-pipeline-hole-once).</sub>
 
 <a id="expressions-catch-expression"></a>
 

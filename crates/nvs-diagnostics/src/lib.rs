@@ -5768,8 +5768,8 @@ mod tests {
     }
 
     /// The pipeline's three sit one past the highest code that predates them,
-    /// rather than in the holes at `E0124`–`E0126` that ADR 0098 named before
-    /// those numbers were taken. That is what an allocation owes
+    /// not in the holes at `E0124`–`E0126`, which belong to other codes. That
+    /// is what an allocation owes
     /// `conventions.md` § *A diagnostic*: the band's highest plus one, never
     /// its lowest hole. The claim is about where the three were allocated, so
     /// it holds whatever is allocated above them afterwards — which is the
