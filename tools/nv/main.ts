@@ -58,6 +58,7 @@ const COMMANDS: Record<string, () => Promise<Command>> = {
   owners: () => import("./cmd/owners.ts"),
   peek: () => import("./cmd/peek.ts"),
   plan: () => import("./cmd/plan.ts"),
+  pack: () => import("./cmd/pack.ts"),
   playbook: () => import("./cmd/playbook.ts"),
   proofs: () => import("./cmd/proofs.ts"),
   query: () => import("./cmd/query.ts"),

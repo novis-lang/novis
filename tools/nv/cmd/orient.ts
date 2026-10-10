@@ -3,7 +3,9 @@
 // `path:line` the item names, the goal's standing decisions, then what the goal's `context` selects —
 // rules, decision-record sections, map lines, convention shapes, playbook traps, plan fields and
 // milestones — and last the next free numbers and the closing block with the wrap skeleton. Every
-// part is sliced out of its live file when the pack is built, so nothing in it is a copy.
+// section but the traps is `cmd/pack.ts`'s, which `bun nv pack` prints alone, and this file prints
+// into its output buffer. Every part is sliced out of its live file when the pack is built, so
+// nothing in it is a copy.
 //
 // The goal and its handoff are records, `data/goals/<slug>.json` and `<slug>.handoff.json`, under
 // `data/goals/side/` for a side goal, and the standing decisions are read from the goal's prose. The
@@ -26,33 +28,59 @@
 //   bun nv orient --traps <path>...  the traps section alone, ranked from the whole playbook against those paths
 //   bun nv orient --goal SLUG  read the context of goal SLUG instead of the live goal's
 
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { chainGoals, goalPlan, liveGoal, sideGoal } from "../lib/chain.ts";
-import { tracked } from "../lib/git.ts";
 import { ROOT } from "../lib/paths.ts";
 import { run as runProc } from "../lib/proc.ts";
-import { fill, pyRepr } from "../lib/py.ts";
+import { pyRepr } from "../lib/py.ts";
 import { readPlaybook } from "../lib/playbook-fragments.ts";
 import { load } from "../lib/store.ts";
 import { goal as goalType, sideGoal as sideGoalType } from "../schema/goal.ts";
 import { handoff as handoffType, sideHandoff as sideHandoffType } from "../schema/handoff.ts";
-import { planStatus } from "../schema/plan-status.ts";
-import { rule as ruleType } from "../schema/rule.ts";
-import { topic as topicType } from "../schema/topic.ts";
-import { bodyOf, leadParagraph, milestones, verifyParagraph } from "./plan.ts";
+import {
+  begin,
+  type BookRule,
+  closeLedger,
+  CONVENTIONS,
+  costs,
+  DECISIONS,
+  emit,
+  type GoalValue,
+  manifest,
+  nbytes,
+  normalize,
+  printed,
+  read,
+  type RecordCheck,
+  rulebook,
+  runAdrs,
+  runMap,
+  runMilestones,
+  runNumbers,
+  runPlan,
+  runRules,
+  runShapes,
+  section,
+  sectionOpening,
+  SHAPE_IMPLIES,
+  sliceSection,
+  STAGE_FIELDS,
+  stripFrontmatter,
+  stripLinks,
+  titleMatches,
+  tool,
+  warn,
+} from "./pack.ts";
 
 export const summary = "the loop session's orientation pack, narrowed to the live goal: nv orient [--audit] [--item N] [--stage N] [--full] [--goal SLUG] | --traps <path>...";
 
 const PLAYBOOK = "docs/agent/playbook";
-const CONVENTIONS = "docs/agent/conventions.md";
 const RUNNING = ".loop/running";
 const INTERRUPTED = ".loop/interrupted.json";
 const LEDGER = ".loop/log.md";
 const DOCGATE = ".loop/doc-gate.json";
 const OWNERGATE = ".loop/owner-gate.json";
-const DIAGNOSTICS = "crates/nvs-diagnostics/src/lib.rs";
-const DECISIONS = "docs/decisions";
 const CALIBRATION = "tools/data/calibration.json";
 
 const TRAPS_TITLE = "THE TRAPS THAT APPLY HERE";
@@ -81,63 +109,14 @@ const ITEM_PATH_RE = /\b((?:crates|extensions|tools|tests|benches|examples|fuzz|
 /** Lines printed either side of an anchor: a signature and the top of a body. */
 const ANCHOR_CONTEXT = 12;
 
-/** The longest list printed whole; a longer one prints as a count. */
-const NAMED_BEFORE_COUNT = 6;
-
 /** Lines of the failing check's block printed, and of each sibling's, and how many siblings. */
 const CHECK_BLOCK_LINES = 60;
 const SIBLING_BLOCK_LINES = 14;
 const STAGE_SIBLINGS = 12;
 
-/** How many files the manifest's patterns outside `crates/` and `editors/` may list. */
-const NAMED_FILES_MAX = 40;
-
-/** How long a summary derived from a file that is not a crate module may be. */
-const SUMMARY_MAX = 200;
-
 /** Bytes per token when no calibration is on disk, and calls per session, for `--audit`. */
 const BYTES_PER_TOKEN_FALLBACK = 2.5;
 const CALLS_PER_SESSION = 98;
-
-/** Shapes that only make sense together: a decision is the record and the rule's fragment. */
-const SHAPE_IMPLIES: [string, string][] = [["A decision record", "A rule fragment"]];
-
-/** The plan's status fields as the plan writes them, and each one's key in the record. */
-const PLAN_FIELDS: [string, string][] = [
-  ["Status", "status"],
-  ["Done", "done"],
-  ["On disk", "onDisk"],
-  ["Toolchain", "toolchain"],
-  ["ADR slices landed", "adrSlicesLanded"],
-  ["Open now", "openNow"],
-  ["Blocking", "blocking"],
-];
-
-interface Context {
-  modules?: string[];
-  rules?: string[];
-  adrs?: string[];
-  shapes?: string[];
-  playbook?: string[];
-  plan?: string[];
-  milestones?: string[];
-}
-
-export interface GoalValue {
-  context: Context;
-  stages: { number: number; title: string; summary?: string; context?: Context }[];
-  checks?: RecordCheck[];
-}
-
-/** The fields of an acceptance check the pack names it by and prints. */
-interface RecordCheck {
-  id: string;
-  stage: number;
-  kind: string;
-  name?: string;
-  file?: string;
-  [field: string]: unknown;
-}
 
 interface HandoffValue {
   state: string;
@@ -168,132 +147,11 @@ interface Sources {
 
 // ----------------------------------------------------------------------------- output
 
-let out: string[] = [];
-let ledger: [string, number][] = [];
 let trapsDetail: string[] = [];
-
-function emit(line = ""): void {
-  out.push(line);
-}
-
-function warn(msg: string): void {
-  emit("");
-  emit(`!! nv orient: ${msg}`);
-}
-
-function nbytes(text: string): number {
-  return Buffer.byteLength(text, "utf8");
-}
-
-function closeLedger(): void {
-  const last = ledger[ledger.length - 1];
-  if (last) ledger[ledger.length - 1] = [last[0], nbytes(out.slice(last[1]).join("\n"))];
-}
-
-function section(title: string, source: string): void {
-  closeLedger();
-  emit();
-  emit(`== ${title}`);
-  emit(`-- source: ${source}`);
-  emit();
-  ledger.push([title, out.length]);
-}
-
-/** A repo-relative file's text with every line ending read as `\n`, or "" when it cannot be read. */
-function read(path: string): string {
-  try {
-    return readFileSync(join(ROOT, path), "utf8").replace(/\r\n?/g, "\n");
-  } catch {
-    return "";
-  }
-}
-
-/** The command that runs tool `name`. */
-function tool(name: string): string {
-  return `bun nv ${name}`;
-}
 
 async function git(...args: string[]): Promise<string> {
   const r = await runProc(["git", ...args]);
   return r.code === 0 ? r.stdout.trim() : "";
-}
-
-/** `[0002](../decisions/0002.md)` -> `0002`. */
-function stripLinks(text: string): string {
-  return text.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1");
-}
-
-/** A Python list of strings, the way the pack has always quoted a manifest field. */
-function pyList(items: string[]): string {
-  return `[${items.map(pyRepr).join(", ")}]`;
-}
-
-function indentedFill(text: string, indent: string, first = indent): string {
-  return fill(text, 100, { initialIndent: first, subsequentIndent: indent, breakLongWords: false, breakOnHyphens: false });
-}
-
-// --------------------------------------------------------------------- markdown slicing
-
-interface MdHeading {
-  index: number;
-  level: number;
-  title: string;
-}
-
-/** Every heading outside a ``` fence, with its 0-based line index. */
-function headings(text: string): MdHeading[] {
-  const found: MdHeading[] = [];
-  let fenced = false;
-  text.split("\n").forEach((line, index) => {
-    if (line.trimStart().startsWith("```")) fenced = !fenced;
-    if (fenced) return;
-    const m = /^(#{1,6})\s+(.*?)\s*$/.exec(line);
-    if (m) found.push({ index, level: m[1]!.length, title: m[2]! });
-  });
-  return found;
-}
-
-/** `### 2. Both operands ...` -> `2 both operands ...`, so a section is named by number or by words. */
-export function normalize(title: string): string {
-  let t = title.replace(/[`*_]/g, "").trim().toLowerCase();
-  t = t.replace(/^(\d+[a-z]?)\s*[.)]?\s*/, "$1 ");
-  return t.replace(/\s+/g, " ").trim();
-}
-
-export function titleMatches(title: string, key: string): boolean {
-  const norm = normalize(title);
-  return norm === key || norm.startsWith(key + " ") || norm.startsWith(key + ".");
-}
-
-/** The named heading and its body, up to the next heading at the same or a higher level. */
-function sliceSection(text: string, wanted: string): string | null {
-  const lines = text.split("\n");
-  const hs = headings(text);
-  const key = normalize(wanted);
-  const at = hs.findIndex((h) => titleMatches(h.title, key));
-  if (at < 0) return null;
-  const h = hs[at]!;
-  const next = hs.slice(at + 1).find((later) => later.level <= h.level);
-  return lines.slice(h.index, next ? next.index : lines.length).join("\n").trimEnd();
-}
-
-/** The first `##` section whose title opens with `words`. */
-function sectionOpening(text: string, words: string): string | null {
-  const h = headings(text).find((x) => x.level === 2 && normalize(x.title).startsWith(words));
-  return h ? sliceSection(text, h.title) : null;
-}
-
-/** A decision record's title, metadata and *In short*: everything before its first `##`. */
-function sliceHead(text: string): string {
-  const h = headings(text).find((x) => x.level === 2);
-  return h ? text.split("\n").slice(0, h.index).join("\n").trimEnd() : text.trimEnd();
-}
-
-/** A frozen record's text without the YAML block it opens on. */
-function stripFrontmatter(text: string): string {
-  if (!text.startsWith("---\n")) return text;
-  const end = text.indexOf("\n---\n", 4);
-  return end < 0 ? text : text.slice(end + 5).replace(/^\n+/, "");
 }
 
 // ------------------------------------------------------------------------ the goal
@@ -325,49 +183,6 @@ function goalRecord(src: Sources): GoalValue | null {
 function handoffRecord(src: Sources): HandoffValue | null {
   const stored = load<any>(src.side ? sideHandoffType : handoffType).find((h) => h.id === src.slug);
   return stored ? (stored.value as HandoffValue) : null;
-}
-
-/** The fields a stage's `context` may add to. */
-const STAGE_FIELDS = ["rules", "adrs", "shapes", "playbook", "milestones"] as const;
-
-interface Manifest {
-  present: boolean;
-  /** Every stage that carries a `context` of its own. */
-  staged: number[];
-  stage: number | null;
-  applied: number | null;
-  modules: string[];
-  rules: string[];
-  adrs: string[];
-  shapes: string[];
-  playbook: string[];
-  plan: string[];
-  milestones: string[];
-}
-
-function manifest(g: GoalValue, stage: number | null): Manifest {
-  const ctx = g.context ?? {};
-  const over = stage === null ? undefined : g.stages.find((s) => s.number === stage)?.context;
-  const field = (name: keyof Context): string[] => {
-    const base = [...(ctx[name] ?? [])].map(String);
-    if (over && (STAGE_FIELDS as readonly string[]).includes(name)) {
-      for (const x of over[name] ?? []) if (!base.includes(x)) base.push(x);
-    }
-    return base;
-  };
-  return {
-    present: Object.keys(ctx).length > 0,
-    staged: g.stages.filter((s) => s.context !== undefined).map((s) => s.number),
-    stage,
-    applied: over ? stage : null,
-    modules: field("modules"),
-    rules: field("rules"),
-    adrs: field("adrs"),
-    shapes: field("shapes"),
-    playbook: field("playbook"),
-    plan: ctx.plan ?? ["Open now", "Blocking"],
-    milestones: field("milestones"),
-  };
 }
 
 // ------------------------------------------------------------------ the driver's verdict
@@ -421,10 +236,6 @@ function gateFailure(path: string): [string, string] | null {
   const failed = String(s.failed ?? "").trim();
   if (!failed) return null;
   return [String(s.session ?? "").trim() || "an earlier session", failed];
-}
-
-function escapeRe(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 /** A stage's label as the ledger writes it: its number and title. */
@@ -688,365 +499,6 @@ function runStandingDecisions(src: Sources): void {
   else warn(`${src.md} has no \`## Standing decisions\` section -- loop-authoring.md § 4`);
 }
 
-export interface BookRule {
-  id: string;
-  title: string;
-  status: string;
-  because: string[];
-  guardedBy: string[];
-  topicOrder: number;
-  order: number;
-}
-
-function rulebook(): Map<string, BookRule> {
-  const topics = load(topicType);
-  const place = new Map<string, [number, number]>();
-  for (const t of topics) t.value.rules.forEach((id, i) => place.set(id, [t.value.order, i]));
-  const out = new Map<string, BookRule>();
-  for (const r of load(ruleType)) {
-    const [topicOrder, order] = place.get(r.id) ?? [Number.MAX_SAFE_INTEGER, 0];
-    out.set(r.id, { id: r.id, title: r.value.title, status: r.value.status, because: r.value.because, guardedBy: r.value.guardedBy, topicOrder, order });
-  }
-  return out;
-}
-
-function capped(label: string, items: string[], tail: string, indent = "  "): void {
-  if (items.length === 0) return;
-  const rest = items.length > NAMED_BEFORE_COUNT ? `, and ${items.length - NAMED_BEFORE_COUNT} more (${tail})` : "";
-  emit(indentedFill(`${label}: ` + items.slice(0, NAMED_BEFORE_COUNT).join(", ") + rest, indent));
-}
-
-function runRules(m: Manifest): void {
-  section("THE RULES THIS GOAL LIVES INSIDE", `docs/rules/, selected by [context] rules = ${m.rules.length ? pyList(m.rules) : "[]"}`);
-  emit("AGENTS.md's priority ordering and its numbered rules are already in your context. These are");
-  emit("the rules this goal's own work sits inside. A rule named by id is printed whole, because");
-  emit("the fragment IS the rule; a record number expands to the rules it created or changed.");
-  emit(`A short changed list is named whole; a long one is only its count, and \`${tool("brief")} --where\``);
-  emit("routes a topic to the chapter that holds the rest.");
-  emit();
-  if (m.rules.length === 0) {
-    warn("[context] rules is empty, so no rule and no decision is named as binding this goal");
-    return;
-  }
-  const book = rulebook();
-  const byPlace = (a: BookRule, b: BookRule) => a.topicOrder - b.topicOrder || a.order - b.order;
-  for (const entry of m.rules) {
-    if (entry.includes("/")) {
-      runOneRule(book, entry);
-      continue;
-    }
-    const all = [...book.values()];
-    const created = all.filter((r) => r.because[0] === entry).sort(byPlace);
-    const changed = all.filter((r) => r.because.slice(1).includes(entry)).sort(byPlace);
-    if (created.length === 0 && changed.length === 0) {
-      warn(`[context] rules names ${entry}, but no rule's \`because\` names that record and the rulebook has no rule with that id`);
-      continue;
-    }
-    emit(`ADR ${entry} -- ${created.length} rule(s) created, ${changed.length} changed:`);
-    for (const r of created) emit(`- \`rule:${r.id}\` -- ${r.title}${r.status === "shipped" ? "" : "  (designed)"}`);
-    const guards = new Set(created.flatMap((r) => r.guardedBy));
-    if (guards.size > 0) emit(`  guarded by ${guards.size} path(s) (\`${tool("rules")} --show <id>\` lists a rule's own)`);
-    if (changed.length > 0 && changed.length <= NAMED_BEFORE_COUNT) {
-      emit(indentedFill("changed: " + changed.map((r) => `rule:${r.id}`).join(", "), "  "));
-    }
-    emit();
-  }
-}
-
-function runOneRule(book: Map<string, BookRule>, id: string): void {
-  const r = book.get(id);
-  if (!r) {
-    warn(`[context] rules names rule:${id}, and the rulebook has no rule with that id -- \`${tool("rules")} --list\` is every one of them`);
-    return;
-  }
-  emit(`---- rule:${r.id}${r.status === "shipped" ? "" : "  (designed, not yet shipped)"}`);
-  emit(`     ${r.title}`);
-  if (r.because.length > 0) {
-    emit(`     decided in ${r.because.join(", ")}${r.because.length === 1 ? "" : " (first created it, the rest amended it)"}`);
-  }
-  capped("guarded by", r.guardedBy, `\`${tool("rules")} --show\` lists them all`, "     ");
-  emit();
-  emit(read(`docs/rules/${id}.md`).replace(/^\n+|\n+$/g, ""));
-  emit();
-}
-
-function runAdrs(m: Manifest): void {
-  if (m.adrs.length === 0) return;
-  section("THE ADR SECTIONS IN SCOPE", "docs/decisions/*.md, sliced live -- never a copy");
-  emit("A section, not the file. If you need one this does not print, open the record at that");
-  emit("heading and add the section to [context] adrs so the next session does not pay twice.");
-  for (const entry of m.adrs) {
-    const parts = entry.replaceAll("§", " ").split(/\s+/).filter(Boolean);
-    if (parts.length === 0) continue;
-    const [number, ...rest] = parts as [string, ...string[]];
-    const wanted = rest.join(" ");
-    const path = `${DECISIONS}/${number}.md`;
-    if (!existsSync(join(ROOT, path))) {
-      warn(`[context] adrs names ADR ${number}, and docs/decisions/ has no ${number}.md`);
-      continue;
-    }
-    const text = stripFrontmatter(read(path));
-    const body = wanted ? sliceSection(text, wanted) : sliceHead(text);
-    if (body === null) {
-      warn(`ADR ${number} has no section matching ${pyRepr(wanted)} -- it was renamed or renumbered`);
-      continue;
-    }
-    emit();
-    emit(`---- ${path}` + (wanted ? `  §${wanted}` : "  (In short)"));
-    emit();
-    emit(body);
-  }
-}
-
-// ---------------------------------------------------------------------------- the map
-
-/** Python's `fnmatch.fnmatch`: `*` crosses `/`, and on Windows the match ignores case. */
-function fnmatch(name: string, pat: string): boolean {
-  let re = "";
-  for (let i = 0; i < pat.length; i++) {
-    const c = pat[i]!;
-    if (c === "*") re += ".*";
-    else if (c === "?") re += ".";
-    else if (c === "[") {
-      const end = pat.indexOf("]", i + 2);
-      if (end < 0) re += "\\[";
-      else {
-        let cls = pat.slice(i + 1, end).replace(/\\/g, "\\\\");
-        if (cls.startsWith("!")) cls = "^" + cls.slice(1);
-        re += `[${cls}]`;
-        i = end;
-      }
-    } else re += escapeRe(c);
-  }
-  return new RegExp(`^(?:${re})$`, process.platform === "win32" ? "is" : "s").test(name);
-}
-
-function globHits(full: string, pat: string): boolean {
-  return fnmatch(full, pat) || fnmatch(full, pat.replace(/\/+$/, "") + "/**");
-}
-
-/** `Foo the bar. Then baz.` -> `Foo the bar`. */
-function firstSentence(text: string): string {
-  const t = stripLinks(text).replace(/\[(`[^`\]]+`)\]/g, "$1");
-  return t.split(/(?<=[a-z)`])\.\s+(?=[A-Z[`])/, 1)[0]!.trim().replace(/\.+$/, "");
-}
-
-/** The first paragraph of a Rust module's own `//!` block, or "". */
-function moduleDoc(text: string): string {
-  const para: string[] = [];
-  for (const line of text.split("\n")) {
-    const m = /^\s*\/\/!\s?(.*)$/.exec(line);
-    if (m) {
-      const body = m[1]!.trim();
-      if (!body) {
-        if (para.length > 0) break;
-        continue;
-      }
-      para.push(body);
-    } else if (para.length > 0) break;
-    else if (!/^\s*(#!\[|\/\/[^!]|\/\/$|$)/.test(line)) break;
-  }
-  return para.join(" ");
-}
-
-/** The first paragraph of a TypeScript file's leading comment, or "". */
-function headerDoc(text: string): string {
-  const para: string[] = [];
-  for (const raw of text.split("\n")) {
-    let line = raw.trim();
-    if (line.startsWith("/*")) line = line.replace(/^[/*]+/, "").trim();
-    else if (line.startsWith("*/")) break;
-    else if (line.startsWith("*")) line = line.slice(1).trim();
-    else if (line.startsWith("//")) line = line.slice(2).trim();
-    else if (para.length > 0 || line) break;
-    if (!line) {
-      if (para.length > 0) break;
-      continue;
-    }
-    para.push(line);
-  }
-  return para.join(" ");
-}
-
-/** The opening paragraph of a Python file's module docstring, or "". */
-function pyDoc(text: string): string {
-  const m = /^(?:[ \t]*(?:#[^\n]*)?\n)*[ \t]*[rRuU]?("""|''')([\s\S]*?)\1/.exec(text);
-  if (!m) return "";
-  const lines = m[2]!.replace(/\t/g, "        ").split("\n");
-  const margins = lines.slice(1).filter((l) => l.trim()).map((l) => l.length - l.trimStart().length);
-  const margin = margins.length > 0 ? Math.min(...margins) : 0;
-  const cleaned = [lines[0]!.trimStart(), ...lines.slice(1).map((l) => l.slice(margin))].join("\n").trim();
-  return cleaned.split("\n\n", 1)[0]!.trim();
-}
-
-/** A Markdown file's first `#` heading and the opening sentence under it, as one line. */
-function mdDoc(text: string): string {
-  let head = "";
-  const para: string[] = [];
-  for (const raw of text.split("\n")) {
-    const line = raw.trim();
-    if (!head) {
-      if (line.startsWith("# ")) head = line.slice(2).trim();
-      continue;
-    }
-    if (line.startsWith("#")) break;
-    if (line) para.push(line);
-    else if (para.length > 0) break;
-  }
-  const body = para.length > 0 ? firstSentence(para.join(" ")) : "";
-  return head && body ? `${head} -- ${body}` : head || body;
-}
-
-/** One line saying what any file in the tree is, or "" for a shape that carries no header. */
-function pathSummary(path: string): string {
-  const text = read(path);
-  const ext = path.slice(path.lastIndexOf("."));
-  const fn: Record<string, (t: string) => string> = {
-    ".py": (t) => firstSentence(pyDoc(t)),
-    ".md": mdDoc,
-    ".rs": (t) => firstSentence(moduleDoc(t)),
-    ".ts": (t) => firstSentence(headerDoc(t)),
-    ".tsx": (t) => firstSentence(headerDoc(t)),
-  };
-  const f = fn[ext];
-  if (!text || !f || !path.slice(path.lastIndexOf("/") + 1).includes(".")) return "";
-  const line = f(text).split(/\s+/).filter(Boolean).join(" ");
-  return line.length <= SUMMARY_MAX ? line : line.slice(0, SUMMARY_MAX).replace(/[ ,;:-]+$/, "") + "...";
-}
-
-/** Every file under `dir` whose name passes `keep`, as paths relative to `dir`, sorted. */
-function filesUnder(dir: string, keep: (rel: string) => boolean): string[] {
-  let names: string[];
-  try {
-    names = readdirSync(join(ROOT, dir), { recursive: true }) as string[];
-  } catch {
-    return [];
-  }
-  return names.map((n) => n.split("\\").join("/")).filter(keep).sort();
-}
-
-/** Every crate module and then every editor module, grouped, each with its header summary. */
-function sourceModules(): [string, string, [string, string][]][] {
-  const groups: [string, string, [string, string][]][] = [];
-  const byKey = (first: string) => (a: [string, string], b: [string, string]) =>
-    Number(a[0] !== first) - Number(b[0] !== first) || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0);
-  const packages = (base: string) => {
-    try {
-      return readdirSync(join(ROOT, base)).filter((d) => existsSync(join(ROOT, base, d, "src"))).sort();
-    } catch {
-      return [];
-    }
-  };
-  for (const crate of packages("crates")) {
-    const entries = filesUnder(`crates/${crate}/src`, (p) => p.endsWith(".rs") && !p.split("/").includes("snapshots"))
-      .map((p): [string, string] => [`src/${p}`, firstSentence(moduleDoc(read(`crates/${crate}/src/${p}`)))]);
-    if (entries.length > 0) groups.push([crate, `crates/${crate}`, entries.sort(byKey("src/lib.rs"))]);
-  }
-  for (const pkg of packages("editors")) {
-    const entries = filesUnder(`editors/${pkg}/src`, (p) => (p.endsWith(".ts") || p.endsWith(".tsx")) && !p.split("/").includes("node_modules"))
-      .map((p): [string, string] => [`src/${p}`, firstSentence(headerDoc(read(`editors/${pkg}/src/${p}`)))]);
-    if (entries.length > 0) groups.push([`editors/${pkg}`, `editors/${pkg}`, entries.sort(byKey("src/extension.ts"))]);
-  }
-  return groups;
-}
-
-async function runMap(m: Manifest): Promise<void> {
-  section("THE MAP, SCOPED", `what each file the goal names says it is, filtered to [context] modules (${m.modules.length} pattern(s))`);
-  const groups = sourceModules();
-  if (groups.length === 0) {
-    warn("no `crates/*/src/**/*.rs` or `editors/*/src/**/*.ts` found -- those are the source");
-    return;
-  }
-  if (m.modules.length === 0) {
-    warn("[context] modules is empty, so the map is not printed at all. A goal that touches code must name the files it touches; `bun nv orient --full` prints all of them.");
-    return;
-  }
-  let shown = 0;
-  let total = 0;
-  const unmatched = new Set(m.modules);
-  for (const [name, prefix, entries] of groups) {
-    const keep: [string, string][] = [];
-    for (const [within, summary] of entries) {
-      total++;
-      const hit = m.modules.filter((pat) => globHits(`${prefix}/${within}`, pat));
-      if (hit.length > 0) {
-        keep.push([within, summary || "(no header doc comment)"]);
-        for (const pat of hit) unmatched.delete(pat);
-      }
-    }
-    if (keep.length === 0) continue;
-    emit();
-    emit(name);
-    const width = Math.max(...keep.map(([w]) => w.length));
-    for (const [within, summary] of keep) {
-      emit(`  ${within.padEnd(width)}  ${summary}`);
-      shown++;
-    }
-  }
-
-  const rest = [...unmatched].sort();
-  const named = new Map<string, [string, string][]>();
-  const hitPats = new Set<string>();
-  let kept = 0;
-  for (const path of rest.length > 0 ? await tracked() : []) {
-    const matched = rest.filter((pat) => globHits(path, pat));
-    if (matched.length === 0) continue;
-    for (const pat of matched) hitPats.add(pat);
-    kept++;
-    if (kept > NAMED_FILES_MAX) continue;
-    const slash = path.lastIndexOf("/");
-    const group = slash < 0 ? "." : path.slice(0, slash);
-    if (!named.has(group)) named.set(group, []);
-    named.get(group)!.push([path.slice(slash + 1), pathSummary(path)]);
-  }
-  const cut = Math.max(0, kept - NAMED_FILES_MAX);
-  let extra = 0;
-  for (const group of [...named.keys()].sort()) {
-    const entries = named.get(group)!.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
-    extra += entries.length;
-    emit();
-    emit(group);
-    const width = Math.max(...entries.map(([n]) => n.length));
-    for (const [n, summary] of entries) emit(summary ? `  ${n.padEnd(width)}  ${summary}` : `  ${n}`);
-  }
-  if (cut > 0) {
-    emit();
-    emit(`...and ${cut} more file(s) the manifest's patterns match, not listed. A selector this broad is naming the tree rather than the goal's file set.`);
-  }
-  emit();
-  const also = extra > 0 ? `, plus ${extra} file(s) it names outside them` : "";
-  emit(`${shown} of ${total} crate and editor module(s) are in scope${also}. For one that is not,`);
-  emit("`bun nv orient --full` prints the whole map -- and if you needed it, the manifest is");
-  emit("missing a pattern.");
-  for (const pat of rest.filter((p) => !hitPats.has(p))) {
-    warn(`[context] modules pattern ${pyRepr(pat)} matches no file in the tree -- it moved, or the glob is wrong. The shape does not have to be Rust: any tracked file resolves.`);
-  }
-}
-
-function runShapes(m: Manifest): void {
-  if (m.shapes.length === 0) return;
-  const text = read(CONVENTIONS);
-  if (!text) {
-    warn(`${CONVENTIONS} is missing`);
-    return;
-  }
-  for (const [shape, implied] of SHAPE_IMPLIES) {
-    if (m.shapes.includes(shape) && !m.shapes.includes(implied)) {
-      warn(`[context] shapes names ${pyRepr(shape)} without ${pyRepr(implied)}. One decision is both files, in one commit, and \`nv session --wrap\` refuses a rulebook left half-written -- add ${pyRepr(implied)} to the manifest`);
-    }
-  }
-  section("THE SHAPES YOU ARE ABOUT TO WRITE", `${CONVENTIONS}, filtered to [context] shapes`);
-  for (const name of m.shapes) {
-    const body = sliceSection(text, name);
-    if (body === null) {
-      warn(`[context] shapes names ${pyRepr(name)}, and ${CONVENTIONS} has no such heading`);
-      continue;
-    }
-    emit();
-    emit(body);
-  }
-}
-
 // ------------------------------------------------------------------------- the traps
 
 export interface Bullet {
@@ -1249,19 +701,19 @@ function runPlaybook(wanted: string[], item: string, stage: number | null, modul
 
   const narrowing = terms.length === 0 ? "" : byModules ? `, then to the goal's ${terms.length} [context] module(s)` : `, then to the ${terms.length} path(s) your item names`;
   section(TRAPS_TITLE, `${PLAYBOOK}/, filtered to [context] playbook${narrowing}`);
-  const atWhole = out.length;
+  const atWhole = printed().length;
   for (const [, body] of whole) {
     emit();
     emit(body);
   }
-  const atListed = out.length;
+  const atListed = printed().length;
   if (listed.length > 0) {
     emit();
     emit(`-- ${listed.length} more trap(s) this GOAL names that your ${byModules ? "goal's modules do" : "ITEM does"} not touch. One line`);
     emit(`   each; \`${tool("playbook")} --show '<selector>'\` prints one in full:`);
     for (const [name, body] of listed) emit(`   ${selectorOf.get(body) ?? name}  --  ${leadLabel(body)}`);
   }
-  const atTriage = out.length;
+  const atTriage = printed().length;
   if (triage.length > 0 && needed) {
     emit();
     emit("-- The driver's last acceptance check FAILED on a check that should already pass. These");
@@ -1277,9 +729,9 @@ function runPlaybook(wanted: string[], item: string, stage: number | null, modul
 
   const n = (x: number) => x.toLocaleString("en-US");
   const unnarrowed = nbytes(picked.flatMap(([, b]) => ["", b]).join("\n"));
-  const wholeB = nbytes(out.slice(atWhole, atListed).join("\n"));
-  const listedB = nbytes(out.slice(atWhole, atTriage).join("\n")) - wholeB;
-  const triageB = nbytes(out.slice(atWhole).join("\n")) - wholeB - listedB;
+  const wholeB = nbytes(printed().slice(atWhole, atListed).join("\n"));
+  const listedB = nbytes(printed().slice(atWhole, atTriage).join("\n")) - wholeB;
+  const triageB = nbytes(printed().slice(atWhole).join("\n")) - wholeB - listedB;
   trapsDetail = [
     `    manifest names ${wanted.length} selector(s) -> ${picked.length} bullet(s), ${n(unnarrowed)} B whole`,
     terms.length > 0
@@ -1291,110 +743,6 @@ function runPlaybook(wanted: string[], item: string, stage: number | null, modul
     `    so narrowing saved ${n(Math.max(unnarrowed - wholeB - listedB, 0))} B -- the item's share`,
     `    is bounded by PROMOTED_WHOLE; trimming the manifest acts on the ${n(unnarrowed)} B`,
   ];
-}
-
-// ------------------------------------------------------------------- plan and numbers
-
-function runPlan(m: Manifest): void {
-  const status = load(planStatus, ROOT)[0]?.value as Record<string, string> | undefined;
-  if (!status) return;
-  const picked = PLAN_FIELDS.filter(([label, key]) => m.plan.includes(label) && status[key] !== undefined);
-  if (picked.length === 0) return;
-  section("THE PLAN, THE FIELDS THIS GOAL READS", `docs/implementation-plan.md, ${pyList(m.plan)}`);
-  for (const [label, key] of picked) emit(indentedFill(`${label}: ${stripLinks(status[key]!.trim())}`, "    ", ""));
-  emit();
-  emit(`These fields are rewritten by \`${tool("session")} --wrap\`, never edited by hand.`);
-}
-
-function runMilestones(m: Manifest): void {
-  if (m.milestones.length === 0) return;
-  const index = milestones();
-  section("THE MILESTONES THIS GOAL IS INSIDE", `docs/plan/, filtered to [context] milestones = ${pyList(m.milestones)}`);
-  for (const wanted of m.milestones) {
-    const colon = wanted.indexOf(":");
-    const spec = colon < 0 ? wanted : wanted.slice(0, colon);
-    const part = colon < 0 ? "" : wanted.slice(colon + 1);
-    const entry = index.find((e) => e.id === spec.trim().toUpperCase());
-    if (!entry) {
-      warn(`[context] milestones names ${pyRepr(spec)}, which the plan's table does not list`);
-      continue;
-    }
-    if (!existsSync(join(ROOT, entry.rel))) {
-      warn(`[context] milestones names ${pyRepr(spec)}, whose file ${entry.rel} is missing`);
-      continue;
-    }
-    emit();
-    if (part === "verify") {
-      emit(`-- ${entry.id} acceptance (${entry.rel})`);
-      emit(stripLinks(verifyParagraph(entry)));
-    } else if (part === "lead") {
-      emit(`-- ${entry.id} lead (${entry.rel})`);
-      emit(stripLinks(leadParagraph(entry)));
-    } else {
-      emit(`-- ${entry.id} (${entry.rel})`);
-      emit(bodyOf(entry));
-    }
-  }
-  emit();
-  emit("`Mn` is the whole milestone; `Mn:lead` and `Mn:verify` are the two paragraphs that");
-  emit(`usually answer the question. A \`## milestone: Mn\` section in \`${tool("session")} --wrap\``);
-  emit("rewrites one.");
-}
-
-/** The next free diagnostic code in each band, and the next free decision number. */
-function runNumbers(): void {
-  section("THE NEXT FREE NUMBER", "nvs-diagnostics (every `Code::new`) and docs/decisions/ filenames");
-  const text = read(DIAGNOSTICS);
-  if (!text) {
-    warn(`could not read ${DIAGNOSTICS} -- it is the diagnostic-code registry`);
-  } else {
-    const legend = new Map<string, string>();
-    const highest = new Map<string, number>();
-    for (const line of text.split("\n")) {
-      const m = /^\/\/\/\s*\|\s*`E(\d{2})xx`\s*\|\s*([^|]+?)\s*\|/.exec(line);
-      if (m) legend.set(m[1]!, m[2]!.trim());
-    }
-    // A retired code is never reused, so the comment naming it holds its band's ceiling up.
-    const decl = [/Code::new\("(E(\d{2})\d{2})"\)/g, /`(E(\d{2})\d{2})`[^`]{0,80}?\bretired\b/g, /\bretired\b[^`]{0,80}?`(E(\d{2})\d{2})`/g];
-    for (const re of decl) {
-      for (const m of text.matchAll(re)) highest.set(m[2]!, Math.max(highest.get(m[2]!) ?? 0, Number(m[1]!.slice(1))));
-    }
-    if (highest.size === 0) {
-      warn(`no \`Code::new("Ennnn")\` declarations in ${DIAGNOSTICS}`);
-    } else {
-      emit("diagnostic codes -- next free in each band (max + 1; a retired code is never");
-      emit("reused, so this is deliberately not the lowest hole):");
-      for (const band of [...highest.keys()].sort()) {
-        const top = highest.get(band)!;
-        const meaning = (legend.get(band) ?? "(no row for this band in that file's legend table)").padEnd(48);
-        // Max-plus-one leaves the band at `Enn00`, and a filled band's next code comes from the
-        // legend's continuation row rather than from the next band's digits.
-        if ((top + 1) % 100 === 0) emit(`  E${band}xx  ${meaning} FULL at E${String(top).padStart(4, "0")}`);
-        else emit(`  E${band}xx  ${meaning} next: E${String(top + 1).padStart(4, "0")}`);
-      }
-      const unlisted = [...legend.keys()].filter((b) => !highest.has(b)).sort();
-      if (unlisted.length > 0) emit(`  bands with a legend row but no code yet: ${unlisted.map((b) => `E${b}xx`).join(", ")}`);
-    }
-  }
-  let numbers: number[];
-  try {
-    numbers = readdirSync(join(ROOT, DECISIONS)).flatMap((f) => {
-      const m = /^(\d{4})\.md$/.exec(f);
-      return m ? [Number(m[1])] : [];
-    });
-  } catch {
-    warn(`no ${DECISIONS}/ directory`);
-    return;
-  }
-  emit();
-  if (numbers.length === 0) {
-    warn(`no \`NNNN.md\` files in ${DECISIONS}/`);
-    return;
-  }
-  const top = Math.max(...numbers);
-  emit(`ADRs: ${numbers.length} on disk, highest ${String(top).padStart(4, "0")} -- next free is ${String(top + 1).padStart(4, "0")}`);
-  emit("Claim it by creating the file, and re-check this immediately before you do: another");
-  emit("agent working the same tree derives the same answer from the same directory.");
 }
 
 // ------------------------------------------------------------------------ the closing
@@ -1474,7 +822,7 @@ function audit(): string[] {
   const n = (x: number, digits = 0) => x.toLocaleString("en-US", { maximumFractionDigits: digits, minimumFractionDigits: digits });
   const lines = ["", "== WHAT THIS PACK COST", `-- bytes / ${Number(ratio.toPrecision(6))}  (${source})`, ""];
   let total = 0;
-  for (const [title, size] of ledger) {
+  for (const [title, size] of costs()) {
     total += size;
     lines.push(`  ${title.padEnd(44)}${n(size).padStart(8)} B${n(size / ratio).padStart(10)} tok`);
     if (title === TRAPS_TITLE) lines.push(...trapsDetail);
@@ -1646,10 +994,9 @@ export async function run(args: string[]): Promise<number> {
       console.error(`nv orient: --traps needs one or more paths and nothing else\n${summary}`);
       return 2;
     }
-    out = [];
-    ledger = [];
+    begin("orient");
     runTraps(args.slice(1));
-    process.stdout.write(out.join("\n").replace(/^\n+/, "") + "\n");
+    process.stdout.write(printed().join("\n").replace(/^\n+/, "") + "\n");
     return 0;
   }
   const opts = parse(args);
@@ -1657,8 +1004,7 @@ export async function run(args: string[]): Promise<number> {
     console.error(`nv orient: ${opts}\n${summary}`);
     return 2;
   }
-  out = [];
-  ledger = [];
+  begin("orient");
   trapsDetail = [];
 
   const src = sources(opts.goal);
@@ -1712,7 +1058,7 @@ export async function run(args: string[]): Promise<number> {
 
   if (!m.present) warn(`${src.record} has no \`context\` at all, so nothing could be selected. docs/agent/loop-authoring.md § 2 has the field list.`);
 
-  let body = out.join("\n").replace(/^\n+/, "");
+  let body = printed().join("\n").replace(/^\n+/, "");
   if (opts.audit) body += "\n" + audit().join("\n");
   process.stdout.write(body + "\n");
   return 0;

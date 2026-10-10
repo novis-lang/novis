@@ -184,9 +184,10 @@ One file set: `tools/nv/cmd/`, `tools/nv/schema/`, `tools/nv/lib/`, `tools/nv/re
   `data/schema/decision.schema.json`.
 - **`nv rules`** stops writing the "Decided in" trailer (`rules.ts:71`, `:239`) and printing `because:`
   (`:421`).
-- **`nv orient`** loses the `adrs` field (`schema/goal.ts:14`, `orient.ts:331-365`, `:773-799`,
-  `:286`), the record-number form of `rules` (`:719-753`, `:1582-1592`), "decided in" (`:764-765`),
-  `runNumbers` (`:1345-1398`) and the "A decision record" pairing in `SHAPE_IMPLIES` (`:103`).
+- **`nv orient`** and **`nv pack`** lose the `adrs` field (`schema/goal.ts:14`, `pack.ts:236-276`,
+  `:362-388`, `:221`), the record-number form of `rules` (`pack.ts:308-343`, `orient.ts:930-940`),
+  "decided in" (`pack.ts:353-354`), `runNumbers` (`pack.ts:689-743`) and the "A decision record"
+  pairing in `SHAPE_IMPLIES` (`pack.ts:46`).
   `data/schema/goal.schema.json` and `side_goal.schema.json` are rendered again.
 - **`nv session`** stops counting records (`session.ts:117-123`, `:142`, `:829-833`, `:884`, `:925`,
   `:1299`) and gating on them (`:391-397`, `:819`). **`nv chain`** loses the `docs/decisions/`
@@ -195,7 +196,7 @@ One file set: `tools/nv/cmd/`, `tools/nv/schema/`, `tools/nv/lib/`, `tools/nv/re
   `docs/adr/` to `LEGACY` (`:219`). **`nv loop-stats`** drops its `adr` category (`:98`, `:586-587`).
   **`nv reference`** drops `ADR_PAREN_RE` (`:80-81`, `:229`).
 - **The plan field "ADR slices landed"** goes from `schema/plan-status.ts:15`, `plan.ts:44`,
-  `orient.ts:111`, `docs/implementation-plan.md:38-40` and AGENTS.md's field list.
+  `pack.ts:54`, `docs/implementation-plan.md:38-40` and AGENTS.md's field list.
 - **The website** loses `decisionRecord()` (`website/config/site.mjs`, `renderers/website-core.ts:116-124`)
   and the `adrs` list of a class (`website-core.ts:347`, `:381`, `:504`, `:641`, `website/src/lib/core.ts`).
   The pages that called it link to the rule or the guide that holds the reason.

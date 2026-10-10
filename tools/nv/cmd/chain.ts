@@ -45,7 +45,8 @@ import { goal as goalType, sideGoal as sideGoalType } from "../schema/goal.ts";
 import { RECORDS } from "../schema/index.ts";
 import { writeGoalPlan } from "../renderers/goal-plan.ts";
 import { waitAndHandoverProblems } from "../driver/handover.ts";
-import { type GoalValue, type ManifestShared, manifestFindings } from "./orient.ts";
+import { type ManifestShared, manifestFindings } from "./orient.ts";
+import type { GoalValue } from "./pack.ts";
 import { NUMBER_CITE } from "../lib/prose.ts";
 
 export const summary = "the loop's goal chain, over data/chain.json: nv chain --check | --new | --move | --remove";

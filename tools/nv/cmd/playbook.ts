@@ -42,7 +42,8 @@ import { pyRepr } from "../lib/py.ts";
 import { load, pathOf, remove as removeRecord, write as writeRecord } from "../lib/store.ts";
 import { goal as goalType } from "../schema/goal.ts";
 import { playbookBullet, playbookSection } from "../schema/playbook.ts";
-import { allBullets, normalize, playbookBook, sliceBullets, titleMatches, type BookSection } from "./orient.ts";
+import { allBullets, playbookBook, sliceBullets, type BookSection } from "./orient.ts";
+import { normalize, titleMatches } from "./pack.ts";
 
 export const summary = "the playbook: nv playbook --show <selector> | --check | --retire [--dry-run] | --triage <section>";
 

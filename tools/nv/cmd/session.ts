@@ -34,7 +34,8 @@ import { handoff as handoffType, sideHandoff as sideHandoffType } from "../schem
 import { planStatus } from "../schema/plan-status.ts";
 import { playbookBullet, playbookSection } from "../schema/playbook.ts";
 import { DOC_EXTS, fileFindings, findingsIn, deadMentions, isGenerated, MENTION_EXTS, readText, type Resolver, SOURCE_EXTS, sortKey, trackedFiles } from "./links.ts";
-import { ANCHOR_RE, type BookSection, type Bullet, type GoalValue, manifestFindings, normalize as leadNorm, playbookBook, sliceBullets } from "./orient.ts";
+import { ANCHOR_RE, type BookSection, type Bullet, manifestFindings, playbookBook, sliceBullets } from "./orient.ts";
+import { type GoalValue, normalize as leadNorm } from "./pack.ts";
 import { applyMilestone, applyPlan, applyPlanEdit, fieldLimits, PLAN, planChecks, planFields, resolveMilestone } from "./plan.ts";
 import { head, inOrder, nbytes, occurrences, parseEdits, parseWrap, type Section, thousands } from "../lib/wrap.ts";
 import { CITATION, Rulebook } from "./rules.ts";

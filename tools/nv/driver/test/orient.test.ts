@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { type GoalValue, locateCheck, manifestFindings } from "../../cmd/orient.ts";
+import { locateCheck, manifestFindings } from "../../cmd/orient.ts";
+import type { GoalValue } from "../../cmd/pack.ts";
 
 describe("locateCheck", () => {
   const g: GoalValue = {

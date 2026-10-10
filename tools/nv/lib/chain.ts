@@ -15,6 +15,7 @@ import type { RecordType } from "./schema.ts";
 import { load, write } from "./store.ts";
 import { chain as chainType } from "../schema/chain.ts";
 import { goal as goalType, sideGoal as sideGoalType } from "../schema/goal.ts";
+import { handoff as handoffType, sideHandoff as sideHandoffType } from "../schema/handoff.ts";
 
 const GOALS = "docs/agent/goals";
 
@@ -24,12 +25,18 @@ export const SIDE_ENV = "NOVIS_SIDE_GOAL";
 /** The goal a looper hook names for the command it runs, which a command's `--goal` overrides. */
 export const LOOPER_GOAL_ENV = "LOOPER_GOAL";
 
+/** The stage a looper hook names for the command it runs, which a command's `--stage` overrides. */
+export const LOOPER_STAGE_ENV = "LOOPER_STAGE";
+
 /** A slug as a goal file names it. */
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 /** A goal's record, as `data/goals/<slug>.json` holds it. */
 export type Goal = typeof goalType extends RecordType<infer T> ? T : never;
 type GoalCheck = Goal["checks"][number];
+
+/** A goal's handoff record, as `data/goals/<slug>.handoff.json` holds it. */
+export type Handoff = typeof handoffType extends RecordType<infer T> ? T : never;
 
 /** A goal file's front matter, which sits above its H1. */
 const FRONT = /^---\n[\s\S]*?\n---\n/;
@@ -115,6 +122,11 @@ export function leaveGoal(from: string, to: string, root: string = ROOT): string
 /** The plan the driver runs for goal `slug`: its record, unchanged. Null when the goal has no record. */
 export function goalPlan(slug: string, root: string = ROOT): Goal | null {
   return load(goalType, root).find((g) => g.id === slug)?.value ?? null;
+}
+
+/** Goal `slug`'s handoff record, the chain's or else a side goal's. Null when it has none. */
+export function goalHandoff(slug: string, root: string = ROOT): Handoff | null {
+  return (load(handoffType, root).find((h) => h.id === slug) ?? load(sideHandoffType, root).find((h) => h.id === slug))?.value ?? null;
 }
 
 /** The flags that narrow a `bun nv proofs` run to part of the roster. */
