@@ -15,7 +15,7 @@ describe("nv session handoffValue", () => {
           "",
           "## State",
           "",
-          "**Goal 2 — Core\\X — has just started.** Where it stands.",
+          `**Goal ${2} — Core\\X — has just started.** Where it stands.`,
           "",
           "## Next group",
           "",
