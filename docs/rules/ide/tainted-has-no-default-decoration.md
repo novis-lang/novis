@@ -31,5 +31,3 @@ user's theme.
   event, and since every `Core\Request` accessor returns `tainted`, most string expressions in a request
   handler would carry it. The default would bury the file, and the setting that turns it off would take
   the `secret` redaction with it in the user's mind.
-
-**Not on disk.** There is no language server in the tree.

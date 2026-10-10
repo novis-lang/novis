@@ -3,7 +3,7 @@
 
 # The editor
 
-*57 of 82 rules below are **designed** rather than shipped, and are marked where they appear.*
+*51 of 82 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="ide-one-grammar-one-tree"></a>
 
@@ -2282,7 +2282,7 @@ A fixture session exercises each of these, and `nvs dap` reports each capability
 
 <a id="ide-stdout-belongs-to-the-protocol"></a>
 
-## Nothing but the protocol writes to the server's stdout; logging goes to stderr and `window/logMessage`  *(designed — not yet in the compiler)*
+## Nothing but the protocol writes to the server's stdout; logging goes to stderr and `window/logMessage`
 
 `rule:ide/stdout-belongs-to-the-protocol`
 
@@ -2299,11 +2299,11 @@ program's `echo` goes under `nvs run`. That is not an exception, because it is a
 into a `Ctx` and the server builds no `Ctx` at all — so the test exempts the sink's own
 implementation and separately checks that nothing under the server wires one.
 
-<sub>See also [`ide/the-server-is-synchronous`](ide.md#ide-the-server-is-synchronous). Decided in [0158](../decisions/0158.md).</sub>
+<sub>See also [`ide/the-server-is-synchronous`](ide.md#ide-the-server-is-synchronous).</sub>
 
 <a id="ide-the-extension-refuses-a-binary-it-does-not-understand"></a>
 
-## On a version mismatch at `initialize` the client says so in the status item and does not start  *(designed — not yet in the compiler)*
+## On a version mismatch at `initialize` the client says so in the status item and does not start
 
 `rule:ide/the-extension-refuses-a-binary-it-does-not-understand`
 
@@ -2315,7 +2315,7 @@ An old `nvs` earlier on `PATH` than the intended one is the single most likely s
 extension will ever get, and it costs one comparison to answer it out loud. A client reporting a mismatched
 version gets a refusal and a status item, not a session.
 
-<sub>See also [`ide/the-extension-runs-where-the-binary-is`](ide.md#ide-the-extension-runs-where-the-binary-is), [`ide/the-server-is-synchronous`](ide.md#ide-the-server-is-synchronous). Decided in [0158](../decisions/0158.md).</sub>
+<sub>See also [`ide/the-extension-runs-where-the-binary-is`](ide.md#ide-the-extension-runs-where-the-binary-is), [`ide/the-server-is-synchronous`](ide.md#ide-the-server-is-synchronous).</sub>
 
 <a id="ide-the-extension-runs-a-copy-of-the-binary"></a>
 
@@ -2370,7 +2370,7 @@ for each binary in use.
 
 <a id="ide-dependencies-are-allowlisted"></a>
 
-## The extension holds no language logic, and its `package.json` dependencies are checked against an allowlist by its own tests  *(designed — not yet in the compiler)*
+## The extension holds no language logic, and its `package.json` dependencies are checked against an allowlist by its own tests
 
 `rule:ide/dependencies-are-allowlisted`
 
@@ -2383,11 +2383,11 @@ The same allowlist is what keeps the client free of language logic when a featur
 of [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server) is a range list from the server and a decoration;
 there is nothing in it a parser would help with, and the test is unchanged by it.
 
-<sub>See also [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/headless-gates-the-loop-the-host-run-gates-the-milestone`](ide.md#ide-headless-gates-the-loop-the-host-run-gates-the-milestone), [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0158](../decisions/0158.md).</sub>
+<sub>See also [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/headless-gates-the-loop-the-host-run-gates-the-milestone`](ide.md#ide-headless-gates-the-loop-the-host-run-gates-the-milestone), [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients).</sub>
 
 <a id="ide-redaction-ranges-come-from-the-server"></a>
 
-## The editor conceals a `secret` value by default, and the ranges come from the language server rather than a client guess  *(designed — not yet in the compiler)*
+## The editor conceals a `secret` value by default, and the ranges come from the language server rather than a client guess
 
 `rule:ide/redaction-ranges-come-from-the-server`
 
@@ -2412,6 +2412,13 @@ reach — a value legible on a screen somebody else is looking at — and it cov
 editor drawing no decoration at all is not running a less safe language; it is only less discreet,
 which is why every rule in this section is the editor's and none of them is the language's.
 
+The test that puts a rule here rather than under `security/` is whether it still holds with no editor
+running. Every sink refusing a `secret` does, and so do the AST dump's placeholder
+([`security/redaction-reaches-the-tools-own-renderings`](security.md#security-redaction-reaches-the-tools-own-renderings)) and the test runner's redacted diff
+([`security/secret-in-a-test-report`](security.md#security-secret-in-a-test-report)). A blur over a string literal does not. The security chapter
+is read as what the language will not let a program get wrong, and a rendering filed there would invite
+a reader to count it as part of that guarantee.
+
 It does **not** ride the semantic-token channel, even though the qualifier already travels there. That
 channel's contract is *names a theme styles*, and its correct degradation is to fall back to the
 underlying token type — which a security default whose failure mode is *the value becomes visible*
@@ -2431,6 +2438,9 @@ not parse would conceal arbitrary spans of a file somebody is trying to fix.
 The cost is a second decoration mechanism beside the semantic-token one, with two contracts to keep
 apart and two ways for one token to be described.
 
+- **Memory:** none on the request path. The server answers a range list per open document, and the
+  client keeps the last answer for each.
+
 **Declined:**
 
 - **Detecting the range in the client** with a pattern or a filename rule. It puts language logic in a
@@ -2442,14 +2452,15 @@ apart and two ways for one token to be described.
   editable text document, with no language-server edits, no diff, no version-control integration and no
   format-on-save, which is a far larger loss than the exposure it closes; and it substitutes the buffer,
   which [`ide/redaction-covers-bytes-only`](ide.md#ide-redaction-covers-bytes-only) rules out.
+- **A chapter of its own for security in the editor.** It splits the editor across two homes, and every
+  rule in each would need a pointer to the other. The editor's chapter is the one home for the editor,
+  and its security rules sit together at its end.
 
-**Not on disk.** There is no language server in the tree.
-
-<sub>See also [`ide/redaction-covers-bytes-only`](ide.md#ide-redaction-covers-bytes-only), [`ide/reveal-is-explicit-and-window-local`](ide.md#ide-reveal-is-explicit-and-window-local), [`ide/redaction-does-not-reach`](ide.md#ide-redaction-does-not-reach). Decided in [0158](../decisions/0158.md).</sub>
+<sub>See also [`ide/redaction-covers-bytes-only`](ide.md#ide-redaction-covers-bytes-only), [`ide/reveal-is-explicit-and-window-local`](ide.md#ide-reveal-is-explicit-and-window-local), [`ide/redaction-does-not-reach`](ide.md#ide-redaction-does-not-reach).</sub>
 
 <a id="ide-redaction-covers-bytes-only"></a>
 
-## Only the bytes are concealed — a literal token or an interpolation slot, never an identifier or an annotation  *(designed — not yet in the compiler)*
+## Only the bytes are concealed — a literal token or an interpolation slot, never an identifier or an annotation
 
 `rule:ide/redaction-covers-bytes-only`
 
@@ -2479,9 +2490,7 @@ turned off, taking the redaction with it.
   cursor and selection arithmetic across the range, and the editor has to keep behaving like a text
   editor.
 
-**Not on disk.** There is no language server in the tree.
-
-<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`security/secret-qualifier`](security.md#security-secret-qualifier). Decided in [0158](../decisions/0158.md).</sub>
+<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`security/secret-qualifier`](security.md#security-secret-qualifier).</sub>
 
 <a id="ide-reveal-is-explicit-and-window-local"></a>
 
@@ -2522,7 +2531,7 @@ user is the only thing that turns it off, with `nvs.secrets.redact` (default `tr
 - **A reveal that persists** in workspace state or across a reload. It outlives the moment it was
   needed, which is the exposure this rule exists to close.
 
-<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/redaction-does-not-reach`](ide.md#ide-redaction-does-not-reach). Decided in [0158](../decisions/0158.md).</sub>
+<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/redaction-does-not-reach`](ide.md#ide-redaction-does-not-reach).</sub>
 
 <a id="ide-redaction-does-not-reach"></a>
 
@@ -2555,9 +2564,9 @@ who believes the editor protects them everywhere is worse off than one who knows
 - **Redacting the "before" side of a diff.** Does not exist: it needs a type answer for a revision of the
   document the server never analysed.
 
-**Not on disk.** There is no language server in the tree.
+**Not on disk.** The extension's own documentation does not carry this list.
 
-<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/reveal-is-explicit-and-window-local`](ide.md#ide-reveal-is-explicit-and-window-local). Decided in [0158](../decisions/0158.md).</sub>
+<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/reveal-is-explicit-and-window-local`](ide.md#ide-reveal-is-explicit-and-window-local).</sub>
 
 <a id="ide-phpstorm-draws-no-redaction-at-m4b"></a>
 
@@ -2574,11 +2583,11 @@ The plugin is not built at M4B, so PhpStorm conceals nothing at this milestone. 
 than something discovered when someone opens a `.nvs` file in PhpStorm on a call, and the PhpStorm side is
 due when its plugin is.
 
-<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/redaction-covers-bytes-only`](ide.md#ide-redaction-covers-bytes-only), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server). Decided in [0158](../decisions/0158.md).</sub>
+<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/redaction-covers-bytes-only`](ide.md#ide-redaction-covers-bytes-only), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server).</sub>
 
 <a id="ide-tainted-has-no-default-decoration"></a>
 
-## `tainted` ships no default editor decoration, and the marker is opt-in  *(designed — not yet in the compiler)*
+## `tainted` ships no default editor decoration, and the marker is opt-in
 
 `rule:ide/tainted-has-no-default-decoration`
 
@@ -2616,6 +2625,4 @@ user's theme.
   handler would carry it. The default would bury the file, and the setting that turns it off would take
   the `secret` redaction with it in the user's mind.
 
-**Not on disk.** There is no language server in the tree.
-
-<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`security/sink-predicate`](security.md#security-sink-predicate), [`security/tainted-qualifier`](security.md#security-tainted-qualifier). Decided in [0158](../decisions/0158.md).</sub>
+<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`security/sink-predicate`](security.md#security-sink-predicate), [`security/tainted-qualifier`](security.md#security-tainted-qualifier).</sub>

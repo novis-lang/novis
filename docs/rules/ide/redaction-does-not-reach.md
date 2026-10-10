@@ -23,4 +23,4 @@ who believes the editor protects them everywhere is worse off than one who knows
 - **Redacting the "before" side of a diff.** Does not exist: it needs a type answer for a revision of the
   document the server never analysed.
 
-**Not on disk.** There is no language server in the tree.
+**Not on disk.** The extension's own documentation does not carry this list.

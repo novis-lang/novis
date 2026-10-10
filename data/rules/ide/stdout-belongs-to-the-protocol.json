@@ -1,9 +1,7 @@
 {
   "title": "Nothing but the protocol writes to the server's stdout; logging goes to stderr and `window/logMessage`",
-  "status": "designed",
-  "because": [
-    "0158"
-  ],
+  "status": "shipped",
+  "because": [],
   "seeAlso": [
     "ide/the-server-is-synchronous"
   ],

@@ -19,6 +19,13 @@ reach — a value legible on a screen somebody else is looking at — and it cov
 editor drawing no decoration at all is not running a less safe language; it is only less discreet,
 which is why every rule in this section is the editor's and none of them is the language's.
 
+The test that puts a rule here rather than under `security/` is whether it still holds with no editor
+running. Every sink refusing a `secret` does, and so do the AST dump's placeholder
+(`rule:security/redaction-reaches-the-tools-own-renderings`) and the test runner's redacted diff
+(`rule:security/secret-in-a-test-report`). A blur over a string literal does not. The security chapter
+is read as what the language will not let a program get wrong, and a rendering filed there would invite
+a reader to count it as part of that guarantee.
+
 It does **not** ride the semantic-token channel, even though the qualifier already travels there. That
 channel's contract is *names a theme styles*, and its correct degradation is to fall back to the
 underlying token type — which a security default whose failure mode is *the value becomes visible*
@@ -38,6 +45,9 @@ not parse would conceal arbitrary spans of a file somebody is trying to fix.
 The cost is a second decoration mechanism beside the semantic-token one, with two contracts to keep
 apart and two ways for one token to be described.
 
+- **Memory:** none on the request path. The server answers a range list per open document, and the
+  client keeps the last answer for each.
+
 **Declined:**
 
 - **Detecting the range in the client** with a pattern or a filename rule. It puts language logic in a
@@ -49,5 +59,6 @@ apart and two ways for one token to be described.
   editable text document, with no language-server edits, no diff, no version-control integration and no
   format-on-save, which is a far larger loss than the exposure it closes; and it substitutes the buffer,
   which `rule:ide/redaction-covers-bytes-only` rules out.
-
-**Not on disk.** There is no language server in the tree.
+- **A chapter of its own for security in the editor.** It splits the editor across two homes, and every
+  rule in each would need a pointer to the other. The editor's chapter is the one home for the editor,
+  and its security rules sit together at its end.

@@ -23,5 +23,3 @@ turned off, taking the redaction with it.
 - **Removing the span from layout** (`display: none`) instead of blurring it. Removing the box breaks
   cursor and selection arithmetic across the range, and the editor has to keep behaving like a text
   editor.
-
-**Not on disk.** There is no language server in the tree.
