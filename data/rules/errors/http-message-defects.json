@@ -2,12 +2,13 @@
   "title": "The closed list of what makes an HTTP message ambiguous",
   "status": "shipped",
   "because": [
-    "0095",
     "0097"
   ],
   "seeAlso": [
     "errors/ambiguous-input-refused",
     "errors/cookie-name-bytes"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-server/src/serve.rs"
+  ]
 }

@@ -2,8 +2,7 @@
   "title": "`X-Forwarded-For` is the only client-address header read; a trusted peer sending another is warned about, and an untrusted header is ignored, never refused",
   "status": "shipped",
   "because": [
-    "0097",
-    "0095"
+    "0097"
   ],
   "seeAlso": [
     "http-server/trusted-proxies-is-empty-and-empty-reads-nothing",

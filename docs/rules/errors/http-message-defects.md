@@ -14,7 +14,21 @@ Refused on a request Novis receives **and on a response Novis's outbound client 
 
 A token that *withholds* an address — `unknown` — has said something definite and is not refused.
 
+A folded header line is refused rather than replaced, the stricter of the two answers the HTTP
+specification allows a server, so a client that still sends one cannot talk to Novis.
+
+`Content-Length` with `Transfer-Encoding` on an inbound request is the one row the server answers
+differently: it follows the HTTP/1.1 specification, the chunked encoding wins and the length is
+ignored. The connection is closed after that message, so bytes a proxy read as a second request are
+never read as one here.
+
 **There is no opt-out on the outbound half.** A remote server is an attacker too, and a response's
 body flows straight into program logic. An upstream emitting genuinely ambiguous headers is one
-whose answers cannot be reasoned about, so a throw at the call site is the honest outcome — and an
-opt-out would be copy-pasted into the calls that did not need it.
+whose answers cannot be reasoned about, so a throw at the call site is the honest outcome. The cost is
+that an upstream with a sloppy header emitter breaks an outbound call, visibly, at the call site.
+
+**Declined:**
+
+- **A per-call opt-out on the outbound half.** It would buy integration with sloppy third-party
+  services, which is a real problem. The second code path would have to stay exactly as safe as the
+  first, and an option like that is copy-pasted into the calls that did not need it.

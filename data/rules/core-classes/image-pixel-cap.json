@@ -2,7 +2,6 @@
   "title": "The pixel cap is read off the header before a buffer is allocated, and a call may only lower it",
   "status": "designed",
   "because": [
-    "0095",
     "0246"
   ],
   "seeAlso": [

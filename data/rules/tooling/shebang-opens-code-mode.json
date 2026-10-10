@@ -2,8 +2,7 @@
   "title": "A file whose first two bytes are `#!` starts in code mode, and its first line is trivia",
   "status": "shipped",
   "because": [
-    "0099",
-    "0095"
+    "0099"
   ],
   "seeAlso": [
     "statements/nvs-is-the-only-open-tag",

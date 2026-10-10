@@ -277,7 +277,7 @@ It replaces the two-attribute spelling for one endpoint, which is legal but carr
 two forms could not share a name, one of them lost reverse-URL generation, and metrics saw one endpoint
 as two series. A link built with the optional capture left out of `$params` simply drops the segment.
 
-<sub>See also [`routing/a-refused-verb-is-not-a-missing-path`](routing.md#routing-a-refused-verb-is-not-a-missing-path), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`routing/path-grammar`](routing.md#routing-path-grammar), [`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path). Decided in [0102](../decisions/0102.md), [0095](../decisions/0095.md), [0097](../decisions/0097.md).</sub>
+<sub>See also [`routing/a-refused-verb-is-not-a-missing-path`](routing.md#routing-a-refused-verb-is-not-a-missing-path), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`routing/path-grammar`](routing.md#routing-path-grammar), [`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path). Decided in [0102](../decisions/0102.md), [0097](../decisions/0097.md).</sub>
 
 <a id="routing-a-query-parameter-is-declared-like-a-capture"></a>
 

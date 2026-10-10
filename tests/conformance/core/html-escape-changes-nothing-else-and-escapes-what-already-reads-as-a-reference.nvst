@@ -18,7 +18,7 @@ string $text = "日本語 — naïve café 👍";
 echo Core\Html::toSource(Core\Html::escape($text), "comparing the escape against its input") == $text
      ? "same" : "changed", "\n";
 
-// ADR 0095: ambiguous input is refused, never repaired. PHP's fourth
+// Ambiguous input is refused, never repaired. PHP's fourth
 // `htmlspecialchars` argument exists to suppress this — `$double_encode` — and
 // there is no spelling for it here, because `&amp;` in the input is text that
 // said `&amp;` and guessing otherwise means a document that meant to display

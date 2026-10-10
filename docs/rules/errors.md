@@ -782,7 +782,21 @@ origin parser is dangerous in.
 Strict parsing is not slower. Validation folds into the pass that already touches every byte to find
 delimiters; it is *lenient* parsing that needs extra work to unfold, re-scan and normalise.
 
-<sub>See also [`errors/http-message-defects`](errors.md#errors-http-message-defects), [`errors/cookie-name-bytes`](errors.md#errors-cookie-name-bytes), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count), [`errors/path-component-refusals`](errors.md#errors-path-component-refusals). Decided in [0095](../decisions/0095.md), [0097](../decisions/0097.md).</sub>
+The unusual half is as much of the rule as the refusals: a header name with an underscore, or an
+unknown but well-formed one, is accepted verbatim.
+
+**Declined:**
+
+- **Normalise and continue.** It gives the most interoperability, and it is the posture behind a run of
+  parser vulnerabilities in other runtimes: a folded header line unfolded and parsed, a header line with
+  no colon treated as a header, a long redirect target truncated and followed, a hostname with NUL
+  accepted. It also guarantees that Novis and a proxy in front of it can disagree about what a request
+  says.
+- **Total strictness**, refusing anything that does not match the HTTP grammar exactly. It is simpler to
+  state, and it refuses requests every other origin accepts (underscores in header names are common). It
+  also makes the list open-ended, which the closed list exists to prevent.
+
+<sub>See also [`errors/http-message-defects`](errors.md#errors-http-message-defects), [`errors/cookie-name-bytes`](errors.md#errors-cookie-name-bytes), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count), [`errors/path-component-refusals`](errors.md#errors-path-component-refusals). Decided in [0097](../decisions/0097.md).</sub>
 
 <a id="errors-http-message-defects"></a>
 
@@ -806,12 +820,26 @@ Refused on a request Novis receives **and on a response Novis's outbound client 
 
 A token that *withholds* an address — `unknown` — has said something definite and is not refused.
 
+A folded header line is refused rather than replaced, the stricter of the two answers the HTTP
+specification allows a server, so a client that still sends one cannot talk to Novis.
+
+`Content-Length` with `Transfer-Encoding` on an inbound request is the one row the server answers
+differently: it follows the HTTP/1.1 specification, the chunked encoding wins and the length is
+ignored. The connection is closed after that message, so bytes a proxy read as a second request are
+never read as one here.
+
 **There is no opt-out on the outbound half.** A remote server is an attacker too, and a response's
 body flows straight into program logic. An upstream emitting genuinely ambiguous headers is one
-whose answers cannot be reasoned about, so a throw at the call site is the honest outcome — and an
-opt-out would be copy-pasted into the calls that did not need it.
+whose answers cannot be reasoned about, so a throw at the call site is the honest outcome. The cost is
+that an upstream with a sloppy header emitter breaks an outbound call, visibly, at the call site.
 
-<sub>See also [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`errors/cookie-name-bytes`](errors.md#errors-cookie-name-bytes). Decided in [0095](../decisions/0095.md), [0097](../decisions/0097.md).</sub>
+**Declined:**
+
+- **A per-call opt-out on the outbound half.** It would buy integration with sloppy third-party
+  services, which is a real problem. The second code path would have to stay exactly as safe as the
+  first, and an option like that is copy-pasted into the calls that did not need it.
+
+<sub>See also [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`errors/cookie-name-bytes`](errors.md#errors-cookie-name-bytes). Decided in [0097](../decisions/0097.md).</sub>
 
 <a id="errors-cookie-name-bytes"></a>
 
@@ -835,7 +863,17 @@ consecutive CVEs — the second being the incomplete fix for the first, where co
 mangling let a plain cookie be read as a `__Host-` one. Enforcing it once, in the one place that
 parses the header, is the whole fix.
 
-<sub>See also [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`errors/http-message-defects`](errors.md#errors-http-message-defects). Decided in [0095](../decisions/0095.md).</sub>
+PHP's dot-and-space mangling of cookie names served variable names built from request input, and Novis
+has no superglobals for it to serve.
+
+**Declined:**
+
+- **Leaving prefix enforcement to the program**, with a cookie helper. The prefix then means nothing
+  unless every read site checks it, which is the arrangement that produced the bypass above.
+- **A compatibility mode that reproduces cookie-name mangling.** The mangling is the bypass, and PHP
+  syntax is an on-ramp rather than a compatibility promise.
+
+<sub>See also [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`errors/http-message-defects`](errors.md#errors-http-message-defects).</sub>
 
 <a id="errors-multipart-part-count"></a>
 
@@ -853,7 +891,10 @@ multipart parsers, and 1000 is the number that shape's best-known fix chose.
 This also widens the attribution rule in the only direction it was missing: **temp files, file
 descriptors and disk bytes are charged to a request the same way memory is.**
 
-<sub>See also [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0095](../decisions/0095.md).</sub>
+The cost is that a form with more than 1000 parts needs one configuration line. A ported PHP
+application meets the limit exactly where it already met one, because PHP uses the same default.
+
+<sub>See also [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused).</sub>
 
 <a id="errors-path-component-refusals"></a>
 
@@ -885,4 +926,13 @@ laundered and never was.
 and goes on accepting both separators on every platform. `Path::normalize` is **not** a launderer,
 because the base is not part of its input.
 
-<sub>See also [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0095](../decisions/0095.md).</sub>
+**Declined:**
+
+- **Enforcing these refusals only on Windows.** A platform-conditional security rule is tested on the
+  platform where it does nothing, and conformance runs on a native Windows leg and a WSL leg, so one
+  member would need two expectations.
+- **Putting them in `Core\Path::normalize`.** No `Path` member carries policy, and putting policy there
+  invites the belief that normalising is safe. Containment needs the base, and only `Core\IO::within`
+  has it.
+
+<sub>See also [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused).</sub>

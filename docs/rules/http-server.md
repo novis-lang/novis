@@ -17,7 +17,7 @@ Everything a proxy does earlier and better is absent by name, and the list is cl
 
 The parsing half is not delegated. Request smuggling is a proxy/origin parser differential, so an origin that always has a proxy in front is precisely where a lenient parser is dangerous: [`errors/http-message-defects`](errors.md#errors-http-message-defects) stands whole.
 
-<sub>See also [`http-server/a-path-is-never-derived-from-a-url`](http-server.md#http-server-a-path-is-never-derived-from-a-url), [`errors/http-message-defects`](errors.md#errors-http-message-defects), [`security/one-tls-client`](security.md#security-one-tls-client), [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members). Decided in [0097](../decisions/0097.md), [0083](../decisions/0083.md), [0095](../decisions/0095.md).</sub>
+<sub>See also [`http-server/a-path-is-never-derived-from-a-url`](http-server.md#http-server-a-path-is-never-derived-from-a-url), [`errors/http-message-defects`](errors.md#errors-http-message-defects), [`security/one-tls-client`](security.md#security-one-tls-client), [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members). Decided in [0097](../decisions/0097.md), [0083](../decisions/0083.md).</sub>
 
 <a id="http-server-the-server-block-is-boot-class"></a>
 
@@ -288,7 +288,7 @@ An `accept` that fails with `EMFILE`/`ENFILE` returns immediately and will fail 
 
 **The loop applies a bounded backoff on a descriptor-exhaustion error and logs once per window**, not once per attempt: the wait doubles to a ceiling and a successful accept puts it back. No other accept failure is waited out, because no other one is a condition that will clear on its own. Descriptors are already charged to a request under [`errors/multipart-part-count`](errors.md#errors-multipart-part-count)'s per-request accounting, so the condition is bounded from the other side too; this closes the behaviour when it happens anyway.
 
-<sub>See also [`http-server/the-floor-cannot-fill-the-disk`](http-server.md#http-server-the-floor-cannot-fill-the-disk), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count). Decided in [0106](../decisions/0106.md), [0095](../decisions/0095.md).</sub>
+<sub>See also [`http-server/the-floor-cannot-fill-the-disk`](http-server.md#http-server-the-floor-cannot-fill-the-disk), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count). Decided in [0106](../decisions/0106.md).</sub>
 
 <a id="http-server-a-request-resolves-in-five-steps"></a>
 
@@ -326,7 +326,7 @@ Non-empty, `clientIp` is the **rightmost** `X-Forwarded-For` entry that is not i
 
 One `Warn` at boot when the mode is `production`, every listener is loopback or a Unix socket, and `trusted_proxies` is empty — a proxied deployment that forgot the line and will now log the proxy's address as every client's. It is asked only of a tree that wrote a `[server]` block: `nvs serve app.nvs` with no configuration is the development server, and a line every dev run prints is one every operator learns to skip.
 
-<sub>See also [`http-server/x-forwarded-for-is-the-only-address-header`](http-server.md#http-server-x-forwarded-for-is-the-only-address-header), [`http-server/a-forwarded-token-is-read-withheld-or-refused`](http-server.md#http-server-a-forwarded-token-is-read-withheld-or-refused), [`http-server/x-forwarded-proto-sets-the-scheme-and-hsts-only`](http-server.md#http-server-x-forwarded-proto-sets-the-scheme-and-hsts-only), [`http-server/a-unix-socket-listener`](http-server.md#http-server-a-unix-socket-listener), [`security/tainted-sources`](security.md#security-tainted-sources). Decided in [0097](../decisions/0097.md), [0095](../decisions/0095.md).</sub>
+<sub>See also [`http-server/x-forwarded-for-is-the-only-address-header`](http-server.md#http-server-x-forwarded-for-is-the-only-address-header), [`http-server/a-forwarded-token-is-read-withheld-or-refused`](http-server.md#http-server-a-forwarded-token-is-read-withheld-or-refused), [`http-server/x-forwarded-proto-sets-the-scheme-and-hsts-only`](http-server.md#http-server-x-forwarded-proto-sets-the-scheme-and-hsts-only), [`http-server/a-unix-socket-listener`](http-server.md#http-server-a-unix-socket-listener), [`security/tainted-sources`](security.md#security-tainted-sources). Decided in [0097](../decisions/0097.md).</sub>
 
 <a id="http-server-x-forwarded-for-is-the-only-address-header"></a>
 
@@ -340,7 +340,7 @@ One `Warn` at boot when the mode is `production`, every listener is loopback or 
 
 **An `X-Forwarded-For` from an untrusted peer is ignored silently, never refused.** Any client can set the header, so refusing on its presence would let anyone deny service by sending it. Refusal is reserved for a value that was about to be *used*, and the `Warn` above is raised only for a peer that was allowed to speak: a stranger must not be able to turn on a log line per request.
 
-<sub>See also [`http-server/trusted-proxies-is-empty-and-empty-reads-nothing`](http-server.md#http-server-trusted-proxies-is-empty-and-empty-reads-nothing), [`http-server/a-forwarded-token-is-read-withheld-or-refused`](http-server.md#http-server-a-forwarded-token-is-read-withheld-or-refused), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0097](../decisions/0097.md), [0095](../decisions/0095.md).</sub>
+<sub>See also [`http-server/trusted-proxies-is-empty-and-empty-reads-nothing`](http-server.md#http-server-trusted-proxies-is-empty-and-empty-reads-nothing), [`http-server/a-forwarded-token-is-read-withheld-or-refused`](http-server.md#http-server-a-forwarded-token-is-read-withheld-or-refused), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0097](../decisions/0097.md).</sub>
 
 <a id="http-server-a-forwarded-token-is-read-withheld-or-refused"></a>
 
@@ -356,7 +356,7 @@ A token that **withholds** the address — `unknown`, or an obfuscated `_hidden`
 
 A token that neither names an address nor withholds one is a **`400`**: the value was about to be used and cannot be read. That row, and a request path containing a dot-segment or an encoded separator, are the two the server adds to [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused)'s closed list.
 
-<sub>See also [`http-server/trusted-proxies-is-empty-and-empty-reads-nothing`](http-server.md#http-server-trusted-proxies-is-empty-and-empty-reads-nothing), [`http-server/x-forwarded-for-is-the-only-address-header`](http-server.md#http-server-x-forwarded-for-is-the-only-address-header), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0097](../decisions/0097.md), [0095](../decisions/0095.md).</sub>
+<sub>See also [`http-server/trusted-proxies-is-empty-and-empty-reads-nothing`](http-server.md#http-server-trusted-proxies-is-empty-and-empty-reads-nothing), [`http-server/x-forwarded-for-is-the-only-address-header`](http-server.md#http-server-x-forwarded-for-is-the-only-address-header), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0097](../decisions/0097.md).</sub>
 
 <a id="http-server-x-forwarded-proto-sets-the-scheme-and-hsts-only"></a>
 
@@ -384,7 +384,7 @@ A deployment that declares only host mounts gets a `404` for an unknown host, wi
 
 The proxy note that belongs in the operator documentation: nginx's `proxy_pass` sends `Host: $proxy_host` unless told otherwise, so a host-mounted deployment must set `proxy_set_header Host $host;` or every request arrives with the wrong name and lands on the fallback — silently.
 
-<sub>See also [`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot), [`http-server/x-forwarded-proto-sets-the-scheme-and-hsts-only`](http-server.md#http-server-x-forwarded-proto-sets-the-scheme-and-hsts-only), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0097](../decisions/0097.md), [0095](../decisions/0095.md), [0197](../decisions/0197.md).</sub>
+<sub>See also [`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot), [`http-server/x-forwarded-proto-sets-the-scheme-and-hsts-only`](http-server.md#http-server-x-forwarded-proto-sets-the-scheme-and-hsts-only), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0097](../decisions/0097.md), [0197](../decisions/0197.md).</sub>
 
 <a id="http-server-a-path-is-never-derived-from-a-url"></a>
 
@@ -398,7 +398,7 @@ This is the rule the rest of the server is built to keep. FastCGI's vulnerabilit
 
 So every path the server can execute is known at boot, printed by `nvs info --config`, and fixed until a reload. That is what makes [`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot)'s wildcards safe: a glob expanded against the disk at boot yields a fixed table, whereas the same glob evaluated per request would be `cgi.fix_pathinfo` with a different spelling. A path carrying a dot-segment or an encoded separator is refused before any mount is selected ([`errors/path-component-refusals`](errors.md#errors-path-component-refusals)).
 
-<sub>See also [`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot), [`security/a-path-is-not-a-url`](security.md#security-a-path-is-not-a-url), [`errors/path-component-refusals`](errors.md#errors-path-component-refusals). Decided in [0097](../decisions/0097.md), [0095](../decisions/0095.md).</sub>
+<sub>See also [`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot), [`security/a-path-is-not-a-url`](security.md#security-a-path-is-not-a-url), [`errors/path-component-refusals`](errors.md#errors-path-component-refusals). Decided in [0097](../decisions/0097.md).</sub>
 
 <a id="http-server-a-trailing-slash-is-never-normalised"></a>
 
@@ -410,7 +410,7 @@ So every path the server can execute is known at boot, printed by `nvs info --co
 
 Of the three conventions applied above the route table this is the only one a proxy does trivially, and the one the never-repair instinct ([`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused)) argues hardest against: a normalisation the server invents is an equivalence the application did not write. It is distinct from [`routing/a-trailing-segment-may-be-absent`](routing.md#routing-a-trailing-segment-may-be-absent), where a route *declares* that its last segment may be missing — that is the application stating the equivalence, which is exactly where the decision belongs.
 
-<sub>See also [`http-server/head-runs-as-get`](http-server.md#http-server-head-runs-as-get), [`routing/a-trailing-segment-may-be-absent`](routing.md#routing-a-trailing-segment-may-be-absent), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0097](../decisions/0097.md), [0095](../decisions/0095.md).</sub>
+<sub>See also [`http-server/head-runs-as-get`](http-server.md#http-server-head-runs-as-get), [`routing/a-trailing-segment-may-be-absent`](routing.md#routing-a-trailing-segment-may-be-absent), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0097](../decisions/0097.md).</sub>
 
 <a id="http-server-head-runs-as-get"></a>
 
@@ -452,7 +452,7 @@ Two caps bound a request body, each a `Runtime` default with a `[limits.hard]` c
 
 `Core\Request::bodyStream(): Iterable<bytes>` is the raw-body reader, for a body larger than a request's memory budget or a content type `files()` does not describe. It yields `tainted` chunks and is a **streaming** reader, so it keeps nothing, consumes the body, and may only be the first reader of it — [`http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`](http-server.md#http-server-buffering-readers-share-the-body-and-streaming-readers-consume-it) is which readers may follow which, for every member that reads a body. It is bounded by `request_body` on what a consumer retains, by the connection's `body_idle_timeout`, and by the multipart part-count cap ([`errors/multipart-part-count`](errors.md#errors-multipart-part-count)), which no byte cap bounds.
 
-<sub>See also [`http-server/four-idle-waits-all-finite`](http-server.md#http-server-four-idle-waits-all-finite), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`security/tainted-sources`](security.md#security-tainted-sources), [`http-server/a-part-is-a-file-iff-it-carries-a-filename`](http-server.md#http-server-a-part-is-a-file-iff-it-carries-a-filename), [`http-server/there-is-no-temp-file`](http-server.md#http-server-there-is-no-temp-file). Decided in [0097](../decisions/0097.md), [0095](../decisions/0095.md), [0156](../decisions/0156.md).</sub>
+<sub>See also [`http-server/four-idle-waits-all-finite`](http-server.md#http-server-four-idle-waits-all-finite), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`security/tainted-sources`](security.md#security-tainted-sources), [`http-server/a-part-is-a-file-iff-it-carries-a-filename`](http-server.md#http-server-a-part-is-a-file-iff-it-carries-a-filename), [`http-server/there-is-no-temp-file`](http-server.md#http-server-there-is-no-temp-file). Decided in [0097](../decisions/0097.md), [0156](../decisions/0156.md).</sub>
 
 <a id="http-server-buffering-readers-share-the-body-and-streaming-readers-consume-it"></a>
 
@@ -906,7 +906,7 @@ A part carries **no `size`**. There is no honest value to put there before the p
 **Declined:**
 - **A third directive for the buffered form fields.** Its right value is one nobody knows, and it would overlap `request_body` almost entirely.
 
-<sub>See also [`http-server/an-upload-is-received-only-through-files`](http-server.md#http-server-an-upload-is-received-only-through-files), [`http-server/request-body-and-upload-total-are-two-caps`](http-server.md#http-server-request-body-and-upload-total-are-two-caps), [`security/tainted-sources`](security.md#security-tainted-sources), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count). Decided in [0095](../decisions/0095.md), [0156](../decisions/0156.md).</sub>
+<sub>See also [`http-server/an-upload-is-received-only-through-files`](http-server.md#http-server-an-upload-is-received-only-through-files), [`http-server/request-body-and-upload-total-are-two-caps`](http-server.md#http-server-request-body-and-upload-total-are-two-caps), [`security/tainted-sources`](security.md#security-tainted-sources), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count). Decided in [0156](../decisions/0156.md).</sub>
 
 <a id="http-server-a-part-is-consumed-in-one-of-three-ways"></a>
 

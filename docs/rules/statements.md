@@ -165,7 +165,7 @@ moves between those three positions constantly, so no habit settles which one ap
 - **Accept the leading separator and strip it, in the parser or the formatter.** That is the
   two-spellings-one-meaning state itself, moved into style.
 
-<sub>See also [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute). Decided in [0095](../decisions/0095.md).</sub>
+<sub>See also [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute).</sub>
 
 <a id="statements-one-function-resolves-every-name"></a>
 

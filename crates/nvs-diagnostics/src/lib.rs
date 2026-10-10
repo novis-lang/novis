@@ -2513,7 +2513,7 @@ pub mod code {
     /// believes is in force and nothing else does. It is also what lets
     /// `nvs_config::http::Cookies` resolve the key without an
     /// "or something else" arm, and so without ever repairing one
-    /// ([0095](/docs/decisions/0095.md)).
+    /// (`rule:errors/ambiguous-input-refused`).
     ///
     /// Not `E0612`'s refusal reached from another direction: that one is a
     /// *pair* of individually meaningful values, and this is one value that

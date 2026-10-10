@@ -8583,8 +8583,9 @@ pub(crate) mod tests {
         // Two framings at once, which is the pair every published technique is
         // built on. RFC 9112 *disambiguates* this one rather than refusing it —
         // the chunked encoding wins and the length is ignored — and `hyper`
-        // follows it, so these two rows are a measured divergence from ADR
-        // 0095's "refused, never repaired" and are asserted as one rather than
+        // follows it, so these two rows are a measured divergence from
+        // `rule:errors/ambiguous-input-refused`'s "refused, never repaired"
+        // (`rule:errors/http-message-defects` names it) and are asserted as one rather than
         // left out of the suite. What makes it safe is the second half of the
         // same rule, and it is what these rows are really about: **the
         // connection does not survive the message**, so the bytes the proxy

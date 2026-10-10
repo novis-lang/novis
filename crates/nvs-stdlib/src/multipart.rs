@@ -40,7 +40,8 @@
 //!
 //! # Refused, never repaired
 //!
-//! Every ambiguity below is an error rather than a guess, under ADR 0095: a
+//! Every ambiguity below is an error rather than a guess, under
+//! `rule:errors/ambiguous-input-refused`: a
 //! header line with no colon or a folded one, a part with no
 //! `Content-Disposition` or no `name`, a parameter declared twice, a quoted
 //! value with no closing quote, a boundary that is not RFC 2046's, and a body

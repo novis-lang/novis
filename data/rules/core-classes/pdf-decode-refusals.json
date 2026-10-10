@@ -1,9 +1,7 @@
 {
   "title": "An encrypted document and a detectable omission both throw, and everything past rasterising is somebody else's job",
   "status": "designed",
-  "because": [
-    "0095"
-  ],
+  "because": [],
   "seeAlso": [
     "core-classes/pdf-page-is-an-image-source",
     "core-classes/pdf-render-has-no-io",

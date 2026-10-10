@@ -2,7 +2,6 @@
   "title": "A part is a file part iff its `Content-Disposition` carries `filename`; every other part is buffered into `post()`",
   "status": "shipped",
   "because": [
-    "0095",
     "0156"
   ],
   "seeAlso": [
