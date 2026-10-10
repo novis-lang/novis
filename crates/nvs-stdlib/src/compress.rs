@@ -1,6 +1,5 @@
 //! `Core\Compress` — spec § 17's codec class, and the decompression bound that
-//! cannot be switched off (`rule:core-classes/decompression-bound`,
-//! [ADR 0166](/docs/decisions/0166.md)).
+//! cannot be switched off (`rule:core-classes/decompression-bound`).
 //!
 //! **Why this is Tier 0 rather than a sandboxed component.** What a compressed
 //! input can do to a server is *policy*, and policy must be non-optional
@@ -585,9 +584,8 @@ const RATIO_KEY: &str = "max_decompression_ratio";
 ///
 /// A byte ceiling alone lets a 64 KiB request produce 64 MiB, which is the
 /// amplification a bomb is for; a ratio alone lets a large upload produce a
-/// proportionally large output with no absolute stop. `rule:core-classes/decompression-bound`
-/// is the rule and [ADR 0166](/docs/decisions/0166.md) § 2 is why it is two
-/// numbers rather than one.
+/// proportionally large output with no absolute stop
+/// (`rule:core-classes/decompression-bound`).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) struct Bound {
     /// The most output, in octets.

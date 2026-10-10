@@ -901,7 +901,7 @@ fluent-uri = "0.4"
 # a parse.
 html5ever = "0.39"
 
-# --- compression (spec § 17's `Core\Compress`, ADR 0166's bound) ---
+# --- compression (spec § 17's `Core\Compress`, `rule:core-classes/decompression-bound`) ---
 # Three crates for five codec cases, and `rule:packaging/a-c-dependency-answers-two-questions`'s first
 # question is "yes" for every one of them: a compressed body is attacker-controlled
 # by definition, which is the whole reason the class is Tier 0. So the second
