@@ -3,8 +3,7 @@
   "status": "shipped",
   "because": [
     "0046",
-    "0057",
-    "0062"
+    "0057"
   ],
   "seeAlso": [
     "types/numeric-literal-placement",

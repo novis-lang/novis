@@ -1,9 +1,7 @@
 {
   "title": "Keywords, contextual keywords and the `<?nvs` tag are lower case and nothing else",
   "status": "shipped",
-  "because": [
-    "0062"
-  ],
+  "because": [],
   "seeAlso": [
     "classes/names-resolve-case-sensitively",
     "statements/nvs-is-the-only-open-tag"

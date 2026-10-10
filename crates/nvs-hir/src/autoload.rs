@@ -36,9 +36,7 @@
 //!   filesystem happily opens `mailer.nvs` for `Mailer`; that is a *miss*
 //!   here rather than a diagnostic, because nothing in the source spelled a
 //!   path to blame — the file is simply not the one the name asks for, and on
-//!   Linux it would not have been found at all
-//!   ([ADR 0062](/docs/decisions/0062.md)
-//!   § 3).
+//!   Linux it would not have been found at all (`rule:programs/path-case`).
 //!
 //! `nvs check --autoload-map` prints the result, which is why what a
 //! `discover` glob does *quietly* — passing over a directory that cannot

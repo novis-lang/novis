@@ -84,7 +84,15 @@ A reserved-name check that is deliberately case-insensitive is not an exception 
 rejects more, and a tightening cannot make a program's meaning depend on case, because no spelling it
 touches has a meaning to depend on.
 
-<sub>See also [`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case), [`programs/path-case`](programs.md#programs-path-case), [`programs/autoload`](programs.md#programs-autoload). Decided in [0062](../decisions/0062.md).</sub>
+Case-insensitive behaviour over string data is untouched: a program that compares two strings ignoring
+case asks `Core\Str` for it.
+
+**Declined:**
+- **Folding case for class and function names.** It is the source of the drift above, it buys nothing
+  once one casing is legal per category, and it would make name comparison locale- and
+  Unicode-sensitive in a way nothing else in the compiler is.
+
+<sub>See also [`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case), [`programs/path-case`](programs.md#programs-path-case), [`programs/autoload`](programs.md#programs-autoload).</sub>
 
 <a id="classes-reserved-spellings-are-lower-case"></a>
 
@@ -108,7 +116,7 @@ inline-HTML token and teaches the author nothing. Two things fall out: `Core\Byt
 name tokens rather than a collision with the `bytes` type keyword, and identifier lexing no longer
 allocates a lower-cased copy of every name in the file.
 
-<sub>See also [`classes/names-resolve-case-sensitively`](classes.md#classes-names-resolve-case-sensitively), [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag). Decided in [0062](../decisions/0062.md).</sub>
+<sub>See also [`classes/names-resolve-case-sensitively`](classes.md#classes-names-resolve-case-sensitively), [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag).</sub>
 
 <a id="classes-no-leading-underscore-identifiers"></a>
 

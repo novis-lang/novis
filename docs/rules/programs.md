@@ -456,6 +456,11 @@ error on Windows and macOS, where it would otherwise have compiled, and it was a
 `E_REQUIRE_TARGET_NOT_FOUND` on Linux. The invariant is what matters: **a mis-cased path never compiles
 clean on any OS.** Autoload roots are held to the same comparison.
 
+This is where a filesystem's case would otherwise leak into a program's meaning. A project written on
+Windows or macOS collects a `require` that differs in case from its file, and nothing reports it until
+the first deployment to Linux. The check moves that failure to the developer's own machine, at compile
+time, and it has no runtime cost.
+
 Three properties keep the check honest:
 
 - **It costs no syscalls.** `canonicalize` on Windows and macOS already returns the entry's true
@@ -469,7 +474,19 @@ Three properties keep the check honest:
   wrote are compared; how the entry file was named on the command line is not this diagnostic's
   business.
 
-<sub>See also [`programs/autoload`](programs.md#programs-autoload). Decided in [0062](../decisions/0062.md).</sub>
+**Declined:**
+- **Lower-casing both paths before comparing.** That makes the compiler agree with the least strict
+  filesystem, which is the failure the check closes.
+- **A warning instead of an error.** It would fire only on the machines where the code happens to
+  work, so it would be ignored there, and the error would still arrive on Linux
+  ([`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct)).
+- **Checking the entry file's own path and every directory above it.** That path comes from the
+  command line or the web server, not from source, so a diagnostic about it has no line to point at
+  and no edit to suggest.
+- **Probing each component with a directory read** so a crossed symlink is checked too. It costs
+  syscalls on every `require` that the string compare avoids.
+
+<sub>See also [`programs/autoload`](programs.md#programs-autoload).</sub>
 
 <a id="programs-relative-paths-resolve-from-their-file"></a>
 

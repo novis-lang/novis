@@ -753,7 +753,7 @@ registry whose maintainers do not depend on it does not stay good.
 
 Names are first-come, and the squatting policy is the registry operator's own operational document.
 
-<sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace), [`programs/path-case`](programs.md#programs-path-case), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions). Decided in [0081](../decisions/0081.md), [0062](../decisions/0062.md).</sub>
+<sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace), [`programs/path-case`](programs.md#programs-path-case), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions). Decided in [0081](../decisions/0081.md).</sub>
 
 <a id="packaging-a-package-is-its-digest"></a>
 

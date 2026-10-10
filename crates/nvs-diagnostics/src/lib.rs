@@ -1038,10 +1038,9 @@ pub mod code {
     /// A `require` whose string-literal path resolves on disk only because the
     /// filesystem is case-insensitive — `require 'mailer.nvs';` finding
     /// `Mailer.nvs`. Reported on Windows/macOS so the same source is not a
-    /// `E_REQUIRE_TARGET_NOT_FOUND` on Linux; see
-    /// [ADR 0062](/docs/decisions/0062.md)
-    /// § 3, which extends
-    /// `rule:programs/autoload`'s exact-name rule from `autoload` to `require`.
+    /// `E_REQUIRE_TARGET_NOT_FOUND` on Linux; see `rule:programs/path-case`,
+    /// which extends `rule:programs/autoload`'s exact-name rule from
+    /// `autoload` to `require`.
     pub const E_REQUIRE_PATH_CASE_MISMATCH: Code = Code::new("E0314").card(
         "The file name in `require` uses different upper and lower case letters than the file on \
          disk. This works on Windows and macOS but fails on Linux. Write the name exactly as it \

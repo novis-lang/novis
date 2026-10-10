@@ -1660,7 +1660,7 @@ structural, unchanged ([`attributes/structural-retrieval`](attributes.md#attribu
 attribute joins the closed list; nothing else is ever matched by name. The list itself is a single
 table in the compiler, which is what stops a per-record running total from going stale.
 
-<sub>See also [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`core-classes/derive-generates-what-is-missing`](core-classes.md#core-classes-derive-generates-what-is-missing), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval). Decided in [0071](../decisions/0071.md), [0062](../decisions/0062.md), [0067](../decisions/0067.md), [0102](../decisions/0102.md).</sub>
+<sub>See also [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`core-classes/derive-generates-what-is-missing`](core-classes.md#core-classes-derive-generates-what-is-missing), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval). Decided in [0071](../decisions/0071.md), [0067](../decisions/0067.md), [0102](../decisions/0102.md).</sub>
 
 <a id="core-classes-derive-field-list"></a>
 

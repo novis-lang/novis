@@ -564,7 +564,7 @@ the same as a computed `Duration::nanoseconds($n)`.
 - **A relative-time string such as `"+2 weeks"` on `DateTime`.** It duplicates `startOf`, `plus` and
   `next`, it is a mode string, and it hides whether a calendar or an exact offset was meant.
 
-<sub>See also [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/integer-literals`](types.md#types-integer-literals). Decided in [0046](../decisions/0046.md), [0057](../decisions/0057.md), [0062](../decisions/0062.md).</sub>
+<sub>See also [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/integer-literals`](types.md#types-integer-literals). Decided in [0046](../decisions/0046.md), [0057](../decisions/0057.md).</sub>
 
 <a id="types-single-value-types"></a>
 
