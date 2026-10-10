@@ -284,9 +284,12 @@ File set: `benches/compare.json`, `website/src/data/compare.json`.
 
 ### State
 
-**Side goal `compare-page`, stage 5 in progress: 9 of 15 rows run.** `bun nv bench-compare --scenarios --smoke` exits 0 in Docker and prints a line per row from `SCENARIOS`. `--row <id>` runs one row. Each row maps what a peer did to a `Verdict` through a pure function, unit-tested in `tools/nv/test/bench-compare.test.ts`. A row may give a peer a `fixed` result, so that peer runs nothing; `serves: false` brings no stack up; `copy: true` serves a copy under `generated/`. `Probe` has `get`, `send`, `running`, `check`, `exec`, `peer` and `dir`. `benches/compare/README.md` § *The feature scenarios* is why.
+**Side goal `compare-page`, stage 5 in progress: 11 of 15 rows run.** `bun nv bench-compare --scenarios --smoke` exits 0 in Docker and prints a line per row from `SCENARIOS`. `--row <id>` runs one row. Each row maps what a peer did to a `Verdict` through a pure function, unit-tested in `tools/nv/test/bench-compare.test.ts`. A row either has a `probe` (a `Probe` against one stack: `get`, `send`, `running`, `check`, `exec`, `peer`, `dir`) or is `timed` (a `Timer` whose `pass(cpus)` is one fresh `onePass` of the case named by `case`, with the run's `--requests` and `--reps`). A row may give a peer a `fixed` result, so that peer runs nothing; `serves: false` brings no stack up; `copy: true` serves a copy under `generated/`. `benches/compare/README.md` § *The feature scenarios* is why.
 
-Results so far, none a surprise for Novis:
+Results so far:
+
+- `cores` **is a surprise, and a measurement fault, not a Novis fact.** At `--requests 20000 --reps 1`: Novis 27061 to 35913 (1.33x, `no`), PHP 10025 to 34309 (3.42x, built-in), Bun 32883 to 35160 (1.07x, `no`), Go 14703 to 15484 (1.05x, `no`). Every four-cpu figure sits near 35k, which is nginx's and `oha`'s ceiling at four cpus each, so the row measures the front and not the backends. At `--smoke`'s 300 requests all four read `no`. Reported, not adjusted; see Next.
+- `waiting` (smoke, 300 in flight): Novis built-in 59.8 KiB per request, PHP one-setting (`pm.max_children`) 3232.5 KiB, Bun built-in 34.7 KiB, Go built-in 32.8 KiB. No failed request.
 
 - `isolation`: Novis built-in, PHP built-in, Bun no, Go no (19 of 20 requests saw another's value).
 - `crash`: all four built-in. PHP answers the throw with `200`, and Go with `502`.
@@ -298,19 +301,19 @@ Results so far, none a surprise for Novis:
 - `live-edit`: Novis built-in (1 s), PHP one-setting (`opcache.validate_timestamps=1`), Bun one-setting (`bun --hot`), Go no.
 - `config`: Novis built-in (2.8 s, no command), PHP one-setting (`php-fpm reload`, 0.5 s after USR2), Bun and Go your-code.
 
-The documentation links in `taint` and `secret`'s fixed results are not checked: no session has opened them. The `every-scenario-runs` check stays red until all 15 row ids are printed. That is the 6 load rows not written, not a regression.
+The documentation links in `taint` and `secret`'s fixed results are not checked: no session has opened them. The `every-scenario-runs` check stays red until all 15 row ids are printed. It now fails on `runaway:`, the first of the 4 load rows not written, not a regression.
 
 ### Next
 
-**Stage 5: `cores` and `waiting`**, which read stage 3's arms rather than new programs. Same file: `tools/nv/cmd/bench-compare.ts`.
+**Stage 5: `runaway` and `parallel`**, each a new folder under `benches/compare/scenarios/` with four programs and a row in `SCENARIOS` (`tools/nv/cmd/bench-compare.ts:511`). Both run under load, so each likely needs `ohaArm` (`tools/nv/cmd/bench-docker.ts:127`) reachable from a `Probe` or a `Timer` (`tools/nv/cmd/bench-compare.ts:304`). Goal prose § *Stage 5* is what each row runs; rule `testing/userland-benchmarks`.
 
-- [ ] **`cores`**: throughput at one CPU against four for hello. A row whose probe runs `onePass` (`tools/nv/cmd/bench-compare.ts:732`) with a `Load` twice, at `cpus` 1 and 4, and reports the ratio. `Scenario` has no way to run a timed arm yet; add one rather than bending `Probe`. Rule `testing/userland-benchmarks`.
-- [ ] **`waiting`**: memory per request in flight from the wait case: `memory.peak` minus `memory.current` over the concurrency, from the same timed pass (`tools/nv/cmd/bench-compare.ts:699`).
-- [ ] Decide each row's `Verdict` from the measured figure, and write the mapping into `benches/compare/README.md:78`.
+- [ ] **`runaway`**: a loop and an endless allocation under steady load; the others' errors and p99, and container restarts. Novis sets `[limits]` and is `one-setting`. The restart check is `running` in `scenarioPass` (`tools/nv/cmd/bench-compare.ts:840`).
+- [ ] **`parallel`**: one request splits CPU work in four on a four-cpu budget, each language's own way; time against one part. `Core\Task::map` is not parallel (`docs/goals/compare-page.md:123`); a `Timer.pass(4)` is the four-cpu stack (`tools/nv/cmd/bench-compare.ts:304`).
+- [ ] **`cores`' front ceiling**: nginx and `oha` have four cpus each (`benches/compare/compose.common.yaml:18`, `:43`, `benches/compare/nginx/http.conf:8`). Give them enough room for the four-cpu pass, or time a heavier case, so the figure measures the backend. Re-run `--row cores --requests 20000` and report the result as measured.
 
 ### Backlog
 
-- The other load rows (`runaway`, `parallel`, `deploy`, `upgrade`), goal prose § *Stage 5*. `deploy` can reuse `copy: true` and `p.dir`.
+- The last load rows (`deploy`, `upgrade`), goal prose § *Stage 5*. `deploy` can reuse `copy: true` and `p.dir`.
 - `--scenarios` refuses `--record` for now. Stage 7's record needs the rows under a `scenarios` key in `buildRecord`.
 - Stage 6: `website/src/content/docs/in-depth/compare.mdx`, goal prose § *Stage 6*.
 - `wait`: Novis reached 0.39x of best at 1000 connections on one CPU, with no `503`. The page reports it as measured, since the standing decisions keep the runtime unchanged. Why it is slower is not checked.
