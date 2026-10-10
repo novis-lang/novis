@@ -193,9 +193,9 @@ File set: `tools/nv/cmd/site.ts`, `tools/nv/test/site-questions.test.ts`.
 
 ### State
 
-**Side goal `search-questions`: stage 3 is under way.** `website/src/data/questions.json` has 299 stamped entries: every `Core\Str` and `Core\Arr` member page, both class pages, and every Core page from `ast` through `db-schema` alphabetically (`ast`, `ast-node`, `attributes`, `bigint`, `budget`, `bytes`, `cache*`, `cap`, `cldr`, `cli*`, `command`, `compress*`, `config`, `crypto*`, `csrf`, `csv`, `db`, `db-column`, `db-connection`, `db-plan*`, `db-row`, `db-rows`, `db-schema`). `tools/nv/cmd/site.ts` module doc § *The questions* is the home of how they work.
+**Side goal `search-questions`: stage 3 is under way.** `website/src/data/questions.json` has 532 stamped entries: every `Core\Str` and `Core\Arr` page, and every Core page from `ast` through `mime` alphabetically (the last batch was `db-transaction`, `db-write`, `debug`, `decimal`, `encoding`, `env`, `fatal`, `hash*`, `heap`, `html`, `http*`, `io*`, `json`, `jwe*`, `jwt*`, `ldap`, `log`, `mail`, `math`, `metrics`, `mime`). `tools/nv/cmd/site.ts` module doc § *The questions* is the home of how they work.
 
-`--questions --status` at the last session: core 827 owed, config 31, cli 25, pages 146, nothing stale. `bun nv site --check questions` is green. Under Git Bash, pass URLs with `MSYS_NO_PATHCONV=1` (playbook § *Running things*).
+`--questions --status` at the last session: core 594 owed, config 31, cli 25, pages 146, nothing stale. `bun nv site --check questions` is green. Under Git Bash, pass URLs with `MSYS_NO_PATHCONV=1` (playbook § *Running things*).
 
 There is no wrap gate for stale questions. `main` removed `nv session --wrap` and the page wrap gate with it, so `bun nv site --check questions` is the only check. CI's `nv site --check` step (`.github/workflows/ci.yml:352`) does not name the `questions` part yet.
 
@@ -203,16 +203,17 @@ The Astro build with the new banner is *not checked*: `bun nv site --build` fail
 
 The rustdoc gate was green: `bun nv verify --doc` passed after the `child_watch.rs`, `dispatch.rs` and `service.rs` link fixes, which `main` made the same way.
 
-The driver's three LDAP "selection misses" (`Ldap-Ad-AccountFlags/passwordExpired/01`, `passwordNeverExpires/01`, `Ldap-Connection/add/01`) are in the acceptance log's `diverged` list: the same tree gave a different exit code on two runs. They are flaky, they are not caused by this branch (it touches only `website/`, `tools/nv/` and doc comments), and no session chased them. If they stay red on the next sweep, they need an owner on `main`.
+The driver's three LDAP "selection misses" (`Ldap-Ad-AccountFlags/passwordExpired/01`, `passwordNeverExpires/01`, `Ldap-Connection/add/01`) are in the acceptance log's `diverged` list: the same tree gave a different exit code on two runs. They are flaky, they are not caused by this branch (it touches only `website/`, `tools/nv/` and doc comments), and no session chased them. This session's `looper verify` failed the same way: 11 of 36 cases in `crates/nvs-stdlib/tests/ldap.rs` timed out ("the deadline passed before the socket was ready"), alone as well, while the session changed only `questions.json`. They need an owner on `main`.
 
 ### Next
 
 **Stage 3: the Core reference**, one file set: `website/src/data/questions.json`.
 
-- [ ] **Questions for the Core classes from `debug` onwards, alphabetically, as many per session as fit** (`rule:testing/website-pages-are-stamped`): dump `bun nv site --questions --owed core --limit 2000` to `.agent-tmp/`, split it into about five groups of 35 to 45 pages by class, and send one general-purpose subagent per group. Each writes `{ url: [questions] }` to its own scratch file. Read every file yourself, merge, then `--questions --stamp` the URLs. Four to six questions per page, at most 15 words, no other language's function names, no word from the user-text table ("refused" slipped in twice), no question repeated word for word on two pages. Next classes: `debug`, `decimal`, `encoding`, `env`, `fatal`, `hash`, `hash-stream`, `heap`, `html`, `http*`, `io*`, `json`, `jwe*`, `jwt*`, `ldap*`. Anchor: `website/src/data/questions.json:1`, the material from `tools/nv/cmd/site.ts:438`.
+- [ ] **Questions for the Core classes from `net` onwards, alphabetically, about 235 pages per session** (`rule:testing/website-pages-are-stamped`): dump `bun nv site --questions --owed core --limit 2000` to `.agent-tmp/`, split it into six groups of 35 to 45 pages by class with `awk` on the `== ` lines, and send one general-purpose subagent per group in one message. Each writes `{ url: [questions] }` to its own scratch file. Read every file yourself. A short scratch `bun` script then checks each page for four to six questions, at most 15 words, no word from the user-text table or another language's function name, and no question that repeats one already in the file. Two pages with an `isDir` and an `isFile` met that last check this session. The script then adds the arrays to the file, and `--questions --stamp` turns them into entries. Next classes: `net*`, `novis-image-*`, `novis-intl-*`, `objectmap`, `objectset`, `os`, `out`, `password`, `path`, `process*`, `program`, `queue*`, `random*`, `ratelimit*`, `reflect*`. Anchor: `website/src/data/questions.json:1`, the material from `tools/nv/cmd/site.ts:438`.
 
 ### Backlog
 
 - Questions for `config` (31), `cli` (25) and `pages` (146) once core is done: stages 4 and 5 (§ *Stages* above).
+- The scratch check of a batch (count, length, words, repeats) is a manual step done twice. It belongs in `--check questions`, in `tools/nv/cmd/site.ts`.
 - The blind-query measurement of two builds: stage 6 and § *Standing decisions*.
 - Then the goal's end gates: `bun nv verify --doc` and `bun nv owners --closes search-questions` (AGENTS.md § *In the loop*).

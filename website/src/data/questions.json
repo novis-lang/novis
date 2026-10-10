@@ -2703,6 +2703,2460 @@
       "Check that a stored schema file is still up to date"
     ]
   },
+  "/reference/core/db-transaction/": {
+    "feature": "Core\\Db\\Transaction",
+    "hash": "91c9f4caef7e586f",
+    "questions": [
+      "What can I do inside a database transaction?",
+      "Save all changes together or none of them",
+      "How do I run queries and writes in the same transaction?",
+      "Work with the object my transaction function receives",
+      "Make several SQL statements succeed or fail as one"
+    ]
+  },
+  "/reference/core/db-transaction/execute/": {
+    "feature": "Core\\Db\\Transaction::execute",
+    "hash": "dc6273189efa47a4",
+    "questions": [
+      "How do I insert a row inside a transaction?",
+      "Update or delete rows as part of a transaction",
+      "Get the new row id while a transaction is still open",
+      "Save an order and its lines together",
+      "Run a write statement that is only kept if the whole job succeeds"
+    ]
+  },
+  "/reference/core/db-transaction/executemany/": {
+    "feature": "Core\\Db\\Transaction::executeMany",
+    "hash": "bac1c6d807cee057",
+    "questions": [
+      "How do I insert many rows inside a transaction?",
+      "Batch insert that is undone completely if one row fails",
+      "Import a list of records so all or none are saved",
+      "Write a group of rows in one call inside a transaction",
+      "Count the rows a batch wrote in a transaction"
+    ]
+  },
+  "/reference/core/db-transaction/query/": {
+    "feature": "Core\\Db\\Transaction::query",
+    "hash": "5f578856c118a512",
+    "questions": [
+      "How do I select rows inside a transaction?",
+      "Read the rows I just wrote before the transaction ends",
+      "Check a value in the database before deciding to save",
+      "Can other requests see my rows before the commit?",
+      "Write to the database while looping over query results"
+    ]
+  },
+  "/reference/core/db-transaction/queryas/": {
+    "feature": "Core\\Db\\Transaction::queryAs",
+    "hash": "8d1ff1b505e15533",
+    "questions": [
+      "How do I read rows as objects inside a transaction?",
+      "Load typed objects from a query in a transaction",
+      "Claim a batch of jobs from a queue table safely",
+      "Build one object from several columns inside a transaction"
+    ]
+  },
+  "/reference/core/db-transaction/rollback/": {
+    "feature": "Core\\Db\\Transaction::rollBack",
+    "hash": "ab6bd4edc6a68dcf",
+    "questions": [
+      "How do I cancel a transaction and give a reason?",
+      "Undo all database changes when a check fails",
+      "Abort a transaction from inside a helper function",
+      "Stop a money transfer when the account has too little",
+      "Catch the error thrown when a transaction is cancelled"
+    ]
+  },
+  "/reference/core/db-transaction/stream/": {
+    "feature": "Core\\Db\\Transaction::stream",
+    "hash": "147a2a846aa7adef",
+    "questions": [
+      "How do I read a very large result inside a transaction?",
+      "Read rows one at a time while a transaction is open",
+      "Why do I get an error writing during a row loop?",
+      "Sum up a big table into a summary row in one transaction",
+      "Keep memory low when reading many rows in a transaction"
+    ]
+  },
+  "/reference/core/db-transaction/streamas/": {
+    "feature": "Core\\Db\\Transaction::streamAs",
+    "hash": "32d5beb93ebb50e6",
+    "questions": [
+      "How do I read a large result as objects in a transaction?",
+      "Build one object per row without loading every row",
+      "Write a reminder for every overdue invoice in one transaction",
+      "Read many rows into my class one at a time"
+    ]
+  },
+  "/reference/core/db-transaction/transaction/": {
+    "feature": "Core\\Db\\Transaction::transaction",
+    "hash": "51de7507a95724f2",
+    "questions": [
+      "How do I nest a transaction inside another one?",
+      "Undo one step and keep the rest of the transaction",
+      "Let a function open its own transaction when the caller has one",
+      "Keep the order even when the coupon cannot be applied",
+      "What happens when I start a transaction inside a transaction?"
+    ]
+  },
+  "/reference/core/db-write/": {
+    "feature": "Core\\Db\\Write",
+    "hash": "998bc2b82ed8ef15",
+    "questions": [
+      "What does a database write statement return?",
+      "Read the results of an insert, update or delete",
+      "How many rows changed and what id was created?",
+      "Inspect the outcome of a SQL statement that changes data"
+    ]
+  },
+  "/reference/core/db-write/affected/": {
+    "feature": "Core\\Db\\Write::affected",
+    "hash": "3f98f3e05817bae9",
+    "questions": [
+      "How do I know if my update matched any row?",
+      "Count how many rows a delete removed",
+      "Make sure only one worker takes a job",
+      "Detect that somebody else changed the row first",
+      "Number of rows an insert or update changed"
+    ]
+  },
+  "/reference/core/db-write/changed/": {
+    "feature": "Core\\Db\\Write::changed",
+    "hash": "a6c10f82ccc7046a",
+    "questions": [
+      "Did the database report a row count at all?",
+      "Tell apart zero changed rows and no count from the server",
+      "Why is the row count null after create table?",
+      "Read the exact row count the server reported"
+    ]
+  },
+  "/reference/core/db-write/lastid/": {
+    "feature": "Core\\Db\\Write::lastId",
+    "hash": "d9218f613b6de732",
+    "questions": [
+      "How do I get the auto increment id of a new row?",
+      "Read the primary key after an insert",
+      "Insert an order and then its lines with the new id",
+      "Why is the inserted id null on PostgreSQL?",
+      "Which id do I get when one insert adds several rows?"
+    ]
+  },
+  "/reference/core/debug/": {
+    "feature": "Core\\Debug",
+    "hash": "3e6f5fdea1a40404",
+    "questions": [
+      "How do I look at a value while debugging?",
+      "Show the contents of a variable in a readable form",
+      "Debug a program by printing values",
+      "Inspect arrays and objects while a program runs"
+    ]
+  },
+  "/reference/core/debug/dump/": {
+    "feature": "Core\\Debug::dump",
+    "hash": "cb85d41279ead628",
+    "questions": [
+      "How do I print a variable for debugging?",
+      "Show the type and contents of a value on stderr",
+      "Print debug output without changing the program output",
+      "Dump an object with its class and string lengths",
+      "Are secret values hidden when I print debug output?",
+      "Where does debug output go during a web request?"
+    ]
+  },
+  "/reference/core/debug/render/": {
+    "feature": "Core\\Debug::render",
+    "hash": "b1ee9dc9d79b03aa",
+    "questions": [
+      "How do I get a debug view of a value as a string?",
+      "Put a readable description of a value into a message",
+      "Compare two values by their debug text",
+      "Collect debug descriptions and print them at the end"
+    ]
+  },
+  "/reference/core/decimal/": {
+    "feature": "Core\\Decimal",
+    "hash": "6bc4bbb1466a78e1",
+    "questions": [
+      "How do I calculate with exact decimal numbers?",
+      "Math on money values without floating point errors",
+      "Divide and round decimal numbers the way I choose",
+      "What operations are there for decimal values?"
+    ]
+  },
+  "/reference/core/decimal/allocate/": {
+    "feature": "Core\\Decimal::allocate",
+    "hash": "5126ab7632beab08",
+    "questions": [
+      "How do I split money into parts that add up exactly?",
+      "Split a bill evenly without losing a cent",
+      "Divide an amount between people by their shares",
+      "Spread a discount over the lines of an order",
+      "Share an amount by ratios with no rounding error"
+    ]
+  },
+  "/reference/core/decimal/ceil/": {
+    "feature": "Core\\Decimal::ceil",
+    "hash": "320f483c052b5b28",
+    "questions": [
+      "How do I round a decimal number up?",
+      "Round up to two digits after the point",
+      "How many pages or boxes do I need, rounded up?",
+      "Always round a fee in the seller's favour"
+    ]
+  },
+  "/reference/core/decimal/divexact/": {
+    "feature": "Core\\Decimal::divExact",
+    "hash": "09c71695a2887c43",
+    "questions": [
+      "How do I divide and get an error if the result is not exact?",
+      "Divide decimals only when the result comes out even",
+      "Check that a total splits evenly between people",
+      "Work out a unit price from a pack price exactly"
+    ]
+  },
+  "/reference/core/decimal/divround/": {
+    "feature": "Core\\Decimal::divRound",
+    "hash": "12edcae7aefbe0a0",
+    "questions": [
+      "How do I divide and round to two decimal places?",
+      "Divide money and choose the rounding mode",
+      "Convert a price into another currency with rounding",
+      "Divide 100 by 3 and keep two digits"
+    ]
+  },
+  "/reference/core/decimal/floor/": {
+    "feature": "Core\\Decimal::floor",
+    "hash": "0eec0edbca61d186",
+    "questions": [
+      "How do I round a decimal number down?",
+      "Round toward the smaller number, also for negative values",
+      "How many whole items can a budget buy?",
+      "Cut a commission down to whole cents"
+    ]
+  },
+  "/reference/core/decimal/pow/": {
+    "feature": "Core\\Decimal::pow",
+    "hash": "325850b5e69d9edd",
+    "questions": [
+      "How do I raise a decimal number to a power?",
+      "Calculate compound interest over several years exactly",
+      "Multiply a decimal by itself n times",
+      "Apply a growth factor again and again without rounding"
+    ]
+  },
+  "/reference/core/decimal/round/": {
+    "feature": "Core\\Decimal::round",
+    "hash": "7cfd512f16e5bfc1",
+    "questions": [
+      "How do I round a decimal to a number of digits?",
+      "Round half up or half to even",
+      "Round a tax amount to cents",
+      "Choose how a value exactly in the middle is rounded"
+    ]
+  },
+  "/reference/core/decimal/truncate/": {
+    "feature": "Core\\Decimal::truncate",
+    "hash": "0b0a7233412161d0",
+    "questions": [
+      "How do I drop the digits after the decimal point?",
+      "Cut a number toward zero without rounding",
+      "Remove extra decimal places for display",
+      "Show a percentage without rounding it up"
+    ]
+  },
+  "/reference/core/encoding/": {
+    "feature": "Core\\Encoding",
+    "hash": "6ee58c4efbf8871b",
+    "questions": [
+      "How do I convert between text and bytes?",
+      "Encode bytes as base64, base32 or hex",
+      "Convert text to another character encoding",
+      "Turn binary data into printable text and back"
+    ]
+  },
+  "/reference/core/encoding/decodetext/": {
+    "feature": "Core\\Encoding::decodeText",
+    "hash": "b5700cf8ebc05e9f",
+    "questions": [
+      "How do I convert bytes in Windows-1252 to a string?",
+      "Read a file in Shift JIS as text",
+      "Turn bytes from a network message into a string",
+      "Convert legacy encoded text to UTF-8",
+      "Decode bytes using a given character set"
+    ]
+  },
+  "/reference/core/encoding/encodetext/": {
+    "feature": "Core\\Encoding::encodeText",
+    "hash": "bd3400d5381cc53a",
+    "questions": [
+      "How do I convert a string to Windows-1252 bytes?",
+      "Write text in an older character encoding",
+      "Encode a string as UTF-16 bytes",
+      "Save text for a system that needs a specific charset",
+      "What happens when a character does not exist in the encoding?"
+    ]
+  },
+  "/reference/core/encoding/frombase32/": {
+    "feature": "Core\\Encoding::fromBase32",
+    "hash": "0e3d3ebee392b963",
+    "questions": [
+      "How do I decode base32 text?",
+      "Read a two-factor authentication secret into bytes",
+      "Convert base32 back to the original bytes",
+      "Decode base32 with or without padding"
+    ]
+  },
+  "/reference/core/encoding/frombase64/": {
+    "feature": "Core\\Encoding::fromBase64",
+    "hash": "b3e1a10731e7ce43",
+    "questions": [
+      "How do I decode a base64 string?",
+      "Turn base64 text back into binary data",
+      "Read a base64 email attachment or header value",
+      "Why does decoding base64 with a newline fail?"
+    ]
+  },
+  "/reference/core/encoding/frombase64url/": {
+    "feature": "Core\\Encoding::fromBase64Url",
+    "hash": "ff4acbf155be060b",
+    "questions": [
+      "How do I decode URL-safe base64?",
+      "Read the parts of a JSON Web Token into bytes",
+      "Decode base64 that uses minus and underscore",
+      "Decode unpadded base64 from a web address"
+    ]
+  },
+  "/reference/core/encoding/fromhex/": {
+    "feature": "Core\\Encoding::fromHex",
+    "hash": "82fd7147c4ae8a92",
+    "questions": [
+      "How do I convert a hex string to bytes?",
+      "Read a hexadecimal key from a configuration file",
+      "Turn a checksum in hex back into bytes",
+      "Decode hexadecimal text with upper or lower case letters"
+    ]
+  },
+  "/reference/core/encoding/isvalidtext/": {
+    "feature": "Core\\Encoding::isValidText",
+    "hash": "4864a6e210bc70a1",
+    "questions": [
+      "How do I check if bytes are valid UTF-8?",
+      "Test an upload for valid text without throwing an error",
+      "Is this input valid in a given character encoding?",
+      "Skip rows that are not valid text"
+    ]
+  },
+  "/reference/core/encoding/tobase32/": {
+    "feature": "Core\\Encoding::toBase32",
+    "hash": "cc4348d45a922d83",
+    "questions": [
+      "How do I encode bytes as base32?",
+      "Create a secret for a two-factor authentication app",
+      "Write bytes as text a person can type",
+      "Make a code that is easy to read out loud"
+    ]
+  },
+  "/reference/core/encoding/tobase64/": {
+    "feature": "Core\\Encoding::toBase64",
+    "hash": "1b51b943ca8a4005",
+    "questions": [
+      "How do I encode data as base64?",
+      "Put binary data in a JSON field or HTTP header",
+      "Embed a small image as text in a stylesheet",
+      "Convert bytes to base64 text with padding"
+    ]
+  },
+  "/reference/core/encoding/tobase64url/": {
+    "feature": "Core\\Encoding::toBase64Url",
+    "hash": "439bc5716dcc821b",
+    "questions": [
+      "How do I make URL-safe base64?",
+      "Encode bytes for a query string or file name",
+      "Build the parts of a JSON Web Token",
+      "Base64 without padding, plus or slash characters"
+    ]
+  },
+  "/reference/core/encoding/tohex/": {
+    "feature": "Core\\Encoding::toHex",
+    "hash": "aa25690742283f34",
+    "questions": [
+      "How do I convert bytes to a hex string?",
+      "Show a checksum as hexadecimal text",
+      "Print raw bytes in a readable form in a log",
+      "Write a hash as lowercase hex digits"
+    ]
+  },
+  "/reference/core/env/": {
+    "feature": "Core\\Env",
+    "hash": "cbf4e50eeeda3a8b",
+    "questions": [
+      "How do I read settings from the environment?",
+      "Check if the app runs in production or development",
+      "Where do I find information about the system my program runs on?",
+      "Use environment variables for configuration",
+      "How do I read the server's environment safely?"
+    ]
+  },
+  "/reference/core/env/all/": {
+    "feature": "Core\\Env::all",
+    "hash": "346ed92ba49efcfb",
+    "questions": [
+      "How do I list every environment variable?",
+      "Get all environment variables as one array",
+      "Print all environment variables sorted by name",
+      "Why is one environment variable missing from the full list?",
+      "Can my program change an environment variable?"
+    ]
+  },
+  "/reference/core/env/get/": {
+    "feature": "Core\\Env::get",
+    "hash": "7998228421d74d01",
+    "questions": [
+      "How do I read one environment variable?",
+      "Read a database password from an environment variable",
+      "What happens when an environment variable is not set?",
+      "Get the value of the PORT environment variable",
+      "Why is the value from an environment variable tainted?",
+      "Read an environment variable with a default value"
+    ]
+  },
+  "/reference/core/env/mode/": {
+    "feature": "Core\\Env::mode",
+    "hash": "3591ad7f810b750a",
+    "questions": [
+      "How do I know if my program runs in production?",
+      "Switch between development and production mode",
+      "Show detailed errors only during development",
+      "Where do I set the application environment?",
+      "Load test data only in development"
+    ]
+  },
+  "/reference/core/fatal/": {
+    "feature": "Core\\Fatal",
+    "hash": "545d8cbadc830db5",
+    "questions": [
+      "Run code when a request crashes",
+      "How do I log a request that was stopped?",
+      "Handle fatal errors in my program",
+      "What can I do when my program stops unexpectedly?"
+    ]
+  },
+  "/reference/core/fatal/onlimit/": {
+    "feature": "Core\\Fatal::onLimit",
+    "hash": "80598af2e3a6efdb",
+    "questions": [
+      "Run code when a request runs out of memory",
+      "How do I log when the time limit is reached?",
+      "Catch a memory limit error",
+      "Show a message when a job takes too much CPU time",
+      "Which limit stopped my request?"
+    ]
+  },
+  "/reference/core/fatal/onuncaughtthrow/": {
+    "feature": "Core\\Fatal::onUncaughtThrow",
+    "hash": "316a0636fabf5de4",
+    "questions": [
+      "Handle an exception that nothing catches",
+      "How do I set a global error handler?",
+      "Log every uncaught error in one place",
+      "Show a friendly message when my command line program crashes",
+      "Run a function when an error reaches the top of the program"
+    ]
+  },
+  "/reference/core/hash/": {
+    "feature": "Core\\Hash",
+    "hash": "0e3f91befd289b21",
+    "questions": [
+      "How do I compute a hash in Novis?",
+      "Create checksums and signatures for data",
+      "Which hash algorithms are available?",
+      "Sign data with a secret key and verify it later",
+      "Hashing and message signatures"
+    ]
+  },
+  "/reference/core/hash/equals/": {
+    "feature": "Core\\Hash::equals",
+    "hash": "aa63128adcc1b16d",
+    "questions": [
+      "Compare two signatures safely",
+      "How do I compare a token without a timing attack?",
+      "Constant time comparison of two byte strings",
+      "Check that a webhook signature is correct",
+      "Why should I not use == to compare secrets?"
+    ]
+  },
+  "/reference/core/hash/hmac/": {
+    "feature": "Core\\Hash::hmac",
+    "hash": "cbf266ea92ab8b77",
+    "questions": [
+      "How do I sign data with a secret key?",
+      "Compute an HMAC with SHA-256",
+      "Verify that nobody changed a cookie or a URL",
+      "Create a signature for a webhook",
+      "Make a signed token for a download link"
+    ]
+  },
+  "/reference/core/hash/of/": {
+    "feature": "Core\\Hash::of",
+    "hash": "d606c1af955bcd38",
+    "questions": [
+      "How do I compute the SHA-256 of a string?",
+      "Get the MD5 checksum of a file",
+      "Turn a hash into a hex string",
+      "Create a fingerprint of some data",
+      "Compute a CRC32 checksum",
+      "Is SHA-1 safe for storing passwords?"
+    ]
+  },
+  "/reference/core/hash/stream/": {
+    "feature": "Core\\Hash::stream",
+    "hash": "53a97f43dc1b60fb",
+    "questions": [
+      "Hash a large file in pieces",
+      "How do I compute a hash of data that arrives in parts?",
+      "Start an incremental hash",
+      "Hash a download while it is still arriving"
+    ]
+  },
+  "/reference/core/hash-stream/": {
+    "feature": "Core\\Hash\\Stream",
+    "hash": "15ccdd3aa62abc65",
+    "questions": [
+      "Compute a checksum step by step",
+      "How do I build one hash from many chunks?",
+      "Incremental hashing of streamed data",
+      "Hash data piece by piece and read the result at the end"
+    ]
+  },
+  "/reference/core/hash-stream/finish/": {
+    "feature": "Core\\Hash\\Stream::finish",
+    "hash": "2e6e100008011893",
+    "questions": [
+      "Get the final hash after adding all pieces",
+      "How do I end an incremental hash?",
+      "Can I read the result of a hash stream twice?",
+      "Close a hash stream and return the digest"
+    ]
+  },
+  "/reference/core/hash-stream/update/": {
+    "feature": "Core\\Hash\\Stream::update",
+    "hash": "6461d8b240fdd181",
+    "questions": [
+      "Add the next chunk of data to a hash",
+      "How do I feed more data into an open hash?",
+      "Does the order of chunks change the hash?",
+      "Append bytes to a running checksum"
+    ]
+  },
+  "/reference/core/heap/": {
+    "feature": "Core\\Heap",
+    "hash": "4fc4bf47b9cb6018",
+    "questions": [
+      "How do I use a priority queue?",
+      "Always get the smallest value first",
+      "Process jobs in order of priority",
+      "Keep a sorted queue of tasks",
+      "Get the largest value first with a custom comparison"
+    ]
+  },
+  "/reference/core/heap/count/": {
+    "feature": "Core\\Heap::count",
+    "hash": "90f0f919af8ce8e8",
+    "questions": [
+      "How many values are in a priority queue?",
+      "Count the items waiting in a heap",
+      "Get the size of a priority queue",
+      "Does a heap count duplicate values?"
+    ]
+  },
+  "/reference/core/heap/isempty/": {
+    "feature": "Core\\Heap::isEmpty",
+    "hash": "94347128ab9257c1",
+    "questions": [
+      "Check if a priority queue has no items",
+      "How do I loop until a queue is empty?",
+      "Avoid an error when taking from an empty heap",
+      "Is the heap empty?"
+    ]
+  },
+  "/reference/core/heap/peek/": {
+    "feature": "Core\\Heap::peek",
+    "hash": "8ff302a54512a6e1",
+    "questions": [
+      "Look at the next item without removing it",
+      "How do I see the smallest value in a heap?",
+      "Check whether the next job is due before taking it",
+      "Read the top of a priority queue"
+    ]
+  },
+  "/reference/core/heap/pop/": {
+    "feature": "Core\\Heap::pop",
+    "hash": "2ab79bc631b8793c",
+    "questions": [
+      "Remove and return the smallest item from a queue",
+      "How do I take the most urgent task from a priority queue?",
+      "Get all values from a heap in sorted order",
+      "Take the next item out of a heap"
+    ]
+  },
+  "/reference/core/heap/push/": {
+    "feature": "Core\\Heap::push",
+    "hash": "7f1af2e03c8f5aef",
+    "questions": [
+      "Add an item to a priority queue",
+      "How do I insert a task with a priority?",
+      "Put a value into a heap in the right order",
+      "Can a heap contain the same value twice?"
+    ]
+  },
+  "/reference/core/html/": {
+    "feature": "Core\\Html",
+    "hash": "df6f24b757302fb1",
+    "questions": [
+      "How do I prevent cross-site scripting?",
+      "Work with HTML safely in my pages",
+      "Clean, escape and parse HTML",
+      "Show user input on a web page without XSS"
+    ]
+  },
+  "/reference/core/html/escape/": {
+    "feature": "Core\\Html::escape",
+    "hash": "dff026840a39114b",
+    "questions": [
+      "How do I escape text for HTML?",
+      "Show a user's comment safely on a page",
+      "Convert < and > to HTML entities",
+      "Put user input inside an HTML attribute",
+      "Why is my text escaped twice?"
+    ]
+  },
+  "/reference/core/html/join/": {
+    "feature": "Core\\Html::join",
+    "hash": "9dcaeb169c3a1d27",
+    "questions": [
+      "Combine several HTML fragments into one",
+      "How do I join HTML pieces with a separator?",
+      "Build a list of links separated by commas",
+      "Concatenate many pieces of safe HTML"
+    ]
+  },
+  "/reference/core/html/later/": {
+    "feature": "Core\\Html::later",
+    "hash": "103f47dd0008c83d",
+    "questions": [
+      "Load slow parts of a page at the same time",
+      "How do I render page sections in parallel?",
+      "Show a placeholder until a slow part is ready",
+      "Stream parts of an HTML page as they finish",
+      "Set a time limit for one part of a page"
+    ]
+  },
+  "/reference/core/html/parse/": {
+    "feature": "Core\\Html::parse",
+    "hash": "31faa1e5fa49f251",
+    "questions": [
+      "How do I parse an HTML document?",
+      "Find all links on a web page",
+      "Read the elements of broken HTML",
+      "Get the items of an HTML list",
+      "Scrape data from an HTML page"
+    ]
+  },
+  "/reference/core/html/sanitize/": {
+    "feature": "Core\\Html::sanitize",
+    "hash": "40f63b7c740d335c",
+    "questions": [
+      "Allow users to post HTML safely",
+      "How do I remove script tags from HTML?",
+      "Clean untrusted HTML from a rich text editor",
+      "Strip dangerous attributes like onclick",
+      "Keep bold and links but remove everything unsafe"
+    ]
+  },
+  "/reference/core/html/tosource/": {
+    "feature": "Core\\Html::toSource",
+    "hash": "2b2fade834d330a5",
+    "questions": [
+      "Get safe HTML back as a plain string",
+      "How do I store rendered HTML in a database?",
+      "Put an HTML fragment into a JSON response",
+      "Cache a rendered piece of a page",
+      "Convert a Markup value to a string"
+    ]
+  },
+  "/reference/core/http/": {
+    "feature": "Core\\Http",
+    "hash": "d585444ccee78162",
+    "questions": [
+      "How do I call another server's API?",
+      "Make outgoing HTTP requests",
+      "Which hosts can my program connect to?",
+      "Send web requests from a server"
+    ]
+  },
+  "/reference/core/http/allowurl/": {
+    "feature": "Core\\Http::allowUrl",
+    "hash": "e1e88966bf39d88a",
+    "questions": [
+      "Send a request to a URL the user gave",
+      "How do I protect against server-side request forgery?",
+      "Check a webhook URL before calling it",
+      "Block requests to private and internal addresses",
+      "Validate a URL from user input before fetching it"
+    ]
+  },
+  "/reference/core/http/methodname/": {
+    "feature": "Core\\Http::methodName",
+    "hash": "240830c33d4104f3",
+    "questions": [
+      "Get the HTTP method as a string",
+      "How do I build an Allow header?",
+      "Write the request method into a log line",
+      "Convert an HTTP method value to text like GET"
+    ]
+  },
+  "/reference/core/http-client/": {
+    "feature": "Core\\Http\\Client",
+    "hash": "8a6952d99cabc907",
+    "questions": [
+      "Which HTTP client does Novis have?",
+      "Talk to a REST API from my program",
+      "Send HTTP requests with timeouts and retries",
+      "How do I use a client certificate for an API?",
+      "Read the status code of a reply from another server"
+    ]
+  },
+  "/reference/core/http-client/delete/": {
+    "feature": "Core\\Http\\Client::delete",
+    "hash": "e4b499f4444f26ad",
+    "questions": [
+      "How do I send a DELETE request?",
+      "Remove a record through a REST API",
+      "Delete a webhook on another service",
+      "Retry a DELETE request safely"
+    ]
+  },
+  "/reference/core/http-client/get/": {
+    "feature": "Core\\Http\\Client::get",
+    "hash": "9fdbca4a1e64cf2e",
+    "questions": [
+      "How do I fetch a URL?",
+      "Download data from an API",
+      "Send a GET request with headers",
+      "Read the body of a web page as a string",
+      "Set a timeout for an HTTP request",
+      "Use a cached value when an API cannot be reached"
+    ]
+  },
+  "/reference/core/http-client/head/": {
+    "feature": "Core\\Http\\Client::head",
+    "hash": "d8c7b2529cf7bb82",
+    "questions": [
+      "Check if a URL exists without downloading it",
+      "How do I get the size of a remote file?",
+      "Send a HEAD request",
+      "Find broken links on a website",
+      "Read only the response headers"
+    ]
+  },
+  "/reference/core/http-client/opensocket/": {
+    "feature": "Core\\Http\\Client::openSocket",
+    "hash": "c72670691debc2cf",
+    "questions": [
+      "How do I connect to a WebSocket server?",
+      "Receive live messages from another server",
+      "Keep a connection open to send and receive messages",
+      "Limit how long a WebSocket stays open"
+    ]
+  },
+  "/reference/core/http-client/patch/": {
+    "feature": "Core\\Http\\Client::patch",
+    "hash": "3668c490763b8886",
+    "questions": [
+      "How do I update only some fields of a record?",
+      "Send a PATCH request with JSON",
+      "Change the status of an order through an API",
+      "Retry a PATCH request with an idempotency key"
+    ]
+  },
+  "/reference/core/http-client/post/": {
+    "feature": "Core\\Http\\Client::post",
+    "hash": "360beca817d14bd0",
+    "questions": [
+      "How do I send JSON to an API?",
+      "Submit form data to another server",
+      "Send a POST request",
+      "Retry a payment request without charging twice",
+      "Upload data with a POST request"
+    ]
+  },
+  "/reference/core/http-client/put/": {
+    "feature": "Core\\Http\\Client::put",
+    "hash": "f63aa18667c3f794",
+    "questions": [
+      "How do I replace a whole record with an API call?",
+      "Send a PUT request",
+      "Save data at a URL on another server",
+      "Wait between retries of a failed request"
+    ]
+  },
+  "/reference/core/http-client/request/": {
+    "feature": "Core\\Http\\Client::request",
+    "hash": "63f529bafbc076eb",
+    "questions": [
+      "Send a request with a method chosen at runtime",
+      "How do I send an OPTIONS request?",
+      "Make an HTTP request when the method is in a variable",
+      "Send a TRACE request",
+      "Replay saved requests with different methods"
+    ]
+  },
+  "/reference/core/http-client/stream/": {
+    "feature": "Core\\Http\\Client::stream",
+    "hash": "6951e7a00147f00e",
+    "questions": [
+      "Read a large response while it is still downloading",
+      "How do I receive server-sent events?",
+      "Save a download directly to a file",
+      "Read a response one line at a time",
+      "Stream the reply from an AI chat API"
+    ]
+  },
+  "/reference/core/http-event/": {
+    "feature": "Core\\Http\\Event",
+    "hash": "2d83a07a89b21f9f",
+    "questions": [
+      "How do I receive server-sent events from another server?",
+      "One event from an event stream",
+      "What does a server-sent event contain?",
+      "Handle live updates pushed by a server",
+      "Listen to an event stream over HTTP"
+    ]
+  },
+  "/reference/core/http-event/data/": {
+    "feature": "Core\\Http\\Event::data",
+    "hash": "0b420d38804ac798",
+    "questions": [
+      "How do I read the text of a server-sent event?",
+      "Get the payload of one streamed event",
+      "Join the data lines of an event into one string",
+      "Collect the text an AI service streams piece by piece",
+      "Why is event data tainted?"
+    ]
+  },
+  "/reference/core/http-event/id/": {
+    "feature": "Core\\Http\\Event::id",
+    "hash": "7f3b9a45da2b02cf",
+    "questions": [
+      "How do I resume an event stream after the connection drops?",
+      "Get the last event id to send back on reconnect",
+      "Continue a server-sent event stream from where it stopped",
+      "Which event id did the server send?",
+      "Reconnect without receiving old events again"
+    ]
+  },
+  "/reference/core/http-event/name/": {
+    "feature": "Core\\Http\\Event::name",
+    "hash": "8009170ade040211",
+    "questions": [
+      "How do I tell different kinds of server events apart?",
+      "Get the type of a server-sent event",
+      "Handle each event type in its own way",
+      "What is the name of an event with no event line?",
+      "Route streamed events by their type"
+    ]
+  },
+  "/reference/core/http-identity/": {
+    "feature": "Core\\Http\\Identity",
+    "hash": "54739989023aca40",
+    "questions": [
+      "How do I send a client certificate with a request?",
+      "Mutual TLS authentication for outgoing requests",
+      "Prove who my program is to a bank API",
+      "Use a certificate and private key to connect to a server",
+      "Client certificate for HTTPS calls"
+    ]
+  },
+  "/reference/core/http-identity/read/": {
+    "feature": "Core\\Http\\Identity::read",
+    "hash": "0da5086bfb9d447f",
+    "questions": [
+      "How do I load a client certificate and key from PEM?",
+      "Check that a certificate matches its private key",
+      "Load a certificate chain for a payment service connection",
+      "Why does my client certificate fail with a key mismatch?",
+      "Which key types can sign a client certificate handshake?"
+    ]
+  },
+  "/reference/core/http-part/": {
+    "feature": "Core\\Http\\Part",
+    "hash": "9361eb2202cb41a4",
+    "questions": [
+      "How do I upload a file in an HTTP request?",
+      "Send a multipart form with files",
+      "Build a request body from a file or data",
+      "Upload a large file without loading it into memory",
+      "Fields of a multipart form upload"
+    ]
+  },
+  "/reference/core/http-part/bytes/": {
+    "feature": "Core\\Http\\Part::bytes",
+    "hash": "e4a45f9c70f61902",
+    "questions": [
+      "How do I upload data I already have in memory?",
+      "Send a string as a file in a form upload",
+      "Upload generated CSV content without writing a file first",
+      "Set the file name for uploaded data",
+      "Attach binary data to a multipart request"
+    ]
+  },
+  "/reference/core/http-part/file/": {
+    "feature": "Core\\Http\\Part::file",
+    "hash": "92217d3e19177620",
+    "questions": [
+      "How do I upload a file from disk?",
+      "Send a large file as the request body",
+      "Stream a file upload without reading it all first",
+      "Change the file name and content type of an upload",
+      "Why does uploading a file need read permission?"
+    ]
+  },
+  "/reference/core/http-response/": {
+    "feature": "Core\\Http\\Response",
+    "hash": "c91314fed9e2a4dd",
+    "questions": [
+      "How do I read the reply of an HTTP request?",
+      "What does an HTTP client call return?",
+      "Get the status, headers and body of a reply",
+      "Work with the result of an outgoing GET request",
+      "Response object of an API call"
+    ]
+  },
+  "/reference/core/http-response/bytes/": {
+    "feature": "Core\\Http\\Response::bytes",
+    "hash": "8f6630f65b688385",
+    "questions": [
+      "How do I download an image or binary file?",
+      "Get the raw bytes of an HTTP reply",
+      "Read a reply body that is not valid UTF-8",
+      "Download a PDF or archive from a URL",
+      "Binary body of an API response"
+    ]
+  },
+  "/reference/core/http-response/header/": {
+    "feature": "Core\\Http\\Response::header",
+    "hash": "61c5f5e9609c6559",
+    "questions": [
+      "How do I read one header from an HTTP reply?",
+      "Get the content type of a response",
+      "Read the Retry-After value of a busy service",
+      "Is the header name case sensitive?",
+      "Header sent twice joined with a comma"
+    ]
+  },
+  "/reference/core/http-response/headers/": {
+    "feature": "Core\\Http\\Response::headers",
+    "hash": "5045a5acf4f0aa1b",
+    "questions": [
+      "How do I read cookies from an HTTP reply?",
+      "Get every value of a header sent more than once",
+      "Read all Set-Cookie lines of a response",
+      "Follow pagination links in Link headers",
+      "List of values for one response header"
+    ]
+  },
+  "/reference/core/http-response/jsonas/": {
+    "feature": "Core\\Http\\Response::jsonAs",
+    "hash": "9f4d0f7afae4a656",
+    "questions": [
+      "How do I decode a JSON API reply into a class?",
+      "Turn a JSON response into typed objects",
+      "Read a JSON array reply as a list of objects",
+      "What happens when the JSON reply does not fit my type?",
+      "Limit how deeply nested a JSON reply may be"
+    ]
+  },
+  "/reference/core/http-response/status/": {
+    "feature": "Core\\Http\\Response::status",
+    "hash": "463099a4300f9a22",
+    "questions": [
+      "How do I get the HTTP status code of a reply?",
+      "Check if a request returned 404",
+      "Does a 500 error throw an exception?",
+      "Find broken links by checking status codes",
+      "Did my API call succeed?"
+    ]
+  },
+  "/reference/core/http-response/text/": {
+    "feature": "Core\\Http\\Response::text",
+    "hash": "a20f7e0fde88aaf8",
+    "questions": [
+      "How do I get the body of a reply as a string?",
+      "Read a web page into a string",
+      "Download a text file from a URL",
+      "Why does reading the reply text throw an error?",
+      "Read a plain text version number from an update server"
+    ]
+  },
+  "/reference/core/http-response/tls/": {
+    "feature": "Core\\Http\\Response::tls",
+    "hash": "ff56804bb748cb7c",
+    "questions": [
+      "How do I check if a reply came over HTTPS?",
+      "Get the encryption details of a connection",
+      "Inspect the secure connection of an API call",
+      "Why is the TLS information null?",
+      "Send a token only over a verified connection"
+    ]
+  },
+  "/reference/core/http-socket/": {
+    "feature": "Core\\Http\\Socket",
+    "hash": "7cc34f87f3b7d682",
+    "questions": [
+      "How do I use an open WebSocket connection?",
+      "WebSocket client for real-time messages",
+      "Send and receive messages over a WebSocket",
+      "Keep an open two-way connection to another server",
+      "Talk to a chat or trading API over WebSocket"
+    ]
+  },
+  "/reference/core/http-socket/close/": {
+    "feature": "Core\\Http\\Socket::close",
+    "hash": "f71b981a20e08b22",
+    "questions": [
+      "How do I close a WebSocket connection?",
+      "End a WebSocket with a close code and reason",
+      "What does close code 1000 mean?",
+      "Stop a WebSocket when I am finished early",
+      "What happens if the server never confirms the close?"
+    ]
+  },
+  "/reference/core/http-socket/protocol/": {
+    "feature": "Core\\Http\\Socket::protocol",
+    "hash": "3c6d9d6a2ef78b62",
+    "questions": [
+      "Which WebSocket subprotocol did the server choose?",
+      "How do I agree on a message format with a WebSocket server?",
+      "Offer several subprotocols when opening a WebSocket",
+      "Pick a message format from the chosen subprotocol",
+      "Server chose no subprotocol"
+    ]
+  },
+  "/reference/core/http-socket/receive/": {
+    "feature": "Core\\Http\\Socket::receive",
+    "hash": "c7d8f0d77e1df163",
+    "questions": [
+      "How do I read messages from a WebSocket?",
+      "Wait for the next message from the server",
+      "Read every WebSocket message until the connection ends",
+      "Tell text and binary WebSocket messages apart",
+      "Timeout when a WebSocket server sends nothing"
+    ]
+  },
+  "/reference/core/http-socket/send/": {
+    "feature": "Core\\Http\\Socket::send",
+    "hash": "aee987f917d1330a",
+    "questions": [
+      "How do I send a text message over a WebSocket?",
+      "Send a JSON request to a WebSocket server",
+      "Why does sending throw an error after closing?",
+      "Send a string message to the other server",
+      "Timeout when the server stops reading my messages"
+    ]
+  },
+  "/reference/core/http-socket/sendbytes/": {
+    "feature": "Core\\Http\\Socket::sendBytes",
+    "hash": "80e4fc7c2bb1603e",
+    "questions": [
+      "How do I send binary data over a WebSocket?",
+      "Send a binary WebSocket message",
+      "Difference between text and binary WebSocket messages",
+      "Send packed sensor readings as bytes",
+      "Write raw bytes to a WebSocket connection"
+    ]
+  },
+  "/reference/core/http-stream/": {
+    "feature": "Core\\Http\\Stream",
+    "hash": "e042dd1e73d45502",
+    "questions": [
+      "How do I read a large HTTP reply while it arrives?",
+      "Stream a response body instead of loading it all",
+      "Process a big download piece by piece",
+      "Read a reply body only once in one way",
+      "Streaming HTTP responses with low memory use"
+    ]
+  },
+  "/reference/core/http-stream/chunks/": {
+    "feature": "Core\\Http\\Stream::chunks",
+    "hash": "d6ef9c46c73c8ac6",
+    "questions": [
+      "How do I read a streamed reply as raw bytes?",
+      "Read a download in chunks as they arrive",
+      "Count the size of a download while it streams",
+      "Stop a download that gets too large",
+      "Iterate over the bytes of a binary stream"
+    ]
+  },
+  "/reference/core/http-stream/events/": {
+    "feature": "Core\\Http\\Stream::events",
+    "hash": "658ab61d05209967",
+    "questions": [
+      "How do I parse a text/event-stream reply?",
+      "Read server-sent events one at a time",
+      "Consume an EventSource stream from a server",
+      "Collect the output of a streaming AI response",
+      "Maximum size of a server-sent event"
+    ]
+  },
+  "/reference/core/http-stream/header/": {
+    "feature": "Core\\Http\\Stream::header",
+    "hash": "ff1ba60425e1edf7",
+    "questions": [
+      "How do I read a header before downloading the body?",
+      "Check the content length before a download starts",
+      "Get one header of a streamed reply",
+      "Decide whether to read a stream from its headers",
+      "Read a stream header after the body was read"
+    ]
+  },
+  "/reference/core/http-stream/headers/": {
+    "feature": "Core\\Http\\Stream::headers",
+    "hash": "abe8ed4bd69ddbf5",
+    "questions": [
+      "How do I read cookies from a streamed reply?",
+      "Get all lines of a repeated header in a stream",
+      "Build the cookie header for the next request",
+      "Keep header lines separate when a server repeats them",
+      "Read Set-Cookie from a streaming response"
+    ]
+  },
+  "/reference/core/http-stream/lines/": {
+    "feature": "Core\\Http\\Stream::lines",
+    "hash": "00bec490a72e7905",
+    "questions": [
+      "How do I read a reply one line at a time?",
+      "Process a JSON Lines response as it arrives",
+      "Read a large text export line by line",
+      "Stream log lines from a server",
+      "Maximum line length when reading a stream"
+    ]
+  },
+  "/reference/core/http-stream/saveto/": {
+    "feature": "Core\\Http\\Stream::saveTo",
+    "hash": "d63f9725f5c1c931",
+    "questions": [
+      "How do I save a download straight to a file?",
+      "Download a file larger than memory",
+      "Limit the size of a downloaded file",
+      "Save an HTTP reply to disk without replacing files",
+      "What happens to a partial file when a download fails?"
+    ]
+  },
+  "/reference/core/http-stream/status/": {
+    "feature": "Core\\Http\\Stream::status",
+    "hash": "5f36f47aedf4624c",
+    "questions": [
+      "How do I check the status code before reading a stream?",
+      "Get the status of a streamed reply",
+      "Try another server when the first one returns 503",
+      "Status code of a long download before it finishes",
+      "Does a streamed 404 throw an error?"
+    ]
+  },
+  "/reference/core/http-tlsinfo/": {
+    "feature": "Core\\Http\\TlsInfo",
+    "hash": "d1c1c8e07b3d8bc6",
+    "questions": [
+      "How do I inspect the certificate of a server I call?",
+      "Details of an HTTPS connection",
+      "Check the security of a connection to a partner API",
+      "What can I learn about a TLS connection?",
+      "Audit the encryption of outgoing requests"
+    ]
+  },
+  "/reference/core/http-tlsinfo/cipher/": {
+    "feature": "Core\\Http\\TlsInfo::cipher",
+    "hash": "8a8cb502791b15dd",
+    "questions": [
+      "Which cipher suite does my HTTPS connection use?",
+      "How do I get the encryption algorithm of a connection?",
+      "Check a connection against a list of approved ciphers",
+      "Cipher names for TLS 1.2 and TLS 1.3",
+      "Why is the cipher name a hexadecimal number?"
+    ]
+  },
+  "/reference/core/http-tlsinfo/expiry/": {
+    "feature": "Core\\Http\\TlsInfo::expiry",
+    "hash": "91118e96b6477f24",
+    "questions": [
+      "When does a server certificate expire?",
+      "How many days until an SSL certificate runs out?",
+      "Warn about partner certificates that expire soon",
+      "Get the end date of a server certificate",
+      "Daily check for expiring certificates"
+    ]
+  },
+  "/reference/core/http-tlsinfo/issuer/": {
+    "feature": "Core\\Http\\TlsInfo::issuer",
+    "hash": "41f347842eae34f4",
+    "questions": [
+      "Who signed the certificate of a server?",
+      "How do I find the certificate authority of a site?",
+      "Find servers whose certificate a different authority signed",
+      "Read the issuer name of a TLS certificate",
+      "Compare certificate subject and issuer"
+    ]
+  },
+  "/reference/core/http-tlsinfo/peerchain/": {
+    "feature": "Core\\Http\\TlsInfo::peerChain",
+    "hash": "65c1826826499fdf",
+    "questions": [
+      "How do I get the certificate chain a server sent?",
+      "Save server certificates as a PEM file",
+      "Detect when a server starts using a different certificate",
+      "Read every certificate of a TLS connection in PEM format",
+      "Intermediate certificates sent by a server"
+    ]
+  },
+  "/reference/core/http-tlsinfo/subject/": {
+    "feature": "Core\\Http\\TlsInfo::subject",
+    "hash": "71d2a7c4be4efcc2",
+    "questions": [
+      "Which name is written in a server certificate?",
+      "How do I read the CN of a certificate?",
+      "Check that a partner certificate names the right organization",
+      "Get the subject of a TLS certificate as text",
+      "Extract the server name from a certificate"
+    ]
+  },
+  "/reference/core/http-tlsinfo/verified/": {
+    "feature": "Core\\Http\\TlsInfo::verified",
+    "hash": "37355dac7e8639c1",
+    "questions": [
+      "Was the server certificate checked for this connection?",
+      "How do I know certificate verification was not skipped?",
+      "Detect a self-signed certificate that skipped checks",
+      "Allow only one test server without certificate checks",
+      "Warn when an HTTPS call is not verified"
+    ]
+  },
+  "/reference/core/http-tlsinfo/version/": {
+    "feature": "Core\\Http\\TlsInfo::version",
+    "hash": "339e7b3a0ad5cef5",
+    "questions": [
+      "Which TLS version does a connection use?",
+      "How do I accept only TLS 1.3?",
+      "List partner servers that still use TLS 1.2",
+      "Check the TLS version before sending private data",
+      "Get the protocol version of an HTTPS reply"
+    ]
+  },
+  "/reference/core/io/": {
+    "feature": "Core\\IO",
+    "hash": "09978fcea176c6d9",
+    "questions": [
+      "How do I work with files and folders?",
+      "Read, write, copy and delete files",
+      "How do I give my program permission to use files?",
+      "Why does reading a file throw a permission error?",
+      "File system functions for scripts and web servers"
+    ]
+  },
+  "/reference/core/io/append/": {
+    "feature": "Core\\IO::append",
+    "hash": "01e504f0c899c115",
+    "questions": [
+      "How do I add text to the end of a file?",
+      "Add a line to a log file",
+      "Write to a file without deleting what is already in it",
+      "Can two programs add lines to the same log safely?",
+      "Create a file if missing, otherwise add to it"
+    ]
+  },
+  "/reference/core/io/canonicalize/": {
+    "feature": "Core\\IO::canonicalize",
+    "hash": "144e61ab8be83b74",
+    "questions": [
+      "How do I get the full absolute path of a file?",
+      "Resolve symbolic links and dots in a path",
+      "Check if two paths point to the same file",
+      "Turn a relative path into an absolute path",
+      "Find the real path behind a symbolic link"
+    ]
+  },
+  "/reference/core/io/copy/": {
+    "feature": "Core\\IO::copy",
+    "hash": "dfcc3193199bb064",
+    "questions": [
+      "How do I copy a file?",
+      "Make a duplicate of a file with a new name",
+      "Copy a file and replace the destination if it exists",
+      "Why does copying a file onto itself throw an error?",
+      "Back up a file before changing it"
+    ]
+  },
+  "/reference/core/io/exists/": {
+    "feature": "Core\\IO::exists",
+    "hash": "96f3bed089403767",
+    "questions": [
+      "How do I check if a file exists?",
+      "Does a file or folder exist at this path?",
+      "Test whether a path is there before reading it",
+      "Check for a missing file without an error"
+    ]
+  },
+  "/reference/core/io/isdir/": {
+    "feature": "Core\\IO::isDir",
+    "hash": "5f6fa070a221fb12",
+    "questions": [
+      "How do I check if a path is a folder?",
+      "Is this path a directory or a file?",
+      "Check that a directory exists before listing it",
+      "Does a symbolic link to a folder count as a directory?"
+    ]
+  },
+  "/reference/core/io/isfile/": {
+    "feature": "Core\\IO::isFile",
+    "hash": "06dc4c8de4fda32b",
+    "questions": [
+      "How do I check if a path is a regular file?",
+      "Make sure a path is a file and not a folder",
+      "Check that a file exists and is not a directory",
+      "Test whether something at a path is a normal file"
+    ]
+  },
+  "/reference/core/io/isreadable/": {
+    "feature": "Core\\IO::isReadable",
+    "hash": "33c28472674c3d25",
+    "questions": [
+      "How do I check if my program can read a file?",
+      "Test read permission on a file",
+      "Check if an optional settings file can be opened for reading",
+      "Is a file readable by the current user?"
+    ]
+  },
+  "/reference/core/io/iswritable/": {
+    "feature": "Core\\IO::isWritable",
+    "hash": "2937f13f292ee12a",
+    "questions": [
+      "How do I check if I can write to a file?",
+      "Test write permission on a folder before creating a file",
+      "Is a directory writable by my program?",
+      "Check if a file is read-only"
+    ]
+  },
+  "/reference/core/io/lines/": {
+    "feature": "Core\\IO::lines",
+    "hash": "1c359d7bd4c8f53e",
+    "questions": [
+      "How do I read a file line by line?",
+      "Loop over each line of a text file",
+      "Read lines without the line break characters",
+      "Read a text file with Windows or Linux line endings",
+      "Get all lines of a file with foreach"
+    ]
+  },
+  "/reference/core/io/list/": {
+    "feature": "Core\\IO::list",
+    "hash": "a53b20f3096fee4c",
+    "questions": [
+      "How do I list the files in a folder?",
+      "Get the names of everything in a directory",
+      "Show the contents of one folder",
+      "List directory entries in alphabetical order",
+      "Read folder contents without the dot entries"
+    ]
+  },
+  "/reference/core/io/makedir/": {
+    "feature": "Core\\IO::makeDir",
+    "hash": "02961ab0527ffda1",
+    "questions": [
+      "How do I create a folder?",
+      "Create a directory and all missing parent folders",
+      "Make a nested folder path in one call",
+      "Create a folder only if it does not exist yet"
+    ]
+  },
+  "/reference/core/io/modifiedat/": {
+    "feature": "Core\\IO::modifiedAt",
+    "hash": "6972b260069d3b92",
+    "questions": [
+      "How do I get the last modified time of a file?",
+      "When was this file last changed?",
+      "Check if one file is newer than another",
+      "How old is a file?",
+      "Get the change date of a file in a time zone"
+    ]
+  },
+  "/reference/core/io/move/": {
+    "feature": "Core\\IO::move",
+    "hash": "374cf7c0c4785e2c",
+    "questions": [
+      "How do I rename a file?",
+      "Move a file to another folder",
+      "Replace a file safely by writing a temporary file first",
+      "Why does moving a file to another disk fail?",
+      "Rename a file in one step so readers never see half"
+    ]
+  },
+  "/reference/core/io/open/": {
+    "feature": "Core\\IO::open",
+    "hash": "d242aa61ac5b8487",
+    "questions": [
+      "How do I open a file for reading and writing?",
+      "Get a file handle to read part of a file",
+      "Open a file in append mode",
+      "Which modes can I use when opening a file?",
+      "Work with a large file piece by piece"
+    ]
+  },
+  "/reference/core/io/read/": {
+    "feature": "Core\\IO::read",
+    "hash": "a1e2ac5255bbff83",
+    "questions": [
+      "How do I read a whole file into a string?",
+      "Load the contents of a text file",
+      "Get all the text from a file at once",
+      "Why does reading a file fail for invalid UTF-8?",
+      "Read a small file into memory"
+    ]
+  },
+  "/reference/core/io/readtext/": {
+    "feature": "Core\\IO::readText",
+    "hash": "37a7c2db7ed348e9",
+    "questions": [
+      "How do I read a file saved in Latin-1 or Windows-1252?",
+      "Read a text file with a different character encoding",
+      "Convert a UTF-16 file to a normal string",
+      "Open an old file with a non UTF-8 encoding",
+      "Read a file and choose its character set"
+    ]
+  },
+  "/reference/core/io/remove/": {
+    "feature": "Core\\IO::remove",
+    "hash": "bc17b746c6262e74",
+    "questions": [
+      "How do I delete a file?",
+      "Remove one file from the disk",
+      "What happens when I delete a file that does not exist?",
+      "Delete a file and know it was really removed"
+    ]
+  },
+  "/reference/core/io/removedir/": {
+    "feature": "Core\\IO::removeDir",
+    "hash": "080155218312d07c",
+    "questions": [
+      "How do I delete an empty folder?",
+      "Remove a directory from the disk",
+      "How do I delete a folder with everything in it?",
+      "Why does deleting a folder throw an error when it has files?"
+    ]
+  },
+  "/reference/core/io/size/": {
+    "feature": "Core\\IO::size",
+    "hash": "d21046a9d9ebf329",
+    "questions": [
+      "How do I get the size of a file?",
+      "How many bytes is this file?",
+      "Reject an upload that is too large before reading it",
+      "Check file size without reading the file"
+    ]
+  },
+  "/reference/core/io/stat/": {
+    "feature": "Core\\IO::stat",
+    "hash": "56149873374eee53",
+    "questions": [
+      "Get file size, change time and type in one call",
+      "How do I read the metadata of a file?",
+      "Get information about a file or folder",
+      "Check several file details with only one system call"
+    ]
+  },
+  "/reference/core/io/stdin/": {
+    "feature": "Core\\IO::stdin",
+    "hash": "344da6ee2eb4254c",
+    "questions": [
+      "How do I read input sent through a pipe?",
+      "Read all of standard input as one string",
+      "Read a file passed to my script with <",
+      "Process text piped from another program",
+      "Why does my script wait when reading input in a terminal?"
+    ]
+  },
+  "/reference/core/io/temporarydir/": {
+    "feature": "Core\\IO::temporaryDir",
+    "hash": "2dbe41a9a509b6d5",
+    "questions": [
+      "How do I create a temporary folder?",
+      "Where should I put temporary files?",
+      "Get a private scratch directory that is deleted at the end",
+      "Make a temp directory that cleans itself up"
+    ]
+  },
+  "/reference/core/io/walk/": {
+    "feature": "Core\\IO::walk",
+    "hash": "31015511868cc0d1",
+    "questions": [
+      "How do I list all files in a folder and its subfolders?",
+      "Go through a directory tree recursively",
+      "Find every file under a folder",
+      "Loop over all nested files and folders",
+      "Search a project folder for files"
+    ]
+  },
+  "/reference/core/io/within/": {
+    "feature": "Core\\IO::within",
+    "hash": "3b6b015b072e41d4",
+    "questions": [
+      "How do I stop path traversal attacks?",
+      "Make sure a user file name stays inside a folder",
+      "Block ../ in a file name from a URL",
+      "Safely open a file chosen by a user",
+      "Check that an uploaded file path is inside the upload folder"
+    ]
+  },
+  "/reference/core/io/write/": {
+    "feature": "Core\\IO::write",
+    "hash": "4ec1b76334be7af3",
+    "questions": [
+      "How do I write a string to a file?",
+      "Save text to a file and replace old content",
+      "Create a new file with some content",
+      "Overwrite a file completely",
+      "Why does writing a file fail when the folder is missing?"
+    ]
+  },
+  "/reference/core/io/writestream/": {
+    "feature": "Core\\IO::writeStream",
+    "hash": "0d98a4c409d62eb4",
+    "questions": [
+      "How do I save a large upload to disk without using much memory?",
+      "Write a file from chunks of data",
+      "Stream a download straight into a file",
+      "Limit the maximum size of a file being written",
+      "Avoid half-written files when a write fails"
+    ]
+  },
+  "/reference/core/io-file/": {
+    "feature": "Core\\IO\\File",
+    "hash": "af9657c8fc376fb0",
+    "questions": [
+      "What can I do with an open file handle?",
+      "Read and write parts of a file",
+      "Work with a file opened for random access",
+      "Methods for an open file"
+    ]
+  },
+  "/reference/core/io-file/close/": {
+    "feature": "Core\\IO\\File::close",
+    "hash": "4d8fbf7104dfd596",
+    "questions": [
+      "How do I close an open file?",
+      "Do I need to close a file when I am done?",
+      "Close files inside a loop that opens many files",
+      "Release a file lock by closing the handle"
+    ]
+  },
+  "/reference/core/io-file/flush/": {
+    "feature": "Core\\IO\\File::flush",
+    "hash": "d3f43ae0b840f0eb",
+    "questions": [
+      "How do I flush writes to a file?",
+      "Make written data visible to other programs right away",
+      "Is my data on disk after a flush?",
+      "Send buffered file output to the operating system"
+    ]
+  },
+  "/reference/core/io-file/lock/": {
+    "feature": "Core\\IO\\File::lock",
+    "hash": "198ee483c42301c9",
+    "questions": [
+      "How do I lock a file so others cannot change it?",
+      "Stop two requests from writing the same file at once",
+      "Get an exclusive lock on a file",
+      "How do I unlock a file?",
+      "What happens when a file is already locked?"
+    ]
+  },
+  "/reference/core/io-file/read/": {
+    "feature": "Core\\IO\\File::read",
+    "hash": "fb479d332f9a120c",
+    "questions": [
+      "How do I read a fixed number of bytes from a file?",
+      "Read a file in small parts",
+      "Read the next block of text from an open file",
+      "How do I know I reached the end of a file?"
+    ]
+  },
+  "/reference/core/io-file/readline/": {
+    "feature": "Core\\IO\\File::readLine",
+    "hash": "62a1adc992a2f209",
+    "questions": [
+      "How do I read one line from an open file?",
+      "Read the next line until the end of the file",
+      "Read a huge file with one line in memory at a time",
+      "Get null at the end of the file when reading lines"
+    ]
+  },
+  "/reference/core/io-file/seek/": {
+    "feature": "Core\\IO\\File::seek",
+    "hash": "4f9df9ea2408b27c",
+    "questions": [
+      "How do I jump to a position in a file?",
+      "Go back to the start of a file",
+      "Move to a byte offset before reading",
+      "Skip ahead in an open file"
+    ]
+  },
+  "/reference/core/io-file/tell/": {
+    "feature": "Core\\IO\\File::tell",
+    "hash": "41569d8255bec3c6",
+    "questions": [
+      "How do I get the current position in a file?",
+      "Which byte will the next read start at?",
+      "Remember a place in a file to return to later",
+      "Find how far into a file I have read"
+    ]
+  },
+  "/reference/core/io-file/truncate/": {
+    "feature": "Core\\IO\\File::truncate",
+    "hash": "a4c3df948bdb228f",
+    "questions": [
+      "How do I empty a file without deleting it?",
+      "Cut a file to a smaller size",
+      "Change the length of an open file",
+      "Make a file bigger by adding zero bytes"
+    ]
+  },
+  "/reference/core/io-file/write/": {
+    "feature": "Core\\IO\\File::write",
+    "hash": "0cff634808a97488",
+    "questions": [
+      "How do I write to an open file?",
+      "Write a large file in many small parts",
+      "Add text at the current position in a file",
+      "How many bytes did my file write produce?"
+    ]
+  },
+  "/reference/core/io-metadata/": {
+    "feature": "Core\\IO\\Metadata",
+    "hash": "2856c4ccb28015f9",
+    "questions": [
+      "How do I get information about a file?",
+      "Find the size and change time of a file in one call",
+      "Check whether a path is a file or a folder",
+      "File details such as size, date and type",
+      "Why does file information not update after the file changes?"
+    ]
+  },
+  "/reference/core/io-metadata/isdir/": {
+    "feature": "Core\\IO\\Metadata::isDir",
+    "hash": "16cafb3468f36aaf",
+    "questions": [
+      "Does the file information I already read describe a folder?",
+      "Is this path a directory?",
+      "Skip folders when listing paths",
+      "Test if a name points to a directory and not a file"
+    ]
+  },
+  "/reference/core/io-metadata/isfile/": {
+    "feature": "Core\\IO\\Metadata::isFile",
+    "hash": "8f5ea14fc1587c33",
+    "questions": [
+      "Does the file information I already read describe a regular file?",
+      "Is this path a normal file and not a folder?",
+      "Only process regular files in a folder",
+      "Why is a named pipe neither a file nor a folder?"
+    ]
+  },
+  "/reference/core/io-metadata/modifiedat/": {
+    "feature": "Core\\IO\\Metadata::modifiedAt",
+    "hash": "184d4c1f714c21c8",
+    "questions": [
+      "How do I get when a file was last changed?",
+      "Last modified time of a file",
+      "How long ago was this file written?",
+      "Compare the change dates of two files",
+      "Check if a file is older than one day"
+    ]
+  },
+  "/reference/core/io-metadata/size/": {
+    "feature": "Core\\IO\\Metadata::size",
+    "hash": "4d651f928ea50d2e",
+    "questions": [
+      "How do I get the size of a file in bytes?",
+      "How big is this file on disk?",
+      "Check if a file is empty",
+      "Reject an uploaded file that is too large",
+      "Why is the file size larger than the number of characters?"
+    ]
+  },
+  "/reference/core/json/": {
+    "feature": "Core\\Json",
+    "hash": "be5d497f74a3665c",
+    "questions": [
+      "How do I work with JSON data?",
+      "Convert values to JSON text and back",
+      "Read and write JSON",
+      "Parse JSON from a request body",
+      "Which tools exist for JSON in the standard library?"
+    ]
+  },
+  "/reference/core/json/decode/": {
+    "feature": "Core\\Json::decode",
+    "hash": "2010100d84d3a583",
+    "questions": [
+      "How do I parse a JSON string into an array?",
+      "Read the fields of a JSON object",
+      "What happens when JSON text is not valid?",
+      "Limit how deeply nested a JSON document may be",
+      "Convert JSON text to a value without a class"
+    ]
+  },
+  "/reference/core/json/decodeas/": {
+    "feature": "Core\\Json::decodeAs",
+    "hash": "8b7b1fa754859ef4",
+    "questions": [
+      "How do I read JSON straight into my own class?",
+      "Fill an object from a JSON document",
+      "Turn a JSON array into a list of objects",
+      "Show every wrong field in a JSON request at once",
+      "Map a JSON body to a typed object"
+    ]
+  },
+  "/reference/core/json/encode/": {
+    "feature": "Core\\Json::encode",
+    "hash": "dfc7df2633dfbc51",
+    "questions": [
+      "How do I convert an array to a JSON string?",
+      "Write an object as JSON text",
+      "Print JSON with indentation so it is easy to read",
+      "Send a JSON response from an API",
+      "Escape non-ASCII characters in JSON output"
+    ]
+  },
+  "/reference/core/json/isvalid/": {
+    "feature": "Core\\Json::isValid",
+    "hash": "67b022011e5e0563",
+    "questions": [
+      "How do I check if a string is valid JSON?",
+      "Test JSON text without parsing it into a value",
+      "Reject a request body that is not JSON",
+      "Validate each line of a JSON log file"
+    ]
+  },
+  "/reference/core/jwe/": {
+    "feature": "Core\\Jwe",
+    "hash": "bbf51656bd2d9990",
+    "questions": [
+      "How do I make an encrypted token?",
+      "Encrypt data into a token only the right key can read",
+      "Encrypted JSON Web Encryption tokens",
+      "Hide the contents of a cookie from the user",
+      "What is the difference between a signed and an encrypted token?"
+    ]
+  },
+  "/reference/core/jwe/decrypt/": {
+    "feature": "Core\\Jwe::decrypt",
+    "hash": "ab6050a22d8b7638",
+    "questions": [
+      "How do I read the text inside an encrypted token?",
+      "Decrypt a JWE token",
+      "Change the encryption key without breaking old tokens",
+      "Read an encrypted session cookie",
+      "Try several keys to open a token"
+    ]
+  },
+  "/reference/core/jwe/encrypt/": {
+    "feature": "Core\\Jwe::encrypt",
+    "hash": "ec507c4e920a9ac6",
+    "questions": [
+      "How do I encrypt a text into a token?",
+      "Create a JWE token for a cookie or URL",
+      "Encrypt data so only a partner can read it",
+      "Why is the encrypted token different every time?"
+    ]
+  },
+  "/reference/core/jwe-key/": {
+    "feature": "Core\\Jwe\\Key",
+    "hash": "bc1d426004a83a63",
+    "questions": [
+      "Which kinds of keys can encrypt a token?",
+      "Create a key for token encryption",
+      "Choose between a shared key, a password and a public key",
+      "Keys for JSON Web Encryption"
+    ]
+  },
+  "/reference/core/jwe-key/own/": {
+    "feature": "Core\\Jwe\\Key::own",
+    "hash": "b6400f01ffe0ec22",
+    "questions": [
+      "How do I decrypt tokens sent to my public key?",
+      "Use my own key pair to read encrypted messages",
+      "Receive encrypted data from other services",
+      "Save a key pair and load it for each request"
+    ]
+  },
+  "/reference/core/jwe-key/password/": {
+    "feature": "Core\\Jwe\\Key::password",
+    "hash": "ffca57c9147b504a",
+    "questions": [
+      "How do I encrypt a token with a password?",
+      "Protect an exported file with a password",
+      "Encrypt data with a password a person chooses",
+      "Why does a password token fail with a different letter case?"
+    ]
+  },
+  "/reference/core/jwe-key/recipient/": {
+    "feature": "Core\\Jwe\\Key::recipient",
+    "hash": "bc504204ccdf10aa",
+    "questions": [
+      "How do I encrypt a message for somebody else's public key?",
+      "Send data only a partner service can decrypt",
+      "Encrypt a card number for a payment service",
+      "Use a published public key to encrypt a token"
+    ]
+  },
+  "/reference/core/jwe-key/shared/": {
+    "feature": "Core\\Jwe\\Key::shared",
+    "hash": "e556b8ce40ff2a96",
+    "questions": [
+      "How do I encrypt tokens with a secret key both servers know?",
+      "Fastest key for encrypting tokens",
+      "Share one encryption key between two services",
+      "Load a saved 32 byte secret key for token encryption"
+    ]
+  },
+  "/reference/core/jwt/": {
+    "feature": "Core\\Jwt",
+    "hash": "bfb3277ab5517be5",
+    "questions": [
+      "How do I use JSON Web Tokens?",
+      "Create and check JWT tokens",
+      "Login tokens for an API",
+      "Signed tokens that expire",
+      "Token based authentication"
+    ]
+  },
+  "/reference/core/jwt/sign/": {
+    "feature": "Core\\Jwt::sign",
+    "hash": "9d89e73576c5e0e8",
+    "questions": [
+      "How do I create a JWT with a user id?",
+      "Sign a login token that expires in one hour",
+      "Make a signed token for a cookie",
+      "Choose the signing algorithm of a token",
+      "Add a key id to a token header"
+    ]
+  },
+  "/reference/core/jwt/signobject/": {
+    "feature": "Core\\Jwt::signObject",
+    "hash": "ff4312b314e4bd4e",
+    "questions": [
+      "How do I put numbers or lists in a JWT?",
+      "Sign an object as token claims",
+      "Issue an access token that another service checks",
+      "Create a JWT with nested claims and a key pair"
+    ]
+  },
+  "/reference/core/jwt/verify/": {
+    "feature": "Core\\Jwt::verify",
+    "hash": "ff549bc46c97f87d",
+    "questions": [
+      "How do I check a JWT my program created?",
+      "Validate a token and read its claims",
+      "Check if a login token has expired",
+      "Find the user of an API request from a token",
+      "What happens when somebody changes a signed token?"
+    ]
+  },
+  "/reference/core/jwt/verifyissued/": {
+    "feature": "Core\\Jwt::verifyIssued",
+    "hash": "f4607d2900120063",
+    "questions": [
+      "How do I check a token from a login provider?",
+      "Validate an access token from another service",
+      "Check the issuer and audience of a JWT",
+      "Verify an OpenID Connect token",
+      "Allow small clock differences when checking token expiry"
+    ]
+  },
+  "/reference/core/jwt-keyset/": {
+    "feature": "Core\\Jwt\\KeySet",
+    "hash": "f7162b8a22c4966e",
+    "questions": [
+      "How do I use the public keys of a login service?",
+      "Public keys for checking tokens from other services",
+      "Work with a JSON Web Key Set",
+      "Check tokens signed by a service with several keys"
+    ]
+  },
+  "/reference/core/jwt-keyset/read/": {
+    "feature": "Core\\Jwt\\KeySet::read",
+    "hash": "4369a1dc3d83e019",
+    "questions": [
+      "How do I load a JWKS document?",
+      "Read the published keys of a login provider",
+      "Parse a key set from JSON to check tokens",
+      "Why does my key set document throw an error?",
+      "Load the signing keys from a file at startup"
+    ]
+  },
+  "/reference/core/ldap/": {
+    "feature": "Core\\Ldap",
+    "hash": "3d6a70c7c8c5e3f3",
+    "questions": [
+      "How do I connect to Active Directory?",
+      "Work with an LDAP directory",
+      "Log in users against a company directory",
+      "LDAP connections from a web server"
+    ]
+  },
+  "/reference/core/ldap/connect/": {
+    "feature": "Core\\Ldap::connect",
+    "hash": "34e991636292a02a",
+    "questions": [
+      "How do I open the LDAP server from the configuration?",
+      "Connect to a directory without a password in the code",
+      "Use a backup LDAP server when the first one is down",
+      "Reuse one directory connection during a request"
+    ]
+  },
+  "/reference/core/ldap/open/": {
+    "feature": "Core\\Ldap::open",
+    "hash": "da9eacf48bebf2d8",
+    "questions": [
+      "How do I connect to an LDAP server at a given URL?",
+      "Connect to a directory that each customer sets up",
+      "Open an encrypted LDAPS connection with a user and password",
+      "Why can my program not connect to a private address?"
+    ]
+  },
+  "/reference/core/log/": {
+    "feature": "Core\\Log",
+    "hash": "30d24625a93cdbc6",
+    "questions": [
+      "How do I write logs?",
+      "Logging for a web server",
+      "Structured logs as JSON lines",
+      "Where do log messages go?"
+    ]
+  },
+  "/reference/core/log/write/": {
+    "feature": "Core\\Log::write",
+    "hash": "4ceb8cd999f5713c",
+    "questions": [
+      "How do I write a log message with extra fields?",
+      "Log an error with an order number",
+      "Write a warning to the log",
+      "Can I log text that a user sent?",
+      "Log one line per failed import row"
+    ]
+  },
+  "/reference/core/mail/": {
+    "feature": "Core\\Mail",
+    "hash": "b9541ab143ecadd6",
+    "questions": [
+      "How do I send email?",
+      "Email from a web application",
+      "Send mail through an SMTP server",
+      "Where do I put the mail server password?"
+    ]
+  },
+  "/reference/core/mail/send/": {
+    "feature": "Core\\Mail::send",
+    "hash": "9c7df4873165868c",
+    "questions": [
+      "How do I send an email with an HTML body?",
+      "Send one message to several recipients",
+      "Add hidden copy recipients to an email",
+      "Set the reply address of an email",
+      "What happens when the mail server cannot be reached?"
+    ]
+  },
+  "/reference/core/math/": {
+    "feature": "Core\\Math",
+    "hash": "0996f8cbf39957df",
+    "questions": [
+      "What math functions are available?",
+      "How do I do calculations with numbers?",
+      "Rounding, powers, roots and angles",
+      "Where are constants like pi and infinity?",
+      "Functions for trigonometry and logarithms"
+    ]
+  },
+  "/reference/core/math/abs/": {
+    "feature": "Core\\Math::abs",
+    "hash": "c067bc51d642c06e",
+    "questions": [
+      "How do I get the absolute value of a number?",
+      "Remove the minus sign from a number",
+      "Turn a negative number into a positive one",
+      "How far apart are two values, ignoring direction?"
+    ]
+  },
+  "/reference/core/math/acos/": {
+    "feature": "Core\\Math::acos",
+    "hash": "22385c8cdd2ba0be",
+    "questions": [
+      "How do I get the angle from a cosine?",
+      "Inverse cosine of a number",
+      "Find the angle between two directions",
+      "Arc cosine returns NaN, why?"
+    ]
+  },
+  "/reference/core/math/acosh/": {
+    "feature": "Core\\Math::acosh",
+    "hash": "7d4b1b7a8ae28392",
+    "questions": [
+      "How do I calculate the inverse hyperbolic cosine?",
+      "Undo a hyperbolic cosine",
+      "Find the number whose hyperbolic cosine is known",
+      "Inverse cosh for a hanging cable curve"
+    ]
+  },
+  "/reference/core/math/asin/": {
+    "feature": "Core\\Math::asin",
+    "hash": "32dba6aca45d8c96",
+    "questions": [
+      "How do I get the angle from a sine?",
+      "Inverse sine of a number",
+      "Find the angle of a ramp from its height and length",
+      "Arc sine in radians"
+    ]
+  },
+  "/reference/core/math/asinh/": {
+    "feature": "Core\\Math::asinh",
+    "hash": "dc0d611d9718d82d",
+    "questions": [
+      "How do I calculate the inverse hyperbolic sine?",
+      "Undo a hyperbolic sine",
+      "Scale for a chart with negative values",
+      "Logarithm-like scale that works for zero and negative numbers"
+    ]
+  },
+  "/reference/core/math/atan/": {
+    "feature": "Core\\Math::atan",
+    "hash": "41104fe724f4b992",
+    "questions": [
+      "How do I get the angle from a tangent?",
+      "Inverse tangent of a number",
+      "Find the angle of a slope from its gradient",
+      "Arc tangent in radians"
+    ]
+  },
+  "/reference/core/math/atan2/": {
+    "feature": "Core\\Math::atan2",
+    "hash": "ed2619bb351ac690",
+    "questions": [
+      "How do I find the angle of a point?",
+      "Angle from x and y coordinates",
+      "Compass direction from one point to another",
+      "Get the direction of a vector in radians",
+      "Arc tangent that keeps the signs of both coordinates"
+    ]
+  },
+  "/reference/core/math/atanh/": {
+    "feature": "Core\\Math::atanh",
+    "hash": "4a0acb86c085378a",
+    "questions": [
+      "How do I calculate the inverse hyperbolic tangent?",
+      "Undo a hyperbolic tangent",
+      "Average several correlation values",
+      "Stretch a value between -1 and 1 back out"
+    ]
+  },
+  "/reference/core/math/cbrt/": {
+    "feature": "Core\\Math::cbrt",
+    "hash": "c50fe657fcf9bb03",
+    "questions": [
+      "How do I get the cube root of a number?",
+      "Cube root of a negative number",
+      "Side length of a cube from its volume",
+      "Find the third root of a value"
+    ]
+  },
+  "/reference/core/math/ceil/": {
+    "feature": "Core\\Math::ceil",
+    "hash": "2bbaa1d573f55092",
+    "questions": [
+      "How do I round a number up?",
+      "Round up to the next whole number",
+      "How many pages do I need for a list?",
+      "Always round a fraction upward",
+      "Ceiling of a decimal value"
+    ]
+  },
+  "/reference/core/math/clamp/": {
+    "feature": "Core\\Math::clamp",
+    "hash": "7a1239ecb6f247bd",
+    "questions": [
+      "How do I keep a number between a minimum and maximum?",
+      "Limit a value to a range",
+      "Restrict a page size to an allowed limit",
+      "Force a percentage to stay between 0 and 100"
+    ]
+  },
+  "/reference/core/math/cos/": {
+    "feature": "Core\\Math::cos",
+    "hash": "cfd5ab724a7a623a",
+    "questions": [
+      "How do I calculate the cosine of an angle?",
+      "Cosine of an angle in degrees",
+      "Why is the cosine of 90 degrees not exactly zero?",
+      "Horizontal distance of a sloped path"
+    ]
+  },
+  "/reference/core/math/cosh/": {
+    "feature": "Core\\Math::cosh",
+    "hash": "31924284b535c160",
+    "questions": [
+      "How do I calculate the hyperbolic cosine?",
+      "Curve of a hanging cable or chain",
+      "How far does a cable hang down in the middle?",
+      "Hyperbolic cosine of a number"
+    ]
+  },
+  "/reference/core/math/exp/": {
+    "feature": "Core\\Math::exp",
+    "hash": "c86fddee749e985f",
+    "questions": [
+      "How do I raise e to a power?",
+      "Exponential function of a number",
+      "Calculate exponential growth or decay",
+      "Rank posts so newer ones score higher",
+      "Reverse of the natural logarithm"
+    ]
+  },
+  "/reference/core/math/fdiv/": {
+    "feature": "Core\\Math::fdiv",
+    "hash": "d795efbf098cc6d9",
+    "questions": [
+      "How do I divide by zero without an error?",
+      "Division that returns infinity instead of throwing",
+      "Divide two floats and get NaN for zero by zero",
+      "Calculate a rate when the count may be zero"
+    ]
+  },
+  "/reference/core/math/floor/": {
+    "feature": "Core\\Math::floor",
+    "hash": "36f42300bb89eace",
+    "questions": [
+      "How do I round a number down?",
+      "Round down to the previous whole number",
+      "Count only complete units of a value",
+      "Largest whole number not above a value",
+      "Rounding down negative numbers"
+    ]
+  },
+  "/reference/core/math/format/": {
+    "feature": "Core\\Math::format",
+    "hash": "b85b7369766144f9",
+    "questions": [
+      "How do I format a number with two decimals?",
+      "Add thousands separators to a number",
+      "Show a price with a comma as the decimal separator",
+      "Convert a number to readable text",
+      "Display a number with a fixed number of decimal places"
+    ]
+  },
+  "/reference/core/math/frombase/": {
+    "feature": "Core\\Math::fromBase",
+    "hash": "a7e1228601188df9",
+    "questions": [
+      "How do I convert a hex string to an integer?",
+      "Parse a binary number from a string",
+      "Read a number written in base 36",
+      "Convert a colour code like FF8800 to numbers",
+      "Turn digits in another base into an int"
+    ]
+  },
+  "/reference/core/math/gcd/": {
+    "feature": "Core\\Math::gcd",
+    "hash": "66c00bc151d638a7",
+    "questions": [
+      "How do I find the greatest common divisor?",
+      "Reduce a fraction to its smallest terms",
+      "Simplify an image size to a ratio like 16:9",
+      "Biggest whole number that divides two integers"
+    ]
+  },
+  "/reference/core/math/hypot/": {
+    "feature": "Core\\Math::hypot",
+    "hash": "981226228a452963",
+    "questions": [
+      "How do I find the distance between two points?",
+      "Length of the hypotenuse of a right triangle",
+      "Square root of the sum of two squares",
+      "Calculate the length of a vector from x and y"
+    ]
+  },
+  "/reference/core/math/intdiv/": {
+    "feature": "Core\\Math::intDiv",
+    "hash": "fb21d335b817c88f",
+    "questions": [
+      "How do I divide integers without a fraction?",
+      "Integer division that drops the remainder",
+      "Convert seconds to minutes and seconds",
+      "How many full groups fit into a number?"
+    ]
+  },
+  "/reference/core/math/isfinite/": {
+    "feature": "Core\\Math::isFinite",
+    "hash": "b319179b743e9c31",
+    "questions": [
+      "How do I check if a number is finite?",
+      "Test whether a float is infinity",
+      "Check a result is a normal number before saving it",
+      "Detect infinity or NaN in a calculation"
+    ]
+  },
+  "/reference/core/math/isnan/": {
+    "feature": "Core\\Math::isNan",
+    "hash": "8c51495a27a10130",
+    "questions": [
+      "How do I check if a value is NaN?",
+      "Why does comparing with NaN using == not work?",
+      "Test for not a number",
+      "Skip invalid readings before calculating an average"
+    ]
+  },
+  "/reference/core/math/lcm/": {
+    "feature": "Core\\Math::lcm",
+    "hash": "cfff312a5cf6b3e0",
+    "questions": [
+      "How do I find the least common multiple?",
+      "When do two repeating schedules happen at the same time?",
+      "Smallest number that two integers both divide",
+      "Common denominator of two fractions"
+    ]
+  },
+  "/reference/core/math/log/": {
+    "feature": "Core\\Math::log",
+    "hash": "515b2915e709defe",
+    "questions": [
+      "How do I calculate a logarithm?",
+      "Logarithm in base 10 or base 2",
+      "Natural logarithm of a number",
+      "How long until savings double?",
+      "How many digits or bits does a number need?"
+    ]
+  },
+  "/reference/core/math/max/": {
+    "feature": "Core\\Math::max",
+    "hash": "37db9400221d2829",
+    "questions": [
+      "How do I get the larger of two numbers?",
+      "Pick the bigger of two values",
+      "Make sure a value never goes below zero",
+      "Compare two strings and return the later one"
+    ]
+  },
+  "/reference/core/math/min/": {
+    "feature": "Core\\Math::min",
+    "hash": "47b03a5714dccd51",
+    "questions": [
+      "How do I get the smaller of two numbers?",
+      "Pick the lower of two values",
+      "Limit a discount so it is not more than the price",
+      "Return the smallest of two strings"
+    ]
+  },
+  "/reference/core/math/mod/": {
+    "feature": "Core\\Math::mod",
+    "hash": "61eae8f807790e32",
+    "questions": [
+      "How do I get the remainder of a float division?",
+      "Modulo with decimal numbers",
+      "Keep a compass heading between 0 and 360 degrees",
+      "Remainder of a negative number"
+    ]
+  },
+  "/reference/core/math/round/": {
+    "feature": "Core\\Math::round",
+    "hash": "d30d4f71fe3a97eb",
+    "questions": [
+      "How do I round a number to two decimal places?",
+      "Round to the nearest whole number",
+      "Round to the nearest hundred",
+      "Round half to even for bankers rounding",
+      "Choose how halfway values like 2.5 are rounded"
+    ]
+  },
+  "/reference/core/math/sign/": {
+    "feature": "Core\\Math::sign",
+    "hash": "1f09b7d6bfb033e0",
+    "questions": [
+      "How do I check if a number is positive or negative?",
+      "Get -1, 0 or 1 for a number",
+      "Did a value go up or down?",
+      "Find the direction of a change"
+    ]
+  },
+  "/reference/core/math/sin/": {
+    "feature": "Core\\Math::sin",
+    "hash": "da0dd34841818436",
+    "questions": [
+      "How do I calculate the sine of an angle?",
+      "Sine of an angle in degrees",
+      "How high does a ramp rise?",
+      "Why is the sine of 180 degrees not exactly zero?"
+    ]
+  },
+  "/reference/core/math/sinh/": {
+    "feature": "Core\\Math::sinh",
+    "hash": "c279738f6c76274e",
+    "questions": [
+      "How do I calculate the hyperbolic sine?",
+      "Hyperbolic sine of a number",
+      "Length of cable needed between two poles",
+      "Hyperbolic sine overflows to infinity"
+    ]
+  },
+  "/reference/core/math/sqrt/": {
+    "feature": "Core\\Math::sqrt",
+    "hash": "aa144c5842377c3c",
+    "questions": [
+      "How do I get the square root of a number?",
+      "Square root of a negative number",
+      "Calculate the standard deviation of values",
+      "Find the root of a float"
+    ]
+  },
+  "/reference/core/math/tan/": {
+    "feature": "Core\\Math::tan",
+    "hash": "48caa635ec9f580f",
+    "questions": [
+      "How do I calculate the tangent of an angle?",
+      "Steepness of a slope from its angle",
+      "Grade of a road in percent",
+      "Tangent of 90 degrees gives a huge number"
+    ]
+  },
+  "/reference/core/math/tanh/": {
+    "feature": "Core\\Math::tanh",
+    "hash": "1771c6a1a9c373a6",
+    "questions": [
+      "How do I calculate the hyperbolic tangent?",
+      "Squeeze any number into the range -1 to 1",
+      "Turn vote counts into a score between -1 and 1",
+      "Smooth limit for very large values"
+    ]
+  },
+  "/reference/core/math/tobase/": {
+    "feature": "Core\\Math::toBase",
+    "hash": "6553a2699fe2f3c9",
+    "questions": [
+      "How do I convert an integer to hexadecimal?",
+      "Write a number in binary",
+      "Turn a numeric id into a short code for a link",
+      "Convert an int to a string in base 36",
+      "Show a number in octal"
+    ]
+  },
+  "/reference/core/math/todegrees/": {
+    "feature": "Core\\Math::toDegrees",
+    "hash": "ef92e9addc981940",
+    "questions": [
+      "How do I convert radians to degrees?",
+      "Show an angle in degrees",
+      "Change an angle from radians for display",
+      "Compass bearing in degrees from coordinates"
+    ]
+  },
+  "/reference/core/math/toradians/": {
+    "feature": "Core\\Math::toRadians",
+    "hash": "cfecb5484d887b75",
+    "questions": [
+      "How do I convert degrees to radians?",
+      "Use an angle in degrees with sine and cosine",
+      "Distance between two cities from latitude and longitude",
+      "Change an angle into radians"
+    ]
+  },
+  "/reference/core/math/truncate/": {
+    "feature": "Core\\Math::truncate",
+    "hash": "f375bb4a5a237ce0",
+    "questions": [
+      "How do I remove the decimal part of a number?",
+      "Round toward zero",
+      "Cut off the fraction of a float",
+      "Show only whole seconds of a timer",
+      "Drop digits after the decimal point"
+    ]
+  },
+  "/reference/core/metrics/": {
+    "feature": "Core\\Metrics",
+    "hash": "3d1e6921ac7925ec",
+    "questions": [
+      "How do I add monitoring to my program?",
+      "Export metrics for a monitoring system",
+      "Count and measure what a server does",
+      "Application metrics with counters and histograms"
+    ]
+  },
+  "/reference/core/metrics/gauge/": {
+    "feature": "Core\\Metrics::gauge",
+    "hash": "f4e493ed2eac670b",
+    "questions": [
+      "How do I report a value that goes up and down?",
+      "Track how many jobs are waiting",
+      "Report the number of open connections",
+      "Set a metric to the current level"
+    ]
+  },
+  "/reference/core/metrics/increment/": {
+    "feature": "Core\\Metrics::increment",
+    "hash": "fef8cb5146cdc608",
+    "questions": [
+      "How do I count events for monitoring?",
+      "Count failed logins",
+      "Add to a counter metric",
+      "Count payments by their result"
+    ]
+  },
+  "/reference/core/metrics/observe/": {
+    "feature": "Core\\Metrics::observe",
+    "hash": "13659f6fcf121a77",
+    "questions": [
+      "How do I measure how long requests take?",
+      "Record durations in a histogram",
+      "Track the size of uploads",
+      "Time database queries for each table"
+    ]
+  },
+  "/reference/core/mime/": {
+    "feature": "Core\\Mime",
+    "hash": "0a1539d61189303f",
+    "questions": [
+      "How do I find out what kind of file was uploaded?",
+      "Identify file types from their content",
+      "Content type of a file",
+      "Check if an upload is really an image"
+    ]
+  },
+  "/reference/core/mime/detect/": {
+    "feature": "Core\\Mime::detect",
+    "hash": "61ed3c8c8eb6da21",
+    "questions": [
+      "How do I check if an upload is a PNG or a PDF?",
+      "Find the file type from the first bytes",
+      "Only accept image uploads",
+      "Why is the file name not used to find the type?",
+      "Detect a ZIP archive from its bytes"
+    ]
+  },
+  "/reference/core/mime/mediatype/": {
+    "feature": "Core\\Mime::mediaType",
+    "hash": "8f42785fe5a20b4a",
+    "questions": [
+      "How do I get the media type name like image/png?",
+      "Set the Content-Type header for a download",
+      "Which content type should an unknown file have?",
+      "Store the media type of a file in a database"
+    ]
+  },
   "/reference/core/str/": {
     "feature": "Core\\Str",
     "hash": "0b29d37afa80c854",
