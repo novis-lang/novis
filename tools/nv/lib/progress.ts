@@ -1,33 +1,15 @@
 // What a long `nv` command is doing while it does it: a build, a roster read, a pool of programs. The
 // text never goes into what the command prints, because an agent reads that output and pays for every
-// line of it. It goes to one of two places, or to none:
-//
-//   - with `NV_PROGRESS_DIR` set, to `<dir>/<pid>.json`, which `readProgress` reads back. The file is
-//     written at most four times a second and is deleted when the command exits; a file whose process
-//     is gone is deleted by the next read;
-//   - otherwise, with stderr a terminal, to one line on stderr that is rewritten in place and ends in how
-//     long the command has run. Any write to stdout or stderr erases the line first, so the output a person
-//     reads is the same as without it. The next `progress` call paints the line again;
-//   - otherwise, which is every shell call an agent makes, nowhere.
-//
-// The driver's own console paints its status block on the same terminal, so under `NV_PROGRESS_DIR`
-// nothing is painted even when stderr is a terminal.
+// line of it. With stderr a terminal, it is one line on stderr that is rewritten in place and ends in how
+// long the command has run. Any write to stdout or stderr erases the line first, so the output a person
+// reads is the same as without it, and the next `progress` call paints the line again. Otherwise, which
+// is every shell call an agent makes, it goes nowhere.
 
-import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
-
-/** The environment variable that names the directory progress files go to. */
-export const ENV = "NV_PROGRESS_DIR";
-
-const FILE_EVERY_MS = 250;
 const LINE_EVERY_MS = 100;
 const TICK_MS = 1000;
 
 const started = performance.now();
 let text = "";
-let fileAt = 0;
-let fileTimer: ReturnType<typeof setTimeout> | null = null;
-let filePath: string | null = null;
 let lineAt = 0;
 let lineTimer: ReturnType<typeof setTimeout> | null = null;
 let ticker: ReturnType<typeof setInterval> | null = null;
@@ -36,11 +18,6 @@ let showing = false;
 let hooked = false;
 
 const rawErr = process.stderr.write.bind(process.stderr);
-
-function mode(): "file" | "line" | "none" {
-  if (process.env[ENV]) return "file";
-  return process.stderr.isTTY ? "line" : "none";
-}
 
 /** `m:ss` since the command started. */
 function elapsed(): string {
@@ -51,43 +28,7 @@ function elapsed(): string {
 /** Says what the command is doing now. Each call replaces the text of the one before it. */
 export function progress(now: string): void {
   text = now.replace(/[\r\n]+/g, " ");
-  const m = mode();
-  if (m === "file") writeSoon();
-  else if (m === "line") paintSoon();
-}
-
-/** Erases the terminal line and removes the progress file. The command is still running, and its next
- * `progress` call shows it again. */
-export function clear(): void {
-  erase();
-  if (filePath !== null) rmSync(filePath, { force: true });
-  filePath = null;
-}
-
-function writeSoon(): void {
-  if (fileTimer !== null) return;
-  const wait = Math.max(0, fileAt + FILE_EVERY_MS - performance.now());
-  if (wait > 0) {
-    fileTimer = setTimeout(writeFile, wait);
-    fileTimer.unref();
-  } else writeFile();
-}
-
-function writeFile(): void {
-  fileTimer = null;
-  fileAt = performance.now();
-  const dir = process.env[ENV];
-  if (!dir) return;
-  if (filePath === null) {
-    mkdirSync(dir, { recursive: true });
-    filePath = join(dir, `${process.pid}.json`);
-    process.on("exit", clear);
-  }
-  try {
-    writeFileSync(filePath, JSON.stringify({ pid: process.pid, started: Date.now() - Math.round(performance.now() - started), text }));
-  } catch {
-    // A progress file that cannot be written is only a status line that says less.
-  }
+  if (process.stderr.isTTY) paintSoon();
 }
 
 function paintSoon(): void {
@@ -170,47 +111,4 @@ export function cargoLines(label: string): (line: string) => void {
     const said = status(line);
     if (said !== null) progress(`${label}: ${said}`);
   };
-}
-
-interface Entry {
-  pid: number;
-  started: number;
-  text: string;
-}
-
-function alive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (e) {
-    return (e as NodeJS.ErrnoException).code === "EPERM";
-  }
-}
-
-/** What every running `nv` command under `dir` is doing, the one started first first. A file whose
- * process has exited is deleted. */
-export function readProgress(dir: string): string[] {
-  let names: string[];
-  try {
-    names = readdirSync(dir).filter((n) => n.endsWith(".json"));
-  } catch {
-    return [];
-  }
-  const found: Entry[] = [];
-  for (const name of names) {
-    const path = join(dir, name);
-    let e: Entry;
-    try {
-      e = JSON.parse(readFileSync(path, "utf8")) as Entry;
-    } catch {
-      // Read while it was being written; the next read gets it whole.
-      continue;
-    }
-    if (!alive(e.pid)) {
-      rmSync(path, { force: true });
-      continue;
-    }
-    if (e.text) found.push(e);
-  }
-  return found.sort((a, b) => a.started - b.started).map((e) => e.text);
 }

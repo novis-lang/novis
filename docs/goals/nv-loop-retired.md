@@ -112,14 +112,16 @@ deleted, `bun nv links` is green, and so are `bun nv verify` and `looper lint`.
 
 ### State
 
-**Stages 1, 2 and 3 are done. Stage 4's docs are done. Some of its tool comments and all of its crate
-comments are not.** `bun nv verify` is green on this tree.
+**Stages 1, 2 and 3 are done. Stage 4's docs and tool comments are done. Its crate comments are
+not.** `bun nv verify` is green on this tree.
 
-- Landed: `wrapGate`, `wrapProblems`, `FEEDS` and `Staleness.staleAt` are deleted from
-  `tools/nv/cmd/site.ts` with their test, since nothing called them. `applyPlan` still has a caller
-  (`tools/nv/cmd/plan.ts:671`). `bun nv disk --clean` no longer refuses on `.loop/running`: looper keeps
-  its run state in its own store and writes no such file, so the refusal could never fire. The
-  comments in the files the last handoff listed name no deleted command.
+- Landed: no comment under `tools/` names the old driver as if it ran, except `goalCopies` and
+  `LEGACY` in `tools/nv/cmd/audit.ts`, which guard against its files and name them on purpose.
+  `nv audit checks` no longer reads `docs/agent/loop-goal.toml`, which nothing writes. `lib/progress.ts`
+  lost its `NV_PROGRESS_DIR` file mode and `readProgress`: only the old driver set or read them.
+  `bun nv peek`'s ledger no longer reads `.loop/logs`, which looper never writes; the idle timer alone
+  separates sessions. `.agent-tmp/verify-progress.json` stays, because the playbook bullet on a hung
+  `verify --start` reads it.
 - `docs/goals/decision-records-retired.md:542` quotes line spans of `loop-authoring.md` and
   `commands.md` that this group moved. That goal's first session re-derives them with a grep.
 - `bun nv disk --clean` ran after every session under the old driver. Nothing runs it now, and
@@ -131,29 +133,22 @@ that no longer exist. No session edits that file, so removing them is the user's
 
 ### Next
 
-**Stage 4: the rest of the tool comments that name the old driver** — one file set under `tools/`.
-`git grep -n -E "the driver|loop driver|nv (loop|session|orient|playbook)" -- tools/` lists them.
-Skip `db-matrix.ts`, whose "driver" is a database driver.
+**Stage 4: the crate comments that name the old goal data** — doc comments only, so `bun nv verify`
+rebuilds but no behaviour changes. A goal is now `docs/goals/<slug>.md` (`tools/nv/lib/chain.ts:1`).
 
-- [ ] **Comments** `tools/nv/cmd/allow.ts:23`, `tools/nv/cmd/owners.ts:13`, `tools/nv/cmd/peek.ts:508`,
-  `tools/nv/cmd/proofs.ts:27` and `:406`, `tools/nv/cmd/side.ts:17`, `tools/nv/cmd/sweep.ts:59`,
-  `tools/nv/cmd/verify.ts:8`, `tools/nv/lib/chain.ts:21`, `tools/nv/accept/accept.ts:1`,
-  `tools/nv/accept/sweep.ts:16`, `tools/nv/lib/covws.ts:126`, `tools/nv/test/proof-record.test.ts:64`.
-- [ ] **`tools/nv/cmd/audit.ts:8`, `:51`, `:93` and `:202`** name "the driver's toml". Check whether the
-  copies it guards still exist, and delete what guards a file that cannot come back.
-- [ ] **Readers with no caller**: `readProgress` (`tools/nv/lib/progress.ts:192`) is read only by its test,
-  and `.agent-tmp/verify-progress.json` (`tools/nv/cmd/verify.ts:122`) by nothing. Delete them, or say
-  who reads them.
+- [x] Tool comments, `tools/nv/cmd/audit.ts`'s toml read, and the readers with no caller.
+- [ ] **`crates/nvs-cli/tests/openapi.rs:394` and six more** say "the goal records under `data/goals/`",
+  which becomes "a goal file under `docs/goals/`": `crates/nvs-db/src/catalog.rs:2426`,
+  `crates/nvs-stdlib/src/mail.rs:1148`, `crates/nvs-stdlib/src/storage.rs:597`,
+  `crates/nvs-stdlib/tests/tier_boundary.rs:36`, `crates/nvs-types/tests/visibility.rs:14`,
+  `crates/nvs-stdlib/tests/spec_registry_coverage.rs:39`.
+- [ ] **`crates/nvs-host/src/timer.rs:4` and 16 more files cite the deleted `docs/agent/goals/`**:
+  `git grep -n docs/agent/goals/ -- crates Cargo.toml` lists 21 lines, among them `Cargo.toml`, `crates/nvs-stdlib/src/arr.rs`,
+  `crates/nvs-ir/tests/type_atoms.rs` and four `crates/nvs-stdlib/tests/spec-*-outstanding.txt`.
+  Restate what the citation pointed at, or drop it; never point at a goal file that is gone.
+- [ ] `docs/rules/tooling/the-chain-names-its-live-goal.md:11`, the same citation in a rule.
 
 ### Backlog
 
-- Stage 4: crate doc comments that say "the goal records under `data/goals/`"
-  (`crates/nvs-cli/tests/openapi.rs:394`, `crates/nvs-db/src/catalog.rs:2426`,
-  `crates/nvs-stdlib/src/mail.rs:1148`, `crates/nvs-stdlib/src/storage.rs:597`,
-  `crates/nvs-stdlib/tests/tier_boundary.rs:36`, `crates/nvs-types/tests/visibility.rs:14`,
-  `crates/nvs-stdlib/tests/spec_registry_coverage.rs:39`).
-- Stage 4: crate comments citing old goal prose under `docs/agent/goals/` (`git grep -n
-  docs/agent/goals/ -- crates Cargo.toml` lists them), and
-  `docs/rules/tooling/the-chain-names-its-live-goal.md:11`.
 - Stage 4: playbook bullets whose `until` names a deleted file, such as
   `tools/nv/cmd/orient.ts`; `looper playbook retire` deletes them once it runs.
