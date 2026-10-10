@@ -11,9 +11,22 @@ everything held locally. What is recorded is a closed set of operator actions
 sent (`rule:tooling/telemetry-show-prints-the-payload`).
 
 The verb is `update-check`, not `update`, on purpose: `nvs update` is the package resolver's, and the two
-never collide. Opt-out telemetry gives bigger numbers and is the wrong default for a runtime whose first
-priority is that operators can trust it; the undercount is accepted and stated, with download counts and
-cronned update checks as the correction.
+never collide.
+
+The population worth measuring is the developers and operators who run `nvs`, most of them as an HTTP
+server. `nvs serve` is itself a command, so the boundary is not the CLI against the server: it is
+operator actions against traffic, and local writes against network uploads. Download and pull counts
+need no runtime code and keep working for hosts that never opt in; they are the floor this sits on.
+The undercount is accepted and stated: opt-in telemetry reports a small share of the real population,
+and a deployed server whose operator never runs another command records forever and uploads never.
+Download counts and cronned update checks are the correction.
 
 **Not shipped.** Nothing in `crates/` implements any of this; the implementing slices are scheduled after
 the parity chain's goals reach acceptance, and the reference says nothing of it until then.
+
+**Declined:**
+- **Opt-out telemetry.** It gives bigger numbers and is the wrong default for a runtime whose first
+  priority is that operators can trust it.
+- **An `X-Powered-By`-style response header as measurement.** It measures nothing by itself, since only
+  someone else's crawl counts it, and it discloses a version on every response to visitors who never
+  consented. That spends security and request isolation for data the project never receives.

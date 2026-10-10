@@ -12,6 +12,8 @@ no environment.
 **Nothing derived from traffic is ever counted.** `nvs serve` incrementing `invocation.serve` at startup
 records the operator's action; request counts, routes, headers and anything else the internet sent belong
 to the site's visitors, who never consented, and are permanently out of schema — not merely off by
-default. The counter file is provably a function of what the operator did. What it spends: a few KiB in
-one local file per user and one buffered append per invocation — for `nvs serve`, once at startup before
-the listener binds — and nothing on the request path.
+default. The counter file is provably a function of what the operator did.
+
+- **Memory:** a few KiB in one local file per user, and one buffered append per invocation. For
+  `nvs serve` that append happens once, at startup, before the listener binds. Nothing is spent on the
+  request path.

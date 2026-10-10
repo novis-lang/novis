@@ -1,9 +1,7 @@
 {
   "title": "An upload carries only the previous finished week, rides a short-lived user-initiated command at most weekly, and a process that has bound a socket never uploads",
   "status": "designed",
-  "because": [
-    "0130"
-  ],
+  "because": [],
   "seeAlso": [
     "tooling/telemetry-is-two-opt-ins",
     "tooling/a-failed-upload-never-fails-the-command",

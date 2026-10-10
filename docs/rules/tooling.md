@@ -1652,14 +1652,27 @@ everything held locally. What is recorded is a closed set of operator actions
 sent ([`tooling/telemetry-show-prints-the-payload`](tooling.md#tooling-telemetry-show-prints-the-payload)).
 
 The verb is `update-check`, not `update`, on purpose: `nvs update` is the package resolver's, and the two
-never collide. Opt-out telemetry gives bigger numbers and is the wrong default for a runtime whose first
-priority is that operators can trust it; the undercount is accepted and stated, with download counts and
-cronned update checks as the correction.
+never collide.
+
+The population worth measuring is the developers and operators who run `nvs`, most of them as an HTTP
+server. `nvs serve` is itself a command, so the boundary is not the CLI against the server: it is
+operator actions against traffic, and local writes against network uploads. Download and pull counts
+need no runtime code and keep working for hosts that never opt in; they are the floor this sits on.
+The undercount is accepted and stated: opt-in telemetry reports a small share of the real population,
+and a deployed server whose operator never runs another command records forever and uploads never.
+Download counts and cronned update checks are the correction.
 
 **Not shipped.** Nothing in `crates/` implements any of this; the implementing slices are scheduled after
 the parity chain's goals reach acceptance, and the reference says nothing of it until then.
 
-<sub>See also [`tooling/telemetry-counters-are-a-closed-set`](tooling.md#tooling-telemetry-counters-are-a-closed-set), [`tooling/a-serving-process-never-uploads`](tooling.md#tooling-a-serving-process-never-uploads), [`tooling/telemetry-show-prints-the-payload`](tooling.md#tooling-telemetry-show-prints-the-payload), [`config/telemetry-and-update-endpoints-are-configuration`](config.md#config-telemetry-and-update-endpoints-are-configuration), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0130](../decisions/0130.md).</sub>
+**Declined:**
+- **Opt-out telemetry.** It gives bigger numbers and is the wrong default for a runtime whose first
+  priority is that operators can trust it.
+- **An `X-Powered-By`-style response header as measurement.** It measures nothing by itself, since only
+  someone else's crawl counts it, and it discloses a version on every response to visitors who never
+  consented. That spends security and request isolation for data the project never receives.
+
+<sub>See also [`tooling/telemetry-counters-are-a-closed-set`](tooling.md#tooling-telemetry-counters-are-a-closed-set), [`tooling/a-serving-process-never-uploads`](tooling.md#tooling-a-serving-process-never-uploads), [`tooling/telemetry-show-prints-the-payload`](tooling.md#tooling-telemetry-show-prints-the-payload), [`config/telemetry-and-update-endpoints-are-configuration`](config.md#config-telemetry-and-update-endpoints-are-configuration), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest).</sub>
 
 <a id="tooling-telemetry-counters-are-a-closed-set"></a>
 
@@ -1681,11 +1694,13 @@ no environment.
 **Nothing derived from traffic is ever counted.** `nvs serve` incrementing `invocation.serve` at startup
 records the operator's action; request counts, routes, headers and anything else the internet sent belong
 to the site's visitors, who never consented, and are permanently out of schema — not merely off by
-default. The counter file is provably a function of what the operator did. What it spends: a few KiB in
-one local file per user and one buffered append per invocation — for `nvs serve`, once at startup before
-the listener binds — and nothing on the request path.
+default. The counter file is provably a function of what the operator did.
 
-<sub>See also [`tooling/telemetry-is-two-opt-ins`](tooling.md#tooling-telemetry-is-two-opt-ins), [`tooling/telemetry-show-prints-the-payload`](tooling.md#tooling-telemetry-show-prints-the-payload), [`observability/the-runtime-exports-what-it-already-measures`](observability.md#observability-the-runtime-exports-what-it-already-measures). Decided in [0130](../decisions/0130.md).</sub>
+- **Memory:** a few KiB in one local file per user, and one buffered append per invocation. For
+  `nvs serve` that append happens once, at startup, before the listener binds. Nothing is spent on the
+  request path.
+
+<sub>See also [`tooling/telemetry-is-two-opt-ins`](tooling.md#tooling-telemetry-is-two-opt-ins), [`tooling/telemetry-show-prints-the-payload`](tooling.md#tooling-telemetry-show-prints-the-payload), [`observability/the-runtime-exports-what-it-already-measures`](observability.md#observability-the-runtime-exports-what-it-already-measures).</sub>
 
 <a id="tooling-telemetry-show-prints-the-payload"></a>
 
@@ -1704,7 +1719,7 @@ user-facing statement of what is collected. The service side's contract is publi
 only, no IP retention, and the aggregated data itself public, so anyone can see exactly what the project
 sees.
 
-<sub>See also [`tooling/telemetry-counters-are-a-closed-set`](tooling.md#tooling-telemetry-counters-are-a-closed-set), [`tooling/telemetry-is-two-opt-ins`](tooling.md#tooling-telemetry-is-two-opt-ins), [`config/telemetry-and-update-endpoints-are-configuration`](config.md#config-telemetry-and-update-endpoints-are-configuration). Decided in [0130](../decisions/0130.md).</sub>
+<sub>See also [`tooling/telemetry-counters-are-a-closed-set`](tooling.md#tooling-telemetry-counters-are-a-closed-set), [`tooling/telemetry-is-two-opt-ins`](tooling.md#tooling-telemetry-is-two-opt-ins), [`config/telemetry-and-update-endpoints-are-configuration`](config.md#config-telemetry-and-update-endpoints-are-configuration).</sub>
 
 <a id="tooling-a-serving-process-never-uploads"></a>
 
@@ -1719,16 +1734,20 @@ never sent, and a second upload inside the same week is refused locally.
 The upload is carried by the next short-lived, user-initiated invocation that notices "telemetry is on and
 a finished week is unsent". `nvs update-check` is the natural carrier — an ops team cronning it on
 production boxes is exactly the short-lived process this rule wants — and `nvs telemetry upload` exists
-for schedulers that want only that. There is no daemon, no timer and no background process; that is the
-shape people distrust even when opted in, and a second long-lived process to secure.
+for schedulers that want only that. There is no daemon, no timer and no background process.
 
 **A process that has bound a socket records and never uploads.** The auditable claim is one sentence:
 `nvs serve` makes zero outbound telemetry connections, under load, while still incrementing
-`invocation.serve`. Uploading from the serving process even once at startup was rejected because it breaks
-that sentence. Every claim here is testable against a local listener, because the endpoint is
+`invocation.serve`. Every claim here is testable against a local listener, because the endpoint is
 configuration ([`config/telemetry-and-update-endpoints-are-configuration`](config.md#config-telemetry-and-update-endpoints-are-configuration)).
 
-<sub>See also [`tooling/telemetry-is-two-opt-ins`](tooling.md#tooling-telemetry-is-two-opt-ins), [`tooling/a-failed-upload-never-fails-the-command`](tooling.md#tooling-a-failed-upload-never-fails-the-command), [`tooling/update-check-states-the-whole-picture`](tooling.md#tooling-update-check-states-the-whole-picture), [`config/telemetry-and-update-endpoints-are-configuration`](config.md#config-telemetry-and-update-endpoints-are-configuration), [`http-server/two-deployments-and-nothing-a-proxy-owns`](http-server.md#http-server-two-deployments-and-nothing-a-proxy-owns). Decided in [0130](../decisions/0130.md).</sub>
+**Declined:**
+- **A background daemon or timer that phones home.** It is the shape people distrust even when opted
+  in, and a second long-lived process to secure. An upload is carried, never initiated by a resident
+  process.
+- **Uploading from the serving process, even once at startup.** It breaks the one-sentence claim above.
+
+<sub>See also [`tooling/telemetry-is-two-opt-ins`](tooling.md#tooling-telemetry-is-two-opt-ins), [`tooling/a-failed-upload-never-fails-the-command`](tooling.md#tooling-a-failed-upload-never-fails-the-command), [`tooling/update-check-states-the-whole-picture`](tooling.md#tooling-update-check-states-the-whole-picture), [`config/telemetry-and-update-endpoints-are-configuration`](config.md#config-telemetry-and-update-endpoints-are-configuration), [`http-server/two-deployments-and-nothing-a-proxy-owns`](http-server.md#http-server-two-deployments-and-nothing-a-proxy-owns).</sub>
 
 <a id="tooling-a-failed-upload-never-fails-the-command"></a>
 
@@ -1746,7 +1765,7 @@ An operator who opted in is lending a command they ran for another reason
 one honest line, never a failed cron job or a changed exit code
 ([`tooling/update-check-states-the-whole-picture`](tooling.md#tooling-update-check-states-the-whole-picture)).
 
-<sub>See also [`tooling/a-serving-process-never-uploads`](tooling.md#tooling-a-serving-process-never-uploads), [`tooling/update-check-states-the-whole-picture`](tooling.md#tooling-update-check-states-the-whole-picture). Decided in [0130](../decisions/0130.md).</sub>
+<sub>See also [`tooling/a-serving-process-never-uploads`](tooling.md#tooling-a-serving-process-never-uploads), [`tooling/update-check-states-the-whole-picture`](tooling.md#tooling-update-check-states-the-whole-picture).</sub>
 
 <a id="tooling-update-check-states-the-whole-picture"></a>
 
@@ -1765,7 +1784,7 @@ when something is slow, and follows the terminal's conventions. The exit status 
 update exists and whether or not a telemetry send succeeded
 ([`tooling/a-failed-upload-never-fails-the-command`](tooling.md#tooling-a-failed-upload-never-fails-the-command)); automation reads the JSON.
 
-<sub>See also [`tooling/telemetry-is-two-opt-ins`](tooling.md#tooling-telemetry-is-two-opt-ins), [`tooling/a-failed-upload-never-fails-the-command`](tooling.md#tooling-a-failed-upload-never-fails-the-command), [`config/telemetry-and-update-endpoints-are-configuration`](config.md#config-telemetry-and-update-endpoints-are-configuration), [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink). Decided in [0130](../decisions/0130.md).</sub>
+<sub>See also [`tooling/telemetry-is-two-opt-ins`](tooling.md#tooling-telemetry-is-two-opt-ins), [`tooling/a-failed-upload-never-fails-the-command`](tooling.md#tooling-a-failed-upload-never-fails-the-command), [`config/telemetry-and-update-endpoints-are-configuration`](config.md#config-telemetry-and-update-endpoints-are-configuration), [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink).</sub>
 
 <a id="tooling-the-repository-tools-are-one-bun-program"></a>
 

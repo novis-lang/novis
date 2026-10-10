@@ -2237,5 +2237,3 @@ consents, the counter schema and the two endpoints' contracts are the tooling ch
 
 **Not shipped.** Nothing in `crates/` reads either variable; implementation waits until the parity
 chain's goals are done, and the reference says nothing of it until then.
-
-<sub>Decided in [0130](../decisions/0130.md).</sub>
