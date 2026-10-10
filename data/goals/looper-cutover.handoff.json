@@ -1,26 +1,39 @@
 {
-  "state": "**Goal `looper-cutover`, Stage 3 (import): the import, `nv-loop-retired` and the shrunk nv chain are on disk.** `docs/goals/` holds the six chain goals, both side goals and the README. `data/chain.json` names `looper-cutover` alone. Four of the six Stage 3 checks pass.\n\n**Every playbook bullet fits looper's 700-byte cap and names a path in backticks.** `looper lint` prints no `more than 700` finding. `bun nv playbook --check` stays green, and every record under `data/playbook/` is in step with its fragment.\n\n**A fragment and its record are kept in step by nothing but `bun nv session --wrap`** (`tools/nv/cmd/session.ts:1048`). After a hand edit to a fragment, re-derive each record with `bulletValue` (`tools/nv/lib/playbook-fragments.ts:78`) plus `serialize` (`tools/nv/lib/store.ts:42`) for `playbookBullet`, print the result as a splice patch, and apply it.\n\n**`looper lint` is still red, and only on managed files**: hand-edited managed text in `.claude/CLAUDE.md`, `.gitattributes`, `AGENTS.md`, `docs/agent/grounding.md`, `docs/agent/playbook.md` and `tools/git-hooks/commit-msg`, and missing `docs/agent/prose.md`, `docs/agent/testing.md` and `docs/agent/rust.md`. These are the same files `looper sync --check` names, so the Stage 3 lint check closes with Stage 4's first sync.",
+  "state": "**Goal `looper-cutover`, Stage 4 (hooks, checks and rules): the first sync is on disk.** `looper sync --check` reports every managed file current, and `looper lint` exits 0, so Stage 3's lint check passes.\n\n**What the sync wrote:** `.claude/CLAUDE.md` and `docs/agent/grounding.md` from looper's whole-file templates, the `.gitattributes` block at the top, the `agents` block at the end of `AGENTS.md`, and the new `docs/agent/{prose,testing,rust,bun}.md`. `looper.toml`'s `stacks` gained `bun` so that `bun.md` is written. `AGENTS.md` § *Where Novis departs from the stack files* holds the two places Novis's rules win.\n\n**Two managed files are under `[sync] skip`, each with its reason in `looper.toml`.** `tools/git-hooks/commit-msg` is a whole-file template, and `looper hook commit-msg` refuses a merge and git's `fixup!` subjects, both of which Novis's hook passes. So the hook stays Novis's: its trailer gate, then `looper hook commit-msg`. `docs/agent/playbook.md` is skipped because `looper lint` reads the template block's own list as bullets and refuses them.\n\n**The `agents` block's two links needed homes:** `docs/design.md` and `docs/decisions/README.md` are short pointer files now.\n\n**`AGENTS.md` now states the loop twice.** Its own § *Where to look*, rules and § *Session workflow* and the block's cover the same ground. The next group's second item resolves that.",
   "next": {
     "stage": 4,
     "title": "hooks, checks and rules",
-    "files": [],
-    "note": "one file set: the managed files `looper sync --check` names.",
+    "files": [
+      "looper.toml",
+      "AGENTS.md",
+      "docs/agent/session-prompt.md"
+    ],
     "items": [
       {
-        "done": false,
-        "text": "**The first sync** — run `looper sync --check`, then follow the runbook's § 8 (`docs/agent/looper-cutover.md:187`) for each managed file: move the project's own text outside the markers, write `docs/agent/rust.md` and `docs/agent/bun.md` as § 8 says, and run `looper sync`. Stage 4's scope is `docs/agent/goals/looper-cutover.md:77`."
+        "done": true,
+        "text": "**The first sync**: done (see State)."
+      },
+      {
+        "done": true,
+        "text": "**`tools/git-hooks/commit-msg` keeps the no-trailer gate**: it is under `[sync] skip`, so the whole hook stays Novis's (`tools/git-hooks/commit-msg:1`)."
       },
       {
         "done": false,
-        "text": "**AGENTS.md takes the session-prompt rules** — each rule `docs/agent/session-prompt.md` holds that a looper session needs moves into AGENTS.md outside the managed markers (`docs/agent/looper-cutover.md:104`)."
+        "text": "**Wire the runbook's § 3 table into `looper.toml`**: `[hooks]`, `[orient] extra`, `[wrap] sections` and `checks`, `[[guard.deny]]` (`docs/agent/looper-cutover.md:80`), after `looper.toml`'s `[checks]` table. Take each key name from looper's `docs/design.md` (`../loop-plan-tool/docs/design.md`)."
       },
       {
         "done": false,
-        "text": "**`tools/git-hooks/commit-msg` keeps the no-trailer gate** outside looper's markers (`docs/agent/looper-cutover.md:80`)."
+        "text": "**AGENTS.md states the loop once**: delete from the project part what the `agents` block now says (§ *Where to look*'s first row, rules 4 and 6, § *Session workflow*, the chain bullets), per the runbook's § 4 (`docs/agent/looper-cutover.md:104`). Move in each rule of `docs/agent/session-prompt.md:12` that a looper session needs, outside the block. Every domain rule stays. The block starts at `AGENTS.md`'s `<!-- looper:begin agents v2 -->` line."
+      },
+      {
+        "done": false,
+        "text": "**What reads the old goal data works without it**: `crates/nvs-stdlib/tests/spec_registry_coverage.rs:1` and the tests under `tools/nv/test/`, per `docs/agent/goals/looper-cutover.md:86`."
       }
     ]
   },
   "backlog": [
-    "Converting the playbook trailers to looper's form is `nv-loop-retired`'s Stage 2 (`tools/nv/lib/playbook-fragments.ts:19`)."
+    "Looper's own bugs, for the user to file in looper: `looper lint` refuses the `playbook` template block's own list; the `commit-msg` template refuses merge and `fixup!` subjects. Each `[sync] skip` line in `looper.toml` goes once looper is fixed.",
+    "`bun nv links` names two dead links in the generated `docs/agent/goals/README.md` (`ldap.md`, `looper-ready.md`), from goals already reached. `bun nv render` owns the file, and `bun nv verify --doc` needs it green before `DONE`.",
+    "`looper links` names anchors in `docs/rules/types.md` that `bun nv links` accepts, so the two tools disagree on anchor slugs. This is for `nv-loop-retired`."
   ]
 }
