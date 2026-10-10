@@ -14,6 +14,12 @@ does not declare, a `tags` or `security` entry that is not a string, and an `#[A
 carrying no `#[Route]`. One `#[Api]` describes the operation however many `#[Route]` attributes the
 method carries.
 
+That list is why the attribute exists. The compiler holds both the annotation and the code it
+describes, so the annotation cannot claim a shape the handler no longer returns, which is the normal
+state of an unchecked API annotation in a mature codebase. It is also what earns `#[Api]` a place on
+the closed list of compiler-recognized attributes: an attribute the compiler could not verify would
+not get one.
+
 It is compiler-recognized, matched by name rather than structurally, so a userland anonymous object that
 happens to look like one is not one (`rule:attributes/attach-sites-and-forms`).
 

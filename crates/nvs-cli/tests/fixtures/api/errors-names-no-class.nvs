@@ -1,5 +1,5 @@
 <?nvs
-// ADR 0085 § 2's first contradiction: an `errors` entry whose `type` is not a
+// The first `#[Api]` contradiction: an `errors` entry whose `type` is not a
 // class a handler could produce. The name resolves — a name that does not is
 // `E0303` from the expression walk, and pinning that here would pin the wrong
 // pass — so what is wrong with it is that an interface is nothing a handler

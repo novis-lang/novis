@@ -1,5 +1,5 @@
 <?nvs
-// ADR 0085 § 1's last row: the summary and the description come from the
+// The generated document's doc-comment row: the summary and the description come from the
 // declaration's own doc comment and from nowhere else. Five methods, so the
 // document has to answer five different ways with one rule.
 

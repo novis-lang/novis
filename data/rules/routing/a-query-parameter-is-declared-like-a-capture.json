@@ -2,8 +2,7 @@
   "title": "A `#[Query]` parameter is declared with a capture's type list, and a default is what makes it optional",
   "status": "shipped",
   "because": [
-    "0102",
-    "0085"
+    "0102"
   ],
   "seeAlso": [
     "routing/a-bad-query-value-is-a-400",

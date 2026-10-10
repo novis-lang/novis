@@ -252,6 +252,12 @@ does not declare, a `tags` or `security` entry that is not a string, and an `#[A
 carrying no `#[Route]`. One `#[Api]` describes the operation however many `#[Route]` attributes the
 method carries.
 
+That list is why the attribute exists. The compiler holds both the annotation and the code it
+describes, so the annotation cannot claim a shape the handler no longer returns, which is the normal
+state of an unchecked API annotation in a mature codebase. It is also what earns `#[Api]` a place on
+the closed list of compiler-recognized attributes: an attribute the compiler could not verify would
+not get one.
+
 It is compiler-recognized, matched by name rather than structurally, so a userland anonymous object that
 happens to look like one is not one ([`attributes/attach-sites-and-forms`](attributes.md#attributes-attach-sites-and-forms)).
 
@@ -259,7 +265,7 @@ A `security` name is carried uninterpreted rather than compared: nothing in the 
 `nvs.toml` declares a scheme, so there is no roster to check against and the emitted document names
 schemes it does not define. The comparison lands here on the day a scheme has a home.
 
-<sub>See also [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata). Decided in [0085](../decisions/0085.md).</sub>
+<sub>See also [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata).</sub>
 
 <a id="attributes-access-is-a-required-sibling"></a>
 

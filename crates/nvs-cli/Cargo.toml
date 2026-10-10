@@ -105,7 +105,7 @@ memmap2.workspace = true
 # The writer's `.tmp-<random>` name. A temp file is in the shard directory a reader
 # lists, so its name has to be unique across processes that never talk.
 rand.workspace = true
-# ADR 0085's document, built and written as JSON rather than as text — the
+# The OpenAPI document, built and written as JSON rather than as text — the
 # workspace manifest owns why this crate and not another.
 serde_json.workspace = true
 # `nvs agent init` merges its hook into an agent's settings file and keeps every

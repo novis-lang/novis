@@ -303,7 +303,7 @@ A query value takes no part in choosing a route, so it can never reintroduce the
 dependence structural precedence exists to prevent — which is what makes the binding safe to add at
 all. How a bad value fails is [`routing/a-bad-query-value-is-a-400`](routing.md#routing-a-bad-query-value-is-a-400).
 
-<sub>See also [`routing/a-bad-query-value-is-a-400`](routing.md#routing-a-bad-query-value-is-a-400), [`routing/a-capture-narrows-to-a-closed-set`](routing.md#routing-a-capture-narrows-to-a-closed-set), [`routing/a-leftover-link-key-is-a-query-string`](routing.md#routing-a-leftover-link-key-is-a-query-string), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`attributes/api-adds-and-cannot-contradict`](attributes.md#attributes-api-adds-and-cannot-contradict), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table). Decided in [0102](../decisions/0102.md), [0085](../decisions/0085.md).</sub>
+<sub>See also [`routing/a-bad-query-value-is-a-400`](routing.md#routing-a-bad-query-value-is-a-400), [`routing/a-capture-narrows-to-a-closed-set`](routing.md#routing-a-capture-narrows-to-a-closed-set), [`routing/a-leftover-link-key-is-a-query-string`](routing.md#routing-a-leftover-link-key-is-a-query-string), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`attributes/api-adds-and-cannot-contradict`](attributes.md#attributes-api-adds-and-cannot-contradict), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table). Decided in [0102](../decisions/0102.md).</sub>
 
 <a id="routing-a-bad-query-value-is-a-400"></a>
 
@@ -392,7 +392,7 @@ The route table's shape does not change: one row per `(path, method)`, with `nam
 row rather than a key into them, and the reverse index `url()` reads is built from that column.
 Runtime cost is zero and memory cost is one `?string` column's worth of repeats.
 
-<sub>See also [`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table), [`routing/an-absolute-link-takes-a-configured-origin`](routing.md#routing-an-absolute-link-takes-a-configured-origin), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked). Decided in [0110](../decisions/0110.md), [0085](../decisions/0085.md), [0102](../decisions/0102.md).</sub>
+<sub>See also [`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table), [`routing/an-absolute-link-takes-a-configured-origin`](routing.md#routing-an-absolute-link-takes-a-configured-origin), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked). Decided in [0110](../decisions/0110.md), [0102](../decisions/0102.md).</sub>
 
 <a id="routing-matching-is-not-dispatching"></a>
 
@@ -787,7 +787,28 @@ contradict.
 refuses emits no document at all rather than a partial one. A handler returning `mixed` produces a
 useless schema, visibly, which is the correct incentive.
 
-<sub>See also [`routing/api-document-is-a-deterministic-build-artifact`](routing.md#routing-api-document-is-a-deterministic-build-artifact), [`routing/api-diff-fails-a-breaking-change`](routing.md#routing-api-diff-fails-a-breaking-change), [`routing/a-shared-name-is-one-endpoint-everywhere`](routing.md#routing-a-shared-name-is-one-endpoint-everywhere), [`attributes/api-adds-and-cannot-contradict`](attributes.md#attributes-api-adds-and-cannot-contradict), [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`routing/a-query-parameter-is-declared-like-a-capture`](routing.md#routing-a-query-parameter-is-declared-like-a-capture). Decided in [0085](../decisions/0085.md), [0102](../decisions/0102.md), [0110](../decisions/0110.md).</sub>
+The document is only as precise as the handlers' types, and the type system is what makes it precise:
+every variable has a declared type, a property is definitely initialized, `?T` is the only
+nullability, and an enum is closed, so each maps onto JSON Schema without guessing. A doc comment is
+already parsed for tooling, so reading it adds no machinery, but it makes the comment part of a
+published artifact.
+
+**Declined:**
+- **Reflecting over the route table at run time**, the way annotation-scanning frameworks build their
+  document. It is compile-time work done at run time, it needs a cache that goes stale, and it cannot
+  make a contradiction a compile error, which is the whole value
+  ([`attributes/api-adds-and-cannot-contradict`](attributes.md#attributes-api-adds-and-cannot-contradict)).
+- **A hand-written specification the compiler checks the code against.** It makes the document a
+  second source of truth kept in sync in the other direction, and a check strong enough to be worth it
+  is a much larger feature. Nothing stops a team from diffing a generated document against a
+  hand-written one with [`routing/api-diff-fails-a-breaking-change`](routing.md#routing-api-diff-fails-a-breaking-change).
+- **Generating clients.** The OpenAPI generator ecosystem exists and is specialised per target
+  language, so Novis emits the input it reads rather than reimplementing it.
+- **GraphQL and gRPC descriptions.** The document is OpenAPI alone; a handler that does not answer JSON
+  is an operation with an opaque response
+  ([`routing/api-document-is-a-deterministic-build-artifact`](routing.md#routing-api-document-is-a-deterministic-build-artifact)).
+
+<sub>See also [`routing/api-document-is-a-deterministic-build-artifact`](routing.md#routing-api-document-is-a-deterministic-build-artifact), [`routing/api-diff-fails-a-breaking-change`](routing.md#routing-api-diff-fails-a-breaking-change), [`routing/a-shared-name-is-one-endpoint-everywhere`](routing.md#routing-a-shared-name-is-one-endpoint-everywhere), [`attributes/api-adds-and-cannot-contradict`](attributes.md#attributes-api-adds-and-cannot-contradict), [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`routing/a-query-parameter-is-declared-like-a-capture`](routing.md#routing-a-query-parameter-is-declared-like-a-capture). Decided in [0102](../decisions/0102.md), [0110](../decisions/0110.md).</sub>
 
 <a id="routing-api-document-is-a-deterministic-build-artifact"></a>
 
@@ -811,7 +832,11 @@ OpenAPI 3.1 only, whose schema dialect is JSON Schema, so every declared type ma
 type system says something it cannot express. A handler answering HTML or a stream appears as an
 operation with an opaque response — honest, and not very useful.
 
-<sub>See also [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table), [`routing/api-diff-fails-a-breaking-change`](routing.md#routing-api-diff-fails-a-breaking-change). Decided in [0085](../decisions/0085.md).</sub>
+**Declined:**
+- **A document the running server builds and serves as an endpoint.** It puts work on the request
+  path for a value that changes only when the code does, which is what the artifact cache is for.
+
+<sub>See also [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table), [`routing/api-diff-fails-a-breaking-change`](routing.md#routing-api-diff-fails-a-breaking-change).</sub>
 
 <a id="routing-api-diff-fails-a-breaking-change"></a>
 
@@ -837,7 +862,7 @@ A document that cannot be read or is not JSON is a failure naming the file, neve
 "nothing changed" and "could not tell" may not share an exit code in a gate. Put the command in CI
 against the last release's document and a broken client turns from an incident into a red pipeline.
 
-<sub>See also [`routing/api-document-is-a-deterministic-build-artifact`](routing.md#routing-api-document-is-a-deterministic-build-artifact), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table). Decided in [0085](../decisions/0085.md).</sub>
+<sub>See also [`routing/api-document-is-a-deterministic-build-artifact`](routing.md#routing-api-document-is-a-deterministic-build-artifact), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table).</sub>
 
 <a id="routing-a-quick-fix-writes-a-derived-path"></a>
 

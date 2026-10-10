@@ -1,5 +1,5 @@
 <?nvs
-// [base.nvs](base.nvs) with `Items::show` deleted, which is ADR 0085 § 4's
+// [base.nvs](base.nvs) with `Items::show` deleted, which is `nvs api diff`'s
 // first breaking change: an operation the previous document promised is gone.
 
 class Items

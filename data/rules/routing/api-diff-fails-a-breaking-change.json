@@ -1,9 +1,7 @@
 {
   "title": "`nvs api diff` classifies every change as breaking, additive or cosmetic, and exits non-zero on a breaking one",
   "status": "shipped",
-  "because": [
-    "0085"
-  ],
+  "because": [],
   "seeAlso": [
     "routing/api-document-is-a-deterministic-build-artifact",
     "routing/api-document-is-generated-from-the-route-table"

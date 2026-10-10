@@ -4,14 +4,14 @@
 //!
 //! The comparison is over [`Value`]s, not text. The emitter
 //! ([`crate::openapi`]) writes through `serde_json` and this reads through it,
-//! so the two halves of § 4 cannot end up with different opinions about what
+//! so the document and its diff cannot end up with different opinions about what
 //! JSON is — and a document a *user* produced (the last release's artifact,
 //! checked into a repository and reformatted by whatever touched it since) is
 //! compared by its content rather than by its whitespace.
 //!
-//! ## The classification (§ 4)
+//! ## The classification
 //!
-//! Three classes, and the ADR names most of the members of each:
+//! Three classes, and the rule names most of the members of each:
 //!
 //! * **Breaking** — a removed operation, a removed parameter or property, one
 //!   that became required, a narrowed type, a removed enum case, a removed
@@ -22,9 +22,9 @@
 //!   description, an `operationId`, a tag.
 //!
 //! **The rule is applied mechanically and errs towards breaking**, which is the
-//! ADR's own reading: it says the gate "will occasionally be wrong at the
-//! margins — a change that is technically breaking and practically harmless",
-//! and deliberately ships no suppression mechanism, because a gate with an
+//! rule's own reading: the gate is occasionally wrong at the margins, on a
+//! change that is technically breaking and practically harmless, and it ships
+//! no suppression mechanism, because a gate with an
 //! escape hatch is an advisory. That is why a *removed* parameter is breaking
 //! whether or not it was optional, and why a changed
 //! `format` is breaking, because `{"type": "string"}` and
@@ -32,11 +32,11 @@
 //!
 //! ## What has no producer yet
 //!
-//! [`crate::openapi`]'s module doc lists the § 1 rows the route table does not
+//! [`crate::openapi`]'s module doc lists the document rows the route table does not
 //! supply, and among them are the reason the walk below reads members no
 //! document Novis writes today carries: `responses` and `requestBody`. They are
 //! implemented here rather than left for the session that lands them because
-//! § 4's gate is defined over *documents*, not over this emitter's current
+//! the gate is defined over *documents*, not over this emitter's current
 //! output — the old side of a diff is whatever a team's last release wrote, and
 //! a gate that silently ignored a member it did not recognise would report
 //! "no change" over a document that removed every response in it.
@@ -150,7 +150,7 @@ pub(crate) fn diff(old: &Value, new: &Value) -> Vec<Change> {
         "paths",
         &mut changes,
     );
-    // § 4 is a gate over what an API *promises*, so `components.schemas` is
+    // The gate is over what an API *promises*, so `components.schemas` is
     // walked with the same rules: a named schema is reachable from an operation
     // through a `$ref`, and removing one removes whatever referenced it.
     schemas_diff(
@@ -307,7 +307,7 @@ fn body_diff(old: Option<&Value>, new: Option<&Value>, at: &str, out: &mut Vec<C
     }
 }
 
-/// `responses`, keyed by status code. § 4 names a changed status code as
+/// `responses`, keyed by status code. The rule names a changed status code as
 /// breaking, and a removed one is that change seen from the document: the code
 /// a client branches on is gone.
 fn responses_diff(old: Option<&Value>, new: Option<&Value>, at: &str, out: &mut Vec<Change>) {
@@ -381,7 +381,7 @@ const CONSTRAINTS: &[&str] = &[
 
 /// Two JSON Schemas, the recursion every schema-shaped member above reaches.
 ///
-/// § 4's "a narrowed type" and "a removed enum case" both live here, and so
+/// The gate's "a narrowed type" and "a removed enum case" both live here, and so
 /// does the properties walk that makes "a removed or newly required field"
 /// mean something: a field is a property of an object schema.
 fn schema_diff(old: Option<&Value>, new: Option<&Value>, at: &str, out: &mut Vec<Change>) {
@@ -430,7 +430,7 @@ fn schema_diff(old: Option<&Value>, new: Option<&Value>, at: &str, out: &mut Vec
     );
 }
 
-/// § 4's "a narrowed type". 3.1 writes a nullable string as
+/// The gate's "a narrowed type". 3.1 writes a nullable string as
 /// `"type": ["string", "null"]`, so a type is a *set* and the comparison is a
 /// subset one: losing a member narrows, gaining one widens, and swapping one
 /// for another is both — reported as the breaking half.
@@ -453,7 +453,7 @@ fn types_diff(old: &Value, new: &Value, at: &str, out: &mut Vec<Change>) {
     }
 }
 
-/// § 4's enum cases, in both directions: a removed case is breaking, a new one
+/// The gate's enum cases, in both directions: a removed case is breaking, a new one
 /// is additive, and a schema that gained an `enum` at all narrowed to it.
 fn enum_diff(old: &Value, new: &Value, at: &str, out: &mut Vec<Change>) {
     let (before, after) = (enum_cases(old), enum_cases(new));
@@ -475,7 +475,7 @@ fn enum_diff(old: &Value, new: &Value, at: &str, out: &mut Vec<Change>) {
     }
 }
 
-/// An object schema's `properties`, which is where § 4's "a removed or newly
+/// An object schema's `properties`, which is where the gate's "a removed or newly
 /// required field" is decided. `required` is a sibling array in JSON Schema
 /// rather than a flag on the property, so it is read from the parent.
 fn properties_diff(old: &Value, new: &Value, at: &str, out: &mut Vec<Change>) {

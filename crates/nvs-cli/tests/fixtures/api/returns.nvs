@@ -1,5 +1,5 @@
 <?nvs
-// ADR 0085 § 1's response body row: the `200` response's schema is the
+// The generated document's response body row: the `200` response's schema is the
 // handler's *declared* return type, so this fixture declares the three answers
 // the emitter has to tell apart -- a type it maps, a type it does not, and no
 // body at all.
