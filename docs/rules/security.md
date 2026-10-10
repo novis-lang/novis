@@ -326,7 +326,7 @@ bounded, and visible in the grants.
   request's view inconsistent, and the value it holds still crosses the boundary
   [`classes/two-copy-depths`](classes.md#classes-two-copy-depths) governs.
 
-<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0059](../decisions/0059.md).</sub>
+<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call).</sub>
 
 <a id="security-closed-doors"></a>
 
@@ -356,7 +356,7 @@ whole purpose is process-global state or in-process native binding — and cross
 shared-memory latency is not available at any price. That spends latency to buy isolation, which is
 the ordering [`programs/memory-priority`](programs.md#programs-memory-priority) mandates.
 
-<sub>See also [`security/no-ffi`](security.md#security-no-ffi), [`security/a-path-is-not-a-url`](security.md#security-a-path-is-not-a-url), [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`security/no-eval`](security.md#security-no-eval). Decided in [0059](../decisions/0059.md).</sub>
+<sub>See also [`security/no-ffi`](security.md#security-no-ffi), [`security/a-path-is-not-a-url`](security.md#security-a-path-is-not-a-url), [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`security/no-eval`](security.md#security-no-eval).</sub>
 
 <a id="security-no-ffi"></a>
 

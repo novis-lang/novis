@@ -3,8 +3,7 @@
   "status": "shipped",
   "because": [
     "0139",
-    "0124",
-    "0059"
+    "0124"
   ],
   "seeAlso": [
     "core-api/session-roster",

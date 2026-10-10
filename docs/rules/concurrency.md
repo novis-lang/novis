@@ -443,7 +443,7 @@ observable only as speed, and a metrics registry holds approximate aggregates th
 read and nothing decides on. Both are charged to a core and capped, which is the same accounting
 [`concurrency/cache-memory-is-charged-to-the-core`](concurrency.md#concurrency-cache-memory-is-charged-to-the-core) records.
 
-<sub>See also [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`security/closed-doors`](security.md#security-closed-doors), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0059](../decisions/0059.md), [0181](../decisions/0181.md).</sub>
+<sub>See also [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`security/closed-doors`](security.md#security-closed-doors), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0181](../decisions/0181.md).</sub>
 
 <a id="concurrency-the-process-tier-is-one-store-per-process"></a>
 
@@ -507,9 +507,11 @@ pretends otherwise.
 That is why a lock, a counter or a limiter is never built on the cache. The mechanisms that need
 those guarantees have their own homes over the shared tier, where the store's own atomicity is what
 provides them — `Core\RateLimit::consume` for a limit, a lease for scheduled work, and the database
-for anything else.
+for anything else. There is no in-process coordination primitive at all, so a program that needs one
+pays a network round trip; that floor is deliberate, because an in-process one would be the channel
+[`security/no-cross-request-state`](security.md#security-no-cross-request-state) closes.
 
-<sub>See also [`concurrency/a-cached-value-is-copied-across-the-boundary`](concurrency.md#concurrency-a-cached-value-is-copied-across-the-boundary), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers). Decided in [0059](../decisions/0059.md), [0181](../decisions/0181.md).</sub>
+<sub>See also [`concurrency/a-cached-value-is-copied-across-the-boundary`](concurrency.md#concurrency-a-cached-value-is-copied-across-the-boundary), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers). Decided in [0181](../decisions/0181.md).</sub>
 
 <a id="concurrency-a-cached-value-is-copied-across-the-boundary"></a>
 
@@ -537,7 +539,12 @@ The copy is a real per-`get` cost, paid to keep the request model intact. An imp
 later share immutable scalars within a core by refcount, since a core is single-threaded — an
 optimisation, and it must not be observable.
 
-<sub>See also [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`iteration/generator-stays-in-one-isolate`](iteration.md#iteration-generator-stays-in-one-isolate). Decided in [0059](../decisions/0059.md), [0181](../decisions/0181.md).</sub>
+**Declined:**
+- **Reference-sharing, with the cache pinning values against the wholesale drop.** Beyond tying a
+  heap's lifetime to what a request read, it would leak a mutable value between requests unless every
+  cached value were deeply immutable, which is a second value model to maintain.
+
+<sub>See also [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`iteration/generator-stays-in-one-isolate`](iteration.md#iteration-generator-stays-in-one-isolate). Decided in [0181](../decisions/0181.md).</sub>
 
 <a id="concurrency-cache-memory-is-charged-to-the-core"></a>
 
@@ -553,13 +560,17 @@ every byte belongs to a request in flight.
 forgets an older entry and succeeds; a program never sees a store fail because the tier was full,
 which is the whole point of a tier whose contract already says any entry may be absent.
 
-Stated in the form the memory rule requires: the local tier costs **O(cores × working set)** — eight
-cores hold up to eight copies of the same hot entry — bounded by the configured cap. It is
-explicitly **not** O(requests served): an entry's lifetime is governed by TTL and eviction, never by
-how much traffic has passed through. That multiplication is the price of the isolation it buys, and
-it is recorded so it is a known number rather than a surprise in production.
+- **Memory:** the local tier costs **O(cores × working set)** — eight cores hold up to eight copies of
+  the same hot entry — bounded by the configured cap per core. It is explicitly **not** O(requests
+  served): an entry's lifetime is governed by TTL and eviction, never by how much traffic has passed
+  through. That multiplication is the price of the isolation it buys, spent deliberately under
+  [`programs/memory-priority`](programs.md#programs-memory-priority).
 
-<sub>See also [`programs/memory-priority`](programs.md#programs-memory-priority), [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit). Decided in [0059](../decisions/0059.md).</sub>
+The same split costs throughput as well as footprint: on a cold cache and evenly spread traffic the
+hit rate is lower than one shared segment's by roughly the core count, paid once per core rather than
+per request, and warm caches converge.
+
+<sub>See also [`programs/memory-priority`](programs.md#programs-memory-priority), [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit).</sub>
 
 <a id="concurrency-a-cross-request-stores-bytes-are-its-own-balance"></a>
 
@@ -620,7 +631,7 @@ The test is what a program relies on, not where bytes live
 not one: a per-core metrics registry outlives requests and passes, because no program can read a
 metric at all and its values are approximate aggregates merged arithmetically at scrape.
 
-<sub>See also [`core-api/session-roster`](core-api.md#core-api-session-roster), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`security/no-cross-request-state`](security.md#security-no-cross-request-state). Decided in [0059](../decisions/0059.md), [0181](../decisions/0181.md).</sub>
+<sub>See also [`core-api/session-roster`](core-api.md#core-api-session-roster), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`security/no-cross-request-state`](security.md#security-no-cross-request-state). Decided in [0181](../decisions/0181.md).</sub>
 
 <a id="concurrency-a-secret-is-cached-only-sealed"></a>
 

@@ -51,7 +51,7 @@ isolation*, with each rule's ADR behind it. Anything that defeats one of these i
   anything shared between requests but compiled code; a poisoned artifact or hot-reload cache
   ([`security/isolate-shares-nothing`](docs/rules/security.md#security-isolate-shares-nothing),
   [`config/a-request-keeps-the-unit-it-resolved`](docs/rules/config.md#config-a-request-keeps-the-unit-it-resolved),
-  [0059](docs/decisions/0059.md)).
+  [`concurrency/cross-request-state-is-explicit`](docs/rules/concurrency.md#concurrency-cross-request-state-is-explicit)).
 - **Extension sandbox or capability escape** — a wasm component reaching outside its grant, or a manifest
   loosening the qualifier analysis instead of tightening it
   ([`packaging/an-extension-is-a-sandboxed-wasm-component`](docs/rules/packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component),

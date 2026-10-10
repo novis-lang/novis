@@ -154,7 +154,7 @@ mod tests {
     }
 
     /// `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`, both sides of the roster: the words it admits resolve, and the
-    /// weak tiers ADR 0059 § 4 and ADR 0181 removed are refused with their own reason named rather
+    /// weak tiers `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent` and ADR 0181 removed are refused with their own reason named rather
     /// than with a generic unknown-value message an operator learns nothing from.
     ///
     /// Driven off the tables rather than off spellings written here, so a tier added to either one

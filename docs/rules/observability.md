@@ -210,7 +210,7 @@ to constrain — and it passes that rule's own test rather than being an excepti
 A shared, coherent store would be the cross-request coordination that rule closes, bought for a
 number that is approximate by definition.
 
-<sub>See also [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit), [`concurrency/cache-memory-is-charged-to-the-core`](concurrency.md#concurrency-cache-memory-is-charged-to-the-core), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`observability/past-max-series-a-new-series-is-refused`](observability.md#observability-past-max-series-a-new-series-is-refused), [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted). Decided in [0076](../decisions/0076.md), [0059](../decisions/0059.md).</sub>
+<sub>See also [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit), [`concurrency/cache-memory-is-charged-to-the-core`](concurrency.md#concurrency-cache-memory-is-charged-to-the-core), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`observability/past-max-series-a-new-series-is-refused`](observability.md#observability-past-max-series-a-new-series-is-refused), [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted). Decided in [0076](../decisions/0076.md).</sub>
 
 <a id="observability-past-max-series-a-new-series-is-refused"></a>
 
