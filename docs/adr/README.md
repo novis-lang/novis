@@ -25,8 +25,8 @@ reports a citation into a section that does not exist.
 [`benches/abi-probe`](../../benches/abi-probe/). The tests are authoritative; a number written anywhere
 else is a copy that can go stale.
 
-Numbering starts at 0002 and has gaps: **0032** was folded into [0029](../decisions/0029.md) § 1
-before the freeze, and **0140** and **0141** were never claimed. The project-start decisions below
+Numbering starts at 0002 and has gaps: **0032** was folded into the casing record, now
+`rule:core-api/casing-checks-the-leading-character`, before the freeze, and **0140** and **0141** were never claimed. The project-start decisions below
 are what 0001 would have been. [tooling-parity.md](tooling-parity.md) — the PHP tool ecosystem, tool by tool, and where each job
 landed — still lives beside this file.
 

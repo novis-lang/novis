@@ -2,8 +2,7 @@
   "title": "Every name is compared exactly, so `Foo` and `foo` are two names and never one",
   "status": "shipped",
   "because": [
-    "0062",
-    "0029"
+    "0062"
   ],
   "seeAlso": [
     "classes/reserved-spellings-are-lower-case",

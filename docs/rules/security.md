@@ -2235,7 +2235,7 @@ answer soundly. The simplification can only over-approximate towards rejecting, 
 direction. It costs nothing measurable: two counters carried through a walk that happens anyway, no
 allocation and no table lookup.
 
-<sub>See also [`security/bidi-boundaries`](security.md#security-bidi-boundaries), [`security/bidi-scope-is-the-whole-target`](security.md#security-bidi-scope-is-the-whole-target), [`errors/record-transformations`](errors.md#errors-record-transformations). Decided in [0087](../decisions/0087.md), [0029](../decisions/0029.md).</sub>
+<sub>See also [`security/bidi-boundaries`](security.md#security-bidi-boundaries), [`security/bidi-scope-is-the-whole-target`](security.md#security-bidi-scope-is-the-whole-target), [`errors/record-transformations`](errors.md#errors-record-transformations). Decided in [0087](../decisions/0087.md).</sub>
 
 <a id="security-bidi-boundaries"></a>
 
@@ -2283,7 +2283,7 @@ identifiers by construction, everything else by the predicate. One cost is accep
 editor or diff viewer that does not itself neutralize these controls still misrenders a file *before*
 the compiler sees it, so the check protects the merge and not the reading.
 
-<sub>See also [`security/bidi-predicate`](security.md#security-bidi-predicate), [`security/bidi-boundaries`](security.md#security-bidi-boundaries). Decided in [0087](../decisions/0087.md), [0029](../decisions/0029.md).</sub>
+<sub>See also [`security/bidi-predicate`](security.md#security-bidi-predicate), [`security/bidi-boundaries`](security.md#security-bidi-boundaries). Decided in [0087](../decisions/0087.md).</sub>
 
 <a id="security-hash-writes-argon2id-only"></a>
 

@@ -3,8 +3,7 @@
   "status": "shipped",
   "because": [
     "0094",
-    "0043",
-    "0029"
+    "0043"
   ],
   "seeAlso": [
     "core-api/a-parameter-is-not-a-member",

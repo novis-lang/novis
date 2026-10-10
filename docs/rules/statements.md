@@ -119,7 +119,7 @@ would restore exactly the two-spellings-one-meaning state removed here with the 
 resolution into style. The formatter does not strip it either — a construct the parser rejects never
 reaches the formatter.
 
-<sub>See also [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute). Decided in [0113](../decisions/0113.md), [0095](../decisions/0095.md), [0029](../decisions/0029.md).</sub>
+<sub>See also [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute). Decided in [0113](../decisions/0113.md), [0095](../decisions/0095.md).</sub>
 
 <a id="statements-one-function-resolves-every-name"></a>
 

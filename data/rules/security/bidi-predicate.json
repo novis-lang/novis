@@ -2,8 +2,7 @@
   "title": "A span is rejected when it ends with a directional scope still open, decided by two counters",
   "status": "shipped",
   "because": [
-    "0087",
-    "0029"
+    "0087"
   ],
   "seeAlso": [
     "security/bidi-boundaries",

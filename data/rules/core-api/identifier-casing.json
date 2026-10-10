@@ -2,7 +2,6 @@
   "title": "An identifier's casing is fixed by its category and a mismatch is a hard compile error",
   "status": "shipped",
   "because": [
-    "0029",
     "0011"
   ],
   "seeAlso": [
@@ -18,6 +17,7 @@
     "tests/conformance/reject/a-class-name-must-be-pascalcase.nvst",
     "tests/conformance/reject/a-method-name-must-be-camelcase.nvst",
     "tests/conformance/reject/a-class-constant-must-be-screaming-snake-case.nvst",
-    "tests/conformance/reject/an-enum-case-must-be-pascalcase.nvst"
+    "tests/conformance/reject/an-enum-case-must-be-pascalcase.nvst",
+    "tests/conformance/reject/every-category-of-name-refuses-the-wrong-case-and-a-leading-underscore.nvst"
   ]
 }

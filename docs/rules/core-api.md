@@ -382,9 +382,20 @@ anything is resolved and its diagnostic carries a mechanically derived rename. I
 standard library is unwritten because renaming a member later is a breaking change with no deprecation path
 ([`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name)). The cost is that `snake_case` source does not compile, so a
 ported program renames every such identifier, and two names that collide after renaming are the author's
-to separate.
+to separate. What it buys is that no codebase can drift into two competing house styles, and that a
+reader or an editor knows a name's category from its spelling before anything resolves it.
 
-<sub>See also [`core-api/casing-checks-the-leading-character`](core-api.md#core-api-casing-checks-the-leading-character), [`core-api/casing-has-no-suppression`](core-api.md#core-api-casing-has-no-suppression), [`core-api/members-are-full-words`](core-api.md#core-api-members-are-full-words), [`classes/no-leading-underscore-identifiers`](classes.md#classes-no-leading-underscore-identifiers), [`classes/names-resolve-case-sensitively`](classes.md#classes-names-resolve-case-sensitively), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name). Decided in [0029](../decisions/0029.md), [0011](../decisions/0011.md).</sub>
+**Declined:**
+- **Acronyms written as one word** (`HttpClient` required). Deciding what is an acronym needs a
+  dictionary ([`core-api/casing-checks-the-leading-character`](core-api.md#core-api-casing-checks-the-leading-character)).
+- **A warning instead of an error, or an attribute to suppress one**
+  ([`core-api/casing-has-no-suppression`](core-api.md#core-api-casing-has-no-suppression)).
+- **An `I` prefix for interfaces** (`IComparable`). It is a role marker no other kind of name carries,
+  and every interface already written would be renamed.
+- **Lower-case namespace segments** (`core\str`). Every `Core\...` reference already written would be
+  renamed.
+
+<sub>See also [`core-api/casing-checks-the-leading-character`](core-api.md#core-api-casing-checks-the-leading-character), [`core-api/casing-has-no-suppression`](core-api.md#core-api-casing-has-no-suppression), [`core-api/members-are-full-words`](core-api.md#core-api-members-are-full-words), [`classes/no-leading-underscore-identifiers`](classes.md#classes-no-leading-underscore-identifiers), [`classes/names-resolve-case-sensitively`](classes.md#classes-names-resolve-case-sensitively), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name). Decided in [0011](../decisions/0011.md).</sub>
 
 <a id="core-api-casing-checks-the-leading-character"></a>
 
@@ -404,7 +415,7 @@ a judgement, which is what makes the diagnostic's suggested rename always correc
 The cost is that a codebase can still be internally inconsistent about acronyms. That is accepted: the rule
 exists to make a name's *category* legible from its spelling, and the leading character carries all of it.
 
-<sub>See also [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`core-api/casing-has-no-suppression`](core-api.md#core-api-casing-has-no-suppression). Decided in [0029](../decisions/0029.md).</sub>
+<sub>See also [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`core-api/casing-has-no-suppression`](core-api.md#core-api-casing-has-no-suppression).</sub>
 
 <a id="core-api-casing-has-no-suppression"></a>
 
@@ -425,7 +436,7 @@ The stance is the piece most likely to be revisited, and only under pressure fro
 does not exist yet. The question would then be whether *that one* boundary needs an escape, not whether the
 check should have been a warning.
 
-<sub>See also [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`core-api/written-visibility`](core-api.md#core-api-written-visibility). Decided in [0029](../decisions/0029.md).</sub>
+<sub>See also [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`core-api/written-visibility`](core-api.md#core-api-written-visibility).</sub>
 
 <a id="core-api-written-visibility"></a>
 
@@ -451,7 +462,7 @@ question, enforced separately; until that lands everywhere, a written `private` 
 which is strictly better than an unwritten one. The formatter never inserts the keyword, because a formatter
 that changes meaning is not a formatter.
 
-<sub>See also [`core-api/a-parameter-is-not-a-member`](core-api.md#core-api-a-parameter-is-not-a-member), [`core-api/asymmetric-visibility-is-a-pair`](core-api.md#core-api-asymmetric-visibility-is-a-pair), [`core-api/legacy-property-shapes-name-the-visibility`](core-api.md#core-api-legacy-property-shapes-name-the-visibility), [`classes/interface-private-methods`](classes.md#classes-interface-private-methods), [`classes/property-hooks`](classes.md#classes-property-hooks), [`types/declaration`](types.md#types-declaration). Decided in [0094](../decisions/0094.md), [0043](../decisions/0043.md), [0029](../decisions/0029.md).</sub>
+<sub>See also [`core-api/a-parameter-is-not-a-member`](core-api.md#core-api-a-parameter-is-not-a-member), [`core-api/asymmetric-visibility-is-a-pair`](core-api.md#core-api-asymmetric-visibility-is-a-pair), [`core-api/legacy-property-shapes-name-the-visibility`](core-api.md#core-api-legacy-property-shapes-name-the-visibility), [`classes/interface-private-methods`](classes.md#classes-interface-private-methods), [`classes/property-hooks`](classes.md#classes-property-hooks), [`types/declaration`](types.md#types-declaration). Decided in [0094](../decisions/0094.md), [0043](../decisions/0043.md).</sub>
 
 <a id="core-api-asymmetric-visibility-is-a-pair"></a>
 

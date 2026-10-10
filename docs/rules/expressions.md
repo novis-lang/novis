@@ -173,7 +173,7 @@ time ([`expressions/mixed-equality`](expressions.md#expressions-mixed-equality))
 Ordering — `<`, `<=`, `>`, `>=`, `<=>` — is a separate question with its own rule, and this operator
 says nothing about it.
 
-<sub>See also [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics), [`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality), [`expressions/mixed-equality`](expressions.md#expressions-mixed-equality), [`expressions/switch-match-equality`](expressions.md#expressions-switch-match-equality). Decided in [0090](../decisions/0090.md), [0029](../decisions/0029.md).</sub>
+<sub>See also [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics), [`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality), [`expressions/mixed-equality`](expressions.md#expressions-mixed-equality), [`expressions/switch-match-equality`](expressions.md#expressions-switch-match-equality). Decided in [0090](../decisions/0090.md).</sub>
 
 <a id="expressions-equality-semantics"></a>
 

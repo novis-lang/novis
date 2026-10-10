@@ -79,7 +79,7 @@ A reserved-name check that is deliberately case-insensitive is not an exception 
 rejects more, and a tightening cannot make a program's meaning depend on case, because no spelling it
 touches has a meaning to depend on.
 
-<sub>See also [`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case), [`programs/path-case`](programs.md#programs-path-case), [`programs/autoload`](programs.md#programs-autoload). Decided in [0062](../decisions/0062.md), [0029](../decisions/0029.md).</sub>
+<sub>See also [`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case), [`programs/path-case`](programs.md#programs-path-case), [`programs/autoload`](programs.md#programs-autoload). Decided in [0062](../decisions/0062.md).</sub>
 
 <a id="classes-reserved-spellings-are-lower-case"></a>
 
@@ -103,7 +103,7 @@ inline-HTML token and teaches the author nothing. Two things fall out: `Core\Byt
 name tokens rather than a collision with the `bytes` type keyword, and identifier lexing no longer
 allocates a lower-cased copy of every name in the file.
 
-<sub>See also [`classes/names-resolve-case-sensitively`](classes.md#classes-names-resolve-case-sensitively), [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag). Decided in [0062](../decisions/0062.md), [0029](../decisions/0029.md).</sub>
+<sub>See also [`classes/names-resolve-case-sensitively`](classes.md#classes-names-resolve-case-sensitively), [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag). Decided in [0062](../decisions/0062.md).</sub>
 
 <a id="classes-no-leading-underscore-identifiers"></a>
 
@@ -130,7 +130,7 @@ name gets the same "must be camelCase" error as any other mis-cased name of its 
   exception, nothing justifies the allowance: an underscore prefix converts by deleting one
   character, which is too mechanical to be worth an exception.
 
-<sub>See also [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor). Decided in [0029](../decisions/0029.md).</sub>
+<sub>See also [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor).</sub>
 
 <a id="classes-constructor-is-a-method-named-constructor"></a>
 
@@ -162,7 +162,7 @@ mechanical rename for every converted class, which is the cheapest kind of break
   for the same reason `__construct` does, and `init` or `new` could collide with an ordinary method
   that has its own meaning.
 
-<sub>See also [`classes/no-leading-underscore-identifiers`](classes.md#classes-no-leading-underscore-identifiers), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods). Decided in [0022](../decisions/0022.md), [0029](../decisions/0029.md).</sub>
+<sub>See also [`classes/no-leading-underscore-identifiers`](classes.md#classes-no-leading-underscore-identifiers), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods). Decided in [0022](../decisions/0022.md).</sub>
 
 <a id="classes-promotion-is-constructor-only"></a>
 
@@ -812,7 +812,7 @@ underscore, so a class cannot declare a hook for the runtime to decline to call.
 there is no runtime moment for a loader callback to attach to. What replaces
 `spl_autoload_register` is [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload).
 
-<sub>See also [`classes/stringable`](classes.md#classes-stringable), [`classes/no-destructors`](classes.md#classes-no-destructors), [`classes/no-call-magic`](classes.md#classes-no-call-magic), [`classes/property-observer`](classes.md#classes-property-observer), [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload). Decided in [0028](../decisions/0028.md), [0014](../decisions/0014.md), [0023](../decisions/0023.md), [0029](../decisions/0029.md).</sub>
+<sub>See also [`classes/stringable`](classes.md#classes-stringable), [`classes/no-destructors`](classes.md#classes-no-destructors), [`classes/no-call-magic`](classes.md#classes-no-call-magic), [`classes/property-observer`](classes.md#classes-property-observer), [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload). Decided in [0028](../decisions/0028.md), [0014](../decisions/0014.md), [0023](../decisions/0023.md).</sub>
 
 <a id="classes-no-call-magic"></a>
 
@@ -834,7 +834,7 @@ name and argument list, or a `match` keyed by name — visible in the class body
 every other call. What that costs is real: a proxy or a fluent facade generated from `__call` has no
 mechanical translation and needs a human to write the surface out.
 
-<sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties), [`types/callable-values`](types.md#types-callable-values). Decided in [0014](../decisions/0014.md), [0029](../decisions/0029.md), [0011](../decisions/0011.md).</sub>
+<sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties), [`types/callable-values`](types.md#types-callable-values). Decided in [0014](../decisions/0014.md), [0011](../decisions/0011.md).</sub>
 
 <a id="classes-no-destructors"></a>
 

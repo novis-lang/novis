@@ -33,7 +33,7 @@ The attribute is matched **nominally**, by resolved name: `#[Core\Test]` and a `
 one attribute, and a userland `class Test` is never it. The marker and the assertions are one class,
 so a single `use Core\Test;` places both.
 
-<sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/fixtures`](testing.md#testing-fixtures), [`testing/data-rows`](testing.md#testing-data-rows), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict). Decided in [0079](../decisions/0079.md), [0077](../decisions/0077.md), [0046](../decisions/0046.md), [0063](../decisions/0063.md), [0071](../decisions/0071.md), [0011](../decisions/0011.md), [0029](../decisions/0029.md), [0172](../decisions/0172.md).</sub>
+<sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/fixtures`](testing.md#testing-fixtures), [`testing/data-rows`](testing.md#testing-data-rows), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict). Decided in [0079](../decisions/0079.md), [0077](../decisions/0077.md), [0046](../decisions/0046.md), [0063](../decisions/0063.md), [0071](../decisions/0071.md), [0011](../decisions/0011.md), [0172](../decisions/0172.md).</sub>
 
 <a id="testing-tests-never-reach-a-build"></a>
 

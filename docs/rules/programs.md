@@ -381,7 +381,7 @@ Path traversal is structurally impossible, with no sanitizer: a resolved suffix 
 namespace segments, which are `PascalCase` identifiers that may not begin with `_`, so `.`, `..` and a
 path separator cannot occur in one.
 
-<sub>See also [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`programs/one-declaration-per-autoloaded-file`](programs.md#programs-one-declaration-per-autoloaded-file), [`programs/path-case`](programs.md#programs-path-case). Decided in [0061](../decisions/0061.md), [0029](../decisions/0029.md), [0215](../decisions/0215.md).</sub>
+<sub>See also [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`programs/one-declaration-per-autoloaded-file`](programs.md#programs-one-declaration-per-autoloaded-file), [`programs/path-case`](programs.md#programs-path-case). Decided in [0061](../decisions/0061.md), [0215](../decisions/0215.md).</sub>
 
 <a id="programs-one-declaration-per-autoloaded-file"></a>
 

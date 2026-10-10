@@ -425,8 +425,8 @@ impl ShapeField {
 /// a real reading cost.
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct CoreShapeField {
-    /// The key a call site writes on the left of the `:`, `camelCase` per ADR
-    /// 0029 — an option's own name, or a field's.
+    /// The key a call site writes on the left of the `:`, `camelCase` per
+    /// `rule:core-api/identifier-casing` — an option's own name, or a field's.
     pub name: String,
     /// Its declared type, already lowered. Never itself a [`Ty::CoreShape`],
     /// and nullable exactly where the row's default is the never-written

@@ -2,8 +2,7 @@
   "title": "Keywords, contextual keywords and the `<?nvs` tag are lower case and nothing else",
   "status": "shipped",
   "because": [
-    "0062",
-    "0029"
+    "0062"
   ],
   "seeAlso": [
     "classes/names-resolve-case-sensitively",

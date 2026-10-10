@@ -1608,7 +1608,7 @@ open-ended ambiguity.
 Nothing hooks a synthesized class: no `Comparable`, no property observer, no method body to write one
 in. A program that wants behaviour on a shared bag of values declares an ordinary class.
 
-<sub>See also [`types/shape-type`](types.md#types-shape-type), [`types/object-top`](types.md#types-object-top), [`types/implicit-capture`](types.md#types-implicit-capture). Decided in [0036](../decisions/0036.md), [0022](../decisions/0022.md), [0023](../decisions/0023.md), [0029](../decisions/0029.md).</sub>
+<sub>See also [`types/shape-type`](types.md#types-shape-type), [`types/object-top`](types.md#types-object-top), [`types/implicit-capture`](types.md#types-implicit-capture). Decided in [0036](../decisions/0036.md), [0022](../decisions/0022.md), [0023](../decisions/0023.md).</sub>
 
 <a id="types-shape-type"></a>
 

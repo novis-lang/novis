@@ -4,8 +4,7 @@
   "because": [
     "0036",
     "0022",
-    "0023",
-    "0029"
+    "0023"
   ],
   "seeAlso": [
     "types/shape-type",
