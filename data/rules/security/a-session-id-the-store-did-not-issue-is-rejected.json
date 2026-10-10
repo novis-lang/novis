@@ -3,8 +3,7 @@
   "status": "designed",
   "because": [
     "0124",
-    "0139",
-    "0012"
+    "0139"
   ],
   "seeAlso": [
     "core-classes/session-is-started-explicitly",

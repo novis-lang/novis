@@ -2,7 +2,6 @@
   "title": "Request, server and session state throws where there is no inbound request, rather than answering empty",
   "status": "shipped",
   "because": [
-    "0012",
     "0006"
   ],
   "seeAlso": [

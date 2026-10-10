@@ -405,7 +405,7 @@ frame and nothing more. The script body is a function, so its variables are loca
 `global` no other function can see them ([`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global)). The
 shared-nothing story holds at file scope for the same reason it holds everywhere else.
 
-<sub>See also [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`statements/a-required-file-shares-declarations-not-locals`](statements.md#statements-a-required-file-shares-declarations-not-locals). Decided in [0011](../decisions/0011.md), [0012](../decisions/0012.md), [0006](../decisions/0006.md).</sub>
+<sub>See also [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`statements/a-required-file-shares-declarations-not-locals`](statements.md#statements-a-required-file-shares-declarations-not-locals). Decided in [0011](../decisions/0011.md), [0006](../decisions/0006.md).</sub>
 
 <a id="statements-an-isolate-has-its-own-statics"></a>
 
@@ -453,7 +453,19 @@ an explicit `as` before it populates a typed binding.
 
 Each rejected spelling is diagnosed by name and names the `Core` class that replaces it.
 
-<sub>See also [`statements/globals-and-request-are-dropped-outright`](statements.md#statements-globals-and-request-are-dropped-outright), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call), [`errors/cookie-name-bytes`](errors.md#errors-cookie-name-bytes). Decided in [0012](../decisions/0012.md), [0011](../decisions/0011.md), [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0006](../decisions/0006.md).</sub>
+A superglobal is untrusted input with no declared boundary: it is simply present, readable and writable
+from any scope. A method call on a named class is a declared, traceable entry point, so a reviewer sees
+which class, and therefore which trust boundary, each line depends on. With this rule a script learns
+anything from outside itself in one way only — a declared class member, an object property or a
+parameter — the same answer [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call) gives for state.
+
+**Declined:**
+- **The superglobals kept as read-only variables.** A read-only bare variable is still not imported
+  or declared anywhere, and it fits no row of [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call).
+- **One class for every request and server fact.** One class for unrelated concerns is a global
+  namespace with extra syntax ([`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants)).
+
+<sub>See also [`statements/globals-and-request-are-dropped-outright`](statements.md#statements-globals-and-request-are-dropped-outright), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call), [`errors/cookie-name-bytes`](errors.md#errors-cookie-name-bytes). Decided in [0011](../decisions/0011.md), [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0006](../decisions/0006.md).</sub>
 
 <a id="statements-globals-and-request-are-dropped-outright"></a>
 
@@ -476,7 +488,7 @@ and `::cookie()` — already say which one a value came from. A merged accessor 
 re-deriving the `request_order` footgun, or take the order as an argument, at which point it is no shorter
 than naming the source.
 
-<sub>See also [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0012](../decisions/0012.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0007](../decisions/0007.md).</sub>
 
 <a id="statements-an-anonymous-function-captures-this-only-where-it-uses-it"></a>
 

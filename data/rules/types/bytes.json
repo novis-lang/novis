@@ -4,8 +4,7 @@
   "because": [
     "0009",
     "0007",
-    "0006",
-    "0012"
+    "0006"
   ],
   "seeAlso": [
     "types/string-is-utf8",

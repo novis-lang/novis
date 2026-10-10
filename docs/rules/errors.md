@@ -796,7 +796,7 @@ consecutive CVEs — the second being the incomplete fix for the first, where co
 mangling let a plain cookie be read as a `__Host-` one. Enforcing it once, in the one place that
 parses the header, is the whole fix.
 
-<sub>See also [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`errors/http-message-defects`](errors.md#errors-http-message-defects). Decided in [0095](../decisions/0095.md), [0012](../decisions/0012.md).</sub>
+<sub>See also [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`errors/http-message-defects`](errors.md#errors-http-message-defects). Decided in [0095](../decisions/0095.md).</sub>
 
 <a id="errors-multipart-part-count"></a>
 

@@ -98,7 +98,7 @@ Two things follow with no rule of their own. The payload resolves once, at compi
 payload, because a tainted value has no compile-time-constant source at all; a `secret` class constant
 can, and is refused there as a sink (`E0727`).
 
-<sub>See also [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`attributes/retrieval-folds-while-checking`](attributes.md#attributes-retrieval-folds-while-checking), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0046](../decisions/0046.md), [0033](../decisions/0033.md), [0012](../decisions/0012.md).</sub>
+<sub>See also [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`attributes/retrieval-folds-while-checking`](attributes.md#attributes-retrieval-folds-while-checking), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0046](../decisions/0046.md), [0033](../decisions/0033.md).</sub>
 
 <a id="attributes-repeatable"></a>
 

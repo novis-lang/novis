@@ -2,8 +2,7 @@
   "title": "A cookie name is bytes, and a prefix is enforced once",
   "status": "shipped",
   "because": [
-    "0095",
-    "0012"
+    "0095"
   ],
   "seeAlso": [
     "errors/ambiguous-input-refused",

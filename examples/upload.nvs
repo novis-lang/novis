@@ -30,7 +30,7 @@ string $dir = Core\IO::temporaryDir();
 // `Core\IO::writeStream` and never holds more than a chunk.
 //
 // It refuses here, and the refusal is this leg's assertion. `Core\Request` has
-// nothing to read because nothing arrived (ADR 0012 § 7), and a program that
+// nothing to read because nothing arrived, and a program that
 // found an upload anyway would have found it in exactly the place ADR 0105
 // removed: ambient state the host left lying about.
 try {

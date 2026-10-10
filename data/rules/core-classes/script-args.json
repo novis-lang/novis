@@ -2,7 +2,6 @@
   "title": "`Core\\Script::args` is the value the current isolate was spawned with, and `null` where there was none",
   "status": "shipped",
   "because": [
-    "0012",
     "0006",
     "0023"
   ],

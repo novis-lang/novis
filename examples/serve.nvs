@@ -22,9 +22,8 @@
 // that `path()` has already removed — is read *into* this file rather than
 // wrapped around it, so every line below stays true when it arrives.
 
-// A body is text this program built. [ADR 0012](/docs/decisions/0012.md)
-// leaves no variable populated by the host, so there is nothing here that
-// arrived without being asked for and nothing to interpolate from outside.
+// A body is text this program built. The server fills no variable for you,
+// so every value here was written by this program.
 string $body = 'novis' . ' ' . 'serves this file';
 echo $body, "\n";
 

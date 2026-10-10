@@ -1155,7 +1155,7 @@ The operator's runtime switch is saving the root-owned file, which the running s
 publishes as a whole new snapshot with no restart ([`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot))
 — strictly more capable than editing an environment variable, and root-owned.
 
-<sub>See also [`config/two-modes-and-the-default-is-production`](config.md#config-two-modes-and-the-default-is-production), [`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot). Decided in [0091](../decisions/0091.md), [0012](../decisions/0012.md).</sub>
+<sub>See also [`config/two-modes-and-the-default-is-production`](config.md#config-two-modes-and-the-default-is-production), [`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot). Decided in [0091](../decisions/0091.md).</sub>
 
 <a id="config-a-mode-is-five-defaults"></a>
 

@@ -24,11 +24,10 @@ invoked, which is a process-wide fact rather than a per-isolate one, so a spawne
 fakes nor suppresses it the way it does for request state. A program reading arguments a *request*
 supplied wants [`core-classes/script-args`](core-classes.md#core-classes-script-args) instead.
 
-The record this rule comes from specified `args()`/`argc()` and a throw when called while serving
-HTTP. The shipped member is `arguments()`, and inside a request it answers empty rather than throwing
-— the launcher writes the command line and only the CLI entry point writes one.
+Inside a request the array is empty: the launcher writes the command line, and only the CLI entry
+point writes one.
 
-<sub>See also [`core-classes/script-args`](core-classes.md#core-classes-script-args), [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables). Decided in [0012](../decisions/0012.md), [0086](../decisions/0086.md), [0118](../decisions/0118.md).</sub>
+<sub>See also [`core-classes/script-args`](core-classes.md#core-classes-script-args), [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables). Decided in [0086](../decisions/0086.md), [0118](../decisions/0118.md).</sub>
 
 <a id="core-classes-script-args"></a>
 
@@ -50,7 +49,7 @@ and consistency is the whole of the reason: an ambient, undeclared variable is t
 introduced itself is no better for having been introduced deliberately. Each isolate's arguments are
 its own.
 
-<sub>See also [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`statements/an-isolate-has-its-own-statics`](statements.md#statements-an-isolate-has-its-own-statics). Decided in [0012](../decisions/0012.md), [0006](../decisions/0006.md), [0023](../decisions/0023.md).</sub>
+<sub>See also [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`statements/an-isolate-has-its-own-statics`](statements.md#statements-an-isolate-has-its-own-statics). Decided in [0006](../decisions/0006.md), [0023](../decisions/0023.md).</sub>
 
 <a id="core-classes-process-is-argv-only"></a>
 
@@ -1856,7 +1855,11 @@ own rather than a sweeper's.
 What this costs is one line per request that uses sessions. What it buys is that a request that does
 not use them pays nothing, which the ambient version could never promise.
 
-<sub>See also [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments), [`core-classes/script-args`](core-classes.md#core-classes-script-args). Decided in [0012](../decisions/0012.md), [0139](../decisions/0139.md), [0059](../decisions/0059.md).</sub>
+**Declined:**
+- **A session that starts on the first `Core\Session` access.** A read that starts a session is a side
+  effect at a distance, the kind of hidden step the explicit `start` exists to remove.
+
+<sub>See also [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments), [`core-classes/script-args`](core-classes.md#core-classes-script-args). Decided in [0139](../decisions/0139.md), [0059](../decisions/0059.md).</sub>
 
 <a id="core-classes-ratelimit-two-members"></a>
 

@@ -433,7 +433,7 @@ throwing event rather than an unasserted assumption.
 There is no dedicated literal token: `"…" as bytes` covers the valid-UTF-8 case for free, and
 `Core\Encoding::fromHex()`/`::fromBase64()` cover arbitrary binary constants.
 
-<sub>See also [`types/string-is-utf8`](types.md#types-string-is-utf8), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar). Decided in [0009](../decisions/0009.md), [0007](../decisions/0007.md), [0006](../decisions/0006.md), [0012](../decisions/0012.md).</sub>
+<sub>See also [`types/string-is-utf8`](types.md#types-string-is-utf8), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar). Decided in [0009](../decisions/0009.md), [0007](../decisions/0007.md), [0006](../decisions/0006.md).</sub>
 
 <a id="types-duration"></a>
 
@@ -865,7 +865,7 @@ tainted string $q = $doc['q'] as string;
 `mixed` never absorbs implicitly in the other direction: `int $n = $m;` where `$m` is `mixed` is a
 diagnostic, not a runtime check.
 
-<sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar), [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/type-test`](types.md#types-type-test). Decided in [0007](../decisions/0007.md), [0012](../decisions/0012.md), [0066](../decisions/0066.md), [0047](../decisions/0047.md), [0150](../decisions/0150.md), [0279](../decisions/0279.md).</sub>
+<sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar), [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/type-test`](types.md#types-type-test). Decided in [0007](../decisions/0007.md), [0066](../decisions/0066.md), [0047](../decisions/0047.md), [0150](../decisions/0150.md), [0279](../decisions/0279.md).</sub>
 
 <a id="types-type-test"></a>
 

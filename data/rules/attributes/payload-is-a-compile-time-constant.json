@@ -3,8 +3,7 @@
   "status": "shipped",
   "because": [
     "0046",
-    "0033",
-    "0012"
+    "0033"
   ],
   "seeAlso": [
     "attributes/inert-metadata",

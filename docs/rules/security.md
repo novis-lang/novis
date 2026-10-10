@@ -223,7 +223,7 @@ otherwise restricted: whether a shutdown has begun is a fact about the process r
 request, so it answers in a child exactly as it answers in a CLI program, and the members of that
 class that read the request are restricted with the other two.
 
-<sub>See also [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0012](../decisions/0012.md), [0006](../decisions/0006.md).</sub>
+<sub>See also [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0006](../decisions/0006.md).</sub>
 
 <a id="security-no-cross-request-state"></a>
 
@@ -927,7 +927,7 @@ is `?tainted bytes`. The list of sources being **enumerable** is what lets the q
 automatically, and is exactly what `secret` has no equivalent of
 ([`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source)).
 
-<sub>See also [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables). Decided in [0024](../decisions/0024.md), [0012](../decisions/0012.md), [0058](../decisions/0058.md), [0067](../decisions/0067.md), [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
+<sub>See also [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables). Decided in [0024](../decisions/0024.md), [0058](../decisions/0058.md), [0067](../decisions/0067.md), [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
 
 <a id="security-taint-propagation"></a>
 
@@ -1499,7 +1499,7 @@ That is a declared return type, not an ambient grant.
 The cost is stated: `secret` protects only what a developer remembers to annotate. That is a real
 coverage gap relative to `tainted`, not an oversight.
 
-<sub>See also [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/tainted-sources`](security.md#security-tainted-sources), [`security/secret-propagation`](security.md#security-secret-propagation), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments). Decided in [0033](../decisions/0033.md), [0086](../decisions/0086.md), [0012](../decisions/0012.md).</sub>
+<sub>See also [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/tainted-sources`](security.md#security-tainted-sources), [`security/secret-propagation`](security.md#security-secret-propagation), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments). Decided in [0033](../decisions/0033.md), [0086](../decisions/0086.md).</sub>
 
 <a id="security-secret-propagation"></a>
 
@@ -2421,4 +2421,4 @@ nothing, such as a signed cookie carrying the record itself, cannot answer it an
 session store ([`core-api/session-roster`](core-api.md#core-api-session-roster)). The acceptance test presents a fabricated id and
 asserts that a fresh one comes back.
 
-<sub>See also [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly), [`core-api/session-roster`](core-api.md#core-api-session-roster). Decided in [0124](../decisions/0124.md), [0139](../decisions/0139.md), [0012](../decisions/0012.md).</sub>
+<sub>See also [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly), [`core-api/session-roster`](core-api.md#core-api-session-roster). Decided in [0124](../decisions/0124.md), [0139](../decisions/0139.md).</sub>

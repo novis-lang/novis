@@ -6,7 +6,7 @@
 // The top level is the entry, so it runs once when the suite is loaded — with
 // no request in front of it — and once per request the listener accepts.
 // `Core\Request::route()` is what tells those apart, throwing where there is no
-// request at all (ADR 0012 § 7); this program declares no `#[Route]`, so a real
+// request at all (`rule:security/request-state-throws-in-an-isolate`); this program declares no `#[Route]`, so a real
 // request matches nothing and still gets an answer, which is ADR 0102 § 1's
 // "nothing here dispatches".
 class Wire {
