@@ -67,7 +67,7 @@ import is right when:
   chain, each with its current handoff and every recorded stage state.
 - A `cargo-named` check runs `cargo test --test <name>` or the project's test runner, never with `-p`
   (AGENTS.md rule 5).
-- A `nvs-suite` check runs `bun nv suite --case <path>... [--min-passing <n>] -- <nvs args>`, so its
+- A `nvs-suite` check runs `bun nv suite <tree>... [--case <path>]... [--min-passing <n>]`, so its
   case conditions are kept.
 - A `want` is a matcher over stdout and stderr together. Many Novis checks print their wanted text on
   stderr.
@@ -85,11 +85,12 @@ tests, so this step only wires them.
 | looper | Novis command |
 |---|---|
 | `[verify] run` | `bun nv verify` |
-| `[hooks] before_session` | `bun nv services --up` |
-| `[hooks] after_session`, with `on_fail = "warn"` | `bun nv sweep`, then `bun nv allow --learn <the session's event log>` |
-| the side loop's preparation hook | `bun nv side --prepare <slug> --dir <the worktree>` |
-| a Linux-leg floor check, or `before_session` | `bun nv legs` |
-| the bench turn, on the cadence `bun nv sweep` keeps | `bun nv benches` |
+| `[hooks] before_session` | `bun nv services --up [--goal <slug>]` |
+| `[hooks] after_session`, with `on_fail = "warn"` | `bun nv sweep [--goal <slug>] [--done] [--keep-runs <n>] [--session <label>]`, then `bun nv allow --learn <the session's event log>` |
+| the side loop's preparation hook | `bun nv side --prepare <slug> --dir <the worktree> [--min-free-gb <n>]` |
+| a Linux-leg floor check, or `before_session` | `bun nv legs [--goal <slug>] [--full]` |
+| a `nvs-suite` check | `bun nv suite <tree>... [--case <path>]... [--min-passing <n>] [--full]` |
+| the bench turn, on the cadence `bun nv sweep` keeps | `bun nv benches [--owed]` |
 | `[orient] extra` | `bun nv pack --goal <slug> --stage <n>` |
 | `[wrap] sections` `plan`, `plan-edit`, `milestone` | `bun nv plan --apply - --dry` to check, `bun nv plan --apply -` to write |
 | `[wrap] checks` | `bun nv reference --check`, and the gates `bun nv session --wrap` runs before its commits today |

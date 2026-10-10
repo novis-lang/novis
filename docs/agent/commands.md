@@ -604,6 +604,27 @@ every width for one run, `NVS_VALGRIND_JOBS` and `NVS_TRY_JOBS` one caller's; no
 Its callers are the valgrind sweep and `bun nv try`, which runs its snippets this wide and prints the
 blocks back in the order you asked for them.
 
+## The loop's hooks, one command each
+
+```sh
+bun nv suite <tree>... [--case <path>]... [--min-passing <n>] [--full]   # judge one suite as an nvs-suite check
+bun nv legs [--goal <slug>] [--full]                  # the WSL leg and the valgrind sweep over a goal's fixtures
+bun nv services --up [--goal <slug>]                  # Docker preflight, then the goal's services up and healthy
+bun nv sweep [--goal <slug>] [--done] [--keep-runs <n>] [--session <label>]   # the sweep after a session
+bun nv benches [--owed]                               # the bench turn by hand
+bun nv side --prepare <slug> [--dir <path>] [--min-free-gb <n>]   # make or complete a side worktree
+bun nv allow --learn <events.jsonl>                   # record a session's shell calls, add the owed allow rules
+bun nv plan --apply <wrap-file | -> [--dry]           # check, then write, a wrap's plan, plan-edit and milestone sections
+bun nv pack [--goal <slug>] [--stage <n>]             # the pack sections only Novis has
+```
+
+Each is a piece of the loop driver that a person or a hook can run alone, and the driver calls the same
+code in-process. Each exits 0 green, 1 red and 2 on a usage error, except `bun nv sweep`, which always
+exits 0 and writes what was red to `.loop/last-sweep.md`. `--goal` and `--stage` win over
+`LOOPER_GOAL` and `LOOPER_STAGE`, which win over the live goal and its handoff's next stage.
+[looper-cutover.md](looper-cutover.md) § 3 is which looper hook runs which, and each command's
+`--help` and module doc own its flags.
+
 ## Disk
 
 ```sh

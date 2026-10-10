@@ -27,7 +27,9 @@ import { rule as ruleType } from "../schema/rule.ts";
 import { topic as topicType } from "../schema/topic.ts";
 import { bodyOf, leadParagraph, milestones, verifyParagraph } from "./plan.ts";
 
-export const summary = "the orientation pack's Novis-only sections for one goal and stage: nv pack [--goal SLUG] [--stage N]";
+export const summary = "the orientation pack's Novis-only sections for one goal and stage: nv pack [--goal <slug>] [--stage <n>]";
+
+const USAGE = "usage: bun nv pack [--goal <slug>] [--stage <n>]";
 
 export const CONVENTIONS = "docs/agent/conventions.md";
 export const DECISIONS = "docs/decisions";
@@ -748,6 +750,7 @@ export function runNumbers(): void {
 export async function pack(args: string[], at: string = ROOT): Promise<{ code: number; text: string }> {
   let goalFlag: string | undefined;
   let stageFlag: number | null = null;
+  if (args.includes("--help") || args.includes("-h")) return { code: 0, text: `${USAGE}\n\n${summary}` };
   for (let i = 0; i < args.length; i++) {
     const [flag, inline] = args[i]!.includes("=") ? (args[i]!.split(/=(.*)/s, 2) as [string, string]) : [args[i]!, undefined];
     if (flag !== "--goal" && flag !== "--stage") return { code: 2, text: `nv pack: unknown argument ${pyRepr(args[i]!)}\n${summary}` };

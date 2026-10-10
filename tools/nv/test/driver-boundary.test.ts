@@ -1,6 +1,7 @@
 // The boundary the loop driver's removal needs: no file outside `tools/nv/driver/` and the loop commands
-// imports either, and the code they shared with the rest of `tools/nv` lives outside them. Each test
-// fails naming the file and the specifier, or the moved file or function, that breaks the boundary.
+// imports either, the code they shared with the rest of `tools/nv` lives outside them, and every command
+// the cutover runbook's hook table names is registered. Each test fails naming the file and the
+// specifier, the moved file or function, or the command that breaks the boundary.
 
 import { describe, expect, test } from "bun:test";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -107,6 +108,35 @@ describe("the loop driver's boundary", () => {
     if (!/\bafterSession\(/.test(read("tools/nv/cmd/loop.ts"))) left.push("tools/nv/cmd/loop.ts sweeps without afterSession");
     left.push(...unregistered(["sweep", "benches", "side", "allow"]));
     expect(left).toEqual([]);
+  });
+
+  test("the wrap and orient sections have one home", () => {
+    const left: string[] = [];
+    const sections: [string, string, string | null][] = [
+      ["writeField", "tools/nv/cmd/plan.ts", null],
+      ["applyPlan", "tools/nv/cmd/plan.ts", "tools/nv/cmd/session.ts"],
+      ["applyPlanEdit", "tools/nv/cmd/plan.ts", "tools/nv/cmd/session.ts"],
+      ["applyMilestone", "tools/nv/cmd/plan.ts", "tools/nv/cmd/session.ts"],
+      ...["runRules", "runAdrs", "runMap", "runShapes", "runPlan", "runMilestones", "runNumbers"].map((n): [string, string, string] => [n, "tools/nv/cmd/pack.ts", "tools/nv/cmd/orient.ts"]),
+    ];
+    for (const [name, home, caller] of sections) {
+      for (const file of ["tools/nv/cmd/session.ts", "tools/nv/cmd/orient.ts"]) if (defines(file, name) || definesLocal(file, name)) left.push(`${name} in ${file}`);
+      if (!defines(home, name) && !definesLocal(home, name)) left.push(`${name} not in ${home}`);
+      if (caller && !new RegExp(`\\b${name}\\(`).test(read(caller))) left.push(`${caller} does not call ${name}`);
+    }
+    left.push(...unregistered(["pack"]));
+    expect(left).toEqual([]);
+  });
+
+  test("every command the cutover runbook names is registered", () => {
+    const runbook = read("docs/agent/looper-cutover.md");
+    const hooks = runbook.slice(runbook.indexOf("\n## 3."), runbook.indexOf("\n## 4."));
+    const rows = hooks.split("\n").filter((l) => l.startsWith("| ") && !l.startsWith("| looper"));
+    const named = new Set(rows.flatMap((r) => [...(r.split("|")[2] ?? "").matchAll(/`bun nv ([a-z][a-z-]*)/g)].map((m) => m[1]!)));
+    const main = read("tools/nv/main.ts");
+    const missing = [...named].filter((c) => !new RegExp(`^\\s+"?${c}"?: \\(\\) => import\\(`, "m").test(main));
+    expect(named.size).toBeGreaterThanOrEqual(10);
+    expect(missing).toEqual([]);
   });
 });
 

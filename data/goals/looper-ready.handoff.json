@@ -1,28 +1,24 @@
 {
-  "state": "**Goal `looper-ready`, Stages 2 to 4 are done; Stage 5 has one slice left.** `lib/written.ts` writes both ledgers, and `bun nv plan --apply` is in `tools/nv/cmd/plan.ts`, with `nv session --wrap` calling it. Both checks pass. `bun nv pack [--goal SLUG] [--stage N]` is `tools/nv/cmd/pack.ts`, registered in `main.ts`. It prints RULES, ADR SECTIONS, MAP, SHAPES, PLAN FIELDS, MILESTONES and NEXT FREE NUMBER in `orient`'s order, and prints no section for a goal with no `context`. Its goal comes from `--goal`, else `LOOPER_GOAL`, else the live goal, read with `namedPlan`. Its stage comes from `--stage`, else `LOOPER_STAGE` (`LOOPER_STAGE_ENV`, `lib/chain.ts`), else the handoff's next stage (`goalHandoff`, `lib/chain.ts`). `pack.ts` also owns the output buffer (`begin`, `emit`, `section`, `printed`, `costs`), the markdown slicing, `manifest`, `GoalValue` and `rulebook`. `orient` imports all of them, keeps TRAPS, and prints the same pack as before. `test/pack.test.ts` runs over a scratch tree, and its three titles pass. `decision-records-retired`'s Stage 12 anchors now point at `pack.ts` and `orient.ts` lines.\n\nThe user's calls are the goal file's § *Standing decisions*. If a `bun test -t <regex>` matches no test, it exits 0, so every check asks for the exact `Ran N tests across 1 file` line. The goal prose still cites stale `cmd/loop.ts`, `driver/gates.ts`, `driver/allow.ts`, `session.ts` and `orient.ts` line anchors. That code is now in `cmd/sweep.ts`, `accept/gates.ts`, `cmd/allow.ts`, `cmd/plan.ts` and `cmd/pack.ts`.",
+  "state": "**Goal `looper-ready` is reached: Stages 2 to 6 are done.** Nothing outside `tools/nv/driver/` and the seven loop commands imports them. Every hook looper will call is a registered `bun nv` command with its own tests: `suite`, `legs`, `services`, `sweep`, `benches`, `side`, `allow`, `plan --apply`, `pack`. `tools/nv/test/driver-boundary.test.ts` holds the boundary. It checks that the wrap and orient sections are defined only in `cmd/plan.ts` and `cmd/pack.ts` and called by `session.ts` and `orient.ts`. It also checks that every `bun nv` command in the hook table of `docs/agent/looper-cutover.md` § 3 is registered in `main.ts`. That table and `docs/agent/commands.md` § *The loop's hooks, one command each* name each command with the flags its `--help` prints. `bun nv pack --help` exists now.\n\nThe cutover itself is not part of this goal. `docs/agent/looper-cutover.md` is its runbook. The goal prose still cites stale line anchors in its command table, and the goal switch deletes that prose.",
   "next": {
-    "stage": 5,
-    "title": "the wrap and orient sections have one home",
+    "stage": 6,
+    "title": "done",
     "files": [
       "tools/nv/test/driver-boundary.test.ts",
-      "tools/nv/cmd/session.ts",
-      "tools/nv/cmd/orient.ts",
-      "tools/nv/main.ts",
-      "docs/agent/looper-cutover.md",
-      "docs/agent/commands.md"
+      "docs/agent/looper-cutover.md"
     ],
     "items": [
       {
-        "done": false,
-        "text": "**The wrap and orient sections have one home**: add a test titled `the wrap and orient sections have one home` to `tools/nv/test/driver-boundary.test.ts:1`. It fails while any of `writeField`, `applyPlan`, `applyPlanEdit`, `applyMilestone`, `runRules`, `runAdrs`, `runMap`, `runShapes`, `runPlan`, `runMilestones` or `runNumbers` is defined (a `function` declaration, not an import) in `tools/nv/cmd/session.ts:1` or `tools/nv/cmd/orient.ts:1`, or while `tools/nv/main.ts:60` does not register `pack`. Specified by the goal's Stage 5 section, check `looper-ready-wrap-and-pack-have-one-home`."
+        "done": true,
+        "text": "**The wrap and orient sections have one home** — `tools/nv/test/driver-boundary.test.ts:113`."
       },
       {
-        "done": false,
-        "text": "**Stage 6, the runbook names the commands**: bring the hook table in `docs/agent/looper-cutover.md:1` and `docs/agent/commands.md:1` up to the commands as built, `pack` included. Add the test `every command the cutover runbook names is registered`, which holds the hook table to `main.ts`'s registry. Specified by the goal's Stage 6 section."
+        "done": true,
+        "text": "**Every command the cutover runbook names is registered** — `tools/nv/test/driver-boundary.test.ts:131`, over `docs/agent/looper-cutover.md:80`."
       }
     ]
   },
   "backlog": [
-    "The goal prose's stale line anchors (`cmd/loop.ts`, `driver/gates.ts`, `driver/allow.ts`, `session.ts`, `orient.ts`) — `docs/agent/goals/looper-ready.md`, rewrite once Stage 6 lands."
+    "The cutover itself: `docs/agent/looper-cutover.md`, run by hand when the user starts it."
   ]
 }
