@@ -2,7 +2,6 @@
   touching the stylesheet.** In DevTools the difference is one glance: a range that was decorated
   and styled badly carries a decoration class on its token span, and a range nobody answered for is
   a bare `span.mtk<N>` with only its theme colour. `nvs/redactions` returning nothing looks exactly
-  like a filter that failed to apply, and a CSS change was made, shipped and written up as broken on
-  that misreading before `Novis: Restart Language Server` turned out to be the whole fix. The
+  like a filter that failed to apply, and `Novis: Restart Language Server` fixes it. The
   status item and the `nvs.lsp.trace.server` channel answer it without guessing.
   [until: gone editors/vscode/src/redactions.ts:filter: blur]

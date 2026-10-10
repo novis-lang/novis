@@ -1,6 +1,5 @@
 - **`target/release/nvs.exe` is whatever the *last* session built, and rebuilding it costs two
-  minutes for a verdict the debug binary already gives.** A `.nvst` case a stale binary fails may
-  simply predate it, and `cargo build --release -p nvs-cli` relinks the world for a one-line edit.
+  minutes for a verdict the debug binary already gives.**
   Run the pipeline's `target/covws/<host triple>/debug/nvs.exe` instead: it is already built at the
   commit the session starts from and `bun nv verify` rebuilds it, so it is the cheap answer and usually
   the faithful one. `bun nv proofs` builds

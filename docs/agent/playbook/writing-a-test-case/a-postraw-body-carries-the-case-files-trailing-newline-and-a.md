@@ -3,6 +3,5 @@
   characters and reads `content-length` back as 43, while
   `tests/conformance/core/a-body-read-twice-answers-the-same-octets.nvst` echoes a `--POST--` body with
   a `"\n"` of its own and matches. So a case that echoes a raw body writes no newline after it, and one
-  that reads a field out of a raw body gets that newline inside the last field's value — write the body
-  the member will read rather than the one that looks tidy in the file.
+  that reads a field out of a raw body gets that newline inside the last field's value.
   [until: gone tests/conformance/core/a-raw-request-body-reaches-the-program-verbatim.nvst:content-length]

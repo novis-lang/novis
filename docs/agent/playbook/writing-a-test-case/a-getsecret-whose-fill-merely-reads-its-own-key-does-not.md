@@ -3,6 +3,5 @@
   inside the fill is an ordinary miss, and the `LogicError` its reference card describes comes from
   the nested election alone — which is why
   `tests/conformance/core/cache-get-secret-fill-asking-for-its-own-key-is-a-logic-error.nvst` passes
-  an inner `{fill: …}`. Write the inner call with its own `fill` when the attack is the self-wait,
-  or the step reports the member answering where you meant it to refuse.
+  an inner `{fill: …}`. Write the inner call with its own `fill` when the attack is the self-wait.
   [until: gone tests/conformance/core/cache-get-secret-fill-asking-for-its-own-key-is-a-logic-error.nvst:LogicError]

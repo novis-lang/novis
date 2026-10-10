@@ -1,8 +1,7 @@
 - **A fact restated across decision documents goes stale, and the two shapes that always do it are a
   running count and an ordinal.** A record saying a list "opens with exactly four names" is wrong
   the day another adds a fifth without touching it, and an ordinal chained across records renumbers
-  nothing when a link is withdrawn. Before adding to any roster, grep for the total (`grep -rn
-  "holds .* names\|opens with exactly" docs/`); the fix that sticks is a table in the owning rule
+  nothing when a link is withdrawn. Before adding to any roster, grep for the total; the fix that sticks is a table in the owning rule
   that names the code registry it must agree with (`nvs_types::derive::ATTRIBUTES` for
   `rule:core-classes/derive-attribute`), and amendments that state no number.
   [until: gone crates/nvs-types/src/derive.rs:rule:core-classes/derive-attribute]

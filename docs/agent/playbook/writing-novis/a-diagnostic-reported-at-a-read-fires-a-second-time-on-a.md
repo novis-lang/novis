@@ -3,5 +3,5 @@
   to nothing — is reported at the read on purpose, and then reported over the top of `E0246` (`const
   LIMIT = 9;` has no type, so it folds to nothing *because* it was refused) and `E0727` (`const
   secret bytes BLOB = "b";` cannot fold because there is no `bytes` literal). Before reporting on a
-  use of a declaration, ask which declared types can never have reached that point cleanly and
-  return early for each with the other diagnostic named. See `crates/nvs-diagnostics/src/lib.rs`. [until: gone crates/nvs-diagnostics/src/lib.rs:E0792]
+  use of a declaration, return early for each type another diagnostic
+  already refused, naming it. See `crates/nvs-diagnostics/src/lib.rs`. [until: gone crates/nvs-diagnostics/src/lib.rs:E0792]
