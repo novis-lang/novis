@@ -2,8 +2,8 @@
 // driver that verifies anything asks this command, or runs it with `--run`, rather than choosing a
 // command itself.
 //
-//     bun nv affected                   the change: every uncommitted path, and in a loop session every
-//                                       commit since the session began
+//     bun nv affected                   the change: every uncommitted path, and every commit since
+//                                       the session began when looper names its base
 //     bun nv affected --since <rev>     the change: every path that differs between <rev> and the tree
 //     bun nv affected --paths <p>...    the change: exactly these paths, against HEAD
 //     bun nv affected --run             run the plan: `nv verify`, then the acceptance checks it names
@@ -39,22 +39,19 @@
 // Exits 0 when nothing reached is due, or when `--run` ran it green; 1 when something reached is due, or
 // `--run` found a red; 2 on a bad argument or a change git cannot name.
 
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { type Check, isHeavy } from "../accept/accept.ts";
 import { PlanSweep } from "../accept/runner.ts";
 import { type Graph, metadata } from "../keys/graph.ts";
 import { currentPlan } from "../lib/chain.ts";
-import { ROOT } from "../lib/paths.ts";
 import { passthrough, run as proc } from "../lib/proc.ts";
-import { ENV as WRITES_ENV } from "../lib/written.ts";
 import { LEGS } from "../select/checks.ts";
 import { describe, reachedByChange, type Selected, touchesDef } from "../select/select.ts";
 import { verifyPlan } from "./verify.ts";
 
 export const summary = "what a change reaches and exactly what verifying it runs: nv affected [--since <rev> | --paths <p>...] [--run | --json]";
 
-const SESSION_BASE = ".loop/session-start.json";
+/** The commit looper's session started from, which looper sets for a step it runs in a loop session. */
+const SESSION_BASE = "LOOPER_SESSION_BASE";
 /** How many reasons a check's line names before it counts the rest. */
 const SHOWN = 3;
 
@@ -114,17 +111,10 @@ async function git(args: string[]): Promise<string | null> {
   return r.code === 0 ? r.stdout : null;
 }
 
-/** The loop's session base when this is a loop session and HEAD descends from it, else null. The driver
- * names its session's write ledger on the session's environment, and nothing else does. */
+/** The loop's session base when `SESSION_BASE` names one and HEAD descends from it, else null. */
 async function sessionBase(): Promise<string | null> {
-  if (!process.env[WRITES_ENV]) return null;
-  let base: unknown;
-  try {
-    base = JSON.parse(readFileSync(join(ROOT, SESSION_BASE), "utf8"))?.base;
-  } catch {
-    return null;
-  }
-  if (typeof base !== "string" || !/^[0-9a-f]{7,40}$/.test(base)) return null;
+  const base = (process.env[SESSION_BASE] ?? "").trim();
+  if (!/^[0-9a-f]{7,40}$/.test(base)) return null;
   const r = await proc(["git", "merge-base", "--is-ancestor", base, "HEAD"], { timeoutMs: 60_000 });
   return r.code === 0 ? base : null;
 }
