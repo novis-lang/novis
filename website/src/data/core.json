@@ -4140,7 +4140,6 @@
       "summary": "",
       "surface": "`memoryHeld(): int`, `memoryPeak(): int`, `memoryLimit(): int` — this request's held bytes, its high-water mark and the ceiling both are measured against. Three members and no `$real_usage` boolean; an uncapped request answers `0` from `memoryLimit`. Replaces `memory_get_usage` and `memory_get_peak_usage`",
       "adrs": [
-        "0148",
         "0005"
       ],
       "enums": [],
@@ -27250,8 +27249,7 @@
       "summary": "",
       "surface": "host and process facts (`pid`, `hostname`, `cpuCount`, `residentBytes`, `loadAverage`). Replaces `posix_*` minus fork, `php_uname`, `getrusage`, `sys_getloadavg`. A **request's** memory is `Core\\Budget`'s and never here — `residentBytes` is the process's resident set, which is the question `Core\\Os` is entitled to answer",
       "adrs": [
-        "0051",
-        "0148"
+        "0051"
       ],
       "enums": [],
       "constants": [],

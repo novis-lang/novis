@@ -2,8 +2,7 @@
   "title": "`Core\\Script::onExit` registers a request-local hook that runs FIFO as the last user code, and each hook receives one readonly `ExitReport`",
   "status": "shipped",
   "because": [
-    "0127",
-    "0148"
+    "0127"
   ],
   "seeAlso": [
     "observability/three-endings-fire-the-exit-queue",

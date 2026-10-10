@@ -22,3 +22,10 @@ This is the reading that closes the gap the other two leave. `Script\ExitReport:
 an application to have registered a hook, and `nvs_request_memory_peak_bytes` requires an exporter
 and someone watching it; the request that matters is the one nobody instrumented and nobody was
 watching. A breach needs no equivalent: `rule:errors/on-limit`'s report already names both numbers.
+If the `Warn` proves too noisy, the answer is the threshold an operator writes, never the mechanism:
+its default is unwritten.
+
+**Declined:**
+- **A warning at a fixed fraction with no directive.** A threshold nobody can move is wrong for
+  somebody, and `rule:observability/a-slow-query-is-logged-past-a-threshold` already has the operator
+  write it.

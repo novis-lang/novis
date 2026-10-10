@@ -109,7 +109,7 @@ pub fn hostname() -> Option<String> {
 
 /// The bytes of this **process's** resident set, at its high-water mark.
 ///
-/// [ADR 0148](/docs/decisions/0148.md) § 12 names the reading: `getrusage`'s
+/// `rule:observability/memory-is-three-numbers-on-core-budget` names the reading: `getrusage`'s
 /// `ru_maxrss`, and the peak working set on Windows, which is the same
 /// quantity. It is the process's and never a request's — a request's held
 /// bytes are `Core\Budget`'s, off the counter `crate::budget` keeps — and it is

@@ -154,7 +154,7 @@ quietly turn "present the moment an exporter is configured" into a different con
 - **A statement label on `nvs_db_query_duration_seconds`**, normalised SQL beside `operation`.
   Valuable, and a cardinality question that needs a bound before it is offered.
 
-<sub>See also [`observability/the-runtime-exports-what-it-already-measures`](observability.md#observability-the-runtime-exports-what-it-already-measures), [`observability/route-label-is-the-declared-name`](observability.md#observability-route-label-is-the-declared-name), [`observability/past-max-series-a-new-series-is-refused`](observability.md#observability-past-max-series-a-new-series-is-refused), [`concurrency/deferred-is-bounded-by-two-directives`](concurrency.md#concurrency-deferred-is-bounded-by-two-directives), [`config/scheduled-work-is-a-config-block`](config.md#config-scheduled-work-is-a-config-block), [`programs/memory-priority`](programs.md#programs-memory-priority), [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind). Decided in [0148](../decisions/0148.md).</sub>
+<sub>See also [`observability/the-runtime-exports-what-it-already-measures`](observability.md#observability-the-runtime-exports-what-it-already-measures), [`observability/route-label-is-the-declared-name`](observability.md#observability-route-label-is-the-declared-name), [`observability/past-max-series-a-new-series-is-refused`](observability.md#observability-past-max-series-a-new-series-is-refused), [`concurrency/deferred-is-bounded-by-two-directives`](concurrency.md#concurrency-deferred-is-bounded-by-two-directives), [`config/scheduled-work-is-a-config-block`](config.md#config-scheduled-work-is-a-config-block), [`programs/memory-priority`](programs.md#programs-memory-priority), [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind).</sub>
 
 <a id="observability-a-name-is-fixed-to-one-kind"></a>
 
@@ -673,9 +673,9 @@ holds right now, `memoryPeak()` the high-water mark of that figure for this requ
 `memoryLimit()` the ceiling both are measured against.
 
 ```nvs
-Core\Budget::memoryHeld():  int
-Core\Budget::memoryPeak():  int
-Core\Budget::memoryLimit(): int
+Core\Budget::memoryHeld():  uint
+Core\Budget::memoryPeak():  uint
+Core\Budget::memoryLimit(): uint
 ```
 
 **`held`, not `usage`**, because the runtime already says *held*: a breach renders as *"the request
@@ -707,7 +707,17 @@ There is no `$real_usage`-style boolean in any spelling. Two accountings behind 
 [`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings) refuses, and where two numbers are genuinely different questions they
 are two members on the two classes that own them.
 
-<sub>See also [`observability/a-memory-peak-is-recorded-not-asked-for`](observability.md#observability-a-memory-peak-is-recorded-not-asked-for), [`observability/memory-high-water-writes-a-warn`](observability.md#observability-memory-high-water-writes-a-warn), [`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`errors/on-limit`](errors.md#errors-on-limit). Decided in [0148](../decisions/0148.md).</sub>
+The three members are the whole class, and `Core\Budget` is not a home for anything else that happens
+to be a number.
+
+**Declined:**
+- **`Core\Os::memoryPeak` beside a per-request figure on `Core\Os`.** The smallest edit, and it leaves
+  per-request figures among host facts, which is the ambiguity this rule removes.
+- **Renaming the figure in place on `Core\Os`.** It fixes the vague word and not the class.
+- **A fourth `memoryHeadroom()` member.** It is `memoryLimit() - memoryHeld()` at the call site, and
+  a member per piece of arithmetic is how a three-member class becomes a nine-member one.
+
+<sub>See also [`observability/a-memory-peak-is-recorded-not-asked-for`](observability.md#observability-a-memory-peak-is-recorded-not-asked-for), [`observability/memory-high-water-writes-a-warn`](observability.md#observability-memory-high-water-writes-a-warn), [`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`errors/on-limit`](errors.md#errors-on-limit).</sub>
 
 <a id="observability-a-memory-peak-is-recorded-not-asked-for"></a>
 
@@ -744,10 +754,19 @@ than deciding it.
 the current figure would let an application hide the number the request-level notices exist to
 surface. Bounding one section of a program is what `Core\Debug`'s probes are for.
 
-What this spends, per [`programs/memory-priority`](programs.md#programs-memory-priority): one `isize` per thread and one per `Ctx`.
-Nothing per process, nothing that grows with requests served, and nothing that outlives a request.
+**Memory:** one `isize` per thread and one per `Ctx`, the saved enclosing mark. Nothing per process,
+nothing that grows with requests served, and nothing that outlives a request. On the request path the
+update is one thread-local read and a well-predicted branch inside a branch that already exists; the
+ABI probe's perf guards measure that cost rather than assert it.
 
-<sub>See also [`observability/memory-is-three-numbers-on-core-budget`](observability.md#observability-memory-is-three-numbers-on-core-budget), [`observability/memory-high-water-writes-a-warn`](observability.md#observability-memory-high-water-writes-a-warn), [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0148](../decisions/0148.md).</sub>
+**Declined:**
+- **Leaving the peak to `Core\Debug`'s profiler.** A profiler answers "where did this go" for a
+  developer who is already looking, and the request that matters is the one nobody was looking at.
+- **Having the program record the peak itself** as the only mechanism. The request nobody
+  instrumented is the one that matters; `Core\Budget::memoryPeak` is kept as a reading, never as the
+  mechanism.
+
+<sub>See also [`observability/memory-is-three-numbers-on-core-budget`](observability.md#observability-memory-is-three-numbers-on-core-budget), [`observability/memory-high-water-writes-a-warn`](observability.md#observability-memory-high-water-writes-a-warn), [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`programs/memory-priority`](programs.md#programs-memory-priority).</sub>
 
 <a id="observability-memory-high-water-writes-a-warn"></a>
 
@@ -779,8 +798,15 @@ This is the reading that closes the gap the other two leave. `Script\ExitReport:
 an application to have registered a hook, and `nvs_request_memory_peak_bytes` requires an exporter
 and someone watching it; the request that matters is the one nobody instrumented and nobody was
 watching. A breach needs no equivalent: [`errors/on-limit`](errors.md#errors-on-limit)'s report already names both numbers.
+If the `Warn` proves too noisy, the answer is the threshold an operator writes, never the mechanism:
+its default is unwritten.
 
-<sub>See also [`observability/a-memory-peak-is-recorded-not-asked-for`](observability.md#observability-a-memory-peak-is-recorded-not-asked-for), [`observability/a-slow-query-is-logged-past-a-threshold`](observability.md#observability-a-slow-query-is-logged-past-a-threshold), [`observability/the-runtime-exports-what-it-already-measures`](observability.md#observability-the-runtime-exports-what-it-already-measures), [`config/an-app-block-may-widen-bounded-by-the-global-ceiling`](config.md#config-an-app-block-may-widen-bounded-by-the-global-ceiling), [`errors/on-limit`](errors.md#errors-on-limit). Decided in [0148](../decisions/0148.md).</sub>
+**Declined:**
+- **A warning at a fixed fraction with no directive.** A threshold nobody can move is wrong for
+  somebody, and [`observability/a-slow-query-is-logged-past-a-threshold`](observability.md#observability-a-slow-query-is-logged-past-a-threshold) already has the operator
+  write it.
+
+<sub>See also [`observability/a-memory-peak-is-recorded-not-asked-for`](observability.md#observability-a-memory-peak-is-recorded-not-asked-for), [`observability/a-slow-query-is-logged-past-a-threshold`](observability.md#observability-a-slow-query-is-logged-past-a-threshold), [`observability/the-runtime-exports-what-it-already-measures`](observability.md#observability-the-runtime-exports-what-it-already-measures), [`config/an-app-block-may-widen-bounded-by-the-global-ceiling`](config.md#config-an-app-block-may-widen-bounded-by-the-global-ceiling), [`errors/on-limit`](errors.md#errors-on-limit).</sub>
 
 <a id="observability-script-on-exit"></a>
 
@@ -824,7 +850,7 @@ Which endings drain the queue is [`observability/three-endings-fire-the-exit-que
 never do are [`observability/a-fatal-and-a-cancellation-run-no-exit-hook`](observability.md#observability-a-fatal-and-a-cancellation-run-no-exit-hook). This is the
 one hook for work that must run at every ending that is not a fatal.
 
-<sub>See also [`observability/three-endings-fire-the-exit-queue`](observability.md#observability-three-endings-fire-the-exit-queue), [`observability/a-fatal-and-a-cancellation-run-no-exit-hook`](observability.md#observability-a-fatal-and-a-cancellation-run-no-exit-hook), [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`core-api/removals`](core-api.md#core-api-removals). Decided in [0127](../decisions/0127.md), [0148](../decisions/0148.md).</sub>
+<sub>See also [`observability/three-endings-fire-the-exit-queue`](observability.md#observability-three-endings-fire-the-exit-queue), [`observability/a-fatal-and-a-cancellation-run-no-exit-hook`](observability.md#observability-a-fatal-and-a-cancellation-run-no-exit-hook), [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`core-api/removals`](core-api.md#core-api-removals). Decided in [0127](../decisions/0127.md).</sub>
 
 <a id="observability-three-endings-fire-the-exit-queue"></a>
 

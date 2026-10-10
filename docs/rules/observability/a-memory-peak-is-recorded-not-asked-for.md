@@ -27,5 +27,14 @@ than deciding it.
 the current figure would let an application hide the number the request-level notices exist to
 surface. Bounding one section of a program is what `Core\Debug`'s probes are for.
 
-What this spends, per `rule:programs/memory-priority`: one `isize` per thread and one per `Ctx`.
-Nothing per process, nothing that grows with requests served, and nothing that outlives a request.
+**Memory:** one `isize` per thread and one per `Ctx`, the saved enclosing mark. Nothing per process,
+nothing that grows with requests served, and nothing that outlives a request. On the request path the
+update is one thread-local read and a well-predicted branch inside a branch that already exists; the
+ABI probe's perf guards measure that cost rather than assert it.
+
+**Declined:**
+- **Leaving the peak to `Core\Debug`'s profiler.** A profiler answers "where did this go" for a
+  developer who is already looking, and the request that matters is the one nobody was looking at.
+- **Having the program record the peak itself** as the only mechanism. The request nobody
+  instrumented is the one that matters; `Core\Budget::memoryPeak` is kept as a reading, never as the
+  mechanism.

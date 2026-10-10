@@ -1887,12 +1887,12 @@
         [
           "`Core\\Os`",
           "host and process facts (`pid`, `hostname`, `cpuCount`, `residentBytes`, `loadAverage`). Replaces `posix_*` minus fork, `php_uname`, `getrusage`, `sys_getloadavg`. A **request's** memory is `Core\\Budget`'s and never here — `residentBytes` is the process's resident set, which is the question `Core\\Os` is entitled to answer",
-          "`rule:core-api/tier-roster`, [0148](../decisions/0148.md)"
+          "`rule:core-api/tier-roster`, `rule:observability/memory-is-three-numbers-on-core-budget`"
         ],
         [
           "`Core\\Budget`",
           "`memoryHeld(): int`, `memoryPeak(): int`, `memoryLimit(): int` — this request's held bytes, its high-water mark and the ceiling both are measured against. Three members and no `$real_usage` boolean; an uncapped request answers `0` from `memoryLimit`. Replaces `memory_get_usage` and `memory_get_peak_usage`",
-          "[0148](../decisions/0148.md), `rule:config/ceilings-are-their-own-directives`"
+          "`rule:observability/memory-is-three-numbers-on-core-budget`, `rule:config/ceilings-are-their-own-directives`"
         ],
         [
           "`Core\\Config`",

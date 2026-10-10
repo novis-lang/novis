@@ -1,9 +1,7 @@
 {
   "title": "A request reads its own memory as `memoryHeld`, `memoryPeak` and `memoryLimit` on `Core\\Budget`, and the process's resident bytes are `Core\\Os`'s",
   "status": "shipped",
-  "because": [
-    "0148"
-  ],
+  "because": [],
   "seeAlso": [
     "observability/a-memory-peak-is-recorded-not-asked-for",
     "observability/memory-high-water-writes-a-warn",

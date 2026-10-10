@@ -5,7 +5,7 @@
 //! surface: `memoryHeld()` is what this request holds right now, `memoryPeak()`
 //! the high-water mark of that figure, and `memoryLimit()` the ceiling both are
 //! measured against. Together they answer in one expression the question
-//! [0148](/docs/decisions/0148.md) § 11 was written for — *how close to the
+//! the rule was written for — *how close to the
 //! ceiling did this request come* — which neither of PHP's two functions could
 //! answer without `ini_get('memory_limit')` and a suffix parser beside it.
 //!
@@ -21,7 +21,7 @@
 //!
 //! # This class is the request, and `Core\Os` is the process
 //!
-//! [0148](/docs/decisions/0148.md) § 12's split, and the reason this class
+//! `rule:observability/memory-is-three-numbers-on-core-budget`'s split, and the reason this class
 //! exists at all rather than a fourth member landing on [`crate::os`]: PHP's
 //! `memory_get_usage` was answering two questions under one name, and a
 //! per-request figure sitting among host facts is read as process memory by
