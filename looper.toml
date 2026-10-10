@@ -3,7 +3,7 @@
 
 [project]
 name = "mwl"
-stacks = ["rust"]
+stacks = ["rust", "bun"]
 goals_dir = "docs/goals"
 playbook = "docs/agent/playbook.md"
 playbook_dir = "docs/agent/playbook"
@@ -45,6 +45,8 @@ skip = [
   "docs/agent/commands.md",
   "docs/agent/conventions.md",
   "docs/agent/doc-style.md",
+  "docs/agent/playbook.md",      # `looper lint` reads the template block's own list as bullets and refuses them
+  "tools/git-hooks/commit-msg",  # Novis's hook passes a merge and git's `fixup!` subjects, which the template refuses
 ]
 
 [commits]

@@ -342,3 +342,110 @@ Step 5 above, in detail:
 - **`bun nv chain` reorders the chain**: `--new`, `--move` or `--remove <slug>` with one place —
   `--after <goal>`, `--before <goal>`, `--to <position>`, `--next` or `--end`. It edits `goals` only,
   never `live`; a goal's record and prose are written by hand around it.
+
+## Where Novis departs from the stack files
+
+`docs/agent/rust.md` and `docs/agent/bun.md` are looper's defaults, and Novis's rules win in two places.
+
+- **Unsafe code is forbidden in every crate but the unsafe ones.** The workspace `Cargo.toml` sets
+  `unsafe_code = "forbid"`. Each crate on `bun nv lints`'s `UNSAFE_CRATES` restates the table with
+  `deny` and allows each audited block with a reason. The workspace `Cargo.toml`'s lint comment is
+  the home, and [docs/plan/design.md](docs/plan/design.md) § *Unsafe policy* the reasoning.
+- **`package.json` takes its dependencies at caret ranges,** and the committed `bun.lock` pins each one.
+
+<!-- looper:begin agents v2 -->
+## Where to look
+
+| You are | Run or read |
+|---|---|
+| A session of the unattended loop | Nothing. The driver piped the orientation pack in behind your prompt. |
+| Working interactively | `looper orient --full`: the live goal, its handoff, its decisions and the traps |
+| Looking for how something works | [docs/design.md](docs/design.md) until a module's head comment owns it |
+
+- **[docs/agent/commands.md](docs/agent/commands.md)**: how the project is driven, and the shell rules.
+- **[docs/agent/conventions.md](docs/agent/conventions.md)**: the shape of a commit, a comment, a test
+  and text a user reads.
+- **[docs/agent/doc-style.md](docs/agent/doc-style.md)**: how to write anything in `docs/`.
+- **[docs/agent/prose.md](docs/agent/prose.md)**: how text an end user reads is written.
+- **[docs/agent/testing.md](docs/agent/testing.md)**: what to test, and how.
+- **[docs/agent/grounding.md](docs/agent/grounding.md)**: what an answer owes the person who asked.
+- **[docs/agent/playbook.md](docs/agent/playbook.md)**: traps a session already paid for once.
+- **[docs/decisions/](docs/decisions/README.md)**: numbered decision records. Cite one as
+  `decision 0003`.
+- **Each stack's own rules** are in `docs/agent/<stack>.md`, such as `docs/agent/rust.md`.
+
+**Every fact has exactly one home.** If two files state the same thing, the home wins and the other is a
+bug. Fix the bug rather than reconciling the two in your head.
+
+## The rules you will otherwise break
+
+Each is one sentence here, because not knowing it exists is the entire cost. The file named after each
+rule is its home.
+
+1. **A shell never carries file content into the tree.** Create and edit files with Write and Edit,
+   never a heredoc, a `>` redirect, `Set-Content` or `sed -i` (commands.md).
+2. **One shell call runs one command.** Use `&&` between dependent steps (commands.md).
+3. **Read a big file in the region you need.** Read a file under about 400 lines whole, and Grep for
+   the anchor of a bigger one (commands.md).
+4. **Test only what a change can affect, through one `looper verify` at the end** (testing.md).
+5. **A session finishes in one pass,** as *Session workflow* below says.
+6. **A comment says what the code does now, and is rewritten as a whole** (conventions.md).
+7. **Docs describe the present only.** They carry no dates and no "previously" (doc-style.md).
+8. **Text an end user reads follows the prose rules:** at most 25 words, one idea, and no dash joining
+   two sentences (prose.md).
+9. **Verify a claim before you make it, not when it is questioned** (grounding.md).
+10. **Nothing is written outside this repository's folders.** Every scratch file goes under
+    `.agent-tmp/`, and whoever writes one deletes it (commands.md).
+11. **A change that adds, changes or removes a feature states its trade-offs** in performance, memory,
+    usability and simplicity. Ask the user before a large one.
+12. **A manual step done twice becomes a command.**
+13. **Look up a fast-moving API in the installed version's reference,** never from memory.
+14. **Name a goal by its slug, never by its number.**
+
+## The context budget
+
+- A loop session works under **200k** tokens of context, and an interactive session or a subagent under
+  **250k**.
+- Take no new slice past **120k**. At the ceiling, hand off.
+- Work that will not fit is split across subagents before it starts.
+  - The session keeps the decisions, the check of each result and the wrap.
+  - Each subagent gets one narrow deliverable and a brief that names its ceiling.
+  - Read-only subagents go out together. Ones that write run one after another, unless each has its
+    own worktree.
+  - A subagent's report is a pointer to check, not evidence.
+
+## Session workflow
+
+Every session runs the same steps, in this order, and **stops**:
+
+1. **Orient in one call.** In the loop the driver has done it already. Interactively, run
+   `looper orient --full`.
+2. **Do the work: as much of the group as fits.** The handoff names a group of related slices and the
+   files they share. Keep taking slices while the next one touches files already loaded and you are under
+   120k with the previous one committed.
+3. **Verify what you touched, once, at the end of the group:** `looper verify`.
+4. **Write the handoff once for the whole group.** Overwrite the live goal's `## Handoff` with where the
+   work stands and the next group with its anchors. Tick what you finished. Add a playbook bullet if a
+   trap cost you time.
+5. **Commit, one commit per slice, after step 3 is green.** Stage each slice's own files.
+6. **In the loop, write the status line** the prompt names: `CONTINUE <what landed>`,
+   `DONE <goal reached>` or `BLOCKED <the decision only the user can make>`.
+
+**After the last step, stop.** Writing prose cannot break a build.
+
+## Goals
+
+- **The goals are [docs/goals/](docs/goals/README.md),** in looper's goal format. The chain, which is the
+  order the loop walks, is the front matter of `docs/goals/README.md`, and its first slug is the live
+  goal. `looper render` writes the README's body, so never edit it by hand.
+- **A reached goal is not harvested: its file is deleted.** Only a check that sets `floor: true` moves
+  into the floor.
+
+## Commits
+
+- **Conventional Commits:** `type(scope): what is now true`. The shape is
+  [conventions.md](docs/agent/conventions.md) § *A commit message*.
+- **No trailers, ever.** The `commit-msg` hook in `tools/git-hooks/` rejects them.
+- **One commit per slice, after verify is green.** Commit with `git commit -F <file>`.
+- **Never `--no-verify`, and no force operations.**
+<!-- looper:end agents -->
