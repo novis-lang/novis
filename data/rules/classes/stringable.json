@@ -1,9 +1,7 @@
 {
   "title": "An object becomes a string only through `Stringable::toString`, and everywhere else is a diagnostic",
   "status": "shipped",
-  "because": [
-    "0007"
-  ],
+  "because": [],
   "seeAlso": [
     "classes/no-magic-methods",
     "classes/comparable",

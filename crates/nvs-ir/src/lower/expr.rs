@@ -5579,8 +5579,8 @@ impl<'a> Lowering<'a> {
     /// subscript chain under a `??`, so a guarded read's own base may be
     /// another one and may therefore be `null` at run time, which
     /// `nvs_array_optional_get` answers with `null` again — takes
-    /// [`AbsentKey::Null`] instead of the throwing answer ADR
-    /// 0007 § 7 row 11 gives every other read, and is therefore infallible and
+    /// [`AbsentKey::Null`] instead of the throwing answer
+    /// `rule:types/absent-storage-is-never-a-zero-value` gives every other read, and is therefore infallible and
     /// [`Ty::Tagged`]. That representation is not a widening for its own sake:
     /// `??` tests its left operand for `null` and needs a tag to test, and
     /// `Self::lower_coalesce` short-circuits away any operand that has none.

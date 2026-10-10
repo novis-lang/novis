@@ -146,7 +146,7 @@ as a constant, a function or a method name still parses. The one reading this cl
 
 ## 3. The declaration-slot grammar (`rule:types/declaration`'s spelling)
 
-[ADR 0007 § 3](../decisions/0007.md) already normatively fixes the *type expression* grammar
+`rule:types/grammar` already normatively fixes the *type expression* grammar
 (`type := union := …`, `array<T>`, unions, intersections, `mixed`, and so on) — this document does not
 repeat it and adds no new production to it. What `rule:types/declaration` left to the spec is the *statement*-level grammar
 around each new declaration slot: where exactly a `type` sits relative to the `$` sigil, and how a
@@ -169,7 +169,7 @@ User   $owner = User::find($id);
 
 A local is declared exactly once, at this statement. Every later `$n = 5;` is a plain assignment-expression
 statement, with no type prefix — writing one again is a re-declaration, which
-[ADR 0007 § 1](../decisions/0007.md) already makes a diagnostic naming the first declaration.
+`rule:types/declaration` already makes a diagnostic naming the first declaration.
 
 ### 3.2 `foreach` with typed bindings
 
@@ -222,8 +222,7 @@ type grammar itself; there is no untyped form.
 
 ### 3.4 The conversion operator: `as`, finally
 
-[ADR 0007 § 2](../decisions/0007.md) opens with "provisional spelling `expr as T`." This
-document fixes that spelling as **final**: `as` is the conversion operator, with no alternate spelling, and
+This document fixes the conversion spelling `expr as T` as **final**: `as` is the conversion operator, with no alternate spelling, and
 none is planned. Its precedence and throwing behaviour are exactly as `rule:types/conversion` already states and are
 not repeated here.
 

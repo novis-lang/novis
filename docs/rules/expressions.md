@@ -41,7 +41,7 @@ position is one of the six. The list is short, fixed and syntactically obvious.
   same value would be bare in one place and refused two tokens later, and `$user && $user->active`
   is as common as a bare `if`.
 
-<sub>See also [`expressions/truthy-table`](expressions.md#expressions-truthy-table), [`expressions/nullable-condition-lint`](expressions.md#expressions-nullable-condition-lint), [`expressions/no-keyword-logical-operators`](expressions.md#expressions-no-keyword-logical-operators), [`iteration/for-init-clause`](iteration.md#iteration-for-init-clause). Decided in [0007](../decisions/0007.md).</sub>
+<sub>See also [`expressions/truthy-table`](expressions.md#expressions-truthy-table), [`expressions/nullable-condition-lint`](expressions.md#expressions-nullable-condition-lint), [`expressions/no-keyword-logical-operators`](expressions.md#expressions-no-keyword-logical-operators), [`iteration/for-init-clause`](iteration.md#iteration-for-init-clause).</sub>
 
 <a id="expressions-truthy-table"></a>
 
@@ -78,7 +78,7 @@ and an array of falsy elements is truthy. Code review, not the compiler, catches
 meant something else. A ported program that treats `"0.0"` as falsy has a bug of its own, since
 PHP never did either.
 
-<sub>See also [`expressions/truthy-positions`](expressions.md#expressions-truthy-positions), [`enums/truthiness`](enums.md#enums-truthiness), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics). Decided in [0007](../decisions/0007.md).</sub>
+<sub>See also [`expressions/truthy-positions`](expressions.md#expressions-truthy-positions), [`enums/truthiness`](enums.md#enums-truthiness), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics).</sub>
 
 <a id="expressions-no-keyword-logical-operators"></a>
 
@@ -204,7 +204,7 @@ too.
 The natural ordering used for sorting is a separate question and answers differently for `float`; the
 two are not the same table.
 
-<sub>See also [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality), [`expressions/mixed-equality`](expressions.md#expressions-mixed-equality), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused), [`enums/representation`](enums.md#enums-representation). Decided in [0090](../decisions/0090.md), [0054](../decisions/0054.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality), [`expressions/mixed-equality`](expressions.md#expressions-mixed-equality), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused), [`enums/representation`](enums.md#enums-representation). Decided in [0090](../decisions/0090.md), [0054](../decisions/0054.md).</sub>
 
 <a id="expressions-mixed-equality"></a>
 
@@ -226,7 +226,7 @@ question ([`expressions/disjoint-comparison-refused`](expressions.md#expressions
 The asymmetry is worth stating plainly: **`mixed` is where you pay for not declaring a type.** A
 comparison against `mixed` silently answers `false` where a typed one would have refused to compile.
 
-<sub>See also [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics), [`expressions/truthy-table`](expressions.md#expressions-truthy-table). Decided in [0090](../decisions/0090.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics), [`expressions/truthy-table`](expressions.md#expressions-truthy-table). Decided in [0090](../decisions/0090.md).</sub>
 
 <a id="expressions-object-identity-equality"></a>
 
@@ -283,7 +283,7 @@ integer, where `$e as int` is the written spelling; two unrelated classes; and a
 This turns the entire class of comparisons that could only ever answer one constant into a diagnostic
 at the site that wrote it.
 
-<sub>See also [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics), [`expressions/mixed-equality`](expressions.md#expressions-mixed-equality), [`expressions/switch-match-equality`](expressions.md#expressions-switch-match-equality). Decided in [0090](../decisions/0090.md), [0007](../decisions/0007.md), [0047](../decisions/0047.md), [0054](../decisions/0054.md).</sub>
+<sub>See also [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics), [`expressions/mixed-equality`](expressions.md#expressions-mixed-equality), [`expressions/switch-match-equality`](expressions.md#expressions-switch-match-equality). Decided in [0090](../decisions/0090.md), [0047](../decisions/0047.md), [0054](../decisions/0054.md).</sub>
 
 <a id="expressions-switch-match-equality"></a>
 
@@ -432,7 +432,7 @@ the throwing form — a value that gates access is converted with plain `as T`.
 There is one definition and no family that escapes it: every `as ?T` is the `as T` of the conversion
 table, with `null` where it throws ([`expressions/nullable-conversion-availability`](expressions.md#expressions-nullable-conversion-availability)).
 
-<sub>See also [`expressions/nullable-conversion-availability`](expressions.md#expressions-nullable-conversion-availability), [`expressions/conversion-keeps-qualifiers`](expressions.md#expressions-conversion-keeps-qualifiers), [`expressions/nullable-condition-lint`](expressions.md#expressions-nullable-condition-lint), [`expressions/try-parse`](expressions.md#expressions-try-parse). Decided in [0066](../decisions/0066.md), [0007](../decisions/0007.md), [0047](../decisions/0047.md).</sub>
+<sub>See also [`expressions/nullable-conversion-availability`](expressions.md#expressions-nullable-conversion-availability), [`expressions/conversion-keeps-qualifiers`](expressions.md#expressions-conversion-keeps-qualifiers), [`expressions/nullable-condition-lint`](expressions.md#expressions-nullable-condition-lint), [`expressions/try-parse`](expressions.md#expressions-try-parse). Decided in [0066](../decisions/0066.md), [0047](../decisions/0047.md).</sub>
 
 <a id="expressions-nullable-conversion-availability"></a>
 
@@ -462,7 +462,7 @@ cannot-fail row is refused rather than allowed as a harmless spelling.
 every language a reader arrives from, and it never spells a parse: text becomes a value through that
 class's own reader ([`expressions/try-parse`](expressions.md#expressions-try-parse)).
 
-<sub>See also [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`expressions/try-parse`](expressions.md#expressions-try-parse), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused). Decided in [0066](../decisions/0066.md), [0007](../decisions/0007.md), [0047](../decisions/0047.md).</sub>
+<sub>See also [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`expressions/try-parse`](expressions.md#expressions-try-parse), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused). Decided in [0066](../decisions/0066.md), [0047](../decisions/0047.md).</sub>
 
 <a id="expressions-conversion-keeps-qualifiers"></a>
 
@@ -727,7 +727,7 @@ An arm is checked from the **pre-guard** definite-assignment state, as a block c
 guarded expression assigned cannot be assumed assigned inside the arm, because the arm runs precisely
 when the guard did not complete.
 
-<sub>See also [`expressions/catch-expression`](expressions.md#expressions-catch-expression), [`expressions/catch-arm-is-an-expression`](expressions.md#expressions-catch-arm-is-an-expression), [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion). Decided in [0119](../decisions/0119.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`expressions/catch-expression`](expressions.md#expressions-catch-expression), [`expressions/catch-arm-is-an-expression`](expressions.md#expressions-catch-arm-is-an-expression), [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion). Decided in [0119](../decisions/0119.md).</sub>
 
 <a id="expressions-bare-throwable-arm-warns"></a>
 
@@ -747,7 +747,7 @@ The warning names the two honest spellings: name the class the site expects, or 
 it. It is a warning rather than an error because the hazard is a habit and not a type error, and
 `nvs check` is where habits are named.
 
-<sub>See also [`expressions/catch-arm-is-an-expression`](expressions.md#expressions-catch-arm-is-an-expression), [`expressions/catch-expression`](expressions.md#expressions-catch-expression), [`expressions/nullable-condition-lint`](expressions.md#expressions-nullable-condition-lint). Decided in [0119](../decisions/0119.md), [0007](../decisions/0007.md), [0066](../decisions/0066.md).</sub>
+<sub>See also [`expressions/catch-arm-is-an-expression`](expressions.md#expressions-catch-arm-is-an-expression), [`expressions/catch-expression`](expressions.md#expressions-catch-expression), [`expressions/nullable-condition-lint`](expressions.md#expressions-nullable-condition-lint). Decided in [0119](../decisions/0119.md), [0066](../decisions/0066.md).</sub>
 
 <a id="expressions-catch-lowers-to-block-form"></a>
 
@@ -791,7 +791,7 @@ A `callable` may carry its signature. The resolvability this rule is after comes
 the value's creation site rather than from the static type, so it holds whether or not the slot being
 filled declares one.
 
-<sub>See also [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution), [`expressions/nullable-conversion-availability`](expressions.md#expressions-nullable-conversion-availability). Decided in [0136](../decisions/0136.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution), [`expressions/nullable-conversion-availability`](expressions.md#expressions-nullable-conversion-availability). Decided in [0136](../decisions/0136.md).</sub>
 
 <a id="expressions-no-partial-application"></a>
 

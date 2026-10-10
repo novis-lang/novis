@@ -4,7 +4,7 @@
       "id": "Arr",
       "name": "Core\\Arr",
       "section": "2. `Core\\Arr`",
-      "summary": "`array<T>` is an insertion-ordered hash with copy-on-write value semantics\n([ADR 0007 § 5](../decisions/0007.md)). Every member is pure (R3); an implementation\nmutates in place whenever the argument's refcount is 1, so purity costs nothing. `T` is a type variable —\nthe stdlib is parametric where user code is not.\n\nEvery key is a `string`, so every key-valued **return** below is typed `string`; a key **parameter** is\n`int|string`, matching the subscript normalisation of that same section. How arrays combine, and why no\nmember is named `merge`, is `rule:types/array-combination`.",
+      "summary": "`array<T>` is an insertion-ordered hash with copy-on-write value semantics\n(`rule:types/arrays`). Every member is pure (R3); an implementation\nmutates in place whenever the argument's refcount is 1, so purity costs nothing. `T` is a type variable —\nthe stdlib is parametric where user code is not.\n\nEvery key is a `string`, so every key-valued **return** below is typed `string`; a key **parameter** is\n`int|string`, matching the subscript normalisation of that same rule. How arrays combine, and why no\nmember is named `merge`, is `rule:types/array-combination`.",
       "surface": "",
       "adrs": [],
       "enums": [
@@ -2895,7 +2895,7 @@
       "implemented": true,
       "slug": "arr",
       "url": "/reference/core/arr/",
-      "summaryHtml": "<p><code>array&lt;T&gt;</code> is an insertion-ordered hash with copy-on-write value semantics (<a href=\"https://github.com/novis-lang/novis/blob/main/docs/decisions/0007.md\">ADR 0007 § 5</a>). Every member is pure (R3); an implementation mutates in place whenever the argument's refcount is 1, so purity costs nothing. <code>T</code> is a type variable — the stdlib is parametric where user code is not.</p>\n<p>Every key is a <code>string</code>, so every key-valued <strong>return</strong> below is typed <code>string</code>; a key <strong>parameter</strong> is <code>int|string</code>, matching the subscript normalisation of that same section. How arrays combine, and why no member is named <code>merge</code>, is <code>rule:types/array-combination</code>.</p>",
+      "summaryHtml": "<p><code>array&lt;T&gt;</code> is an insertion-ordered hash with copy-on-write value semantics (<code>rule:types/arrays</code>). Every member is pure (R3); an implementation mutates in place whenever the argument's refcount is 1, so purity costs nothing. <code>T</code> is a type variable — the stdlib is parametric where user code is not.</p>\n<p>Every key is a <code>string</code>, so every key-valued <strong>return</strong> below is typed <code>string</code>; a key <strong>parameter</strong> is <code>int|string</code>, matching the subscript normalisation of that same rule. How arrays combine, and why no member is named <code>merge</code>, is <code>rule:types/array-combination</code>.</p>",
       "surfaceHtml": ""
     },
     {

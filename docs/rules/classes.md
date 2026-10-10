@@ -837,7 +837,7 @@ is decided by their registry entries, and one with no `toString` is refused wher
 What it costs is one ordinary method call at each rendering site. PHP's own fallback for an object
 with no `__toString` is a fatal error, so the diagnostic takes nothing permissive away.
 
-<sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`classes/comparable`](classes.md#classes-comparable), [`types/conversion`](types.md#types-conversion), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0007](../decisions/0007.md).</sub>
+<sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`classes/comparable`](classes.md#classes-comparable), [`types/conversion`](types.md#types-conversion), [`types/erased-member-access`](types.md#types-erased-member-access).</sub>
 
 <a id="classes-no-magic-methods"></a>
 

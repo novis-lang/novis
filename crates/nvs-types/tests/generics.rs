@@ -167,8 +167,9 @@ fn a_core_member_that_infers_its_variables_refuses_a_written_type_argument() {
     );
 }
 
-/// A user-declared method is the same refusal from the other side: `rule:types/declaration` parks user-declared generics, so nothing a program writes has a type
-/// parameter to name.
+/// A user-declared method is the same refusal from the other side: there are
+/// no user-declared generics (`rule:types/no-user-generics`), so nothing a
+/// program writes has a type parameter to name.
 #[test]
 fn a_user_declared_method_refuses_a_written_type_argument() {
     let diags = check_src(

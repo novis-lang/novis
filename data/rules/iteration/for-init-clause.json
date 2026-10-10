@@ -2,8 +2,7 @@
   "title": "A `for` init clause is one typed declaration or a list of expressions, never both",
   "status": "shipped",
   "because": [
-    "0109",
-    "0007"
+    "0109"
   ],
   "seeAlso": [
     "iteration/for-counter-scope",

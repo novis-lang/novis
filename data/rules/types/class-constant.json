@@ -3,8 +3,7 @@
   "status": "shipped",
   "because": [
     "0144",
-    "0125",
-    "0007"
+    "0125"
   ],
   "seeAlso": [
     "types/class-reference",

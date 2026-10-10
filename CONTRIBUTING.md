@@ -228,7 +228,7 @@ the premise the calling convention exists for.
 | Errors | checked return status, never unwinding (`rule:errors/propagation`) |
 | Concurrency | thread-per-core executors, stackful coroutines, isolated cross-core workers |
 | Priorities | security → latency → simplicity → memory footprint ([`rule:programs/memory-priority`](docs/rules/programs.md#programs-memory-priority)) |
-| Types | static and mandatory; explicit checked conversions; unions plus `mixed`; `int` and `uint`; string-keyed ordered arrays with declarable nested element types ([ADR 0007](docs/decisions/0007.md)) |
+| Types | static and mandatory; explicit checked conversions; unions plus `mixed`; `int` and `uint`; string-keyed ordered arrays with declarable nested element types ([the type rules](docs/rules/types.md)) |
 | Scoping | `static` is a class-member modifier only — static members and late static binding kept, function-scope `static` and `static fn` rejected, no `global` (`rule:statements/static-is-a-member-modifier`) |
 | OOP-only | Every function is a method, every constant a class constant — no free function, no global constant, no exception for built-ins. Built-ins live under the reserved `Core` namespace, one domain class per grouping (`Core\Str`, `Core\Arr`, `Core\Math`, …) (`rule:classes/no-free-functions-or-constants`, `rule:core-api/reserved-namespace`) |
 | Values | 16-byte tagged, refcounted, copy-on-write arrays and strings |

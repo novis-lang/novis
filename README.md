@@ -27,7 +27,7 @@ For web servers and the command line. Familiar syntax (Hello PHP).
   type behind your back: conversions are explicit and throw rather than quietly yielding `0`. Unions and
   `mixed` are there for the cases that genuinely are dynamic. `uint` gives you the whole unsigned 64-bit
   range, and arrays are ordered hashes with declarable, nestable element types — `array<array<uint>>`
-  ([ADR 0007](docs/decisions/0007.md)).
+  ([the type rules](docs/rules/types.md)).
 - **Memory-safe and contained.** Written in Rust with `unsafe` confined to three audited modules. A
   runtime bug or a resource-limit breach kills one request, never the process.
 - **Fast and simple first; memory is what pays for that.** Novis targets server-class hardware, so where a

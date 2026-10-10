@@ -1178,7 +1178,7 @@ type, so a `mixed` that turned out to be a list would reshape the query instead 
 `NOT IN`, the rewriter cannot tell which it is in, and picking one silently is worse than making the
 caller branch. Expansion changes the statement's arity, so the statement cache keys on it.
 
-<sub>See also [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members). Decided in [0067](../decisions/0067.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members). Decided in [0067](../decisions/0067.md).</sub>
 
 <a id="core-classes-db-compile-time-query-checking"></a>
 

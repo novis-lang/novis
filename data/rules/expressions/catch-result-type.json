@@ -2,8 +2,7 @@
   "title": "The result type is the union of the guard and every arm, and an arm is checked from the pre-guard state",
   "status": "shipped",
   "because": [
-    "0119",
-    "0007"
+    "0119"
   ],
   "seeAlso": [
     "expressions/catch-expression",

@@ -1,9 +1,7 @@
 {
   "title": "The truthy table is PHP's, and `bytes` is falsy only when it is empty",
   "status": "shipped",
-  "because": [
-    "0007"
-  ],
+  "because": [],
   "seeAlso": [
     "expressions/truthy-positions",
     "enums/truthiness",

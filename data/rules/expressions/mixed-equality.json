@@ -2,8 +2,7 @@
   "title": "A `mixed` or union operand resolves at run time, and a mismatched pair answers `false`",
   "status": "shipped",
   "because": [
-    "0090",
-    "0007"
+    "0090"
   ],
   "seeAlso": [
     "expressions/disjoint-comparison-refused",

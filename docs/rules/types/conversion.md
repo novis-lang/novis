@@ -42,3 +42,12 @@ where it runs.
 `uint` widening into a `float` position, which is implicit (`rule:types/implicit-widening`), and a
 condition, which tests any type for truthiness without asking for one. The `(int)` cast syntax
 is not a second spelling — it does not parse at all (`rule:types/no-legacy-cast`).
+
+A conversion that throws is what keeps untrusted input from becoming a wrong but valid value. A
+silent `0` for `"abc"` is often a real row id, which is the shape of an insecure direct object
+reference. A throw arrives at the conversion that caused it, with a span, rather than at whatever
+reads the wrong value later.
+
+**Declined:**
+- **PHP's lossy casts kept beside `as`.** The lossy one would win by being shorter to type
+  (`rule:types/no-legacy-cast`).

@@ -2,8 +2,7 @@
   "title": "A `callable` type may name its parameters, and must then name its return type",
   "status": "shipped",
   "because": [
-    "0136",
-    "0007"
+    "0136"
   ],
   "seeAlso": [
     "types/callable-arity",

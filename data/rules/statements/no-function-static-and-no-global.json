@@ -2,7 +2,6 @@
   "title": "A function holds no state of its own, and `global` does not exist",
   "status": "shipped",
   "because": [
-    "0007",
     "0006"
   ],
   "seeAlso": [

@@ -144,7 +144,7 @@ everything up to a matching `>` parses as a type list with no diagnostic **and**
 against a class-shaped name and immediately followed by a parenthesized operand — parentheses say the
 other thing.
 
-<sub>See also [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval), [`programs/implementing`](programs.md#programs-implementing). Decided in [0046](../decisions/0046.md), [0071](../decisions/0071.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval), [`programs/implementing`](programs.md#programs-implementing). Decided in [0046](../decisions/0046.md), [0071](../decisions/0071.md).</sub>
 
 <a id="attributes-structural-retrieval"></a>
 
@@ -292,7 +292,7 @@ readings — conjunction or disjunction — and choosing between them silently i
 prevents. A method carrying several `#[Route]` attributes still carries one `#[Access]`, covering all
 of them.
 
-<sub>See also [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/repeatable`](attributes.md#attributes-repeatable). Decided in [0096](../decisions/0096.md), [0046](../decisions/0046.md), [0007](../decisions/0007.md), [0110](../decisions/0110.md).</sub>
+<sub>See also [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/repeatable`](attributes.md#attributes-repeatable). Decided in [0096](../decisions/0096.md), [0046](../decisions/0046.md), [0110](../decisions/0110.md).</sub>
 
 <a id="attributes-a-deprecation-names-its-replacement-as-code"></a>
 

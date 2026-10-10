@@ -192,7 +192,7 @@ distinguished by what the name resolves to, the way `self`, `static` and `parent
 there. Every binding site that requires a type takes one, with no position that admits a class name and
 refuses an enum's.
 
-<sub>See also [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0007](../decisions/0007.md).</sub>
+<sub>See also [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call).</sub>
 
 <a id="statements-require-is-the-only-inclusion-construct"></a>
 
@@ -259,7 +259,7 @@ a static.
 Nothing here is isolated: the required file runs in the caller's own process and request, with the
 caller's capabilities. Isolation is what `spawn script` gives, and `require` gives none of it.
 
-<sub>See also [`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0007](../decisions/0007.md), [0006](../decisions/0006.md).</sub>
+<sub>See also [`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0006](../decisions/0006.md).</sub>
 
 <a id="statements-a-require-expression-is-mixed"></a>
 
@@ -276,7 +276,7 @@ boundary value of unknown-until-runtime shape needs before it can populate a typ
 is carved into the type system for `require`, and nothing about the construct is a second unchecked
 position.
 
-<sub>See also [`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct). Decided in [0007](../decisions/0007.md).</sub>
+<sub>See also [`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct).</sub>
 
 <a id="statements-static-is-a-member-modifier"></a>
 
@@ -331,7 +331,7 @@ written with it.
 - **Dropping late static binding along with the storage meanings.** `new static()` compiled as `new
   self()` returns the wrong class, and no annotation a program could add keeps the original behaviour.
 
-<sub>See also [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global), [`statements/an-anonymous-function-captures-this-only-where-it-uses-it`](statements.md#statements-an-anonymous-function-captures-this-only-where-it-uses-it), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0007](../decisions/0007.md), [0144](../decisions/0144.md), [0211](../decisions/0211.md), [0231](../decisions/0231.md).</sub>
+<sub>See also [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global), [`statements/an-anonymous-function-captures-this-only-where-it-uses-it`](statements.md#statements-an-anonymous-function-captures-this-only-where-it-uses-it), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0144](../decisions/0144.md), [0211](../decisions/0211.md), [0231](../decisions/0231.md).</sub>
 
 <a id="statements-no-function-static-and-no-global"></a>
 
@@ -378,7 +378,7 @@ everything a read-only global would be used for.
   its own (how a key is derived, how long an entry lives, how large the cache may grow), and it is a
   feature with its own rule if it ever exists, not part of this one.
 
-<sub>See also [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0007](../decisions/0007.md), [0006](../decisions/0006.md).</sub>
+<sub>See also [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0006](../decisions/0006.md).</sub>
 
 <a id="statements-storage-that-outlives-a-call"></a>
 
@@ -469,7 +469,7 @@ parameter — the same answer [`statements/storage-that-outlives-a-call`](statem
 - **One class for every request and server fact.** One class for unrelated concerns is a global
   namespace with extra syntax ([`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants)).
 
-<sub>See also [`statements/globals-and-request-are-dropped-outright`](statements.md#statements-globals-and-request-are-dropped-outright), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call), [`errors/cookie-name-bytes`](errors.md#errors-cookie-name-bytes). Decided in [0007](../decisions/0007.md), [0006](../decisions/0006.md).</sub>
+<sub>See also [`statements/globals-and-request-are-dropped-outright`](statements.md#statements-globals-and-request-are-dropped-outright), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call), [`errors/cookie-name-bytes`](errors.md#errors-cookie-name-bytes). Decided in [0006](../decisions/0006.md).</sub>
 
 <a id="statements-globals-and-request-are-dropped-outright"></a>
 
@@ -492,7 +492,7 @@ and `::cookie()` — already say which one a value came from. A merged accessor 
 re-deriving the `request_order` footgun, or take the order as an argument, at which point it is no shorter
 than naming the source.
 
-<sub>See also [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0007](../decisions/0007.md).</sub>
+<sub>See also [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call).</sub>
 
 <a id="statements-an-anonymous-function-captures-this-only-where-it-uses-it"></a>
 
@@ -667,7 +667,7 @@ that: the declared type is the whole answer.
 A `never` body is asked about the falling-off path like any other, and refused (`E0739`) when one
 reaches its end. That refusal is also what makes counting a `never` call as an exit sound.
 
-<sub>See also [`types/declaration`](types.md#types-declaration), [`iteration/generators`](iteration.md#iteration-generators), [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor). Decided in [0007](../decisions/0007.md).</sub>
+<sub>See also [`types/declaration`](types.md#types-declaration), [`iteration/generators`](iteration.md#iteration-generators), [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor).</sub>
 
 <a id="statements-no-return-leaves-a-finally"></a>
 

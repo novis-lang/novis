@@ -1,9 +1,7 @@
 {
   "title": "An integer literal is decimal, `0x`, `0o` or `0b`, and a leading zero is not a radix",
   "status": "shipped",
-  "because": [
-    "0007"
-  ],
+  "because": [],
   "seeAlso": [
     "types/uint",
     "types/numeric-literal-placement",

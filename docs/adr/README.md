@@ -17,7 +17,7 @@ reasoning under `## Context` / `## Decision` / `## Consequences` / `## Alternati
 fragment under `docs/rules/` and names the earlier record only through its own `because`. This file
 sits in `docs/adr/` for historical reasons; the records moved at the docs migration's unit C1.
 
-**A section number is a public identifier.** `0007 § 3` is cited from `crates/`, from the goal
+**A section number is a public identifier.** `NNNN § 3` is cited from `crates/`, from the goal
 manifests and from other records. Sections are never renumbered, and `bun nv records --check`
 reports a citation into a section that does not exist.
 
@@ -166,8 +166,8 @@ that lower to two representations are not reconciled by promoting one into the o
 already typed the whole expression as the *union* of its branches, and `nvs_ir::lower`'s `erase_checked_ty`
 erases a union whose members do not share a representation to the tagged one, so the phi carries that and
 `nvs_ir::lower::Lowering::join_representations` tags each branch in its own block. This is the same line
-integer `/` draws and for the same reason ([0007](../decisions/0007.md) §§ 2 and 4): § 4's promotion
-rows belong to an *operator*, whose result type that table fixes, and § 2's implicit `int`→`float` widening
+integer `/` draws and for the same reason (`rule:types/arithmetic`, `rule:types/implicit-widening`): the
+promotion rows belong to an *operator*, whose result type that table fixes, and the implicit `int`→`float` widening
 happens at a `float` **position** — a binding, a parameter, a `return`. A ternary branch is neither, so
 `$c ? 1 : 2.5` keeps PHP's answer on its truthy path (an `int`, not `1.0`, and exact past 2^53 where the
 widening would have thrown) and `float $x = $c ? 1 : 2.5;` widens exactly once, where the declared type is.
@@ -177,7 +177,7 @@ expression — one whose every path throws has nothing for the position it sits 
 and no value for a merge phi with no incoming edge to carry.
 
 **A method call needs a class label, so an erased receiver is refused rather than dispatched.** `object` is
-[0007](../decisions/0007.md) § 3's opaque top of every class type, and it erases to exactly the
+the opaque top of every class type (`rule:types/object-top`), and it erases to exactly the
 pointer a named class does — `nvs_ir::lower`'s `erase_checked_ty` maps `CheckedTy::Object` and
 `CheckedTy::Shape` onto the same `Ty::Object` a `CheckedTy::Class` gets, so nothing below the checker ever
 wanted the label for *representation*, and `object` is a declared type in every position a class name is.
@@ -187,15 +187,15 @@ return type for the position it sits in. `rule:types/erased-member-access` alrea
 field's real declared type — and stopped at properties on purpose. The call half is therefore `E0477` where
 it is written (`nvs_types::expr::calls::report_method_on_erased_receiver`), naming the two narrowings that
 do resolve: `instanceof` proves the class inside the guarded branch, and `as ClassName` converts to it or
-throws. There is no `__call` to fall back on (`rule:classes/no-call-magic`), and § 3's "a dynamic call
-with runtime-checked arguments, at `mixed`'s cost" is deferred for `callable` and was never granted to
+throws. There is no `__call` to fall back on (`rule:classes/no-call-magic`), and a dynamic call
+with runtime-checked arguments, at `mixed`'s cost, is granted to bare `callable` alone and never to
 `object`. **It is one code across every receiver that names no class**, because it is one mistake and the
 resolution it fails is the same one: a union naming no single class, an intersection, and the types that
 can hold no object at all — a scalar, an `array<T>`, a `void` call's result — all take `E0477` too, with
 only the help splitting (narrow it, or convert it, or nothing at all for a value that does not exist).
 That is where the call half parts company with the property one, which splits a *deferral* off from
 `E0495`: a property read through an erased receiver has a name-keyed fetch to defer to and a call has
-nothing. `mixed` is the one receiver deliberately left out — [0007](../decisions/0007.md) § 2 makes
+nothing. `mixed` is the one receiver deliberately left out — `rule:types/unions-and-mixed` makes
 it the one unchecked position, so it defers rather than refuses, and until that lowering exists it is the
 one shape `nvs-ir`'s own panic at `lower/expr.rs` still names; the paragraph below owns *how* it is
 answered. Refusing is the reversible half of that pair: a later decision can turn this diagnostic into
@@ -217,7 +217,7 @@ the identical hole `nvs_runtime::closure`'s own module docs describe for `callab
 other side. So the method row on `nvs_runtime::ClassDesc` carries them, the way a closure object already
 carries `FN_ARITY` and `FN_PARAM_TAGS`: the same nibble word, the same `CLOSURE_PARAM_TAG_ANY` for a
 parameter whose representation *is* a tag, and `check_param_tags` as the one implementation both paths
-share, so [0007](../decisions/0007.md) § 2's `int`-into-`float` widening is not written down a
+share, so the `int`-into-`float` widening (`rule:types/implicit-widening`) is not written down a
 second time to be got wrong differently. They are resolved once per class in `ClassTable::set_methods`, the
 precedent `ClassDesc::renderer` and `ClassDesc::unwind` set, and cost a word and a byte per method per class
 **once per process** — nothing per instance and nothing per call.
@@ -342,7 +342,7 @@ reserve that replaces it, `E09xx` being internal compiler errors.
 
 **A `try` has at least one `catch` or a `finally`, and a `catch` clause names exactly one class.** PHP
 refuses a bare `try { … }` too, and the parser here accepted it only by omission. `catch (A | B $e)` is
-refused: `$e` carries one static type ([0007](../decisions/0007.md) § 1's `catch` row), and a body
+refused: `$e` carries one static type (`rule:types/declaration`'s `catch` position), and a body
 shared by two classes is written as two clauses or as one clause on their common ancestor — the shape
 [0119](../decisions/0119.md) § 4 already requires of
 an expression arm. Both are parse-time refusals in the rejected-PHP band, and each names its rewrite.
@@ -352,7 +352,7 @@ here and took the type of the value it folded to. That reading is a guess the de
 and it is not available everywhere the form is: an interface constant records no value for `nvs-ir` to
 inline and panicked the lowerer at the first use, and a value with no constant form at all (`[1, 2]`)
 has nothing to read a type from either. Every other binding
-[0007](../decisions/0007.md) § 1 governs — property, parameter, return, local, `foreach`,
+`rule:types/declaration` governs — property, parameter, return, local, `foreach`,
 `catch` — already writes one, so the omission was the single hole in that rule, and closing it removes
 both panics by construction rather than one shape at a time. It is `E0246` at the `const` keyword, in
 the rejected-PHP band, and the rewrite is the type the value already has. What it costs is one word

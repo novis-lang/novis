@@ -81,7 +81,7 @@ about.
 - **A conversion into an enum that always succeeds.** Turning any integer into an enum value, even one
   no case names, is the silent coercion `as` never performs; a value no case names throws.
 
-<sub>See also [`enums/declaration`](enums.md#enums-declaration), [`enums/one-backing-type`](enums.md#enums-one-backing-type), [`enums/no-class-machinery`](enums.md#enums-no-class-machinery), [`enums/representation`](enums.md#enums-representation). Decided in [0007](../decisions/0007.md).</sub>
+<sub>See also [`enums/declaration`](enums.md#enums-declaration), [`enums/one-backing-type`](enums.md#enums-one-backing-type), [`enums/no-class-machinery`](enums.md#enums-no-class-machinery), [`enums/representation`](enums.md#enums-representation).</sub>
 
 <a id="enums-one-backing-type"></a>
 
@@ -102,7 +102,7 @@ value's existing payload for nothing ([`enums/representation`](enums.md#enums-re
 The two backings are told apart everywhere the type is. A `uint`-backed case converts with `as uint`
 only, an `int`-backed one with `as int` only, and each refuses the other.
 
-<sub>See also [`enums/declaration`](enums.md#enums-declaration), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`enums/representation`](enums.md#enums-representation). Decided in [0007](../decisions/0007.md).</sub>
+<sub>See also [`enums/declaration`](enums.md#enums-declaration), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`enums/representation`](enums.md#enums-representation).</sub>
 
 <a id="enums-representation"></a>
 
@@ -128,7 +128,7 @@ Crossing an isolate boundary copies a plain scalar, with no object identity to p
 - **Memory:** an enum value costs exactly what its `int` or `uint` costs, in the same payload. Nothing
   is held per enum, per request or per isolate: no case table, no singleton and no type descriptor.
 
-<sub>See also [`enums/no-class-machinery`](enums.md#enums-no-class-machinery), [`enums/one-backing-type`](enums.md#enums-one-backing-type), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0007](../decisions/0007.md), [0006](../decisions/0006.md), [0261](../decisions/0261.md).</sub>
+<sub>See also [`enums/no-class-machinery`](enums.md#enums-no-class-machinery), [`enums/one-backing-type`](enums.md#enums-one-backing-type), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0006](../decisions/0006.md), [0261](../decisions/0261.md).</sub>
 
 <a id="enums-truthiness"></a>
 

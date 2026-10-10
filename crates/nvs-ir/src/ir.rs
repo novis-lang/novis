@@ -1754,8 +1754,8 @@ pub enum InstKind {
         absent: AbsentKey,
     },
     /// Writes `value` at `key` into `array` — `$arr[$i] = expr;`, inserting a
-    /// fresh entry when `key` isn't already present and overwriting (per ADR
-    /// 0007 § 5's copy-on-write value semantics, releasing whatever it
+    /// fresh entry when `key` isn't already present and overwriting (per
+    /// `rule:types/arrays`' copy-on-write value semantics, releasing whatever it
     /// already held) otherwise. Unlike [`InstKind::FieldSet`], which reads
     /// the field's *previous* value back with a [`InstKind::FieldGet`] before
     /// releasing it — safe there because a declared field always exists on a

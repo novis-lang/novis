@@ -1617,7 +1617,7 @@ fn a_route_table_walk_costs_a_fraction_of_the_request_it_rides_in() {
 }
 
 // ---------------------------------------------------------------------------
-// ADR 0007's claim, tested rather than asserted
+// `rule:types/declaration`'s claim, tested rather than asserted
 // ---------------------------------------------------------------------------
 //
 // "Mandatory types pay for themselves on the request path" is a claim about
@@ -1690,7 +1690,7 @@ fn a_typed_arithmetic_loop_contains_no_call() {
 
     // Half one: the loop's arithmetic reached no helper and no Novis function.
     // `$total + $i * 2 - 1` and `$i < $n` are native instructions because
-    // ADR 0007 settled both operands' types before lowering; an untyped
+    // declared types settled both operands before lowering; an untyped
     // language has to call something here.
     let insts = || sum.blocks.iter().flat_map(|b| b.insts.iter());
     let calls: Vec<&InstKind> = insts()
@@ -1699,7 +1699,7 @@ fn a_typed_arithmetic_loop_contains_no_call() {
         .collect();
     assert!(
         calls.is_empty(),
-        "Bench::sum now contains {} call instruction(s): {calls:?}. ADR 0007 justifies \
+        "Bench::sum now contains {} call instruction(s): {calls:?}. rule:types/declaration justifies \
          mandatory types on typed arithmetic lowering to native instructions; if a call \
          genuinely belongs here now, that argument needs revisiting.",
         calls.len()
@@ -1719,7 +1719,7 @@ fn a_typed_arithmetic_loop_contains_no_call() {
             .iter()
             .filter(|b| matches!(b.term, nvs_ir::ir::Terminator::Branch { .. }))
             .count();
-    // The remaining accounted categories, both owed to ADR 0007 § 4's overflow
+    // The remaining accounted categories, both owed to `rule:types/arithmetic`'s overflow
     // throw. Each checked integer arithmetic instruction owns a cold block
     // calling `nvs_runtime::nvs_raise_new`, and the `rule:errors/propagation` error edge it
     // takes ends in a landing block whose `Propagate` calls `nvs_trace_push`.
@@ -1789,7 +1789,7 @@ fn a_typed_arithmetic_loop_stays_in_the_native_cost_class() {
     // An iteration does a compare, three arithmetic operations, a safepoint
     // poll and the debug probe checks at its statements and its loop
     // branch — and still costs less than one
-    // cross-frame call, which is the whole of ADR 0007's claim. The soft bound
+    // cross-frame call, which is the whole of `rule:types/declaration`'s claim. The soft bound
     // is set well above that. Arithmetic going through a runtime helper instead
     // of a native instruction puts four calls in each iteration, and
     // `a_typed_arithmetic_loop_contains_no_call` above is what fails on it,
@@ -1824,7 +1824,7 @@ fn a_typed_arithmetic_loop_stays_in_the_native_cost_class() {
     judge(
         "typed arithmetic loop iteration, against a checked-return frame",
         ITERATION_PER_FRAME,
-        "ADR 0007 justifies mandatory types on typed arithmetic staying in the native cost \
+        "rule:types/declaration justifies mandatory types on typed arithmetic staying in the native cost \
          class; if this is a real regression that argument needs revisiting.",
         |yard| {
             let t_shallow = ns_per_op(200_000, 5, || {

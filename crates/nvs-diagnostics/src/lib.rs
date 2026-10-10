@@ -700,8 +700,9 @@ pub mod code {
     /// `unset(rows()["k"])`. `rule:classes/unset-is-refused-on-a-property` keeps `unset()` for exactly one job,
     /// removing an array entry: a binding is declared with a type and
     /// definitely assigned (`rule:types/declaration`), so there is no "undefined again"
-    /// state for a local to return to, and a temporary has nothing for ADR
-    /// 0007 § 5's separated array to be written back into. An operand that is
+    /// state for a local to return to, and a temporary has nothing for the
+    /// separated array to be written back into
+    /// (`rule:types/an-element-write-needs-storage-to-write-back-into`). An operand that is
     /// a *declared* property is [`E_UNSET_ON_PROPERTY`] instead, which owns
     /// that half of the same section.
     pub const E_UNSET_TARGET_NOT_AN_ELEMENT: Code = Code::new("E0234").card(

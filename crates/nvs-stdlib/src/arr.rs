@@ -2292,8 +2292,8 @@ nvs_runtime::nvs_helper! {
     /// `Core\Arr::count(array<T> $a): uint` — how many entries the array
     /// holds, replacing PHP's `count`/`sizeof`.
     ///
-    /// `uint` rather than `int` because a count cannot be negative and ADR
-    /// 0007 § 4 gives Novis a type that says so; the conversion below cannot
+    /// `uint` rather than `int` because a count cannot be negative and
+    /// `rule:types/uint` gives Novis a type that says so; the conversion below cannot
     /// fail, since `nvs_array_count` counts live entries of an allocation
     /// that fits in memory.
     fn nvs_core_arr_count(_ctx, args: [1]) {

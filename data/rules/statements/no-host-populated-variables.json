@@ -2,7 +2,6 @@
   "title": "No variable is ever populated by the host; every superglobal is a `Core` class member",
   "status": "shipped",
   "because": [
-    "0007",
     "0006"
   ],
   "seeAlso": [

@@ -917,8 +917,8 @@ fn name_the_var_line(
 /// PHP's `[]` names the key one past the highest integer key, which is an
 /// answer only where a value is being put there: PHP refuses `echo $a[];`
 /// with *"Cannot use [] for reading"* and `unset($a[])` with *"for
-/// unsetting"*, and Novis refuses `$a[] .= "x"` alongside them, which is ADR
-/// 0007 § 7 row 10 — PHP appends there only because the element that is not
+/// unsetting"*, and Novis refuses `$a[] .= "x"` alongside them, which is
+/// `rule:types/absent-storage-is-never-a-zero-value` — PHP appends there only because the element that is not
 /// there yet reads as `""`. Marking the legal spans is therefore the whole
 /// rule, and this walk is where they all are:
 /// the target chain of a plain assignment, every level of it, since
@@ -1338,8 +1338,8 @@ pub(crate) fn is_a_place(kind: &ExprKind) -> bool {
 ///
 /// The target is read first, then the value is checked *against the target's
 /// own type*, so the bare `1` in `uint $u = 0; $u += 1;` takes `uint` from
-/// the position rather than defaulting to `int` and colliding with it (ADR
-/// 0007 § 4's literal rule). The operator's result must then be assignable
+/// the position rather than defaulting to `int` and colliding with it
+/// (`rule:types/numeric-literal-placement`). The operator's result must then be assignable
 /// back to the target: `int $i = 0; $i .= "x";` is a mismatch reported at the
 /// assignment, never a silent re-typing of `$i` — `rule:types/var-inference` fixes a local's
 /// type at its declaration. `.=` demands a `Stringable` operand exactly the

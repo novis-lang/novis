@@ -2,8 +2,7 @@
   "title": "`{preserveKeys: false}` discards every key, whatever shape the key has",
   "status": "shipped",
   "because": [
-    "0069",
-    "0007"
+    "0069"
   ],
   "seeAlso": [
     "types/array-combination",

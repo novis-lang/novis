@@ -2,7 +2,6 @@
   "title": "`uint` is a distinct unsigned 64-bit integer, and it costs no bytes a value did not already hold",
   "status": "shipped",
   "because": [
-    "0007",
     "0150"
   ],
   "seeAlso": [

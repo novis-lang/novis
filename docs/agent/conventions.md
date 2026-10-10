@@ -66,8 +66,8 @@ that touched the file, which a reader has to replay in their head to learn what 
 **So a comment is rewritten as a whole and never appended to.** When the code under it changes, write
 the comment again from the code as it now stands and delete the sentence describing what it used to do;
 rephrase the whole paragraph if that is what it takes. Reasoning is still worth writing — but in the
-present tense, as what this shape buys rather than what the previous shape cost, citing the record that
-owns it (`docs/decisions/0007.md § 3`, `rule:types/conversion`) instead of restating it.
+present tense, as what this shape buys rather than what the previous shape cost, citing the rule that
+owns it (`rule:types/conversion`) instead of restating it.
 
 These are therefore never in a comment:
 

@@ -13,8 +13,8 @@ class Limits {
     public const array<int> STEPS = [1, 2, 3];
     public const array<string> LABELS = ["lo" => "low", "hi" => "high"];
     // The declared element type places each value, exactly as it does for a
-    // scalar constant: `1` here is the `float` 1, not the `int`, under ADR
-    // 0007 § 2's one implicit widening.
+    // scalar constant: `1` here is the `float` 1, not the `int`, under the one
+    // implicit widening (`rule:types/implicit-widening`).
     public const array<float> RATES = [1, 2.5];
     public const array<array<int>> GRID = [[1, 2], [3]];
     public const array<int> NONE = [];

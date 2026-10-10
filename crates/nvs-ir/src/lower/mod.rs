@@ -4044,8 +4044,8 @@ pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
         // that section promises.
         CheckedTy::SingleValueString(_) => Ty::Str,
         CheckedTy::SingleValueInt(_) => Ty::Int,
-        // `true` and `false` are the same rule on `bool`'s two values (ADR
-        // 0007 § 3's atoms, read by `nvs_types::ty::Ty::True`), so they erase
+        // `true` and `false` are the same rule on `bool`'s two values
+        // (`rule:types/grammar`'s atoms, read by `nvs_types::ty::Ty::True`), so they erase
         // to `bool`. The union arm below then folds `true|false` back to one
         // `Ty::Bool` for free.
         CheckedTy::True | CheckedTy::False => Ty::Bool,

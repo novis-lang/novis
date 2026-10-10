@@ -1,9 +1,7 @@
 {
   "title": "A `string` is valid UTF-8 for its whole lifetime, and its unmarked unit is the grapheme cluster",
   "status": "shipped",
-  "because": [
-    "0007"
-  ],
+  "because": [],
   "seeAlso": [
     "types/bytes",
     "types/conversion"

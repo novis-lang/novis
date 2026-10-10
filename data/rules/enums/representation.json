@@ -2,7 +2,6 @@
   "title": "An enum value costs nothing beyond the integer it is",
   "status": "shipped",
   "because": [
-    "0007",
     "0006",
     "0261"
   ],

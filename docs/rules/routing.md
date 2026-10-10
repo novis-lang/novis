@@ -454,7 +454,7 @@ table draws on has one home ([`core-classes/derive-attribute`](core-classes.md#c
 - **`params` as a shape per route, narrowed by comparing `name`.** The checker has no such narrowing,
   and it would save only one `as`. A generated dispatch `switch` binds typed parameters without it.
 
-<sub>See also [`routing/the-servers-match-dispatches-nothing`](routing.md#routing-the-servers-match-dispatches-nothing), [`types/grammar`](types.md#types-grammar), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching). Decided in [0102](../decisions/0102.md), [0077](../decisions/0077.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`routing/the-servers-match-dispatches-nothing`](routing.md#routing-the-servers-match-dispatches-nothing), [`types/grammar`](types.md#types-grammar), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching). Decided in [0102](../decisions/0102.md), [0077](../decisions/0077.md).</sub>
 
 <a id="routing-matched-once-before-the-handler"></a>
 

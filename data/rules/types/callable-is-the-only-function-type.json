@@ -1,9 +1,7 @@
 {
   "title": "`callable` is the only type name for a function value, and a callable is invoked directly",
   "status": "shipped",
-  "because": [
-    "0007"
-  ],
+  "because": [],
   "seeAlso": [
     "types/callable-values",
     "types/anonymous-function",

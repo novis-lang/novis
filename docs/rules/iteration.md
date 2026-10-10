@@ -28,7 +28,7 @@ point in the same block, so a counter in the header costs nothing in time or spa
 work and neither is rewritten into the other; a counter read after its loop, or shared by two loops,
 is the case that still wants the declaration above.
 
-<sub>See also [`iteration/for-counter-scope`](iteration.md#iteration-for-counter-scope), [`iteration/for-init-refusals`](iteration.md#iteration-for-init-refusals). Decided in [0109](../decisions/0109.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`iteration/for-counter-scope`](iteration.md#iteration-for-counter-scope), [`iteration/for-init-refusals`](iteration.md#iteration-for-init-refusals). Decided in [0109](../decisions/0109.md).</sub>
 
 <a id="iteration-for-counter-scope"></a>
 
@@ -45,7 +45,7 @@ So [`iteration/for-init-clause`](iteration.md#iteration-for-init-clause) is a sp
 header is the same statement a declaration anywhere else is, which is what makes the declare-once
 rule, definite assignment and the lowering all apply to it unchanged.
 
-<sub>See also [`iteration/for-init-clause`](iteration.md#iteration-for-init-clause), [`iteration/for-init-refusals`](iteration.md#iteration-for-init-refusals). Decided in [0109](../decisions/0109.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`iteration/for-init-clause`](iteration.md#iteration-for-init-clause), [`iteration/for-init-refusals`](iteration.md#iteration-for-init-refusals). Decided in [0109](../decisions/0109.md).</sub>
 
 <a id="iteration-for-init-refusals"></a>
 
@@ -95,7 +95,7 @@ An object becomes iterable by declaring one of the two interfaces at a concrete 
 interface that turns a subscript or a count into a method call
 ([`iteration/no-magic-collection-interfaces`](iteration.md#iteration-no-magic-collection-interfaces)).
 
-<sub>See also [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces), [`iteration/no-magic-collection-interfaces`](iteration.md#iteration-no-magic-collection-interfaces), [`iteration/generators`](iteration.md#iteration-generators). Decided in [0053](../decisions/0053.md), [0007](../decisions/0007.md), [0251](../decisions/0251.md), [0280](../decisions/0280.md).</sub>
+<sub>See also [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces), [`iteration/no-magic-collection-interfaces`](iteration.md#iteration-no-magic-collection-interfaces), [`iteration/generators`](iteration.md#iteration-generators). Decided in [0053](../decisions/0053.md), [0251](../decisions/0251.md), [0280](../decisions/0280.md).</sub>
 
 <a id="iteration-two-interfaces"></a>
 
@@ -125,7 +125,7 @@ Both members are declared without a body, and a class is held to every one of th
 **no key half** — nothing in `Iterator<T>` produces one — which is why a `foreach` over a cursor may
 bind a value and not a key ([`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects)).
 
-<sub>See also [`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects), [`iteration/concrete-generic-implements`](iteration.md#iteration-concrete-generic-implements), [`iteration/cursor-out-of-range`](iteration.md#iteration-cursor-out-of-range), [`iteration/generators`](iteration.md#iteration-generators). Decided in [0053](../decisions/0053.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects), [`iteration/concrete-generic-implements`](iteration.md#iteration-concrete-generic-implements), [`iteration/cursor-out-of-range`](iteration.md#iteration-cursor-out-of-range), [`iteration/generators`](iteration.md#iteration-generators). Decided in [0053](../decisions/0053.md).</sub>
 
 <a id="iteration-concrete-generic-implements"></a>
 
@@ -143,7 +143,7 @@ declare a type variable of its own, there is no inference, no variance, and no t
 inside the class body. The door exists so a collection can be iterated
 ([`iteration/two-interfaces`](iteration.md#iteration-two-interfaces)) without opening user-defined generics.
 
-<sub>See also [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces), [`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects). Decided in [0053](../decisions/0053.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces), [`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects). Decided in [0053](../decisions/0053.md).</sub>
 
 <a id="iteration-no-magic-collection-interfaces"></a>
 

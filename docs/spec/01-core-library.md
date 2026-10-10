@@ -208,12 +208,12 @@ Enums: `NormalForm { Nfc, Nfd, Nfkc, Nfkd }`.
 ## 2. `Core\Arr`
 
 `array<T>` is an insertion-ordered hash with copy-on-write value semantics
-([ADR 0007 § 5](../decisions/0007.md)). Every member is pure (R3); an implementation
+(`rule:types/arrays`). Every member is pure (R3); an implementation
 mutates in place whenever the argument's refcount is 1, so purity costs nothing. `T` is a type variable —
 the stdlib is parametric where user code is not.
 
 Every key is a `string`, so every key-valued **return** below is typed `string`; a key **parameter** is
-`int|string`, matching the subscript normalisation of that same section. How arrays combine, and why no
+`int|string`, matching the subscript normalisation of that same rule. How arrays combine, and why no
 member is named `merge`, is `rule:types/array-combination`.
 
 ### Inspection

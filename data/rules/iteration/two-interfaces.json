@@ -2,8 +2,7 @@
   "title": "Two interfaces carry every iteration, and a cursor is `advance()` then `current()`",
   "status": "shipped",
   "because": [
-    "0053",
-    "0007"
+    "0053"
   ],
   "seeAlso": [
     "iteration/foreach-subjects",

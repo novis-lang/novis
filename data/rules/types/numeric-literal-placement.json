@@ -2,8 +2,7 @@
   "title": "A numeric literal is untyped until it is placed, and `as T` is a placing position",
   "status": "shipped",
   "because": [
-    "0054",
-    "0007"
+    "0054"
   ],
   "seeAlso": [
     "types/decimal",

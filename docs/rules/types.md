@@ -39,7 +39,26 @@ or narrows is a diagnostic. There is no function-scope `static` and no global co
 a binding site at all ([`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global)), and definite assignment
 holds with no exception: no binding is live on a call whose path never ran its initialiser.
 
-<sub>See also [`types/var-inference`](types.md#types-var-inference), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0007](../decisions/0007.md), [0251](../decisions/0251.md).</sub>
+A declared type is what makes the other priorities cheap. Untrusted input cannot coerce silently into
+a wrong but valid value — `"abc"` read as row id `0` — because no binding changes type without an
+`as`. The backend emits a native instruction wherever both operand types are known, which is every
+declared binding, instead of dispatching through a tag-testing helper
+(`benches/abi-probe/tests/perf_guards.rs` holds a typed arithmetic loop to that). And there is one type
+system rather than two: no inference engine to keep in agreement with the declarations, no unknown
+type in the IR, and no boundary between checked and unchecked code except `mixed`, which is written.
+A mistake arrives as a diagnostic at its cause rather than as a wrong value far from it.
+
+The cost is that PHP source does not run unconverted. PHP has no syntax for the type of a local, a
+`foreach` binding or a destructuring target, so no PHP file satisfies this rule as it stands.
+
+**Declined:**
+- **Gradual typing, declared types checked and locals inferred.** It is two type systems to keep in
+  agreement, and an unknown type the IR would have to carry. `var` takes a local's type from its
+  initializer once, at the declaration, and the type is then fixed like any other.
+- **An omitted return type defaulting to `mixed`.** It would be a second unchecked position, reached by
+  writing nothing rather than by writing `mixed`.
+
+<sub>See also [`types/var-inference`](types.md#types-var-inference), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0251](../decisions/0251.md).</sub>
 
 <a id="types-var-inference"></a>
 
@@ -102,7 +121,7 @@ is legibility: the type is not on the declaration line, and finding it means rea
 - **A new keyword instead of `var`.** `var` was already a reserved token with no meaning in Novis, so
   reusing it needed no lexer change and collides with nothing.
 
-<sub>See also [`types/declaration`](types.md#types-declaration), [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/arrays`](types.md#types-arrays). Decided in [0007](../decisions/0007.md), [0114](../decisions/0114.md), [0251](../decisions/0251.md), [0252](../decisions/0252.md), [0279](../decisions/0279.md).</sub>
+<sub>See also [`types/declaration`](types.md#types-declaration), [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/arrays`](types.md#types-arrays). Decided in [0114](../decisions/0114.md), [0251](../decisions/0251.md), [0252](../decisions/0252.md), [0279](../decisions/0279.md).</sub>
 
 <a id="types-grammar"></a>
 
@@ -152,7 +171,7 @@ name already says. The refusal recovers as `mixed`, which is what keeps one miss
 
 **There is no `resource` type.** A host handle is an ordinary object with an explicit `close()`.
 
-<sub>See also [`types/declaration`](types.md#types-declaration), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/type-alias`](types.md#types-type-alias), [`types/shape-type`](types.md#types-shape-type). Decided in [0007](../decisions/0007.md), [0047](../decisions/0047.md), [0053](../decisions/0053.md), [0054](../decisions/0054.md), [0125](../decisions/0125.md), [0126](../decisions/0126.md), [0136](../decisions/0136.md).</sub>
+<sub>See also [`types/declaration`](types.md#types-declaration), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/type-alias`](types.md#types-type-alias), [`types/shape-type`](types.md#types-shape-type). Decided in [0047](../decisions/0047.md), [0053](../decisions/0053.md), [0054](../decisions/0054.md), [0125](../decisions/0125.md), [0126](../decisions/0126.md), [0136](../decisions/0136.md).</sub>
 
 <a id="types-integer-literals"></a>
 
@@ -173,7 +192,7 @@ literal too wide for `int` is legal only where a `uint` is expected.
 The escape grammar inside a string literal is unrelated to this, and includes `\v`, `\f`, `\e` and
 the octal `\0`–`\777`.
 
-<sub>See also [`types/uint`](types.md#types-uint), [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/arithmetic`](types.md#types-arithmetic). Decided in [0007](../decisions/0007.md).</sub>
+<sub>See also [`types/uint`](types.md#types-uint), [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/arithmetic`](types.md#types-arithmetic).</sub>
 
 <a id="types-numeric-literal-placement"></a>
 
@@ -209,7 +228,7 @@ literal would be unwritable in any position lacking an annotation.
 would buy only a second spelling of what `as decimal` already says, in the two positions that lack a
 target: a `var` declaration ([`types/var-inference`](types.md#types-var-inference)) and a `mixed` or generic argument.
 
-<sub>See also [`types/decimal`](types.md#types-decimal), [`types/integer-literals`](types.md#types-integer-literals), [`types/var-inference`](types.md#types-var-inference), [`types/implicit-widening`](types.md#types-implicit-widening). Decided in [0054](../decisions/0054.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`types/decimal`](types.md#types-decimal), [`types/integer-literals`](types.md#types-integer-literals), [`types/var-inference`](types.md#types-var-inference), [`types/implicit-widening`](types.md#types-implicit-widening). Decided in [0054](../decisions/0054.md).</sub>
 
 <a id="types-uint"></a>
 
@@ -235,7 +254,15 @@ exact answer over the mathematical integers, and they do not mix in arithmetic, 
 representable common type to return ([`types/arithmetic`](types.md#types-arithmetic)). Converting between them is `as`, and it
 throws rather than wrapping ([`types/conversion`](types.md#types-conversion)).
 
-<sub>See also [`types/arithmetic`](types.md#types-arithmetic), [`types/integer-literals`](types.md#types-integer-literals), [`types/conversion`](types.md#types-conversion), [`types/type-test`](types.md#types-type-test). Decided in [0007](../decisions/0007.md), [0150](../decisions/0150.md).</sub>
+**Declined:**
+- **No `uint`, with large unsigned values carried as `string` or `float`.** The conversion moves into
+  every call site, and a `float` loses precision above 2^53.
+- **One arbitrary-precision integer instead of `int` and `uint`.** It does not fit the tagged value's
+  64-bit payload, so every integer would pay for the few that are wider.
+- **Mixed-signedness arithmetic under a promotion rule.** There is no type both operands fit, so any
+  promotion either loses values or changes the result's type behind the declaration.
+
+<sub>See also [`types/arithmetic`](types.md#types-arithmetic), [`types/integer-literals`](types.md#types-integer-literals), [`types/conversion`](types.md#types-conversion), [`types/type-test`](types.md#types-type-test). Decided in [0150](../decisions/0150.md).</sub>
 
 <a id="types-arithmetic"></a>
 
@@ -288,7 +315,7 @@ Overflow throwing is the divergence this table is least willing to trade. A sile
 `float` changes a binding's type behind its declaration, and a silent wrap is the classic
 size-computation bug. Code that wants unbounded magnitude declares `float`, or converts.
 
-<sub>See also [`types/ordering`](types.md#types-ordering), [`types/uint`](types.md#types-uint), [`types/decimal`](types.md#types-decimal), [`types/implicit-widening`](types.md#types-implicit-widening). Decided in [0007](../decisions/0007.md), [0054](../decisions/0054.md), [0261](../decisions/0261.md).</sub>
+<sub>See also [`types/ordering`](types.md#types-ordering), [`types/uint`](types.md#types-uint), [`types/decimal`](types.md#types-decimal), [`types/implicit-widening`](types.md#types-implicit-widening). Decided in [0054](../decisions/0054.md), [0261](../decisions/0261.md).</sub>
 
 <a id="types-implicit-widening"></a>
 
@@ -314,7 +341,7 @@ Everything else is a diagnostic. `mixed` never absorbs implicitly in either dire
 ([`types/conversion`](types.md#types-conversion)). A numeric literal is not a conversion at all: it is untyped until placed,
 so it takes `int`, `uint`, `float` or `decimal` from its target ([`types/numeric-literal-placement`](types.md#types-numeric-literal-placement)).
 
-<sub>See also [`types/conversion`](types.md#types-conversion), [`types/arithmetic`](types.md#types-arithmetic), [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement). Decided in [0007](../decisions/0007.md), [0054](../decisions/0054.md), [0236](../decisions/0236.md), [0238](../decisions/0238.md), [0239](../decisions/0239.md).</sub>
+<sub>See also [`types/conversion`](types.md#types-conversion), [`types/arithmetic`](types.md#types-arithmetic), [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement). Decided in [0054](../decisions/0054.md), [0236](../decisions/0236.md), [0238](../decisions/0238.md), [0239](../decisions/0239.md).</sub>
 
 <a id="types-decimal"></a>
 
@@ -346,7 +373,7 @@ wearing a decimal API, which is `Core\BigInt`.
 `decimal` is not an enum backing type ([`enums/one-backing-type`](enums.md#enums-one-backing-type)), and array keys are unaffected —
 every key is a `string` already ([`types/arrays`](types.md#types-arrays)).
 
-<sub>See also [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/arithmetic`](types.md#types-arithmetic), [`types/conversion`](types.md#types-conversion). Decided in [0054](../decisions/0054.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/arithmetic`](types.md#types-arithmetic), [`types/conversion`](types.md#types-conversion). Decided in [0054](../decisions/0054.md).</sub>
 
 <a id="types-ordering"></a>
 
@@ -379,7 +406,7 @@ named, and an enum case orders as the integer it is even though the written spel
 
 `==` and `!=` are a different question and are unaffected by any of this.
 
-<sub>See also [`types/arithmetic`](types.md#types-arithmetic), [`types/conversion`](types.md#types-conversion), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0007](../decisions/0007.md), [0047](../decisions/0047.md).</sub>
+<sub>See also [`types/arithmetic`](types.md#types-arithmetic), [`types/conversion`](types.md#types-conversion), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0047](../decisions/0047.md).</sub>
 
 <a id="types-string-is-utf8"></a>
 
@@ -433,7 +460,7 @@ nothing about whether two visually identical strings compare equal.
 - **A cached offset table for random access by grapheme index.** It would cost one word per cluster
   on every string ever indexed, and the walk is linear.
 
-<sub>See also [`types/bytes`](types.md#types-bytes), [`types/conversion`](types.md#types-conversion). Decided in [0007](../decisions/0007.md).</sub>
+<sub>See also [`types/bytes`](types.md#types-bytes), [`types/conversion`](types.md#types-conversion).</sub>
 
 <a id="types-bytes"></a>
 
@@ -464,7 +491,7 @@ There is no dedicated literal token: `"…" as bytes` covers the valid-UTF-8 cas
 - **A lossy `bytes as string`** that replaces, drops or transliterates an invalid sequence. That is
   the silent substitution the checked conversion exists to prevent ([`types/conversion`](types.md#types-conversion)).
 
-<sub>See also [`types/string-is-utf8`](types.md#types-string-is-utf8), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar). Decided in [0007](../decisions/0007.md), [0006](../decisions/0006.md).</sub>
+<sub>See also [`types/string-is-utf8`](types.md#types-string-is-utf8), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar). Decided in [0006](../decisions/0006.md).</sub>
 
 <a id="types-duration"></a>
 
@@ -544,7 +571,7 @@ Two limits are deliberate: **no `float` single-value type**, because float equal
 that a type allowing only `0.1` is a footgun; and **no wildcard matching** over constant or case names,
 since the whole point is that the accepted set is spelled out.
 
-<sub>See also [`types/constant-in-type-position`](types.md#types-constant-in-type-position), [`types/enum-case-type`](types.md#types-enum-case-type), [`types/conversion`](types.md#types-conversion), [`types/narrowing`](types.md#types-narrowing). Decided in [0047](../decisions/0047.md), [0007](../decisions/0007.md), [0066](../decisions/0066.md).</sub>
+<sub>See also [`types/constant-in-type-position`](types.md#types-constant-in-type-position), [`types/enum-case-type`](types.md#types-enum-case-type), [`types/conversion`](types.md#types-conversion), [`types/narrowing`](types.md#types-narrowing). Decided in [0047](../decisions/0047.md), [0066](../decisions/0066.md).</sub>
 
 <a id="types-constant-in-type-position"></a>
 
@@ -607,7 +634,7 @@ not narrow `$m` in the branch it guards ([`types/narrowing`](types.md#types-narr
 nothing at runtime — it shares the enum's existing zero-byte representation
 ([`enums/representation`](enums.md#enums-representation)).
 
-<sub>See also [`types/single-value-types`](types.md#types-single-value-types), [`types/conversion`](types.md#types-conversion), [`types/narrowing`](types.md#types-narrowing). Decided in [0047](../decisions/0047.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`types/single-value-types`](types.md#types-single-value-types), [`types/conversion`](types.md#types-conversion), [`types/narrowing`](types.md#types-narrowing). Decided in [0047](../decisions/0047.md).</sub>
 
 <a id="types-arrays"></a>
 
@@ -617,7 +644,9 @@ nothing at runtime — it shares the enum's existing zero-byte representation
 
 The container is an insertion-ordered hash with copy-on-write value semantics.
 
-**Every key is a `string`.** There is no integer key.
+**Every key is a `string`.** There is no integer key. One key type means one key domain: which
+subscripts name the same entry is decided once, at the subscript, and nothing later converts a key
+between two kinds.
 
 - `$a[] = $v` appends under the next integer index rendered in decimal — `"0"`, `"1"`, `"2"` — from
   a counter the array keeps.
@@ -628,7 +657,8 @@ The container is an insertion-ordered hash with copy-on-write value semantics.
   key and preserve every other — each entry copied is either the append above or the write
   `$a[$k] = $v`. A spread therefore throws exactly where an append throws.
 - A `float`, `bool` or `null` subscript is **rejected**: none of them is a key, and nothing converts
-  one into a key.
+  one into a key. Truncating `1.7` to `"1"` or reading `null` as `""` would be a silent conversion at
+  the one place where a mistake becomes a missing row.
 - Iteration order is insertion order, always; only the sort members reorder, and they say so in their
   names. Binary `+` and `+=` over two arrays are a diagnostic naming `Core\Arr::underlay`
   ([`types/array-combination`](types.md#types-array-combination)).
@@ -637,6 +667,8 @@ The container is an insertion-ordered hash with copy-on-write value semantics.
   on a packed list exactly as on a map. A key **parameter** still takes `int|string`, because the
   subscript normalisation above is what makes those one key. A key binding declaring any other type is
   refused where it is written (`E0723`), because there is no array that could fill it.
+- `Core\Json::encode` writes a JSON array exactly when the keys are `"0"` … `"n−1"` in order, and a
+  JSON object otherwise, so string keys change nothing in the encoded output.
 
 **The element type may be declared, and nests to any depth** — `array<uint>`, `array<array<int|string>>`,
 `array<User|null>`; one parameter, not two, because the key type is fixed.
@@ -688,9 +720,13 @@ The container is an insertion-ordered hash with copy-on-write value semantics.
   written there is a class, an
   inline shape ([`types/shape-type`](types.md#types-shape-type)), or an `array<…>` of either where the source is a list;
   anything else is refused where it is written. User-written generic functions and classes are not
-  part of this.
+  part of this ([`types/no-user-generics`](types.md#types-no-user-generics)).
 
-<sub>See also [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/array-combination`](types.md#types-array-combination), [`types/preserve-keys`](types.md#types-preserve-keys), [`types/conversion`](types.md#types-conversion), [`types/shape-type`](types.md#types-shape-type). Decided in [0007](../decisions/0007.md), [0069](../decisions/0069.md), [0114](../decisions/0114.md), [0159](../decisions/0159.md), [0188](../decisions/0188.md), [0238](../decisions/0238.md), [0252](../decisions/0252.md).</sub>
+**Declined:**
+- **Integer keys kept beside string keys.** Two key domains need a rule for converting between them,
+  and that rule is where `$a[8]`, `$a["8"]` and `$a["08"]` stop meaning what they look like.
+
+<sub>See also [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/array-combination`](types.md#types-array-combination), [`types/preserve-keys`](types.md#types-preserve-keys), [`types/conversion`](types.md#types-conversion), [`types/shape-type`](types.md#types-shape-type). Decided in [0069](../decisions/0069.md), [0114](../decisions/0114.md), [0159](../decisions/0159.md), [0188](../decisions/0188.md), [0238](../decisions/0238.md), [0252](../decisions/0252.md).</sub>
 
 <a id="types-array-combination"></a>
 
@@ -724,7 +760,7 @@ Two related behaviours are stated here too: `unique`, `diff` and `intersect` com
 identity**, never by a string cast of each value; and `flip` collapses duplicate values, last
 occurrence winning, its result typed `array<string>`.
 
-<sub>See also [`types/arrays`](types.md#types-arrays), [`types/preserve-keys`](types.md#types-preserve-keys). Decided in [0069](../decisions/0069.md), [0007](../decisions/0007.md), [0063](../decisions/0063.md).</sub>
+<sub>See also [`types/arrays`](types.md#types-arrays), [`types/preserve-keys`](types.md#types-preserve-keys). Decided in [0069](../decisions/0069.md), [0063](../decisions/0063.md).</sub>
 
 <a id="types-preserve-keys"></a>
 
@@ -742,7 +778,7 @@ option name.
 `false` is the default because these members are overwhelmingly called with a list. For an argument
 with non-numeric keys, `false` drops the keys and `{preserveKeys: true}` keeps them.
 
-<sub>See also [`types/array-combination`](types.md#types-array-combination), [`types/arrays`](types.md#types-arrays). Decided in [0069](../decisions/0069.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`types/array-combination`](types.md#types-array-combination), [`types/arrays`](types.md#types-arrays). Decided in [0069](../decisions/0069.md).</sub>
 
 <a id="types-mixed-subscript"></a>
 
@@ -766,7 +802,34 @@ holder to write the separated one back through, which a value that is only a tag
 `$m[$k] = v` keeps the refusal. This is [`types/erased-member-access`](types.md#types-erased-member-access)'s rule one storage kind
 along.
 
-<sub>See also [`types/arrays`](types.md#types-arrays), [`types/erased-member-access`](types.md#types-erased-member-access), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0007](../decisions/0007.md).</sub>
+<sub>See also [`types/arrays`](types.md#types-arrays), [`types/erased-member-access`](types.md#types-erased-member-access), [`types/unions-and-mixed`](types.md#types-unions-and-mixed).</sub>
+
+<a id="types-no-user-generics"></a>
+
+## There are no user-declared generic functions or classes
+
+`rule:types/no-user-generics`
+
+A program declares no type parameter of its own: a type variable belongs only to a declaration the
+compiler owns — a `Core` member, and a user class implementing a compiler-owned generic interface at a
+concrete type ([`iteration/concrete-generic-implements`](iteration.md#iteration-concrete-generic-implements)). A user-declared name written with type
+arguments, as a type or at a call, is refused where it is written.
+
+Application code does not reach for one. A typed collection is `array<T>` with `Core\Arr`, a result
+that may fail is `?T` and a throw, and an envelope is a structurally checked shape such as
+`{items: array<User>, total: uint}` ([`types/shape-type`](types.md#types-shape-type)). The boundaries where a caller's type
+cannot be inferred already write it at the call ([`attributes/call-site-type-argument`](attributes.md#attributes-call-site-type-argument)). Library
+code is the real consumer, and `Core` is already parametric.
+
+**Declined:**
+- **User-declared generic functions.** Nothing written so far needs one; the narrowest form, a written
+  type argument on a user-declared method, would reuse the call-site list rather than add a kind of type.
+- **Generic classes.** One needs bounds the moment it sorts, a variance rule beside the array's, and
+  either erasure, which checks without the typed path's speed, or one compiled copy per instantiation,
+  which fights the one-immutable-file-per-unit cache
+  ([`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file)).
+
+<sub>See also [`types/arrays`](types.md#types-arrays), [`types/shape-type`](types.md#types-shape-type), [`attributes/call-site-type-argument`](attributes.md#attributes-call-site-type-argument), [`iteration/concrete-generic-implements`](iteration.md#iteration-concrete-generic-implements).</sub>
 
 <a id="types-property-key"></a>
 
@@ -801,7 +864,7 @@ It is its own **equality domain**: two keys are equal when they name the same pr
 ever equal to one, and ordering one is refused ([`types/ordering`](types.md#types-ordering)). `property` is a keyword only
 in type position — `$property`, a method named `property` and a class named `Property` are untouched.
 
-<sub>See also [`types/property-key-variance`](types.md#types-property-key-variance), [`types/property-key-access`](types.md#types-property-key-access), [`types/class-reference`](types.md#types-class-reference), [`types/conversion`](types.md#types-conversion). Decided in [0126](../decisions/0126.md), [0007](../decisions/0007.md), [0090](../decisions/0090.md), [0066](../decisions/0066.md).</sub>
+<sub>See also [`types/property-key-variance`](types.md#types-property-key-variance), [`types/property-key-access`](types.md#types-property-key-access), [`types/class-reference`](types.md#types-class-reference), [`types/conversion`](types.md#types-conversion). Decided in [0126](../decisions/0126.md), [0090](../decisions/0090.md), [0066](../decisions/0066.md).</sub>
 
 <a id="types-property-key-variance"></a>
 
@@ -896,7 +959,15 @@ tainted string $q = $doc['q'] as string;
 `mixed` never absorbs implicitly in the other direction: `int $n = $m;` where `$m` is `mixed` is a
 diagnostic, not a runtime check.
 
-<sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar), [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/type-test`](types.md#types-type-test). Decided in [0007](../decisions/0007.md), [0066](../decisions/0066.md), [0047](../decisions/0047.md), [0150](../decisions/0150.md), [0279](../decisions/0279.md).</sub>
+`mixed` is a hole by design, and a program written entirely in it runs at dynamic typing's speed with
+dynamic typing's failure modes. The compiler does not keep `mixed` at the boundaries; review does, and
+every step out of it is an `as` a reviewer can see.
+
+**Declined:**
+- **`mixed` checked at its boundaries.** It would leave no way to say "this is untyped input"
+  honestly, which is the one thing `mixed` is for.
+
+<sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar), [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/type-test`](types.md#types-type-test). Decided in [0066](../decisions/0066.md), [0047](../decisions/0047.md), [0150](../decisions/0150.md), [0279](../decisions/0279.md).</sub>
 
 <a id="types-type-test"></a>
 
@@ -1053,7 +1124,7 @@ Narrowing never changes a binding's declared type ([`types/declaration`](types.m
 checker knows about it on one path. A value that has to *stay* narrowed is a second binding at the
 type you want, or a checked `as` ([`types/conversion`](types.md#types-conversion)).
 
-<sub>See also [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/conversion`](types.md#types-conversion), [`types/enum-case-type`](types.md#types-enum-case-type), [`types/type-test`](types.md#types-type-test), [`types/class-reference-sites`](types.md#types-class-reference-sites). Decided in [0007](../decisions/0007.md), [0047](../decisions/0047.md), [0066](../decisions/0066.md), [0150](../decisions/0150.md), [0192](../decisions/0192.md), [0270](../decisions/0270.md).</sub>
+<sub>See also [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/conversion`](types.md#types-conversion), [`types/enum-case-type`](types.md#types-enum-case-type), [`types/type-test`](types.md#types-type-test), [`types/class-reference-sites`](types.md#types-class-reference-sites). Decided in [0047](../decisions/0047.md), [0066](../decisions/0066.md), [0150](../decisions/0150.md), [0192](../decisions/0192.md), [0270](../decisions/0270.md).</sub>
 
 <a id="types-conversion"></a>
 
@@ -1106,7 +1177,16 @@ where it runs.
 condition, which tests any type for truthiness without asking for one. The `(int)` cast syntax
 is not a second spelling — it does not parse at all ([`types/no-legacy-cast`](types.md#types-no-legacy-cast)).
 
-<sub>See also [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/implicit-widening`](types.md#types-implicit-widening), [`types/arithmetic`](types.md#types-arithmetic), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0007](../decisions/0007.md), [0047](../decisions/0047.md), [0054](../decisions/0054.md), [0066](../decisions/0066.md), [0125](../decisions/0125.md), [0126](../decisions/0126.md), [0144](../decisions/0144.md), [0237](../decisions/0237.md), [0238](../decisions/0238.md), [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
+A conversion that throws is what keeps untrusted input from becoming a wrong but valid value. A
+silent `0` for `"abc"` is often a real row id, which is the shape of an insecure direct object
+reference. A throw arrives at the conversion that caused it, with a span, rather than at whatever
+reads the wrong value later.
+
+**Declined:**
+- **PHP's lossy casts kept beside `as`.** The lossy one would win by being shorter to type
+  ([`types/no-legacy-cast`](types.md#types-no-legacy-cast)).
+
+<sub>See also [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/implicit-widening`](types.md#types-implicit-widening), [`types/arithmetic`](types.md#types-arithmetic), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0047](../decisions/0047.md), [0054](../decisions/0054.md), [0066](../decisions/0066.md), [0125](../decisions/0125.md), [0126](../decisions/0126.md), [0144](../decisions/0144.md), [0237](../decisions/0237.md), [0238](../decisions/0238.md), [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
 
 <a id="types-no-legacy-cast"></a>
 
@@ -1144,7 +1224,7 @@ syntax.
 - **The cast kept for `array` and `object` only.** Every target has the same `as` spelling, and
   keeping two of seven has no principled line.
 
-<sub>See also [`types/conversion`](types.md#types-conversion). Decided in [0007](../decisions/0007.md), [0049](../decisions/0049.md).</sub>
+<sub>See also [`types/conversion`](types.md#types-conversion). Decided in [0049](../decisions/0049.md).</sub>
 
 <a id="types-type-alias"></a>
 
@@ -1193,7 +1273,7 @@ to own them; an alias, like a `use` import, is resolved and discarded before cod
   representation is a different feature with its own costs, and an alias is a transparent synonym
   only.
 
-<sub>See also [`types/class-scoped-alias`](types.md#types-class-scoped-alias), [`types/alias-is-never-a-bare-class`](types.md#types-alias-is-never-a-bare-class), [`types/grammar`](types.md#types-grammar), [`types/shape-type`](types.md#types-shape-type). Decided in [0007](../decisions/0007.md).</sub>
+<sub>See also [`types/class-scoped-alias`](types.md#types-class-scoped-alias), [`types/alias-is-never-a-bare-class`](types.md#types-alias-is-never-a-bare-class), [`types/grammar`](types.md#types-grammar), [`types/shape-type`](types.md#types-shape-type).</sub>
 
 <a id="types-alias-is-never-a-bare-class"></a>
 
@@ -1334,7 +1414,7 @@ that made it, so "go to definition" on any callable value lands on real code.
 - **A dedicated `MethodRef` or `FunctionRef` type.** A second type with no behaviour of its own adds
   surface and nothing else ([`types/callable-is-the-only-function-type`](types.md#types-callable-is-the-only-function-type)).
 
-<sub>See also [`types/anonymous-function`](types.md#types-anonymous-function), [`types/callable-is-the-only-function-type`](types.md#types-callable-is-the-only-function-type), [`types/callable-signature`](types.md#types-callable-signature). Decided in [0007](../decisions/0007.md), [0136](../decisions/0136.md).</sub>
+<sub>See also [`types/anonymous-function`](types.md#types-anonymous-function), [`types/callable-is-the-only-function-type`](types.md#types-callable-is-the-only-function-type), [`types/callable-signature`](types.md#types-callable-signature). Decided in [0136](../decisions/0136.md).</sub>
 
 <a id="types-anonymous-function"></a>
 
@@ -1403,7 +1483,7 @@ The two binding-site variants that stood in for this — a callback-return param
 callbacks — are retired, and the restriction that a shape's every field be a *written* anonymous function
 goes with them, because a `callable(): T`-typed variable now carries what the field needs.
 
-<sub>See also [`types/callable-arity`](types.md#types-callable-arity), [`types/callable-variance`](types.md#types-callable-variance), [`types/anonymous-function-parameter-inference`](types.md#types-anonymous-function-parameter-inference), [`types/callable-values`](types.md#types-callable-values). Decided in [0136](../decisions/0136.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`types/callable-arity`](types.md#types-callable-arity), [`types/callable-variance`](types.md#types-callable-variance), [`types/anonymous-function-parameter-inference`](types.md#types-anonymous-function-parameter-inference), [`types/callable-values`](types.md#types-callable-values). Decided in [0136](../decisions/0136.md).</sub>
 
 <a id="types-callable-arity"></a>
 
@@ -1462,7 +1542,7 @@ check is discharged entirely in the checker. Same shape of question, different c
 answer. What it buys is that a helper written once as `fn (mixed $v): string` stays assignable
 everywhere, which is the whole reason such a helper is written.
 
-<sub>See also [`types/callable-signature`](types.md#types-callable-signature), [`types/callable-arity`](types.md#types-callable-arity), [`types/arrays`](types.md#types-arrays). Decided in [0136](../decisions/0136.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`types/callable-signature`](types.md#types-callable-signature), [`types/callable-arity`](types.md#types-callable-arity), [`types/arrays`](types.md#types-arrays). Decided in [0136](../decisions/0136.md).</sub>
 
 <a id="types-anonymous-function-parameter-inference"></a>
 
@@ -1533,7 +1613,7 @@ $result = $fn(...$args);   // replaces call_user_func_array($fn, $args)
 - **Keeping `Closure` beside `callable`, reserved for a typed signature.** A signature is written on
   the one name, `callable(int): string` ([`types/callable-signature`](types.md#types-callable-signature)).
 
-<sub>See also [`types/callable-values`](types.md#types-callable-values), [`types/anonymous-function`](types.md#types-anonymous-function), [`types/grammar`](types.md#types-grammar). Decided in [0007](../decisions/0007.md).</sub>
+<sub>See also [`types/callable-values`](types.md#types-callable-values), [`types/anonymous-function`](types.md#types-anonymous-function), [`types/grammar`](types.md#types-grammar).</sub>
 
 <a id="types-implicit-capture"></a>
 
@@ -1640,7 +1720,7 @@ Because `object` names no class, it is not a conversion target — `as object` w
 meant is refused, and a member reached through an `object`-typed receiver is answered at run time
 ([`types/erased-member-access`](types.md#types-erased-member-access)).
 
-<sub>See also [`types/shape-type`](types.md#types-shape-type), [`types/anonymous-object`](types.md#types-anonymous-object), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0007](../decisions/0007.md).</sub>
+<sub>See also [`types/shape-type`](types.md#types-shape-type), [`types/anonymous-object`](types.md#types-anonymous-object), [`types/erased-member-access`](types.md#types-erased-member-access).</sub>
 
 <a id="types-anonymous-object"></a>
 
@@ -1756,7 +1836,7 @@ absent" two different ways in two containers.
 - **A shape that requires a method.** A shape is data only. Behaviour belongs to a declared class or
   interface.
 
-<sub>See also [`types/anonymous-object`](types.md#types-anonymous-object), [`types/object-top`](types.md#types-object-top), [`types/type-alias`](types.md#types-type-alias), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0007](../decisions/0007.md), [0157](../decisions/0157.md), [0236](../decisions/0236.md), [0238](../decisions/0238.md).</sub>
+<sub>See also [`types/anonymous-object`](types.md#types-anonymous-object), [`types/object-top`](types.md#types-object-top), [`types/type-alias`](types.md#types-type-alias), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0157](../decisions/0157.md), [0236](../decisions/0236.md), [0238](../decisions/0238.md).</sub>
 
 <a id="types-erased-member-access"></a>
 
@@ -1790,7 +1870,7 @@ declared property observer behave here exactly as they do anywhere, because this
 and not a family of them — [`types/property-key-access`](types.md#types-property-key-access) and [`types/mixed-subscript`](types.md#types-mixed-subscript) are the
 same access one step along.
 
-<sub>See also [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/shape-type`](types.md#types-shape-type), [`types/property-key-access`](types.md#types-property-key-access), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0007](../decisions/0007.md), [0126](../decisions/0126.md).</sub>
+<sub>See also [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/shape-type`](types.md#types-shape-type), [`types/property-key-access`](types.md#types-property-key-access), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0126](../decisions/0126.md).</sub>
 
 <a id="types-class-reference"></a>
 
@@ -1835,7 +1915,7 @@ ever equal to one — `$cls == "Dog"` is exactly the string-as-a-class confusion
 and ordering one is refused with the other unordered types ([`types/ordering`](types.md#types-ordering)). A descriptor is
 immortal and process-wide, so holding one costs a word and frees nothing.
 
-<sub>See also [`types/class-reference-variance`](types.md#types-class-reference-variance), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`types/class-constant`](types.md#types-class-constant), [`types/conversion`](types.md#types-conversion). Decided in [0125](../decisions/0125.md), [0007](../decisions/0007.md), [0090](../decisions/0090.md), [0066](../decisions/0066.md), [0250](../decisions/0250.md).</sub>
+<sub>See also [`types/class-reference-variance`](types.md#types-class-reference-variance), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`types/class-constant`](types.md#types-class-constant), [`types/conversion`](types.md#types-conversion). Decided in [0125](../decisions/0125.md), [0090](../decisions/0090.md), [0066](../decisions/0066.md), [0250](../decisions/0250.md).</sub>
 
 <a id="types-class-reference-variance"></a>
 
@@ -1856,7 +1936,7 @@ widened view out of the narrow one's storage ([`types/arrays`](types.md#types-ar
 one that widens on neither argument, because its argument bounds a receiver instead
 ([`types/property-key-variance`](types.md#types-property-key-variance)).
 
-<sub>See also [`types/class-reference`](types.md#types-class-reference), [`types/property-key-variance`](types.md#types-property-key-variance), [`types/arrays`](types.md#types-arrays). Decided in [0125](../decisions/0125.md), [0007](../decisions/0007.md), [0188](../decisions/0188.md).</sub>
+<sub>See also [`types/class-reference`](types.md#types-class-reference), [`types/property-key-variance`](types.md#types-property-key-variance), [`types/arrays`](types.md#types-arrays). Decided in [0125](../decisions/0125.md), [0188](../decisions/0188.md).</sub>
 
 <a id="types-class-reference-sites"></a>
 
@@ -1890,7 +1970,7 @@ the reference already promised. No second operator tests a class ([`types/one-ty
 `$obj->$name` is untouched by any of this: a class reference answers "which class", never "which
 member" ([`types/property-key-access`](types.md#types-property-key-access)).
 
-<sub>See also [`types/class-reference`](types.md#types-class-reference), [`types/property-key-access`](types.md#types-property-key-access), [`types/type-test`](types.md#types-type-test), [`types/one-type-test`](types.md#types-one-type-test). Decided in [0125](../decisions/0125.md), [0007](../decisions/0007.md), [0126](../decisions/0126.md), [0192](../decisions/0192.md).</sub>
+<sub>See also [`types/class-reference`](types.md#types-class-reference), [`types/property-key-access`](types.md#types-property-key-access), [`types/type-test`](types.md#types-type-test), [`types/one-type-test`](types.md#types-one-type-test). Decided in [0125](../decisions/0125.md), [0126](../decisions/0126.md), [0192](../decisions/0192.md).</sub>
 
 <a id="types-class-constant"></a>
 
@@ -1926,7 +2006,7 @@ The narrowing that lifts the refusal is the one `->` already requires of the sam
 Per evaluation the run-time form spends one load, one call and one string allocation for the name,
 charged to the isolate that asked.
 
-<sub>See also [`types/class-reference`](types.md#types-class-reference), [`types/conversion`](types.md#types-conversion), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0144](../decisions/0144.md), [0125](../decisions/0125.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`types/class-reference`](types.md#types-class-reference), [`types/conversion`](types.md#types-conversion), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0144](../decisions/0144.md), [0125](../decisions/0125.md).</sub>
 
 <a id="types-absent-storage-is-never-a-zero-value"></a>
 
@@ -1951,7 +2031,7 @@ depth takes `$d`, and the write that follows is the plain `$a["k"]["j"] = $d`, w
 Only the read is guarded, so a nullable row under a `??=` target is refused where it is written, as it
 is under `=`.
 
-<sub>See also [`types/arrays`](types.md#types-arrays), [`types/declaration`](types.md#types-declaration), [`types/mixed-subscript`](types.md#types-mixed-subscript), [`classes/no-undefined-value`](classes.md#classes-no-undefined-value), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws). Decided in [0007](../decisions/0007.md), [0254](../decisions/0254.md).</sub>
+<sub>See also [`types/arrays`](types.md#types-arrays), [`types/declaration`](types.md#types-declaration), [`types/mixed-subscript`](types.md#types-mixed-subscript), [`classes/no-undefined-value`](classes.md#classes-no-undefined-value), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws). Decided in [0254](../decisions/0254.md).</sub>
 
 <a id="types-an-element-write-needs-storage-to-write-back-into"></a>
 
@@ -1971,7 +2051,7 @@ A temporary receiver's property is storage too: `(new Box())->rows[0] = 2` and `
 are both accepted, the field being a slot in a heap object either way. Parentheses are transparent —
 `($a)[0] = 2` writes `$a[0]`.
 
-<sub>See also [`types/arrays`](types.md#types-arrays). Decided in [0007](../decisions/0007.md).</sub>
+<sub>See also [`types/arrays`](types.md#types-arrays).</sub>
 
 <a id="types-a-declared-type-answers-before-the-program-runs"></a>
 
@@ -1994,7 +2074,7 @@ subject, and an answer its declaration settles folds to a constant rather than r
 defers to [`types/erased-member-access`](types.md#types-erased-member-access)'s name-keyed fetch, which throws for a receiver that turns
 out not to be an object and for a name its class does not carry.
 
-<sub>See also [`types/erased-member-access`](types.md#types-erased-member-access), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/type-test`](types.md#types-type-test), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused). Decided in [0007](../decisions/0007.md), [0150](../decisions/0150.md), [0192](../decisions/0192.md).</sub>
+<sub>See also [`types/erased-member-access`](types.md#types-erased-member-access), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/type-test`](types.md#types-type-test), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused). Decided in [0150](../decisions/0150.md), [0192](../decisions/0192.md).</sub>
 
 <a id="types-one-type-test"></a>
 

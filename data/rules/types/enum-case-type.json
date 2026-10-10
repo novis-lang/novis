@@ -2,8 +2,7 @@
   "title": "An enum case used as a type is a narrowed subtype of its enum, never its backing integer",
   "status": "shipped",
   "because": [
-    "0047",
-    "0007"
+    "0047"
   ],
   "seeAlso": [
     "types/single-value-types",

@@ -2,8 +2,7 @@
   "title": "One editor action rewrites an `array<mixed>` annotation to the type of the array literal that initializes it, and rewrites nothing else",
   "status": "designed",
   "because": [
-    "0114",
-    "0007"
+    "0114"
   ],
   "seeAlso": [
     "ide/narrowest-means-narrowest-base-type",

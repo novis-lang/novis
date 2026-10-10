@@ -904,7 +904,7 @@ at the cost of one written reason per call site.
 - **A separate analysis pass beside the checker.** An optional pass can be skipped or silenced, and that
   is not the guarantee of a checker that refuses to compile the program.
 
-<sub>See also [`security/tainted-sources`](security.md#security-tainted-sources), [`security/taint-propagation`](security.md#security-taint-propagation), [`security/sink-predicate`](security.md#security-sink-predicate), [`types/grammar`](types.md#types-grammar). Decided in [0007](../decisions/0007.md), [0157](../decisions/0157.md), [0279](../decisions/0279.md).</sub>
+<sub>See also [`security/tainted-sources`](security.md#security-tainted-sources), [`security/taint-propagation`](security.md#security-taint-propagation), [`security/sink-predicate`](security.md#security-sink-predicate), [`types/grammar`](types.md#types-grammar). Decided in [0157](../decisions/0157.md), [0279](../decisions/0279.md).</sub>
 
 <a id="security-tainted-sources"></a>
 
@@ -996,7 +996,7 @@ whether the content is safe for a given sink, and a conversion that laundered he
 bypass of every rule below. All of it is decided while checking: no tag at run time, nothing on the
 request path.
 
-<sub>See also [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`types/conversion`](types.md#types-conversion), [`expressions/conversion-keeps-qualifiers`](expressions.md#expressions-conversion-keeps-qualifiers). Decided in [0007](../decisions/0007.md), [0066](../decisions/0066.md), [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
+<sub>See also [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`types/conversion`](types.md#types-conversion), [`expressions/conversion-keeps-qualifiers`](expressions.md#expressions-conversion-keeps-qualifiers). Decided in [0066](../decisions/0066.md), [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
 
 <a id="security-sink-predicate"></a>
 
@@ -1496,7 +1496,7 @@ submitted password, without needing a third combined concept.
 - **Zeroing a `secret` value's memory when it goes out of scope.** That needs a destructor-shaped hook,
   and there are none ([`classes/no-destructors`](classes.md#classes-no-destructors)); the qualifier stays compile-time only.
 
-<sub>See also [`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source), [`security/secret-propagation`](security.md#security-secret-propagation), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`types/grammar`](types.md#types-grammar). Decided in [0007](../decisions/0007.md).</sub>
+<sub>See also [`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source), [`security/secret-propagation`](security.md#security-secret-propagation), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`types/grammar`](types.md#types-grammar).</sub>
 
 <a id="security-secret-has-no-ambient-source"></a>
 

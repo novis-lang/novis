@@ -24,7 +24,7 @@ limited to what ships; this page also carries what is only planned, which that c
 | Eris | property-based testing | generators derived from the declared parameter types | [0079](../decisions/0079.md) § 13 | M4S or M5 (§ 24) |
 | Infection | mutation testing | `nvs test --mutate` — type-valid mutants, run against the tests coverage says touch them | [0079](../decisions/0079.md) § 21 | M10 |
 | PHPBench | benchmarking | `#[Bench]` reports the deterministic counter stream, so CI can gate on it | [0079](../decisions/0079.md) § 15 | M10 |
-| PHPStan / Psalm / Phan | static analysis | `nvs check` — the compiler is the analyzer; see below | [0007](../decisions/0007.md) and the section below | on disk |
+| PHPStan / Psalm / Phan | static analysis | `nvs check` — the compiler is the analyzer; see below | `rule:types/declaration` and the section below | on disk |
 | Psalm `--taint-analysis` | taint analysis | `tainted` and `secret` are type qualifiers, enforced as hard errors | `rule:security/tainted-qualifier`, `rule:security/secret-qualifier` | on disk |
 | PHP CS Fixer / PHP_CodeSniffer | layout and style | `nvs fmt`, canonical and unconfigurable — and the bug-adjacent rules are compile errors already | `rule:tooling/fmt-is-one-canonical-style`; `rule:core-api/identifier-casing`, [0094](../decisions/0094.md) | errors on disk; `nvs fmt` M10 |
 | Rector | automated codebase rewrites | `nvs convert` for PHP→Novis; Novis→Novis declined, with a recorded reopen trigger | [0089](../decisions/0089.md); `rule:tooling/fmt-is-never-a-diagnostic` | M11 |
@@ -33,7 +33,7 @@ limited to what ships; this page also carries what is only planned, which that c
 | phpDocumentor / Doctum | API docs from source | none — the one tool category with no answer; see the gaps below | — | open |
 | Deptrac / phpat / PHPStan custom rules | project-specific structural rules | a `#[Test]` walking `Core\Ast` / `Core\Reflect` / `Core\Program` | `rule:tooling/reflection-and-source-parsing-are-core-features`, [0079](../decisions/0079.md) | blocked; see the gaps below |
 | Faker | realistic fake data | out of scope — data, not tooling; § 13's generators cover the structural half | [0079](../decisions/0079.md) § 13 | — |
-| PHPMD / phpmetrics | complexity and "mess" metrics | none, on purpose — the type system and `--mutate` keep the part that found bugs | [0007](../decisions/0007.md), [0079](../decisions/0079.md) § 21 | — |
+| PHPMD / phpmetrics | complexity and "mess" metrics | none, on purpose — the type system and `--mutate` keep the part that found bugs | `rule:types/declaration`, [0079](../decisions/0079.md) § 21 | — |
 | Composer, for the dev-tools above | installing all of it | nothing to install — which is this whole page; packages proper are [0081](../decisions/0081.md) | — | — |
 
 ## Why testing needed no package
@@ -49,7 +49,7 @@ packages.
 ## Why static analysis needed no package
 
 PHPStan and Psalm exist because PHP's own compiler checks almost nothing. Novis's checker *is* the
-strict configuration: every binding typed with real generics ([0007](../decisions/0007.md)),
+strict configuration: every binding typed (`rule:types/declaration`),
 definite property initialization (`rule:classes/definite-property-initialization`), `lateinit`
 read-before-write (`rule:classes/lateinit-read-before-write`), member existence and
 every-path-returns at compile time, literal regex/format/URI validation
