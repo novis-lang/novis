@@ -112,18 +112,18 @@ deleted, `bun nv links` is green, and so are `bun nv verify` and `looper lint`.
 
 ### State
 
-**Stages 1, 2 and 3 are done; stage 4 is half done.** `bun nv links` and `looper lint` are green, and
-`bun nv verify` passed on this tree.
+**Stages 1, 2 and 3 are done; stage 4's docs are done and its tool and crate comments are not.**
+`bun nv links`, `looper lint` and `looper verify` are green on this tree.
 
-- Landed: every dead link `bun nv links` named; AGENTS.md's Novis half names `looper orient`,
-  `looper wrap` and `bun nv plan --apply` in place of the deleted `bun nv orient`, `session` and
-  `loop-stats`; `docs/agent/coordinator.md` is rewritten around looper (design reasoning kept, the old
-  driver's mechanics deleted); the head of `docs/agent/playbook.md` points at `looper wrap` and
-  `looper playbook retire`; `docs/agent/looper-cutover.md` is deleted.
-- `looper.toml` wires only `[verify] run`; no hook runs `bun nv sweep`, `services`, `legs` or `pack`.
-  `docs/agent/commands.md:620-625` now says so.
-- `carried-refusals.md` and `guard-name-debt.md` keep their `until` trailers, but `looper playbook
-  retire` reads only the playbook, so nothing retires those entries on its own.
+- Landed: `docs/agent/loop-authoring.md` is rewritten around looper's goal format, with § 1 to § 9 kept
+  in place; `commands.md`, `conventions.md`, `doc-style.md`, `doc-cleanup.md`, `dependency-update.md`,
+  `optimization-prompt.md`, `guard-name-debt.md`, `user-report.md` and `CONTRIBUTING.md` name no
+  deleted command and no `data/goals/` path; `tools/nv/cmd/plan.ts` names `bun nv plan --apply` as the
+  plan's writer.
+- `docs/goals/decision-records-retired.md:542` quotes line spans of `loop-authoring.md` and
+  `commands.md` that this group moved. That goal's first session re-derives them with a grep.
+- `bun nv disk --clean` ran after every session under the old driver. Nothing runs it now, and
+  `docs/agent/commands.md` says so. A looper hook for it would be a general feature.
 
 **For the user: `.claude/settings.json` holds allow entries for deleted commands.** Its `bun nv`
 entries for `chain`, `goal`, `loop`, `loop-stats`, `orient`, `playbook` and `session` name commands
@@ -131,37 +131,28 @@ that no longer exist. No session edits that file, so removing them is the user's
 
 ### Next
 
-**Stage 4: the rest of the process prose** — one file set: `docs/agent/loop-authoring.md` and the
-other files under `docs/agent/` that name a deleted command.
+**Stage 4: the tool comments and messages that name a deleted command** — one file set under `tools/`.
 
-- [ ] **`loop-authoring.md` points at looper** (`docs/agent/loop-authoring.md:3`), keeping its
-  § 1 to § 9 numbering, which `docs/decisions/0099.md:117` and `docs/decisions/0134.md:152` cite.
-  Driver text: `docs/agent/loop-authoring.md:3-14` (prose and record paths, `bun nv chain`), `:17-67`
-  (`bun nv loop-stats`), `:73-190` (the `context` manifest as `bun nv orient` read it; looper's goal
-  has `context` lists only), `:195-238` (`data/goals/`, `tools/nv/driver/console.ts`), `:311-338`.
-- [ ] **Deleted commands in the other agent docs**: `docs/agent/commands.md:4`, `:25-31`, `:53`,
-  `:66-89`, `:228`, `:248`, `:264`, `:294-312`, `:424-451`, `:493`, `:589`;
-  `docs/agent/conventions.md:43`, `:437`, `:560`, `:606-630`; `docs/agent/doc-style.md:40-41`,
-  `:51`, `:77-89`; `docs/agent/doc-cleanup.md:16`, `:57`; `docs/agent/dependency-update.md:29`;
-  `docs/agent/optimization-prompt.md:41-42`, `:61`, `:122`, `:164`; `CONTRIBUTING.md:12`, `:90`.
-  `docs/agent/commands.md` and `conventions.md` are in `looper.toml`'s `[sync] skip`, so they are
-  edited by hand.
+- [ ] **Comments naming a deleted command** `tools/nv/cmd/pack.ts:1`, then
+  `tools/nv/cmd/brief.ts:21` and `:134`, `tools/nv/cmd/site.ts:56` and
+  `:290`, `tools/nv/lib/wrap.ts:2`, `tools/nv/accept/gates.ts:9`, `tools/nv/accept/sweep-lock.ts:18`,
+  `tools/nv/accept/sweep.ts:3` and `:38-54`, `tools/nv/lib/proctree.ts:3`, `tools/nv/lib/progress.ts:6`,
+  `tools/nv/proofs/run.ts:60`, `tools/nv/lib/machine.ts:18`, `tools/nv/cmd/verify.ts:90`,
+  `tools/git-hooks/commit-msg:11`, `tools/leak-check.sh:3`.
+- [ ] **`bun nv disk` still waits on the old driver's `.loop/running`** (`tools/nv/cmd/disk.ts:10`,
+  `:75`). Delete the wait, or point it at a file looper writes.
+- [ ] **Callers**: whether `applyPlan` in `tools/nv/cmd/plan.ts:621` and `wrapGate` in
+  `tools/nv/cmd/site.ts:290` still have one; delete what has none.
 
 ### Backlog
 
-- Stage 4: crate doc comments that still say "the goal records under `data/goals/`"
+- Stage 4: crate doc comments that say "the goal records under `data/goals/`"
   (`crates/nvs-cli/tests/openapi.rs:394`, `crates/nvs-db/src/catalog.rs:2426`,
   `crates/nvs-stdlib/src/mail.rs:1148`, `crates/nvs-stdlib/src/storage.rs:597`,
   `crates/nvs-stdlib/tests/tier_boundary.rs:36`, `crates/nvs-types/tests/visibility.rs:14`,
   `crates/nvs-stdlib/tests/spec_registry_coverage.rs:39`).
-- Stage 4: tool comments and messages naming a deleted command: `tools/nv/cmd/pack.ts:1-12`,
-  `tools/nv/cmd/brief.ts:21` and `:134`, `tools/nv/cmd/plan.ts:9` and `:317-318`,
-  `tools/nv/cmd/site.ts:56` and `:290`, `tools/nv/lib/wrap.ts:2`, `tools/nv/cmd/disk.ts:777`,
-  `tools/nv/accept/gates.ts:9`, `tools/nv/accept/sweep-lock.ts:18`, `tools/nv/accept/sweep.ts:3` and
-  `:38-54`, `tools/nv/lib/proctree.ts:3`, `tools/nv/lib/progress.ts:6`, `tools/nv/proofs/run.ts:60`,
-  `tools/nv/lib/machine.ts:18` ("The loop starts a background release build"),
-  `tools/git-hooks/commit-msg:11`, `tools/leak-check.sh:3`. Check whether `applyPlan` in
-  `tools/nv/cmd/plan.ts` and `wrapGate` in `tools/nv/cmd/site.ts` still have a caller.
 - Stage 4: crate comments citing old goal prose under `docs/agent/goals/` (`git grep -n
   docs/agent/goals/ -- crates Cargo.toml` lists them), and
   `docs/rules/tooling/the-chain-names-its-live-goal.md:11`.
+- Stage 4: playbook bullets whose `until` names a deleted file, such as
+  `tools/nv/cmd/orient.ts`; `looper playbook retire` deletes them once it runs.
