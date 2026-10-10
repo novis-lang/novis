@@ -471,7 +471,8 @@ fn raw_ref(src: &SourceFile, name: &Name) -> RawRef {
 /// short name, looked up in `imports` and failing that joined onto
 /// `namespace`. There is no third step — a short name in neither does not
 /// fall back to the root, because `rule:classes/no-free-functions-or-constants` removed the free functions and
-/// constants PHP's fallback existed for (§ 2).
+/// constants PHP's fallback existed for
+/// (`rule:statements/no-fallback-to-the-root-namespace`).
 ///
 /// This is deliberately **not** PHP's rule, which read a qualified name as
 /// relative to the current namespace and gave a leading `\` the job of
@@ -1024,7 +1025,8 @@ mod tests {
             resolve_ref("User", &ns, &imports),
             QName::parse(r"Vendor\Lib\User")
         );
-        // …and the enclosing namespace where there is not. § 2: no third step,
+        // …and the enclosing namespace where there is not. No third step
+        // (`rule:statements/no-fallback-to-the-root-namespace`),
         // so a root-level `Throwable` is `App\Throwable` here and reaching the
         // real one takes a `use`.
         assert_eq!(
@@ -1059,7 +1061,7 @@ mod tests {
     }
 
     /// `rule:statements/a-qualified-name-is-absolute`'s migration diagnostic. `Models\Module` inside
-    /// `namespace App;` is the one construct § 1 changed the meaning of, and
+    /// `namespace App;` is the one construct that rule changed the meaning of, and
     /// the thing it named in PHP *is* declared here — so the report names
     /// `App\Models\Module` rather than saying a class the author can see is
     /// missing. The second half is what keeps the distinction honest: a
@@ -1075,7 +1077,7 @@ mod tests {
             .iter()
             .filter(|d| d.code == Some(code::E_RELATIVE_QUALIFIED_NAME))
             .collect();
-        assert_eq!(relative.len(), 1, "expected the § 5 report: {diags:?}");
+        assert_eq!(relative.len(), 1, "expected the E0322 report: {diags:?}");
         assert!(
             relative[0]
                 .notes
@@ -1108,7 +1110,7 @@ mod tests {
     /// `rule:statements/no-fallback-to-the-root-namespace`: a short name resolves through the imports then the
     /// enclosing namespace and stops, so the reserved exception tree is
     /// reached from inside a namespace by importing it — and only by
-    /// importing it. Both halves are asserted, because § 2's price is only
+    /// importing it. Both halves are asserted, because that rule's price is only
     /// paid honestly if the import is what buys the name.
     #[test]
     fn a_root_level_name_needs_an_import_from_inside_a_namespace() {

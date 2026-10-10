@@ -70,9 +70,28 @@ new Models\User();        // refused: it names `Models\User`, which does not exi
 
 `E0322` is the migration diagnostic, firing on exactly the construct this changes: *`Models\User` does not
 exist; a qualified name is absolute here. Did you mean `App\Models\User`?* A short name for a class in the
-same namespace, every `use` path, and `Core\Str::length($s)` are unaffected.
+same namespace, every `use` path, and `Core\Str::length($s)` are unaffected. A qualified name that
+resolves neither way is the ordinary unresolved-name error.
 
-<sub>See also [`statements/no-fallback-to-the-root-namespace`](statements.md#statements-no-fallback-to-the-root-namespace), [`statements/a-leading-separator-does-not-parse`](statements.md#statements-a-leading-separator-does-not-parse), [`statements/one-function-resolves-every-name`](statements.md#statements-one-function-resolves-every-name), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name). Decided in [0113](../decisions/0113.md), [0112](../decisions/0112.md).</sub>
+The rule is decidable from the name alone, by whether it contains a separator, without knowing where the
+name sits. PHP reads a qualified name relative to the current namespace, so inside `namespace App;` the
+name `App\Models\User` means `App\App\Models\User`, and the error names a class nobody wrote. Here that
+mistake cannot be written. The price is typing: reaching into a sub-namespace takes the full path or a
+`use`, and a file wanting several names from one namespace writes one `use` per name.
+
+**Declined:**
+- **PHP's resolution kept as it is.** Two resolution rules and a token buy no meaning, and once a
+  capability grant is keyed on a name's namespace ([`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace)),
+  a name that resolves two ways is a grant that resolves two ways.
+- **Relative qualified names kept, and only the leading separator removed.** It keeps the half where a
+  name means different things in different namespaces, and removes the one way a reader could escape it.
+- **A qualified name's first segment resolved through the imports.** It keeps the namespace-prefix import,
+  at the cost of `App\Models\User` meaning one thing in a file that imports `App` and another in one that
+  does not. `use Core\Json\Derive;` costs one line and reads as what it is.
+- **The leading separator as the only way to write an absolute name.** It makes every `use` path and every
+  `Core\Str` reference wrong, to reach a rule no easier to decide than this one.
+
+<sub>See also [`statements/no-fallback-to-the-root-namespace`](statements.md#statements-no-fallback-to-the-root-namespace), [`statements/a-leading-separator-does-not-parse`](statements.md#statements-a-leading-separator-does-not-parse), [`statements/one-function-resolves-every-name`](statements.md#statements-one-function-resolves-every-name), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name). Decided in [0112](../decisions/0112.md).</sub>
 
 <a id="statements-no-fallback-to-the-root-namespace"></a>
 
@@ -101,9 +120,18 @@ second resolution rule to hold alongside the first. Code at the root namespace i
 enclosing namespace *is* the root.
 
 A root-namespace fallback only serves a function or constant call looking for a built-in from inside a
-namespace. With no free functions and no free constants, nothing is left for one to do.
+namespace. With no free functions and no free constants, nothing is left for one to do. The price is one
+line: a namespaced file that catches `Throwable` writes `use Throwable;`, which PHP does not need.
 
-<sub>See also [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0113](../decisions/0113.md).</sub>
+**Declined:**
+- **A fallback to the root for a short name that resolves nowhere else.** Two places could then match one
+  short name, which is the ambiguity [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute) removes.
+- **The reserved exception tree imported automatically.** A closed roster is still a second resolution
+  rule, and `Core` gets no automatic import for the same reason ([`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace)).
+- **The exception tree moved under `Core`, so that no root-level name exists.** It changes every `catch`
+  clause to remove a case one import line already covers.
+
+<sub>See also [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call).</sub>
 
 <a id="statements-a-leading-separator-does-not-parse"></a>
 
@@ -129,7 +157,15 @@ would restore exactly the two-spellings-one-meaning state removed here with the 
 resolution into style. The formatter does not strip it either — a construct the parser rejects never
 reaches the formatter.
 
-<sub>See also [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute). Decided in [0113](../decisions/0113.md), [0095](../decisions/0095.md).</sub>
+PHP gives the token two jobs and one ban, by position. In a `use` it is noise, because the path is already
+absolute. Elsewhere it decides between two resolutions. In `namespace \App;` it is a parse error. A reader
+moves between those three positions constantly, so no habit settles which one applies.
+
+**Declined:**
+- **Accept the leading separator and strip it, in the parser or the formatter.** That is the
+  two-spellings-one-meaning state itself, moved into style.
+
+<sub>See also [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute). Decided in [0095](../decisions/0095.md).</sub>
 
 <a id="statements-one-function-resolves-every-name"></a>
 
@@ -147,7 +183,7 @@ Because a capability grant is keyed on the namespace enclosing the code that ask
 this name sit in" is an authority question and not only a readability one: a resolution rule with two homes
 is a grant lookup with two homes.
 
-<sub>See also [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute), [`statements/no-fallback-to-the-root-namespace`](statements.md#statements-no-fallback-to-the-root-namespace). Decided in [0113](../decisions/0113.md), [0112](../decisions/0112.md).</sub>
+<sub>See also [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute), [`statements/no-fallback-to-the-root-namespace`](statements.md#statements-no-fallback-to-the-root-namespace). Decided in [0112](../decisions/0112.md).</sub>
 
 <a id="statements-nothing-gets-a-second-name"></a>
 
@@ -173,7 +209,7 @@ whether a name was resolved directly or through an alias.
 - **Import `as` kept for two libraries whose short names collide.** The fully-qualified name is more
   explicit for a little more typing, and a carve-out for collisions only does not stay narrow.
 
-<sub>See also [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute), [`statements/no-fallback-to-the-root-namespace`](statements.md#statements-no-fallback-to-the-root-namespace). Decided in [0113](../decisions/0113.md).</sub>
+<sub>See also [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute), [`statements/no-fallback-to-the-root-namespace`](statements.md#statements-no-fallback-to-the-root-namespace).</sub>
 
 <a id="statements-an-enum-name-is-a-type-everywhere"></a>
 

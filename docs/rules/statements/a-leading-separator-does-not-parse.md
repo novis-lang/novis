@@ -15,3 +15,11 @@ silently accepts is a spelling that spreads. A qualified name is read from the r
 would restore exactly the two-spellings-one-meaning state removed here with the confusion moved from
 resolution into style. The formatter does not strip it either — a construct the parser rejects never
 reaches the formatter.
+
+PHP gives the token two jobs and one ban, by position. In a `use` it is noise, because the path is already
+absolute. Elsewhere it decides between two resolutions. In `namespace \App;` it is a parse error. A reader
+moves between those three positions constantly, so no habit settles which one applies.
+
+**Declined:**
+- **Accept the leading separator and strip it, in the parser or the formatter.** That is the
+  two-spellings-one-meaning state itself, moved into style.
