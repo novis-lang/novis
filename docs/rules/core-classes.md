@@ -1891,6 +1891,16 @@ admits up to 800.
 
 They are not two tiers of one operation, and a flag on one member could not carry the difference.
 
+The class exists for the limits only the application can key: five failed logins per *account*, a
+quota per tenant plan, ten exports per user per hour. Per-account login throttling is what stops
+credential stuffing, which per-IP throttling does not, because the attacker has many addresses and
+the victim has one account — and no proxy knows which account a request authenticates as. Left
+without a class, an application writes one of two wrong limiters: a counter in the per-core tier,
+which silently admits `cores ×` the limit, or an insert-and-count against the database, which puts
+a write on the hot path of the endpoint it protects. The price of `consume`'s coherence is a network
+round trip on that path, the same floor the shared cache tier accepts, and it is why `shed` exists
+for the cases that do not need it.
+
 Four things are deliberately absent. **Edge and flood limiting** — no per-IP, per-path or connection
 limit as a deployment feature: a proxy owns it earlier and cheaper, and doing it here means paying
 for the request in order to reject it. **All configuration** — a limit is application policy, so
@@ -1898,7 +1908,23 @@ there is no `[ratelimit]` block at all. **Any automatic enforcement** — the me
 and writes no `429`. **Distributed reservation** and multi-key atomic checks, which are considerably
 more machinery with no named use case yet.
 
-<sub>See also [`core-classes/ratelimit-gcra`](core-classes.md#core-classes-ratelimit-gcra), [`core-classes/ratelimit-unreachable-store-throws`](core-classes.md#core-classes-ratelimit-unreachable-store-throws), [`core-classes/topic`](core-classes.md#core-classes-topic). Decided in [0075](../decisions/0075.md), [0059](../decisions/0059.md), [0063](../decisions/0063.md), [0074](../decisions/0074.md), [0077](../decisions/0077.md).</sub>
+**Declined:**
+- **Only the shared tier.** The two names work only if both exist. With one, the first program that
+  needs approximate load shedding uses `consume` for it, and puts a round trip on a path that did not
+  need one.
+- **One member with a `coherent: true` option.** The default is chosen once and copied, and the wrong
+  choice fails silently — the reason `Core\Cache` has two members
+  ([`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers)).
+- **Naming them `local` and `shared`** to mirror `Core\Cache`. That presents them as two tiers of one
+  operation: a per-core policy limiter is not a weaker coherent one, it is a different thing used for
+  a different reason.
+- **A middleware or attribute that applies a limit to a route.** It needs a dispatch pipeline Novis
+  does not have ([`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered)), and what to do about a limit is
+  application logic.
+- **Backing it with `Core\Db`.** It puts a write on the hot path of every protected endpoint, on the
+  database that is usually the scarcest resource in the deployment.
+
+<sub>See also [`core-classes/ratelimit-gcra`](core-classes.md#core-classes-ratelimit-gcra), [`core-classes/ratelimit-unreachable-store-throws`](core-classes.md#core-classes-ratelimit-unreachable-store-throws), [`core-classes/topic`](core-classes.md#core-classes-topic). Decided in [0059](../decisions/0059.md), [0063](../decisions/0063.md), [0074](../decisions/0074.md), [0077](../decisions/0077.md).</sub>
 
 <a id="core-classes-ratelimit-gcra"></a>
 
@@ -1923,10 +1949,15 @@ and `null` exactly when `allowed` is true — absence is `?T`, not a sentinel ze
 qualifier-neutral. The key **accepts `tainted`**, since a tenant or account id is user-derived by
 nature and the store's protocol is length-prefixed, so a key cannot reshape a command; it
 **refuses `secret`**, because using a signing key as a rate-limit key writes it into a store with a
-TTL. The in-process tier is an existing crate; the shared tier is a small script of our own, an
-algorithm over our own state.
+TTL. A program that needs to limit on a secret keys on a hash of it (`Core\Hash::of`). The
+in-process tier is an existing crate; the shared tier is a small script of our own, an algorithm
+over our own state.
 
-<sub>See also [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-classes/ratelimit-unreachable-store-throws`](core-classes.md#core-classes-ratelimit-unreachable-store-throws), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal), [`types/duration`](types.md#types-duration). Decided in [0075](../decisions/0075.md), [0063](../decisions/0063.md).</sub>
+**Declined:**
+- **A sliding-window counter or log.** The counter cannot give an exact `retryAfter`, and the log
+  holds O(requests in window) per key in a store somebody pays for.
+
+<sub>See also [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-classes/ratelimit-unreachable-store-throws`](core-classes.md#core-classes-ratelimit-unreachable-store-throws), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal), [`types/duration`](types.md#types-duration). Decided in [0063](../decisions/0063.md).</sub>
 
 <a id="core-classes-ratelimit-unreachable-store-throws"></a>
 
@@ -1946,7 +1977,13 @@ can question.
 `shed` cannot fail this way, its state being in the core's own memory, which is one more reason the
 two are different members rather than one with a flag.
 
-<sub>See also [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-classes/ratelimit-gcra`](core-classes.md#core-classes-ratelimit-gcra), [`errors/propagation`](errors.md#errors-propagation). Decided in [0075](../decisions/0075.md), [0063](../decisions/0063.md).</sub>
+**Declined:**
+- **Failing open**, returning `allowed: true` with a logged warning. A security control that has
+  stopped working would look like one that is working.
+- **Failing closed**, returning `allowed: false`. A store outage would take the whole application
+  down, and a quota check is not worth that.
+
+<sub>See also [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-classes/ratelimit-gcra`](core-classes.md#core-classes-ratelimit-gcra), [`errors/propagation`](errors.md#errors-propagation). Decided in [0063](../decisions/0063.md).</sub>
 
 <a id="core-classes-crypto-interop-tier"></a>
 

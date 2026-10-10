@@ -1807,7 +1807,7 @@
         [
           "`Core\\RateLimit`",
           "`consume(tainted string $key, uint $limit, Duration $per, {burst?, cost?}): RateLimit\\Decision` over the shared store, and `shed(…)` per core and approximate. `Decision` is readonly `allowed: bool`, `limit: uint`, `remaining: uint`, `retryAfter: ?Duration`. Both **neutral**; a `secret` key is refused; an unreachable store throws",
-          "[0075](../decisions/0075.md)"
+          "`rule:core-classes/ratelimit-two-members`"
         ],
         [
           "`Core\\Metrics`",

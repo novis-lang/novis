@@ -620,7 +620,7 @@ The test is what a program relies on, not where bytes live
 not one: a per-core metrics registry outlives requests and passes, because no program can read a
 metric at all and its values are approximate aggregates merged arithmetically at scrape.
 
-<sub>See also [`core-api/session-roster`](core-api.md#core-api-session-roster), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`security/no-cross-request-state`](security.md#security-no-cross-request-state). Decided in [0059](../decisions/0059.md), [0075](../decisions/0075.md), [0181](../decisions/0181.md).</sub>
+<sub>See also [`core-api/session-roster`](core-api.md#core-api-session-roster), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`security/no-cross-request-state`](security.md#security-no-cross-request-state). Decided in [0059](../decisions/0059.md), [0181](../decisions/0181.md).</sub>
 
 <a id="concurrency-a-secret-is-cached-only-sealed"></a>
 
@@ -941,7 +941,7 @@ request.
 An application that wants a longer-lived connection sends anything at all — a ping is a frame, and
 the loop never sees one.
 
-<sub>See also [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly), [`concurrency/two-doors-one-isolate`](concurrency.md#concurrency-two-doors-one-isolate), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members). Decided in [0083](../decisions/0083.md), [0074](../decisions/0074.md), [0075](../decisions/0075.md), [0177](../decisions/0177.md), [0219](../decisions/0219.md).</sub>
+<sub>See also [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly), [`concurrency/two-doors-one-isolate`](concurrency.md#concurrency-two-doors-one-isolate), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members). Decided in [0083](../decisions/0083.md), [0074](../decisions/0074.md), [0177](../decisions/0177.md), [0219](../decisions/0219.md).</sub>
 
 <a id="concurrency-a-connection-keeps-its-compiled-unit"></a>
 

@@ -2,7 +2,6 @@
   "title": "An unreachable shared store throws, because whether to fail open is knowledge only the call site has",
   "status": "shipped",
   "because": [
-    "0075",
     "0063"
   ],
   "seeAlso": [
