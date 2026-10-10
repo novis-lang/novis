@@ -74,7 +74,7 @@ Each test isolate spends its parent's budget, so a suite has the same enforceabl
 and CPU that a request has, and a runaway test is terminated rather than left to consume the
 machine.
 
-<sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/fixtures`](testing.md#testing-fixtures), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`statements/an-isolate-has-its-own-statics`](statements.md#statements-an-isolate-has-its-own-statics). Decided in [0079](../decisions/0079.md), [0006](../decisions/0006.md).</sub>
+<sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/fixtures`](testing.md#testing-fixtures), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`statements/an-isolate-has-its-own-statics`](statements.md#statements-an-isolate-has-its-own-statics). Decided in [0079](../decisions/0079.md).</sub>
 
 <a id="testing-private-in-the-same-file"></a>
 
@@ -930,7 +930,7 @@ explicitly, the same way a path-rooted spawn grant is named.
 - **`[debug] mode` as a directive a request may set freely.** Observability of a request's own
   internals is not a request-local decision, for the reason above.
 
-<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/debug-surface`](testing.md#testing-debug-surface). Decided in [0006](../decisions/0006.md).</sub>
+<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/debug-surface`](testing.md#testing-debug-surface).</sub>
 
 <a id="testing-debug-probes"></a>
 
@@ -1013,7 +1013,7 @@ copy-out rule a value, an error and a usage figure already use.
   crossing the arena boundary isolation exists to keep ([`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing)),
   and returning it on the result costs nothing new.
 
-<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive), [`testing/report-formats`](testing.md#testing-report-formats). Decided in [0006](../decisions/0006.md).</sub>
+<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive), [`testing/report-formats`](testing.md#testing-report-formats).</sub>
 
 <a id="testing-probes-on-is-a-tested-configuration"></a>
 

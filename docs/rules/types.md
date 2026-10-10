@@ -491,7 +491,7 @@ There is no dedicated literal token: `"…" as bytes` covers the valid-UTF-8 cas
 - **A lossy `bytes as string`** that replaces, drops or transliterates an invalid sequence. That is
   the silent substitution the checked conversion exists to prevent ([`types/conversion`](types.md#types-conversion)).
 
-<sub>See also [`types/string-is-utf8`](types.md#types-string-is-utf8), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar). Decided in [0006](../decisions/0006.md).</sub>
+<sub>See also [`types/string-is-utf8`](types.md#types-string-is-utf8), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar).</sub>
 
 <a id="types-duration"></a>
 

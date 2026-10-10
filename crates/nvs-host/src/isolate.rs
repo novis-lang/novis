@@ -143,8 +143,7 @@ pub struct Isolate {
     narrowing: Narrowing,
 }
 
-/// Which of [ADR 0006](/docs/decisions/0006.md)
-/// § *Decision*'s two entry forms built the program this isolate holds.
+/// Which of `rule:security/isolate-shares-nothing`'s two entry forms built the program this isolate holds.
 ///
 /// It changes exactly one thing, which is why it is a tag here rather than the
 /// name the seam carried: which constructor builds the child's context. A path
@@ -266,7 +265,7 @@ impl Isolate {
     }
 
     /// Says the program is a `static` method of the *parent's* unit rather than
-    /// a file of its own — [`Form`], and ADR 0006 § *Decision*'s second form.
+    /// a file of its own — [`Form`], and `rule:security/isolate-shares-nothing`'s second form.
     ///
     /// A builder rather than a parameter of [`Isolate::new`] for [`Charge`]'s
     /// reason inverted: every other caller of this type is a path, so the one
@@ -2096,7 +2095,7 @@ mod tests {
         assert!(ctx.pending().is_none(), "the parent is not failing");
     }
 
-    /// ADR 0006 § *Failure is a value*: the child's throw is data on the result,
+    /// `rule:security/isolate-failure-is-a-value`: the child's throw is data on the result,
     /// the parent is not unwound, and the parent is still usable afterwards —
     /// which is the whole claim the boundary is built for.
     #[test]

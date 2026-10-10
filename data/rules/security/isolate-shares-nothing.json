@@ -2,7 +2,6 @@
   "title": "Running another script is an in-process isolate that shares nothing with its parent but compiled code",
   "status": "shipped",
   "because": [
-    "0006",
     "0116",
     "0052"
   ],
@@ -16,6 +15,8 @@
   "guardedBy": [
     "tests/conformance/isolate/a-child-shares-nothing-with-its-parent.nvst",
     "tests/conformance/isolate/a-child-inherits-a-narrowed-capability-and-cannot-widen-it.nvst",
-    "crates/nvs-types/tests/isolates.rs"
+    "crates/nvs-types/tests/isolates.rs",
+    "crates/nvs-cli/tests/spawn_entry.rs",
+    "benches/abi-probe/tests/perf_guards.rs"
   ]
 }

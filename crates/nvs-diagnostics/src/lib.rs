@@ -4732,8 +4732,7 @@ pub mod code {
     );
 
     /// A `spawn script` operand that is neither of
-    /// [ADR 0006](/docs/decisions/0006.md)
-    /// § *Decision*'s two entry forms — an `fn` anonymous function, or a value whose type
+    /// `rule:security/isolate-shares-nothing`'s two entry forms — an `fn` anonymous function, or a value whose type
     /// is `callable`.
     ///
     /// One code for both because it is one rule: the entry is **decided
@@ -4756,7 +4755,7 @@ pub mod code {
     );
 
     // `E0804` is retired and is never reused: it refused a method entry that
-    // declared a parameter. ADR 0006 § *Decision*'s binding lowers — the
+    // declared a parameter. `rule:security/isolate-shares-nothing`'s binding lowers — the
     // entry's parameter names ride on the spawn symbol and
     // `nvs_stdlib::script` binds `args:`'s entries to them by name — so that
     // shape is the shape that runs, and a mismatch is the ordinary

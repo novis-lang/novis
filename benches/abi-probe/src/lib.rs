@@ -14,7 +14,7 @@
 //! | `tests/wasm_sandbox.rs` | the sandbox guarantees of `rule:packaging/an-extension-is-a-sandboxed-wasm-component` |
 //! | `tests/wasm_async.rs` | the async bridge of [ADR 0246](/docs/decisions/0246.md) § 5: a guest call parks, yields and traps inside a coroutine |
 //! | `tests/perf_guards.rs` | order-of-magnitude regressions in the quoted costs |
-//! | [`process`] | the cost of the child process that [ADR 0006](/docs/decisions/0006.md) replaces with an in-process isolate |
+//! | [`process`] | the cost of the child process that `rule:security/isolate-shares-nothing` replaces with an in-process isolate |
 //! | `shared/isolate.rs` | the cost of the in-process isolate it is replaced *with* — the other half of that comparison, outside this library because it needs the compiler crates and those are dev-only |
 //! | `benches/*` | the quoted costs themselves, tracked over time |
 //! | `examples/callgrind_spike.rs` | the callgrind-instruction-count premise of `rule:testing/perf-two-mechanisms`'s historical performance dashboard — Linux/WSL only, see `rule:testing/valgrind-on-wsl` |

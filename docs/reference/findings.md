@@ -15,7 +15,7 @@ exist in the registry (or the reverse).
 ## Triage
 
 Every item was decided against the ADR that owns it; the decisions that were open were put to the user
-and are folded into their ADRs (0006, 0007, 0047, 0071, 0090, 0091, 0094, 0103, 0107,
+and are folded into their ADRs (0007, 0047, 0071, 0090, 0091, 0094, 0103, 0107,
 `README.md` § *Decisions taken at project start*). The code and card work is the five
 rows whose owner is an item number, 31 to 35. An item's owner is the row it sits in.
 
@@ -277,7 +277,7 @@ rows whose owner is an item number, 31 to 35. An item's owner is the row it sits
       `nvs_stdlib::script`'s module doc owns why.
 - [x] **D13** `spawn script` default `output` is `'capture'`, not inherit. *refp/spawn/main.nvs*
 - [x] **D14** A child with no top-level `return` answers `value = int(1)`, not `null`. *refp/spawn/noret2*
-      The finding is right and ADR 0006 § *Decision* already said so; `1` is `require`'s, and the
+      The finding is right and `rule:security/isolate-failure-is-a-value` already said so; `1` is `require`'s, and the
       entry frame is not a `require` — `nvs_ir::lower::ScriptRole` is where the two now part.
 - [x] **D15** `Core\Config::get("mode")` answers `null` and `set("mode", …)` returns `false`;
       `mode.default` works for both — `rule:config/a-program-may-read-and-flip-its-mode` spells the bare `mode`. The spelling half is not a

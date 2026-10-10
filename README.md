@@ -22,7 +22,7 @@ For web servers and the command line. Familiar syntax (Hello PHP).
   fully isolated, all sharing one in-memory compiled-code cache.
 - **Isolation you can reach from the language.** `spawn script 'job.nvs'` runs another file with its own
   heap, its own globals and its own slice of the caller's budget, and starts in microseconds
-  ([ADR 0006](docs/decisions/0006.md)).
+  ([`security/isolate-shares-nothing`](docs/rules/security.md#security-isolate-shares-nothing)).
 - **Typed on purpose.** Every parameter, property and variable declares its type, and no value changes
   type behind your back: conversions are explicit and throw rather than quietly yielding `0`. Unions and
   `mixed` are there for the cases that genuinely are dynamic. `uint` gives you the whole unsigned 64-bit

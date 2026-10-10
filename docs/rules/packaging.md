@@ -929,7 +929,7 @@ same canonicalise-and-prefix-check `spawn script` performs against its granted r
 **Not on disk.** No fetch path exists to refuse an archive, and the compiler has no file-to-package
 map against which to check a path.
 
-<sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix). Decided in [0081](../decisions/0081.md), [0064](../decisions/0064.md), [0006](../decisions/0006.md).</sub>
+<sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix). Decided in [0081](../decisions/0081.md), [0064](../decisions/0064.md).</sub>
 
 <a id="packaging-resolution-takes-the-highest-minimum"></a>
 

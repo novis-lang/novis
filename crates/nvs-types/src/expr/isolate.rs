@@ -12,7 +12,7 @@
 //! what each option is typed as.
 //!
 //! **The operand rule has a second site and no second implementation.** ADR
-//! 0083 § 2 opens a persistent connection with "0006's operand", so a `Core`
+//! 0083 § 2 opens a persistent connection with `spawn script`'s operand, so a `Core`
 //! row that marks a parameter
 //! [`CoreTy::Entry`](nvs_stdlib::registry::CoreTy::Entry) reaches
 //! [`entry_operand`] through [`check_core_isolate_call`] and gets the same
@@ -90,14 +90,12 @@
 //!
 //! ## What it costs
 //!
-//! **A shape has no methods, so `$result->valueOrThrow()` cannot exist.** ADR
-//! 0006's § *Alternatives rejected* names that spelling as the terse form for a
-//! caller who wants the child's failure to propagate. It becomes
-//! `Core\Script::valueOrThrow($result)` — a static member on the class item 22
-//! introduces anyway — which is the ordinary way this language spells a verb
-//! (`rule:classes/no-free-functions-or-constants`), and the ADR marks its whole surface provisional pending the
-//! spelling `docs/spec/` fixes at M5. Nothing else in that ADR's semantics
-//! moves.
+//! **A shape has no methods, so `$result->valueOrThrow()` cannot exist.** A
+//! terse form for a caller who wants the child's failure to propagate would be
+//! `Core\Script::valueOrThrow($result)` — a static member on a class that exists
+//! anyway — which is the ordinary way this language spells a verb
+//! (`rule:classes/no-free-functions-or-constants`). It is not written yet, and
+//! nothing else in `rule:security/isolate-failure-is-a-value` moves for it.
 //!
 //! Against that: no new checker or lowering machinery, one object of four slots
 //! per awaited child either way, and a result whose fields are read with the
@@ -199,7 +197,7 @@ pub(crate) fn check_spawn_script(
     script_handle(env)
 }
 
-/// ADR 0006 § *Decision*'s operand rule: the entry is a path **or** a static
+/// `rule:security/isolate-shares-nothing`'s operand rule: the entry is a path **or** a static
 /// method, decided syntactically at the spawn site, and nothing else is one.
 ///
 /// Syntactically is the load-bearing word, and it is why this is a match on the
@@ -228,7 +226,7 @@ pub(crate) fn check_spawn_script(
 ///   `lower_spawn_script`), carrying the entry's parameter names, and
 ///   `nvs_stdlib::script` binds `args:`'s entries to them by name.
 ///
-/// **Known gap.** ADR 0006 § *Decision* reports a name `args:` holds that the
+/// **Known gap.** `rule:security/isolate-shares-nothing` reports a name `args:` holds that the
 /// entry does not declare, or a parameter it omits, *at compile time when
 /// `args:` is a literal* and at the spawn otherwise. Only the second half is
 /// asked: the spawn raises the named-argument error for either mismatch, and a
@@ -251,7 +249,7 @@ fn check_entry(path: &Expr, live: &mut Live, scope: &LocalScope, ctx: &Ctx<'_>, 
 /// [`check_entry`] and [`check_core_entry_argument`] share.
 ///
 /// Split out rather than duplicated because `rule:concurrency/an-upgrade-is-spawn-shaped` opens a connection
-/// with "0006's operand", so the second site is the *same* rule and not a rule
+/// with `spawn script`'s operand, so the second site is the *same* rule and not a rule
 /// like it: a reader who has seen `E0802` at a `spawn script` sees the same
 /// three outcomes, the same labels and the same help at `Core\Socket::upgrade`,
 /// with only the construct's name differing. `form` is that name, and it is the
@@ -360,7 +358,7 @@ fn is_method_reference(path: &Expr) -> bool {
     )
 }
 
-/// The refusal for the two spellings ADR 0006 § *Decision* names as forbidden,
+/// The refusal for the two spellings `rule:security/isolate-shares-nothing` names as forbidden,
 /// which differ only in whether there is a mechanical way out.
 ///
 /// An `fn` literal has one — name it — and the diagnostic says so, because the

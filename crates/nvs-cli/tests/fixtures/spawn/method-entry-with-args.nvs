@@ -1,5 +1,5 @@
 <?nvs
-// ADR 0006 § *Decision*: the isolate calls a method entry with `args:`'s
+// `rule:security/isolate-shares-nothing`: the isolate calls a method entry with `args:`'s
 // entries as **named arguments** — `Reports::span(from: …, months: …)` — so the
 // entry is an ordinary function with an ordinary signature rather than
 // something that reads a map out of the air.

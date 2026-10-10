@@ -1,9 +1,7 @@
 {
   "title": "A copy is either `clone`'s one level or the graph copy, and no class customizes either",
   "status": "shipped",
-  "because": [
-    "0006"
-  ],
+  "because": [],
   "seeAlso": [
     "classes/clone-is-shallow",
     "classes/graph-copy",

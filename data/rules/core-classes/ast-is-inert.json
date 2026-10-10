@@ -1,9 +1,7 @@
 {
   "title": "`Core\\Ast` runs the compiler's own parser and hands back typed, inert nodes",
   "status": "shipped",
-  "because": [
-    "0006"
-  ],
+  "because": [],
   "seeAlso": [
     "core-classes/reflect",
     "types/declaration",

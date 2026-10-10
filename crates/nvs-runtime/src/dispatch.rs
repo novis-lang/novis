@@ -184,7 +184,7 @@ pub unsafe fn call_static_on(
 }
 
 /// [`call_static`], for arguments that came out of a **program's own map** —
-/// [ADR 0006](/docs/decisions/0006.md) § *Decision*'s
+/// `rule:security/isolate-shares-nothing`'s
 /// method entry, called with `args:`'s entries already bound to its parameters
 /// positionally by `nvs_stdlib::script`.
 ///

@@ -296,7 +296,7 @@ pub enum CoreTy {
     /// runtime does; it is there so an editor can offer class names at it.
     ClassName(Qual),
     /// An **isolate entry** —
-    /// [ADR 0006](/docs/decisions/0006.md) § *Decision*'s
+    /// `rule:security/isolate-shares-nothing`'s
     /// operand, written as a parameter.
     ///
     /// The spec's column is `string` and a path is what the member reads. What

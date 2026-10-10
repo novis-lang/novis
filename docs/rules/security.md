@@ -21,14 +21,65 @@ config overlay. Open resources are not shared and cannot be passed.
 The operand is decided syntactically at the spawn site — a `string` expression, or a
 `Class::method(...)` reference written there — and nothing else. A `callable` variable is refused,
 because whether *it* captures is not known statically; an anonymous function is refused with a diagnostic
-naming the method form.
+naming the method form. A method entry is called with `args:`'s entries as **named arguments**, after
+the copy, so `spawn script Reports::monthly(...) with(args: ["month" => $m])` runs
+`Reports::monthly(month: $m)` in the fresh isolate: the entry is an ordinary function with an ordinary
+signature, typed at the boundary and callable and testable directly. A name `args:` holds that the
+entry does not declare, or a required parameter it omits, is the ordinary named-argument error. A file
+has no parameter list, which is why the path form reads `Core\Script::args()`
+([`core-classes/script-args`](core-classes.md#core-classes-script-args)) instead. What crosses in either form is compiled code, so the budget,
+grant and copy rules do not tell the two apart.
 
 The isolate joins `spawn` and `spawn worker` rather than introducing a second concurrency vocabulary:
 it is awaited like them, and it dies with its parent like them. It is as strong as Novis's request
 boundary and no stronger — running code that must be assumed adversarial at the memory-safety level is
 what the wasm component tier is for.
 
-<sub>See also [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`security/request-state-throws-in-an-isolate`](security.md#security-request-state-throws-in-an-isolate), [`statements/an-isolate-has-its-own-statics`](statements.md#statements-an-isolate-has-its-own-statics). Decided in [0006](../decisions/0006.md), [0116](../decisions/0116.md), [0052](../decisions/0052.md).</sub>
+It exists because a script often has to run another one without being affected by it — a queue worker
+running a job, a plugin, a CLI tool running user code — and an OS process is the wrong tool for that. It
+costs orders of magnitude more than a task before the child has parsed a line, it inherits ambient
+authority (environment, working directory, handles, the OS user's rights), the parent can only kill it
+rather than account or cancel it, and its arguments cross serialised onto a command line. The isolate
+reuses the machinery a request already has: the capped arena, the fresh request state, the config
+overlay, the task tree and the shared compiled-unit cache, so a second isolate of the same script pays no
+compilation at all.
+
+- **Memory:** per in-flight isolate, one context, one pooled task stack and the values the child
+  allocates, held until it ends and charged to the root's budget. Concurrent isolates each hold their
+  own arena, so a tree's peak is the sum over its live isolates, under the root's cap. A finished
+  isolate's arena is released wholesale, so nothing grows with the number of isolates ever spawned.
+
+**Declined:**
+- **Running another `nvs` process.** It pays the process cost and the ambient authority above. A program
+  that truly wants a separate OS process has `Core\Process` behind its own grant
+  ([`security/process-exec-capability`](security.md#security-process-exec-capability)).
+- **Evaluating a source string.** A file has a stable identity — a cache key, a source map, something
+  `nvs check` can read and an auditable granted path — and a string has none of them
+  ([`security/no-eval`](security.md#security-no-eval)).
+- **`require` with a fresh symbol table.** That isolates scope only: the heap is still shared, and with it
+  refcounts, statics, output, resources and a fatal error.
+- **A thread over a shared heap.** It breaks the non-atomic refcounts the thread-per-core model rests
+  on, to save one copy at a boundary.
+- **Running the child in the wasm sandbox.** It compiles code a second time that is already compiled
+  natively, loses the shared unit cache, and buys a memory-safety guarantee Novis code has by
+  construction.
+- **An HTTP request to the server's own listener.** It needs a listener, an authentication story and a
+  serialisation format to do what an arena boundary does in microseconds.
+- **A method entry that ignores its parameter list and reads `Core\Script::args()`.**
+  `Reports::monthly(...)` is first-class-callable syntax, which everywhere else means "call this with
+  arguments", so a reader who writes `monthly(int $month)` expects the binding. An entry that reads the
+  accessor cannot be called or tested as an ordinary function, and the copy is just as visible either
+  way: it is the `args:` key at the spawn site.
+- **An `fn` literal that captures nothing as the entry.** A closure minus its capture is a function
+  without a name, and the same literal one keyword away in `spawn worker` does capture, so it would be
+  one syntax with two meanings. Requiring the name costs one declaration and removes a capture-set
+  checker and its diagnostic.
+- **A `callable` variable as the entry, with a qualifier on the type saying it captures nothing.**
+  The rule is not worth a qualifier.
+- **Persistent isolates reused across requests.** Warm state is attractive, and it contradicts
+  shared-nothing directly ([`security/no-cross-request-state`](security.md#security-no-cross-request-state)).
+
+<sub>See also [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`security/request-state-throws-in-an-isolate`](security.md#security-request-state-throws-in-an-isolate), [`statements/an-isolate-has-its-own-statics`](statements.md#statements-an-isolate-has-its-own-statics). Decided in [0116](../decisions/0116.md), [0052](../decisions/0052.md).</sub>
 
 <a id="security-isolate-values-cross-by-copy"></a>
 
@@ -48,12 +99,15 @@ object whose class the receiving side cannot resolve is refused with a diagnosti
 never degraded into a stub. A `secret`-typed property is refused there too
 ([`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary)).
 
-There is one walk and one set of refusals, which is why it is the audited surface. Across cores the
+There is one walk and one set of refusals, which is why it is the audited surface. Two boundaries
+with different value rules would be two sets of rules for a developer to learn and two implementations
+to keep correct, and a refusal at the boundary is a diagnostic where the mistake was made rather than a
+surprise later. Across cores the
 walk is the same but the **move is not available**: refcounts are non-atomic because a value is
 reachable from one core only, so a cross-core crossing copies at every node. That cost belongs to the
 placement option, not to the boundary.
 
-<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root). Decided in [0006](../decisions/0006.md), [0116](../decisions/0116.md).</sub>
+<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root). Decided in [0116](../decisions/0116.md).</sub>
 
 <a id="security-isolate-budget-is-the-trees"></a>
 
@@ -76,7 +130,18 @@ isolate that asks for more than its share is refused at the call that asked, wit
 naming the directive, and never by a page fault at an address nobody chose
 ([`errors/on-limit`](errors.md#errors-on-limit)).
 
-<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root), [`errors/on-limit`](errors.md#errors-on-limit). Decided in [0006](../decisions/0006.md), [0116](../decisions/0116.md).</sub>
+- **Memory:** an isolate adds no ceiling of its own. What it holds is charged to the root, so the
+  process's worst case does not change when programs spawn isolates.
+
+**Declined:**
+- **A budget per isolate on top of its parent's.** Memory would stop being attributable to a request,
+  so this is a hole in isolation and not a trade-off.
+- **An isolate that outlives its parent.** A job that survives the response needs its own lifetime and
+  accounting rules, because nobody's budget is left to spend once the parent is gone. `afterResponse`
+  is not that case: the connection ends there and the request tree does not
+  ([`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection)).
+
+<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root), [`errors/on-limit`](errors.md#errors-on-limit). Decided in [0116](../decisions/0116.md).</sub>
 
 <a id="security-isolate-failure-is-a-value"></a>
 
@@ -86,18 +151,26 @@ naming the directive, and never by a page fault at an address nobody chose
 
 A child's failure arrives as **data on the result**, never as an exception unwinding into the parent.
 A top-level `return` gives `ok = true` and a copy of the value; an uncaught throw gives `ok = false`
-and an `error` carrying the class name, message, code and rendered trace **as copied data, not the
-exception object**; a limit breach names the directive it broke; a contained runtime panic leaves the
+and an `error` carrying the class name and message **as copied data, not the exception object**; a
+limit breach gives `ok = false` with a message naming the limit it broke; a contained runtime panic leaves the
 parent running, which is a strict improvement over losing a process. A cancelled parent cancels the
 child at its next safepoint and drops its arena, so there is no orphan.
 
-Rethrowing the child's exception object was rejected: it would have to copy an arbitrary object graph
-across a boundary that forbids exactly that ([`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy)), and it
-would encourage reading a spawn as a function call. Code that wants the terse form asks for it, and
-the diagnostic then names the isolate rather than a parent frame it never had. Nothing unwinds across
-the boundary, for the reason nothing unwinds across a JIT frame ([`errors/propagation`](errors.md#errors-propagation)).
+A child that runs to its end without a top-level `return` gives `null`, the value every Novis function
+without a `return` produces. It is not `require`'s `1` ([`statements/a-require-expression-is-mixed`](statements.md#statements-a-require-expression-is-mixed)):
+that value belongs to the construct PHP has, and `spawn script` is not one.
 
-<sub>See also [`errors/propagation`](errors.md#errors-propagation), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy). Decided in [0006](../decisions/0006.md).</sub>
+Nothing unwinds across the boundary, for the reason nothing unwinds across a JIT frame
+([`errors/propagation`](errors.md#errors-propagation)): the status is checked, and tearing down the child's arena is explicit code
+on the failure path rather than an implicit landing pad.
+
+**Declined:**
+- **Rethrowing the child's exception object in the parent.** It would have to copy an arbitrary object
+  graph across a boundary that forbids exactly that ([`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy)), and
+  it would encourage reading a spawn as a function call. A caller who wants the failure to propagate
+  checks `ok` and throws.
+
+<sub>See also [`errors/propagation`](errors.md#errors-propagation), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy).</sub>
 
 <a id="security-isolate-output-is-captured"></a>
 
@@ -116,7 +189,7 @@ parent re-emit a captured result without escaping it twice, and it is why `'inhe
 separate rule: the two carriers already match. `Core\Cli`'s *members* still throw inside an isolate —
 that rule is about owning the terminal, which an isolate's buffered output never touches.
 
-<sub>See also [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing). Decided in [0006](../decisions/0006.md), [0088](../decisions/0088.md).</sub>
+<sub>See also [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing). Decided in [0088](../decisions/0088.md).</sub>
 
 <a id="security-isolate-teardown-is-a-drain-then-a-sweep"></a>
 
@@ -136,7 +209,7 @@ another member's field slot; a member the tally does not exactly account for is 
 and is left alone, along with everything under it. Freeing memory somebody still holds is a
 use-after-free, so security decides a question memory footprint would have answered the other way.
 
-<sub>See also [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0116](../decisions/0116.md), [0006](../decisions/0006.md), [0274](../decisions/0274.md).</sub>
+<sub>See also [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0116](../decisions/0116.md), [0274](../decisions/0274.md).</sub>
 
 <a id="security-arena-is-an-ownership-root"></a>
 
@@ -157,7 +230,7 @@ reuse what it freed, so a loop appending to a string would make the footprint O(
 O(live), which [`programs/memory-priority`](programs.md#programs-memory-priority) calls a leak; and the latency a region is reached for
 is already collected by the pooled allocator.
 
-<sub>See also [`security/isolate-teardown-is-a-drain-then-a-sweep`](security.md#security-isolate-teardown-is-a-drain-then-a-sweep), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees). Decided in [0116](../decisions/0116.md), [0006](../decisions/0006.md).</sub>
+<sub>See also [`security/isolate-teardown-is-a-drain-then-a-sweep`](security.md#security-isolate-teardown-is-a-drain-then-a-sweep), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees). Decided in [0116](../decisions/0116.md).</sub>
 
 <a id="security-one-isolation-implementation"></a>
 
@@ -175,7 +248,7 @@ state-bleed suite for isolates, and a fix on either path cannot forget the other
 property a second implementation would quietly give up, since two isolation mechanisms are two places
 for the same bug to be fixed once.
 
-<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root). Decided in [0006](../decisions/0006.md), [0116](../decisions/0116.md).</sub>
+<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root). Decided in [0116](../decisions/0116.md).</sub>
 
 <a id="security-script-spawn-capability"></a>
 
@@ -197,7 +270,7 @@ The child's grants are the parent's effective grants, optionally narrowed at the
 widens: a parent that has dropped `net.connect` cannot regain it by spawning
 ([`security/no-runtime-grant`](security.md#security-no-runtime-grant)).
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed). Decided in [0006](../decisions/0006.md), [0118](../decisions/0118.md), [0112](../decisions/0112.md).</sub>
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed). Decided in [0118](../decisions/0118.md), [0112](../decisions/0112.md).</sub>
 
 <a id="security-request-state-throws-in-an-isolate"></a>
 
@@ -223,7 +296,7 @@ otherwise restricted: whether a shutdown has begun is a fact about the process r
 request, so it answers in a child exactly as it answers in a CLI program, and the members of that
 class that read the request are restricted with the other two.
 
-<sub>See also [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0006](../decisions/0006.md).</sub>
+<sub>See also [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused).</sub>
 
 <a id="security-no-cross-request-state"></a>
 
@@ -247,7 +320,7 @@ operator's ceiling. The rule is about **userland calls whose effect outlives or 
 own request**. The replacement is a per-core or real shared cache, where the sharing is explicit,
 bounded, and visible in the grants.
 
-<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0052](../decisions/0052.md), [0059](../decisions/0059.md), [0006](../decisions/0006.md).</sub>
+<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0052](../decisions/0052.md), [0059](../decisions/0059.md).</sub>
 
 <a id="security-closed-doors"></a>
 
@@ -696,7 +769,7 @@ in exchange for reintroducing the dynamic escape the language closed elsewhere �
 Static attribution is total in Novis only because those doors are shut. A runtime widen would be a
 further one opened, and every claim above it would have to be qualified.
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/closed-doors`](security.md#security-closed-doors), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades). Decided in [0112](../decisions/0112.md), [0006](../decisions/0006.md), [0052](../decisions/0052.md).</sub>
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/closed-doors`](security.md#security-closed-doors), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades). Decided in [0112](../decisions/0112.md), [0052](../decisions/0052.md).</sub>
 
 <a id="security-capability-costs-nothing-unasked"></a>
 
@@ -1237,7 +1310,7 @@ This is the third instance of one rule rather than three members that each argue
 two being a laundering escape and an approved URL — and stating it once is what keeps a future
 capturing member from answering the wrong type ([`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier)).
 
-<sub>See also [`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier), [`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member). Decided in [0088](../decisions/0088.md), [0006](../decisions/0006.md), [0133](../decisions/0133.md).</sub>
+<sub>See also [`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier), [`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member). Decided in [0088](../decisions/0088.md), [0133](../decisions/0133.md).</sub>
 
 <a id="security-route-capture-is-laundered-by-its-type"></a>
 
@@ -1632,7 +1705,7 @@ cost of keeping one copy operation rather than two.
   isolate.** It splits the one graph copy into two operations with two behaviours to keep correct
   ([`classes/two-copy-depths`](classes.md#classes-two-copy-depths)).
 
-<sub>See also [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0116](../decisions/0116.md), [0006](../decisions/0006.md).</sub>
+<sub>See also [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0116](../decisions/0116.md).</sub>
 
 <a id="security-secret-comparison-is-constant-time"></a>
 

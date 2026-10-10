@@ -2,8 +2,7 @@
   "title": "A list is a TOML array, a repeated record is an array of tables, and a dotted key is table nesting",
   "status": "shipped",
   "because": [
-    "0064",
-    "0006"
+    "0064"
   ],
   "seeAlso": [
     "config/a-value-array-replaces-and-a-table-appends",

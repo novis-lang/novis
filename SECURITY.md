@@ -49,7 +49,7 @@ isolation*, with each rule's ADR behind it. Anything that defeats one of these i
   [0088](docs/decisions/0088.md)).
 - **Request or isolate boundary escape** — one request reading, corrupting or influencing another;
   anything shared between requests but compiled code; a poisoned artifact or hot-reload cache
-  ([0006](docs/decisions/0006.md),
+  ([`security/isolate-shares-nothing`](docs/rules/security.md#security-isolate-shares-nothing),
   [`config/a-request-keeps-the-unit-it-resolved`](docs/rules/config.md#config-a-request-keeps-the-unit-it-resolved),
   [0059](docs/decisions/0059.md)).
 - **Extension sandbox or capability escape** — a wasm component reaching outside its grant, or a manifest
@@ -80,7 +80,7 @@ isolation*, with each rule's ADR behind it. Anything that defeats one of these i
   application's bug. A *missing* refusal is ours.
 - **Running adversarial Novis source in-process.** An isolate is exactly as strong as the request boundary
   and no stronger; sandboxed wasm is the boundary for code you must assume hostile
-  ([0006](docs/decisions/0006.md) *Consequences*,
+  ([`security/isolate-shares-nothing`](docs/rules/security.md#security-isolate-shares-nothing),
   [`packaging/an-extension-is-a-sandboxed-wasm-component`](docs/rules/packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component)).
 - **The built-in server exposed directly to the internet.** It is a development server and a proxied
   origin — no TLS listener, no h2c, no FastCGI

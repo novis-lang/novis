@@ -9,11 +9,8 @@
 // non-abstract classes implementing `App\Module`.
 autoload 'App' from './program';
 
-// Expands at compile time to `[new App\Alpha(), new App\Beta(), new
-// App\Gamma()]` — sorted by fully-qualified name, so the order does not depend
-// on filesystem enumeration, and evaluated here, so the instances are
-// per-request like any other object (ADR 0006). `App\Base` is abstract and
-// `App\Module` is the interface itself; neither is an entry.
+// This returns a new `App\Alpha`, `App\Beta` and `App\Gamma`, sorted by full class name.
+// Each request gets new objects. `App\Base` is abstract and `App\Module` is the interface, so neither is in the list.
 var $modules = Core\Program::implementing<App\Module>();
 
 // The interface is not the selector's crutch — it is what gives `$module` a

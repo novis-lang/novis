@@ -1085,7 +1085,7 @@ mod wasm_guards {
 fn an_os_process_costs_orders_of_magnitude_more_than_a_task() {
     let _quiet = serialised();
 
-    // ADR 0006 gives Novis an in-process script isolate because PHP's only way to
+    // `rule:security/isolate-shares-nothing` gives Novis an in-process script isolate because PHP's only way to
     // run a script under its own heap, globals and limits is another process.
     // The whole argument is this ratio, so it is measured rather than asserted.
     //
@@ -1103,8 +1103,8 @@ fn an_os_process_costs_orders_of_magnitude_more_than_a_task() {
     judge(
         "isolation boundary, an os process against a task",
         PROCESS_PER_TASK,
-        "ADR 0006 justifies in-process script isolates on that gap; if the gap has really \
-         closed, the ADR needs revisiting.",
+        "`rule:security/isolate-shares-nothing` justifies in-process script isolates on that \
+         gap; if the gap has really closed, the rule needs revisiting.",
         |yard| {
             let task_ns = ns_per_op(50_000, 5, || {
                 let run = nvs_abi_probe::in_coroutine(Ctx::new(), |_ctx| black_box(7i64));
@@ -1157,7 +1157,7 @@ fn a_spawn_to_result_round_trip_stays_in_the_microsecond_class() {
     let _quiet = serialised();
 
     // The figure M5's acceptance asks for, and the one the test above only
-    // approximates: that one prices a bare coroutine, this one prices ADR 0006's
+    // approximates: that one prices a bare coroutine, this one prices the isolate
     // boundary itself — the argument's graph copy in, the child's own ownership
     // root and context, the child task, the answer's copy out, the release.
     //
@@ -1202,7 +1202,7 @@ fn a_spawn_to_result_round_trip_stays_in_the_microsecond_class() {
     judge(
         "isolate spawn to result",
         PER_ROUND_TRIP,
-        "ADR 0006 replaces a child process with this boundary and M5's acceptance puts it in \
+        "an isolate replaces a child process with this boundary and M5's acceptance puts it in \
          the single-digit microseconds; at this figure the child is doing something a child \
          should not, or the boundary has acquired a syscall.",
         |_yard| {

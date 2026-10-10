@@ -10,7 +10,10 @@ object whose class the receiving side cannot resolve is refused with a diagnosti
 never degraded into a stub. A `secret`-typed property is refused there too
 (`rule:security/secret-crosses-no-boundary`).
 
-There is one walk and one set of refusals, which is why it is the audited surface. Across cores the
+There is one walk and one set of refusals, which is why it is the audited surface. Two boundaries
+with different value rules would be two sets of rules for a developer to learn and two implementations
+to keep correct, and a refusal at the boundary is a diagnostic where the mistake was made rather than a
+surprise later. Across cores the
 walk is the same but the **move is not available**: refcounts are non-atomic because a value is
 reachable from one core only, so a cross-core crossing copies at every node. That cost belongs to the
 placement option, not to the boundary.

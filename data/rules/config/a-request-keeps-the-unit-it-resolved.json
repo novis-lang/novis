@@ -1,9 +1,7 @@
 {
   "title": "A file is resolved once per isolate, so an edit is invisible to a request already running",
   "status": "shipped",
-  "because": [
-    "0006"
-  ],
+  "because": [],
   "seeAlso": [
     "config/an-edit-reaches-the-next-request-without-a-restart",
     "security/isolate-shares-nothing",

@@ -986,7 +986,7 @@ serve is what would reopen a hook; a request for parity with PHP is not.
 - **Keeping `__clone` alone.** It is still a class redefining a mechanical operation, and keeping one
   hook while refusing the other four draws a line with no argument behind it.
 
-<sub>See also [`classes/clone-is-shallow`](classes.md#classes-clone-is-shallow), [`classes/graph-copy`](classes.md#classes-graph-copy), [`classes/serialize-is-a-closed-format`](classes.md#classes-serialize-is-a-closed-format), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods). Decided in [0006](../decisions/0006.md).</sub>
+<sub>See also [`classes/clone-is-shallow`](classes.md#classes-clone-is-shallow), [`classes/graph-copy`](classes.md#classes-graph-copy), [`classes/serialize-is-a-closed-format`](classes.md#classes-serialize-is-a-closed-format), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods).</sub>
 
 <a id="classes-clone-is-shallow"></a>
 
@@ -1034,7 +1034,7 @@ One walk serves both carriers — arena-to-arena at the isolate boundary, and by
 `Core\Serialize` — so a rule added to it reaches both or neither. Two implementations that agree today
 is the failure that costs.
 
-<sub>See also [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`classes/serialize-is-a-closed-format`](classes.md#classes-serialize-is-a-closed-format), [`classes/clone-is-shallow`](classes.md#classes-clone-is-shallow), [`types/callable-values`](types.md#types-callable-values), [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling). Decided in [0006](../decisions/0006.md).</sub>
+<sub>See also [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`classes/serialize-is-a-closed-format`](classes.md#classes-serialize-is-a-closed-format), [`classes/clone-is-shallow`](classes.md#classes-clone-is-shallow), [`types/callable-values`](types.md#types-callable-values), [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling).</sub>
 
 <a id="classes-serialize-is-a-closed-format"></a>
 

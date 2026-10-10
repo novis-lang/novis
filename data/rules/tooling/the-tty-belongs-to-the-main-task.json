@@ -3,8 +3,7 @@
   "status": "designed",
   "because": [
     "0086",
-    "0088",
-    "0006"
+    "0088"
   ],
   "seeAlso": [
     "tooling/echo-always-has-a-sink",

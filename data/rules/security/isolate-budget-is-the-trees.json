@@ -2,7 +2,6 @@
   "title": "A request and everything it spawns share one budget, accounted at the tree's root",
   "status": "shipped",
   "because": [
-    "0006",
     "0116"
   ],
   "seeAlso": [
@@ -11,6 +10,7 @@
     "errors/on-limit"
   ],
   "guardedBy": [
-    "crates/nvs-runtime/tests/configured_limits.rs"
+    "crates/nvs-runtime/tests/configured_limits.rs",
+    "crates/nvs-host/tests/limits.rs"
   ]
 }

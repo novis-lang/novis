@@ -1,5 +1,5 @@
 --TEST--
-A child's uncaught throw arrives as data on the parent's result rather than as an exception unwinding into it: `ok` is false, `error` carries the class and the message as copied data, what the child echoed before throwing still crosses, and the parent runs on — ADR 0006 § *Failure is a value, not an exception*
+A child's uncaught throw arrives as data on the parent's result rather than as an exception unwinding into it: `ok` is false, `error` carries the class and the message as copied data, what the child echoed before throwing still crosses, and the parent runs on — `rule:security/isolate-failure-is-a-value`
 --FILE nvs.toml--
 # `rule:security/capability-check-at-the-door`: `spawn script` goes through a door that asks for
 # `script.spawn` first, and deny-by-default means a case with no
@@ -21,7 +21,7 @@ return "answered";
 --FILE--
 <?nvs
 // covers: lang:concurrency/a-child-s-failure-is-a-value
-// ADR 0006 § *Failure is a value, not an exception*: there is no `try` around
+// `rule:security/isolate-failure-is-a-value`: there is no `try` around
 // either call below and none is needed. Nothing unwinds across the boundary,
 // for the reason nothing unwinds across a JIT frame (`rule:errors/propagation`) — the status
 // is checked, so a child that fails cannot end the parent that spawned it.

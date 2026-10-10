@@ -3,8 +3,7 @@
   "status": "shipped",
   "because": [
     "0073",
-    "0064",
-    "0006"
+    "0064"
   ],
   "seeAlso": [
     "config/scope-has-no-default",

@@ -82,7 +82,7 @@ pub struct Config {
     /// `[mode]` — the default a request starts in and the ceiling it may select
     /// (`rule:config/ceilings-are-their-own-directives`, ADR 0091).
     pub mode: Option<Mode>,
-    /// `[capabilities]` — deny-by-default grants (`rule:config/three-changeability-classes`, ADR 0006).
+    /// `[capabilities]` — deny-by-default grants (`rule:config/three-changeability-classes`, `rule:security/script-spawn-capability`).
     pub capabilities: Option<Capabilities>,
     /// `[[extension]]` — a precompiled binary and its pin (`rule:packaging/extension-loading-is-root-controlled`).
     pub extension: Vec<Extension>,

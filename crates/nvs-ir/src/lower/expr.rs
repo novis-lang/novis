@@ -3105,7 +3105,7 @@ impl<'a> Lowering<'a> {
             tags_v,
         );
         // The target's parameter *names*, which only a resolved call knows and
-        // only this crate is still holding — ADR 0006 § *Decision* binds an
+        // only this crate is still holding — `rule:security/isolate-shares-nothing` binds an
         // isolate's `args:` by them, and `Core\Socket::upgrade(Chat::run(...))`
         // is such an entry with no constant beside it to carry them. See
         // `FN_PARAM_NAMES` for why the sibling anonymous function gets no such field.
@@ -3583,7 +3583,7 @@ impl<'a> Lowering<'a> {
     /// a value lowered but never *staged* is one `release_temporaries_since`
     /// cannot see — without both lines below, `Core\Router::url("…", ["id" =>
     /// 7])` leaks its literal array once per call.
-    /// `spawn script <path> with(…)` — ADR 0006 § *Decision*'s isolate spawn,
+    /// `spawn script <path> with(…)` — `rule:security/isolate-shares-nothing`'s isolate spawn,
     /// as one [`InstKind::CoreCall`] answering a `Core\Script\Handle`.
     ///
     /// A `CoreCall` and not an `InstKind` of its own, which is the decision
@@ -3609,7 +3609,7 @@ impl<'a> Lowering<'a> {
     /// ownership root and this frame may not release it afterwards. The path
     /// and the output spelling are borrowed like every other `Core` argument.
     ///
-    /// **Two symbols, one argument list.** ADR 0006 § *Decision*'s method entry
+    /// **Two symbols, one argument list.** `rule:security/isolate-shares-nothing`'s method entry
     /// takes `nvs_types::CORE_SCRIPT_SPAWN_METHOD` and differs in argument 0
     /// alone: a constant `Class::method` label instead of a lowered path
     /// expression, since what the child runs is a method of *this* unit and
@@ -3617,7 +3617,7 @@ impl<'a> Lowering<'a> {
     /// `SPAWN_METHOD_SYMBOL` owns why the fork is a second symbol rather than a
     /// fourth argument, and [`Self::spawn_method_entry`] is the fork itself.
     /// The method symbol does take a **last** argument the path form has no use
-    /// for — the entry's parameter names, for ADR 0006 § *Decision*'s `args:`
+    /// for — the entry's parameter names, for `rule:security/isolate-shares-nothing`'s `args:`
     /// binding — and that one is a value the child needs rather than a branch
     /// this module already took.
     fn lower_spawn_script(
@@ -3628,7 +3628,7 @@ impl<'a> Lowering<'a> {
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         let mark = self.temporaries_mark();
-        // ADR 0006 § *Decision*'s two entry forms, told apart by the operand's
+        // `rule:security/isolate-shares-nothing`'s two entry forms, told apart by the operand's
         // own shape exactly as `nvs_types`' `check_entry` tells them apart —
         // and lowered to two symbols, because what differs is what the first
         // argument *means*: a path the child's resolver compiles, or a label
@@ -3673,7 +3673,7 @@ impl<'a> Lowering<'a> {
                 self.account_for_arg(v, ty, ArgOwnership::Borrowed, aliasing, *cur);
                 v
             }
-            // ADR 0006 § *Output is captured by default*, spelled here rather
+            // `rule:security/isolate-output-is-captured`, spelled here rather
             // than defaulted in the helper so that the default is visible in
             // the IR a reader dumps.
             None => {
@@ -3713,7 +3713,7 @@ impl<'a> Lowering<'a> {
         let limits_v = self.lower_spawn_narrowing(written(SpawnOptionKey::Limits), env, cur);
         let grants_v = self.lower_spawn_narrowing(written(SpawnOptionKey::Grants), env, cur);
 
-        // ADR 0006 § *Decision* binds `args:`'s entries to the entry's own
+        // `rule:security/isolate-shares-nothing` binds `args:`'s entries to the entry's own
         // parameters **by name**, which is a question only the declaration
         // answers — so the names travel with the label, as a fourth argument
         // the method symbol alone takes. Comma-separated in declaration order,

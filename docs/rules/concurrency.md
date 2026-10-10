@@ -27,7 +27,7 @@ The guarantee the whole roster is built on is [`concurrency/nothing-is-still-run
 and it is a property of the call rather than of a scope object: there is no nursery, no task group
 and no handle to leak, so a task tree is bounded by the same accounting a request already has.
 
-<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`core-api/tier-roster`](core-api.md#core-api-tier-roster). Decided in [0072](../decisions/0072.md), [0006](../decisions/0006.md).</sub>
+<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`core-api/tier-roster`](core-api.md#core-api-tier-roster). Decided in [0072](../decisions/0072.md).</sub>
 
 <a id="concurrency-a-child-belongs-to-the-calling-task"></a>
 
@@ -48,7 +48,7 @@ that ends cancels what it left running, so the tree cannot outlive it and there 
 A host with no calling task therefore has no place to put children, which is why every entry point
 that runs a program makes a task first even where one buys nothing else.
 
-<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0072](../decisions/0072.md), [0006](../decisions/0006.md).</sub>
+<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0072](../decisions/0072.md).</sub>
 
 <a id="concurrency-on-worker-runs-the-child-on-another-core"></a>
 
@@ -327,7 +327,7 @@ with no record. Receipts, webhooks, cache warming and audit shipping are what it
 that *must* happen belongs in the transaction that made it necessary or in a store the application
 owns.
 
-<sub>See also [`programs/memory-priority`](programs.md#programs-memory-priority), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep), [`core-classes/html-later`](core-classes.md#core-classes-html-later). Decided in [0072](../decisions/0072.md), [0006](../decisions/0006.md), [0266](../decisions/0266.md).</sub>
+<sub>See also [`programs/memory-priority`](programs.md#programs-memory-priority), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep), [`core-classes/html-later`](core-classes.md#core-classes-html-later). Decided in [0072](../decisions/0072.md), [0266](../decisions/0266.md).</sub>
 
 <a id="concurrency-only-the-request-registers-deferred-work"></a>
 
@@ -710,7 +710,7 @@ a connection is a root, sees only what its arguments copied in, and ends when th
 timeout fires or a budget is exceeded. A fatal error inside one tears down the connection and nothing
 wider ([`errors/escalation-ladder`](errors.md#errors-escalation-ladder)), and the peer is told with a defined close code.
 
-<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`concurrency/an-upgrade-is-spawn-shaped`](concurrency.md#concurrency-an-upgrade-is-spawn-shaped), [`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite). Decided in [0083](../decisions/0083.md), [0006](../decisions/0006.md), [0072](../decisions/0072.md).</sub>
+<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`concurrency/an-upgrade-is-spawn-shaped`](concurrency.md#concurrency-an-upgrade-is-spawn-shaped), [`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite). Decided in [0083](../decisions/0083.md), [0072](../decisions/0072.md).</sub>
 
 <a id="concurrency-an-upgrade-is-spawn-shaped"></a>
 
@@ -735,7 +735,7 @@ side.
 Calling it is what performs the upgrade, and it answers `void`. Nothing in this language reads a
 handler's return value, so an upgrade handed back to the runtime would be handed to nobody.
 
-<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`classes/graph-copy`](classes.md#classes-graph-copy), [`concurrency/an-upgrades-options-are-spawn-scripts`](concurrency.md#concurrency-an-upgrades-options-are-spawn-scripts), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate). Decided in [0083](../decisions/0083.md), [0006](../decisions/0006.md), [0077](../decisions/0077.md).</sub>
+<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`classes/graph-copy`](classes.md#classes-graph-copy), [`concurrency/an-upgrades-options-are-spawn-scripts`](concurrency.md#concurrency-an-upgrades-options-are-spawn-scripts), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate). Decided in [0083](../decisions/0083.md), [0077](../decisions/0077.md).</sub>
 
 <a id="concurrency-an-upgrades-options-are-spawn-scripts"></a>
 
@@ -759,7 +759,7 @@ accepted and dropped. A narrowing that is silently ignored hands the connection 
 request meant to give up, and a refusal is the only spelling that lets a reader tell a narrowing that
 was applied from one that was not.
 
-<sub>See also [`concurrency/an-upgrade-is-spawn-shaped`](concurrency.md#concurrency-an-upgrade-is-spawn-shaped), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing). Decided in [0083](../decisions/0083.md), [0006](../decisions/0006.md).</sub>
+<sub>See also [`concurrency/an-upgrade-is-spawn-shaped`](concurrency.md#concurrency-an-upgrade-is-spawn-shaped), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing). Decided in [0083](../decisions/0083.md).</sub>
 
 <a id="concurrency-a-connection-is-a-loop"></a>
 
@@ -1111,7 +1111,7 @@ other file — cached, hot-reloadable, traceable and coverable with no special c
 ([`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate)) — and it is why reconstructing an object from a
 payload is a question the runtime never has to answer.
 
-<sub>See also [`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate), [`concurrency/a-payload-refuses-secret-and-keeps-its-qualifiers`](concurrency.md#concurrency-a-payload-refuses-secret-and-keeps-its-qualifiers). Decided in [0084](../decisions/0084.md), [0006](../decisions/0006.md), [0071](../decisions/0071.md).</sub>
+<sub>See also [`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate), [`concurrency/a-payload-refuses-secret-and-keeps-its-qualifiers`](concurrency.md#concurrency-a-payload-refuses-secret-and-keeps-its-qualifiers). Decided in [0084](../decisions/0084.md), [0071](../decisions/0071.md).</sub>
 
 <a id="concurrency-a-jobs-budget-and-grants-are-recorded-at-enqueue"></a>
 
@@ -1333,7 +1333,7 @@ one script compiles it once.
 Output is captured rather than written through, because a job's `echo` landing in the middle of what
 the server or the run's own script is writing is exactly the mixing capture exists to prevent.
 
-<sub>See also [`concurrency/a-job-names-a-file`](concurrency.md#concurrency-a-job-names-a-file), [`concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue`](concurrency.md#concurrency-a-jobs-budget-and-grants-are-recorded-at-enqueue). Decided in [0084](../decisions/0084.md), [0006](../decisions/0006.md), [0271](../decisions/0271.md).</sub>
+<sub>See also [`concurrency/a-job-names-a-file`](concurrency.md#concurrency-a-job-names-a-file), [`concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue`](concurrency.md#concurrency-a-jobs-budget-and-grants-are-recorded-at-enqueue). Decided in [0084](../decisions/0084.md), [0271](../decisions/0271.md).</sub>
 
 <a id="concurrency-who-runs-a-job-is-configuration"></a>
 

@@ -9921,8 +9921,8 @@ pub(crate) mod tests {
         );
     }
 
-    /// A request that fails is a **response**, not a dropped connection: ADR
-    /// 0006's failure is a value, so a request that gave up still leaves the
+    /// A request that fails is a **response**, not a dropped connection: an
+    /// isolate's failure is a value (`rule:security/isolate-failure-is-a-value`), so a request that gave up still leaves the
     /// connection able to answer, and what it answers is `answer`'s decision —
     /// a status and no body.
     ///

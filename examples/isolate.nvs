@@ -1,17 +1,7 @@
 <?nvs
-// ADR 0006's isolate, as a program: `spawn script` runs another file
-// in-process with its own arena, sharing compiled code and the parent's
-// budget and nothing else.
-//
-// The five lines this prints are frozen by an exact check in a goal record
-// under `data/goals/`; the source is not. The three children live in
-// `examples/isolate/` and each exists to be one of those lines.
-//
-// The paths are written from the repository root, which is where the
-// acceptance driver runs this program from. If item 20 resolves a child
-// relative to the *entry file* instead (ADR 0104 makes an application an
-// entry-file path, and says nothing about this), these three lines are the
-// ones to shorten.
+// This program runs three other programs with `spawn script` and prints what each one gives back.
+// Each child runs in the same process, with its own memory and its own variables.
+// The children are in `examples/isolate/`. A path is read from the folder of this file.
 
 // `output: 'inherit'` — the child writes to this program's stdout directly,
 // so its line arrives before anything below it. Awaiting first is what makes

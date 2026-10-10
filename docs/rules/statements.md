@@ -259,7 +259,7 @@ a static.
 Nothing here is isolated: the required file runs in the caller's own process and request, with the
 caller's capabilities. Isolation is what `spawn script` gives, and `require` gives none of it.
 
-<sub>See also [`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0006](../decisions/0006.md).</sub>
+<sub>See also [`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call).</sub>
 
 <a id="statements-a-require-expression-is-mixed"></a>
 
@@ -378,7 +378,7 @@ everything a read-only global would be used for.
   its own (how a key is derived, how long an entry lives, how large the cache may grow), and it is a
   feature with its own rule if it ever exists, not part of this one.
 
-<sub>See also [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0006](../decisions/0006.md).</sub>
+<sub>See also [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call).</sub>
 
 <a id="statements-storage-that-outlives-a-call"></a>
 
@@ -409,7 +409,7 @@ frame and nothing more. The script body is a function, so its variables are loca
 `global` no other function can see them ([`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global)). The
 shared-nothing story holds at file scope for the same reason it holds everywhere else.
 
-<sub>See also [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`statements/a-required-file-shares-declarations-not-locals`](statements.md#statements-a-required-file-shares-declarations-not-locals). Decided in [0006](../decisions/0006.md).</sub>
+<sub>See also [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`statements/a-required-file-shares-declarations-not-locals`](statements.md#statements-a-required-file-shares-declarations-not-locals).</sub>
 
 <a id="statements-an-isolate-has-its-own-statics"></a>
 
@@ -430,7 +430,7 @@ aliases the request's static-property base rather than freshening it, and a chil
 would give one request two copies of every static. Collapsing both into one helper with a flag would leave
 the next field added to the context classified by whoever adds it rather than by whoever needs it fresh.
 
-<sub>See also [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables). Decided in [0116](../decisions/0116.md), [0006](../decisions/0006.md), [0072](../decisions/0072.md).</sub>
+<sub>See also [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables). Decided in [0116](../decisions/0116.md), [0072](../decisions/0072.md).</sub>
 
 <a id="statements-no-host-populated-variables"></a>
 
@@ -469,7 +469,7 @@ parameter — the same answer [`statements/storage-that-outlives-a-call`](statem
 - **One class for every request and server fact.** One class for unrelated concerns is a global
   namespace with extra syntax ([`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants)).
 
-<sub>See also [`statements/globals-and-request-are-dropped-outright`](statements.md#statements-globals-and-request-are-dropped-outright), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call), [`errors/cookie-name-bytes`](errors.md#errors-cookie-name-bytes). Decided in [0006](../decisions/0006.md).</sub>
+<sub>See also [`statements/globals-and-request-are-dropped-outright`](statements.md#statements-globals-and-request-are-dropped-outright), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call), [`errors/cookie-name-bytes`](errors.md#errors-cookie-name-bytes).</sub>
 
 <a id="statements-globals-and-request-are-dropped-outright"></a>
 

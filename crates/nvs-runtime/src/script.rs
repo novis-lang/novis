@@ -35,7 +35,7 @@
 //!
 //! # Why `rule:security/isolate-shares-nothing`'s *other* entry form asks no resolver
 //!
-//! [ADR 0006](/docs/decisions/0006.md) § *Decision* gives
+//! `rule:security/isolate-shares-nothing` gives
 //! `spawn script` two operands: a path, and a `Class::method(...)` reference.
 //! Only the first one is a question for a resolver, and the difference is not a
 //! convenience — it is the whole of what a resolver is for. A path is a name
@@ -78,8 +78,8 @@
 //!
 //! **The capability question is asked, and it is asked unscoped.**
 //! [`resolve`] below is `rule:security/capability-check-at-the-door`'s door for a path, and `script.spawn`'s
-//! grant names filesystem roots ([ADR 0006](/docs/decisions/0006.md)
-//! § *Executing code is its own capability*). A method has no path to
+//! grant names filesystem roots
+//! (`rule:security/script-spawn-capability`). A method has no path to
 //! canonicalise and prefix-check, but the grant still decides whether this
 //! program spawns isolates at all, so the method form asks `Cap::ScriptSpawn`
 //! with `Scope::Unscoped`: `script.spawn = false` refuses both forms, and a
@@ -445,7 +445,7 @@ pub fn resolve(ctx: &Ctx, path: &str) -> Result<Program, ResolveError> {
 /// The program a `Class::method` entry runs, built from what the spawn site
 /// wrote and nothing else.
 ///
-/// The counterpart to [`resolve`] for [ADR 0006](/docs/decisions/0006.md)'s
+/// The counterpart to [`resolve`] for `rule:security/isolate-shares-nothing`'s
 /// second form, and it asks no resolver for the reason the module doc gives:
 /// the method is code the parent's unit already holds, reached through
 /// [`crate::call_static_bound`] on the child's own context. What that context
@@ -488,8 +488,8 @@ pub fn method_program(label: String, names: Vec<String>) -> Program {
             // an argument whose tag the parameter does not admit,
             // `rule:security/isolate-shares-nothing`'s "typed at the boundary".
             // There is no frame above it inside the child, so it is recorded as
-            // the isolate's pending throw and reaches the parent as ADR 0006
-            // § *Failure is a value*'s `ok = false` rather than as a status
+            // the isolate's pending throw and reaches the parent as
+            // `rule:security/isolate-failure-is-a-value`'s `ok = false` rather than as a status
             // nothing wrote.
             Err(Fault::Thrown(class, message)) => {
                 child.set_pending_as(class, message);
@@ -510,8 +510,8 @@ pub fn method_program(label: String, names: Vec<String>) -> Program {
     })
 }
 
-/// The `args:` map's entries in the entry's own parameter order — ADR 0006
-/// § *Decision*'s binding, which is a positional list by the time a compiled
+/// The `args:` map's entries in the entry's own parameter order —
+/// `rule:security/isolate-shares-nothing`'s binding, which is a positional list by the time a compiled
 /// callee sees it.
 ///
 /// Every value is **borrowed** out of the map, which the isolate's ownership

@@ -1,5 +1,5 @@
 --TEST--
-`await` answers a record of four fields, and each one is read from a different part of the child's run: `ok` from how it ended, `value` from its top-level `return`, `output` from what it printed under `output: 'capture'`, and `error` as null while `ok` holds — ADR 0006 § *Decision*
+`await` answers a record of four fields, and each one is read from a different part of the child's run: `ok` from how it ended, `value` from its top-level `return`, `output` from what it printed under `output: 'capture'`, and `error` as null while `ok` holds — `rule:security/isolate-shares-nothing`
 --FILE nvs.toml--
 # `rule:security/capability-check-at-the-door`: `spawn script` goes through a door that asks for
 # `script.spawn` first. This grants it and nothing else.
@@ -17,7 +17,7 @@ echo "adding\n";
 return ["sum" => $total, "count" => 10];
 --FILE quiet.nvs--
 <?nvs
-// A child with no top-level `return` at all. ADR 0006 § *Decision* answers
+// A child with no top-level `return` at all. `rule:security/isolate-failure-is-a-value` answers
 // `null` here and says why it is deliberately not `require`'s `1`, and this is
 // the case that holds it there.
 echo "the quiet child ran\n";
@@ -51,7 +51,7 @@ var $ran = await $quiet;
 echo "inherited output is ", Core\Str::length($ran->output as string), " characters\n";
 
 // A child with no `return` answers `null` rather than `require`'s `1`, which is
-// ADR 0006 § *Decision*'s own sentence on the row above this one.
+// `rule:security/isolate-failure-is-a-value`'s own sentence.
 var $answered = $ran->value as ?int;
 echo "a child with no return answered ", $answered ?? "null", "\n";
 --EXPECT--

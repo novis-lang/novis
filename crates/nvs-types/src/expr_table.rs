@@ -114,7 +114,7 @@ pub struct ResolvedCall {
     /// Recorded here for the same reason [`Self::param_tys`] is: the names are
     /// a property of the *declaration* this call resolved to, and a consumer
     /// downstream of checking holds the call site rather than the signature
-    /// table. ADR 0006 § *Decision*'s `args:` binding is the consumer — a
+    /// table. `rule:security/isolate-shares-nothing`'s `args:` binding is the consumer — a
     /// method entry's child calls its target with the map's entries bound by
     /// name, and `nvs_ir::lower`'s `spawn_method_label` reads the names off
     /// this entry to emit them beside the label. `nvs_runtime::MethodRow` is

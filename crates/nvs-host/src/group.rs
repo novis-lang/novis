@@ -215,8 +215,8 @@ impl Host for SchedulerHost {
         // decides everything about it, and what this seam adds is only that a
         // `Core` member can reach it without naming this crate. There is no
         // group here and no `Bounds` — an isolate is one child, and what bounds
-        // it is the tree's budget rather than a per-call limit (ADR 0006
-        // § *Budgets are accounted at the root of the request tree*).
+        // it is the tree's budget rather than a per-call limit
+        // (`rule:security/isolate-budget-is-the-trees`).
         // The placement, asked before anything is built and before the argument
         // is consumed: `crate::placed::destination_for` answers `None` for every
         // reason a child cannot go to another core, and each of them is a

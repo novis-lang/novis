@@ -218,9 +218,7 @@ pub enum Woken {
 /// rather than treating a resume as an answer.
 pub type Waker = Box<dyn FnOnce()>;
 
-/// Where an isolate's `echo` ends up — [ADR
-/// 0006](/docs/decisions/0006.md) § *Output is
-/// captured by default*.
+/// Where an isolate's `echo` ends up — `rule:security/isolate-output-is-captured`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Output {
     /// On the result, as bytes. The default, because the alternative silently
@@ -235,8 +233,8 @@ pub enum Output {
     Inherit,
 }
 
-/// What a spawn **named**, in whichever of [ADR
-/// 0006](/docs/decisions/0006.md) § *Decision*'s two entry
+/// What a spawn **named**, in whichever of
+/// `rule:security/isolate-shares-nothing`'s two entry
 /// forms it wrote — a path, or a class and a method.
 ///
 /// The name and not the code, and that is the whole of why this type is here.
@@ -385,7 +383,7 @@ pub struct Narrowing {
 }
 
 /// What a child's failure looks like on the parent's side: data, never an
-/// exception object (ADR 0006 § *Failure is a value*).
+/// exception object (`rule:security/isolate-failure-is-a-value`).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Failure {
     /// The rendered class name of what the child threw, or `Error` where the
@@ -698,8 +696,8 @@ pub trait Host: std::fmt::Debug {
     /// Starts what `entry` names as an isolate under the calling task and
     /// answers with the handle that collects it later.
     ///
-    /// This is the half of [ADR
-    /// 0006](/docs/decisions/0006.md)'s spawn that
+    /// This is the half of
+    /// `rule:security/isolate-shares-nothing`'s spawn that
     /// only a scheduler can do, and it is deliberately **eager**: the child is
     /// a runnable task before this returns, so a parent that spawns three and
     /// then awaits three overlaps them. Deferring the start to the join would

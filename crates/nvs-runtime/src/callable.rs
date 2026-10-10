@@ -672,8 +672,7 @@ fn callable_param_tags(callable: Value) -> Result<u64, Fault> {
 /// `None` is the honest answer for an anonymous function and is not a failure:
 /// [`CALLABLE_PARAM_NAMES`] is written at a `Class::method(...)` and nowhere
 /// else, so an anonymous function's object genuinely has no such field. A caller that
-/// *needs* names — [ADR 0006](/docs/decisions/0006.md)
-/// § *Decision*'s `args:` binding, which is by name — turns that `None` into
+/// *needs* names — `rule:security/isolate-shares-nothing`'s `args:` binding, which is by name — turns that `None` into
 /// its own refusal naming the form the program wrote, because only the caller
 /// knows which member it is refusing on behalf of.
 ///

@@ -2,8 +2,7 @@
   "title": "Both sides of an `[[app]]` match are canonicalized first, and a key naming nothing examinable refuses the boot",
   "status": "shipped",
   "because": [
-    "0104",
-    "0006"
+    "0104"
   ],
   "seeAlso": [
     "config/an-application-is-its-entry-file-path",

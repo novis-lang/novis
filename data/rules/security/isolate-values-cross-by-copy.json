@@ -2,7 +2,6 @@
   "title": "A value crosses an isolate boundary as one graph copy, and a callable, an alias or a host handle does not cross at all",
   "status": "shipped",
   "because": [
-    "0006",
     "0116"
   ],
   "seeAlso": [

@@ -2,7 +2,6 @@
   "title": "An inbound request is the root isolate of its own tree, and there is one isolate implementation",
   "status": "shipped",
   "because": [
-    "0006",
     "0116"
   ],
   "seeAlso": [

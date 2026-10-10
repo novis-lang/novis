@@ -455,8 +455,8 @@ const MEMORY_PEAK_SLOT: usize = 3;
 /// The symbol `spawn script <path> with(…)` lowers to.
 pub const SPAWN_SYMBOL: &str = "nvs_core_script_spawn";
 
-/// The symbol `spawn script Class::method with(…)` lowers to — ADR 0006
-/// § *Decision*'s second entry form.
+/// The symbol `spawn script Class::method with(…)` lowers to —
+/// `rule:security/isolate-shares-nothing`'s second entry form.
 ///
 /// A symbol of its own rather than a fourth argument to [`SPAWN_SYMBOL`]'s:
 /// the two forms differ in what the first argument *means* and in nothing a
@@ -937,7 +937,7 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-/// ADR 0006 § *Decision*'s named-argument agreement between a method entry's
+/// `rule:security/isolate-shares-nothing`'s named-argument agreement between a method entry's
 /// parameters and the `args:` map it was spawned with: every parameter the
 /// entry declares is a key of the map, and the map holds no key the entry does
 /// not declare. `Err` carries the message the throw is worded with.
@@ -990,7 +990,7 @@ pub(crate) fn entry_names_agree(site: &str, names: &[String], map: Value) -> Res
 }
 
 nvs_runtime::nvs_helper! {
-    /// `spawn script Class::method with(output: …)` — ADR 0006 § *Decision*'s
+    /// `spawn script Class::method with(output: …)` — `rule:security/isolate-shares-nothing`'s
     /// **method entry**, started as a fresh isolate over the unit this context
     /// is already running.
     ///
@@ -1017,7 +1017,7 @@ nvs_runtime::nvs_helper! {
     /// declaration order and empty for an entry that declares none — another
     /// constant the lowering wrote, off the resolved call `nvs_types` recorded
     /// (`nvs_ir::lower`'s `spawn_method_entry` is the one home of the
-    /// encoding). It is what ADR 0006 § *Decision*'s `args:` binding needs and
+    /// encoding). It is what `rule:security/isolate-shares-nothing`'s `args:` binding needs and
     /// the one thing the child cannot ask the runtime for: a
     /// `nvs_runtime::MethodRow` carries arity and parameter tags, never names.
     ///

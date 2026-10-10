@@ -95,7 +95,7 @@ configurable, grown lazily) and a small audited unsafe core for stack switching,
 **Isolated workers for CPU parallelism.** Work dispatched to another core gets its own heap; values
 crossing the boundary are deep-copied, or moved when the refcount is 1. Data races are impossible by
 construction rather than by discipline, which is what lets the refcounts stay non-atomic. The same rules
-govern the script-level boundary in [0006](../decisions/0006.md), deliberately: one set of
+govern the script-level boundary in `rule:security/isolate-values-cross-by-copy`, deliberately: one set of
 value-crossing rules, not two — and `rule:classes/graph-copy` gives that one
 rule its formal definition, shared with `Core\Serialize`.
 
@@ -309,7 +309,7 @@ silently. `benches/abi-probe/` checks them on every CI run, including the *premi
 `rule:errors/propagation` — that native unwinding through JIT frames is unavailable — so if that
 ever changes we are told rather than left paying for a workaround that is no longer needed. It also guards a
 premise about the *platform we are replacing*: that an OS process costs orders of magnitude more than a
-task, which is the whole cost argument for [0006](../decisions/0006.md).
+task, which is the whole cost argument for `rule:security/isolate-shares-nothing`.
 
 **A `static` property's storage is the request's, not the process's.** One slot per declared static per
 in-flight request, armed from the declaration's own initializer when the request's `nvs_runtime::Ctx` is
@@ -318,7 +318,7 @@ is a channel from one request into the next, so a token cached in one is readabl
 next request, and no amount of care in user code closes that. `nvs run` cannot tell the two apart — a CLI
 run is one request — so the divergence is invisible until `nvs serve` at M7, which is exactly when the
 wrong default would have become expensive. What it costs is the PHP idiom of a process-lifetime memo,
-which [0006](../decisions/0006.md) had already removed by making a script's world
+which `rule:security/isolate-shares-nothing` had already removed by making a script's world
 per-execution; a cache that must outlive a request is a `Core` capability with a stated lifetime, not a
 class variable. Because a static therefore has no constructor to assign it, its declaration must carry an
 initializer unless its type admits `null` (`E0409`), and `static::$prop` — which PHP re-resolves against

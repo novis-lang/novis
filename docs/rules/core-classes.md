@@ -49,7 +49,7 @@ and consistency is the whole of the reason: an ambient, undeclared variable is t
 introduced itself is no better for having been introduced deliberately. Each isolate's arguments are
 its own.
 
-<sub>See also [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`statements/an-isolate-has-its-own-statics`](statements.md#statements-an-isolate-has-its-own-statics). Decided in [0006](../decisions/0006.md).</sub>
+<sub>See also [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`statements/an-isolate-has-its-own-statics`](statements.md#statements-an-isolate-has-its-own-statics).</sub>
 
 <a id="core-classes-process-is-argv-only"></a>
 
@@ -871,7 +871,7 @@ only for the length of the call.
 - **An untyped array for the tree.** That is the `mixed`-shaped shortcut [`types/declaration`](types.md#types-declaration)
   closes everywhere else.
 
-<sub>See also [`core-classes/reflect`](core-classes.md#core-classes-reflect), [`types/declaration`](types.md#types-declaration), [`programs/compile-target`](programs.md#programs-compile-target). Decided in [0006](../decisions/0006.md).</sub>
+<sub>See also [`core-classes/reflect`](core-classes.md#core-classes-reflect), [`types/declaration`](types.md#types-declaration), [`programs/compile-target`](programs.md#programs-compile-target).</sub>
 
 <a id="core-classes-topic"></a>
 
