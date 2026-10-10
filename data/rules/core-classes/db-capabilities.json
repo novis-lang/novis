@@ -2,7 +2,6 @@
   "title": "Three deny-by-default capabilities gate naming a database, dialling one, and issuing DDL to it",
   "status": "shipped",
   "because": [
-    "0067",
     "0118",
     "0145"
   ],

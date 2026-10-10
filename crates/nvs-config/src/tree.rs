@@ -987,8 +987,9 @@ impl std::ops::DerefMut for Databases {
 /// § 3a's `password_file`, § 1's `statement_cache`, § 9's `time_zone`, § 11's `slow_query`,
 /// § 13's `pool`) plus the
 /// `driver` a discriminated union needs to be discriminated on.
-/// A field the ADR turns out to have meant and this list omits is a boot refusal naming the line,
-/// which is loud and one edit to fix; the fix is to add the field here *and* the example to 0067.
+/// A field the rules turn out to have meant and this list omits is a boot refusal naming the line,
+/// which is loud and one edit to fix; the fix is to add the field here *and* to the rule that
+/// names the block's fields.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Database {

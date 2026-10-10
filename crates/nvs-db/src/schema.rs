@@ -197,7 +197,7 @@ impl FloatWidth {
     }
 }
 
-/// A column's type: [ADR 0067 § 9](/docs/decisions/0067.md)'s map in the
+/// A column's type: `rule:core-classes/db-column-types`'s map in the
 /// write direction, with the parameters a `CREATE TABLE` must carry.
 ///
 /// Where § 9's read direction is many-to-one — `SMALLINT`, `INTEGER` and

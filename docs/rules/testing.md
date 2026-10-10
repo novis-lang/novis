@@ -371,7 +371,7 @@ contend rather than nest.
 The rollback is armed around the whole retry allowance rather than around one attempt, because a
 retry calls the method again.
 
-<sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict). Decided in [0067](../decisions/0067.md).</sub>
+<sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict).</sub>
 
 <a id="testing-in-process-request"></a>
 

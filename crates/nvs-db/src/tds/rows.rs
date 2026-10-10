@@ -1,7 +1,6 @@
 //! [`TdsRows`] — one result set, read a row packet at a time.
 //!
-//! The stream owns the connection until it ends, which is [ADR 0067
-//! § 4](/docs/decisions/0067.md)'s single-statement rule made
+//! The stream owns the connection until it ends, which is `rule:core-classes/db-streaming`'s single-statement rule made
 //! structural: the `State` returns to `Idle` when the `DONE` token arrives and
 //! not before. Every token between the rows goes to [`Tokens`] rather than
 //! being read a second time here.
@@ -12,8 +11,7 @@ use super::*;
 ///
 /// [`crate::MySqlRows`]' shape, and it is the same borrow for the same reason:
 /// the handle holds the wire and the busy state, so the connection is unusable
-/// for anything else until the stream ends — [ADR 0067
-/// § 4](/docs/decisions/0067.md)'s one-statement-at-a-time rule
+/// for anything else until the stream ends — `rule:core-classes/db-streaming`'s one-statement-at-a-time rule
 /// enforced by the type system rather than by a check every caller has to
 /// remember. A statement with no result set answers one of these too, already
 /// ended: [`TdsRows::columns`] is empty and [`TdsRows::next_row`] is `None` on
@@ -92,14 +90,14 @@ pub(crate) struct TdsCursor {
     /// the stream, after the rows, so a caller reads it once [`next_row_of`]
     /// has answered `None` — see [`TdsCursor::returned`].
     returned: Option<ReturnValue>,
-    /// [ADR 0067 § 1](/docs/decisions/0067.md)'s cache key this
+    /// `rule:core-classes/db-one-api`'s cache key this
     /// answer's handle belongs under, for a `sp_prepexec` whose plan is to be
     /// kept; `None` for every other answer, which is most of them.
     ///
     /// The walk carries it rather than the caller filing it afterwards —
     /// [`PendingPlan`] owns why.
     filing: Option<PendingPlan>,
-    /// [ADR 0067 § 11](/docs/decisions/0067.md)'s trace event for this
+    /// `rule:observability/a-query-is-a-trace-event`'s trace event for this
     /// statement, opened when the request went out and ended by whatever ends
     /// the stream — [`crate::MySqlCursor`]' field, for [`crate::span`]'s
     /// reasons.
@@ -134,7 +132,7 @@ struct Walk<'a, S: Read + Write> {
     reading: &'a mut TdsCursor,
 }
 
-/// [ADR 0067 § 1](/docs/decisions/0067.md)'s cache key a walk's plan
+/// `rule:core-classes/db-one-api`'s cache key a walk's plan
 /// is filed under, once the `RETURNVALUE` carrying the handle arrives.
 ///
 /// **The key travels with the walk and the cache does not**, which is the one
@@ -182,7 +180,7 @@ impl TdsCursor {
         self.columns.get(index).map(TdsColumn::column_type)
     }
 
-    /// [ADR 0067 § 11](/docs/decisions/0067.md)'s trace event for the
+    /// `rule:observability/a-query-is-a-trace-event`'s trace event for the
     /// statement this walks.
     pub(crate) fn span(&self) -> &QuerySpan {
         &self.span
@@ -194,7 +192,7 @@ impl TdsCursor {
         self.span.name(connection);
     }
 
-    /// [ADR 0067 § 4](/docs/decisions/0067.md)'s affected-row count,
+    /// `rule:core-classes/db-statement-members`'s affected-row count,
     /// once the stream has ended.
     ///
     /// [`crate::MySqlCursor`]'s two numbers under one name — the rows that came
@@ -270,7 +268,7 @@ impl<S: Read + Write> TdsRows<'_, S> {
         self.reading.column_type(index)
     }
 
-    /// [ADR 0067 § 11](/docs/decisions/0067.md)'s trace event for this
+    /// `rule:observability/a-query-is-a-trace-event`'s trace event for this
     /// statement.
     ///
     /// Borrowed rather than taken, for [`crate::PgRows::span`]'s reason.
@@ -285,7 +283,7 @@ impl<S: Read + Write> TdsRows<'_, S> {
         self.reading.name_connection(connection);
     }
 
-    /// [ADR 0067 § 4](/docs/decisions/0067.md)'s affected-row count,
+    /// `rule:core-classes/db-statement-members`'s affected-row count,
     /// once the stream has ended — [`TdsCursor::affected`], including what its
     /// `None` means.
     #[must_use]
@@ -610,7 +608,7 @@ impl<S: Read + Write> Walk<'_, S> {
     ///
     /// [`Length`] is the whole of the type knowledge here: this reads what the
     /// column said its values are measured by and never what they mean, which
-    /// is [ADR 0067 § 9](/docs/decisions/0067.md)'s decode and belongs
+    /// is `rule:core-classes/db-column-types`'s decode and belongs
     /// to the crate that can allocate a `Core\Time\DateTime`.
     fn value(&mut self, index: usize, info: TypeInfo, bytes: &mut Vec<u8>) -> io::Result<bool> {
         // A `NULLTYPE` column carries no value and has no value to carry: the

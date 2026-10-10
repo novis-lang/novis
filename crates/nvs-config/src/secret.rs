@@ -11,7 +11,7 @@
 //!
 //! **Every pair is a row of [`SECRETS`]** and [`materialize`] is a sweep over that table, so a
 //! credential is covered by adding one row and not by editing a walk — the database password
-//! ([ADR 0067] § 3a) and every credential written beside it since, in a block an operator names
+//! (`rule:core-classes/db-capabilities`) and every credential written beside it since, in a block an operator names
 //! and in a block they do not. § 7 speaks of a directive "the registry marks secret", and this
 //! table is that marking.
 //!
@@ -63,8 +63,6 @@
 //! Cost: one trust check, one advisory and one whole-file read per secret file, plus a walk of
 //! [`SECRETS`] against the named blocks the tree has — at boot and again at each reload.
 //! Nothing here runs per request.
-//!
-//! [ADR 0067]: ../../../docs/decisions/0067.md
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};

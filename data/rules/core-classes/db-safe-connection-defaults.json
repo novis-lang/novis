@@ -1,9 +1,7 @@
 {
   "title": "Three connection defaults close holes PHP leaves open, and none can be configured to the unsafe value",
   "status": "shipped",
-  "because": [
-    "0067"
-  ],
+  "because": [],
   "seeAlso": [
     "core-classes/db-capabilities",
     "core-classes/db-column-types",

@@ -4,9 +4,10 @@ its own state machine, error-code table and reset. `Core\Db`'s entry points `mat
 Three reasons, in priority order. **The set is closed**: a new backend is a decision record, not a
 plugin, and a sandboxed extension cannot host one anyway, since a pool is the thing a sandbox
 boundary cannot hold — open-set extensibility is the one property a trait buys and this design does
-not want it. **A trait wide enough for all five would be half unimplemented**: `executeMany` is one
-prepare and N executions on four drivers and a bulk protocol message on the fifth, a prepare is a
-round trip on two and free on one, and a reset is four command sequences and a rollback on the fifth.
+not want it. **A trait wide enough for all five would be half unimplemented**: a prepare is a round trip on
+two and free on one, the TLS handshake sits at a different layer on SQL Server, a local socket is a
+directory on one, a file on two and absent on SQL Server, and a reset is four command sequences and a
+rollback on the fifth.
 A trait method four drivers implement by returning an error is a lie the type system helped tell.
 **Static dispatch on the request path** costs no allocation and no indirect call.
 

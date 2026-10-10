@@ -8790,9 +8790,7 @@
       "section": "16. Network, data and crypto",
       "summary": "Semantics are `rule:core-classes/db-one-api` — connection naming and memoization, the capability split,\nwhy there is no `prepare`, the transaction shape, the coercion rule and the full SQL type map. This section\nowns the signatures only. Every member needs `db.connect` or `db.open`, and a connection's credentials live\nin a root-owned `[db.<name>]` block (`rule:config/the-file-is-nvs-toml-and-it-is-toml`).",
       "surface": "the full surface is § 18 below — the one subsystem in Part II too large for a row. Replaces `PDO` **and** the procedural `mysqli`/`pgsql`/`sqlite3` APIs",
-      "adrs": [
-        "0067"
-      ],
+      "adrs": [],
       "enums": [],
       "constants": [],
       "members": [

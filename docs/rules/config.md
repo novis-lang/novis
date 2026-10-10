@@ -605,7 +605,7 @@ Only the `password_file` that won the merge is opened. The value never enters th
 never logged, and `nvs config dump` renders it `<secret>` beside the file it came from —
 `password_file` stays set so the dump can name it.
 
-<sub>See also [`config/a-secret-file-is-checked-for-integrity-and-advised-on-exposure`](config.md#config-a-secret-file-is-checked-for-integrity-and-advised-on-exposure), [`config/a-relative-path-resolves-against-the-file-it-is-written-in`](config.md#config-a-relative-path-resolves-against-the-file-it-is-written-in), [`config/check-and-dump-audit-the-tree-offline`](config.md#config-check-and-dump-audit-the-tree-offline), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0103](../decisions/0103.md), [0067](../decisions/0067.md), [0095](../decisions/0095.md).</sub>
+<sub>See also [`config/a-secret-file-is-checked-for-integrity-and-advised-on-exposure`](config.md#config-a-secret-file-is-checked-for-integrity-and-advised-on-exposure), [`config/a-relative-path-resolves-against-the-file-it-is-written-in`](config.md#config-a-relative-path-resolves-against-the-file-it-is-written-in), [`config/check-and-dump-audit-the-tree-offline`](config.md#config-check-and-dump-audit-the-tree-offline), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0103](../decisions/0103.md), [0095](../decisions/0095.md).</sub>
 
 <a id="config-a-secret-file-is-checked-for-integrity-and-advised-on-exposure"></a>
 

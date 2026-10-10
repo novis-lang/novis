@@ -965,7 +965,7 @@ postgres-types = "0.2"
 # would put a C library in the default binary's graph. `tools/nv/cmd/gen-attribution.ts`
 # would then fail on an unrecorded C dependency, and recording it would be
 # recording one nothing asked for -- the protocol's optional compression is a
-# feature ADR 0067 does not offer. With the default off, `flate2` is
+# feature `Core\Db` does not offer. With the default off, `flate2` is
 # `miniz-oxide` and the whole graph stays pure Rust; `derive` goes with it, and
 # nothing here derives a row from a struct.
 #
@@ -1009,7 +1009,7 @@ fallible-iterator = "0.2"
 # amalgamation ourselves makes the shipped engine a fact of this repository's
 # lockfile, and it is also what lets the crate build on a machine with no
 # SQLite installed at all.
-# `column_decltype` is the second required feature and is ADR 0067 § 9's: that
+# `column_decltype` is the second required feature and is `rule:core-classes/db-column-types`'s: that
 # section maps a SQLite column off what the *schema* declared it as, because a
 # storage class cannot say whether `20260903` was meant as a number or a date.
 # Without this feature `sqlite3_column_decltype` is not exposed at all and the

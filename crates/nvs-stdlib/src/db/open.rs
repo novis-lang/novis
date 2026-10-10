@@ -2,7 +2,7 @@
 //! `Core\Db::open`'s twelve settings, and the two members that need no
 //! connection at all.
 //!
-//! [ADR 0067 § 3](/docs/decisions/0067.md) splits the first two on
+//! `rule:core-classes/db-capabilities` splits the first two on
 //! who wrote the endpoint. A block is the operator's word and is taken as one;
 //! arguments are the program's, so `open` re-checks the address they resolve to
 //! against the policy in front of it. `inList` and `quoteIdentifier` are here
@@ -1722,7 +1722,7 @@ mod tests {
     }
 
     /// A block that writes no `port` reaches **its own** driver's port — ADR
-    /// 0067 § 2, where the `driver` field is what the rest of the block is read
+    /// `rule:core-classes/db-connection-is-named`, where the `driver` field is what the rest of the block is read
     /// against.
     ///
     /// The claim is the disagreement rather than either number: [`address_of`]
@@ -2033,7 +2033,7 @@ mod tests {
         );
     }
 
-    /// [ADR 0067 § 18](/docs/decisions/0067.md)'s `isOpen` is the one member a
+    /// [spec § 18](/docs/spec/01-core-library.md)'s `isOpen` is the one member a
     /// released connection still answers, asserted as the **contrast** that
     /// makes it worth declaring: the same handle, the same empty table, and two
     /// different outcomes.

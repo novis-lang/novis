@@ -2,8 +2,7 @@
 //! and a bare batch, with the parameter encoding they carry.
 //!
 //! A parameter goes out in one of two forms [`Bound`] names: `nvarchar` for
-//! everything the server can cast from text, and `varbinary` for [ADR 0067 §
-//! 9](/docs/decisions/0067.md)'s `bytes`, which no text form recovers. The
+//! everything the server can cast from text, and `varbinary` for `rule:core-classes/db-column-types`'s `bytes`, which no text form recovers. The
 //! declaration is therefore a function of the values a call binds and not of
 //! the statement alone, which is what [`TdsPlan::declared`](super::TdsPlan)
 //! compares rather than § 1's cache key carrying a type per marker.
@@ -26,7 +25,7 @@ pub(super) const PROC_SP_PREPEXEC: u16 = 13;
 
 /// `sp_execute`'s procedure id — MS-TDS § 2.2.6.6's `Sp_Execute`.
 ///
-/// [ADR 0067 § 1](/docs/decisions/0067.md)'s cached re-execution: the
+/// `rule:core-classes/db-one-api`'s cached re-execution: the
 /// handle [`PROC_SP_PREPEXEC`] answered with and the values, and no SQL on the
 /// wire at all.
 pub(super) const PROC_SP_EXECUTE: u16 = 12;
@@ -45,7 +44,7 @@ pub(super) const PROC_SP_UNPREPARE: u16 = 15;
 /// batch did would be session state the reset had just finished removing.
 pub(super) const RESET_STATEMENT: &str = "select 1";
 
-/// [ADR 0067 § 7](/docs/decisions/0067.md)'s outermost transaction, in
+/// `rule:core-classes/db-transactions`'s outermost transaction, in
 /// T-SQL's spelling.
 ///
 /// `BEGIN TRANSACTION` and not `START TRANSACTION`, which SQL Server does not
@@ -122,7 +121,7 @@ pub(super) const BINARY_MARK: u8 = 0xFF;
 /// be this driver deciding a sort order for someone else's database.
 pub(super) const NO_COLLATION: [u8; 5] = [0; 5];
 
-/// [ADR 0067 § 1](/docs/decisions/0067.md)'s prepare and execute in
+/// `rule:core-classes/db-one-api`'s prepare and execute in
 /// one message: `sp_prepexec`, carrying § 5's rewritten SQL and its parameters
 /// as the procedure's own arguments.
 ///
@@ -169,7 +168,7 @@ pub fn sp_prepexec_request(
 /// One bound value in the form it goes out in, which is the one question
 /// [`declarations`] and the wire write both read and neither asks twice.
 ///
-/// [ADR 0067 § 9](/docs/decisions/0067.md)'s table has two forms a
+/// `rule:core-classes/db-column-types`'s table has two forms a
 /// parameter can take on this protocol and no third: everything with a text
 /// rendering goes out as `nvarchar` for the server to cast, and a `bytes` goes
 /// out as the octets it is, because `varbinary` is the one type no text form
@@ -566,8 +565,7 @@ pub(super) fn binary_param(out: &mut Vec<u8>, octets: &[u8], what: &str) -> io::
 ///   a numeric type here and the cast of `'t'` is an error, not a `false`.
 /// - A non-finite `float` is refused, for the reason MySQL's is. T-SQL has no
 ///   `Infinity` or `NaN` literal, and `float` holds neither value.
-/// - A `bytes` is not rendered at all, which is [ADR 0067 §
-///   9](/docs/decisions/0067.md)'s table rather than an exception to it:
+/// - A `bytes` is not rendered at all, which is `rule:core-classes/db-column-types`'s table rather than an exception to it:
 ///   `varbinary` has no text input form a cast recovers — `'0x61'` casts to the
 ///   four characters and not to the octet — so the octets go out as themselves,
 ///   under [`BINARY_MARK`], and [`binary_param`] writes them beside the

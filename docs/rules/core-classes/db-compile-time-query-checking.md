@@ -11,4 +11,11 @@ vendors' grammars in the front end forever. That refusal covers DDL as well as q
 parsing the `CREATE TABLE` a server prints.
 
 What this costs is that a column name typo survives to run time. What it buys is that the compiler
-never has to be right about a dialect it does not own.
+never has to be right about a dialect it does not own. The host check reads the grant through the
+same predicate a request does, so the two cannot disagree about a pattern.
+
+**Declined:**
+- **Schema-aware checking now**, validating literal queries and `queryAs<T>` shapes against a live
+  schema. It is the most valuable idea here, and it needs a reachable database at check time, so it
+  can only be a developer-machine mode; a schema read off a live server into a file
+  (`rule:core-classes/schema-introspection`) is the cache it would read.

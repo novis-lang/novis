@@ -562,7 +562,7 @@ fn open_stream(
 
 nvs_runtime::nvs_helper! {
     /// `$c->stream(string $sql, array<mixed> $params): Iterable<Db\Row>` — ADR
-    /// 0067 § 4's constant-memory read, and the one member that holds the
+    /// `rule:core-classes/db-streaming`'s constant-memory read, and the one member that holds the
     /// connection until the walk is drained.
     ///
     /// The statement is bound exactly as [`nvs_core_db_connection_query`] binds

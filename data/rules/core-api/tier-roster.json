@@ -2,7 +2,6 @@
   "title": "Every subsystem's tier is recorded once in the roster, including the ones no milestone has built",
   "status": "designed",
   "because": [
-    "0067",
     "0086",
     "0122"
   ],

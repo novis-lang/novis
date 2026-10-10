@@ -318,7 +318,7 @@ A retried outbound call is one span carrying an attempt count, not one span per 
 - **One span per attempt of a retried outbound call.** Each attempt's latency is not yet worth the
   multiplication of spans; the attempt count on the one span carries the fact.
 
-<sub>See also [`observability/a-query-is-a-trace-event`](observability.md#observability-a-query-is-a-trace-event), [`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request), [`observability/sampling-is-head-based`](observability.md#observability-sampling-is-head-based), [`testing/debug-probes`](testing.md#testing-debug-probes), [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`observability/gc-pause-is-its-own-event`](observability.md#observability-gc-pause-is-its-own-event), [`observability/spawn-is-its-own-event`](observability.md#observability-spawn-is-its-own-event). Decided in [0067](../decisions/0067.md).</sub>
+<sub>See also [`observability/a-query-is-a-trace-event`](observability.md#observability-a-query-is-a-trace-event), [`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request), [`observability/sampling-is-head-based`](observability.md#observability-sampling-is-head-based), [`testing/debug-probes`](testing.md#testing-debug-probes), [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`observability/gc-pause-is-its-own-event`](observability.md#observability-gc-pause-is-its-own-event), [`observability/spawn-is-its-own-event`](observability.md#observability-spawn-is-its-own-event).</sub>
 
 <a id="observability-a-call-never-becomes-a-span"></a>
 
@@ -379,7 +379,7 @@ at once, and a kind is added only for a routine whose cost the existing ones can
 - **An allocation or heap-snapshot timeline.** No probe records an allocation, and adding one is a
   larger design than a further kind on this stream.
 
-<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`observability/a-query-is-a-trace-event`](observability.md#observability-a-query-is-a-trace-event). Decided in [0067](../decisions/0067.md), [0180](../decisions/0180.md).</sub>
+<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`observability/a-query-is-a-trace-event`](observability.md#observability-a-query-is-a-trace-event). Decided in [0180](../decisions/0180.md).</sub>
 
 <a id="observability-a-query-is-a-trace-event"></a>
 
@@ -403,7 +403,7 @@ reports what the caller waited. The same span feeds
 readers there are, and it is what becomes a query span in
 [`observability/four-kinds-become-a-span`](observability.md#observability-four-kinds-become-a-span). Both outputs are inert unless asked for.
 
-<sub>See also [`observability/a-slow-query-is-logged-past-a-threshold`](observability.md#observability-a-slow-query-is-logged-past-a-threshold), [`observability/four-kinds-become-a-span`](observability.md#observability-four-kinds-become-a-span), [`core-classes/db-error`](core-classes.md#core-classes-db-error), [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`testing/debug-probes`](testing.md#testing-debug-probes), [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind). Decided in [0067](../decisions/0067.md).</sub>
+<sub>See also [`observability/a-slow-query-is-logged-past-a-threshold`](observability.md#observability-a-slow-query-is-logged-past-a-threshold), [`observability/four-kinds-become-a-span`](observability.md#observability-four-kinds-become-a-span), [`core-classes/db-error`](core-classes.md#core-classes-db-error), [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`testing/debug-probes`](testing.md#testing-debug-probes), [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind).</sub>
 
 <a id="observability-a-slow-query-is-logged-past-a-threshold"></a>
 
@@ -425,7 +425,7 @@ duration is refused at boot, where it is written.
 The threshold and the trace are asked once, *before* a statement borrows the context, so a request
 that turns either on midway through a statement gets a whole event or none, never half of one.
 
-<sub>See also [`observability/a-query-is-a-trace-event`](observability.md#observability-a-query-is-a-trace-event), [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`errors/log-write`](errors.md#errors-log-write). Decided in [0067](../decisions/0067.md).</sub>
+<sub>See also [`observability/a-query-is-a-trace-event`](observability.md#observability-a-query-is-a-trace-event), [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`errors/log-write`](errors.md#errors-log-write).</sub>
 
 <a id="observability-gc-pause-is-its-own-event"></a>
 

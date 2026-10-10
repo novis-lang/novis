@@ -2,7 +2,6 @@
   "title": "A query given as a string literal is checked while compiling, and no vendor's SQL grammar is ever parsed",
   "status": "shipped",
   "because": [
-    "0067",
     "0145"
   ],
   "seeAlso": [

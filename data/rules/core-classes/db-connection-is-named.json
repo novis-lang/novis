@@ -2,7 +2,6 @@
   "title": "A connection is named in configuration or built from settings, and both memoize for the request",
   "status": "shipped",
   "because": [
-    "0067",
     "0103"
   ],
   "seeAlso": [

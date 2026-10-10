@@ -2,7 +2,6 @@
   "title": "Every column has one natural Novis type, and the requested type converts losslessly or throws",
   "status": "shipped",
   "because": [
-    "0067",
     "0145"
   ],
   "seeAlso": [

@@ -994,12 +994,20 @@ A dynamic identifier, a table or column name SQL cannot bind, goes through `Core
 or an allowlist check.
 
 **Declined:**
+- **Mirroring PDO**: `prepare`/`execute`, fetch-mode constants, `quote()`, `lastInsertId()`,
+  `errorInfo()`. It is the most familiar shape and the easiest conversion target, and each piece breaks
+  a `Core` rule: the flag constants are mode arguments ([`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings)), the error
+  accessors are ambient state where a throw belongs ([`core-api/failure-throws`](core-api.md#core-api-failure-throws)), the binding is
+  by reference, the prepare/query pair is two names for one operation
+  ([`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation)), and the escaper is the weaker answer above.
+- **Drivers as sandboxed extensions.** A connection pool is state that outlives a request, which is
+  the one thing a sandbox boundary cannot hold ([`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum)).
 - **A query text that must be a literal in the source.** It would block legitimate dynamic assembly,
   such as pagination or an allowlisted sort column, to buy a guarantee the untainted rule does not
   need. If real programs show untainted text too easy to build without validation, this is the
   stricter mode to reconsider.
 
-<sub>See also [`core-classes/db-parameters`](core-classes.md#core-classes-db-parameters), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum), [`types/conversion`](types.md#types-conversion). Decided in [0067](../decisions/0067.md).</sub>
+<sub>See also [`core-classes/db-parameters`](core-classes.md#core-classes-db-parameters), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum), [`types/conversion`](types.md#types-conversion).</sub>
 
 <a id="core-classes-db-connection-is-named"></a>
 
@@ -1015,8 +1023,12 @@ Both memoize per request: `connect` keys on the *name*, `open` on a hash of *eve
 Keying `connect` on the name keeps two identically-configured blocks as two connections, because an
 operator who wrote two blocks meant two. Hashing all of `open`'s fields means a second call differing
 only in `timeout` gets its own connection rather than silently inheriting the first caller's.
+Hashing a `secret` password is safe, because a hash of a secret is neutral.
 `{shared: false}` bypasses memoization, which is how a program writes an audit row that must survive
-a rollback or holds session-scoped state off the shared connection.
+a rollback, holds session-scoped state — advisory locks, `SET LOCAL`, temporary tables — off the
+shared connection, or writes while a stream occupies another. It bypasses memoization within the
+request, not the pool across requests: a dedicated connection is still drawn from and returned to
+its core's pool ([`security/db-pool-reset-is-a-boundary`](security.md#security-db-pool-reset-is-a-boundary)).
 
 `Db\Settings` is a discriminated union over enum-case types rather than one loose shape: SQLite takes
 a `path` and has no `host`, so a `host` on a SQLite settings object is a compile error rather than a
@@ -1026,7 +1038,12 @@ A connection is released by the runtime at request teardown — the job a destru
 done by the arena instead. `close()` releases one early, and the name is then free for the next
 `connect`.
 
-<sub>See also [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`core-classes/db-safe-connection-defaults`](core-classes.md#core-classes-db-safe-connection-defaults), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api). Decided in [0067](../decisions/0067.md), [0103](../decisions/0103.md).</sub>
+**Declined:**
+- **A DSN string**, `connect("pgsql:host=db;dbname=shop", $user, $pass)`. It is a mode string
+  encoding structure the type system should carry ([`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings)), and it puts
+  credentials in source by default.
+
+<sub>See also [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`core-classes/db-safe-connection-defaults`](core-classes.md#core-classes-db-safe-connection-defaults), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api). Decided in [0103](../decisions/0103.md).</sub>
 
 <a id="core-classes-db-capabilities"></a>
 
@@ -1050,9 +1067,22 @@ full.
 `Settings.host` refuses `tainted` and has **no launderer**: no string check can establish that a
 hostname is safe to send credentials to, since a malicious server can answer any query with a
 `LOCAL INFILE` request. `Core\Taint::assertTrusted` is the only way through. `database` and `user`
-accept `tainted` freely, and `password` is `secret tainted string`.
+accept `tainted` freely, being length-prefixed protocol fields rather than parsed text, and `password`
+is `secret tainted string`.
 
-<sub>See also [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/db-safe-connection-defaults`](core-classes.md#core-classes-db-safe-connection-defaults). Decided in [0067](../decisions/0067.md), [0118](../decisions/0118.md), [0145](../decisions/0145.md).</sub>
+A SQLite file named in a configuration block is covered by `db.connect`; a path a program supplies
+through `open` additionally needs `fs.read` and `fs.write`, and is a path sink. An ungranted name
+throws naming the capability. What the split buys is that the set of databases a deployment can
+reach is enumerable from its configuration; what it costs is that code building a connection target
+at run time does not run until the operator adds a `db.open` grant.
+
+**Declined:**
+- **A host pattern under `db.connect` or `net.connect`.** `db.connect` names configuration blocks, not
+  hosts, and a pattern under `net.connect` would widen the reachable set to every name an attacker
+  can get into that zone's DNS, which is what the pinned address of
+  [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address) exists to bound.
+
+<sub>See also [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/db-safe-connection-defaults`](core-classes.md#core-classes-db-safe-connection-defaults). Decided in [0118](../decisions/0118.md), [0145](../decisions/0145.md).</sub>
 
 <a id="core-classes-db-safe-connection-defaults"></a>
 
@@ -1073,7 +1103,7 @@ object naming a weaker mode does not compile. **The connection charset is forced
 The cost is one connection option a deployment cannot turn down, which is the point: an unsafe
 default that can be restored is an unsafe default a misconfigured deployment still has.
 
-<sub>See also [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types), [`types/bytes`](types.md#types-bytes). Decided in [0067](../decisions/0067.md).</sub>
+<sub>See also [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types), [`types/bytes`](types.md#types-bytes).</sub>
 
 <a id="core-classes-db-drivers-are-an-enum"></a>
 
@@ -1087,9 +1117,10 @@ its own state machine, error-code table and reset. `Core\Db`'s entry points `mat
 Three reasons, in priority order. **The set is closed**: a new backend is a decision record, not a
 plugin, and a sandboxed extension cannot host one anyway, since a pool is the thing a sandbox
 boundary cannot hold — open-set extensibility is the one property a trait buys and this design does
-not want it. **A trait wide enough for all five would be half unimplemented**: `executeMany` is one
-prepare and N executions on four drivers and a bulk protocol message on the fifth, a prepare is a
-round trip on two and free on one, and a reset is four command sequences and a rollback on the fifth.
+not want it. **A trait wide enough for all five would be half unimplemented**: a prepare is a round trip on
+two and free on one, the TLS handshake sits at a different layer on SQL Server, a local socket is a
+directory on one, a file on two and absent on SQL Server, and a reset is four command sequences and a
+rollback on the fifth.
 A trait method four drivers implement by returning an error is a lie the type system helped tell.
 **Static dispatch on the request path** costs no allocation and no indirect call.
 
@@ -1099,7 +1130,7 @@ placeholder rewriter, the statement cache, the pool, the Novis side of the type 
 normalisation, whose per-driver code tables are *data* each driver supplies rather than behaviour it
 overrides.
 
-<sub>See also [`core-classes/db-crate-boundary`](core-classes.md#core-classes-db-crate-boundary), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`core-classes/db-unix-socket-path`](core-classes.md#core-classes-db-unix-socket-path). Decided in [0132](../decisions/0132.md), [0067](../decisions/0067.md).</sub>
+<sub>See also [`core-classes/db-crate-boundary`](core-classes.md#core-classes-db-crate-boundary), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`core-classes/db-unix-socket-path`](core-classes.md#core-classes-db-unix-socket-path). Decided in [0132](../decisions/0132.md).</sub>
 
 <a id="core-classes-db-unix-socket-path"></a>
 
@@ -1128,7 +1159,7 @@ takes — and answer a server the same way over either, which is what
 `a_driver_answers_the_same_over_either_transport` asserts. `crates/nvs-db/src/tds/mod.rs` refuses a
 path in `TdsTarget::resolve`, as `BlockError`'s `NoSocketTransport`.
 
-<sub>See also [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum). Decided in [0142](../decisions/0142.md), [0067](../decisions/0067.md), [0132](../decisions/0132.md).</sub>
+<sub>See also [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum). Decided in [0142](../decisions/0142.md), [0132](../decisions/0132.md).</sub>
 
 <a id="core-classes-server-version-is-what-the-server-said"></a>
 
@@ -1186,7 +1217,7 @@ An abandoned stream is not automatically poison: a driver that can cancel and dr
 returns to `Idle` and pools the connection, and one that cannot poisons it. That choice is per
 driver, in the driver.
 
-<sub>See also [`core-classes/db-streaming`](core-classes.md#core-classes-db-streaming), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum). Decided in [0132](../decisions/0132.md), [0067](../decisions/0067.md).</sub>
+<sub>See also [`core-classes/db-streaming`](core-classes.md#core-classes-db-streaming), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum). Decided in [0132](../decisions/0132.md).</sub>
 
 <a id="core-classes-db-statement-members"></a>
 
@@ -1208,9 +1239,22 @@ one, which composes with savepoint nesting and with retry. It is one prepare and
 every driver, including MariaDB: its bulk-execute command ends on a refusal where the loop attempts
 every later set, and it cannot route a statement that answers with a result set, so taking it would
 mean one program leaving different rows in two servers. The price is N round trips where one command
-would do, and it is recorded here rather than hidden.
+would do, and it is recorded here rather than hidden. An empty set list is a no-op answering `0`.
+`INSERT … ON DUPLICATE KEY UPDATE` reports `2` for a row it updated on MySQL and MariaDB; that is the
+server's number and it is not rewritten.
 
-<sub>See also [`core-classes/db-streaming`](core-classes.md#core-classes-db-streaming), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state). Decided in [0067](../decisions/0067.md).</sub>
+- **Memory:** a buffered `query` holds its whole result for the rest of the request, counted against
+  the request's memory cap. A program that does not reach for `stream` meets the cap, not a slow path.
+
+**Declined:**
+- **A transaction inside `executeMany`.** A hidden `BEGIN` in a member whose name does not mention
+  one would silently change lock duration on a large batch, and the caller's own `transaction()`
+  already composes ([`core-classes/db-transactions`](core-classes.md#core-classes-db-transactions)).
+- **MariaDB's `COM_STMT_BULK_EXECUTE`.** Taking it would spend a property of the surface on round
+  trips. `MARIADB_CLIENT_BULK_UNIT_RESULTS`, which answers per set, reopens it only once a real server
+  is shown to continue past a refused set under it.
+
+<sub>See also [`core-classes/db-streaming`](core-classes.md#core-classes-db-streaming), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state).</sub>
 
 <a id="core-classes-db-parameters"></a>
 
@@ -1234,7 +1278,7 @@ type, so a `mixed` that turned out to be a list would reshape the query instead 
 `NOT IN`, the rewriter cannot tell which it is in, and picking one silently is worse than making the
 caller branch. Expansion changes the statement's arity, so the statement cache keys on it.
 
-<sub>See also [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members). Decided in [0067](../decisions/0067.md).</sub>
+<sub>See also [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members).</sub>
 
 <a id="core-classes-db-compile-time-query-checking"></a>
 
@@ -1255,9 +1299,16 @@ vendors' grammars in the front end forever. That refusal covers DDL as well as q
 parsing the `CREATE TABLE` a server prints.
 
 What this costs is that a column name typo survives to run time. What it buys is that the compiler
-never has to be right about a dialect it does not own.
+never has to be right about a dialect it does not own. The host check reads the grant through the
+same predicate a request does, so the two cannot disagree about a pattern.
 
-<sub>See also [`core-classes/db-parameters`](core-classes.md#core-classes-db-parameters), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection), [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments). Decided in [0067](../decisions/0067.md), [0145](../decisions/0145.md).</sub>
+**Declined:**
+- **Schema-aware checking now**, validating literal queries and `queryAs<T>` shapes against a live
+  schema. It is the most valuable idea here, and it needs a reachable database at check time, so it
+  can only be a developer-machine mode; a schema read off a live server into a file
+  ([`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection)) is the cache it would read.
+
+<sub>See also [`core-classes/db-parameters`](core-classes.md#core-classes-db-parameters), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection), [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments). Decided in [0145](../decisions/0145.md).</sub>
 
 <a id="core-classes-db-column-types"></a>
 
@@ -1282,9 +1333,33 @@ so `CURRENT_TIMESTAMP` agrees.
 There is deliberately **no universal string**: the universal path is `get(): mixed` plus the
 language's own `as`, so `Core\Db` never grows a second stringification table. Every value a row
 yields is `tainted` where its type can carry it, which closes stored injection by the same mechanism
-as reflected. The same table is read the other way by [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed).
+as reflected. Only `string` and `bytes` carry the qualifier, so arithmetic on an `int`, `decimal` or
+`Instant` column needs no laundering.
 
-<sub>See also [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed), [`types/decimal`](types.md#types-decimal), [`types/uint`](types.md#types-uint), [`types/conversion`](types.md#types-conversion). Decided in [0067](../decisions/0067.md), [0145](../decisions/0145.md).</sub>
+`query` yields a dynamic `Db\Row` whose typed readers answer `?T`, a NULL column being an ordinary
+absence; `queryAs<T>` hydrates an inline shape or a `Core\Db\Codec` class, the same split as
+`Json::decode` and `decodeAs<T>`. Field names match column names exactly, so there is no
+snake-to-camel layer; `AS` in the SQL, or a derived codec's per-field `name`
+([`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list)), is the way to rename. SQLite has no date or time types: its mapping
+keys off the *declared* column type and throws on a value that does not parse. The declared zone is
+a property of one database, written by the operator who knows what its columns mean, not an ambient
+process or request default ([`core-api/no-ambient-state`](core-api.md#core-api-no-ambient-state)).
+
+The same table is read the other way by [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed): one table
+used twice rather than two to keep in step.
+
+**Declined:**
+- **`string` as a universal column reader.** It ports PHP code almost unchanged, and it needs a second
+  conversion table and makes the stringly-typed style frictionless; PHP's everything-is-a-string is an
+  artefact of the MySQL text protocol.
+- **Decoding JSON columns automatically.** It would work on three drivers and not on MariaDB, and
+  `Core\Json::decode` is one call.
+- **A `Zone` argument at every read.** `queryAs<T>` has no call site to pass it at.
+- **`interval` as `Duration`.** An interval carries months, which a duration cannot.
+- **A named zone sent to the server.** Named zones need MySQL's zone tables populated, which they
+  usually are not, so the zone is sent as a numeric offset.
+
+<sub>See also [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed), [`types/decimal`](types.md#types-decimal), [`types/uint`](types.md#types-uint), [`types/conversion`](types.md#types-conversion). Decided in [0145](../decisions/0145.md).</sub>
 
 <a id="core-classes-db-streaming"></a>
 
@@ -1307,7 +1382,7 @@ cannot park. This rule is the member's contract — constant memory, the connect
 statement refused — and the read state each driver leaves between two steps is
 [`core-classes/a-stream-parks-its-read-on-the-connection`](core-classes.md#core-classes-a-stream-parks-its-read-on-the-connection), which is the mechanism under it.
 
-<sub>See also [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state), [`core-classes/a-stream-parks-its-read-on-the-connection`](core-classes.md#core-classes-a-stream-parks-its-read-on-the-connection). Decided in [0067](../decisions/0067.md), [0132](../decisions/0132.md), [0187](../decisions/0187.md).</sub>
+<sub>See also [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state), [`core-classes/a-stream-parks-its-read-on-the-connection`](core-classes.md#core-classes-a-stream-parks-its-read-on-the-connection). Decided in [0132](../decisions/0132.md), [0187](../decisions/0187.md).</sub>
 
 <a id="core-classes-a-stream-parks-its-read-on-the-connection"></a>
 
@@ -1368,9 +1443,25 @@ the owning frame acts on the flag, not on catching the signal.
 Nesting on one connection issues `SAVEPOINT` and `ROLLBACK TO SAVEPOINT`, which removes the reason
 `commit()`, `rollBack()` on the connection and `inTransaction()` each existed. `{retries: n}` re-runs
 the callable on deadlock and serialization failure only, outermost transactions only, and defaults to
-`0` because re-running a callable that sends mail is worse than surfacing the conflict.
+`0` because re-running a callable that sends mail is worse than surfacing the conflict. A retry
+waits with exponential backoff and jitter by suspending the task, never by blocking the core.
+`Isolation` is `ReadUncommitted`, `ReadCommitted`, `RepeatableRead`, `Snapshot` and `Serializable`,
+and a level the driver lacks throws. `Transaction` is the first `Core` type to use `by` delegation.
 
-<sub>See also [`core-classes/db-error`](core-classes.md#core-classes-db-error), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`errors/propagation`](errors.md#errors-propagation). Decided in [0067](../decisions/0067.md).</sub>
+DDL inside `transaction()` is already committed on MySQL and MariaDB, so a later throw rolls back
+nothing there; PostgreSQL is transactional for DDL. No API shape prevents this.
+
+**Declined:**
+- **A `Db\Transaction` with its own query members.** It is the obvious way to type "inside a
+  transaction", and it would be a second copy of the query surface
+  ([`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation)); delegation gives the same type safety with one
+  implementation.
+- **An explicit savepoint API, `commit()`, `rollBack()` on the connection, and `inTransaction()`.**
+  Savepoint nesting removes the reason each existed.
+- **Retrying by default.** Re-running a callable with side effects outside the database is worse than
+  surfacing a conflict.
+
+<sub>See also [`core-classes/db-error`](core-classes.md#core-classes-db-error), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`errors/propagation`](errors.md#errors-propagation).</sub>
 
 <a id="core-classes-db-error"></a>
 
@@ -1384,17 +1475,25 @@ the callable on deadlock and serialization failure only, outermost transactions 
 `SerializationFailure`, `ConnectionLost`, `Timeout`, `Syntax`, `Permission`, `Other` — across four
 drivers and five dialects, MariaDB carrying its own code table rather than MySQL's. SQLite's
 `SQLITE_BUSY` and `SQLITE_LOCKED` map to `Deadlock`, so [`core-classes/db-transactions`](core-classes.md#core-classes-db-transactions)'s retry
-option works there too. The raw values stay available for what normalisation does not cover.
-
-A class per condition was refused: it would add ten types to a deliberately small closed exception
-set, and some boundaries are driver-dependent.
+option works there too. The raw values stay available for what normalisation does not cover. A
+driver that exposes only SQLSTATE and a vendor integer is why code elsewhere matches on
+`"Duplicate entry"` or hard-codes `1062`; a normalised kind removes that string match.
 
 **Bound parameters never appear on the error, in the message, or in a trace** — a `Throwable` message
 is a `secret` sink. The SQL text may, being developer-authored. The four raw values ride the throw on
 one boxed slice, which is eight bytes narrower than the single slot it replaced and costs one
-allocation on a path that is already allocating the object, the message and the backtrace.
+allocation on a path that is already allocating the object, the message and the backtrace. All four
+are nullable, so a slot never written already reads `null` and absence costs nothing.
 
-<sub>See also [`core-classes/db-transactions`](core-classes.md#core-classes-db-transactions), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record). Decided in [0067](../decisions/0067.md).</sub>
+**Declined:**
+- **A class per condition.** It would add ten types to a deliberately small closed exception set, and
+  some boundaries are driver-dependent.
+- **Carrying the raw values inline on the fault.** The fault is the error half of every helper's
+  result, so its width is paid on every successful call; five pairs inline would nearly triple it, and
+  keeping the single pair beside a boxed slice saves nothing and adds a third arm at every site that
+  destructures a fault.
+
+<sub>See also [`core-classes/db-transactions`](core-classes.md#core-classes-db-transactions), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record).</sub>
 
 <a id="core-classes-db-crate-boundary"></a>
 
@@ -1420,7 +1519,7 @@ which is exactly what a sans-IO crate is. Sequencing — what to send next, what
 means, when the connection is reusable — is where this project's own decisions live, and borrowing it
 is what would have dragged an async runtime in. TDS has no such crate and is written by hand.
 
-<sub>See also [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection). Decided in [0132](../decisions/0132.md), [0067](../decisions/0067.md).</sub>
+<sub>See also [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection). Decided in [0132](../decisions/0132.md).</sub>
 
 <a id="core-classes-schema-is-a-value"></a>
 
@@ -1447,7 +1546,7 @@ own spelling of a default are each normalized out on both sides. The acceptance 
 property — apply a schema, introspect it back, and the resulting plan is **empty**, on all five
 backends. Every normalization rule exists because that property failed without it.
 
-<sub>See also [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`types/arrays`](types.md#types-arrays). Decided in [0145](../decisions/0145.md), [0090](../decisions/0090.md), [0067](../decisions/0067.md).</sub>
+<sub>See also [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`types/arrays`](types.md#types-arrays). Decided in [0145](../decisions/0145.md), [0090](../decisions/0090.md).</sub>
 
 <a id="core-classes-schema-vocabulary-is-closed"></a>
 
@@ -1482,7 +1581,7 @@ to mean a construct that is in the vocabulary — SQLite's `CREATE UNIQUE INDEX`
 a constraint, SQL Server's filtered index for a nullable unique key — and the introspector reads that
 spelling back as the construct it stands for.
 
-<sub>See also [`core-classes/schema-is-a-value`](core-classes.md#core-classes-schema-is-a-value), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/a-unique-key-reads-nulls-as-distinct`](core-classes.md#core-classes-a-unique-key-reads-nulls-as-distinct). Decided in [0145](../decisions/0145.md), [0067](../decisions/0067.md), [0187](../decisions/0187.md).</sub>
+<sub>See also [`core-classes/schema-is-a-value`](core-classes.md#core-classes-schema-is-a-value), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/a-unique-key-reads-nulls-as-distinct`](core-classes.md#core-classes-a-unique-key-reads-nulls-as-distinct). Decided in [0145](../decisions/0145.md), [0187](../decisions/0187.md).</sub>
 
 <a id="core-classes-a-unique-key-reads-nulls-as-distinct"></a>
 
@@ -1571,7 +1670,7 @@ anyway, and the introspector must exist for the diff regardless — so a parser 
 worse implementation of a job already done. Offline `.sql` input, if it is ever wanted, is a separate
 tool with its own decision.
 
-<sub>See also [`core-classes/schema-is-a-value`](core-classes.md#core-classes-schema-is-a-value), [`core-classes/db-compile-time-query-checking`](core-classes.md#core-classes-db-compile-time-query-checking), [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges). Decided in [0145](../decisions/0145.md), [0067](../decisions/0067.md).</sub>
+<sub>See also [`core-classes/schema-is-a-value`](core-classes.md#core-classes-schema-is-a-value), [`core-classes/db-compile-time-query-checking`](core-classes.md#core-classes-db-compile-time-query-checking), [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges). Decided in [0145](../decisions/0145.md).</sub>
 
 <a id="core-classes-schema-plan"></a>
 
@@ -1603,7 +1702,7 @@ to be: SQL Server's filtered unique index for a nullable unique key
 ([`core-classes/a-unique-key-reads-nulls-as-distinct`](core-classes.md#core-classes-a-unique-key-reads-nulls-as-distinct)) is `Locking` built over an existing table
 and `Safe` inside a `CREATE TABLE`, exactly as the constraint form is on the other dialects.
 
-<sub>See also [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/schema-absence-never-destroys`](core-classes.md#core-classes-schema-absence-never-destroys), [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges), [`core-classes/a-unique-key-reads-nulls-as-distinct`](core-classes.md#core-classes-a-unique-key-reads-nulls-as-distinct). Decided in [0145](../decisions/0145.md), [0067](../decisions/0067.md), [0187](../decisions/0187.md).</sub>
+<sub>See also [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/schema-absence-never-destroys`](core-classes.md#core-classes-schema-absence-never-destroys), [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges), [`core-classes/a-unique-key-reads-nulls-as-distinct`](core-classes.md#core-classes-a-unique-key-reads-nulls-as-distinct). Decided in [0145](../decisions/0145.md), [0187](../decisions/0187.md).</sub>
 
 <a id="core-classes-schema-absence-never-destroys"></a>
 
@@ -1650,7 +1749,7 @@ step it would run is not `Safe`, and throws naming the first that is not.
 **`applyIncludingRisky()`** says so where it is written, so a reviewer reading the call sees the
 claim being made. `nvs schema plan|apply|dump` is the operator's spelling of the same thing.
 
-<sub>See also [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0145](../decisions/0145.md), [0067](../decisions/0067.md), [0084](../decisions/0084.md).</sub>
+<sub>See also [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0145](../decisions/0145.md), [0084](../decisions/0084.md).</sub>
 
 <a id="core-classes-derive-attribute"></a>
 
@@ -1699,7 +1798,7 @@ argued on its own.
   name to be the same string, which is wrong often enough that two attributes would be needed at
   once. A class using both formats with the same rename writes it twice, and that is visible.
 
-<sub>See also [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`core-classes/derive-generates-what-is-missing`](core-classes.md#core-classes-derive-generates-what-is-missing), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval). Decided in [0067](../decisions/0067.md), [0102](../decisions/0102.md).</sub>
+<sub>See also [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`core-classes/derive-generates-what-is-missing`](core-classes.md#core-classes-derive-generates-what-is-missing), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval). Decided in [0102](../decisions/0102.md).</sub>
 
 <a id="core-classes-derive-field-list"></a>
 
@@ -1751,7 +1850,7 @@ is the property's own name, exactly, with no case mapping between the two.
   ([`core-api/shape-rules`](core-api.md#core-api-shape-rules) R11), and it makes a wire format depend on a setting rather than on
   the source being read.
 
-<sub>See also [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`core-classes/derive-reports-every-field`](core-classes.md#core-classes-derive-reports-every-field), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types). Decided in [0067](../decisions/0067.md).</sub>
+<sub>See also [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`core-classes/derive-reports-every-field`](core-classes.md#core-classes-derive-reports-every-field), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types).</sub>
 
 <a id="core-classes-derive-reports-every-field"></a>
 
@@ -1786,7 +1885,7 @@ recorded.
   learnable ([`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy)), and what was missing was a field on an existing
   class, not a new class.
 
-<sub>See also [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`core-classes/db-error`](core-classes.md#core-classes-db-error), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy). Decided in [0067](../decisions/0067.md).</sub>
+<sub>See also [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`core-classes/db-error`](core-classes.md#core-classes-db-error), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy).</sub>
 
 <a id="core-classes-derive-generates-what-is-missing"></a>
 
@@ -1956,7 +2055,7 @@ transactional enqueue — the property the whole design rests on — requires it
 database is permitted and silently gives up that property, which is why the documentation says so at
 the point the option is offered.
 
-<sub>See also [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges), [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities). Decided in [0084](../decisions/0084.md), [0145](../decisions/0145.md), [0067](../decisions/0067.md), [0153](../decisions/0153.md), [0187](../decisions/0187.md).</sub>
+<sub>See also [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges), [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities). Decided in [0084](../decisions/0084.md), [0145](../decisions/0145.md), [0153](../decisions/0153.md), [0187](../decisions/0187.md).</sub>
 
 <a id="core-classes-session-is-started-explicitly"></a>
 

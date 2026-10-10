@@ -1,9 +1,7 @@
 {
   "title": "A transaction is a callable, and `Transaction` is a `Queryable` rather than a second query surface",
   "status": "shipped",
-  "because": [
-    "0067"
-  ],
+  "because": [],
   "seeAlso": [
     "core-classes/db-error",
     "core-classes/db-statement-members",

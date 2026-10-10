@@ -4248,7 +4248,7 @@ pub mod code {
     /// *fine*: the mistake is in the pairing, which is `rule:expressions/intrinsic-list-is-closed`'s own
     /// reason for naming this member's placeholder check separately — it turns
     /// PHP's `printf` argument-mismatch bug family into a compile error. ADR
-    /// 0067 § 10's placeholder count and its positional-vs-named consistency
+    /// `rule:core-classes/db-compile-time-query-checking`'s placeholder count and its positional-vs-named consistency
     /// are the same question of a second grammar, so they are the same code:
     /// the message carries the reader's own words, per
     /// [`E_INTRINSIC_LITERAL_MALFORMED`]'s.

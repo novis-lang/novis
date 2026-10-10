@@ -1,4 +1,4 @@
-# Every server a test needs, as one file: the five ADR 0067's *Verification* names, the SMTP catcher
+# Every server a test needs, as one file: the five database servers `Core\Db` speaks, the SMTP catcher
 # goal `core-part-ii`'s stage 9 points `Core\Mail` at, and the Samba AD domain controller `Core\Ldap`
 # is tested against.
 #
@@ -19,8 +19,8 @@
 # * **Host ports are non-standard and bound to `127.0.0.1`.** MySQL and MariaDB cannot both be 3306, a
 #   developer machine often already runs one of these, and a test server must never answer the LAN.
 #
-# TLS is on for all of them, because ADR 0067 verifies it per driver and `Core\Mail`'s endpoint shape
-# is 0067's:
+# TLS is on for all of them, because `rule:core-classes/db-safe-connection-defaults` is verified per
+# driver and `Core\Mail`'s endpoint shape is `Core\Db`'s:
 #
 # * MySQL 8.4 generates its own CA and leaf at first boot, in the data directory, and this file points it
 #   at the `certs` volume's pair instead: the auto-generated leaf carries no `subjectAltName` at all, so a
@@ -41,7 +41,7 @@
 #     docker compose -f tests/db/compose.yaml cp postgres:/certs/ca.crt tests/db/ca.crt
 #
 # Credentials are fixed and public on purpose -- these servers hold nothing, reach nothing, and listen on
-# loopback. `bun nv db-matrix` is what points ADR 0067's per-driver list at them.
+# loopback. `bun nv db-matrix` is what points the per-driver list at them.
 
 name: novis-db
 
@@ -129,7 +129,7 @@ services:
   # ---------------------------------------------------------------------------------------------------
   # MySQL. `executeMany`'s bulk path and `INSERT … ON DUPLICATE KEY UPDATE` reporting 2 for an updated
   # row are both verified here and against MariaDB, which is why the two are separate servers rather
-  # than one with a flag -- ADR 0067 § 1.
+  # than one with a flag -- `rule:core-classes/db-one-api`.
   # ---------------------------------------------------------------------------------------------------
   mysql:
     image: mysql:8.4.11

@@ -7,7 +7,7 @@
 //! connection ends up holding was handshaken over a stream that adds and strips
 //! eight-byte headers, and [`TunnelEnd`] is what stops it doing that once the
 //! handshake is finished. A server that would leave the session in plaintext is
-//! refused, per [ADR 0067 § 3](/docs/decisions/0067.md).
+//! refused, per `rule:core-classes/db-safe-connection-defaults`.
 
 use super::*;
 
@@ -43,7 +43,7 @@ pub(super) const PL_ENCRYPTION_AT: u16 = PL_VERSION_AT + PL_VERSION_LEN;
 /// One enum for both halves because MS-TDS gives them one vocabulary: a server
 /// answers with the byte a client would have sent, plus [`Encryption::Required`]
 /// which only it may send. Novis writes [`Encryption::On`] and nothing else —
-/// [ADR 0067 § 3](/docs/decisions/0067.md) has no spelling for an
+/// `rule:core-classes/db-safe-connection-defaults` has no spelling for an
 /// unencrypted database connection — so the client half is a constant and only
 /// the answer is ever parsed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -229,7 +229,7 @@ pub fn prelogin<S: Read + Write>(wire: &mut Wire<S>) -> io::Result<()> {
 /// The TLS handshake's records, carried as [`PacketType::PreLogin`] payloads for
 /// as long as the handshake lasts.
 ///
-/// [ADR 0067 § 3](/docs/decisions/0067.md)'s TLS arrives one layer
+/// `rule:core-classes/db-safe-connection-defaults`'s TLS arrives one layer
 /// lower here than on any other backend. MySQL and PostgreSQL each write a short
 /// plaintext request and then hand the raw socket to `rustls`; SQL Server
 /// tunnels the handshake itself, so every `ClientHello`, certificate and
@@ -410,7 +410,7 @@ impl<S: Read + Write> Write for Tunnel<S> {
 /// PRELOGIN, then the TLS handshake tunnelled inside it, then an ordinary
 /// encrypted wire.
 ///
-/// The whole of `rule:core-classes/db-capabilities` on this backend, and it takes the wire by value
+/// The whole of `rule:core-classes/db-safe-connection-defaults` on this backend, and it takes the wire by value
 /// for [`Wire::upgrade`]'s reason: the codec and anything still buffered survive
 /// the upgrade, because here the encryption starts *between two messages of one
 /// conversation* rather than between two conversations.

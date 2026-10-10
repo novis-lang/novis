@@ -14,7 +14,7 @@ use Core\Db\Row;
 class Person
 {
     public int $id;
-    // ADR 0067 § 6: a text column is always `tainted`, so a `T` whose
+    // A text column is always `tainted`, so a `T` whose
     // text-carrying fields are unqualified is a diagnostic at the `queryAs<T>`
     // call site naming the field. Declaring it here is the answer, not a cast
     // at the other end.

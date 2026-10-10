@@ -2,8 +2,7 @@
   "title": "An existing database is read by catalog query, and no DDL parser exists at any tier",
   "status": "shipped",
   "because": [
-    "0145",
-    "0067"
+    "0145"
   ],
   "seeAlso": [
     "core-classes/schema-is-a-value",

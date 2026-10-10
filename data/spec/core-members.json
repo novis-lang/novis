@@ -1832,7 +1832,7 @@
         [
           "`Core\\Db`",
           "the full surface is § 18 below — the one subsystem in Part II too large for a row. Replaces `PDO` **and** the procedural `mysqli`/`pgsql`/`sqlite3` APIs",
-          "[0067](../decisions/0067.md)"
+          "`rule:core-classes/db-one-api`"
         ],
         [
           "`Core\\Crypto`, `Core\\Crypto\\PublicKey`, `Core\\Crypto\\KeyPair`",

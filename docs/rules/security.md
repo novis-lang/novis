@@ -917,7 +917,7 @@ no policy of its own.
   private address, a container network or loopback, so every ordinary deployment would be denied
   ([`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`config/cache-shared-is-the-grant-over-the-configured-store`](config.md#config-cache-shared-is-the-grant-over-the-configured-store)).
 
-<sub>See also [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink), [`http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`](http-server.md#http-server-a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/net-listen-is-a-separate-grant-from-net-connect`](security.md#security-net-listen-is-a-separate-grant-from-net-connect), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities). Decided in [0118](../decisions/0118.md), [0142](../decisions/0142.md), [0067](../decisions/0067.md), [0162](../decisions/0162.md), [0182](../decisions/0182.md).</sub>
+<sub>See also [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink), [`http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`](http-server.md#http-server-a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/net-listen-is-a-separate-grant-from-net-connect`](security.md#security-net-listen-is-a-separate-grant-from-net-connect), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities). Decided in [0118](../decisions/0118.md), [0142](../decisions/0142.md), [0162](../decisions/0162.md), [0182](../decisions/0182.md).</sub>
 
 <a id="security-net-listen-is-a-separate-grant-from-net-connect"></a>
 
@@ -1052,7 +1052,7 @@ is `?tainted bytes`. The list of sources being **enumerable** is what lets the q
 automatically, and is exactly what `secret` has no equivalent of
 ([`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source)).
 
-<sub>See also [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables). Decided in [0067](../decisions/0067.md), [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
+<sub>See also [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables). Decided in [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
 
 <a id="security-taint-propagation"></a>
 
@@ -1355,7 +1355,7 @@ visible in the source.
 A launderer written for a *new* sink is measured against the two conditions, not against today's
 table, and a sink that acquires an automatic launder reclassifies its own member the day it does.
 
-<sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/sink-predicate`](security.md#security-sink-predicate), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source). Decided in [0133](../decisions/0133.md), [0067](../decisions/0067.md), [0086](../decisions/0086.md).</sub>
+<sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/sink-predicate`](security.md#security-sink-predicate), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source). Decided in [0133](../decisions/0133.md), [0086](../decisions/0086.md).</sub>
 
 <a id="security-capture-answers-the-carrier"></a>
 
@@ -1437,7 +1437,7 @@ with skipping the field as the stated fix. This adds no sink — encoding was al
 the encoder to the declaration that put it on the wire contract, and it replaces a silent omission
 with a written one.
 
-<sub>See also [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`security/taint-propagation`](security.md#security-taint-propagation), [`security/tainted-sources`](security.md#security-tainted-sources). Decided in [0067](../decisions/0067.md).</sub>
+<sub>See also [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`security/taint-propagation`](security.md#security-taint-propagation), [`security/tainted-sources`](security.md#security-tainted-sources).</sub>
 
 <a id="security-assert-trusted"></a>
 
@@ -1531,9 +1531,40 @@ that property or is not pooled.
 **The pool key includes every credential**, so two configuration blocks are two pools and two database
 users never share a connection. It is additionally scoped to the configuration generation it was read
 from: a reload can publish the same block name under a different user, and a pool keyed on the name
-alone would hand the new generation's request a connection authenticated as the old one's.
+alone would hand the new generation's request a connection authenticated as the old one's. A reload
+is therefore two pools, and the superseded generation's connections retire against their own
+`lifetime`.
 
-<sub>See also [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`security/one-tls-client`](security.md#security-one-tls-client), [`security/net-address-policy`](security.md#security-net-address-policy), [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named). Decided in [0067](../decisions/0067.md).</sub>
+The pool is **per core and never shared between cores**: a task never migrates, so the acquire path
+takes no lock, which is the reason to prefer it over one process-wide pool. Per backend, PostgreSQL
+rolls back, then runs `RESET ALL`, `CLOSE ALL`, `UNLISTEN *` and `pg_advisory_unlock_all()` and drops
+the session's temporary schema; MySQL, MariaDB and SQL Server use their atomic reset command, which
+also drops prepared statements, so the statement cache goes with it; a SQLite connection has no
+session state, and rolling back an open transaction is the whole reset. The pool exists to keep a
+connection's handshake and statement cache across requests; Novis code cannot observe whether a
+handshake happened.
+
+Bounds are finite with nothing configured: `[db.<name>.pool]` writes `max` (per core, default 16),
+`idle`, `lifetime` (a connection is retired regardless of health) and `acquire` (waiting for a free
+connection throws rather than hangs). `max` being per core makes a deployment's ceiling on the server
+`cores × max`, the number an operator sizes `max_connections` against. An `open` whose settings hash
+matches a block's takes that block's bounds, since it is already the same pool; any other settings
+literal gets the defaults. `pool = false` restores connect-per-request exactly, for an audited
+environment where each connection must map to one request, and may be written unscoped under `[db]`
+to reach every connection the process opens, including one a program's own settings named. Only the
+switch is unscoped: a `[db.pool]` table of bounds is refused at boot, because no one server's
+`max_connections` is what a pool keyed on a credential hash would be sized against.
+
+- **Memory:** each core holds up to `max` open connections per pool key, with their statement caches,
+  for as long as `lifetime` allows. That is per process and bounded by configuration, never by
+  traffic served.
+
+**Declined:**
+- **`DISCARD ALL` on PostgreSQL.** It also deallocates every prepared statement, which would throw
+  away the statement cache ([`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api)) that pooling exists to preserve.
+- **One process-wide pool.** It needs a lock on every acquire.
+
+<sub>See also [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`security/one-tls-client`](security.md#security-one-tls-client), [`security/net-address-policy`](security.md#security-net-address-policy), [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named).</sub>
 
 <a id="security-ldap-pool-is-bound-as-its-block"></a>
 
@@ -2105,7 +2136,7 @@ own. The plaintext phase of a connection is only ever the upgrade request itself
 What does not generalise is what belongs to the socket rather than to the session — the deadline and
 the peer address — so there is still one clock, on the thing that waits.
 
-<sub>See also [`security/db-pool-reset-is-a-boundary`](security.md#security-db-pool-reset-is-a-boundary), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`core-classes/db-safe-connection-defaults`](core-classes.md#core-classes-db-safe-connection-defaults), [`core-classes/db-crate-boundary`](core-classes.md#core-classes-db-crate-boundary). Decided in [0132](../decisions/0132.md), [0067](../decisions/0067.md), [0180](../decisions/0180.md).</sub>
+<sub>See also [`security/db-pool-reset-is-a-boundary`](security.md#security-db-pool-reset-is-a-boundary), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`core-classes/db-safe-connection-defaults`](core-classes.md#core-classes-db-safe-connection-defaults), [`core-classes/db-crate-boundary`](core-classes.md#core-classes-db-crate-boundary). Decided in [0132](../decisions/0132.md), [0180](../decisions/0180.md).</sub>
 
 <a id="security-tls-trust-is-relaxed-only-under-a-host-grant"></a>
 

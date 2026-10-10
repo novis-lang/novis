@@ -3,8 +3,7 @@
   "status": "shipped",
   "because": [
     "0145",
-    "0090",
-    "0067"
+    "0090"
   ],
   "seeAlso": [
     "core-classes/schema-vocabulary-is-closed",

@@ -183,7 +183,7 @@ pub enum Cap {
     /// `mail.send` — which `[mail.<name>]` blocks a program may send through (`rule:programs/framework-core-half`).
     ///
     /// Named by block and never by host, which is [`DbConnect`](Self::DbConnect)'s shape and ADR
-    /// 0067 § 3's reasoning: the endpoint an operator wrote into root-owned configuration carries
+    /// `rule:core-classes/db-capabilities`'s reasoning: the endpoint an operator wrote into root-owned configuration carries
     /// the authority that granted this capability, so it is pre-approved and is not additionally
     /// asked about `rule:security/net-address-policy`'s denied ranges — where every ordinary relay lives.
     MailSend,

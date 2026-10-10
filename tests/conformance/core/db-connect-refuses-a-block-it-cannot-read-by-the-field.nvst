@@ -30,8 +30,8 @@ driver = "mariadb"
 host = "127.0.0.1"
 
 # A fourth driver this build *does* open, refused on the same first field the
-# other three are. SQL Server reads the block through its own resolver -- ADR
-# 0067 § 2's `driver` again -- and a `password` is what LOGIN7 cannot be built
+# other three are. SQL Server reads the block through its own resolver --
+# `rule:core-classes/db-connection-is-named`'s `driver` again -- and a `password` is what LOGIN7 cannot be built
 # without, so the sentence is its own and not a stand-in for a missing driver.
 [db.mssql]
 driver = "mssql"

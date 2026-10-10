@@ -23,6 +23,14 @@ A dynamic identifier, a table or column name SQL cannot bind, goes through `Core
 or an allowlist check.
 
 **Declined:**
+- **Mirroring PDO**: `prepare`/`execute`, fetch-mode constants, `quote()`, `lastInsertId()`,
+  `errorInfo()`. It is the most familiar shape and the easiest conversion target, and each piece breaks
+  a `Core` rule: the flag constants are mode arguments (`rule:core-api/no-mode-strings`), the error
+  accessors are ambient state where a throw belongs (`rule:core-api/failure-throws`), the binding is
+  by reference, the prepare/query pair is two names for one operation
+  (`rule:core-api/one-paradigm-per-operation`), and the escaper is the weaker answer above.
+- **Drivers as sandboxed extensions.** A connection pool is state that outlives a request, which is
+  the one thing a sandbox boundary cannot hold (`rule:core-classes/db-drivers-are-an-enum`).
 - **A query text that must be a literal in the source.** It would block legitimate dynamic assembly,
   such as pagination or an allowlisted sort column, to buy a guarantee the untainted rule does not
   need. If real programs show untainted text too easy to build without validation, this is the

@@ -144,7 +144,7 @@ pub fn socket_endpoint(host: &str) -> std::io::Result<Endpoint> {
     ))
 }
 
-/// The backends [ADR 0067 § 12](/docs/decisions/0067.md) closes
+/// The backends `rule:core-classes/db-drivers-are-an-enum` closes
 /// the set at.
 ///
 /// MariaDB is its own driver and not a MySQL flag: the two have diverged in
@@ -272,7 +272,7 @@ impl Driver {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BlockError<'a> {
     /// The block names no `driver` at all, so nothing decides which of ADR
-    /// 0067 § 12's backends it is.
+    /// `rule:core-classes/db-drivers-are-an-enum`'s backends it is.
     NoDriver,
     /// `driver` names a backend Novis has, and it is not the one that read it.
     OtherDriver {
@@ -485,7 +485,7 @@ impl State {
     }
 }
 
-/// The isolation levels [ADR 0067 § 7](/docs/decisions/0067.md)'s
+/// The isolation levels `rule:core-classes/db-transactions`'s
 /// `transaction()` takes, as a caller asks for them rather than as any one
 /// server spells them.
 ///
@@ -528,8 +528,7 @@ pub enum Isolation {
 /// cases `Core\Db\Column::type` answers with.
 ///
 /// **This is not a summary of what a read of the column produces**, and the two
-/// questions are deliberately different. [ADR 0067
-/// § 9](/docs/decisions/0067.md)'s type map decodes a `JSON` column to
+/// questions are deliberately different. `rule:core-classes/db-column-types`'s type map decodes a `JSON` column to
 /// a `tainted string` exactly as it decodes a `TEXT` one — it has to, since
 /// MariaDB's `JSON` is `LONGTEXT` with a check constraint and is not detectable
 /// at all — while a *description* of the column can tell them apart wherever the
@@ -587,7 +586,7 @@ pub enum ColumnType {
     Other,
 }
 
-/// [ADR 0067 § 8](/docs/decisions/0067.md)'s normalised `ErrorKind`,
+/// `rule:core-classes/db-error`'s normalised `ErrorKind`,
 /// under a name that cannot be misread as [`std::io::ErrorKind`] in a driver
 /// that spells both in one function.
 ///
@@ -630,7 +629,7 @@ pub enum DbErrorKind {
 }
 
 impl DbErrorKind {
-    /// Whether [ADR 0067 § 7](/docs/decisions/0067.md)'s
+    /// Whether `rule:core-classes/db-transactions`'s
     /// `{retries: n}` re-runs the transaction's callable over this.
     ///
     /// **These two, and nothing else.** A retry is sound only where the server
@@ -1187,7 +1186,7 @@ impl Connection {
     }
 
     /// Bounds this connection's next exchange by `at`, or lifts the bound —
-    /// [ADR 0067 § 4](/docs/decisions/0067.md)'s `{timeout?: Duration}`.
+    /// `rule:core-classes/db-statement-members`'s `{timeout?: Duration}`.
     ///
     /// **One clock per connection, on the thing that waits**, which is the same
     /// clock [`PgConn::connect`] and its siblings already file for the
@@ -1434,7 +1433,7 @@ mod tests {
         assert!(!State::Poisoned.may_start_statement());
     }
 
-    /// [ADR 0067 § 8](/docs/decisions/0067.md)'s normalisation read
+    /// `rule:core-classes/db-error`'s normalisation read
     /// **across** the drivers instead of down one: one condition, spelled the
     /// way each server spells it, answering one [`DbErrorKind`] on all of them.
     ///
