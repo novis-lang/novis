@@ -284,22 +284,28 @@ File set: `benches/compare.json`, `website/src/data/compare.json`.
 
 ### State
 
-**Side goal `compare-page`, stage 4 done; stage 5 next.** `bun nv bench-compare` (`tools/nv/cmd/bench-compare.ts`) runs all four `CASES` (`hello`, `json-api`, `html-page`, `wait`), and `--smoke` is green in Docker for all four. `benches/compare/README.md` § *One program per case per peer* says why each case is built as it is.
+**Side goal `compare-page`, stage 5 in progress: 4 of 15 rows run.** `bun nv bench-compare --scenarios --smoke` exits 0 in Docker and prints a line per row from `SCENARIOS` (`tools/nv/cmd/bench-compare.ts:344`). Each row maps what a peer did to a `Verdict` through a pure function, unit-tested in `tools/nv/test/bench-compare.test.ts`. The compose files and `go/Dockerfile` serve `${TREE}/${CASE}`, so a row folder under `benches/compare/scenarios/` is served as a case is. `benches/compare/README.md` § *The feature scenarios* is why.
 
-`crates/nvs-cli/tests/serve_isolation.rs` is green. Under `nvs serve` in production mode, with `workers = 1` and with `workers = 4`, 8 keep-alive connections at once send 25 requests each. Every request writes a class static from `?v=`, and every body is `0 <its own value>`. No request saw another's static, so stage 4 found no security bug, and the `isolation` row has its Novis fact.
+The first run's results, none a surprise for Novis:
 
-The driver's acceptance sweep is red on `--scenarios` (stage 5) and the page (stage 6). Each is an artefact not written yet, not a regression.
+- `isolation`: Novis built-in, PHP built-in, Bun no, Go no (19 of 20 requests saw another's value).
+- `crash`: all four built-in. PHP answers the throw with `200` (no `php.ini`, so `display_errors` is on), and Go with `502`.
+- `escape`: Novis and Go built-in, PHP and Bun your-code.
+- `headers`: Novis built-in, the other three your-code with none of the three headers.
+
+The `every-scenario-runs` check stays red until all 15 row ids are printed. That is the 11 rows not written, not a regression.
 
 ### Next
 
-**Stage 5: the feature scenarios**, one file set: `benches/compare/scenarios/<id>/` (new, one folder per row) and `tools/nv/cmd/bench-compare.ts`.
+**Stage 5: the rows that need no load**, same file set: `benches/compare/scenarios/<id>/` and `tools/nv/cmd/bench-compare.ts`.
 
-- [ ] **scenarios driver**: `--scenarios` beside `--smoke` in the option parser at `tools/nv/cmd/bench-compare.ts:459`, a `SCENARIOS` table beside `CASES` at `tools/nv/cmd/bench-compare.ts:160`, and `--scenarios --smoke` printing `<id>: <result per peer>`. Goal prose § *Stage 5*.
-- [ ] **the first rows**: `isolation`, `crash`, `headers` and `escape`, which need no load generator, each a folder under `benches/compare/scenarios/`. The `isolation` row's Novis program has the shape of `PROGRAM` at `crates/nvs-cli/tests/serve_isolation.rs:33`.
-- [ ] **unit tests** for the result mapping, in `tools/nv/test/bench-compare.test.ts:1`.
+- [ ] **`csrf`**: a cross-site `POST` with `Origin: https://other.example` to a route that changes state, through `Probe` at `tools/nv/cmd/bench-compare.ts:286` (add a method and headers to `get`). Rejected is `built-in`. Goal prose § *Stage 5*.
+- [ ] **`taint` and `secret`**: `nvs check` over a program that puts a request value into SQL, and one that prints a secret. Run it in the app container (`compose(... ["run", "--rm", "app", "check", ...])` beside `scenarioPass` at `tools/nv/cmd/bench-compare.ts:588`). The other peers get `no` with their documentation linked in the evidence. Rule `core-classes/html-auto-escape` is the sibling shape.
+- [ ] **`live-edit` and `config`**: these need a writable copy of the row folder, since the stacks mount `:ro` (`benches/compare/compose.nvs.yaml:23`). Rules `config/an-edit-reaches-the-next-request-without-a-restart` and `config/a-request-keeps-the-unit-it-resolved`.
 
 ### Backlog
 
-- The rest of stage 5's rows (`cores`, `runaway`, `taint`, `secret`, `csrf`, `waiting`, `parallel`, `live-edit`, `deploy`, `config`, `upgrade`), goal prose § *Stage 5*.
+- The load rows (`cores`, `runaway`, `waiting`, `parallel`, `deploy`, `upgrade`), goal prose § *Stage 5*. `cores` and `waiting` read stage 3's arms rather than new programs.
+- `--scenarios` refuses `--record` for now. Stage 7's record needs the rows under a `scenarios` key in `buildRecord`.
 - Stage 6: `website/src/content/docs/in-depth/compare.mdx`, goal prose § *Stage 6*.
 - `wait`: Novis reached 0.39x of best at 1000 connections on one CPU, with no `503`. The page reports it as measured, since the standing decisions keep the runtime unchanged. Why it is slower is not checked.
