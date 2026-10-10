@@ -152,7 +152,7 @@ name already says. The refusal recovers as `mixed`, which is what keeps one miss
 
 **There is no `resource` type.** A host handle is an ordinary object with an explicit `close()`.
 
-<sub>See also [`types/declaration`](types.md#types-declaration), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/type-alias`](types.md#types-type-alias), [`types/shape-type`](types.md#types-shape-type). Decided in [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0015](../decisions/0015.md), [0024](../decisions/0024.md), [0031](../decisions/0031.md), [0033](../decisions/0033.md), [0036](../decisions/0036.md), [0047](../decisions/0047.md), [0053](../decisions/0053.md), [0054](../decisions/0054.md), [0125](../decisions/0125.md), [0126](../decisions/0126.md), [0136](../decisions/0136.md).</sub>
+<sub>See also [`types/declaration`](types.md#types-declaration), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/type-alias`](types.md#types-type-alias), [`types/shape-type`](types.md#types-shape-type). Decided in [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0024](../decisions/0024.md), [0031](../decisions/0031.md), [0033](../decisions/0033.md), [0036](../decisions/0036.md), [0047](../decisions/0047.md), [0053](../decisions/0053.md), [0054](../decisions/0054.md), [0125](../decisions/0125.md), [0126](../decisions/0126.md), [0136](../decisions/0136.md).</sub>
 
 <a id="types-integer-literals"></a>
 
@@ -1152,7 +1152,17 @@ Aliases are resolved eagerly and a cycle is a diagnostic — `type A = B; type B
 check time rather than left to loop or bottom out at `mixed`. They are non-parametric:
 `type Rows<T> = …` is out of scope while user-defined generics are.
 
-<sub>See also [`types/class-scoped-alias`](types.md#types-class-scoped-alias), [`types/alias-is-never-a-bare-class`](types.md#types-alias-is-never-a-bare-class), [`types/grammar`](types.md#types-grammar), [`types/shape-type`](types.md#types-shape-type). Decided in [0015](../decisions/0015.md), [0007](../decisions/0007.md), [0036](../decisions/0036.md), [0011](../decisions/0011.md).</sub>
+An alias exists because a mandatory annotation can be long: `array<array<int|string>>` written at
+every parameter and property is noise that a short name removes. A file-scope alias does not reopen
+[`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), which closes names that exist at run time with no class
+to own them; an alias, like a `use` import, is resolved and discarded before code is generated.
+
+**Declined:**
+- **A nominal alias, a newtype that needs an explicit conversion.** A distinct type over an existing
+  representation is a different feature with its own costs, and an alias is a transparent synonym
+  only.
+
+<sub>See also [`types/class-scoped-alias`](types.md#types-class-scoped-alias), [`types/alias-is-never-a-bare-class`](types.md#types-alias-is-never-a-bare-class), [`types/grammar`](types.md#types-grammar), [`types/shape-type`](types.md#types-shape-type). Decided in [0007](../decisions/0007.md), [0036](../decisions/0036.md), [0011](../decisions/0011.md).</sub>
 
 <a id="types-alias-is-never-a-bare-class"></a>
 
@@ -1175,7 +1185,11 @@ which is exactly what [`statements/nothing-gets-a-second-name`](statements.md#st
 give a short name to a **shape** — a union, an intersection, a parameterised array, an object shape —
 never to a single already-named class.
 
-<sub>See also [`types/type-alias`](types.md#types-type-alias). Decided in [0015](../decisions/0015.md).</sub>
+**Declined:**
+- **A bare-class alias as a shorthand for a long fully-qualified name.** A `use` of the class under its
+  own short name already shortens it, and the alias would be the same renaming in other syntax.
+
+<sub>See also [`types/type-alias`](types.md#types-type-alias).</sub>
 
 <a id="types-class-scoped-alias"></a>
 
@@ -1316,7 +1330,7 @@ expression-bodied anonymous function already produce exactly the value a block-b
 anonymous function that needs to call itself carries a self-name instead
 ([`types/anonymous-function-self-name`](types.md#types-anonymous-function-self-name)).
 
-<sub>See also [`types/implicit-capture`](types.md#types-implicit-capture), [`types/anonymous-function-self-name`](types.md#types-anonymous-function-self-name), [`types/callable-values`](types.md#types-callable-values). Decided in [0031](../decisions/0031.md), [0015](../decisions/0015.md).</sub>
+<sub>See also [`types/implicit-capture`](types.md#types-implicit-capture), [`types/anonymous-function-self-name`](types.md#types-anonymous-function-self-name), [`types/callable-values`](types.md#types-callable-values). Decided in [0031](../decisions/0031.md).</sub>
 
 <a id="types-callable-signature"></a>
 
@@ -1348,7 +1362,7 @@ The two binding-site variants that stood in for this — a callback-return param
 callbacks — are retired, and the restriction that a shape's every field be a *written* anonymous function
 goes with them, because a `callable(): T`-typed variable now carries what the field needs.
 
-<sub>See also [`types/callable-arity`](types.md#types-callable-arity), [`types/callable-variance`](types.md#types-callable-variance), [`types/anonymous-function-parameter-inference`](types.md#types-anonymous-function-parameter-inference), [`types/callable-values`](types.md#types-callable-values). Decided in [0136](../decisions/0136.md), [0007](../decisions/0007.md), [0031](../decisions/0031.md), [0015](../decisions/0015.md).</sub>
+<sub>See also [`types/callable-arity`](types.md#types-callable-arity), [`types/callable-variance`](types.md#types-callable-variance), [`types/anonymous-function-parameter-inference`](types.md#types-anonymous-function-parameter-inference), [`types/callable-values`](types.md#types-callable-values). Decided in [0136](../decisions/0136.md), [0007](../decisions/0007.md), [0031](../decisions/0031.md).</sub>
 
 <a id="types-callable-arity"></a>
 
@@ -1655,7 +1669,7 @@ The read is deliberately **not** widened to `?T`: optionality and nullability ar
 ([`core-api/required-optional-and-nullable`](core-api.md#core-api-required-optional-and-nullable)), and one language does not answer "the key may be
 absent" two different ways in two containers.
 
-<sub>See also [`types/anonymous-object`](types.md#types-anonymous-object), [`types/object-top`](types.md#types-object-top), [`types/type-alias`](types.md#types-type-alias), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0036](../decisions/0036.md), [0015](../decisions/0015.md), [0007](../decisions/0007.md), [0157](../decisions/0157.md), [0236](../decisions/0236.md), [0238](../decisions/0238.md).</sub>
+<sub>See also [`types/anonymous-object`](types.md#types-anonymous-object), [`types/object-top`](types.md#types-object-top), [`types/type-alias`](types.md#types-type-alias), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0036](../decisions/0036.md), [0007](../decisions/0007.md), [0157](../decisions/0157.md), [0236](../decisions/0236.md), [0238](../decisions/0238.md).</sub>
 
 <a id="types-erased-member-access"></a>
 

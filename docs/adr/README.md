@@ -365,9 +365,9 @@ that is two namespaces is a file whose authority is a function of the line numbe
 ADR has a reading to give that. The rewrite is one file per namespace.
 
 **One `use` names one import; PHP's group form is refused.** `use App\Models\{User, Post};` is `E0238`
-where the `\{` is written, sibling to [0015](../decisions/0015.md) § 2's `E0212` on the other half of
-the same statement. That ADR's rule is that a name is reachable under exactly the spelling it was declared
-with, and the group form does not break it — every short name it introduces is still that name — so this
+where the `\{` is written, sibling to `E0212` on the other half of
+the same statement. `rule:statements/nothing-gets-a-second-name` says a name is reachable under exactly
+the spelling it was declared with, and the group form does not break it — every short name it introduces is still that name — so this
 is priority 4 rather than priority 2: a second spelling of a statement that already exists, whose payoff
 is fewer lines and whose cost is that the set of short names a file introduces is no longer a `grep` for
 `^use` returning one name per line. Novis takes the line-per-import reading, the same trade the alias

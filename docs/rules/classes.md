@@ -579,7 +579,7 @@ override calling the source it wants by name ([`classes/member-conflict-is-an-er
 costs is that code using a trait is restructured by hand, and a trait's `static` property —
 silently copied per consuming class — has no destination at all.
 
-<sub>See also [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/interface-private-methods`](classes.md#classes-interface-private-methods), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field), [`classes/member-conflict-is-an-error`](classes.md#classes-member-conflict-is-an-error), [`types/no-legacy-cast`](types.md#types-no-legacy-cast). Decided in [0043](../decisions/0043.md), [0015](../decisions/0015.md).</sub>
+<sub>See also [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/interface-private-methods`](classes.md#classes-interface-private-methods), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field), [`classes/member-conflict-is-an-error`](classes.md#classes-member-conflict-is-an-error), [`types/no-legacy-cast`](types.md#types-no-legacy-cast). Decided in [0043](../decisions/0043.md).</sub>
 
 <a id="classes-interface-default-methods"></a>
 
@@ -1036,7 +1036,15 @@ existence at all — and it may not name a single bare class, which would be thi
 grammar as a disguise ([`types/alias-is-never-a-bare-class`](types.md#types-alias-is-never-a-bare-class)). The cost is that two
 libraries choosing one short name means writing the fully-qualified one at the call site.
 
-<sub>See also [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`types/type-alias`](types.md#types-type-alias), [`types/alias-is-never-a-bare-class`](types.md#types-alias-is-never-a-bare-class). Decided in [0015](../decisions/0015.md), [0011](../decisions/0011.md).</sub>
+A second name is also a door for swapping, after the fact, which implementation a name resolves to:
+code written against one name can be repointed to a different class by a later call. With no
+`class_alias`, that cannot happen at all, by construction rather than by convention.
+
+**Declined:**
+- **`class_alias` kept for deprecation shims and gradual renames.** It is the same run-time
+  indirection, and rewriting the call sites gives the same migration with only one name live.
+
+<sub>See also [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`types/type-alias`](types.md#types-type-alias), [`types/alias-is-never-a-bare-class`](types.md#types-alias-is-never-a-bare-class). Decided in [0011](../decisions/0011.md).</sub>
 
 <a id="classes-a-constructor-return-carries-no-value"></a>
 

@@ -4,8 +4,7 @@
   "because": [
     "0136",
     "0007",
-    "0031",
-    "0015"
+    "0031"
   ],
   "seeAlso": [
     "types/callable-arity",

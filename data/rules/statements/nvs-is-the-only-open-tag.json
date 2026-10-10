@@ -3,8 +3,7 @@
   "status": "shipped",
   "because": [
     "0049",
-    "0100",
-    "0015"
+    "0100"
   ],
   "seeAlso": [
     "statements/exit-is-the-only-termination-keyword"

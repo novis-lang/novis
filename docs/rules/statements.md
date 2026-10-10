@@ -28,7 +28,7 @@ One file shape reaches code mode without a tag, and it is not a second spelling 
 two bytes are `#!` continues in code mode as if `<?nvs` stood there; writing the tag in a shebang file
 before any `?>` is `E0009`.
 
-<sub>See also [`statements/exit-is-the-only-termination-keyword`](statements.md#statements-exit-is-the-only-termination-keyword). Decided in [0049](../decisions/0049.md), [0100](../decisions/0100.md), [0015](../decisions/0015.md).</sub>
+<sub>See also [`statements/exit-is-the-only-termination-keyword`](statements.md#statements-exit-is-the-only-termination-keyword). Decided in [0049](../decisions/0049.md), [0100](../decisions/0100.md).</sub>
 
 <a id="statements-a-qualified-name-is-absolute"></a>
 
@@ -62,7 +62,7 @@ new Models\User();        // refused: it names `Models\User`, which does not exi
 exist; a qualified name is absolute here. Did you mean `App\Models\User`?* A short name for a class in the
 same namespace, every `use` path, and `Core\Str::length($s)` are unaffected.
 
-<sub>See also [`statements/no-fallback-to-the-root-namespace`](statements.md#statements-no-fallback-to-the-root-namespace), [`statements/a-leading-separator-does-not-parse`](statements.md#statements-a-leading-separator-does-not-parse), [`statements/one-function-resolves-every-name`](statements.md#statements-one-function-resolves-every-name), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name). Decided in [0113](../decisions/0113.md), [0011](../decisions/0011.md), [0015](../decisions/0015.md), [0112](../decisions/0112.md), [0071](../decisions/0071.md).</sub>
+<sub>See also [`statements/no-fallback-to-the-root-namespace`](statements.md#statements-no-fallback-to-the-root-namespace), [`statements/a-leading-separator-does-not-parse`](statements.md#statements-a-leading-separator-does-not-parse), [`statements/one-function-resolves-every-name`](statements.md#statements-one-function-resolves-every-name), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name). Decided in [0113](../decisions/0113.md), [0011](../decisions/0011.md), [0112](../decisions/0112.md), [0071](../decisions/0071.md).</sub>
 
 <a id="statements-no-fallback-to-the-root-namespace"></a>
 
@@ -159,7 +159,11 @@ survives, making a bare `Str` resolve to an unrelated class is structurally unre
 refused, and the symbol table keeps exactly one entry per declared name, with no code path anywhere asking
 whether a name was resolved directly or through an alias.
 
-<sub>See also [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute), [`statements/no-fallback-to-the-root-namespace`](statements.md#statements-no-fallback-to-the-root-namespace). Decided in [0015](../decisions/0015.md), [0011](../decisions/0011.md), [0113](../decisions/0113.md), [0043](../decisions/0043.md).</sub>
+**Declined:**
+- **Import `as` kept for two libraries whose short names collide.** The fully-qualified name is more
+  explicit for a little more typing, and a carve-out for collisions only does not stay narrow.
+
+<sub>See also [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute), [`statements/no-fallback-to-the-root-namespace`](statements.md#statements-no-fallback-to-the-root-namespace). Decided in [0011](../decisions/0011.md), [0113](../decisions/0113.md), [0043](../decisions/0043.md).</sub>
 
 <a id="statements-an-enum-name-is-a-type-everywhere"></a>
 
@@ -633,7 +637,7 @@ were type-checked and lowered identically. Of ten other languages with a termina
 keeps at most one plain spelling of it; where a second primitive exists it is a genuinely different
 behaviour — skips cleanup, cannot be caught, crashes instead of exiting — never a bare synonym.
 
-<sub>See also [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag). Decided in [0049](../decisions/0049.md), [0015](../decisions/0015.md).</sub>
+<sub>See also [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag). Decided in [0049](../decisions/0049.md).</sub>
 
 <a id="statements-a-body-never-falls-off-its-end"></a>
 

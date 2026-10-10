@@ -237,10 +237,10 @@ type the grammar already accepted, yielding `null` where the throwing form would
 type-alias-decl := 'type' ClassName '=' type ';'
 ```
 
-Sits at file/namespace scope, alongside `use` and `namespace` — never inside a class body, per
-[ADR 0015 § 5](../decisions/0015.md). `type` on its own is otherwise an ordinary reserved word in
+Sits at file/namespace scope, alongside `use` and `namespace`, or as a member of a class, interface or
+enum body (`rule:types/type-alias`). `type` on its own is otherwise an ordinary reserved word in
 this one declaration position; it is not a general statement keyword. The restriction that `TypeExpr` may
-not be a single bare class/interface/enum atom ([ADR 0015 § 6](../decisions/0015.md)) is a
+not be a single bare class/interface/enum atom (`rule:types/alias-is-never-a-bare-class`) is a
 resolution-time check (M2), not a parse-time one — the grammar above parses `type Id = SomeClass;` exactly
 like any other alias declaration, and M2's resolver is where it becomes a diagnostic.
 

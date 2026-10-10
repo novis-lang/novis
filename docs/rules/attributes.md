@@ -76,7 +76,7 @@ and the rule that owns it names them: `#[Core\Path]` is written before a `string
 sites but a property hook and that hook's parameter
 ([`attributes/a-deprecation-names-its-replacement-as-code`](attributes.md#attributes-a-deprecation-names-its-replacement-as-code)).
 
-<sub>See also [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/repeatable`](attributes.md#attributes-repeatable), [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute). Decided in [0046](../decisions/0046.md), [0036](../decisions/0036.md), [0015](../decisions/0015.md), [0071](../decisions/0071.md), [0232](../decisions/0232.md), [0275](../decisions/0275.md).</sub>
+<sub>See also [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/repeatable`](attributes.md#attributes-repeatable), [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute). Decided in [0046](../decisions/0046.md), [0036](../decisions/0036.md), [0071](../decisions/0071.md), [0232](../decisions/0232.md), [0275](../decisions/0275.md).</sub>
 
 <a id="attributes-payload-is-a-compile-time-constant"></a>
 

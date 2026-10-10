@@ -2,7 +2,6 @@
   "title": "A `type` alias is a transparent, compile-time-only synonym for a type expression",
   "status": "shipped",
   "because": [
-    "0015",
     "0007",
     "0036",
     "0011"

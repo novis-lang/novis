@@ -2,8 +2,7 @@
   "title": "There is no `trait`: shared behaviour is an interface method with a body, shared state is `by` delegation",
   "status": "shipped",
   "because": [
-    "0043",
-    "0015"
+    "0043"
   ],
   "seeAlso": [
     "classes/interface-default-methods",

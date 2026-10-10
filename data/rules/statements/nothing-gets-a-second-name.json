@@ -2,7 +2,6 @@
   "title": "A declaration is reachable under exactly the name it was declared with",
   "status": "shipped",
   "because": [
-    "0015",
     "0011",
     "0113",
     "0043"

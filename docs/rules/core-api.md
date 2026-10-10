@@ -195,7 +195,7 @@ assignability checks a user-declared static call takes, with no second code path
 The array domain class is spelled `Core\Arr` rather than `Core\Array`, because `array` is a type atom
 ([`types/grammar`](types.md#types-grammar)) and a class of that name would collide with it exactly where a type is expected.
 
-<sub>See also [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`core-api/a-domain-class-is-a-singular-noun`](core-api.md#core-api-a-domain-class-is-a-singular-noun), [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`classes/no-class-alias`](classes.md#classes-no-class-alias), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name). Decided in [0011](../decisions/0011.md), [0015](../decisions/0015.md).</sub>
+<sub>See also [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`core-api/a-domain-class-is-a-singular-noun`](core-api.md#core-api-a-domain-class-is-a-singular-noun), [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`classes/no-class-alias`](classes.md#classes-no-class-alias), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name). Decided in [0011](../decisions/0011.md).</sub>
 
 <a id="core-api-a-domain-class-is-a-singular-noun"></a>
 

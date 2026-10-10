@@ -2,8 +2,7 @@
   "title": "`exit` is the only process-termination keyword; `die` is refused",
   "status": "shipped",
   "because": [
-    "0049",
-    "0015"
+    "0049"
   ],
   "seeAlso": [
     "statements/nvs-is-the-only-open-tag"
