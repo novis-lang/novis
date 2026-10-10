@@ -1,26 +1,26 @@
 {
-  "state": "**Goal `looper-cutover`, Stage 3 (import): the import, `nv-loop-retired` and the shrunk nv chain are on disk.** `docs/goals/` holds the six chain goals, both side goals and the README. `data/chain.json` names `looper-cutover` alone. Four of the six Stage 3 checks pass. `looper lint` is still red.\n\n**Every playbook bullet now names a path in backticks.** Each of the 358 that named none ends its body with ``See `<path>`.`` before its `[until: …]` trailer. The path is the record's first file under `data/playbook/`, or the trailer's own path. The nv trailer form is unchanged, so `bun nv playbook --check` stays green (1211 bullets, all selectable). Converting the trailers to looper's form is `nv-loop-retired`'s Stage 2 (`tools/nv/lib/playbook-fragments.ts:19`).\n\n**A fragment and its record are kept in step by nothing but `bun nv session --wrap`** (`tools/nv/cmd/session.ts:1048`), which writes both through `bulletValue`. No check compares them. After a hand edit to a fragment, re-derive each record with `bulletValue` plus `serialize` from `tools/nv/lib/store.ts`, print that as a splice patch, and apply the patch. Every record is in step now.\n\n**83 bullets are still over looper's 700-byte cap**, from 720 to 958 bytes. Looper counts the fragment file's text, including its indentation and its trailer. The 45 smallest overages are trimmed: each lost a clause that repeated the lead or told a story.\n\n**Still red besides the cap:** the Stage 4 sync (managed files missing or hand-edited). `tools/nv/driver/test/session.test.ts:18` now builds its goal number at runtime, so the goal-by-number finding is gone.",
+  "state": "**Goal `looper-cutover`, Stage 3 (import): the import, `nv-loop-retired` and the shrunk nv chain are on disk.** `docs/goals/` holds the six chain goals, both side goals and the README. `data/chain.json` names `looper-cutover` alone. Four of the six Stage 3 checks pass.\n\n**Every playbook bullet fits looper's 700-byte cap and names a path in backticks.** `looper lint` prints no `more than 700` finding. `bun nv playbook --check` stays green, and every record under `data/playbook/` is in step with its fragment.\n\n**A fragment and its record are kept in step by nothing but `bun nv session --wrap`** (`tools/nv/cmd/session.ts:1048`). After a hand edit to a fragment, re-derive each record with `bulletValue` (`tools/nv/lib/playbook-fragments.ts:78`) plus `serialize` (`tools/nv/lib/store.ts:42`) for `playbookBullet`, print the result as a splice patch, and apply it.\n\n**`looper lint` is still red, and only on managed files**: hand-edited managed text in `.claude/CLAUDE.md`, `.gitattributes`, `AGENTS.md`, `docs/agent/grounding.md`, `docs/agent/playbook.md` and `tools/git-hooks/commit-msg`, and missing `docs/agent/prose.md`, `docs/agent/testing.md` and `docs/agent/rust.md`. These are the same files `looper sync --check` names, so the Stage 3 lint check closes with Stage 4's first sync.",
   "next": {
-    "stage": 3,
-    "title": "import",
-    "files": [
-      "docs/agent/playbook/",
-      "data/playbook/"
-    ],
+    "stage": 4,
+    "title": "hooks, checks and rules",
+    "files": [],
+    "note": "one file set: the managed files `looper sync --check` names.",
     "items": [
       {
         "done": false,
-        "text": "**The next 40 bullets fit 700 bytes** (`docs/agent/playbook/tooling/a-t-row-that-can-carry-a-fault-must-be-emitted-with.md:1` is the smallest, `docs/agent/playbook/writing-novis/a-diagnostic-reported-at-a-read-fires-a-second-time-on-a.md:1` the 40th): list them with `looper lint | grep \"more than 700\"` sorted by size. Print them in one call, cut a clause from each with one `bun nv splice --patch`, then re-derive their records (State says how). Keep the bold lead whole: it is the selector a goal's `context.playbook` names."
+        "text": "**The first sync** — run `looper sync --check`, then follow the runbook's § 8 (`docs/agent/looper-cutover.md:187`) for each managed file: move the project's own text outside the markers, write `docs/agent/rust.md` and `docs/agent/bun.md` as § 8 says, and run `looper sync`. Stage 4's scope is `docs/agent/goals/looper-cutover.md:77`."
       },
       {
         "done": false,
-        "text": "**The last 43 fit 700 bytes** (`docs/agent/playbook/writing-novis/one-new-row-in-nvsstdlib-registry-classes-owes-four-gates.md:1` is the largest, at 958): the same way. A bullet over about 800 bytes may need two clauses cut, or its roster moved into the module doc its path names."
+        "text": "**AGENTS.md takes the session-prompt rules** — each rule `docs/agent/session-prompt.md` holds that a looper session needs moves into AGENTS.md outside the managed markers (`docs/agent/looper-cutover.md:104`)."
+      },
+      {
+        "done": false,
+        "text": "**`tools/git-hooks/commit-msg` keeps the no-trailer gate** outside looper's markers (`docs/agent/looper-cutover.md:80`)."
       }
     ]
   },
   "backlog": [
-    "Two fragments have no record: `docs/agent/playbook/tooling/a-wrap-commit-naming-a-git-mv-files-old-path-fails-after.md` and `…/a-wrap-commit-naming-a-path-already-git-rmd-stops-halfway.md`. Three records have no fragment: `data/playbook/running-things/nvs-test-takes-one-program-per-call-and-two-nvs-paths-are.json`, `data/playbook/tooling/editing-a-rule-fragment-leaves-the-websites-copy-of-it-stale.json` and `data/playbook/writing-novis/as-performs-no-shape-walk-so-the-walk-as-already-does-is-not.json`. Most likely a renamed slug. Owner: `nv-loop-retired` Stage 2, which converts the playbook anyway.",
-    "Stage 4 sync: `looper sync` for the managed files `looper lint` names (`docs/agent/looper-cutover.md`).",
-    "`bun nv plan --check` is red in CI only (`.github/workflows/ci.yml:933`): it derives `Carried by` from `data/chain.json`. Stage 4 or `nv-loop-retired` Stage 2."
+    "Converting the playbook trailers to looper's form is `nv-loop-retired`'s Stage 2 (`tools/nv/lib/playbook-fragments.ts:19`)."
   ]
 }
