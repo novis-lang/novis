@@ -1,9 +1,7 @@
 {
   "title": "The expression form lowers to the block form's landing pad, with the value in a temporary",
   "status": "shipped",
-  "because": [
-    "0119"
-  ],
+  "because": [],
   "seeAlso": [
     "expressions/catch-expression",
     "expressions/catch-result-type",

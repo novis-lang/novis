@@ -343,7 +343,7 @@ reserve that replaces it, `E09xx` being internal compiler errors.
 refuses a bare `try { … }` too, and the parser here accepted it only by omission. `catch (A | B $e)` is
 refused: `$e` carries one static type (`rule:types/declaration`'s `catch` position), and a body
 shared by two classes is written as two clauses or as one clause on their common ancestor — the shape
-[0119](../decisions/0119.md) § 4 already requires of
+`rule:expressions/catch-expression` already requires of
 an expression arm. Both are parse-time refusals in the rejected-PHP band, and each names its rewrite.
 
 **A class or interface constant writes its type.** PHP 8.3's untyped `public const LIMIT = 9;` parsed

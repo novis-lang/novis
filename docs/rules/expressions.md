@@ -813,7 +813,38 @@ first shadows the arms after it, as in the block form.
 The block form is unchanged in every particular and remains the only spelling with `finally`. Resource
 cleanup stays there; this form has no one-line twin for it.
 
-<sub>See also [`expressions/catch-arm-is-an-expression`](expressions.md#expressions-catch-arm-is-an-expression), [`expressions/catch-result-type`](expressions.md#expressions-catch-result-type), [`expressions/catch-expression-precedence`](expressions.md#expressions-catch-expression-precedence), [`expressions/catch-lowers-to-block-form`](expressions.md#expressions-catch-lowers-to-block-form), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy). Decided in [0119](../decisions/0119.md).</sub>
+**Why the form exists.** A failed conversion, an absent key, every `Core` failure, an arithmetic
+overflow and a division by zero all throw, and each costs a caller with a fallback a five-line block.
+Definite assignment makes that block dearer than it looks: a local assigned inside `try` is readable
+after it only when every `catch` assigns it too, so the declaration, the two assignments and the read
+are kept in step by hand. An expression assigns on every path it completes, so the declaration and
+the fallback are one line and the checker has nothing to track.
+
+The form sits beside the two value-shaped spellings and does not replace them: `$s as ?int ?? 1` is
+the conversion ([`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion)) and `$a["k"] ?? $d` the absent key. `$s as int
+catch (…) => null` is legal and pointless, and no diagnostic names it. What a program could catch or
+fail to catch does not change: the same landing pad, the same dispatch and the same re-raise run
+([`expressions/catch-lowers-to-block-form`](expressions.md#expressions-catch-lowers-to-block-form)).
+
+**Declined:**
+- **Extending `??` to swallow any throw.** It is untyped, discards the thrown object and reads as a
+  null check. Every reason a conversion throws on garbage would be one `??` away from undone.
+- **`try? expr` yielding `?T`.** It is untyped, so it catches everything, and it conflates *threw*
+  with *returned `null`*. It is redundant with `as ?T` for the case it does best, and lands every
+  result in the nullable-condition trap ([`expressions/nullable-condition-lint`](expressions.md#expressions-nullable-condition-lint)).
+- **A bare fallback with no `=>`**, as in `f() catch (IOError) 0`. The value dangles after the
+  parenthesis with nothing to say it is the result, and `match` already owns the `condition => value`
+  syntax a reader knows.
+- **A braced multi-arm form**, as in `f() catch { IOError => 0, ParseError $e => throw … }`. Chained
+  arms already give several classes, so it would be a second syntax for the same thing.
+- **A comma-ok pair** (`v, err := f()`). It needs a tuple return Novis does not have, and costs three
+  lines per call.
+- **A `Result` type with a `?` operator.** A sum type is a language-scale decision, and it is declined
+  for conversions on the same grounds.
+- **A `try` keyword opening the guard**, as in `try f() catch …`. The token carries no information:
+  the guard starts where the expression does, and an unguarded throw already propagates without one.
+
+<sub>See also [`expressions/catch-arm-is-an-expression`](expressions.md#expressions-catch-arm-is-an-expression), [`expressions/catch-result-type`](expressions.md#expressions-catch-result-type), [`expressions/catch-expression-precedence`](expressions.md#expressions-catch-expression-precedence), [`expressions/catch-lowers-to-block-form`](expressions.md#expressions-catch-lowers-to-block-form), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy).</sub>
 
 <a id="expressions-catch-expression-precedence"></a>
 
@@ -840,7 +871,7 @@ Two parses this rules out by construction: `try` never appears in the expression
 guard starts at the expression rather than at a keyword; and a `catch` after an expression can only be
 this form, because a block `catch` follows a `}` the statement parser is already inside.
 
-<sub>See also [`expressions/catch-expression`](expressions.md#expressions-catch-expression), [`expressions/catch-arm-is-an-expression`](expressions.md#expressions-catch-arm-is-an-expression), [`expressions/pipeline-precedence`](expressions.md#expressions-pipeline-precedence). Decided in [0119](../decisions/0119.md).</sub>
+<sub>See also [`expressions/catch-expression`](expressions.md#expressions-catch-expression), [`expressions/catch-arm-is-an-expression`](expressions.md#expressions-catch-arm-is-an-expression), [`expressions/pipeline-precedence`](expressions.md#expressions-pipeline-precedence).</sub>
 
 <a id="expressions-catch-arm-is-an-expression"></a>
 
@@ -862,7 +893,12 @@ one, `return` is not; for an early return write the block form.*
 The refusal is deliberate and not a gap to fill later. A `return null` on an `IOError` hides a
 failure, and the block form's five lines are the right price for choosing that.
 
-<sub>See also [`expressions/catch-expression`](expressions.md#expressions-catch-expression), [`expressions/catch-result-type`](expressions.md#expressions-catch-result-type), [`expressions/bare-throwable-arm-warns`](expressions.md#expressions-bare-throwable-arm-warns). Decided in [0119](../decisions/0119.md).</sub>
+**Declined:**
+- **Admitting `return` in an arm**, as in `catch return err`. The arm would then hold either a value
+  or a departure, with nothing in the syntax to say which, and a reader misreads it. The expression
+  rule keeps the one departure that is already an expression and refuses the rest by name.
+
+<sub>See also [`expressions/catch-expression`](expressions.md#expressions-catch-expression), [`expressions/catch-result-type`](expressions.md#expressions-catch-result-type), [`expressions/bare-throwable-arm-warns`](expressions.md#expressions-bare-throwable-arm-warns).</sub>
 
 <a id="expressions-catch-result-type"></a>
 
@@ -880,7 +916,7 @@ An arm is checked from the **pre-guard** definite-assignment state, as a block c
 guarded expression assigned cannot be assumed assigned inside the arm, because the arm runs precisely
 when the guard did not complete.
 
-<sub>See also [`expressions/catch-expression`](expressions.md#expressions-catch-expression), [`expressions/catch-arm-is-an-expression`](expressions.md#expressions-catch-arm-is-an-expression), [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion). Decided in [0119](../decisions/0119.md).</sub>
+<sub>See also [`expressions/catch-expression`](expressions.md#expressions-catch-expression), [`expressions/catch-arm-is-an-expression`](expressions.md#expressions-catch-arm-is-an-expression), [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion).</sub>
 
 <a id="expressions-bare-throwable-arm-warns"></a>
 
@@ -900,7 +936,7 @@ The warning names the two honest spellings: name the class the site expects, or 
 it. It is a warning rather than an error because the hazard is a habit and not a type error, and
 `nvs check` is where habits are named.
 
-<sub>See also [`expressions/catch-arm-is-an-expression`](expressions.md#expressions-catch-arm-is-an-expression), [`expressions/catch-expression`](expressions.md#expressions-catch-expression), [`expressions/nullable-condition-lint`](expressions.md#expressions-nullable-condition-lint). Decided in [0119](../decisions/0119.md).</sub>
+<sub>See also [`expressions/catch-arm-is-an-expression`](expressions.md#expressions-catch-arm-is-an-expression), [`expressions/catch-expression`](expressions.md#expressions-catch-expression), [`expressions/nullable-condition-lint`](expressions.md#expressions-nullable-condition-lint).</sub>
 
 <a id="expressions-catch-lowers-to-block-form"></a>
 
@@ -918,7 +954,9 @@ Nothing in the runtime or in codegen changes, and the landing pad is the one alr
 ([`errors/propagation`](errors.md#errors-propagation)). The cost of a guarded expression that does not throw is the block form's:
 zero on the happy path ([`errors/throw-is-not-slower`](errors.md#errors-throw-is-not-slower)).
 
-<sub>See also [`expressions/catch-expression`](expressions.md#expressions-catch-expression), [`expressions/catch-result-type`](expressions.md#expressions-catch-result-type), [`errors/propagation`](errors.md#errors-propagation), [`errors/throw-is-not-slower`](errors.md#errors-throw-is-not-slower). Decided in [0119](../decisions/0119.md).</sub>
+- **Memory:** nothing. The temporary is the value slot the block form's assignment already needs.
+
+<sub>See also [`expressions/catch-expression`](expressions.md#expressions-catch-expression), [`expressions/catch-result-type`](expressions.md#expressions-catch-result-type), [`errors/propagation`](errors.md#errors-propagation), [`errors/throw-is-not-slower`](errors.md#errors-throw-is-not-slower).</sub>
 
 <a id="expressions-method-reference"></a>
 
