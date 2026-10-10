@@ -1,4 +1,882 @@
 {
+  "/": {
+    "feature": "index.mdx",
+    "hash": "1d957f085f72cd96",
+    "questions": [
+      "What is Novis and what is it for?",
+      "A fast and secure programming language for web applications",
+      "Short example of a web server written in Novis",
+      "Which tools come built into the Novis language?"
+    ]
+  },
+  "/datenschutz/": {
+    "feature": "datenschutz.mdx",
+    "hash": "795a38051c3f1ac1",
+    "questions": [
+      "Does the Novis website use cookies or tracking?",
+      "What data does the Novis website collect about visitors?",
+      "What happens with my data when I donate to Novis?",
+      "How do I get my personal data deleted?"
+    ]
+  },
+  "/guides/": {
+    "feature": "guides/index.mdx",
+    "hash": "f48e7a327f79af20",
+    "questions": [
+      "Which guide should I read first?",
+      "Step by step guides with small programs I can run",
+      "How do I build a real program with Novis?",
+      "Novis tutorials and practical examples"
+    ]
+  },
+  "/guides/cookbook/": {
+    "feature": "guides/cookbook/index.mdx",
+    "hash": "be11fe998d122190",
+    "questions": [
+      "Short recipes for common web tasks in Novis",
+      "Copy and paste examples for everyday server tasks",
+      "Where can I find a quick example for one task?",
+      "Small programs with their output for common jobs"
+    ]
+  },
+  "/guides/cookbook/cache-value/": {
+    "feature": "guides/cookbook/cache-value.mdx",
+    "hash": "7d9a2fa7d98a6892",
+    "questions": [
+      "How do I compute a slow value once and reuse it?",
+      "Example of caching an exchange rate for one hour",
+      "Avoid calling a slow service on every request",
+      "What happens when the cached value expires?"
+    ]
+  },
+  "/guides/cookbook/call-http-api/": {
+    "feature": "guides/cookbook/call-http-api.mdx",
+    "hash": "15f02c39f7491b2f",
+    "questions": [
+      "How do I fetch JSON from a weather service?",
+      "Example of calling another server and reading its reply",
+      "Why should I set a time limit on an outgoing request?",
+      "Read one field from the JSON reply of another server"
+    ]
+  },
+  "/guides/cookbook/hash-password/": {
+    "feature": "guides/cookbook/hash-password.mdx",
+    "hash": "24c56b36329ad5dd",
+    "questions": [
+      "Example of hashing a password and checking a login",
+      "What is a password hash and why store it?",
+      "Why does comparing two password hashes not work?",
+      "Save a user password for a login page"
+    ]
+  },
+  "/guides/cookbook/page-db-rows/": {
+    "feature": "guides/cookbook/page-db-rows.mdx",
+    "hash": "53c0d79f28628df5",
+    "questions": [
+      "How do I show database results page by page?",
+      "Pagination example with limit and offset",
+      "Why does a row appear on two pages?",
+      "Show ten results per page from a database table"
+    ]
+  },
+  "/guides/cookbook/read-json-body/": {
+    "feature": "guides/cookbook/read-json-body.mdx",
+    "hash": "87f0e842dc7da00d",
+    "questions": [
+      "Example of reading JSON from a POST request into a class",
+      "Example of reading an order sent as JSON",
+      "What happens when a JSON field is missing or has the wrong type?",
+      "Get a list of every wrong field in a JSON body"
+    ]
+  },
+  "/guides/cookbook/schedule-job/": {
+    "feature": "guides/cookbook/schedule-job.mdx",
+    "hash": "8d2644a2481ea2d4",
+    "questions": [
+      "How do I run a program every Monday morning?",
+      "Example of a weekly report that runs by itself",
+      "What does the cron line 0 7 * * 1 mean?",
+      "Run a scheduled program once by hand to try it"
+    ]
+  },
+  "/guides/cookbook/signed-cookie/": {
+    "feature": "guides/cookbook/signed-cookie.mdx",
+    "hash": "c96ba7846ba8818f",
+    "questions": [
+      "Cookie example where the client cannot see the value",
+      "Example of storing a value in a cookie and reading it back",
+      "What happens when a user edits the cookie value?",
+      "Send a cookie that the browser cannot change"
+    ]
+  },
+  "/guides/cookbook/signed-url/": {
+    "feature": "guides/cookbook/signed-url.mdx",
+    "hash": "53db476dd8e4a4b5",
+    "questions": [
+      "Example of a temporary download link",
+      "Send a link by email that works only for a short time",
+      "Check that nobody changed a link I sent",
+      "Why does my signed link stop working after a restart?"
+    ]
+  },
+  "/guides/cookbook/upload-file/": {
+    "feature": "guides/cookbook/upload-file.mdx",
+    "hash": "370dc9d948cb5bd5",
+    "questions": [
+      "Store user uploads safely on the server",
+      "Example of a file upload to a folder on the server",
+      "Set a maximum size for files that users upload",
+      "Why should I not use the file name the client sends?"
+    ]
+  },
+  "/guides/cookbook/validate-form/": {
+    "feature": "guides/cookbook/validate-form.mdx",
+    "hash": "24262379b259a18e",
+    "questions": [
+      "Example of checking every field of a contact form",
+      "Show all form errors to the user at once",
+      "How do I check that an email field contains an @?",
+      "Check the name, email and message fields of a form"
+    ]
+  },
+  "/guides/example-apps/": {
+    "feature": "guides/example-apps/index.mdx",
+    "hash": "c2b3314cf335fa4a",
+    "questions": [
+      "Complete example projects I can download and run",
+      "Where can I find a full Novis app to copy?",
+      "A starter project for my own web app",
+      "Sample applications with tests and configuration"
+    ]
+  },
+  "/guides/example-apps/notes/": {
+    "feature": "guides/example-apps/notes.mdx",
+    "hash": "66e56730d4277a75",
+    "questions": [
+      "Example web app with SQLite, HTML pages and a JSON API",
+      "How do I download and run the Notes example app?",
+      "Start my own app by copying an example project",
+      "Small CRUD app with forms and tests"
+    ]
+  },
+  "/guides/how-to-use/": {
+    "feature": "guides/how-to-use/index.mdx",
+    "hash": "9aa6685c6c1ab886",
+    "questions": [
+      "How do the parts of a Novis application fit together?",
+      "Good habits for building a Novis web application",
+      "Things to do and avoid when writing a Novis app",
+      "Overview of configuration, requests, errors and limits"
+    ]
+  },
+  "/guides/how-to-use/configuration/": {
+    "feature": "guides/how-to-use/configuration.mdx",
+    "hash": "11695f74a76eb079",
+    "questions": [
+      "How should I set up the configuration of a new project?",
+      "Good habits for the configuration file of a web project",
+      "How do I create a new configuration file with every setting?",
+      "Use different settings for one folder or script",
+      "Find a typo in my configuration before I deploy",
+      "Why does my program have no permission to read files?"
+    ]
+  },
+  "/guides/how-to-use/errors/": {
+    "feature": "guides/how-to-use/errors.mdx",
+    "hash": "68a7c3ebbecd4c41",
+    "questions": [
+      "Difference between a runtime error and a logic error",
+      "Handle all errors of a request in one place",
+      "Which failures cannot be caught with try and catch?",
+      "Should I show the error message to the user?"
+    ]
+  },
+  "/guides/how-to-use/limits/": {
+    "feature": "guides/how-to-use/limits.mdx",
+    "hash": "3cf4dc1bff0577c3",
+    "questions": [
+      "How do I give one large report more memory than other pages?",
+      "Difference between processor time and total request time",
+      "Starting limit and maximum limit for each request",
+      "Why can a request not raise its limit above the maximum?"
+    ]
+  },
+  "/guides/how-to-use/project-layout/": {
+    "feature": "guides/how-to-use/project-layout.mdx",
+    "hash": "05d92c7351a258fe",
+    "questions": [
+      "How should I organize the folders of a Novis web app?",
+      "Where do I put the entry file, classes and tests?",
+      "Keep tests in a separate tests folder",
+      "Why does Novis not find my nvs.toml?"
+    ]
+  },
+  "/guides/how-to-use/requests/": {
+    "feature": "guides/how-to-use/requests.mdx",
+    "hash": "a63383ff2a04b9b3",
+    "questions": [
+      "How does my program find the route for a request?",
+      "Read query parameters, form fields and headers in a handler",
+      "Set the status code and headers of a response",
+      "Build a link to another page from the route name"
+    ]
+  },
+  "/guides/how-to-use/tainted-input/": {
+    "feature": "guides/how-to-use/tainted-input.mdx",
+    "hash": "0ed78dbecdef1950",
+    "questions": [
+      "What does tainted string mean?",
+      "Why can I not pass request text where a string is needed?",
+      "How do I safely use a value from a form or URL?",
+      "Fix compile error E0401 about a tainted value"
+    ]
+  },
+  "/guides/production/": {
+    "feature": "guides/production/index.mdx",
+    "hash": "7587382507e2a441",
+    "questions": [
+      "How do I deploy a Novis application to production?",
+      "Host a Novis web app on my own server",
+      "Steps before putting my Novis app on the internet",
+      "Production setup guides for a Novis server"
+    ]
+  },
+  "/guides/production/docker/": {
+    "feature": "guides/production/docker.mdx",
+    "hash": "a94a31819692184a",
+    "questions": [
+      "How do I run a Novis app in a Docker container?",
+      "Example Dockerfile for a Novis web application",
+      "Why do connections to my container fail?",
+      "Keep the compile cache when the container is removed",
+      "Pass a database password to a container as a file"
+    ]
+  },
+  "/guides/production/limits-and-logs/": {
+    "feature": "guides/production/limits-and-logs.mdx",
+    "hash": "b997c39f06294d4d",
+    "questions": [
+      "Which limits and log settings does a production server need?",
+      "How do I stop log files from growing too large?",
+      "Change settings without restarting the server",
+      "Which settings need a server restart to apply?",
+      "Get a warning when a request uses most of its memory"
+    ]
+  },
+  "/guides/production/reverse-proxy/": {
+    "feature": "guides/production/reverse-proxy.mdx",
+    "hash": "db9673c1e6d6b79e",
+    "questions": [
+      "How do I run Novis behind nginx with HTTPS?",
+      "Why does my program see the proxy address and not the client?",
+      "Get the real client IP address behind a proxy",
+      "Example nginx configuration for a Novis server",
+      "What status does the health check return while the server stops?"
+    ]
+  },
+  "/guides/production/run-as-a-service/": {
+    "feature": "guides/production/run-as-a-service.mdx",
+    "hash": "619d8ccd148fe8b5",
+    "questions": [
+      "How do I keep my Novis server running after a reboot?",
+      "Where does a background service write its log?",
+      "Why does my service not start, and how do I see the error?",
+      "Which folders can the service account write to?",
+      "Run my web server in production as its own user account"
+    ]
+  },
+  "/guides/production/security-checklist/": {
+    "feature": "guides/production/security-checklist.mdx",
+    "hash": "a32cb8aa6ab8379c",
+    "questions": [
+      "What should I check before my server goes live?",
+      "Security checklist for deploying a Novis web app",
+      "How do I make my production server secure?",
+      "Common security mistakes before the first request"
+    ]
+  },
+  "/guides/simple-programs/": {
+    "feature": "guides/simple-programs/index.mdx",
+    "hash": "59841f514553e220",
+    "questions": [
+      "Small complete Novis programs I can copy and run",
+      "Where can I find example scripts for common everyday tasks?",
+      "Programs that read files, call web services and handle forms",
+      "Short programs in one file each, with their output"
+    ]
+  },
+  "/guides/simple-programs/csv-report/": {
+    "feature": "guides/simple-programs/csv-report.mdx",
+    "hash": "e1da7fb2633465af",
+    "questions": [
+      "How do I add up sales per product from a spreadsheet file?",
+      "Example of reading a CSV file and printing totals",
+      "What happens when a CSV field is not a number?",
+      "How do I group rows by a column and sum the values?",
+      "Turn the text fields of a CSV row into numbers"
+    ]
+  },
+  "/guides/simple-programs/file-watcher/": {
+    "feature": "guides/simple-programs/file-watcher.mdx",
+    "hash": "388e637392b0a5b6",
+    "questions": [
+      "How do I print something every time a file changes?",
+      "Example of a program that watches a file for changes",
+      "How do I check when a file was last changed?",
+      "How often should a watcher check a file for changes?",
+      "Run a loop forever and wait between checks"
+    ]
+  },
+  "/guides/simple-programs/form-handler/": {
+    "feature": "guides/simple-programs/form-handler.mdx",
+    "hash": "80708369e6bfd226",
+    "questions": [
+      "How do I handle a contact form and reply with HTML?",
+      "Example of reading a POST form into an object",
+      "How do I return status 422 when an email address is invalid?",
+      "Test a form handler with curl from the terminal",
+      "Can a visitor put a script tag into my form reply page?"
+    ]
+  },
+  "/guides/simple-programs/json-api/": {
+    "feature": "guides/simple-programs/json-api.mdx",
+    "hash": "8eda843b5bfa8dbc",
+    "questions": [
+      "Example of a JSON API in Novis",
+      "How do I return one product as JSON by its id?",
+      "How do I read a number from the URL path?",
+      "What should my API return when a product does not exist?",
+      "Build a small REST endpoint that returns 404 for unknown ids"
+    ]
+  },
+  "/guides/simple-programs/scheduled-job/": {
+    "feature": "guides/simple-programs/scheduled-job.mdx",
+    "hash": "b1779d30ab9cf814",
+    "questions": [
+      "How do I delete old log files every night?",
+      "Example of a job that runs at 3 in the morning",
+      "Keep only the newest three files in a folder",
+      "Run a cleanup job on only one of my servers"
+    ]
+  },
+  "/guides/simple-programs/scraper/": {
+    "feature": "guides/simple-programs/scraper.mdx",
+    "hash": "f5c2976df3659bd8",
+    "questions": [
+      "How do I download a web page and list its links?",
+      "Example of a web scraper in Novis",
+      "How do I find every link in an HTML page?",
+      "Why is the text of a downloaded page tainted?",
+      "Walk through all nodes of an HTML tree recursively"
+    ]
+  },
+  "/guides/testing/": {
+    "feature": "guides/testing/index.mdx",
+    "hash": "8b83db8e471227f5",
+    "questions": [
+      "How do I test my Novis application?",
+      "Which testing guide do I need for my task?",
+      "Guides for unit tests, fake services and page tests",
+      "Where do I start with testing in Novis?"
+    ]
+  },
+  "/guides/testing/coverage/": {
+    "feature": "guides/testing/coverage.mdx",
+    "hash": "5a3ff50021e72907",
+    "questions": [
+      "How do I see which lines my tests do not run?",
+      "Send a test coverage report to my build server",
+      "Why do lines outside a class always show zero runs?",
+      "Which folder should I run the tests from for coverage?",
+      "What does a DA line in an lcov file mean?"
+    ]
+  },
+  "/guides/testing/run-tests/": {
+    "feature": "guides/testing/run-tests.mdx",
+    "hash": "0dae70df1be75974",
+    "questions": [
+      "How do I write my first test and run it?",
+      "What does the output look like when a test fails?",
+      "How do I run every test in my project at once?",
+      "Run only the tests whose name contains some text",
+      "Why does a test without any assertion fail?",
+      "Write test results as JUnit XML for a CI server"
+    ]
+  },
+  "/guides/testing/test-a-route/": {
+    "feature": "guides/testing/test-a-route.mdx",
+    "hash": "bbd6358fd0e016ca",
+    "questions": [
+      "How do I test a page without starting a server?",
+      "Check the status code and body of a route in a test",
+      "Send a fake request through my routes in a test",
+      "How do I test a WebSocket with a real local server?",
+      "Read a JSON response into an object inside a test"
+    ]
+  },
+  "/guides/testing/test-doubles/": {
+    "feature": "guides/testing/test-doubles.mdx",
+    "hash": "feeaba0b6ea636ac",
+    "questions": [
+      "How do I fake a mail server in a test?",
+      "Mock an HTTP API so tests run without a network",
+      "How do I fix the clock at a certain time in a test?",
+      "Check that my code called a method with the right arguments",
+      "Replace only some methods of a real object in a test",
+      "Why can my class not get a fake object in a test?"
+    ]
+  },
+  "/guides/tour/": {
+    "feature": "guides/tour/index.mdx",
+    "hash": "580f036f6eed2cbc",
+    "questions": [
+      "Where do I start learning Novis?",
+      "Step by step tutorial from Hello world to a web app",
+      "Beginner course for Novis with programs I can run",
+      "In what order should I learn the language?"
+    ]
+  },
+  "/guides/tour/01-methods-and-types/": {
+    "feature": "guides/tour/01-methods-and-types.mdx",
+    "hash": "ea8bffba003fcf47",
+    "questions": [
+      "First steps: write a method and call it",
+      "Why must every function be inside a class?",
+      "Tutorial step on typed parameters and return types",
+      "What happens when I pass a string where a number is expected?"
+    ]
+  },
+  "/guides/tour/02-arrays-and-loops/": {
+    "feature": "guides/tour/02-arrays-and-loops.mdx",
+    "hash": "5864405394693b21",
+    "questions": [
+      "Tutorial step on keeping a list of values",
+      "How do I add an item to the end of a list?",
+      "Loop over a list for the first time",
+      "How do I count the items in a list as a beginner?",
+      "Learn arrays and foreach with a task list"
+    ]
+  },
+  "/guides/tour/03-classes-and-objects/": {
+    "feature": "guides/tour/03-classes-and-objects.mdx",
+    "hash": "25ab0ad5fb04254a",
+    "questions": [
+      "Tutorial step on making my first class and object",
+      "What runs when I create an object with new?",
+      "What is this inside a method?",
+      "Change a property of an object stored in a list"
+    ]
+  },
+  "/guides/tour/04-null/": {
+    "feature": "guides/tour/04-null.mdx",
+    "hash": "4e4e52b1b6650ddc",
+    "questions": [
+      "Tutorial step on values that may be missing",
+      "How do I say that a variable can be empty?",
+      "What does a ? in front of a type mean?",
+      "Give a fallback value when a search finds nothing"
+    ]
+  },
+  "/guides/tour/05-errors/": {
+    "feature": "guides/tour/05-errors.mdx",
+    "hash": "f0cc4128049a7fb6",
+    "questions": [
+      "Tutorial step on throwing and catching errors",
+      "How do I stop a constructor when a value is wrong?",
+      "How do I keep a loop going after one item fails?",
+      "Where does an error go after it is thrown?",
+      "What happens to my program without a try block?"
+    ]
+  },
+  "/guides/tour/06-enums-and-match/": {
+    "feature": "guides/tour/06-enums-and-match.mdx",
+    "hash": "bfa5e24789882296",
+    "questions": [
+      "Tutorial step on a fixed set of choices",
+      "How do I give a task a low, normal or high priority?",
+      "Pick a different result for each case of an enum",
+      "When does match not need a default arm?",
+      "Learn enums with a beginner example"
+    ]
+  },
+  "/guides/tour/07-json/": {
+    "feature": "guides/tour/07-json.mdx",
+    "hash": "2894ded2e38958d6",
+    "questions": [
+      "Tutorial step on saving objects as JSON",
+      "How do I turn a list of objects into JSON text?",
+      "Read JSON text back into my own object as a beginner",
+      "What happens when a key is missing from the JSON?",
+      "Learn JSON in Novis with a task list example"
+    ]
+  },
+  "/guides/tour/08-tests/": {
+    "feature": "guides/tour/08-tests.mdx",
+    "hash": "7a3aa720a53a9889",
+    "questions": [
+      "Tutorial step on writing my first test",
+      "Can I put tests in the same file as my code?",
+      "Check that two values are equal in a beginner test",
+      "Why does nvs run skip my tests?",
+      "Learn testing as part of the Novis tour"
+    ]
+  },
+  "/guides/tour/09-html/": {
+    "feature": "guides/tour/09-html.mdx",
+    "hash": "afdcdfabb5a7aed6",
+    "questions": [
+      "Tutorial step on writing HTML from a program",
+      "How do I put a variable into an HTML page?",
+      "Combine two pieces of HTML into one page",
+      "Insert ready-made HTML without escaping it twice",
+      "Learn HTML templates with a beginner example"
+    ]
+  },
+  "/guides/tour/10-web-app/": {
+    "feature": "guides/tour/10-web-app.mdx",
+    "hash": "a21aa427c3287a3b",
+    "questions": [
+      "Tutorial step on building my first web application",
+      "How do I serve a page in the browser with nvs serve?",
+      "Show a different page depending on the request path",
+      "Return a Not found page with status 404",
+      "What do I learn after finishing the tour?"
+    ]
+  },
+  "/guides/why-novis/": {
+    "feature": "guides/why-novis/index.mdx",
+    "hash": "2296236957cad3cc",
+    "questions": [
+      "Why should I choose Novis for my next project?",
+      "What makes Novis different from other languages?",
+      "Safety and design features of Novis in short examples",
+      "Why is Novis safe and simple for web servers?"
+    ]
+  },
+  "/guides/why-novis/checked-conversions/": {
+    "feature": "guides/why-novis/checked-conversions.mdx",
+    "hash": "c1e42023a629094a",
+    "questions": [
+      "Why does Novis not turn 12abc into 12?",
+      "Why are type conversions checked in Novis?",
+      "Is it safe to convert text to a number in Novis?",
+      "Why convert strictly instead of guessing a number"
+    ]
+  },
+  "/guides/why-novis/html-escapes/": {
+    "feature": "guides/why-novis/html-escapes.mdx",
+    "hash": "96d1a1d1334f272c",
+    "questions": [
+      "How does Novis protect my pages against cross-site scripting?",
+      "Do I have to remember to escape user text in HTML?",
+      "Why is a script tag from a user shown as text?",
+      "Is XSS possible in a Novis template?",
+      "Why HTML output is safe by default"
+    ]
+  },
+  "/guides/why-novis/no-null-surprises/": {
+    "feature": "guides/why-novis/no-null-surprises.mdx",
+    "hash": "83e7e1ca0e109b71",
+    "questions": [
+      "Why can a normal variable never be null in Novis?",
+      "How does Novis prevent null pointer errors?",
+      "Find missing null checks before the program runs",
+      "Why is null checked by the compiler and not at runtime?",
+      "What happens when I forget a null check?"
+    ]
+  },
+  "/guides/why-novis/one-failure/": {
+    "feature": "guides/why-novis/one-failure.mdx",
+    "hash": "a026ee399ca06a9c",
+    "questions": [
+      "Can one bad request crash the whole server?",
+      "What happens to other requests when one runs out of memory?",
+      "Why is each request isolated from the others?",
+      "Run a child program that fails without stopping the parent"
+    ]
+  },
+  "/guides/why-novis/one-library/": {
+    "feature": "guides/why-novis/one-library.mdx",
+    "hash": "675b0bd52a6e5111",
+    "questions": [
+      "Do I need packages for HTTP, JSON or a database?",
+      "Why does Novis have one standard library?",
+      "What is the argument order of standard library methods?",
+      "Is there one method for each common task?",
+      "Built-in library instead of third-party dependencies"
+    ]
+  },
+  "/guides/why-novis/secret-values/": {
+    "feature": "guides/why-novis/secret-values.mdx",
+    "hash": "f9999a987c97cdac",
+    "questions": [
+      "How do I stop passwords from ending up in log files?",
+      "Why can a secret string not be printed?",
+      "Keep API keys out of error messages and debug output",
+      "How do I get the plain text of a secret when needed?",
+      "Is a string built from a secret also secret?"
+    ]
+  },
+  "/guides/why-novis/simple-errors/": {
+    "feature": "guides/why-novis/simple-errors.mdx",
+    "hash": "e7906a74af1672f1",
+    "questions": [
+      "Why does Novis have a catch expression?",
+      "Is throwing an error slow on a busy web server?",
+      "When should I use a try block instead?",
+      "Can I use errors for normal cases like missing records?"
+    ]
+  },
+  "/guides/why-novis/tainted-input/": {
+    "feature": "guides/why-novis/tainted-input.mdx",
+    "hash": "6b90c95aa40425e3",
+    "questions": [
+      "How does Novis protect against unsafe user input?",
+      "Why does the compiler check where form data goes?",
+      "Which values count as input from outside the program?",
+      "Find injection mistakes before code review"
+    ]
+  },
+  "/guides/why-novis/tests-in-code/": {
+    "feature": "guides/why-novis/tests-in-code.mdx",
+    "hash": "89f427b6caca15df",
+    "questions": [
+      "Why is the test runner built into Novis?",
+      "Do I need to choose and configure a test framework?",
+      "Can one test change a value another test reads?",
+      "Why are tests part of the language itself?"
+    ]
+  },
+  "/guides/why-novis/typed-json/": {
+    "feature": "guides/why-novis/typed-json.mdx",
+    "hash": "f3d4f2bfd8736602",
+    "questions": [
+      "Why does Novis check JSON against a class?",
+      "Safe JSON parsing with types instead of loose arrays",
+      "Do I need to write validation code for incoming JSON?",
+      "Can a field be missing after reading JSON into an object?"
+    ]
+  },
+  "/guides/why-novis/unicode-strings/": {
+    "feature": "guides/why-novis/unicode-strings.mdx",
+    "hash": "2ac03659e78b16a7",
+    "questions": [
+      "Why are all strings UTF-8 in Novis?",
+      "Does string length count emoji as one character?",
+      "Do I need separate functions for multi-byte text?",
+      "How do I reverse text without breaking emoji?"
+    ]
+  },
+  "/impressum/": {
+    "feature": "impressum.mdx",
+    "hash": "897c5ed01aff18f9",
+    "questions": [
+      "Who owns and publishes the Novis website?",
+      "How do I contact the people behind Novis?",
+      "Legal notice and company details of the Novis project",
+      "Under which license are the texts on this website?"
+    ]
+  },
+  "/in-depth/": {
+    "feature": "in-depth/index.mdx",
+    "hash": "db2cb7a073c4f7ac",
+    "questions": [
+      "Why does Novis work the way it does?",
+      "Where can I read about the design decisions behind Novis?",
+      "Background reading on the ideas and goals of Novis",
+      "What are the downsides and future plans of Novis?"
+    ]
+  },
+  "/in-depth/concepts/": {
+    "feature": "in-depth/concepts/index.mdx",
+    "hash": "2df9e4cce8c2d29f",
+    "questions": [
+      "Introduction to how Novis runs and protects a web request",
+      "Overview of the main ideas in Novis",
+      "Which core concepts should I understand before using Novis?",
+      "Short explanations of request isolation, limits and safe text"
+    ]
+  },
+  "/in-depth/concepts/compiled/": {
+    "feature": "in-depth/concepts/compiled.mdx",
+    "hash": "1bc711f1eaa07d6a",
+    "questions": [
+      "Is Novis compiled or interpreted?",
+      "Do I need a build step before I run a Novis file?",
+      "Do I have to restart the server after I change a file?",
+      "Why do I see type errors before my program runs?",
+      "How does Novis protect the machine code it generates?"
+    ]
+  },
+  "/in-depth/concepts/isolation/": {
+    "feature": "in-depth/concepts/isolation.mdx",
+    "hash": "cf5691b7d890d04b",
+    "questions": [
+      "Can one request change the data of another request?",
+      "What happens to other requests when one request crashes?",
+      "Why is my static property empty on the next request?",
+      "Do requests share memory in Novis?"
+    ]
+  },
+  "/in-depth/concepts/limits/": {
+    "feature": "in-depth/concepts/limits.mdx",
+    "hash": "abccf47885545523",
+    "questions": [
+      "Why does every request have a memory and time limit?",
+      "What happens when a request uses too much memory?",
+      "Do tasks started by a request share its memory limit?",
+      "How do I calculate the most memory my server can use?",
+      "Can a request raise its own limit?"
+    ]
+  },
+  "/in-depth/concepts/tainted-input/": {
+    "feature": "in-depth/concepts/tainted-input.mdx",
+    "hash": "822170c66cd67add",
+    "questions": [
+      "How does Novis prevent SQL injection and cross-site scripting?",
+      "What is tainted input and why does it matter?",
+      "Why does a form field not compile in my SQL query?",
+      "Which ways make text from a request safe to use?"
+    ]
+  },
+  "/in-depth/concepts/utf8-strings/": {
+    "feature": "in-depth/concepts/utf8-strings.mdx",
+    "hash": "eb5103675f240440",
+    "questions": [
+      "Are strings in Novis always valid UTF-8?",
+      "What is the difference between a string and bytes?",
+      "Is counting characters in a string slow?",
+      "How does Novis handle text with accents and emoji?"
+    ]
+  },
+  "/in-depth/design-principles/": {
+    "feature": "in-depth/design-principles.mdx",
+    "hash": "5acfefb7e0bd0f40",
+    "questions": [
+      "Why does Novis have only one way to do each job?",
+      "What does safe by default mean in Novis?",
+      "How do I get a longer explanation of a compiler error code?",
+      "The main ideas behind the design of the language"
+    ]
+  },
+  "/in-depth/falls-behind/": {
+    "feature": "in-depth/falls-behind.mdx",
+    "hash": "f57c710af5c08a7d",
+    "questions": [
+      "What are the disadvantages of using Novis today?",
+      "Is Novis ready for production use?",
+      "Why does a Novis server use more memory than others?",
+      "Does Novis have many third-party packages?",
+      "Why must I pass the locale to every date or sort function?"
+    ]
+  },
+  "/in-depth/how-we-decide/": {
+    "feature": "in-depth/how-we-decide.mdx",
+    "hash": "5c9c9a1931803bdc",
+    "questions": [
+      "How does Novis choose between two designs?",
+      "What matters more in Novis, speed or security?",
+      "Why does changing an array copy it?",
+      "Priorities of the Novis project in order",
+      "Why is low memory use the last priority?"
+    ]
+  },
+  "/in-depth/never/": {
+    "feature": "in-depth/never.mdx",
+    "hash": "7d04ed6498b4040e",
+    "questions": [
+      "Can I load a C library into a Novis program?",
+      "Why does Novis have no global variables?",
+      "Does Novis run my existing PHP files unchanged?",
+      "Features Novis will never add, and why",
+      "How will extensions work without native code?"
+    ]
+  },
+  "/in-depth/roadmap/": {
+    "feature": "in-depth/roadmap.mdx",
+    "hash": "0a90b0ed0477aaf7",
+    "questions": [
+      "What features are planned for Novis?",
+      "Will Novis get a package manager?",
+      "Is there a web framework for Novis?",
+      "Which databases does Novis support today?",
+      "What can Novis do today, and what comes next?"
+    ]
+  },
+  "/in-depth/what-changed/": {
+    "feature": "in-depth/what-changed.mdx",
+    "hash": "3377687a5765f6c4",
+    "questions": [
+      "Release notes for each version of Novis",
+      "What is new in Novis version 0.1?",
+      "Which changes in a new release can break my code?",
+      "Changelog of the Novis language"
+    ]
+  },
+  "/in-depth/what-for/": {
+    "feature": "in-depth/what-for.mdx",
+    "hash": "4c969bfb0662152a",
+    "questions": [
+      "What kind of programs is Novis made for?",
+      "Can I use Novis for command-line scripts and scheduled jobs?",
+      "Is Novis similar to PHP?",
+      "Why choose Novis for a web server?"
+    ]
+  },
+  "/install/": {
+    "feature": "install/index.mdx",
+    "hash": "a370a84224ed883f",
+    "questions": [
+      "How do I install Novis?",
+      "Build nvs from source on Windows, Linux or macOS",
+      "Which Rust version and C compiler do I need to build Novis?",
+      "How do I add nvs to my PATH?",
+      "Which nvs commands should I learn first?"
+    ]
+  },
+  "/install/editor/": {
+    "feature": "install/editor.mdx",
+    "hash": "3d9a43fd6bfecba4",
+    "questions": [
+      "How do I build the VS Code extension from source?",
+      "Why does the extension not find my nvs program?",
+      "Which extension version works with my nvs version?",
+      "Show a sign next to tainted values in the editor",
+      "Run a file or its tests from the VS Code command palette"
+    ]
+  },
+  "/install/hello-world/": {
+    "feature": "install/hello-world.mdx",
+    "hash": "2a0a2900b02ca636",
+    "questions": [
+      "How do I write my first Novis program?",
+      "Hello world example in Novis",
+      "How do I run a .nvs file from the terminal?",
+      "Read a name from the command line and print a greeting",
+      "What does the opening tag at the top of a file do?"
+    ]
+  },
+  "/install/server/": {
+    "feature": "install/server.mdx",
+    "hash": "e87d7162d3881558",
+    "questions": [
+      "How do I install Novis on a production server?",
+      "Where does Novis keep its cache, logs and config files?",
+      "Which folder permissions does Novis check before it starts?",
+      "Why does nvs warn that it cannot use its data folder?",
+      "Set folder permissions for Novis on Windows with icacls"
+    ]
+  },
+  "/reference/": {
+    "feature": "reference/index.mdx",
+    "hash": "5b374bcb678b79da",
+    "questions": [
+      "Where is the full list of Novis classes, settings and commands?",
+      "Reference documentation for Novis",
+      "Find the page for a standard library class or nvs command",
+      "Look up every setting of the configuration file"
+    ]
+  },
   "/reference/cli/a-worked-session/": {
     "feature": "tools:agents/a-worked-session",
     "hash": "d85168cc28ea0341",
@@ -12346,6 +13224,699 @@
       "Read a single file from a zip in memory",
       "Limit the size of a decompressed file",
       "Import text files from an uploaded zip"
+    ]
+  },
+  "/sponsoring/": {
+    "feature": "sponsoring.mdx",
+    "hash": "97c8623e497cd9d6",
+    "questions": [
+      "How can I support Novis with money?",
+      "Donate to the Novis project",
+      "Where does the sponsor money go?",
+      "Will Novis always be free and open source?",
+      "Is my name shown publicly when I donate?",
+      "Is there a paid edition of Novis?"
+    ]
+  },
+  "/syntax/": {
+    "feature": "syntax/index.mdx",
+    "hash": "7fb0ff50e72530dc",
+    "questions": [
+      "How do I learn to write Novis code?",
+      "Overview of the Novis language syntax",
+      "In which order should I read the syntax pages?",
+      "Where is the syntax for classes, loops and errors explained?",
+      "Novis language guide with runnable examples"
+    ]
+  },
+  "/syntax/attributes/commands-and-discovery/": {
+    "feature": "syntax/attributes/commands-and-discovery.mdx",
+    "hash": "1d0cb717d9f01830",
+    "questions": [
+      "How do I declare a command-line command with options?",
+      "Add a --verbose flag to a command in Novis",
+      "How do I build a plugin system without a list of classes?",
+      "Why does nvs not run my declared commands?",
+      "What happens when no class implements my interface?"
+    ]
+  },
+  "/syntax/attributes/json/": {
+    "feature": "syntax/attributes/json.mdx",
+    "hash": "7499e191e66a9b2a",
+    "questions": [
+      "How do I let a class be converted to and from JSON?",
+      "Use a different JSON key name for one property",
+      "How do I leave a property out of the JSON output?",
+      "Why does decoding JSON into my class throw an error?",
+      "Which property types work when I build an object from JSON?"
+    ]
+  },
+  "/syntax/attributes/routes/": {
+    "feature": "syntax/attributes/routes.mdx",
+    "hash": "dd203a1fc3c781b7",
+    "questions": [
+      "How do I map a URL path to a method in my web app?",
+      "Declare a route with a placeholder like /users/{id}",
+      "Why does my route not compile without an access rule?",
+      "How do I turn off the CSRF check for one route?",
+      "Generate an OpenAPI document from my routes",
+      "Optional and catch-all parts in a URL path"
+    ]
+  },
+  "/syntax/attributes/writing-and-reading/": {
+    "feature": "syntax/attributes/writing-and-reading.mdx",
+    "hash": "b6bfb7969d6390ce",
+    "questions": [
+      "How do I attach extra data to a class or method?",
+      "What is the syntax for an attribute in Novis?",
+      "Why can I not use a variable inside an attribute?",
+      "Write several attributes on one declaration",
+      "Which attribute names does Novis itself use?",
+      "Check the fields of my own attribute at compile time"
+    ]
+  },
+  "/syntax/basics/comments/": {
+    "feature": "syntax/basics/comments.mdx",
+    "hash": "e05cdbaf6852dd47",
+    "questions": [
+      "How do I write a comment in Novis?",
+      "Write a comment over several lines",
+      "How do I document a method so the editor shows it?",
+      "Why does @param in a doc comment not compile?",
+      "Can I use Markdown in documentation comments?"
+    ]
+  },
+  "/syntax/basics/constants/": {
+    "feature": "syntax/basics/constants.mdx",
+    "hash": "6ca6ca19b355a9b2",
+    "questions": [
+      "How do I declare a value that never changes?",
+      "Can I define a global constant?",
+      "What is the difference between self:: and static:: for constants?",
+      "Let a subclass give a constant its own value",
+      "Get the name of a class as a string"
+    ]
+  },
+  "/syntax/basics/files-and-statements/": {
+    "feature": "syntax/basics/files-and-statements.mdx",
+    "hash": "68cc23199347240f",
+    "questions": [
+      "How does a Novis file start?",
+      "How do I mix HTML and code in one file?",
+      "Run a Novis script directly with a #! line",
+      "Why does a name in the wrong case not compile?",
+      "Naming rules for classes, variables and constants"
+    ]
+  },
+  "/syntax/basics/variables/": {
+    "feature": "syntax/basics/variables.mdx",
+    "hash": "e34c269f490faa2e",
+    "questions": [
+      "How do I declare a variable in Novis?",
+      "What does var do when I declare a variable?",
+      "Why can I not assign a string to an int variable?",
+      "Declare a variable without giving it a value",
+      "Is a variable from inside a loop visible after it?"
+    ]
+  },
+  "/syntax/classes/anonymous-objects/": {
+    "feature": "syntax/classes/anonymous-objects.mdx",
+    "hash": "8ee1d314e7eb7e32",
+    "questions": [
+      "How do I create an object without writing a class?",
+      "Give a name to the type of a small object",
+      "How do I check that a value has certain fields?",
+      "Why does a statement starting with { fail to compile?",
+      "Return several values from a method as one object"
+    ]
+  },
+  "/syntax/classes/declaring/": {
+    "feature": "syntax/classes/declaring.mdx",
+    "hash": "9f63703f505ff4e3",
+    "questions": [
+      "How do I write a class with a constructor?",
+      "Create a new object of a class",
+      "What do public, protected and private mean?",
+      "Turn constructor parameters into properties automatically",
+      "Why does __construct not work in Novis?",
+      "Can I add a new property to an object at run time?"
+    ]
+  },
+  "/syntax/classes/interfaces/": {
+    "feature": "syntax/classes/interfaces.mdx",
+    "hash": "128e90d409f010f4",
+    "questions": [
+      "How do I write an interface and implement it?",
+      "Give an interface a method with a default body",
+      "Does Novis have traits?",
+      "How do I share code between classes without inheritance?",
+      "Forward all methods of an interface to another object",
+      "Implement several interfaces in one class"
+    ]
+  },
+  "/syntax/classes/methods-and-inheritance/": {
+    "feature": "syntax/classes/methods-and-inheritance.mdx",
+    "hash": "ebb6e8f5255a3101",
+    "questions": [
+      "How do I extend a class and replace a method?",
+      "Call the parent version of a method",
+      "What is the difference between self and static in a method?",
+      "How do I write an abstract class?",
+      "Stop other classes from extending my class",
+      "Chain method calls by returning this"
+    ]
+  },
+  "/syntax/classes/objects/": {
+    "feature": "syntax/classes/objects.mdx",
+    "hash": "c7d57883d550eea4",
+    "questions": [
+      "Why does changing one variable change the other object too?",
+      "How do I copy an object?",
+      "Does Novis have magic methods or destructors?",
+      "Why is == false for two objects with the same values?",
+      "Accept an object of any class as a parameter"
+    ]
+  },
+  "/syntax/classes/properties/": {
+    "feature": "syntax/classes/properties.mdx",
+    "hash": "f283534a4fede6bc",
+    "questions": [
+      "How do I give a property a default value?",
+      "Make a property that can only be set once",
+      "How do I set a property after the constructor runs?",
+      "Is a static property shared between web requests?",
+      "Why does my class not compile when a property has no value?"
+    ]
+  },
+  "/syntax/classes/property-hooks/": {
+    "feature": "syntax/classes/property-hooks.mdx",
+    "hash": "0aede4b87b43bd20",
+    "questions": [
+      "How do I run code when a property is read or written?",
+      "Check a value before it is stored in a property",
+      "Calculated property based on other properties",
+      "Does Novis support __get and __set?",
+      "How do I log every change to an object's properties?"
+    ]
+  },
+  "/syntax/classes/standard-interfaces/": {
+    "feature": "syntax/classes/standard-interfaces.mdx",
+    "hash": "28804159f1ae01d7",
+    "questions": [
+      "How do I print an object with echo?",
+      "Compare two objects with less than and greater than",
+      "How do I sort my own objects?",
+      "Create an object from a string in a URL or query parameter",
+      "Why does printing my object not compile?"
+    ]
+  },
+  "/syntax/concurrency/channels/": {
+    "feature": "syntax/concurrency/channels.mdx",
+    "hash": "a517fe029c642120",
+    "questions": [
+      "How do I send values from one task to another?",
+      "Producer and consumer queue between tasks",
+      "What happens when a channel is full?",
+      "Why does my loop over a channel never end?",
+      "What happens when I send to a closed channel?"
+    ]
+  },
+  "/syntax/concurrency/isolates/": {
+    "feature": "syntax/concurrency/isolates.mdx",
+    "hash": "2ed1c1e92d9f90be",
+    "questions": [
+      "How do I run another script as a separate program?",
+      "Get the return value of a child script",
+      "What happens when a child program throws an error?",
+      "Pass arguments to a script I start from my program",
+      "Capture the output of another Novis file",
+      "Which permission is needed to start a child script?"
+    ]
+  },
+  "/syntax/concurrency/limits-and-errors/": {
+    "feature": "syntax/concurrency/limits-and-errors.mdx",
+    "hash": "e034926d50783b82",
+    "questions": [
+      "How do I limit how many tasks run at once?",
+      "Set a timeout for a group of parallel tasks",
+      "What happens when one parallel task throws an error?",
+      "Stop all tasks when one of them fails",
+      "Avoid opening too many database connections from tasks"
+    ]
+  },
+  "/syntax/concurrency/tasks/": {
+    "feature": "syntax/concurrency/tasks.mdx",
+    "hash": "7b89a58cd5355ccb",
+    "questions": [
+      "Does Novis have async and await?",
+      "How does concurrency work in Novis?",
+      "Fetch a user and their orders at the same time",
+      "Does Novis have threads or promises?",
+      "Why do I not need async for code that waits?"
+    ]
+  },
+  "/syntax/control-flow/break-continue-return/": {
+    "feature": "syntax/control-flow/break-continue-return.mdx",
+    "hash": "84d8de50f2372afa",
+    "questions": [
+      "How do I stop a loop early?",
+      "How do I skip to the next pass of a loop?",
+      "How do I leave two nested loops at once?",
+      "What happens when I use return at the top level of a file?",
+      "Why does break inside an if end my whole loop?"
+    ]
+  },
+  "/syntax/control-flow/foreach/": {
+    "feature": "syntax/control-flow/foreach.mdx",
+    "hash": "38accfc3c1f1dd92",
+    "questions": [
+      "How do I loop over every element of an array?",
+      "How do I change array elements while I loop over them?",
+      "Why is the key in my loop a string and not a number?",
+      "What happens when I add elements to an array inside its loop?",
+      "Loop over the values of a set, a heap or a channel"
+    ]
+  },
+  "/syntax/control-flow/if/": {
+    "feature": "syntax/control-flow/if.mdx",
+    "hash": "087393d07e4ae5c4",
+    "questions": [
+      "How do I run code only when a condition is true?",
+      "Is elseif the same as else if?",
+      "Why can I not read a variable that I set inside an if?",
+      "Does a block with braces start a new variable scope?",
+      "Why does declaring the same variable twice in one function fail?"
+    ]
+  },
+  "/syntax/control-flow/iterators/": {
+    "feature": "syntax/control-flow/iterators.mdx",
+    "hash": "f26a901d2416d8bc",
+    "questions": [
+      "How do I make values one at a time with yield?",
+      "How do I make my own class work in a foreach loop?",
+      "Why does my second loop over a generator get no values?",
+      "Read a very large or endless list without loading it all",
+      "How do I write an iterator class without yield?"
+    ]
+  },
+  "/syntax/control-flow/loops/": {
+    "feature": "syntax/control-flow/loops.mdx",
+    "hash": "8d33d0bfd7b623f5",
+    "questions": [
+      "How do I repeat code while a condition is true?",
+      "How do I write a counting loop with a start, a condition and a step?",
+      "How do I run a loop body at least once before the check?",
+      "How do I write a loop that runs forever until I stop it?",
+      "Why can I not reuse the same counter name in a second loop?"
+    ]
+  },
+  "/syntax/control-flow/match/": {
+    "feature": "syntax/control-flow/match.mdx",
+    "hash": "58f32e2fea2e577d",
+    "questions": [
+      "How do I pick a value based on another value without many ifs?",
+      "What happens when no arm of a match fits the value?",
+      "Replace a long chain of elseif with one expression",
+      "How do I list several values for the same result?",
+      "Why is my match on an enum throwing an error at runtime?"
+    ]
+  },
+  "/syntax/control-flow/other-statements/": {
+    "feature": "syntax/control-flow/other-statements.mdx",
+    "hash": "9ee13a6b6cec380e",
+    "questions": [
+      "How do I print a value to the output?",
+      "How do I remove an entry from an array?",
+      "Why does goto or a global variable not compile?",
+      "Which statements from other languages does Novis not have?"
+    ]
+  },
+  "/syntax/control-flow/switch/": {
+    "feature": "syntax/control-flow/switch.mdx",
+    "hash": "bb111d92be18e87a",
+    "questions": [
+      "How do I run different blocks of code for different values?",
+      "Why does the code of the next case also run?",
+      "What happens when no case is equal and there is no default?",
+      "How do two case lines share one body?",
+      "When should I use switch and when match?"
+    ]
+  },
+  "/syntax/errors/assert-and-dump/": {
+    "feature": "syntax/errors/assert-and-dump.mdx",
+    "hash": "ad7f79e564fddaf8",
+    "questions": [
+      "How do I print a readable view of a variable for debugging?",
+      "Show the contents of a value without changing the page output",
+      "What error does a failed assertion throw?",
+      "Why does catching RuntimeError not catch a failed assertion?",
+      "Get a value as readable text for a log line"
+    ]
+  },
+  "/syntax/errors/catch-expression/": {
+    "feature": "syntax/errors/catch-expression.mdx",
+    "hash": "a6deafbd355c6bfb",
+    "questions": [
+      "How do I use a fallback value when a call throws an error?",
+      "Give a default value on error in one line without a try block",
+      "Can I catch several error types in one expression?",
+      "What happens when no catch arm fits the thrown error?",
+      "Why can I not return from inside a catch expression?"
+    ]
+  },
+  "/syntax/errors/error-types/": {
+    "feature": "syntax/errors/error-types.mdx",
+    "hash": "fe7278cdc34fff0c",
+    "questions": [
+      "Which error classes exist and when is each one thrown?",
+      "How do I write my own error class?",
+      "How do I read the message of an error?",
+      "Why does catching Exception not compile?",
+      "How do I keep the original error when I throw a new one?",
+      "Is ending a script with finish caught as an error?"
+    ]
+  },
+  "/syntax/errors/limits/": {
+    "feature": "syntax/errors/limits.mdx",
+    "hash": "80bb24c3cf2a7d46",
+    "questions": [
+      "What happens when a function calls itself too many times?",
+      "Why does reading a file fail without a permission?",
+      "Can I catch running out of memory?",
+      "Which limits stop the program at once without any catch?",
+      "Run some code when a limit stops my program"
+    ]
+  },
+  "/syntax/errors/rethrowing/": {
+    "feature": "syntax/errors/rethrowing.mdx",
+    "hash": "bb953691281aeee2",
+    "questions": [
+      "How do I throw a caught error again?",
+      "What happens to an error that nothing catches?",
+      "Where does an uncaught error get printed?",
+      "Is there a global error handler for every uncaught error?",
+      "Log an error and let the caller handle it"
+    ]
+  },
+  "/syntax/errors/throw-and-catch/": {
+    "feature": "syntax/errors/throw-and-catch.mdx",
+    "hash": "98718eb9240b85b0",
+    "questions": [
+      "How do I throw an error from a function?",
+      "How do I handle an error with try and catch?",
+      "How do I run cleanup code whether or not an error happens?",
+      "Why can I not catch two error types in one clause?",
+      "Which catch block runs when several could fit?",
+      "Why does return inside finally not compile?"
+    ]
+  },
+  "/syntax/functions/anonymous-functions/": {
+    "feature": "syntax/functions/anonymous-functions.mdx",
+    "hash": "f0d685c250e6ffe7",
+    "questions": [
+      "How do I write a function without a name and store it in a variable?",
+      "How do I write a closure that calls itself?",
+      "Why does my closure not see a later change to an outside variable?",
+      "How do I pass an existing method as a callback?",
+      "How do I change what this refers to inside a closure?"
+    ]
+  },
+  "/syntax/functions/calls/": {
+    "feature": "syntax/functions/calls.mdx",
+    "hash": "c77a406631162a35",
+    "questions": [
+      "How do I pass arguments by name?",
+      "How do I pass array elements as separate arguments?",
+      "How do I call a function stored in a variable?",
+      "How do I call a function stored in an object property?",
+      "Why does calling a callable return mixed?"
+    ]
+  },
+  "/syntax/functions/declaring/": {
+    "feature": "syntax/functions/declaring.mdx",
+    "hash": "c4855760e11c4b22",
+    "questions": [
+      "How do I write a function in Novis?",
+      "Can I write a function outside a class?",
+      "What does the void return type mean?",
+      "Return type for a method that never returns"
+    ]
+  },
+  "/syntax/functions/parameters/": {
+    "feature": "syntax/functions/parameters.mdx",
+    "hash": "c3ae95e7409b6495",
+    "questions": [
+      "How do I give a parameter a default value?",
+      "How do I accept any number of arguments?",
+      "How do I let a method change the caller's variable?",
+      "How do I pass a variable by reference?",
+      "Why does an ampersand before a parameter not compile?"
+    ]
+  },
+  "/syntax/operators/arithmetic/": {
+    "feature": "syntax/operators/arithmetic.mdx",
+    "hash": "ae6496e723bb4bb8",
+    "questions": [
+      "How do I add, divide or raise a number to a power?",
+      "What happens when I divide by zero?",
+      "Why can I not multiply a string by a number?",
+      "How do I increase a variable by one?",
+      "Why does dividing an int variable in place not compile?",
+      "Bitwise operators for working with bits"
+    ]
+  },
+  "/syntax/operators/comparison/": {
+    "feature": "syntax/operators/comparison.mdx",
+    "hash": "7b153ea513ddd318",
+    "questions": [
+      "How do I check if two values are equal?",
+      "Why does comparing a number with a string not compile?",
+      "How do I combine two conditions with and or or?",
+      "Are two copies of an object equal?",
+      "Why can I not use less than on strings?"
+    ]
+  },
+  "/syntax/operators/null-coalescing/": {
+    "feature": "syntax/operators/null-coalescing.mdx",
+    "hash": "797b069bfb8734aa",
+    "questions": [
+      "How do I use a default value when a variable is null?",
+      "Read an array key that may be missing without an error",
+      "Add one to an array entry that may not exist yet",
+      "How do I write a short if else in one expression?",
+      "How do I read a property of an object that may be null?"
+    ]
+  },
+  "/syntax/operators/pipeline/": {
+    "feature": "syntax/operators/pipeline.mdx",
+    "hash": "a59a67c6517f91bb",
+    "questions": [
+      "How do I pass a value through several steps from left to right?",
+      "What does the |> operator do?",
+      "Avoid deeply nested function calls",
+      "What does $_ mean in a chain of calls?",
+      "Does the pipeline operator make my program slower?"
+    ]
+  },
+  "/syntax/operators/precedence/": {
+    "feature": "syntax/operators/precedence.mdx",
+    "hash": "bb774724a2478b77",
+    "questions": [
+      "Which operator runs first in an expression?",
+      "Why is -2 ** 2 equal to -4?",
+      "Order of operators table",
+      "Why do triple equals and the and keyword not compile?",
+      "Why does joining a string with a sum give an unexpected result?"
+    ]
+  },
+  "/syntax/operators/string-operators/": {
+    "feature": "syntax/operators/string-operators.mdx",
+    "hash": "6e808d6dcdfbf1ab",
+    "questions": [
+      "How do I join two strings together?",
+      "How do I add text to the end of a string variable?",
+      "Why does joining an array to a string not compile?",
+      "What does true or null become when joined into a string?",
+      "Build a long string piece by piece in a loop"
+    ]
+  },
+  "/syntax/programs/file-paths-and-exit/": {
+    "feature": "syntax/programs/file-paths-and-exit.mdx",
+    "hash": "95940442abb32102",
+    "questions": [
+      "Where does a relative file path start in Novis?",
+      "Why does my program read a different file from another folder?",
+      "How do I stop a program early with a status code?",
+      "What exit status does a script return after its last line?",
+      "Build a file path from parts while the program runs",
+      "Is there a die statement in Novis?"
+    ]
+  },
+  "/syntax/programs/namespaces/": {
+    "feature": "syntax/programs/namespaces.mdx",
+    "hash": "96873030ebdf4c23",
+    "questions": [
+      "How do I put a class in a namespace?",
+      "How do I import a class from another file?",
+      "Load classes from a folder without listing every file",
+      "Why does a class name with a leading backslash not compile?",
+      "How does Novis find the file for a class name?",
+      "Can I rename an imported class with use as?"
+    ]
+  },
+  "/syntax/programs/require/": {
+    "feature": "syntax/programs/require.mdx",
+    "hash": "76ebf962ed0331b4",
+    "questions": [
+      "How do I run another Novis file from my program?",
+      "Load settings from a separate file that returns an array",
+      "Why is a variable from the other file not visible?",
+      "Is there include or require_once in Novis?",
+      "What type does the value of require have?"
+    ]
+  },
+  "/syntax/start-here/": {
+    "feature": "syntax/start-here.mdx",
+    "hash": "01bd8cd229e997d4",
+    "questions": [
+      "What does a first Novis program look like?",
+      "What is different in Novis if I know PHP?",
+      "Summary of the Novis syntax on one page",
+      "Why are there no global functions in Novis?"
+    ]
+  },
+  "/syntax/testing/fixtures-and-assertions/": {
+    "feature": "syntax/testing/fixtures-and-assertions.mdx",
+    "hash": "da2b00d79f56def9",
+    "questions": [
+      "How do I share setup objects between tests?",
+      "Run the same test with several sets of input",
+      "Which assertion methods can I use in a test?",
+      "How do I check that a function throws an error?",
+      "Why does my test still fail after I catch the failure?",
+      "Compare two arrays entry by entry in a test"
+    ]
+  },
+  "/syntax/testing/writing-tests/": {
+    "feature": "syntax/testing/writing-tests.mdx",
+    "hash": "4c6015daefd2804d",
+    "questions": [
+      "How do I write a unit test in Novis?",
+      "How do I skip a test and give a reason?",
+      "What is a flaky test in the test report?",
+      "Run only one test class from the command line"
+    ]
+  },
+  "/syntax/values/arrays/": {
+    "feature": "syntax/values/arrays.mdx",
+    "hash": "dcf94f2e4d4263e1",
+    "questions": [
+      "How do I create an array and add items to it?",
+      "Does assigning an array to another variable copy it?",
+      "How do I merge two arrays into a new one?",
+      "Read the first two items of an array into variables",
+      "Why can I not echo an array?",
+      "Array that contains only one type of value"
+    ]
+  },
+  "/syntax/values/as/": {
+    "feature": "syntax/values/as.mdx",
+    "hash": "3146b6db8847bfdd",
+    "questions": [
+      "How do I convert a string to a number?",
+      "Why is there no type casting like (int) in Novis?",
+      "What happens when a conversion is not possible?",
+      "Get null when user input is not a valid number",
+      "Which type conversions happen without writing anything?",
+      "Why does 3.9 as int throw an error?"
+    ]
+  },
+  "/syntax/values/bool-and-null/": {
+    "feature": "syntax/values/bool-and-null.mdx",
+    "hash": "4d21f2522b4ca81d",
+    "questions": [
+      "Which values count as false in an if condition?",
+      "Is the string \"0\" true or false?",
+      "Why can a variable of type int not be null?",
+      "How do I turn true into the number 1?",
+      "Does an empty array count as false?"
+    ]
+  },
+  "/syntax/values/enums/": {
+    "feature": "syntax/values/enums.mdx",
+    "hash": "797ee970d0bd5abd",
+    "questions": [
+      "How do I declare an enum in Novis?",
+      "Convert an enum case to its number and back",
+      "Why can I not print an enum case directly?",
+      "Get a readable name for each enum case",
+      "Allow only some cases of an enum as a parameter",
+      "Can an enum have methods or constants?"
+    ]
+  },
+  "/syntax/values/is/": {
+    "feature": "syntax/values/is.mdx",
+    "hash": "727bed1ba2f75165",
+    "questions": [
+      "How do I check the type of a value?",
+      "Test if an object is an instance of a class",
+      "Why does the variable have a narrower type inside the if block?",
+      "How do I handle many possible types in one place?",
+      "Is the string \"7\" an int?"
+    ]
+  },
+  "/syntax/values/nullable/": {
+    "feature": "syntax/values/nullable.mdx",
+    "hash": "d9cc6c50ed38f3eb",
+    "questions": [
+      "How do I declare a variable that can be null?",
+      "Why can I not read a property of a possibly null object?",
+      "Call a method only when the object is not null",
+      "What does ?int mean in a type?"
+    ]
+  },
+  "/syntax/values/numbers/": {
+    "feature": "syntax/values/numbers.mdx",
+    "hash": "4d303e4f5a6608a4",
+    "questions": [
+      "Which number types does Novis have?",
+      "Why does 7 / 2 give 3.5?",
+      "Which number type should I use for money?",
+      "What happens when an integer is too big?",
+      "Why is 017 not an octal number?",
+      "Write a duration like 1h30m in the code"
+    ]
+  },
+  "/syntax/values/strings/": {
+    "feature": "syntax/values/strings.mdx",
+    "hash": "221326a967df5722",
+    "questions": [
+      "How do I put a variable inside a string?",
+      "What is the difference between single and double quotes?",
+      "Write text over many lines with a heredoc",
+      "Why does reading one character with $word[0] not compile?",
+      "Store binary data that is not valid text"
+    ]
+  },
+  "/syntax/values/tainted-and-secret/": {
+    "feature": "syntax/values/tainted-and-secret.mdx",
+    "hash": "f2177266ef8d7014",
+    "questions": [
+      "How does Novis track text that comes from users?",
+      "Store a token in a type that cannot be printed",
+      "Does a tainted string stay tainted after upper case?",
+      "Is there a speed cost for tainted and secret types?"
+    ]
+  },
+  "/syntax/values/union-types/": {
+    "feature": "syntax/values/union-types.mdx",
+    "hash": "a8cdf7ab676b96da",
+    "questions": [
+      "How do I accept a value of two different types?",
+      "Allow only a few fixed strings as a value",
+      "How do I give a long type a short name?",
+      "What is the mixed type and when should I use it?",
+      "Why can I not pass a mixed value to a typed parameter?"
     ]
   }
 }
