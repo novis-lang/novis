@@ -1,6 +1,7 @@
 // `bun nv bench-compare`: Novis, PHP-FPM, Bun and Go, each behind the same nginx terminating TLS 1.3.
 //
 //     bun nv bench-compare --smoke                               # every peer and case, a few hundred requests
+//     bun nv bench-compare --scenarios --smoke                   # every feature row against every peer
 //     bun nv bench-compare --record benches/compare.json         # the fair arm, recorded
 //     bun nv bench-compare --arm deployed --record PATH          # four cpus to each backend
 //     bun nv bench-compare --down                                # tear every stack down
@@ -15,6 +16,10 @@
 // time, and every (case, peer) pair gets a fresh one, so `memory.peak` is that arm's alone. A full run
 // first brings every pair up only to check that the peers answer alike, and times nothing until they do.
 // `--smoke` is one pass at a few hundred requests that checks the answers and records nothing.
+//
+// `--scenarios` runs the feature rows in `SCENARIOS` instead of the cases. A row brings each peer's stack
+// up fresh over the row's own programs, runs its probe, and maps what the peer did to one of the four
+// results in `Verdict`, with the evidence beside it.
 
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
@@ -25,7 +30,7 @@ import { Fail, grouped, host, stamp, version } from "./bench.ts";
 import { type Arm, compose, down, type Load, logsOf, messageOf, ohaArm, requireDocker, up } from "./bench-docker.ts";
 import { effectivePhp } from "./bench-proxied.ts";
 
-export const summary = "Novis, PHP-FPM, Bun and Go behind one TLS nginx, in containers: nv bench-compare [--smoke] [--arm fair|deployed] [--record PATH]";
+export const summary = "Novis, PHP-FPM, Bun and Go behind one TLS nginx, in containers: nv bench-compare [--smoke] [--scenarios] [--arm fair|deployed] [--record PATH]";
 
 export const COMPARE_DIR = join(ROOT, "benches", "compare");
 const GENERATED = join(COMPARE_DIR, "generated");
@@ -44,6 +49,8 @@ const NGINX_CPUS = 4;
 export interface PeerCtx {
   cpus: number;
   concurrency: number;
+  /** The folder under `benches/compare/` that holds `case`: `cases` or `scenarios`. */
+  tree: string;
   case: string;
   commit: string;
 }
@@ -116,6 +123,7 @@ export const PEERS: Peer[] = [
 /** Every variable a peer's compose file reads, so `up`, `exec`, `logs` and `down` all see the same ones. */
 export function stackEnv(peer: Peer, ctx: PeerCtx): Record<string, string> {
   return {
+    TREE: ctx.tree,
     CASE: ctx.case,
     BACKEND_CPUS: String(ctx.cpus),
     NGINX_CONF: peer.nginx,
@@ -250,6 +258,131 @@ export function agreement(c: Case, answers: Map<string, Answer[]>): Disagreement
     }
   }
   return null;
+}
+
+// ---------------------------------------------------------------------------------------------------
+// The feature scenarios, and how what a peer did becomes a result.
+// ---------------------------------------------------------------------------------------------------
+
+/** What a row says of one peer: the feature is there, one setting away, code the developer writes, or absent. */
+export type Verdict = "built-in" | "one-setting" | "your-code" | "no";
+
+/** One peer's result in one row, with the measured evidence beside it. */
+export interface RowResult {
+  result: Verdict;
+  /** The setting a `one-setting` result names. */
+  setting?: string;
+  evidence: Record<string, string | number | boolean | null>;
+}
+
+/** One request's reply, with its header names in lower case. */
+export interface Reply {
+  status: number;
+  headers: Record<string, string>;
+  body: string;
+}
+
+/** What a row's probe can do against one peer's running stack. */
+export interface Probe {
+  get(path: string): Promise<Reply>;
+  /** Whether the backend container is still running. No stack sets a restart policy, so a crash stays down. */
+  running(): boolean;
+}
+
+export interface Scenario {
+  id: string;
+  /** The folder under `benches/compare/` and the program folder in it the stack serves. */
+  tree: string;
+  case: string;
+  probe(p: Probe): Promise<RowResult>;
+}
+
+/** Requests the isolation row sends, one after another, each writing its own value. */
+export const ISOLATION_REQUESTS = 20;
+
+/** Each body is `<value found> <value written>`. A request found clean state when the first is `0`. */
+export function isolationResult(bodies: string[]): RowResult {
+  const leaked = bodies.filter((b) => !b.startsWith("0 ")).length;
+  return { result: leaked === 0 ? "built-in" : "no", evidence: { requests: bodies.length, saw_another_request: leaked } };
+}
+
+/** The request after a crash must be answered by a backend that is still up. */
+export function crashResult(crashStatus: number, nextStatus: number, running: boolean): RowResult {
+  return {
+    result: nextStatus === 200 && running ? "built-in" : "no",
+    evidence: { crash_status: crashStatus, next_status: nextStatus, backend_running: running },
+  };
+}
+
+/** All three headers, or the developer writes the missing ones. */
+export function headersResult(headers: Record<string, string>): RowResult {
+  const nosniff = (headers["x-content-type-options"] ?? "").trim().toLowerCase() === "nosniff";
+  const framePolicy = headers["x-frame-options"] !== undefined || /frame-ancestors/i.test(headers["content-security-policy"] ?? "");
+  const referrerPolicy = headers["referrer-policy"] !== undefined;
+  return {
+    result: nosniff && framePolicy && referrerPolicy ? "built-in" : "your-code",
+    evidence: { nosniff, frame_policy: framePolicy, referrer_policy: referrerPolicy },
+  };
+}
+
+/** The term the escape row prints. A body that carries it raw would run it in a browser. */
+export const ESCAPE_TERM = "<script>alert(1)</script>";
+
+/** Printed the documented way, the term arrives escaped, or the developer calls an escaper. */
+export function escapeResult(body: string): RowResult {
+  const raw = body.includes("<script>");
+  return { result: raw ? "your-code" : "built-in", evidence: { raw_script_in_body: raw } };
+}
+
+/** A reply the row needs to be a 200, or the row cannot say anything. */
+function ok(reply: Reply, what: string): Reply {
+  if (reply.status !== 200) throw new Fail(`${what}: status ${reply.status}, body ${pyRepr(reply.body.slice(0, 200))}`);
+  return reply;
+}
+
+/** The rows, in the order the page shows them. `benches/compare/README.md` § *The feature scenarios* is why each is built so. */
+export const SCENARIOS: Scenario[] = [
+  {
+    id: "isolation",
+    tree: "scenarios",
+    case: "isolation",
+    probe: async (p) => {
+      const bodies: string[] = [];
+      for (let v = 1; v <= ISOLATION_REQUESTS; v++) bodies.push(ok(await p.get(`/?v=${v}`), `?v=${v}`).body);
+      return isolationResult(bodies);
+    },
+  },
+  {
+    id: "crash",
+    tree: "scenarios",
+    case: "crash",
+    probe: async (p) => {
+      const crash = await p.get("/crash");
+      const next = await p.get("/");
+      return crashResult(crash.status, next.status, p.running());
+    },
+  },
+  {
+    id: "escape",
+    tree: "scenarios",
+    case: "escape",
+    probe: async (p) => escapeResult(ok(await p.get(`/?q=${encodeURIComponent(ESCAPE_TERM)}`), "the term").body),
+  },
+  {
+    id: "headers",
+    tree: "cases",
+    case: "hello",
+    probe: async (p) => headersResult(ok(await p.get("/"), "hello").headers),
+  },
+];
+
+/** `built-in`, or `one-setting (limits.memory)` for a result that names its setting. */
+export const verdictText = (r: RowResult) => (r.setting === undefined ? r.result : `${r.result} (${r.setting})`);
+
+/** The line `--scenarios` prints for a row: `<id>: <peer> <result>, ...` in `PEERS` order. */
+export function rowLine(id: string, byPeer: Map<string, RowResult>): string {
+  const parts = PEERS.filter((p) => byPeer.has(p.id)).map((p) => `${p.label} ${verdictText(byPeer.get(p.id)!)}`);
+  return `${id}: ${parts.join(", ")}`;
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -437,16 +570,52 @@ async function onePass(peer: Peer, c: Case, ctx: PeerCtx, load: Load | null): Pr
   }
 }
 
+/** One GET from the host through nginx, for a scenario's probe. */
+async function replyOf(peer: Peer, path: string): Promise<Reply> {
+  const res = await fetch(`https://127.0.0.1:${peer.port}${path}`, {
+    headers: { "Accept-Encoding": "identity" },
+    tls: { rejectUnauthorized: false },
+    signal: AbortSignal.timeout(30_000),
+  });
+  const headers: Record<string, string> = {};
+  res.headers.forEach((value, name) => {
+    headers[name.toLowerCase()] = value;
+  });
+  return { status: res.status, headers, body: await res.text() };
+}
+
+/** Brings the peer's stack up fresh for one row, runs the row's probe against it, and always tears it down. */
+async function scenarioPass(peer: Peer, s: Scenario, ctx: PeerCtx): Promise<RowResult> {
+  const env = stackEnv(peer, ctx);
+  const stack = stackPath(peer);
+  peer.prepare?.(ctx);
+  try {
+    up(stack, env, "app", "nginx");
+    return await s.probe({
+      get: (path) => replyOf(peer, path),
+      running: () => {
+        const ps = compose(stack, ["ps", "--status", "running", "--services"], env, true);
+        return ps.code === 0 && ps.stdout.split(/\r?\n/).includes("app");
+      },
+    });
+  } catch (e) {
+    throw new Fail(`${peer.label}, row ${s.id}: ${messageOf(e)}\n${peer.id} said:\n${logsOf(stack, "app", env)}`);
+  } finally {
+    down(stack, env);
+  }
+}
+
 // ---------------------------------------------------------------------------------------------------
 // The command.
 // ---------------------------------------------------------------------------------------------------
 
 const USAGE =
-  "usage: nv bench-compare [-h] [--smoke] [--arm {fair,deployed}] [--backend-cpus N] [--requests REQUESTS]\n" +
-  "                        [--reps REPS] [--record PATH] [--down]";
+  "usage: nv bench-compare [-h] [--smoke] [--scenarios] [--arm {fair,deployed}] [--backend-cpus N]\n" +
+  "                        [--requests REQUESTS] [--reps REPS] [--record PATH] [--down]";
 
 interface Options {
   smoke: boolean;
+  scenarios: boolean;
   arm: "fair" | "deployed";
   backendCpus: number | null;
   requests: number | null;
@@ -456,7 +625,7 @@ interface Options {
 }
 
 function options(args: string[]): Options | null {
-  const p = parseArgs(args, { flags: ["--smoke", "--down"], valued: ["--arm", "--backend-cpus", "--requests", "--reps", "--record"] });
+  const p = parseArgs(args, { flags: ["--smoke", "--scenarios", "--down"], valued: ["--arm", "--backend-cpus", "--requests", "--reps", "--record"] });
   if (p.flags.has("--help")) return null;
   const int = (o: string): number | null => {
     const word = p.values.get(o);
@@ -469,6 +638,7 @@ function options(args: string[]): Options | null {
   if (arm !== "fair" && arm !== "deployed") throw new ArgError(`argument --arm: invalid choice: ${pyRepr(arm)} (choose from 'fair', 'deployed')`);
   return {
     smoke: p.flags.has("--smoke"),
+    scenarios: p.flags.has("--scenarios"),
     arm,
     backendCpus: int("--backend-cpus"),
     requests: int("--requests"),
@@ -488,6 +658,8 @@ function help(): string {
     "  -h, --help            show this help message and exit",
     "  --smoke               every peer and case at a few hundred requests: check the answers agree,",
     "                        print one line per case, record nothing",
+    "  --scenarios           run the feature rows instead of the cases: every row against every peer,",
+    "                        one line per row with each peer's result, record nothing",
     "  --arm {fair,deployed}",
     "                        fair: one cpu to each backend. deployed: --backend-cpus to each backend",
     "  --backend-cpus N      the CPU budget of EACH backend container (default 1 for fair, 4 for deployed)",
@@ -500,6 +672,27 @@ function help(): string {
   ].join("\n");
 }
 
+/** Connections a scenario's stack is sized for: none of the rows here puts the backend under load. */
+const SCENARIO_CONCURRENCY = 8;
+
+/** `--scenarios`: every row against every peer, one fresh stack per pair, one line per row. */
+async function scenarios(o: Options, cpus: number, commit: string): Promise<number> {
+  if (o.record !== null) throw new Fail("--scenarios records nothing; drop --record or --scenarios");
+  for (const s of SCENARIOS) {
+    const byPeer = new Map<string, RowResult>();
+    for (const peer of PEERS) {
+      console.log(`  ${s.id}: ${peer.label} ...`);
+      byPeer.set(peer.id, await scenarioPass(peer, s, { cpus, concurrency: SCENARIO_CONCURRENCY, tree: s.tree, case: s.case, commit }));
+    }
+    console.log(rowLine(s.id, byPeer));
+    for (const peer of PEERS) {
+      const evidence = Object.entries(byPeer.get(peer.id)!.evidence).map(([k, v]) => `${k} ${v}`);
+      console.log(`    ${peer.label.padEnd(6)} ${evidence.join(", ")}`);
+    }
+  }
+  return 0;
+}
+
 const mib = (bytes: number | null) => (bytes === null ? "    -" : fixed(bytes / 1048576, 1).padStart(6));
 
 async function main(o: Options): Promise<number> {
@@ -507,7 +700,7 @@ async function main(o: Options): Promise<number> {
   const commit = version("git", ["rev-parse", "--short", "HEAD"]);
 
   if (o.down) {
-    for (const peer of PEERS) down(stackPath(peer), stackEnv(peer, { cpus: 1, concurrency: 1, case: CASES[0]!.id, commit }));
+    for (const peer of PEERS) down(stackPath(peer), stackEnv(peer, { cpus: 1, concurrency: 1, tree: "cases", case: CASES[0]!.id, commit }));
     console.log("every peer's stack is down");
     return 0;
   }
@@ -520,7 +713,8 @@ async function main(o: Options): Promise<number> {
   if (o.smoke && o.record !== null) throw new Fail("--smoke records nothing; drop --record or --smoke");
 
   ensureCert();
-  const ctxOf = (c: Case): PeerCtx => ({ cpus, concurrency: c.concurrency, case: c.id, commit });
+  if (o.scenarios) return await scenarios(o, cpus, commit);
+  const ctxOf = (c: Case): PeerCtx => ({ cpus, concurrency: c.concurrency, tree: "cases", case: c.id, commit });
 
   // Agreement before any timing. `--smoke` checks it on the timed pass itself, since it records nothing.
   if (!o.smoke) {

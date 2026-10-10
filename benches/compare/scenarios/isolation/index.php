@@ -1,0 +1,10 @@
+<?php
+// Prints the value a static variable has when the request starts, then the value from `?v=`.
+// A request that sees `0` first did not see the value an earlier request wrote.
+class Seen
+{
+    public static int $value = 0;
+}
+echo Seen::$value, ' ';
+Seen::$value = (int) ($_GET['v'] ?? 0);
+echo Seen::$value;

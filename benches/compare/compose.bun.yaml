@@ -17,7 +17,7 @@ services:
       WORKERS: ${BACKEND_CPUS:?the driver sets BACKEND_CPUS}
 
     volumes:
-      - ./cases/${CASE:?the driver sets CASE}:/app:ro
+      - ./${TREE:?the driver sets TREE}/${CASE:?the driver sets CASE}:/app:ro
       - ./bun/serve.ts:/srv/serve.ts:ro
 
     command: ["bun", "/srv/serve.ts"]

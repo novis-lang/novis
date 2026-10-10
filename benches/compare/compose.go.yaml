@@ -19,7 +19,7 @@ services:
     environment:
       GOMAXPROCS: ${BACKEND_CPUS:?the driver sets BACKEND_CPUS}
 
-    command: ["/srv/${CASE:?the driver sets CASE}"]
+    command: ["/srv/${TREE:?the driver sets TREE}/${CASE:?the driver sets CASE}"]
 
     # A TCP connect: not every case has a route at `/`.
     healthcheck:

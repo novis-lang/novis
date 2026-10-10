@@ -1,0 +1,5 @@
+<?nvs
+// Prints the search term `?q=` into a heading with an html template.
+tainted string $term = Core\Request::query("q") ?? "";
+echo html`<h1>Results for {$term}</h1>
+`;

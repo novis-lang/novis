@@ -75,6 +75,33 @@ codes is measuring the ceiling and not the timer, and the Novis stack needs a `l
 affords 1000 before its number stands; `nvs` reads `nvs.toml` from its working directory, not from
 the program's.
 
+## The feature scenarios
+
+A row is a folder under `scenarios/` with the same four programs a case has, and a probe in
+`SCENARIOS` that sends it requests. The stacks serve a row exactly as they serve a case: the compose
+files mount `${TREE}/${CASE}`, and Go builds both trees into its image. A row that is about a case's
+own answer, as `headers` is about hello's, points at that case and has no folder.
+
+**A result is read off what the peer did, never written down.** Each probe maps its evidence to one of
+four results with a pure function, and the evidence goes beside it: a page that says `no` can show the
+request that proved it. A row whose Novis result is worse than the goal's facts expect is reported,
+never adjusted.
+
+**Each peer is written the way its own documentation shows.** The programs are what a developer meets
+first, not the most careful version a peer allows. `escape` prints the term with PHP's `<?=`, a Bun
+template literal, Go's `html/template` and a Novis html template. Where the documented way does not
+escape, the developer calls an escaper, so the result is `your-code` and not `no`.
+
+- `isolation` sends 20 requests one after another. Each writes a static or module value from `?v=`
+  and prints the value it found first. One request that found another's value makes the result `no`,
+  because no code the developer writes gives a module back its first state.
+- `crash` sends one request that throws or panics, then one that does not. The second must answer
+  `200` from a backend that is still running. No stack sets a restart policy, so a crashed backend
+  stays down and shows.
+- `headers` reads hello's response for `X-Content-Type-Options: nosniff`, a frame policy
+  (`X-Frame-Options` or a `frame-ancestors` CSP) and a `Referrer-Policy`. Any one missing is
+  `your-code`.
+
 ## Agreement before timing
 
 A peer that answers wrongly and fast is the easiest way for a benchmark to report a win. A full run
@@ -107,6 +134,7 @@ so the page can say which, and the page shows each peer against the best in each
 
 ```sh
 bun nv bench-compare --smoke                          # every peer and case, a few hundred requests
+bun nv bench-compare --scenarios --smoke              # every feature row against every peer
 bun nv bench-compare --record benches/compare.json    # the fair arm, one cpu per backend
 bun nv bench-compare --arm deployed --record PATH     # four cpus per backend
 bun nv bench-compare --down                           # tear every stack down

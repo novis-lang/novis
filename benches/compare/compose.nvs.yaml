@@ -21,7 +21,7 @@ services:
     cpus: ${BACKEND_CPUS:?the driver sets BACKEND_CPUS}
 
     volumes:
-      - ./cases/${CASE:?the driver sets CASE}:/app:ro
+      - ./${TREE:?the driver sets TREE}/${CASE:?the driver sets CASE}:/app:ro
 
     command: ["serve", "/app/main.nvs", "--listen", "0.0.0.0:8080"]
 

@@ -8,14 +8,22 @@ import {
   CASES,
   COMPARE_DIR,
   comparable,
+  crashResult,
+  ESCAPE_TERM,
+  escapeResult,
+  headersResult,
   htmlEntities,
+  isolationResult,
   PEERS,
   type PeerResult,
   phpChildren,
+  rowLine,
+  type RowResult,
+  SCENARIOS,
   stackEnv,
 } from "../cmd/bench-compare.ts";
 
-const ctx = { cpus: 4, concurrency: 64, case: "hello", commit: "abc1234" };
+const ctx = { cpus: 4, concurrency: 64, tree: "cases", case: "hello", commit: "abc1234" };
 
 describe("the peer table", () => {
   test("names Novis, PHP, Bun and Go, in that order", () => {
@@ -45,7 +53,7 @@ describe("the peer table", () => {
 
   test("a stack's environment carries the case, the budget, the nginx config and the port", () => {
     const go = PEERS.find((p) => p.id === "go")!;
-    expect(stackEnv(go, ctx)).toEqual({ CASE: "hello", BACKEND_CPUS: "4", NGINX_CONF: "http.conf", NGINX_PORT: String(go.port) });
+    expect(stackEnv(go, ctx)).toEqual({ TREE: "cases", CASE: "hello", BACKEND_CPUS: "4", NGINX_CONF: "http.conf", NGINX_PORT: String(go.port) });
     const nvs = PEERS.find((p) => p.id === "nvs")!;
     expect(stackEnv(nvs, ctx).NVS_BUILD_COMMIT).toBe("abc1234");
   });
@@ -115,6 +123,52 @@ describe("the agreement mapping", () => {
       ["php", []],
     ]);
     expect(agreement(text, answers)).toEqual({ peer: "php", input: 0, why: "no answer" });
+  });
+});
+
+describe("the feature scenarios", () => {
+  test("every row has a program for every peer", () => {
+    const files = ["main.nvs", "index.php", "server.ts", "main.go"];
+    for (const s of SCENARIOS) for (const f of files) expect(existsSync(join(COMPARE_DIR, s.tree, s.case, f))).toBe(true);
+  });
+
+  test("the rows run in the goal's order, and each id once", () => {
+    expect(SCENARIOS.map((s) => s.id)).toEqual(["isolation", "crash", "escape", "headers"]);
+  });
+
+  test("isolation is built in only when no request found another's value", () => {
+    expect(isolationResult(["0 1", "0 2", "0 3"])).toEqual({ result: "built-in", evidence: { requests: 3, saw_another_request: 0 } });
+    expect(isolationResult(["0 1", "1 2", "2 3"])).toEqual({ result: "no", evidence: { requests: 3, saw_another_request: 2 } });
+    expect(isolationResult(["10 11"]).result).toBe("no");
+  });
+
+  test("a crash is survived when the next request is answered and the backend is still up", () => {
+    expect(crashResult(500, 200, true).result).toBe("built-in");
+    expect(crashResult(502, 200, true).evidence).toEqual({ crash_status: 502, next_status: 200, backend_running: true });
+    expect(crashResult(500, 502, false).result).toBe("no");
+    expect(crashResult(500, 200, false).result).toBe("no");
+  });
+
+  test("the headers are built in only with all three, and the frame policy may come from either header", () => {
+    const all = { "x-content-type-options": "nosniff", "content-security-policy": "frame-ancestors 'none'", "referrer-policy": "no-referrer" };
+    expect(headersResult(all).result).toBe("built-in");
+    expect(headersResult({ ...all, "content-security-policy": "default-src 'self'", "x-frame-options": "DENY" }).result).toBe("built-in");
+    expect(headersResult({ "x-content-type-options": "nosniff" })).toEqual({
+      result: "your-code",
+      evidence: { nosniff: true, frame_policy: false, referrer_policy: false },
+    });
+    expect(headersResult({ ...all, "x-content-type-options": "sniff" }).result).toBe("your-code");
+  });
+
+  test("the term printed raw needs the developer's escaper", () => {
+    expect(escapeResult(`<h1>Results for ${ESCAPE_TERM}</h1>`).result).toBe("your-code");
+    expect(escapeResult("<h1>Results for &lt;script&gt;alert(1)&lt;/script&gt;</h1>")).toEqual({ result: "built-in", evidence: { raw_script_in_body: false } });
+  });
+
+  test("a row's line names each peer's result in the table's order, with a setting where there is one", () => {
+    const r = (result: RowResult["result"], setting?: string): RowResult => (setting === undefined ? { result, evidence: {} } : { result, setting, evidence: {} });
+    const byPeer = new Map([["go", r("no")], ["nvs", r("one-setting", "limits.memory")], ["php", r("built-in")], ["bun", r("your-code")]]);
+    expect(rowLine("runaway", byPeer)).toBe("runaway: Novis one-setting (limits.memory), PHP built-in, Bun your-code, Go no");
   });
 });
 

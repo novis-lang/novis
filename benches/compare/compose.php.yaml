@@ -13,7 +13,7 @@ services:
 
     working_dir: /app
     volumes:
-      - ./cases/${CASE:?the driver sets CASE}:/app:ro
+      - ./${TREE:?the driver sets TREE}/${CASE:?the driver sets CASE}:/app:ro
       # The proxied leg's opcache settings, shared rather than copied.
       - ../proxied/php/opcache.ini:/usr/local/etc/php/conf.d/zz-opcache.ini:ro
       # Rendered by the driver from `benches/proxied/php/pool.conf.in` before every `up`, sized from the
