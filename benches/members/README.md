@@ -1,7 +1,7 @@
 # The per-feature bench tree — one measured record each
 
 Every feature Novis ships owes a measured performance record
-([ADR 0134](../../docs/decisions/0134.md)), and this is where the programs
+([`rule:testing/feature-proofs`](../../docs/rules/testing.md#testing-feature-proofs)), and this is where the programs
 that produce it live. **Every number here is Novis against itself.** There is no PHP column and
 there never will be — [`benches/userland/`](../userland/README.md) owns the cross-engine comparison,
 and [`benches/abi-probe/`](../abi-probe/) owns the guards that fail a build. This tree exists to

@@ -2,7 +2,6 @@
   "title": "A member's record is four counts that compare on any machine and one clock that compares on its own, re-measured only when its implementing file's code moves",
   "status": "shipped",
   "because": [
-    "0134",
     "0191",
     "0220",
     "0224",
@@ -15,6 +14,7 @@
   ],
   "guardedBy": [
     "docs/perf/members.ndjson",
+    "benches/members/README.md",
     "tools/nv/proofs/collect.ts",
     "tools/nv/cmd/proofs.ts"
   ]

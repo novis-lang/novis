@@ -1,9 +1,7 @@
 {
   "title": "An example, an attack and a bench are attributed by path; a test is attributed by a marker",
   "status": "shipped",
-  "because": [
-    "0134"
-  ],
+  "because": [],
   "seeAlso": [
     "testing/feature-proofs",
     "testing/roster-is-derived",

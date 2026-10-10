@@ -35,5 +35,14 @@ The granularity is still the file rather than the member, which is conservative 
 direction: the cost of being wrong is one command rather than a wrong number.
 
 The gate accepts a record from any machine and only the report's clock columns insist on this one's,
-so a fresh clone owes nothing it already has a current record for. Nothing here gates a build. A
-regression is a row with a delta on it.
+so a fresh clone owes nothing it already has a current record for. Gating on a record from this
+machine would make every new machine owe every figure in the ledger on its first run. Nothing here
+gates a build. A regression is a row with a delta on it.
+
+**Declined:**
+- **Instruction counts under callgrind as the recorded figure.** Callgrind runs on Linux only and
+  about fifty times slower, so a sweep of every feature would take hours on one platform, and a
+  ledger that expensive is not taken. Valgrind is kept for the growth ramp that does not settle
+  (`rule:testing/feature-proofs`).
+- **A column for PHP or another engine.** This ledger compares Novis with itself
+  (`rule:testing/userland-benchmarks` owns the comparison).

@@ -1,9 +1,7 @@
 {
   "title": "A proof that fails is fixed or recorded as a known gap, and never weakened",
   "status": "shipped",
-  "because": [
-    "0134"
-  ],
+  "because": [],
   "seeAlso": [
     "testing/feature-proofs",
     "testing/hostile-case-contract",

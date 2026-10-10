@@ -738,7 +738,10 @@ carrying a context manifest naming that file set and each gated by a command tha
 Regenerating the chain is how it stays current: a group that owes nothing is left out, so a second
 emission writes the chain that is *left*.
 
-<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/a-failing-proof-is-fixed-or-recorded`](testing.md#testing-a-failing-proof-is-fixed-or-recorded), [`testing/roster-is-derived`](testing.md#testing-roster-is-derived). Decided in [0134](../decisions/0134.md).</sub>
+**Declined:**
+- **One proof per session.** It buys the same understanding of the feature once per proof.
+
+<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/a-failing-proof-is-fixed-or-recorded`](testing.md#testing-a-failing-proof-is-fixed-or-recorded), [`testing/roster-is-derived`](testing.md#testing-roster-is-derived).</sub>
 
 <a id="testing-examples-live-in-the-repository"></a>
 
@@ -752,7 +755,12 @@ copies it into `website/`, so there is no mirror to rebuild and no second copy t
 They live in the repository because the same sweep that tests a feature writes its examples, and a
 sweep cannot write into a tree it is not allowed to touch.
 
-<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/proof-attribution`](testing.md#testing-proof-attribution), [`testing/website-pages-are-stamped`](testing.md#testing-website-pages-are-stamped). Decided in [0134](../decisions/0134.md), [0263](../decisions/0263.md).</sub>
+**Declined:**
+- **Examples in the website's own tree, written by a person after the feature ships.** Written that
+  way, almost no member ever had one. The sweep that understands the feature is the one that writes
+  them.
+
+<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/proof-attribution`](testing.md#testing-proof-attribution), [`testing/website-pages-are-stamped`](testing.md#testing-website-pages-are-stamped). Decided in [0263](../decisions/0263.md).</sub>
 
 <a id="testing-website-pages-are-stamped"></a>
 
@@ -829,7 +837,7 @@ Freezing the output instead is refused: every one of these programs is written t
 nobody can predict, and a suite whose expectations must be maintained is a suite that gets weakened
 until it passes.
 
-<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/a-failing-proof-is-fixed-or-recorded`](testing.md#testing-a-failing-proof-is-fixed-or-recorded), [`testing/capability-completeness-test`](testing.md#testing-capability-completeness-test). Decided in [0134](../decisions/0134.md), [0244](../decisions/0244.md).</sub>
+<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/a-failing-proof-is-fixed-or-recorded`](testing.md#testing-a-failing-proof-is-fixed-or-recorded), [`testing/capability-completeness-test`](testing.md#testing-capability-completeness-test). Decided in [0244](../decisions/0244.md).</sub>
 
 <a id="testing-feature-proofs"></a>
 
@@ -867,7 +875,20 @@ policy nothing can check. A single feature excused from a single proof is a skip
 **the reason as its value**, so "this cannot be measured" and "nobody wrote one" never look the same
 in the audit.
 
-<sub>See also [`testing/roster-is-derived`](testing.md#testing-roster-is-derived), [`testing/proof-attribution`](testing.md#testing-proof-attribution), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger), [`testing/hostile-case-contract`](testing.md#testing-hostile-case-contract), [`testing/one-slice-is-one-feature`](testing.md#testing-one-slice-is-one-feature). Decided in [0134](../decisions/0134.md), [0216](../decisions/0216.md), [0272](../decisions/0272.md).</sub>
+The proofs are a cost spent up front, per feature, and spent on security and correctness: an attack
+per feature is a security question asked before a user asks it. What keeps the audit affordable to
+re-run is that its gate runs no program. It checks what exists on disk, so a sweep over a finished
+tree is a walk of the directories. An audit that reads mostly red is the honest number, never a
+reason to loosen what a kind owes; turning one proof off for the whole roster changes what is owed
+and says so in the audit.
+
+**Declined:**
+- **Line coverage instead of a test from Rust.** A coverage run says which lines ran, not which
+  feature is proven, and a coverage percentage is a threshold rather than a finished feature.
+- **A hand-kept checklist of finished features.** It rots within a day of an unattended run
+  ([`testing/roster-is-derived`](testing.md#testing-roster-is-derived)).
+
+<sub>See also [`testing/roster-is-derived`](testing.md#testing-roster-is-derived), [`testing/proof-attribution`](testing.md#testing-proof-attribution), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger), [`testing/hostile-case-contract`](testing.md#testing-hostile-case-contract), [`testing/one-slice-is-one-feature`](testing.md#testing-one-slice-is-one-feature). Decided in [0216](../decisions/0216.md), [0272](../decisions/0272.md).</sub>
 
 <a id="testing-roster-is-derived"></a>
 
@@ -887,7 +908,7 @@ owes them on the next sweep. Nobody edits a list, so no list is ever stale — a
 wrong within a day of an unattended run, and it under-reports silently, which is the failure mode
 that looks like success.
 
-<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/proof-attribution`](testing.md#testing-proof-attribution). Decided in [0134](../decisions/0134.md).</sub>
+<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/proof-attribution`](testing.md#testing-proof-attribution).</sub>
 
 <a id="testing-proof-attribution"></a>
 
@@ -908,7 +929,7 @@ That written spelling is the only inference made. Crediting a bare `->method(` c
 case happens to name is unsound rather than merely loose, and no tightening fixes it without a type
 checker.
 
-<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/roster-is-derived`](testing.md#testing-roster-is-derived), [`testing/examples-live-in-the-repository`](testing.md#testing-examples-live-in-the-repository). Decided in [0134](../decisions/0134.md).</sub>
+<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/roster-is-derived`](testing.md#testing-roster-is-derived), [`testing/examples-live-in-the-repository`](testing.md#testing-examples-live-in-the-repository).</sub>
 
 <a id="testing-a-failing-proof-is-fixed-or-recorded"></a>
 
@@ -934,7 +955,7 @@ whatever fix eventually lands.
 skipping the feature each turn a finding into a green check, which is the single outcome this rule
 exists to prevent. A skip is for a proof that *cannot exist*, never for one that fails.
 
-<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/hostile-case-contract`](testing.md#testing-hostile-case-contract), [`testing/one-slice-is-one-feature`](testing.md#testing-one-slice-is-one-feature). Decided in [0134](../decisions/0134.md).</sub>
+<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/hostile-case-contract`](testing.md#testing-hostile-case-contract), [`testing/one-slice-is-one-feature`](testing.md#testing-one-slice-is-one-feature).</sub>
 
 <a id="testing-capability-completeness-test"></a>
 
@@ -1423,10 +1444,19 @@ The granularity is still the file rather than the member, which is conservative 
 direction: the cost of being wrong is one command rather than a wrong number.
 
 The gate accepts a record from any machine and only the report's clock columns insist on this one's,
-so a fresh clone owes nothing it already has a current record for. Nothing here gates a build. A
-regression is a row with a delta on it.
+so a fresh clone owes nothing it already has a current record for. Gating on a record from this
+machine would make every new machine owe every figure in the ledger on its first run. Nothing here
+gates a build. A regression is a row with a delta on it.
 
-<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks). Decided in [0134](../decisions/0134.md), [0191](../decisions/0191.md), [0220](../decisions/0220.md), [0224](../decisions/0224.md), [0226](../decisions/0226.md).</sub>
+**Declined:**
+- **Instruction counts under callgrind as the recorded figure.** Callgrind runs on Linux only and
+  about fifty times slower, so a sweep of every feature would take hours on one platform, and a
+  ledger that expensive is not taken. Valgrind is kept for the growth ramp that does not settle
+  ([`testing/feature-proofs`](testing.md#testing-feature-proofs)).
+- **A column for PHP or another engine.** This ledger compares Novis with itself
+  ([`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks) owns the comparison).
+
+<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks). Decided in [0191](../decisions/0191.md), [0220](../decisions/0220.md), [0224](../decisions/0224.md), [0226](../decisions/0226.md).</sub>
 
 <a id="testing-userland-benchmarks"></a>
 
