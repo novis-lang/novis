@@ -2,7 +2,6 @@
   "title": "Attempts are finite, backoff is exponential and jittered, and an exhausted job is kept rather than discarded",
   "status": "shipped",
   "because": [
-    "0084",
     "0187"
   ],
   "seeAlso": [

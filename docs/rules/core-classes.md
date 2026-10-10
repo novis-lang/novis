@@ -1736,7 +1736,7 @@ every plan against a shared database holds reports, and a rule reading *every* s
 refuse every plan ever computed against a real database. `applySafe` reads the grades of the steps it
 would run.
 
-<sub>See also [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0145](../decisions/0145.md), [0084](../decisions/0084.md).</sub>
+<sub>See also [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0145](../decisions/0145.md).</sub>
 
 <a id="core-classes-schema-apply-capability"></a>
 
@@ -1757,7 +1757,7 @@ step it would run is not `Safe`, and throws naming the first that is not.
 **`applyIncludingRisky()`** says so where it is written, so a reviewer reading the call sees the
 claim being made. `nvs schema plan|apply|dump` is the operator's spelling of the same thing.
 
-<sub>See also [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0145](../decisions/0145.md), [0084](../decisions/0084.md).</sub>
+<sub>See also [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0145](../decisions/0145.md).</sub>
 
 <a id="core-classes-derive-attribute"></a>
 
@@ -2056,14 +2056,28 @@ it would be a schema no existing deployment could converge to, while a nullable 
 
 DDL is an injection sink and a privileged act, so **the runtime never issues it implicitly**, not at
 boot and not from a request; applying the plan takes `db.schema` like any other DDL
-([`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability)).
+([`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability)). A server whose queue database is behind that schema
+does not create what is missing: it refuses to serve and names `nvs queue migrate`. That makes the
+migrate command one more operator step a deployment has to get right, and implicit DDL from a running
+server is worse in every way that matters here.
 
 It may be the application's own database, and that is the recommended configuration, because a
 transactional enqueue — the property the whole design rests on — requires it. A separate queue
 database is permitted and silently gives up that property, which is why the documentation says so at
-the point the option is offered.
+the point the option is offered. The cost of the recommended configuration is write load on the
+application's primary database, and that cost is the reason `[queue] connection` is a setting at all.
 
-<sub>See also [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges), [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities). Decided in [0084](../decisions/0084.md), [0145](../decisions/0145.md), [0153](../decisions/0153.md), [0187](../decisions/0187.md).</sub>
+**Declined:**
+- **A runtime-owned durable log on disk.** It ties a job to one machine's disk, so a second instance
+  cannot see it and a rescheduled container loses it, and durability becomes the runtime's to prove
+  rather than the database's to provide.
+- **`Core\Cache` as the store.** It must always be correct to find nothing in the cross-request store
+  ([`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit)), which is right for a cache and disqualifying
+  for a job somebody is waiting on.
+- **Creating the tables at boot or on first use.** DDL is a privileged act an operator takes, never one
+  a running server takes on its own.
+
+<sub>See also [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges), [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities). Decided in [0145](../decisions/0145.md), [0153](../decisions/0153.md), [0187](../decisions/0187.md).</sub>
 
 <a id="core-classes-session-is-started-explicitly"></a>
 

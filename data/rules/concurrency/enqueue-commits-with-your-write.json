@@ -1,9 +1,7 @@
 {
   "title": "A `push` on the queue's connection commits with the write that caused it, or neither happens",
   "status": "shipped",
-  "because": [
-    "0084"
-  ],
+  "because": [],
   "seeAlso": [
     "core-classes/queue-storage-is-a-table",
     "concurrency/foreign-connection-enqueue-is-counted",

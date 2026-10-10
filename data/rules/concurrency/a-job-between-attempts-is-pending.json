@@ -1,9 +1,7 @@
 {
   "title": "A job between attempts is `Pending`, and there is no `Failed` state to ask about",
   "status": "shipped",
-  "because": [
-    "0084"
-  ],
+  "because": [],
   "seeAlso": [
     "enums/closed-integer-type",
     "concurrency/attempts-are-finite-and-a-dead-letter-is-kept"

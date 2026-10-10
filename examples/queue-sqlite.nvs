@@ -9,9 +9,9 @@
 // here there is nothing left for it to do, and [ADR 0170](/docs/decisions/0170.md)
 // is why that is a stronger answer rather than a weaker one.
 //
-// So this fixture is the whole of ADR 0084's design running against a file:
-// § 1's job names a file, § 4's claim is the database's to arbitrate, and § 6's
-// write-back is what makes `status` answer `Succeeded`. Nothing about the
+// So this fixture is the whole queue design running against a file: the job
+// names a file (`rule:concurrency/a-job-names-a-file`), the claim is the
+// database's to arbitrate, and the write-back makes `status` answer `Succeeded`. Nothing about the
 // program says which backend it is on, and that is the claim — the four members
 // a request asks are the same four here as on the servers
 // `examples/queue.nvs` and `examples/queue-purge.nvs` need.
@@ -86,7 +86,7 @@ echo 'enqueued', "\n";
 // due.
 echo 'claimed ', Poll::counted(fn (): uint => { return Queue::stats($queue)->claimed(); }), "\n";
 
-// § 6's write-back, read as the state it leaves behind rather than as a
+// The write-back, read as the state it leaves behind rather than as a
 // callback: delivery is at-least-once, so "it ran" is something a row says.
 Poll::until(fn (): bool => { return Queue::status($receipt) == State::Succeeded; });
 echo 'ran', "\n";

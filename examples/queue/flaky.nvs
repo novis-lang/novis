@@ -1,7 +1,7 @@
 <?nvs
 // The job `examples/queue.nvs` enqueues and expects to fail every time.
 //
-// [ADR 0084](/docs/decisions/0084.md) § 6: attempts are
+// `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`: attempts are
 // finite with nothing configured, backoff is exponential with jitter and a
 // cap, and a job that exhausts its attempts moves to the dead-letter table
 // with its payload, every attempt's error and its timing. It is never

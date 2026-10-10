@@ -2,7 +2,6 @@
   "title": "`Core\\Queue`'s four request-path members are each asked about a job or about a queue, never about a row number",
   "status": "shipped",
   "because": [
-    "0084",
     "0153"
   ],
   "seeAlso": [

@@ -74,8 +74,8 @@ wasmtime.workspace = true
 # whose clock is the system's.
 jiff.workspace = true
 nvs-test.workspace = true
-# `nvs queue migrate` opens the `[db.<name>]` it proved and runs ADR 0084 § 2's
-# statements on it. This is the only path in this binary that talks to a server
+# `nvs queue migrate` opens the `[db.<name>]` it proved and converges
+# `rule:core-classes/queue-storage-is-a-table`'s two tables on it. This is the only path in this binary that talks to a server
 # outside a request, and `queue.rs`'s module doc owns why that needs a driver
 # here rather than a task borrowed from `run`.
 nvs-db.workspace = true
