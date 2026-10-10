@@ -1,7 +1,8 @@
 {
   "hooks": {
     "PreToolUse": [
-      { "matcher": "Read|Bash|PowerShell", "hooks": [ { "type": "command", "command": "bun nv guard" } ] }
+      { "matcher": "Read|Bash|PowerShell", "hooks": [ { "type": "command", "command": "bun nv guard" } ] },
+      { "matcher": "Read|Bash|PowerShell", "hooks": [ { "type": "command", "command": "looper guard" } ] }
     ]
   },
   "permissions": {
@@ -199,7 +200,9 @@
       "PowerShell(bun nv sweep:*)",
       "Bash(bunx tsc:*)",
       "Bash(bun nv pack:*)",
-      "PowerShell(bun nv pack:*)"
+      "PowerShell(bun nv pack:*)",
+      "Bash(looper:*)",
+      "PowerShell(looper:*)"
     ]
   }
 }
