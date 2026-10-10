@@ -568,7 +568,7 @@ the revision and its date when no `.git` is present, and every fact that cannot 
 `unknown` rather than failing the build. All of it reaches [`packaging/nvs-info-is-the-one-call`](packaging.md#packaging-nvs-info-is-the-one-call)'s
 report, and the version, commit and date of it open [`packaging/the-banner-states-the-build`](packaging.md#packaging-the-banner-states-the-build).
 
-<sub>See also [`packaging/nvs-info-is-the-one-call`](packaging.md#packaging-nvs-info-is-the-one-call), [`packaging/the-banner-states-the-build`](packaging.md#packaging-the-banner-states-the-build). Decided in [0151](../decisions/0151.md).</sub>
+<sub>See also [`packaging/nvs-info-is-the-one-call`](packaging.md#packaging-nvs-info-is-the-one-call), [`packaging/the-banner-states-the-build`](packaging.md#packaging-the-banner-states-the-build).</sub>
 
 <a id="packaging-the-banner-states-the-build"></a>
 
@@ -596,7 +596,16 @@ commit, it answers how old the binary is while leaving two builds of one commit 
 `--help` therefore gets plain text and `NO_COLOR` is honoured, without the code that builds the string
 testing for a terminal — the same arrangement the diagnostic renderer already runs under.
 
-<sub>See also [`packaging/a-build-records-no-timestamp`](packaging.md#packaging-a-build-records-no-timestamp), [`packaging/the-cli-surface-is-novis-own`](packaging.md#packaging-the-cli-surface-is-novis-own). Decided in [0151](../decisions/0151.md).</sub>
+Because the date and hash are the commit's, `--help` changes with every commit and with nothing else:
+two builds of one commit, in separate checkouts, print the same banner.
+
+**Declined:**
+- **A wall-clock build timestamp on line two.** It makes every build of identical source a different
+  binary for a cosmetic field ([`packaging/a-build-records-no-timestamp`](packaging.md#packaging-a-build-records-no-timestamp)).
+- **A one-line `about` string of its own.** It drifts from the README's H1, which is two homes for
+  one fact.
+
+<sub>See also [`packaging/a-build-records-no-timestamp`](packaging.md#packaging-a-build-records-no-timestamp), [`packaging/the-cli-surface-is-novis-own`](packaging.md#packaging-the-cli-surface-is-novis-own).</sub>
 
 <a id="packaging-the-windows-binary-says-what-it-is"></a>
 
@@ -742,7 +751,22 @@ form are one flag with two spellings**, which is the getopt convention and not a
 ways; [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation) governs `Core`'s surface and never had anything to say
 about argv.
 
-<sub>See also [`packaging/nvs-info-is-the-one-call`](packaging.md#packaging-nvs-info-is-the-one-call), [`packaging/the-banner-states-the-build`](packaging.md#packaging-the-banner-states-the-build), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation). Decided in [0151](../decisions/0151.md).</sub>
+What a program observably does and what the command line looks like are separate questions: argv is
+not program semantics, so a migrating PHP developer's habits are no argument for a flag. A PHP
+spelling typed by habit, such as `nvs -i`, gets clap's unknown-argument error, which is one extra
+keystroke discovered once.
+
+**Declined:**
+- **`nvs -i` as an alias of `nvs info`.** It needs a global flag, a second global `--licenses` that
+  cannot be typed alone, and a hand-written check that a subcommand was not also given, because clap
+  cannot name a subcommand in a conflict. Three mechanisms for one spelling
+  ([`packaging/nvs-info-is-the-one-call`](packaging.md#packaging-nvs-info-is-the-one-call)).
+- **Keeping `-i` and dropping only the derived `--info`.** The flag is what carries all three
+  mechanisms, so the spelling was never the expensive half.
+- **`-v` for the version, as PHP spells it.** It would be a flag chosen because PHP spells it that way,
+  and it spends the letter every future `--verbose` will want.
+
+<sub>See also [`packaging/nvs-info-is-the-one-call`](packaging.md#packaging-nvs-info-is-the-one-call), [`packaging/the-banner-states-the-build`](packaging.md#packaging-the-banner-states-the-build), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation).</sub>
 
 <a id="packaging-help-text-speaks-to-its-reader"></a>
 
@@ -801,7 +825,7 @@ flag-gated for reasons this command does not share.
 **Declined:**
 - **A separate `nvs licenses` command.** It splits one question across two commands.
 
-<sub>See also [`packaging/the-notice-is-embedded-in-the-binary`](packaging.md#packaging-the-notice-is-embedded-in-the-binary), [`packaging/a-build-records-no-timestamp`](packaging.md#packaging-a-build-records-no-timestamp), [`packaging/the-cli-surface-is-novis-own`](packaging.md#packaging-the-cli-surface-is-novis-own), [`testing/debug-probes`](testing.md#testing-debug-probes). Decided in [0151](../decisions/0151.md).</sub>
+<sub>See also [`packaging/the-notice-is-embedded-in-the-binary`](packaging.md#packaging-the-notice-is-embedded-in-the-binary), [`packaging/a-build-records-no-timestamp`](packaging.md#packaging-a-build-records-no-timestamp), [`packaging/the-cli-surface-is-novis-own`](packaging.md#packaging-the-cli-surface-is-novis-own), [`testing/debug-probes`](testing.md#testing-debug-probes).</sub>
 
 <a id="packaging-a-package-name-is-vendor-slash-name"></a>
 

@@ -17,3 +17,12 @@ commit, it answers how old the binary is while leaving two builds of one commit 
 `Novis` is underlined through `anstyle`, which clap writes via `anstream`. A redirected or piped
 `--help` therefore gets plain text and `NO_COLOR` is honoured, without the code that builds the string
 testing for a terminal — the same arrangement the diagnostic renderer already runs under.
+
+Because the date and hash are the commit's, `--help` changes with every commit and with nothing else:
+two builds of one commit, in separate checkouts, print the same banner.
+
+**Declined:**
+- **A wall-clock build timestamp on line two.** It makes every build of identical source a different
+  binary for a cosmetic field (`rule:packaging/a-build-records-no-timestamp`).
+- **A one-line `about` string of its own.** It drifts from the README's H1, which is two homes for
+  one fact.

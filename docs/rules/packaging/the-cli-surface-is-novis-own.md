@@ -18,3 +18,18 @@ often enough to hurt — `-o` is that, and nothing else in the CLI has met the b
 form are one flag with two spellings**, which is the getopt convention and not an operation reachable two
 ways; `rule:core-api/one-paradigm-per-operation` governs `Core`'s surface and never had anything to say
 about argv.
+
+What a program observably does and what the command line looks like are separate questions: argv is
+not program semantics, so a migrating PHP developer's habits are no argument for a flag. A PHP
+spelling typed by habit, such as `nvs -i`, gets clap's unknown-argument error, which is one extra
+keystroke discovered once.
+
+**Declined:**
+- **`nvs -i` as an alias of `nvs info`.** It needs a global flag, a second global `--licenses` that
+  cannot be typed alone, and a hand-written check that a subcommand was not also given, because clap
+  cannot name a subcommand in a conflict. Three mechanisms for one spelling
+  (`rule:packaging/nvs-info-is-the-one-call`).
+- **Keeping `-i` and dropping only the derived `--info`.** The flag is what carries all three
+  mechanisms, so the spelling was never the expensive half.
+- **`-v` for the version, as PHP spells it.** It would be a flag chosen because PHP spells it that way,
+  and it spends the letter every future `--verbose` will want.

@@ -1,9 +1,7 @@
 {
   "title": "`nvs info` is the one call for build, host and licensing facts, and the one spelling of it",
   "status": "shipped",
-  "because": [
-    "0151"
-  ],
+  "because": [],
   "seeAlso": [
     "packaging/the-notice-is-embedded-in-the-binary",
     "packaging/a-build-records-no-timestamp",
@@ -11,6 +9,7 @@
     "testing/debug-probes"
   ],
   "guardedBy": [
-    "crates/nvs-cli/src/info.rs"
+    "crates/nvs-cli/src/info.rs",
+    "crates/nvs-cli/tests/info.rs"
   ]
 }
