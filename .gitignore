@@ -1,5 +1,28 @@
-# Rust build output
-/target
+# looper:begin gitignore v1
+# Scratch for every agent and tool, and looper's run directory.
+/.agent-tmp/
+/.loop/
+
+# Build output and dependencies of each stack.
+/target/
+node_modules/
+
+# Editors and OS.
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*~
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Claude Code's per-machine settings. The shared ones are .claude/settings.json.
+.claude/settings.local.json
+.claude/worktrees/
+# looper:end gitignore
+
+# Rust build output below the root
 **/target
 # A feature named `target` has a proof directory of that name, and it is source
 !/docs/examples/**/target
@@ -36,36 +59,15 @@ flamegraph.svg
 /tests/db/ca.crt
 
 # Editors
-.vscode/*
-!.vscode/extensions.json
 !.vscode/settings.shared.json
-.idea/
 *.iml
-*.swp
-*~
-
-# OS
-Thumbs.db
-Desktop.ini
-.DS_Store
 
 # Local developer config (nvs.toml is server config; keep local overrides out)
 /nvs.local.toml
 /.env
 
-# Machine-local agent/tool settings
-.claude/settings.local.json
-
 # Bytecode from importing a repo script under tools/
 __pycache__/
-
-# Unattended loop run artifacts (see docs/agent/coordinator.md). Everything the
-# driver writes at run time lives under one directory, so this is one line.
-/.loop/
-
-# The CA copied out of the database matrix's containers by a test that wants to
-# verify the chain rather than merely encrypt (tests/db/compose.yaml's header).
-/tests/db/ca.crt
 
 # The queue `examples/queue-sqlite.nvs` runs against — the one database in this
 # repository that is a file rather than a server, named by that fixture's own
@@ -73,10 +75,6 @@ __pycache__/
 # every job that fixture ever pushed, and a checkout that has never run the
 # acceptance sweep has no reason to hold one.
 /tests/db/queue-sqlite.db
-
-# Scratch commit-message file (AGENTS.md: a multi-line message goes through a
-# file, never an inline `-m`); never part of the tree it describes.
-/.agent-tmp/
 
 # The proxied benchmark's two derived inputs (benches/proxied/README.md).
 # `.bin/nvs` is a Linux binary staged by `--nvs-bin`, and `generated/pool.conf`
@@ -93,19 +91,17 @@ __pycache__/
 # happen to sit in the tree for the length of one build.
 /docker/bin/
 
-# The editor clients' package caches and build output. The lockfile IS committed -- `npm ci` needs
-# one, and an unpinned tree makes the grammar snapshots reproducible only by luck -- but a session
-# that commits `node_modules` is a session whose commit nobody can review. Anchored under
-# `editors/` because an unanchored `out/` also swallows website/src/content/docs/docs/core/out/.
-/editors/*/node_modules/
+# The editor clients' build output; their `node_modules` is the block's line. The lockfile IS
+# committed -- `npm ci` needs one, and an unpinned tree makes the grammar snapshots reproducible
+# only by luck. Anchored under `editors/` because an unanchored `out/` also swallows
+# website/src/content/docs/docs/core/out/.
 /editors/*/out/
 /editors/*/.vscode-test/
 /editors/*/*.vsix
 /editors/*/LICENSE
 
-# The tools' package cache (`bun install`, from the committed `bun.lock`) and `bun nv`'s index,
-# `.cache/nv.sqlite`, which is rebuilt from the records under `data/` and never read as a source.
-/node_modules/
+# `bun nv`'s index, `.cache/nv.sqlite`, which is rebuilt from the records under `data/` and never
+# read as a source.
 /.cache/
 
 a.out
