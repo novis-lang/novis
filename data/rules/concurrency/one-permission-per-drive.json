@@ -2,7 +2,6 @@
   "title": "One wake permission is installed per drive, and a fresh one is issued only after it fires",
   "status": "shipped",
   "because": [
-    "0138",
     "0229"
   ],
   "seeAlso": [

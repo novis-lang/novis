@@ -10,3 +10,7 @@ of the slot when it fires; the next park finds the slot empty and issues a fresh
 A connection whose every wait ends in socket readiness — the ordinary one, since the reactor wakes a
 task by id and never through a waker — therefore issues exactly one permission for the whole
 connection, and gives it back unused when the drive returns.
+
+**Declined:**
+- **A fresh permission per park.** Each one is issued and collected once per readiness edge, which
+  is a delivered poke per wait for a wake nobody asked for.

@@ -11,3 +11,7 @@ id.
 It is also why a waker's payload is a shared flag and slot rather than the scheduler's own same-core
 wake, which is deliberately not thread-safe: a waker built over that would be sound exactly until a
 clone crossed a thread, and unsound with no diagnostic afterwards.
+
+**Declined:**
+- **Waking through the scheduler's own same-core wake.** It is the natural route on one core and
+  is not thread-safe by design, for the reason above.

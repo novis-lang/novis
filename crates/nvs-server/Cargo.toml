@@ -21,8 +21,8 @@ doctest = false
 # `tokio` out of the graph rather than a tidiness choice.
 hyper.workspace = true
 # The parking stream this crate adapts, and the `block_on` that drives the
-# future over it. `src/io.rs` is the whole of the seam; ADR 0138 is its
-# specification.
+# future over it. `src/io.rs` is the whole of the seam;
+# `rule:concurrency/one-future-per-connection` is its specification.
 nvs-host.workspace = true
 # `rule:http-server/four-idle-waits-all-finite`'s four waits, resolved: `nvs_config::server::Waits` is the clock a connection is
 # bounded by, and this crate takes it rather than four `Duration`s so that the ADR's numbers have

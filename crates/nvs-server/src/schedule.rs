@@ -8,8 +8,8 @@
 //! parameter is the handler that says which isolate a request is; here it is
 //! [`Fires`], which says which isolate an entry's `script` is — turning a path
 //! into runnable code is the compiler's, and this crate has none. A ticker with
-//! its own scheduler would be a second place a core is driven from, which ADR
-//! 0138 and this crate's own docs § *There is no second scheduler* both refuse.
+//! its own scheduler would be a second place a core is driven from, which
+//! `rule:concurrency/one-future-per-connection` and this crate's own docs § *There is no second scheduler* both refuse.
 //!
 //! # The clock is asked, never counted from
 //!

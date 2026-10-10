@@ -1693,7 +1693,30 @@ The risk this closes is not that a poll loop is hard to write. It is that a poll
 becomes an executor — a ready queue, a spawn, work stealing — and then there are two schedulers on
 one core, each with its own idea of which stack may touch an arena.
 
-<sub>See also [`concurrency/a-waker-is-one-permission-to-poll`](concurrency.md#concurrency-a-waker-is-one-permission-to-poll), [`concurrency/the-park-route-is-chosen-once`](concurrency.md#concurrency-the-park-route-is-chosen-once), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate). Decided in [0138](../decisions/0138.md).</sub>
+The waker is the only thread-safe type the drive touches. A protocol that wants more
+than one future per connection does not get an executor from this loop; it reopens the choice of HTTP
+implementation instead.
+
+- **Memory:** per connection, one shared flag and wake slot, one waker, at most one outstanding wake
+  permission, and the future itself on the coroutine's own stack. That is O(in-flight), and nothing
+  is allocated per poll or per park.
+- **Latency:** a park costs what every other park in the host costs. The one charge over a
+  hand-written state machine is the poke delivered when the last permission is given up, once per
+  drive and not once per wait.
+
+**Declined:**
+- **An executor: a per-core ready queue of futures.** It is two schedulers on one core, and a
+  work-stealing question that thread-per-core exists to avoid. Concurrency inside one connection is
+  already a task from the scheduler.
+- **A socket read that suspends the coroutine instead of answering pending.** It removes the waker
+  and deadlocks: the read and write halves of one connection are one future, so a read waiting for
+  the peer holds back the response that would make the peer send more. It passes only exchanges
+  small enough to fit a socket buffer.
+- **A third-party `block_on`.** It parks the thread, which is right off a core and wrong on one
+  ([`concurrency/the-park-route-is-chosen-once`](concurrency.md#concurrency-the-park-route-is-chosen-once)), and it would still need this runtime's
+  cross-core wake behind its waker.
+
+<sub>See also [`concurrency/a-waker-is-one-permission-to-poll`](concurrency.md#concurrency-a-waker-is-one-permission-to-poll), [`concurrency/the-park-route-is-chosen-once`](concurrency.md#concurrency-the-park-route-is-chosen-once), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate).</sub>
 
 <a id="concurrency-a-waker-is-one-permission-to-poll"></a>
 
@@ -1716,7 +1739,7 @@ of sleeping on a wake that has already happened.
 A waker cloned and held past the call fires into an empty slot and sets a flag nobody reads. That is
 inert, and it is the same reading as a wake that raced with the task ending.
 
-<sub>See also [`concurrency/one-future-per-connection`](concurrency.md#concurrency-one-future-per-connection), [`concurrency/one-permission-per-drive`](concurrency.md#concurrency-one-permission-per-drive). Decided in [0138](../decisions/0138.md).</sub>
+<sub>See also [`concurrency/one-future-per-connection`](concurrency.md#concurrency-one-future-per-connection), [`concurrency/one-permission-per-drive`](concurrency.md#concurrency-one-permission-per-drive).</sub>
 
 <a id="concurrency-one-permission-per-drive"></a>
 
@@ -1737,7 +1760,11 @@ A connection whose every wait ends in socket readiness — the ordinary one, sin
 task by id and never through a waker — therefore issues exactly one permission for the whole
 connection, and gives it back unused when the drive returns.
 
-<sub>See also [`concurrency/a-waker-is-one-permission-to-poll`](concurrency.md#concurrency-a-waker-is-one-permission-to-poll), [`concurrency/a-wake-never-moves-a-task`](concurrency.md#concurrency-a-wake-never-moves-a-task), [`concurrency/a-handle-given-up-by-its-task-wakes-nothing`](concurrency.md#concurrency-a-handle-given-up-by-its-task-wakes-nothing). Decided in [0138](../decisions/0138.md), [0229](../decisions/0229.md).</sub>
+**Declined:**
+- **A fresh permission per park.** Each one is issued and collected once per readiness edge, which
+  is a delivered poke per wait for a wake nobody asked for.
+
+<sub>See also [`concurrency/a-waker-is-one-permission-to-poll`](concurrency.md#concurrency-a-waker-is-one-permission-to-poll), [`concurrency/a-wake-never-moves-a-task`](concurrency.md#concurrency-a-wake-never-moves-a-task), [`concurrency/a-handle-given-up-by-its-task-wakes-nothing`](concurrency.md#concurrency-a-handle-given-up-by-its-task-wakes-nothing). Decided in [0229](../decisions/0229.md).</sub>
 
 <a id="concurrency-a-wake-never-moves-a-task"></a>
 
@@ -1759,7 +1786,11 @@ It is also why a waker's payload is a shared flag and slot rather than the sched
 wake, which is deliberately not thread-safe: a waker built over that would be sound exactly until a
 clone crossed a thread, and unsound with no diagnostic afterwards.
 
-<sub>See also [`concurrency/one-future-per-connection`](concurrency.md#concurrency-one-future-per-connection), [`concurrency/one-permission-per-drive`](concurrency.md#concurrency-one-permission-per-drive). Decided in [0138](../decisions/0138.md).</sub>
+**Declined:**
+- **Waking through the scheduler's own same-core wake.** It is the natural route on one core and
+  is not thread-safe by design, for the reason above.
+
+<sub>See also [`concurrency/one-future-per-connection`](concurrency.md#concurrency-one-future-per-connection), [`concurrency/one-permission-per-drive`](concurrency.md#concurrency-one-permission-per-drive).</sub>
 
 <a id="concurrency-a-handle-given-up-by-its-task-wakes-nothing"></a>
 
@@ -1801,7 +1832,7 @@ it once, on the way back in; there the loop stops and the drive answers nothing.
 wait on a wake that is not coming, which is a wedged coroutine rather than a slow one, and going on
 would serve a request the client is no longer attached to.
 
-<sub>See also [`concurrency/one-future-per-connection`](concurrency.md#concurrency-one-future-per-connection), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly). Decided in [0138](../decisions/0138.md).</sub>
+<sub>See also [`concurrency/one-future-per-connection`](concurrency.md#concurrency-one-future-per-connection), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly).</sub>
 
 <a id="concurrency-the-park-route-is-chosen-once"></a>
 
@@ -1822,7 +1853,7 @@ Blocking the thread is right in that last case for the reason every off-core wai
 there is no coroutine to suspend and no neighbour to starve, so blocking starves nobody. On a core it
 would be precisely wrong.
 
-<sub>See also [`concurrency/one-future-per-connection`](concurrency.md#concurrency-one-future-per-connection), [`concurrency/a-waker-is-one-permission-to-poll`](concurrency.md#concurrency-a-waker-is-one-permission-to-poll). Decided in [0138](../decisions/0138.md).</sub>
+<sub>See also [`concurrency/one-future-per-connection`](concurrency.md#concurrency-one-future-per-connection), [`concurrency/a-waker-is-one-permission-to-poll`](concurrency.md#concurrency-a-waker-is-one-permission-to-poll).</sub>
 
 <a id="concurrency-the-parking-contract"></a>
 

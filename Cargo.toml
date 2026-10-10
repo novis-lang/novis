@@ -168,7 +168,8 @@ mio = { version = "1", features = ["os-poll", "net"] }
 # else: no `rt`, no `net`, no `time`, no executor, no reactor, no `spawn`. That
 # is the distinction `rule:concurrency/one-scheduler` draws, and it survives: this binary still
 # has exactly one scheduler, `nvs-host`'s, and the connection future is driven
-# by `nvs_host::block_on` on the coroutine that owns the connection (ADR 0138)
+# by `nvs_host::block_on` on the coroutine that owns the connection
+# (`rule:concurrency/one-future-per-connection`)
 # over `crates/nvs-server/src/io.rs`'s adapters. h1 needs no `Executor` and
 # `serve_connection` spawns nothing.
 #

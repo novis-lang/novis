@@ -2,7 +2,7 @@
 //! `async` and a runtime that is not.
 //!
 //! `rule:concurrency/one-future-per-connection`
-//! is this module's specification and its § 1 is the whole loop: **clear the
+//! is this module's specification, and the whole loop is: **clear the
 //! flag, poll, park.** [`block_on`] runs that on the stack of the task that
 //! called it, which for the server is the coroutine that accepted the
 //! connection, so what this adds to the runtime is a loop and not a second
@@ -228,7 +228,8 @@ impl Signal {
                     // A wake landed between the poll and the arming and left
                     // only the flag. Going round again is what makes it not a
                     // lost wakeup; the permission stays installed for the next
-                    // park, which is § 3's whole point.
+                    // park, which is the whole point of
+                    // `rule:concurrency/one-permission-per-drive`.
                     return true;
                 }
                 let resumed = suspend_current(Waiting::Parked);
