@@ -15,7 +15,7 @@ stages:
     status: done
   - id: 5
     title: the handwritten pages
-    status: open
+    status: done
   - id: 6
     title: "owed fails, and the second measurement"
     status: open
@@ -193,13 +193,15 @@ File set: `tools/nv/cmd/site.ts`, `tools/nv/test/site-questions.test.ts`.
 
 ### State
 
-**Side goal `search-questions`: stages 3 and 4 are done, stage 5 is next.** `website/src/data/questions.json` has stamped entries for every Core, `/reference/config/` and `/reference/cli/` page. `tools/nv/cmd/site.ts` module doc § *The questions* is the home of how they work.
+**Side goal `search-questions`: stages 3, 4 and 5 are done, stage 6 is next.** `website/src/data/questions.json` has stamped entries for every built page: Core, configuration, CLI and the 146 handwritten pages. `tools/nv/cmd/site.ts` module doc § *The questions* is the home of how they work.
 
-`--questions --status`: core, config and cli 0 owed, pages 146 owed, nothing stale. The acceptance checks `core-questions` and `config-cli-questions` are green, and so is `bun nv site --check questions`. Under Git Bash, pass URLs with `MSYS_NO_PATHCONV=1` (playbook § *Running things*).
+`--questions --status`: every area 0 owed, 0 stale. The acceptance checks `core-questions`, `config-cli-questions` and `page-questions` are green, and so is `bun nv site --check questions`. Under Git Bash, pass URLs with `MSYS_NO_PATHCONV=1` (playbook § *Running things*).
+
+The handwritten pages' questions were read across all six batches for near repeats, with each other and with the reference pages, and about 45 were dropped or rewritten. Close pairs were split by angle: a tour page asks as a beginner, a `why-novis/` page asks why, a syntax page asks how, and an `in-depth/concepts/` page asks what happens. `/datenschutz/` has `pagefind: false`, so its four questions are written and stamped but never indexed.
+
+`bun nv site --build` passes, and a built page carries its questions: `website/dist/syntax/values/as/index.html` has the `data-questions` attribute. `website/node_modules` is now installed in this worktree. `bun install` writes a `website/bun.lock` the tree does not track (the website commits `package-lock.json`), so delete it after an install.
 
 There is no wrap gate for stale questions. `main` removed `nv session --wrap` and the page wrap gate with it, so `bun nv site --check questions` is the only check. CI's `nv site --check` step (`.github/workflows/ci.yml:352`) does not name the `questions` part yet.
-
-The Astro build with the new banner is *not checked*: `bun nv site --build` fails at once because this worktree has no `website/node_modules`. Run `bun install` under `website/` once, then build.
 
 The rustdoc gate was green: `bun nv verify --doc` passed after the `child_watch.rs`, `dispatch.rs` and `service.rs` link fixes, which `main` made the same way.
 
@@ -207,12 +209,17 @@ The driver's three LDAP "selection misses" (`Ldap-Ad-AccountFlags/passwordExpire
 
 ### Next
 
-**Stage 5: the handwritten pages**, one file set: `website/src/data/questions.json`.
+**Stage 6: owed fails, and the second measurement**, one file set: `tools/nv/cmd/site.ts`, `tools/nv/test/site-questions.test.ts`, `.github/workflows/ci.yml`.
 
-- [ ] **Questions for the 146 handwritten pages** (`rule:testing/website-pages-are-stamped`): 61 `guides/`, 61 `syntax/`, 14 `in-depth/`, 4 `install/`, and `reference/`, `sponsoring`, `impressum`, `datenschutz` and the front page. Dump `bun nv site --questions --owed pages --limit 2000` to `.agent-tmp/`. The dump is about 280 KB, because each page is its whole `.mdx`, so split it on the `== ` lines into six groups of about 25 pages, keeping each section's pages together. Send six general-purpose subagents in one message, each writing `{ url: [questions] }` to its own scratch file. A page whose subject is also a Core method or a config block page (a guide on sending mail, the syntax page for `match`) gets questions about the task or the concept, so it does not repeat the reference page's. The legal pages and the front page get four broad questions each. Read every file yourself. Then a scratch `bun` script checks each page for four to six questions, at most 15 words, no word from the user-text table, and no repeat of a question already in the file. It adds the arrays as `{ feature: "", hash: "", questions }`, and `MSYS_NO_PATHCONV=1 bun nv site --questions --stamp <urls>` fills in the rest. The script catches exact repeats only, so read across pages for near repeats ("every setting in effect" turned up on three pages in stage 4). Anchor: `website/src/data/questions.json:1`, the material from `tools/nv/cmd/site.ts:438`, the sources from `tools/nv/cmd/site.ts:377`.
+- [ ] **An owed page fails `--check questions`** (`rule:testing/website-pages-are-stamped`): `questionProblems` (`tools/nv/cmd/site.ts:425`) adds an `owed:` line per page in `questionStatus(...).owed` (`tools/nv/cmd/site.ts:420`), with the command that prints its material. Rewrite the module doc paragraph at `tools/nv/cmd/site.ts:70` ("nothing fails on yet") and the doc comment at `:424` as a whole. Add a case beside `tools/nv/test/site-questions.test.ts:71`. Extend the rule's fragment to say a page's questions are stamped as the page is.
+- [ ] **The batch checks move into `--check questions`**: four to six questions, at most 15 words, none from the user-text table, no exact repeat across the file, also in `questionProblems` (`tools/nv/cmd/site.ts:425`). Every entry passes today, so the check starts green. The scratch script this session used is the shape: count, `split(/\s+/)`, a whole-word regex per banned word, and a map of lower-cased questions with punctuation removed.
+- [ ] **CI runs the `questions` part:** add it to the `nv site --check` step at `.github/workflows/ci.yml:352`.
+- [ ] **The second measurement** (§ *Standing decisions*, stage 6 above): a general-purpose subagent that has not seen `questions.json` writes about 40 queries across the four areas with the right page for each. Build once with an empty `website/src/data/questions.json:1` (`website/src/components/Banner.astro:15` imports it) and once with the real one, run each query through `pagefind.js` in a browser, and compare the rank of the right page. The numbers go into the handoff for the user.
+
+### Done in stage 5
+
+- [x] **Questions for the 146 handwritten pages** (`rule:testing/website-pages-are-stamped`): written by six subagents, read across batches for near repeats, and stamped. `page-questions` is green.
 
 ### Backlog
 
-- The scratch check of a batch (count, length, words, repeats) is a manual step done five times now. It belongs in `--check questions`, in `tools/nv/cmd/site.ts`.
-- The blind-query measurement of two builds: stage 6 and § *Standing decisions*.
-- Then the goal's end gates: `bun nv verify --doc` and `bun nv owners --closes search-questions` (AGENTS.md § *In the loop*).
+- After stage 6, the goal's end gates: `bun nv verify --doc` and `bun nv owners --closes search-questions` (AGENTS.md § *In the loop*).
