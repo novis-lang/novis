@@ -2,8 +2,7 @@
   "title": "Every property a class declares is definitely assigned on every path out of every constructor",
   "status": "shipped",
   "because": [
-    "0043",
-    "0023"
+    "0043"
   ],
   "seeAlso": [
     "classes/an-unwritten-property-read-throws",

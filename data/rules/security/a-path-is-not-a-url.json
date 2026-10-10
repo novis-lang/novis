@@ -2,8 +2,7 @@
   "title": "A path is a filesystem path: no member dispatches on a scheme prefix, and nothing may register one",
   "status": "shipped",
   "because": [
-    "0052",
-    "0023"
+    "0052"
   ],
   "seeAlso": [
     "security/closed-doors",

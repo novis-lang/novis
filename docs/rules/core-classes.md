@@ -49,7 +49,7 @@ and consistency is the whole of the reason: an ambient, undeclared variable is t
 introduced itself is no better for having been introduced deliberately. Each isolate's arguments are
 its own.
 
-<sub>See also [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`statements/an-isolate-has-its-own-statics`](statements.md#statements-an-isolate-has-its-own-statics). Decided in [0006](../decisions/0006.md), [0023](../decisions/0023.md).</sub>
+<sub>See also [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`statements/an-isolate-has-its-own-statics`](statements.md#statements-an-isolate-has-its-own-statics). Decided in [0006](../decisions/0006.md).</sub>
 
 <a id="core-classes-process-is-argv-only"></a>
 
@@ -900,7 +900,7 @@ It is **not** built on the shared cache, which is deliberately lossy — right f
 for a message a subscriber is waiting on. Cross-machine fan-out is not the runtime's: a fleet bridges
 topics to a broker in application code.
 
-<sub>See also [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0083](../decisions/0083.md), [0023](../decisions/0023.md), [0033](../decisions/0033.md), [0059](../decisions/0059.md), [0076](../decisions/0076.md).</sub>
+<sub>See also [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0083](../decisions/0083.md), [0033](../decisions/0033.md), [0059](../decisions/0059.md), [0076](../decisions/0076.md).</sub>
 
 <a id="core-classes-db-one-api"></a>
 
@@ -1706,7 +1706,7 @@ per field, and paid on the encoding side by a refcount pair per level of the doc
 member runs. Footprint is O(derived classes in compiled code), not O(objects) and not O(requests), and
 a program that neither carries the attribute nor writes a half pays nothing at all, including no pass.
 
-<sub>See also [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`types/anonymous-object`](types.md#types-anonymous-object), [`types/shape-type`](types.md#types-shape-type). Decided in [0071](../decisions/0071.md), [0023](../decisions/0023.md), [0042](../decisions/0042.md), [0063](../decisions/0063.md).</sub>
+<sub>See also [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`types/anonymous-object`](types.md#types-anonymous-object), [`types/shape-type`](types.md#types-shape-type). Decided in [0071](../decisions/0071.md), [0042](../decisions/0042.md), [0063](../decisions/0063.md).</sub>
 
 <a id="core-classes-ldap-filter-is-a-value"></a>
 

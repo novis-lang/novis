@@ -253,7 +253,7 @@ not just a recompile.
 - **An `undefined` value for the unassigned state.** It widens every declared type
   ([`classes/no-undefined-value`](classes.md#classes-no-undefined-value)).
 
-<sub>See also [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws), [`classes/no-undefined-value`](classes.md#classes-no-undefined-value), [`classes/lateinit`](classes.md#classes-lateinit), [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor), [`types/declaration`](types.md#types-declaration). Decided in [0043](../decisions/0043.md), [0023](../decisions/0023.md).</sub>
+<sub>See also [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws), [`classes/no-undefined-value`](classes.md#classes-no-undefined-value), [`classes/lateinit`](classes.md#classes-lateinit), [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor), [`types/declaration`](types.md#types-declaration). Decided in [0043](../decisions/0043.md).</sub>
 
 <a id="classes-no-undefined-value"></a>
 
@@ -872,7 +872,7 @@ there is no runtime moment for a loader callback to attach to. What replaces
 - **Keeping PHP's `var_export` and `__set_state` format for converted code.** It makes generated
   source a data format, which the closed serialize format exists to avoid.
 
-<sub>See also [`classes/stringable`](classes.md#classes-stringable), [`classes/no-destructors`](classes.md#classes-no-destructors), [`classes/no-call-magic`](classes.md#classes-no-call-magic), [`classes/property-observer`](classes.md#classes-property-observer), [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload). Decided in [0023](../decisions/0023.md).</sub>
+<sub>See also [`classes/stringable`](classes.md#classes-stringable), [`classes/no-destructors`](classes.md#classes-no-destructors), [`classes/no-call-magic`](classes.md#classes-no-call-magic), [`classes/property-observer`](classes.md#classes-property-observer), [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload).</sub>
 
 <a id="classes-no-call-magic"></a>
 
@@ -970,16 +970,23 @@ and `Core\Serialize`. Neither depth is customizable by a class: there is no `__c
 `__serialize`, no `__unserialize`, no `__sleep` and no `__wakeup`.
 
 Keeping both is deliberate, because it is a real distinction: cloning a tree node should not
-deep-copy what it references, and forcing `clone` deep would silently change every class that relies
-on shallow-copy-then-shared-reference.
+deep-copy what it references. Having one graph copy rather than three — `Core\Serialize`, the worker
+boundary and the script boundary — is the same choice made once: one definition to keep correct.
 
 A copy therefore always means what the language says it means, which is what closes the
 deserialization gadget-chain class by construction — no hook fires during reconstruction, so there is no
 method call for attacker-controlled property values to drive. The cost is a real capability: a class
 that wants a duplicated nested collection or custom versioning has to expose an explicit method and
-call it, and two copy depths remain two things to learn.
+call it, and two copy depths remain two things to learn. A real pattern the explicit method cannot
+serve is what would reopen a hook; a request for parity with PHP is not.
 
-<sub>See also [`classes/clone-is-shallow`](classes.md#classes-clone-is-shallow), [`classes/graph-copy`](classes.md#classes-graph-copy), [`classes/serialize-is-a-closed-format`](classes.md#classes-serialize-is-a-closed-format), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods). Decided in [0023](../decisions/0023.md), [0006](../decisions/0006.md).</sub>
+**Declined:**
+- **One depth, with `clone` made recursive.** It silently changes every class that relies on
+  shallow-copy-then-shared-reference, for a consistency the two operations never needed.
+- **Keeping `__clone` alone.** It is still a class redefining a mechanical operation, and keeping one
+  hook while refusing the other four draws a line with no argument behind it.
+
+<sub>See also [`classes/clone-is-shallow`](classes.md#classes-clone-is-shallow), [`classes/graph-copy`](classes.md#classes-graph-copy), [`classes/serialize-is-a-closed-format`](classes.md#classes-serialize-is-a-closed-format), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods). Decided in [0006](../decisions/0006.md).</sub>
 
 <a id="classes-clone-is-shallow"></a>
 
@@ -1003,7 +1010,7 @@ a declared `PropertyObserver` is told nothing about it
 No `__clone` runs, and no class can declare one. A class needing a duplicated nested collection
 exposes an explicit method and calls it, rather than overloading what `clone` means.
 
-<sub>See also [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`classes/graph-copy`](classes.md#classes-graph-copy), [`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0023](../decisions/0023.md).</sub>
+<sub>See also [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`classes/graph-copy`](classes.md#classes-graph-copy), [`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline), [`programs/memory-priority`](programs.md#programs-memory-priority).</sub>
 
 <a id="classes-graph-copy"></a>
 
@@ -1027,7 +1034,7 @@ One walk serves both carriers — arena-to-arena at the isolate boundary, and by
 `Core\Serialize` — so a rule added to it reaches both or neither. Two implementations that agree today
 is the failure that costs.
 
-<sub>See also [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`classes/serialize-is-a-closed-format`](classes.md#classes-serialize-is-a-closed-format), [`classes/clone-is-shallow`](classes.md#classes-clone-is-shallow), [`types/callable-values`](types.md#types-callable-values), [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling). Decided in [0023](../decisions/0023.md), [0006](../decisions/0006.md), [0024](../decisions/0024.md).</sub>
+<sub>See also [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`classes/serialize-is-a-closed-format`](classes.md#classes-serialize-is-a-closed-format), [`classes/clone-is-shallow`](classes.md#classes-clone-is-shallow), [`types/callable-values`](types.md#types-callable-values), [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling). Decided in [0006](../decisions/0006.md), [0024](../decisions/0024.md).</sub>
 
 <a id="classes-serialize-is-a-closed-format"></a>
 
@@ -1054,9 +1061,18 @@ program decoding what it encoded itself says so once, with `Core\Taint::assertTr
 No capability grant is required, because the closed format and the no-hook rule already remove what a
 grant would contain, and a hostile payload's cost is bounded by the same memory and CPU limits every
 other allocation-heavy call has. What it costs is foreign data: a payload written in another runtime's
-open format cannot be read at all.
+open format cannot be read at all. Reading one would be a separate wire-format feature, never a
+loosening of this format.
 
-<sub>See also [`classes/graph-copy`](classes.md#classes-graph-copy), [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization). Decided in [0023](../decisions/0023.md), [0024](../decisions/0024.md), [0063](../decisions/0063.md).</sub>
+**Declined:**
+- **PHP's open wire format, for converted code.** Its looseness — any well-shaped payload naming any
+  resolvable class — is an attack surface before any hook runs, and the closed format removes it.
+- **A capability grant for `decode`.** `script.spawn` is a grant because what it builds runs
+  ([`security/script-spawn-capability`](security.md#security-script-spawn-capability)); what `decode` builds is inert data.
+- **`decode` passing taint on to its result.** The danger is the reconstructed graph itself, not a
+  string that later reaches an output sink, so `decode` is a sink rather than contagious.
+
+<sub>See also [`classes/graph-copy`](classes.md#classes-graph-copy), [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization). Decided in [0024](../decisions/0024.md), [0063](../decisions/0063.md).</sub>
 
 <a id="classes-an-encoder-ends-a-cycle-by-identity"></a>
 

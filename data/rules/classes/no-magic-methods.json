@@ -1,9 +1,7 @@
 {
   "title": "No method name changes a class's behaviour by being present; every PHP magic method is replaced by a declared interface or gone",
   "status": "shipped",
-  "because": [
-    "0023"
-  ],
+  "because": [],
   "seeAlso": [
     "classes/stringable",
     "classes/no-destructors",

@@ -1686,7 +1686,7 @@ without declaring a class, and the carrier two anonymous functions use to share 
   run time, which [`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties) closes. Every field is fixed where the
   anonymous object is written.
 
-<sub>See also [`types/shape-type`](types.md#types-shape-type), [`types/object-top`](types.md#types-object-top), [`types/implicit-capture`](types.md#types-implicit-capture). Decided in [0023](../decisions/0023.md).</sub>
+<sub>See also [`types/shape-type`](types.md#types-shape-type), [`types/object-top`](types.md#types-object-top), [`types/implicit-capture`](types.md#types-implicit-capture).</sub>
 
 <a id="types-shape-type"></a>
 

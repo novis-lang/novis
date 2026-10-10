@@ -96,8 +96,8 @@ configurable, grown lazily) and a small audited unsafe core for stack switching,
 crossing the boundary are deep-copied, or moved when the refcount is 1. Data races are impossible by
 construction rather than by discipline, which is what lets the refcounts stay non-atomic. The same rules
 govern the script-level boundary in [0006](../decisions/0006.md), deliberately: one set of
-value-crossing rules, not two — and [0023](../decisions/0023.md) gives that one
-rule its formal definition, shared with `serialize()`/`unserialize()`.
+value-crossing rules, not two — and `rule:classes/graph-copy` gives that one
+rule its formal definition, shared with `Core\Serialize`.
 
 **Strict shared-nothing requests.** Only compiled code survives a request. The consequence — reconnecting
 to the database every request — is accepted for v1; `nvs-host` reserves an unused `PersistentRegistry` seam

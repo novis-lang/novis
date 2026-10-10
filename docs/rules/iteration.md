@@ -268,4 +268,4 @@ copy inside this one — has no meaning to give.
 
 Not yet enforced: nothing in the runtime's copy or spawn paths refuses a generator today.
 
-<sub>See also [`iteration/generators`](iteration.md#iteration-generators). Decided in [0053](../decisions/0053.md), [0023](../decisions/0023.md).</sub>
+<sub>See also [`iteration/generators`](iteration.md#iteration-generators). Decided in [0053](../decisions/0053.md).</sub>

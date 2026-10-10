@@ -194,7 +194,7 @@ Only a fixture that a test which will actually run asks for is built — a skipp
 setup nobody wanted. Resolution runs once the whole class is collected rather than as the walk
 descends, because a test may be written above the fixture that supplies it.
 
-<sub>See also [`testing/data-rows`](testing.md#testing-data-rows), [`testing/constructor-is-setup`](testing.md#testing-constructor-is-setup), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test). Decided in [0079](../decisions/0079.md), [0023](../decisions/0023.md).</sub>
+<sub>See also [`testing/data-rows`](testing.md#testing-data-rows), [`testing/constructor-is-setup`](testing.md#testing-constructor-is-setup), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test). Decided in [0079](../decisions/0079.md).</sub>
 
 <a id="testing-data-rows"></a>
 

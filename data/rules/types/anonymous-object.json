@@ -1,9 +1,7 @@
 {
   "title": "`{name: value}` builds an anonymous, methodless object and nothing more",
   "status": "shipped",
-  "because": [
-    "0023"
-  ],
+  "because": [],
   "seeAlso": [
     "types/shape-type",
     "types/object-top",

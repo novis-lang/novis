@@ -11,8 +11,8 @@
 //! # What is here, and what is not
 //!
 //! The row, its signature, and **the body that fills § 1's slot**: a path
-//! entry resolved into a `nvs_runtime::script::Program`, `args:` crossed by ADR
-//! 0023 § 2's graph copy, and the pair left on the request's carrier for the
+//! entry resolved into a `nvs_runtime::script::Program`, `args:` crossed by the
+//! graph copy (`rule:classes/graph-copy`), and the pair left on the request's carrier for the
 //! connection to start. Behind it the framing has landed — `nvs_server::serve`
 //! answers RFC 6455's `101` and `nvs_server::socket` hands the framed socket to
 //! the isolate as a [`nvs_runtime::PeerSocket`] — so an upgrade prepared here

@@ -28,7 +28,7 @@ it is awaited like them, and it dies with its parent like them. It is as strong 
 boundary and no stronger — running code that must be assumed adversarial at the memory-safety level is
 what the wasm component tier is for.
 
-<sub>See also [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`security/request-state-throws-in-an-isolate`](security.md#security-request-state-throws-in-an-isolate), [`statements/an-isolate-has-its-own-statics`](statements.md#statements-an-isolate-has-its-own-statics). Decided in [0006](../decisions/0006.md), [0116](../decisions/0116.md), [0023](../decisions/0023.md), [0052](../decisions/0052.md).</sub>
+<sub>See also [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`security/request-state-throws-in-an-isolate`](security.md#security-request-state-throws-in-an-isolate), [`statements/an-isolate-has-its-own-statics`](statements.md#statements-an-isolate-has-its-own-statics). Decided in [0006](../decisions/0006.md), [0116](../decisions/0116.md), [0052](../decisions/0052.md).</sub>
 
 <a id="security-isolate-values-cross-by-copy"></a>
 
@@ -53,7 +53,7 @@ walk is the same but the **move is not available**: refcounts are non-atomic bec
 reachable from one core only, so a cross-core crossing copies at every node. That cost belongs to the
 placement option, not to the boundary.
 
-<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root). Decided in [0006](../decisions/0006.md), [0023](../decisions/0023.md), [0116](../decisions/0116.md), [0033](../decisions/0033.md).</sub>
+<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root). Decided in [0006](../decisions/0006.md), [0116](../decisions/0116.md), [0033](../decisions/0033.md).</sub>
 
 <a id="security-isolate-budget-is-the-trees"></a>
 
@@ -338,7 +338,7 @@ resolved statically. What is refused is specifically **dispatch on the textual c
 which is also what makes [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix) a total rule rather than
 one with a scheme-shaped hole in it.
 
-<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/sink-predicate`](security.md#security-sink-predicate), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix). Decided in [0052](../decisions/0052.md), [0023](../decisions/0023.md).</sub>
+<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/sink-predicate`](security.md#security-sink-predicate), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix). Decided in [0052](../decisions/0052.md).</sub>
 
 <a id="security-reflection-enforces-visibility"></a>
 
@@ -1575,7 +1575,7 @@ the intended escape — explicit, greppable, and at the one call site where the 
 this may add friction to a worker that exists specifically to isolate credential handling is a stated
 cost of keeping one copy operation rather than two.
 
-<sub>See also [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0033](../decisions/0033.md), [0023](../decisions/0023.md), [0116](../decisions/0116.md), [0006](../decisions/0006.md).</sub>
+<sub>See also [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0033](../decisions/0033.md), [0116](../decisions/0116.md), [0006](../decisions/0006.md).</sub>
 
 <a id="security-secret-comparison-is-constant-time"></a>
 

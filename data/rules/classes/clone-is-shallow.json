@@ -1,9 +1,7 @@
 {
   "title": "`clone` copies an object's declared storage one level deep and shares every object it reaches",
   "status": "shipped",
-  "because": [
-    "0023"
-  ],
+  "because": [],
   "seeAlso": [
     "classes/two-copy-depths",
     "classes/graph-copy",
@@ -13,6 +11,10 @@
   "guardedBy": [
     "tests/conformance/class/clone-copies-one-level-only.nvst",
     "tests/conformance/class/a-clone-shares-the-object-its-property-holds.nvst",
-    "tests/conformance/class/a-clone-copies-storage-without-running-anything.nvst"
+    "tests/conformance/class/a-clone-copies-storage-without-running-anything.nvst",
+    "tests/conformance/class/a-clone-of-a-subclass-keeps-its-class.nvst",
+    "tests/conformance/class/a-clone-does-not-share-an-array-property.nvst",
+    "tests/conformance/class/a-clone-copies-the-array-property-it-holds.nvst",
+    "crates/nvs-ir/src/lower/tests.rs"
   ]
 }

@@ -1769,7 +1769,7 @@
         [
           "`Core\\Serialize`",
           "`encode(mixed $value): bytes` and `decode(bytes $data): mixed` — the user-facing half of the one graph-copy operation the `spawn` boundary already runs. `decode` is a **`tainted` sink**. Replaces `serialize`, `unserialize`",
-          "[0023](../decisions/0023.md)"
+          "`rule:classes/serialize-is-a-closed-format`"
         ],
         [
           "`Core\\Test`",
