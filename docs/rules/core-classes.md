@@ -669,7 +669,7 @@ added to the list in a commit that says why.
 The acceptance property is **mutation XSS**: sanitizing an answer again changes nothing, which is what
 says the approved document is the one a browser will build.
 
-<sub>See also [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape). Decided in [0133](../decisions/0133.md), [0122](../decisions/0122.md).</sub>
+<sub>See also [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape). Decided in [0133](../decisions/0133.md).</sub>
 
 <a id="core-classes-html-parsing"></a>
 
@@ -691,8 +691,17 @@ Serialization follows the door: WHATWG rules through one, XML rules through the 
 through its sample DOM, and the same crate is compiled into the PDF component — the language and its
 PDF renderer parse HTML identically: one behaviour to document, one parser to fuzz.
 
-What it spends, per parse: the materialised tree, proportional to the document, attributed to the
-request and gone with it.
+**Browser equivalence is the point, and so it is a compatibility surface.** A parser that builds a
+different tree from the one a browser builds is a security defect, not a nuisance: mutation XSS is
+exactly a sanitizer approving one document while the browser renders another. Parsing by the browser's
+own algorithm leaves no second parse to disagree with, which is what [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize)
+stands on. What `html5ever` parses is what Novis parses, so a divergence from WHATWG is an upstream bug
+to fix, never a dialect to document. HTML parsing is request-path work over hostile input, and the
+sanitizer in Core must parse to filter, so the parser is Core and not a component.
+
+**Memory:** each parse holds the materialised tree, proportional to the document, attributed to the
+request and freed with it. It is the same account `Core\Xml`'s tree opens, spent once because the tree
+is one implementation.
 
 **The stack of open elements holds at most 512 elements**, the depth Chromium, Firefox and WebKit all
 cap a tree at. A start tag that arrives with 512 elements open first closes the current element, as
@@ -718,7 +727,20 @@ rather than gaps. A `<!DOCTYPE …>` leaves nothing behind, which is this door's
 other door refuses outright. A `<template>`'s contents stay on the element, because the DOM's
 separate fragment has no kind here and a program looks for them under the element it wrote.
 
-<sub>See also [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0122](../decisions/0122.md), [0223](../decisions/0223.md).</sub>
+**Declined:**
+- **An HTML mode on `Core\Xml`.** Two opposite failure contracts under one API, switched by a flag, is
+  the ambiguity [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation) and [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused)
+  exist to prevent, and it is the design behind two decades of HTML parsed differently from every
+  browser.
+- **A separate HTML node type.** It doubles every query and serializer for no gain in meaning.
+- **`xml5ever` as `Core\Xml`'s parser.** It implements the error-recovering XML5 draft, the wrong
+  contract for a door whose malformed input throws.
+- **Writing the parser ourselves.** An unfuzzed reimplementation of one of the largest parsing
+  specifications buys nothing `html5ever` does not already give, and loses on security and speed.
+- **Leaving HTML parsing to a component or the ecosystem.** The sanitizer is Core and must parse to
+  filter ([`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize)).
+
+<sub>See also [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0223](../decisions/0223.md).</sub>
 
 <a id="core-classes-xml-tree-and-stream"></a>
 
@@ -2943,7 +2965,7 @@ paged-media engine may replace the assembled one wholesale, and it must still me
 - **A first-party imperative PDF API.** The first-party answer to drawing at a coordinate is HTML, CSS
   and SVG; a third-party package may carry one.
 
-<sub>See also [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`core-classes/pdf-css-subset`](core-classes.md#core-classes-pdf-css-subset), [`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only). Decided in [0122](../decisions/0122.md).</sub>
+<sub>See also [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`core-classes/pdf-css-subset`](core-classes.md#core-classes-pdf-css-subset), [`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only).</sub>
 
 <a id="core-classes-pdf-css-subset"></a>
 

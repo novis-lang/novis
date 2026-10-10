@@ -2,7 +2,6 @@
   "title": "HTML parses by the WHATWG algorithm onto `Core\\Xml`'s own tree, and that parse never fails",
   "status": "shipped",
   "because": [
-    "0122",
     "0223"
   ],
   "seeAlso": [

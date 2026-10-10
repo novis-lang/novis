@@ -120,7 +120,8 @@ The placements the tests produce, outside the `Core` classes the spec lists:
   archive's real defects are `../` and absolute-path entries, symlink entries and decompression bombs.
   Those are policy, and policy must be non-optional: a sandboxed decoder gets the memory cap and not the
   traversal rules. `Core\Os` is `posix` minus `fork`, and `Core\Signal` is the graceful-shutdown part of
-  `pcntl` and nothing else ([`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing)).
+  `pcntl` and nothing else ([`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing)). `Core\Html`'s parse reads hostile
+  markup too, and is Core because the sanitizer must parse to filter ([`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing)).
 - **Native, by test 1 or test 3.** `Core\Db` and the shared-cache backend behind `Core\Cache` hold
   connections across requests; `Core\Ldap` holds a bound directory session, and its escaper is in `Core`
   by test 2. `Core\Crypto` (AEAD only, TLS over `rustls`), `Core\Http\Client`, `Core\Net`, `Core\Mail`'s
@@ -172,7 +173,7 @@ registered.
   ([`testing/debug-probes`](testing.md#testing-debug-probes)), `swoole`, `parallel`, `event`, `pthreads`, `apcu`
   ([`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit)) and `mysqlnd`.
 
-<sub>See also [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present). Decided in [0122](../decisions/0122.md).</sub>
+<sub>See also [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present).</sub>
 
 <a id="core-api-reserved-namespace"></a>
 
@@ -713,7 +714,10 @@ may not exist beside `$instant->format($fmt)`.
 
 This closes the second and less visible kind of duplication, the one a function list cannot show: a
 procedural function beside every method of a class, so that a whole API exists twice. A tree API and a streaming reader over the same data are *different jobs* rather
-than twins, and the spec says so explicitly where that could be misread.
+than twins, and the spec says so explicitly where that could be misread. So are two parsers onto one
+tree: `Core\Html::parse` and `Core\Xml::parse` take different languages under opposite failure
+contracts and produce the same node family, so each tree operation is written once and reached through
+neither door's own surface ([`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing)).
 
 **An operator is syntax, not a second API, and is never counted here** — `is`, `as ?T` and the
 pipeline ([`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution)) reach the same member through the same call and add
@@ -721,7 +725,7 @@ nothing to reach. The one genuinely reachable two-spellings case is a compile er
 member written as a static call is refused, because such a member's receiver travels in argument slot 0 and
 would otherwise pass the same arity check the instance call passes.
 
-<sub>See also [`core-api/no-methods-on-scalars-or-arrays`](core-api.md#core-api-no-methods-on-scalars-or-arrays), [`core-api/no-mutable-immutable-twins`](core-api.md#core-api-no-mutable-immutable-twins), [`core-api/each-door-takes-a-different-thing`](core-api.md#core-api-each-door-takes-a-different-thing), [`classes/no-call-magic`](classes.md#classes-no-call-magic), [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution). Decided in [0122](../decisions/0122.md).</sub>
+<sub>See also [`core-api/no-methods-on-scalars-or-arrays`](core-api.md#core-api-no-methods-on-scalars-or-arrays), [`core-api/no-mutable-immutable-twins`](core-api.md#core-api-no-mutable-immutable-twins), [`core-api/each-door-takes-a-different-thing`](core-api.md#core-api-each-door-takes-a-different-thing), [`classes/no-call-magic`](classes.md#classes-no-call-magic), [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution).</sub>
 
 <a id="core-api-no-methods-on-scalars-or-arrays"></a>
 

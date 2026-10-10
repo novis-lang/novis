@@ -1,9 +1,7 @@
 {
   "title": "No operation is reachable two ways, and a domain class's statics never mirror an object's own methods",
   "status": "shipped",
-  "because": [
-    "0122"
-  ],
+  "because": [],
   "seeAlso": [
     "core-api/no-methods-on-scalars-or-arrays",
     "core-api/no-mutable-immutable-twins",
@@ -13,6 +11,7 @@
   ],
   "guardedBy": [
     "tests/conformance/reject/a-core-instance-member-has-one-spelling.nvst",
+    "tests/conformance/core/html-and-xml-are-two-front-doors-onto-one-node-family.nvst",
     "crates/nvs-stdlib/src/registry.rs"
   ]
 }

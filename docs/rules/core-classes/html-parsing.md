@@ -12,8 +12,17 @@ Serialization follows the door: WHATWG rules through one, XML rules through the 
 through its sample DOM, and the same crate is compiled into the PDF component — the language and its
 PDF renderer parse HTML identically: one behaviour to document, one parser to fuzz.
 
-What it spends, per parse: the materialised tree, proportional to the document, attributed to the
-request and gone with it.
+**Browser equivalence is the point, and so it is a compatibility surface.** A parser that builds a
+different tree from the one a browser builds is a security defect, not a nuisance: mutation XSS is
+exactly a sanitizer approving one document while the browser renders another. Parsing by the browser's
+own algorithm leaves no second parse to disagree with, which is what `rule:core-classes/html-sanitize`
+stands on. What `html5ever` parses is what Novis parses, so a divergence from WHATWG is an upstream bug
+to fix, never a dialect to document. HTML parsing is request-path work over hostile input, and the
+sanitizer in Core must parse to filter, so the parser is Core and not a component.
+
+**Memory:** each parse holds the materialised tree, proportional to the document, attributed to the
+request and freed with it. It is the same account `Core\Xml`'s tree opens, spent once because the tree
+is one implementation.
 
 **The stack of open elements holds at most 512 elements**, the depth Chromium, Firefox and WebKit all
 cap a tree at. A start tag that arrives with 512 elements open first closes the current element, as
@@ -38,3 +47,16 @@ Two placements follow from the family being closed at five, and both are refusal
 rather than gaps. A `<!DOCTYPE …>` leaves nothing behind, which is this door's answer to what the
 other door refuses outright. A `<template>`'s contents stay on the element, because the DOM's
 separate fragment has no kind here and a program looks for them under the element it wrote.
+
+**Declined:**
+- **An HTML mode on `Core\Xml`.** Two opposite failure contracts under one API, switched by a flag, is
+  the ambiguity `rule:core-api/one-paradigm-per-operation` and `rule:errors/ambiguous-input-refused`
+  exist to prevent, and it is the design behind two decades of HTML parsed differently from every
+  browser.
+- **A separate HTML node type.** It doubles every query and serializer for no gain in meaning.
+- **`xml5ever` as `Core\Xml`'s parser.** It implements the error-recovering XML5 draft, the wrong
+  contract for a door whose malformed input throws.
+- **Writing the parser ourselves.** An unfuzzed reimplementation of one of the largest parsing
+  specifications buys nothing `html5ever` does not already give, and loses on security and speed.
+- **Leaving HTML parsing to a component or the ecosystem.** The sanitizer is Core and must parse to
+  filter (`rule:core-classes/html-sanitize`).
