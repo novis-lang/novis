@@ -124,7 +124,7 @@ was wanted for — one name, one `url()` target, one metrics series. What it doe
 `methodsFor` and the CSRF classification read it. A method serving a safe and an unsafe verb carries
 one `#[Access]` for both, and the CSRF check is still per verb from that one declaration.
 
-<sub>See also [`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path), [`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`routing/a-refused-verb-is-not-a-missing-path`](routing.md#routing-a-refused-verb-is-not-a-missing-path). Decided in [0110](../decisions/0110.md), [0077](../decisions/0077.md), [0102](../decisions/0102.md), [0096](../decisions/0096.md), [0010](../decisions/0010.md).</sub>
+<sub>See also [`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path), [`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`routing/a-refused-verb-is-not-a-missing-path`](routing.md#routing-a-refused-verb-is-not-a-missing-path). Decided in [0110](../decisions/0110.md), [0077](../decisions/0077.md), [0102](../decisions/0102.md), [0096](../decisions/0096.md).</sub>
 
 <a id="routing-precedence-is-structural"></a>
 

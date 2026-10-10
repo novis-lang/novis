@@ -188,7 +188,7 @@ distinguished by what the name resolves to, the way `self`, `static` and `parent
 there. Every binding site that requires a type takes one, with no position that admits a class name and
 refuses an enum's.
 
-<sub>See also [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0010](../decisions/0010.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0007](../decisions/0007.md).</sub>
 
 <a id="statements-require-is-the-only-inclusion-construct"></a>
 
@@ -357,7 +357,7 @@ The last row is the one to read twice. A top-level `$x` in a `.nvs` file is a lo
 frame and nothing more, so the shared-nothing story holds at file scope for the same reason it holds
 everywhere else.
 
-<sub>See also [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`statements/a-required-file-shares-declarations-not-locals`](statements.md#statements-a-required-file-shares-declarations-not-locals). Decided in [0008](../decisions/0008.md), [0011](../decisions/0011.md), [0010](../decisions/0010.md), [0012](../decisions/0012.md), [0006](../decisions/0006.md).</sub>
+<sub>See also [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`statements/a-required-file-shares-declarations-not-locals`](statements.md#statements-a-required-file-shares-declarations-not-locals). Decided in [0008](../decisions/0008.md), [0011](../decisions/0011.md), [0012](../decisions/0012.md), [0006](../decisions/0006.md).</sub>
 
 <a id="statements-an-isolate-has-its-own-statics"></a>
 

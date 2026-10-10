@@ -2,8 +2,7 @@
   "title": "An enum case is always truthy, whatever integer backs it",
   "status": "shipped",
   "because": [
-    "0035",
-    "0010"
+    "0035"
   ],
   "seeAlso": [
     "enums/representation",

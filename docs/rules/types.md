@@ -269,7 +269,7 @@ Overflow throwing is the divergence this table is least willing to trade. A sile
 `float` changes a binding's type behind its declaration, and a silent wrap is the classic
 size-computation bug. Code that wants unbounded magnitude declares `float`, or converts.
 
-<sub>See also [`types/ordering`](types.md#types-ordering), [`types/uint`](types.md#types-uint), [`types/decimal`](types.md#types-decimal), [`types/implicit-widening`](types.md#types-implicit-widening). Decided in [0007](../decisions/0007.md), [0054](../decisions/0054.md), [0010](../decisions/0010.md), [0035](../decisions/0035.md), [0261](../decisions/0261.md).</sub>
+<sub>See also [`types/ordering`](types.md#types-ordering), [`types/uint`](types.md#types-uint), [`types/decimal`](types.md#types-decimal), [`types/implicit-widening`](types.md#types-implicit-widening). Decided in [0007](../decisions/0007.md), [0054](../decisions/0054.md), [0035](../decisions/0035.md), [0261](../decisions/0261.md).</sub>
 
 <a id="types-implicit-widening"></a>
 
@@ -360,7 +360,7 @@ named, and an enum case orders as the integer it is even though the written spel
 
 `==` and `!=` are a different question and are unaffected by any of this.
 
-<sub>See also [`types/arithmetic`](types.md#types-arithmetic), [`types/conversion`](types.md#types-conversion), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0013](../decisions/0013.md), [0007](../decisions/0007.md), [0010](../decisions/0010.md), [0047](../decisions/0047.md).</sub>
+<sub>See also [`types/arithmetic`](types.md#types-arithmetic), [`types/conversion`](types.md#types-conversion), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0013](../decisions/0013.md), [0007](../decisions/0007.md), [0047](../decisions/0047.md).</sub>
 
 <a id="types-string-is-utf8"></a>
 
@@ -557,7 +557,7 @@ not narrow `$m` in the branch it guards ([`types/narrowing`](types.md#types-narr
 nothing at runtime — it shares the enum's existing zero-byte representation
 ([`enums/representation`](enums.md#enums-representation)).
 
-<sub>See also [`types/single-value-types`](types.md#types-single-value-types), [`types/conversion`](types.md#types-conversion), [`types/narrowing`](types.md#types-narrowing). Decided in [0047](../decisions/0047.md), [0010](../decisions/0010.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`types/single-value-types`](types.md#types-single-value-types), [`types/conversion`](types.md#types-conversion), [`types/narrowing`](types.md#types-narrowing). Decided in [0047](../decisions/0047.md), [0007](../decisions/0007.md).</sub>
 
 <a id="types-arrays"></a>
 
@@ -1056,7 +1056,7 @@ where it runs.
 condition, which tests any type for truthiness without asking for one. The `(int)` cast syntax
 is not a second spelling — it does not parse at all ([`types/no-legacy-cast`](types.md#types-no-legacy-cast)).
 
-<sub>See also [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/implicit-widening`](types.md#types-implicit-widening), [`types/arithmetic`](types.md#types-arithmetic), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0010](../decisions/0010.md), [0024](../decisions/0024.md), [0028](../decisions/0028.md), [0033](../decisions/0033.md), [0034](../decisions/0034.md), [0047](../decisions/0047.md), [0054](../decisions/0054.md), [0066](../decisions/0066.md), [0125](../decisions/0125.md), [0126](../decisions/0126.md), [0144](../decisions/0144.md), [0237](../decisions/0237.md), [0238](../decisions/0238.md), [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
+<sub>See also [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/implicit-widening`](types.md#types-implicit-widening), [`types/arithmetic`](types.md#types-arithmetic), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0024](../decisions/0024.md), [0028](../decisions/0028.md), [0033](../decisions/0033.md), [0034](../decisions/0034.md), [0047](../decisions/0047.md), [0054](../decisions/0054.md), [0066](../decisions/0066.md), [0125](../decisions/0125.md), [0126](../decisions/0126.md), [0144](../decisions/0144.md), [0237](../decisions/0237.md), [0238](../decisions/0238.md), [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
 
 <a id="types-no-legacy-cast"></a>
 

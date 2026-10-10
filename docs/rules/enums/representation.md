@@ -12,3 +12,6 @@ decodes the value — printing, conversion, comparison, `===`, serialization —
 integer. The tag names no enum, so two enums with the same backing are not told apart in a `mixed`.
 
 Crossing an isolate boundary copies a plain scalar, with no object identity to preserve or discard.
+
+- **Memory:** an enum value costs exactly what its `int` or `uint` costs, in the same payload. Nothing
+  is held per enum, per request or per isolate: no case table, no singleton and no type descriptor.

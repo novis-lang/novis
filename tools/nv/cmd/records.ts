@@ -16,7 +16,8 @@
 // up out of the directory, has its target on disk, so a merged record's links in the records left are
 // unlinked to plain text. `citations`: no tracked file outside `docs/decisions/` cites a record that is
 // not on disk, by the `DECISION` pattern `lib/prose.ts` reads citations with. This goal's own file
-// names records it deletes, and is not read.
+// names records it deletes, and the test of that pattern names record numbers as fixtures, so
+// neither is read.
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -31,6 +32,8 @@ const RECORDS_DIR = "docs/decisions";
 const ADR_DIR = "docs/adr";
 /** The live goal's file, which names the records it merges and deletes. */
 const GOAL_FILE = "docs/goals/decision-records-retired.md";
+/** The test of `DECISION`, whose fixtures cite record numbers that need not be on disk. */
+const PROSE_TEST = "tools/nv/test/prose.test.ts";
 
 /** A link to a record, from a record (`(0066.md)`) or from a `docs/adr/` file (`(../decisions/0066.md)`). */
 const RECORD_LINK = /\]\((?:\.\.\/decisions\/)?(\d{4})\.md(?:#[^)]*)?\)/g;
@@ -60,7 +63,7 @@ function adrFiles(): string[] {
 /** `[file, line, record]` for every citation of a record in a tracked file outside the records. */
 function citations(): Finding[] {
   const proc = Bun.spawnSync(
-    ["git", "-c", "core.quotepath=off", "grep", "-n", "-I", "-E", GREP, "--", ".", `:!${RECORDS_DIR}/`, `:!${GOAL_FILE}`],
+    ["git", "-c", "core.quotepath=off", "grep", "-n", "-I", "-E", GREP, "--", ".", `:!${RECORDS_DIR}/`, `:!${GOAL_FILE}`, `:!${PROSE_TEST}`],
     { cwd: ROOT, stdout: "pipe", stderr: "pipe" },
   );
   if (proc.exitCode !== 0 && proc.exitCode !== 1) throw new Error(`git grep failed: ${proc.stderr.toString()}`);
