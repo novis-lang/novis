@@ -535,7 +535,7 @@ program that calls it holds a registry nothing will ever read, bounded and tiny,
 is worse. It is the same split the Core roster already uses for `Core\Cache`'s Redis backend, where
 the class is always there and the driver is a feature.
 
-<sub>See also [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`observability/metrics-three-members`](observability.md#observability-metrics-three-members), [`observability/the-exporters-are-crates`](observability.md#observability-the-exporters-are-crates). Decided in [0076](../decisions/0076.md), [0048](../decisions/0048.md).</sub>
+<sub>See also [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`observability/metrics-three-members`](observability.md#observability-metrics-three-members), [`observability/the-exporters-are-crates`](observability.md#observability-the-exporters-are-crates). Decided in [0076](../decisions/0076.md).</sub>
 
 <a id="observability-the-exporters-are-crates"></a>
 

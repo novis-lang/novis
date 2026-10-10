@@ -2,8 +2,7 @@
   "title": "A single-file bundle may not install itself as a service",
   "status": "shipped",
   "because": [
-    "0093",
-    "0048"
+    "0093"
   ],
   "seeAlso": [
     "programs/bundle-trust-domain",

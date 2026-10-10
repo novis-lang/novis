@@ -16,3 +16,10 @@ manager (`rule:packaging/build-compile-packages-what-is-on-disk-and-resolves-not
 genuinely new code is the footer writer and the footer reader
 (`rule:packaging/a-bundle-is-found-by-its-footer-before-argv-is-read`); everything after that is the
 ordinary `nvs run` pipeline.
+
+**Declined:**
+- **A sidecar archive beside the executable.** It needs no footer code and no macOS signing step, but
+  it is two files, which is the distribution every scripting language already has.
+- **A shipped executable that rebundles itself.** It would make a build artifact mutable at rest,
+  re-sign it on every rebundle instead of once at build time, and raise the question of who may
+  trigger a rebundle and as which identity. The author already has the source and reruns the build.

@@ -358,7 +358,14 @@ genuinely new code is the footer writer and the footer reader
 ([`packaging/a-bundle-is-found-by-its-footer-before-argv-is-read`](packaging.md#packaging-a-bundle-is-found-by-its-footer-before-argv-is-read)); everything after that is the
 ordinary `nvs run` pipeline.
 
-<sub>See also [`programs/bundle-trust-domain`](programs.md#programs-bundle-trust-domain), [`packaging/a-bundle-carries-source-not-artifacts`](packaging.md#packaging-a-bundle-carries-source-not-artifacts), [`packaging/a-bundle-is-found-by-its-footer-before-argv-is-read`](packaging.md#packaging-a-bundle-is-found-by-its-footer-before-argv-is-read), [`packaging/a-macos-bundle-is-ad-hoc-signed-at-build`](packaging.md#packaging-a-macos-bundle-is-ad-hoc-signed-at-build). Decided in [0048](../decisions/0048.md), [0093](../decisions/0093.md).</sub>
+**Declined:**
+- **A sidecar archive beside the executable.** It needs no footer code and no macOS signing step, but
+  it is two files, which is the distribution every scripting language already has.
+- **A shipped executable that rebundles itself.** It would make a build artifact mutable at rest,
+  re-sign it on every rebundle instead of once at build time, and raise the question of who may
+  trigger a rebundle and as which identity. The author already has the source and reruns the build.
+
+<sub>See also [`programs/bundle-trust-domain`](programs.md#programs-bundle-trust-domain), [`packaging/a-bundle-carries-source-not-artifacts`](packaging.md#packaging-a-bundle-carries-source-not-artifacts), [`packaging/a-bundle-is-found-by-its-footer-before-argv-is-read`](packaging.md#packaging-a-bundle-is-found-by-its-footer-before-argv-is-read), [`packaging/a-macos-bundle-is-ad-hoc-signed-at-build`](packaging.md#packaging-a-macos-bundle-is-ad-hoc-signed-at-build). Decided in [0093](../decisions/0093.md).</sub>
 
 <a id="packaging-a-bundle-carries-source-not-artifacts"></a>
 
@@ -385,7 +392,15 @@ first `nvs run` of an uncached file pays, and a second run is a plain cache hit.
 recoverable from the executable by anyone who looks, the same posture as every comparable ecosystem's
 CLI bundling; hiding it is not a requirement, and neither encryption nor obfuscation is applied.
 
-<sub>See also [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file), [`packaging/a-bundled-require-resolves-at-build-time`](packaging.md#packaging-a-bundled-require-resolves-at-build-time). Decided in [0048](../decisions/0048.md), [0042](../decisions/0042.md).</sub>
+**Declined:**
+- **Precompiled native artifacts as the payload.** The executable grows by one artifact per target,
+  CPU-feature set and compiler build, and goes stale against every compiler fix, as above.
+- **Encrypting or obfuscating the payload.** The running binary must hold or fetch the key, so it
+  protects nothing from a reader of the binary itself, and hiding source is not a requirement.
+- **Compressing the payload.** Source text is small enough that compression is not worth a new
+  dependency.
+
+<sub>See also [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file), [`packaging/a-bundled-require-resolves-at-build-time`](packaging.md#packaging-a-bundled-require-resolves-at-build-time). Decided in [0042](../decisions/0042.md).</sub>
 
 <a id="packaging-a-bundled-require-resolves-at-build-time"></a>
 
@@ -408,7 +423,7 @@ diagnostic an ordinary run would give.
 This rule is the home for every closed-world target, and any other inherits it rather than restating
 it.
 
-<sub>See also [`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct), [`packaging/a-bundle-carries-source-not-artifacts`](packaging.md#packaging-a-bundle-carries-source-not-artifacts). Decided in [0048](../decisions/0048.md).</sub>
+<sub>See also [`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct), [`packaging/a-bundle-carries-source-not-artifacts`](packaging.md#packaging-a-bundle-carries-source-not-artifacts).</sub>
 
 <a id="packaging-a-bundle-is-found-by-its-footer-before-argv-is-read"></a>
 
@@ -438,7 +453,7 @@ code path with one different byte source for reads, so there is no second interp
 the first. A footer whose `format_version` this host does not understand is treated as no bundle at
 all, which is the one behaviour that cannot corrupt anything.
 
-<sub>See also [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host), [`packaging/a-bundle-carries-source-not-artifacts`](packaging.md#packaging-a-bundle-carries-source-not-artifacts). Decided in [0048](../decisions/0048.md).</sub>
+<sub>See also [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host), [`packaging/a-bundle-carries-source-not-artifacts`](packaging.md#packaging-a-bundle-carries-source-not-artifacts).</sub>
 
 <a id="packaging-build-compile-packages-what-is-on-disk-and-resolves-nothing"></a>
 
@@ -455,7 +470,7 @@ Resolving dependencies into source on disk is a separate command's job — `nvs 
 compose rather than overlap: `nvs pkg install && nvs build --compile`. Keeping them apart is what keeps
 the bundler's own surface at one input, one output and one footer.
 
-<sub>See also [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host). Decided in [0048](../decisions/0048.md).</sub>
+<sub>See also [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host).</sub>
 
 <a id="packaging-a-nvsx-dependency-embeds-in-the-same-payload"></a>
 
@@ -482,7 +497,7 @@ pin is checked when the bundle builds and again when it starts.
 `.nvsx` and its entry, and the bundle loads them from its payload with no file beside it
 (`crates/nvs-cli/tests/bundle.rs`; the layout is in `crates/nvs-cli/src/bundle.rs`'s module doc).
 
-<sub>See also [`packaging/a-bundle-carries-source-not-artifacts`](packaging.md#packaging-a-bundle-carries-source-not-artifacts), [`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component). Decided in [0048](../decisions/0048.md), [0246](../decisions/0246.md).</sub>
+<sub>See also [`packaging/a-bundle-carries-source-not-artifacts`](packaging.md#packaging-a-bundle-carries-source-not-artifacts), [`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component). Decided in [0246](../decisions/0246.md).</sub>
 
 <a id="packaging-a-macos-bundle-is-ad-hoc-signed-at-build"></a>
 
@@ -500,7 +515,7 @@ one-time cost inside the build command, paid by the author at build time and nev
 which is also why a bundle never re-signs itself
 ([`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host)).
 
-<sub>See also [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host). Decided in [0048](../decisions/0048.md).</sub>
+<sub>See also [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host).</sub>
 
 <a id="packaging-a-build-records-no-timestamp"></a>
 
@@ -1160,7 +1175,7 @@ And **explicitly does not version**:
 The contract is not in force until [`packaging/the-version-contract-starts-at-0-1-0`](packaging.md#packaging-the-version-contract-starts-at-0-1-0) throws its
 switch.
 
-<sub>See also [`packaging/who-can-see-it-decides-the-release-slot`](packaging.md#packaging-who-can-see-it-decides-the-release-slot), [`packaging/the-version-contract-starts-at-0-1-0`](packaging.md#packaging-the-version-contract-starts-at-0-1-0), [`programs/bundle-trust-domain`](programs.md#programs-bundle-trust-domain), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host). Decided in [0068](../decisions/0068.md), [0042](../decisions/0042.md), [0048](../decisions/0048.md).</sub>
+<sub>See also [`packaging/who-can-see-it-decides-the-release-slot`](packaging.md#packaging-who-can-see-it-decides-the-release-slot), [`packaging/the-version-contract-starts-at-0-1-0`](packaging.md#packaging-the-version-contract-starts-at-0-1-0), [`programs/bundle-trust-domain`](programs.md#programs-bundle-trust-domain), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host). Decided in [0068](../decisions/0068.md), [0042](../decisions/0042.md).</sub>
 
 <a id="packaging-below-1-0-the-breaking-slot-moves-left"></a>
 
@@ -2151,7 +2166,7 @@ a registration refused because the name is taken is followed by no deregistratio
 the service that holds the name. An undo that does not finish says what is left and that `nvs service
 uninstall` removes it.
 
-<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`packaging/a-bundle-may-not-install-itself`](packaging.md#packaging-a-bundle-may-not-install-itself). Decided in [0093](../decisions/0093.md), [0088](../decisions/0088.md), [0103](../decisions/0103.md), [0048](../decisions/0048.md), [0204](../decisions/0204.md), [0281](../decisions/0281.md).</sub>
+<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`packaging/a-bundle-may-not-install-itself`](packaging.md#packaging-a-bundle-may-not-install-itself). Decided in [0093](../decisions/0093.md), [0088](../decisions/0088.md), [0103](../decisions/0103.md), [0204](../decisions/0204.md), [0281](../decisions/0281.md).</sub>
 
 <a id="packaging-the-argv-lives-in-imagepath"></a>
 
@@ -2368,7 +2383,7 @@ The narrower rule — allow it for a non-`serve` payload — is rejected as a co
 carry in their head to serve a case nobody has asked for. Reopening this means arguing the trust-domain
 point directly.
 
-<sub>See also [`programs/bundle-trust-domain`](programs.md#programs-bundle-trust-domain), [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink). Decided in [0093](../decisions/0093.md), [0048](../decisions/0048.md).</sub>
+<sub>See also [`programs/bundle-trust-domain`](programs.md#programs-bundle-trust-domain), [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink). Decided in [0093](../decisions/0093.md).</sub>
 
 <a id="packaging-a-service-is-operator-surface"></a>
 

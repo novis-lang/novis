@@ -2664,8 +2664,8 @@ pub mod code {
     /// downloads and runs it is the only principal involved; installing a
     /// service creates a **second** principal — a privileged account executing
     /// that payload at every boot, with no operator having read what it
-    /// contains — which is the boundary 0048 § 1 declined to cross, arrived at
-    /// from the other side.
+    /// contains — which is the boundary `rule:programs/bundle-trust-domain`
+    /// declines to cross, arrived at from the other side.
     pub const E_SERVICE_FROM_A_BUNDLE: Code = Code::new("E0634").card(
         "A program built with `nvs build` cannot install itself as a service. Run `nvs service` \
          with the `nvs` program itself.",

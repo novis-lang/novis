@@ -1,9 +1,7 @@
 {
   "title": "Inside a closed-world target every `require` resolves at build time, and one that cannot fails the build",
   "status": "shipped",
-  "because": [
-    "0048"
-  ],
+  "because": [],
   "seeAlso": [
     "statements/require-is-the-only-inclusion-construct",
     "packaging/a-bundle-carries-source-not-artifacts"

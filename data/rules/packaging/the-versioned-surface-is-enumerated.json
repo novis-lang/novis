@@ -3,8 +3,7 @@
   "status": "designed",
   "because": [
     "0068",
-    "0042",
-    "0048"
+    "0042"
   ],
   "seeAlso": [
     "packaging/who-can-see-it-decides-the-release-slot",

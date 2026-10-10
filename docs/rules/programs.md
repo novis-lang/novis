@@ -603,7 +603,12 @@ service.** A privileged account executing that payload at every boot is exactly 
 the single-trust-domain argument depends on there not being, so the installer refuses a host that is
 itself a bundle.
 
-<sub>See also [`programs/compile-target`](programs.md#programs-compile-target), [`programs/audience`](programs.md#programs-audience). Decided in [0048](../decisions/0048.md), [0093](../decisions/0093.md).</sub>
+**Declined:**
+- **Extending the bundle to `nvs serve`.** It would have to decide who counts as the configuration's
+  owner when the configuration ships inside an app-built artifact, which engages the root and app
+  capability separation directly rather than sitting beside it.
+
+<sub>See also [`programs/compile-target`](programs.md#programs-compile-target), [`programs/audience`](programs.md#programs-audience). Decided in [0093](../decisions/0093.md).</sub>
 
 <a id="programs-first-party-framework"></a>
 

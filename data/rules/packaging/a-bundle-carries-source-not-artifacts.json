@@ -2,7 +2,6 @@
   "title": "A bundle's payload is source, as a flat file list with no archive and no compression",
   "status": "shipped",
   "because": [
-    "0048",
     "0042"
   ],
   "seeAlso": [
