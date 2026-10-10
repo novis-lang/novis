@@ -5157,6 +5157,2657 @@
       "Store the media type of a file in a database"
     ]
   },
+  "/reference/core/net/": {
+    "feature": "Core\\Net",
+    "hash": "58f77ef6ec54864f",
+    "questions": [
+      "How do I open a network connection?",
+      "Work with TCP and UDP sockets",
+      "Which network features can my program use?",
+      "Allow network access in the configuration file",
+      "Talk to another server over the network"
+    ]
+  },
+  "/reference/core/net/binddatagram/": {
+    "feature": "Core\\Net::bindDatagram",
+    "hash": "0229f18faaef3da0",
+    "questions": [
+      "How do I open a UDP socket?",
+      "Receive UDP messages on a port",
+      "Start a UDP server on a free port",
+      "Which setting allows my program to open a UDP port?",
+      "Listen for datagrams on 0.0.0.0"
+    ]
+  },
+  "/reference/core/net/connect/": {
+    "feature": "Core\\Net::connect",
+    "hash": "5edd68711d592fa1",
+    "questions": [
+      "How do I connect to a TCP server?",
+      "Open a socket to a host and port",
+      "Connect to a server with a timeout",
+      "Why does connecting to 127.0.0.1 fail even when the host is allowed?",
+      "Talk to a remote service over raw TCP"
+    ]
+  },
+  "/reference/core/net/connectlocal/": {
+    "feature": "Core\\Net::connectLocal",
+    "hash": "507f82cac057f7fa",
+    "questions": [
+      "How do I connect to a Unix socket file?",
+      "Connect to a local database through a socket path",
+      "Talk to a service on the same machine without a port",
+      "Open a connection to a .sock file",
+      "Do Unix-domain sockets work on Windows?"
+    ]
+  },
+  "/reference/core/net/listen/": {
+    "feature": "Core\\Net::listen",
+    "hash": "1dfd17c8c813a96e",
+    "questions": [
+      "How do I start a TCP server?",
+      "Wait for clients on a port",
+      "Open a server socket on a free port",
+      "Error when the port is already in use",
+      "Accept incoming network connections"
+    ]
+  },
+  "/reference/core/net/listenlocal/": {
+    "feature": "Core\\Net::listenLocal",
+    "hash": "6dfe0d84f3c3088d",
+    "questions": [
+      "How do I create a Unix socket server?",
+      "Listen on a socket file instead of a port",
+      "Let local programs connect by a file path",
+      "Socket file already exists error when starting a server",
+      "Serve other processes on the same computer"
+    ]
+  },
+  "/reference/core/net-datagram/": {
+    "feature": "Core\\Net\\Datagram",
+    "hash": "3829bd17becb1c2b",
+    "questions": [
+      "How do I send and receive UDP messages?",
+      "Work with an open UDP socket",
+      "Send a UDP packet to another server",
+      "Methods available on a UDP socket",
+      "Exchange short messages without a connection"
+    ]
+  },
+  "/reference/core/net-datagram/close/": {
+    "feature": "Core\\Net\\Datagram::close",
+    "hash": "b2fd7736289ba4ec",
+    "questions": [
+      "How do I close a UDP socket?",
+      "Free a UDP port when I am done",
+      "Stop receiving datagrams",
+      "What happens if I never close my UDP socket?"
+    ]
+  },
+  "/reference/core/net-datagram/port/": {
+    "feature": "Core\\Net\\Datagram::port",
+    "hash": "a8647e3f836752e5",
+    "questions": [
+      "Which port did the system pick for my UDP socket?",
+      "Find the local port of a UDP socket",
+      "Get the port number after opening on port 0",
+      "Tell another program where to send UDP messages"
+    ]
+  },
+  "/reference/core/net-datagram/receive/": {
+    "feature": "Core\\Net\\Datagram::receive",
+    "hash": "0bc795c9fd0e4707",
+    "questions": [
+      "How do I wait for a UDP message?",
+      "Read one datagram with a timeout",
+      "What happens when a UDP message is too long?",
+      "Find out who sent a UDP packet",
+      "Stop waiting for UDP data after a few seconds"
+    ]
+  },
+  "/reference/core/net-datagram/send/": {
+    "feature": "Core\\Net\\Datagram::send",
+    "hash": "6c9d4e493de1cc64",
+    "questions": [
+      "How do I send one UDP message to a host?",
+      "Does UDP check that my message arrived?",
+      "Which setting allows sending UDP to a host?",
+      "Error when a UDP message is too big",
+      "Send bytes to a host and port without connecting"
+    ]
+  },
+  "/reference/core/net-datagram-message/": {
+    "feature": "Core\\Net\\Datagram\\Message",
+    "hash": "a9673e4357bf52c3",
+    "questions": [
+      "What does a received UDP message contain?",
+      "Get the data and sender of a datagram",
+      "Read the parts of an incoming UDP packet",
+      "Information about a message from a UDP socket"
+    ]
+  },
+  "/reference/core/net-datagram-message/host/": {
+    "feature": "Core\\Net\\Datagram\\Message::host",
+    "hash": "3f0ef57b6d4fd83f",
+    "questions": [
+      "Get the IP address that sent a UDP message",
+      "How do I reply to the sender of a datagram?",
+      "Only trust UDP messages from known addresses",
+      "Which address did this packet come from?"
+    ]
+  },
+  "/reference/core/net-datagram-message/payload/": {
+    "feature": "Core\\Net\\Datagram\\Message::payload",
+    "hash": "d9ec65cd9eb932b1",
+    "questions": [
+      "How do I read the bytes of a UDP message?",
+      "Get the content of a received datagram",
+      "Is data from a UDP packet safe to use?",
+      "Why is my received UDP message empty?"
+    ]
+  },
+  "/reference/core/net-datagram-message/port/": {
+    "feature": "Core\\Net\\Datagram\\Message::port",
+    "hash": "07a3546efddd1668",
+    "questions": [
+      "Which port did a UDP message come from?",
+      "Tell apart two senders on the same machine",
+      "Find the sender port to send a reply",
+      "Remote port of an incoming datagram"
+    ]
+  },
+  "/reference/core/net-listener/": {
+    "feature": "Core\\Net\\Listener",
+    "hash": "56168655170d3ff9",
+    "questions": [
+      "What can I do with a TCP server socket?",
+      "Handle many clients on one server",
+      "Methods for a listening socket",
+      "Build a simple TCP server",
+      "Server object returned when listening on a port"
+    ]
+  },
+  "/reference/core/net-listener/accept/": {
+    "feature": "Core\\Net\\Listener::accept",
+    "hash": "c70561eb32f6d5db",
+    "questions": [
+      "How do I wait for the next client to connect?",
+      "Accept a client connection with a timeout",
+      "Get a stream for each new client",
+      "What happens to clients that connect before I accept?"
+    ]
+  },
+  "/reference/core/net-listener/close/": {
+    "feature": "Core\\Net\\Listener::close",
+    "hash": "7497df0d023f441c",
+    "questions": [
+      "How do I stop a TCP server?",
+      "Stop accepting new clients",
+      "Free the server port when I am done",
+      "Does stopping the server close open client connections?"
+    ]
+  },
+  "/reference/core/net-listener/port/": {
+    "feature": "Core\\Net\\Listener::port",
+    "hash": "983e56b9a86f385e",
+    "questions": [
+      "Which port is my TCP server listening on?",
+      "Find the port the system chose for my server",
+      "Start a test server on a random free port",
+      "Get the listening port number after opening on port 0"
+    ]
+  },
+  "/reference/core/net-stream/": {
+    "feature": "Core\\Net\\Stream",
+    "hash": "187cfb18932f664e",
+    "questions": [
+      "How do I send and receive data over TCP?",
+      "Work with an open TCP connection",
+      "Read and write bytes on a socket",
+      "Methods available on a network connection"
+    ]
+  },
+  "/reference/core/net-stream/close/": {
+    "feature": "Core\\Net\\Stream::close",
+    "hash": "8f2a943767ca0e38",
+    "questions": [
+      "How do I close a TCP connection?",
+      "Tell the other side I am done sending",
+      "Disconnect from a server",
+      "Close a client connection in a finally block"
+    ]
+  },
+  "/reference/core/net-stream/read/": {
+    "feature": "Core\\Net\\Stream::read",
+    "hash": "fc79fc5d661cd71f",
+    "questions": [
+      "How do I read data from a TCP connection?",
+      "Read until the other side closes the connection",
+      "Why does my socket read return fewer bytes?",
+      "Wait for data from a server with a timeout",
+      "How do I know the connection was closed?"
+    ]
+  },
+  "/reference/core/net-stream/write/": {
+    "feature": "Core\\Net\\Stream::write",
+    "hash": "63676603512b0b80",
+    "questions": [
+      "How do I send data over a TCP connection?",
+      "Make sure the whole message is sent",
+      "Why did my socket write send only part of the data?",
+      "Write bytes to a socket with a timeout",
+      "Error when the other side closed the connection"
+    ]
+  },
+  "/reference/core/novis-image-codec/": {
+    "feature": "Novis\\Image\\Codec",
+    "hash": "0803cba04ec95300",
+    "questions": [
+      "Low-level image decoding and encoding functions",
+      "How are images processed inside the image library?",
+      "Functions behind the Image class",
+      "Work directly with encoded image bytes"
+    ]
+  },
+  "/reference/core/novis-image-codec/compare/": {
+    "feature": "Novis\\Image\\Codec::compare",
+    "hash": "4b5692781838edcc",
+    "questions": [
+      "Compare two encoded image files given as bytes",
+      "Low-level pixel comparison of two PNG files",
+      "Compare two image byte strings with a tolerance",
+      "Get a red difference picture from two encoded images"
+    ]
+  },
+  "/reference/core/novis-image-codec/hash/": {
+    "feature": "Novis\\Image\\Codec::hash",
+    "hash": "95730cd9eda4e1c9",
+    "questions": [
+      "Hash image bytes without creating an image object",
+      "Low-level perceptual hash of an encoded file",
+      "Choose the hash kind for image fingerprints",
+      "Short fingerprint bytes of an encoded picture"
+    ]
+  },
+  "/reference/core/novis-image-codec/info/": {
+    "feature": "Novis\\Image\\Codec::info",
+    "hash": "332bc6248e4570a9",
+    "questions": [
+      "Read the image header from raw bytes",
+      "Low-level image size and format check",
+      "Read EXIF orientation from a photo",
+      "Count the frames of an animated image from its bytes"
+    ]
+  },
+  "/reference/core/novis-image-codec/palette/": {
+    "feature": "Novis\\Image\\Codec::palette",
+    "hash": "4c7f515a41daa3a9",
+    "questions": [
+      "Most common colors of encoded image bytes",
+      "Low-level color palette of an image file",
+      "Get red, green, blue and alpha of the top colors",
+      "Limit how many main colors are returned"
+    ]
+  },
+  "/reference/core/novis-image-codec/placeholder/": {
+    "feature": "Novis\\Image\\Codec::placeholder",
+    "hash": "93cbe04294d970d2",
+    "questions": [
+      "Placeholder text from image bytes, low-level",
+      "Choose between BlurHash and ThumbHash for a preview",
+      "Create a ThumbHash that keeps transparency",
+      "Make a preview string straight from an encoded file"
+    ]
+  },
+  "/reference/core/novis-image-codec/qr/": {
+    "feature": "Novis\\Image\\Codec::qr",
+    "hash": "bd33d34dd6483419",
+    "questions": [
+      "Low-level QR code encoding to image bytes",
+      "QR code as PNG or WebP bytes",
+      "Error when the QR code size is too small",
+      "Encode text as a QR code with all options in one map"
+    ]
+  },
+  "/reference/core/novis-image-codec/run/": {
+    "feature": "Novis\\Image\\Codec::run",
+    "hash": "fa63faf52ed3e0d7",
+    "questions": [
+      "How do I resize, crop and convert an image in one step?",
+      "Apply a list of image operations in order",
+      "Get the raw RGBA pixels of an image",
+      "Draw on a blank canvas with a fill color",
+      "Run an image pipeline and get the encoded file"
+    ]
+  },
+  "/reference/core/novis-image-codec/variants/": {
+    "feature": "Novis\\Image\\Codec::variants",
+    "hash": "1c5dfd51ae2ad7f9",
+    "questions": [
+      "Decode an image once and make many versions",
+      "Run several image pipelines on one source",
+      "Low-level way to make many outputs from one upload",
+      "One result per pipeline, in the same order"
+    ]
+  },
+  "/reference/core/novis-image-color/": {
+    "feature": "Novis\\Image\\Color",
+    "hash": "d32f382fa7a9745d",
+    "questions": [
+      "How do I describe a color for image functions?",
+      "Colors with red, green, blue and transparency",
+      "Work with colors in images",
+      "Make a transparent color"
+    ]
+  },
+  "/reference/core/novis-image-color/hex/": {
+    "feature": "Novis\\Image\\Color::hex",
+    "hash": "7e89668ad534768d",
+    "questions": [
+      "How do I use a hex color like #ff8800?",
+      "Convert a hex color code to RGB",
+      "Read a color from a CSS-style string",
+      "Parse a short hex color such as #f80"
+    ]
+  },
+  "/reference/core/novis-image-color/rgba/": {
+    "feature": "Novis\\Image\\Color::rgba",
+    "hash": "674764b503a72f6b",
+    "questions": [
+      "How do I make a color from red, green and blue numbers?",
+      "Set a half transparent color",
+      "Create a color with an alpha value",
+      "Background color to fill a new image"
+    ]
+  },
+  "/reference/core/novis-image-diff/": {
+    "feature": "Novis\\Image\\Diff",
+    "hash": "5c8f3ef7f1eb5c37",
+    "questions": [
+      "What does an image comparison return?",
+      "Read the result of comparing two pictures",
+      "How many pixels are different between two images?",
+      "Meaning of the similarity score after image comparison"
+    ]
+  },
+  "/reference/core/novis-image-diff/constructor/": {
+    "feature": "Novis\\Image\\Diff::constructor",
+    "hash": "6b63acbe4320c47a",
+    "questions": [
+      "How do I create an image comparison result by hand?",
+      "Make a fake image diff in my tests",
+      "Build a comparison result without comparing images",
+      "Fields of an image difference result"
+    ]
+  },
+  "/reference/core/novis-image-font/": {
+    "feature": "Novis\\Image\\Font",
+    "hash": "339da8893a82936c",
+    "questions": [
+      "How do I use a custom font to draw text on images?",
+      "Which fonts can I use to write on a picture?",
+      "Are system fonts available for image text?",
+      "Draw text on images with my own font file"
+    ]
+  },
+  "/reference/core/novis-image-font/frombytes/": {
+    "feature": "Novis\\Image\\Font::fromBytes",
+    "hash": "348979b908fdd7d0",
+    "questions": [
+      "How do I load a TTF or OTF font file?",
+      "Load a font once and use it for many images",
+      "Error when the file is not a valid font",
+      "Read font file bytes to measure text width"
+    ]
+  },
+  "/reference/core/novis-image-image/": {
+    "feature": "Novis\\Image\\Image",
+    "hash": "bf726cd2685e8d4d",
+    "questions": [
+      "How do I work with images on the server?",
+      "Edit uploaded photos in my web app",
+      "Image processing library for resizing and converting",
+      "Which image formats can I read and write?",
+      "Process a user photo before saving it"
+    ]
+  },
+  "/reference/core/novis-image-image/blur/": {
+    "feature": "Novis\\Image\\Image::blur",
+    "hash": "a09fa83a64bb44fe",
+    "questions": [
+      "How do I make an image blurry?",
+      "Blur a background behind text",
+      "Hide details in a preview picture",
+      "Soften the edges of a photo"
+    ]
+  },
+  "/reference/core/novis-image-image/brightness/": {
+    "feature": "Novis\\Image\\Image::brightness",
+    "hash": "a9495c3c9be9b517",
+    "questions": [
+      "How do I make a photo brighter?",
+      "Darken an image by half",
+      "Make a picture 20% lighter",
+      "Change how light or dark an image is"
+    ]
+  },
+  "/reference/core/novis-image-image/compare/": {
+    "feature": "Novis\\Image\\Image::compare",
+    "hash": "49c1e930d530e91f",
+    "questions": [
+      "How do I check if two images are the same?",
+      "Compare two screenshots in a visual test",
+      "Show the pixels that changed between two images",
+      "Image similarity score for a snapshot test",
+      "Allow small pixel differences when comparing pictures"
+    ]
+  },
+  "/reference/core/novis-image-image/composite/": {
+    "feature": "Novis\\Image\\Image::composite",
+    "hash": "437334e11bc53f18",
+    "questions": [
+      "How do I put a watermark on a photo?",
+      "Draw a logo in the bottom-right corner of an image",
+      "Place one image on top of another",
+      "Add a semi-transparent overlay to a picture",
+      "Combine two images with multiply or screen mode"
+    ]
+  },
+  "/reference/core/novis-image-image/contrast/": {
+    "feature": "Novis\\Image\\Image::contrast",
+    "hash": "5ee4e314b618226c",
+    "questions": [
+      "How do I increase the contrast of a photo?",
+      "Make dark parts darker and light parts lighter",
+      "Reduce contrast so a picture looks softer",
+      "Fix a flat, gray-looking image"
+    ]
+  },
+  "/reference/core/novis-image-image/create/": {
+    "feature": "Novis\\Image\\Image::create",
+    "hash": "84d1bfe15add1846",
+    "questions": [
+      "How do I make a blank image of one colour?",
+      "Create an empty transparent canvas",
+      "Start a new image without a file",
+      "Make a solid colour background image",
+      "Generate a test image in code"
+    ]
+  },
+  "/reference/core/novis-image-image/crop/": {
+    "feature": "Novis\\Image\\Image::crop",
+    "hash": "2faea60b3eb97c0e",
+    "questions": [
+      "How do I cut out part of an image?",
+      "Crop a picture to a box at x and y",
+      "Keep only one area of a photo",
+      "Remove the left half of an image"
+    ]
+  },
+  "/reference/core/novis-image-image/encode/": {
+    "feature": "Novis\\Image\\Image::encode",
+    "hash": "898f6d4cbee91724",
+    "questions": [
+      "How do I save the edited image as a file?",
+      "Get the bytes of the finished image",
+      "Run all image changes and write the output",
+      "Why does my image edit not happen until the end?"
+    ]
+  },
+  "/reference/core/novis-image-image/extension/": {
+    "feature": "Novis\\Image\\Image::extension",
+    "hash": "745d134fabd97ff7",
+    "questions": [
+      "Which file extension should an uploaded image get?",
+      "Get jpg or png from an image format",
+      "Name a saved upload with the correct extension",
+      "Find the right extension from the image bytes"
+    ]
+  },
+  "/reference/core/novis-image-image/flatten/": {
+    "feature": "Novis\\Image\\Image::flatten",
+    "hash": "3ce4530de4e4da10",
+    "questions": [
+      "How do I remove transparency from a PNG?",
+      "Put a transparent image on a white background",
+      "Convert a transparent PNG to JPEG without black areas",
+      "Fill see-through pixels with one colour"
+    ]
+  },
+  "/reference/core/novis-image-image/flip/": {
+    "feature": "Novis\\Image\\Image::flip",
+    "hash": "da7c90c8b1f9da6a",
+    "questions": [
+      "How do I mirror an image?",
+      "Flip a picture upside down",
+      "Swap left and right in a photo",
+      "Make a mirror copy of a selfie"
+    ]
+  },
+  "/reference/core/novis-image-image/format/": {
+    "feature": "Novis\\Image\\Image::format",
+    "hash": "7a34e285699cb973",
+    "questions": [
+      "How do I convert a PNG to WebP?",
+      "Set the JPEG quality of an output image",
+      "Save an image as lossless WebP",
+      "Change the output file type to AVIF",
+      "Make image files smaller with lower quality"
+    ]
+  },
+  "/reference/core/novis-image-image/fromraw/": {
+    "feature": "Novis\\Image\\Image::fromRaw",
+    "hash": "b33f73b7b7237b87",
+    "questions": [
+      "How do I build an image from pixel data?",
+      "Turn an array of RGBA bytes into a PNG",
+      "Encode pixels I changed by hand",
+      "Create a picture from width, height and pixels"
+    ]
+  },
+  "/reference/core/novis-image-image/gamma/": {
+    "feature": "Novis\\Image\\Image::gamma",
+    "hash": "c024d968f45cf915",
+    "questions": [
+      "How do I lighten the shadows of a dark photo?",
+      "Change the middle tones but keep black and white",
+      "Gamma correction for an image",
+      "Brighten a photo without making the sky white"
+    ]
+  },
+  "/reference/core/novis-image-image/grayscale/": {
+    "feature": "Novis\\Image\\Image::grayscale",
+    "hash": "91846f8e10a6f809",
+    "questions": [
+      "How do I make an image black and white?",
+      "Convert a colour photo to gray",
+      "Remove all colours from a picture",
+      "Make a gray version of a product photo"
+    ]
+  },
+  "/reference/core/novis-image-image/hash/": {
+    "feature": "Novis\\Image\\Image::hash",
+    "hash": "01202ce546feb801",
+    "questions": [
+      "How do I find duplicate images?",
+      "Make a fingerprint of a picture to store in a database",
+      "Perceptual hash of an uploaded photo",
+      "Detect the same picture saved in another format",
+      "Find copies of an image that was resized"
+    ]
+  },
+  "/reference/core/novis-image-image/hashdistance/": {
+    "feature": "Novis\\Image\\Image::hashDistance",
+    "hash": "36b6fdf2ebead722",
+    "questions": [
+      "How similar are two image fingerprints?",
+      "Count the different bits between two hashes",
+      "Check if a new upload already exists",
+      "What distance means two pictures are the same?"
+    ]
+  },
+  "/reference/core/novis-image-image/info/": {
+    "feature": "Novis\\Image\\Image::info",
+    "hash": "9f7217a9f27ad6d9",
+    "questions": [
+      "How do I get the width and height of an image?",
+      "Read the image size without loading the pixels",
+      "Check if a GIF is animated",
+      "Reject an upload that is too large before decoding",
+      "Find out if an image has transparency"
+    ]
+  },
+  "/reference/core/novis-image-image/measuretext/": {
+    "feature": "Novis\\Image\\Image::measureText",
+    "hash": "5b2569922e7acd75",
+    "questions": [
+      "How wide will my text be in pixels?",
+      "Measure a caption before drawing it",
+      "Find the biggest font size that fits a banner",
+      "Count the lines of wrapped text",
+      "Make an image exactly the size of its label"
+    ]
+  },
+  "/reference/core/novis-image-image/metadata/": {
+    "feature": "Novis\\Image\\Image::metadata",
+    "hash": "57f7d0607a389ab2",
+    "questions": [
+      "How do I keep EXIF data in a photo?",
+      "Remove GPS location from uploaded photos",
+      "Does saving an image delete camera information?",
+      "Keep the date and camera model in a resized photo"
+    ]
+  },
+  "/reference/core/novis-image-image/mime/": {
+    "feature": "Novis\\Image\\Image::mime",
+    "hash": "91afce917ce04b92",
+    "questions": [
+      "What Content-Type header should I send for an image?",
+      "Get image/webp from an image format",
+      "Find the MIME type of an uploaded picture",
+      "Store the media type next to a saved image"
+    ]
+  },
+  "/reference/core/novis-image-image/open/": {
+    "feature": "Novis\\Image\\Image::open",
+    "hash": "68ab7f8136a34b79",
+    "questions": [
+      "How do I load an uploaded image?",
+      "Open a JPEG from bytes",
+      "Fix photos from a phone that show sideways",
+      "Limit the number of pixels an upload may have",
+      "Convert image colours to sRGB when loading"
+    ]
+  },
+  "/reference/core/novis-image-image/palette/": {
+    "feature": "Novis\\Image\\Image::palette",
+    "hash": "da89759d776f7a79",
+    "questions": [
+      "How do I get the main colours of a photo?",
+      "Find the dominant colour of an image",
+      "Pick a page background colour that matches a picture",
+      "Extract a colour palette from an upload"
+    ]
+  },
+  "/reference/core/novis-image-image/placeholder/": {
+    "feature": "Novis\\Image\\Image::placeholder",
+    "hash": "460ab9432b9cd679",
+    "questions": [
+      "How do I show a blurred preview while an image loads?",
+      "Make a BlurHash for an uploaded image",
+      "Generate a ThumbHash string",
+      "Low quality image placeholder for lazy loading"
+    ]
+  },
+  "/reference/core/novis-image-image/raw/": {
+    "feature": "Novis\\Image\\Image::raw",
+    "hash": "7e0b8953ec941ae6",
+    "questions": [
+      "How do I read the colour of one pixel?",
+      "Get the RGBA pixel values of an image",
+      "Loop over every pixel of a picture",
+      "Access raw pixel bytes after editing"
+    ]
+  },
+  "/reference/core/novis-image-image/resize/": {
+    "feature": "Novis\\Image\\Image::resize",
+    "hash": "80e317e2b294c693",
+    "questions": [
+      "How do I resize an image to fit a thumbnail?",
+      "Scale a photo to 800 pixels wide and keep proportions",
+      "Fit an image inside a box without cutting it",
+      "Make an image fill a square and cut off the rest",
+      "Enlarge a small image"
+    ]
+  },
+  "/reference/core/novis-image-image/rotate/": {
+    "feature": "Novis\\Image\\Image::rotate",
+    "hash": "94695eb0ee207b8b",
+    "questions": [
+      "How do I rotate an image 90 degrees?",
+      "Turn a picture by any angle",
+      "Rotate a photo counter-clockwise",
+      "Fill the empty corners after rotating an image"
+    ]
+  },
+  "/reference/core/novis-image-image/sharpen/": {
+    "feature": "Novis\\Image\\Image::sharpen",
+    "hash": "3920abfa9b4d54e6",
+    "questions": [
+      "How do I make a blurry image sharper?",
+      "Make a thumbnail look clear after resizing",
+      "Sharpen the edges in a photo",
+      "Improve details of a soft picture"
+    ]
+  },
+  "/reference/core/novis-image-image/text/": {
+    "feature": "Novis\\Image\\Image::text",
+    "hash": "b09c944c5c6195ab",
+    "questions": [
+      "How do I write text on an image?",
+      "Add a caption at the bottom of a photo",
+      "Draw a label with a custom font",
+      "Put wrapped, centered text on a banner",
+      "Make a social media card with a title"
+    ]
+  },
+  "/reference/core/novis-image-image/tint/": {
+    "feature": "Novis\\Image\\Image::tint",
+    "hash": "9affd6bd29e96cc4",
+    "questions": [
+      "How do I colour an image with one colour?",
+      "Make a sepia or old brown photo effect",
+      "Add a blue colour filter to a picture",
+      "Give a gray icon a brand colour"
+    ]
+  },
+  "/reference/core/novis-image-image/trim/": {
+    "feature": "Novis\\Image\\Image::trim",
+    "hash": "09b5cda2acc0244e",
+    "questions": [
+      "How do I remove white borders from an image?",
+      "Cut off empty space around a picture",
+      "Auto crop the background edges of a scan",
+      "Remove a solid colour frame from a photo"
+    ]
+  },
+  "/reference/core/novis-image-image/variants/": {
+    "feature": "Novis\\Image\\Image::variants",
+    "hash": "24c554286a06c9b0",
+    "questions": [
+      "How do I make several sizes of one image at once?",
+      "Create images for responsive srcset widths",
+      "Save one upload as WebP and JPEG together",
+      "Generate small, medium and large thumbnails fast"
+    ]
+  },
+  "/reference/core/novis-image-qrcode/": {
+    "feature": "Novis\\Image\\QrCode",
+    "hash": "59a6d39c819c9d42",
+    "questions": [
+      "How do I create QR codes?",
+      "QR code generator for a web app",
+      "Images a phone camera can scan",
+      "Put a scannable code on a ticket or invoice"
+    ]
+  },
+  "/reference/core/novis-image-qrcode/render/": {
+    "feature": "Novis\\Image\\QrCode::render",
+    "hash": "23f06824e5a66b34",
+    "questions": [
+      "How do I turn a link into a QR code image?",
+      "Make a QR code PNG of a set size",
+      "Change the border width of a QR code",
+      "Set QR code error correction level",
+      "Why is my text too long for a QR code?"
+    ]
+  },
+  "/reference/core/novis-intl-collator/": {
+    "feature": "Novis\\Intl\\Collator",
+    "hash": "c23a7757e419c0f5",
+    "questions": [
+      "How do I sort text the way a language does?",
+      "Sorting names with accents and umlauts correctly",
+      "Why does ä sort in the wrong place?",
+      "Compare strings by the rules of a country",
+      "Case-insensitive sorting for a list of words"
+    ]
+  },
+  "/reference/core/novis-intl-collator/sort/": {
+    "feature": "Novis\\Intl\\Collator::sort",
+    "hash": "40d47ce47c6733e9",
+    "questions": [
+      "Sort names in German alphabetical order",
+      "How do I sort a list of strings for Swedish users?",
+      "Sort file names so 9 comes before 10",
+      "Sort words and ignore upper and lower case",
+      "Sort a list and ignore spaces and punctuation"
+    ]
+  },
+  "/reference/core/novis-intl-collator/sortkeys/": {
+    "feature": "Novis\\Intl\\Collator::sortKeys",
+    "hash": "7f4c8316b305a449",
+    "questions": [
+      "How do I store a sort order in a database column?",
+      "Sort database rows by name in the user's language",
+      "Make bytes that sort like the words of a language",
+      "Order table rows alphabetically for French without database support",
+      "Get a sort key for each string with Collator::sortKeys"
+    ]
+  },
+  "/reference/core/novis-intl-dateformat/": {
+    "feature": "Novis\\Intl\\DateFormat",
+    "hash": "65453d836a1e1d67",
+    "questions": [
+      "How do I show dates the way the user's country writes them?",
+      "Format dates and times for different languages",
+      "Show a date in British or American style",
+      "Localized date and time output on a web page"
+    ]
+  },
+  "/reference/core/novis-intl-dateformat/dates/": {
+    "feature": "Novis\\Intl\\DateFormat::dates",
+    "hash": "9177fc9b2805650f",
+    "questions": [
+      "How do I write a date as 24.12.2026 for German users?",
+      "Show a date with the month name in the user's language",
+      "Short, medium or long date format",
+      "Print a birthday date in the visitor's language",
+      "Day, month and year in the right order for a country"
+    ]
+  },
+  "/reference/core/novis-intl-dateformat/datetimes/": {
+    "feature": "Novis\\Intl\\DateFormat::dateTimes",
+    "hash": "1586f9f4ad8d8c22",
+    "questions": [
+      "How do I show a date and time with the time zone?",
+      "Show when an order was placed, with date and hour",
+      "Add GMT+2 to a formatted timestamp",
+      "Format a date with time and seconds for a locale",
+      "Show an event start time in the reader's time zone"
+    ]
+  },
+  "/reference/core/novis-intl-dateformat/times/": {
+    "feature": "Novis\\Intl\\DateFormat::times",
+    "hash": "39a9e5b2ff28641e",
+    "questions": [
+      "How do I show 21:30 or 9:30 PM depending on the country?",
+      "12-hour or 24-hour clock for the user's language",
+      "Format a time of day without the date",
+      "Show opening hours in the visitor's format",
+      "Show hours, minutes and seconds for a locale"
+    ]
+  },
+  "/reference/core/novis-intl-icu/": {
+    "feature": "Novis\\Intl\\Icu",
+    "hash": "352f9b8dcacfd58f",
+    "questions": [
+      "What are the low-level language functions behind sorting and formatting?",
+      "Low-level functions for text in many languages",
+      "Format and sort text for many languages in one call",
+      "Raw access to language and region rules"
+    ]
+  },
+  "/reference/core/novis-intl-icu/collateorder/": {
+    "feature": "Novis\\Intl\\Icu::collateOrder",
+    "hash": "e4eb5ec4d7a9a448",
+    "questions": [
+      "Get the sorted positions of strings instead of the strings",
+      "How do I find the index order of a sorted list?",
+      "Sort one list and apply the same order to another list",
+      "Return indexes sorted by language rules"
+    ]
+  },
+  "/reference/core/novis-intl-icu/formatdates/": {
+    "feature": "Novis\\Intl\\Icu::formatDates",
+    "hash": "b093736c718ded6f",
+    "questions": [
+      "Low-level function to format a list of calendar dates",
+      "Format dates in short or long style, low-level",
+      "Format a whole list of dates for one language",
+      "Format many Date values for a locale at once"
+    ]
+  },
+  "/reference/core/novis-intl-icu/formatdatetimes/": {
+    "feature": "Novis\\Intl\\Icu::formatDateTimes",
+    "hash": "791befff5d3edcf5",
+    "questions": [
+      "Format a date and time from year, month, day and hour fields",
+      "How do I format a timestamp given its UTC offset and zone id?",
+      "Low-level date and time formatting from separate fields",
+      "Format local time fields with Europe/Vienna as the zone"
+    ]
+  },
+  "/reference/core/novis-intl-icu/formatlists/": {
+    "feature": "Novis\\Intl\\Icu::formatLists",
+    "hash": "c80361f0e29b05cc",
+    "questions": [
+      "Low-level function to join many word lists",
+      "Join several lists of strings in one call",
+      "Write many lists as sentences at once",
+      "Combine items with and in another language, low-level"
+    ]
+  },
+  "/reference/core/novis-intl-icu/formatnumbers/": {
+    "feature": "Novis\\Intl\\Icu::formatNumbers",
+    "hash": "378e1ea76ac30284",
+    "questions": [
+      "Format numbers given as decimal text strings",
+      "How do I format \"1234.5\" as text for a locale?",
+      "One function for decimal, percent, currency and short numbers",
+      "Low-level number formatting with all options named"
+    ]
+  },
+  "/reference/core/novis-intl-icu/formatrelative/": {
+    "feature": "Novis\\Intl\\Icu::formatRelative",
+    "hash": "445fcff744e49395",
+    "questions": [
+      "Low-level function for 'in 3 days' text",
+      "What formats time before or after now, low-level?",
+      "Write a list of count and unit pairs as words",
+      "Relative time text without the RelativeTime class"
+    ]
+  },
+  "/reference/core/novis-intl-icu/formattimes/": {
+    "feature": "Novis\\Intl\\Icu::formatTimes",
+    "hash": "9cc83aad59f240e6",
+    "questions": [
+      "Low-level function to format times of day",
+      "Format a list of TimeOfDay values for a locale",
+      "Show many times of day in the user's format at once",
+      "Raw time of day formatting with a seconds option"
+    ]
+  },
+  "/reference/core/novis-intl-icu/negotiate/": {
+    "feature": "Novis\\Intl\\Icu::negotiate",
+    "hash": "9d738d5a20bb9d81",
+    "questions": [
+      "Low-level function to choose a language from a browser header",
+      "Match a header language list against supported languages",
+      "Pick the best language from a list of preferred tags",
+      "Pick an offered language or a default, low-level"
+    ]
+  },
+  "/reference/core/novis-intl-icu/pluralcategories/": {
+    "feature": "Novis\\Intl\\Icu::pluralCategories",
+    "hash": "7a52cab25698f433",
+    "questions": [
+      "Get plural categories for numbers written as text",
+      "Low-level plural rules for a list of numbers",
+      "Cardinal or ordinal category with one function",
+      "Which plural form does each number need, low-level?"
+    ]
+  },
+  "/reference/core/novis-intl-icu/resolvelocales/": {
+    "feature": "Novis\\Intl\\Icu::resolveLocales",
+    "hash": "0a0267f4a3676a02",
+    "questions": [
+      "Low-level check of which locale data a tag uses",
+      "Find the fallback locale for a service, low-level",
+      "Why does a locale tag give und?",
+      "Resolve many locale tags to the data they use"
+    ]
+  },
+  "/reference/core/novis-intl-icu/sentencesegments/": {
+    "feature": "Novis\\Intl\\Icu::sentenceSegments",
+    "hash": "410e4b080583b8c0",
+    "questions": [
+      "Low-level function to split strings into sentences",
+      "Split many texts into sentences in one call, low-level",
+      "Get sentence start and end positions for several texts",
+      "Sentence boundaries by language rules, raw function"
+    ]
+  },
+  "/reference/core/novis-intl-icu/sortkeys/": {
+    "feature": "Novis\\Intl\\Icu::sortKeys",
+    "hash": "44bede6732b0809e",
+    "questions": [
+      "Low-level sort keys with a plain options shape",
+      "Make binary sort keys from a list of strings, low-level",
+      "Sort keys for many strings with options as a map",
+      "Raw byte keys that compare in language order"
+    ]
+  },
+  "/reference/core/novis-intl-icu/wordsegments/": {
+    "feature": "Novis\\Intl\\Icu::wordSegments",
+    "hash": "6013cee98353ec10",
+    "questions": [
+      "Low-level function to split strings into words",
+      "Split text into words, spaces and punctuation, raw function",
+      "Get word positions for several texts in one call",
+      "Word boundaries for many strings, low-level"
+    ]
+  },
+  "/reference/core/novis-intl-listformat/": {
+    "feature": "Novis\\Intl\\ListFormat",
+    "hash": "e5be3e65d37ea8dd",
+    "questions": [
+      "How do I write a list as a sentence in any language?",
+      "Join words with commas and 'and' for a locale",
+      "List formatting for different languages",
+      "Show several names in a natural sentence"
+    ]
+  },
+  "/reference/core/novis-intl-listformat/join/": {
+    "feature": "Novis\\Intl\\ListFormat::join",
+    "hash": "6213f7a48398ac9f",
+    "questions": [
+      "Join items as \"a, b, and c\"",
+      "How do I join a list with or instead of and?",
+      "Write a list with the German word und",
+      "Join measurements such as 3 kg, 200 g",
+      "Short list with & instead of and"
+    ]
+  },
+  "/reference/core/novis-intl-locale/": {
+    "feature": "Novis\\Intl\\Locale",
+    "hash": "d2885a6c745a01b8",
+    "questions": [
+      "How do I choose the language for a visitor?",
+      "Working with locale tags and languages",
+      "Pick a language and check which language data is used",
+      "Language selection for a multilingual website"
+    ]
+  },
+  "/reference/core/novis-intl-locale/negotiate/": {
+    "feature": "Novis\\Intl\\Locale::negotiate",
+    "hash": "5500d140fc1a5496",
+    "questions": [
+      "How do I read the Accept-Language header?",
+      "Choose the best page language from the browser settings",
+      "Match de-AT to the German version of my site",
+      "Fall back to a default language when no match is found",
+      "Detect the user's preferred language from a request"
+    ]
+  },
+  "/reference/core/novis-intl-locale/resolve/": {
+    "feature": "Novis\\Intl\\Locale::resolve",
+    "hash": "faafc66a44817c0a",
+    "questions": [
+      "Which language data is used for my locale tag?",
+      "Check if a language has its own date rules",
+      "What fallback is used when a region has no data?",
+      "Find out if a locale is supported for numbers",
+      "Does my locale use the general rules?"
+    ]
+  },
+  "/reference/core/novis-intl-numberformat/": {
+    "feature": "Novis\\Intl\\NumberFormat",
+    "hash": "a91dde7ab1660394",
+    "questions": [
+      "How do I format numbers for different countries?",
+      "Thousands separator and decimal comma by locale",
+      "Show numbers, money and percentages in the user's language",
+      "Localized number formatting"
+    ]
+  },
+  "/reference/core/novis-intl-numberformat/compact/": {
+    "feature": "Novis\\Intl\\NumberFormat::compact",
+    "hash": "ee4085f0f1c966f9",
+    "questions": [
+      "How do I show 1500000 as 1.5M?",
+      "Write large numbers short, like 1.2K",
+      "Show follower counts as 1.2 thousand",
+      "Short number format for view counts"
+    ]
+  },
+  "/reference/core/novis-intl-numberformat/currency/": {
+    "feature": "Novis\\Intl\\NumberFormat::currency",
+    "hash": "3beaf7db8edf928c",
+    "questions": [
+      "How do I show a price in the user's currency?",
+      "Format money as €1,234.50 or 1.234,50 €",
+      "Show an amount in euros or dollars",
+      "Write the currency name instead of the symbol",
+      "Format yen prices without decimals"
+    ]
+  },
+  "/reference/core/novis-intl-numberformat/decimal/": {
+    "feature": "Novis\\Intl\\NumberFormat::decimal",
+    "hash": "d6d78f9ce663a028",
+    "questions": [
+      "How do I add thousands separators to a number?",
+      "Write 1234.5 as 1.234,5 for German users",
+      "Show a number with two decimal places",
+      "Format a number without grouping separators",
+      "Round a number for display in a locale"
+    ]
+  },
+  "/reference/core/novis-intl-numberformat/percent/": {
+    "feature": "Novis\\Intl\\NumberFormat::percent",
+    "hash": "c4e1eaab0b124331",
+    "questions": [
+      "How do I show 0.25 as 25%?",
+      "Format a percentage for the user's language",
+      "Show a percent value with one decimal place",
+      "Why is there a space before % in German?"
+    ]
+  },
+  "/reference/core/novis-intl-pluralrules/": {
+    "feature": "Novis\\Intl\\PluralRules",
+    "hash": "c07aee8546e1c060",
+    "questions": [
+      "How do I choose between 1 file and 2 files?",
+      "Plural forms for different languages",
+      "Pick the right word ending for a number",
+      "Plurals and ordinal endings by language"
+    ]
+  },
+  "/reference/core/novis-intl-pluralrules/cardinal/": {
+    "feature": "Novis\\Intl\\PluralRules::cardinal",
+    "hash": "abc32f25542d0334",
+    "questions": [
+      "Show \"1 item\" or \"3 items\" correctly",
+      "Which plural form does a count need in Russian?",
+      "Pluralize a word based on a number",
+      "Why is 1.0 not singular in English?",
+      "Plural category for counting things"
+    ]
+  },
+  "/reference/core/novis-intl-pluralrules/ordinal/": {
+    "feature": "Novis\\Intl\\PluralRules::ordinal",
+    "hash": "42f7219b034198ae",
+    "questions": [
+      "How do I write 1st, 2nd, 3rd and 4th?",
+      "Ordinal number endings for a ranking",
+      "Choose the suffix for 22nd or 11th",
+      "Show a place in a race in the right form"
+    ]
+  },
+  "/reference/core/novis-intl-relativetime/": {
+    "feature": "Novis\\Intl\\RelativeTime",
+    "hash": "68714151823a7d39",
+    "questions": [
+      "How do I show times like \"3 days ago\"?",
+      "Relative dates in the user's language",
+      "Human-friendly time differences",
+      "Show how long ago something happened"
+    ]
+  },
+  "/reference/core/novis-intl-relativetime/format/": {
+    "feature": "Novis\\Intl\\RelativeTime::format",
+    "hash": "22c2cbe27fa4fcc4",
+    "questions": [
+      "Write \"in 2 hours\" or \"3 days ago\"",
+      "How do I show yesterday instead of 1 day ago?",
+      "Show a post's age as \"5 minutes ago\"",
+      "Short relative time like \"in 2 hr.\"",
+      "Time until an event in German words"
+    ]
+  },
+  "/reference/core/novis-intl-segmenter/": {
+    "feature": "Novis\\Intl\\Segmenter",
+    "hash": "03a1487001c7ed98",
+    "questions": [
+      "How do I split text into words or sentences?",
+      "Text splitting for languages without spaces",
+      "Break text into parts by language rules",
+      "Word and sentence boundaries in any language"
+    ]
+  },
+  "/reference/core/novis-intl-segmenter/sentences/": {
+    "feature": "Novis\\Intl\\Segmenter::sentences",
+    "hash": "842ec94799359516",
+    "questions": [
+      "How do I split a paragraph into sentences?",
+      "Find where each sentence ends in a text",
+      "Split text into sentences without breaking at 3.5",
+      "Show only the first sentence of an article"
+    ]
+  },
+  "/reference/core/novis-intl-segmenter/words/": {
+    "feature": "Novis\\Intl\\Segmenter::words",
+    "hash": "63a9fbe0a8abee3e",
+    "questions": [
+      "How do I count the words in a text?",
+      "Split Japanese or Chinese text into words",
+      "Separate words from spaces and punctuation",
+      "Word count for a blog post in any language",
+      "Tokenize text into words for search"
+    ]
+  },
+  "/reference/core/objectmap/": {
+    "feature": "Core\\ObjectMap",
+    "hash": "6a77df17e6278482",
+    "questions": [
+      "How do I use objects as keys in a map?",
+      "Store extra data for each object without changing its class",
+      "Map that finds keys by identity, not by equal fields",
+      "Dictionary with object keys that keeps insertion order",
+      "Attach a value to an object instance"
+    ]
+  },
+  "/reference/core/objectmap/clear/": {
+    "feature": "Core\\ObjectMap::clear",
+    "hash": "674a22e4da681f92",
+    "questions": [
+      "How do I empty an object map before the next batch?",
+      "Remove all entries from a map keyed by objects",
+      "Reset a per-batch cache of objects",
+      "Does emptying the map delete the key objects too?"
+    ]
+  },
+  "/reference/core/objectmap/count/": {
+    "feature": "Core\\ObjectMap::count",
+    "hash": "5df53c896870d9ed",
+    "questions": [
+      "How many entries are in my object map?",
+      "Get the number of objects used as keys",
+      "Limit how many tasks run by counting tracked objects",
+      "Size of a map with object keys"
+    ]
+  },
+  "/reference/core/objectmap/get/": {
+    "feature": "Core\\ObjectMap::get",
+    "hash": "7744c9f5f0809e96",
+    "questions": [
+      "How do I read the value stored for an object?",
+      "Look up a value by object key with a default",
+      "Cache a computed result for each object",
+      "What happens when I read a missing object key?"
+    ]
+  },
+  "/reference/core/objectmap/has/": {
+    "feature": "Core\\ObjectMap::has",
+    "hash": "762a5202727f33a9",
+    "questions": [
+      "How do I check if an object is a key in the map?",
+      "Tell a missing key apart from a key with a null value",
+      "Do some work only once for each object",
+      "Test whether a map contains this exact object"
+    ]
+  },
+  "/reference/core/objectmap/isempty/": {
+    "feature": "Core\\ObjectMap::isEmpty",
+    "hash": "ba9c5bebef5c605d",
+    "questions": [
+      "How do I check if an object map has no entries?",
+      "Save changed records only when there is something to save",
+      "Is a map with only a null value empty?",
+      "Check for zero entries in a map keyed by objects"
+    ]
+  },
+  "/reference/core/objectmap/keys/": {
+    "feature": "Core\\ObjectMap::keys",
+    "hash": "02037e8e4417c812",
+    "questions": [
+      "How do I get all object keys of a map as a list?",
+      "List every key in the order it was added",
+      "Print the names of all users who are online",
+      "Copy the keys of an object map into an array"
+    ]
+  },
+  "/reference/core/objectmap/remove/": {
+    "feature": "Core\\ObjectMap::remove",
+    "hash": "71f654d4c25f03eb",
+    "questions": [
+      "How do I delete one object from an object map?",
+      "Stop tracking a job after it finishes",
+      "Remove a key and its value by object identity",
+      "Is it an error to remove a key that is not there?"
+    ]
+  },
+  "/reference/core/objectmap/set/": {
+    "feature": "Core\\ObjectMap::set",
+    "hash": "c451e39b3df2aca7",
+    "questions": [
+      "How do I store a value for an object key?",
+      "Replace the value for an object that is already in the map",
+      "Count how many times each object appears",
+      "Why do two equal objects get two separate entries?"
+    ]
+  },
+  "/reference/core/objectmap/values/": {
+    "feature": "Core\\ObjectMap::values",
+    "hash": "ca59d3ff41664b95",
+    "questions": [
+      "How do I get all values of an object map as an array?",
+      "Add up the totals of all open shopping carts",
+      "List the stored values without their object keys",
+      "Match each value to its key by position"
+    ]
+  },
+  "/reference/core/objectset/": {
+    "feature": "Core\\ObjectSet",
+    "hash": "ef59d780801c522b",
+    "questions": [
+      "How do I keep a collection of unique objects?",
+      "Set of objects compared by identity",
+      "Collection where each object appears only once",
+      "Combine, compare and subtract groups of objects"
+    ]
+  },
+  "/reference/core/objectset/add/": {
+    "feature": "Core\\ObjectSet::add",
+    "hash": "0f80aa471772a7a8",
+    "questions": [
+      "How do I put an object into a set?",
+      "Add an item only if it is not already there",
+      "Find the distinct customers in a list of orders",
+      "What happens when I add the same object twice?"
+    ]
+  },
+  "/reference/core/objectset/clear/": {
+    "feature": "Core\\ObjectSet::clear",
+    "hash": "a8ab2c138dec2258",
+    "questions": [
+      "How do I empty a set of objects?",
+      "Remove every object from a set and reuse it",
+      "Reset a set before each batch of work",
+      "Clear all values from an object set"
+    ]
+  },
+  "/reference/core/objectset/count/": {
+    "feature": "Core\\ObjectSet::count",
+    "hash": "20ccfc165d737c8d",
+    "questions": [
+      "How many distinct objects are in my set?",
+      "Get the size of an object set",
+      "Limit how many different guests can join an event",
+      "Count unique objects in a list"
+    ]
+  },
+  "/reference/core/objectset/diff/": {
+    "feature": "Core\\ObjectSet::diff",
+    "hash": "9ea34afb2cff7703",
+    "questions": [
+      "How do I find objects in one set but not in another?",
+      "Which guests have not answered the invitation yet?",
+      "Subtract one set of objects from another",
+      "Get the values that only the first set has"
+    ]
+  },
+  "/reference/core/objectset/has/": {
+    "feature": "Core\\ObjectSet::has",
+    "hash": "a4a42fb68951427c",
+    "questions": [
+      "How do I check if an object is in a set?",
+      "Skip a job that was already done",
+      "Test if this exact object was added before",
+      "Why is an equal object not found in my set?"
+    ]
+  },
+  "/reference/core/objectset/intersect/": {
+    "feature": "Core\\ObjectSet::intersect",
+    "hash": "4a9091182629f408",
+    "questions": [
+      "How do I find objects that are in both sets?",
+      "Common values of two object sets",
+      "Users who are online and also allowed to get an alert",
+      "Keep only the objects two groups share"
+    ]
+  },
+  "/reference/core/objectset/isempty/": {
+    "feature": "Core\\ObjectSet::isEmpty",
+    "hash": "0707ada01a9b8475",
+    "questions": [
+      "How do I check if a set of objects has nothing in it?",
+      "Show a message only when there is something to report",
+      "Is my object set empty after removing the last item?",
+      "Check for zero values in a set"
+    ]
+  },
+  "/reference/core/objectset/remove/": {
+    "feature": "Core\\ObjectSet::remove",
+    "hash": "9d49b4c29319d794",
+    "questions": [
+      "How do I take an object out of a set?",
+      "Remove a user from the online list when they log out",
+      "Delete one value from an object set",
+      "Does removing a missing value throw an error?"
+    ]
+  },
+  "/reference/core/objectset/union/": {
+    "feature": "Core\\ObjectSet::union",
+    "hash": "86e3bf5d11bd9f00",
+    "questions": [
+      "How do I combine two sets of objects into one?",
+      "Merge two lists of people without duplicates",
+      "Send a message to everyone once, from two groups",
+      "All values that are in either set"
+    ]
+  },
+  "/reference/core/os/": {
+    "feature": "Core\\Os",
+    "hash": "a4c65b02d5c16a99",
+    "questions": [
+      "How do I get information about the machine my program runs on?",
+      "System information: process id, host name, CPU cores",
+      "Check memory use and system load from a program",
+      "Read facts about the operating system and current process"
+    ]
+  },
+  "/reference/core/os/cpucount/": {
+    "feature": "Core\\Os::cpuCount",
+    "hash": "54915f842072a445",
+    "questions": [
+      "How many CPU cores can my program use?",
+      "Choose the size of a worker pool",
+      "Number of cores inside a container",
+      "Split jobs between all available processors"
+    ]
+  },
+  "/reference/core/os/hostname/": {
+    "feature": "Core\\Os::hostname",
+    "hash": "10201b467b56f464",
+    "questions": [
+      "How do I get the name of the computer?",
+      "Add the server name to each log line",
+      "Which server handled this job?",
+      "Give each queue worker a unique name"
+    ]
+  },
+  "/reference/core/os/loadaverage/": {
+    "feature": "Core\\Os::loadAverage",
+    "hash": "4a956b93aadd457c",
+    "questions": [
+      "How busy is the server right now?",
+      "Read the system load for the last 1, 5 and 15 minutes",
+      "Wait before a large job when the machine is busy",
+      "Does the load average work on Windows?"
+    ]
+  },
+  "/reference/core/os/pid/": {
+    "feature": "Core\\Os::pid",
+    "hash": "9bc814c0438e52e7",
+    "questions": [
+      "How do I get the process id of my program?",
+      "Put the process number in a log line",
+      "Create a file name that only this process uses",
+      "Tell running processes apart"
+    ]
+  },
+  "/reference/core/os/residentbytes/": {
+    "feature": "Core\\Os::residentBytes",
+    "hash": "43ede0c584f5054b",
+    "questions": [
+      "How much memory has my process used?",
+      "Show peak memory use on a metrics page",
+      "Restart a worker when it uses too much memory",
+      "Measure the highest memory use of the program"
+    ]
+  },
+  "/reference/core/out/": {
+    "feature": "Core\\Out",
+    "hash": "2d42df6a4681cada",
+    "questions": [
+      "How do I turn printed output into a value?",
+      "Collect everything a block of code prints",
+      "Buffer output instead of sending it right away",
+      "Work with printed text as a variable"
+    ]
+  },
+  "/reference/core/out/capture/": {
+    "feature": "Core\\Out::capture",
+    "hash": "805685e4a26568cf",
+    "questions": [
+      "How do I capture what a function prints with echo?",
+      "Render a template into a variable and print it later",
+      "Test what a function writes to the output",
+      "Change printed HTML before it is sent",
+      "Stop output from a function and keep it as text"
+    ]
+  },
+  "/reference/core/password/": {
+    "feature": "Core\\Password",
+    "hash": "7ca5076362b11eac",
+    "questions": [
+      "How do I store user passwords safely?",
+      "Secure password storage and login checks",
+      "Password hashing for a sign-up and login form",
+      "Keep stored password hashes up to date"
+    ]
+  },
+  "/reference/core/password/hash/": {
+    "feature": "Core\\Password::hash",
+    "hash": "9a0f296fec47edd0",
+    "questions": [
+      "How do I hash a user's password before storing it?",
+      "Save a new user's password at sign-up",
+      "Why does the same password give a different hash each time?",
+      "Create an Argon2id hash for a password"
+    ]
+  },
+  "/reference/core/password/needsrehash/": {
+    "feature": "Core\\Password::needsRehash",
+    "hash": "96b11319ca517e50",
+    "questions": [
+      "How do I upgrade old password hashes?",
+      "Check if a stored hash uses weak settings",
+      "Move users from bcrypt to a stronger hash at login",
+      "When should I hash a password again?"
+    ]
+  },
+  "/reference/core/password/verify/": {
+    "feature": "Core\\Password::verify",
+    "hash": "4691df4f8b9f9701",
+    "questions": [
+      "How do I check a password when a user logs in?",
+      "Compare a typed password with the stored hash",
+      "Check passwords that were hashed with bcrypt in PHP",
+      "What happens when the stored hash is broken?"
+    ]
+  },
+  "/reference/core/path/": {
+    "feature": "Core\\Path",
+    "hash": "749655d56288a80a",
+    "questions": [
+      "How do I work with file paths as text?",
+      "Build and take apart file and folder paths",
+      "Handle Windows and Linux path separators the same way",
+      "Path functions that do not read the disk"
+    ]
+  },
+  "/reference/core/path/basename/": {
+    "feature": "Core\\Path::basename",
+    "hash": "90fcb7836b4a47d7",
+    "questions": [
+      "How do I get the file name from a full path?",
+      "Get the file name without its extension",
+      "Name of the last folder in a path",
+      "Take the file name from an uploaded file path"
+    ]
+  },
+  "/reference/core/path/dirname/": {
+    "feature": "Core\\Path::dirname",
+    "hash": "e1b103a7d545c2fb",
+    "questions": [
+      "How do I get the folder that contains a file?",
+      "Go up two folders from a path",
+      "Parent directory of a path",
+      "Find a folder next to a configuration file"
+    ]
+  },
+  "/reference/core/path/extension/": {
+    "feature": "Core\\Path::extension",
+    "hash": "4d2d546681daf671",
+    "questions": [
+      "How do I get the extension of a file name?",
+      "Check if a file ends with .pdf",
+      "Choose a content type from the file extension",
+      "Why does .gitignore have no extension?"
+    ]
+  },
+  "/reference/core/path/fromcwd/": {
+    "feature": "Core\\Path::fromCwd",
+    "hash": "159d514c9409f7c7",
+    "questions": [
+      "How do I turn a file name the user typed into a full path?",
+      "Path relative to the current working directory",
+      "Resolve a command line file argument",
+      "Why does the working folder fail in a web request?"
+    ]
+  },
+  "/reference/core/path/isabsolute/": {
+    "feature": "Core\\Path::isAbsolute",
+    "hash": "1a863b87114864f7",
+    "questions": [
+      "How do I check if a path is absolute or relative?",
+      "Does this path start at the root or a drive?",
+      "Make a relative path from a config file into a full one",
+      "Detect Windows drive and network share paths"
+    ]
+  },
+  "/reference/core/path/join/": {
+    "feature": "Core\\Path::join",
+    "hash": "563a2220e45d2540",
+    "questions": [
+      "Join folder and file names into one path",
+      "How do I combine a base folder with a user file name?",
+      "Build the path of a customer's upload",
+      "Add path parts without double slashes"
+    ]
+  },
+  "/reference/core/path/normalize/": {
+    "feature": "Core\\Path::normalize",
+    "hash": "84f45856b6a2ef91",
+    "questions": [
+      "How do I remove dots and double dots from a path?",
+      "Clean up a path with repeated slashes",
+      "Find paths in a list that point to the same folder",
+      "Resolve parent folder parts in a path without the disk"
+    ]
+  },
+  "/reference/core/path/relativeto/": {
+    "feature": "Core\\Path::relativeTo",
+    "hash": "82c2c19f5b545097",
+    "questions": [
+      "How do I get the relative path between two folders?",
+      "Path from one file to another",
+      "Write links between the pages of a website",
+      "Make a path relative to a base directory"
+    ]
+  },
+  "/reference/core/path/split/": {
+    "feature": "Core\\Path::split",
+    "hash": "ff9dc60ac24adb70",
+    "questions": [
+      "How do I split a path into its folders?",
+      "Break a path into parts and put it back together",
+      "Build breadcrumb navigation from a page path",
+      "Get each directory name in a path as a list"
+    ]
+  },
+  "/reference/core/path/thisdir/": {
+    "feature": "Core\\Path::thisDir",
+    "hash": "8a016b0db8480d0a",
+    "questions": [
+      "How do I get the folder of the current script?",
+      "Load a data file that sits beside my program",
+      "Path relative to the source file, not the working folder",
+      "Open a file in the folder above my script"
+    ]
+  },
+  "/reference/core/path/thisfile/": {
+    "feature": "Core\\Path::thisFile",
+    "hash": "5e51a43373912f76",
+    "questions": [
+      "How do I get the full path of the current source file?",
+      "Print the name of the running script",
+      "Show the tool name in a usage message",
+      "Which file am I in when it is loaded with require?"
+    ]
+  },
+  "/reference/core/path/withextension/": {
+    "feature": "Core\\Path::withExtension",
+    "hash": "f13ed7c51f977671",
+    "questions": [
+      "How do I change the extension of a file name?",
+      "Replace .csv with .xlsx in a path",
+      "Remove the extension from a path",
+      "Name the converted copy of an uploaded image"
+    ]
+  },
+  "/reference/core/process/": {
+    "feature": "Core\\Process",
+    "hash": "b4e1f880be6e9770",
+    "questions": [
+      "How do I start another program from my code?",
+      "Call a command line tool from a web request",
+      "Is it safe to pass user input as a program argument?",
+      "Run an external program without a shell",
+      "Which programs is my code allowed to start?"
+    ]
+  },
+  "/reference/core/process/run/": {
+    "feature": "Core\\Process::run",
+    "hash": "715f9ec8aac4cf96",
+    "questions": [
+      "How do I run another program and read its output?",
+      "Run a command and wait until it finishes",
+      "Get the output of a system tool as text",
+      "Stop a program that runs longer than a time limit",
+      "Set environment variables and working folder for a program I start"
+    ]
+  },
+  "/reference/core/process/spawn/": {
+    "feature": "Core\\Process::spawn",
+    "hash": "58befe689d315719",
+    "questions": [
+      "How do I start a program in the background and keep going?",
+      "Read a program's output while it is still running",
+      "Start a long-running program and talk to it",
+      "Run several programs at the same time",
+      "Start a program without waiting for it to end"
+    ]
+  },
+  "/reference/core/process-handle/": {
+    "feature": "Core\\Process\\Handle",
+    "hash": "d7f867cf2d854abc",
+    "questions": [
+      "What can I do with a program that is still running?",
+      "Control a running child program",
+      "Read, write and stop a started program",
+      "How do I manage a program I started in the background?"
+    ]
+  },
+  "/reference/core/process-handle/kill/": {
+    "feature": "Core\\Process\\Handle::kill",
+    "hash": "9b33867f3626937f",
+    "questions": [
+      "How do I stop a program that never ends?",
+      "Kill a running program",
+      "Stop a program after reading the first lines of output",
+      "Cancel a slow external command",
+      "What exit code does a stopped program have?"
+    ]
+  },
+  "/reference/core/process-handle/readstderr/": {
+    "feature": "Core\\Process\\Handle::readStderr",
+    "hash": "b3d51f88b5e6d6c0",
+    "questions": [
+      "How do I read warnings from a running program?",
+      "Read error messages while the program is still running",
+      "Show why a background job failed as it happens",
+      "Read the error output in parts"
+    ]
+  },
+  "/reference/core/process-handle/readstdout/": {
+    "feature": "Core\\Process\\Handle::readStdout",
+    "hash": "8afb6672c9cce5d8",
+    "questions": [
+      "How do I read output line by line as it arrives?",
+      "Stream a program's output to my own output",
+      "Read a long output in small parts",
+      "Show progress of a running command live"
+    ]
+  },
+  "/reference/core/process-handle/wait/": {
+    "feature": "Core\\Process\\Handle::wait",
+    "hash": "bc156626a179199a",
+    "questions": [
+      "How do I wait for a started program to finish?",
+      "Get the exit code of a background program",
+      "Wait for several programs that run at the same time",
+      "Collect the rest of the output when the program ends"
+    ]
+  },
+  "/reference/core/process-handle/writestdin/": {
+    "feature": "Core\\Process\\Handle::writeStdin",
+    "hash": "a4854eb88631625c",
+    "questions": [
+      "How do I send input to a running program?",
+      "Write lines to the standard input of a command",
+      "Pipe data into a tool like sort",
+      "Pass user text to a program as data, not as a command"
+    ]
+  },
+  "/reference/core/process-result/": {
+    "feature": "Core\\Process\\Result",
+    "hash": "4f15e2b5fe03066b",
+    "questions": [
+      "What do I get back after a program ends?",
+      "Read the output and exit code of a finished command",
+      "Result of running an external tool",
+      "Where is the output of a program I ran?"
+    ]
+  },
+  "/reference/core/process-result/exitcode/": {
+    "feature": "Core\\Process\\Result::exitCode",
+    "hash": "42d90ef039ac6c8b",
+    "questions": [
+      "How do I check if a command succeeded?",
+      "Read the exit code of a program",
+      "What does exit code 0 mean?",
+      "Tell success from failure for a tool I ran",
+      "Why is the exit code -1?"
+    ]
+  },
+  "/reference/core/process-result/stderr/": {
+    "feature": "Core\\Process\\Result::stderr",
+    "hash": "54a9730755004cd2",
+    "questions": [
+      "How do I get the error message of a failed command?",
+      "Read what a program wrote to standard error",
+      "Check that a tool printed no warnings",
+      "Keep error output apart from normal output"
+    ]
+  },
+  "/reference/core/process-result/stdout/": {
+    "feature": "Core\\Process\\Result::stdout",
+    "hash": "bf0b7789350b8de9",
+    "questions": [
+      "How do I get the text a command printed?",
+      "Read the standard output of a finished program",
+      "Convert program output from bytes to a string",
+      "Read binary output like an image from a tool",
+      "Format a date with a system tool and read the result"
+    ]
+  },
+  "/reference/core/program/": {
+    "feature": "Core\\Program",
+    "hash": "46d64e662354bb76",
+    "questions": [
+      "How do I find all classes that implement an interface?",
+      "Discover plugins automatically without keeping a list",
+      "Get information about the running program",
+      "Auto-register commands and handlers in a framework"
+    ]
+  },
+  "/reference/core/program/constructors/": {
+    "feature": "Core\\Program::constructors",
+    "hash": "7f4b8ae3ec8fd464",
+    "questions": [
+      "Create objects of every plugin class with constructor arguments",
+      "How do I create a class by its name with arguments?",
+      "Get a factory function for each class of an interface",
+      "List commands without creating any objects",
+      "Create only the plugins that are switched on"
+    ]
+  },
+  "/reference/core/program/id/": {
+    "feature": "Core\\Program::id",
+    "hash": "2af3f3de23e22834",
+    "questions": [
+      "How do I get a version id of my deployed code?",
+      "Make cache keys that change after each deployment",
+      "Get a hash that identifies the current build",
+      "Add a version label to log lines",
+      "Tell the browser to load a file again after a deploy"
+    ]
+  },
+  "/reference/core/program/implementing/": {
+    "feature": "Core\\Program::implementing",
+    "hash": "8619424c97f63daa",
+    "questions": [
+      "Get an object of every class that extends a base class",
+      "How do I run every health check class in my app?",
+      "List all subclasses of a class",
+      "Find every class of an interface at compile time",
+      "Print a help page listing every command class"
+    ]
+  },
+  "/reference/core/program/implementingwith/": {
+    "feature": "Core\\Program::implementingWith",
+    "hash": "501b2cdea60dcf65",
+    "questions": [
+      "How do I read an attribute from every class of an interface?",
+      "Build routes from attributes on page classes",
+      "Find classes together with their annotation values",
+      "Order plugins by an attribute on the class",
+      "Find scheduled jobs and read their schedule attribute"
+    ]
+  },
+  "/reference/core/queue/": {
+    "feature": "Core\\Queue",
+    "hash": "812496119f735c38",
+    "questions": [
+      "How do I run slow work in the background?",
+      "Background jobs stored in the database",
+      "Set up a job queue with workers",
+      "Send emails later without making the request wait",
+      "How does a job queue work with transactions?"
+    ]
+  },
+  "/reference/core/queue/cancel/": {
+    "feature": "Core\\Queue::cancel",
+    "hash": "b5b7979a437cc9ab",
+    "questions": [
+      "How do I cancel a background job before it runs?",
+      "Stop a scheduled job that has not started",
+      "Cancel reminders for a user who unsubscribed",
+      "Can I stop a job that a worker already started?"
+    ]
+  },
+  "/reference/core/queue/delete/": {
+    "feature": "Core\\Queue::delete",
+    "hash": "de67c96f52cbd23f",
+    "questions": [
+      "How do I remove one job row from the database?",
+      "Delete the jobs of a user who deleted their account",
+      "Remove a failed job from the dead-letter table",
+      "Delete a cancelled job completely"
+    ]
+  },
+  "/reference/core/queue/purge/": {
+    "feature": "Core\\Queue::purge",
+    "hash": "b6b3ba1f10cf752d",
+    "questions": [
+      "How do I clean up old finished jobs?",
+      "Delete many jobs from a queue at once",
+      "Remove all failed jobs from a queue",
+      "Delete jobs older than a date in batches",
+      "Clear waiting jobs with one tag"
+    ]
+  },
+  "/reference/core/queue/push/": {
+    "feature": "Core\\Queue::push",
+    "hash": "0c3a2aad0976ee25",
+    "questions": [
+      "How do I add a job to a background queue?",
+      "Schedule a task to run later",
+      "Send an email after the order is saved",
+      "Avoid adding the same job twice",
+      "Retry a failed job with a growing delay",
+      "Run a job at a specific time in the future"
+    ]
+  },
+  "/reference/core/queue/stats/": {
+    "feature": "Core\\Queue::stats",
+    "hash": "6e58a1fe0ce6ac0f",
+    "questions": [
+      "How many jobs are in my queue?",
+      "Check the health of a background queue",
+      "Count waiting, running and failed jobs",
+      "Monitor a job queue from a dashboard"
+    ]
+  },
+  "/reference/core/queue/status/": {
+    "feature": "Core\\Queue::status",
+    "hash": "3756e08ec08c1d11",
+    "questions": [
+      "How do I check if a background job has finished?",
+      "Is my job still waiting or running?",
+      "Show the progress of a queued job to the user",
+      "Find out if a job failed for good"
+    ]
+  },
+  "/reference/core/queue-stats/": {
+    "feature": "Core\\Queue\\Stats",
+    "hash": "0e1f1c0a28dac14b",
+    "questions": [
+      "What numbers does a queue report?",
+      "Queue counters for waiting, running and failed jobs",
+      "Read the numbers of a queue at one moment",
+      "Which counts are available for monitoring a queue?"
+    ]
+  },
+  "/reference/core/queue-stats/attempts/": {
+    "feature": "Core\\Queue\\Stats::attempts",
+    "hash": "546e27a17c6669c5",
+    "questions": [
+      "How many times have the jobs in a queue started?",
+      "Count retries in a queue",
+      "Detect jobs that keep failing and running again",
+      "Total number of job runs in a queue"
+    ]
+  },
+  "/reference/core/queue-stats/claimed/": {
+    "feature": "Core\\Queue\\Stats::claimed",
+    "hash": "b78743468be3ec07",
+    "questions": [
+      "How many jobs are running right now?",
+      "Are all my workers busy?",
+      "Find jobs whose worker stopped in the middle",
+      "Count jobs in progress in a queue"
+    ]
+  },
+  "/reference/core/queue-stats/deadattempts/": {
+    "feature": "Core\\Queue\\Stats::deadAttempts",
+    "hash": "f149d8826c759f2d",
+    "questions": [
+      "How many attempts did failed jobs use?",
+      "Average retries before a job fails for good",
+      "Report failed work for several queues",
+      "Count runs of jobs that gave up"
+    ]
+  },
+  "/reference/core/queue-stats/deadlettered/": {
+    "feature": "Core\\Queue\\Stats::deadLettered",
+    "hash": "20be41bb603386e5",
+    "questions": [
+      "How many jobs failed for good?",
+      "Alert when background jobs fail",
+      "Count jobs in the dead-letter table",
+      "Why does the failed job count not go down?"
+    ]
+  },
+  "/reference/core/queue-stats/pending/": {
+    "feature": "Core\\Queue\\Stats::pending",
+    "hash": "77c77bfe25d7c3e0",
+    "questions": [
+      "How many jobs are waiting for a worker?",
+      "Warn when too many jobs wait in a queue",
+      "Can my workers keep up with the queue?",
+      "Count jobs scheduled for later"
+    ]
+  },
+  "/reference/core/random/": {
+    "feature": "Core\\Random",
+    "hash": "a47561c793782f92",
+    "questions": [
+      "How do I generate secure random values?",
+      "Cryptographically safe random numbers",
+      "Random values for passwords and reset links",
+      "Which random generator is safe for security?"
+    ]
+  },
+  "/reference/core/random/bytes/": {
+    "feature": "Core\\Random::bytes",
+    "hash": "d86dac4a5b6d798a",
+    "questions": [
+      "How do I generate random bytes for a key?",
+      "Create a random salt or nonce",
+      "Make an encryption key of a fixed length",
+      "Generate a random initialization vector"
+    ]
+  },
+  "/reference/core/random/float/": {
+    "feature": "Core\\Random::float",
+    "hash": "dd0238436fc6b552",
+    "questions": [
+      "How do I get a random decimal number between 0 and 1?",
+      "Random float in a range",
+      "Generate a random percentage",
+      "Random fraction for a probability check"
+    ]
+  },
+  "/reference/core/random/int/": {
+    "feature": "Core\\Random::int",
+    "hash": "5ab6df81821923f0",
+    "questions": [
+      "How do I get a random whole number in a range?",
+      "Roll a die in code",
+      "Generate a random PIN or login code",
+      "Random number between 1 and 100"
+    ]
+  },
+  "/reference/core/random/pick/": {
+    "feature": "Core\\Random::pick",
+    "hash": "a5c7a8dae77b82eb",
+    "questions": [
+      "Pick a random item from a list",
+      "How do I choose one random element from an array?",
+      "Show a random tip of the day",
+      "Choose a random server to connect to"
+    ]
+  },
+  "/reference/core/random/sample/": {
+    "feature": "Core\\Random::sample",
+    "hash": "5fc283454f9f1f54",
+    "questions": [
+      "How do I choose several random items without repeats?",
+      "Pick three winners for a prize draw",
+      "Select random questions for a quiz",
+      "Random subset of an array"
+    ]
+  },
+  "/reference/core/random/shuffle/": {
+    "feature": "Core\\Random::shuffle",
+    "hash": "044172760f058f16",
+    "questions": [
+      "How do I shuffle an array?",
+      "Put a list in a random order",
+      "Shuffle a deck of cards",
+      "Show answers in a different order each time"
+    ]
+  },
+  "/reference/core/random/token/": {
+    "feature": "Core\\Random::token",
+    "hash": "55c1856509223011",
+    "questions": [
+      "How do I generate a random session ID?",
+      "Create a token for a password reset link",
+      "Generate a random API key",
+      "Random hex string of a given length",
+      "Make a secure random string for a URL"
+    ]
+  },
+  "/reference/core/random-seeded/": {
+    "feature": "Core\\Random\\Seeded",
+    "hash": "7e5c7a585ee449fa",
+    "questions": [
+      "How do I get the same random numbers on every run?",
+      "Random generator with a seed",
+      "Repeatable random values for tests",
+      "Make a simulation give the same result each time"
+    ]
+  },
+  "/reference/core/random-seeded/bytes/": {
+    "feature": "Core\\Random\\Seeded::bytes",
+    "hash": "dee67ba6a356a50d",
+    "questions": [
+      "Generate the same random bytes on every test run",
+      "How do I make repeatable test file content?",
+      "Fixed fake binary data from a seed",
+      "Deterministic random bytes for a test upload"
+    ]
+  },
+  "/reference/core/random-seeded/float/": {
+    "feature": "Core\\Random\\Seeded::float",
+    "hash": "e23062bfb0af5f06",
+    "questions": [
+      "Repeatable random decimal numbers for a simulation",
+      "How do I get the same random floats each run?",
+      "Seeded random number between 0 and 1",
+      "Rerun a simulation with identical values"
+    ]
+  },
+  "/reference/core/random-seeded/int/": {
+    "feature": "Core\\Random\\Seeded::int",
+    "hash": "2fde0f2863bc94ce",
+    "questions": [
+      "How do I get repeatable random whole numbers?",
+      "Seeded dice roll for a game test",
+      "Same random integers on every computer",
+      "Deterministic random number in a range for tests"
+    ]
+  },
+  "/reference/core/random-seeded/pick/": {
+    "feature": "Core\\Random\\Seeded::pick",
+    "hash": "1ebebfa6dd711308",
+    "questions": [
+      "Pick the same random item on every test run",
+      "How do I make random test data that repeats?",
+      "Choose a product for each test order from a seed",
+      "Repeatable random choice from a list"
+    ]
+  },
+  "/reference/core/random-seeded/sample/": {
+    "feature": "Core\\Random\\Seeded::sample",
+    "hash": "f465361b588b3858",
+    "questions": [
+      "Choose several items with a seed so results repeat",
+      "How do I select a repeatable random subset?",
+      "Same random selection without duplicates in every test",
+      "Seeded draw of a few values from an array"
+    ]
+  },
+  "/reference/core/random-seeded/shuffle/": {
+    "feature": "Core\\Random\\Seeded::shuffle",
+    "hash": "5e34c4b988467b44",
+    "questions": [
+      "Shuffle a list the same way every run",
+      "How do I repeat a random order that failed a test?",
+      "Run test steps in a random but repeatable order",
+      "Seeded shuffle of an array"
+    ]
+  },
+  "/reference/core/random-seeded/token/": {
+    "feature": "Core\\Random\\Seeded::token",
+    "hash": "e1f4a6ca0940fc39",
+    "questions": [
+      "Generate a fixed ID for a test user",
+      "How do I make repeatable hex strings for test data?",
+      "Same fake token on every run",
+      "Seeded random hex ID for a test order"
+    ]
+  },
+  "/reference/core/ratelimit/": {
+    "feature": "Core\\RateLimit",
+    "hash": "67911cb2bbdba4dd",
+    "questions": [
+      "How do I add rate limiting to my web server?",
+      "Throttle requests per user or per API key",
+      "Protect an endpoint from too many requests",
+      "What rate limit tools does Novis have?",
+      "Limit how often an action can happen"
+    ]
+  },
+  "/reference/core/ratelimit/consume/": {
+    "feature": "Core\\RateLimit::consume",
+    "hash": "c58f92cbe487c7b1",
+    "questions": [
+      "How do I limit login attempts to 5 per 15 minutes?",
+      "Enforce an API quota across all servers",
+      "Rate limit that counts the same on every machine",
+      "Make an expensive endpoint cost more of the quota",
+      "What happens when the rate limit store is down?"
+    ]
+  },
+  "/reference/core/ratelimit/shed/": {
+    "feature": "Core\\RateLimit::shed",
+    "hash": "cb0da73eed2b5aa9",
+    "questions": [
+      "Drop load quickly when a server gets too many requests",
+      "Fast rate limit without a shared store",
+      "Count requests per core in memory",
+      "How do I return status 429 for a slow page?",
+      "Protect a server from overload with a simple limit"
+    ]
+  },
+  "/reference/core/ratelimit-decision/": {
+    "feature": "Core\\RateLimit\\Decision",
+    "hash": "4988719d3a6b5dd8",
+    "questions": [
+      "What does a rate limit check return?",
+      "Build RateLimit response headers from a limit result",
+      "Read the result of a rate limit check",
+      "How do I know how many requests are left and when to retry?"
+    ]
+  },
+  "/reference/core/ratelimit-decision/allowed/": {
+    "feature": "Core\\RateLimit\\Decision::allowed",
+    "hash": "8772b37b32787ffa",
+    "questions": [
+      "How do I check if a request was over the limit?",
+      "Was this call inside the rate limit?",
+      "Skip the work when a user hits the limit",
+      "Does a blocked request use up units?"
+    ]
+  },
+  "/reference/core/ratelimit-decision/limit/": {
+    "feature": "Core\\RateLimit\\Decision::limit",
+    "hash": "9d0acbdc12d57e75",
+    "questions": [
+      "Write the RateLimit-Limit header",
+      "Get the maximum number of requests from a limit result",
+      "Which limit was used for this user plan?",
+      "Read the configured limit back from a rate limit check"
+    ]
+  },
+  "/reference/core/ratelimit-decision/remaining/": {
+    "feature": "Core\\RateLimit\\Decision::remaining",
+    "hash": "da129a1e69649747",
+    "questions": [
+      "How many requests does a user have left?",
+      "Write the RateLimit-Remaining header",
+      "Show a message like 2 exports left today",
+      "Count the units left after a rate-limited call"
+    ]
+  },
+  "/reference/core/ratelimit-decision/retryafter/": {
+    "feature": "Core\\RateLimit\\Decision::retryAfter",
+    "hash": "3ce0f22e91cb9681",
+    "questions": [
+      "How long must a client wait before trying again?",
+      "Set the Retry-After header for status 429",
+      "Tell a user how many minutes to wait",
+      "Exact wait time after a request was blocked"
+    ]
+  },
+  "/reference/core/reflect/": {
+    "feature": "Core\\Reflect",
+    "hash": "b06a6486824242d7",
+    "questions": [
+      "How do I inspect a class or value at runtime?",
+      "Reflection in Novis",
+      "Find out the type and class of a value while the program runs",
+      "Look at properties and methods of a class from code",
+      "Runtime type information"
+    ]
+  },
+  "/reference/core/reflect/forclass/": {
+    "feature": "Core\\Reflect::forClass",
+    "hash": "37f84d6385e6b96a",
+    "questions": [
+      "How do I check if a class exists by its name?",
+      "Describe a class from a string name",
+      "Get class details when I only have the class name",
+      "Load class information from a name in a config file"
+    ]
+  },
+  "/reference/core/reflect/forobject/": {
+    "feature": "Core\\Reflect::forObject",
+    "hash": "c19d79bd6403b09e",
+    "questions": [
+      "How do I get the class name of an object?",
+      "Find which class an object belongs to",
+      "Describe the class of an object I already have",
+      "Log the class of any value a function receives"
+    ]
+  },
+  "/reference/core/reflect/typeof/": {
+    "feature": "Core\\Reflect::typeOf",
+    "hash": "79108d8c27ebe7fa",
+    "questions": [
+      "How do I check the type of a mixed variable?",
+      "Is this value a string, a number or an array?",
+      "Find what kind of value a variable contains at runtime",
+      "Check configuration values have the right type",
+      "Get the type of a value as an enum"
+    ]
+  },
+  "/reference/core/reflect-attributeinfo/": {
+    "feature": "Core\\Reflect\\AttributeInfo",
+    "hash": "c66d5f43129f9043",
+    "questions": [
+      "How do I read attributes at runtime?",
+      "Inspect #[...] annotations on a class",
+      "Where is an attribute written and what are its fields?",
+      "Read annotation data for a framework"
+    ]
+  },
+  "/reference/core/reflect-attributeinfo/field/": {
+    "feature": "Core\\Reflect\\AttributeInfo::field",
+    "hash": "470e3d08251ec8be",
+    "questions": [
+      "How do I read one value from an attribute?",
+      "Get the value of a named attribute argument",
+      "Read seconds from #[Cache(seconds: 600)]",
+      "Why does reading an attribute value throw a LogicError?"
+    ]
+  },
+  "/reference/core/reflect-attributeinfo/fields/": {
+    "feature": "Core\\Reflect\\AttributeInfo::fields",
+    "hash": "e41037d3ca066fd1",
+    "questions": [
+      "List the argument names of an attribute",
+      "Which fields does an annotation have?",
+      "Check if an optional attribute field is present",
+      "Find a typo in attribute settings"
+    ]
+  },
+  "/reference/core/reflect-attributeinfo/name/": {
+    "feature": "Core\\Reflect\\AttributeInfo::name",
+    "hash": "fe43a47f9403d009",
+    "questions": [
+      "How do I get the type name of an attribute?",
+      "Keep only the Route attributes of a class",
+      "Find attributes of one kind and skip the others",
+      "Why is the attribute name an empty string?"
+    ]
+  },
+  "/reference/core/reflect-attributeinfo/parameter/": {
+    "feature": "Core\\Reflect\\AttributeInfo::parameter",
+    "hash": "f6b54fe86d7c8ca1",
+    "questions": [
+      "Which method argument is an attribute written on?",
+      "Read attributes on function parameters",
+      "Find where each handler argument comes from",
+      "Tell an attribute on a method from one on its argument"
+    ]
+  },
+  "/reference/core/reflect-attributeinfo/target/": {
+    "feature": "Core\\Reflect\\AttributeInfo::target",
+    "hash": "f095e5c23cc9f5ce",
+    "questions": [
+      "Which property or method has this attribute?",
+      "Find the attributes of one property",
+      "Map each property to a database column with attributes",
+      "Is the attribute on the class or on a method?"
+    ]
+  },
+  "/reference/core/reflect-classinfo/": {
+    "feature": "Core\\Reflect\\ClassInfo",
+    "hash": "d99ebcd96d580616",
+    "questions": [
+      "What can I find out about a class at runtime?",
+      "Work with a class whose name is only known at runtime",
+      "Class description with properties, methods and constants",
+      "Dynamic access to objects by name"
+    ]
+  },
+  "/reference/core/reflect-classinfo/attributes/": {
+    "feature": "Core\\Reflect\\ClassInfo::attributes",
+    "hash": "56d9d7e182ed2c14",
+    "questions": [
+      "How do I list all attributes of a class?",
+      "Get every annotation on a class and its methods",
+      "Validate a form with rules written as attributes",
+      "Does a subclass see the attributes of its parent?"
+    ]
+  },
+  "/reference/core/reflect-classinfo/call/": {
+    "feature": "Core\\Reflect\\ClassInfo::call",
+    "hash": "f9ca0949ecee7543",
+    "questions": [
+      "How do I call a method when its name is in a string?",
+      "Call a method dynamically by name with arguments",
+      "Run the method named by a command line argument",
+      "Can I call a private method from outside the class?"
+    ]
+  },
+  "/reference/core/reflect-classinfo/constant/": {
+    "feature": "Core\\Reflect\\ClassInfo::constant",
+    "hash": "4727143e86c61645",
+    "questions": [
+      "How do I read a class constant by its name?",
+      "Get a constant value from a string name",
+      "Read a plan limit from a constant named in the database",
+      "Error when reading a private constant dynamically"
+    ]
+  },
+  "/reference/core/reflect-classinfo/constants/": {
+    "feature": "Core\\Reflect\\ClassInfo::constants",
+    "hash": "8786319ecea1da00",
+    "questions": [
+      "How do I list all constants of a class?",
+      "Get every constant a class has, including inherited ones",
+      "Print every public setting of a class",
+      "Which constants does a subclass inherit?"
+    ]
+  },
+  "/reference/core/reflect-classinfo/construct/": {
+    "feature": "Core\\Reflect\\ClassInfo::construct",
+    "hash": "b736cab27c623022",
+    "questions": [
+      "How do I create an object from a class name string?",
+      "Make a new instance with constructor arguments at runtime",
+      "Create the handler named in the configuration",
+      "Dynamic new with a class name"
+    ]
+  },
+  "/reference/core/reflect-classinfo/get/": {
+    "feature": "Core\\Reflect\\ClassInfo::get",
+    "hash": "efb7bc53e1a5f2a7",
+    "questions": [
+      "How do I read a property when its name is in a string?",
+      "Get a property value dynamically by name",
+      "Write only the columns a user chose in a report",
+      "Error when reading a private property by name"
+    ]
+  },
+  "/reference/core/reflect-classinfo/hasmethod/": {
+    "feature": "Core\\Reflect\\ClassInfo::hasMethod",
+    "hash": "9bb13c62ec7e1128",
+    "questions": [
+      "How do I check if an object has a method?",
+      "Does this class have a method with this name?",
+      "Call an event handler only on objects that have it",
+      "Tell a private method from a missing method"
+    ]
+  },
+  "/reference/core/reflect-classinfo/hasproperty/": {
+    "feature": "Core\\Reflect\\ClassInfo::hasProperty",
+    "hash": "7a6249529c98ea4a",
+    "questions": [
+      "How do I check if a class has a property?",
+      "Does this field exist on the object?",
+      "Check field names a client sent before reading them",
+      "Tell a private property from a missing property"
+    ]
+  },
+  "/reference/core/reflect-classinfo/methods/": {
+    "feature": "Core\\Reflect\\ClassInfo::methods",
+    "hash": "fcc890f67f60c7e0",
+    "questions": [
+      "List the methods of a class at runtime",
+      "How do I get all methods of an object, including inherited ones?",
+      "Build help text from the public methods of a class",
+      "Which methods does a subclass inherit?"
+    ]
+  },
+  "/reference/core/reflect-classinfo/name/": {
+    "feature": "Core\\Reflect\\ClassInfo::name",
+    "hash": "c0d1d6961569c79f",
+    "questions": [
+      "Get the full class name with its namespace",
+      "Print the real class of an object in a parent type variable",
+      "How do I write the class of each job in a log?",
+      "Class name of a described class as a string"
+    ]
+  },
+  "/reference/core/reflect-classinfo/properties/": {
+    "feature": "Core\\Reflect\\ClassInfo::properties",
+    "hash": "f71fdc46159750e9",
+    "questions": [
+      "How do I list all properties of a class?",
+      "Get every field of a class with its type",
+      "Build a table header from the properties of a class",
+      "Include private and inherited fields in a property list"
+    ]
+  },
+  "/reference/core/reflect-classinfo/readableproperties/": {
+    "feature": "Core\\Reflect\\ClassInfo::readableProperties",
+    "hash": "483e7d7a13eafaf9",
+    "questions": [
+      "Which properties can my code read here?",
+      "Get the visible fields of an object as a list",
+      "Print all readable values of an object for debugging",
+      "Turn an object into its public field names"
+    ]
+  },
+  "/reference/core/reflect-classinfo/set/": {
+    "feature": "Core\\Reflect\\ClassInfo::set",
+    "hash": "c7ab13ec2dbf8290",
+    "questions": [
+      "How do I set a property when its name is in a string?",
+      "Write a property value dynamically by name",
+      "Fill a settings object from configuration values",
+      "Error when writing a value of the wrong type to a property"
+    ]
+  },
+  "/reference/core/reflect-constantinfo/": {
+    "feature": "Core\\Reflect\\ConstantInfo",
+    "hash": "e1ed0323256bf52f",
+    "questions": [
+      "Information about one class constant",
+      "Describe a constant: its name and visibility",
+      "Inspect class constants from code",
+      "What do I know about each constant of a class?"
+    ]
+  },
+  "/reference/core/reflect-constantinfo/hasvalue/": {
+    "feature": "Core\\Reflect\\ConstantInfo::hasValue",
+    "hash": "95e27b8bce288daf",
+    "questions": [
+      "Can this class constant be read by name?",
+      "Why does reading an array constant throw an error?",
+      "Skip list constants when printing class settings",
+      "Check if a constant has a simple value"
+    ]
+  },
+  "/reference/core/reflect-constantinfo/ispublic/": {
+    "feature": "Core\\Reflect\\ConstantInfo::isPublic",
+    "hash": "90d813d5c18f9568",
+    "questions": [
+      "Is a class constant public or private?",
+      "Print only the public constants of a class",
+      "Check constant visibility before reading it",
+      "Find private and protected constants"
+    ]
+  },
+  "/reference/core/reflect-constantinfo/name/": {
+    "feature": "Core\\Reflect\\ConstantInfo::name",
+    "hash": "d62dbe9f1cc0c00d",
+    "questions": [
+      "Print every constant name of a class",
+      "Find a constant name typed with the wrong case",
+      "Check configuration keys against constant names",
+      "Get the name of a class constant as a string"
+    ]
+  },
+  "/reference/core/reflect-enuminfo/": {
+    "feature": "Core\\Reflect\\EnumInfo",
+    "hash": "23c723e197d9f268",
+    "questions": [
+      "How do I inspect an enum at runtime?",
+      "Work with any enum in a generic function",
+      "Enum reflection: cases, values and type",
+      "Information about an enum and its cases"
+    ]
+  },
+  "/reference/core/reflect-enuminfo/cases/": {
+    "feature": "Core\\Reflect\\EnumInfo::cases",
+    "hash": "b44073848dc6e696",
+    "questions": [
+      "How do I list all cases of an enum?",
+      "Get every enum case name as strings",
+      "Check a URL filter against the enum cases",
+      "In what order are enum cases listed?"
+    ]
+  },
+  "/reference/core/reflect-enuminfo/isunsigned/": {
+    "feature": "Core\\Reflect\\EnumInfo::isUnsigned",
+    "hash": "b5ed6833a5073dce",
+    "questions": [
+      "Are enum values signed or unsigned?",
+      "Is this enum declared as uint or int?",
+      "Check if enum values can be negative",
+      "Which number type does an enum case value have?"
+    ]
+  },
+  "/reference/core/reflect-enuminfo/name/": {
+    "feature": "Core\\Reflect\\EnumInfo::name",
+    "hash": "d8b5a69027204b4a",
+    "questions": [
+      "Get the full name of an enum with its namespace",
+      "Print the enum name in a heading or log line",
+      "Store an enum name and describe it again later",
+      "Name of the enum a description is about"
+    ]
+  },
+  "/reference/core/reflect-enuminfo/of/": {
+    "feature": "Core\\Reflect\\EnumInfo::of",
+    "hash": "d696dc150c3cf22a",
+    "questions": [
+      "How do I get the cases of an enum by its name?",
+      "Describe an enum from a string name",
+      "Check if an enum exists",
+      "Build form choices from any enum"
+    ]
+  },
+  "/reference/core/reflect-enuminfo/valueof/": {
+    "feature": "Core\\Reflect\\EnumInfo::valueOf",
+    "hash": "bd5cfc91df2b1eb8",
+    "questions": [
+      "How do I get the number value of an enum case by name?",
+      "Convert an enum case name to its value",
+      "Save a form choice as a number in the database",
+      "Error for an enum case name that does not exist"
+    ]
+  },
+  "/reference/core/reflect-methodinfo/": {
+    "feature": "Core\\Reflect\\MethodInfo",
+    "hash": "0910f9eeaa3cffe8",
+    "questions": [
+      "Information about one method of a class",
+      "Describe a method: name, visibility and arguments",
+      "Inspect a method signature at runtime",
+      "What does each method of a class take?"
+    ]
+  },
+  "/reference/core/reflect-methodinfo/ispublic/": {
+    "feature": "Core\\Reflect\\MethodInfo::isPublic",
+    "hash": "b8474bdf6ed12e28",
+    "questions": [
+      "Is a method public or private?",
+      "Can code outside the class call this method?",
+      "Find the pages a controller offers for a router",
+      "List only the public methods of a class"
+    ]
+  },
+  "/reference/core/reflect-methodinfo/name/": {
+    "feature": "Core\\Reflect\\MethodInfo::name",
+    "hash": "d6965fec07f8eaaf",
+    "questions": [
+      "Get the name of a method as a string",
+      "Print all method names of a class",
+      "Run a command whose name a user typed",
+      "What is the constructor method called in a method list?"
+    ]
+  },
+  "/reference/core/reflect-methodinfo/parametercount/": {
+    "feature": "Core\\Reflect\\MethodInfo::parameterCount",
+    "hash": "ba7c8bb5f87309e5",
+    "questions": [
+      "How many arguments does a method take?",
+      "Count the parameters of a method",
+      "Run only the tasks that need no arguments",
+      "Number of arguments needed for a dynamic call"
+    ]
+  },
+  "/reference/core/reflect-methodinfo/parameters/": {
+    "feature": "Core\\Reflect\\MethodInfo::parameters",
+    "hash": "4469176f23e7233c",
+    "questions": [
+      "How do I list the parameters of a method?",
+      "Get the argument names and types of a function",
+      "Check a web form for the fields a handler needs",
+      "Why is the parameter list empty for a built-in constructor?"
+    ]
+  },
+  "/reference/core/reflect-parameterinfo/": {
+    "feature": "Core\\Reflect\\ParameterInfo",
+    "hash": "cdc55b306fd4455e",
+    "questions": [
+      "Information about one method parameter",
+      "Describe a function argument at runtime",
+      "Inspect the parameters of a method one by one",
+      "Name and type of each argument"
+    ]
+  },
+  "/reference/core/reflect-parameterinfo/name/": {
+    "feature": "Core\\Reflect\\ParameterInfo::name",
+    "hash": "0ed8d23d0ff8ebd6",
+    "questions": [
+      "Get the name of a method parameter",
+      "Call a method with named values from a configuration",
+      "Argument name without the dollar sign",
+      "Name of a constructor argument that is also a property"
+    ]
+  },
+  "/reference/core/reflect-parameterinfo/type/": {
+    "feature": "Core\\Reflect\\ParameterInfo::type",
+    "hash": "41630046a27a272e",
+    "questions": [
+      "Get the declared type of a method argument",
+      "Write API help text from handler argument types",
+      "Is a function argument nullable?",
+      "Print the type of each parameter as text"
+    ]
+  },
+  "/reference/core/reflect-propertyinfo/": {
+    "feature": "Core\\Reflect\\PropertyInfo",
+    "hash": "8bc7a0061ae55302",
+    "questions": [
+      "Information about one property of a class",
+      "Describe a field: name, type and visibility",
+      "Inspect each property of a class",
+      "What do I know about a class field at runtime?"
+    ]
+  },
+  "/reference/core/reflect-propertyinfo/ispublic/": {
+    "feature": "Core\\Reflect\\PropertyInfo::isPublic",
+    "hash": "87431e5104e2378d",
+    "questions": [
+      "Is a property public or private?",
+      "Read only the public fields of an object",
+      "Which fields may an API send back to a client?",
+      "Can code outside the class write this field?"
+    ]
+  },
+  "/reference/core/reflect-propertyinfo/name/": {
+    "feature": "Core\\Reflect\\PropertyInfo::name",
+    "hash": "f0c02819e2289aff",
+    "questions": [
+      "Get the name of a property as a string",
+      "Write a CSV header from the fields of a class",
+      "Print property names including inherited ones",
+      "Property name without the dollar sign"
+    ]
+  },
+  "/reference/core/reflect-propertyinfo/type/": {
+    "feature": "Core\\Reflect\\PropertyInfo::type",
+    "hash": "615a975001030932",
+    "questions": [
+      "Get the declared type of a class property",
+      "Find the properties that may be null",
+      "Convert form text to the type each field needs",
+      "Why is the type of an error message property null?"
+    ]
+  },
   "/reference/core/str/": {
     "feature": "Core\\Str",
     "hash": "0b29d37afa80c854",
