@@ -152,6 +152,7 @@ One line per rule, and the link to the rule that owns it. Generated from `docs/r
 ## Classes
 
 - **No `function` and no `const` may be declared outside a class body** — A `function` declaration and a `const` declaration are legal inside a class body and nowhere else. ([`classes/no-free-functions-or-constants`](rules/classes.md#classes-no-free-functions-or-constants))
+- **A `class`, `interface` or `enum` is declared at file scope, or not at all** — A `class`, `interface` or `enum` is declared at file scope, or not at all. ([`classes/a-type-is-declared-at-file-scope`](rules/classes.md#classes-a-type-is-declared-at-file-scope))
 - **Every name is compared exactly, so `Foo` and `foo` are two names and never one** — Every name — class, interface, enum, enum case, namespace segment, method, property, parameter, local, class constant — is compared exactly, everywhere resolution happens. ([`classes/names-resolve-case-sensitively`](rules/classes.md#classes-names-resolve-case-sensitively))
 - **Keywords, contextual keywords and the `<?nvs` tag are lower case and nothing else** — Keywords are matched exactly: `if` is a keyword, `IF` and `If` are not. ([`classes/reserved-spellings-are-lower-case`](rules/classes.md#classes-reserved-spellings-are-lower-case))
 - **No property, parameter or local name may begin with `_`** — No property, parameter or local variable name may begin with `_`. ([`classes/no-leading-underscore-identifiers`](rules/classes.md#classes-no-leading-underscore-identifiers))

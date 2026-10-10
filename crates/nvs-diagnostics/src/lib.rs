@@ -687,8 +687,8 @@ pub mod code {
     /// body, a property hook or a nested block. PHP declares such a type when
     /// the statement *runs*, so whether the name exists depends on control
     /// flow; Novis resolves every type name against a static table built before
-    /// any code runs. See `docs/adr/README.md`
-    /// § *Decisions taken at project start*, and `nvs_types::locals`' module
+    /// any code runs. See `rule:classes/a-type-is-declared-at-file-scope`,
+    /// and `nvs_types::locals`' module
     /// doc for the walk that reports it.
     pub const E_NESTED_TYPE_DECLARATION_UNSUPPORTED: Code = Code::new("E0233").card(
         "A `class`, `interface` or `enum` cannot be declared inside a function or a block. \

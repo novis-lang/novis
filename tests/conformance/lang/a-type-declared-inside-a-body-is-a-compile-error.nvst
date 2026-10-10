@@ -1,11 +1,11 @@
 --TEST--
-A `class`, `interface` or `enum` declared anywhere but file scope is `E0233`, never a panic — docs/adr/README.md § *Decisions taken at project start*
+A `class`, `interface` or `enum` declared anywhere but file scope is `E0233`, never a panic — rule:classes/a-type-is-declared-at-file-scope
 --FILE--
 <?nvs
 // PHP declares a nested type when the statement *runs*, so whether the name
 // exists depends on control flow. Novis resolves every type name against a
-// static table built before any code runs — see `docs/adr/README.md`
-// § *Decisions taken at project start* — so all three spellings are refused
+// static table built before any code runs
+// (`rule:classes/a-type-is-declared-at-file-scope`), so all three spellings are refused
 // where they are written, by name, instead of panicking below the checker.
 class Outer {
     public static function run(): int {
