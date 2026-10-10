@@ -2,7 +2,6 @@
   "title": "`request_body` caps bytes parsed into memory and `upload_total` caps a streamed multipart body, and both are `[limits]` rows",
   "status": "designed",
   "because": [
-    "0105",
     "0097"
   ],
   "seeAlso": [

@@ -452,7 +452,7 @@ Two caps bound a request body, each a `Runtime` default with a `[limits.hard]` c
 
 `Core\Request::bodyStream(): Iterable<bytes>` is the raw-body reader, for a body larger than a request's memory budget or a content type `files()` does not describe. It yields `tainted` chunks and is a **streaming** reader, so it keeps nothing, consumes the body, and may only be the first reader of it — [`http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`](http-server.md#http-server-buffering-readers-share-the-body-and-streaming-readers-consume-it) is which readers may follow which, for every member that reads a body. It is bounded by `request_body` on what a consumer retains, by the connection's `body_idle_timeout`, and by the multipart part-count cap ([`errors/multipart-part-count`](errors.md#errors-multipart-part-count)), which no byte cap bounds.
 
-<sub>See also [`http-server/four-idle-waits-all-finite`](http-server.md#http-server-four-idle-waits-all-finite), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`security/tainted-sources`](security.md#security-tainted-sources), [`http-server/a-part-is-a-file-iff-it-carries-a-filename`](http-server.md#http-server-a-part-is-a-file-iff-it-carries-a-filename), [`http-server/there-is-no-temp-file`](http-server.md#http-server-there-is-no-temp-file). Decided in [0097](../decisions/0097.md), [0105](../decisions/0105.md), [0095](../decisions/0095.md), [0156](../decisions/0156.md).</sub>
+<sub>See also [`http-server/four-idle-waits-all-finite`](http-server.md#http-server-four-idle-waits-all-finite), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`security/tainted-sources`](security.md#security-tainted-sources), [`http-server/a-part-is-a-file-iff-it-carries-a-filename`](http-server.md#http-server-a-part-is-a-file-iff-it-carries-a-filename), [`http-server/there-is-no-temp-file`](http-server.md#http-server-there-is-no-temp-file). Decided in [0097](../decisions/0097.md), [0095](../decisions/0095.md), [0156](../decisions/0156.md).</sub>
 
 <a id="http-server-buffering-readers-share-the-body-and-streaming-readers-consume-it"></a>
 
@@ -869,7 +869,27 @@ The buffered array is absent on purpose. Choosing between a buffered and a strea
 
 **Advancing past an unconsumed part drains it.** Skipping an upload the application does not recognise is simply not touching it; the drained bytes are still charged against `upload_total` ([`http-server/request-body-and-upload-total-are-two-caps`](http-server.md#http-server-request-body-and-upload-total-are-two-caps)). Peak memory for an upload of any size is therefore one chunk per in-flight request, plus whatever a call site explicitly asked to hold through [`http-server/a-part-is-consumed-in-one-of-three-ways`](http-server.md#http-server-a-part-is-consumed-in-one-of-three-ways).
 
-<sub>See also [`http-server/a-part-is-a-file-iff-it-carries-a-filename`](http-server.md#http-server-a-part-is-a-file-iff-it-carries-a-filename), [`http-server/a-part-is-consumed-in-one-of-three-ways`](http-server.md#http-server-a-part-is-consumed-in-one-of-three-ways), [`http-server/there-is-no-temp-file`](http-server.md#http-server-there-is-no-temp-file), [`security/request-state-throws-in-an-isolate`](security.md#security-request-state-throws-in-an-isolate), [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces), [`http-server/the-body-is-read-on-demand-under-two-caps`](http-server.md#http-server-the-body-is-read-on-demand-under-two-caps). Decided in [0105](../decisions/0105.md), [0097](../decisions/0097.md).</sub>
+The runtime owns the multipart parser for the same reason. A large browser upload is always
+multipart, so a raw `bodyStream()` alone would leave an application two choices: buffer it, or write
+the multipart framing itself, with boundary detection across chunk edges and per-part headers. A
+parser differential is a security property, so that framing is not an application's business.
+
+**Memory:** one wire chunk per in-flight request while a part is read, whatever the size of the
+upload. A buffered part costs more than its size: a `bytes` value has its payload inline and cannot
+point into another buffer, so a part copied out of an accumulated body holds the body and the copy at
+once, and a permitted 2G upload would be a 4G peak.
+
+The cost is usability. Every program that accepts a file writes a loop, which is three lines in the
+common case, and one of them is `saveTo`. A slow client still holds a connection for as long as
+`body_idle_timeout` allows, and it no longer holds the body.
+
+**Declined:**
+- **A buffered `files()` beside the stream.** The choice between the two cannot be made from
+  anything the application can observe, as the paragraph above says.
+- **Refusing to advance until the application skips a part explicitly.** It turns the ordinary
+  "ignore what I do not know" loop into ceremony and prevents no mistake anyone makes.
+
+<sub>See also [`http-server/a-part-is-a-file-iff-it-carries-a-filename`](http-server.md#http-server-a-part-is-a-file-iff-it-carries-a-filename), [`http-server/a-part-is-consumed-in-one-of-three-ways`](http-server.md#http-server-a-part-is-consumed-in-one-of-three-ways), [`http-server/there-is-no-temp-file`](http-server.md#http-server-there-is-no-temp-file), [`security/request-state-throws-in-an-isolate`](security.md#security-request-state-throws-in-an-isolate), [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces), [`http-server/the-body-is-read-on-demand-under-two-caps`](http-server.md#http-server-the-body-is-read-on-demand-under-two-caps). Decided in [0097](../decisions/0097.md).</sub>
 
 <a id="http-server-a-part-is-a-file-iff-it-carries-a-filename"></a>
 
@@ -883,7 +903,10 @@ A `Part` answers `name()` (the form's field name), `filename()` (the client's cl
 
 A part carries **no `size`**. There is no honest value to put there before the part has been consumed, and inventing one from `Content-Length` is the repair [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused) forbids. The part-count cap of [`errors/multipart-part-count`](errors.md#errors-multipart-part-count) applies unchanged; it bounds bookkeeping, which no byte cap reaches.
 
-<sub>See also [`http-server/an-upload-is-received-only-through-files`](http-server.md#http-server-an-upload-is-received-only-through-files), [`http-server/request-body-and-upload-total-are-two-caps`](http-server.md#http-server-request-body-and-upload-total-are-two-caps), [`security/tainted-sources`](security.md#security-tainted-sources), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count). Decided in [0105](../decisions/0105.md), [0095](../decisions/0095.md), [0156](../decisions/0156.md).</sub>
+**Declined:**
+- **A third directive for the buffered form fields.** Its right value is one nobody knows, and it would overlap `request_body` almost entirely.
+
+<sub>See also [`http-server/an-upload-is-received-only-through-files`](http-server.md#http-server-an-upload-is-received-only-through-files), [`http-server/request-body-and-upload-total-are-two-caps`](http-server.md#http-server-request-body-and-upload-total-are-two-caps), [`security/tainted-sources`](security.md#security-tainted-sources), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count). Decided in [0095](../decisions/0095.md), [0156](../decisions/0156.md).</sub>
 
 <a id="http-server-a-part-is-consumed-in-one-of-three-ways"></a>
 
@@ -904,9 +927,13 @@ foreach (Core\Request::files() as $part) {
 - **`content(): Iterable<bytes>`** — the part's chunks, each `tainted`, valid only while this part is the iterator's current one. A part the walk has moved past refuses rather than reading the current one.
 - **`saveTo(string $path, {max?, overwrite?})`** — the shorthand for [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), to which it delegates under the same bag, and the path nearly every upload takes. Its path is a sink: a `tainted` `filename()` reaching it is a compile error, and `Core\IO::within` is the launderer.
 
-A part's bytes are readable exactly once, in order, whichever of the three consumed them. The buffering-and-streaming split of [`http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`](http-server.md#http-server-buffering-readers-share-the-body-and-streaming-readers-consume-it) is about the request body and does not repeat itself here: a part is never held, so `readAll` buffering into the application's own variable leaves nothing behind on the request for a second reader to find. An application that needs two passes buffers with `readAll` or writes the part down first, and now says which. Streaming-only was rejected because a small avatar to hash or a CSV about to be parsed wants bytes, and forcing a loop on them buys no safety once the bound moved to the call site.
+A part's bytes are readable exactly once, in order, whichever of the three consumed them. The buffering-and-streaming split of [`http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`](http-server.md#http-server-buffering-readers-share-the-body-and-streaming-readers-consume-it) is about the request body and does not repeat itself here: a part is never held, so `readAll` buffering into the application's own variable leaves nothing behind on the request for a second reader to find. An application that needs two passes buffers with `readAll` or writes the part down first, and now says which.
 
-<sub>See also [`http-server/an-upload-is-received-only-through-files`](http-server.md#http-server-an-upload-is-received-only-through-files), [`http-server/request-body-and-upload-total-are-two-caps`](http-server.md#http-server-request-body-and-upload-total-are-two-caps), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named). Decided in [0105](../decisions/0105.md), [0156](../decisions/0156.md).</sub>
+**Declined:**
+- **Streaming only, with no way to read a part into memory.** A small avatar to hash, a CSV about to be parsed or a value for a database column wants bytes, and forcing a loop on them buys no safety once the bound sits at the call site.
+- **A `max` required at every `readAll`.** The bare call is already bounded by `request_body`, the cap on every other byte parsed into memory, so the argument would buy visibility and no safety, at one argument per call site.
+
+<sub>See also [`http-server/an-upload-is-received-only-through-files`](http-server.md#http-server-an-upload-is-received-only-through-files), [`http-server/request-body-and-upload-total-are-two-caps`](http-server.md#http-server-request-body-and-upload-total-are-two-caps), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named). Decided in [0156](../decisions/0156.md).</sub>
 
 <a id="http-server-request-body-and-upload-total-are-two-caps"></a>
 
@@ -923,7 +950,7 @@ Both are rows in the `[limits]`/`[limits.hard]` pair that [`config/three-changea
 
 The split follows from what the two measure. Content parsed into memory deserves the tighter number, because it is resident and O(in-flight); content streamed to disk deserves a ceiling shaped like what uploads are, because a phone photo is 5–12M and an 8M refusal is advice rather than protection. One number governing both would have to be the larger, and would then license a quarter-gigabyte JSON body parsed wholly into memory on the strength of an argument made about files. [`http-server/upload-total-is-enforced-on-the-wire`](http-server.md#http-server-upload-total-is-enforced-on-the-wire) is where the second cap bites.
 
-<sub>See also [`http-server/upload-total-is-enforced-on-the-wire`](http-server.md#http-server-upload-total-is-enforced-on-the-wire), [`http-server/a-part-is-consumed-in-one-of-three-ways`](http-server.md#http-server-a-part-is-consumed-in-one-of-three-ways), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count), [`http-server/the-body-is-read-on-demand-under-two-caps`](http-server.md#http-server-the-body-is-read-on-demand-under-two-caps). Decided in [0105](../decisions/0105.md), [0097](../decisions/0097.md).</sub>
+<sub>See also [`http-server/upload-total-is-enforced-on-the-wire`](http-server.md#http-server-upload-total-is-enforced-on-the-wire), [`http-server/a-part-is-consumed-in-one-of-three-ways`](http-server.md#http-server-a-part-is-consumed-in-one-of-three-ways), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count), [`http-server/the-body-is-read-on-demand-under-two-caps`](http-server.md#http-server-the-body-is-read-on-demand-under-two-caps). Decided in [0097](../decisions/0097.md).</sub>
 
 <a id="http-server-upload-total-is-enforced-on-the-wire"></a>
 
@@ -935,7 +962,7 @@ The split follows from what the two measure. Content parsed into memory deserves
 
 Enforcing in the server rather than at every `readAll` and `content()` is what keeps the streaming path bounded now that it is the only path ([`http-server/an-upload-is-received-only-through-files`](http-server.md#http-server-an-upload-is-received-only-through-files)): the parts an application drains without reading are still the server's to count, and a bound placed in the parser would miss exactly the bytes it never sees. The number is load-bearing twice, because [`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number) multiplies it by the in-flight ceiling to get what the machine must hold.
 
-<sub>See also [`http-server/request-body-and-upload-total-are-two-caps`](http-server.md#http-server-request-body-and-upload-total-are-two-caps), [`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class). Decided in [0105](../decisions/0105.md), [0097](../decisions/0097.md).</sub>
+<sub>See also [`http-server/request-body-and-upload-total-are-two-caps`](http-server.md#http-server-request-body-and-upload-total-are-two-caps), [`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class). Decided in [0097](../decisions/0097.md).</sub>
 
 <a id="http-server-there-is-no-temp-file"></a>
 
@@ -949,7 +976,7 @@ Runtime-managed temp files with a hidden path — the obvious middle road — re
 
 What this trades is stated rather than implied: **the resource this design can exhaust is disk, and the application owns bounding it.** `writeStream`'s `max` is the per-call bound, `upload_total` ([`http-server/request-body-and-upload-total-are-two-caps`](http-server.md#http-server-request-body-and-upload-total-are-two-caps)) is the per-request one, and neither is a quota over a directory — an operator accepting uploads watches the volume they land on. That is a cost bought with the memory cost it replaces: a permitted 2G upload is no longer a 4G peak per in-flight request.
 
-<sub>See also [`http-server/a-part-is-consumed-in-one-of-three-ways`](http-server.md#http-server-a-part-is-consumed-in-one-of-three-ways), [`http-server/request-body-and-upload-total-are-two-caps`](http-server.md#http-server-request-body-and-upload-total-are-two-caps), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`http-server/the-body-is-read-on-demand-under-two-caps`](http-server.md#http-server-the-body-is-read-on-demand-under-two-caps). Decided in [0105](../decisions/0105.md), [0097](../decisions/0097.md).</sub>
+<sub>See also [`http-server/a-part-is-consumed-in-one-of-three-ways`](http-server.md#http-server-a-part-is-consumed-in-one-of-three-ways), [`http-server/request-body-and-upload-total-are-two-caps`](http-server.md#http-server-request-body-and-upload-total-are-two-caps), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`http-server/the-body-is-read-on-demand-under-two-caps`](http-server.md#http-server-the-body-is-read-on-demand-under-two-caps). Decided in [0097](../decisions/0097.md).</sub>
 
 <a id="http-server-no-spelling-for-an-unbounded-wait"></a>
 

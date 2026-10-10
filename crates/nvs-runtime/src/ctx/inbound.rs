@@ -207,8 +207,9 @@ pub struct Inbound {
     /// `None` for a request that arrived without one.
     ///
     /// The fields above are read off the request *line* and the head, both of
-    /// which are bounded before a mount is even selected. A body is not: ADR
-    /// 0105 § 5 lets one be `upload_total` large, which is `"256M"` by default
+    /// which are bounded before a mount is even selected. A body is not:
+    /// `rule:http-server/request-body-and-upload-total-are-two-caps` lets one be
+    /// `upload_total` large, which is `"256M"` by default
     /// and `"2G"` at its ceiling, so what is held here decides the resident cost
     /// of every in-flight request and, through `rule:http-server/admission-is-arithmetic-not-a-number`'s arithmetic, the
     /// number of requests this process may admit at once.

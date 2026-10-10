@@ -6,7 +6,8 @@
 //! It pulls the same [`nvs_runtime::RequestBody`] `Core\Request::bodyStream`
 //! walks, so nothing here accumulates a body: a file part's bytes are handed out
 //! as spans of a buffer that holds one wire chunk plus, at most, one delimiter's
-//! worth of held-back tail. § 1's laziness is that property rather than a
+//! worth of held-back tail. The laziness `rule:http-server/an-upload-is-received-only-through-files`
+//! states is that property rather than a
 //! promise — there is no shape in this module that could hold a whole upload.
 //!
 //! **It takes the body per call rather than borrowing it once.** The parse
@@ -22,7 +23,8 @@
 //!   cap can still hold a million parts.
 //! - [`PART_HEADERS`] — one part's header block, so a part that never ends its
 //!   headers cannot grow the buffer.
-//! - [`REQUEST_BODY`] — § 2's buffered form fields, which are bytes parsed into
+//! - [`REQUEST_BODY`] — the buffered form fields of
+//!   `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`, which are bytes parsed into
 //!   memory and are charged exactly as `body()`'s are.
 //!
 //! **`upload_total` is not one of them.** `rule:http-server/request-body-and-upload-total-are-two-caps` puts that cap on the
@@ -33,7 +35,7 @@
 //!
 //! **What it spends:** one buffer, holding one wire chunk plus at most one
 //! delimiter's worth of tail, plus one part's header block while it is being
-//! read, plus § 2's buffered fields under [`REQUEST_BODY`]. All of it is
+//! read, plus the buffered form fields under [`REQUEST_BODY`]. All of it is
 //! O(in-flight) and none of it grows with the size of an upload.
 //!
 //! # Refused, never repaired
@@ -100,7 +102,7 @@ pub(crate) struct Multipart {
     state: State,
     /// Parts opened so far, against [`MAX_PARTS`].
     parts: usize,
-    /// § 2's buffered form fields, in arrival order, for `Core\Request::post()`.
+    /// The buffered form fields, in arrival order, for `Core\Request::post()`.
     fields: Vec<(Vec<u8>, Vec<u8>)>,
     /// Bytes of [`Self::fields`] held, against [`REQUEST_BODY`].
     buffered: usize,
@@ -136,7 +138,8 @@ enum State {
 
 /// A file part's header block, parsed.
 ///
-/// Only a *file* part reaches a caller: § 2 makes `filename` the whole
+/// Only a *file* part reaches a caller:
+/// `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename` makes `filename` the whole
 /// distinction, and a part without one is an ordinary form field this module
 /// buffers into [`Multipart::fields`] instead.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -152,7 +155,7 @@ pub(crate) struct PartHead {
 /// What one header block turned out to describe.
 #[derive(Debug)]
 enum Head {
-    /// A file part, § 2's `filename` being present.
+    /// A file part, its `filename` being present.
     File(PartHead),
     /// An ordinary form field, carrying its name.
     Field(Vec<u8>),
@@ -218,7 +221,7 @@ impl Multipart {
         self.from_the_wire
     }
 
-    /// § 2's buffered form fields, in the order they arrived.
+    /// The buffered form fields, in the order they arrived.
     ///
     /// Arrival order rather than a map, for `crate::request`'s own reason: a
     /// repeated field name is a value a form is allowed to send twice, and the
@@ -252,13 +255,14 @@ impl Multipart {
 
     /// The next **file** part, `Ok(None)` at the closing delimiter.
     ///
-    /// Advancing past a part whose body was not consumed **drains it** — ADR
-    /// 0105 § 1, where skipping an upload the application does not recognise is
-    /// simply not touching it. The drained bytes were charged on the wire on
+    /// Advancing past a part whose body was not consumed **drains it**
+    /// (`rule:http-server/an-upload-is-received-only-through-files`): skipping an
+    /// upload the application does not recognise is simply not touching it. The
+    /// drained bytes were charged on the wire on
     /// their way in, so this costs a walk and no memory.
     ///
     /// Field parts are consumed here rather than answered: each is buffered into
-    /// [`Self::fields`] and the walk continues, so a caller sees § 2's split
+    /// [`Self::fields`] and the walk continues, so a caller sees the file-or-field split
     /// without having to know it.
     ///
     /// # Errors
@@ -275,7 +279,7 @@ impl Multipart {
             match self.state {
                 State::Done => return Ok(None),
                 State::Preamble => self.find_first(body)?,
-                // § 1's drain. `chunk` leaves the cursor at the delimiter, so
+                // The drain. `chunk` leaves the cursor at the delimiter, so
                 // this is the same walk a consuming caller makes, minus the copy.
                 State::Opening | State::Body => while self.chunk(body)?.is_some() {},
                 State::AtDelimiter => {
@@ -455,8 +459,8 @@ impl Multipart {
         Ok(head)
     }
 
-    /// Reads a field part's body into [`Self::fields`] — § 2's "the server
-    /// buffers it and `post()` works exactly as it does for a urlencoded form".
+    /// Reads a field part's body into [`Self::fields`]: the server buffers it, and
+    /// `post()` reads it exactly as it reads a urlencoded form.
     ///
     /// **The bound is checked before the copy**, as `Core\Request::body`'s is:
     /// a chunk that would carry the total past [`REQUEST_BODY`] is refused while
@@ -629,7 +633,7 @@ pub(crate) fn boundary_of(content_type: &[u8]) -> Result<Vec<u8>, Box<str>> {
     Ok(boundary)
 }
 
-/// One header block's lines, read as § 2's file-or-field question.
+/// One header block's lines, read as the file-or-field question.
 fn head_of(lines: &[u8]) -> Result<Head, Box<str>> {
     let mut disposition: Option<&[u8]> = None;
     let mut content_type: Option<&[u8]> = None;
@@ -674,9 +678,10 @@ fn head_of(lines: &[u8]) -> Result<Head, Box<str>> {
     }
     let name = parameter(disposition, b"name")?
         .ok_or_else(|| Box::<str>::from("a part's `Content-Disposition` declared no `name`"))?;
-    // § 2: a part is a file part iff `filename` is there, which is RFC 7578's
-    // own distinction. RFC 5987's `filename*` is deliberately not a second one —
-    // inventing a rule the senders do not share is what § 2 refuses.
+    // `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`: a part is a
+    // file part iff `filename` is there, which is RFC 7578's own distinction.
+    // RFC 5987's `filename*` is deliberately not a second one — inventing a rule
+    // the senders do not share is what that rule refuses.
     Ok(match parameter(disposition, b"filename")? {
         Some(filename) => Head::File(PartHead {
             name,
@@ -1043,7 +1048,7 @@ mod tests {
         }
     }
 
-    /// § 2's buffered fields are bytes parsed into memory, so they are charged
+    /// Buffered form fields are bytes parsed into memory, so they are charged
     /// against the same number `Core\Request::body` is — and the check is made
     /// before the copy, which is what makes it a bound rather than a report.
     #[test]

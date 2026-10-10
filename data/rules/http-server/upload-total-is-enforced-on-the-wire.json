@@ -2,7 +2,6 @@
   "title": "`upload_total` is enforced by the server on the wire: a declared oversize is refused before dispatch and a chunked one is stopped at the part being read",
   "status": "shipped",
   "because": [
-    "0105",
     "0097"
   ],
   "seeAlso": [

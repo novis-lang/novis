@@ -267,7 +267,7 @@ It is general on purpose: a request body, a decompressed archive, an outbound re
 upload part all reach disk through this one implementation, so the partial-write cleanup lives in one
 place rather than in every call site that hand-wrote the loop.
 
-<sub>See also [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep), [`core-classes/process-run`](core-classes.md#core-classes-process-run). Decided in [0105](../decisions/0105.md).</sub>
+<sub>See also [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep), [`core-classes/process-run`](core-classes.md#core-classes-process-run).</sub>
 
 <a id="core-classes-temporary-dir-sweep"></a>
 

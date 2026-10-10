@@ -2479,8 +2479,9 @@ nvs_runtime::nvs_helper! {
     /// string, down to the bracket convention, which is
     /// [`crate::uri::place`]'s once rather than twice.
     ///
-    /// **It reads the body to its end**, and that is the whole of its rule. ADR
-    /// 0105 § 2 promises *every* field of a mixed form, and a form is free to
+    /// **It reads the body to its end**, and that is the whole of its rule.
+    /// `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename` promises
+    /// *every* field of a mixed form, and a form is free to
     /// write a text input after a file input — so a member answering the fields
     /// that had arrived so far would report one the peer sent as absent, which
     /// is the silent wrong answer [`nvs_runtime::Inbound`] is written against.
