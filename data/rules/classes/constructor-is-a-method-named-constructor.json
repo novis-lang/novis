@@ -2,7 +2,6 @@
   "title": "A constructor is an ordinary method named `constructor`, and `__construct` does not compile",
   "status": "shipped",
   "because": [
-    "0030",
     "0022",
     "0029"
   ],

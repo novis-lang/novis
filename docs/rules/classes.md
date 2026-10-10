@@ -122,9 +122,15 @@ Removing it, together with respelling the constructor
 exceptions of any kind.
 
 What it costs is a mechanical rename per underscore-prefixed name during conversion, and one habit
-a contributor used to it has to unlearn at the point the compiler names it.
+a contributor used to it has to unlearn at the point the compiler names it. A leading-underscore
+name gets the same "must be camelCase" error as any other mis-cased name of its category.
 
-<sub>See also [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor). Decided in [0030](../decisions/0030.md), [0029](../decisions/0029.md).</sub>
+**Declined:**
+- **Keep the allowance and only respell the constructor.** Once `__construct` no longer needs an
+  exception, nothing justifies the allowance: an underscore prefix converts by deleting one
+  character, which is too mechanical to be worth an exception.
+
+<sub>See also [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor). Decided in [0029](../decisions/0029.md).</sub>
 
 <a id="classes-constructor-is-a-method-named-constructor"></a>
 
@@ -147,7 +153,16 @@ Choosing a real word instead of a reserved spelling is what removes the last car
 casing check: nothing in the identifier grammar has an exception any more. The cost is one fixed
 mechanical rename for every converted class, which is the cheapest kind of break this project takes.
 
-<sub>See also [`classes/no-leading-underscore-identifiers`](classes.md#classes-no-leading-underscore-identifiers), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods). Decided in [0030](../decisions/0030.md), [0022](../decisions/0022.md), [0029](../decisions/0029.md).</sub>
+**Declined:**
+- **Keep `__construct` as a reserved exception to the casing check.** That is a single-name
+  carve-out, the kind [`core-api/casing-has-no-suppression`](core-api.md#core-api-casing-has-no-suppression) declines to generalize from;
+  removing the reason for the exception is cleaner than narrowing its wording.
+- **Another spelling: `init`, `new`, `__init__`.** `constructor` is what a PHP, Java or TypeScript
+  reader already expects and needs no invented vocabulary. `__init__` fails the identifier pattern
+  for the same reason `__construct` does, and `init` or `new` could collide with an ordinary method
+  that has its own meaning.
+
+<sub>See also [`classes/no-leading-underscore-identifiers`](classes.md#classes-no-leading-underscore-identifiers), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods). Decided in [0022](../decisions/0022.md), [0029](../decisions/0029.md).</sub>
 
 <a id="classes-promotion-is-constructor-only"></a>
 

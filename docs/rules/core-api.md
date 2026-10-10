@@ -384,7 +384,7 @@ standard library is unwritten because renaming a member later is a breaking chan
 ported program renames every such identifier, and two names that collide after renaming are the author's
 to separate.
 
-<sub>See also [`core-api/casing-checks-the-leading-character`](core-api.md#core-api-casing-checks-the-leading-character), [`core-api/casing-has-no-suppression`](core-api.md#core-api-casing-has-no-suppression), [`core-api/members-are-full-words`](core-api.md#core-api-members-are-full-words), [`classes/no-leading-underscore-identifiers`](classes.md#classes-no-leading-underscore-identifiers), [`classes/names-resolve-case-sensitively`](classes.md#classes-names-resolve-case-sensitively), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name). Decided in [0029](../decisions/0029.md), [0030](../decisions/0030.md), [0011](../decisions/0011.md).</sub>
+<sub>See also [`core-api/casing-checks-the-leading-character`](core-api.md#core-api-casing-checks-the-leading-character), [`core-api/casing-has-no-suppression`](core-api.md#core-api-casing-has-no-suppression), [`core-api/members-are-full-words`](core-api.md#core-api-members-are-full-words), [`classes/no-leading-underscore-identifiers`](classes.md#classes-no-leading-underscore-identifiers), [`classes/names-resolve-case-sensitively`](classes.md#classes-names-resolve-case-sensitively), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name). Decided in [0029](../decisions/0029.md), [0011](../decisions/0011.md).</sub>
 
 <a id="core-api-casing-checks-the-leading-character"></a>
 
@@ -425,7 +425,7 @@ The stance is the piece most likely to be revisited, and only under pressure fro
 does not exist yet. The question would then be whether *that one* boundary needs an escape, not whether the
 check should have been a warning.
 
-<sub>See also [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`core-api/written-visibility`](core-api.md#core-api-written-visibility). Decided in [0029](../decisions/0029.md), [0030](../decisions/0030.md).</sub>
+<sub>See also [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`core-api/written-visibility`](core-api.md#core-api-written-visibility). Decided in [0029](../decisions/0029.md).</sub>
 
 <a id="core-api-written-visibility"></a>
 

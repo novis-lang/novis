@@ -44,7 +44,7 @@ search, that needs M10's indexing), `semanticTokens/full`, `documentSymbol`, and
 projections of data the tree already holds rather than features built on it: `selectionRange` (the
 `SyntaxIndex`'s ancestor list *is* the response), `foldingRange` and `documentLink`. Plus exactly **two
 code actions**, admitted because their replacement text already sits in `Diagnostic::suggestions`: the
-casing fix ([0029](../decisions/0029.md)/[0030](../decisions/0030.md))
+casing fix ([0029](../decisions/0029.md)/`rule:core-api/identifier-casing`)
 and `(int)$x` → `$x as int` (`rule:types/no-legacy-cast`). Beside the nine standard
 requests sits exactly **one of Novis's own**, `nvs/redactions`, answering the ranges the editor conceals —
 a literal or interpolation slot whose static type carries `secret`

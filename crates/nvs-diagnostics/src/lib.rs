@@ -267,9 +267,9 @@ pub mod code {
          Rename it to the name the message suggests.",
     );
     /// A method literally named `__construct` —
-    /// [ADR 0030](/docs/decisions/0030.md)
-    /// §§ 2-3: Novis's constructor is spelled `constructor`, an ordinary
-    /// `camelCase` method name needing no exception of its own.
+    /// `rule:classes/constructor-is-a-method-named-constructor`: Novis's
+    /// constructor is spelled `constructor`, an ordinary `camelCase` method
+    /// name needing no exception of its own.
     pub const E_LEGACY_CONSTRUCTOR_SPELLING: Code = Code::new("E0114").card(
         "In Novis, the constructor method is named `constructor`. Rename `__construct` to \
          `constructor`.",

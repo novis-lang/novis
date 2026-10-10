@@ -2,8 +2,7 @@
   "title": "The hole is `$_`, it appears exactly once on a right side, and nowhere else at all",
   "status": "designed",
   "because": [
-    "0098",
-    "0030"
+    "0098"
   ],
   "seeAlso": [
     "expressions/pipeline-substitution",

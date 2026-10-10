@@ -9,4 +9,10 @@ Removing it, together with respelling the constructor
 exceptions of any kind.
 
 What it costs is a mechanical rename per underscore-prefixed name during conversion, and one habit
-a contributor used to it has to unlearn at the point the compiler names it.
+a contributor used to it has to unlearn at the point the compiler names it. A leading-underscore
+name gets the same "must be camelCase" error as any other mis-cased name of its category.
+
+**Declined:**
+- **Keep the allowance and only respell the constructor.** Once `__construct` no longer needs an
+  exception, nothing justifies the allowance: an underscore prefix converts by deleting one
+  character, which is too mechanical to be worth an exception.

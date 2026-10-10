@@ -627,7 +627,7 @@ enforceable, and `crates/nvs-diagnostics/src/lib.rs` is the registry that alloca
 Exactly one hole is what makes substitution total: no temporary, no double evaluation, and an emitted
 tree identical to the nested spelling's.
 
-<sub>See also [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution), [`expressions/pipeline-precedence`](expressions.md#expressions-pipeline-precedence). Decided in [0098](../decisions/0098.md), [0030](../decisions/0030.md).</sub>
+<sub>See also [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution), [`expressions/pipeline-precedence`](expressions.md#expressions-pipeline-precedence). Decided in [0098](../decisions/0098.md).</sub>
 
 <a id="expressions-catch-expression"></a>
 
