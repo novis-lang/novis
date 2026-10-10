@@ -813,7 +813,7 @@ fn require_is_an_expression() {
     parse_stmt_ok("require 'd.nvs';");
 }
 
-/// ADR 0021: `require` is the only same-frame inclusion keyword kept —
+/// `rule:statements/require-is-the-only-inclusion-construct`: `require` is the only same-frame inclusion keyword kept —
 /// `include`, `include_once` and `require_once` are all diagnosed.
 #[test]
 fn include_family_is_diagnosed() {

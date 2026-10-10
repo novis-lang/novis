@@ -4,5 +4,5 @@
   `nvs_ir::lower::expr::lower_route_link` swaps a literal name for a prepared path and calls the
   second symbol, `nvs_core_router_link`, which does the work. For any member
   `rule:expressions/intrinsic-constant-arguments` prepares rather than folds, grep the crate for a sibling
-  symbol before believing the body the row points at, or run four lines with `nvs run`.
-  [until: gone crates/nvs-stdlib/src/router.rs:nvs_core_router_link]
+  symbol before believing the body the row points at.
+  `until: gone crates/nvs-stdlib/src/router.rs:nvs_core_router_link`

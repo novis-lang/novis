@@ -4,4 +4,4 @@
   `Core\Time\DateTime::{member}(…)`. The list in `tools/nv/cmd/gaps.ts` is a worklist, not a
   ledger: when the drop is larger than the number of sites you asserted, diff it against the tree
   with your new cases moved aside and name the hidden ones in the handoff.
-  [until: gone tools/nv/cmd/gaps.ts:--errors]
+  `until: gone tools/nv/cmd/gaps.ts:--errors`

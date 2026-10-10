@@ -13,7 +13,8 @@ export const gap = defineRecord({
     title: s.string(),
     /** Markdown: why it is open and what closes it. */
     text: s.string(),
-    goal: s.optional(s.ref("goal")),
+    /** The slug of a goal file under `docs/goals/`, which `bun nv owners` checks exists. */
+    goal: s.optional(s.slug()),
     milestone: s.optional(s.ref("milestone")),
   }),
   checks: [

@@ -106,7 +106,7 @@ corosensei = "0.2"
 # --- CPU affinity (ADR 0106 § 6's "one scheduler of our own pinned per core") ---
 # Pinning is three different syscalls — `sched_setaffinity`, `thread_policy_set`,
 # `SetThreadAffinityMask` — and getting the CPU *set* is a fourth per platform.
-# ADR 0051 § 4's first question is "no": nothing attacker-controlled reaches a
+# `rule:packaging/a-c-dependency-answers-two-questions`'s first question is "no": nothing attacker-controlled reaches a
 # core id, so what decides this is the pure-Rust default, and `core_affinity` is
 # pure Rust with no C: it declares the bindings itself against `libc` on unix
 # and `winapi` on Windows, both of which are already in this tree's lock file,
@@ -124,7 +124,7 @@ core_affinity = "0.8"
 # type, no `Future`, no `tokio` anywhere in its graph — which is why reaching
 # for it is not the `BLOCKED` the goal reserves for "this needs async";
 # docs/decisions/0115.md
-# § 1 is the home of that reasoning. ADR 0051 § 4's first question is "no":
+# § 1 is the home of that reasoning. `rule:packaging/a-c-dependency-answers-two-questions`'s first question is "no":
 # a registration carries a descriptor and an interest set, so nothing
 # attacker-controlled reaches it. Pure Rust with no build script and no C — it
 # declares its own bindings against `libc` and `windows-sys`, both already in
@@ -133,7 +133,7 @@ core_affinity = "0.8"
 mio = { version = "1", features = ["os-poll", "net"] }
 
 # --- HTTP/1 framing (ADR 0097 § 1: a development server and a proxied origin) ---
-# The one dependency in this file that ADR 0051 § 4's first question answers
+# The one dependency in this file that `rule:packaging/a-c-dependency-answers-two-questions`'s first question answers
 # **yes** to: every octet `hyper` parses arrived from the network, and framing is
 # where request smuggling lives. That is the reason to take it rather than a
 # reason to refuse it — § 4's escalation is about *C*, and the confinement clause
@@ -143,8 +143,8 @@ mio = { version = "1", features = ["os-poll", "net"] }
 # that, its record is the exceptional one § 4 asks for — continuously fuzzed, and
 # the most-exercised h1 implementation in the language, against a hand-rolled
 # parser of ours that would be exercised by this repository alone.
-# `docs/plan/design.md`'s refusal to own FCGI framing is the same argument and
-# `docs/agent/goals/server.md` § *Two things every session must hold* applies it here.
+# `docs/plan/design.md`'s refusal to own FCGI framing is the same argument,
+# applied here to HTTP/1 framing.
 #
 # **`default-features = false` is load-bearing, not tidiness.** With `http1`,
 # `server` and `client` the graph is `http`, `http-body`, `bytes`,
@@ -183,7 +183,7 @@ hyper = { version = "1", default-features = false, features = [
 ] }
 
 # --- RFC 6455, over the connection h1 handed back (ADR 0083 § 1) ---
-# The framing crate, and ADR 0051 § 4's first question answers "yes" for exactly
+# The framing crate, and `rule:packaging/a-c-dependency-answers-two-questions`'s first question answers "yes" for exactly
 # the reason it does above: masking, fragmentation, control frames, UTF-8
 # validation and the close handshake are a wire protocol whose bugs are security
 # bugs, and owning one is refused here as it is for h1.
@@ -208,7 +208,7 @@ tungstenite = "0.30"
 # § 6 is "no account but this one, root or an administrator may write it", and
 # neither half of it is in `std`: the effective uid is a `libc` call, and Windows
 # has no mode bits at all, so the same question there is the owner SID plus the
-# DACL. ADR 0051 § 4's first question is "no" — what reaches these calls is a
+# DACL. `rule:packaging/a-c-dependency-answers-two-questions`'s first question is "no" — what reaches these calls is a
 # path an operator wrote in `nvs.toml`, never a value a request chose, and the
 # answer is a refusal to start rather than anything a script observes. Both are
 # pure Rust with no C and no build script, and both are already in this tree's
@@ -270,12 +270,12 @@ windows-sys = { version = "0.61", features = [
     "Win32_System_EventLog",
 ] }
 
-# --- TLS over the parking stream (ADR 0051 § 3's "TLS via `rustls`") ---
+# --- TLS over the parking stream (`rule:core-api/tier-roster`'s "TLS via `rustls`") ---
 # `nvs-host`'s stream is a plain `Read`/`Write`, so a TLS client over it is a
 # wrapper and not a transport: `crates/nvs-host/src/tls.rs` is that wrapper and
 # owns everything below in argued form. `Core\Http\Client`'s `https` and
 # `Core\Mail`'s `STARTTLS` are both it.
-# ADR 0051 § 4's first question is **yes** — a record layer is exactly where
+# `rule:packaging/a-c-dependency-answers-two-questions`'s first question is **yes** — a record layer is exactly where
 # attacker-controlled bytes land — so this is accepted under its second, on the
 # same footing as that section's SQLite. `rustls` and `rustls-webpki`, which are
 # where TLS's historical failures actually live (state machine, framing, path
@@ -307,7 +307,7 @@ webpki-roots = "1"
 # field: the alternative is a hand-written DER walk over attacker-controlled
 # bytes on the one path whose answer decides whether a peer is believed. Pure
 # Rust with no build script and no C — its `ring` feature is the only one that
-# would add any, and it is off — so ADR 0051 § 4's second question never opens.
+# would add any, and it is off — so `rule:packaging/a-c-dependency-answers-two-questions`'s second question never opens.
 # It adds no crate this lock file did not already hold.
 # `crates/nvs-host/src/tls.rs` is the one caller.
 x509-parser = { version = "0.18", default-features = false }
@@ -365,7 +365,7 @@ wasmtime-wasi-io = "48"
 # is owning `Content-Length` framing plus the
 # `initialize`/`initialized`/`shutdown`/`exit` state machine, which is a wire
 # protocol whose bugs are silent hangs.
-# ADR 0051 § 4's first question is "no": the bytes arrive from the editor that
+# `rule:packaging/a-c-dependency-answers-two-questions`'s first question is "no": the bytes arrive from the editor that
 # launched this process over its own stdin, not from the network, and an editor
 # that frames badly is a broken editor rather than an attacker. Pure Rust, no
 # build script, no C, MIT OR Apache-2.0. It adds one crate to the lock file —
@@ -494,7 +494,7 @@ unicode-normalization = "0.1"
 # choice of one. `default-features = false` drops the `cjk` half: the
 # alternate width for East Asian *ambiguous* characters is a property of the
 # locale the terminal is in, and Novis has no ambient locale at all
-# (ADR 0051 § 3, which dropped `setlocale` for saying so).
+# (`rule:core-api/no-ambient-state`, which refuses `setlocale` for saying so).
 unicode-width = { version = "0.2", default-features = false }
 
 # --- regular expressions (ADR 0056's two tiers, both named by the user) ---
@@ -559,7 +559,7 @@ toml = "0.9"
 # needs. `unbiased` turns the default's documented 1-in-2^64 modulo bias into
 # exactness for the price of a rejection branch taken that often; a CSPRNG
 # member should not carry a stated bias at all. Pure Rust, no C, no build
-# script — ADR 0051 § 4's first question is "no" here, since a member takes a
+# script — `rule:packaging/a-c-dependency-answers-two-questions`'s first question is "no" here, since a member takes a
 # count or a pair of bounds and nothing attacker-shaped reaches it.
 # `crates/nvs-stdlib/src/random.rs` owns why this crate and not `getrandom`
 # alone.
@@ -585,7 +585,7 @@ uuid = { version = "1", default-features = false, features = ["std"] }
 # Every one of these is an external specification with published test vectors
 # and a decade of cryptanalysis attached (docs/ground-rules.md
 # § *Implementation invariants*), and `Core\Hash::of` is a member request bodies
-# reach — so ADR 0051 § 4's first question is "yes" here and its second one is
+# reach — so `rule:packaging/a-c-dependency-answers-two-questions`'s first question is "yes" here and its second one is
 # what picks the crates. The RustCrypto family is pure Rust with no build
 # script and no C, so § 4's confine-to-wasm branch never opens: it is the
 # ecosystem's audited default, it is verified against each algorithm's own NIST
@@ -624,13 +624,13 @@ crc32fast = "1"
 crc32c = "0.6"
 subtle = "2"
 
-# --- password hashing (`Core\Password`, ADR 0051 § 3's framework-privileged half) ---
+# --- password hashing (`Core\Password`, `rule:programs/framework-core-half`) ---
 # Argon2id is a memory-hard KDF: a table of `m` KiB filled in `t` passes, with a
 # published specification (RFC 9106) and known-answer vectors, and it is the one
 # primitive in this tree where writing it ourselves would be indefensible —
 # a subtly wrong Blake2b-long or a mis-indexed reference block still produces
 # stable, verifiable hashes, so the bug is silent and permanent in every stored
-# credential. ADR 0051 § 4's first question is "yes": `verify` and `needsRehash`
+# credential. `rule:packaging/a-c-dependency-answers-two-questions`'s first question is "yes": `verify` and `needsRehash`
 # are handed a stored hash string, and `hash` a password, both of which are
 # attacker-influenced, so the second question picks the crate. `argon2` is
 # RustCrypto's, pure Rust with no build script and no C, and it adds eleven
@@ -659,7 +659,7 @@ argon2 = { version = "0.6", default-features = false, features = [
 # --- reading a PHP-stored bcrypt hash (`Core\Password::verify`, ADR 0129 § 1) ---
 # bcrypt is the algorithm PHP's `PASSWORD_DEFAULT` has written since 5.5, so a
 # migrating application's user table is a column of `$2y$` strings and this is
-# the crate that reads one. ADR 0051 § 4's first question is "yes" for the same
+# the crate that reads one. `rule:packaging/a-c-dependency-answers-two-questions`'s first question is "yes" for the same
 # reason it was for `argon2` — `verify` is handed a stored hash and a password,
 # both attacker-influenced — and the second question picks `bcrypt`: pure Rust
 # with no build script and no C, `subtle`'s constant-time comparison on the
@@ -687,8 +687,8 @@ bcrypt = { version = "0.19", default-features = false, features = [
     "zeroize",
 ] }
 
-# --- authenticated encryption (`Core\Crypto`, ADR 0051 § 3's AEAD-only surface) ---
-# ADR 0051 § 4's first question is "yes" and then some: `open` is handed a
+# --- authenticated encryption (`Core\Crypto`, `rule:core-api/tier-roster`'s AEAD-only surface) ---
+# `rule:packaging/a-c-dependency-answers-two-questions`'s first question is "yes" and then some: `open` is handed a
 # sealed message an attacker chose, and refusing a forgery is the member's whole
 # contract — so the second question picks the crate, and it picks the one whose
 # tag comparison is somebody's maintained job rather than ours.
@@ -713,7 +713,7 @@ chacha20poly1305 = { version = "0.11", default-features = false, features = [
 # --- the interoperable half of `Core\Crypto` (ADR 0179's roster) ---
 # Every crate here is in this tree because the other end is a browser or a token
 # issuer, not because Novis needs a second way to do what `chacha20poly1305`
-# above already does better. ADR 0051 § 4's first question is "yes" for all of
+# above already does better. `rule:packaging/a-c-dependency-answers-two-questions`'s first question is "yes" for all of
 # them — a sealed message, a JWE token and a JWKS document are each attacker-
 # shaped — and its second question is answered the way the digest family answers
 # it: RustCrypto, pure Rust, no build script and no C, so § 4's confine-to-wasm
@@ -768,8 +768,9 @@ sha2-v11 = { package = "sha2", version = "0.11", default-features = false }
 # This row adds no crate: `ring` is already linked as the `rustls` provider
 # above, and this is `nvs-stdlib` reaching it directly for RSASSA-PKCS1-v1_5,
 # RSASSA-PSS, ECDSA over P-256 and Ed25519 — the four algorithms a JWS verifier
-# meets, and the ones no pure-Rust crate in this graph covers for RSA. ADR 0051
-# § 4 is answered exactly as the `rustls` block answers it, on the same two
+# meets, and the ones no pure-Rust crate in this graph covers for RSA.
+# `rule:packaging/a-c-dependency-answers-two-questions` is answered exactly as
+# the `rustls` block answers it, on the same two
 # facts: attacker bytes reach a token verifier by construction, and BoringSSL's
 # OSS-Fuzz record and formally verified field arithmetic are the same record.
 # `tools/nv/cmd/gen-attribution.ts`'s `C_DEPENDENCIES` is where that answer is written
@@ -781,7 +782,7 @@ ring = "0.17"
 # --- base64 (spec § 7's `Core\Encoding` base64 pair and its URL-safe variant) ---
 # RFC 4648's alphabets, its padding rules and its URL-safe variant are an
 # external specification, and `fromBase64` is a member attacker-controlled text
-# reaches — so ADR 0051 § 4's first question is "yes" and the second one is what
+# reaches — so `rule:packaging/a-c-dependency-answers-two-questions`'s first question is "yes" and the second one is what
 # picks the crate. `base64` is pure Rust with no build script and no C, it is
 # the crate the ecosystem already reads for this, and it adds nothing to this
 # tree at all: it is already in Cargo.lock under `wasmtime-internal-cache`.
@@ -794,7 +795,7 @@ ring = "0.17"
 base64 = "0.22"
 
 # --- base32 (spec § 7's `Core\Encoding` base32 pair, which TOTP needs) ---
-# RFC 4648 § 6, and the same ADR 0051 § 4 answer base64 gets one block up:
+# RFC 4648 § 6, and the same `rule:packaging/a-c-dependency-answers-two-questions` answer base64 gets one block up:
 # attacker-controlled text reaches `fromBase32`, so the decoder is not
 # hand-written. `data-encoding` is the pick over a base32-only crate because it
 # is the one that states each rule this module has to decide *separately* —
@@ -812,7 +813,7 @@ data-encoding = "2"
 # the spec curates, and this crate *is* that standard: it is the reference
 # implementation Firefox ships, so "which encodings exist" and "what each byte
 # means" are a dependency update here rather than a table for Novis to maintain
-# and get wrong. ADR 0051 § 4's second question applies -- a decoder is reached
+# and get wrong. `rule:packaging/a-c-dependency-answers-two-questions`'s second question applies -- a decoder is reached
 # by attacker-controlled bytes -- and it is answered the same way SQLite
 # answers it: pure Rust, no build script, no C, and a test corpus that is the
 # standard's own. Already in this tree's lock file under `wasmtime`.
@@ -825,8 +826,8 @@ encoding_rs = "0.8"
 # ground-rules.md's "an external specification is a dependency rather than a
 # hand-written parser" applies to the *reader*: quoted fields, doubled quotes,
 # an embedded separator, an embedded CRLF and a file that ends mid-quote are
-# exactly the corners a hand-written scanner gets wrong one at a time. ADR
-# 0051 § 4's first question is "yes" -- an uploaded spreadsheet is
+# exactly the corners a hand-written scanner gets wrong one at a time.
+# `rule:packaging/a-c-dependency-answers-two-questions`'s first question is "yes" -- an uploaded spreadsheet is
 # attacker-controlled -- and the second one does not arise, because
 # `csv-core` is pure Rust: no build script, no C, `no_std`, and `memchr` its
 # only dependency, which this tree already carries under `regex`. It is the
@@ -853,7 +854,7 @@ csv-core = "0.1"
 # `$uri->resolve(string $reference)` is defined over exactly the relative
 # references `url` cannot represent. `fluent-uri` implements RFC 3986 itself:
 # it parses a URI *reference*, borrows every component as written, normalizes
-# only when asked, and carries § 5's reference resolution. ADR 0051 § 4's first
+# only when asked, and carries § 5's reference resolution. `rule:packaging/a-c-dependency-answers-two-questions`'s first
 # question is "yes" -- a request line is attacker-controlled -- and the second
 # does not arise, because the crate is pure Rust with no build script: its two
 # dependencies are `borrow-or-share` and `ref-cast`, both of which exist only
@@ -901,7 +902,7 @@ fluent-uri = "0.4"
 # a parse.
 html5ever = "0.39"
 
-# --- compression (spec § 17's `Core\Compress`, ADR 0166's bound) ---
+# --- compression (spec § 17's `Core\Compress`, `rule:core-classes/decompression-bound`) ---
 # Three crates for five codec cases, and `rule:packaging/a-c-dependency-answers-two-questions`'s first
 # question is "yes" for every one of them: a compressed body is attacker-controlled
 # by definition, which is the whole reason the class is Tier 0. So the second
@@ -943,7 +944,7 @@ ruzstd = "0.9"
 # `tiberius` each need a runtime that spawns, so none of them is reachable from
 # a thread-per-core host at all; that is structural and not a preference.
 #
-# ADR 0051 § 4's first question is "yes" for all of these -- a server's response
+# `rule:packaging/a-c-dependency-answers-two-questions`'s first question is "yes" for all of these -- a server's response
 # bytes are attacker-controlled the moment the server is -- which is the whole
 # reason the framing is borrowed from a crate that is fuzzed rather than
 # written here a fifth time.
@@ -962,8 +963,8 @@ postgres-types = "0.2"
 # `miniz-oxide` and the whole graph stays pure Rust; `derive` goes with it, and
 # nothing here derives a row from a struct.
 #
-# The two features named back on are MariaDB's authentication plugins, and ADR
-# 0051 § 4 names this exact case in advance: `client_ed25519` and `parsec` reach
+# The two features named back on are MariaDB's authentication plugins, and
+# `rule:packaging/a-c-dependency-answers-two-questions` names this case: `client_ed25519` and `parsec` reach
 # attacker-controlled data, so the answer is a Rust implementation of the plugin
 # or a documented refusal to support that auth method. `mysql_common` has both,
 # pure Rust -- `curve25519-dalek` behind the first, `ed25519-dalek`, `pbkdf2` and
@@ -986,7 +987,7 @@ mysql_common = { version = "0.38", default-features = false, features = [
 # be a second trait, and the iterator impls would silently not apply.
 bytes = "1"
 fallible-iterator = "0.2"
-# The one C dependency this goal adds, pre-answered under ADR 0051 § 4's second
+# The one C dependency this goal adds, pre-answered under `rule:packaging/a-c-dependency-answers-two-questions`'s second
 # question and recorded against it. The slice that first takes this as a
 # dependency of `nvs-db` also adds its row to `tools/nv/cmd/gen-attribution.ts`'s
 # `C_DEPENDENCIES` ledger, in the same commit: that gate fails on an unrecorded
@@ -997,7 +998,7 @@ fallible-iterator = "0.2"
 # `bundled` is not optional here and is the security-relevant half of the
 # choice: without it the crate links whatever `libsqlite3` the host happens to
 # ship, so the version an audit was written against and the version a
-# deployment runs are unrelated, and ADR 0051 § 4's verification record belongs
+# deployment runs are unrelated, and `rule:packaging/a-c-dependency-answers-two-questions`'s verification record belongs
 # to *SQLite's own* build under its own configuration. Compiling the
 # amalgamation ourselves makes the shipped engine a fact of this repository's
 # lockfile, and it is also what lets the crate build on a machine with no

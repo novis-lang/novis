@@ -5,4 +5,4 @@
   both green with no spec edit and no case. Adding a spec row for such a class is the trap: it would
   demand a member the class exists in order not to have; its prose home is
   `docs/spec/00-overview.md` § 2 instead.
-  [until: gone crates/nvs-stdlib/tests/spec_registry_coverage.rs]
+  `until: gone crates/nvs-stdlib/tests/spec_registry_coverage.rs`

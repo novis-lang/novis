@@ -4,4 +4,4 @@
   column reads as work to do. Before writing a case, `ls tests/conformance/core/<class>-*` and `sed
   -n 2p` each sibling's claim line; what still finds room is a claim a module's `//!` doc or
   `MethodDoc` argues for that no case under `tests/conformance/core/` asserts.
-  [until: gone tools/nv/cmd/gaps.ts:thinnest]
+  `until: gone tools/nv/cmd/gaps.ts:thinnest`

@@ -3,4 +3,4 @@
   `rule:classes/lateinit-read-before-write` runs the flow analysis per method, so a method that only
   reads `$this->printer` is refused however the caller set the object up, while the same read from
   outside the class is left to throw at run time. Put the read in the method that does the write, or
-  outside the class. [until: gone tests/conformance/class/lateinit-refuses-a-read-before-any-write.nvst]
+  outside the class. `until: gone tests/conformance/class/lateinit-refuses-a-read-before-any-write.nvst`

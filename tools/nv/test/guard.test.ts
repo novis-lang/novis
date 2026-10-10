@@ -7,8 +7,7 @@ import { run } from "../lib/proc.ts";
 /** A tracked file over `nv peek`'s line limit, and a tracked one under it. */
 const LONG = "tools/nv/cmd/peek.ts";
 const SMALL = "package.json";
-/** `goal-grep` matches this path by name and never opens it, so the file need not exist. */
-const RECORD = "data/goals/tooling-overhaul.json";
+
 
 const event = (tool: Tool, input: Record<string, unknown>) => ({ tool_name: tool, tool_input: input, cwd: ROOT });
 const bash = (command: string) => decide(event("Bash", { command }));
@@ -38,16 +37,7 @@ const CASES: Record<string, { deny: [Tool, Record<string, unknown>][]; allow: [T
     ],
     allow: [["Bash", { command: "target/debug/nvs.exe run docs/examples/str/one.nvs" }]],
   },
-  "goal-grep": {
-    deny: [
-      ["Bash", { command: `rg -n '"stage": 8' ${RECORD}` }],
-      ["PowerShell", { command: `Select-String -Path ${RECORD.replace(/\//g, "\\")} -Pattern guard` }],
-    ],
-    allow: [
-      ["Bash", { command: "grep -n guard data/goals/tooling-overhaul.handoff.json" }],
-      ["Bash", { command: `python tools/peek.py ${RECORD}:re:guard` }],
-    ],
-  },
+
   "sleep-poll": {
     deny: [["Bash", { command: 'until grep -q done "C:/Users/u/AppData/Local/Temp/claude/x/tasks/b1.output"; do sleep 5; done' }]],
     allow: [
@@ -84,18 +74,19 @@ const CASES: Record<string, { deny: [Tool, Record<string, unknown>][]; allow: [T
     deny: [
       ["Bash", { command: "cargo test 2>&1 | tail -20" }],
       ["PowerShell", { command: "cargo test --workspace --features x" }],
-      ["Bash", { command: "timeout 100 bun nv loop --goal-only > .agent-tmp/out 2>&1" }],
-      ["PowerShell", { command: "bun nv loop --goal-only --full" }],
+      ["Bash", { command: "timeout 100 looper check > .agent-tmp/out 2>&1" }],
+      ["PowerShell", { command: "looper check" }],
       ["Bash", { command: "bun nv proofs --verify" }],
       ["Bash", { command: "bun nv verify --no-cache" }],
       ["PowerShell", { command: "bun nv select --full" }],
+      ["Bash", { command: "bun nv benches --owed" }],
     ],
     allow: [
       ["Bash", { command: "cargo test --lib html::tests 2>&1 | tail -20" }],
       ["Bash", { command: "cargo test --test meta" }],
       ["Bash", { command: "cargo test -- --exact spec_registry_coverage" }],
       ["Bash", { command: "cargo test --manifest-path .agent-tmp/probe/Cargo.toml" }],
-      ["Bash", { command: "bun nv loop --goal-only --stage 3" }],
+      ["Bash", { command: "looper check --name links" }],
       ["Bash", { command: "bun nv proofs --verify --group Core\\\\Html" }],
       ["Bash", { command: "bun nv affected --run" }],
       ["Bash", { command: "bun nv verify" }],

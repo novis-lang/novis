@@ -4,4 +4,4 @@
   reading a picker that stopped spreading gives. Measure what the machine can give at that moment
   too, the same children on plain threads started once per batch, and report the guard not measured
   rather than failed when that figure is under the floor.
-  [until: gone benches/abi-probe/tests/perf_guards.rs:plain_thread_fan_out]
+  `until: gone benches/abi-probe/tests/perf_guards.rs:plain_thread_fan_out`

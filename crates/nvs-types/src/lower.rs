@@ -702,7 +702,7 @@ fn report_unknown(span: Span, qname: &nvs_hir::QName, name: &str, kind: &str, en
 
 fn resolve_special(span: Span, keyword: &str, ctx: &Ctx<'_>, env: &mut Env<'_>) -> TypeId {
     match ctx.current_class {
-        // ADR 0010: an enum has no methods to declare a `self`/`static` type
+        // `rule:enums/no-class-machinery`: an enum has no methods to declare a `self`/`static` type
         // atom inside in a well-formed program, but the parser still
         // recovers a rejected member (`E_ENUM_MEMBER_UNSUPPORTED`) and hands
         // it to this checker anyway — resolve the same way `resolve_name_type`

@@ -2,5 +2,5 @@
   `mysql_one_value` reads a text column, and MySQL types `SLEEP()` and `CONNECTION_ID()` as
   integers, so the helper dies with `the statement answered Int(0), which is not text`. Wrap the
   expression in `CAST(… AS CHAR)`; MySQL answers a missing table with error `1146` where
-  `to_regclass` answers `NULL`, so assert it separately as a `ServerError`.
-  [until: gone crates/nvs-db/tests/handshake.rs:mysql_one_value]
+  `to_regclass` answers `NULL`, so assert it separately as a `ServerError`. See `crates/nvs-db/tests/handshake.rs`.
+  `until: gone crates/nvs-db/tests/handshake.rs:mysql_one_value`

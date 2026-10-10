@@ -4,4 +4,4 @@
   `CoreWrapper<CtVariableCoreWrapper<…>>` and never the version. Check which `digest` major a crate
   is generic over before pinning it, and name the matching hash through the root manifest's
   `sha2-v11` row rather than downgrading the crate, which would only add a duplicate.
-  [until: gone Cargo.toml:sha2-v11]
+  `until: gone Cargo.toml:sha2-v11`

@@ -16,7 +16,7 @@
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import type { TestExe } from "../driver/accept.ts";
+import type { TestExe } from "../accept/accept.ts";
 import { digest } from "../keys/scan.ts";
 import { abs, ROOT } from "../lib/paths.ts";
 import { EXAMPLES, examplesDir, HOSTILE, hostileDir, namesIn, roster } from "../proofs/roster.ts";

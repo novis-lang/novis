@@ -1,13 +1,16 @@
 {
   "title": "The image and intl components are built into every `nvs` binary, sandboxed, and always present under `Novis\\`",
   "status": "designed",
-  "because": [
-    "0247"
-  ],
+  "because": [],
   "seeAlso": [
     "core-api/core-means-always-present",
     "packaging/three-tiers",
-    "core-api/tier-roster"
+    "core-api/tier-roster",
+    "core-classes/intl-roster"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "tests/conformance/novis/image-info-answers-with-no-configuration.nvst",
+    "crates/nvs-ext/tests/builtin.rs",
+    "crates/nvs-ext/tests/intl.rs"
+  ]
 }

@@ -243,7 +243,8 @@ const VALUE_READERS: &[(&str, &[&str])] = &[
     ("object", &["class-name"]),
 ];
 
-/// The exports of the image component's `codec`, 0120 § 3's eight.
+/// The image component's `codec` exports, a closed set of eight
+/// (`rule:core-classes/image-pipeline`).
 const CODEC_EXPORTS: &[&str] = &[
     "info",
     "run",
@@ -272,8 +273,9 @@ enum Place {
 
 use Place::{Export, Novis, Output, Source, Step};
 
-/// Every member of 0120 § 2's table and § 8, and § 9's QR code, with where
-/// it runs. `measureText` and `fromRaw` start a pipeline from a `source`
+/// Every member of `Novis\Image`, with where it runs
+/// (`rule:core-classes/image-pipeline`,
+/// `rule:core-classes/image-one-entry-point-per-job`). `measureText` and `fromRaw` start a pipeline from a `source`
 /// case and `raw` is an `output` of `run`, as ADR 0276 decides.
 const IMAGE_MEMBERS: &[(&str, &[Place])] = &[
     ("Image::open", &[Source("encoded")]),

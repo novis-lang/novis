@@ -122,8 +122,8 @@
 //! registering a member and striking its line are one edit, and the gate fails
 //! on a stale line as loudly as on an unlisted one. A file holding no keys is
 //! this project's definition of *registered whole* for the sections it walks,
-//! and every key that remains names its owner in a column, read against
-//! `docs/agent/goals/`. `tests/conformance_coverage.rs` keeps the other half
+//! and every key that remains names its owner in a column, read against the
+//! chain in `docs/goals/README.md`. `tests/conformance_coverage.rs` keeps the other half
 //! honest: a registered member with no `.nvst` case that calls it fails
 //! `cargo test -p nvs-stdlib`.
 //!

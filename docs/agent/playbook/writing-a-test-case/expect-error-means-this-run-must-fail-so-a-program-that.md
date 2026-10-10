@@ -2,4 +2,4 @@
   stderr.** `crates/nvs-test/src/run.rs` reports `expected the run to fail, and it succeeded` before
   comparing the stderr you wrote, which bites `Core\Debug::dump`, which writes only there. End the
   program with a deliberate `throw new RuntimeError(...)` and absorb the fatal report with a
-  trailing `%A`. [until: gone crates/nvs-test/src/run.rs:expected the run to fail, and it succeeded]
+  trailing `%A`. `until: gone crates/nvs-test/src/run.rs:expected the run to fail, and it succeeded`

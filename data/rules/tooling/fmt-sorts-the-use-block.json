@@ -1,9 +1,7 @@
 {
   "title": "Consecutive `use` declarations are sorted by full path, ascending and case-sensitive, with no blank line between them",
   "status": "shipped",
-  "because": [
-    "0039"
-  ],
+  "because": [],
   "seeAlso": [
     "tooling/fmt-base-style-is-per",
     "tooling/fmt-never-reorders-members",

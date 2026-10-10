@@ -3,5 +3,5 @@
   here dilates a process multiplicatively, so the subtraction left 200 ms of machine — the spread
   gave nothing away, that run's median sitting 4% over its minimum. Read the floor line before the
   verdict: `--warm-start` abstains above `QUIET_FLOOR_MS`, a floor level rather than a multiple of
-  the budget, and a figure it does report is a minimum over twenty-five reps.
-  [until: gone tools/nv/cmd/bench.ts:QUIET_FLOOR_MS]
+  the budget, and a figure it does report is a minimum over twenty-five reps. See `tools/nv/cmd/bench.ts`.
+  `until: gone tools/nv/cmd/bench.ts:QUIET_FLOOR_MS`

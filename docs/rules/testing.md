@@ -370,7 +370,7 @@ isolate rather than a child â€” leftover work is read off the test's own task â€
 the test that asked for it has joined. It serves under the **default** policy rather than the tree's:
 reading a deployment's configuration would make the test's subject the deployment.
 
-<sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/task-tree-and-virtual-clock`](testing.md#testing-task-tree-and-virtual-clock). Decided in [0079](../decisions/0079.md), [0077](../decisions/0077.md), [0102](../decisions/0102.md), [0024](../decisions/0024.md), [0074](../decisions/0074.md), [0058](../decisions/0058.md), [0051](../decisions/0051.md).</sub>
+<sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/task-tree-and-virtual-clock`](testing.md#testing-task-tree-and-virtual-clock). Decided in [0079](../decisions/0079.md), [0077](../decisions/0077.md), [0102](../decisions/0102.md), [0024](../decisions/0024.md), [0074](../decisions/0074.md), [0058](../decisions/0058.md).</sub>
 
 <a id="testing-an-outbound-call-is-answered-from-a-table"></a>
 
@@ -711,9 +711,8 @@ before a merge. A stamp is written by whoever reread the page, never to quiet th
 
 **A page's search questions are stamped as the page is.** Each entry of `website/src/data/questions.json`
 records the feature its questions were written from and that feature's hash, and an entry whose hash
-moved is stale. The wrap refuses stale questions the session made stale itself, `bun nv site --check
-questions` catches the rest, and `bun nv site --questions --stamp` is run by whoever rewrote or reread
-them. The questions are not a feature proof.
+moved is stale. `bun nv site --check questions` fails on every stale or broken entry, and `bun nv site
+--questions --stamp` is run by whoever rewrote or reread them. The questions are not a feature proof.
 
 Every snippet a page shows lives under `website/snippets/`, and that same CI step checks each file
 beside it against the real binary. A `.err` is the diagnostic `nvs check` must report for a program that

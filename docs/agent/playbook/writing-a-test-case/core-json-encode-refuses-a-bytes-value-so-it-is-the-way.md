@@ -3,5 +3,5 @@
   format holding an `a`, `A` or `Z` field yields a buffer element, and encoding the list throws
   *"Core\Json::encode(): tag 11 has no JSON encoding"*, which reads as a bug in the case rather than
   the missing row it is. Render such a case with `Core\Arr::count` for the shape and
-  `Core\Encoding::toHex` per buffer, and keep `Json::encode` for the numeric formats.
-  [until: gone crates/nvs-stdlib/src/json.rs:has no JSON encoding]
+  `Core\Encoding::toHex` per buffer, and keep `Json::encode` for the numeric formats. See `crates/nvs-stdlib/src/json.rs`.
+  `until: gone crates/nvs-stdlib/src/json.rs:has no JSON encoding`

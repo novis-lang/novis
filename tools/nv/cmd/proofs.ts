@@ -24,9 +24,9 @@
 // `--only-as LABEL ID...` more than once: a scope of the named features whose section is `LABEL` and
 // whose gate line reads as `--only`'s does. Over several scopes the roster is read once, every program
 // runs in one pool, and each scope prints its own verdict lines under a `== <group or label>` line and
-// closes on `-- <group or label>: passed` or `-- <group or label>: failed`, which the loop driver splits
-// on. What `--run` and `--verify` read for one scope is recorded as that scope's part of the run
-// (`lib/reads.ts` `inPart`), so the driver keys each scope's check on its own reads and not the whole
+// closes on `-- <group or label>: passed` or `-- <group or label>: failed`, which the acceptance sweep
+// splits on. What `--run` and `--verify` read for one scope is recorded as that scope's part of the run
+// (`lib/reads.ts` `inPart`), so the sweep keys each scope's check on its own reads and not the whole
 // run's. `--no-perf`
 // stops the perf proof from being owed. `--record-perf` takes `--reps N` timed runs per program (5),
 // `--no-callgrind` to report a growth ramp whose counts do not settle as unclear without valgrind,
@@ -403,7 +403,7 @@ async function runScopes(out: string[], bin: Binary, scopes: Scope[], verify: bo
     const lines = heads.get(scope)!;
     let failed = !running.includes(scope);
     if (!failed) for (const what of suites) if (suiteLines(lines, what, programsIn(scope, what), pass, opts)) failed = true;
-    // Several scopes close each section on its verdict, which is what the driver hands each check.
+    // Several scopes close each section on its verdict, which is what the acceptance sweep hands each check.
     if (scopes.length > 1) lines.push(`-- ${section(scope)}: ${failed ? "failed" : "passed"}`);
     out.push(...lines);
     if (failed) rc = 1;

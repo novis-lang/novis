@@ -4,4 +4,4 @@
   the core that ticks it, and the failure names `Worker::spawn`'s bound rather than the schedule.
   Hand the worker a flag saying it is the one that ticks and arm inside its body:
   `crates/nvs-cli/src/serve.rs`'s `Core::ticks` is the shape.
-  [until: gone crates/nvs-server/src/schedule.rs:Rc<Cell<usize>>]
+  `until: gone crates/nvs-server/src/schedule.rs:Rc<Cell<usize>>`

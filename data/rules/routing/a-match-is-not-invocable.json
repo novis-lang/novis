@@ -4,8 +4,7 @@
   "because": [
     "0102",
     "0077",
-    "0007",
-    "0199"
+    "0007"
   ],
   "seeAlso": [
     "routing/the-servers-match-dispatches-nothing",
@@ -14,5 +13,10 @@
     "core-classes/derive-attribute",
     "routing/matching-is-not-dispatching"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "tests/conformance/core/one-access-check-above-the-dispatch-switch-covers-every-route.nvst",
+    "tests/conformance/core/a-match-answers-the-access-decision-as-the-name-its-route-resolved.nvst",
+    "tests/conformance/core/a-match-answers-the-verb-that-matched-where-one-method-serves-two.nvst",
+    "crates/nvs-stdlib/src/router.rs"
+  ]
 }

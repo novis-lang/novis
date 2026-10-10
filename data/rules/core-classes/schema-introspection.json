@@ -3,8 +3,7 @@
   "status": "shipped",
   "because": [
     "0145",
-    "0067",
-    "0051"
+    "0067"
   ],
   "seeAlso": [
     "core-classes/schema-is-a-value",

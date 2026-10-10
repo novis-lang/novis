@@ -3,4 +3,4 @@
   qualified spelling only exists where somebody *calls* it: `--locate Registry::of` answers with a
   call in `crates/nvs-runtime/src/metrics.rs`, never the definition. Locate the bare name or the
   type instead, or take the file's outline with `bun nv peek --outline <file>` and read the region.
-  [until: gone tools/nv/cmd/peek.ts:--locate]
+  `until: gone tools/nv/cmd/peek.ts:--locate`

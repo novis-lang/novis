@@ -4,8 +4,7 @@
   "because": [
     "0022",
     "0043",
-    "0023",
-    "0038"
+    "0023"
   ],
   "seeAlso": [
     "classes/an-unwritten-property-read-throws",

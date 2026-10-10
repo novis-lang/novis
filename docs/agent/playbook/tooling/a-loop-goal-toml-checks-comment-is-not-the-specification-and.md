@@ -4,4 +4,4 @@
   component comparison contradicts `rule:expressions/object-identity-equality`, under which `==` on
   objects is identity and `compareTo` is the spelling for content equality. One `bun nv peek` of
   the cited rule before writing the member settles it, and the prose in `docs/agent/goals/<slug>.md`
-  is the thing to fix. [until: gone tools/nv/cmd/orient.ts:const TRIAGE]
+  is the thing to fix. `until: gone tools/nv/cmd/orient.ts:const TRIAGE`

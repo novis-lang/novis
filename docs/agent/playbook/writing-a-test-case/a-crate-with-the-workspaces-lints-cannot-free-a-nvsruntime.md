@@ -3,4 +3,4 @@
   root, and `forbid` is the one level no `#[expect]` can lift. Split the decision from the
   allocation with a private enum holding the parsed scalar plus one `into_value` arm per variant,
   and assert the enum; `NvsStr` has a safe `Drop`, and `crates/nvs-db/src/pg.rs`'s `PgScalar` is the
-  worked example. [until: gone Cargo.toml:unsafe_code = "forbid"]
+  worked example. `until: gone Cargo.toml:unsafe_code = "forbid"`

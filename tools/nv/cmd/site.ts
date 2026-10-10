@@ -60,9 +60,6 @@
 // A language or type feature no page under `syntax/` covers is **uncovered**. `--stamp` is what clears
 // a stale page, and it is run by whoever reread the page, never to quiet the check.
 //
-// **The wrap gate**, `wrapGate`, is what `bun nv session --wrap` calls: it refuses every broken id, and
-// every stale page the session made stale itself, by changing the page or one of its covered features.
-//
 // **The questions**, `website/src/data/questions.json`, are four to six search questions per built page,
 // keyed by its URL without the site's base, in the words a visitor types before they know a name.
 // `Banner.astro` writes them into an attribute Pagefind indexes. Each entry is `{ feature, hash,
@@ -71,8 +68,7 @@
 // configuration block page every feature it shows, and a handwritten page its key and its file. An
 // entry whose feature or hash moved, or that was never stamped, is **stale**. An entry no built page
 // has is **broken**. A built page with no entry is **owed**, which `--questions --status` counts and
-// nothing fails on yet. The wrap gate refuses stale questions the session made stale itself, the same
-// way it refuses stale pages. The questions are not a feature proof.
+// nothing fails on yet. The questions are not a feature proof.
 //
 // The parts of `--check`: `structure` (the nav is the four areas from `website/config/site.mjs`, then
 // Install and Sponsoring, each area is one sidebar group, no retired page or generator is on disk, the
@@ -98,7 +94,7 @@ import { rel, ROOT } from "../lib/paths.ts";
 import { run as runProc } from "../lib/proc.ts";
 import { comparePaths } from "../lib/py.ts";
 import { commentProblems } from "../proofs/collect.ts";
-import { ABOUT, EXAMPLES, examplesDir, implFile, metaJson, roster, RosterError, type Entry, type Meta } from "../proofs/roster.ts";
+import { ABOUT, EXAMPLES, examplesDir, metaJson, roster, RosterError, type Entry, type Meta } from "../proofs/roster.ts";
 import { DATA_FILE, renderWebsiteCore } from "../renderers/website-core.ts";
 import { REFERENCE_FILE, type Page as RefPage } from "../renderers/website-reference.ts";
 
@@ -268,8 +264,6 @@ export interface Staleness {
   broken: string[];
   /** `page: id (why)` for a covered feature changed since the page's stamp, or never stamped. */
   stale: string[];
-  /** The page and the feature of each `stale` line, in the same order. */
-  staleAt: { page: string; entry: Entry }[];
   /** Language and type features no Syntax page covers. */
   uncovered: string[];
 }
@@ -279,7 +273,7 @@ const isSyntaxFeature = (e: Entry) => e.kind === "lang" || e.path.startsWith("ty
 export function staleness(world: World, root: string = ROOT): Staleness {
   const byId = new Map(world.entries.map((e) => [e.id, e]));
   const lock = readLock(root);
-  const out: Staleness = { unlisted: [], broken: [], stale: [], staleAt: [], uncovered: [] };
+  const out: Staleness = { unlisted: [], broken: [], stale: [], uncovered: [] };
   const syntaxCovers = new Set<string>();
   for (const page of pages(root)) {
     if (page.covers === null) {
@@ -297,52 +291,10 @@ export function staleness(world: World, root: string = ROOT): Staleness {
       const why = stamped === undefined ? "never stamped" : stamped !== featureHash(root, entry, world.meta) ? "changed since its stamp" : "";
       if (!why) continue;
       out.stale.push(`${page.key}: ${id} (${why})`);
-      out.staleAt.push({ page: page.key, entry });
     }
   }
   out.uncovered = world.entries.filter((e) => isSyntaxFeature(e) && !syntaxCovers.has(e.id)).map((e) => e.id);
   return out;
-}
-
-/**
- * What `bun nv session --wrap` refuses, given every path the session changed: each broken id, and each
- * stale page that is the session's own. A stale page is the session's when it changed the page, the
- * feature's example directory, or the file the feature's anchor names, which is its implementation or its
- * reference chapter. A page stale for a reason the session never touched is CI's `--check stale` to report.
- */
-export function wrapProblems(world: World, changed: string[], root: string = ROOT): string[] {
-  const s = staleness(world, root);
-  const touched = (path: string) => changed.some((c) => c === path || c.startsWith(`${path}/`));
-  const own = s.stale.filter((_, i) => {
-    const { page, entry } = s.staleAt[i]!;
-    return touched(`${DOCS}/${page}`) || touched(examplesDir(entry)) || (implFile(entry) !== "" && touched(implFile(entry)));
-  });
-  const byId = new Map(world.entries.map((e) => [e.id, e]));
-  const reaches = (x: QuestionSource) =>
-    x.area === "pages"
-      ? touched(`${DOCS}/${x.feature}`)
-      : x.ids.some((id) => {
-          const e = byId.get(id);
-          return e !== undefined && (touched(examplesDir(e)) || (implFile(e) !== "" && touched(implFile(e))));
-        });
-  const questions = questionStatus(world, root).stale.filter(reaches);
-  return [...s.broken.map((b) => `broken: ${b}`), ...own.map((x) => `stale: ${x}`), ...questions.map((x) => `stale questions: ${x.url} (${x.feature})`)];
-}
-
-/** The paths whose change can make a page broken or stale; a session that changed none of them is not gated. */
-export const FEEDS = [DOCS, EXAMPLES, "docs/reference", "crates"];
-
-/** `wrapProblems` with the roster read from the built `nvs`, or the reason it could not be read. */
-export async function wrapGate(changed: string[]): Promise<string[]> {
-  if (!changed.some((c) => FEEDS.some((f) => c.startsWith(`${f}/`)))) return [];
-  const nvs = binary(undefined);
-  if (nvs === null) return ["no `nvs` binary to read the roster from: `bun nv verify` builds one"];
-  try {
-    return wrapProblems(await world(nvs), changed);
-  } catch (e) {
-    if (!(e instanceof RosterError)) throw e;
-    return [`the roster does not load: ${e.message}`];
-  }
 }
 
 /** The page key a `--stamp` argument names: a key, or a path under `DOCS` from the repository root. */

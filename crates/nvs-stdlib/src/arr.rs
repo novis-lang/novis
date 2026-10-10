@@ -726,8 +726,8 @@ pub const CLASS: CoreClass = CoreClass {
             doc: Some(&AVERAGE_DOC),
         },
         // Last rather than in the spec's order because the spec has no row for
-        // it yet — `docs/agent/goals/input-shapes.md` § *Standing decisions*
-        // owes spec §§ 6 and 15 that entry, and this comment goes when it lands.
+        // it yet: spec §§ 6 and 15 owe that entry, and this comment goes when
+        // it lands.
         CoreMethod {
             name: "shapeAs",
             names: &["a"],
@@ -8817,8 +8817,7 @@ mod tests {
         dropped_fault(failure);
     }
 
-    /// The agreement `docs/agent/goals/input-shapes.md` § *Stage 3* asks for: an inline
-    /// shape reached through `Core\Json::decodeAs` and through
+    /// An inline shape reached through `Core\Json::decodeAs` and through
     /// `Core\Arr::shapeAs` is **one** walk, so the two answer the same field
     /// for the same input and report a bad one the same way. Asserted as an
     /// agreement rather than as each member's own answer, because a second

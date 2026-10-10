@@ -16,7 +16,7 @@ doctest = false
 
 # `toml` + `serde` are ADR 0064 § 1's format decision, and both refusals § 3
 # makes are their default behaviour rather than machinery of ours. Both are pure
-# Rust, so ADR 0051 § 4's two questions do not arise.
+# Rust, so `rule:packaging/a-c-dependency-answers-two-questions`'s two questions do not arise.
 #
 # `blake3` is ADR 0078 § 4's own spelling of both cache keys in `src/cache.rs`,
 # and `src/data.rs` hashes the data folder's `nvs.toml` with it to tell a

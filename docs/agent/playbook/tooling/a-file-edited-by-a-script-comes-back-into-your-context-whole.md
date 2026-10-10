@@ -1,5 +1,5 @@
 - **A file edited by a script comes back into your context whole.** The harness re-prints an on-disk
   change it did not make as a "changed on disk" reminder — a long module is thousands of tokens,
   more than the edit cost — and the Edit tool never triggers it. Take the heredoc/`nv splice` route
-  only for an edit Edit genuinely cannot express (a non-unique anchor, a whole-field rewrite).
-  [until: gone AGENTS.md:A shell never carries file content]
+  only for an edit Edit genuinely cannot express (a non-unique anchor, a whole-field rewrite). See `AGENTS.md`.
+  `until: gone AGENTS.md:A shell never carries file content`

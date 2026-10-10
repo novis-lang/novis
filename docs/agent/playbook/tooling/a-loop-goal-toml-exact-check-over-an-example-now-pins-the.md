@@ -4,4 +4,4 @@
   `Core\Log::write` lines are in the check's `want` verbatim. Edit such an example only below its
   last producer, or run `target/debug/nvs.exe run <example>` afterwards and move the `want` with
   it — the check reports stdout line for line and says nothing about why a number moved.
-  [until: gone tools/nv/cmd/orient.ts:const TRIAGE]
+  `until: gone tools/nv/cmd/orient.ts:const TRIAGE`

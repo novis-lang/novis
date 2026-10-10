@@ -1194,7 +1194,7 @@ fn warn_discarding_throwable_arm(arm: &CatchArm, ty: TypeId, env: &mut Env<'_>) 
 }
 
 /// `self`/`static`/`$this`'s type, resolved against the enclosing
-/// declaration. ADR 0010: an enum has no methods to reach this from in a
+/// declaration. `rule:enums/no-class-machinery`: an enum has no methods to reach this from in a
 /// well-formed program, but the parser still recovers a member it rejected
 /// with `E_ENUM_MEMBER_UNSUPPORTED` (see `nvs-syntax::parser::parse_enum_body`)
 /// and hands it to this checker anyway — so this must resolve the same way

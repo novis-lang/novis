@@ -13,7 +13,7 @@ this file is shorter than the one it replaces.
 
 **Not on a size signal — there is no size signal**, by design
 ([doc-style.md](doc-style.md) § *Length targets*). Doc length never triggers a pass, and nothing in
-CI, `bun nv brief` or `bun nv orient` measures a doc against a number.
+CI, `bun nv brief` or `looper orient` measures a doc against a number.
 
 Run one when the **user** fires it, or when `bun nv records` or `bun nv rules --check`
 reports findings that accumulated between passes. The tools are the standing signal; this file is the
@@ -39,7 +39,7 @@ Every one of these was learned by nearly violating it. They are not preferences.
 
 **1. A record number is a public identifier, and a record is frozen — merging is never right.** The
 records are cited about three thousand times from `crates/`, plus `tests/`, `docs/spec/`, `docs/plan/`
-and the goal records under `data/goals/`, and every rule's `because` names them. `grep -rhoE '\b0[01][0-9]{2}\b'
+and the goal files under `docs/goals/`, and every rule's `because` names them. `grep -rhoE '\b0[01][0-9]{2}\b'
 crates/ | sort | uniq -c | sort -rn` prints the weight: 0007 alone is cited 400+ times. A merge retires
 a number and invalidates every one of those references. An earlier pass evaluated five merge
 candidates that read as obviously mergeable — 0029+0030, and the four rejected-PHP-spelling records
@@ -54,7 +54,7 @@ reads. Deleting `### 3.` and promoting `### 4.` silently repoints every one of t
 Insert as `§ 3a`; delete a section's *content* and keep its number. `bun nv records`' **section refs** check
 catches the citations that are already wrong, not the ones a renumber would create.
 
-**3. The loop may be running while you work.** `bun nv session --wrap` stages a slice's own files and
+**3. The loop may be running while you work.** `looper wrap` stages a slice's own files and
 lets the last commit sweep whatever is left, so an uncommitted docs change can be swept into a loop
 commit. Confine a pass to `docs/` and `tools/`, check `git log --oneline -3` before and after, and
 commit promptly rather than leaving a large working tree open across loop iterations.
@@ -92,8 +92,8 @@ by hand: if a fact can be derived from the files, derive it.
 
 - **Never answers an open question.** A fork waiting on a measurement waits for whoever takes the
   measurement. What a pass *may* do is narrow a status field to what is actually open.
-- **Never touches the live goal's prose, record or handoff record, `data/chain.json`, or the plan's
-  status block.** Those are the running loop's state.
+- **Never touches the live goal's file, the chain in `docs/goals/README.md`, or the plan's status
+  block.** Those are the running loop's state.
 - **Never renumbers a record or a section.** Constraints 1 and 2.
 - **Never edits a generated file.** `docs/ground-rules.md` and `docs/rules/<topic>.md` are written
   by `bun nv rules --render`; an edit there is lost on the

@@ -8,6 +8,11 @@ separated by type, not by inspection — applied at a boundary that is otherwise
 security advisory.
 
 What it costs is one wrapper at the call sites that genuinely mean a formula, which is the smaller
-half of any real export.
+half of any real export. Because the writer cannot be tricked into emitting code, it needs no
+launderer, which is part of why it can live outside `Core`.
+
+The component's fixtures owe a `tainted` string beginning `=` that lands as a text cell, and the same
+expression as a `Formula` value that lands as a formula cell, both asserted on the written bytes
+rather than the builder's state.
 
 **Not shipped.** There is no spreadsheet package in the tree.

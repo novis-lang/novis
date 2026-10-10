@@ -4,4 +4,4 @@
   `check_expr`, so an arm there doubles up on `mixed $x = self;`. Put the report at the four call
   sites that resolve a class side (`infer_class_const`, `infer_static_call`, the
   `StaticPropertyAccess` arm, `check_new_target`).
-  [until: gone crates/nvs-hir/src/members.rs:walk_class_side]
+  `until: gone crates/nvs-hir/src/members.rs:walk_class_side`

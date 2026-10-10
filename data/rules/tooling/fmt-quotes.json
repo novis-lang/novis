@@ -1,9 +1,7 @@
 {
   "title": "A string literal is rewritten to single quotes unless it interpolates or contains a single quote, and heredoc bodies and comments are never touched",
   "status": "shipped",
-  "because": [
-    "0039"
-  ],
+  "because": [],
   "seeAlso": [
     "tooling/fmt-is-one-canonical-style",
     "tooling/fmt-is-idempotent"

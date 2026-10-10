@@ -4,4 +4,4 @@
   that is still empty, and the process dies in `__tsan_func_entry` far from the cause. Keep each
   switch inside one call that leaves and comes back — `Fiber::around` in
   `crates/nvs-host/src/tsan.rs` — and read a SEGV in `__tsan_func_entry` as a broken annotation
-  rather than a race. [until: gone crates/nvs-host/src/tsan.rs:__tsan_switch_to_fiber]
+  rather than a race. `until: gone crates/nvs-host/src/tsan.rs:__tsan_switch_to_fiber`

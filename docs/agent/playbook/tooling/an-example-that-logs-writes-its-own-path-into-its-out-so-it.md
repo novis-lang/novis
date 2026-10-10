@@ -4,4 +4,4 @@
   the sweep now both name an example repo-relative and posix, from the repository root. Check a
   suspect example with `bun nv proofs --run --id '<feature>'` rather than with
   a bare `nvs run` from wherever you are standing.
-  [until: gone docs/examples/types/Log-Level/01-the-five-levels-and-what-each-is-for.out:source]
+  `until: gone docs/examples/types/Log-Level/01-the-five-levels-and-what-each-is-for.out:source`

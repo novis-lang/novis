@@ -4,4 +4,4 @@
   from the registry's cards; the only place it shows is the tail's `uncommitted after the wrap`
   line, which reads as someone else's edit. Name `Cargo.lock` in the `## commit:` of the slice that
   touched a manifest, and `docs/novis.md` in the one that adds or rewords a `Core` member's card.
-  [until: gone tools/nv/cmd/session.ts:uncommitted after the wrap]
+  `until: gone tools/nv/cmd/session.ts:uncommitted after the wrap`

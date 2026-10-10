@@ -7,7 +7,7 @@
 //! written by an attacker reaches a file the program never named, and a
 //! decompression bomb is the fourth thing an archive can do to a server. All
 //! four are *policy*, and policy must be non-optional
-//! (`rule:core-api/tier-roster`, [ADR 0051](/docs/decisions/0051.md) § 3), so
+//! (`rule:core-api/tier-roster`), so
 //! the class that reads an archive is always present and there is no
 //! configuration, argument or extension that turns one of the four off.
 //!

@@ -2,7 +2,6 @@
   "title": "PHP's `(T)expr` cast does not parse, and the diagnostic names the `as` that replaces it",
   "status": "shipped",
   "because": [
-    "0034",
     "0007",
     "0049"
   ],

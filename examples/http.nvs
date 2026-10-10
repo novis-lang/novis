@@ -22,7 +22,7 @@
 // `bun nv origin`, which the driver holds up around the acceptance sweep and
 // which you start by hand to run this file — `bun nv origin &`. The
 // address is named here rather than discovered, and the reason the origin is
-// the harness's is recorded in `tools/nv/driver/origin.ts`.
+// the harness's is recorded in `tools/nv/accept/origin.ts`.
 //
 // The five lines this prints are frozen by an exact check in a goal record
 // under `data/goals/`; the source is not.

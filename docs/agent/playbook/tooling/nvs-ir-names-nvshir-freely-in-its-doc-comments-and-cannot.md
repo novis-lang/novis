@@ -4,4 +4,4 @@
   with `E0433: unresolved module or unlinked crate`. The route down is a re-export through
   `nvs-types`, which depends on both — add one beside `CORE_SCRIPT_FINISH_CLASS` in
   `crates/nvs-types/src/lib.rs` rather than promoting the dev-dependency.
-  [until: gone crates/nvs-ir/Cargo.toml:nvs-hir.workspace = true]
+  `until: gone crates/nvs-ir/Cargo.toml:nvs-hir.workspace = true`

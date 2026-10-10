@@ -4,4 +4,4 @@
   `rule:config/ownership-is-the-trust-boundary` on any Windows drive whose root grants
   `Authenticated Users` write. Carry the reason as a value for the command an operator typed to
   render, rather than printing from the resolver.
-  [until: gone crates/nvs-cli/tests/bundle.rs:nothing extra on standard error]
+  `until: gone crates/nvs-cli/tests/bundle.rs:nothing extra on standard error`

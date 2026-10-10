@@ -4,4 +4,4 @@
   illustrate an unrunnable example lands in the working directory of whatever runnable example comes
   next — on a reference page that ends with the house `LogicError` refusal, that is the one it reaches.
   Put the configuration in a comment inside the `skip` fence, or place the `file=` block directly before
-  the runnable program it belongs to. [until: gone tools/nv/cmd/reference.ts:pending]
+  the runnable program it belongs to. `until: gone tools/nv/cmd/reference.ts:pending`

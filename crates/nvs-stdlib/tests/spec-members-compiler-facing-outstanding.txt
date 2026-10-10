@@ -3,7 +3,7 @@
 # declare yet. One key per line, `§13 <Class>::<member>` — the row's class, since
 # § 13 is one row per class and a bare member name would say nothing about which
 # — then the goal that will strike it, named by its slug: `§13 Router::match  #
-# server`, read against docs/agent/goals/ by
+# server`, read against the chain in docs/goals/README.md by
 # `every_outstanding_key_names_an_owner`. That test's doc owns the column.
 #
 # A row that names no member at all is keyed by its class instead — `§13

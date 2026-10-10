@@ -2,5 +2,5 @@
   overshoot prints nothing.** `Ctx::run_limit_handler` adds the reserve back to the reduced ceiling,
   so a request already holding more than `[limits] memory` breaches again at the handler's first
   helper call (`echo` is one) and is abandoned without a word; the `FATAL` message is identical
-  either way. Size the ballast to land between `memory` minus the reserve and `memory`.
-  [until: gone crates/nvs-stdlib/src/fatal.rs:Core\Fatal::onLimit]
+  either way. Size the ballast to land between `memory` minus the reserve and `memory`. See `crates/nvs-stdlib/src/fatal.rs`.
+  `until: gone crates/nvs-stdlib/src/fatal.rs:Core\Fatal::onLimit`

@@ -1,9 +1,7 @@
 {
   "title": "A `type` alias is also a member of a class, interface or enum, reached as `Owner::Name` and as a bare `Name` inside its owner",
   "status": "shipped",
-  "because": [
-    "0190"
-  ],
+  "because": [],
   "seeAlso": [
     "types/type-alias",
     "types/alias-is-never-a-bare-class",
@@ -13,9 +11,13 @@
     "tests/conformance/lang/a-class-scoped-type-alias-agrees-with-the-file-scope-form.nvst",
     "tests/conformance/lang/a-class-scoped-type-alias-is-the-shape-it-names.nvst",
     "tests/conformance/lang/an-interface-and-an-enum-own-a-type-alias-too.nvst",
+    "tests/conformance/lang/an-alias-left-of-a-double-colon-names-its-enum.nvst",
     "tests/conformance/reject/a-class-scoped-type-alias-takes-no-modifier.nvst",
     "tests/conformance/reject/a-class-scoped-type-alias-is-not-inherited.nvst",
     "tests/conformance/reject/a-class-scoped-type-alias-does-not-share-a-name-with-a-constant-or-a-case.nvst",
-    "tests/conformance/reject/a-class-scoped-type-alias-of-a-bare-class-is-refused.nvst"
+    "tests/conformance/reject/a-class-scoped-type-alias-of-a-bare-class-is-refused.nvst",
+    "crates/nvs-syntax/src/parser/tests/decl.rs",
+    "crates/nvs-hir/src/aliases.rs",
+    "crates/nvs-cli/tests/meta.rs"
   ]
 }

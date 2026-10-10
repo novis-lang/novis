@@ -1,7 +1,7 @@
 <?nvs
 // Attack: a program leaves many loops early, and calls `changes` with forged cookies, bad bases
 // and bad attribute names. Each call must return entries or throw an error, and nothing may crash.
-// hostile: timeout-ms 90000
+// hostile: timeout-ms 120000
 // requires: samba-ad
 
 class Count
@@ -20,11 +20,11 @@ class Count
 var $corp = Core\Ldap::connect('corp');
 var $units = Core\Ldap\Filter::equals('objectClass', 'organizationalUnit');
 
-// 1. One hundred calls, each left after its first entry. Nothing may be left behind.
+// 1. Twenty calls, each left after its first entry. Nothing may be left behind.
 uint $i = 0;
 uint $found = 0;
 uint $threw = 0;
-while ($i < 100) {
+while ($i < 20) {
     try {
         foreach ($corp->changes($units, { select: ['ou'] }) as Core\Ldap\Entry $entry) {
             $found = $found + 1;

@@ -5,6 +5,10 @@ CSS's own forward-compatible parsing: an unknown declaration is dropped, never g
 What this rule adds to that standard behaviour is **visibility**. The render result carries the list
 of dropped declarations, so a test asserts the list is empty and a document that silently depends on
 unsupported CSS cannot survive CI. "Renders fine in the browser, wrong in the library" is the failure
-an invisible drop produces, and a visible list is what turns it into a test.
+an invisible drop produces, and a visible list is what turns it into a test. The subset stays a
+permanent compatibility surface: the list names each gap, and does not close it.
+
+The component's fixtures owe a fixture using an unsupported property that renders with that property
+in the dropped-declarations list, and a clean fixture whose list is empty.
 
 **Not shipped.** There is no PDF package in the tree.

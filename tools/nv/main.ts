@@ -9,8 +9,7 @@
 // instrumented `nvs` that no run records writes its counters under `.agent-tmp/`.
 //
 // A command's own tests are under `test/`, and `test/surfaces.test.ts` runs the ones a session or the
-// hook reaches by name against this tree: `brief --where`, `guard --check`, `orient --traps`, `loop
-// --list` with its filters and `loop-stats --guard`'s count.
+// hook reaches by name against this tree: `brief --where` and `guard --check`.
 
 import { DISCARD_PROFILE } from "./lib/paths.ts";
 import { ENV as READS_ENV, install } from "./lib/reads.ts";
@@ -23,39 +22,37 @@ interface Command {
 
 const COMMANDS: Record<string, () => Promise<Command>> = {
   affected: () => import("./cmd/affected.ts"),
+  allow: () => import("./cmd/allow.ts"),
   audit: () => import("./cmd/audit.ts"),
   bench: () => import("./cmd/bench.ts"),
+  benches: () => import("./cmd/benches.ts"),
   "bench-load": () => import("./cmd/bench-load.ts"),
   "bench-proxied": () => import("./cmd/bench-proxied.ts"),
   bg: () => import("./cmd/bg.ts"),
   brief: () => import("./cmd/brief.ts"),
-  chain: () => import("./cmd/chain.ts"),
   check: () => import("./cmd/check.ts"),
   "ci-changes": () => import("./cmd/ci-changes.ts"),
   "class-cards": () => import("./cmd/class-cards.ts"),
   "db-matrix": () => import("./cmd/db-matrix.ts"),
-  decisions: () => import("./cmd/decisions.ts"),
+
   directives: () => import("./cmd/directives.ts"),
   disk: () => import("./cmd/disk.ts"),
   "exe-icons": () => import("./cmd/exe-icons.ts"),
   "ext-templates": () => import("./cmd/ext-templates.ts"),
   gaps: () => import("./cmd/gaps.ts"),
   "gen-attribution": () => import("./cmd/gen-attribution.ts"),
-  goal: () => import("./cmd/goal.ts"),
   guard: () => import("./cmd/guard.ts"),
   holes: () => import("./cmd/holes.ts"),
   layout: () => import("./cmd/layout.ts"),
+  legs: () => import("./cmd/legs.ts"),
   links: () => import("./cmd/links.ts"),
   lints: () => import("./cmd/lints.ts"),
-  loop: () => import("./cmd/loop.ts"),
-  "loop-stats": () => import("./cmd/loop-stats.ts"),
   machine: () => import("./cmd/machine.ts"),
-  orient: () => import("./cmd/orient.ts"),
   origin: () => import("./cmd/origin.ts"),
   owners: () => import("./cmd/owners.ts"),
   peek: () => import("./cmd/peek.ts"),
   plan: () => import("./cmd/plan.ts"),
-  playbook: () => import("./cmd/playbook.ts"),
+  pack: () => import("./cmd/pack.ts"),
   proofs: () => import("./cmd/proofs.ts"),
   query: () => import("./cmd/query.ts"),
   records: () => import("./cmd/records.ts"),
@@ -67,9 +64,12 @@ const COMMANDS: Record<string, () => Promise<Command>> = {
   scaling: () => import("./cmd/scaling.ts"),
   select: () => import("./cmd/select.ts"),
   selftest: () => import("./cmd/selftest.ts"),
-  session: () => import("./cmd/session.ts"),
+  side: () => import("./cmd/side.ts"),
   site: () => import("./cmd/site.ts"),
+  services: () => import("./cmd/services.ts"),
   splice: () => import("./cmd/splice.ts"),
+  suite: () => import("./cmd/suite.ts"),
+  sweep: () => import("./cmd/sweep.ts"),
   try: () => import("./cmd/try.ts"),
   verify: () => import("./cmd/verify.ts"),
   "webcrypto-vectors": () => import("./cmd/webcrypto-vectors.ts"),

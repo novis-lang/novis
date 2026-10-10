@@ -4,4 +4,4 @@
   test seeing NUL-overwritten bytes in a string that never allocated an object.
   `crates/nvs-runtime/src/object.rs`'s `Detach` guard is the fix; when a flake survives disabling
   the sweep body, suspect the list, and print the corrupted text rather than the status.
-  [until: gone crates/nvs-runtime/src/object.rs:Detach]
+  `until: gone crates/nvs-runtime/src/object.rs:Detach`

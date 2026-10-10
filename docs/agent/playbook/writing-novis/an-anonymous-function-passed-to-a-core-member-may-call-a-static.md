@@ -2,4 +2,4 @@
   how a case writes a NUL.** Only a call through the variable holding a callable is refused, so `fn
   (int $a, int $b): int => Key::magnitude($a) - Key::magnitude($b)` handed to `Core\Arr::sort`'s
   `{by}` lowers and runs. The code-point escape is the only way to put a NUL in a case (there is no
-  `\0`), and `Core\Str::length("a\u{0000}b")` reads 3. [until: gone crates/nvs-stdlib/src/arr.rs:Core\Arr::sort]
+  `\0`), and `Core\Str::length("a\u{0000}b")` reads 3. See `crates/nvs-stdlib/src/arr.rs`. `until: gone crates/nvs-stdlib/src/arr.rs:Core\Arr::sort`

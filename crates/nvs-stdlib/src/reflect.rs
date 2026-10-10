@@ -945,8 +945,7 @@ fn class_name_of(ptr: *mut nvs_runtime::ObjHeader) -> String {
 ///
 /// `None` covers three sites that are all outside: a script frame, a callable
 /// reference's thunk, and a carrier that is the zero word for any other reason.
-/// Every one of them is refused what a `private` member would refuse, which is
-/// the direction `docs/agent/goals/m8-stdlib-depth.md` § *Standing decisions* fixes.
+/// Every one of them is refused what a `private` member would refuse.
 ///
 /// The name is borrowed from the carrier rather than copied, so asking costs no
 /// allocation: every reflective read, write and call asks once.

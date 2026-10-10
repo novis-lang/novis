@@ -11,3 +11,6 @@ A required file never sees the includer's locals. A shared variable scope
 would need one flow-sensitive definite-assignment analysis spanning a graph whose shape a `require` inside
 an `if` decides at run time. A program that relied on it passes what it means as a constructor argument or
 a static.
+
+Nothing here is isolated: the required file runs in the caller's own process and request, with the
+caller's capabilities. Isolation is what `spawn script` gives, and `require` gives none of it.

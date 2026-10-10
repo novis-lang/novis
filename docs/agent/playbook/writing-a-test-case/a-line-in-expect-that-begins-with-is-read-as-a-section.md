@@ -4,4 +4,4 @@
   ends the `--EXPECT--` block where its first `--` line starts. Normalise it away in the case, as
   `tests/conformance/core/http-client-streams-a-file-as-the-whole-body.nvst` does with
   `Core\Str::replaceAll`, rather than looking for an escape the format does not
-  have. [until: gone tests/conformance/core/http-client-streams-a-file-as-the-whole-body.nvst]
+  have. `until: gone tests/conformance/core/http-client-streams-a-file-as-the-whole-body.nvst`

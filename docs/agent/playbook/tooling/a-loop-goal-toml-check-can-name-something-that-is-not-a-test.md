@@ -4,4 +4,4 @@
   driver stops there — `over 4 check(s)` in `.loop/log.md` where a healthy iteration reads over a
   hundred. Check that a name *could* be a `#[test]` before writing one, and fix the check in the
   goal's record `data/goals/<slug>.json`, the one copy the driver reads.
-  [until: gone tools/nv/cmd/orient.ts:const TRIAGE]
+  `until: gone tools/nv/cmd/orient.ts:const TRIAGE`

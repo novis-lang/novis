@@ -2726,8 +2726,9 @@ fn runtime_commands(
                             // arm up, and the class with them: the row is what
                             // both the usage line and the refusal name the
                             // enum from, and nothing downstream has a type
-                            // table to ask instead. The value narrows to ADR
-                            // 0010 § 2's two integer types here rather than
+                            // table to ask instead. The value narrows to the
+                            // enum's backing `int` or `uint` here
+                            // (`rule:enums/one-backing-type`) rather than
                             // crossing widened — `nvs_runtime::commands::
                             // CaseValue` owns why.
                             nvs_types::commands::ArgConv::Enum { class, cases } => {

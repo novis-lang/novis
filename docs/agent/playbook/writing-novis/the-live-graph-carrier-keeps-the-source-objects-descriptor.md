@@ -4,5 +4,5 @@
   resolved anything, because both sides of a `clone` are one program — at the isolate boundary they
   are not, since `nvs-cli` compiles one unit per written path (`copy_graph_into(value,
   Some(&resolve))` and `Live::admit` carry the rule there). Do not read a refusal in `graph.rs` as
-  covering both carriers; the `Carrier` trait is the list of what they share.
-  [until: gone crates/nvs-runtime/src/graph.rs:Live::admit]
+  covering both carriers.
+  `until: gone crates/nvs-runtime/src/graph.rs:Live::admit`

@@ -3,4 +3,4 @@
   for one erased type, and a `Core` options bag has none — it is flattened a slot at a time at an
   ordinary call and never at a thunk. Use a member with no options bag for a callable-reference
   fixture, or assert through an ordinary call; the panic is in `crates/nvs-ir/src/lower/mod.rs`.
-  [until: gone crates/nvs-ir/src/lower/mod.rs:shape parameter was erased]
+  `until: gone crates/nvs-ir/src/lower/mod.rs:shape parameter was erased`

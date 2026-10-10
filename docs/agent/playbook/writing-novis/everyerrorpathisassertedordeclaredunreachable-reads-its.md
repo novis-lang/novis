@@ -4,4 +4,4 @@
   first line holding `Fault::`, and the failure re-prints the worklist line with no hint that the
   comment exists. Put `unreachable from source` in the comment's last sentence, and give a helper
   with several guards one declaration per guard rather than one at the top of the function.
-  [until: gone crates/nvs-stdlib/tests/conformance_coverage.rs:DECLARATION_WINDOW]
+  `until: gone crates/nvs-stdlib/tests/conformance_coverage.rs:DECLARATION_WINDOW`

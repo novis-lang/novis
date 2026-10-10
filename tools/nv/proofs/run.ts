@@ -9,7 +9,8 @@
 // written for the binary a person ships. `proofBinary` runs cargo every time, and cargo rebuilds when
 // what the binary is built from changed. `releaseBinary` is `target/release/`, which the perf ledger
 // measures on, and it too is cargo's to bring up to date: a build that has nothing to do costs cargo's
-// own look at its fingerprints.
+// own look at its fingerprints. Both hand back a pinned copy of the binary (`lib/relink.ts`), so a build
+// another process makes while the programs run does not move the file they run.
 //
 // Which programs run is the selection's (`tools/nv/select/`), and `cmd/proofs.ts` makes it; this file
 // runs every program it is handed. What a program used is recorded in a second run of it, on the covws
@@ -27,13 +28,13 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 import { digest } from "../keys/scan.ts";
 import { abs, DISCARD_PROFILE, ROOT } from "../lib/paths.ts";
-import { Tree } from "../driver/proctree.ts";
+import { Tree } from "../lib/proctree.ts";
 import { run as runProc } from "../lib/proc.ts";
 import { inPart } from "../lib/reads.ts";
 import { record } from "../lib/written.ts";
 import { proofReadsSlot, SelectStore } from "../select/store.ts";
 import { cargoLines, progress } from "../lib/progress.ts";
-import { linked } from "../lib/relink.ts";
+import { linked, pinned } from "../lib/relink.ts";
 import { gapTitle, knownGap } from "./collect.ts";
 import { read } from "./roster.ts";
 
@@ -56,8 +57,8 @@ const EXE = process.platform === "win32" ? "nvs.exe" : "nvs";
 export const PROOF_BINARY = `target/proof/${EXE}`;
 export const RELEASE_BINARY = `target/release/${EXE}`;
 
-/** The two optimized builds. The release build is the argv `bun nv loop`'s acceptance sweep runs, so
- * both share one set of artefacts under `target/release/`. */
+/** The two optimized builds. The release build is the argv the acceptance sweep runs, so both share one
+ * set of artefacts under `target/release/`. */
 export const PROOF_BUILD = { name: "proof binary", key: "proof", path: PROOF_BINARY, argv: ["cargo", "build", "--profile", "proof", "--bin", "nvs"] };
 const RELEASE = { name: "release binary", key: "release", path: RELEASE_BINARY, argv: ["cargo", "build", "--release", "-p", "nvs-cli"] };
 
@@ -150,7 +151,7 @@ async function builtBinary(build: typeof RELEASE, recorded: boolean): Promise<Bi
     const tail = built.stderr.trimEnd().split("\n").slice(-15).join("\n");
     return `\`${command}\` failed (exit ${built.code}):\n${tail}`;
   }
-  return { path, key: build.key, runs: build.key, ...(recorded ? { recorded } : {}) };
+  return { path: pinned(path), key: build.key, runs: build.key, ...(recorded ? { recorded } : {}) };
 }
 
 /** A binary named with `--nvs`, taken as it is and remembered by its bytes. */
@@ -246,6 +247,35 @@ export async function spawnProof(argv: string[], proof: string, timeoutMs: numbe
   if (recording.NVS_FOOTPRINT_LOG) mkdirSync(dirname(recording.NVS_FOOTPRINT_LOG), { recursive: true });
   const env: Record<string, string | undefined> = { LLVM_PROFILE_FILE: DISCARD_PROFILE, ...process.env, ...record?.env, ...recording };
   if (record?.unlogged && !recording.NVS_FOOTPRINT_LOG) delete env.NVS_FOOTPRINT_LOG;
+  const release = SAMBA_AD_RE.test(source) ? await sambaSlot() : () => {};
+  try {
+    return await spawnTimed(argv, env, feed, timeoutMs);
+  } finally {
+    release();
+  }
+}
+
+/** How many programs marked `requires: samba-ad` run at once, whatever the pool's width. One Samba
+ * directory answers all of them, and a full pool of them slows it past the `timeout` the proof blocks
+ * in `nvs.toml` set, so a call or a TLS handshake fails and the same program ends differently each run. */
+const SAMBA_AD_JOBS = 2;
+let sambaRunning = 0;
+const sambaWaiting: (() => void)[] = [];
+
+/** Waits for one of `SAMBA_AD_JOBS` slots, and gives the function that frees it. A freed slot passes
+ * straight to the next waiter. */
+async function sambaSlot(): Promise<() => void> {
+  if (sambaRunning < SAMBA_AD_JOBS) sambaRunning++;
+  else await new Promise<void>((go) => sambaWaiting.push(go));
+  return () => {
+    const next = sambaWaiting.shift();
+    if (next) next();
+    else sambaRunning--;
+  };
+}
+
+/** Runs `argv` once under `timeoutMs`, which starts when the process does. */
+async function spawnTimed(argv: string[], env: Record<string, string | undefined>, feed: string, timeoutMs: number): Promise<Ran> {
   const started = performance.now();
   const child = Bun.spawn(argv, {
     cwd: ROOT,
@@ -545,6 +575,9 @@ export interface RunOptions {
   /** The judged runs write no footprint log, not even one this process inherited: the selection records
    * each program on its own recording run instead. */
   unlogged?: boolean;
+  /** Called with each program's result the moment it is final: at once, or for one that ran out of
+   * time beside others, once its run alone ends. */
+  onResult?: (program: Program, result: Result) => void;
 }
 
 export interface Result {
@@ -572,7 +605,7 @@ export interface Program {
 }
 
 /** Runs every program named, once each, in one pool; each of `unchanged` is reported green without a
- * run. */
+ * run. `opts.onResult` hears each result of a program that ran as soon as it is final. */
 export async function runPrograms(bin: Binary, programs: Program[], opts: RunOptions, unchanged: Set<string> = new Set()): Promise<Pass> {
   const results = new Map<string, Result>();
   const todo: Program[] = [];
@@ -605,7 +638,9 @@ export async function runPrograms(bin: Binary, programs: Program[], opts: RunOpt
       const t = todo[next++]!;
       await runOne(t);
       ran++;
-      if (results.get(`${t.what}:${t.path}`)!.verdict === "fail") failed++;
+      const got = results.get(`${t.what}:${t.path}`)!;
+      if (got.verdict === "fail") failed++;
+      if (got.ran?.timedOut !== true) opts.onResult?.(t, got);
       say();
     }
   };
@@ -614,6 +649,7 @@ export async function runPrograms(bin: Binary, programs: Program[], opts: RunOpt
   for (const t of todo.filter((p) => again.has(`${p.what}:${p.path}`))) {
     progress(`proofs: ${t.path} ran out of time beside others, so it runs once more alone`);
     await runOne(t);
+    opts.onResult?.(t, results.get(`${t.what}:${t.path}`)!);
   }
   return { results, width, seconds: (performance.now() - started) / 1000 };
 }

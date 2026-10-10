@@ -6,12 +6,11 @@
 // CI's `reference` job builds the binary and runs `nv render --website --check`.
 
 import type { Renderer } from "../lib/render.ts";
-import { goalPlan } from "./goal-plan.ts";
 import { recordSchemas } from "./record-schemas.ts";
 import { specTables } from "./spec-tables.ts";
 import { websiteCore } from "./website-core.ts";
 import { websiteGrammar } from "./website-grammar.ts";
 
-export const RENDERERS: Renderer[] = [specTables, websiteGrammar, goalPlan, recordSchemas];
+export const RENDERERS: Renderer[] = [specTables, websiteGrammar, recordSchemas];
 
 export const WEBSITE_RENDERERS: Renderer[] = [websiteGrammar, websiteCore];

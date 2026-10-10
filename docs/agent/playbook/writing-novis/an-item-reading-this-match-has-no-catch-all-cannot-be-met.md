@@ -3,4 +3,4 @@
   arm and is never told which variant it forgot.** Spell every variant the enum has, make the trailing
   arm say `this is a bug` (`tools/nv/cmd/holes.ts`'s `ENGINE` skips that, and `REFUSAL` never matched it),
   and add a probe asserting the row count — that count is the guard the compiler will not be.
-  [until: gone crates/nvs-types/src/ty.rs:non_exhaustive]
+  `until: gone crates/nvs-types/src/ty.rs:non_exhaustive`

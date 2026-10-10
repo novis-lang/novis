@@ -4,4 +4,4 @@
   and read by nobody, and `Core\Config::get` is `null`. Two sequential `spawn script` children do
   see the configuration:
   `tests/conformance/config/config-set-is-invisible-to-the-next-request.nvst`.
-  [until: gone crates/nvs-cli/src/runner.rs:nvs_runtime::Ctx::stdout()]
+  `until: gone crates/nvs-cli/src/runner.rs:nvs_runtime::Ctx::stdout()`

@@ -38,7 +38,7 @@ declare the **same** type ([`statements/inout-is-the-by-reference-spelling`](sta
 or narrows is a diagnostic. There is no function-scope `static` and no global constant, so neither has
 a binding site at all ([`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global)).
 
-<sub>See also [`types/var-inference`](types.md#types-var-inference), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0007](../decisions/0007.md), [0022](../decisions/0022.md), [0037](../decisions/0037.md), [0008](../decisions/0008.md), [0011](../decisions/0011.md), [0251](../decisions/0251.md).</sub>
+<sub>See also [`types/var-inference`](types.md#types-var-inference), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0007](../decisions/0007.md), [0022](../decisions/0022.md), [0008](../decisions/0008.md), [0011](../decisions/0011.md), [0251](../decisions/0251.md).</sub>
 
 <a id="types-var-inference"></a>
 
@@ -83,7 +83,25 @@ written type gets, with one addition, because the type it misses is not on the l
 then `$prices[] = 12.5;` names `array<int|float> $prices = [10, 20];`, the element type widened at
 the depth the write went through.
 
-<sub>See also [`types/declaration`](types.md#types-declaration), [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/arrays`](types.md#types-arrays). Decided in [0037](../decisions/0037.md), [0007](../decisions/0007.md), [0114](../decisions/0114.md), [0251](../decisions/0251.md), [0252](../decisions/0252.md), [0279](../decisions/0279.md).</sub>
+`var` is not a solver. It reads only the filling expression, never how the binding is used later, and
+it finishes in one pass with no backtracking, so there is no second, inferred type system to keep in
+agreement with the declared one. Nothing after the checker sees it: every binding lowering and codegen
+meet already has a concrete type, exactly the one a written annotation would have given. `var` starts
+nothing else at statement position, so the parser needs no trial parse to tell it apart. What it costs
+is legibility: the type is not on the declaration line, and finding it means reading the initializer.
+
+- **Memory:** none. `var` is resolved entirely while checking, before any IR exists.
+
+**Declined:**
+- **Inference across a binding's later uses**, widening or narrowing the type from later assignments.
+  That is the second type system [`types/declaration`](types.md#types-declaration) rules out; a later write is checked against
+  the type the initializer gave.
+- **`var $x = [];` typed as `array<never>`.** The binding could never usefully hold anything without a
+  further `as`, which is a worse trap than a diagnostic at the declaration.
+- **A new keyword instead of `var`.** `var` was already a reserved token with no meaning in Novis, so
+  reusing it needed no lexer change and collides with nothing.
+
+<sub>See also [`types/declaration`](types.md#types-declaration), [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/arrays`](types.md#types-arrays). Decided in [0007](../decisions/0007.md), [0114](../decisions/0114.md), [0251](../decisions/0251.md), [0252](../decisions/0252.md), [0279](../decisions/0279.md).</sub>
 
 <a id="types-grammar"></a>
 
@@ -190,7 +208,7 @@ literal would be unwritable in any position lacking an annotation.
 would buy only a second spelling of what `as decimal` already says, in the two positions that lack a
 target: a `var` declaration ([`types/var-inference`](types.md#types-var-inference)) and a `mixed` or generic argument.
 
-<sub>See also [`types/decimal`](types.md#types-decimal), [`types/integer-literals`](types.md#types-integer-literals), [`types/var-inference`](types.md#types-var-inference), [`types/implicit-widening`](types.md#types-implicit-widening). Decided in [0054](../decisions/0054.md), [0007](../decisions/0007.md), [0037](../decisions/0037.md).</sub>
+<sub>See also [`types/decimal`](types.md#types-decimal), [`types/integer-literals`](types.md#types-integer-literals), [`types/var-inference`](types.md#types-var-inference), [`types/implicit-widening`](types.md#types-implicit-widening). Decided in [0054](../decisions/0054.md), [0007](../decisions/0007.md).</sub>
 
 <a id="types-uint"></a>
 
@@ -269,7 +287,7 @@ Overflow throwing is the divergence this table is least willing to trade. A sile
 `float` changes a binding's type behind its declaration, and a silent wrap is the classic
 size-computation bug. Code that wants unbounded magnitude declares `float`, or converts.
 
-<sub>See also [`types/ordering`](types.md#types-ordering), [`types/uint`](types.md#types-uint), [`types/decimal`](types.md#types-decimal), [`types/implicit-widening`](types.md#types-implicit-widening). Decided in [0007](../decisions/0007.md), [0054](../decisions/0054.md), [0010](../decisions/0010.md), [0035](../decisions/0035.md), [0261](../decisions/0261.md).</sub>
+<sub>See also [`types/ordering`](types.md#types-ordering), [`types/uint`](types.md#types-uint), [`types/decimal`](types.md#types-decimal), [`types/implicit-widening`](types.md#types-implicit-widening). Decided in [0007](../decisions/0007.md), [0054](../decisions/0054.md), [0261](../decisions/0261.md).</sub>
 
 <a id="types-implicit-widening"></a>
 
@@ -327,7 +345,7 @@ wearing a decimal API, which is `Core\BigInt`.
 `decimal` is not an enum backing type ([`enums/one-backing-type`](enums.md#enums-one-backing-type)), and array keys are unaffected —
 every key is a `string` already ([`types/arrays`](types.md#types-arrays)).
 
-<sub>See also [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/arithmetic`](types.md#types-arithmetic), [`types/conversion`](types.md#types-conversion). Decided in [0054](../decisions/0054.md), [0007](../decisions/0007.md), [0051](../decisions/0051.md), [0004](../decisions/0004.md).</sub>
+<sub>See also [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/arithmetic`](types.md#types-arithmetic), [`types/conversion`](types.md#types-conversion). Decided in [0054](../decisions/0054.md), [0007](../decisions/0007.md), [0004](../decisions/0004.md).</sub>
 
 <a id="types-ordering"></a>
 
@@ -360,7 +378,7 @@ named, and an enum case orders as the integer it is even though the written spel
 
 `==` and `!=` are a different question and are unaffected by any of this.
 
-<sub>See also [`types/arithmetic`](types.md#types-arithmetic), [`types/conversion`](types.md#types-conversion), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0013](../decisions/0013.md), [0007](../decisions/0007.md), [0010](../decisions/0010.md), [0047](../decisions/0047.md).</sub>
+<sub>See also [`types/arithmetic`](types.md#types-arithmetic), [`types/conversion`](types.md#types-conversion), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0013](../decisions/0013.md), [0007](../decisions/0007.md), [0047](../decisions/0047.md).</sub>
 
 <a id="types-string-is-utf8"></a>
 
@@ -453,7 +471,7 @@ does `1h30m as int`; write `->toSeconds()`. `$n s` is not a duration; a computed
 renders `-1h30m` for a reader, and `parse` refuses that leading `-` **by name** rather than reading a
 positive value out of it.
 
-<sub>See also [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/integer-literals`](types.md#types-integer-literals). Decided in [0070](../decisions/0070.md), [0046](../decisions/0046.md), [0057](../decisions/0057.md), [0062](../decisions/0062.md), [0039](../decisions/0039.md).</sub>
+<sub>See also [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/integer-literals`](types.md#types-integer-literals). Decided in [0070](../decisions/0070.md), [0046](../decisions/0046.md), [0057](../decisions/0057.md), [0062](../decisions/0062.md).</sub>
 
 <a id="types-single-value-types"></a>
 
@@ -557,7 +575,7 @@ not narrow `$m` in the branch it guards ([`types/narrowing`](types.md#types-narr
 nothing at runtime — it shares the enum's existing zero-byte representation
 ([`enums/representation`](enums.md#enums-representation)).
 
-<sub>See also [`types/single-value-types`](types.md#types-single-value-types), [`types/conversion`](types.md#types-conversion), [`types/narrowing`](types.md#types-narrowing). Decided in [0047](../decisions/0047.md), [0010](../decisions/0010.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`types/single-value-types`](types.md#types-single-value-types), [`types/conversion`](types.md#types-conversion), [`types/narrowing`](types.md#types-narrowing). Decided in [0047](../decisions/0047.md), [0007](../decisions/0007.md).</sub>
 
 <a id="types-arrays"></a>
 
@@ -808,7 +826,7 @@ fine, and a class whose fields are all assignable is unaffected. It is deliberat
 where a request-controlled name selects a field to write, refusing at build time is the direction
 security points in.
 
-<sub>See also [`types/property-key`](types.md#types-property-key), [`types/erased-member-access`](types.md#types-erased-member-access), [`types/property-key-variance`](types.md#types-property-key-variance). Decided in [0126](../decisions/0126.md), [0036](../decisions/0036.md), [0014](../decisions/0014.md), [0038](../decisions/0038.md), [0274](../decisions/0274.md).</sub>
+<sub>See also [`types/property-key`](types.md#types-property-key), [`types/erased-member-access`](types.md#types-erased-member-access), [`types/property-key-variance`](types.md#types-property-key-variance). Decided in [0126](../decisions/0126.md), [0036](../decisions/0036.md), [0014](../decisions/0014.md), [0274](../decisions/0274.md).</sub>
 
 <a id="types-unions-and-mixed"></a>
 
@@ -1056,7 +1074,7 @@ where it runs.
 condition, which tests any type for truthiness without asking for one. The `(int)` cast syntax
 is not a second spelling — it does not parse at all ([`types/no-legacy-cast`](types.md#types-no-legacy-cast)).
 
-<sub>See also [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/implicit-widening`](types.md#types-implicit-widening), [`types/arithmetic`](types.md#types-arithmetic), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0010](../decisions/0010.md), [0024](../decisions/0024.md), [0028](../decisions/0028.md), [0033](../decisions/0033.md), [0034](../decisions/0034.md), [0047](../decisions/0047.md), [0054](../decisions/0054.md), [0066](../decisions/0066.md), [0125](../decisions/0125.md), [0126](../decisions/0126.md), [0144](../decisions/0144.md), [0237](../decisions/0237.md), [0238](../decisions/0238.md), [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
+<sub>See also [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/implicit-widening`](types.md#types-implicit-widening), [`types/arithmetic`](types.md#types-arithmetic), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0024](../decisions/0024.md), [0028](../decisions/0028.md), [0033](../decisions/0033.md), [0047](../decisions/0047.md), [0054](../decisions/0054.md), [0066](../decisions/0066.md), [0125](../decisions/0125.md), [0126](../decisions/0126.md), [0144](../decisions/0144.md), [0237](../decisions/0237.md), [0238](../decisions/0238.md), [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
 
 <a id="types-no-legacy-cast"></a>
 
@@ -1079,7 +1097,22 @@ keep their ordinary meaning everywhere else, and the rejected form still consume
 `(int) !$x` leaves nothing dangling. `$x as int` is the only conversion spelling
 ([`types/conversion`](types.md#types-conversion)).
 
-<sub>See also [`types/conversion`](types.md#types-conversion). Decided in [0034](../decisions/0034.md), [0007](../decisions/0007.md), [0049](../decisions/0049.md).</sub>
+The cast would have been a second spelling of one operation, which
+[`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name) refuses everywhere: it adds a second thing to teach and a
+second question for every review, and buys nothing once both spellings check and throw alike. `as`
+is the one kept because every other conversion is written that way, `int → uint` included, which
+has no cast. The cost is that a PHP file with a cast anywhere does not parse until each one is
+rewritten to `as`, a mechanical change since the operand and the target are both known from the
+syntax.
+
+**Declined:**
+- **`(int)$x` as a permanent alias for `$x as int`.** It is the second spelling above.
+- **A warning first and the error later.** Every refused PHP construct is a hard error with no warning
+  tier ([`core-api/casing-has-no-suppression`](core-api.md#core-api-casing-has-no-suppression)), and a staged removal would be the one exception.
+- **The cast kept for `array` and `object` only.** Every target has the same `as` spelling, and
+  keeping two of seven has no principled line.
+
+<sub>See also [`types/conversion`](types.md#types-conversion). Decided in [0007](../decisions/0007.md), [0049](../decisions/0049.md).</sub>
 
 <a id="types-type-alias"></a>
 
@@ -1118,7 +1151,7 @@ Aliases are resolved eagerly and a cycle is a diagnostic — `type A = B; type B
 check time rather than left to loop or bottom out at `mixed`. They are non-parametric:
 `type Rows<T> = …` is out of scope while user-defined generics are.
 
-<sub>See also [`types/class-scoped-alias`](types.md#types-class-scoped-alias), [`types/alias-is-never-a-bare-class`](types.md#types-alias-is-never-a-bare-class), [`types/grammar`](types.md#types-grammar), [`types/shape-type`](types.md#types-shape-type). Decided in [0015](../decisions/0015.md), [0007](../decisions/0007.md), [0036](../decisions/0036.md), [0011](../decisions/0011.md), [0190](../decisions/0190.md).</sub>
+<sub>See also [`types/class-scoped-alias`](types.md#types-class-scoped-alias), [`types/alias-is-never-a-bare-class`](types.md#types-alias-is-never-a-bare-class), [`types/grammar`](types.md#types-grammar), [`types/shape-type`](types.md#types-shape-type). Decided in [0015](../decisions/0015.md), [0007](../decisions/0007.md), [0036](../decisions/0036.md), [0011](../decisions/0011.md).</sub>
 
 <a id="types-alias-is-never-a-bare-class"></a>
 
@@ -1186,12 +1219,26 @@ and an enum's alias has nothing to do with its cases.
   order — it exists so the diagnostic for a name that resolves to nothing can say what was looked
   for.
 
-The member costs nothing per request, because nothing about it survives the checker, and one
-alias-table entry per declaration at compile time, keyed by the owner's `QName` and the member name
-rather than by a namespace path — `Ns\Order\Meta` is also the spelling of a class `Meta` in namespace
+The member exists so a type that describes one class's data is named by its owner, as that class's
+constants and methods are, and not by an owner prefix written by hand into a file-scope name
+(`OrderMeta`, `InvoiceMeta`). `nvs meta --json` lists it inside its owner's entry, and the file-scope
+roster holds only file-scope aliases. Its declaration is keyed by the owner's `QName` and the member
+name, never by a namespace path: `Ns\Order\Meta` is also the spelling of a class `Meta` in namespace
 `Ns\Order`, and the two must not share a key.
 
-<sub>See also [`types/type-alias`](types.md#types-type-alias), [`types/alias-is-never-a-bare-class`](types.md#types-alias-is-never-a-bare-class), [`types/shape-type`](types.md#types-shape-type). Decided in [0190](../decisions/0190.md).</sub>
+- **Memory:** nothing per request, because nothing about the member survives the checker and the
+  compiled program is the one the file-scope form produces. At compile time it costs one alias-table
+  entry per declaration, the same entry the file-scope form pays for.
+
+**Declined:**
+- **Aliases at file scope only.** Every program would pay for it with owner prefixes spelled by hand,
+  to save one member kind in the parser.
+- **An owner-scoped alias that is a distinct type from its expansion.** That is a newtype, and an alias
+  is transparent ([`types/type-alias`](types.md#types-type-alias)).
+- **A parametric `type Rows<T> = …` in a body.** It is out of scope at both sites while user-defined
+  generics are ([`types/type-alias`](types.md#types-type-alias)).
+
+<sub>See also [`types/type-alias`](types.md#types-type-alias), [`types/alias-is-never-a-bare-class`](types.md#types-alias-is-never-a-bare-class), [`types/shape-type`](types.md#types-shape-type).</sub>
 
 <a id="types-callable-values"></a>
 

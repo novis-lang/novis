@@ -9,7 +9,7 @@ tree.
 > **Status: pre-alpha.** The language runs: `nvs run` compiles and executes a `.nvs` file, `nvs test`
 > runs the conformance trees, `nvs serve` answers HTTP. Nothing is released — the version is `0.0.1`
 > with no tag behind it — and nothing is stable. Work runs as a chain of numbered goals rather than as
-> a march through milestones; `bun nv orient --full` prints the live one.
+> a march through milestones; `looper orient --full` prints the live one.
 
 ## Where to take what you have
 
@@ -87,7 +87,7 @@ right and the other is a bug — fix it rather than reconciling it in your head.
 everything else:
 
 ```sh
-bun nv orient --full           # where the work stands, one line per module, the rules
+looper orient --full           # where the work stands: the live goal, its handoff and the traps
 bun nv brief --where <word>    # which file owns a topic
 ```
 
@@ -199,16 +199,17 @@ docs/
 ```
 <!-- layout:end -->
 
-`docs/agent/` holds how work is driven here: the [work-loop design](docs/agent/coordinator.md), the
-[per-session prompt](docs/agent/session-prompt.md) and the goals' prose; a goal's record and its
-handoff — live state, overwritten by each session — are under `data/goals/`. The schedule is the goal
-chain, `data/chain.json`, described in [docs/agent/goals/](docs/agent/goals/README.md), not the milestone table: a milestone is an
-identity tag one or more goals carry, so "goal `<slug>`" says what is happening and "M7" does not.
+`docs/agent/` holds how work is driven here: the [work-loop design](docs/agent/coordinator.md) and
+the rules a session follows. The loop itself is looper, an external tool configured by `looper.toml`. A
+goal is one file under [docs/goals/](docs/goals/README.md), and its `## Handoff` is live state,
+overwritten by each session. The schedule is the goal chain, the front matter of `docs/goals/README.md`,
+not the milestone table: a milestone is an identity tag one or more goals carry, so "goal `<slug>`" says
+what is happening and "M7" does not.
 
 The two editor clients are not here yet. When they arrive they sit outside the Cargo workspace — the VS
 Code extension is TypeScript/Node tooling, the PhpStorm plugin is Kotlin/Gradle/IntelliJ Platform
 tooling — and each is a thin client over `nvs-lsp`/`nvs-fmt`, never a second implementation of language
-smarts or formatting ([ADR 0016](docs/decisions/0016.md)).
+smarts or formatting (`rule:ide/one-server-two-thin-clients`).
 
 [`benches/abi-probe`](benches/abi-probe/) is worth knowing about early. Several decisions in `docs/decisions/`
 depend on how Cranelift, `corosensei` and Wasmtime behave rather than on Novis's own code, so a dependency

@@ -9,7 +9,7 @@ A child the program waited for, and a child it killed and never waited for, end 
 // error expectation, so the run has to exit with 0.
 
 string $path = "/bin/cat";
-if (Core\Path::SEPARATOR == "\\") {
+if (Core\Env::OS == "Windows") {
     $path = "C:\\Windows\\System32\\sort.exe";
 }
 

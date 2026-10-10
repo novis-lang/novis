@@ -2,4 +2,4 @@
   nothing and says "unchanged".** `bun nv reference --no-examples` reads `nvs meta --json`
   out of the pipeline's `covws` `nvs` (`NVS_BIN` when it is set), which is true of the binary and false of the tree after a source
   edit. The order is `bun nv verify` (which rebuilds), then regenerate, then `--check`.
-  [until: gone tools/nv/cmd/reference.ts:--no-examples]
+  `until: gone tools/nv/cmd/reference.ts:--no-examples`

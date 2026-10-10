@@ -25,7 +25,7 @@ from a negative one.
 Two cases may carry the same value. Nothing forbids the alias, because equality over an enum is
 value equality and there is no identity for two names to collide on.
 
-<sub>See also [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`enums/one-backing-type`](enums.md#enums-one-backing-type), [`enums/no-case-keyword`](enums.md#enums-no-case-keyword). Decided in [0010](../decisions/0010.md).</sub>
+<sub>See also [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`enums/one-backing-type`](enums.md#enums-one-backing-type), [`enums/no-case-keyword`](enums.md#enums-no-case-keyword).</sub>
 
 <a id="enums-no-case-keyword"></a>
 
@@ -45,7 +45,7 @@ This is deliberately not `E0220` ([`enums/no-class-machinery`](enums.md#enums-no
 enum body belongs somewhere else and is told so; a case belongs exactly where it is written, and
 only its spelling is wrong.
 
-<sub>See also [`enums/declaration`](enums.md#enums-declaration), [`enums/no-class-machinery`](enums.md#enums-no-class-machinery). Decided in [0010](../decisions/0010.md).</sub>
+<sub>See also [`enums/declaration`](enums.md#enums-declaration), [`enums/no-class-machinery`](enums.md#enums-no-class-machinery).</sub>
 
 <a id="enums-closed-integer-type"></a>
 
@@ -67,7 +67,21 @@ The set is closed, and closed means checked: a value no case names never becomes
 or by silent coercion. `EnumName` is its own kind of type atom rather than a class reference, so a
 name that resolves to an enum is not a class name and is never treated as one.
 
-<sub>See also [`enums/declaration`](enums.md#enums-declaration), [`enums/one-backing-type`](enums.md#enums-one-backing-type), [`enums/no-class-machinery`](enums.md#enums-no-class-machinery), [`enums/representation`](enums.md#enums-representation). Decided in [0010](../decisions/0010.md), [0007](../decisions/0007.md), [0008](../decisions/0008.md).</sub>
+A closed set of named values is checked at the same boundary as any other typed input: untrusted
+input becomes a case only through the one throwing `as` every other conversion uses
+([`types/conversion`](types.md#types-conversion)), so there is no second per-enum API for a reviewer or an analyzer to know
+about.
+
+**Declined:**
+- **A case as a singleton object, with methods and interfaces.** It allocates a case and carries
+  identity, methods and interfaces for something an integer and a `match` already do
+  ([`enums/no-class-machinery`](enums.md#enums-no-class-machinery)).
+- **Singleton case objects with no methods and no interfaces.** That keeps the allocation and drops
+  the only features that would pay for it.
+- **A conversion into an enum that always succeeds.** Turning any integer into an enum value, even one
+  no case names, is the silent coercion `as` never performs; a value no case names throws.
+
+<sub>See also [`enums/declaration`](enums.md#enums-declaration), [`enums/one-backing-type`](enums.md#enums-one-backing-type), [`enums/no-class-machinery`](enums.md#enums-no-class-machinery), [`enums/representation`](enums.md#enums-representation). Decided in [0007](../decisions/0007.md), [0008](../decisions/0008.md).</sub>
 
 <a id="enums-one-backing-type"></a>
 
@@ -88,7 +102,7 @@ value's existing payload for nothing ([`enums/representation`](enums.md#enums-re
 The two backings are told apart everywhere the type is. A `uint`-backed case converts with `as uint`
 only, an `int`-backed one with `as int` only, and each refuses the other.
 
-<sub>See also [`enums/declaration`](enums.md#enums-declaration), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`enums/representation`](enums.md#enums-representation). Decided in [0010](../decisions/0010.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`enums/declaration`](enums.md#enums-declaration), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`enums/representation`](enums.md#enums-representation). Decided in [0007](../decisions/0007.md).</sub>
 
 <a id="enums-representation"></a>
 
@@ -111,7 +125,10 @@ integer. The tag names no enum, so two enums with the same backing are not told 
 
 Crossing an isolate boundary copies a plain scalar, with no object identity to preserve or discard.
 
-<sub>See also [`enums/no-class-machinery`](enums.md#enums-no-class-machinery), [`enums/one-backing-type`](enums.md#enums-one-backing-type), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0010](../decisions/0010.md), [0007](../decisions/0007.md), [0006](../decisions/0006.md), [0004](../decisions/0004.md), [0261](../decisions/0261.md).</sub>
+- **Memory:** an enum value costs exactly what its `int` or `uint` costs, in the same payload. Nothing
+  is held per enum, per request or per isolate: no case table, no singleton and no type descriptor.
+
+<sub>See also [`enums/no-class-machinery`](enums.md#enums-no-class-machinery), [`enums/one-backing-type`](enums.md#enums-one-backing-type), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0007](../decisions/0007.md), [0006](../decisions/0006.md), [0004](../decisions/0004.md), [0261](../decisions/0261.md).</sub>
 
 <a id="enums-truthiness"></a>
 
@@ -125,12 +142,14 @@ by `0` is truthy; so is a case backed by a negative value.
 An enum follows the object row of the truthy table rather than the integer row its backing type
 might suggest ([`enums/representation`](enums.md#enums-representation)). A case is a value of its own type, not a number, and
 judging it by its backing integer would make the branch `if ($status)` takes depend on which integer
-a declaration happened to give the case.
+a declaration happened to give the case. It also keeps every ported condition meaning what it
+meant: a PHP enum case is an object, a PHP object is never falsy, so `if ($status)` over a case has
+only ever been true.
 
 Lowering reads this statically: a condition whose static type is an enum needs no truthiness helper
 and no comparison at all.
 
-<sub>See also [`enums/representation`](enums.md#enums-representation), [`enums/no-class-machinery`](enums.md#enums-no-class-machinery), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0035](../decisions/0035.md), [0010](../decisions/0010.md).</sub>
+<sub>See also [`enums/representation`](enums.md#enums-representation), [`enums/no-class-machinery`](enums.md#enums-no-class-machinery), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type).</sub>
 
 <a id="enums-no-class-machinery"></a>
 
@@ -158,9 +177,23 @@ What a program writes for each job:
 | methods, constants, an interface | a class that takes the enum |
 
 Behaviour over an enum lives on some other class as a `static` method taking the enum, because there
-is no standalone-function destination for it to go to.
+is no standalone-function destination for it to go to ([`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants)).
 
-<sub>See also [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`enums/representation`](enums.md#enums-representation), [`enums/no-case-keyword`](enums.md#enums-no-case-keyword), [`enums/reflection`](enums.md#enums-reflection). Decided in [0010](../decisions/0010.md), [0008](../decisions/0008.md), [0011](../decisions/0011.md).</sub>
+A case that is a constant is free to inline. A case that is a heap reference is inlined only once the
+optimiser has proved it immutable.
+
+**Declined:**
+- **`::from()` and `::tryFrom()`.** Building a case from its integer is the checked `as`, one
+  conversion operator rather than a second API on every enum ([`types/conversion`](types.md#types-conversion)).
+- **`->value` and `->name`.** The integer is `as int`, and the name is a `match` or
+  [`enums/reflection`](enums.md#enums-reflection).
+- **A flags enum with `| & ^ ~` on the enum type itself.** Bitwise operators apply to the backing
+  integer only ([`types/arithmetic`](types.md#types-arithmetic)), so flags are combined after `as uint` and converted back
+  with the checked `as`.
+- **Static methods on a class that the checker treats as belonging to the enum.** It is dedicated
+  syntax for what a `static` method taking the enum already does.
+
+<sub>See also [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`enums/representation`](enums.md#enums-representation), [`enums/no-case-keyword`](enums.md#enums-no-case-keyword), [`enums/reflection`](enums.md#enums-reflection). Decided in [0008](../decisions/0008.md), [0011](../decisions/0011.md).</sub>
 
 <a id="enums-reflection"></a>
 
@@ -176,4 +209,4 @@ identity, and nothing that acts on a value. It is a second description of the sa
 type ([`enums/closed-integer-type`](enums.md#enums-closed-integer-type)), not a reopening of [`enums/no-class-machinery`](enums.md#enums-no-class-machinery) — a
 description of a case list is not a `::cases()` the language does not have.
 
-<sub>See also [`enums/no-class-machinery`](enums.md#enums-no-class-machinery), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0019](../decisions/0019.md), [0010](../decisions/0010.md).</sub>
+<sub>See also [`enums/no-class-machinery`](enums.md#enums-no-class-machinery), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0019](../decisions/0019.md).</sub>

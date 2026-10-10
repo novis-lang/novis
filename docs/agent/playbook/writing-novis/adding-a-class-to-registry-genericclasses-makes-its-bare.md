@@ -3,4 +3,4 @@
   consults that roster at every written occurrence, so landed cases that spelled `Core\Db\Rows`
   without a type argument fail with "takes 1 type argument(s), not 0". Before adding a row, grep the
   bare spelling across `tests/`, `examples/` and `docs/spec/` and budget an edit per hit; `Core` has
-  no defaulted type parameter. [until: gone crates/nvs-stdlib/src/registry.rs:GENERIC_CLASSES]
+  no defaulted type parameter. `until: gone crates/nvs-stdlib/src/registry.rs:GENERIC_CLASSES`

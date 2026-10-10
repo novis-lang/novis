@@ -9,8 +9,8 @@
 //              the scope its own `docs/plan/<id>.md` states.
 //   past       a milestone before M9. Everything before M9 is complete, so the tag names owed work
 //              whose carrier has been and gone.
-//   live       the goal `data/chain.json` names live, or the side goal this process runs. Accepted,
-//              because the driver's owner gate (`--closes`) will not let that goal walk while the gap
+//   live       the goal `docs/goals/README.md`'s chain names live, or the side goal this process runs. Accepted,
+//              because the sweep's owner gate (`--closes`) will not let that goal walk while the gap
 //              names it, so the gap cannot outlive its owner.
 //   goal       any other goal. A goal is a schedule rather than an owner: the goal switch deletes it,
 //              and the gap outlives it.
@@ -41,15 +41,13 @@
 // `--untagged-is-an-error`, `--reasons` and `--past-is-an-error` are accepted and do nothing: `--check`
 // refuses all three on its own, and a carried floor check still passes them.
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { liveGoal, sideGoal as runningSideGoal } from "../lib/chain.ts";
+import { goalPlan, liveGoal, sideGoal as runningSideGoal } from "../lib/chain.ts";
 import { ROOT } from "../lib/paths.ts";
 import { load } from "../lib/store.ts";
 import { gap as gapType } from "../schema/gap.ts";
-import { goal as goalType, sideGoal } from "../schema/goal.ts";
 import { milestone as milestoneType } from "../schema/milestone.ts";
-import { playbookBullet } from "../schema/playbook.ts";
 
 export const summary = "who owns each known gap, and the gate over it: nv owners [--check | --closes <slug> | --registers | ...]";
 
@@ -57,6 +55,8 @@ export const summary = "who owns each known gap, and the gate over it: nv owners
 export const FIRST_FUTURE_MILESTONE = 9;
 
 const UNOWNED = "unowned";
+/** The playbook's bullets: one file each, under a directory per section. */
+const PLAYBOOK = "docs/agent/playbook";
 const MILESTONE = /^M(\d+)[A-Z]?$/;
 
 const CARRIED_GAPS = "docs/agent/carried-gaps.md";
@@ -113,7 +113,6 @@ function cmp(a: string, b: string): number {
 /** Sorts every gap into its kind, with the reason for each kind that has more than one. */
 export function classify(found: Gap[]): Kinds {
   // A side goal owns a gap exactly as a chain goal does, and its end gate asks `--closes` of its slug.
-  const goals = new Map([...load(goalType), ...load(sideGoal)].map((g) => [g.id, g.value]));
   const plan = new Map(load(milestoneType).map((m) => [m.id, m.value]));
   const running = new Set([liveGoal()?.slug, runningSideGoal()].filter((s): s is string => !!s));
   const out: Kinds = { live: [], goal: [], milestone: [], past: [], unowned: [], untagged: [], broken: [] };
@@ -140,8 +139,7 @@ export function classify(found: Gap[]): Kinds {
         out.broken.push({ ...gap, why: `milestone ${owner} is done; a gap it did not close is owned by a goal or by nobody` });
       } else out.milestone.push(gap);
     } else {
-      const g = goals.get(owner);
-      if (!g) out.broken.push({ ...gap, why: `no goal \`${owner}\` in data/goals/` });
+      if (goalPlan(owner) === null) out.broken.push({ ...gap, why: `no goal \`${owner}\` in docs/goals/` });
       else if (running.has(owner)) out.live.push(gap);
       else out.goal.push(gap);
     }
@@ -186,6 +184,12 @@ interface Register {
 }
 
 /** The lines of a markdown file that open an entry, per `pattern`. */
+/** One empty owner per playbook bullet file, since a bullet names no owner. */
+function playbookBullets(): string[] {
+  const dirs = readdirSync(join(ROOT, PLAYBOOK), { withFileTypes: true }).filter((d) => d.isDirectory());
+  return dirs.flatMap((d) => readdirSync(join(ROOT, PLAYBOOK, d.name)).filter((f) => f.endsWith(".md")).map(() => ""));
+}
+
 function entryLines(path: string, pattern: RegExp): string[] {
   if (!existsSync(join(ROOT, path))) return [];
   return readFileSync(join(ROOT, path), "utf8").split("\n").filter((l) => pattern.test(l)).map(() => "");
@@ -219,8 +223,7 @@ export function registers(found: Gap[], naming = false): Register[] {
       what: "a spec or migration member `registry::CLASSES` does not declare yet, each key naming its owner in a `#` column" },
     { name: "guard-name-debt.md", where: GUARD_DEBT, names: false, read: () => entryLines(GUARD_DEBT, /^- \[/),
       what: "a guard test a goal record's check names and the tree does not hold yet" },
-    { name: "playbook until", where: "data/playbook/", names: false,
-      read: () => load(playbookBullet).map(() => ""),
+    { name: "playbook until", where: `${PLAYBOOK}/`, names: false, read: playbookBullets,
       what: "a trap whose `until` names the state of the tree that retires it" },
   ];
   return all.filter((r) => !naming || r.names).map(({ names: _, read, ...r }) => ({ ...r, owners: read() }));

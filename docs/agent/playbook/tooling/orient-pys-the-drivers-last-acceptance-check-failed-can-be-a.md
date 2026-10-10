@@ -3,4 +3,4 @@
   across the `## run started` boundary, so a failure repaired at the end of a run is what the next
   run's first session reads. Two calls settle it: `git log --format=%ad --date=iso <the fixing
   commit>` against the `started:` line the pack prints, and running the check's own `argv` by hand.
-  [until: gone tools/nv/cmd/orient.ts:LAST ACCEPTANCE CHECK FAILED]
+  `until: gone tools/nv/cmd/orient.ts:LAST ACCEPTANCE CHECK FAILED`

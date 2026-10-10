@@ -11,7 +11,7 @@
 //! The first child this process starts also starts the watcher, through the
 //! same `std` spawn path every child takes, with no `pre_exec` hook, so a child
 //! start stays a `posix_spawn` and no start waits on another thread. The
-//! watcher is this binary run again with `NVS_INTERNAL_CHILD_WATCHER` set in an otherwise empty
+//! watcher is this binary run again with `WATCHER` in an otherwise empty
 //! environment, in `/`, with null standard output and error. Its standard input
 //! is one end of a Unix socket pair, and this process keeps the other end. `std`
 //! opens both ends close-on-exec and `posix_spawn` duplicates the watcher's end
@@ -29,7 +29,7 @@
 //! still tracks, and exits. A watcher whose parent is already gone when it
 //! starts reads what was sent, ends those children and exits. A watcher started
 //! with anything but a socket on its standard input exits at once, so a program
-//! that sets `NVS_INTERNAL_CHILD_WATCHER` for a child of its own gets no watcher out of it.
+//! that sets `WATCHER` for a child of its own gets no watcher out of it.
 //!
 //! The watcher works in batches. After each turn it sleeps for `BATCH` before
 //! it waits again, and every message and child exit that arrived meanwhile is

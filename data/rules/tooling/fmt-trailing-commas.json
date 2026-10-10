@@ -2,7 +2,6 @@
   "title": "A comma-separated list that spans more than one line gets a trailing comma, and a list on one line never does",
   "status": "shipped",
   "because": [
-    "0039",
     "0267"
   ],
   "seeAlso": [

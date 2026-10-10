@@ -5,4 +5,4 @@
   `crates/nvs-fmt/tests/identity.rs:36` fails on exactly those seven with a diff that prints as
   nothing. Take the break from the text once per file, the way `crates/nvs-fmt/src/brace.rs`'s
   `line_break` does, rather than writing `"\n"` at each site.
-  [until: gone crates/nvs-fmt/src/brace.rs:line_break]
+  `until: gone crates/nvs-fmt/src/brace.rs:line_break`

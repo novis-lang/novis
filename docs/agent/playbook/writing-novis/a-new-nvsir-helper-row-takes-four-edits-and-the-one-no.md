@@ -4,4 +4,4 @@
   `crates/nvs-runtime/src/helpers.rs` is data, so a missing row is a `can't resolve symbol`
   panic out of `cranelift-jit` that only a case reaching the helper sees. Add the registry row
   in the same edit as the variant, and run such a case.
-  [until: gone crates/nvs-codegen/src/emit.rs:fn helper_symbol]
+  `until: gone crates/nvs-codegen/src/emit.rs:fn helper_symbol`

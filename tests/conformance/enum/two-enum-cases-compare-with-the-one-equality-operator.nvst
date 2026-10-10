@@ -1,5 +1,5 @@
 --TEST--
-`==` and `!=` over two cases of one enum answer their backing integers' comparison — `rule:expressions/disjoint-comparison-refused` and `rule:expressions/equality-semantics` and ADR 0010 §§ 3, 5
+`==` and `!=` over two cases of one enum answer their backing integers' comparison — `rule:expressions/disjoint-comparison-refused` and `rule:expressions/equality-semantics` and `rule:enums/no-class-machinery`
 --FILE--
 <?nvs
 // covers: lang:enums/comparing-cases

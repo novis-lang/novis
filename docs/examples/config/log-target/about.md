@@ -1,19 +1,14 @@
-Where the engine writes a failure it had to report itself.
+`[log] target` sets where Novis writes the record of a failure that it reports itself.
 
-When a request goes wrong Novis climbs a short ladder: the program's own last words, then the script
-the deployment named, and at the bottom a floor written into the engine, which records the failure
-with no script involved. This key names where that last record goes — the standard error stream, a
-file, or the system log — and with nothing written it is standard error.
+When a request fails, Novis first runs the program's own error handler. If that does not run, it
+runs the script that `[log] handler` names. If that fails too, Novis writes the record itself.
+`[log] target` is where that record goes.
 
-A service is different. When the service manager starts Novis and this key is not set, the records
-go to `logs/nvs.log` in the data folder. A file target is limited in size by `[log] max_size` and
-`[log] keep`.
+The value is `stderr` (the standard error stream), `file:<path>`, or `syslog`. When the key is not
+set, it is `stderr`. A service that does not set it writes to `logs/nvs.log` in the data folder.
+`[log] max_size` and `[log] keep` limit the size of a file.
 
-Moving it is the operator's alone. A program able to choose where the report of its own failure is
-written could choose somewhere nobody reads, which is the same as never being reported at all.
+Only the person who runs the server can set this key. A program cannot change it. Novis checks
+the value when it reads the configuration file, and a value it does not know is an error.
 
-The spelling is checked when the configuration file is read: the one moment the engine cannot afford
-to complain about its own configuration is the moment it is already reporting a failure.
-
-The example prints the destination on duty and shows a program being turned away from all three
-spellings of it.
+The example prints the target and shows that a program cannot change it.

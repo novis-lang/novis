@@ -2,8 +2,7 @@
 //! on, replacing `posix_*` minus fork, `php_uname`, `getrusage` and
 //! `sys_getloadavg`.
 //!
-//! `rule:core-api/tier-roster` places the class
-//! ([0051](/docs/decisions/0051.md) § 3) and the spec's § 16 row is the member
+//! `rule:core-api/tier-roster` places the class and the spec's § 16 row is the member
 //! list: `pid`, `hostname`, `cpuCount`, `residentBytes`, `loadAverage`. One
 //! member per fact and never one string or one array to take apart, which is
 //! `php_uname`'s and `getrusage`'s migration rows both.

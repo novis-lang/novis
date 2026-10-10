@@ -10,7 +10,10 @@
 // run's scratch directory, and are turned into keys and deleted as soon as that run ends, so the disk
 // holds the counters of at most one pool's width of programs. Every program is judged in one pool before
 // any is recorded in a second, each pool longest first by the time the store noted for that kind of run
-// (`judgeThenRecord`). A recording run that ends differently from the judged run, with another exit
+// (`judgeThenRecord`). Each judged verdict is kept in the store the moment it is final (`judgeKept`), and
+// each recording counts the moment it is written, stamped with the tree (`store.ts`), so a run killed
+// in either pool loses only the programs still running, and a program judged on this tree and not yet
+// recorded is recorded without being judged again. A recording run that ends differently from the judged run, with another exit
 // status or other standard output, may have stopped short of code the judged run reached: the program is marked diverged
 // (`SelectStore.markDiverged`), and the selection picks it every time until a recording run agrees
 // again. A program that is skipped on this host holds its own file alone. The run, green or red, then
@@ -23,7 +26,9 @@
 //
 // A bench is recorded the same way under its own atom, `bench:<path>` (`recordBench`), in one run at its
 // smallest batch, and its verdict is its perf proof's growth. `runBenches` runs the benches a change
-// selects, which `bun nv affected --run` asks for after `nv verify`.
+// selects. `bun nv affected --run` asks it, after `nv verify`, for the ones the change itself reached; the
+// loop asks it for every selected bench, owed and red ones included, whenever its floor gate is open for
+// a goal-end sweep.
 //
 // The selection engine, the crate graph and the recorder are loaded by `engine`, through
 // `loadUnrecorded`: they decide which programs run and what the store remembers, and none of them
@@ -40,7 +45,7 @@ import { read } from "./roster.ts";
 import { cargoLines } from "../lib/progress.ts";
 import { loadUnrecorded, unrecorded } from "../lib/reads.ts";
 import type { Recorder } from "../select/record.ts";
-import type { ChangeSet, Selection } from "../select/select.ts";
+import type { ChangeSet, Selected, Selection } from "../select/select.ts";
 import { type Keyed, SelectStore, type Verdict } from "../select/store.ts";
 import { progress } from "../lib/progress.ts";
 import { type Binary, divergence, HANG_FACTOR, jobsFor, type Pass, type Program, recordingRun, recordName, type Result, type RunOptions, runPrograms, spawnProof, type What } from "./run.ts";
@@ -219,17 +224,21 @@ export async function planBenches(reach: Reach[], judge: (path: string) => Promi
 }
 
 /**
- * Runs every bench the change since the store's tree selects: its perf proof's growth (`growthOf`) on the
- * release `nvs`, as `bun nv scaling --growth` judges it, and then its recording run (`recordBench`) on the
- * covws debug `nvs`, with green when the growth found nothing or only what the bench's `// proof: gap`
- * marker records. The benches are judged in `planBenches`'s order, which skips a bench whose changed
- * items are already proven, and every bench is judged before any is recorded, so no ramp shares the
- * machine with a debug run. A skipped bench keeps its figure, and the tree then moves past the change.
- * With no bench selected, the store is not touched. Returns how many benches the change reached and
- * ran, each skipped one with the benches that proved it, and the red ones, or why the release build
- * failed.
+ * Runs the benches the change since the store's tree selects: every one, or with `only` the selected ones
+ * whose `bench:` id it names or whose selection it accepts. Each is judged by its perf proof's growth (`growthOf`) on the release
+ * `nvs`, as `bun nv scaling --growth` judges it, and then recorded (`recordBench`) on the covws debug
+ * `nvs`, with green when the growth found nothing or only what the bench's `// proof: gap` marker
+ * records. The benches are judged in `planBenches`'s order, which skips a bench whose changed items are
+ * already proven. Each bench is recorded right after it is judged, and one at a time, so no ramp shares
+ * the machine with a debug run and a run stopped part of the way keeps every bench it finished. Each
+ * growth is also kept the moment it is judged, so a bench judged on this tree by a run stopped before
+ * its recording is recorded without being judged again. A skipped bench keeps its figure, and the tree
+ * then moves past the change: a selected bench `only` leaves out is marked owed with the changed items
+ * it was selected for, or kept red. With no bench to run, the store is not touched. Returns how many
+ * benches it chose and ran, each skipped one with the
+ * benches that proved it, and the red ones, or why the release build failed.
  */
-export async function runBenches(say: (line: string) => void = () => {}): Promise<{ reached: number; ran: number; skipped: Map<string, string[]>; red: RedBench[] } | string> {
+export async function runBenches(say: (line: string) => void = () => {}, only?: Set<string> | ((s: Selected) => boolean)): Promise<{ reached: number; ran: number; skipped: Map<string, string[]>; red: RedBench[] } | string> {
   const { advance, benchFiles, benchId, changedItems, computeChange, fullChange, metadata, query, Recorder } = await engine();
   const { DEFAULT_WSL_NVS, growthOf } = await import("../cmd/scaling.ts");
   const { knownGap } = await import("./collect.ts");
@@ -245,7 +254,11 @@ export async function runBenches(say: (line: string) => void = () => {}): Promis
     }
     const all = benchFiles();
     const sel = query(store, change, { discovered: all.map(benchId) });
-    const chosen = all.filter((p) => sel.selected.has(benchId(p)));
+    const named = (s: Selected) => only === undefined || (typeof only === "function" ? only(s) : only.has(s.id));
+    const chosen = all.filter((p) => {
+      const s = sel.selected.get(benchId(p));
+      return s !== undefined && named(s);
+    });
     if (chosen.length === 0) return { reached: 0, ran: 0, skipped: new Map(), red: [] };
     const built = await releaseBinary();
     if (typeof built === "string") return built;
@@ -258,22 +271,32 @@ export async function runBenches(say: (line: string) => void = () => {}): Promis
         const s = sel.selected.get(benchId(path))!;
         return { path, items: changedItems(s) };
       });
-      const plan = await planBenches(reach, async (path) => {
-        say(`benches: ${verdicts.size + 1}/${chosen.length} judging ${path}`);
-        const g = await growthOf(path, opts, true);
-        const green = g.findings.length === 0 || knownGap(read(path)) !== null;
-        verdicts.set(path, green ? "green" : "red");
-        if (!green) red.push({ path, findings: g.findings });
-        return !green;
-      });
       const { nvs } = await buildCovws({ onLine: cargoLines("benches: building the covws debug nvs") });
+      const ran = new Set<string>();
+      // Each bench is recorded as soon as it is judged, so a run stopped part of the way keeps every
+      // verdict it reached, and the next run selects only the benches still owed. Each growth is kept the
+      // moment it is judged, so a run stopped during the recording does not judge it again on this tree.
+      const key = store.judgedKey("bench growth");
+      const plan = await planBenches(reach, async (path) => {
+        const id = benchId(path);
+        let judged = key === null ? null : store.judged<{ green: boolean; findings: string[] }>(id, key);
+        say(`benches: ${verdicts.size + 1}/${chosen.length} ${judged ? "judged on this tree before" : "judging"} ${path}`);
+        if (judged === null) {
+          const g = await growthOf(path, opts, true);
+          judged = { green: g.findings.length === 0 || knownGap(read(path)) !== null, findings: g.findings };
+          if (key !== null) store.putJudged(id, key, judged);
+        }
+        verdicts.set(path, judged.green ? "green" : "red");
+        if (!judged.green) red.push({ path, findings: judged.findings });
+        say(`benches: ${verdicts.size}/${chosen.length} recording ${path}`);
+        await recordBench(rec, nvs, join(rec.dir, "bench"), path, judged.green ? "green" : "red");
+        ran.add(id);
+        return !judged.green;
+      });
       // A skipped bench keeps its recorded footprint, so the tree moves past it too. Only a green bench
       // is skipped, and one an earlier run owed is green again.
-      const ran = new Set([...plan.skipped.keys()].map(benchId));
-      for (const id of ran) store.setVerdict(id, "green");
-      for (const [i, path] of plan.ran.entries()) {
-        say(`benches: ${i + 1}/${plan.ran.length} recording ${path}`);
-        await recordBench(rec, nvs, join(rec.dir, "bench"), path, verdicts.get(path)!);
+      for (const path of plan.skipped.keys()) {
+        store.setVerdict(benchId(path), "green");
         ran.add(benchId(path));
       }
       advance(store, change, sel, ran, graph);
@@ -327,6 +350,29 @@ export async function judgeThenRecord<P extends Program>(
 }
 
 /**
+ * Judges `programs` on `bin` as `runPrograms` does, and keeps each verdict in `store` the moment it is
+ * final, under the tree runs are taken at and the options it was judged with (`SelectStore.judgedKey`).
+ * A program a run judged on this tree and was killed before recording is not judged again: its kept
+ * verdict is used. Recording the program deletes it.
+ */
+export async function judgeKept(store: SelectStore, bin: Binary, programs: Program[], opts: RunOptions): Promise<Pass> {
+  const { proofId } = await engine();
+  const key = unrecorded(() => store.judgedKey(`proof ${opts.valgrind ? "valgrind" : "native"} ${opts.strict ? "strict" : "lenient"}`));
+  const kept = new Map<string, Result>();
+  const todo: Program[] = [];
+  for (const p of programs) {
+    const r = key === null ? null : unrecorded(() => store.judged<Result>(proofId(p.path), key));
+    if (r) kept.set(`${p.what}:${p.path}`, r);
+    else todo.push(p);
+  }
+  if (kept.size > 0) progress(`proofs: ${kept.size} program(s) were judged on this tree by a run that did not record them, so they are not judged again`);
+  const keep = key === null ? {} : { onResult: (p: Program, r: Result) => unrecorded(() => store.putJudged(proofId(p.path), key, r)) };
+  const pass = await runPrograms(bin, todo, { ...opts, ...keep });
+  for (const [k, r] of kept) pass.results.set(k, r);
+  return todo.length > 0 ? pass : { ...pass, width: jobsFor(programs.length) };
+}
+
+/**
  * Runs the programs of `programs` the change selects, all of them with `all`, and records each.
  *
  * A recorded `bun nv proofs` notes only what its verdict reads: each judged program's own files, read
@@ -361,7 +407,7 @@ export async function runSelected(bin: Binary, programs: Program[], opts: RunOpt
     const pass = await judgeThenRecord(
       chosen,
       (p) => took.get(proofId(p.path)),
-      (list) => runPrograms(bin, list, judged),
+      (list) => judgeKept(store, bin, list, judged),
       (width, list, body) => unrecorded(() => pool(list, width, body)),
       async ({ what, path }, result) => {
         const why = await recordProgram(rec, nvs, dir, what, path, result);

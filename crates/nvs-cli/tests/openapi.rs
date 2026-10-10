@@ -391,7 +391,7 @@ fn fixture(stem: &str) -> String {
 /// `base`, `cargo test` runs them on their own threads, and a reader that
 /// catches another thread's `fs::write` half-done gets a truncated document and
 /// a diff that reports nothing — which is a flake in exactly the cases the
-/// goal records under `data/goals/` name as acceptance checks. The counter is what stops two
+/// goal files under `docs/goals/` name as acceptance checks. The counter is what stops two
 /// calls sharing a path at all; the documents are byte-identical either way, so
 /// nothing about what is compared changes.
 fn document(stem: &str) -> std::path::PathBuf {

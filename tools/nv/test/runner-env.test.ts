@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { Check } from "../driver/accept.ts";
-import { commandEnv } from "../driver/runner.ts";
+import type { Check } from "../accept/accept.ts";
+import { commandEnv } from "../accept/runner.ts";
 import { covwsNvs } from "../lib/covws.ts";
 
 const check = (over: Partial<Check>): Check => ({ id: "c", kind: "command", stage: 1, ...over });

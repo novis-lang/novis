@@ -2,8 +2,7 @@
   "title": "`Core\\Metrics` is three verbs for three kinds, always present, and accumulates whether or not an exporter is built",
   "status": "shipped",
   "because": [
-    "0076",
-    "0051"
+    "0076"
   ],
   "seeAlso": [
     "observability/a-name-is-fixed-to-one-kind",

@@ -31,7 +31,7 @@ import {
   testExecutables,
   tiers,
   withSetups,
-} from "../driver/accept.ts";
+} from "../accept/accept.ts";
 
 const check = (over: Partial<Check>): Check => ({ id: "c", kind: "command", stage: 1, ...over });
 const ok = (out = "", err = "") => ({ code: 0, out, err });

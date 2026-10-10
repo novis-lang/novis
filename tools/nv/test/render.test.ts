@@ -1,10 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { NUMBER_CITE } from "../cmd/chain.ts";
-import { chainGoals, liveGoal } from "../lib/chain.ts";
 import { ROOT } from "../lib/paths.ts";
-import { GOAL_PLAN, renderGoalPlan } from "../renderers/goal-plan.ts";
 import { apply, fill, lf, markdown, MARKER, orphans, removeOrphans, type Output } from "../lib/render.ts";
 import { coreMembers, specTables } from "../renderers/spec-tables.ts";
 import { recordFiles, SCHEMA_DIR } from "../lib/store.ts";
@@ -86,18 +83,6 @@ describe("render", () => {
     expect(parseSignature("not a signature")).toBeNull();
   });
 
-
-  test("the goal plan lists every goal in chain order, marks the live one, and names none by its number", () => {
-    const goals = chainGoals();
-    const live = liveGoal(goals);
-    const plan = renderGoalPlan(ROOT);
-    expect(plan.path).toBe(GOAL_PLAN);
-    expect(plan.text.split("\n", 1)[0]).toBe(`<!-- ${MARKER} -->`);
-    const rows = [...plan.text.matchAll(/^\| (\d+) \| \[?`([^`]+)`/gm)].map((m) => [Number(m[1]), m[2]]);
-    expect(rows).toEqual(goals.map((g) => [g.num, g.slug]));
-    if (live) expect(plan.text).toContain(`\`${live.slug}\` is live at ${live.num} of ${goals.length}`);
-    expect(plan.text.match(NUMBER_CITE)).toBeNull();
-  });
 
   test("every record type has a JSON Schema under data/schema/, which no record walk reads", () => {
     const outputs = renderRecordSchemas();

@@ -45,7 +45,7 @@ projections of data the tree already holds rather than features built on it: `se
 `SyntaxIndex`'s ancestor list *is* the response), `foldingRange` and `documentLink`. Plus exactly **two
 code actions**, admitted because their replacement text already sits in `Diagnostic::suggestions`: the
 casing fix ([0029](../decisions/0029.md)/[0030](../decisions/0030.md))
-and `(int)$x` → `$x as int` ([0034](../decisions/0034.md)). Beside the nine standard
+and `(int)$x` → `$x as int` (`rule:types/no-legacy-cast`). Beside the nine standard
 requests sits exactly **one of Novis's own**, `nvs/redactions`, answering the ranges the editor conceals —
 a literal or interpolation slot whose static type carries `secret`
 ([0101](../decisions/0101.md) §§ 1–2). It is

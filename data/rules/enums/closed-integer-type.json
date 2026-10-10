@@ -2,7 +2,6 @@
   "title": "An enum declares a new, closed, named integer type",
   "status": "shipped",
   "because": [
-    "0010",
     "0007",
     "0008"
   ],

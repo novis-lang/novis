@@ -124,8 +124,7 @@ const CARD: ClassDoc = ClassDoc {
 /// back out, in that order.
 ///
 /// The roster is this module's own rather than the spec's: § 13's row names the
-/// class and no member, so `docs/agent/goals/` is where it was decided and each
-/// row's reference card is what documents it.
+/// class and no member, so each row's reference card is what documents it.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),

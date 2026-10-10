@@ -3,4 +3,4 @@
   it and nothing local noticed: `cargo build --all-targets`, `nv verify` and clippy all compile the
   file with the module cfg'd out. When a job whose name mentions the feature fails to compile a file
   that has been green for months, check the module's own `use` list first.
-  [until: gone benches/abi-probe/tests/perf_guards.rs:wasm_guards]
+  `until: gone benches/abi-probe/tests/perf_guards.rs:wasm_guards`

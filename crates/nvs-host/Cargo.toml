@@ -36,13 +36,13 @@ nvs-render.workspace = true
 corosensei.workspace = true
 core_affinity.workspace = true
 # Readiness, one contract over epoll/kqueue/AFD. Not an async runtime — the
-# workspace `Cargo.toml`'s comment above this dependency answers ADR 0051 § 4's
+# workspace `Cargo.toml`'s comment above this dependency answers `rule:packaging/a-c-dependency-answers-two-questions`'s
 # two questions, and ADR 0115 § 1 says why a poller is not a `tokio`.
 mio.workspace = true
 # TLS, as a wrapper over the stream above rather than a transport beside it —
 # `src/tls.rs` is the whole of it and its module doc owns the trust anchor
 # decision. The workspace `Cargo.toml`'s comment above these two answers
-# ADR 0051 § 4, including the part that is spent rather than met.
+# `rule:packaging/a-c-dependency-answers-two-questions`, including the part that is spent rather than met.
 rustls.workspace = true
 webpki-roots.workspace = true
 # ADR 0180 § 11's `tlsPin`, which is the SHA-256 of the peer's

@@ -4,4 +4,4 @@
   written in one slice and first used in the next never gets through. Land the macro with its first
   real call site in the same slice — for `guarded_by!` that meant closing one refusal site and
   lowering `crates/nvs-ir/tests/refusals.rs`'s `CEILING` alongside it.
-  [until: gone crates/nvs-ir/tests/refusals.rs:CEILING]
+  `until: gone crates/nvs-ir/tests/refusals.rs:CEILING`

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { sweepTestFilters } from "../driver/runner.ts";
+import { sweepTestFilters } from "../accept/runner.ts";
 import type { Graph, Target } from "../keys/graph.ts";
 
 const target = (kind: string, name: string): Target => ({ kind, name, src: `${name}.rs`, test: true });

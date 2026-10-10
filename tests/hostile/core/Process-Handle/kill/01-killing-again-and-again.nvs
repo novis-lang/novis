@@ -9,7 +9,7 @@ class Attack
     // On Windows, `cmd.exe` prints its own file in a loop. An `echo` loop there is too slow.
     public static function endless(): Core\Process\Handle
     {
-        if (Core\Path::SEPARATOR == "\\") {
+        if (Core\Env::OS == 'Windows') {
             return Core\Process::spawn(
                 "C:\\Windows\\System32\\cmd.exe",
                 ['/c', 'for /l %i in (0,0,1) do @type C:\\Windows\\System32\\cmd.exe'],
@@ -21,7 +21,7 @@ class Attack
     // A program that prints one word and ends at once.
     public static function short(): Core\Process\Handle
     {
-        if (Core\Path::SEPARATOR == "\\") {
+        if (Core\Env::OS == 'Windows') {
             return Core\Process::spawn("C:\\Windows\\System32\\cmd.exe", ['/c', 'echo', 'short']);
         }
         return Core\Process::spawn('/bin/echo', ['short']);

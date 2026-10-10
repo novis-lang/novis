@@ -3,4 +3,4 @@
   bare message and `take_thrown` promotes it through the context's error class. A *named* failure
   needs one installed first (`ClassTable::define("Throwable", &["message", "previous", "backtrace",
   "location"], &[])` plus `set_runtime_error_class`); without one `take_thrown` answers a null
-  `Thrown`. [until: gone crates/nvs-runtime/src/ctx/error.rs:set_runtime_error_class]
+  `Thrown`. See `crates/nvs-runtime/src/ctx/error.rs`. `until: gone crates/nvs-runtime/src/ctx/error.rs:set_runtime_error_class`

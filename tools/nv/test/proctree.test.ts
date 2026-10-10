@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { descendants, type Proc, processTable, screen, startedAt, Tree } from "../driver/proctree.ts";
+import { descendants, type Proc, processTable, screen, startedAt, Tree } from "../lib/proctree.ts";
 import { run } from "../lib/proc.ts";
 
 const WIN = process.platform === "win32";

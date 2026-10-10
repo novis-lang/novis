@@ -3,4 +3,4 @@
   all (`crates/nvs-runtime/src/graph.rs:20`); `crates/nvs-stdlib/src/json.rs:817` guards its array arm
   only because an **object** inside that array puts the same allocation back on the path. Audit a
   walker by asking whether it ever descends into an object, not whether it descends into a container.
-  [until: gone crates/nvs-runtime/src/graph.rs:copy-on-write storage]
+  `until: gone crates/nvs-runtime/src/graph.rs:copy-on-write storage`

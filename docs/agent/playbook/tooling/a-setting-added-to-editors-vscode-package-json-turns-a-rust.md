@@ -4,4 +4,4 @@
   so a contribution that lands in the manifest and the headless suite alone fails the whole cargo
   gate on a change that touched no Rust. Add the table row in the same slice and then run `bun nv
   reference`, because that chapter is one of `docs/novis.md`'s sources and `--check` over it
-  is an acceptance check of its own. [until: gone crates/nvs-lsp/tests/extension_reference.rs]
+  is an acceptance check of its own. `until: gone crates/nvs-lsp/tests/extension_reference.rs`

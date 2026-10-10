@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { free, held, linked, sweep } from "../lib/relink.ts";
+import { free, held, linked, pinned, sweep } from "../lib/relink.ts";
 import { scratch } from "./scratch.ts";
 
 test("a held binary is cargo's remove failure naming that binary, and nothing else", () => {
@@ -41,6 +41,32 @@ test("linked retries a build once after moving a held binary aside, and never re
     calls = 0;
     const other = await linked(exe, async () => ({ code: (calls++, 101), err: "error[E0308]: mismatched types" }), (r) => r.err);
     expect([other.code, calls]).toEqual([101, 1]);
+  } finally {
+    s.cleanup();
+  }
+});
+
+test("pinned links one copy per build, keeps it when the original moves, and deletes an older copy nobody claims", () => {
+  const s = scratch();
+  try {
+    s.put("nvs.exe", "one");
+    const exe = join(s.root, "nvs.exe");
+    const first = pinned(exe);
+    expect(pinned(exe)).toBe(first);
+    expect(free(exe)).not.toBeNull();
+    expect(readFileSync(first, "utf8")).toBe("one");
+    s.put("nvs.exe", "build two");
+    s.put("nvs-run-old.exe", "abandoned");
+    s.put("nvs-run-old.exe.claim-999999999", "");
+    s.put("nvs-run-kept.exe", "running");
+    s.put(`nvs-run-kept.exe.claim-${process.pid}`, "");
+    const second = pinned(exe);
+    expect(second).not.toBe(first);
+    expect(readFileSync(second, "utf8")).toBe("build two");
+    expect(existsSync(join(s.root, "nvs-run-old.exe"))).toBe(false);
+    expect(existsSync(join(s.root, "nvs-run-old.exe.claim-999999999"))).toBe(false);
+    expect(existsSync(join(s.root, "nvs-run-kept.exe"))).toBe(true);
+    expect(existsSync(first)).toBe(true);
   } finally {
     s.cleanup();
   }

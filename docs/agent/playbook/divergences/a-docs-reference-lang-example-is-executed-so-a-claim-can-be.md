@@ -3,4 +3,4 @@
   fence after it; ` ```nvs error ` is the fence for a program that must fail `nvs check`, its
   `output` block a substring of the diagnostic. A chapter edit therefore means `bun nv reference`
   to regenerate `docs/novis.md` in the same slice, or the generator's `--check` fails the verify.
-  [until: gone tools/nv/cmd/reference.ts:--check]
+  `until: gone tools/nv/cmd/reference.ts:--check`

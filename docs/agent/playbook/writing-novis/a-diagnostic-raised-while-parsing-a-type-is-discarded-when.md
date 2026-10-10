@@ -4,4 +4,4 @@
   refusal from `parse_type_atom` is dropped and the reader gets `expected an expression` instead.
   Write its fixture in a parameter, property or `type` alias, and collect it with
   `check_src_allowing_parse_errors`.
-  [until: gone crates/nvs-syntax/src/parser/stmt.rs:cp.diags_len]
+  `until: gone crates/nvs-syntax/src/parser/stmt.rs:cp.diags_len`

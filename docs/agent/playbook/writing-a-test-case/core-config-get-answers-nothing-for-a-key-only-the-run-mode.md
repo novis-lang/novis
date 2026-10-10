@@ -4,4 +4,4 @@
   while `mode::DERIVED` is applied by whoever reads the key — so `debug.inline` answers nothing in
   a checkout whose mode has it `false`. Give such an example a `?? '(nothing, so the mode decides)'`
   fallback, or write the key in `nvs.toml` the way `[debug] keep_temporary` is written.
-  [until: gone crates/nvs-config/src/mode.rs:DERIVED]
+  `until: gone crates/nvs-config/src/mode.rs:DERIVED`

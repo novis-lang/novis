@@ -4,4 +4,4 @@
   regenerate; `cargo deny`'s `[graph] all-features = true` license-checks every crate that reaches
   `Cargo.lock`, optional ones no target builds included. Run `cargo deny check`, or read the new
   licences with `cargo metadata --format-version 1 --all-features` against `deny.toml`'s `allow`
-  list, before CI does. [until: gone deny.toml:all-features = true]
+  list, before CI does. `until: gone deny.toml:all-features = true`

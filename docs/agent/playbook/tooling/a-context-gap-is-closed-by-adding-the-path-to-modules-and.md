@@ -3,4 +3,4 @@
   name a fixture, a tool or a `.nvst` case there, while a key the loader does not know is silently
   nothing at all. Add the path with `bun nv goal context --add <path>`, or put it in a
   `[context.stage.N] modules` overlay when only one stage reads it.
-  [until: gone tools/nv/cmd/orient.ts:any tracked file resolves]
+  `until: gone tools/nv/cmd/pack.ts:any tracked file resolves`

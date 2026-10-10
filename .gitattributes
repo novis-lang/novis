@@ -1,3 +1,10 @@
+# looper:begin gitattributes v1
+* text=auto eol=lf
+*.ps1 text eol=crlf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+# looper:end gitattributes
+
 # Normalise to LF in the repository and in working copies on every platform.
 #
 # This is not cosmetic. Novis's conformance tests (`.nvst`) compare program output

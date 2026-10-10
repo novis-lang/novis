@@ -2,8 +2,7 @@
   "title": "One name has one signature, and two behaviours need two names",
   "status": "shipped",
   "because": [
-    "0063",
-    "0051"
+    "0063"
   ],
   "seeAlso": [
     "core-api/verb-lexicon",

@@ -3,4 +3,4 @@
   build's larger frames overflow its 1 MiB main-thread stack one level past that, so the probe prints
   `has overflowed its stack` and no diagnostic. Probe a nesting limit with `target/release/nvs.exe`,
   which `parser::MAX_RECURSION_DEPTH`'s own doc comment now says.
-  [until: gone crates/nvs-syntax/src/parser/mod.rs:This bounds the parse, not the stack a build runs it]
+  `until: gone crates/nvs-syntax/src/parser/mod.rs:This bounds the parse, not the stack a build runs it`

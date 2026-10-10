@@ -52,7 +52,7 @@ foreach ($corp->search($either, {select: ["userAccountControl", "groupType", "sA
 echo "some machines: ", $machines > 0 ? "yes" : "no", "\n";
 echo "account type agrees with flags: ", $typeAgrees ? "yes" : "no", "\n";
 echo "readers agree with bits: ", $readersAgree ? "yes" : "no", "\n";
-// covers: Core\Ldap\Entry::accountType, Core\Ldap\Entry::accountFlags, Core\Ldap\Entry::groupType
+// covers: Core\Ldap\Entry::accountType, Core\Ldap\Entry::accountFlags, Core\Ldap\Entry::groupType, Core\Ldap\Ad\AccountType
 --COPY--
 ../../db/ca.crt
 --FILE nvs.toml--

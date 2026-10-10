@@ -1,13 +1,12 @@
 // `bun nv audit goals | checks | eol | ci | python`: what the cutover must leave behind, each as one
-// yes-or-no over the tree (the goal's § *Stage 9*, § *Stage 11* and § *Stage 12*). With no argument it
-// runs every audit.
+// yes-or-no over the tree. With no argument it runs every audit.
 //
-//   goals   no tracked goal file is named `N-<slug>`, and no copy of a goal's files is tracked: the
-//           driver's `docs/agent/loop-goal.*`, `docs/agent/handoff.md`, and a goal's `.toml` or
-//           `.handoff.md` beside its prose. The goal's record under `data/goals/` is its one home.
-//   checks  no check a goal record or the driver's toml holds runs Python, and the old name of the
-//           feature proofs is in no check's name or `argv`, no directive line and no tracked file
-//           under `tools/`, by path or by text.
+//   goals   no tracked goal file is named `N-<slug>`, and no copy of a goal's files is tracked: the old
+//           driver's `docs/agent/loop-goal.*`, `docs/agent/handoff.md`, and any file under its
+//           `docs/agent/goals/`. The goal's file under `docs/goals/` is its one home.
+//   checks  no check a goal file holds runs Python, and the old name of the feature proofs is in no
+//           check's name or `argv`, no directive line and no tracked file under `tools/`, by path or by
+//           text.
 //   eol     every tracked text file is LF in the index.
 //   ci      no workflow step runs `python tools/...`, no git hook calls Python outside a comment, and the
 //           website's own sync scripts are gone, because `bun nv render --website` writes their data.
@@ -15,28 +14,24 @@
 //           engine's workload rather than a tool. No document that describes the present names a Python
 //           tool, as a `tools/<x>.py` path or as a tool's bare `<x>.py`, or cites a home the cutover
 //           deleted (`LEGACY`), as a link, in backticks or as plain text; and no record under `data/`
-//           does either. What describes the past is not read: decision records and their records under
-//           `data/decisions/`, `CHANGELOG.md` and the live goal's prose.
+//           does either. What describes the past is not read: decision records, `CHANGELOG.md` and the
+//           live goal's prose.
 //
 // A passing audit prints its `audit:` lines. A failing one prints a count and every offender under it,
 // and exits 1. An unknown audit name exits 2.
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { parse as parseToml } from "smol-toml";
-import { liveGoal } from "../lib/chain.ts";
+import { goalPaths, goalPlan, liveGoal } from "../lib/chain.ts";
 import { indexEol, tracked } from "../lib/git.ts";
 import { OLD, ROOT } from "../lib/paths.ts";
-import { load } from "../lib/store.ts";
-import { goal, sideGoal } from "../schema/goal.ts";
 
 export const summary = "what the cutover must leave behind: nv audit [goals | checks | eol | ci | python]";
 
 const OLD_RE = new RegExp(OLD, "i");
 const DIRECTIVE_RE = new RegExp(`^\\s*(?://|#)\\s*${OLD}\\s*:`, "im");
 
-const GOALS = "docs/agent/goals/";
-const DRIVER_TOML = "docs/agent/loop-goal.toml";
+const OLD_GOALS = "docs/agent/goals/";
 
 /** What one audit found: the line it prints when it passes, and each offender when it does not. */
 export interface Finding {
@@ -47,21 +42,16 @@ export interface Finding {
 
 /** Tracked goal files whose name starts with a position. */
 export function numberedGoalFiles(paths: string[]): string[] {
-  return paths.filter((p) => (p.startsWith(GOALS) || p.startsWith("data/goals/")) && /^\d+-/.test(p.slice(p.lastIndexOf("/") + 1)));
+  return paths.filter((p) => p.startsWith("docs/goals/") && /^\d+-/.test(p.slice(p.lastIndexOf("/") + 1)));
 }
 
-/** Tracked copies of what a goal's record now holds. */
+/** Tracked copies of what a goal file now holds: the old driver's files, and anything under its goals directory. */
 export function goalCopies(paths: string[]): string[] {
-  return paths.filter(
-    (p) =>
-      p.startsWith("docs/agent/loop-goal.") ||
-      p === "docs/agent/handoff.md" ||
-      (p.startsWith(GOALS) && (p.endsWith(".toml") || p.endsWith(".handoff.md"))),
-  );
+  return paths.filter((p) => p.startsWith("docs/agent/loop-goal.") || p === "docs/agent/handoff.md" || p.startsWith(OLD_GOALS));
 }
 
 export interface CheckLine {
-  /** Where the check is written: a record's path, or the driver's toml. */
+  /** Where the check is written: its goal file's path. */
   where: string;
   name: string;
   argv: string[];
@@ -97,18 +87,11 @@ export function crlfFiles(rows: { path: string; eol: string }[]): string[] {
   return rows.filter((r) => r.eol === "crlf" || r.eol === "mixed").map((r) => `${r.path}: ${r.eol}`);
 }
 
-/** Every check a goal or side goal record holds, and every one the driver's toml holds while it is on disk. */
+/** Every check a goal file holds, on the chain or off it. */
 export function allChecks(root: string = ROOT): CheckLine[] {
   const out: CheckLine[] = [];
-  for (const type of [goal, sideGoal]) {
-    for (const g of load(type, root)) {
-      for (const c of g.value.checks) out.push({ where: g.path, name: c.name ?? c.id, argv: [...(c.argv ?? []), ...(c.args ?? [])] });
-    }
-  }
-  const toml = join(root, DRIVER_TOML);
-  if (existsSync(toml)) {
-    const doc = parseToml(readFileSync(toml, "utf8")) as { check?: { name?: string; argv?: string[]; args?: string[] }[] };
-    for (const c of doc.check ?? []) out.push({ where: DRIVER_TOML, name: c.name ?? "", argv: [...(c.argv ?? []), ...(c.args ?? [])] });
+  for (const [slug, path] of goalPaths(root)) {
+    for (const c of goalPlan(slug, root)?.checks ?? []) out.push({ where: path, name: c.name ?? c.id, argv: [...(c.argv ?? []), ...(c.args ?? [])] });
   }
   return out;
 }
@@ -191,8 +174,6 @@ async function auditCi(): Promise<Finding[]> {
 const PY_WORKLOAD = "benches/userland/";
 /** Documents that are history: frozen records, and a changelog written from `git log`. */
 const HISTORY = ["docs/decisions/", "CHANGELOG.md"];
-/** Records that are history: a decision's record is as frozen as its prose. */
-const RECORD_HISTORY = ["data/decisions/"];
 /** Scratch, never a document. */
 const SCRATCH = ".agent-tmp/";
 
@@ -208,7 +189,7 @@ export function strayPython(paths: string[]): string[] {
 export const RENAMED_TOOLS = [OLD, "check-links", "guard-read"];
 
 /**
- * The homes the cutover deleted, each as a pattern over a citation of it: the driver's copies of the live
+ * The homes the cutover deleted, each as a pattern over a citation of it: the old driver's copies of the live
  * goal, the handoff file, the decision and rule indexes, the TOML data under `tools/data/`, the generated
  * goals' directory and a goal file named by its position, the website's sync scripts and their npm
  * names, and the Python driver's memo. Each is gone, so a line naming one describes the past.
@@ -256,16 +237,16 @@ export function docNamingPython(path: string, text: string, re: RegExp): string 
 export function currentDocs(paths: string[], live: string | null): string[] {
   return paths.filter((p) => {
     if (!p.endsWith(".md") || p.startsWith(SCRATCH) || HISTORY.some((h) => p === h || (h.endsWith("/") && p.startsWith(h)))) return false;
-    return p !== `docs/agent/goals/${live}.md`;
+    return p !== `docs/goals/${live}.md`;
   });
 }
 
 /**
- * The tracked records under `data/` that describe the present: all but the decisions'. The live goal's
- * records are read, since they are its state now.
+ * The tracked records under `data/`, which all describe the present. The live goal's records are read,
+ * since they are its state now.
  */
 export function currentRecords(paths: string[]): string[] {
-  return paths.filter((p) => p.startsWith("data/") && p.endsWith(".json") && !RECORD_HISTORY.some((h) => p.startsWith(h)));
+  return paths.filter((p) => p.startsWith("data/") && p.endsWith(".json"));
 }
 
 async function auditPython(): Promise<Finding[]> {

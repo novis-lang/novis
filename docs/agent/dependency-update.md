@@ -26,7 +26,7 @@ Read the version in [Cargo.toml](../../Cargo.toml)'s `[workspace.package]`.
 ## 1. Orient
 
 ```sh
-bun nv orient --full                      # where the run and the work stand, one line per module
+looper orient --full                      # where the run and the work stand
 git status                                # start clean; a sweep never rides on top of unrelated work
 cargo update --dry-run                    # what would move inside the declared ranges
 cargo tree --duplicates                   # multiple-versions warnings that a bump might fix or create
@@ -81,7 +81,7 @@ cargo test --release -p nvs-abi-probe --features wasm-probe    # wasmtime moved
 
 **C. If codegen, the runtime or the stdlib moved** — the end-to-end legs, both platforms plus the leak sweep.
 `bun nv affected` names them as heavy checks the floor gate runs, and the loop's next open floor gate
-runs them. The Linux leg and the leak sweep have no `bun nv` command yet: `tools/nv/driver/accept.ts`'s "Not here
+runs them. The Linux leg and the leak sweep have no `bun nv` command yet: `tools/nv/accept/accept.ts`'s "Not here
 yet" list names them.
 
 **D. If a lexer/parser-adjacent crate moved:**

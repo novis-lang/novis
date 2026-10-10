@@ -15,11 +15,11 @@
 // will actually see**, never fewer than two, never more than there are items to run, and never more
 // than free memory divided by what one worker was measured to hold.
 //
-// Half, and not more, because the machine is not idle. The loop starts a background release build
-// before the valgrind sweep and lets the two overlap deliberately -- that build is the longest pole of
+// Half, and not more, because the machine is not idle. The acceptance sweep starts a background release
+// build before the valgrind sweep and lets the two overlap deliberately -- that build is the longest pole of
 // an acceptance check, and cores handed to the sweep come straight out of it. The sweep's own scaling
 // flattens well before the box is full, so three quarters would buy little of a check the build already
-// dominates. `docs/agent/coordinator.md` holds the measurement.
+// dominates.
 //
 // The floor of two is for small boxes: a 4-core runner still halves its sweep, and only a genuinely
 // single-core machine runs anything serially.

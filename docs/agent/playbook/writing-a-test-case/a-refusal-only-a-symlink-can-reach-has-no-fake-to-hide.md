@@ -4,4 +4,4 @@
   takes no resolver, and Windows will not create a link without the privilege. Create the real one,
   return with a printed reason where the host refuses, and prove the assertions run once under
   `wsl.exe -- bash -lc 'CARGO_TARGET_DIR=/var/tmp/nvs-target-wsl cargo test …'`.
-  [until: gone crates/nvs-runtime/src/capability.rs:resolve::Disk]
+  `until: gone crates/nvs-runtime/src/capability.rs:resolve::Disk`

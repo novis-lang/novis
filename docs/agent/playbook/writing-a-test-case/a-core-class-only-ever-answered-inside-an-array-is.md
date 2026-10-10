@@ -3,4 +3,4 @@
   member to the class it builds from `CoreTy::Instance` and `InstanceAt` alone, so a row class
   reached through `array<PropertyInfo>` holds a case only where the case spells its qualified name.
   Write that name in — a typed `foreach ($roster as Core\Reflect\PropertyInfo $row)` does it.
-  [until: gone crates/nvs-stdlib/tests/corpus/mod.rs:CoreTy::Instance(made)]
+  `until: gone crates/nvs-stdlib/tests/corpus/mod.rs:CoreTy::Instance(made)`

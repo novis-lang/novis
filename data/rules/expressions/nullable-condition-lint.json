@@ -2,8 +2,7 @@
   "title": "A `?T` used directly as a condition is warned about, not refused",
   "status": "designed",
   "because": [
-    "0066",
-    "0035"
+    "0066"
   ],
   "seeAlso": [
     "expressions/nullable-conversion",

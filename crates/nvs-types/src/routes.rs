@@ -1685,9 +1685,8 @@ fn capture_of(segment: &str) -> Result<Option<Capture<'_>>, Refusal> {
 /// path § 2's grammar does not admit.
 ///
 /// The **only** reading of a path outside [`parse_path`], and deliberately over
-/// [`capture_of`] rather than beside it: `docs/agent/goals/core-depth.md`
-/// § *Standing decisions* makes a fold and its runtime path one implementation,
-/// so `Core\Router::url`'s substitution is handed a path already split by § 2's
+/// [`capture_of`] rather than beside it: a fold and its runtime path are one
+/// implementation, so `Core\Router::url`'s substitution is handed a path already split by § 2's
 /// own grammar and never a second parser of it. A row in the table is always
 /// `Some` — [`collect_route`] drops a path that refused — so the option exists
 /// for the caller that has not been through that gate rather than for a state a

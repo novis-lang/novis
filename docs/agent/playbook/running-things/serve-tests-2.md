@@ -3,4 +3,4 @@
   unit is owed (`crates/nvs-cli/src/serve.rs:3913`), so a fifth message from a binary running beside
   it reads as a broken shutdown in whatever the session just touched. Re-run that one test on its
   own before treating a red `test` step as a regression, and re-run `bun nv verify`, which
-  re-runs only the step that failed. [until: gone crates/nvs-cli/src/serve.rs:sd_notify_messages]
+  re-runs only the step that failed. `until: gone crates/nvs-cli/src/serve.rs:sd_notify_messages`

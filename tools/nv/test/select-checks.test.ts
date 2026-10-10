@@ -3,7 +3,7 @@
 // set's named prediction.
 
 import { describe, expect, test } from "bun:test";
-import type { Check } from "../driver/accept.ts";
+import type { Check } from "../accept/accept.ts";
 import type { Graph, Package } from "../keys/graph.ts";
 import { checkDef, commandKeys, grouped, harnessArgs, heavyCrates, heavyKeys, heavyTwin, legAtoms, type PlanContext, planContext, predicted, twinWork } from "../select/checks.ts";
 import { featureGroup, proofReadsSlot, SelectStore } from "../select/store.ts";

@@ -1,8 +1,8 @@
 # Commands — how this repository is driven
 
 Everything an agent runs, and the two rules about *how* to run it that have cost real sessions real time.
-[AGENTS.md](../../AGENTS.md) points here rather than keeping a copy; `bun nv orient` prints the short
-form of the two rules at the top of every loop session.
+[AGENTS.md](../../AGENTS.md) points here rather than keeping a copy, and states the short form of the two
+rules in every session.
 
 ## A shell never carries file content into the tree
 
@@ -22,13 +22,12 @@ A `grep`/`sed -n` through a shell is allowed where it is genuinely shaped better
 retry rather than a silent wrong edit.
 
 **What you read is the budget, so read a big file in the region you need.** A loop session must finish
-under a fixed **200k** of context, and `bun nv orient` is built to start it at well under 20k. One
+under a fixed **200k** of context, and `looper orient` starts it on a pack scoped to the live goal. One
 `cat` of a 1,100-line module spends a tenth of the remaining budget in a single call. So: whole file when
 it is small (roughly under 400 lines, or when you will touch most of it), otherwise `grep -n` for the
 anchor and read the region around it. This is the one place turn economy and context economy pull against
 each other, and context is the constraint that degrades the work rather than merely slowing it.
-`bun nv loop-stats` prints where the last sessions actually landed, and
-`bun nv loop-stats --attribute` prints which *reads* put them there.
+`looper log <session>` prints one session's events, which is where it landed and what it read.
 
 Use a shell for what it is for — `cargo`, `git`, `bun nv`, `wsl.exe`. When one of those
 needs a multi-line argument, put the text in a file with the Write tool and pass the path: `git commit -F
@@ -50,33 +49,25 @@ patch costs a Write plus a call, so it only wins from three. Past that it wins b
 them**, in runs of up to 17, and each of those runs was one decision the model had already made, spent one
 round trip at a time. That is the same saving `bun nv peek` takes on the read side, for the same reason.
 
-**The plan's status block is written by the wrap, never by hand.** `bun nv session --wrap`'s
+**The plan's status block is written by `bun nv plan --apply <file>`, never by hand.** A wrap file's
 `## plan: <Field>` section replaces a field whole, and `## plan-edit: <Field>` replaces one fragment of
-it. Locating a field's exact bytes and splicing them by hand was the single most expensive repeated
-action a session performed. `bun nv plan --get <Field>` prints a field's current text.
+it; `--apply` writes them before `looper wrap` applies the rest. Locating a field's exact bytes and
+splicing them by hand was the single most expensive repeated action a session performed. `bun nv plan
+--get <Field>` prints a field's current text.
 
 **The plan is an index and one file per milestone**, and `bun nv plan` reads both. `--show M8` prints
 one milestone, `--show M8:verify` its acceptance paragraph alone, `--past` the milestones the program is
 behind, and `--stale` the sentences that defer work to a goal the chain has already walked. The roster
 and the status block are records under `data/plan/`, a milestone's scope is prose under `docs/plan/`,
-and a wrap's `## milestone: M8` section rewrites one. `--check` reports the status fields' sizes and
+and an applied `## milestone: M8` section rewrites one. `--check` reports the status fields' sizes and
 fails when a milestone record disagrees with its scope file or with the chain. Nothing adds a field or a
 milestone — both are decisions, not forms — and nothing refuses over a length.
 
-**A playbook bullet is read with `bun nv playbook`, not by listing the directory.** `--show <selector>`
-prints one bullet, or a whole section, as `bun nv orient` prints it. Every bullet ends with an
-`[until: ...]` trailer, and `tools/nv/cmd/playbook.ts`'s module doc is the one home of its kinds.
-`--check` tests the trailers, reports a bullet naming a path that has left the tree and sizes each
-section; `--retire` deletes the bullets whose condition holds. `--retire` only ever removes — the
-bullet, and every goal manifest's `playbook` line that reached that bullet alone, so the floor's
-`bun nv chain --check` never meets a selector reaching nothing. Appending a bullet is the wrap's
-`## playbook:` section and stays there.
-
-`--check` **exits non-zero on a gating finding**, and the one that matters is a selector that does not
-resolve to exactly one bullet. `bun nv orient` fetches a trap by that string, so a shared lead-in is a
-bullet the loop cannot deliver to the session whose goal named it, and neither end reports anything. The
-stale paths beside it stay reports — a quoted path is often gone *because* the trap was closed. CI's
-`docs` job runs it.
+**A playbook bullet is one file under [playbook/](playbook/)**, and Grep over that directory finds one by
+its words. Every bullet ends with an `` `until: <kind> <arg>` `` trailer, whose kinds are looper's
+`docs/goal-format.md` § *The playbook*. `looper playbook retire` deletes every bullet whose condition
+holds, and only ever removes. Appending a bullet is `looper wrap`'s `## playbook:` section and stays
+there.
 
 The rulebook is the same arrangement one tree over: `bun nv rules --render` writes
 `docs/rules/<topic>.md` and `docs/ground-rules.md` from the topic JSON and the fragments, which own
@@ -86,18 +77,14 @@ is their audit, `--stats`, `--graph NNNN` and `--orphans` its readings. This is 
 `docs/novis.md` already established below — derive the machine-derivable half, and let a `--check` fail
 when the committed copy stops agreeing with it.
 
-**The chain is `data/chain.json`, a list of slugs, and `bun nv chain` edits it.** A goal's position is
-its place in that list, printed as `N of M`, so moving a goal renames no file and writes no number.
-`--new <slug>`, `--move <slug>` and `--remove <slug>` each take a place — `--after <goal>`,
-`--before <goal>`, `--to <position>`, `--next` or `--end` — and edit that one file and nothing else. A
-goal's record under `data/goals/` and its prose under `docs/agent/goals/` are written by hand around it.
+**The chain is the `chain:` list in the front matter of `docs/goals/README.md`, and `looper goal` edits
+it.** A goal's position is its place in that list, so moving a goal renames no file and writes no
+number. `looper goal new`, `move` and `remove` edit the chain and re-render the README; a goal's file,
+`docs/goals/<slug>.md`, is written by hand around it ([loop-authoring.md](loop-authoring.md)).
 
-**`--check` is whether the driver can walk the chain**, and it is on every goal's floor and in CI's
-`docs` job. It fails on what would stop the run when the chain reaches it: a goal record the chain does
-not name, a goal with no prose, a record that fails its schema, a retired goal at or behind the
-installed one, a `context` naming a shape or a bullet that is not there. It also fails on prose that
-names a goal by its number, because a number is a position and moves. `tools/nv/cmd/chain.ts`'s module
-doc is the whole list.
+**`looper lint` is whether the loop can walk the chain.** It fails on a goal file that breaks looper's
+format, a stage heading that disagrees with the front matter, an open `### Next` item with no anchor,
+and a goal named by its number anywhere in the tree, because a number is a position and moves.
 
 ## One shell call runs one command, and its exit status is the last one's
 
@@ -191,7 +178,7 @@ cargo test --lib a_filter                              # every crate's unit test
 nothing else builds; they stay as they are, and `bun nv disk` sweeps their old copies by rank
 (§ *Disk*). The loop driver keeps the
 same rule: an acceptance check written `cargo test -p <crate>`, bare or with one `--test <name>`, runs
-that crate's binaries off one shared `cargo test --no-run` (`tools/nv/driver/accept.ts`).
+that crate's binaries off one shared `cargo test --no-run` (`tools/nv/accept/accept.ts`).
 
 ## Verifying
 
@@ -225,10 +212,9 @@ then the sweep over exactly the checks it named, and a binary or case verify ran
 twice.
 
 **`nv guard` refuses the commands that run more than a change reaches**: `cargo test` with no target
-and no filter, `bun nv loop --goal-only` or `--run` over the whole plan, `bun nv proofs --verify` or
-`--run` over every feature, and `bun nv verify --no-cache`. A person runs them by hand; the loop
-driver is not a tool call, so the guard never sees it. To look
-into one test, name it: `cargo test --test <name>` or `cargo test --lib <filter>`.
+and no filter, `bun nv benches`, `bun nv proofs --verify` or `--run` over every feature, and `bun nv
+verify --no-cache`. A person runs them by hand; looper's sweep is not a tool call, so the guard never
+sees it. To look into one test, name it: `cargo test --test <name>` or `cargo test --lib <filter>`.
 
 **Two of those are for the run that is not the final one, and both are measured as unused.** Over a
 33-session run there were 108 verifications and **`--fast` was chosen 0 times**, `-p` three times — every
@@ -245,7 +231,7 @@ it, write the wrap file — which is prose you already know and cannot fail — 
 bun nv verify --start
 <Write the wrap file>
 bun nv verify --wait
-bun nv session --wrap .agent-tmp/wrap.md
+looper wrap .agent-tmp/wrap.md
 ```
 
 It is the same verification: the same steps in the same order, the same selection, the same exit status.
@@ -261,11 +247,10 @@ output is
 written to `.agent-tmp/verify-<step>.log` either way. It judges nothing: a step's own exit status is the
 whole verdict.
 
-**`cargo doc` is not one of those steps.** It is `--doc`, run alone, and `bun nv loop` runs it only on
-the acceptance sweep that would reach a goal, holding the goal open while it is red. A goal in progress
-may carry broken doc links; the session that writes `DONE` runs `--doc` and fixes them, and a red gate
-arrives in the next pack under *THE RUSTDOC GATE IS RED*. The whole argument is § *Why `doc` runs
-when a goal ends rather than as a step* in the old `verify` tool's module doc, at tag `pre-overhaul`.
+**`cargo doc` is not one of those steps.** It is `--doc`, run alone, when a goal ends. A goal in progress
+may carry broken doc links; the session that writes `DONE` runs `--doc` first and fixes them
+(AGENTS.md § *In the loop*). The whole argument is § *Why `doc` runs when a goal ends rather than as a
+step* in the old `verify` tool's module doc, at tag `pre-overhaul`.
 
 `fmt` is first, and it **formats rather than checks**: a `--check` was the red step in 15 of 39 loop
 sessions, each fixed with `cargo fmt` and a second run, and write mode costs the same two seconds. Its
@@ -291,32 +276,16 @@ the fix was always the same command and the whole run again.
 
 **The docs gates are not in that list and `nv verify` runs none of them.** `bun nv rules --check`,
 `bun nv rules --render --check`, `bun nv links`, `bun nv layout --check`, `bun nv records --check`,
-`bun nv plan --check`, `bun nv chain --check`, `bun nv playbook --check` and `bun nv release --check`
-are CI's `docs` job — no Rust toolchain — and `bun nv session --wrap` runs **five families** of them
-in-process, so a wrap cannot commit what it just broke: the link half and the live goal's `[context]`
-manifest always, the tests the goal's `cargo-named` checks name on a DONE claim, and then the rulebook
-(`bun nv rules`) and the records (`bun nv records`) — each only when the session has edited the tree
-that feeds it, `docs/rules/` or `docs/decisions/`. That trigger is the difference between the first
-three gates and the other two. A dead link is a per-file fact, so the link gate can ask HEAD which
-findings are inherited; a rulebook or record finding is a property of the whole set, so the
-conservative equivalent is to ask whether this session touched that tree at all — including a rename,
-which is what makes a citation elsewhere go dead. The manifest
-gate is the reading `bun nv chain --check` gives the driver's floor — a `playbook` selector that reaches no
-bullet, a `shapes` heading that is not there — taken before the commit rather than after the session is
-gone, because that floor check halting a DONE claim is a hand the run waits for; a wrap that retires a
-bullet prunes the lines that named it, so whatever the gate finds is this session's. The named-test gate
-is there for the same hand: a `cargo-named` check is only its `tests` names, a filter that matches no
-test runs nothing and exits 0, and the release-profile ones sit behind the floor gate in every scoped
-run — so a test written under a near miss of the toml's name is green for the whole goal and surfaces
-once, in the sweep that confirms the DONE claim. The wrap refuses a DONE whose named tests are not
-`fn`s in the tree, with the same reading `bun nv playbook`'s `[until: test]` trailer uses.
+`bun nv plan --check` and `bun nv release --check` are CI's `docs` job, which has no Rust toolchain.
+`looper wrap` runs none of them, so a session that edited the tree one of them reads runs that one
+itself before the wrap: `bun nv links` after any doc edit, `bun nv rules --check` after one under
+`docs/rules/`, and `bun nv records --check` after one under `docs/decisions/`. A rulebook or record
+finding is a property of the whole set, so a rename there is what makes a citation elsewhere go dead.
 
-**`docs/novis.md` is one more thing a wrap settles, and it is a write rather than a gate.** The
-reference is generated from the binary and the chapters under `docs/reference/`, so a step-4 edit to
-either leaves it stale *and clean* after step 3 verified it — which the
-driver's acceptance sweep then reports against a session that is already gone. The wrap regenerates it
-in a quarter of a second and the last `## commit:` carries it. A tree with no debug binary cannot answer
-the question, and the wrap refuses there rather than committing a guess.
+**`docs/novis.md` is written by `nv verify`, not checked by it.** The reference is generated from the
+binary and the chapters under `docs/reference/`, and verify's `reference` step regenerates it whenever
+either changed. An edit to either after step 3 leaves it stale, so make that edit before verifying, and
+name `docs/novis.md` in the `## commit:` of the slice that changed its sources.
 
 `bun nv layout` is the one a **code** change trips. It holds CONTRIBUTING.md's layout listing to the tree:
 every row names something on disk, every crate, bench package and tracked top-level directory has a row,
@@ -355,7 +324,7 @@ afterwards. The edits are reverted in a `finally`, and a batch fails when `git s
 runs the test binaries a change reaches and every `.nvst` case, and the loop's sweep after each session
 runs every acceptance check the change reached. The heavy ones — the fuzz run, the
 valgrind sweep and the WSL leg, the release-profile guards, the database matrix, the checks never
-memoized — wait for the floor gate (`tools/nv/cmd/loop.ts`'s `FLOOR_GATE_EVERY`) and for the sweep a
+memoized — wait for the floor gate (`tools/nv/cmd/sweep.ts`'s `FLOOR_GATE_EVERY`) and for the sweep a
 goal is reached on. Nothing is dropped: an atom the change reached that a run did not start is `owed`
 in the store, and stays selected until a run of it is green.
 
@@ -421,56 +390,31 @@ even when a snippet fails to compile — what it printed is the finding, not an 
 ## Finishing a session: steps 4 and 5 in one call
 
 ```sh
-bun nv session --template                   # the format, with this tree's answers in it
+looper wrap --template                      # the format, with this project's playbook headings in it
 <Write one wrap file>                       # the whole tail as data
-bun nv session --wrap .agent-tmp/wrap.md    # apply it, or refuse and change nothing
-bun nv session --check                      # what steps 4-5 still owe, off the tree
-bun nv session --wrap .agent-tmp/wrap.md --dry-run   # say what it would do
+bun nv plan --apply .agent-tmp/wrap.md      # the plan sections first, when there are any
+looper wrap .agent-tmp/wrap.md              # apply the rest, or refuse and change nothing
 ```
 
-The first three are the tail. `--template` is the call to make: it carries every count the tree has moved
-past as a ready-to-apply `## plan-edit:`, the playbook's `## ` headings, and a `## commit:` naming the docs
-the wrap writes — the three things sessions were re-deriving with a `grep` each, measured at about 25 calls
-over one 19-session run. `--check` and `--dry-run` are the interactive pair, not tail steps: `--wrap`
-validates everything before writing a byte, so a dry run buys the same refusal one call earlier.
+The wrap file is markdown whose `## ` headings are instructions: `## playbook: <Heading>` appends a
+bullet, `## handoff` replaces the live goal's handoff, `## commit: <paths>` stages those paths and commits
+with that message — one section per slice, in order — and `## status` is the loop's one line. **Nothing
+lands unless all of it does**, because a half-finished tail is the one failure mode worth designing out.
 
-The wrap file is markdown whose `## ` headings are instructions: `## plan: <Field>` rewrites one status
-field and `## plan-edit: <Field>` one fragment of it, `## milestone: <id>` rewrites a milestone's scope,
-`## playbook: <Heading>` appends a bullet, `## handoff` replaces the handoff, `## commit: <paths>`
-stages those paths and commits with that message — one section per slice, in order — and `## status` is
-the loop's one line. `bun nv session --help` is the format in full.
+The plan's sections are Novis's own and looper does not read them: `## plan: <Field>` rewrites one status
+field, `## plan-edit: <Field>` one fragment of it and `## milestone: <id>` a milestone's scope. `bun nv
+plan --apply` writes them, all or none, before `looper wrap` runs, so a `## commit:` may name
+`docs/implementation-plan.md` and the plan records in the same file.
 
-It is applied in a fixed order — plan, milestones, playbook, handoff, commits, status — so the docs are on disk before
-anything is staged, and **nothing is applied unless every section validates**: an unknown plan field, a
-commit subject that is not `type(scope): subject`, a handoff missing `## Next group` or an open item in it
-without a repo-rooted `crates/.../file.rs:NN` anchor (a bare `file.rs:NN` is refused too — `bun nv orient`
-expands only the rooted form, and only from the item), a status line that does not start
-`CONTINUE`/`DONE`/`BLOCKED`, a dead link — in a body the wrap is about to write, or anywhere in the tree
-where it resolved at HEAD and no longer does — a `rule:` citation in a body that names no rule, which
-is how a placeholder id reaches `git log` and turns the goal's rulebook floor red, and a goal named by
-its number rather than its slug, which turns `bun nv chain --check` red for every session after and which in
-a commit message nothing afterwards can even find — all refuse the whole
-file and write nothing. A
-half-finished tail is the one failure mode worth designing out.
+**`bun nv links` is not part of the wrap**, and `nv verify` does not run it either, so a green
+verification says nothing about links. It is whole-tree rather than diff-scoped because the way links
+die here is a **rename**: the file moves and every citation of it goes dead, in files the session never
+opened. Run it once before the wrap whenever the session moved or renamed a doc.
 
-The link half is `bun nv links`, which is CI's `docs` job and which `nv verify` does not run, so a
-green verification says nothing about links. It is whole-tree rather than diff-scoped because the way
-links die here is a **rename**: the file moves and every citation of it goes dead, in files the session
-never opened. A link that was already dead at HEAD is reported and refuses nothing.
-
-That order is also why **one wrap writes the docs and commits them**: the handoff, the playbook and the plan
-are on disk before the first commit is staged, so a `## commit:` may name them in the same file that writes
-them. A wrap that writes a doc and has no `## commit:` at all is refused; one whose commits simply do not
-name a path it wrote appends that path to the last commit and reports it. Neither is a nicety — measured
-over one 19-session run, **9 sessions closed with a hand-rolled `git add` of the handoff, the playbook
-and the plan `&& git commit`** after this tool had already written all three, which is about two and a half calls each of exactly the hand-rolled git the wrap exists to remove.
-
-Why it exists: measured over a run, the tail of a session — first `nv verify` to last commit — was **33 of
-98 tool calls**, and since context peaks by then those turns carried **42% of the session's whole token
-bill**. Almost none of it was thinking; it was 6.0 calls a session on the plan, 5.2 re-deriving anchors
-already known, and the rest handoff, playbook, `git add`, `git commit`, `status.txt`. `--check` is the one
-to run *before* writing the wrap file: it reports plan fields whose prose names a count the tree
-contradicts, whether the handoff still matches its contract, and what is uncommitted.
+Why the tail is one call: measured over a run, the tail of a session — first `nv verify` to last commit
+— was **33 of 98 tool calls**, and since context peaks by then those turns carried **42% of the
+session's whole token bill**. Almost none of it was thinking; it was the plan, re-derived anchors, the
+handoff, the playbook, `git add`, `git commit` and `status.txt`.
 
 ## Releasing
 
@@ -490,8 +434,7 @@ bun nv release --preview minor     # the exact version and notes a dispatch woul
 `bun nv release --check` is the gate CI's `docs` job runs: the workspace version, the
 `[workspace.dependencies]` pins that restate it, the newest tag and `CHANGELOG.md` all agree.
 
-`bun nv session` is not loop-only. Steps 4 and 5 are the same steps in an interactive session, and `## status`
-simply reports itself skipped when there is no `.loop/` directory.
+`looper wrap` is not loop-only. Steps 4 and 5 are the same steps in an interactive session.
 
 ## Benchmarking against PHP
 
@@ -586,13 +529,13 @@ feature lands.
 ```sh
 bun nv machine                        # what this box is, and the widths it implies
 bun nv machine --refresh              # forget the cached facts and probe again
-NVS_VALGRIND_JOBS=2 bun nv loop --goal-only   # override one run's sweep width
+NVS_VALGRIND_JOBS=2 bun nv legs       # override one run's sweep width
 ```
 
 **One policy, in `tools/nv/lib/machine.ts`, and no caller has its own:** half the cores the work will actually
 see, floor two, capped by how many items there are and by free memory. Half and not more because the
-machine is not idle — the loop overlaps the release build with the valgrind sweep deliberately, and that
-build is the longer pole.
+machine is not idle: a release build often runs beside the valgrind sweep, and that build is the longer
+pole.
 
 The facts it needs are a property of the box, so they are probed **once** and cached in
 `.loop/machine.json`: cores, free memory, and one unit of the real work timed serially as a baseline. The
@@ -604,6 +547,26 @@ every width for one run, `NVS_VALGRIND_JOBS` and `NVS_TRY_JOBS` one caller's; no
 Its callers are the valgrind sweep and `bun nv try`, which runs its snippets this wide and prints the
 blocks back in the order you asked for them.
 
+## The loop's hooks, one command each
+
+```sh
+bun nv suite <tree>... [--case <path>]... [--min-passing <n>] [--full]   # judge one suite as an nvs-suite check
+bun nv legs [--goal <slug>] [--full]                  # the WSL leg and the valgrind sweep over a goal's fixtures
+bun nv services --up [--goal <slug>]                  # Docker preflight, then the goal's services up and healthy
+bun nv sweep [--goal <slug>] [--done] [--keep-runs <n>] [--session <label>]   # the sweep after a session
+bun nv benches [--owed]                               # the bench turn by hand
+bun nv side --prepare <slug> [--dir <path>] [--min-free-gb <n>]   # make or complete a side worktree
+bun nv allow --learn <events.jsonl>                   # record a session's shell calls, add the owed allow rules
+bun nv plan --apply <wrap-file | -> [--dry]           # check, then write, a wrap's plan, plan-edit and milestone sections
+bun nv pack [--goal <slug>] [--stage <n>]             # the pack sections only Novis has
+```
+
+Each is a piece of the old loop driver that a person or a hook can run alone. Each exits 0 green, 1 red and 2 on a usage error, except `bun nv sweep`, which always
+exits 0 and writes what was red to `.loop/last-sweep.md`. `--goal` and `--stage` win over
+`LOOPER_GOAL` and `LOOPER_STAGE`, which win over the live goal and its handoff's next stage.
+`looper.toml` wires only `bun nv verify`, as `[verify] run`, so looper runs none of the others on its
+own. Each command's `--help` and module doc own its flags.
+
 ## Disk
 
 ```sh
@@ -612,13 +575,11 @@ bun nv disk --clean                   # reclaim it
 bun nv disk --clean -n                # say what --clean would delete; delete nothing
 ```
 
-**The loop runs `--clean`'s sweep itself, in-process, after every session's acceptance sweep** —
-between sessions, when nothing is building and the build is warm. Every session rather than every goal,
-because a goal is days of sessions and a day of builds fills the disk. Nothing about it touches the
-session path. By hand it refuses while `.loop/running` exists, because a person cannot see whether a
-session is mid-build. The driver's one other disk call is a free-space check that refuses to start a
-run below `--min-free-gb`, whose default is `MIN_FREE_GB` in `tools/nv/cmd/disk.ts`. That refusal is
-the point — a run that fills the disk dies inside a session with the tree half-edited.
+**`--clean` is run by hand, between sessions**, when nothing is building — a day of builds fills the
+disk, so a long run wants it every day or so. Nothing about it touches the session path. looper's one
+disk call is a free-space check that refuses to start a loop below `looper.toml`'s `[loop]
+min_free_gb`, which matches `MIN_FREE_GB` in `tools/nv/cmd/disk.ts`. That refusal is the point — a run
+that fills the disk dies inside a session with the tree half-edited.
 
 What fills the disk is **build generations**. A crate's artifacts are named `<name>-<metadata-hash>`, and
 that hash covers the dependency graph — so every `Cargo.toml` or `Cargo.lock` edit mints a fresh set for
@@ -689,7 +650,7 @@ file operation on that 9p mount is a round trip to Windows. A build barely shows
 compile out of `~/.cargo` and the target directory is off the mount. A fixture does: `nvs run` from the
 repository root resolves every `[[app]]` root in `nvs.toml` before the program starts, and that took 1.5s
 per fixture over the mount against 0.02s from ext4, and a `tests/conformance/` run reads every case file
-on top. `tools/nv/driver/mirror.ts` keeps the copy at `<env.wsl.targetDir>-src/<checkout>` and brings it
+on top. `tools/nv/accept/mirror.ts` keeps the copy at `<env.wsl.targetDir>-src/<checkout>` and brings it
 to the working tree before every WSL build, so a stale copy is not a failure mode. The sync is git's own:
 a tree taken through a scratch index, and a pack of only what changed sent into the distro as one stream,
 so no per-file question crosses the mount. An unchanged tree syncs in about 0.4s and the first sync takes

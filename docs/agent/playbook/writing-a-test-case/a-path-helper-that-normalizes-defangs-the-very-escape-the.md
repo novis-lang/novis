@@ -4,4 +4,4 @@
   rule rather than on `rule:security/path-scope-canonicalise-then-prefix`.
   `crates/nvs-config/tests/capability.rs` keeps `raw()` (what the caller wrote) and `lexical()`
   (what the filesystem answers) apart; only the fake `Files` may turn one into the other.
-  [until: gone crates/nvs-config/tests/capability.rs:fn lexical]
+  `until: gone crates/nvs-config/tests/capability.rs:fn lexical`

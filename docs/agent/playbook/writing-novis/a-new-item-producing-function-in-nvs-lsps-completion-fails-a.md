@@ -4,4 +4,4 @@
   arm added without a row fails in `crates/nvs-lsp/tests/completion.rs` rather than where it was
   written. Add the row — the function's name, and a needle from its body naming the compiler table it
   reads — and widen the array's declared length.
-  [until: gone crates/nvs-lsp/tests/completion.rs:const SOURCED]
+  `until: gone crates/nvs-lsp/tests/completion.rs:const SOURCED`

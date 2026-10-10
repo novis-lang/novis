@@ -1343,16 +1343,21 @@ mod tests {
     /// again once the TTL has passed is told `true`. Those are § 3's two halves:
     /// at most one run per interval, and a host that dies holding the lease
     /// releases it by expiry instead of blocking the next interval forever.
+    ///
+    /// The refusal half is asserted against a thirty-second lease and the
+    /// expiry half against a one-second one, so a test thread stalled by load
+    /// cannot see the short lease expire before the second client asks.
     #[test]
     fn a_shared_tier_lease_is_taken_by_one_of_two_clients_and_expires_after_its_ttl() {
         let Some((mut first, mut second, key)) = lease_case("two-clients") else {
             return;
         };
         let held = Duration::from_secs(1);
+        let long = Duration::from_secs(30);
 
         assert!(
             first
-                .set_if_absent(&key, b"first", held)
+                .set_if_absent(&key, b"first", long)
                 .expect("the store answers the set-if-absent"),
             "nothing held the key, so the first client takes it"
         );
@@ -1368,6 +1373,13 @@ mod tests {
             "the refused attempt overwrote the holder's token"
         );
 
+        first.del(&key).expect("the key the first client took");
+        assert!(
+            first
+                .set_if_absent(&key, b"first", held)
+                .expect("the store answers the set-if-absent"),
+            "the key was deleted, so the first client takes it again"
+        );
         std::thread::sleep(held * 2);
 
         assert!(
@@ -1386,12 +1398,15 @@ mod tests {
     /// seconds later, which is the extension landing; the other client's renewal
     /// is refused while the first holds it; and once the key is gone no renewal
     /// writes it back, because an expired lease belongs to whoever takes it next.
+    ///
+    /// The lease is taken for three seconds, so both renewals reach the store
+    /// while it is still held even when load stalls the test thread.
     #[test]
     fn a_shared_tier_lease_is_renewed_only_while_the_token_is_still_the_holders() {
         let Some((mut holder, mut other, key)) = lease_case("renewal") else {
             return;
         };
-        let held = Duration::from_secs(1);
+        let held = Duration::from_secs(3);
         let extended = Duration::from_secs(30);
 
         assert!(

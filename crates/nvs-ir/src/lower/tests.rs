@@ -2039,7 +2039,7 @@ fn or_short_circuits_to_a_phi() {
 }
 
 /// `!$s` with a `string` operand — unary `!` always produces `Ty::Bool`,
-/// per ADR 0035, whatever representation its operand carries.
+/// per `rule:expressions/truthy-positions`, whatever representation its operand carries.
 /// `$s` converts through `Helper::StrTruthy` first, then negates —
 /// `$s` is a bare parameter read (`is_aliasing_read`), so no release
 /// follows the helper call, same as any other truthy-tested aliasing

@@ -4,4 +4,4 @@
   (`crates/nvs-test/src/run.rs`), so hoisting a catchable runtime refusal to compile time is a
   language change the corpus notices:
   `tests/conformance/core/db-open-asks-the-grant-about-the-host-and-then-the-address.nvst` expects
-  the runtime refusal its program catches. [until: gone tests/conformance/core/db-open-asks-the-grant-about-the-host-and-then-the-address.nvst:--FILE nvs.toml--]
+  the runtime refusal its program catches. `until: gone tests/conformance/core/db-open-asks-the-grant-about-the-host-and-then-the-address.nvst:--FILE nvs.toml--`

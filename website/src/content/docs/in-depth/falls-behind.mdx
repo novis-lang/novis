@@ -4,7 +4,7 @@ covers: []
 description: The real costs of choosing Novis today, stated plainly.
 ---
 
-import { decisionRecord } from '@config/site.mjs'
+import { decisionRecord, githubFile } from '@config/site.mjs'
 
 Every choice on the other In-Depth pages has a cost. This page lists the costs, so you can decide
 whether Novis fits your project.
@@ -33,7 +33,7 @@ limited, so you can calculate the most a server uses. On a very small machine, t
 Novis has no global setting for the language and region of the user. A function that formats a date
 or sorts names for one language gets the locale as an argument. This makes each call clear, but it
 is more to write than one global setting at the start of the program.
-<a href={decisionRecord('0051')}>Read the full reasoning.</a>
+<a href={githubFile('docs/rules/core-api/no-ambient-state.md')}>Read the full reasoning.</a>
 
 ## Strict code is more code
 

@@ -1,42 +1,77 @@
-// Where the chain stands: its order, the live goal, and the plan the driver runs for a goal.
+// Where the chain stands: its order, the live goal, and the plan a command checks a goal against.
 //
-// All of it is `data/chain.json`: `goals` is the order and `live` the goal the driver works on. The goal
-// switch deletes the goal it leaves (`leaveGoal`), so the live goal is first on the chain.
+// All of it is looper's goal files under `docs/goals/`. The chain is the `chain:` list in the front matter
+// of `docs/goals/README.md`, and its first slug is the live goal. A goal is `docs/goals/<slug>.md`, and
+// its front matter is everything a tool reads about it. A side goal is a goal file whose slug is not on
+// the chain. A process belongs to a side run when `SIDE_ENV` names a side goal whose file is on disk.
 //
-// **A goal's plan is its record and nothing else** (`rule:tooling/the-chain-names-its-live-goal`). No
-// check of another goal is carried into it: the permanent suites and `bun nv verify` protect finished
-// work. A side goal's plan is its own record as well, with a WSL target of its own. A process belongs to
-// a side run when `SIDE_ENV` names a side goal whose prose is on disk.
+// **A goal's plan is its own front matter and nothing else** (`rule:tooling/the-chain-names-its-live-goal`).
+// No check of another goal is carried into it: the permanent suites and `bun nv verify` protect finished
+// work. `planOf` turns looper's fields back into the shape the commands here read: Novis's own fields
+// (`milestone`, `files`, `env`, the `[context]` lists) sit under `extra`, and a check's kind follows from
+// its fields.
 
-import { existsSync, readdirSync, rmSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import type { Check } from "../accept/accept.ts";
 import { ROOT } from "./paths.ts";
-import type { RecordType } from "./schema.ts";
-import { load, write } from "./store.ts";
-import { chain as chainType } from "../schema/chain.ts";
-import { goal as goalType, sideGoal as sideGoalType } from "../schema/goal.ts";
 
-const GOALS = "docs/agent/goals";
+const GOALS = "docs/goals";
 
-/** Set to a side goal's slug in every process of a side run: the driver, its turns and their sessions. */
+/** Set to a side goal's slug in every process of a side run: its hooks, its checks and its sessions. */
 export const SIDE_ENV = "NOVIS_SIDE_GOAL";
+
+/** The goal a looper hook names for the command it runs, which a command's `--goal` overrides. */
+export const LOOPER_GOAL_ENV = "LOOPER_GOAL";
+
+/** The stage a looper hook names for the command it runs, which a command's `--stage` overrides. */
+export const LOOPER_STAGE_ENV = "LOOPER_STAGE";
 
 /** A slug as a goal file names it. */
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-/** A goal's record, as `data/goals/<slug>.json` holds it. */
-export type Goal = typeof goalType extends RecordType<infer T> ? T : never;
-type GoalCheck = Goal["checks"][number];
+/** What `orient` and `pack` print for a goal, each list a set of selectors of its own kind. */
+export interface GoalContext {
+  modules?: string[];
+  rules?: string[];
+  adrs?: string[];
+  shapes?: string[];
+  playbook?: string[];
+  plan?: string[];
+  milestones?: string[];
+}
+
+/** A goal's plan: its front matter, in the shape the commands here read. */
+export interface Goal {
+  title: string;
+  /** Null for a goal that lands in no milestone. */
+  milestone: string | null;
+  /** `last` pins the goal behind every goal not pinned, whatever the chain's order. */
+  position?: "last";
+  /** `done` sweeps the acceptance list only after a session that reports DONE; unset sweeps after every session. */
+  sweep?: "done";
+  /** The fixtures its checks run. */
+  files: string[];
+  context: GoalContext;
+  stages: { number: number; title: string; summary?: string; status?: string; context?: GoalContext }[];
+  checks: Check[];
+  /** What a goal's checks need from the machine beyond a build. */
+  env: {
+    docker?: { compose: string; services: string[]; memoizeOn?: string[] };
+    valgrind?: { skip: string[] };
+    wsl?: { targetDir: string };
+  };
+}
 
 /** A goal file's front matter, which sits above its H1. */
-const FRONT = /^---\n[\s\S]*?\n---\n/;
+const FRONT = /^---\n([\s\S]*?)\n---\n/;
 
 export interface ChainGoal {
   slug: string;
-  /** 1-based, its place in `data/chain.json`. */
+  /** 1-based, its place on the chain. */
   num: number;
   milestone: string | null;
-  /** The goal's prose, repo-relative, or null when none is on disk. */
+  /** The goal's file, repo-relative, or null when none is on disk. */
   md: string | null;
 }
 
@@ -45,8 +80,24 @@ export function h1Of(text: string): string {
   return text.replace(/\r\n/g, "\n").replace(FRONT, "").replace(/^\n+/, "").split("\n", 1)[0]!.trim();
 }
 
-/** slug -> its prose file, `<slug>.md` in the goals directory. */
-function proseFiles(root: string): Map<string, string> {
+/** The front matter of the file at `rel`, parsed, or null when the file or its front matter is absent. */
+function frontMatter(rel: string, root: string): Record<string, unknown> | null {
+  const path = join(root, rel);
+  if (!existsSync(path)) return null;
+  const m = FRONT.exec(readFileSync(path, "utf8").replace(/\r\n/g, "\n"));
+  if (m === null) return null;
+  const got = Bun.YAML.parse(m[1]!);
+  return got !== null && typeof got === "object" ? (got as Record<string, unknown>) : null;
+}
+
+/** The chain's slugs in order: the `chain:` list of `docs/goals/README.md`, or none when it is absent. */
+function chainSlugs(root: string): string[] {
+  const list = frontMatter(`${GOALS}/README.md`, root)?.chain;
+  return Array.isArray(list) ? list.filter((s): s is string => typeof s === "string") : [];
+}
+
+/** slug -> its goal file, `<slug>.md` in the goals directory, for every goal on the chain or off it. */
+export function goalPaths(root: string = ROOT): Map<string, string> {
   const out = new Map<string, string>();
   const dir = join(root, GOALS);
   if (!existsSync(dir)) return out;
@@ -57,68 +108,109 @@ function proseFiles(root: string): Map<string, string> {
   return out;
 }
 
-/** `data/chain.json`, or an empty chain when it is absent. */
-function chainRecord(root: string): { id: string; live: string | null; goals: string[] } {
-  const got = load(chainType, root)[0];
-  return { id: got?.id ?? "chain", live: got?.value.live ?? null, goals: got?.value.goals ?? [] };
+type Raw = Record<string, unknown>;
+const obj = (v: unknown): Raw => (v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Raw) : {});
+const strs = (v: unknown): string[] | undefined => (Array.isArray(v) ? v.map(String) : undefined);
+
+/** A `[context]` block from `extra.context`, with looper's own `context` file list as its `modules`. */
+function contextOf(files: unknown, extra: unknown): GoalContext {
+  const ctx: GoalContext = { ...(obj(extra) as GoalContext) };
+  const modules = strs(files);
+  if (modules !== undefined && modules.length > 0) ctx.modules = [...modules, ...(ctx.modules ?? [])];
+  return ctx;
+}
+
+/**
+ * A looper check as a `Check`. A check over a `file` is judged on that file's text; one that names
+ * `tests` is a cargo run that must print each name, or a `bun nv suite` run whose named cases must pass;
+ * the rest are commands, judged on their exit and on `output_ordered` or `output_contains` in order.
+ */
+function checkOf(c: Raw): Check {
+  const run = strs(c.run) ?? [];
+  const tests = strs(c.tests);
+  const base: Check = { id: String(c.id), kind: "command", stage: Number(c.stage) };
+  if (typeof c.name === "string") base.name = c.name;
+  if (typeof c.cwd === "string") base.cwd = c.cwd;
+  if (c.exit === "nonzero") base.exit = "nonzero";
+  const want = strs(c.output_ordered) ?? strs(c.output_contains);
+  if (typeof c.file === "string") {
+    base.file = c.file;
+    if (typeof c.min_bytes === "number") return { ...base, kind: "min-bytes", minBytes: c.min_bytes };
+    return { ...base, kind: "contains", stdoutContains: want ?? [] };
+  }
+  if (tests !== undefined && run[0] === "cargo") return { ...base, kind: "cargo-named", args: run.slice(1), tests };
+  if (tests !== undefined && run.slice(0, 3).join(" ") === "bun nv suite") {
+    return { ...base, kind: "nvs-suite", args: ["test", run[3] ?? "tests/"], cases: tests };
+  }
+  base.argv = run;
+  if (want !== undefined) base.want = want;
+  const stdout = strs(c.stdout_contains);
+  if (stdout !== undefined) base.stdoutContains = stdout;
+  return base;
+}
+
+/** Goal `slug`'s plan, from its front matter. Null when the goal has no file. */
+function planOf(slug: string, root: string): Goal | null {
+  const fm = frontMatter(`${GOALS}/${slug}.md`, root);
+  if (fm === null) return null;
+  const extra = obj(fm.extra);
+  const stages = (Array.isArray(fm.stages) ? fm.stages : []).map((raw) => {
+    const st = obj(raw);
+    const se = obj(st.extra);
+    const ctx = contextOf(st.context, se.context);
+    return {
+      number: Number(st.id),
+      title: String(st.title ?? ""),
+      ...(typeof se.summary === "string" ? { summary: se.summary } : {}),
+      ...(typeof st.status === "string" ? { status: st.status } : {}),
+      ...(Object.keys(ctx).length > 0 ? { context: ctx } : {}),
+    };
+  });
+  return {
+    title: String(fm.title ?? ""),
+    milestone: typeof extra.milestone === "string" ? extra.milestone : null,
+    ...(extra.position === "last" ? { position: "last" as const } : {}),
+    ...(extra.sweep === "done" ? { sweep: "done" as const } : {}),
+    files: strs(extra.files) ?? [],
+    context: contextOf(fm.context, extra.context),
+    stages,
+    checks: (Array.isArray(fm.checks) ? fm.checks : []).map((c) => checkOf(obj(c))),
+    env: obj(extra.env) as Goal["env"],
+  };
 }
 
 /** Every goal on the chain, in chain order. */
 export function chainGoals(root: string = ROOT): ChainGoal[] {
-  const order = chainRecord(root).goals;
-  const records = new Map(load(goalType, root).map((g) => [g.id, g.value]));
-  const prose = proseFiles(root);
-  return order.map((slug, i) => ({
+  const files = goalPaths(root);
+  return chainSlugs(root).map((slug, i) => ({
     slug,
     num: i + 1,
-    milestone: records.get(slug)?.milestone ?? null,
-    md: prose.get(slug) ?? null,
+    milestone: files.has(slug) ? (planOf(slug, root)?.milestone ?? null) : null,
+    md: files.get(slug) ?? null,
   }));
 }
 
-/** The goal `data/chain.json` names live, or null when it names none on the chain. */
+/** The live goal, the chain's first, or null when the chain is empty. */
 export function liveGoal(goals?: ChainGoal[], root: string = ROOT): ChainGoal | null {
   goals ??= chainGoals(root);
-  const slug = chainRecord(root).live;
-  return goals.find((g) => g.slug === slug) ?? null;
+  return goals[0] ?? null;
 }
 
-/** Makes `slug` the live goal. The caller commits `data/chain.json`, which is the whole of a goal switch on disk. */
-export function setLive(slug: string, root: string = ROOT): string {
-  const c = chainRecord(root);
-  if (!c.goals.includes(slug)) throw new Error(`${slug} is not on the chain`);
-  return write(chainType, c.id, { live: slug, goals: c.goals }, root).path;
-}
-
-/** A goal's three files, repo-relative: its prose, its record and its handoff record. */
-export function goalFiles(slug: string): string[] {
-  return [`${GOALS}/${slug}.md`, `data/goals/${slug}.json`, `data/goals/${slug}.handoff.json`];
-}
-
-/**
- * The goal switch on disk, once goal `from` is reached: its three files are deleted, its slug leaves
- * `goals`, and `to` becomes `live`. Returns every path it changed, repo-relative, for the caller to
- * commit. Throws when either goal is not on the chain, and changes nothing then.
- */
-export function leaveGoal(from: string, to: string, root: string = ROOT): string[] {
-  const c = chainRecord(root);
-  for (const slug of [from, to]) if (!c.goals.includes(slug)) throw new Error(`${slug} is not on the chain`);
-  const gone = goalFiles(from).filter((p) => existsSync(join(root, p)));
-  for (const p of gone) rmSync(join(root, p));
-  const chain = write(chainType, c.id, { live: to, goals: c.goals.filter((s) => s !== from) }, root).path;
-  return [chain, ...gone];
-}
-
-/** The plan the driver runs for goal `slug`: its record, unchanged. Null when the goal has no record. */
+/** The plan for goal `slug`, a chain goal's or a side goal's. Null when the goal has no file. */
 export function goalPlan(slug: string, root: string = ROOT): Goal | null {
-  return load(goalType, root).find((g) => g.id === slug)?.value ?? null;
+  return SLUG.test(slug) ? planOf(slug, root) : null;
+}
+
+/** Goal `slug`'s live stage: the first stage its front matter does not mark `done`. Null when none is open. */
+export function liveStage(slug: string, root: string = ROOT): number | null {
+  return goalPlan(slug, root)?.stages.find((s) => s.status !== "done")?.number ?? null;
 }
 
 /** The flags that narrow a `bun nv proofs` run to part of the roster. */
 const ROSTER_SCOPES = ["--group", "--only", "--id"];
 
 /** What a `bun nv proofs` check passes after the command's name, or null for any other check. */
-function proofsArgs(c: GoalCheck): string[] | null {
+function proofsArgs(c: Check): string[] | null {
   const argv = c.argv ?? [];
   return argv[0] === "bun" && argv[1] === "nv" && argv[2] === "proofs" ? argv.slice(3) : null;
 }
@@ -144,27 +236,40 @@ export function gatesInFrontOfGroups(ahead: { slug: string; goal: Goal }[]): { s
   return out;
 }
 
-/** The side goal this process runs, or null in a chain run: `SIDE_ENV`'s slug, when a side goal's prose has it. */
+/** The side goal this process runs, or null in a chain run: `SIDE_ENV`'s slug, when its goal file is off the chain. */
 export function sideGoal(root: string = ROOT): string | null {
   const slug = (process.env[SIDE_ENV] ?? "").trim();
-  return SLUG.test(slug) && existsSync(join(root, GOALS, "side", `${slug}.md`)) ? slug : null;
+  if (!SLUG.test(slug) || !existsSync(join(root, GOALS, `${slug}.md`))) return null;
+  return chainSlugs(root).includes(slug) ? null : slug;
 }
 
 /**
- * The plan a side run is checked against: side goal `slug`'s record. Its WSL leg builds into a target of
- * its own, `<targetDir>-side-<slug>`, because two runs sharing one would wait on each other's lock and
- * rebuild each other's crates. Null when the side goal has no record.
+ * The plan a side run is checked against: side goal `slug`'s. Its WSL leg builds into a target of its
+ * own, `<targetDir>-side-<slug>`, because two runs sharing one would wait on each other's lock and
+ * rebuild each other's crates. Null when the goal has no file.
  */
 export function sidePlan(slug: string, root: string = ROOT): Goal | null {
-  const plan = load(sideGoalType, root).find((g) => g.id === slug)?.value;
-  if (plan === undefined) return null;
+  const plan = goalPlan(slug, root);
+  if (plan === null) return null;
   const wsl = plan.env.wsl;
   return wsl?.targetDir ? { ...plan, env: { ...plan.env, wsl: { ...wsl, targetDir: `${wsl.targetDir}-side-${slug}` } } } : plan;
 }
 
 /**
+ * The plan a command run by hand or by a hook works against: goal `slug`, its `--goal`, else the goal
+ * `LOOPER_GOAL_ENV` names, else `currentPlan`'s. A side goal's plan is `sidePlan`'s. Null when the goal
+ * named has no file, or none is named and no goal is current.
+ */
+export function namedPlan(slug: string | undefined, root: string = ROOT): { slug: string; goal: Goal } | null {
+  const named = slug ?? ((process.env[LOOPER_GOAL_ENV] ?? "").trim() || undefined);
+  if (named === undefined) return currentPlan(root);
+  const goal = chainSlugs(root).includes(named) ? goalPlan(named, root) : sidePlan(named, root);
+  return goal === null ? null : { slug: named, goal };
+}
+
+/**
  * The plan this process works against: the side goal `SIDE_ENV` names, with `sidePlan`'s plan, or else the
- * live goal, with `goalPlan`'s. Null when neither has a record, or no goal is live.
+ * live goal, with `goalPlan`'s. Null when neither has a file, or no goal is live.
  */
 export function currentPlan(root: string = ROOT): { slug: string; goal: Goal } | null {
   const side = sideGoal(root);
@@ -172,7 +277,7 @@ export function currentPlan(root: string = ROOT): { slug: string; goal: Goal } |
     const goal = sidePlan(side, root);
     return goal === null ? null : { slug: side, goal };
   }
-  const live = chainRecord(root).live;
-  const goal = live === null ? null : goalPlan(live, root);
-  return goal === null || live === null ? null : { slug: live, goal };
+  const live = chainSlugs(root)[0];
+  const goal = live === undefined ? null : goalPlan(live, root);
+  return goal === null || live === undefined ? null : { slug: live, goal };
 }

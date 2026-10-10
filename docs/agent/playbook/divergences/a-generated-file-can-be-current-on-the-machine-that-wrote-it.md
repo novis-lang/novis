@@ -4,4 +4,4 @@
   while `bun nv reference --check` passes locally and says only *stale*. Pin the constant to one
   spelling in `PLATFORM_VALUES` in `tools/nv/cmd/reference.ts`, or regenerate under WSL with a Linux
   `nvs` in `target/debug/` and read the `git diff`.
-  [until: gone tools/nv/cmd/reference.ts:PLATFORM_VALUES]
+  `until: gone tools/nv/cmd/reference.ts:PLATFORM_VALUES`

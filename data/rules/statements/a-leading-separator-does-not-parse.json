@@ -4,8 +4,7 @@
   "because": [
     "0113",
     "0095",
-    "0029",
-    "0039"
+    "0029"
   ],
   "seeAlso": [
     "statements/a-qualified-name-is-absolute"

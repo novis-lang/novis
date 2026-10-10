@@ -3,4 +3,4 @@
   and every later case panics at `crates/nvs-stdlib/tests/queue.rs:394` naming neither the server nor
   the case that failed. Drive the suite with `bun nv db-matrix --driver <name>`, which exports the
   whole group; by hand, the password is `tests/db/compose.yaml`'s `POSTGRES_PASSWORD` and not the
-  user name. [until: gone tools/nv/cmd/db-matrix.ts:--driver]
+  user name. `until: gone tools/nv/cmd/db-matrix.ts:--driver`

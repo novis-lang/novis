@@ -8,7 +8,7 @@ A script that ends with an uncaught throw while a child it never waited for is s
 // after that, and its error follows on the next line.
 
 string $path = "/bin/cat";
-if (Core\Path::SEPARATOR == "\\") {
+if (Core\Env::OS == "Windows") {
     $path = "C:\\Windows\\System32\\sort.exe";
 }
 Core\Process\Handle $child = Core\Process::spawn($path, []);

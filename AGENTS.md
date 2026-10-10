@@ -18,8 +18,8 @@ overturn a decision. **One call orients you**, and which one depends on why you 
 
 | You are | Run |
 |---|---|
-| A session of the unattended loop | Nothing — the driver ran `bun nv orient` and piped the pack in ahead of your prompt: everything below, narrowed to the current goal's `[context]` manifest and its current item. Run it yourself only if it is genuinely absent. |
-| Working interactively, on anything | `bun nv orient --full` — the same pack with no narrowing: where the run and the work stand, one line per module, the rules, the shapes and the plan's fields |
+| A session of the unattended loop | Nothing — looper ran `looper orient` and piped the pack in ahead of your prompt: the live goal, its stage, its handoff and the traps, narrowed to the goal's `context` list. Run it yourself only if it is genuinely absent. |
+| Working interactively, on anything | `looper orient --full` — the same pack with no narrowing |
 | Looking for the file that owns a topic | `bun nv brief --where <keyword>` — a search over the rulebook: the chapters under [docs/rules/](docs/rules/) and every rule's title, plus the homes that are not rules — the plan, the tools, the benches, the perf notes. With no keyword, the chapter list |
 
 Those three route to everything else. The five files behind them, none of which is read in full by default:
@@ -28,7 +28,7 @@ Those three route to everything else. The five files behind them, none of which 
   it states. The rule's fragment under `docs/rules/<topic>/` is the rule; the chapter
   `docs/rules/<topic>.md` that renders it is what you read.
 - **[docs/agent/commands.md](docs/agent/commands.md)** — how this repo is driven: `nv peek`, `nv verify`,
-  `nv session`, `nv splice`, `nv plan`, `nv disk`, WSL, valgrind, and the two shell rules below in full.
+  `nv splice`, `nv plan`, `nv disk`, WSL, valgrind, and the two shell rules below in full.
 - **[docs/agent/doc-style.md](docs/agent/doc-style.md)** — how to write anything in `docs/`, and the length
   targets nothing enforces.
 - **[docs/agent/conventions.md](docs/agent/conventions.md)** — the *shape* of a commit message, a `.nvst`
@@ -98,8 +98,9 @@ which are whole where they stand.
    package and writes a second copy of every workspace crate beside the first, and a day of those
    filled the disk. Narrow what *runs* — `bun nv verify -p <crate>`, or a `--test <name>`
    or `--lib` filter under `cargo test` — and leave `--release -p` to the cost guards.
-6. **Finish with one call:** `bun nv session --wrap <file>` applies steps 4 and 5 below — plan
-   fields, playbook bullet, handoff, one commit per slice, status — or refuses and changes nothing.
+6. **Finish with one call:** `looper wrap <file>` applies steps 4 and 5 below — playbook bullet,
+   handoff, one commit per slice, status — or refuses and changes nothing. Plan fields go first
+   through `bun nv plan --apply <file>`.
 7. **A comment says what the code does now, and is rewritten as a whole** — never edited by leaving the
    old sentence beside the new one, so no comment ever reads as a changelog. `git log` is the only
    history this repository keeps: no dates, no counts of things that can change, no measured figures
@@ -265,8 +266,8 @@ trimmed until it passes.
 
 Every session runs the same five steps, in this order, and **stops**:
 
-1. **Orient in one call** — already done for you in the loop (the driver pipes the pack in with the
-   prompt), `bun nv orient --full` interactively.
+1. **Orient in one call** — already done for you in the loop (looper pipes the pack in with the
+   prompt), `looper orient --full` interactively.
    That is the map, where the work stands, the traps that apply to these files, the shapes you are about to
    write, and the rules this goal lives inside. It is narrowed on purpose: if you find yourself needing
    something it did not print, that is a gap in the goal's `[context]` manifest — say so in the handoff.
@@ -280,8 +281,8 @@ Every session runs the same five steps, in this order, and **stops**:
 
    **The gate is the budget, not a count of slices.** A session pays a fixed cost — orienting, verifying,
    wrapping — that is the same for a three-line slice as for a three-hundred-line one, so small slices over
-   one file set share a session and one hard slice fills it alone. `bun nv loop-stats` reports that fixed
-   cost and where the next session will open; read them there, because this file copies no measured figure.
+   one file set share a session and one hard slice fills it alone. looper's session log (`looper log`)
+   shows that fixed cost; read it there, because this file copies no measured figure.
 3. **Verify what you touched, once, at the end of the group** — `bun nv verify` in the loop, `bun nv
    affected --run` anywhere else, plus whatever the change specifically warrants (a `valgrind` run for a
    new refcount edge). **This is the only place
@@ -295,10 +296,10 @@ Every session runs the same five steps, in this order, and **stops**:
 5. **Commit — one per slice, all after step 3 is green**, staging each slice's own files so `git log`
    still reads a slice at a time. Then you are done.
 
-**Steps 4 and 5 are one call.** Write a single wrap file — plan fields, playbook bullet, handoff, a
-`## commit:` per slice, the status line — and apply it with `bun nv session --wrap <file>`
-(`--help` is the format, `--check` first says what the tree still owes). It applies everything or refuses
-everything, so there is no half-written tail.
+**Steps 4 and 5 are one call.** Write a single wrap file — playbook bullet, handoff, a `## commit:` per
+slice, the status line — and apply it with `looper wrap <file>` (`--template` is the format). It applies
+everything or refuses everything, so there is no half-written tail. A plan field is written before it,
+with `bun nv plan --apply <file>`.
 
 **After step 5, stop.** Do not re-run `cargo build`/`test`/`clippy`/`fmt`, do not re-read the orientation,
 do not re-check a doc against a length. Writing prose cannot break a build, so there is nothing a second
@@ -311,10 +312,16 @@ Step 5 above, in detail:
 
 - Always commit your work before you exit, and never leave a slice uncommitted. Stage each slice's own
   files, and let the last commit sweep whatever is left.
-- The handoff is the live goal's record `data/goals/<slug>.handoff.json`, written by the wrap file's
-  `## handoff` section. **Overwrite it**, never append: it says where the work stands now. Its shape is
-  [docs/agent/session-prompt.md](docs/agent/session-prompt.md) § *The handoff's shape*. Then show the
-  user the same prompt in chat.
+- The handoff is the live goal's `## Handoff` in `docs/goals/<slug>.md`. **Overwrite it**, never append:
+  every later session reads it whole, so it is a bounded state file, not a changelog. Its three parts:
+  `### State`, a few lines on what is on disk and what is blocked; `### Next`, the next group as two to
+  four slices under one line naming the stage and the file set they share, each item naming the rule
+  that specifies it and its anchors repo-rooted (`crates/nvs-runtime/src/ctx/isolate.rs:116`), because
+  the item is where `looper orient` reads the code it inlines into the next pack; and `### Backlog`, up
+  to six one-line items, each with its owning doc. A fact that outlives ten sessions goes to the
+  playbook, a rule's fragment or a module doc, and the handoff points at that home rather than restating
+  it. Aim for about 60 lines, and never spend a session trimming it. Then show the user the same
+  prompt in chat.
 - **The playbook is the opposite file**: traps, not history ([docs/agent/playbook.md](docs/agent/playbook.md)).
   Add a bullet in the shape [conventions.md](docs/agent/conventions.md) § *A playbook bullet* gives when a
   trap costs you time, edit one when it stops being true, and never reword one or write a session's story
@@ -330,15 +337,144 @@ Step 5 above, in detail:
   [docs/plan/design.md](docs/plan/design.md). Overwrite a field in place; never append a paragraph or add
   a field. Known-gap detail belongs in the crate's module doc. `bun nv plan --show M8` prints a milestone,
   `--show M8:verify` its acceptance paragraph, and a `## milestone: M8` wrap section rewrites one.
-- **The schedule is the chain, not the milestone table.** `data/chain.json` holds `goals`, the slugs in
-  the order the loop walks them, and `live`, the goal the driver works on and moves on when one is
-  reached. A goal is its prose at `docs/agent/goals/<slug>.md` and its record at `data/goals/<slug>.json`.
-  A milestone is an identity tag goals carry, so its number says nothing about what is next. **A side
-  goal is off the chain** and run by hand in a worktree of its own —
-  [goals/README.md](docs/agent/goals/README.md) § *Side goals*.
+- **The schedule is the chain, not the milestone table.** The chain and the goal files are looper's,
+  under [docs/goals/](docs/goals/README.md), as § *Goals* below says. A milestone is an identity tag
+  goals carry, so its number says nothing about what is next. **A side goal is a goal file off the
+  chain.** It runs as a side loop (`looper loop add --side <slug>`) in its own worktree at
+  `.agent-tmp/worktrees/side/<slug>`, which `bun nv side --prepare` makes; it lands on `main` by hand
+  once its checks are green, and its file is deleted as it lands.
 - **Name a goal by its slug, never by its number** — in prose, a comment, a commit message, an owner
   column and what a tool prints. A position beside a total (`29 of 43`) is fine; a position moves when a
-  goal is inserted, and a slug never does. `bun nv chain --check` fails on a goal named by its number.
-- **`bun nv chain` reorders the chain**: `--new`, `--move` or `--remove <slug>` with one place —
-  `--after <goal>`, `--before <goal>`, `--to <position>`, `--next` or `--end`. It edits `goals` only,
-  never `live`; a goal's record and prose are written by hand around it.
+  goal is inserted, and a slug never does.
+
+## In the loop
+
+What a loop session owes on top of § *Session workflow*:
+
+- **A denied call is not retried in another form.** The loop runs under `--permission-mode auto`, so a
+  call outside `.claude/settings.json`'s allowlist is reviewed and may be refused. Do the work with an
+  allowed command, or name the call you needed in the handoff.
+- **Do not re-read what the pack printed**: the handoff, the stage, the decisions, the traps.
+- **A read-heavy search goes to an `Explore` subagent**, which has no Edit or Write tool. Delegate
+  *where is X*, *how many Y*, *which syntax the corpus uses*, over files you will not otherwise open;
+  never a write, a file you are about to edit, a design question, whether a check passed, or the wrap.
+  Its prompt is the question, the place to look and the answer's shape (`file.rs:NN` and one line each,
+  no excerpts), never the project, because it reads its own copy of this file.
+- **Start `bun nv verify --start` before you write the handoff**, and collect it with `--wait`. A
+  mid-work check is `--fast` or `-p <crate>`, never the full gate.
+- **`BLOCKED` is for a decision expensive to reverse with no safe default.** Otherwise take the safe
+  option and say so in the handoff.
+- **Before `DONE`, the goal-end gates.** `bun nv verify --doc` and every broken doc link it names
+  fixed, then `bun nv owners --closes <slug>` and every gap it names closed or given another owner.
+  A reached goal's file is deleted, so first move each decision only its prose holds to a rule or a
+  module doc, and turn each check that proves more than a suite does into a test.
+- **A repair fixes the cause, not the symptom.** The loop's tooling under `tools/` is in scope, and so
+  is a check that is itself wrong; renaming a test, removing a check or loosening a bound until it
+  passes is not a fix. A verdict already fixed on disk needs no change, and the status line says so.
+
+## Where Novis departs from the stack files
+
+`docs/agent/rust.md` and `docs/agent/bun.md` are looper's defaults, and Novis's rules win in two places.
+
+- **Unsafe code is forbidden in every crate but the unsafe ones.** The workspace `Cargo.toml` sets
+  `unsafe_code = "forbid"`. Each crate on `bun nv lints`'s `UNSAFE_CRATES` restates the table with
+  `deny` and allows each audited block with a reason. The workspace `Cargo.toml`'s lint comment is
+  the home, and [docs/plan/design.md](docs/plan/design.md) § *Unsafe policy* the reasoning.
+- **`package.json` takes its dependencies at caret ranges,** and the committed `bun.lock` pins each one.
+
+<!-- looper:begin agents v2 -->
+## Where to look
+
+| You are | Run or read |
+|---|---|
+| A session of the unattended loop | Nothing. The driver piped the orientation pack in behind your prompt. |
+| Working interactively | `looper orient --full`: the live goal, its handoff, its decisions and the traps |
+| Looking for how something works | [docs/design.md](docs/design.md) until a module's head comment owns it |
+
+- **[docs/agent/commands.md](docs/agent/commands.md)**: how the project is driven, and the shell rules.
+- **[docs/agent/conventions.md](docs/agent/conventions.md)**: the shape of a commit, a comment, a test
+  and text a user reads.
+- **[docs/agent/doc-style.md](docs/agent/doc-style.md)**: how to write anything in `docs/`.
+- **[docs/agent/prose.md](docs/agent/prose.md)**: how text an end user reads is written.
+- **[docs/agent/testing.md](docs/agent/testing.md)**: what to test, and how.
+- **[docs/agent/grounding.md](docs/agent/grounding.md)**: what an answer owes the person who asked.
+- **[docs/agent/playbook.md](docs/agent/playbook.md)**: traps a session already paid for once.
+- **[docs/decisions/](docs/decisions/README.md)**: numbered decision records. Cite one as
+  `decision 0003`.
+- **Each stack's own rules** are in `docs/agent/<stack>.md`, such as `docs/agent/rust.md`.
+
+**Every fact has exactly one home.** If two files state the same thing, the home wins and the other is a
+bug. Fix the bug rather than reconciling the two in your head.
+
+## The rules you will otherwise break
+
+Each is one sentence here, because not knowing it exists is the entire cost. The file named after each
+rule is its home.
+
+1. **A shell never carries file content into the tree.** Create and edit files with Write and Edit,
+   never a heredoc, a `>` redirect, `Set-Content` or `sed -i` (commands.md).
+2. **One shell call runs one command.** Use `&&` between dependent steps (commands.md).
+3. **Read a big file in the region you need.** Read a file under about 400 lines whole, and Grep for
+   the anchor of a bigger one (commands.md).
+4. **Test only what a change can affect, through one `looper verify` at the end** (testing.md).
+5. **A session finishes in one pass,** as *Session workflow* below says.
+6. **A comment says what the code does now, and is rewritten as a whole** (conventions.md).
+7. **Docs describe the present only.** They carry no dates and no "previously" (doc-style.md).
+8. **Text an end user reads follows the prose rules:** at most 25 words, one idea, and no dash joining
+   two sentences (prose.md).
+9. **Verify a claim before you make it, not when it is questioned** (grounding.md).
+10. **Nothing is written outside this repository's folders.** Every scratch file goes under
+    `.agent-tmp/`, and whoever writes one deletes it (commands.md).
+11. **A change that adds, changes or removes a feature states its trade-offs** in performance, memory,
+    usability and simplicity. Ask the user before a large one.
+12. **A manual step done twice becomes a command.**
+13. **Look up a fast-moving API in the installed version's reference,** never from memory.
+14. **Name a goal by its slug, never by its number.**
+
+## The context budget
+
+- A loop session works under **200k** tokens of context, and an interactive session or a subagent under
+  **250k**.
+- Take no new slice past **120k**. At the ceiling, hand off.
+- Work that will not fit is split across subagents before it starts.
+  - The session keeps the decisions, the check of each result and the wrap.
+  - Each subagent gets one narrow deliverable and a brief that names its ceiling.
+  - Read-only subagents go out together. Ones that write run one after another, unless each has its
+    own worktree.
+  - A subagent's report is a pointer to check, not evidence.
+
+## Session workflow
+
+Every session runs the same steps, in this order, and **stops**:
+
+1. **Orient in one call.** In the loop the driver has done it already. Interactively, run
+   `looper orient --full`.
+2. **Do the work: as much of the group as fits.** The handoff names a group of related slices and the
+   files they share. Keep taking slices while the next one touches files already loaded and you are under
+   120k with the previous one committed.
+3. **Verify what you touched, once, at the end of the group:** `looper verify`.
+4. **Write the handoff once for the whole group.** Overwrite the live goal's `## Handoff` with where the
+   work stands and the next group with its anchors. Tick what you finished. Add a playbook bullet if a
+   trap cost you time.
+5. **Commit, one commit per slice, after step 3 is green.** Stage each slice's own files.
+6. **In the loop, write the status line** the prompt names: `CONTINUE <what landed>`,
+   `DONE <goal reached>` or `BLOCKED <the decision only the user can make>`.
+
+**After the last step, stop.** Writing prose cannot break a build.
+
+## Goals
+
+- **The goals are [docs/goals/](docs/goals/README.md),** in looper's goal format. The chain, which is the
+  order the loop walks, is the front matter of `docs/goals/README.md`, and its first slug is the live
+  goal. `looper render` writes the README's body, so never edit it by hand.
+- **A reached goal is not harvested: its file is deleted.** Only a check that sets `floor: true` moves
+  into the floor.
+
+## Commits
+
+- **Conventional Commits:** `type(scope): what is now true`. The shape is
+  [conventions.md](docs/agent/conventions.md) § *A commit message*.
+- **No trailers, ever.** The `commit-msg` hook in `tools/git-hooks/` rejects them.
+- **One commit per slice, after verify is green.** Commit with `git commit -F <file>`.
+- **Never `--no-verify`, and no force operations.**
+<!-- looper:end agents -->

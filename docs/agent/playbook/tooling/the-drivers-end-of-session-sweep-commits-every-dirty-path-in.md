@@ -2,6 +2,6 @@
   touched.** A session that exits without wrapping has its leftovers swept into a `wip(loop)` commit,
   so a goal file the user is authoring alongside the run lands in a commit named for a session
   number, and `bun nv orient` then opens the next pack presenting it as the predecessor's unfinished
-  slice. Read `git reflog` before continuing such a commit: a reset and a re-land by the user leaves
+  slice. Read `git reflog` before continuing such a commit: a user's reset and re-land leaves
   the same paths dirty as work that is genuinely still owed, and the reflog is the only thing that
-  tells the two apart. [until: gone tools/nv/driver/sweep.ts:wip(loop)]
+  tells the two apart. See `tools/nv/driver/sweep.ts`. `until: gone tools/nv/driver/sweep.ts:wip(loop)`

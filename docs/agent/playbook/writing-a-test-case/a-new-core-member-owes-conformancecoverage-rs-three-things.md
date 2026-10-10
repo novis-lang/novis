@@ -3,4 +3,4 @@
   (`every_core_class_has_a_conformance_floor_of_three` is per member, not per class), and every
   `Fault::` message stem in the corpus or `unreachable from source` within 8 lines of the site.
   Where a `.nvst` cannot reach the accepted path, all three cases ask about the refusal.
-  [until: gone crates/nvs-stdlib/tests/conformance_coverage.rs:every_core_class_has_a_conformance_floor_of_three]
+  `until: gone crates/nvs-stdlib/tests/conformance_coverage.rs:every_core_class_has_a_conformance_floor_of_three`
