@@ -187,7 +187,7 @@ return type for the position it sits in. `rule:types/erased-member-access` alrea
 field's real declared type — and stopped at properties on purpose. The call half is therefore `E0477` where
 it is written (`nvs_types::expr::calls::report_method_on_erased_receiver`), naming the two narrowings that
 do resolve: `instanceof` proves the class inside the guarded branch, and `as ClassName` converts to it or
-throws. There is no `__call` to fall back on ([0014](../decisions/0014.md)), and § 3's "a dynamic call
+throws. There is no `__call` to fall back on (`rule:classes/no-call-magic`), and § 3's "a dynamic call
 with runtime-checked arguments, at `mixed`'s cost" is deferred for `callable` and was never granted to
 `object`. **It is one code across every receiver that names no class**, because it is one mistake and the
 resolution it fails is the same one: a union naming no single class, an intersection, and the types that

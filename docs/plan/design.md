@@ -127,7 +127,7 @@ listener for it (`rule:http-server/two-deployments-and-nothing-a-proxy-owns`).
   tenant's session state arriving in another tenant's request is a leak, not a performance bug.
 - **An existing PHP application's framework and packages do not come along.** No trait, no `__call`, no
   `ArrayAccess`, no runtime autoloader ([ADRs 0043](../decisions/0043.md),
-  [0014](../decisions/0014.md), [0053](../decisions/0053.md),
+  [0053](../decisions/0053.md), `rule:classes/no-call-magic`,
   [0061](../decisions/0061.md)) means the ecosystem built on those is
   unreachable at any price — so `nvs convert` (M11) ports an application's own code onto Novis's own
   framework, and never onto its old one. `rule:programs/audience` records

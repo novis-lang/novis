@@ -2313,11 +2313,11 @@ fn the_linear_regex_tier_keeps_pace_with_the_backtracking_tier_on_one_corpus() {
 }
 
 // ---------------------------------------------------------------------------
-// ADR 0014 § 4's claim, tested rather than asserted
+// `rule:classes/property-observer-costs-nothing-when-unused`, tested rather than asserted
 // ---------------------------------------------------------------------------
 
-/// The fixture the ADR 0014 guard compiles, holding both sides of that ADR's
-/// § 4 claim in one class so they share a layout, a header and an allocation.
+/// The fixture the property-observer guard compiles, holding both sides of
+/// that rule's claim in one class so they share a layout, a header and an allocation.
 ///
 /// `$n` is an ordinary property on a class that declares neither a hook for it
 /// nor `PropertyObserver`; `$m` is the same `int` behind the cheapest possible
@@ -2413,8 +2413,8 @@ class Cell {
 /// `$c->n = $c->n + 1` brings an overflow raise, a `Release` of the receiver
 /// and a `Propagate` with it — three machine calls that no run reaches unless
 /// the addition has already overflowed. Counting those reads an access as a
-/// dispatch it never performs, which is exactly what ADR 0014 § 4 claims it is
-/// not. So the
+/// dispatch it never performs, which is exactly what
+/// `rule:classes/property-observer-costs-nothing-when-unused` claims it is not. So the
 /// blocks are walked from the entry, and the **taken** edge of a
 /// `test`-then-`jnz` pair is not followed: that pair is how codegen renders
 /// every check of a status word — a call's error return, an overflow's `seto`,
@@ -2514,17 +2514,15 @@ fn a_class_without_a_property_observer_costs_nothing_extra() {
 
     let _quiet = serialised();
 
-    // ADR 0014 § 4: a property with no hook, on a class that does not
+    // `rule:classes/property-observer-costs-nothing-when-unused`: a property with no hook, on a class that does not
     // implement `PropertyObserver`, compiles to a direct field load or store —
     // "no branch, no virtual call, nothing paid by a class that never asked
-    // for either mechanism". That sentence is what buys the whole ADR: an
-    // observer is a language-wide mechanism, so it is only affordable if the
-    // classes that ignore it pay for it exactly nothing.
+    // for either mechanism". That sentence is what the observer rests on: it
+    // is a language-wide mechanism, so it is only affordable if the classes
+    // that ignore it pay for it exactly nothing.
     //
-    // `PropertyObserver` itself has no implementation yet — it is deliberately
-    // absent from `nvs_hir::interfaces::RESERVED`, which says so — so the
-    // reference this measures against is the ADR's *other* opt-in, a
-    // per-property hook. That is the stronger of the two references anyway: a
+    // The reference this measures against is the *other* opt-in, a
+    // per-property hook. That is the stronger of the two references: a
     // hook is the cheapest thing an access can become once it stops being a
     // slot touch, one ordinary call each way, and an observer would add a
     // second on top of it. So if an unhooked access ever acquired a dispatch,
@@ -2563,9 +2561,10 @@ fn a_class_without_a_property_observer_costs_nothing_extra() {
     assert!(
         calls.is_empty(),
         "an unhooked property access on an observer-free class now lowers to \
-         {} call instruction(s): {calls:?}. ADR 0014 § 4 makes that access a \
+         {} call instruction(s): {calls:?}. \
+         `rule:classes/property-observer-costs-nothing-when-unused` makes that access a \
          direct field load or store; if a call genuinely belongs here now, \
-         that ADR's zero-cost claim needs revisiting.",
+         that rule's zero-cost claim needs revisiting.",
         calls.len()
     );
 
@@ -2590,7 +2589,7 @@ fn a_class_without_a_property_observer_costs_nothing_extra() {
     // which is what turns the check above from a claim about IR into a claim
     // about machine code. Taken as a slope between two bodies rather than as
     // an absolute count, for the same reason the timing below is: a frame
-    // pays for things that are not this ADR's — the allocation, the loop, the
+    // pays for things that are not this rule's — the allocation, the loop, the
     // one refcount call an object-typed local costs at its scope's end — and
     // all of those are per-frame, so they cancel. What is left is exactly what
     // three more access pairs added.
@@ -2600,7 +2599,7 @@ fn a_class_without_a_property_observer_costs_nothing_extra() {
     // poll each sit behind a status test, so neither is on it. A count over
     // the whole function would need them subtracted and would still hold the
     // landing blocks every added access brings, which is enough to read calls
-    // here where this ADR claims none.
+    // here where this rule claims none.
     let slope = |one: &str, four: &str| -> isize {
         path_calls(&program, four).len() as isize - path_calls(&program, one).len() as isize
     };
@@ -2646,7 +2645,8 @@ fn a_class_without_a_property_observer_costs_nothing_extra() {
     assert_eq!(
         plain_extra, 0,
         "three more unhooked property accesses now emit {plain_extra} call(s) \
-         on the path a run that throws nothing takes. ADR 0014 § 4 makes an \
+         on the path a run that throws nothing takes. \
+         `rule:classes/property-observer-costs-nothing-when-unused` makes an \
          access on an observer-free class a direct field load or store; \
          anything else there is a dispatch it did not ask for. \
          Three more access pairs grew the IR by: {plain_slope:?}"
@@ -2685,7 +2685,7 @@ fn a_class_without_a_property_observer_costs_nothing_extra() {
     judge(
         "property read+write unhooked, against a pass-through hook pair",
         PLAIN_PER_HOOKED,
-        "ADR 0014 § 4 rests on the unhooked access paying nothing for a mechanism it never \
+        "`rule:classes/property-observer-costs-nothing-when-unused` rests on the unhooked access paying nothing for a mechanism it never \
          asked for; if this is real, that claim needs revisiting rather than this bound.",
         |yard| {
             let plain = per_pair("Cell::plainOne", "Cell::plainFour");

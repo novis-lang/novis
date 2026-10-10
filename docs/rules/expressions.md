@@ -252,7 +252,7 @@ Two named ways to ask the other question already exist:
 A class needing content equality in production and wanting no order writes an ordinary named method.
 That reads worse than `==` by exactly one call, and it is visible at the call site.
 
-<sub>See also [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics), [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/mixed-equality`](expressions.md#expressions-mixed-equality). Decided in [0090](../decisions/0090.md), [0014](../decisions/0014.md), [0028](../decisions/0028.md), [0079](../decisions/0079.md).</sub>
+<sub>See also [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics), [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/mixed-equality`](expressions.md#expressions-mixed-equality). Decided in [0090](../decisions/0090.md), [0028](../decisions/0028.md), [0079](../decisions/0079.md).</sub>
 
 <a id="expressions-disjoint-comparison-refused"></a>
 

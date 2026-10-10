@@ -161,7 +161,7 @@ is a second cost with no offsetting capability. Iteration is the one place a cap
 streaming a cursor without materialising it — and it has its own interfaces
 ([`iteration/two-interfaces`](iteration.md#iteration-two-interfaces)).
 
-<sub>See also [`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects), [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces). Decided in [0053](../decisions/0053.md), [0028](../decisions/0028.md), [0014](../decisions/0014.md).</sub>
+<sub>See also [`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects), [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces). Decided in [0053](../decisions/0053.md), [0028](../decisions/0028.md).</sub>
 
 <a id="iteration-cursor-out-of-range"></a>
 

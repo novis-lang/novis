@@ -364,7 +364,7 @@ serializer or a test helper that reached into private state through reflection h
 the declaring class to offer the access, which is the same answer [`testing/private-in-the-same-file`](testing.md#testing-private-in-the-same-file)
 gives a test.
 
-<sub>See also [`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability), [`enums/reflection`](enums.md#enums-reflection). Decided in [0014](../decisions/0014.md), [0274](../decisions/0274.md).</sub>
+<sub>See also [`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability), [`enums/reflection`](enums.md#enums-reflection). Decided in [0274](../decisions/0274.md).</sub>
 
 <a id="security-reflection-needs-no-capability"></a>
 

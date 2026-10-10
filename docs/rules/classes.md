@@ -420,7 +420,7 @@ operand that carries its own answer is [`types/property-key`](types.md#types-pro
 construction one of `T`'s public declared names — the check moved to the conversion, once, instead of
 being repeated at every access.
 
-<sub>See also [`classes/property-observer`](classes.md#classes-property-observer), [`types/erased-member-access`](types.md#types-erased-member-access), [`types/property-key`](types.md#types-property-key), [`types/property-key-access`](types.md#types-property-key-access), [`types/declaration`](types.md#types-declaration). Decided in [0014](../decisions/0014.md).</sub>
+<sub>See also [`classes/property-observer`](classes.md#classes-property-observer), [`types/erased-member-access`](types.md#types-erased-member-access), [`types/property-key`](types.md#types-property-key), [`types/property-key-access`](types.md#types-property-key-access), [`types/declaration`](types.md#types-declaration).</sub>
 
 <a id="classes-unset-is-refused-on-a-property"></a>
 
@@ -444,7 +444,7 @@ including at depth. Everything else is refused, and the two shapes programs most
 named — a local, which is declared once and definitely assigned so there is no undefined state to
 return it to, and a temporary, which copy-on-write would separate into a slot nothing can write back.
 
-<sub>See also [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`expressions/truthy-table`](expressions.md#expressions-truthy-table). Decided in [0028](../decisions/0028.md), [0022](../decisions/0022.md), [0014](../decisions/0014.md).</sub>
+<sub>See also [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`expressions/truthy-table`](expressions.md#expressions-truthy-table). Decided in [0028](../decisions/0028.md), [0022](../decisions/0022.md).</sub>
 
 <a id="classes-property-hooks"></a>
 
@@ -468,7 +468,7 @@ storage model instead of two — and a `set` hook that commits a value discharge
 initialization obligation ([`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization)) exactly as a plain
 assignment does.
 
-<sub>See also [`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`types/declaration`](types.md#types-declaration). Decided in [0014](../decisions/0014.md).</sub>
+<sub>See also [`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`types/declaration`](types.md#types-declaration).</sub>
 
 <a id="classes-property-observer"></a>
 
@@ -491,7 +491,16 @@ which is exactly the ambient behaviour a declared `implements` replaces. Both me
 so an observer reports and never decides. It costs one ordinary virtual call per access, paid only by
 a class that asked for it.
 
-<sub>See also [`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline), [`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`classes/stringable`](classes.md#classes-stringable). Decided in [0014](../decisions/0014.md).</sub>
+`PropertyObserver` lives in the global namespace beside `Comparable` and `Stringable`, not under
+`Core`: `Core` holds domain classes of `static` methods and constants
+([`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace)), and this is a contract an ordinary class implements. `$value` is
+`mixed` because one observer method sees every property of the class, whatever its type.
+
+**Declined:**
+- **`__get` and `__set` recognized by name, as PHP does.** Behaviour triggered by a method name being
+  present, rather than by a declaration, is the shape [`classes/no-magic-methods`](classes.md#classes-no-magic-methods) closes.
+
+<sub>See also [`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline), [`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`classes/stringable`](classes.md#classes-stringable).</sub>
 
 <a id="classes-property-observer-pipeline"></a>
 
@@ -516,7 +525,18 @@ property has no receiving instance and reaches nothing. An observer that touches
 class recurses, exactly as any method calling itself does — there is no re-entry guard, because a
 guard would be a second rule about which write is the real one.
 
-<sub>See also [`classes/property-observer`](classes.md#classes-property-observer), [`classes/property-hooks`](classes.md#classes-property-hooks), [`classes/clone-is-shallow`](classes.md#classes-clone-is-shallow), [`errors/propagation`](errors.md#errors-propagation). Decided in [0014](../decisions/0014.md).</sub>
+An observer that is told the committed value has no declared way to see the caller's raw argument
+when a `set` hook transformed it. Logic that computes or transforms a value belongs in that
+property's own hook ([`classes/property-hooks`](classes.md#classes-property-hooks)); the observer only watches the result.
+
+**Declined:**
+- **The observer runs only for a property with no hook of its own.** Logging or dirty-tracking every
+  write would then be copied into every hook instead of declared once.
+- **The observer may override what a read returns or a write stores.** A second authority over a
+  value a hook already decided raises an ordering question with no answer that is not arbitrary, and
+  a `void` observer removes the question.
+
+<sub>See also [`classes/property-observer`](classes.md#classes-property-observer), [`classes/property-hooks`](classes.md#classes-property-hooks), [`classes/clone-is-shallow`](classes.md#classes-clone-is-shallow), [`errors/propagation`](errors.md#errors-propagation).</sub>
 
 <a id="classes-property-observer-costs-nothing-when-unused"></a>
 
@@ -537,7 +557,7 @@ them here prices this rule for two other mechanisms.
 The measurement rather than the assertion is what guards it: three more unhooked accesses emit no
 machine-code call at all, and cost a fraction of the same accesses behind a per-property hook.
 
-<sub>See also [`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0014](../decisions/0014.md), [0004](../decisions/0004.md).</sub>
+<sub>See also [`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0004](../decisions/0004.md).</sub>
 
 <a id="classes-member-conflict-is-an-error"></a>
 
@@ -817,7 +837,7 @@ underscore, so a class cannot declare a hook for the runtime to decline to call.
 there is no runtime moment for a loader callback to attach to. What replaces
 `spl_autoload_register` is [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload).
 
-<sub>See also [`classes/stringable`](classes.md#classes-stringable), [`classes/no-destructors`](classes.md#classes-no-destructors), [`classes/no-call-magic`](classes.md#classes-no-call-magic), [`classes/property-observer`](classes.md#classes-property-observer), [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload). Decided in [0028](../decisions/0028.md), [0014](../decisions/0014.md), [0023](../decisions/0023.md).</sub>
+<sub>See also [`classes/stringable`](classes.md#classes-stringable), [`classes/no-destructors`](classes.md#classes-no-destructors), [`classes/no-call-magic`](classes.md#classes-no-call-magic), [`classes/property-observer`](classes.md#classes-property-observer), [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload). Decided in [0028](../decisions/0028.md), [0023](../decisions/0023.md).</sub>
 
 <a id="classes-no-call-magic"></a>
 
@@ -839,7 +859,7 @@ name and argument list, or a `match` keyed by name — visible in the class body
 every other call. What that costs is real: a proxy or a fluent facade generated from `__call` has no
 mechanical translation and needs a human to write the surface out.
 
-<sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties), [`types/callable-values`](types.md#types-callable-values). Decided in [0014](../decisions/0014.md).</sub>
+<sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties), [`types/callable-values`](types.md#types-callable-values).</sub>
 
 <a id="classes-no-destructors"></a>
 
@@ -912,7 +932,7 @@ method call for attacker-controlled property values to drive. The cost is a real
 that wants a duplicated nested collection or custom versioning has to expose an explicit method and
 call it, and two copy depths remain two things to learn.
 
-<sub>See also [`classes/clone-is-shallow`](classes.md#classes-clone-is-shallow), [`classes/graph-copy`](classes.md#classes-graph-copy), [`classes/serialize-is-a-closed-format`](classes.md#classes-serialize-is-a-closed-format), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods). Decided in [0023](../decisions/0023.md), [0014](../decisions/0014.md), [0006](../decisions/0006.md).</sub>
+<sub>See also [`classes/clone-is-shallow`](classes.md#classes-clone-is-shallow), [`classes/graph-copy`](classes.md#classes-graph-copy), [`classes/serialize-is-a-closed-format`](classes.md#classes-serialize-is-a-closed-format), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods). Decided in [0023](../decisions/0023.md), [0006](../decisions/0006.md).</sub>
 
 <a id="classes-clone-is-shallow"></a>
 
@@ -936,7 +956,7 @@ a declared `PropertyObserver` is told nothing about it
 No `__clone` runs, and no class can declare one. A class needing a duplicated nested collection
 exposes an explicit method and calls it, rather than overloading what `clone` means.
 
-<sub>See also [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`classes/graph-copy`](classes.md#classes-graph-copy), [`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0023](../decisions/0023.md), [0014](../decisions/0014.md), [0022](../decisions/0022.md).</sub>
+<sub>See also [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`classes/graph-copy`](classes.md#classes-graph-copy), [`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0023](../decisions/0023.md), [0022](../decisions/0022.md).</sub>
 
 <a id="classes-graph-copy"></a>
 

@@ -583,7 +583,7 @@ second time.
 The rewrite is the mechanism written out — read into a local, pass the local, store it back — and it is
 what the diagnostic's help says.
 
-<sub>See also [`statements/inout-is-written-at-the-call`](statements.md#statements-inout-is-written-at-the-call), [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling). Decided in [0107](../decisions/0107.md), [0014](../decisions/0014.md).</sub>
+<sub>See also [`statements/inout-is-written-at-the-call`](statements.md#statements-inout-is-written-at-the-call), [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling). Decided in [0107](../decisions/0107.md).</sub>
 
 <a id="statements-there-is-no-out-mode"></a>
 

@@ -827,7 +827,7 @@ fine, and a class whose fields are all assignable is unaffected. It is deliberat
 where a request-controlled name selects a field to write, refusing at build time is the direction
 security points in.
 
-<sub>See also [`types/property-key`](types.md#types-property-key), [`types/erased-member-access`](types.md#types-erased-member-access), [`types/property-key-variance`](types.md#types-property-key-variance). Decided in [0126](../decisions/0126.md), [0014](../decisions/0014.md), [0274](../decisions/0274.md).</sub>
+<sub>See also [`types/property-key`](types.md#types-property-key), [`types/erased-member-access`](types.md#types-erased-member-access), [`types/property-key-variance`](types.md#types-property-key-variance). Decided in [0126](../decisions/0126.md), [0274](../decisions/0274.md).</sub>
 
 <a id="types-unions-and-mixed"></a>
 
@@ -1303,7 +1303,7 @@ that made it, so "go to definition" on any callable value lands on real code.
 - **A dedicated `MethodRef` or `FunctionRef` type.** A second type with no behaviour of its own adds
   surface and nothing else ([`types/callable-is-the-only-function-type`](types.md#types-callable-is-the-only-function-type)).
 
-<sub>See also [`types/anonymous-function`](types.md#types-anonymous-function), [`types/callable-is-the-only-function-type`](types.md#types-callable-is-the-only-function-type), [`types/callable-signature`](types.md#types-callable-signature). Decided in [0007](../decisions/0007.md), [0014](../decisions/0014.md), [0136](../decisions/0136.md).</sub>
+<sub>See also [`types/anonymous-function`](types.md#types-anonymous-function), [`types/callable-is-the-only-function-type`](types.md#types-callable-is-the-only-function-type), [`types/callable-signature`](types.md#types-callable-signature). Decided in [0007](../decisions/0007.md), [0136](../decisions/0136.md).</sub>
 
 <a id="types-anonymous-function"></a>
 
@@ -1759,7 +1759,7 @@ declared property observer behave here exactly as they do anywhere, because this
 and not a family of them — [`types/property-key-access`](types.md#types-property-key-access) and [`types/mixed-subscript`](types.md#types-mixed-subscript) are the
 same access one step along.
 
-<sub>See also [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/shape-type`](types.md#types-shape-type), [`types/property-key-access`](types.md#types-property-key-access), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0014](../decisions/0014.md), [0007](../decisions/0007.md), [0022](../decisions/0022.md), [0126](../decisions/0126.md).</sub>
+<sub>See also [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/shape-type`](types.md#types-shape-type), [`types/property-key-access`](types.md#types-property-key-access), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0007](../decisions/0007.md), [0022](../decisions/0022.md), [0126](../decisions/0126.md).</sub>
 
 <a id="types-class-reference"></a>
 

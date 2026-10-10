@@ -646,8 +646,8 @@ fn check_property_hooks(p: &nvs_syntax::ast::PropertyMember, ctx: &Ctx<'_>, env:
         current_class: ctx.current_class,
         current_hook: Some(&name),
         generator_elem: None,
-        // A hook body is not the constructor's, whichever accessor it is: ADR
-        // 0014 § 1 makes it a member called on a built instance.
+        // A hook body is not the constructor's, whichever accessor it is:
+        // `rule:classes/property-hooks` makes it a member called on a built instance.
         in_constructor: false,
         in_anon_fn: false,
     };

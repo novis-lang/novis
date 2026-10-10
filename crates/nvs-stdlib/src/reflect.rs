@@ -3359,11 +3359,11 @@ mod tests {
     }
 
     /// A `Ledger` with one `public uint $n`, an instance of it, and a context
-    /// anchored into the table — [`vault`]'s shape, plus the two things ADR
-    /// 0014 § 4 answers from a declaration: whether the class conforms to
+    /// anchored into the table — [`vault`]'s shape, plus the two things
+    /// `rule:classes/property-observer-costs-nothing-when-unused` answers from a declaration: whether the class conforms to
     /// `PropertyObserver` at all, and the body it answers `onPropertySet` with.
     ///
-    /// `observes` is a parameter rather than two fixtures because § 4's "not
+    /// `observes` is a parameter rather than two fixtures because that rule's "not
     /// one line from a class that implements nothing" is asserted over the same
     /// writes as the observed half, and a second fixture would let the two
     /// drift into being different writes.

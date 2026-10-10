@@ -12,3 +12,12 @@ The name is deliberately not `__get`: a magic spelling advertises "the runtime r
 which is exactly the ambient behaviour a declared `implements` replaces. Both members return `void`,
 so an observer reports and never decides. It costs one ordinary virtual call per access, paid only by
 a class that asked for it.
+
+`PropertyObserver` lives in the global namespace beside `Comparable` and `Stringable`, not under
+`Core`: `Core` holds domain classes of `static` methods and constants
+(`rule:core-api/reserved-namespace`), and this is a contract an ordinary class implements. `$value` is
+`mixed` because one observer method sees every property of the class, whatever its type.
+
+**Declined:**
+- **`__get` and `__set` recognized by name, as PHP does.** Behaviour triggered by a method name being
+  present, rather than by a declaration, is the shape `rule:classes/no-magic-methods` closes.

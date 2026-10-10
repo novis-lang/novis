@@ -2,7 +2,6 @@
   "title": "A class that implements no `PropertyObserver` pays nothing for one",
   "status": "shipped",
   "because": [
-    "0014",
     "0004"
   ],
   "seeAlso": [
