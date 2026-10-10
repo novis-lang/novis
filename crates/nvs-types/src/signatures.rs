@@ -150,9 +150,9 @@ pub struct MethodSig {
     pub type_bounds: Vec<(String, TypeId)>,
     /// The declared return type (`mixed` if omitted).
     pub return_ty: TypeId,
-    /// Whether the declaration writes `static` as its **return type** — ADR
-    /// 0008 § 1's late static binding, seen as a type rather than as a
-    /// dispatch.
+    /// Whether the declaration writes `static` as its **return type** — late
+    /// static binding (`rule:statements/static-is-a-member-modifier`), seen as
+    /// a type rather than as a dispatch.
     ///
     /// `static` means the class the *call* named, which
     /// [`crate::lower::lower_type`] cannot intern: inside the body it has no

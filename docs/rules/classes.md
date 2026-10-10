@@ -27,7 +27,7 @@ Two things are untouched. An anonymous or arrow function is a value, not a named
 creating one anywhere is unaffected. A script's own top-level statements are its body, not a
 declaration at file scope. What it costs is a class name on every call to a library function, on top of the annotations [`types/declaration`](types.md#types-declaration) already asks for.
 
-<sub>See also [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier), [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call), [`types/class-constant`](types.md#types-class-constant). Decided in [0011](../decisions/0011.md), [0008](../decisions/0008.md), [0003](../decisions/0003.md).</sub>
+<sub>See also [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier), [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call), [`types/class-constant`](types.md#types-class-constant). Decided in [0011](../decisions/0011.md), [0003](../decisions/0003.md).</sub>
 
 <a id="classes-a-type-is-declared-at-file-scope"></a>
 

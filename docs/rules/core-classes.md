@@ -1856,7 +1856,7 @@ own rather than a sweeper's.
 What this costs is one line per request that uses sessions. What it buys is that a request that does
 not use them pays nothing, which the ambient version could never promise.
 
-<sub>See also [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments), [`core-classes/script-args`](core-classes.md#core-classes-script-args). Decided in [0012](../decisions/0012.md), [0139](../decisions/0139.md), [0059](../decisions/0059.md), [0008](../decisions/0008.md).</sub>
+<sub>See also [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments), [`core-classes/script-args`](core-classes.md#core-classes-script-args). Decided in [0012](../decisions/0012.md), [0139](../decisions/0139.md), [0059](../decisions/0059.md).</sub>
 
 <a id="core-classes-ratelimit-two-members"></a>
 

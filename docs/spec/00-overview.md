@@ -246,7 +246,7 @@ like any other alias declaration, and M2's resolver is where it becomes a diagno
 
 ## 4. The scoping surface (`rule:statements/static-is-a-member-modifier`'s spelling only)
 
-[ADR 0008 § 2](../decisions/0008.md) is the closed, exhaustive list of where state may outlive a
+`rule:statements/storage-that-outlives-a-call` is the closed, exhaustive list of where state may outlive a
 call, and this document adds no storage class to it and repeats none of its reasoning. What belongs here is
 only the syntax for each row, gathered in one place since it is otherwise scattered across `rule:types/declaration` and `rule:statements/static-is-a-member-modifier`'s own examples:
 

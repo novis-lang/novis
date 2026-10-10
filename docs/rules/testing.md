@@ -283,7 +283,7 @@ the test where it is visible and inert everywhere else, in the same category as 
 `nvs.toml` — and a test declaration reaches no built artifact, so none of this exists in production
 even in principle.
 
-<sub>See also [`testing/task-tree-and-virtual-clock`](testing.md#testing-task-tree-and-virtual-clock), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/tests-never-reach-a-build`](testing.md#testing-tests-never-reach-a-build). Decided in [0079](../decisions/0079.md), [0008](../decisions/0008.md).</sub>
+<sub>See also [`testing/task-tree-and-virtual-clock`](testing.md#testing-task-tree-and-virtual-clock), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/tests-never-reach-a-build`](testing.md#testing-tests-never-reach-a-build). Decided in [0079](../decisions/0079.md).</sub>
 
 <a id="testing-task-tree-and-virtual-clock"></a>
 

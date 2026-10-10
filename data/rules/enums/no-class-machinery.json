@@ -2,7 +2,6 @@
   "title": "A case is an integer constant, and an enum body declares nothing but cases",
   "status": "shipped",
   "because": [
-    "0008",
     "0011"
   ],
   "seeAlso": [

@@ -37,3 +37,10 @@ promised its own.
 The keyword therefore has one meaning per position: a modifier before a member, a type or a scope in an
 expression. Nothing about it depends on whether it appears inside a function body, because inside a
 function body it is not a declaration at all — see `rule:statements/no-function-static-and-no-global`.
+
+Late static binding stays because fluent builders, record-style models and static factories are
+written with it.
+
+**Declined:**
+- **Dropping late static binding along with the storage meanings.** `new static()` compiled as `new
+  self()` returns the wrong class, and no annotation a program could add keeps the original behaviour.

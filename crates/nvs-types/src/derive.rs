@@ -1981,7 +1981,7 @@ fn check_class_format(
     for member in &decl.members {
         let fields: Vec<FieldDecl<'_>> = match &member.kind {
             ClassMemberKind::Property(p) if p.modifiers.contains(&Modifier::Static) => {
-                continue; // ADR 0008: class storage, not instance storage
+                continue; // a static property is class storage, not instance storage
             }
             ClassMemberKind::Property(p) => vec![FieldDecl::property(p)],
             ClassMemberKind::Method(m) if span_text(env.src, m.name) == CONSTRUCTOR => m

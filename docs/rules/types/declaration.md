@@ -25,4 +25,5 @@ No assignment, operator or call changes it; `settype()` joins the rejected list 
 naming `as` (`rule:types/conversion`). An `inout` binding ties two names to one slot, so both sides
 declare the **same** type (`rule:statements/inout-is-the-by-reference-spelling`); an alias that widens
 or narrows is a diagnostic. There is no function-scope `static` and no global constant, so neither has
-a binding site at all (`rule:statements/no-function-static-and-no-global`).
+a binding site at all (`rule:statements/no-function-static-and-no-global`), and definite assignment
+holds with no exception: no binding is live on a call whose path never ran its initialiser.

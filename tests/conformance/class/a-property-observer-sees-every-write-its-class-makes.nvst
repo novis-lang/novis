@@ -37,7 +37,7 @@ class Account implements PropertyObserver {
     }
 }
 
-// ADR 0008: a static property is class storage, not an instance property, so
+// A static property is class storage, not an instance property, so
 // nothing here re-enters the pipeline the counters are counting.
 final class Tally {
     public static int $reads = 0;

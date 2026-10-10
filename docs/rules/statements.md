@@ -320,7 +320,14 @@ The keyword therefore has one meaning per position: a modifier before a member, 
 expression. Nothing about it depends on whether it appears inside a function body, because inside a
 function body it is not a declaration at all — see [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global).
 
-<sub>See also [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global), [`statements/an-anonymous-function-captures-this-only-where-it-uses-it`](statements.md#statements-an-anonymous-function-captures-this-only-where-it-uses-it), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0008](../decisions/0008.md), [0007](../decisions/0007.md), [0144](../decisions/0144.md), [0211](../decisions/0211.md), [0231](../decisions/0231.md).</sub>
+Late static binding stays because fluent builders, record-style models and static factories are
+written with it.
+
+**Declined:**
+- **Dropping late static binding along with the storage meanings.** `new static()` compiled as `new
+  self()` returns the wrong class, and no annotation a program could add keeps the original behaviour.
+
+<sub>See also [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global), [`statements/an-anonymous-function-captures-this-only-where-it-uses-it`](statements.md#statements-an-anonymous-function-captures-this-only-where-it-uses-it), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0007](../decisions/0007.md), [0144](../decisions/0144.md), [0211](../decisions/0211.md), [0231](../decisions/0231.md).</sub>
 
 <a id="statements-no-function-static-and-no-global"></a>
 
@@ -345,7 +352,29 @@ slot, per isolate, with a run-once flag the JIT cannot fold away — and it hide
 function's result depends on how often it has been called. A function static could never outlive its
 request in any case, so nothing a program could rely on across requests is lost.
 
-<sub>See also [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0008](../decisions/0008.md), [0007](../decisions/0007.md), [0006](../decisions/0006.md).</sub>
+Without it, an isolate has one table of statics, the class statics, with one lifetime and one teardown
+path, so a fresh isolate is fresh by building that one table again. Every use of a function static has a
+better-placed replacement with a name, a type, a visibility and a home: a cache is a `private static
+array<T>` on the class that owns it, where it can also be cleared and inspected; a one-time
+initialisation is a static property or a constant; a call counter is a static property. The rewrite is
+not always local: a free function in a procedural file needs a class to hang the property on, or a
+parameter to carry the state.
+
+`global` hides a function's inputs from its signature in the same way, and a `const` already covers
+everything a read-only global would be used for.
+
+**Declined:**
+- **A function static with a type slot.** It would put the one exception into the definite-assignment
+  analysis that the mandatory annotations pay for ([`types/declaration`](types.md#types-declaration)).
+- **A function static whose initialiser runs when the isolate starts.** A side-effecting initialiser
+  would run at a different time than the code says, and the second table of statics would remain.
+- **`global` for reading only.** The function's inputs are still missing from its signature, and a
+  `const` reaches every read-only value the declared way.
+- **A `#[Memoize]` attribute as the replacement for a cache.** A caching construct has questions of
+  its own (how a key is derived, how long an entry lives, how large the cache may grow), and it is a
+  feature with its own rule if it ever exists, not part of this one.
+
+<sub>See also [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0007](../decisions/0007.md), [0006](../decisions/0006.md).</sub>
 
 <a id="statements-storage-that-outlives-a-call"></a>
 
@@ -372,10 +401,11 @@ the host at isolate construction instead of by a user initialiser
 of its enum's integer type, inlined at every use site like any other literal.
 
 The last row is the one to read twice. A top-level `$x` in a `.nvs` file is a local of the script's own
-frame and nothing more, so the shared-nothing story holds at file scope for the same reason it holds
-everywhere else.
+frame and nothing more. The script body is a function, so its variables are locals, and with no
+`global` no other function can see them ([`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global)). The
+shared-nothing story holds at file scope for the same reason it holds everywhere else.
 
-<sub>See also [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`statements/a-required-file-shares-declarations-not-locals`](statements.md#statements-a-required-file-shares-declarations-not-locals). Decided in [0008](../decisions/0008.md), [0011](../decisions/0011.md), [0012](../decisions/0012.md), [0006](../decisions/0006.md).</sub>
+<sub>See also [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`statements/a-required-file-shares-declarations-not-locals`](statements.md#statements-a-required-file-shares-declarations-not-locals). Decided in [0011](../decisions/0011.md), [0012](../decisions/0012.md), [0006](../decisions/0006.md).</sub>
 
 <a id="statements-an-isolate-has-its-own-statics"></a>
 
@@ -446,7 +476,7 @@ and `::cookie()` — already say which one a value came from. A merged accessor 
 re-deriving the `request_order` footgun, or take the order as an argument, at which point it is no shorter
 than naming the source.
 
-<sub>See also [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0012](../decisions/0012.md), [0008](../decisions/0008.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0012](../decisions/0012.md), [0007](../decisions/0007.md).</sub>
 
 <a id="statements-an-anonymous-function-captures-this-only-where-it-uses-it"></a>
 
@@ -467,7 +497,7 @@ extend the enclosing object's lifetime. The cost is the corner — a `$this`-fre
 built inside a method and then bound to a *different* object gives a callable that ignores the
 binding, because `bindTo()` and `bind()` return an equivalent callable rather than rebinding anything.
 
-<sub>See also [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier). Decided in [0008](../decisions/0008.md), [0031](../decisions/0031.md).</sub>
+<sub>See also [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier). Decided in [0031](../decisions/0031.md).</sub>
 
 <a id="statements-inout-is-the-by-reference-spelling"></a>
 

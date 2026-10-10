@@ -81,7 +81,7 @@ about.
 - **A conversion into an enum that always succeeds.** Turning any integer into an enum value, even one
   no case names, is the silent coercion `as` never performs; a value no case names throws.
 
-<sub>See also [`enums/declaration`](enums.md#enums-declaration), [`enums/one-backing-type`](enums.md#enums-one-backing-type), [`enums/no-class-machinery`](enums.md#enums-no-class-machinery), [`enums/representation`](enums.md#enums-representation). Decided in [0007](../decisions/0007.md), [0008](../decisions/0008.md).</sub>
+<sub>See also [`enums/declaration`](enums.md#enums-declaration), [`enums/one-backing-type`](enums.md#enums-one-backing-type), [`enums/no-class-machinery`](enums.md#enums-no-class-machinery), [`enums/representation`](enums.md#enums-representation). Decided in [0007](../decisions/0007.md).</sub>
 
 <a id="enums-one-backing-type"></a>
 
@@ -193,7 +193,7 @@ optimiser has proved it immutable.
 - **Static methods on a class that the checker treats as belonging to the enum.** It is dedicated
   syntax for what a `static` method taking the enum already does.
 
-<sub>See also [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`enums/representation`](enums.md#enums-representation), [`enums/no-case-keyword`](enums.md#enums-no-case-keyword), [`enums/reflection`](enums.md#enums-reflection). Decided in [0008](../decisions/0008.md), [0011](../decisions/0011.md).</sub>
+<sub>See also [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`enums/representation`](enums.md#enums-representation), [`enums/no-case-keyword`](enums.md#enums-no-case-keyword), [`enums/reflection`](enums.md#enums-reflection). Decided in [0011](../decisions/0011.md).</sub>
 
 <a id="enums-reflection"></a>
 

@@ -2,8 +2,7 @@
   "title": "An anonymous function captures by value exactly the outer names its body reads, and there is no `use` clause",
   "status": "shipped",
   "because": [
-    "0031",
-    "0008"
+    "0031"
   ],
   "seeAlso": [
     "types/anonymous-function",

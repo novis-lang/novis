@@ -2,8 +2,7 @@
   "title": "`at:` and `seed:` fix the clock and the generator of the test's own isolate",
   "status": "shipped",
   "because": [
-    "0079",
-    "0008"
+    "0079"
   ],
   "seeAlso": [
     "testing/task-tree-and-virtual-clock",

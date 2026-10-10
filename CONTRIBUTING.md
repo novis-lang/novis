@@ -229,7 +229,7 @@ the premise the calling convention exists for.
 | Concurrency | thread-per-core executors, stackful coroutines, isolated cross-core workers |
 | Priorities | security → semantics → latency → simplicity → memory footprint ([ADR 0004](docs/decisions/0004.md)) |
 | Types | static and mandatory; explicit checked conversions; unions plus `mixed`; `int` and `uint`; string-keyed ordered arrays with declarable nested element types ([ADR 0007](docs/decisions/0007.md)) |
-| Scoping | `static` is a class-member modifier only — static members and late static binding kept, function-scope `static` and `static fn` rejected, no `global` ([ADR 0008](docs/decisions/0008.md)) |
+| Scoping | `static` is a class-member modifier only — static members and late static binding kept, function-scope `static` and `static fn` rejected, no `global` (`rule:statements/static-is-a-member-modifier`) |
 | OOP-only | Every function is a method, every constant a class constant — no free function, no global constant, no exception for built-ins. Built-ins live under the reserved `Core` namespace, one domain class per grouping (`Core\Str`, `Core\Arr`, `Core\Math`, …) ([ADR 0011](docs/decisions/0011.md)) |
 | Values | 16-byte tagged, refcounted, copy-on-write arrays and strings |
 | Requests | shared-nothing; only compiled code is shared |

@@ -4,8 +4,7 @@
   "because": [
     "0012",
     "0139",
-    "0059",
-    "0008"
+    "0059"
   ],
   "seeAlso": [
     "statements/no-host-populated-variables",

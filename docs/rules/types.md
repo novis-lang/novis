@@ -36,9 +36,10 @@ No assignment, operator or call changes it; `settype()` joins the rejected list 
 naming `as` ([`types/conversion`](types.md#types-conversion)). An `inout` binding ties two names to one slot, so both sides
 declare the **same** type ([`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling)); an alias that widens
 or narrows is a diagnostic. There is no function-scope `static` and no global constant, so neither has
-a binding site at all ([`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global)).
+a binding site at all ([`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global)), and definite assignment
+holds with no exception: no binding is live on a call whose path never ran its initialiser.
 
-<sub>See also [`types/var-inference`](types.md#types-var-inference), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0007](../decisions/0007.md), [0022](../decisions/0022.md), [0008](../decisions/0008.md), [0011](../decisions/0011.md), [0251](../decisions/0251.md).</sub>
+<sub>See also [`types/var-inference`](types.md#types-var-inference), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0007](../decisions/0007.md), [0022](../decisions/0022.md), [0011](../decisions/0011.md), [0251](../decisions/0251.md).</sub>
 
 <a id="types-var-inference"></a>
 
@@ -1503,7 +1504,7 @@ $get       = fn() => $count->value;     // ...but $count is a heap object, so th
 There is no `Core\Ref<T>` or boxed-cell builtin for this, and an anonymous object
 ([`types/anonymous-object`](types.md#types-anonymous-object)) is the lightweight way to write the carrier.
 
-<sub>See also [`types/anonymous-function`](types.md#types-anonymous-function), [`types/anonymous-function-self-name`](types.md#types-anonymous-function-self-name), [`types/anonymous-object`](types.md#types-anonymous-object). Decided in [0031](../decisions/0031.md), [0008](../decisions/0008.md).</sub>
+<sub>See also [`types/anonymous-function`](types.md#types-anonymous-function), [`types/anonymous-function-self-name`](types.md#types-anonymous-function-self-name), [`types/anonymous-object`](types.md#types-anonymous-object). Decided in [0031](../decisions/0031.md).</sub>
 
 <a id="types-anonymous-function-self-name"></a>
 
