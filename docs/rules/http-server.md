@@ -52,7 +52,7 @@ The whole block is `System`-class ([`config/three-changeability-classes`](config
 
 The accept loop backs off on descriptor exhaustion and logs once per window rather than once per attempt, and a core that stops making progress is reported and shed by a watchdog reading the in-flight deadline each worker already keeps; `watchdog_margin` is how far past that deadline it must be, and is refused as `false` or `0` like the waits. The waits, the valve, the probe and the drain period are their own rules: [`http-server/four-idle-waits-all-finite`](http-server.md#http-server-four-idle-waits-all-finite), [`http-server/max-in-flight-refuses-before-allocating`](http-server.md#http-server-max-in-flight-refuses-before-allocating), [`http-server/health-path-is-off-and-checks-nothing`](http-server.md#http-server-health-path-is-off-and-checks-nothing), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly). `drain_timeout` is the one key here that bounds a connection which is working rather than an idle one, which is why it is not `keepalive_timeout` under another name: an operator lengthening the keep-alive a proxy needs would otherwise have lengthened every restart.
 
-<sub>See also [`http-server/four-idle-waits-all-finite`](http-server.md#http-server-four-idle-waits-all-finite), [`http-server/max-in-flight-refuses-before-allocating`](http-server.md#http-server-max-in-flight-refuses-before-allocating), [`http-server/health-path-is-off-and-checks-nothing`](http-server.md#http-server-health-path-is-off-and-checks-nothing), [`http-server/the-accept-fan-out-is-one-worker-per-core`](http-server.md#http-server-the-accept-fan-out-is-one-worker-per-core), [`http-server/a-unix-socket-listener`](http-server.md#http-server-a-unix-socket-listener), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file), [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline), [`http-server/the-accept-loop-backs-off`](http-server.md#http-server-the-accept-loop-backs-off). Decided in [0097](../decisions/0097.md), [0091](../decisions/0091.md), [0106](../decisions/0106.md), [0161](../decisions/0161.md), [0186](../decisions/0186.md), [0219](../decisions/0219.md).</sub>
+<sub>See also [`http-server/four-idle-waits-all-finite`](http-server.md#http-server-four-idle-waits-all-finite), [`http-server/max-in-flight-refuses-before-allocating`](http-server.md#http-server-max-in-flight-refuses-before-allocating), [`http-server/health-path-is-off-and-checks-nothing`](http-server.md#http-server-health-path-is-off-and-checks-nothing), [`http-server/the-accept-fan-out-is-one-worker-per-core`](http-server.md#http-server-the-accept-fan-out-is-one-worker-per-core), [`http-server/a-unix-socket-listener`](http-server.md#http-server-a-unix-socket-listener), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file), [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline), [`http-server/the-accept-loop-backs-off`](http-server.md#http-server-the-accept-loop-backs-off). Decided in [0097](../decisions/0097.md), [0091](../decisions/0091.md), [0161](../decisions/0161.md), [0186](../decisions/0186.md), [0219](../decisions/0219.md).</sub>
 
 <a id="http-server-a-mount-table-expands-at-boot"></a>
 
@@ -248,7 +248,7 @@ The count is process-wide through one relaxed atomic rather than per core, so on
 
 The effective ceiling is an arithmetic, not this number alone: the smaller of what is configured here and what the memory budget affords against the per-request cap, recomputed at boot and by every reload, and clamped and logged when the two disagree. A concurrency ceiling and a per-request memory cap with no stated relationship bound nothing together, and their product is what the machine is actually asked to hold.
 
-<sub>See also [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class), [`errors/on-limit`](errors.md#errors-on-limit), [`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number). Decided in [0097](../decisions/0097.md), [0106](../decisions/0106.md), [0219](../decisions/0219.md).</sub>
+<sub>See also [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class), [`errors/on-limit`](errors.md#errors-on-limit), [`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number). Decided in [0097](../decisions/0097.md), [0219](../decisions/0219.md).</sub>
 
 <a id="http-server-admission-is-arithmetic-not-a-number"></a>
 
@@ -262,7 +262,7 @@ The effective ceiling is an arithmetic, not this number alone: the smaller of wh
 
 Clamping rather than refusing to start: a server that will not boot because two directives disagree is a worse outage than the one being prevented, and the operator learns the same fact either way. Clamping *silently* was rejected because the observed capacity of a small instance drops where the clamp binds — a real change in a number people notice, and one an operator should find in the log rather than in a benchmark.
 
-<sub>See also [`http-server/upload-total-is-enforced-on-the-wire`](http-server.md#http-server-upload-total-is-enforced-on-the-wire), [`http-server/a-wedged-core-is-shed-never-killed`](http-server.md#http-server-a-wedged-core-is-shed-never-killed), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`programs/memory-priority`](programs.md#programs-memory-priority), [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class). Decided in [0106](../decisions/0106.md), [0097](../decisions/0097.md), [0219](../decisions/0219.md).</sub>
+<sub>See also [`http-server/upload-total-is-enforced-on-the-wire`](http-server.md#http-server-upload-total-is-enforced-on-the-wire), [`http-server/a-wedged-core-is-shed-never-killed`](http-server.md#http-server-a-wedged-core-is-shed-never-killed), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`programs/memory-priority`](programs.md#programs-memory-priority), [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class). Decided in [0097](../decisions/0097.md), [0219](../decisions/0219.md).</sub>
 
 <a id="http-server-four-idle-waits-all-finite"></a>
 
@@ -288,7 +288,7 @@ An `accept` that fails with `EMFILE`/`ENFILE` returns immediately and will fail 
 
 **The loop applies a bounded backoff on a descriptor-exhaustion error and logs once per window**, not once per attempt: the wait doubles to a ceiling and a successful accept puts it back. No other accept failure is waited out, because no other one is a condition that will clear on its own. Descriptors are already charged to a request under [`errors/multipart-part-count`](errors.md#errors-multipart-part-count)'s per-request accounting, so the condition is bounded from the other side too; this closes the behaviour when it happens anyway.
 
-<sub>See also [`http-server/the-floor-cannot-fill-the-disk`](http-server.md#http-server-the-floor-cannot-fill-the-disk), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count). Decided in [0106](../decisions/0106.md).</sub>
+<sub>See also [`http-server/the-floor-cannot-fill-the-disk`](http-server.md#http-server-the-floor-cannot-fill-the-disk), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count).</sub>
 
 <a id="http-server-a-request-resolves-in-five-steps"></a>
 
@@ -1653,7 +1653,7 @@ A request's blast radius is bounded by construction at four named tiers, and the
 
 [`errors/propagation`](errors.md#errors-propagation) contains a panic to one request at the ABI, [`errors/escalation-ladder`](errors.md#errors-escalation-ladder) gives every `FATAL` a path that ends in a log line, and [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused) refuses text whose spelling and meaning come apart. What goes *around* all of them falls into three shapes, and only three: a process `abort()`, a signal, and a core that is alive and never comes back. Each tier names which of those it closes, so the guarantee is falsifiable — a corpus of hostile requests either terminates a worker or does not. Tier D is written down because a residue that is named can be measured and revisited; the one that is not named is the one an operator discovers.
 
-<sub>See also [`http-server/containment-does-not-end-at-the-helper`](http-server.md#http-server-containment-does-not-end-at-the-helper), [`http-server/no-path-reaches-abort`](http-server.md#http-server-no-path-reaches-abort), [`http-server/engine-depth-is-bounded-per-decoder`](http-server.md#http-server-engine-depth-is-bounded-per-decoder), [`http-server/time-is-bounded-inside-a-helper`](http-server.md#http-server-time-is-bounded-inside-a-helper), [`http-server/a-core-is-never-blocked-on-a-syscall`](http-server.md#http-server-a-core-is-never-blocked-on-a-syscall), [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline), [`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number), [`http-server/the-residue-is-one-named-fault-class`](http-server.md#http-server-the-residue-is-one-named-fault-class), [`errors/propagation`](errors.md#errors-propagation), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`packaging/the-artifact-cache-is-read-not-mapped`](packaging.md#packaging-the-artifact-cache-is-read-not-mapped), [`packaging/a-service-is-one-stored-argv`](packaging.md#packaging-a-service-is-one-stored-argv). Decided in [0106](../decisions/0106.md).</sub>
+<sub>See also [`http-server/containment-does-not-end-at-the-helper`](http-server.md#http-server-containment-does-not-end-at-the-helper), [`http-server/no-path-reaches-abort`](http-server.md#http-server-no-path-reaches-abort), [`http-server/engine-depth-is-bounded-per-decoder`](http-server.md#http-server-engine-depth-is-bounded-per-decoder), [`http-server/time-is-bounded-inside-a-helper`](http-server.md#http-server-time-is-bounded-inside-a-helper), [`http-server/a-core-is-never-blocked-on-a-syscall`](http-server.md#http-server-a-core-is-never-blocked-on-a-syscall), [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline), [`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number), [`http-server/the-residue-is-one-named-fault-class`](http-server.md#http-server-the-residue-is-one-named-fault-class), [`errors/propagation`](errors.md#errors-propagation), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`packaging/the-artifact-cache-is-read-not-mapped`](packaging.md#packaging-the-artifact-cache-is-read-not-mapped), [`packaging/a-service-is-one-stored-argv`](packaging.md#packaging-a-service-is-one-stored-argv).</sub>
 
 <a id="http-server-containment-does-not-end-at-the-helper"></a>
 
@@ -1670,7 +1670,12 @@ Two outcomes, split on whether a request owns the fault:
 
 This costs nothing on the path that does not panic, and is one wrap per *task* rather than per call.
 
-<sub>See also [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`http-server/no-path-reaches-abort`](http-server.md#http-server-no-path-reaches-abort), [`errors/propagation`](errors.md#errors-propagation), [`errors/helper-abi`](errors.md#errors-helper-abi), [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code), [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root). Decided in [0106](../decisions/0106.md).</sub>
+**Declined:**
+- **`panic = "abort"` plus a supervisor.** Simpler than the outer wrap and the teardown rules combined, but
+  it turns every containable runtime bug into a process kill, which is the guarantee this rule exists to
+  strengthen ([`http-server/no-path-reaches-abort`](http-server.md#http-server-no-path-reaches-abort)).
+
+<sub>See also [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`http-server/no-path-reaches-abort`](http-server.md#http-server-no-path-reaches-abort), [`errors/propagation`](errors.md#errors-propagation), [`errors/helper-abi`](errors.md#errors-helper-abi), [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code), [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root).</sub>
 
 <a id="http-server-engine-depth-is-bounded-per-decoder"></a>
 
@@ -1684,7 +1689,7 @@ This costs nothing on the path that does not panic, and is one wrap per *task* r
 
 The default for `Core\Json` is **512**, the depth JSON decoders commonly default to, chosen as a convention rather than for any property of the number: a document a real program sends is far shallower. A document deeper than that is refused with the catchable failure above, at the level that crosses the limit.
 
-<sub>See also [`http-server/no-path-reaches-abort`](http-server.md#http-server-no-path-reaches-abort), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`errors/stack-depth`](errors.md#errors-stack-depth), [`errors/on-limit`](errors.md#errors-on-limit). Decided in [0106](../decisions/0106.md).</sub>
+<sub>See also [`http-server/no-path-reaches-abort`](http-server.md#http-server-no-path-reaches-abort), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`errors/stack-depth`](errors.md#errors-stack-depth), [`errors/on-limit`](errors.md#errors-on-limit).</sub>
 
 <a id="http-server-time-is-bounded-inside-a-helper"></a>
 
@@ -1701,7 +1706,7 @@ Two constraints on where a poll may go, both about correctness:
 - **The poll is supplied by a bounded-loop combinator, not remembered per helper.** A helper adopts the shape and the shape carries the obligation.
 - **A poll site must be a point at which abandoning leaves the value consistent.** A sort cannot be abandoned mid-permutation and its array handed back. Where no such point exists, the bound belongs on the *input* instead — which is what [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers) already did for patterns, and the precedent generalises rather than being re-argued.
 
-<sub>See also [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline), [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers), [`errors/on-limit`](errors.md#errors-on-limit), [`concurrency/cancellation-runs-no-user-code`](concurrency.md#concurrency-cancellation-runs-no-user-code). Decided in [0106](../decisions/0106.md).</sub>
+<sub>See also [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline), [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers), [`errors/on-limit`](errors.md#errors-on-limit), [`concurrency/cancellation-runs-no-user-code`](concurrency.md#concurrency-cancellation-runs-no-user-code).</sub>
 
 <a id="http-server-no-path-reaches-abort"></a>
 
@@ -1715,7 +1720,10 @@ Two constraints on where a poll may go, both about correctness:
 - **Teardown is iterative, never recursive.** A value graph is released by draining one explicit worklist, not by `Drop` calling `Drop`. This removes the panic-during-unwind surface along the only path that handles unbounded user-shaped data, and independently removes the stack overflow a deeply nested graph would cause at request end — the one depth no request-level limit can refuse, because it is reached after the request has finished. Its cost is one worklist allocation per teardown.
 - **An allocation sized by request data is fallible.** Every engine-side buffer that grows with input uses `try_reserve` and fails the request rather than the process. The bound on this rule is honest: it covers allocations that scale with input, where an attacker has leverage, and does not make the whole standard library fallible.
 
-<sub>See also [`http-server/containment-does-not-end-at-the-helper`](http-server.md#http-server-containment-does-not-end-at-the-helper), [`http-server/engine-depth-is-bounded-per-decoder`](http-server.md#http-server-engine-depth-is-bounded-per-decoder), [`security/isolate-teardown-is-a-drain-then-a-sweep`](security.md#security-isolate-teardown-is-a-drain-then-a-sweep), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0106](../decisions/0106.md).</sub>
+**Memory:** iterative teardown costs one worklist allocation per teardown, held only while the graph is
+released. That is a fraction of a percent of any request that allocated enough to need one.
+
+<sub>See also [`http-server/containment-does-not-end-at-the-helper`](http-server.md#http-server-containment-does-not-end-at-the-helper), [`http-server/engine-depth-is-bounded-per-decoder`](http-server.md#http-server-engine-depth-is-bounded-per-decoder), [`security/isolate-teardown-is-a-drain-then-a-sweep`](security.md#security-isolate-teardown-is-a-drain-then-a-sweep), [`programs/memory-priority`](programs.md#programs-memory-priority).</sub>
 
 <a id="http-server-a-core-is-never-blocked-on-a-syscall"></a>
 
@@ -1729,7 +1737,12 @@ The runtime is one single-threaded scheduler pinned per core, and a request neve
 
 The bound is stated because the default it replaces is not: an unbounded pool of threads that each reserve a stack is a footprint that grows with a workload's blocking fan-out rather than with its concurrency. What the pool spends, per [`programs/memory-priority`](programs.md#programs-memory-priority): at most that many OS thread stacks per worker, resident only in what a job touches, plus one boxed Rust `FnOnce` per job in flight.
 
-<sub>See also [`concurrency/the-reactor-reports-readiness`](concurrency.md#concurrency-the-reactor-reports-readiness), [`concurrency/the-parking-contract`](concurrency.md#concurrency-the-parking-contract), [`concurrency/try-the-syscall-then-park`](concurrency.md#concurrency-try-the-syscall-then-park), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0106](../decisions/0106.md), [0115](../decisions/0115.md).</sub>
+**Declined:**
+- **`io_uring` for the blocking paths.** It is faster and would remove the handoff rather than bound it,
+  but it is a second I/O model on one platform only, in a workspace that keeps its runtime dependency
+  surface narrow. Simplicity outweighs it until a measurement says otherwise.
+
+<sub>See also [`concurrency/the-reactor-reports-readiness`](concurrency.md#concurrency-the-reactor-reports-readiness), [`concurrency/the-parking-contract`](concurrency.md#concurrency-the-parking-contract), [`concurrency/try-the-syscall-then-park`](concurrency.md#concurrency-try-the-syscall-then-park), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0115](../decisions/0115.md).</sub>
 
 <a id="http-server-a-wedged-core-is-detected-by-its-deadline"></a>
 
@@ -1743,7 +1756,7 @@ Every other bound answers a fault. None answers a worker that faults in no way a
 
 There is one such thread for the process, not one per core, started when the first core registers; it holds one entry per registered core, O(cores), and wakes once per interval to read one atomic per entry. A stall is reported once per deadline rather than once per sweep, because a wedged core republishes nothing and its earliest deadline is a stable identity for the episode. The report goes to [`errors/engine-floor`](errors.md#errors-engine-floor)'s floor, and what happens next is [`http-server/a-wedged-core-is-shed-never-killed`](http-server.md#http-server-a-wedged-core-is-shed-never-killed).
 
-<sub>See also [`http-server/a-wedged-core-is-shed-never-killed`](http-server.md#http-server-a-wedged-core-is-shed-never-killed), [`http-server/time-is-bounded-inside-a-helper`](http-server.md#http-server-time-is-bounded-inside-a-helper), [`http-server/the-floor-cannot-fill-the-disk`](http-server.md#http-server-the-floor-cannot-fill-the-disk), [`errors/engine-floor`](errors.md#errors-engine-floor). Decided in [0106](../decisions/0106.md).</sub>
+<sub>See also [`http-server/a-wedged-core-is-shed-never-killed`](http-server.md#http-server-a-wedged-core-is-shed-never-killed), [`http-server/time-is-bounded-inside-a-helper`](http-server.md#http-server-time-is-bounded-inside-a-helper), [`http-server/the-floor-cannot-fill-the-disk`](http-server.md#http-server-the-floor-cannot-fill-the-disk), [`errors/engine-floor`](errors.md#errors-engine-floor).</sub>
 
 <a id="http-server-a-wedged-core-is-shed-never-killed"></a>
 
@@ -1759,7 +1772,7 @@ unit with `WatchdogSec=` set stops a process that has stopped pinging, and
 where **no** core is turning, which is a process with nothing left to shed onto and nothing still
 serving to be ended. Detection without a kill is still worth its cost: a wedged core that is reported degrades a service measurably, while a wedged core that is silent looks like a capacity problem for as long as anyone is willing to add capacity.
 
-<sub>See also [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline), [`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number), [`http-server/the-residue-is-one-named-fault-class`](http-server.md#http-server-the-residue-is-one-named-fault-class), [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class). Decided in [0106](../decisions/0106.md), [0097](../decisions/0097.md).</sub>
+<sub>See also [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline), [`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number), [`http-server/the-residue-is-one-named-fault-class`](http-server.md#http-server-the-residue-is-one-named-fault-class), [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class). Decided in [0097](../decisions/0097.md).</sub>
 
 <a id="http-server-a-request-outlives-a-client-that-goes-away"></a>
 
@@ -1779,7 +1792,7 @@ The case it answers: a request hangs on something slow and the user closes the t
 
 After the response is on the wire, the connection's end means nothing to the request — the tree outlives it for exactly the work [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection) admits, which a detached request reaches as an attached one does.
 
-<sub>See also [`concurrency/cancellation-runs-no-user-code`](concurrency.md#concurrency-cancellation-runs-no-user-code), [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection), [`concurrency/nothing-is-still-running-when-a-call-returns`](concurrency.md#concurrency-nothing-is-still-running-when-a-call-returns), [`http-server/a-core-is-never-blocked-on-a-syscall`](http-server.md#http-server-a-core-is-never-blocked-on-a-syscall), [`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect). Decided in [0106](../decisions/0106.md), [0115](../decisions/0115.md), [0265](../decisions/0265.md).</sub>
+<sub>See also [`concurrency/cancellation-runs-no-user-code`](concurrency.md#concurrency-cancellation-runs-no-user-code), [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection), [`concurrency/nothing-is-still-running-when-a-call-returns`](concurrency.md#concurrency-nothing-is-still-running-when-a-call-returns), [`http-server/a-core-is-never-blocked-on-a-syscall`](http-server.md#http-server-a-core-is-never-blocked-on-a-syscall), [`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect). Decided in [0115](../decisions/0115.md), [0265](../decisions/0265.md).</sub>
 
 <a id="http-server-every-deadline-is-monotonic"></a>
 
@@ -1791,7 +1804,7 @@ Every timeout, deadline and backoff in the engine is computed on a monotonic clo
 
 This is a substitution rather than an addition, and it is stated only because the failure it prevents is silent: a deadline on the wrong clock does not fire late, it does not fire at all. The watchdog of [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline) reads the same monotonic instants, so a stepped clock cannot make a healthy core look wedged or a wedged one look healthy.
 
-<sub>See also [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline), [`http-server/time-is-bounded-inside-a-helper`](http-server.md#http-server-time-is-bounded-inside-a-helper), [`concurrency/limit-and-deadline-are-the-only-bounds`](concurrency.md#concurrency-limit-and-deadline-are-the-only-bounds). Decided in [0106](../decisions/0106.md).</sub>
+<sub>See also [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline), [`http-server/time-is-bounded-inside-a-helper`](http-server.md#http-server-time-is-bounded-inside-a-helper), [`concurrency/limit-and-deadline-are-the-only-bounds`](concurrency.md#concurrency-limit-and-deadline-are-the-only-bounds).</sub>
 
 <a id="http-server-the-floor-cannot-fill-the-disk"></a>
 
@@ -1806,7 +1819,7 @@ This is a substitution rather than an addition, and it is stated only because th
 
 A full disk also stops compilation, which would convert a log problem into a total outage. **A write failure in the on-disk artifact cache falls back to compiling in memory** and reports once; the cache is an optimisation and is treated as one.
 
-<sub>See also [`errors/engine-floor`](errors.md#errors-engine-floor), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/renderings`](errors.md#errors-renderings), [`http-server/the-accept-loop-backs-off`](http-server.md#http-server-the-accept-loop-backs-off), [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file). Decided in [0106](../decisions/0106.md), [0092](../decisions/0092.md).</sub>
+<sub>See also [`errors/engine-floor`](errors.md#errors-engine-floor), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/renderings`](errors.md#errors-renderings), [`http-server/the-accept-loop-backs-off`](http-server.md#http-server-the-accept-loop-backs-off), [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file). Decided in [0092](../decisions/0092.md).</sub>
 
 <a id="http-server-a-jit-page-is-never-writable-and-executable-at-once"></a>
 
@@ -1818,7 +1831,7 @@ Pages holding generated code are mapped writable while being written and executa
 
 This is a security property before it is a stability one — a page that is both writable and executable is a write primitive for any bug that reaches it — and it sits with the server rules because the JIT is this runtime's distinguishing component and nothing else owns the question.
 
-<sub>See also [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`http-server/the-residue-is-one-named-fault-class`](http-server.md#http-server-the-residue-is-one-named-fault-class), [`programs/compile-target`](programs.md#programs-compile-target). Decided in [0106](../decisions/0106.md).</sub>
+<sub>See also [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`http-server/the-residue-is-one-named-fault-class`](http-server.md#http-server-the-residue-is-one-named-fault-class), [`programs/compile-target`](programs.md#programs-compile-target).</sub>
 
 <a id="http-server-the-residue-is-one-named-fault-class"></a>
 
@@ -1832,4 +1845,13 @@ For these, tier D applies: the process dies, the supervisor restarts it, the req
 
 The engineering response to this class is **not** a boundary; it is to reduce the rate at which the class occurs — the conformance cases run against generated code at every optimisation level, fuzzing the code generator the way the lexer and parser are fuzzed, and running the reference-counting paths under `tools/leak-check.sh`. A fault class that cannot be contained is one whose frequency is the only variable left.
 
-<sub>See also [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`http-server/containment-does-not-end-at-the-helper`](http-server.md#http-server-containment-does-not-end-at-the-helper), [`http-server/a-wedged-core-is-shed-never-killed`](http-server.md#http-server-a-wedged-core-is-shed-never-killed), [`errors/propagation`](errors.md#errors-propagation), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`packaging/a-service-is-one-stored-argv`](packaging.md#packaging-a-service-is-one-stored-argv), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate). Decided in [0106](../decisions/0106.md).</sub>
+Before any worker count above one is recommended, two numbers have to be measured: the per-unit size of
+compiled code, which sets the duplicated cache's footprint, and the per-unit compilation time, which
+sets the warm-up cost. A cold start bounds them jointly and separates neither.
+
+**Declined:**
+- **Process-per-request.** It is the only arrangement that contains a disclosure fault, and it discards
+  the thread-per-core runtime the whole performance design rests on. It is the endpoint of the
+  worker-process argument above, not a close call.
+
+<sub>See also [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`http-server/containment-does-not-end-at-the-helper`](http-server.md#http-server-containment-does-not-end-at-the-helper), [`http-server/a-wedged-core-is-shed-never-killed`](http-server.md#http-server-a-wedged-core-is-shed-never-killed), [`errors/propagation`](errors.md#errors-propagation), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`packaging/a-service-is-one-stored-argv`](packaging.md#packaging-a-service-is-one-stored-argv), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate).</sub>

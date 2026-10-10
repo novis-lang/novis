@@ -4,8 +4,7 @@
   "because": [
     "0138",
     "0115",
-    "0097",
-    "0106"
+    "0097"
   ],
   "seeAlso": [
     "concurrency/a-waker-is-one-permission-to-poll",

@@ -1,9 +1,7 @@
 {
   "title": "Nothing a request can send terminates or wedges a worker: its blast radius is bounded at four named tiers, and the residue is one stated fault class",
   "status": "designed",
-  "because": [
-    "0106"
-  ],
+  "because": [],
   "seeAlso": [
     "http-server/containment-does-not-end-at-the-helper",
     "http-server/no-path-reaches-abort",

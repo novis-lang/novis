@@ -2,8 +2,7 @@
   "title": "A task registers before it suspends, treats a wake as a hint, and leaves the reactor holding nothing when it ends",
   "status": "shipped",
   "because": [
-    "0115",
-    "0106"
+    "0115"
   ],
   "seeAlso": [
     "concurrency/the-reactor-reports-readiness",

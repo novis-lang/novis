@@ -307,7 +307,7 @@ goes inside the transaction that made it necessary, in
   zero-retry rule of its own, the way the ladder's tiers have one. That is a new mechanism with its
   own argument to win, and it is not offered as an exception to this rule.
 
-<sub>See also [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`security/isolate-teardown-is-a-drain-then-a-sweep`](security.md#security-isolate-teardown-is-a-drain-then-a-sweep), [`http-server/a-request-outlives-a-client-that-goes-away`](http-server.md#http-server-a-request-outlives-a-client-that-goes-away). Decided in [0106](../decisions/0106.md), [0265](../decisions/0265.md).</sub>
+<sub>See also [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`security/isolate-teardown-is-a-drain-then-a-sweep`](security.md#security-isolate-teardown-is-a-drain-then-a-sweep), [`http-server/a-request-outlives-a-client-that-goes-away`](http-server.md#http-server-a-request-outlives-a-client-that-goes-away). Decided in [0265](../decisions/0265.md).</sub>
 
 <a id="concurrency-a-deadline-bounds-the-cancel-not-the-return"></a>
 
@@ -1604,7 +1604,7 @@ The risk this closes is not that a poll loop is hard to write. It is that a poll
 becomes an executor — a ready queue, a spawn, work stealing — and then there are two schedulers on
 one core, each with its own idea of which stack may touch an arena.
 
-<sub>See also [`concurrency/a-waker-is-one-permission-to-poll`](concurrency.md#concurrency-a-waker-is-one-permission-to-poll), [`concurrency/the-park-route-is-chosen-once`](concurrency.md#concurrency-the-park-route-is-chosen-once), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate). Decided in [0138](../decisions/0138.md), [0115](../decisions/0115.md), [0097](../decisions/0097.md), [0106](../decisions/0106.md).</sub>
+<sub>See also [`concurrency/a-waker-is-one-permission-to-poll`](concurrency.md#concurrency-a-waker-is-one-permission-to-poll), [`concurrency/the-park-route-is-chosen-once`](concurrency.md#concurrency-the-park-route-is-chosen-once), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate). Decided in [0138](../decisions/0138.md), [0115](../decisions/0115.md), [0097](../decisions/0097.md).</sub>
 
 <a id="concurrency-a-waker-is-one-permission-to-poll"></a>
 
@@ -1733,7 +1733,7 @@ Blocking the thread is right in that last case for the reason every off-core wai
 there is no coroutine to suspend and no neighbour to starve, so blocking starves nobody. On a core it
 would be precisely wrong.
 
-<sub>See also [`concurrency/one-future-per-connection`](concurrency.md#concurrency-one-future-per-connection), [`concurrency/a-waker-is-one-permission-to-poll`](concurrency.md#concurrency-a-waker-is-one-permission-to-poll). Decided in [0138](../decisions/0138.md), [0115](../decisions/0115.md), [0106](../decisions/0106.md).</sub>
+<sub>See also [`concurrency/one-future-per-connection`](concurrency.md#concurrency-one-future-per-connection), [`concurrency/a-waker-is-one-permission-to-poll`](concurrency.md#concurrency-a-waker-is-one-permission-to-poll). Decided in [0138](../decisions/0138.md), [0115](../decisions/0115.md).</sub>
 
 <a id="concurrency-the-parking-contract"></a>
 
@@ -1760,7 +1760,7 @@ otherwise get backwards.
 5. **One reactor per worker**, not shared. A descriptor a request owns is registered with, and woken
    by, that request's own core — which is what keeps refcounts non-atomic.
 
-<sub>See also [`concurrency/the-reactor-reports-readiness`](concurrency.md#concurrency-the-reactor-reports-readiness), [`concurrency/try-the-syscall-then-park`](concurrency.md#concurrency-try-the-syscall-then-park), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0115](../decisions/0115.md), [0106](../decisions/0106.md).</sub>
+<sub>See also [`concurrency/the-reactor-reports-readiness`](concurrency.md#concurrency-the-reactor-reports-readiness), [`concurrency/try-the-syscall-then-park`](concurrency.md#concurrency-try-the-syscall-then-park), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0115](../decisions/0115.md).</sub>
 
 <a id="concurrency-try-the-syscall-then-park"></a>
 
@@ -1804,7 +1804,7 @@ runtime brings its own scheduler ([`concurrency/the-parking-contract`](concurren
 attacker-controlled reaches a registration, which carries a descriptor and an interest set and no
 parsed input at all.
 
-<sub>See also [`concurrency/the-parking-contract`](concurrency.md#concurrency-the-parking-contract), [`concurrency/try-the-syscall-then-park`](concurrency.md#concurrency-try-the-syscall-then-park). Decided in [0115](../decisions/0115.md), [0106](../decisions/0106.md).</sub>
+<sub>See also [`concurrency/the-parking-contract`](concurrency.md#concurrency-the-parking-contract), [`concurrency/try-the-syscall-then-park`](concurrency.md#concurrency-try-the-syscall-then-park). Decided in [0115](../decisions/0115.md).</sub>
 
 <a id="concurrency-a-stream-is-an-ordinary-io-stream"></a>
 
@@ -1856,7 +1856,7 @@ sizes, so the task's stack cannot promise room for such a parse. The spare stack
 worker thread, O(workers), and the pages the deepest parse touched stay resident for the life of the
 thread. Code on it never calls compiled Novis code, whose recursion limit is armed for the task's stack.
 
-<sub>See also [`programs/memory-priority`](programs.md#programs-memory-priority), [`concurrency/a-tasks-recursion-limit-comes-from-its-own-stack`](concurrency.md#concurrency-a-tasks-recursion-limit-comes-from-its-own-stack), [`concurrency/a-stream-is-an-ordinary-io-stream`](concurrency.md#concurrency-a-stream-is-an-ordinary-io-stream). Decided in [0115](../decisions/0115.md), [0106](../decisions/0106.md).</sub>
+<sub>See also [`programs/memory-priority`](programs.md#programs-memory-priority), [`concurrency/a-tasks-recursion-limit-comes-from-its-own-stack`](concurrency.md#concurrency-a-tasks-recursion-limit-comes-from-its-own-stack), [`concurrency/a-stream-is-an-ordinary-io-stream`](concurrency.md#concurrency-a-stream-is-an-ordinary-io-stream). Decided in [0115](../decisions/0115.md).</sub>
 
 <a id="concurrency-a-tasks-recursion-limit-comes-from-its-own-stack"></a>
 

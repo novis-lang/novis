@@ -15,7 +15,7 @@
 //! closed. So [`Ceiling::of`] takes the **smaller** of what the file asked for
 //! and what the budget affords, and [`Ceiling::clamp_note`] is the sentence an
 //! operator reads when those two disagree. Clamping rather than refusing to
-//! boot is § 13's own call: a server that will not start because two directives
+//! boot is the rule's own call: a server that will not start because two directives
 //! disagree is the worse outage, and the operator learns the same fact either
 //! way.
 //!
@@ -68,12 +68,12 @@ use crate::serve::Answer;
 /// is asked for.
 pub const ENGINE_RESERVE: u64 = 128 * 1024 * 1024;
 
-/// § 13's arithmetic, done: the two numbers and which of them won.
+/// The admission arithmetic, done: the two numbers and which of them won.
 ///
 /// Kept as all three rather than reduced to [`effective`](Self::effective)
 /// because the clamp has to be *reportable* — an operator whose observed
 /// capacity changed should be able to find out why from a log line rather than
-/// from a benchmark, which is the whole reason § 13 rejected clamping silently.
+/// from a benchmark, which is the whole reason the rule rejects clamping silently.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Ceiling {
     /// `[server] max_in_flight`, or § 5's own default where it is unwritten.
@@ -117,7 +117,7 @@ impl Ceiling {
         }
     }
 
-    /// The one line § 13 asks to be logged at boot when the two numbers
+    /// The one line the rule asks to be logged at boot when the two numbers
     /// disagree, naming both directives and both numbers; `None` when the
     /// configured ceiling is what stands.
     ///
@@ -148,7 +148,7 @@ impl Ceiling {
 pub struct Admission {
     /// [`Ceiling::effective`] for the snapshot in force, which a reload sets
     /// through [`Admission::resize`] because `limits.memory` is a `Reload`
-    /// directive and it is one of § 13's inputs. A request already admitted
+    /// directive and it is one of the arithmetic's inputs. A request already admitted
     /// keeps its place: the count is not reset, so a lowered ceiling refuses
     /// new requests until enough of the admitted ones end.
     ceiling: AtomicUsize,
@@ -158,7 +158,7 @@ pub struct Admission {
 }
 
 impl Admission {
-    /// The valve § 13's arithmetic settled on.
+    /// The valve the admission arithmetic settled on.
     #[must_use]
     pub fn new(ceiling: &Ceiling) -> Self {
         Self {
@@ -262,7 +262,7 @@ mod tests {
         }
     }
 
-    /// § 13's whole rule, from both sides: the budget binds where it is the
+    /// The admission rule, from both sides: the budget binds where it is the
     /// smaller number, the written ceiling binds where it is, and an absent
     /// half of the arithmetic leaves the written one standing rather than
     /// producing a zero.

@@ -2,7 +2,6 @@
   "title": "A reported core stops accepting and `max_in_flight` counts its share as unavailable; a wedged worker is never killed in-process",
   "status": "designed",
   "because": [
-    "0106",
     "0097"
   ],
   "seeAlso": [

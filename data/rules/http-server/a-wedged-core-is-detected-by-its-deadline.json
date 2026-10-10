@@ -1,9 +1,7 @@
 {
   "title": "A watchdog reads the in-flight deadline each worker already keeps, and reports a core whose oldest deadline is past by a margin",
   "status": "shipped",
-  "because": [
-    "0106"
-  ],
+  "because": [],
   "seeAlso": [
     "http-server/a-wedged-core-is-shed-never-killed",
     "http-server/time-is-bounded-inside-a-helper",

@@ -828,7 +828,8 @@ fn an_all_bits_off_debug_probe_stays_in_the_safepoint_cost_class() {
 fn an_amortised_deadline_poll_costs_less_than_the_check_it_rides_beside() {
     let _quiet = serialised();
 
-    // ADR 0106 § 5 owns exactly one number and this is it: a helper whose
+    // `rule:http-server/time-is-bounded-inside-a-helper` owns exactly one number and this is
+    // it: a helper whose
     // runtime scales with its input polls the deadline through
     // `nvs_runtime::bounded_loop`, the poll is amortised over
     // `DEADLINE_POLL_BATCH` iterations, and what makes that batch the right
@@ -892,8 +893,8 @@ fn an_amortised_deadline_poll_costs_less_than_the_check_it_rides_beside() {
             boundary - 1,
             "a deadline expired at iteration {expires_at} stopped the loop after {ran} \
              iterations. The only poll after it is at iteration {boundary}, because \
-             `bounded_loop` reads the flag once in every {BATCH} iterations; ADR 0106 § 5 rests \
-             on that batch."
+             `bounded_loop` reads the flag once in every {BATCH} iterations; the in-helper \
+             deadline rule rests on that batch."
         );
         stops.insert(ran);
     }
@@ -920,7 +921,7 @@ fn an_amortised_deadline_poll_costs_less_than_the_check_it_rides_beside() {
     judge(
         "amortised deadline poll, against a hot-line check",
         POLL_PER_CHECK,
-        "ADR 0106 § 5 bounds the poll by the check, and the fix is the batch in \
+        "The in-helper deadline rule bounds the poll by the check, and the fix is the batch in \
          `nvs_runtime::DEADLINE_POLL_BATCH` or the shape of `bounded_loop`'s countdown — not \
          this comparison, which is what the ADR says.",
         |yard| {

@@ -2,8 +2,7 @@
   "title": "The reactor reports readiness on every platform, Windows included, so a stream is written once",
   "status": "shipped",
   "because": [
-    "0115",
-    "0106"
+    "0115"
   ],
   "seeAlso": [
     "concurrency/the-parking-contract",

@@ -136,7 +136,7 @@ stderr. `nvs_runtime::floor::install_panic_hook`, which `nvs` installs at startu
 raised under a served request as a critical record and hands any other panic to the hook before it,
 so a CLI script still prints its panic to stderr.
 
-<sub>See also [`errors/propagation`](errors.md#errors-propagation), [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code). Decided in [0106](../decisions/0106.md).</sub>
+<sub>See also [`errors/propagation`](errors.md#errors-propagation), [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code).</sub>
 
 <a id="errors-stack-depth"></a>
 
@@ -166,7 +166,7 @@ those. Request data also recurses through engine frames — a nested document in
 value graph in teardown — which are bounded separately by an explicit depth counter and an
 iterative teardown.
 
-<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`errors/propagation`](errors.md#errors-propagation). Decided in [0106](../decisions/0106.md).</sub>
+<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`errors/propagation`](errors.md#errors-propagation).</sub>
 
 <a id="errors-on-limit"></a>
 
@@ -356,7 +356,7 @@ ladder can leave; a `finally` is not enough, because an internal panic bypasses 
 design. A ladder that protects the process and leaves the shell unusable has failed at what it is
 for.
 
-<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/handler-script`](errors.md#errors-handler-script), [`errors/log-write`](errors.md#errors-log-write). Decided in [0086](../decisions/0086.md), [0106](../decisions/0106.md).</sub>
+<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/handler-script`](errors.md#errors-handler-script), [`errors/log-write`](errors.md#errors-log-write). Decided in [0086](../decisions/0086.md).</sub>
 
 <a id="errors-panics-bypass-user-code"></a>
 
@@ -427,7 +427,7 @@ implementation rather than five.
 One crate — `nvs-render` — owns the model and every rendering of it, and both the runtime and the
 compiler front end depend on it.
 
-<sub>See also [`errors/renderings`](errors.md#errors-renderings), [`errors/record-transformations`](errors.md#errors-record-transformations), [`errors/record-producers`](errors.md#errors-record-producers), [`errors/log-fields`](errors.md#errors-log-fields). Decided in [0092](../decisions/0092.md), [0106](../decisions/0106.md).</sub>
+<sub>See also [`errors/renderings`](errors.md#errors-renderings), [`errors/record-transformations`](errors.md#errors-record-transformations), [`errors/record-producers`](errors.md#errors-record-producers), [`errors/log-fields`](errors.md#errors-log-fields). Decided in [0092](../decisions/0092.md).</sub>
 
 <a id="errors-record-producers"></a>
 

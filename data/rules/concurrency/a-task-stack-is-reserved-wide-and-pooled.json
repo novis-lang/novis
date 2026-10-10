@@ -2,8 +2,7 @@
   "title": "A task's stack is 1 MiB of reserved address space, resident only where it is touched, and pooled per worker",
   "status": "shipped",
   "because": [
-    "0115",
-    "0106"
+    "0115"
   ],
   "seeAlso": [
     "programs/memory-priority",

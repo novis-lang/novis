@@ -11,3 +11,6 @@ buys isolation, which is the direction the priority ordering exists to permit.
 What the entry contains, how it is verified before it becomes executable, and why its key carries the
 extension set (`rule:config/the-extension-set-is-in-every-unit-key`) are unchanged by how its bytes
 arrive; only the read path is.
+
+**Memory:** one in-memory copy of each loaded unit's bytes for the process. It grows with the units a
+program loads, never with requests served.

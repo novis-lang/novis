@@ -3,3 +3,6 @@
 - **Nothing on a teardown path may panic.** A `Drop` that can fail turns a contained fault into an uncontained one. That is a rule every contributor would have to remember, so it is made mechanical by the next bullet rather than left as discipline.
 - **Teardown is iterative, never recursive.** A value graph is released by draining one explicit worklist, not by `Drop` calling `Drop`. This removes the panic-during-unwind surface along the only path that handles unbounded user-shaped data, and independently removes the stack overflow a deeply nested graph would cause at request end — the one depth no request-level limit can refuse, because it is reached after the request has finished. Its cost is one worklist allocation per teardown.
 - **An allocation sized by request data is fallible.** Every engine-side buffer that grows with input uses `try_reserve` and fails the request rather than the process. The bound on this rule is honest: it covers allocations that scale with input, where an attacker has leverage, and does not make the whole standard library fallible.
+
+**Memory:** iterative teardown costs one worklist allocation per teardown, held only while the graph is
+released. That is a fraction of a percent of any request that allocated enough to need one.
