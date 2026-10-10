@@ -328,9 +328,8 @@ pub struct ObserverCalls {
 ///
 /// The route's `path` is **not** carried beside this. § 2's grammar is read
 /// once, by [`crate::routes::link_pieces`], and what crosses to `nvs-ir` is its
-/// answer — `docs/agent/goals/core-depth.md` § *Standing decisions* makes a fold and
-/// its runtime path one implementation, and a template the runtime re-parsed
-/// would be the second copy that rule exists to refuse.
+/// answer: a fold and its runtime path are one implementation, and a template
+/// the runtime re-parsed would be a second copy of § 2's grammar.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum UrlPiece {
     /// A fixed segment, `/` included — compared byte for byte at match time

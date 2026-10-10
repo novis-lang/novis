@@ -20,8 +20,8 @@
 //!
 //! Two things, and the difference between them is who owns the site:
 //!
-//! *   **An open numbered item claims it** — one in the live goal's prose
-//!     under `docs/agent/goals/`, or one in `docs/agent/carried-refusals.md`,
+//! *   **An open numbered item claims it** — one in the live goal's file
+//!     under `docs/goals/`, or one in `docs/agent/carried-refusals.md`,
 //!     which is where a hole an earlier milestone left is owned once no current
 //!     goal can be judged on it (a goal switch carries a check forward and the
 //!     items that made it green not at all, so that inventory has to live
@@ -299,7 +299,7 @@ fn every_refusal_is_a_diagnostic_or_decided() {
     assert!(
         standing.is_empty(),
         "{} refusal(s) belong to nobody — each is a shape that type-checks and then \
-         refuses, with no open item in the live goal's prose under docs/agent/goals/ or \
+         refuses, with no open item in the live goal's file under docs/goals/ or \
          in docs/agent/carried-refusals.md claiming it and no entry on this test's \
          allowlist. Give it a diagnostic, close it, or take the decision in the goal's \
          § Standing decisions — do NOT add it to the allowlist to make this pass.\n{}",

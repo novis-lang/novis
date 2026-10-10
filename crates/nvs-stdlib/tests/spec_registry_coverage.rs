@@ -35,8 +35,8 @@
 //! `nv verify` stops at the first failing step, so a permanently red
 //! `cargo test` costs every later session its clippy and fmt signal, which is
 //! a much larger loss than the one it buys. The acceptance gate withholds
-//! *done* on the conformance suite's `minPassing` floor in the goal records
-//! under `data/goals/` regardless, and that number is untouched by anything
+//! *done* on the conformance suite's `minPassing` floor in a goal file
+//! under `docs/goals/` regardless, and that number is untouched by anything
 //! here.
 //!
 //! So the outstanding members live in
@@ -867,9 +867,8 @@ fn every_part_one_spec_member_is_registered() {
 /// § 4's one `at` row is `Core\Time\DateTime`'s five-parameter constructor,
 /// and `Date::at`/`TimeOfDay::at` take three, so they are not compared against
 /// it rather than compared and failed. A member the spec writes with a
-/// different arity than the registry builds is not a failure here:
-/// `docs/agent/goals/concurrency.md` § *Standing decisions* says the spec is
-/// authoritative for the names and the registry for what is built.
+/// different arity than the registry builds is not a failure here: the spec
+/// is authoritative for the names, and the registry for what is built.
 ///
 /// The floor on the comparison count is the real assertion about the parser —
 /// it makes 234 comparisons today, and one that stops matching the spec's

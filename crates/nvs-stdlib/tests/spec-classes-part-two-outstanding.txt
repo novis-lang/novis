@@ -5,7 +5,8 @@
 #
 # One key per line, as the spec section and the class's own spelling, then the
 # goal that will strike it, named by its slug: `§16 Core\Net  # net-os-signal`,
-# read against docs/agent/goals/ by `every_outstanding_key_names_an_owner`. That
+# read against the chain in docs/goals/README.md by
+# `every_outstanding_key_names_an_owner`. That
 # test's doc owns the column, and a class no goal on the chain builds takes a
 # milestone tag whose own plan states the scope: there is no word for "nobody's
 # yet", and `unowned` is refused by name.

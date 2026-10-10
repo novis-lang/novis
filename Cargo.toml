@@ -143,8 +143,8 @@ mio = { version = "1", features = ["os-poll", "net"] }
 # that, its record is the exceptional one § 4 asks for — continuously fuzzed, and
 # the most-exercised h1 implementation in the language, against a hand-rolled
 # parser of ours that would be exercised by this repository alone.
-# `docs/plan/design.md`'s refusal to own FCGI framing is the same argument and
-# `docs/agent/goals/server.md` § *Two things every session must hold* applies it here.
+# `docs/plan/design.md`'s refusal to own FCGI framing is the same argument,
+# applied here to HTTP/1 framing.
 #
 # **`default-features = false` is load-bearing, not tidiness.** With `http1`,
 # `server` and `client` the graph is `http`, `http-body`, `bytes`,

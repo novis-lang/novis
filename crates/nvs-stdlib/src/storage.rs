@@ -594,7 +594,7 @@ mod tests {
     /// every door this class reaches is an `fs.*` one, so the class declares no
     /// capability of its own and every row says which half of `fs` it needs.
     ///
-    /// An acceptance check in the goal records under `data/goals/`. It asserts over the registry
+    /// An acceptance check in a goal file under `docs/goals/`. It asserts over the registry
     /// rather than over a temporary directory on purpose — a `storage.read`
     /// added beside these rows would leave every behavioural test in this file
     /// green while splitting one door's authority in two.
