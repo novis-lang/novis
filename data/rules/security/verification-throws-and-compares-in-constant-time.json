@@ -1,9 +1,7 @@
 {
   "title": "Verification answers a value or throws, and no member exposes a raw comparison for the caller to get wrong",
   "status": "shipped",
-  "because": [
-    "0056"
-  ],
+  "because": [],
   "seeAlso": [
     "security/secret-comparison-is-constant-time",
     "security/algorithm-comes-from-the-key",

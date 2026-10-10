@@ -62,7 +62,7 @@ conversion to offer there.
 platform: LLVM autovectorizes the Rust crates at each target's *baseline* ISA — SSE2 on x86_64, NEON on
 aarch64 — and no further, because a `native` build produces a binary that faults on the next machine. The
 wide, feature-detected SIMD that actually earns its keep arrives through dependencies that hand-wrote it and
-dispatch at runtime: `memchr` behind every `regex` prefilter ([0056](../decisions/0056.md)), `blake3`
+dispatch at runtime: `memchr` behind every `regex` prefilter (`rule:core-classes/regex-two-tiers`), `blake3`
 on the artifact-cache path ([0042](../decisions/0042.md)). That is the same trade the
 pure-Rust-dependency rule below already makes — the `unsafe` lives in a fuzzed crate with a user base rather
 than in ours, where `unsafe_code = "forbid"` and a stable-pinned toolchain (so no `std::simd`) bar it

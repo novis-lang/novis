@@ -2,7 +2,6 @@
   "title": "A regex pattern is a sink with no launderer; the subject is data and may be tainted",
   "status": "shipped",
   "because": [
-    "0056",
     "0088"
   ],
   "seeAlso": [

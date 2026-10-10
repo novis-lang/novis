@@ -497,9 +497,9 @@ unicode-normalization = "0.1"
 # (`rule:core-api/no-ambient-state`, which refuses `setlocale` for saying so).
 unicode-width = { version = "0.2", default-features = false }
 
-# --- regular expressions (ADR 0056's two tiers, both named by the user) ---
+# --- regular expressions (`rule:core-classes/regex-two-tiers`, both named by the user) ---
 # `regex` is the linear-time default: a finite-automata engine that cannot be
-# made to backtrack exponentially, which is the whole point of that ADR.
+# made to backtrack exponentially, which is the whole point of that rule.
 # `fancy-regex` is the budgeted opt-in tier, reached only by a pattern the
 # linear engine cannot express (lookaround, backreferences); it wraps `regex`
 # itself, so the two share one syntax and one Unicode table set rather than

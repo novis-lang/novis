@@ -3,8 +3,7 @@
   "status": "shipped",
   "because": [
     "0088",
-    "0063",
-    "0056"
+    "0063"
   ],
   "seeAlso": [
     "security/sink-predicate",

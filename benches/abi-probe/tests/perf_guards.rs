@@ -2175,7 +2175,7 @@ fn a_grapheme_index_costs_more_than_a_code_point_index() {
 }
 
 // ---------------------------------------------------------------------------
-// ADR 0056's claim, measured rather than asserted
+// The two regex tiers, measured rather than asserted
 // ---------------------------------------------------------------------------
 //
 // `rule:core-classes/regex-two-tiers` routes a pattern to the linear engine

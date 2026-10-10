@@ -1143,7 +1143,7 @@ A regex quoting member remains the one exception on the roster, because a regex 
 that routinely needs a runtime value *inside* it rather than *as* it
 ([`security/regex-pattern-is-a-sink`](security.md#security-regex-pattern-is-a-sink)).
 
-<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/regex-pattern-is-a-sink`](security.md#security-regex-pattern-is-a-sink), [`security/assert-trusted`](security.md#security-assert-trusted), [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments). Decided in [0088](../decisions/0088.md), [0063](../decisions/0063.md), [0056](../decisions/0056.md).</sub>
+<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/regex-pattern-is-a-sink`](security.md#security-regex-pattern-is-a-sink), [`security/assert-trusted`](security.md#security-assert-trusted), [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments). Decided in [0088](../decisions/0088.md), [0063](../decisions/0063.md).</sub>
 
 <a id="security-regex-pattern-is-a-sink"></a>
 
@@ -1165,7 +1165,7 @@ The **subject** may be tainted, and contagion applies unchanged: a substring mat
 subject is tainted ([`security/taint-propagation`](security.md#security-taint-propagation)). The denial-of-service half is answered
 separately, by tiering the pattern onto a linear-time engine and budgeting the backtracking tier.
 
-<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink), [`security/assert-trusted`](security.md#security-assert-trusted), [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers). Decided in [0056](../decisions/0056.md), [0088](../decisions/0088.md).</sub>
+<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink), [`security/assert-trusted`](security.md#security-assert-trusted), [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers). Decided in [0088](../decisions/0088.md).</sub>
 
 <a id="security-outbound-url-is-a-sink"></a>
 
@@ -1289,7 +1289,7 @@ visible in the source.
 A launderer written for a *new* sink is measured against the two conditions, not against today's
 table, and a sink that acquires an automatic launder reclassifies its own member the day it does.
 
-<sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/sink-predicate`](security.md#security-sink-predicate), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source). Decided in [0133](../decisions/0133.md), [0067](../decisions/0067.md), [0086](../decisions/0086.md), [0056](../decisions/0056.md).</sub>
+<sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/sink-predicate`](security.md#security-sink-predicate), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source). Decided in [0133](../decisions/0133.md), [0067](../decisions/0067.md), [0086](../decisions/0086.md).</sub>
 
 <a id="security-capture-answers-the-carrier"></a>
 
@@ -2204,7 +2204,7 @@ credentials, the operator is right by construction anyway
 A refusal says one sentence and the same sentence for every forgery, so the failure carries no oracle
 about which part of the token was wrong.
 
-<sub>See also [`security/secret-comparison-is-constant-time`](security.md#security-secret-comparison-is-constant-time), [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/protocol-roster`](security.md#security-protocol-roster). Decided in [0056](../decisions/0056.md).</sub>
+<sub>See also [`security/secret-comparison-is-constant-time`](security.md#security-secret-comparison-is-constant-time), [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/protocol-roster`](security.md#security-protocol-roster).</sub>
 
 <a id="security-verification-does-not-launder"></a>
 
