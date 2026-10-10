@@ -1,9 +1,7 @@
 {
   "title": "A shape argument flattens into one argument per field of the merged list, so no shape exists at run time",
   "status": "shipped",
-  "because": [
-    "0135"
-  ],
+  "because": [],
   "seeAlso": [
     "core-api/shape-parameter",
     "core-api/the-bag-abi-is-unchanged",

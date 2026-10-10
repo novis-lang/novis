@@ -275,7 +275,7 @@ them under that name, and ports each call by finding the `Core` member that does
   duplication whole, a function family and a subsystem shipped twice, and makes a surface of about 1,900
   names permanent, which is the expensive cost [`core-api/tier-placement`](core-api.md#core-api-tier-placement) ranks first.
 
-<sub>See also [`core-api/subject-first`](core-api.md#core-api-subject-first), [`core-api/options-bag`](core-api.md#core-api-options-bag), [`core-api/nothing-mutates`](core-api.md#core-api-nothing-mutates), [`core-api/failure-throws`](core-api.md#core-api-failure-throws), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation). Decided in [0135](../decisions/0135.md), [0147](../decisions/0147.md).</sub>
+<sub>See also [`core-api/subject-first`](core-api.md#core-api-subject-first), [`core-api/options-bag`](core-api.md#core-api-options-bag), [`core-api/nothing-mutates`](core-api.md#core-api-nothing-mutates), [`core-api/failure-throws`](core-api.md#core-api-failure-throws), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation). Decided in [0147](../decisions/0147.md).</sub>
 
 <a id="core-api-subject-first"></a>
 
@@ -610,7 +610,7 @@ What this buys is that a reviewer reads authority off the call site: whether an 
 attacker-controlled data is a property of the member being called, visible in its entry, and a member with
 no answer fails the build rather than being assumed neutral.
 
-<sub>See also [`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi), [`core-api/tier-placement`](core-api.md#core-api-tier-placement). Decided in [0135](../decisions/0135.md).</sub>
+<sub>See also [`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi), [`core-api/tier-placement`](core-api.md#core-api-tier-placement).</sub>
 
 <a id="core-api-nothing-mutates"></a>
 
@@ -905,7 +905,7 @@ The cost is that a bag's keys are declared and fixed: a member that must take a 
 at run time needs a second member taking a `string`, which is why `Core\Uri` carries both `with` and a
 query-parameter pair rather than one member doing both.
 
-<sub>See also [`core-api/parameters-are-callable-by-name`](core-api.md#core-api-parameters-are-callable-by-name), [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter), [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null), [`types/object-top`](types.md#types-object-top). Decided in [0147](../decisions/0147.md), [0135](../decisions/0135.md).</sub>
+<sub>See also [`core-api/parameters-are-callable-by-name`](core-api.md#core-api-parameters-are-callable-by-name), [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter), [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null), [`types/object-top`](types.md#types-object-top). Decided in [0147](../decisions/0147.md).</sub>
 
 <a id="core-api-required-optional-and-nullable"></a>
 
@@ -968,7 +968,7 @@ this removes rather than relocates.
 `a_nullable_shape_field_omits_as_the_never_written_marker`, hold the pairing over every registered row.
 `Core\Uri::with` is the first member to spend it.
 
-<sub>See also [`core-api/a-nullable-field-omits-as-the-never-written-marker`](core-api.md#core-api-a-nullable-field-omits-as-the-never-written-marker), [`core-api/a-written-null-removes`](core-api.md#core-api-a-written-null-removes), [`core-api/the-bag-abi-is-unchanged`](core-api.md#core-api-the-bag-abi-is-unchanged), [`core-api/options-bag`](core-api.md#core-api-options-bag). Decided in [0147](../decisions/0147.md), [0135](../decisions/0135.md).</sub>
+<sub>See also [`core-api/a-nullable-field-omits-as-the-never-written-marker`](core-api.md#core-api-a-nullable-field-omits-as-the-never-written-marker), [`core-api/a-written-null-removes`](core-api.md#core-api-a-written-null-removes), [`core-api/the-bag-abi-is-unchanged`](core-api.md#core-api-the-bag-abi-is-unchanged), [`core-api/options-bag`](core-api.md#core-api-options-bag). Decided in [0147](../decisions/0147.md).</sub>
 
 <a id="core-api-a-nullable-field-omits-as-the-never-written-marker"></a>
 
@@ -998,7 +998,7 @@ The two guards in `crates/nvs-stdlib/src/registry.rs` —
 `a_nullable_shape_field_omits_as_the_never_written_marker` — assert exactly this pairing, one per
 spelling, over every registered row.
 
-<sub>See also [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null), [`core-api/the-marker-never-reaches-a-program`](core-api.md#core-api-the-marker-never-reaches-a-program), [`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi). Decided in [0147](../decisions/0147.md), [0135](../decisions/0135.md).</sub>
+<sub>See also [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null), [`core-api/the-marker-never-reaches-a-program`](core-api.md#core-api-the-marker-never-reaches-a-program), [`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi). Decided in [0147](../decisions/0147.md).</sub>
 
 <a id="core-api-a-written-null-removes"></a>
 
@@ -1078,7 +1078,7 @@ every member registered today lowers to the same instructions and nothing needs 
 one instruction that materializes it, and `nvs_codegen`'s arm for that writes the tag byte over a
 zero payload. Every member registered before this lowers byte for byte as it did.
 
-<sub>See also [`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi), [`core-api/a-nullable-field-omits-as-the-never-written-marker`](core-api.md#core-api-a-nullable-field-omits-as-the-never-written-marker), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0147](../decisions/0147.md), [0135](../decisions/0135.md).</sub>
+<sub>See also [`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi), [`core-api/a-nullable-field-omits-as-the-never-written-marker`](core-api.md#core-api-a-nullable-field-omits-as-the-never-written-marker), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0147](../decisions/0147.md).</sub>
 
 <a id="core-api-field-wise-precedence"></a>
 
@@ -1128,7 +1128,18 @@ carries a default entry only if it is itself optional. The options bag ([`core-a
 its own spelling rather than being folded into this one, because the two differ in call-site rules — last,
 unnamed, omittable in full — which are worth enforcing by a type rather than restating in a test.
 
-<sub>See also [`core-api/shape-arms-are-disjoint`](core-api.md#core-api-shape-arms-are-disjoint), [`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi), [`core-api/one-checked-shape-type`](core-api.md#core-api-one-checked-shape-type), [`core-api/options-bag`](core-api.md#core-api-options-bag), [`types/shape-type`](types.md#types-shape-type). Decided in [0135](../decisions/0135.md).</sub>
+**Declined:**
+- **A union of two shapes, built from the union type that already exists.** The interner sorts a union's
+  members, and a shape's field order is its ABI. Preserving order for unions whose members happen all to
+  be shapes is a special case in the one place canonicalization has to be unconditional.
+- **One field struct shared by bag options and shape fields, with an optional default.** A bag is
+  optional because every option has a default, and the required-argument count depends on that. Sharing
+  the struct turns that type-enforced property into a checked one, which is the wrong direction.
+- **Folding the options bag into the shape parameter.** The bag's trailing position, namelessness and
+  omittability would become flags on a general type, checked by tests instead of held by the enum. The
+  two are one checked type ([`core-api/one-checked-shape-type`](core-api.md#core-api-one-checked-shape-type)) and two call-site rules.
+
+<sub>See also [`core-api/shape-arms-are-disjoint`](core-api.md#core-api-shape-arms-are-disjoint), [`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi), [`core-api/one-checked-shape-type`](core-api.md#core-api-one-checked-shape-type), [`core-api/options-bag`](core-api.md#core-api-options-bag), [`types/shape-type`](types.md#types-shape-type).</sub>
 
 <a id="core-api-shape-arms-are-disjoint"></a>
 
@@ -1152,7 +1163,12 @@ instead of by a value.
 What a caller sees is that a key belonging to the arm the other values did not select is refused where it
 is written, naming the arm's own key set rather than the merged one.
 
-<sub>See also [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter), [`core-api/shape-reuses-the-option-diagnostics`](core-api.md#core-api-shape-reuses-the-option-diagnostics), [`types/single-value-types`](types.md#types-single-value-types), [`types/enum-case-type`](types.md#types-enum-case-type). Decided in [0135](../decisions/0135.md).</sub>
+**Declined:**
+- **A declared discriminant field on the shape type.** It reads well, but it adds nothing the arm check
+  does not already do, and it cannot describe a union separated by a required key. It would be a second
+  rule to keep in agreement with the first.
+
+<sub>See also [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter), [`core-api/shape-reuses-the-option-diagnostics`](core-api.md#core-api-shape-reuses-the-option-diagnostics), [`types/single-value-types`](types.md#types-single-value-types), [`types/enum-case-type`](types.md#types-enum-case-type).</sub>
 
 <a id="core-api-one-checked-shape-type"></a>
 
@@ -1170,10 +1186,7 @@ what a type does is wrong in the other half. The reference card needs no widenin
 entry per key, and for a union it lists the merged key set in ABI order with each key's description saying
 which arm it belongs to ([`core-api/reference-card`](core-api.md#core-api-reference-card)).
 
-The cost was a rename touching the interner, the checker, the lowering and the metadata command, and that
-was the whole of the churn.
-
-<sub>See also [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter), [`core-api/options-bag`](core-api.md#core-api-options-bag), [`core-api/reference-card`](core-api.md#core-api-reference-card). Decided in [0135](../decisions/0135.md).</sub>
+<sub>See also [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter), [`core-api/options-bag`](core-api.md#core-api-options-bag), [`core-api/reference-card`](core-api.md#core-api-reference-card).</sub>
 
 <a id="core-api-shape-flattens-at-the-abi"></a>
 
@@ -1200,7 +1213,19 @@ for this to matter is a member that wanted an enum.
 A qualifier classification lands on the **field**, not the parameter
 ([`core-api/qualifier-behaviour-is-declared`](core-api.md#core-api-qualifier-behaviour-is-declared)), so a shape's fields are walked rather than exempted.
 
-<sub>See also [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter), [`core-api/the-bag-abi-is-unchanged`](core-api.md#core-api-the-bag-abi-is-unchanged), [`core-api/qualifier-behaviour-is-declared`](core-api.md#core-api-qualifier-behaviour-is-declared), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0135](../decisions/0135.md).</sub>
+Because nothing exists to pass, a shape argument is written out in the call itself, and a variable holding
+one is refused ([`core-api/shape-reuses-the-option-diagnostics`](core-api.md#core-api-shape-reuses-the-option-diagnostics)). A program still computes every
+field's value wherever it likes, as a settings object built per tenant does; only the braces must be
+written at the call. Lifting this means giving a shape a run-time representation, a much larger change
+taken for its own reasons if it is ever taken.
+
+**Declined:**
+- **A run-time shape value, passed as one argument.** It settles the arity question outright, and its
+  allocation is small beside opening a socket. But no run-time representation of an anonymous object
+  exists, so it trades one merged field list in the call lowering for a new value kind in the IR and the
+  runtime, to serve one member.
+
+<sub>See also [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter), [`core-api/the-bag-abi-is-unchanged`](core-api.md#core-api-the-bag-abi-is-unchanged), [`core-api/qualifier-behaviour-is-declared`](core-api.md#core-api-qualifier-behaviour-is-declared), [`programs/memory-priority`](programs.md#programs-memory-priority).</sub>
 
 <a id="core-api-shape-reuses-the-option-diagnostics"></a>
 
@@ -1221,7 +1246,7 @@ This matters more than it looks. Both type diagnostic bands are full, so a new t
 forced a third band open as a side effect of adding a parameter kind — the wrong reason to take that
 decision.
 
-<sub>See also [`core-api/shape-arms-are-disjoint`](core-api.md#core-api-shape-arms-are-disjoint), [`core-api/one-checked-shape-type`](core-api.md#core-api-one-checked-shape-type), [`types/shape-type`](types.md#types-shape-type). Decided in [0135](../decisions/0135.md).</sub>
+<sub>See also [`core-api/shape-arms-are-disjoint`](core-api.md#core-api-shape-arms-are-disjoint), [`core-api/one-checked-shape-type`](core-api.md#core-api-one-checked-shape-type), [`types/shape-type`](types.md#types-shape-type).</sub>
 
 <a id="core-api-a-lifetime-is-an-object"></a>
 

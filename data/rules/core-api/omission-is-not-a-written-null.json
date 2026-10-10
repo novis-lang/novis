@@ -2,8 +2,7 @@
   "title": "An options bag tells an omitted key from a written `null`",
   "status": "shipped",
   "because": [
-    "0147",
-    "0135"
+    "0147"
   ],
   "seeAlso": [
     "core-api/a-nullable-field-omits-as-the-never-written-marker",

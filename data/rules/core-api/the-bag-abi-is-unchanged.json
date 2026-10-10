@@ -2,8 +2,7 @@
   "title": "The three-state bag changes which constant fills a slot and nothing else about the ABI",
   "status": "shipped",
   "because": [
-    "0147",
-    "0135"
+    "0147"
   ],
   "seeAlso": [
     "core-api/shape-flattens-at-the-abi",
