@@ -1,9 +1,7 @@
 {
   "title": "No extension may remove the `tainted` qualifier, in any manifest spelling",
   "status": "designed",
-  "because": [
-    "0060"
-  ],
+  "because": [],
   "seeAlso": [
     "security/launderers-are-sink-named",
     "security/assert-trusted",

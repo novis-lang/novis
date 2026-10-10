@@ -2,8 +2,7 @@
   "title": "`Core\\Signature` signs a canonicalized payload, and the lifetime rides inside the signed bytes",
   "status": "designed",
   "because": [
-    "0146",
-    "0060"
+    "0146"
   ],
   "seeAlso": [
     "core-classes/router-signed-url",

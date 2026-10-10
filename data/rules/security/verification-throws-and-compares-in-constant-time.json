@@ -2,7 +2,6 @@
   "title": "Verification answers a value or throws, and no member exposes a raw comparison for the caller to get wrong",
   "status": "shipped",
   "because": [
-    "0060",
     "0056"
   ],
   "seeAlso": [
@@ -13,6 +12,7 @@
   "guardedBy": [
     "tests/conformance/core/csrf-binds-a-token-to-one-session-and-verify-is-the-only-comparison.nvst",
     "tests/conformance/core/csrf-refuses-every-single-character-mutation-of-a-token-without-throwing.nvst",
-    "tests/conformance/core/signed-cookie-open-refuses-every-forgery-with-one-message.nvst"
+    "tests/conformance/core/signed-cookie-open-refuses-every-forgery-with-one-message.nvst",
+    "crates/nvs-stdlib/src/registry.rs"
   ]
 }

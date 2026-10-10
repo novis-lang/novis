@@ -1847,7 +1847,7 @@
         [
           "`Core\\Jwt`, `Core\\Jwe`, `Core\\Csrf`, `Core\\Totp`, `Core\\SignedCookie`, `Core\\Signature`",
           "the closed roster; a JWT's algorithm comes from the key, never the token. `Jwt::sign` widens to `secret bytes\\|Crypto\\KeyPair` (HS256, RS256, PS256, ES256 or EdDSA by the key's kind), `Jwt::signObject` signs a shape or deriving class under a pair alone, and `Jwt::verifyIssued<T>` verifies a token another party issued against a `Jwt\\KeySet` key found by `kid`, answering its claims as a `tainted` shape ([0179](../decisions/0179.md)). `Core\\Jwe` is compact JWE with `A256GCM` alone, its key-management algorithm picked by which `Jwe\\Key` static built the key — `shared` (`dir`), `password` (`PBES2-HS256+A128KW`), `recipient`/`own` (`ECDH-ES`) — and its payload answered **`tainted`** ([0179](../decisions/0179.md)). `Core\\Signature::sign(array<string> $payload, {keys: array<secret bytes>, until: ?Time\\Instant} $settings): string` and `::verify(string $token, array<secret bytes> $keys): array<tainted string>` are the detached pair — a canonical payload map, never assembled text; `until` is a required key whose `null` is the forever spelling; `verify` answers a **`tainted`** payload or throws ([0146](../decisions/0146.md)). A payload value is text at both halves for the reason a JWT claim is: `tainted` is defined over `string` and `bytes`, so an `array<mixed>` could not have carried the qualifier a program reaches",
-          "[0060](../decisions/0060.md)"
+          "`rule:security/protocol-roster`"
         ],
         [
           "`Core\\Process`",

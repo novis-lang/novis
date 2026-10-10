@@ -2,7 +2,6 @@
   "title": "A closed roster of application-layer security protocols lives in `Core`, and nothing joins it without meeting the test",
   "status": "shipped",
   "because": [
-    "0060",
     "0146",
     "0179"
   ],

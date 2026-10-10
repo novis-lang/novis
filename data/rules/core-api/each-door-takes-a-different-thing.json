@@ -3,8 +3,7 @@
   "status": "shipped",
   "because": [
     "0146",
-    "0063",
-    "0060"
+    "0063"
   ],
   "seeAlso": [
     "core-api/one-paradigm-per-operation",

@@ -2087,7 +2087,7 @@ payload" is not a property the checker can see, so it is not one the return type
 **Not shipped.** There is no `Core\Signature` in `crates/nvs-stdlib/src/`; the nearest landed member
 is `signed_cookie.rs`, whose key-ring shape this one adopts.
 
-<sub>See also [`core-classes/router-signed-url`](core-classes.md#core-classes-router-signed-url), [`core-classes/uri-removable-components`](core-classes.md#core-classes-uri-removable-components), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0146](../decisions/0146.md), [0060](../decisions/0060.md).</sub>
+<sub>See also [`core-classes/router-signed-url`](core-classes.md#core-classes-router-signed-url), [`core-classes/uri-removable-components`](core-classes.md#core-classes-uri-removable-components), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0146](../decisions/0146.md).</sub>
 
 <a id="core-classes-router-signed-url"></a>
 

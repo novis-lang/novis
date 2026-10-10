@@ -6325,8 +6325,9 @@ mod tests {
     /// compared, the comparison is the exposed operation.
     ///
     /// This is what stands in for a test of constant-time behaviour, which is
-    /// not reliably measurable in CI — `docs/decisions/0060.md` § *Verification*
-    /// asks for exactly this in its place.
+    /// not reliably measurable in CI, so this test holds
+    /// `rule:security/verification-throws-and-compares-in-constant-time` in its
+    /// place.
     #[test]
     fn no_protocol_class_exposes_a_raw_value_accessor() {
         /// The classes a key reaches a member *inside*, since not every key is

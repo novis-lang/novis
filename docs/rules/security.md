@@ -1744,7 +1744,7 @@ remembering.
   ([`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator)), and comparing a credential is something programs
   legitimately do.
 
-<sub>See also [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/verification-throws-and-compares-in-constant-time`](security.md#security-verification-throws-and-compares-in-constant-time), [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator). Decided in [0090](../decisions/0090.md), [0060](../decisions/0060.md).</sub>
+<sub>See also [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/verification-throws-and-compares-in-constant-time`](security.md#security-verification-throws-and-compares-in-constant-time), [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator). Decided in [0090](../decisions/0090.md).</sub>
 
 <a id="security-secret-in-a-test-report"></a>
 
@@ -1960,7 +1960,7 @@ into a type, so no spelling reaches a parameter mark that launders (`crates/nvs-
   without depending on signature checks being configured correctly. "The operator installed it" is a
   much weaker guarantee than a `Core` member that names the one sink it is safe for.
 
-<sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/assert-trusted`](security.md#security-assert-trusted), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize). Decided in [0060](../decisions/0060.md).</sub>
+<sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/assert-trusted`](security.md#security-assert-trusted), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize).</sub>
 
 <a id="security-secret-does-not-cross-an-extension"></a>
 
@@ -1991,7 +1991,7 @@ declaring a `secret` return does not load (`crates/nvs-ext/tests/load.rs`).
   hatch with the property that matters: it is at the call site, in the application's own source, and
   greppable.
 
-<sub>See also [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`security/protocol-roster`](security.md#security-protocol-roster), [`security/extension-cannot-launder`](security.md#security-extension-cannot-launder), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0060](../decisions/0060.md).</sub>
+<sub>See also [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`security/protocol-roster`](security.md#security-protocol-roster), [`security/extension-cannot-launder`](security.md#security-extension-cannot-launder), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal).</sub>
 
 <a id="security-image-component-declares-nothing"></a>
 
@@ -2087,6 +2087,12 @@ shared key, and verified when another party issued it ([`security/jws-issued-sub
 ([`security/jwe-compact-subset`](security.md#security-jwe-compact-subset)), and detached signatures over a canonical payload. Nothing joins it
 without meeting the admission test ([`security/protocol-admission-test`](security.md#security-protocol-admission-test)).
 
+Each entry is a protocol whose usual failure is a silent bug in the library, not in the application:
+a JWT verifier that accepts an unsigned token returns a valid-looking claim set, and nothing goes wrong
+until it does. Left to userland, such a protocol grows several implementations, and some of them carry
+that flaw. Novis removes the class of bug rather than documenting it. The roster is a surface of its
+own, and `Core\Crypto` stays primitives-only.
+
 They live in `Core` rather than in an extension for two reasons, and the second is structural. Token
 verification sits on the hot path of every authenticated request, so a boundary crossing per request
 is a real cost paid universally. And a `secret` value may not cross an extension boundary
@@ -2101,7 +2107,19 @@ What the roster still owes is not a member but the flow around one: fetching, ca
 a key set are a package's job ([`security/protocol-admission-test`](security.md#security-protocol-admission-test)), and every member here is
 stateless over the key it is handed.
 
-<sub>See also [`security/protocol-admission-test`](security.md#security-protocol-admission-test), [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/verification-does-not-launder`](security.md#security-verification-does-not-launder), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension). Decided in [0060](../decisions/0060.md), [0146](../decisions/0146.md), [0179](../decisions/0179.md).</sub>
+**Declined:**
+- **Nothing beyond primitives.** It is the cleanest boundary, and the one every other language drew;
+  the result there is a population of libraries with the same repeated flaw.
+- **First-party extensions.** A signing key is `secret`, and a `secret` cannot cross an extension
+  boundary, so every call would need a reveal (above).
+- **Session-adjacent entries only**, cookies and CSRF with JWT and TOTP left out. That draws the line
+  at what Novis already implements, not at where the risk is, and JWT has the worst failure history
+  of the roster.
+- **An open surface that grows as needs appear.** Without the admission test's boundary it becomes a
+  framework, and every entry is a permanent compatibility obligation
+  ([`security/protocol-admission-test`](security.md#security-protocol-admission-test)).
+
+<sub>See also [`security/protocol-admission-test`](security.md#security-protocol-admission-test), [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/verification-does-not-launder`](security.md#security-verification-does-not-launder), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension). Decided in [0146](../decisions/0146.md), [0179](../decisions/0179.md).</sub>
 
 <a id="security-protocol-admission-test"></a>
 
@@ -2125,7 +2143,7 @@ makes it a decision rather than a negotiation.
 
 **Not on disk.** Nothing enforces the test; it governs what a future member may be.
 
-<sub>See also [`security/protocol-roster`](security.md#security-protocol-roster), [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key). Decided in [0060](../decisions/0060.md).</sub>
+<sub>See also [`security/protocol-roster`](security.md#security-protocol-roster), [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key).</sub>
 
 <a id="security-algorithm-comes-from-the-key"></a>
 
@@ -2145,7 +2163,7 @@ The same shape runs through the roster: a key of the wrong kind is a verdict on 
 value that is not a key at all is a bug in the program, and the two are reported differently
 ([`security/verification-throws-and-compares-in-constant-time`](security.md#security-verification-throws-and-compares-in-constant-time)).
 
-<sub>See also [`security/jwt-expiry-is-mandatory`](security.md#security-jwt-expiry-is-mandatory), [`security/verification-throws-and-compares-in-constant-time`](security.md#security-verification-throws-and-compares-in-constant-time), [`security/protocol-roster`](security.md#security-protocol-roster). Decided in [0060](../decisions/0060.md).</sub>
+<sub>See also [`security/jwt-expiry-is-mandatory`](security.md#security-jwt-expiry-is-mandatory), [`security/verification-throws-and-compares-in-constant-time`](security.md#security-verification-throws-and-compares-in-constant-time), [`security/protocol-roster`](security.md#security-protocol-roster).</sub>
 
 <a id="security-jwt-expiry-is-mandatory"></a>
 
@@ -2165,7 +2183,7 @@ answer to a different question and is why the two are not one rule.
 Expiry being unrepresentably absent is what makes a leaked token bounded rather than permanent, which
 is the failure the historical implementations kept shipping ([`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key)).
 
-<sub>See also [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/protocol-roster`](security.md#security-protocol-roster), [`security/verification-throws-and-compares-in-constant-time`](security.md#security-verification-throws-and-compares-in-constant-time). Decided in [0060](../decisions/0060.md), [0146](../decisions/0146.md).</sub>
+<sub>See also [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/protocol-roster`](security.md#security-protocol-roster), [`security/verification-throws-and-compares-in-constant-time`](security.md#security-verification-throws-and-compares-in-constant-time). Decided in [0146](../decisions/0146.md).</sub>
 
 <a id="security-verification-throws-and-compares-in-constant-time"></a>
 
@@ -2186,7 +2204,7 @@ credentials, the operator is right by construction anyway
 A refusal says one sentence and the same sentence for every forgery, so the failure carries no oracle
 about which part of the token was wrong.
 
-<sub>See also [`security/secret-comparison-is-constant-time`](security.md#security-secret-comparison-is-constant-time), [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/protocol-roster`](security.md#security-protocol-roster). Decided in [0060](../decisions/0060.md), [0056](../decisions/0056.md).</sub>
+<sub>See also [`security/secret-comparison-is-constant-time`](security.md#security-secret-comparison-is-constant-time), [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/protocol-roster`](security.md#security-protocol-roster). Decided in [0056](../decisions/0056.md).</sub>
 
 <a id="security-verification-does-not-launder"></a>
 
@@ -2204,7 +2222,7 @@ own authenticated encryption unchanged, and they come back **unqualified** — s
 authenticated operation over a value that was already plain when it went in. The asymmetry between the
 two is the rule, not an inconsistency: one is a value we had, the other is a value we were handed.
 
-<sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/tainted-sources`](security.md#security-tainted-sources), [`security/protocol-roster`](security.md#security-protocol-roster). Decided in [0060](../decisions/0060.md).</sub>
+<sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/tainted-sources`](security.md#security-tainted-sources), [`security/protocol-roster`](security.md#security-protocol-roster).</sub>
 
 <a id="security-jwe-compact-subset"></a>
 
@@ -2342,7 +2360,7 @@ Enforcing only when a session cookie is present was rejected within this rule. I
 since forgery can only target cookie-authenticated requests, but it makes protection depend on what
 the client sent rather than on what the code says, which is harder to reason about and harder to test.
 
-<sub>See also [`security/access-is-checked-for-presence-not-meaning`](security.md#security-access-is-checked-for-presence-not-meaning), [`security/protocol-roster`](security.md#security-protocol-roster), [`attributes/access-payload`](attributes.md#attributes-access-payload). Decided in [0096](../decisions/0096.md), [0102](../decisions/0102.md), [0060](../decisions/0060.md), [0074](../decisions/0074.md).</sub>
+<sub>See also [`security/access-is-checked-for-presence-not-meaning`](security.md#security-access-is-checked-for-presence-not-meaning), [`security/protocol-roster`](security.md#security-protocol-roster), [`attributes/access-payload`](attributes.md#attributes-access-payload). Decided in [0096](../decisions/0096.md), [0102](../decisions/0102.md), [0074](../decisions/0074.md).</sub>
 
 <a id="security-access-is-checked-for-presence-not-meaning"></a>
 

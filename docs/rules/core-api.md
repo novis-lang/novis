@@ -1194,7 +1194,7 @@ unbounded lifetime on a field that must be written either way.
 
 **Designed, not shipped.**
 
-<sub>See also [`core-api/signing-is-over-a-payload`](core-api.md#core-api-signing-is-over-a-payload), [`core-api/a-written-null-removes`](core-api.md#core-api-a-written-null-removes), [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null). Decided in [0146](../decisions/0146.md), [0096](../decisions/0096.md), [0060](../decisions/0060.md).</sub>
+<sub>See also [`core-api/signing-is-over-a-payload`](core-api.md#core-api-signing-is-over-a-payload), [`core-api/a-written-null-removes`](core-api.md#core-api-a-written-null-removes), [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null). Decided in [0146](../decisions/0146.md), [0096](../decisions/0096.md).</sub>
 
 <a id="core-api-signing-is-over-a-payload"></a>
 
@@ -1224,7 +1224,7 @@ The fragment is never signed, since it is not sent to the server.
 query parameter for the token. `Core\Router`'s pair — the one that signs a route's name and parameters,
 so a signature survives a remount — is not registered yet.
 
-<sub>See also [`core-api/a-lifetime-is-written`](core-api.md#core-api-a-lifetime-is-written), [`core-api/one-refusal-except-expiry`](core-api.md#core-api-one-refusal-except-expiry), [`core-api/each-door-takes-a-different-thing`](core-api.md#core-api-each-door-takes-a-different-thing). Decided in [0146](../decisions/0146.md), [0060](../decisions/0060.md), [0058](../decisions/0058.md), [0097](../decisions/0097.md).</sub>
+<sub>See also [`core-api/a-lifetime-is-written`](core-api.md#core-api-a-lifetime-is-written), [`core-api/one-refusal-except-expiry`](core-api.md#core-api-one-refusal-except-expiry), [`core-api/each-door-takes-a-different-thing`](core-api.md#core-api-each-door-takes-a-different-thing). Decided in [0146](../decisions/0146.md), [0058](../decisions/0058.md), [0097](../decisions/0097.md).</sub>
 
 <a id="core-api-one-refusal-except-expiry"></a>
 
@@ -1247,7 +1247,7 @@ caller can drop on the floor ([`core-api/failure-throws`](core-api.md#core-api-f
 
 **Designed, not shipped.**
 
-<sub>See also [`core-api/signing-is-over-a-payload`](core-api.md#core-api-signing-is-over-a-payload), [`core-api/failure-throws`](core-api.md#core-api-failure-throws), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0146](../decisions/0146.md), [0060](../decisions/0060.md).</sub>
+<sub>See also [`core-api/signing-is-over-a-payload`](core-api.md#core-api-signing-is-over-a-payload), [`core-api/failure-throws`](core-api.md#core-api-failure-throws), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0146](../decisions/0146.md).</sub>
 
 <a id="core-api-each-door-takes-a-different-thing"></a>
 
@@ -1269,7 +1269,7 @@ A program that assembles a URL by hand, signs the text and hand-rolls the parame
 URL member badly rather than reached it twice, which is the difference between a second door and a second
 API.
 
-<sub>See also [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`core-api/one-name-one-signature`](core-api.md#core-api-one-name-one-signature), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers). Decided in [0146](../decisions/0146.md), [0063](../decisions/0063.md), [0060](../decisions/0060.md).</sub>
+<sub>See also [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`core-api/one-name-one-signature`](core-api.md#core-api-one-name-one-signature), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers). Decided in [0146](../decisions/0146.md), [0063](../decisions/0063.md).</sub>
 
 <a id="core-api-two-cache-tiers"></a>
 
