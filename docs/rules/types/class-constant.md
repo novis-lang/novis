@@ -24,4 +24,24 @@ one (`rule:types/narrowing`) — or ask reflection, whose whole purpose is the e
 The narrowing that lifts the refusal is the one `->` already requires of the same receiver.
 
 Per evaluation the run-time form spends one load, one call and one string allocation for the name,
-charged to the isolate that asked.
+charged to the isolate that asked. A program that reads a name in a hot loop moves the read out of
+the loop, as it would any other allocation.
+
+`static::class` is what replaces PHP's `get_called_class`, and `$obj::class` replaces `get_class`.
+Reflection stays the answer for every other question about a class. It is the wrong tool for a name:
+it allocates a description of the class's whole member surface, and a program that wants a name to
+log, to key a cache or to compare would pay for all of it.
+
+- **Memory:** each run-time read allocates one string for the name in the isolate that asked. Nothing
+  is cached per class, so no name string is shared between isolates. The folded sides spend nothing.
+
+**Declined:**
+- **`$obj::class` folded where the receiver's declared type is known.** It is wrong for a variable
+  declared as a base class that holds a subclass, which is the case the feature exists for. A rule
+  that is correct for some receivers and silently wrong for others is worse than either total rule.
+- **Both run-time sides routed to reflection.** A static method has no instance to pass, and a
+  program that wants one string would pay for a description of every member.
+- **A `mixed` receiver accepted with a run-time tag test.** It puts a throw behind a syntax that reads
+  as total, and the narrowing it needs is the one `->` already requires.
+- **One cached name string per class descriptor.** The descriptor is shared by every isolate, so a
+  shared string would put a reference count on the request-isolation boundary to save one allocation.

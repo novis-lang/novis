@@ -377,7 +377,7 @@ written with it.
 - **Dropping late static binding along with the storage meanings.** `new static()` compiled as `new
   self()` returns the wrong class, and no annotation a program could add keeps the original behaviour.
 
-<sub>See also [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global), [`statements/an-anonymous-function-captures-this-only-where-it-uses-it`](statements.md#statements-an-anonymous-function-captures-this-only-where-it-uses-it), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0144](../decisions/0144.md), [0211](../decisions/0211.md), [0231](../decisions/0231.md).</sub>
+<sub>See also [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global), [`statements/an-anonymous-function-captures-this-only-where-it-uses-it`](statements.md#statements-an-anonymous-function-captures-this-only-where-it-uses-it), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0211](../decisions/0211.md), [0231](../decisions/0231.md).</sub>
 
 <a id="statements-no-function-static-and-no-global"></a>
 
