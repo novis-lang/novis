@@ -2,4 +2,4 @@
   uncommitted hand edit to a spec or an inventory the check reads can be right and still fail it,
   and staging it to make the check pass takes the user's in-flight work into your commit. `git
   status --short` before diagnosing says whose change it is; a fix that lands in the *tool* that
-  reads them is committable on its own without touching those files. [until: gone tools/nv/cmd/orient.ts:const TRIAGE]
+  reads them is committable on its own without touching those files. See `tools/nv/cmd/orient.ts`. [until: gone tools/nv/cmd/orient.ts:const TRIAGE]

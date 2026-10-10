@@ -3,5 +3,5 @@
   `Ctx::exit_code`, which reads `0` both for `exit(0)` and for a script that never called `exit`. A
   program records its frame's status with `Ctx::set_ending` and `finish` reads `Ctx::ending`; do not
   recover an ending from the *shape* of the pending value, because a `FATAL` and a throw both leave
-  one and `Pending`'s variants are private.
+  one and `Pending`'s variants are private. See `crates/nvs-runtime/src/script.rs`.
   [until: gone crates/nvs-runtime/src/script.rs:Value) -> Value]

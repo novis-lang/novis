@@ -2,5 +2,5 @@
   `|| ControlFlow::Break(())`.** It returns as soon as the core has nothing runnable, and an
   `accept` on a client not yet connected is that, so a `keep_serving` counting to two is a
   sixty-second silent hang. Assert server-side, where `serve_on_this_core` parks until every
-  connection is done; `a_connection_whose_isolate_panics_is_contained` is the shape.
+  connection is done; `a_connection_whose_isolate_panics_is_contained` is the shape. See `crates/nvs-server/src/serve.rs`.
   [until: gone crates/nvs-server/src/serve.rs:a_connection_whose_isolate_panics_is_contained]

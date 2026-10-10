@@ -4,4 +4,4 @@
   still panics with *"nvs-ir: integer literal `…` doesn't fit an `int`"* wherever the position hands
   no `Ty` down — `lower_binary` passes `Some(lty)` to its right operand but only the whole
   expression's `expected` to its left. The two crates have to make the same placement; the checker's
-  half alone is not the feature. [until: gone crates/nvs-ir/src/lower/expr.rs:lower_int_literal]
+  half alone is not the feature. See `crates/nvs-ir/src/lower/expr.rs`. [until: gone crates/nvs-ir/src/lower/expr.rs:lower_int_literal]

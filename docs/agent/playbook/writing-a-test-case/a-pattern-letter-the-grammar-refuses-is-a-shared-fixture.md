@@ -4,5 +4,5 @@
   pattern string (`"yyyy-` and `format(\"`) before widening a closed grammar, and pick the
   replacement from the letters CLDR reserves and gives no field — `j`, `J`, `C`, `l` — since every
   letter that module's gap once named now formats. Two of those cases also **count** the alphabet
-  and the field roster, so widening the subset moves four numbers in one `--EXPECT--`.
+  and the field roster, so widening the subset moves four numbers in one `--EXPECT--`. See `crates/nvs-stdlib/src/cldr.rs`.
   [until: gone crates/nvs-stdlib/src/cldr.rs:is not a pattern letter]

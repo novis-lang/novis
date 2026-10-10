@@ -2,5 +2,5 @@
   declaration.** `every_error_path_is_asserted_or_declared_unreachable` greps each message's stem
   across every case file, so a message that interpolates a dependency's text cannot be asserted.
   Give a refusal a fixed sentence, and satisfy the gate with `catch (LogicError $e) { echo
-  $e->message, "\n"; }`.
+  $e->message, "\n"; }`. See `crates/nvs-stdlib/tests/conformance_coverage.rs`.
   [until: gone crates/nvs-stdlib/tests/conformance_coverage.rs:const DECLARATION: &str]

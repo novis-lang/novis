@@ -1,7 +1,7 @@
 - **Widening a numeric literal's placement is a union question before it is a type question.**
   Passing a `decimal` expectation through `-e` with `placed_literal`'s walk also reached the
   `decimal` arm of every numeric union, so `Core\Math::abs(-0.0)` became a `decimal` printing `0.0`
-  while `abs(0.0)` stayed a `float` printing `0`, and build and `cargo test` both stay green on it.
+  while `abs(0.0)` stayed a `float` printing `0`, and build and `cargo test` stay green.
   Place `-e` with the same exact test the bare literal's arm uses (`wants_decimal`, not
   `placed_literal`), and run `nvs test tests/conformance` with a case passing a literal to a numeric
   union before believing a placement change is contained.

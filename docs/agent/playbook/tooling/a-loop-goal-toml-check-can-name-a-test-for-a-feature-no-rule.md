@@ -2,5 +2,5 @@
   first slice is the rule rather than the test.** Three tells: the crate has no module for the
   surface at all, the cited record defers rather than specifies, and its *Verification* names a
   later milestone than the check's stage. Do not move the check or write the test against nothing —
-  decide the thing, which the goal's prose pre-authorizes under its own § *Standing decisions*.
+  decide the thing, which the goal's prose pre-authorizes under its own § *Standing decisions*. See `tools/nv/cmd/orient.ts`.
   [until: gone tools/nv/cmd/orient.ts:const TRIAGE]

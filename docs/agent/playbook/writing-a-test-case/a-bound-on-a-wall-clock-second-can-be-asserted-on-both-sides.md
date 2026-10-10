@@ -2,6 +2,6 @@
   for the second, not sleeping.** Spin on `Core\Time::now()->toEpochSeconds()` until it changes
   before signing, so the token is minted at the start of its own second, then loop `while (... <
   $exp) { Core\Time::sleep(5ms); }` and assert the refusal at `== $exp`, which survives an oversleep
-  a fixed `sleep(1s)` would turn into a wrong number.
+  that would break a fixed `sleep(1s)`.
   `tests/conformance/core/jwt-a-token-verifies-for-its-whole-lifetime-and-not-one-second-past-it.nvst`
   is the shape. [until: gone tests/conformance/core/jwt-a-token-verifies-for-its-whole-lifetime-and-not-one-second-past-it.nvst:Core\Time::now()->toEpochSeconds()]

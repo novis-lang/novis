@@ -4,4 +4,4 @@
   something *else* reads (`Core\Regex\Pattern`, `Core\Script\Handle`, `Core\IO\Lines`, …). A class
   registered ahead of its readers declares `slots: &[]` and gains them in the same slice as the
   members, rather than joining `HANDLES` — that list is for state read from outside the class, not
-  for state nothing reads yet. [until: gone crates/nvs-stdlib/src/registry.rs:const HANDLES]
+  for state nothing reads yet. See `crates/nvs-stdlib/src/registry.rs`. [until: gone crates/nvs-stdlib/src/registry.rs:const HANDLES]

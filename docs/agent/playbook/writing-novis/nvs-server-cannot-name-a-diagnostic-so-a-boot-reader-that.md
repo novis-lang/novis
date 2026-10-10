@@ -3,5 +3,4 @@
   so the natural `Connection::from_config(config, origins) -> Result<_, Diagnostic>` does not compile
   however obvious it reads. Put the keys, the parse and the refusal in `nvs-config` and hand the
   server crate the resolved overrides — `nvs_config::server::connection_bounds_for` plus
-  `nvs_server::bounds::Connection::configured` is that split, and it also keeps the shipped numbers in
-  one crate. [until: gone crates/nvs-server/src/bounds.rs:connection_bounds_for]
+  `nvs_server::bounds::Connection::configured` is that split. See `crates/nvs-server/src/bounds.rs`. [until: gone crates/nvs-server/src/bounds.rs:connection_bounds_for]

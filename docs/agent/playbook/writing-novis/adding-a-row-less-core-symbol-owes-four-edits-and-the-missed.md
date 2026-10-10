@@ -1,6 +1,6 @@
 - **Adding a row-less `Core` symbol owes four edits, and the missed ones fail as a JIT panic or as
   two bare numbers.** `nvs_stdlib::symbols()` builds from `CLASSES`' rows plus hand-written
-  `.chain`s, so a symbol reached by a construct compiles and type-checks clean and then dies in
+  `.chain`s, so a symbol reached by a construct type-checks clean and then dies in
   cranelift with `can't resolve symbol …`; and
   `every_registered_member_has_an_implementation_address` in `crates/nvs-stdlib/src/lib.rs` counts
   the row-less ones as a literal, failing as `left: N / right: N-1`. The roster is the `const`, the

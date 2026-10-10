@@ -2,5 +2,5 @@
   detail and not a second kind of key.** A hashed array renders a position as its decimal —
   `set_index(1, …)` on one then answers `SlotKey::Str("1")` — so a walk that treats the two variants
   as different keys gives one array two answers depending only on whether it ever had a gap. Compare
-  and write `SlotKey::to_str()`, never the variant.
+  and write `SlotKey::to_str()`, never the variant. See `crates/nvs-runtime/src/array.rs`.
   [until: gone crates/nvs-runtime/src/array.rs:SlotKey::Index]

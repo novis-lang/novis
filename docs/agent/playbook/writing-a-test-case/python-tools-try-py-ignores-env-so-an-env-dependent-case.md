@@ -2,4 +2,4 @@
   environment.** The scratch runner honours `--FILE--` and the expectations but never sets the
   section's variables, so a `Core\Env` case comes back `whole: 0 of 4` and reads as a broken member.
   Check an `--ENV--` case with `target/debug/nvs.exe test <path/to/one-case.nvst>`, which takes a
-  single file as well as a tree. [until: exists tools/nv/cmd/try.ts:--ENV--]
+  single file as well as a tree. See `tools/nv/cmd/try.ts`. [until: exists tools/nv/cmd/try.ts:--ENV--]

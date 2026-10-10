@@ -3,4 +3,4 @@
   one level deeper than it is, and the refusal ("the anchor matches for its first N character(s), up
   to target line M") can name a line far away, because a leading run of spaces matches elsewhere
   before the words do. Subtract two from the column `bun nv peek` shows, or measure it: `awk 'NR>=A
-  && NR<=B { match($0, /[^ ]/); print NR": indent="RSTART-1 }' <file>`. [until: gone tools/nv/cmd/splice.ts:<<<<<<< OLD]
+  && NR<=B { match($0, /[^ ]/); print NR": indent="RSTART-1 }' <file>`. See `tools/nv/cmd/splice.ts`. [until: gone tools/nv/cmd/splice.ts:<<<<<<< OLD]

@@ -3,5 +3,5 @@
   that failure when it stops and the ledger keeps it verbatim, while the commits closing it can land under
   someone else's hand while the run is held — so the line can describe a tree several commits older than
   the one the session is in. Run the named check's own `argv` once before treating it as the session's
-  work; when it exits 0 the job is to collect the acceptance and re-claim, not to re-fix.
+  work; when it exits 0 the job is to collect the acceptance and re-claim, not to re-fix. See `tools/nv/cmd/orient.ts`.
   [until: gone tools/nv/cmd/orient.ts:THE DRIVER'S LAST ACCEPTANCE CHECK FAILED]

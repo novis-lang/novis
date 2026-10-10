@@ -2,4 +2,4 @@
   the call site.** `Core\Arr::from($c, {limit: $limit})` lowers with `$limit` a `uint` parameter, so
   a swept bound does not need one call site per value, and `Drive::at(0)` against `public static
   function at(uint $limit)` needs no `as uint`. The brace literal is an expression like any other —
-  only its keys are fixed by the member's row. [until: gone crates/nvs-stdlib/src/arr.rs:Core\Arr::from]
+  only its keys are fixed by the member's row. See `crates/nvs-stdlib/src/arr.rs`. [until: gone crates/nvs-stdlib/src/arr.rs:Core\Arr::from]

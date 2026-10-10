@@ -2,5 +2,5 @@
   become an `int`.** `$minutes / 60 as int` parses as `$minutes / (60 as int)` and is `int|float`,
   and the parenthesised `($minutes / 60) as int` then throws `cannot convert this value to int` for
   every quotient with a fraction. There is no `Core\Math::intdiv`, so a proof program that wants
-  whole-number division keeps the value in `int` arithmetic (`%` and subtraction) instead.
+  whole-number division keeps the value in `int` arithmetic (`%` and subtraction) instead. See `crates/nvs-syntax/src/parser/expr.rs`.
   [until: gone crates/nvs-syntax/src/parser/expr.rs:binds tighter than any binary operator]

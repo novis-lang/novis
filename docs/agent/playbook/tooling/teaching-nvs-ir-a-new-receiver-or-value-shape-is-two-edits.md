@@ -3,5 +3,5 @@
   is `erase_checked_ty`, which owns the `nvs_types::ty::Ty` → `nvs_ir::Ty` map and whose panic names
   "a resolved call's parameter or return type", so the message points at a call boundary or a
   `foreach` element rather than at the feature you built. Add the erasing arm with the variant:
-  `Ty::Shape` needed `ExprInfo::ShapeProperty` plus one arm erasing a shape to `Ty::Object`.
+  `Ty::Shape` needed `ExprInfo::ShapeProperty` plus one arm erasing a shape to `Ty::Object`. See `crates/nvs-ir/src/lower/mod.rs`.
   [until: gone crates/nvs-ir/src/lower/mod.rs:erase_checked_ty]

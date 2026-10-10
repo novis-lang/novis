@@ -4,4 +4,4 @@
   later goal made it four, so the drafted name could only be satisfied by a test whose name
   lies about what it asserts. Rename the check in the goal's record to the claim with the count
   taken out — in a name of that shape the claim is the half after the `and`, and the count is
-  decoration — rather than writing the test under the drafted name. [until: gone tools/nv/cmd/orient.ts:const TRIAGE]
+  decoration — rather than writing the test under the drafted name. See `tools/nv/cmd/orient.ts`. [until: gone tools/nv/cmd/orient.ts:const TRIAGE]

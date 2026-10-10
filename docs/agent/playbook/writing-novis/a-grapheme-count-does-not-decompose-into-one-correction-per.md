@@ -4,5 +4,5 @@
   `Regional_Indicator`s into pairs: `"🇩" . "🇩🇪"` is two clusters where each side alone is one, and
   the parity that fixes two pieces is wrong for three. `nvs_runtime::graphemes::seam_joins` refuses
   the seam when a regional indicator sits on both sides and the caller leaves the count uncached; a
-  cached aggregate over Unicode text may only be corrected locally for the rules that are local.
+  cached aggregate over Unicode text may only be corrected locally for the rules that are local. See `crates/nvs-runtime/src/graphemes.rs`.
   [until: gone crates/nvs-runtime/src/graphemes.rs:Regional_Indicator]

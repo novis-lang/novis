@@ -5,4 +5,4 @@
   carries. A union is read one level deep, so `?string $label = "plain"` and `"read"|"write" $mode =
   "read"` place against the member the literal inhabits. A `decimal` and a non-empty array literal
   are still `E0472` at a property, and a `static` property is skipped entirely since it occupies no
-  instance slot. [until: gone crates/nvs-diagnostics/src/lib.rs:E0472]
+  instance slot. See `crates/nvs-diagnostics/src/lib.rs`. [until: gone crates/nvs-diagnostics/src/lib.rs:E0472]

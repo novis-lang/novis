@@ -3,5 +3,5 @@
   of `nvs-server` and `nvs-cli` compiles in no gate at all. `cargo check -p nvs-cli
   --no-default-features --all-targets` is what proves it — a debug `-p` on purpose, and it does write
   the second metadata copy AGENTS.md rule 5 names, which for a `check` over a warm graph is seconds
-  rather than a second build — so run it after touching anything those arms reach.
+  rather than a second build — so run it after touching anything those arms reach. See `tools/nv/cmd/verify.ts`.
   [until: exists tools/nv/cmd/verify.ts:no-default-features]

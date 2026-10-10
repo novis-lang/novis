@@ -3,5 +3,5 @@
   so `nvs_ir::lower::anon_fn` read it through a `panic!` no program could reach — until a
   anonymous function was allowed to omit the type. Grep the *consumers* of the field a relaxation
   leaves empty for `unwrap`, `expect` and `panic!`, and repair it by recording the checker's
-  answer under a span they can still find.
+  answer under a span they can still find. See `crates/nvs-syntax/src/ast.rs`.
   [until: gone crates/nvs-syntax/src/ast.rs:Option<Type>]

@@ -3,5 +3,5 @@
   case echoing `` Core\Json::decodeAs(): `…` `` was covering four unrelated engine faults, and moving
   that refusal to a compile-time one left all four owing. Declare each site instead — `unreachable
   from source` plus the code that refuses first, within 8 lines and **on one line**, since the gate
-  matches the phrase per line and a wrapped one is invisible.
+  matches the phrase per line and a wrapped one is invisible. See `crates/nvs-stdlib/tests/conformance_coverage.rs`.
   [until: gone crates/nvs-stdlib/tests/conformance_coverage.rs:DECLARATION]

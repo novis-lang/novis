@@ -3,8 +3,8 @@
   "body": "`bun nv reference` runs every ` ```nvs ` fence against the binary and checks the ` ```output ` fence after it; ` ```nvs error ` is the fence for a program that must fail `nvs check`, its `output` block a substring of the diagnostic. A chapter edit therefore means `bun nv reference` to regenerate `docs/novis.md` in the same slice, or the generator's `--check` fails the verify.",
   "files": [
     "docs/reference/lang/",
-    "tools/nv/cmd/reference.ts",
-    "docs/novis.md"
+    "docs/novis.md",
+    "tools/nv/cmd/reference.ts"
   ],
   "until": {
     "kind": "gone",

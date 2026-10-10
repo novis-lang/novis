@@ -3,5 +3,5 @@
   section is `Core\Out::capture` answering the sink's carrier — 0088 decides no rendering anywhere, so
   the spelling was undecided rather than specified. Read the section a pointer names before treating it
   as the specification, and when it does not hold the answer, decide it in the module doc and say so
-  rather than hunting for a record that does not exist.
+  rather than hunting for a record that does not exist. See `docs/decisions/0099.md`.
   [until: gone docs/decisions/0099.md:signature row rendered as]

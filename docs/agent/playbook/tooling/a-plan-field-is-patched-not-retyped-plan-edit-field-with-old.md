@@ -3,5 +3,5 @@
   already on disk is refused as a retype, because re-emitting a field by hand is where a paragraph
   gets silently dropped. Quote the `--- old` fragment as the field *reads* — one single-spaced
   paragraph, however it is wrapped on disk — so it matches exactly once; a deliberate trim to under
-  60% of the size, or a real rewrite, still goes through as a `## plan:`.
+  60% of the size, or a real rewrite, still goes through as a `## plan:`. See `tools/nv/cmd/session.ts`.
   [until: gone tools/nv/cmd/session.ts:plan-edit]

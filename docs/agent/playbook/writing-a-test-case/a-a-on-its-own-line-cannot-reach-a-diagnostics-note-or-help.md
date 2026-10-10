@@ -3,5 +3,5 @@
   callable` as its own expected line fails against `  = note: PHP 8.5's …` — the wildcard absorbs the
   indentation happily, but the pattern still demands a line break immediately before the literal, and
   the diff then prints two blocks that read alike. Write the wildcard inline instead, `%A= note: …`,
-  which matches and also survives the gutter widening when the case's line number reaches two digits.
+  which matches and also survives the gutter widening when the case's line number reaches two digits. See `crates/nvs-test/src/expect.rs`.
   [until: gone crates/nvs-test/src/expect.rs:%A]

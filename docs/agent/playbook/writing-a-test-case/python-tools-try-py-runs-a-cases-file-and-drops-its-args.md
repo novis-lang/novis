@@ -2,5 +2,5 @@
   therefore prints the usage page and exits 2 under `bun nv try` while passing under the real runner,
   which reads as the case being wrong. `target/covws/<host triple>/debug/nvs.exe test <case>.nvst`
   runs one case with every section honoured on the binary the driver's acceptance check uses, so it is the answer
-  for any case with `--ARGS--`, `--ENV--`, `--INI--` or `--RUN--`.
+  for any case with `--ARGS--`, `--ENV--`, `--INI--` or `--RUN--`. See `tools/nv/cmd/try.ts`.
   [until: exists tools/nv/cmd/try.ts:--ARGS--]
