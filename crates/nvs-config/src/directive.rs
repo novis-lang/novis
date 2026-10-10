@@ -224,8 +224,8 @@ pub const DIRECTIVES: &[Directive] = &[
     // the component's caller reads it from the snapshot its request cloned. The row names the key
     // and not the block, so a second key in `[image]` has no row until a rule argues one.
     Directive { key: "image.max_pixels", class: Class::System, apply: Apply::Reload },
-    // `rule:core-classes/temporary-dir-sweep`. `System` because § 5 gives the key to the operator alone — a request that could
-    // set it would be exempting its own files from cleanup, which is the hoarding that section
+    // `rule:core-classes/temporary-dir-sweep`. `System` because that rule gives the key to the operator alone — a request that could
+    // set it would be exempting its own files from cleanup, which is the hoarding the rule
     // refuses — and `Reload` because it is read by the next script that ends and applying it
     // re-creates nothing, which is what lets it be flipped on around one problematic request.
     Directive { key: "debug.keep_temporary", class: Class::System, apply: Apply::Reload },

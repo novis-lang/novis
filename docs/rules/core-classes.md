@@ -295,16 +295,45 @@ its folder when the run ends, and a killed run's folder is an orphan like any ot
 The runtime keeps a per-script list of the paths it handed out and deletes each surviving entry when
 the script ends — after the exit queue on a CLI ending, after the after-response work on a request,
 and off the request path, so a response never waits on a deletion. It covers normal end, `exit`, an
-uncaught throw, and a request that died mid-flight.
+uncaught throw, and a request that died mid-flight, because the worker survives that request. A
+`FATAL` on the CLI ends the process without that sweep, and its directory is an orphan for
+[`core-classes/temporary-dir-orphan-sweep`](core-classes.md#core-classes-temporary-dir-orphan-sweep). Each directory is named `nvs-<pid>-<nonce>`, and
+the pid is what that sweep reads.
+
+These deletions are work a correct program owed anyway, so the default case costs nothing new, and
+the work moves off the request path. What a manual rule never covered is the failure case: an
+uncaught throw skips cleanup code, and code that must run whatever the ending cannot be every entry
+file's `try/finally`.
 
 **The sweep never throws and never alters a response.** A path already gone is the goal state reached
 early. A deletion the OS refuses is one log line, and the directory waits for the next sweep. An
 operator may set `[debug] keep_temporary` to keep everything *visibly* — each kept path is logged —
 and there is no in-language setter, because a program that can exempt its own files can be made to
 hoard them. The program's own `remove` and `removeDir` are unchanged and still throw: a deliberate
-action's failure is the program's to hear about.
+action's failure is the program's to hear about. Unifying the two in either direction gives either a
+throwing sweep or a silent `remove`.
 
-<sub>See also [`core-classes/temporary-dir-orphan-sweep`](core-classes.md#core-classes-temporary-dir-orphan-sweep), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`errors/propagation`](errors.md#errors-propagation). Decided in [0131](../decisions/0131.md), [0281](../decisions/0281.md).</sub>
+`[debug] keep_temporary` is reloadable, so an operator can turn it on around one problematic request
+and off again. Kept directories stay in the owned root, and the operator's cleanup command is how a
+debugging session's keepings are cleared.
+
+**Memory:** one path per directory a script created, request-local and charged to the request's
+memory limit, and released when the script ends. A script that never calls `temporaryDir` holds
+nothing. On disk, the rare orphan of a hard-killed script waits on a machine with no server until
+the operator runs the cleanup command.
+
+**Declined:**
+- **Sweeping on the next `temporaryDir` call.** A program that never calls again never sweeps, so
+  leftovers grow with the scripts run, which is a leak. It also bills one request for another's
+  deletions, on the request path.
+- **Wall-clock lifetimes, such as "delete after ten minutes".** They delete files a long-running
+  process still holds ([`core-classes/temporary-dir-orphan-sweep`](core-classes.md#core-classes-temporary-dir-orphan-sweep)).
+- **A per-call `persist:` option.** One forgotten argument ships the leak to production, and a
+  temporary that outlives its script is cross-request state
+  ([`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit)). The operator-only key covers the one honest
+  use, debugging, with no code change.
+
+<sub>See also [`core-classes/temporary-dir-orphan-sweep`](core-classes.md#core-classes-temporary-dir-orphan-sweep), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`errors/propagation`](errors.md#errors-propagation). Decided in [0281](../decisions/0281.md).</sub>
 
 <a id="core-classes-temporary-dir-orphan-sweep"></a>
 
@@ -315,8 +344,9 @@ action's failure is the program's to hear about.
 A process killed outright ran no end-of-script sweep. Its leftovers are reclaimed by the orphan
 sweep, which walks the owned root and deletes each entry **whose owning pid is not alive**.
 
-It runs in exactly two places: once at server boot, before traffic, and whenever an operator runs the
-cleanup command, which prints each path it removes and supports a dry run. It runs on no other
+It runs in exactly two places: once at `nvs serve` boot, before traffic, and whenever an operator runs
+`nvs tmp clean`, which prints each path it removes and with `--dry-run` deletes nothing. Both read
+one predicate, so the two can never disagree about whose entry is whose. It runs on no other
 invocation — taxing every CLI start with a root walk to insure against a rare hard kill prices the
 common case for the exceptional one. The deliberate consequence is that on a machine where the server
 never runs and nobody runs the command, a hard-killed script's directory persists: bounded by crash
@@ -326,9 +356,14 @@ The predicate is owner liveness, **never age**. An age rule is precisely what de
 process's files out from under it; liveness cannot, because a live owner's entries are skipped no
 matter how old. Every failure mode falls the safe way — a recycled pid makes a dead owner's entry
 look alive and it leaks until a later sweep, never the reverse — so the sweep may under-delete and
-can never over-delete. There is no force flag that overrides liveness.
+can never over-delete. There is no force flag that overrides liveness, so the worst the command can
+do is nothing.
 
-<sub>See also [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep). Decided in [0131](../decisions/0131.md).</sub>
+Like the end-of-script sweep, this one never throws. A deletion the OS refuses is a log line at boot
+and a printed line under `nvs tmp clean`, the command still succeeds, and the entry waits for the
+next sweep.
+
+<sub>See also [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep).</sub>
 
 <a id="core-classes-regex-two-tiers"></a>
 

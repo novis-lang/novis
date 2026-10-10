@@ -3335,7 +3335,7 @@ mod tests {
     /// — a member ignoring `[io] temp_root` leaves a root that was empty all
     /// along. The file written inside it is what makes the removal recursive
     /// rather than an `rmdir` that happened to succeed on an empty directory.
-    /// And the root *surviving* is § 2's: the sweep takes what § 1 handed out,
+    /// And the root *surviving* is `rule:core-classes/temporary-dir-sweep`'s: the sweep takes what `rule:core-api/one-temporary-directory-member` handed out,
     /// never the root it created under, which is the one directory the next
     /// script on this host still needs.
     #[test]

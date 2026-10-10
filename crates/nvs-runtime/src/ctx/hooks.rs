@@ -818,7 +818,7 @@ mod tests {
         assert_eq!(
             STILL_STANDING.with(std::cell::Cell::get),
             Some(true),
-            "a hook is user code, and § 3 puts the sweep after all of it"
+            "a hook is user code, and `rule:core-classes/temporary-dir-sweep` puts the sweep after all of it"
         );
 
         drop(ctx);

@@ -927,7 +927,7 @@ before the deferred work, for the same reason. The four mechanisms route by one 
 is scoped cleanup, `afterResponse` is post-response work, `Core\Fatal` observes a failure the request
 cannot survive, `onExit` is the end of the script.
 
-<sub>See also [`observability/three-endings-fire-the-exit-queue`](observability.md#observability-three-endings-fire-the-exit-queue), [`errors/on-uncaught-throw`](errors.md#errors-on-uncaught-throw), [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection), [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep). Decided in [0131](../decisions/0131.md).</sub>
+<sub>See also [`observability/three-endings-fire-the-exit-queue`](observability.md#observability-three-endings-fire-the-exit-queue), [`errors/on-uncaught-throw`](errors.md#errors-on-uncaught-throw), [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection), [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep).</sub>
 
 <a id="observability-a-fatal-and-a-cancellation-run-no-exit-hook"></a>
 

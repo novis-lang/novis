@@ -2,7 +2,6 @@
   "title": "A temporary directory lives under a Novis-owned root and is deleted when its script ends, and the sweep never throws",
   "status": "shipped",
   "because": [
-    "0131",
     "0281"
   ],
   "seeAlso": [
@@ -13,6 +12,8 @@
   "guardedBy": [
     "tests/conformance/core/io-a-temporary-directory-is-made-not-named.nvst",
     "tests/conformance/core/io-a-temporary-directory-is-a-granted-path-like-any-other.nvst",
-    "tests/conformance/core/io-temporary-dir-is-refused-outright-with-nothing-granted.nvst"
+    "tests/conformance/core/io-temporary-dir-is-refused-outright-with-nothing-granted.nvst",
+    "crates/nvs-runtime/src/sweep.rs",
+    "crates/nvs-cli/src/script.rs"
   ]
 }

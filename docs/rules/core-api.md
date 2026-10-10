@@ -1497,7 +1497,7 @@ authority beyond the one the member already granted.
 
 The cost is one extra join at each call site that genuinely wanted a single file.
 
-<sub>See also [`core-api/one-name-one-signature`](core-api.md#core-api-one-name-one-signature), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation). Decided in [0131](../decisions/0131.md).</sub>
+<sub>See also [`core-api/one-name-one-signature`](core-api.md#core-api-one-name-one-signature), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation).</sub>
 
 <a id="core-api-session-roster"></a>
 
