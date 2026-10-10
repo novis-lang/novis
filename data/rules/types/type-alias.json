@@ -2,8 +2,7 @@
   "title": "A `type` alias is a transparent, compile-time-only synonym for a type expression",
   "status": "shipped",
   "because": [
-    "0007",
-    "0011"
+    "0007"
   ],
   "seeAlso": [
     "types/class-scoped-alias",

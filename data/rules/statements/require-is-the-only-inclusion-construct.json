@@ -2,8 +2,7 @@
   "title": "`require` is the only file-inclusion construct, and it runs every time it is reached",
   "status": "shipped",
   "because": [
-    "0049",
-    "0011"
+    "0049"
   ],
   "seeAlso": [
     "statements/a-required-file-shares-declarations-not-locals",

@@ -39,7 +39,7 @@ or narrows is a diagnostic. There is no function-scope `static` and no global co
 a binding site at all ([`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global)), and definite assignment
 holds with no exception: no binding is live on a call whose path never ran its initialiser.
 
-<sub>See also [`types/var-inference`](types.md#types-var-inference), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0007](../decisions/0007.md), [0022](../decisions/0022.md), [0011](../decisions/0011.md), [0251](../decisions/0251.md).</sub>
+<sub>See also [`types/var-inference`](types.md#types-var-inference), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0007](../decisions/0007.md), [0022](../decisions/0022.md), [0251](../decisions/0251.md).</sub>
 
 <a id="types-var-inference"></a>
 
@@ -1162,7 +1162,7 @@ to own them; an alias, like a `use` import, is resolved and discarded before cod
   representation is a different feature with its own costs, and an alias is a transparent synonym
   only.
 
-<sub>See also [`types/class-scoped-alias`](types.md#types-class-scoped-alias), [`types/alias-is-never-a-bare-class`](types.md#types-alias-is-never-a-bare-class), [`types/grammar`](types.md#types-grammar), [`types/shape-type`](types.md#types-shape-type). Decided in [0007](../decisions/0007.md), [0011](../decisions/0011.md).</sub>
+<sub>See also [`types/class-scoped-alias`](types.md#types-class-scoped-alias), [`types/alias-is-never-a-bare-class`](types.md#types-alias-is-never-a-bare-class), [`types/grammar`](types.md#types-grammar), [`types/shape-type`](types.md#types-shape-type). Decided in [0007](../decisions/0007.md).</sub>
 
 <a id="types-alias-is-never-a-bare-class"></a>
 
@@ -1587,7 +1587,7 @@ body — the same status as a parameter name. A recursive helper that *is* reusa
 belongs on a class as a named method; the self-name covers only the case where the sole reason an
 anonymous function would need a name is to call itself.
 
-<sub>See also [`types/anonymous-function`](types.md#types-anonymous-function), [`types/implicit-capture`](types.md#types-implicit-capture), [`types/callable-signature`](types.md#types-callable-signature). Decided in [0011](../decisions/0011.md).</sub>
+<sub>See also [`types/anonymous-function`](types.md#types-anonymous-function), [`types/implicit-capture`](types.md#types-implicit-capture), [`types/callable-signature`](types.md#types-callable-signature).</sub>
 
 <a id="types-object-top"></a>
 

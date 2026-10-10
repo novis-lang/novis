@@ -1,9 +1,7 @@
 {
   "title": "Two objects order only when their class implements `Comparable`, and there is no property-walk fallback",
   "status": "shipped",
-  "because": [
-    "0011"
-  ],
+  "because": [],
   "seeAlso": [
     "classes/ordering-lowers-to-compare-to",
     "classes/comparable-is-same-class-only",

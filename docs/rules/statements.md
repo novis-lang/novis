@@ -62,7 +62,7 @@ new Models\User();        // refused: it names `Models\User`, which does not exi
 exist; a qualified name is absolute here. Did you mean `App\Models\User`?* A short name for a class in the
 same namespace, every `use` path, and `Core\Str::length($s)` are unaffected.
 
-<sub>See also [`statements/no-fallback-to-the-root-namespace`](statements.md#statements-no-fallback-to-the-root-namespace), [`statements/a-leading-separator-does-not-parse`](statements.md#statements-a-leading-separator-does-not-parse), [`statements/one-function-resolves-every-name`](statements.md#statements-one-function-resolves-every-name), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name). Decided in [0113](../decisions/0113.md), [0011](../decisions/0011.md), [0112](../decisions/0112.md), [0071](../decisions/0071.md).</sub>
+<sub>See also [`statements/no-fallback-to-the-root-namespace`](statements.md#statements-no-fallback-to-the-root-namespace), [`statements/a-leading-separator-does-not-parse`](statements.md#statements-a-leading-separator-does-not-parse), [`statements/one-function-resolves-every-name`](statements.md#statements-one-function-resolves-every-name), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name). Decided in [0113](../decisions/0113.md), [0112](../decisions/0112.md), [0071](../decisions/0071.md).</sub>
 
 <a id="statements-no-fallback-to-the-root-namespace"></a>
 
@@ -93,7 +93,7 @@ enclosing namespace *is* the root.
 A root-namespace fallback only serves a function or constant call looking for a built-in from inside a
 namespace. With no free functions and no free constants, nothing is left for one to do.
 
-<sub>See also [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0113](../decisions/0113.md), [0011](../decisions/0011.md).</sub>
+<sub>See also [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0113](../decisions/0113.md).</sub>
 
 <a id="statements-a-leading-separator-does-not-parse"></a>
 
@@ -163,7 +163,7 @@ whether a name was resolved directly or through an alias.
 - **Import `as` kept for two libraries whose short names collide.** The fully-qualified name is more
   explicit for a little more typing, and a carve-out for collisions only does not stay narrow.
 
-<sub>See also [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute), [`statements/no-fallback-to-the-root-namespace`](statements.md#statements-no-fallback-to-the-root-namespace). Decided in [0011](../decisions/0011.md), [0113](../decisions/0113.md), [0043](../decisions/0043.md).</sub>
+<sub>See also [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute), [`statements/no-fallback-to-the-root-namespace`](statements.md#statements-no-fallback-to-the-root-namespace). Decided in [0113](../decisions/0113.md), [0043](../decisions/0043.md).</sub>
 
 <a id="statements-an-enum-name-is-a-type-everywhere"></a>
 
@@ -234,7 +234,7 @@ other three are refused for the behaviour each names, not for being PHP-shaped.
 - **An automatic once-guard as `require`'s only mode.** A template partial required in a loop would
   silently run once, trading one silent PHP behaviour for another.
 
-<sub>See also [`statements/a-required-file-shares-declarations-not-locals`](statements.md#statements-a-required-file-shares-declarations-not-locals), [`statements/a-require-expression-is-mixed`](statements.md#statements-a-require-expression-is-mixed), [`errors/propagation`](errors.md#errors-propagation). Decided in [0049](../decisions/0049.md), [0011](../decisions/0011.md).</sub>
+<sub>See also [`statements/a-required-file-shares-declarations-not-locals`](statements.md#statements-a-required-file-shares-declarations-not-locals), [`statements/a-require-expression-is-mixed`](statements.md#statements-a-require-expression-is-mixed), [`errors/propagation`](errors.md#errors-propagation). Decided in [0049](../decisions/0049.md).</sub>
 
 <a id="statements-a-required-file-shares-declarations-not-locals"></a>
 
@@ -409,7 +409,7 @@ frame and nothing more. The script body is a function, so its variables are loca
 `global` no other function can see them ([`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global)). The
 shared-nothing story holds at file scope for the same reason it holds everywhere else.
 
-<sub>See also [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`statements/a-required-file-shares-declarations-not-locals`](statements.md#statements-a-required-file-shares-declarations-not-locals). Decided in [0011](../decisions/0011.md), [0006](../decisions/0006.md).</sub>
+<sub>See also [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`statements/a-required-file-shares-declarations-not-locals`](statements.md#statements-a-required-file-shares-declarations-not-locals). Decided in [0006](../decisions/0006.md).</sub>
 
 <a id="statements-an-isolate-has-its-own-statics"></a>
 
@@ -469,7 +469,7 @@ parameter — the same answer [`statements/storage-that-outlives-a-call`](statem
 - **One class for every request and server fact.** One class for unrelated concerns is a global
   namespace with extra syntax ([`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants)).
 
-<sub>See also [`statements/globals-and-request-are-dropped-outright`](statements.md#statements-globals-and-request-are-dropped-outright), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call), [`errors/cookie-name-bytes`](errors.md#errors-cookie-name-bytes). Decided in [0011](../decisions/0011.md), [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0006](../decisions/0006.md).</sub>
+<sub>See also [`statements/globals-and-request-are-dropped-outright`](statements.md#statements-globals-and-request-are-dropped-outright), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call), [`errors/cookie-name-bytes`](errors.md#errors-cookie-name-bytes). Decided in [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0006](../decisions/0006.md).</sub>
 
 <a id="statements-globals-and-request-are-dropped-outright"></a>
 

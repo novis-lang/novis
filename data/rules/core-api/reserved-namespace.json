@@ -1,9 +1,7 @@
 {
   "title": "The `Core` namespace is the compiler's: nothing may declare under it and its rosters are closed while compiling",
   "status": "shipped",
-  "because": [
-    "0011"
-  ],
+  "because": [],
   "seeAlso": [
     "core-api/core-means-always-present",
     "core-api/a-domain-class-is-a-singular-noun",

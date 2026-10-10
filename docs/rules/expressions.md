@@ -581,7 +581,7 @@ Nothing about the `Core` roster, scalar methods or any security property changes
 Str::format($_, $n)` is refused for the same reason the nested call is. There is no callable allocated
 and no dynamic dispatch.
 
-<sub>See also [`expressions/pipeline-hole-once`](expressions.md#expressions-pipeline-hole-once), [`expressions/pipeline-precedence`](expressions.md#expressions-pipeline-precedence), [`expressions/method-reference`](expressions.md#expressions-method-reference). Decided in [0098](../decisions/0098.md), [0011](../decisions/0011.md), [0063](../decisions/0063.md).</sub>
+<sub>See also [`expressions/pipeline-hole-once`](expressions.md#expressions-pipeline-hole-once), [`expressions/pipeline-precedence`](expressions.md#expressions-pipeline-precedence), [`expressions/method-reference`](expressions.md#expressions-method-reference). Decided in [0098](../decisions/0098.md), [0063](../decisions/0063.md).</sub>
 
 <a id="expressions-pipeline-precedence"></a>
 

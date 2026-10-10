@@ -13,3 +13,8 @@ no bare-name fallback exists in it at all.
 Two things are untouched. An anonymous or arrow function is a value, not a named declaration, and
 creating one anywhere is unaffected. A script's own top-level statements are its body, not a
 declaration at file scope. What it costs is a class name on every call to a library function, on top of the annotations `rule:types/declaration` already asks for.
+
+**Declined:**
+- **Free functions closed and free constants kept.** A file-scope constant is the same free-floating
+  name a file-scope function is, and keeping it would leave one row of
+  `rule:statements/storage-that-outlives-a-call` as the only such name, with no argument for why.

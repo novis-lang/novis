@@ -2,8 +2,7 @@
   "title": "A short name resolves through the imports and then the enclosing namespace, and stops",
   "status": "shipped",
   "because": [
-    "0113",
-    "0011"
+    "0113"
   ],
   "seeAlso": [
     "statements/a-qualified-name-is-absolute",

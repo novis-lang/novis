@@ -1083,9 +1083,8 @@ pub mod code {
     );
     /// A bare name used where a value is expected — `PHP_EOL`, `MY_LIMIT` —
     /// which in PHP would be a global constant fetch.
-    /// [ADR 0011](/docs/decisions/0011.md)
-    /// § 3 leaves no such storage row: a constant is always a class
-    /// constant, so there is no name for this to resolve against and nothing
+    /// `rule:classes/no-free-functions-or-constants` leaves no such storage
+    /// row: a constant is always a class constant, so there is no name for this to resolve against and nothing
     /// below the resolver to lower it to.
     pub const E_NO_GLOBAL_CONSTANT: Code = Code::new("E0319").card(
         "A bare name such as `MY_LIMIT` is not a constant, because Novis has no global constants. \

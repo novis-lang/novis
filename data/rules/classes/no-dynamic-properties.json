@@ -2,8 +2,7 @@
   "title": "A property that the class does not declare cannot be read or written, and no user code runs for the attempt",
   "status": "shipped",
   "because": [
-    "0014",
-    "0011"
+    "0014"
   ],
   "seeAlso": [
     "classes/property-observer",

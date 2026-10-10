@@ -2,7 +2,6 @@
   "title": "No `function` and no `const` may be declared outside a class body",
   "status": "shipped",
   "because": [
-    "0011",
     "0003"
   ],
   "seeAlso": [

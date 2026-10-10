@@ -1,7 +1,7 @@
 # Novis Specification — 01: The `Core` library
 
 **This file is authoritative for every `Core` signature.** It is the member list
-[ADR 0011 § 2](../decisions/0011.md) deferred and
+`rule:core-api/reserved-namespace` leaves open and
 `rule:core-api/tier-roster` placed. The *shape* rules every entry obeys are
 `rule:core-api/shape-rules` — read that first; this file applies it and does not
 re-argue it. Where a class has its own ADR (`Core\Regex`, `Core\Decimal`, `Core\Reflect`, `Core\Process`,

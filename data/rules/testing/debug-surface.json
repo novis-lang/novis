@@ -2,8 +2,7 @@
   "title": "Each probe starts and stops mid-request, and exports what existing tooling already reads",
   "status": "designed",
   "because": [
-    "0006",
-    "0011"
+    "0006"
   ],
   "seeAlso": [
     "testing/debug-probes",

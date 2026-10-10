@@ -193,7 +193,7 @@ optimiser has proved it immutable.
 - **Static methods on a class that the checker treats as belonging to the enum.** It is dedicated
   syntax for what a `static` method taking the enum already does.
 
-<sub>See also [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`enums/representation`](enums.md#enums-representation), [`enums/no-case-keyword`](enums.md#enums-no-case-keyword), [`enums/reflection`](enums.md#enums-reflection). Decided in [0011](../decisions/0011.md).</sub>
+<sub>See also [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`enums/representation`](enums.md#enums-representation), [`enums/no-case-keyword`](enums.md#enums-no-case-keyword), [`enums/reflection`](enums.md#enums-reflection).</sub>
 
 <a id="enums-reflection"></a>
 

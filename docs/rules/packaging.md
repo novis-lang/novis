@@ -1661,7 +1661,7 @@ Codegen emits it as a direct call of one runtime helper with the export named in
 `nvs serve`, keeping one request's instances in its request tree until the request ends
 (`crates/nvs-cli/tests/live_config.rs`).
 
-<sub>See also [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-nvsx-is-one-file-carrying-its-manifest`](packaging.md#packaging-an-nvsx-is-one-file-carrying-its-manifest). Decided in [0003](../decisions/0003.md), [0011](../decisions/0011.md), [0078](../decisions/0078.md), [0246](../decisions/0246.md).</sub>
+<sub>See also [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-nvsx-is-one-file-carrying-its-manifest`](packaging.md#packaging-an-nvsx-is-one-file-carrying-its-manifest). Decided in [0003](../decisions/0003.md), [0078](../decisions/0078.md), [0246](../decisions/0246.md).</sub>
 
 <a id="packaging-a-value-crosses-as-its-wit-type"></a>
 

@@ -33,7 +33,7 @@ The attribute is matched **nominally**, by resolved name: `#[Core\Test]` and a `
 one attribute, and a userland `class Test` is never it. The marker and the assertions are one class,
 so a single `use Core\Test;` places both.
 
-<sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/fixtures`](testing.md#testing-fixtures), [`testing/data-rows`](testing.md#testing-data-rows), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict). Decided in [0079](../decisions/0079.md), [0077](../decisions/0077.md), [0046](../decisions/0046.md), [0063](../decisions/0063.md), [0071](../decisions/0071.md), [0011](../decisions/0011.md), [0172](../decisions/0172.md).</sub>
+<sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/fixtures`](testing.md#testing-fixtures), [`testing/data-rows`](testing.md#testing-data-rows), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict). Decided in [0079](../decisions/0079.md), [0077](../decisions/0077.md), [0046](../decisions/0046.md), [0063](../decisions/0063.md), [0071](../decisions/0071.md), [0172](../decisions/0172.md).</sub>
 
 <a id="testing-tests-never-reach-a-build"></a>
 
@@ -1013,7 +1013,7 @@ copy-out rule a value, an error and a usage figure already use.
   crossing the arena boundary isolation exists to keep ([`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing)),
   and returning it on the result costs nothing new.
 
-<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive), [`testing/report-formats`](testing.md#testing-report-formats). Decided in [0006](../decisions/0006.md), [0011](../decisions/0011.md).</sub>
+<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive), [`testing/report-formats`](testing.md#testing-report-formats). Decided in [0006](../decisions/0006.md).</sub>
 
 <a id="testing-probes-on-is-a-tested-configuration"></a>
 

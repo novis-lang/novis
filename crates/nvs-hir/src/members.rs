@@ -10,7 +10,7 @@
 //! That same ADR's other half is refused here too, and it is the reason
 //! [`walk_class_side`] exists: a **bare name in value position** (`PHP_EOL`)
 //! is `E0319` and a **bare name called** (`strlen($s)`) is `E0320`, since
-//! ADR 0011 §§ 1 and 3 leave no global-function and no global-constant
+//! `rule:classes/no-free-functions-or-constants` leaves no global-function and no global-constant
 //! storage row to name — and `self`/`static`/`parent` in value position is
 //! `E0321`, each naming a class where a value is expected. These are
 //! the *same* [`ExprKind`]s that mean a class on the left of a `::`, so every

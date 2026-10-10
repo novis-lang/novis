@@ -891,7 +891,7 @@ the string with the parser the boot path uses
 `get` is `null`, `all` is empty, `set` is `false` and nothing throws
 ([`config/no-configuration-file-is-a-complete-configuration`](config.md#config-no-configuration-file-is-a-complete-configuration)).
 
-<sub>See also [`config/one-parser-for-the-boot-path-and-config-set`](config.md#config-one-parser-for-the-boot-path-and-config-set), [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives). Decided in [0064](../decisions/0064.md), [0005](../decisions/0005.md), [0011](../decisions/0011.md).</sub>
+<sub>See also [`config/one-parser-for-the-boot-path-and-config-set`](config.md#config-one-parser-for-the-boot-path-and-config-set), [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives). Decided in [0064](../decisions/0064.md), [0005](../decisions/0005.md).</sub>
 
 <a id="config-an-edit-reaches-the-next-request-without-a-restart"></a>
 

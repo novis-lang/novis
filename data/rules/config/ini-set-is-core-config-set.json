@@ -3,8 +3,7 @@
   "status": "shipped",
   "because": [
     "0064",
-    "0005",
-    "0011"
+    "0005"
   ],
   "seeAlso": [
     "config/one-parser-for-the-boot-path-and-config-set",

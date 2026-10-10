@@ -27,7 +27,12 @@ Two things are untouched. An anonymous or arrow function is a value, not a named
 creating one anywhere is unaffected. A script's own top-level statements are its body, not a
 declaration at file scope. What it costs is a class name on every call to a library function, on top of the annotations [`types/declaration`](types.md#types-declaration) already asks for.
 
-<sub>See also [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier), [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call), [`types/class-constant`](types.md#types-class-constant). Decided in [0011](../decisions/0011.md), [0003](../decisions/0003.md).</sub>
+**Declined:**
+- **Free functions closed and free constants kept.** A file-scope constant is the same free-floating
+  name a file-scope function is, and keeping it would leave one row of
+  [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call) as the only such name, with no argument for why.
+
+<sub>See also [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier), [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call), [`types/class-constant`](types.md#types-class-constant). Decided in [0003](../decisions/0003.md).</sub>
 
 <a id="classes-a-type-is-declared-at-file-scope"></a>
 
@@ -415,7 +420,7 @@ operand that carries its own answer is [`types/property-key`](types.md#types-pro
 construction one of `T`'s public declared names — the check moved to the conversion, once, instead of
 being repeated at every access.
 
-<sub>See also [`classes/property-observer`](classes.md#classes-property-observer), [`types/erased-member-access`](types.md#types-erased-member-access), [`types/property-key`](types.md#types-property-key), [`types/property-key-access`](types.md#types-property-key-access), [`types/declaration`](types.md#types-declaration). Decided in [0014](../decisions/0014.md), [0011](../decisions/0011.md).</sub>
+<sub>See also [`classes/property-observer`](classes.md#classes-property-observer), [`types/erased-member-access`](types.md#types-erased-member-access), [`types/property-key`](types.md#types-property-key), [`types/property-key-access`](types.md#types-property-key-access), [`types/declaration`](types.md#types-declaration). Decided in [0014](../decisions/0014.md).</sub>
 
 <a id="classes-unset-is-refused-on-a-property"></a>
 
@@ -486,7 +491,7 @@ which is exactly the ambient behaviour a declared `implements` replaces. Both me
 so an observer reports and never decides. It costs one ordinary virtual call per access, paid only by
 a class that asked for it.
 
-<sub>See also [`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline), [`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`classes/stringable`](classes.md#classes-stringable). Decided in [0014](../decisions/0014.md), [0011](../decisions/0011.md).</sub>
+<sub>See also [`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline), [`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`classes/stringable`](classes.md#classes-stringable). Decided in [0014](../decisions/0014.md).</sub>
 
 <a id="classes-property-observer-pipeline"></a>
 
@@ -720,7 +725,7 @@ already defines ([`types/ordering`](types.md#types-ordering)). A sort written wi
   class wanting a custom order would then have to redefine equality too, and the two are often
   independent.
 
-<sub>See also [`classes/ordering-lowers-to-compare-to`](classes.md#classes-ordering-lowers-to-compare-to), [`classes/comparable-is-same-class-only`](classes.md#classes-comparable-is-same-class-only), [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality), [`types/ordering`](types.md#types-ordering). Decided in [0011](../decisions/0011.md).</sub>
+<sub>See also [`classes/ordering-lowers-to-compare-to`](classes.md#classes-ordering-lowers-to-compare-to), [`classes/comparable-is-same-class-only`](classes.md#classes-comparable-is-same-class-only), [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality), [`types/ordering`](types.md#types-ordering).</sub>
 
 <a id="classes-comparable-is-same-class-only"></a>
 
@@ -834,7 +839,7 @@ name and argument list, or a `match` keyed by name — visible in the class body
 every other call. What that costs is real: a proxy or a fluent facade generated from `__call` has no
 mechanical translation and needs a human to write the surface out.
 
-<sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties), [`types/callable-values`](types.md#types-callable-values). Decided in [0014](../decisions/0014.md), [0011](../decisions/0011.md).</sub>
+<sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties), [`types/callable-values`](types.md#types-callable-values). Decided in [0014](../decisions/0014.md).</sub>
 
 <a id="classes-no-destructors"></a>
 
@@ -1044,7 +1049,7 @@ code written against one name can be repointed to a different class by a later c
 - **`class_alias` kept for deprecation shims and gradual renames.** It is the same run-time
   indirection, and rewriting the call sites gives the same migration with only one name live.
 
-<sub>See also [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`types/type-alias`](types.md#types-type-alias), [`types/alias-is-never-a-bare-class`](types.md#types-alias-is-never-a-bare-class). Decided in [0011](../decisions/0011.md).</sub>
+<sub>See also [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`types/type-alias`](types.md#types-type-alias), [`types/alias-is-never-a-bare-class`](types.md#types-alias-is-never-a-bare-class).</sub>
 
 <a id="classes-a-constructor-return-carries-no-value"></a>
 

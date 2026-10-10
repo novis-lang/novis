@@ -25,7 +25,7 @@ an optional subsystem was not built or installed. That would make the reserved n
 Attempting either — a loaded extension declaring a class under `Core\` or `Novis\` — is a load-time
 diagnostic naming the class, not a silently missing symbol.
 
-<sub>See also [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/five-placements`](core-api.md#core-api-five-placements). Decided in [0011](../decisions/0011.md), [0003](../decisions/0003.md).</sub>
+<sub>See also [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/five-placements`](core-api.md#core-api-five-placements). Decided in [0003](../decisions/0003.md).</sub>
 
 <a id="core-api-tier-placement"></a>
 
@@ -195,7 +195,20 @@ assignability checks a user-declared static call takes, with no second code path
 The array domain class is spelled `Core\Arr` rather than `Core\Array`, because `array` is a type atom
 ([`types/grammar`](types.md#types-grammar)) and a class of that name would collide with it exactly where a type is expected.
 
-<sub>See also [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`core-api/a-domain-class-is-a-singular-noun`](core-api.md#core-api-a-domain-class-is-a-singular-noun), [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`classes/no-class-alias`](classes.md#classes-no-class-alias), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name). Decided in [0011](../decisions/0011.md).</sub>
+Reserving the namespace turns a collision with a built-in into a compile-time error at the declaration
+that collides. In one shared global namespace the same collision is a fatal error found by whichever
+request first loads both definitions. Every built-in call also names its `Core` class at the call site,
+so a reader sees which domain a line depends on, and never a bare name that could be a built-in, an
+extension's or the program's own.
+
+**Declined:**
+- **One flat `Core` class holding every built-in.** Hundreds of unrelated static methods on one class
+  is a global namespace with extra syntax, so built-ins are grouped into domain classes
+  ([`core-api/a-domain-class-is-a-singular-noun`](core-api.md#core-api-a-domain-class-is-a-singular-noun)).
+- **`Core` imported automatically**, so `Str::length()` resolves with no `use`. That puts back a name
+  reachable from anywhere with no declared import ([`statements/no-fallback-to-the-root-namespace`](statements.md#statements-no-fallback-to-the-root-namespace)).
+
+<sub>See also [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`core-api/a-domain-class-is-a-singular-noun`](core-api.md#core-api-a-domain-class-is-a-singular-noun), [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`classes/no-class-alias`](classes.md#classes-no-class-alias), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name).</sub>
 
 <a id="core-api-a-domain-class-is-a-singular-noun"></a>
 
@@ -213,7 +226,7 @@ and nesting puts the domain's own types where a reader looking at the class alre
 with the reserved namespace ([`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace)), since a nested name is reserved by the
 same rule as its parent.
 
-<sub>See also [`core-api/members-are-full-words`](core-api.md#core-api-members-are-full-words), [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace), [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants). Decided in [0063](../decisions/0063.md), [0011](../decisions/0011.md).</sub>
+<sub>See also [`core-api/members-are-full-words`](core-api.md#core-api-members-are-full-words), [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace), [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants). Decided in [0063](../decisions/0063.md).</sub>
 
 <a id="core-api-shape-rules"></a>
 
@@ -256,7 +269,7 @@ knows; and there is no ambient state for a member to read ([`core-api/no-ambient
 What this costs is familiarity. A developer who knows `sort($a)`, `strtotime` and `ob_start` finds none of
 them under that name, and ports each call by finding the `Core` member that does the job.
 
-<sub>See also [`core-api/subject-first`](core-api.md#core-api-subject-first), [`core-api/options-bag`](core-api.md#core-api-options-bag), [`core-api/nothing-mutates`](core-api.md#core-api-nothing-mutates), [`core-api/failure-throws`](core-api.md#core-api-failure-throws), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation). Decided in [0063](../decisions/0063.md), [0011](../decisions/0011.md), [0135](../decisions/0135.md), [0147](../decisions/0147.md).</sub>
+<sub>See also [`core-api/subject-first`](core-api.md#core-api-subject-first), [`core-api/options-bag`](core-api.md#core-api-options-bag), [`core-api/nothing-mutates`](core-api.md#core-api-nothing-mutates), [`core-api/failure-throws`](core-api.md#core-api-failure-throws), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation). Decided in [0063](../decisions/0063.md), [0135](../decisions/0135.md), [0147](../decisions/0147.md).</sub>
 
 <a id="core-api-subject-first"></a>
 
@@ -350,7 +363,7 @@ produces `len` beside `wordCount` in the same class. A closed list at the class 
 at the member level removes the judgement call entirely, at the cost of a few extra characters at every
 call site.
 
-<sub>See also [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`core-api/a-domain-class-is-a-singular-noun`](core-api.md#core-api-a-domain-class-is-a-singular-noun). Decided in [0063](../decisions/0063.md), [0011](../decisions/0011.md).</sub>
+<sub>See also [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`core-api/a-domain-class-is-a-singular-noun`](core-api.md#core-api-a-domain-class-is-a-singular-noun). Decided in [0063](../decisions/0063.md).</sub>
 
 <a id="core-api-identifier-casing"></a>
 
@@ -395,7 +408,7 @@ reader or an editor knows a name's category from its spelling before anything re
 - **Lower-case namespace segments** (`core\str`). Every `Core\...` reference already written would be
   renamed.
 
-<sub>See also [`core-api/casing-checks-the-leading-character`](core-api.md#core-api-casing-checks-the-leading-character), [`core-api/casing-has-no-suppression`](core-api.md#core-api-casing-has-no-suppression), [`core-api/members-are-full-words`](core-api.md#core-api-members-are-full-words), [`classes/no-leading-underscore-identifiers`](classes.md#classes-no-leading-underscore-identifiers), [`classes/names-resolve-case-sensitively`](classes.md#classes-names-resolve-case-sensitively), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name). Decided in [0011](../decisions/0011.md).</sub>
+<sub>See also [`core-api/casing-checks-the-leading-character`](core-api.md#core-api-casing-checks-the-leading-character), [`core-api/casing-has-no-suppression`](core-api.md#core-api-casing-has-no-suppression), [`core-api/members-are-full-words`](core-api.md#core-api-members-are-full-words), [`classes/no-leading-underscore-identifiers`](classes.md#classes-no-leading-underscore-identifiers), [`classes/names-resolve-case-sensitively`](classes.md#classes-names-resolve-case-sensitively), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name).</sub>
 
 <a id="core-api-casing-checks-the-leading-character"></a>
 
@@ -1367,7 +1380,7 @@ strings in the binary — per process, not per request, on the order of a few hu
 member — which is the cheap side of the trade and strippable behind a build feature if a deployment ever
 cares.
 
-<sub>See also [`core-api/field-wise-precedence`](core-api.md#core-api-field-wise-precedence), [`core-api/parameters-are-callable-by-name`](core-api.md#core-api-parameters-are-callable-by-name), [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter). Decided in [0117](../decisions/0117.md), [0011](../decisions/0011.md), [0063](../decisions/0063.md), [0203](../decisions/0203.md), [0214](../decisions/0214.md).</sub>
+<sub>See also [`core-api/field-wise-precedence`](core-api.md#core-api-field-wise-precedence), [`core-api/parameters-are-callable-by-name`](core-api.md#core-api-parameters-are-callable-by-name), [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter). Decided in [0117](../decisions/0117.md), [0063](../decisions/0063.md), [0203](../decisions/0203.md), [0214](../decisions/0214.md).</sub>
 
 <a id="core-api-removals"></a>
 
