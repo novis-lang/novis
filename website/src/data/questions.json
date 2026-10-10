@@ -7808,6 +7808,1423 @@
       "Why is the type of an error message property null?"
     ]
   },
+  "/reference/core/regex/": {
+    "feature": "Core\\Regex",
+    "hash": "b336503e6a9fafda",
+    "questions": [
+      "How do I use regular expressions?",
+      "Search, replace and split text with a pattern",
+      "Which tools work with text patterns?",
+      "How do I write a regex pattern?",
+      "Work with regular expressions in a program"
+    ]
+  },
+  "/reference/core/regex/compile/": {
+    "feature": "Core\\Regex::compile",
+    "hash": "f555ccbbec97cd99",
+    "questions": [
+      "How do I reuse one regex pattern many times?",
+      "Make a pattern ignore upper and lower case",
+      "How do I set regex options like multiline or dot-all?",
+      "Check that a regex pattern is valid before using it",
+      "Prepare a regular expression once with flags"
+    ]
+  },
+  "/reference/core/regex/match/": {
+    "feature": "Core\\Regex::match",
+    "hash": "da4d892f05efe469",
+    "questions": [
+      "How do I find the first place a pattern appears in a string?",
+      "Extract a value from text with a regular expression",
+      "Get the captured groups of the first regex hit",
+      "How do I pull a number out of a line of text?",
+      "Start a regex search at a given position"
+    ]
+  },
+  "/reference/core/regex/matchall/": {
+    "feature": "Core\\Regex::matchAll",
+    "hash": "2e994330b638c272",
+    "questions": [
+      "How do I find every occurrence of a pattern in a text?",
+      "Get a list of all regex results in a string",
+      "Collect all hashtags or numbers from a message",
+      "How do I loop over each place a pattern appears?",
+      "Extract all email addresses from a text"
+    ]
+  },
+  "/reference/core/regex/matches/": {
+    "feature": "Core\\Regex::matches",
+    "hash": "2a6905d554a457c1",
+    "questions": [
+      "How do I check if a string fits a pattern?",
+      "Test whether text contains a regex pattern",
+      "Validate that input contains only digits",
+      "How do I get true or false from a regular expression?",
+      "Check a whole string against a pattern with ^ and $"
+    ]
+  },
+  "/reference/core/regex/quote/": {
+    "feature": "Core\\Regex::quote",
+    "hash": "cad085fb6df43081",
+    "questions": [
+      "How do I escape special characters for a regex?",
+      "Search for text a user typed inside a pattern",
+      "Match a literal dot or plus sign in a regular expression",
+      "How do I put user input into a regex safely?",
+      "Make a pattern that finds an exact piece of text"
+    ]
+  },
+  "/reference/core/regex/replace/": {
+    "feature": "Core\\Regex::replace",
+    "hash": "5306bf85075fb088",
+    "questions": [
+      "How do I replace text that fits a pattern?",
+      "Search and replace with a regular expression",
+      "Use captured groups like $1 in a replacement",
+      "How do I hide card numbers in a log line?",
+      "Replace only the first few occurrences of a pattern"
+    ]
+  },
+  "/reference/core/regex/replacewith/": {
+    "feature": "Core\\Regex::replaceWith",
+    "hash": "41e1875d3acef651",
+    "questions": [
+      "How do I replace each regex hit with the result of a function?",
+      "Build a different replacement for every occurrence",
+      "Fill placeholders in a template with my own code",
+      "How do I change each found number, for example double it?",
+      "Replace text using a callback"
+    ]
+  },
+  "/reference/core/regex/split/": {
+    "feature": "Core\\Regex::split",
+    "hash": "3510b57eb354e159",
+    "questions": [
+      "How do I split a string by a regular expression?",
+      "Break text into words at any whitespace",
+      "Split at commas with optional spaces around them",
+      "How do I remove empty pieces after splitting?",
+      "Cut a text into a limited number of parts"
+    ]
+  },
+  "/reference/core/regex-match/": {
+    "feature": "Core\\Regex\\Match",
+    "hash": "b6817ae46b44d260",
+    "questions": [
+      "What is a regex match object?",
+      "What information do I get about one found result?",
+      "Read the text, position and groups of a result",
+      "How do I use the result of a regex search?"
+    ]
+  },
+  "/reference/core/regex-match/group/": {
+    "feature": "Core\\Regex\\Match::group",
+    "hash": "90c0702f8262ad83",
+    "questions": [
+      "How do I read one capture group by its number?",
+      "Get a named group from a regex result",
+      "What happens when an optional group did not match?",
+      "Read the part of a pattern inside round brackets",
+      "How do I get the value of (?<name>...) after a search?"
+    ]
+  },
+  "/reference/core/regex-match/groups/": {
+    "feature": "Core\\Regex\\Match::groups",
+    "hash": "05451e8a3312e82a",
+    "questions": [
+      "How do I get all capture groups as one array?",
+      "List every group of a regex result",
+      "Turn a line of text into named fields",
+      "How do I tell an unused group from an empty one?"
+    ]
+  },
+  "/reference/core/regex-match/offset/": {
+    "feature": "Core\\Regex\\Match::offset",
+    "hash": "97e34cc35a3f640b",
+    "questions": [
+      "How do I find where in the text a result starts?",
+      "Get the character position of a found word",
+      "Show where an error is in a line of input",
+      "Does the position count characters or bytes?"
+    ]
+  },
+  "/reference/core/regex-match/text/": {
+    "feature": "Core\\Regex\\Match::text",
+    "hash": "297af8dbeeae9c80",
+    "questions": [
+      "How do I get the whole text a pattern found?",
+      "Read the full matched string without groups",
+      "Why is the found text an empty string?",
+      "Get group zero of a regex result"
+    ]
+  },
+  "/reference/core/request/": {
+    "feature": "Core\\Request",
+    "hash": "7fc45df9ad76b18e",
+    "questions": [
+      "How do I read the incoming HTTP request?",
+      "Get the method, path, headers and body of a web request",
+      "Where do I find data a browser sent to my server?",
+      "Read query parameters, cookies and form data",
+      "How do I handle a web request?"
+    ]
+  },
+  "/reference/core/request/body/": {
+    "feature": "Core\\Request::body",
+    "hash": "532b2d4296c5aed7",
+    "questions": [
+      "How do I get the raw request body as a string?",
+      "Read the full text a client sent in a POST",
+      "Check a webhook signature against the raw body",
+      "How do I read plain text sent to my server?"
+    ]
+  },
+  "/reference/core/request/bodystream/": {
+    "feature": "Core\\Request::bodyStream",
+    "hash": "c322ea15d38a984f",
+    "questions": [
+      "How do I read a large upload piece by piece?",
+      "Process a big request body without loading it all into memory",
+      "Stream an uploaded video or backup to disk",
+      "How do I read the body in chunks with a loop?"
+    ]
+  },
+  "/reference/core/request/bytes/": {
+    "feature": "Core\\Request::bytes",
+    "hash": "63c5339122d915c0",
+    "questions": [
+      "How do I get the request body as binary data?",
+      "Read an uploaded image or PDF sent as the body",
+      "Accept a body that is not valid UTF-8 text",
+      "How do I hash the exact bytes a client sent?"
+    ]
+  },
+  "/reference/core/request/clientip/": {
+    "feature": "Core\\Request::clientIp",
+    "hash": "158159a7242b6ecf",
+    "questions": [
+      "How do I get the visitor's IP address?",
+      "Find the address of the client behind a load balancer",
+      "Read the real IP from X-Forwarded-For safely",
+      "How do I log who sent a request?",
+      "Rate limit by client IP address"
+    ]
+  },
+  "/reference/core/request/cookie/": {
+    "feature": "Core\\Request::cookie",
+    "hash": "e5b222e6554b22da",
+    "questions": [
+      "How do I read a cookie the browser sent?",
+      "Get a session ID from a cookie",
+      "Check if a cookie exists in the request",
+      "How do I read the value of one cookie by name?"
+    ]
+  },
+  "/reference/core/request/files/": {
+    "feature": "Core\\Request::files",
+    "hash": "6cea14a351206681",
+    "questions": [
+      "How do I handle file uploads from a form?",
+      "Save an uploaded file to disk",
+      "Read the file name and type of an upload",
+      "How do I process several uploaded files one by one?",
+      "Read a multipart form with files"
+    ]
+  },
+  "/reference/core/request/header/": {
+    "feature": "Core\\Request::header",
+    "hash": "3d20604e3b0d2708",
+    "questions": [
+      "How do I read one HTTP header from the request?",
+      "Get the User-Agent or Content-Type header",
+      "Read the Authorization header",
+      "Are request header names case-sensitive?"
+    ]
+  },
+  "/reference/core/request/headers/": {
+    "feature": "Core\\Request::headers",
+    "hash": "c1891cee233728da",
+    "questions": [
+      "How do I get all request headers at once?",
+      "List every HTTP header the client sent",
+      "Read a header that arrived on several lines",
+      "How do I loop over all headers of a request?"
+    ]
+  },
+  "/reference/core/request/host/": {
+    "feature": "Core\\Request::host",
+    "hash": "da8a90512ae7488d",
+    "questions": [
+      "How do I get the domain name the request was sent to?",
+      "Read the Host header without the port",
+      "Serve different sites by host name",
+      "Which domain did the visitor type in the address bar?"
+    ]
+  },
+  "/reference/core/request/ishead/": {
+    "feature": "Core\\Request::isHead",
+    "hash": "493de038d4ecdb21",
+    "questions": [
+      "How do I detect a HEAD request?",
+      "Skip building the response body when only headers are needed",
+      "Tell a HEAD request apart from a GET request",
+      "Why does a HEAD request show as GET?"
+    ]
+  },
+  "/reference/core/request/json/": {
+    "feature": "Core\\Request::json",
+    "hash": "b499e404c3e5a912",
+    "questions": [
+      "How do I read JSON sent in a POST request?",
+      "Decode the request body as JSON",
+      "Handle invalid JSON from an API client",
+      "How do I build a JSON API endpoint?",
+      "Limit how deeply nested incoming JSON may be"
+    ]
+  },
+  "/reference/core/request/jsonas/": {
+    "feature": "Core\\Request::jsonAs",
+    "hash": "41a2fa620dd8e968",
+    "questions": [
+      "How do I turn a JSON body into an object of my class?",
+      "Validate incoming JSON fields and types",
+      "Read a JSON array of items into a list of objects",
+      "Return a 422 error for wrong JSON fields",
+      "Map request JSON to a typed class"
+    ]
+  },
+  "/reference/core/request/method/": {
+    "feature": "Core\\Request::method",
+    "hash": "c0c9c40b770cd7a0",
+    "questions": [
+      "How do I check if the request is GET or POST?",
+      "Get the HTTP method of a request",
+      "Show a form on GET and save it on POST",
+      "How do I answer 405 for an unsupported method?",
+      "Handle PUT, PATCH and DELETE on one address"
+    ]
+  },
+  "/reference/core/request/mount/": {
+    "feature": "Core\\Request::mount",
+    "hash": "5fcbc9bda208619c",
+    "questions": [
+      "How do I find the URL prefix my app is served under?",
+      "Build links that work under any base path",
+      "Find which customer a request is for in a multi-tenant setup",
+      "Read the folder names captured by the server configuration"
+    ]
+  },
+  "/reference/core/request/path/": {
+    "feature": "Core\\Request::path",
+    "hash": "5f4bc269e9b583ac",
+    "questions": [
+      "How do I get the URL path of the request?",
+      "Read the current page address without the query string",
+      "Pick a page to show based on the path",
+      "Why does the path not include my app's prefix?",
+      "Why does a space in the URL show as %20?"
+    ]
+  },
+  "/reference/core/request/post/": {
+    "feature": "Core\\Request::post",
+    "hash": "7e4fffecb2e22a8f",
+    "questions": [
+      "How do I read a form field sent by POST?",
+      "Get a value from a submitted HTML form",
+      "Check whether a checkbox was ticked",
+      "How do I read a contact form?",
+      "Read text fields from a multipart form"
+    ]
+  },
+  "/reference/core/request/postas/": {
+    "feature": "Core\\Request::postAs",
+    "hash": "76571dfcd08b626a",
+    "questions": [
+      "How do I read a whole form into a class?",
+      "Validate a sign-up form and list every wrong field",
+      "Convert form fields to numbers and other types",
+      "Read nested form fields like address[city]",
+      "How do I read the lines of an order form into a list?"
+    ]
+  },
+  "/reference/core/request/query/": {
+    "feature": "Core\\Request::query",
+    "hash": "a135df2b2998f8ae",
+    "questions": [
+      "How do I read a URL parameter after the question mark?",
+      "Get the search term from ?q= in the address",
+      "Read the page number from the URL",
+      "What do I get when a URL parameter is missing?",
+      "Read GET parameters from the address"
+    ]
+  },
+  "/reference/core/request/queryas/": {
+    "feature": "Core\\Request::queryAs",
+    "hash": "f4d05433940acb7d",
+    "questions": [
+      "How do I read all URL parameters into a class?",
+      "Validate search filters from the address",
+      "Filter products by a price range from the URL",
+      "Read nested URL parameters like price[min]",
+      "Return an error for a wrong page number in the URL"
+    ]
+  },
+  "/reference/core/request/route/": {
+    "feature": "Core\\Request::route",
+    "hash": "16bbcfaf411af833",
+    "questions": [
+      "How do I know which route this request matched?",
+      "Read a URL placeholder like {id} from the route",
+      "Highlight the current page in a menu",
+      "What happens when no route fits the address?",
+      "Get the name of the current route"
+    ]
+  },
+  "/reference/core/request/scheme/": {
+    "feature": "Core\\Request::scheme",
+    "hash": "2bae7e2271f21759",
+    "questions": [
+      "How do I check if the request used https?",
+      "Find out whether the connection was encrypted",
+      "Build the full URL of the current page",
+      "Trust X-Forwarded-Proto from my reverse proxy",
+      "How do I allow a login page only over https?"
+    ]
+  },
+  "/reference/core/request-mount/": {
+    "feature": "Core\\Request\\Mount",
+    "hash": "a9fc64551db2ddc0",
+    "questions": [
+      "How do I run one program under several URL prefixes?",
+      "What does the mount object tell me about the current request?",
+      "Serve many customers from one app at different folder addresses",
+      "How does my program know where the server mounted it?"
+    ]
+  },
+  "/reference/core/request-mount/captures/": {
+    "feature": "Core\\Request\\Mount::captures",
+    "hash": "b4e9685b7483300a",
+    "questions": [
+      "How do I find which customer a URL prefix belongs to?",
+      "Read the tenant name from a wildcard mount pattern",
+      "Get the values a mount pattern matched in the address",
+      "How do I pick the page language from the first part of the URL?",
+      "Why is the tenant name from the URL untrusted?"
+    ]
+  },
+  "/reference/core/request-mount/prefix/": {
+    "feature": "Core\\Request\\Mount::prefix",
+    "hash": "d097c84bafa4a0ff",
+    "questions": [
+      "How do I get the base path my app is served under?",
+      "Find the part of the URL the server removed before my program ran",
+      "Build links that work when the app lives under /shop",
+      "Limit a cookie path to the folder my program is mounted at",
+      "Why does the request path not include /shop?"
+    ]
+  },
+  "/reference/core/request-part/": {
+    "feature": "Core\\Request\\Part",
+    "hash": "a1a7cfa026961243",
+    "questions": [
+      "What is one part of a multipart upload?",
+      "Work with each uploaded file in a multipart request",
+      "What information do I get about an uploaded file?",
+      "How do I process several uploaded files one after another?"
+    ]
+  },
+  "/reference/core/request-part/content/": {
+    "feature": "Core\\Request\\Part::content",
+    "hash": "eb7d32d378fd38ca",
+    "questions": [
+      "How do I read a large upload in pieces without loading it all?",
+      "Stream an uploaded file chunk by chunk",
+      "Compute a checksum of an upload while it arrives",
+      "Stop reading an upload when it passes a size limit",
+      "Measure the size of each uploaded file"
+    ]
+  },
+  "/reference/core/request-part/contenttype/": {
+    "feature": "Core\\Request\\Part::contentType",
+    "hash": "79bb8c9a9101f8ff",
+    "questions": [
+      "How do I check the type of an uploaded file?",
+      "Accept only PNG and JPEG image uploads",
+      "Get the MIME type the browser sent with a file",
+      "Can I trust the content type of an uploaded file?"
+    ]
+  },
+  "/reference/core/request-part/filename/": {
+    "feature": "Core\\Request\\Part::filename",
+    "hash": "833320f5cf526672",
+    "questions": [
+      "How do I get the original name of an uploaded file?",
+      "Is the uploaded file name safe to use as a path?",
+      "Skip a file input the user left empty",
+      "Show the name the file had on the user's computer",
+      "Stop an upload name like ../../config from escaping a folder"
+    ]
+  },
+  "/reference/core/request-part/name/": {
+    "feature": "Core\\Request\\Part::name",
+    "hash": "8e8e77ea8b48b2d2",
+    "questions": [
+      "How do I know which form field an upload came from?",
+      "Get the input name of an uploaded file",
+      "Count the files sent in one multiple-file input",
+      "Handle avatar and document upload fields differently"
+    ]
+  },
+  "/reference/core/request-part/readall/": {
+    "feature": "Core\\Request\\Part::readAll",
+    "hash": "66c64dd7684433ef",
+    "questions": [
+      "How do I read a small uploaded file into memory?",
+      "Get the whole content of an upload as one value",
+      "Set a maximum size when reading an uploaded file",
+      "Check that an uploaded file really is a PDF",
+      "What is the default size limit for reading an upload?"
+    ]
+  },
+  "/reference/core/request-part/saveto/": {
+    "feature": "Core\\Request\\Part::saveTo",
+    "hash": "b85ffb8bc7eaef2f",
+    "questions": [
+      "How do I save an uploaded file to disk?",
+      "Store a large upload in a file without using much memory",
+      "Limit the size of an upload written to disk",
+      "Replace an existing file when saving an upload",
+      "Save each upload under a safe name in an uploads folder"
+    ]
+  },
+  "/reference/core/response/": {
+    "feature": "Core\\Response",
+    "hash": "677aea017fbf56a4",
+    "questions": [
+      "How do I send a response back to the browser?",
+      "Set the body, status and headers of an HTTP reply",
+      "What ways are there to write a response body?",
+      "Return a page, JSON or a file from a request handler"
+    ]
+  },
+  "/reference/core/response/addcookie/": {
+    "feature": "Core\\Response::addCookie",
+    "hash": "38430f9be3f82306",
+    "questions": [
+      "How do I set a cookie in the browser?",
+      "Create a secure HttpOnly session cookie",
+      "Delete a cookie from the browser",
+      "Set how long a cookie lasts",
+      "Set the SameSite option on a cookie",
+      "Send a login cookie after the user signs in"
+    ]
+  },
+  "/reference/core/response/bytes/": {
+    "feature": "Core\\Response::bytes",
+    "hash": "820bc6ccc0fa4302",
+    "questions": [
+      "How do I send an image from memory as the response?",
+      "Return a CSV report with a custom content type",
+      "Send raw binary data to the client",
+      "Serve a generated PDF or calendar file"
+    ]
+  },
+  "/reference/core/response/html/": {
+    "feature": "Core\\Response::html",
+    "hash": "0ed3f5a1f3cd3ace",
+    "questions": [
+      "How do I send an HTML page as the response?",
+      "Return a web page built from a template",
+      "Show user text inside a page without running scripts",
+      "Render a list of products as HTML"
+    ]
+  },
+  "/reference/core/response/json/": {
+    "feature": "Core\\Response::json",
+    "hash": "9ffdb8fdd249f46f",
+    "questions": [
+      "How do I return JSON from an API endpoint?",
+      "Send an array or object as a JSON reply",
+      "Build a JSON API that lists products",
+      "Why does sending NaN as JSON fail?"
+    ]
+  },
+  "/reference/core/response/redirect/": {
+    "feature": "Core\\Response::redirect",
+    "hash": "d24de0150763e403",
+    "questions": [
+      "How do I send the user to another page?",
+      "Redirect after a form is submitted",
+      "Make a permanent 308 redirect for a moved page",
+      "Set the Location header with a 303 status",
+      "Can a visitor choose where my redirect goes?"
+    ]
+  },
+  "/reference/core/response/sendfile/": {
+    "feature": "Core\\Response::sendFile",
+    "hash": "2d02c31e2bf595f6",
+    "questions": [
+      "How do I send a file from disk to the browser?",
+      "Offer a file for download",
+      "Serve a large file without loading it into memory",
+      "Give a downloaded file its own name",
+      "Does sending a file support partial range requests?"
+    ]
+  },
+  "/reference/core/response/setheader/": {
+    "feature": "Core\\Response::setHeader",
+    "hash": "f1f4fff6289d2af6",
+    "questions": [
+      "How do I add a header to the response?",
+      "Turn off browser caching for a page",
+      "Set Cache-Control or other custom HTTP headers",
+      "Replace a header the server adds by default",
+      "Why can I not set Content-Type with a header call?"
+    ]
+  },
+  "/reference/core/response/setstatus/": {
+    "feature": "Core\\Response::setStatus",
+    "hash": "bda08b1622dd63e8",
+    "questions": [
+      "How do I return a 404 Not Found status?",
+      "Change the HTTP status code of the response",
+      "Send 201 Created from an API",
+      "Return a 400 error when input is invalid"
+    ]
+  },
+  "/reference/core/response/slotted/": {
+    "feature": "Core\\Response::slotted",
+    "hash": "84b54b3c9ebd7ae7",
+    "questions": [
+      "How do I show a page before its slow parts are ready?",
+      "Send the page early and fill in late sections afterwards",
+      "Make the visitor see content sooner on a slow page",
+      "Load slow page sections only for some paths"
+    ]
+  },
+  "/reference/core/response/stream/": {
+    "feature": "Core\\Response::stream",
+    "hash": "f43ba3434cc69123",
+    "questions": [
+      "How do I send a response in parts?",
+      "Stream a large CSV export to the browser",
+      "Report the progress of a long job while it runs",
+      "Start a chunked response body with a content type"
+    ]
+  },
+  "/reference/core/response/text/": {
+    "feature": "Core\\Response::text",
+    "hash": "65e2bf6f4be1c2aa",
+    "questions": [
+      "How do I send plain text as the response?",
+      "Return a simple health check message",
+      "Serve a robots.txt file from code",
+      "Show user input as text so it never runs as HTML"
+    ]
+  },
+  "/reference/core/response-stream/": {
+    "feature": "Core\\Response\\Stream",
+    "hash": "d065bb2c9aa6b00d",
+    "questions": [
+      "What object do I get when I start a streamed response?",
+      "When does a streamed response body end?",
+      "What is a response stream and what can I do with it?",
+      "Keep sending data to the client after the headers go out"
+    ]
+  },
+  "/reference/core/response-stream/write/": {
+    "feature": "Core\\Response\\Stream::write",
+    "hash": "ccb3ccd5d88f0ac3",
+    "questions": [
+      "How do I send the next piece of a streamed body?",
+      "Write one chunk of data to an open response",
+      "What happens when the client disconnects during streaming?",
+      "Send one JSON object per line to the client",
+      "Does writing wait for a slow client to read?"
+    ]
+  },
+  "/reference/core/router/": {
+    "feature": "Core\\Router",
+    "hash": "7c35d256ca35c785",
+    "questions": [
+      "How do I work with the routes of my app?",
+      "Build links and look up routes by name",
+      "Generate URLs from route names instead of typing paths",
+      "Check which route a path belongs to"
+    ]
+  },
+  "/reference/core/router/match/": {
+    "feature": "Core\\Router::match",
+    "hash": "d2d29dea1345fe5a",
+    "questions": [
+      "How do I find which route handles a given path?",
+      "Look up a route from a method and a URL path",
+      "Check that every link in a menu points to a real route",
+      "Test if a path matches any route without running it"
+    ]
+  },
+  "/reference/core/router/methodsfor/": {
+    "feature": "Core\\Router::methodsFor",
+    "hash": "502bf40ef154f55e",
+    "questions": [
+      "How do I choose between a 404 and a 405 response?",
+      "List the HTTP methods a path accepts",
+      "Build the Allow header for Method Not Allowed",
+      "Which methods does a URL support in my app?"
+    ]
+  },
+  "/reference/core/router/signedroute/": {
+    "feature": "Core\\Router::signedRoute",
+    "hash": "82c714e948ebfbda",
+    "questions": [
+      "How do I check a signed link when the request arrives?",
+      "Reject a link whose values were changed",
+      "Verify a download link has not expired",
+      "Accept links signed with an old key after changing keys"
+    ]
+  },
+  "/reference/core/router/url/": {
+    "feature": "Core\\Router::url",
+    "hash": "24ed7bffb67636f9",
+    "questions": [
+      "How do I build a link to a route by its name?",
+      "Generate a URL with path values and a query string",
+      "Safely put user text into a link",
+      "Keep links working when a route path changes"
+    ]
+  },
+  "/reference/core/router/urlabsolute/": {
+    "feature": "Core\\Router::urlAbsolute",
+    "hash": "fd4ff764116a3cae",
+    "questions": [
+      "How do I build a full URL with the domain?",
+      "Make an absolute link for an email",
+      "Generate links for a sitemap",
+      "Where does the site origin for full URLs come from?"
+    ]
+  },
+  "/reference/core/router/urlsigned/": {
+    "feature": "Core\\Router::urlSigned",
+    "hash": "81cde20d4b75f367",
+    "questions": [
+      "How do I make a link that nobody can change?",
+      "Create a download link that expires after one hour",
+      "Build a tamper-proof unsubscribe link for a newsletter",
+      "Make an invitation link that works as a permission"
+    ]
+  },
+  "/reference/core/router-match/": {
+    "feature": "Core\\Router\\Match",
+    "hash": "e59a1155d9d48bdd",
+    "questions": [
+      "What information do I get about the matched route?",
+      "What does a route match object contain?",
+      "Inspect the route that the current request matched",
+      "Read the route name and path values of a request"
+    ]
+  },
+  "/reference/core/router-match/access/": {
+    "feature": "Core\\Router\\Match::access",
+    "hash": "f6962d4e8bd5e456",
+    "questions": [
+      "How do I log the access rule of the current route?",
+      "Get the access rule of a route as text",
+      "Read an access rule that names a class constant",
+      "Show which access rule each route has"
+    ]
+  },
+  "/reference/core/router-match/accessas/": {
+    "feature": "Core\\Router\\Match::accessAs",
+    "hash": "81bfde52a47ffd1e",
+    "questions": [
+      "How do I check the user's role before running a handler?",
+      "Compare a route's access rule with an enum case",
+      "Allow only admins on certain routes",
+      "Run one access check before every handler"
+    ]
+  },
+  "/reference/core/router-match/method/": {
+    "feature": "Core\\Router\\Match::method",
+    "hash": "5de9920fbe8f4c72",
+    "questions": [
+      "Which HTTP method did the matched route declare?",
+      "Show a form on GET and save it on POST in one handler",
+      "Tell two routes on the same path apart",
+      "What method does a HEAD request report?"
+    ]
+  },
+  "/reference/core/router-match/name/": {
+    "feature": "Core\\Router\\Match::name",
+    "hash": "c7bb6e26ac6b93bb",
+    "questions": [
+      "How do I get the name of the current route?",
+      "Call different code for each route name",
+      "What happens when a route has no name?",
+      "Print the route name of the request being served"
+    ]
+  },
+  "/reference/core/router-match/param/": {
+    "feature": "Core\\Router\\Match::param",
+    "hash": "0b50788a9ce1cdf0",
+    "questions": [
+      "How do I read one value from the URL path?",
+      "Get the id from a path like /users/42",
+      "Give a default when an optional path part is missing",
+      "Load the record that the path points to"
+    ]
+  },
+  "/reference/core/router-match/params/": {
+    "feature": "Core\\Router\\Match::params",
+    "hash": "726e42add9da05b3",
+    "questions": [
+      "How do I get all values captured from the path?",
+      "List every path parameter of a request as an array",
+      "Log the path values a request sent",
+      "Are path values already URL-decoded?"
+    ]
+  },
+  "/reference/core/script/": {
+    "feature": "Core\\Script",
+    "hash": "68d3b8bc23083639",
+    "questions": [
+      "How do I control the script that is running now?",
+      "Run code at the end of a script or stop it early",
+      "What can a script learn about how it was started?",
+      "Work with the lifetime of a command-line script"
+    ]
+  },
+  "/reference/core/script/args/": {
+    "feature": "Core\\Script::args",
+    "hash": "cf9ba40238d34445",
+    "questions": [
+      "How do I pass data to a script I start from another?",
+      "Read the arguments a parent script gave this script",
+      "Split work between several scripts that run at once",
+      "Use a default when a script receives no input"
+    ]
+  },
+  "/reference/core/script/finish/": {
+    "feature": "Core\\Script::finish",
+    "hash": "b19387297d971b17",
+    "questions": [
+      "How do I stop a script early without an error?",
+      "End a request handler once the response is complete",
+      "Quit a job when there is nothing left to do",
+      "Do finally blocks run when a script ends early?",
+      "Show a maintenance page and stop at once"
+    ]
+  },
+  "/reference/core/script/onexit/": {
+    "feature": "Core\\Script::onExit",
+    "hash": "f22285370b4577f6",
+    "questions": [
+      "How do I run code when the script ends?",
+      "Add a shutdown function for cleanup",
+      "Release a lock even when an error ends the job",
+      "Run cleanup after exit or an uncaught exception"
+    ]
+  },
+  "/reference/core/script-exitreport/": {
+    "feature": "Core\\Script\\ExitReport",
+    "hash": "ea20483cdbe23fac",
+    "questions": [
+      "What does the report given to an exit function contain?",
+      "How can I tell how a script ended?",
+      "What is an exit report?",
+      "Read the result of a script inside an exit function"
+    ]
+  },
+  "/reference/core/script-exitreport/error/": {
+    "feature": "Core\\Script\\ExitReport::error",
+    "hash": "34b3eb0b639a9018",
+    "questions": [
+      "Which exception ended the script?",
+      "Send an alert with the message of a fatal uncaught error",
+      "Get the uncaught exception in a shutdown function",
+      "Is a caught exception part of the exit report?"
+    ]
+  },
+  "/reference/core/script-exitreport/memorypeak/": {
+    "feature": "Core\\Script\\ExitReport::memoryPeak",
+    "hash": "b6a9397f1a747aee",
+    "questions": [
+      "How much memory did the script use at most?",
+      "Log the peak memory of a job when it ends",
+      "Why is peak memory high after freeing a large file?",
+      "Check the highest memory use of a script after it finishes"
+    ]
+  },
+  "/reference/core/script-exitreport/reason/": {
+    "feature": "Core\\Script\\ExitReport::reason",
+    "hash": "6d29bb3eeb695352",
+    "questions": [
+      "Did the script end normally, by exit or by an error?",
+      "Find out why a script stopped",
+      "Write one log line that says how a job ended",
+      "Tell a finished script apart from one that crashed"
+    ]
+  },
+  "/reference/core/script-exitreport/status/": {
+    "feature": "Core\\Script\\ExitReport::status",
+    "hash": "a4be80d774f068c0",
+    "questions": [
+      "What exit code will the process return?",
+      "Read the exit status in a shutdown function",
+      "Report a job's exit code to a monitoring tool",
+      "Is the exit code 0 or 1 after an uncaught error?"
+    ]
+  },
+  "/reference/core/secret/": {
+    "feature": "Core\\Secret",
+    "hash": "6512d35ee41dd3d8",
+    "questions": [
+      "How do I keep a password out of logs and output?",
+      "What is a secret value and what can I do with it?",
+      "Stop an API token from being printed by mistake",
+      "How do I protect private text such as passwords and tokens?",
+      "Why can't I print or log this value?"
+    ]
+  },
+  "/reference/core/secret/reveal/": {
+    "feature": "Core\\Secret::reveal",
+    "hash": "ac65f94ee3c68025",
+    "questions": [
+      "How do I get the plain text of a secret value?",
+      "Use a hidden token in a request header",
+      "Print a new token once so the user can copy it",
+      "Show only the last four characters of an API key",
+      "How do I unlock a secret string on one line?"
+    ]
+  },
+  "/reference/core/secret/revealbytes/": {
+    "feature": "Core\\Secret::revealBytes",
+    "hash": "902b4996d7bf1593",
+    "questions": [
+      "How do I get the raw bytes of a secret key?",
+      "Save an encryption key to a file or configuration",
+      "Turn a secret key into hex text",
+      "Convert secret binary data to plain bytes",
+      "How do I measure the length of a generated key?"
+    ]
+  },
+  "/reference/core/serialize/": {
+    "feature": "Core\\Serialize",
+    "hash": "48b760d4fad8a72a",
+    "questions": [
+      "How do I save an object to a file and load it later?",
+      "Store a value in a cache as bytes",
+      "Convert any value to bytes and back again",
+      "How do I keep a copy of data between program runs?",
+      "Binary format for saving arrays and objects"
+    ]
+  },
+  "/reference/core/serialize/decode/": {
+    "feature": "Core\\Serialize::decode",
+    "hash": "26d2cffc6e0074b6",
+    "questions": [
+      "How do I load an object back from saved bytes?",
+      "Rebuild an array or object from stored data",
+      "Read a saved list of jobs from a file",
+      "Why does loading saved bytes throw a ParseError?",
+      "Is it safe to restore objects from user input?"
+    ]
+  },
+  "/reference/core/serialize/encode/": {
+    "feature": "Core\\Serialize::encode",
+    "hash": "11cad7a91e2464de",
+    "questions": [
+      "How do I turn an object into bytes?",
+      "Convert an array to bytes for a cache or file",
+      "Take a snapshot of a shopping cart to undo a change later",
+      "Which values cannot be saved as bytes?",
+      "Keep shared objects shared after saving and loading"
+    ]
+  },
+  "/reference/core/server/": {
+    "feature": "Core\\Server",
+    "hash": "3adf2ca12224c52f",
+    "questions": [
+      "How does my program learn about the server it runs on?",
+      "Information about the running web server",
+      "Check server shutdown state and the current request id",
+      "Server status for health checks and logging"
+    ]
+  },
+  "/reference/core/server/isdraining/": {
+    "feature": "Core\\Server::isDraining",
+    "hash": "8f94b7fb97c7757b",
+    "questions": [
+      "How do I know if the server is shutting down?",
+      "Write a health check for a load balancer",
+      "Stop a long job early when the server stops",
+      "Check for graceful shutdown inside a request",
+      "Is the server still accepting new connections?"
+    ]
+  },
+  "/reference/core/server/traceid/": {
+    "feature": "Core\\Server::traceId",
+    "hash": "62b6843041655f58",
+    "questions": [
+      "How do I get the id of the current request?",
+      "Show a request id on an error page",
+      "Find a request in the server logs",
+      "Read the trace id from a traceparent header",
+      "Connect my logs with the logs of the calling service"
+    ]
+  },
+  "/reference/core/session/": {
+    "feature": "Core\\Session",
+    "hash": "c3afbe55dc93fc50",
+    "questions": [
+      "How do I remember a visitor between page loads?",
+      "Store user data across requests",
+      "Keep a user signed in with a session cookie",
+      "Where are session values stored?",
+      "Server-side sessions for a web application"
+    ]
+  },
+  "/reference/core/session/clear/": {
+    "feature": "Core\\Session::clear",
+    "hash": "69866d551854dda5",
+    "questions": [
+      "How do I empty a session but keep it open?",
+      "Remove all values from the session at once",
+      "Add a Start over button to a form",
+      "Reset session data without signing the user out"
+    ]
+  },
+  "/reference/core/session/destroy/": {
+    "feature": "Core\\Session::destroy",
+    "hash": "72c67731b64afb6e",
+    "questions": [
+      "How do I log a user out?",
+      "End the session completely and delete its data",
+      "Build a sign-out page",
+      "Delete a session from the store right away",
+      "What happens to the session cookie after logout?"
+    ]
+  },
+  "/reference/core/session/get/": {
+    "feature": "Core\\Session::get",
+    "hash": "20eea1d948c08eef",
+    "questions": [
+      "How do I read a value saved in the session?",
+      "Get a value from the session with a default",
+      "Count page views for one visitor",
+      "What do I get for a missing session key?",
+      "Read the user id stored for this visitor"
+    ]
+  },
+  "/reference/core/session/getsecret/": {
+    "feature": "Core\\Session::getSecret",
+    "hash": "d98f07a28214970f",
+    "questions": [
+      "How do I read an encrypted value from the session?",
+      "Load the user's access token for this request",
+      "Change encryption keys without losing saved tokens",
+      "Why is my encrypted session value null?"
+    ]
+  },
+  "/reference/core/session/regenerate/": {
+    "feature": "Core\\Session::regenerate",
+    "hash": "c0a302705d169787",
+    "questions": [
+      "How do I change the session id after login?",
+      "Prevent session fixation attacks",
+      "Make an old session cookie stop working",
+      "Issue a new session identifier and keep the data",
+      "What should happen to the session when a user signs in?"
+    ]
+  },
+  "/reference/core/session/remove/": {
+    "feature": "Core\\Session::remove",
+    "hash": "bb764c37ebb0c854",
+    "questions": [
+      "How do I delete one value from the session?",
+      "Show a message only once and then forget it",
+      "Remove a single key from the session",
+      "Flash messages that disappear after one page"
+    ]
+  },
+  "/reference/core/session/set/": {
+    "feature": "Core\\Session::set",
+    "hash": "24412ec99433b380",
+    "questions": [
+      "How do I save a value in the session?",
+      "Keep a shopping cart between pages",
+      "Store data for the next request from the same visitor",
+      "Replace an existing session value",
+      "Which values can I put in a session?"
+    ]
+  },
+  "/reference/core/session/setsecret/": {
+    "feature": "Core\\Session::setSecret",
+    "hash": "b3dff8665b6d8a03",
+    "questions": [
+      "How do I store an access token safely in the session?",
+      "Encrypt a value before it goes into the session store",
+      "Keep a refresh token after the user signs in",
+      "Save sensitive data so the session store cannot read it"
+    ]
+  },
+  "/reference/core/session/start/": {
+    "feature": "Core\\Session::start",
+    "hash": "66939a152afda13a",
+    "questions": [
+      "How do I begin using sessions on a page?",
+      "Open the session before reading or writing values",
+      "Read the session id from a header instead of a cookie",
+      "Allow a page only for signed-in users",
+      "Which cookie name does the session use?"
+    ]
+  },
+  "/reference/core/signal/": {
+    "feature": "Core\\Signal",
+    "hash": "9d16757345878649",
+    "questions": [
+      "How do I handle the process being stopped?",
+      "Clean up before the program exits",
+      "React to stop signals in my program",
+      "Finish work cleanly when the server shuts down"
+    ]
+  },
+  "/reference/core/signal/onshutdown/": {
+    "feature": "Core\\Signal::onShutdown",
+    "hash": "4db87cd2f070409b",
+    "questions": [
+      "How do I run code when someone presses Ctrl-C?",
+      "Handle SIGTERM in a worker",
+      "Register a function to run on shutdown",
+      "Let a worker stop between two jobs",
+      "Can I delay or cancel the shutdown?"
+    ]
+  },
+  "/reference/core/signature/": {
+    "feature": "Core\\Signature",
+    "hash": "0f50b3aef2857c30",
+    "questions": [
+      "How do I make data that nobody can change without me knowing?",
+      "Tamper-proof tokens for links and password resets",
+      "Check that values sent back to me were not edited",
+      "Is a signed token encrypted or readable?"
+    ]
+  },
+  "/reference/core/signature/sign/": {
+    "feature": "Core\\Signature::sign",
+    "hash": "a4947a83e78406ad",
+    "questions": [
+      "How do I create a signed link?",
+      "Build a password reset link that expires after one hour",
+      "Make a token that a user can carry but not edit",
+      "Add an expiry time to a token",
+      "Create a URL-safe token from named values"
+    ]
+  },
+  "/reference/core/signature/verify/": {
+    "feature": "Core\\Signature::verify",
+    "hash": "dfa6e3eca6983838",
+    "questions": [
+      "How do I check that a token was not changed?",
+      "Read the values from a signed token",
+      "Detect an expired or edited reset link",
+      "Rotate signing keys without breaking existing tokens",
+      "Are values from a valid token safe to use in HTML?"
+    ]
+  },
+  "/reference/core/signedcookie/": {
+    "feature": "Core\\SignedCookie",
+    "hash": "9eb3b3bc06753e15",
+    "questions": [
+      "How do I store data in a cookie the browser cannot read?",
+      "Encrypted cookies for small values",
+      "Keep a user id in a cookie safely",
+      "Stop users from editing their cookies"
+    ]
+  },
+  "/reference/core/signedcookie/open/": {
+    "feature": "Core\\SignedCookie::open",
+    "hash": "bbc4dabe99350388",
+    "questions": [
+      "How do I read the value from an encrypted cookie?",
+      "Treat a changed cookie as a guest",
+      "Check a cookie and get the stored value back",
+      "Accept cookies made with an older key"
+    ]
+  },
+  "/reference/core/signedcookie/seal/": {
+    "feature": "Core\\SignedCookie::seal",
+    "hash": "298b28972f82485a",
+    "questions": [
+      "How do I encrypt a value before putting it in a cookie?",
+      "Keep a shopping cart in a cookie",
+      "Create text for a Set-Cookie header that hides the value",
+      "How long can an encrypted cookie value be?",
+      "Why is the cookie text different every time?"
+    ]
+  },
+  "/reference/core/socket/": {
+    "feature": "Core\\Socket",
+    "hash": "985e50d2d5ff1fb8",
+    "questions": [
+      "How do I use WebSockets in Novis?",
+      "Two-way real-time messages between browser and server",
+      "Build a chat server with WebSockets",
+      "How does a WebSocket connection script work?"
+    ]
+  },
+  "/reference/core/socket/current/": {
+    "feature": "Core\\Socket::current",
+    "hash": "4c1af9b3c4647f3b",
+    "questions": [
+      "How do I get the WebSocket connection inside its script?",
+      "Access the open connection from a helper class",
+      "Send a welcome message when a client connects",
+      "Why do I get a LogicError outside a WebSocket script?"
+    ]
+  },
+  "/reference/core/socket/receive/": {
+    "feature": "Core\\Socket::receive",
+    "hash": "2ca149ce7fb5d2a5",
+    "questions": [
+      "How do I read messages from a WebSocket client?",
+      "Wait for the next message on a connection",
+      "Detect when the client closes the WebSocket",
+      "Read client messages and room messages in one loop"
+    ]
+  },
+  "/reference/core/socket/send/": {
+    "feature": "Core\\Socket::send",
+    "hash": "e37ba743280aa760",
+    "questions": [
+      "How do I send a text message to a WebSocket client?",
+      "Reply to each message the client sends",
+      "Forward chat room messages to the browser",
+      "What happens when the client stops reading?"
+    ]
+  },
+  "/reference/core/socket/sendbytes/": {
+    "feature": "Core\\Socket::sendBytes",
+    "hash": "558ea8b618e39173",
+    "questions": [
+      "Send bytes to a browser from a WebSocket script",
+      "Send an image or compressed data to the client",
+      "Push packed sensor readings as bytes",
+      "Send a raw byte message instead of text"
+    ]
+  },
+  "/reference/core/socket/upgrade/": {
+    "feature": "Core\\Socket::upgrade",
+    "hash": "a3b602fdb311cc82",
+    "questions": [
+      "How do I accept a WebSocket connection in a request?",
+      "Switch an HTTP request to a WebSocket",
+      "Start a chat connection only for signed-in users",
+      "Pass values from the request to the WebSocket script",
+      "Run a file or static method for each new connection"
+    ]
+  },
+  "/reference/core/socket-message/": {
+    "feature": "Core\\Socket\\Message",
+    "hash": "c33e071da0e8da6e",
+    "questions": [
+      "What does a received WebSocket message contain?",
+      "One incoming message from a client or a topic",
+      "Which parts of a WebSocket message can I read?",
+      "Message object returned when a connection receives data"
+    ]
+  },
+  "/reference/core/socket-message/bytes/": {
+    "feature": "Core\\Socket\\Message::bytes",
+    "hash": "d5f2df0ba3e49eb9",
+    "questions": [
+      "How do I read the data of a binary WebSocket message?",
+      "Get the size of a binary message",
+      "Receive a file the client sends in pieces",
+      "Tell a binary message from a text message"
+    ]
+  },
+  "/reference/core/socket-message/text/": {
+    "feature": "Core\\Socket\\Message::text",
+    "hash": "dc9c97a992420739",
+    "questions": [
+      "How do I read what the client typed?",
+      "Get the text content of an incoming message",
+      "Parse chat commands from client text",
+      "Is text from a WebSocket client safe to use?"
+    ]
+  },
+  "/reference/core/socket-message/topic/": {
+    "feature": "Core\\Socket\\Message::topic",
+    "hash": "c102e566cb4e9f1a",
+    "questions": [
+      "How do I know if a message came from the client or a topic?",
+      "Find which channel a WebSocket message was published to",
+      "Handle two topics in one connection loop",
+      "Forward messages from two chat rooms to one client"
+    ]
+  },
+  "/reference/core/socket-message/value/": {
+    "feature": "Core\\Socket\\Message::value",
+    "hash": "fb28acb5b834b50d",
+    "questions": [
+      "How do I read the data published to a channel?",
+      "Get the published number or array from a message",
+      "Send a live score to the client each time it changes",
+      "Does changing a received value affect the publisher?"
+    ]
+  },
+  "/reference/core/sse/": {
+    "feature": "Core\\Sse",
+    "hash": "05479390d9ff6219",
+    "questions": [
+      "How do I use server-sent events?",
+      "Push live updates from server to browser",
+      "Work with EventSource on the server side",
+      "One-way real-time updates without WebSockets"
+    ]
+  },
+  "/reference/core/sse/current/": {
+    "feature": "Core\\Sse::current",
+    "hash": "dc17d10600e0abeb",
+    "questions": [
+      "How do I get the open event stream from a helper function?",
+      "Send an event from code that did not open the stream",
+      "Report progress of an import job to the browser",
+      "Why is there no event stream in my program?"
+    ]
+  },
+  "/reference/core/sse/receive/": {
+    "feature": "Core\\Sse::receive",
+    "hash": "f9ba5291970eed15",
+    "questions": [
+      "How do I wait for published updates in an event stream?",
+      "Forward every topic update to the browser",
+      "Loop over updates until the client disconnects",
+      "Send deployment steps to a live status page"
+    ]
+  },
+  "/reference/core/sse/retry/": {
+    "feature": "Core\\Sse::retry",
+    "hash": "a39d2517a53c9333",
+    "questions": [
+      "How do I set the reconnect delay for EventSource?",
+      "Tell the browser to wait before it reconnects",
+      "Make clients wait longer before they reconnect after a restart",
+      "Send a retry time in milliseconds"
+    ]
+  },
+  "/reference/core/sse/send/": {
+    "feature": "Core\\Sse::send",
+    "hash": "ef6765a453eac1a0",
+    "questions": [
+      "How do I send an event to the browser?",
+      "Push JSON data with a named event",
+      "Set an event id for Last-Event-ID on reconnect",
+      "Send new orders to a dashboard as they arrive"
+    ]
+  },
+  "/reference/core/sse/stream/": {
+    "feature": "Core\\Sse::stream",
+    "hash": "922b05df07850c52",
+    "questions": [
+      "How do I answer a request with a stream of events?",
+      "Send progress updates during a single request",
+      "Report each step of a deployment as it finishes",
+      "Start an event stream that ends with the request"
+    ]
+  },
+  "/reference/core/sse/upgrade/": {
+    "feature": "Core\\Sse::upgrade",
+    "hash": "0530c55ced3583f5",
+    "questions": [
+      "How do I keep an event stream open after the request ends?",
+      "Long-lived notifications stream for a signed-in user",
+      "Run a script that pushes events to one client",
+      "Pass request values into a long-running event stream"
+    ]
+  },
+  "/reference/core/sse-message/": {
+    "feature": "Core\\Sse\\Message",
+    "hash": "11835676ae23014c",
+    "questions": [
+      "What does an update received by an event stream contain?",
+      "One published update that arrived at a stream script",
+      "Object returned when an event stream gets a topic update",
+      "Read the channel name and the data of a live update"
+    ]
+  },
+  "/reference/core/sse-message/topic/": {
+    "feature": "Core\\Sse\\Message::topic",
+    "hash": "fbdef73e9fc4b3ca",
+    "questions": [
+      "How do I know which channel an update came from?",
+      "Use the channel name as the event name",
+      "Separate updates for one user from updates for everybody",
+      "Print the topic of each update in a stream"
+    ]
+  },
+  "/reference/core/sse-message/value/": {
+    "feature": "Core\\Sse\\Message::value",
+    "hash": "8ce713d7073daea7",
+    "questions": [
+      "How do I read the published data in an event stream?",
+      "Get the published value and convert it to a type",
+      "Add up ticket sales for a live counter",
+      "Check whether a published update is a number"
+    ]
+  },
+  "/reference/core/storage/": {
+    "feature": "Core\\Storage",
+    "hash": "371b2a5cf29f20c6",
+    "questions": [
+      "How do I save uploaded files on the server?",
+      "Store and load files by name in a configured folder",
+      "Where should my program keep user uploads?",
+      "Set up a disk for files in nvs.toml",
+      "Simple file storage without building paths"
+    ]
+  },
+  "/reference/core/storage/delete/": {
+    "feature": "Core\\Storage::delete",
+    "hash": "34f6ab917a33b94b",
+    "questions": [
+      "How do I remove a saved file from storage?",
+      "Delete an uploaded file by its name",
+      "What happens if I delete a file that does not exist?",
+      "Remove an old invoice file from the disk"
+    ]
+  },
+  "/reference/core/storage/get/": {
+    "feature": "Core\\Storage::get",
+    "hash": "ecf3d9a91fa4a6f6",
+    "questions": [
+      "How do I read a saved file back from storage?",
+      "Load the contents of a stored file by name",
+      "Check if a stored file exists and read it",
+      "Return null when a saved file is missing"
+    ]
+  },
+  "/reference/core/storage/list/": {
+    "feature": "Core\\Storage::list",
+    "hash": "aaebf4b70c0c5cf1",
+    "questions": [
+      "How do I see which files are in storage?",
+      "Get the names of all saved files on a disk",
+      "Find every stored file whose name starts with a prefix",
+      "List uploaded files in sorted order"
+    ]
+  },
+  "/reference/core/storage/put/": {
+    "feature": "Core\\Storage::put",
+    "hash": "d72b4711f281c5a5",
+    "questions": [
+      "How do I save bytes as a file?",
+      "Write an uploaded file to disk under a safe name",
+      "Save a file only if the name is not used yet",
+      "Can a user choose the file name of an upload safely?",
+      "Replace a stored file with new contents"
+    ]
+  },
   "/reference/core/str/": {
     "feature": "Core\\Str",
     "hash": "0b29d37afa80c854",
@@ -8229,6 +9646,2081 @@
       "Word wrap a paragraph at 80 characters",
       "Insert line breaks so no line is too long",
       "Wrap text with <br> instead of newlines"
+    ]
+  },
+  "/reference/core/taint/": {
+    "feature": "Core\\Taint",
+    "hash": "fc93d0e56912d5da",
+    "questions": [
+      "What is a tainted value?",
+      "How does Novis track input that comes from a visitor?",
+      "Why can I not pass request data straight to a query?",
+      "Turn checked user input into a plain string",
+      "Handle untrusted text and bytes from a request"
+    ]
+  },
+  "/reference/core/taint/asserttrusted/": {
+    "feature": "Core\\Taint::assertTrusted",
+    "hash": "96c74445c505fa9e",
+    "questions": [
+      "How do I use user input after I checked it myself?",
+      "Accept a request value that matches an allowed list",
+      "Convert a tainted string to a normal string",
+      "Use a value from a form as a regular expression",
+      "Tell the compiler a value from a request is safe"
+    ]
+  },
+  "/reference/core/task/": {
+    "feature": "Core\\Task",
+    "hash": "c4eb8afdd14908e5",
+    "questions": [
+      "How do I run several things at the same time?",
+      "Run work in parallel and wait for all of it",
+      "Do work after the page is sent to the visitor",
+      "Concurrency and background work in a web request"
+    ]
+  },
+  "/reference/core/task/afterresponse/": {
+    "feature": "Core\\Task::afterResponse",
+    "hash": "55f731b74599885c",
+    "questions": [
+      "How do I send an email after the response is sent?",
+      "Run code in the background so the visitor does not wait",
+      "Call a webhook after the request is finished",
+      "Write an audit log after replying to the client",
+      "Give background work after a request a time limit"
+    ]
+  },
+  "/reference/core/task/all/": {
+    "feature": "Core\\Task::all",
+    "hash": "9588ebabc182f6e0",
+    "questions": [
+      "How do I call two web services at the same time?",
+      "Load a database query and a cache lookup in parallel",
+      "Wait for several functions and use all their results",
+      "Run tasks at once with a time limit for all of them",
+      "What happens when one of several parallel tasks fails?"
+    ]
+  },
+  "/reference/core/task/map/": {
+    "feature": "Core\\Task::map",
+    "hash": "ce9eb4720da9fb39",
+    "questions": [
+      "How do I process every item of a list in parallel?",
+      "Check many URLs at the same time",
+      "Run a function on each array element concurrently",
+      "Limit how many jobs from a list run at once",
+      "Keep results in the original order after parallel work"
+    ]
+  },
+  "/reference/core/task-channel/": {
+    "feature": "Core\\Task\\Channel",
+    "hash": "f250055ffa644af2",
+    "questions": [
+      "What is a channel between tasks?",
+      "How do I pass values from one task to another?",
+      "A queue with a fixed size for a producer and a consumer",
+      "Read values from another task with a foreach loop"
+    ]
+  },
+  "/reference/core/task-channel/close/": {
+    "feature": "Core\\Task\\Channel::close",
+    "hash": "69ebbaaf30627a8d",
+    "questions": [
+      "How do I tell a reader that no more values are coming?",
+      "End a foreach loop over a channel",
+      "Finish a producer so the consumer stops waiting",
+      "Is it safe to close a channel twice?"
+    ]
+  },
+  "/reference/core/task-channel/send/": {
+    "feature": "Core\\Task\\Channel::send",
+    "hash": "979054383ab51594",
+    "questions": [
+      "How do I put a value into a channel?",
+      "Pass one value to a worker task",
+      "Keep a fast producer from using too much memory",
+      "Why does my task pause when the queue is full?"
+    ]
+  },
+  "/reference/core/test/": {
+    "feature": "Core\\Test",
+    "hash": "03d39d8f8c9ffec2",
+    "questions": [
+      "How do I write unit tests in Novis?",
+      "Check results inside a test method",
+      "Fake web services and the clock in tests",
+      "Run tests with nvs test",
+      "Which checks can a test use?"
+    ]
+  },
+  "/reference/core/test/advance/": {
+    "feature": "Core\\Test::advance",
+    "hash": "1ccfe1233a1de9c9",
+    "questions": [
+      "How do I move time forward in a test?",
+      "Test that a token expires without waiting",
+      "Fake the passing of 30 minutes in a test",
+      "Change the current time during a test"
+    ]
+  },
+  "/reference/core/test/answerhttp/": {
+    "feature": "Core\\Test::answerHttp",
+    "hash": "881a2dd4c7e7bfcd",
+    "questions": [
+      "How do I fake an HTTP API reply in a test?",
+      "Mock an external web service response",
+      "Stop tests from making real network calls",
+      "Return a fixed JSON reply for a URL in tests",
+      "Test how my client handles a 404 or 500 from a service"
+    ]
+  },
+  "/reference/core/test/answersocket/": {
+    "feature": "Core\\Test::answerSocket",
+    "hash": "272783e333a238bd",
+    "questions": [
+      "How do I fake a WebSocket server in a test?",
+      "Send scripted messages to my WebSocket client",
+      "Test a live feed client without a network",
+      "Mock the messages a socket receives"
+    ]
+  },
+  "/reference/core/test/assertcalled/": {
+    "feature": "Core\\Test::assertCalled",
+    "hash": "3f4c405e65a2cffc",
+    "questions": [
+      "How do I check that my code called a method on a mock?",
+      "Verify an email was sent in a test",
+      "Check how many times a fake object was called",
+      "Test that a method got the right arguments"
+    ]
+  },
+  "/reference/core/test/assertcompletes/": {
+    "feature": "Core\\Test::assertCompletes",
+    "hash": "241fa847e75527be",
+    "questions": [
+      "How do I test that code finishes within a time limit?",
+      "Check a retry loop ends at its deadline without waiting",
+      "Make sure no background task is left running after a test",
+      "Test a timeout without real waiting"
+    ]
+  },
+  "/reference/core/test/assertcontains/": {
+    "feature": "Core\\Test::assertContains",
+    "hash": "d073835c85960446",
+    "questions": [
+      "How do I check that a list contains a value in a test?",
+      "Test that an array includes an item",
+      "Check an error message is among the returned errors",
+      "Find a value in an array in a test, at any position"
+    ]
+  },
+  "/reference/core/test/assertcount/": {
+    "feature": "Core\\Test::assertCount",
+    "hash": "84d91a1b2ff63059",
+    "questions": [
+      "How do I check the number of items in a test?",
+      "Test that an array has exactly three entries",
+      "Check the size of a page of results",
+      "Count the elements of a returned list in a test"
+    ]
+  },
+  "/reference/core/test/assertdoesnotthrow/": {
+    "feature": "Core\\Test::assertDoesNotThrow",
+    "hash": "1c1cca3836138541",
+    "questions": [
+      "How do I test that code runs without an error?",
+      "Check that a call does not throw an exception",
+      "Test an import that must skip bad lines quietly",
+      "A test that only shows a function works"
+    ]
+  },
+  "/reference/core/test/assertequals/": {
+    "feature": "Core\\Test::assertEquals",
+    "hash": "7846de0b115cdb52",
+    "questions": [
+      "How do I compare a result with an expected value in a test?",
+      "Check that a function returns the right number",
+      "Compare two money objects in a test",
+      "Test equality of objects that implement Comparable"
+    ]
+  },
+  "/reference/core/test/assertequalsdeep/": {
+    "feature": "Core\\Test::assertEqualsDeep",
+    "hash": "c227350800916fd0",
+    "questions": [
+      "How do I compare nested arrays and objects in a test?",
+      "Check every property of two objects in a test",
+      "Find where two nested values first differ",
+      "Compare an order with its lines field by field"
+    ]
+  },
+  "/reference/core/test/assertmatchesinline/": {
+    "feature": "Core\\Test::assertMatchesInline",
+    "hash": "b3e0cd9d519167fa",
+    "questions": [
+      "How do I write a snapshot test?",
+      "Compare a complex value with expected text in a test",
+      "Update expected output automatically with nvs test --update",
+      "Keep secrets out of test snapshots"
+    ]
+  },
+  "/reference/core/test/assertnevercalled/": {
+    "feature": "Core\\Test::assertNeverCalled",
+    "hash": "5d40f2a4b49d8dd1",
+    "questions": [
+      "How do I check a method was not called?",
+      "Test that a dry run deletes nothing",
+      "Make sure a failed payment sends no confirmation email",
+      "Fail a test if a fake object got any call"
+    ]
+  },
+  "/reference/core/test/assertnull/": {
+    "feature": "Core\\Test::assertNull",
+    "hash": "307a872931c69593",
+    "questions": [
+      "How do I check that a value is null in a test?",
+      "Test that a search returns nothing",
+      "Check a lookup for a missing user gives no result",
+      "Is an empty string the same as null in a test?"
+    ]
+  },
+  "/reference/core/test/assertsame/": {
+    "feature": "Core\\Test::assertSame",
+    "hash": "eb747a13618e49af",
+    "questions": [
+      "How do I check two values are exactly the same in a test?",
+      "Test that a cache returns the same object every time",
+      "Check two variables point to one object",
+      "Strict comparison of a result in a test"
+    ]
+  },
+  "/reference/core/test/assertthrows/": {
+    "feature": "Core\\Test::assertThrows",
+    "hash": "577fde6c4b5022cd",
+    "questions": [
+      "How do I test that code throws an exception?",
+      "Check that an invalid payment gives an error",
+      "Expect a specific error class in a test",
+      "Test error handling for bad input"
+    ]
+  },
+  "/reference/core/test/asserttrue/": {
+    "feature": "Core\\Test::assertTrue",
+    "hash": "99fca0c3257ee79c",
+    "questions": [
+      "How do I check a condition is true in a test?",
+      "Test that a password follows a rule",
+      "Check a date is in the future in a test",
+      "Fail a test when a boolean is false"
+    ]
+  },
+  "/reference/core/test/double/": {
+    "feature": "Core\\Test::double",
+    "hash": "e839bc63014b86ee",
+    "questions": [
+      "How do I create a mock object for an interface?",
+      "Replace a real service with a fake in tests",
+      "Make a stub for a mailer or a payment service",
+      "Build a fake clock for a test"
+    ]
+  },
+  "/reference/core/test/expectfailure/": {
+    "feature": "Core\\Test::expectFailure",
+    "hash": "efc51a3b581e6b05",
+    "questions": [
+      "How do I test my own custom check?",
+      "Expect a check inside a test to fail",
+      "Make a failing check not count against the test",
+      "Test a helper that validates prices"
+    ]
+  },
+  "/reference/core/test/partial/": {
+    "feature": "Core\\Test::partial",
+    "hash": "6040a88aa0adca19",
+    "questions": [
+      "How do I replace only one method of a real object?",
+      "Partial mock: keep real behaviour, override one method",
+      "Simulate a full disk in a test",
+      "Fake one method and forward the others"
+    ]
+  },
+  "/reference/core/test/request/": {
+    "feature": "Core\\Test::request",
+    "hash": "2c25d9f66a0779f8",
+    "questions": [
+      "How do I test a route of my web app?",
+      "Send a fake HTTP request to my own program",
+      "Test a POST endpoint with a JSON body",
+      "Test a page without starting a server",
+      "Test an app that is served under a path prefix"
+    ]
+  },
+  "/reference/core/test/scriptanswers/": {
+    "feature": "Core\\Test::scriptAnswers",
+    "hash": "274c3521657e85dc",
+    "questions": [
+      "How do I test a command-line program that prompts for input?",
+      "Give typed answers to prompts in a test",
+      "Simulate a user at the keyboard in tests",
+      "Test a setup wizard with yes and no answers"
+    ]
+  },
+  "/reference/core/test/senthttp/": {
+    "feature": "Core\\Test::sentHttp",
+    "hash": "c553b03c9a42e74e",
+    "questions": [
+      "How do I see which HTTP requests my code sent in a test?",
+      "Check that my API client sent an auth token",
+      "Get the list of outgoing requests during a test",
+      "Count the web calls my program made in a test"
+    ]
+  },
+  "/reference/core/test/sentsocket/": {
+    "feature": "Core\\Test::sentSocket",
+    "hash": "c35fb6a572e1c844",
+    "questions": [
+      "How do I see what my code sent over a WebSocket in a test?",
+      "Check the messages a chat client sent",
+      "List outgoing socket messages in a test",
+      "Test that a client joins a room over a socket"
+    ]
+  },
+  "/reference/core/test/serverurl/": {
+    "feature": "Core\\Test::serverUrl",
+    "hash": "329bb657a7fa051e",
+    "questions": [
+      "How do I start a real web server in a test?",
+      "Get the address of the local test server",
+      "Test an HTTP client against my own running app",
+      "Which port does the test server use?"
+    ]
+  },
+  "/reference/core/test/tlssession/": {
+    "feature": "Core\\Test::tlsSession",
+    "hash": "4b71e98b78b7faf9",
+    "questions": [
+      "How do I fake an HTTPS certificate in a test?",
+      "Test code that reads TLS version and cipher",
+      "Create a test certificate chain with a custom expiry date",
+      "Test a client that accepts only TLS 1.3"
+    ]
+  },
+  "/reference/core/test-response/": {
+    "feature": "Core\\Test\\Response",
+    "hash": "cfeb9d8589cf65b2",
+    "questions": [
+      "What does a test request return?",
+      "The response object of a request in a test",
+      "Which parts of my app's reply can a test read?",
+      "Read the status, headers, cookies and body in a test"
+    ]
+  },
+  "/reference/core/test-response/body/": {
+    "feature": "Core\\Test\\Response::body",
+    "hash": "2338833650c0acb5",
+    "questions": [
+      "How do I read the page text my app returned in a test?",
+      "Get the HTML output of a route in a test",
+      "Why is the body empty when my request failed?",
+      "Check the echoed output of a request"
+    ]
+  },
+  "/reference/core/test-response/cookies/": {
+    "feature": "Core\\Test\\Response::cookies",
+    "hash": "97df57cd205f1b74",
+    "questions": [
+      "How do I check the cookies my app set in a test?",
+      "Test that login sets a session cookie",
+      "Check that a cookie was deleted on logout",
+      "Read cookie names and values from a test reply"
+    ]
+  },
+  "/reference/core/test-response/header/": {
+    "feature": "Core\\Test\\Response::header",
+    "hash": "e84647f540c43be3",
+    "questions": [
+      "How do I read one header of my app's reply in a test?",
+      "Check the content type of a page in a test",
+      "Test where a redirect goes with the Location header",
+      "Look up a reply header by name, ignoring case"
+    ]
+  },
+  "/reference/core/test-response/headers/": {
+    "feature": "Core\\Test\\Response::headers",
+    "hash": "b74ed758f773ad28",
+    "questions": [
+      "How do I get all headers of my app's reply in a test?",
+      "Check every Set-Cookie line with its attributes",
+      "Test the HttpOnly and Path flags of a cookie",
+      "Headers with several lines in a test reply"
+    ]
+  },
+  "/reference/core/test-response/json/": {
+    "feature": "Core\\Test\\Response::json",
+    "hash": "79fde7f76c1a85a1",
+    "questions": [
+      "How do I decode the JSON my endpoint returned in a test?",
+      "Check values in an API reply during a test",
+      "What happens when a test reply is not valid JSON?",
+      "Limit nesting depth when reading a JSON reply"
+    ]
+  },
+  "/reference/core/test-response/jsonas/": {
+    "feature": "Core\\Test\\Response::jsonAs",
+    "hash": "41336b161d1e0eec",
+    "questions": [
+      "How do I turn an API reply into a class in a test?",
+      "Read a JSON list from my endpoint into objects",
+      "Test that a reply has every field with the right type",
+      "Map a test reply body to a typed object"
+    ]
+  },
+  "/reference/core/test-response/status/": {
+    "feature": "Core\\Test\\Response::status",
+    "hash": "98a526a1c1cecf82",
+    "questions": [
+      "How do I check the HTTP status code in a test?",
+      "Test that a page returns 404",
+      "Check that an old address redirects with 301",
+      "Why does my test get status 500?"
+    ]
+  },
+  "/reference/core/test-sentrequest/": {
+    "feature": "Core\\Test\\SentRequest",
+    "hash": "d3e8b10d9cedd2c6",
+    "questions": [
+      "What is a recorded outgoing request in a test?",
+      "Which details of an outgoing request can a test read?",
+      "An HTTP call my program made to a fake service",
+      "Inspect the method, URL, headers and body my code sent"
+    ]
+  },
+  "/reference/core/test-sentrequest/body/": {
+    "feature": "Core\\Test\\SentRequest::body",
+    "hash": "a7c8933d5e40b0a6",
+    "questions": [
+      "How do I read the body my program sent to an API in a test?",
+      "Check the JSON document sent to a payment service",
+      "Test the form data my HTTP client posted",
+      "Decode an outgoing request body to check its fields"
+    ]
+  },
+  "/reference/core/test-sentrequest/header/": {
+    "feature": "Core\\Test\\SentRequest::header",
+    "hash": "8ce9e3ce14322aab",
+    "questions": [
+      "How do I check a header my program sent to an API?",
+      "Test that every outgoing call has an Authorization token",
+      "Read the content type of an outgoing request",
+      "What if my program did not send a header?"
+    ]
+  },
+  "/reference/core/test-sentrequest/method/": {
+    "feature": "Core\\Test\\SentRequest::method",
+    "hash": "44de516802e9fa31",
+    "questions": [
+      "How do I check if my client used GET or POST?",
+      "Test that an item is removed with a DELETE call",
+      "Read the HTTP verb of an outgoing call in a test",
+      "Compare the method of each sent request"
+    ]
+  },
+  "/reference/core/test-sentrequest/url/": {
+    "feature": "Core\\Test\\SentRequest::url",
+    "hash": "184f80098f724cf4",
+    "questions": [
+      "How do I check the exact URL my program called?",
+      "Test the query string my client built",
+      "Check that search text is encoded in an outgoing URL",
+      "Which URL matched a wildcard fake service?"
+    ]
+  },
+  "/reference/core/time/": {
+    "feature": "Core\\Time",
+    "hash": "01ce9d7bdc169bc4",
+    "questions": [
+      "How do I work with dates and times?",
+      "Get the current time and build dates",
+      "Which functions read the clock and create times?",
+      "Work with time zones, timestamps and waiting",
+      "How do I handle time in a web request?"
+    ]
+  },
+  "/reference/core/time/at/": {
+    "feature": "Core\\Time::at",
+    "hash": "43ff3642acf09a2e",
+    "questions": [
+      "How do I create a date and time from year, month and day?",
+      "Build a specific date and time in a time zone",
+      "Make a moment at 9:00 on a given day in Berlin",
+      "What happens when I create 30 February?",
+      "Set up a meeting time from separate number fields"
+    ]
+  },
+  "/reference/core/time/fromepoch/": {
+    "feature": "Core\\Time::fromEpoch",
+    "hash": "9823a3595d4a0547",
+    "questions": [
+      "How do I convert a Unix timestamp to a time?",
+      "Turn seconds since 1970 into a moment",
+      "Read a timestamp stored as a number in a database",
+      "Use a negative timestamp for a time before 1970",
+      "Check whether a token with an expiry timestamp has expired"
+    ]
+  },
+  "/reference/core/time/fromiso/": {
+    "feature": "Core\\Time::fromIso",
+    "hash": "05c00142f7b66c1c",
+    "questions": [
+      "How do I read an ISO 8601 timestamp?",
+      "Convert text like 2024-03-01T12:00:00Z into a time",
+      "Read a time with a UTC offset from a JSON API",
+      "Parse an RFC 3339 date string",
+      "Why does a timestamp without an offset throw an error?"
+    ]
+  },
+  "/reference/core/time/monotonic/": {
+    "feature": "Core\\Time::monotonic",
+    "hash": "d7d1c713ad565c85",
+    "questions": [
+      "How do I measure how long code takes to run?",
+      "Time a loop or a function call",
+      "A clock that never goes backwards",
+      "Measure elapsed time even when the system clock changes",
+      "Log every step of a job that runs too slowly"
+    ]
+  },
+  "/reference/core/time/now/": {
+    "feature": "Core\\Time::now",
+    "hash": "1d3d692c8b65d093",
+    "questions": [
+      "How do I get the current time?",
+      "Get today's date in a time zone",
+      "Read the system clock",
+      "Check whether a login session is older than 30 minutes",
+      "Use a fixed current time in a test"
+    ]
+  },
+  "/reference/core/time/parse/": {
+    "feature": "Core\\Time::parse",
+    "hash": "e12f3d689a46055b",
+    "questions": [
+      "How do I read a date from text in a custom format?",
+      "Convert a string like 31.12.2024 into a date and time",
+      "Read a date written in European order",
+      "Parse a time from a log file and convert it to UTC",
+      "What happens when the text does not match the date format?"
+    ]
+  },
+  "/reference/core/time/sleep/": {
+    "feature": "Core\\Time::sleep",
+    "hash": "ed4a4f6884d8615c",
+    "questions": [
+      "How do I pause my program for a few seconds?",
+      "Wait 500 milliseconds before the next step",
+      "Wait longer after each failed retry",
+      "Add a delay between batches of messages",
+      "Does waiting block other requests on the server?"
+    ]
+  },
+  "/reference/core/time-date/": {
+    "feature": "Core\\Time\\Date",
+    "hash": "18924894c946d385",
+    "questions": [
+      "How do I store a date without a time?",
+      "Work with birthdays and due dates",
+      "A calendar day with no time zone",
+      "Which type do I use for a date only?",
+      "Create, change, compare and print a calendar date"
+    ]
+  },
+  "/reference/core/time-date/at/": {
+    "feature": "Core\\Time\\Date::at",
+    "hash": "e7c2d6f6ed8f13d3",
+    "questions": [
+      "How do I create a date from year, month and day?",
+      "Check whether a date typed into a form exists",
+      "Validate that a day exists in that month",
+      "Make a date for a birthday or a holiday",
+      "What happens when a date like 31 April is invalid?"
+    ]
+  },
+  "/reference/core/time-date/compareto/": {
+    "feature": "Core\\Time\\Date::compareTo",
+    "hash": "16dfe2a25aee6d1d",
+    "questions": [
+      "How do I check which of two dates comes first?",
+      "Compare two dates without times",
+      "Sort a list of dates from earliest to latest",
+      "Check whether a coupon is still valid on the order date",
+      "Are two dates the same day?"
+    ]
+  },
+  "/reference/core/time-date/format/": {
+    "feature": "Core\\Time\\Date::format",
+    "hash": "dede97b37a865b5c",
+    "questions": [
+      "How do I print a date as text?",
+      "Show a date as yyyy-MM-dd",
+      "Display a date with the month name and the weekday",
+      "Convert a date to a string in a custom layout",
+      "Why does an hour in a date pattern throw an error?"
+    ]
+  },
+  "/reference/core/time-date/minus/": {
+    "feature": "Core\\Time\\Date::minus",
+    "hash": "9163dcb0fb09b171",
+    "questions": [
+      "How do I subtract days from a date?",
+      "Go back one month from a date",
+      "Find the date 18 years before today",
+      "Check whether a customer is at least 18 years old",
+      "Get the date one week earlier"
+    ]
+  },
+  "/reference/core/time-date/plus/": {
+    "feature": "Core\\Time\\Date::plus",
+    "hash": "8cc18cf78a89b4fb",
+    "questions": [
+      "How do I add days to a date?",
+      "Add one month to a date",
+      "Calculate a due date two weeks from a given date",
+      "What is 31 January plus one month?",
+      "Move a date forward by a year or a quarter"
+    ]
+  },
+  "/reference/core/time-date/with/": {
+    "feature": "Core\\Time\\Date::with",
+    "hash": "7f47b2447c696357",
+    "questions": [
+      "How do I change only the year of a date?",
+      "Get the first day of the month for a date",
+      "Find the last day of a month",
+      "Replace the day or the month in a date",
+      "What happens when I change 29 February to a non-leap year?"
+    ]
+  },
+  "/reference/core/time-datetime/": {
+    "feature": "Core\\Time\\DateTime",
+    "hash": "0fa10b1b5f8d2c24",
+    "questions": [
+      "How do I work with a date and time in a time zone?",
+      "Store a local time such as a meeting in Berlin",
+      "Which type has both a date and a time of day?",
+      "Calculate, compare and print dates with times",
+      "Convert a moment into a local date and time"
+    ]
+  },
+  "/reference/core/time-datetime/date/": {
+    "feature": "Core\\Time\\DateTime::date",
+    "hash": "a962cb5213c134a9",
+    "questions": [
+      "How do I get only the date part of a date and time?",
+      "Remove the time from a date and time",
+      "Group orders by calendar day",
+      "Get the day a timestamp falls on in a given city",
+      "Compare a date and time with a due date"
+    ]
+  },
+  "/reference/core/time-datetime/dayofyear/": {
+    "feature": "Core\\Time\\DateTime::dayOfYear",
+    "hash": "c47b92d6f4216ca8",
+    "questions": [
+      "How do I get the day number within the year?",
+      "Which day of the year is it?",
+      "Count the days left until the end of the year",
+      "Pick a different tip for each day of the year",
+      "Get 1 to 366 for a date"
+    ]
+  },
+  "/reference/core/time-datetime/difference/": {
+    "feature": "Core\\Time\\DateTime::difference",
+    "hash": "10d043652e4fdc4b",
+    "questions": [
+      "How do I calculate the difference between two dates and times?",
+      "Calculate a person's age in years from a birthday",
+      "Count whole months between two dates and times",
+      "How many days are there between two moments?",
+      "Number of full years since an account was created"
+    ]
+  },
+  "/reference/core/time-datetime/endof/": {
+    "feature": "Core\\Time\\DateTime::endOf",
+    "hash": "dba040517c555dcd",
+    "questions": [
+      "How do I get the last moment of the day?",
+      "Find the end of the month for a date and time",
+      "Get 23:59:59 on the last day of the month",
+      "Set a deadline at the end of the week",
+      "A sale that runs until the end of the month"
+    ]
+  },
+  "/reference/core/time-datetime/format/": {
+    "feature": "Core\\Time\\DateTime::format",
+    "hash": "1d8c36ed395cd5e0",
+    "questions": [
+      "How do I format a date and time as text?",
+      "Print a date and time as yyyy-MM-dd HH:mm:ss",
+      "Show the weekday and month name with the time",
+      "Display the time zone name or UTC offset in a date string",
+      "Convert a date and time to a string for a page"
+    ]
+  },
+  "/reference/core/time-datetime/isleapyear/": {
+    "feature": "Core\\Time\\DateTime::isLeapYear",
+    "hash": "d265d344f285827a",
+    "questions": [
+      "How do I check if a year is a leap year?",
+      "Does this year have 29 February?",
+      "Is the year 366 days long?",
+      "Split a yearly price into a price per day",
+      "Leap year rules for 1900, 2000 and 2024"
+    ]
+  },
+  "/reference/core/time-datetime/minus/": {
+    "feature": "Core\\Time\\DateTime::minus",
+    "hash": "aeb48d44cb3b7cfc",
+    "questions": [
+      "How do I subtract hours or days from a date and time?",
+      "Send a reminder one day before an appointment",
+      "Get the date and time three hours earlier",
+      "Go back two months from a date and time",
+      "Subtract one day when the clocks change"
+    ]
+  },
+  "/reference/core/time-datetime/next/": {
+    "feature": "Core\\Time\\DateTime::next",
+    "hash": "a8670d9ccba73347",
+    "questions": [
+      "How do I find the next Monday?",
+      "Get the date of the coming Friday",
+      "Schedule a weekly report for next Monday at 06:00",
+      "Move forward to the next given day of the week",
+      "What if today is already the weekday I want?"
+    ]
+  },
+  "/reference/core/time-datetime/plus/": {
+    "feature": "Core\\Time\\DateTime::plus",
+    "hash": "59ee16f24dea248f",
+    "questions": [
+      "How do I add hours or days to a date and time?",
+      "Add 30 minutes to a time",
+      "Set an expiry time one week from now",
+      "Add a month to a date and time at the end of a month",
+      "Is adding one day the same as adding 24 hours?"
+    ]
+  },
+  "/reference/core/time-datetime/previous/": {
+    "feature": "Core\\Time\\DateTime::previous",
+    "hash": "824689b5a2dc1ec8",
+    "questions": [
+      "How do I find last Friday?",
+      "Get the most recent Monday before a date",
+      "Move back to the previous given day of the week",
+      "Find the Monday that the current week started on",
+      "Go back to the last Sunday"
+    ]
+  },
+  "/reference/core/time-datetime/startof/": {
+    "feature": "Core\\Time\\DateTime::startOf",
+    "hash": "2c3b9e0a7ef84c9b",
+    "questions": [
+      "How do I get midnight at the start of the day?",
+      "Find the first day of the month for a date and time",
+      "Get the Monday that starts the week",
+      "Round a time down to the start of the hour",
+      "Find the start of the quarter or the year"
+    ]
+  },
+  "/reference/core/time-datetime/timeofday/": {
+    "feature": "Core\\Time\\DateTime::timeOfDay",
+    "hash": "9a3d99ef6dc1a31d",
+    "questions": [
+      "How do I get only the time part of a date and time?",
+      "Get the hour and minute without the date",
+      "Check whether a message arrived during opening hours",
+      "Copy the time of day to another day",
+      "Read the clock time in a given city"
+    ]
+  },
+  "/reference/core/time-datetime/toinstant/": {
+    "feature": "Core\\Time\\DateTime::toInstant",
+    "hash": "7e2300234d715fa2",
+    "questions": [
+      "How do I convert a local time to UTC?",
+      "Compare times from two different time zones",
+      "Get the exact moment of a local date and time",
+      "Measure the real time a flight takes across time zones",
+      "Are 09:00 in London and 18:00 in Tokyo the same moment?"
+    ]
+  },
+  "/reference/core/time-datetime/weekday/": {
+    "feature": "Core\\Time\\DateTime::weekday",
+    "hash": "34b072cc986a1ed8",
+    "questions": [
+      "How do I get the day of the week?",
+      "Check whether a date falls on a weekend",
+      "Is this delivery date a Saturday or a Sunday?",
+      "Get the weekday as a number from 0 to 6",
+      "Which weekday is it in Tokyo?"
+    ]
+  },
+  "/reference/core/time-datetime/with/": {
+    "feature": "Core\\Time\\DateTime::with",
+    "hash": "e94f062ea602ec0c",
+    "questions": [
+      "How do I change only the hour of a date and time?",
+      "Set the year, month or day of a date and time",
+      "Replace the minutes and seconds in a timestamp",
+      "Change one part of a date and time and keep the rest",
+      "What happens when the new time falls in a clock change?"
+    ]
+  },
+  "/reference/core/time-datetime/withtime/": {
+    "feature": "Core\\Time\\DateTime::withTime",
+    "hash": "3e589805ba5572fb",
+    "questions": [
+      "How do I set a fixed time on a given day?",
+      "Set a reminder for 08:00 on the same day",
+      "Keep the date and replace the time",
+      "Copy a time of day onto another date",
+      "Set the clock time and clear the old seconds"
+    ]
+  },
+  "/reference/core/time-datetime/zone/": {
+    "feature": "Core\\Time\\DateTime::zone",
+    "hash": "13e0b135530b93db",
+    "questions": [
+      "How do I get the time zone of a date and time?",
+      "Which time zone is this value in?",
+      "Show other times in the same zone as a booking",
+      "Reuse the time zone of one value for another",
+      "Does a fixed offset follow summer time changes?"
+    ]
+  },
+  "/reference/core/time-duration/": {
+    "feature": "Core\\Time\\Duration",
+    "hash": "69771a954ddadab0",
+    "questions": [
+      "How do I store a length of time like 30 seconds?",
+      "Work with durations such as timeouts and delays",
+      "How do I write an hour and a half in code?",
+      "Represent a span of time in nanoseconds",
+      "Add, subtract and compare lengths of time"
+    ]
+  },
+  "/reference/core/time-duration/compareto/": {
+    "feature": "Core\\Time\\Duration::compareTo",
+    "hash": "729c70ffad246f09",
+    "questions": [
+      "How do I check which of two durations is longer?",
+      "Compare two lengths of time",
+      "Test if two durations have the same length",
+      "Why is 90m == 1h30m false?",
+      "Sort timeouts from shortest to longest"
+    ]
+  },
+  "/reference/core/time-duration/days/": {
+    "feature": "Core\\Time\\Duration::days",
+    "hash": "ceab7ecb904d7c34",
+    "questions": [
+      "How do I make a duration from a number of days?",
+      "Create a length of time of N days from a setting",
+      "Turn a day count into a duration of 24-hour days",
+      "Is a duration day always 24 hours?"
+    ]
+  },
+  "/reference/core/time-duration/hours/": {
+    "feature": "Core\\Time\\Duration::hours",
+    "hash": "95aae21735d23d4a",
+    "questions": [
+      "How do I make a duration from a number of hours?",
+      "Create a length of time of N hours at run time",
+      "Turn an hour count from a config into a duration",
+      "Is adding 72 hours the same as adding three days?"
+    ]
+  },
+  "/reference/core/time-duration/microseconds/": {
+    "feature": "Core\\Time\\Duration::microseconds",
+    "hash": "e51365feed5db090",
+    "questions": [
+      "How do I make a duration from microseconds?",
+      "Create a length of time from a microsecond count",
+      "Turn a measured time in microseconds into a duration",
+      "Build a duration from a log value in microseconds"
+    ]
+  },
+  "/reference/core/time-duration/milliseconds/": {
+    "feature": "Core\\Time\\Duration::milliseconds",
+    "hash": "3e520af11afa4a4a",
+    "questions": [
+      "How do I make a duration from milliseconds?",
+      "Create a timeout from a number of milliseconds in a setting",
+      "Turn a millisecond count into a length of time",
+      "Build a retry delay that grows in milliseconds"
+    ]
+  },
+  "/reference/core/time-duration/minus/": {
+    "feature": "Core\\Time\\Duration::minus",
+    "hash": "f204610894456ece",
+    "questions": [
+      "How do I subtract one duration from another?",
+      "Take a break away from a shift length",
+      "Find how much time is left before a limit",
+      "Difference between two lengths of time"
+    ]
+  },
+  "/reference/core/time-duration/minutes/": {
+    "feature": "Core\\Time\\Duration::minutes",
+    "hash": "cf06387f08d996f3",
+    "questions": [
+      "How do I make a duration from a number of minutes?",
+      "Create a session timeout from minutes in a config",
+      "Turn a minute count into a length of time",
+      "Build a meeting length from a number of minutes"
+    ]
+  },
+  "/reference/core/time-duration/multipliedby/": {
+    "feature": "Core\\Time\\Duration::multipliedBy",
+    "hash": "d1f206605bdc9c3a",
+    "questions": [
+      "How do I multiply a duration by a number?",
+      "Repeat a length of time several times",
+      "Double a wait time after each failed try",
+      "Scale a timeout by a whole number factor"
+    ]
+  },
+  "/reference/core/time-duration/nanoseconds/": {
+    "feature": "Core\\Time\\Duration::nanoseconds",
+    "hash": "61fe564b1b38d8da",
+    "questions": [
+      "How do I make a duration from nanoseconds?",
+      "Create the most precise length of time from an integer",
+      "Turn a timer value in nanoseconds into a duration",
+      "What is the smallest unit of a duration?"
+    ]
+  },
+  "/reference/core/time-duration/negated/": {
+    "feature": "Core\\Time\\Duration::negated",
+    "hash": "5cec555e249b2da1",
+    "questions": [
+      "How do I make a duration negative?",
+      "Flip the sign of a length of time",
+      "Reverse the direction of a duration",
+      "Turn 30 seconds into minus 30 seconds"
+    ]
+  },
+  "/reference/core/time-duration/parse/": {
+    "feature": "Core\\Time\\Duration::parse",
+    "hash": "05dbd9fc7e5da65e",
+    "questions": [
+      "How do I read a duration like 1h30m from text?",
+      "Convert a timeout string from a config file into a duration",
+      "Parse a length of time from a command line option",
+      "Which units can I use in a duration string?",
+      "Turn text such as 30s or 7d into a duration"
+    ]
+  },
+  "/reference/core/time-duration/plus/": {
+    "feature": "Core\\Time\\Duration::plus",
+    "hash": "dc2181e127dd9fa2",
+    "questions": [
+      "How do I add two durations together?",
+      "Sum the lengths of several steps of a job",
+      "Add extra time to a timeout",
+      "Total of two lengths of time"
+    ]
+  },
+  "/reference/core/time-duration/seconds/": {
+    "feature": "Core\\Time\\Duration::seconds",
+    "hash": "08b66d15a79e4060",
+    "questions": [
+      "How do I make a duration from a number of seconds?",
+      "Create a cache lifetime from seconds in a setting",
+      "Turn a second count from another service into a duration",
+      "Build a length of time of N seconds at run time"
+    ]
+  },
+  "/reference/core/time-duration/tomicroseconds/": {
+    "feature": "Core\\Time\\Duration::toMicroseconds",
+    "hash": "93bbdb94ead15ebe",
+    "questions": [
+      "How do I get a duration in microseconds?",
+      "Convert a length of time to whole microseconds",
+      "Show how long a query took in microseconds",
+      "Number of microseconds in a duration"
+    ]
+  },
+  "/reference/core/time-duration/tomilliseconds/": {
+    "feature": "Core\\Time\\Duration::toMilliseconds",
+    "hash": "23c4fab8d78bb60b",
+    "questions": [
+      "How do I get a duration in milliseconds?",
+      "Convert a length of time to whole milliseconds",
+      "Send a duration as milliseconds in a JSON reply",
+      "Number of milliseconds in a timeout"
+    ]
+  },
+  "/reference/core/time-duration/tonanoseconds/": {
+    "feature": "Core\\Time\\Duration::toNanoseconds",
+    "hash": "a1543f440696c3f6",
+    "questions": [
+      "How do I get the exact length of a duration as a number?",
+      "Convert a duration to nanoseconds",
+      "Save a length of time in a database column without losing precision",
+      "Number of nanoseconds in a duration"
+    ]
+  },
+  "/reference/core/time-duration/toseconds/": {
+    "feature": "Core\\Time\\Duration::toSeconds",
+    "hash": "e0c54b178c18ab8e",
+    "questions": [
+      "How do I get a duration in whole seconds?",
+      "Convert a length of time to seconds for a Cache-Control max-age",
+      "Set a Retry-After header from a duration",
+      "Number of seconds in a duration"
+    ]
+  },
+  "/reference/core/time-duration/tostring/": {
+    "feature": "Core\\Time\\Duration::toString",
+    "hash": "bb1b297aee0cf0c0",
+    "questions": [
+      "How do I print a duration like 1h30m?",
+      "Convert a length of time to readable text",
+      "Log how long a job took",
+      "Show a duration as text in a string"
+    ]
+  },
+  "/reference/core/time-duration/weeks/": {
+    "feature": "Core\\Time\\Duration::weeks",
+    "hash": "1c74f2b9297280bf",
+    "questions": [
+      "How do I make a duration from a number of weeks?",
+      "Create a length of time of N weeks from a setting",
+      "Turn a week count into a duration of 168 hours",
+      "Is a duration week the same as a calendar week?"
+    ]
+  },
+  "/reference/core/time-instant/": {
+    "feature": "Core\\Time\\Instant",
+    "hash": "b7aa9bc3ed53f6ab",
+    "questions": [
+      "How do I represent an exact moment in time?",
+      "Work with timestamps that have no time zone",
+      "What type does the current time have?",
+      "Store a point in time that is the same everywhere",
+      "Do exact time arithmetic on moments"
+    ]
+  },
+  "/reference/core/time-instant/compareto/": {
+    "feature": "Core\\Time\\Instant::compareTo",
+    "hash": "be3b7a8077258310",
+    "questions": [
+      "How do I check which of two moments comes first?",
+      "Compare two timestamps",
+      "Test if two timestamps are the same moment",
+      "Check if a moment is before or after another one"
+    ]
+  },
+  "/reference/core/time-instant/in/": {
+    "feature": "Core\\Time\\Instant::in",
+    "hash": "126c085d6a0f7d29",
+    "questions": [
+      "How do I convert a timestamp to a local date and time?",
+      "Show a moment in a specific time zone",
+      "Get the hour or weekday of a timestamp in Berlin",
+      "Display order times in each customer's time zone"
+    ]
+  },
+  "/reference/core/time-instant/minus/": {
+    "feature": "Core\\Time\\Instant::minus",
+    "hash": "0905124284ce80f3",
+    "questions": [
+      "How do I go back an exact amount of time from a moment?",
+      "Get the timestamp one hour earlier",
+      "Subtract a duration from a timestamp",
+      "Find the moment 24 hours ago"
+    ]
+  },
+  "/reference/core/time-instant/plus/": {
+    "feature": "Core\\Time\\Instant::plus",
+    "hash": "9e5a98ac64ebc617",
+    "questions": [
+      "How do I add an exact amount of time to a moment?",
+      "Get the timestamp one hour later",
+      "Add a duration to a timestamp",
+      "Compute an expiry moment from now plus a timeout"
+    ]
+  },
+  "/reference/core/time-instant/since/": {
+    "feature": "Core\\Time\\Instant::since",
+    "hash": "c51013cdb7046526",
+    "questions": [
+      "How do I measure how long something took?",
+      "Time elapsed between two timestamps",
+      "Get the exact time between a start and an end moment",
+      "Measure the running time of a request"
+    ]
+  },
+  "/reference/core/time-instant/toepochmicros/": {
+    "feature": "Core\\Time\\Instant::toEpochMicros",
+    "hash": "0b2f73e5486568dc",
+    "questions": [
+      "How do I get a timestamp in microseconds since 1970?",
+      "Convert a moment to Unix time in microseconds",
+      "Microsecond timestamp for a log or database",
+      "Number of microseconds since the Unix epoch"
+    ]
+  },
+  "/reference/core/time-instant/toepochmillis/": {
+    "feature": "Core\\Time\\Instant::toEpochMillis",
+    "hash": "e910fb021cc296d8",
+    "questions": [
+      "How do I get a timestamp in milliseconds since 1970?",
+      "Convert a moment to a JavaScript timestamp",
+      "Unix time in milliseconds for a web API",
+      "Number of milliseconds since the Unix epoch"
+    ]
+  },
+  "/reference/core/time-instant/toepochseconds/": {
+    "feature": "Core\\Time\\Instant::toEpochSeconds",
+    "hash": "9e479f2f4991542a",
+    "questions": [
+      "How do I get the Unix timestamp of a moment?",
+      "Convert a moment to seconds since 1970",
+      "Get the current Unix time as an integer",
+      "Number of seconds since the Unix epoch"
+    ]
+  },
+  "/reference/core/time-instant/toiso/": {
+    "feature": "Core\\Time\\Instant::toIso",
+    "hash": "fdd072685c049995",
+    "questions": [
+      "How do I format a timestamp as an ISO 8601 string?",
+      "Convert a moment to RFC 3339 text in UTC",
+      "Output a date for a JSON API",
+      "Write a timestamp like 2024-03-01T12:00:00Z"
+    ]
+  },
+  "/reference/core/time-timeofday/": {
+    "feature": "Core\\Time\\TimeOfDay",
+    "hash": "93472f7a349d2391",
+    "questions": [
+      "How do I store a clock time without a date?",
+      "Work with times of day like opening hours",
+      "Represent 10:30 with no date or time zone",
+      "Time of day for a job that runs every day"
+    ]
+  },
+  "/reference/core/time-timeofday/at/": {
+    "feature": "Core\\Time\\TimeOfDay::at",
+    "hash": "7efff30bec8ffcea",
+    "questions": [
+      "How do I create a time of day from hours and minutes?",
+      "Make a clock time such as 09:00",
+      "Set the time a daily job runs",
+      "Build a clock time with seconds"
+    ]
+  },
+  "/reference/core/time-timeofday/compareto/": {
+    "feature": "Core\\Time\\TimeOfDay::compareTo",
+    "hash": "af1989e92e3dc585",
+    "questions": [
+      "How do I check which clock time is earlier in the day?",
+      "Compare two times of day",
+      "Check if the current time is within opening hours",
+      "Test if two clock times are equal"
+    ]
+  },
+  "/reference/core/time-timeofday/format/": {
+    "feature": "Core\\Time\\TimeOfDay::format",
+    "hash": "0657d1f3984e7f75",
+    "questions": [
+      "How do I format a clock time as text?",
+      "Show a time of day as HH:mm",
+      "Print a time with AM or PM",
+      "Display a time of day in 12-hour format"
+    ]
+  },
+  "/reference/core/time-timeofday/minus/": {
+    "feature": "Core\\Time\\TimeOfDay::minus",
+    "hash": "8c3c1096c4922d87",
+    "questions": [
+      "How do I subtract minutes from a time of day?",
+      "Move a clock time back by hours",
+      "Go back 30 minutes past midnight on a clock",
+      "Get the clock time one hour earlier"
+    ]
+  },
+  "/reference/core/time-timeofday/plus/": {
+    "feature": "Core\\Time\\TimeOfDay::plus",
+    "hash": "0cc7a2751443ff31",
+    "questions": [
+      "How do I add hours to a time of day?",
+      "Move a clock time forward by minutes",
+      "Add time to a clock time that wraps at midnight",
+      "Get the clock time 15 minutes later"
+    ]
+  },
+  "/reference/core/time-timeofday/with/": {
+    "feature": "Core\\Time\\TimeOfDay::with",
+    "hash": "d1e38356117e0b42",
+    "questions": [
+      "How do I change only the hour of a time of day?",
+      "Set the minutes of a clock time to zero",
+      "Copy a clock time with different seconds",
+      "Replace part of a time of day"
+    ]
+  },
+  "/reference/core/time-zone/": {
+    "feature": "Core\\Time\\Zone",
+    "hash": "0278b165cd546eb1",
+    "questions": [
+      "How do I work with time zones?",
+      "Convert between UTC and local time",
+      "Is there a default time zone?",
+      "Use a named zone or a fixed UTC offset"
+    ]
+  },
+  "/reference/core/time-zone/fixed/": {
+    "feature": "Core\\Time\\Zone::fixed",
+    "hash": "731a34503eac75df",
+    "questions": [
+      "How do I make a time zone from a UTC offset?",
+      "Create a zone of +05:30 with no summer time",
+      "Use a fixed offset when there is no zone name",
+      "Time zone that is always the same distance from UTC"
+    ]
+  },
+  "/reference/core/time-zone/of/": {
+    "feature": "Core\\Time\\Zone::of",
+    "hash": "92b750ab50abd207",
+    "questions": [
+      "How do I get a time zone by its name?",
+      "Use Europe/Berlin or America/New_York as a time zone",
+      "Load an IANA time zone",
+      "What happens with a misspelled time zone name?"
+    ]
+  },
+  "/reference/core/time-zone/offsetat/": {
+    "feature": "Core\\Time\\Zone::offsetAt",
+    "hash": "cad9240bb60258c0",
+    "questions": [
+      "How do I get the UTC offset of a time zone?",
+      "Find how many hours a zone is ahead of UTC",
+      "Check if a zone is on summer time at a moment",
+      "Hour difference between two offices"
+    ]
+  },
+  "/reference/core/time-zone/system/": {
+    "feature": "Core\\Time\\Zone::system",
+    "hash": "2d0048e59c72415b",
+    "questions": [
+      "How do I get the time zone of the server?",
+      "Use the computer's local time zone",
+      "Find which time zone the program runs in",
+      "Show local time in the machine's zone"
+    ]
+  },
+  "/reference/core/topic/": {
+    "feature": "Core\\Topic",
+    "hash": "54793305f808953e",
+    "questions": [
+      "How do I send messages to many WebSocket clients?",
+      "Broadcast updates to connected browsers",
+      "Publish and subscribe between connections",
+      "Push live updates to event streams",
+      "Build a chat room with channels"
+    ]
+  },
+  "/reference/core/topic/publish/": {
+    "feature": "Core\\Topic::publish",
+    "hash": "53ce0d73b605b8ce",
+    "questions": [
+      "How do I broadcast a value to all subscribers of a channel?",
+      "Notify open dashboards from a normal web request",
+      "Send an update to everyone in a chat room",
+      "Count how many connections received a message"
+    ]
+  },
+  "/reference/core/topic/subscribe/": {
+    "feature": "Core\\Topic::subscribe",
+    "hash": "030cd9388fcba18e",
+    "questions": [
+      "How do I join a WebSocket connection to a channel?",
+      "Listen for messages on a named channel",
+      "Receive updates for one order on the customer page",
+      "Add a user to a chat room"
+    ]
+  },
+  "/reference/core/topic/unsubscribe/": {
+    "feature": "Core\\Topic::unsubscribe",
+    "hash": "86c29b431f9eaadf",
+    "questions": [
+      "How do I stop a connection receiving messages from a channel?",
+      "Leave a chat room but keep the connection open",
+      "Stop listening to one channel",
+      "Remove a WebSocket client from a channel"
+    ]
+  },
+  "/reference/core/totp/": {
+    "feature": "Core\\Totp",
+    "hash": "6d185830b386b30c",
+    "questions": [
+      "How do I add two-factor login with an authenticator app?",
+      "Six-digit one-time codes for 2FA",
+      "Support Google Authenticator style codes",
+      "Time-based one-time passwords for login"
+    ]
+  },
+  "/reference/core/totp/check/": {
+    "feature": "Core\\Totp::check",
+    "hash": "becfa529164f458b",
+    "questions": [
+      "How do I verify a code from an authenticator app?",
+      "Check a two-factor code a user typed",
+      "Stop the same 2FA code from being used twice",
+      "Validate a six-digit login code"
+    ]
+  },
+  "/reference/core/totp/code/": {
+    "feature": "Core\\Totp::code",
+    "hash": "ac3b4a6974a14f7a",
+    "questions": [
+      "How do I generate the current two-factor code for a secret?",
+      "Create a one-time code for an automated login test",
+      "Compute the same code an authenticator app shows",
+      "Get the six-digit code for a secret at a given time"
+    ]
+  },
+  "/reference/core/uri/": {
+    "feature": "Core\\Uri",
+    "hash": "fff119155c411b2b",
+    "questions": [
+      "How do I work with URLs and links?",
+      "Split a web address into its parts and build a new one",
+      "How do I escape text for use in a link?",
+      "Read and write query strings in a URL",
+      "Create links that expire and cannot be changed"
+    ]
+  },
+  "/reference/core/uri/buildquery/": {
+    "feature": "Core\\Uri::buildQuery",
+    "hash": "1b88a7fdb959e16b",
+    "questions": [
+      "How do I turn an array into a query string?",
+      "Build the part of a URL after the question mark",
+      "Create a search link from a list of filters",
+      "How do I put a list or nested values into a URL?",
+      "Make the link to the next page of results"
+    ]
+  },
+  "/reference/core/uri/compareto/": {
+    "feature": "Core\\Uri::compareTo",
+    "hash": "42d97667b3752100",
+    "questions": [
+      "How do I check if two URLs point to the same address?",
+      "Sort a list of web addresses",
+      "Compare URLs that differ only in upper and lower case",
+      "Skip pages a crawler has already visited",
+      "Treat %7E and ~ in a URL as the same"
+    ]
+  },
+  "/reference/core/uri/decodecomponent/": {
+    "feature": "Core\\Uri::decodeComponent",
+    "hash": "da7f5f5270b233e7",
+    "questions": [
+      "How do I turn %20 back into a space?",
+      "Decode a percent-encoded file name from a URL path",
+      "Read the original text of an escaped URL segment",
+      "How do I unescape special characters in a link?",
+      "Convert %C3%A9 back to an accented letter"
+    ]
+  },
+  "/reference/core/uri/decodeformvalue/": {
+    "feature": "Core\\Uri::decodeFormValue",
+    "hash": "2bac0b006222818d",
+    "questions": [
+      "How do I turn plus signs in a form value into spaces?",
+      "Decode a value sent by an HTML form",
+      "Read a search term from a URL where spaces are written as +",
+      "Decode the body of a POST request field",
+      "How do I read an encoded value stored in a cookie?"
+    ]
+  },
+  "/reference/core/uri/encodecomponent/": {
+    "feature": "Core\\Uri::encodeComponent",
+    "hash": "7dc4312d9098fbf4",
+    "questions": [
+      "How do I make text safe to put in a URL path?",
+      "Escape spaces and slashes as %20 and %2F",
+      "Percent-encode a file name for a download link",
+      "How do I link to a heading with spaces in its name?",
+      "Escape characters like & and # inside a link"
+    ]
+  },
+  "/reference/core/uri/encodeformvalue/": {
+    "feature": "Core\\Uri::encodeFormValue",
+    "hash": "1a15d6941b107dae",
+    "questions": [
+      "How do I encode a value for a query string?",
+      "Write spaces as plus signs in a form value",
+      "Escape user input before adding it after the question mark",
+      "Build a login link that returns to the previous page",
+      "How do I stop & and = in a value from breaking a URL?"
+    ]
+  },
+  "/reference/core/uri/fragment/": {
+    "feature": "Core\\Uri::fragment",
+    "hash": "905f75bdaf50cf2f",
+    "questions": [
+      "How do I get the part of a URL after the # sign?",
+      "Read the anchor of a link",
+      "Find which section of a page a link points to",
+      "Remove the #anchor before saving a URL",
+      "Check whether a link has a hash part"
+    ]
+  },
+  "/reference/core/uri/host/": {
+    "feature": "Core\\Uri::host",
+    "hash": "a4f4fdac55b08faa",
+    "questions": [
+      "How do I get the domain name from a URL?",
+      "Read the server name of a web address",
+      "Check that a redirect stays on my own site",
+      "Find which website a link points to",
+      "Get the hostname without the port"
+    ]
+  },
+  "/reference/core/uri/parse/": {
+    "feature": "Core\\Uri::parse",
+    "hash": "d264e9be1e234888",
+    "questions": [
+      "How do I split a URL into its parts?",
+      "Read a web address into scheme, host, path and query",
+      "Break apart a database connection URL",
+      "How do I get every part of a link at once?",
+      "Turn a URL string into an object"
+    ]
+  },
+  "/reference/core/uri/parsequery/": {
+    "feature": "Core\\Uri::parseQuery",
+    "hash": "cea38a8929f857e6",
+    "questions": [
+      "How do I turn a query string into an array?",
+      "Read all the parameters after the ? in a URL",
+      "Get a list of values from size[]=M&size[]=L",
+      "Decode nested filters from a query string",
+      "How do I read every value of a GET request at once?"
+    ]
+  },
+  "/reference/core/uri/path/": {
+    "feature": "Core\\Uri::path",
+    "hash": "18469b7495f86c15",
+    "questions": [
+      "How do I get the path of a URL?",
+      "Read the part of a link after the domain name",
+      "Choose which page to show based on the request path",
+      "Get /docs/start from a full web address",
+      "Find which file or route a link points to"
+    ]
+  },
+  "/reference/core/uri/port/": {
+    "feature": "Core\\Uri::port",
+    "hash": "2edb40abebc8ddb6",
+    "questions": [
+      "How do I get the port number from a URL?",
+      "Read the number after the colon in a web address",
+      "Use a default port when a link has none",
+      "Find which port a server address connects to",
+      "Get 8080 from http://localhost:8080/"
+    ]
+  },
+  "/reference/core/uri/query/": {
+    "feature": "Core\\Uri::query",
+    "hash": "ffb7016fd019e577",
+    "questions": [
+      "How do I get the query string of a URL?",
+      "Read the text after the question mark in a link",
+      "Pass the query of a request on to another server",
+      "Check whether a URL has any parameters",
+      "Get the raw query text without decoding it"
+    ]
+  },
+  "/reference/core/uri/queryparameter/": {
+    "feature": "Core\\Uri::queryParameter",
+    "hash": "cdd5afd6e3c4b79b",
+    "questions": [
+      "How do I read one parameter from a URL?",
+      "Get the value of ?page= from a link",
+      "Read the search term from the current address",
+      "Find where to send the user after login from the URL",
+      "Get a single GET value by its name"
+    ]
+  },
+  "/reference/core/uri/resolve/": {
+    "feature": "Core\\Uri::resolve",
+    "hash": "f3b3e2d9f5dccd8e",
+    "questions": [
+      "How do I turn a relative link into a full URL?",
+      "Combine a base address with a link like ../about",
+      "Make absolute URLs from the links found on a page",
+      "Remove . and .. from a URL path",
+      "Follow a link the same way a browser does"
+    ]
+  },
+  "/reference/core/uri/scheme/": {
+    "feature": "Core\\Uri::scheme",
+    "hash": "b06fea86c68b5792",
+    "questions": [
+      "How do I check if a URL uses https?",
+      "Get the protocol of a web address",
+      "Read http, https or mailto from a link",
+      "Only accept website links that start with http or https",
+      "Tell a full address from a plain path"
+    ]
+  },
+  "/reference/core/uri/sign/": {
+    "feature": "Core\\Uri::sign",
+    "hash": "f103c1bab25e641c",
+    "questions": [
+      "How do I create a link that expires after one hour?",
+      "Sign a download URL so nobody can change it",
+      "Make a secure password reset link",
+      "Add a tamper-proof signature to a URL",
+      "Create a temporary private link to a file"
+    ]
+  },
+  "/reference/core/uri/tostring/": {
+    "feature": "Core\\Uri::toString",
+    "hash": "0b18c118dae8bbac",
+    "questions": [
+      "How do I convert a URL object back to text?",
+      "Print a web address exactly as it was written",
+      "Store an address as a string",
+      "Build the Link header of an API response",
+      "Get the final address after changing its parts"
+    ]
+  },
+  "/reference/core/uri/tryparse/": {
+    "feature": "Core\\Uri::tryParse",
+    "hash": "97607f470b48daf0",
+    "questions": [
+      "How do I check if a text is a valid URL?",
+      "Read an address without throwing an error when it is invalid",
+      "Test whether a link is absolute or relative",
+      "Check a web address a user typed into a form",
+      "Get null instead of an error for a bad URL"
+    ]
+  },
+  "/reference/core/uri/userinfo/": {
+    "feature": "Core\\Uri::userInfo",
+    "hash": "3b09a6da1058a202",
+    "questions": [
+      "How do I get the username from a URL?",
+      "Read the user and password part before the @ in a link",
+      "Check that a connection string has no password in it",
+      "Find the login name in ftp://ann@example.com",
+      "Get the credentials written in an address"
+    ]
+  },
+  "/reference/core/uri/verifysignature/": {
+    "feature": "Core\\Uri::verifySignature",
+    "hash": "eef1f7d910800fbe",
+    "questions": [
+      "How do I check that a signed link was not changed?",
+      "Verify a download link before serving the file",
+      "Tell an expired link from a tampered one",
+      "Rotate the secret key for signed URLs",
+      "Reject a URL whose parameters were edited"
+    ]
+  },
+  "/reference/core/uri/with/": {
+    "feature": "Core\\Uri::with",
+    "hash": "2e386ce9222dbb0d",
+    "questions": [
+      "How do I change the host or scheme of a URL?",
+      "Switch a link from http to https",
+      "Remove the port, query or anchor from an address",
+      "Replace the path of a web address",
+      "Turn an internal server address into a public one"
+    ]
+  },
+  "/reference/core/uri/withqueryparameter/": {
+    "feature": "Core\\Uri::withQueryParameter",
+    "hash": "b7f19c40d988a499",
+    "questions": [
+      "How do I add a parameter to a URL?",
+      "Change the page number in a link",
+      "Remove one parameter from a query string",
+      "Set or replace a single value after the question mark",
+      "Build the links of a page list"
+    ]
+  },
+  "/reference/core/uuid/": {
+    "feature": "Core\\Uuid",
+    "hash": "47a48c34cd08112a",
+    "questions": [
+      "How do I work with UUIDs?",
+      "Create unique IDs without a database counter",
+      "Convert a UUID between text and bytes",
+      "Which kind of UUID should I use?",
+      "Generate a GUID for a new record"
+    ]
+  },
+  "/reference/core/uuid/frombytes/": {
+    "feature": "Core\\Uuid::fromBytes",
+    "hash": "d4a2a280879ef063",
+    "questions": [
+      "How do I read a UUID from 16 bytes?",
+      "Load a UUID stored in a binary database column",
+      "Convert raw binary data to a UUID",
+      "Read a list of UUIDs from a binary message"
+    ]
+  },
+  "/reference/core/uuid/parse/": {
+    "feature": "Core\\Uuid::parse",
+    "hash": "d2ee798a6a852826",
+    "questions": [
+      "How do I convert a string to a UUID?",
+      "Read a UUID written with hyphens",
+      "Accept an ID in upper or lower case",
+      "Throw an error when an ID is not a UUID",
+      "Check the IDs in the rows of an import"
+    ]
+  },
+  "/reference/core/uuid/tobytes/": {
+    "feature": "Core\\Uuid::toBytes",
+    "hash": "68fd33e25e408a2f",
+    "questions": [
+      "How do I store a UUID as 16 bytes?",
+      "Save a UUID in a binary database column",
+      "Convert a UUID to raw bytes",
+      "Write several UUIDs into one binary message",
+      "Print a UUID as hexadecimal bytes"
+    ]
+  },
+  "/reference/core/uuid/tostring/": {
+    "feature": "Core\\Uuid::toString",
+    "hash": "0b654f430aa4b5b8",
+    "questions": [
+      "How do I print a UUID as text?",
+      "Convert a UUID to a lower-case string",
+      "Use a UUID as an array key",
+      "Compare two UUIDs written in different case",
+      "Get the 36-character form of a UUID"
+    ]
+  },
+  "/reference/core/uuid/tryparse/": {
+    "feature": "Core\\Uuid::tryParse",
+    "hash": "bec5a71b4ad69954",
+    "questions": [
+      "How do I check if a string is a valid UUID?",
+      "Validate an ID from a URL before a lookup",
+      "Get null instead of an error for an invalid UUID",
+      "Test whether a form field contains a UUID",
+      "Which UUID formats are not accepted?"
+    ]
+  },
+  "/reference/core/uuid/v4/": {
+    "feature": "Core\\Uuid::v4",
+    "hash": "220cb0c596ab7450",
+    "questions": [
+      "How do I generate a random UUID?",
+      "Create a unique ID that nobody can guess",
+      "Give each new order its own random ID",
+      "Make an ID that is safe to show to users",
+      "Generate a version 4 UUID"
+    ]
+  },
+  "/reference/core/uuid/v7/": {
+    "feature": "Core\\Uuid::v7",
+    "hash": "6a38fe56c1c71194",
+    "questions": [
+      "How do I create a UUID that sorts by time?",
+      "Generate a time-ordered ID for a database primary key",
+      "Make IDs where newer ones come after older ones",
+      "Read the creation time of an ID",
+      "Generate a version 7 UUID"
+    ]
+  },
+  "/reference/core/validate/": {
+    "feature": "Core\\Validate",
+    "hash": "1e1a3231b71c0b15",
+    "questions": [
+      "How do I validate user input?",
+      "Check the format of an email, IP or domain",
+      "Test whether a text has a certain format",
+      "Validate form fields before saving them",
+      "Which input checks are built in?"
+    ]
+  },
+  "/reference/core/validate/isascii/": {
+    "feature": "Core\\Validate::isAscii",
+    "hash": "f5e9899e7620cd8c",
+    "questions": [
+      "How do I check that a text has only English characters?",
+      "Find text with accents or emoji in it",
+      "Make sure a product code uses plain ASCII",
+      "Detect non-ASCII characters in a string",
+      "Count the texts in a list that need Unicode"
+    ]
+  },
+  "/reference/core/validate/isdomain/": {
+    "feature": "Core\\Validate::isDomain",
+    "hash": "062feca29b184f4b",
+    "questions": [
+      "How do I check if a text is a valid domain name?",
+      "Validate a hostname a customer typed in",
+      "Test that a domain is not longer than 253 characters",
+      "Check whether example.com is written correctly",
+      "Reject a domain with a trailing dot or two dots"
+    ]
+  },
+  "/reference/core/validate/isemail/": {
+    "feature": "Core\\Validate::isEmail",
+    "hash": "75809f74c7a3361a",
+    "questions": [
+      "How do I check if an email address is valid?",
+      "Validate an email field in a sign-up form",
+      "Test a list of addresses pasted into a form",
+      "Reject email addresses with spaces or two @ signs",
+      "Check the format of an email before saving it"
+    ]
+  },
+  "/reference/core/validate/isip/": {
+    "feature": "Core\\Validate::isIp",
+    "hash": "75906eced8aa0af2",
+    "questions": [
+      "How do I check if a text is an IP address?",
+      "Validate an IPv4 or IPv6 address",
+      "Accept only IPv4 addresses in a field",
+      "Check an allow list of IP addresses",
+      "Test whether 192.0.2.1 is written correctly"
+    ]
+  },
+  "/reference/core/validate/ismac/": {
+    "feature": "Core\\Validate::isMac",
+    "hash": "060e6ea47fb490ff",
+    "questions": [
+      "How do I check if a text is a MAC address?",
+      "Validate the hardware address of a network card",
+      "Accept MAC addresses with colons, hyphens or dots",
+      "Check the addresses in a list of devices"
+    ]
+  },
+  "/reference/core/validate/isprintable/": {
+    "feature": "Core\\Validate::isPrintable",
+    "hash": "b362170b0e4351b7",
+    "questions": [
+      "How do I check that a text has no control characters?",
+      "Reject names that contain a new line or tab",
+      "Stop user input from adding fake lines to a log",
+      "Find hidden characters such as the null byte in a string",
+      "Make sure a title stays on one line"
+    ]
+  },
+  "/reference/core/xml/": {
+    "feature": "Core\\Xml",
+    "hash": "53f73f2e4743253b",
+    "questions": [
+      "How do I work with XML in my program?",
+      "Read and write XML documents",
+      "Which tools are there for XML data?",
+      "How do I handle XML input safely?"
+    ]
+  },
+  "/reference/core/xml/parse/": {
+    "feature": "Core\\Xml::parse",
+    "hash": "51d89217f237d6ea",
+    "questions": [
+      "How do I load an XML string into a tree?",
+      "Parse a whole XML document into nodes",
+      "What happens when an XML document is broken?",
+      "Read a product feed in XML format",
+      "Turn XML text into objects I can walk through"
+    ]
+  },
+  "/reference/core/xml/reader/": {
+    "feature": "Core\\Xml::reader",
+    "hash": "3e5287312c53947d",
+    "questions": [
+      "How do I read a huge XML file without building a tree?",
+      "Stream a large XML export piece by piece",
+      "Get only a few values from a big XML document",
+      "How do I start reading XML one node at a time?"
+    ]
+  },
+  "/reference/core/xml/writer/": {
+    "feature": "Core\\Xml::writer",
+    "hash": "cc701b957f90c963",
+    "questions": [
+      "How do I create an XML document from my data?",
+      "Build XML output step by step",
+      "Generate indented, readable XML",
+      "Export a list of orders as XML"
+    ]
+  },
+  "/reference/core/xml-node/": {
+    "feature": "Core\\Xml\\Node",
+    "hash": "ac2a1659f5b8ecf4",
+    "questions": [
+      "How do I walk through a parsed XML tree?",
+      "What types of nodes are in an XML document?",
+      "Access the parts of a parsed XML or HTML document",
+      "Navigate from the document to its elements"
+    ]
+  },
+  "/reference/core/xml-node/attributes/": {
+    "feature": "Core\\Xml\\Node::attributes",
+    "hash": "70aba327b2b4f655",
+    "questions": [
+      "How do I read the attributes of an XML element?",
+      "Get the href value from a tag",
+      "Use a default when an XML attribute is missing",
+      "List all name and value pairs on a tag"
+    ]
+  },
+  "/reference/core/xml-node/children/": {
+    "feature": "Core\\Xml\\Node::children",
+    "hash": "548588ca16f1df87",
+    "questions": [
+      "How do I get the elements inside an XML element?",
+      "Loop over the child nodes of a tag",
+      "Visit every element in a document",
+      "Why do spaces between tags show up as nodes?"
+    ]
+  },
+  "/reference/core/xml-node/kind/": {
+    "feature": "Core\\Xml\\Node::kind",
+    "hash": "43ee191e1ad73aac",
+    "questions": [
+      "How do I tell if a node is an element, text or comment?",
+      "Skip everything that is not an element",
+      "Find all comments in an XML document",
+      "Check the type of a node in a parsed tree"
+    ]
+  },
+  "/reference/core/xml-node/name/": {
+    "feature": "Core\\Xml\\Node::name",
+    "hash": "92fb96f42061aafd",
+    "questions": [
+      "How do I get the tag name of an element?",
+      "Find elements by name, such as price",
+      "Read the target of a processing instruction",
+      "Get a tag name with a prefix like media:title"
+    ]
+  },
+  "/reference/core/xml-node/namespaceuri/": {
+    "feature": "Core\\Xml\\Node::namespaceUri",
+    "hash": "db6b8eae23d52622",
+    "questions": [
+      "How do I find which namespace an XML element belongs to?",
+      "Resolve an XML prefix to its URI",
+      "Match elements by namespace when prefixes differ",
+      "Handle xmlns declarations in a feed"
+    ]
+  },
+  "/reference/core/xml-node/source/": {
+    "feature": "Core\\Xml\\Node::source",
+    "hash": "32dbfeefa72532bd",
+    "questions": [
+      "How do I turn a parsed XML node back into text?",
+      "Write one part of a document back out as XML",
+      "Copy products from a catalog into a new document",
+      "Convert an element and everything inside it to a string"
+    ]
+  },
+  "/reference/core/xml-node/text/": {
+    "feature": "Core\\Xml\\Node::text",
+    "hash": "225c19af7e01ba47",
+    "questions": [
+      "How do I get the text inside an XML tag?",
+      "Read the content of a comment or CDATA section",
+      "Read values from a small XML settings file",
+      "Why does an element give an empty string for its text?"
+    ]
+  },
+  "/reference/core/xml-reader/": {
+    "feature": "Core\\Xml\\Reader",
+    "hash": "d5783a1ef75227d7",
+    "questions": [
+      "Read XML node after node instead of all at once",
+      "Count records in a big XML file",
+      "Low-memory XML processing for large feeds",
+      "How does streaming XML reading work?"
+    ]
+  },
+  "/reference/core/xml-reader/depth/": {
+    "feature": "Core\\Xml\\Reader::depth",
+    "hash": "4c1aca4e553b9c00",
+    "questions": [
+      "How do I know how deeply a node is nested?",
+      "Find where an element ends when streaming XML",
+      "Print an XML document as an indented outline",
+      "Get the nesting level of the current node in a large file"
+    ]
+  },
+  "/reference/core/xml-reader/read/": {
+    "feature": "Core\\Xml\\Reader::read",
+    "hash": "d4bbd0686c3e05af",
+    "questions": [
+      "How do I get the next node from a streaming XML reader?",
+      "Move forward one node in an XML stream",
+      "Know when the end of an XML stream is reached",
+      "Add up stock values from a large product feed",
+      "What happens when a streamed XML file is broken halfway?"
+    ]
+  },
+  "/reference/core/xml-writer/": {
+    "feature": "Core\\Xml\\Writer",
+    "hash": "19c9943ce8e251a7",
+    "questions": [
+      "Produce XML without escaping text by hand",
+      "How do I write XML safely from user data?",
+      "Make XML output that is always well-formed",
+      "Which steps build an XML file from start to finish?"
+    ]
+  },
+  "/reference/core/xml-writer/attribute/": {
+    "feature": "Core\\Xml\\Writer::attribute",
+    "hash": "a75c265db311e973",
+    "questions": [
+      "How do I add an attribute to an XML tag?",
+      "Put an id or name inside a start tag",
+      "Escape quotes in XML attribute values",
+      "Store product data as tag attributes"
+    ]
+  },
+  "/reference/core/xml-writer/cdata/": {
+    "feature": "Core\\Xml\\Writer::cdata",
+    "hash": "434e88671ed13326",
+    "questions": [
+      "How do I put HTML inside an XML element without escaping?",
+      "Wrap text in a CDATA section",
+      "Embed code or markup in a news feed item",
+      "Write text with < and & unchanged"
+    ]
+  },
+  "/reference/core/xml-writer/comment/": {
+    "feature": "Core\\Xml\\Writer::comment",
+    "hash": "556a43270267b2f1",
+    "questions": [
+      "How do I add a comment to generated XML?",
+      "Put a header note at the top of an exported file",
+      "Write a note for people inside an XML file",
+      "Why can an XML comment not contain two dashes?"
+    ]
+  },
+  "/reference/core/xml-writer/content/": {
+    "feature": "Core\\Xml\\Writer::content",
+    "hash": "5deb20729452c571",
+    "questions": [
+      "How do I write text between XML tags?",
+      "Put user input inside an element safely",
+      "Escape & and < in XML text automatically",
+      "Set the text of a product name element"
+    ]
+  },
+  "/reference/core/xml-writer/doctype/": {
+    "feature": "Core\\Xml\\Writer::doctype",
+    "hash": "08fd66486b9442fa",
+    "questions": [
+      "How do I add a DOCTYPE line to XML output?",
+      "Write <!DOCTYPE html> at the top of a page",
+      "Declare the document type before the root element",
+      "Generate an XHTML page with a document type"
+    ]
+  },
+  "/reference/core/xml-writer/enddocument/": {
+    "feature": "Core\\Xml\\Writer::endDocument",
+    "hash": "3643285467cf9cfa",
+    "questions": [
+      "How do I get the finished XML as a string?",
+      "Finish building an XML document and return it",
+      "Save generated XML to a file or send it as a response",
+      "Why do I get an error that an element is still open?"
+    ]
+  },
+  "/reference/core/xml-writer/endelement/": {
+    "feature": "Core\\Xml\\Writer::endElement",
+    "hash": "73258375df4a9023",
+    "questions": [
+      "How do I close a tag I opened?",
+      "Write the closing tag for the current element",
+      "Make end tags always match their start tags",
+      "Build a nested category tree in XML with recursion"
+    ]
+  },
+  "/reference/core/xml-writer/instruction/": {
+    "feature": "Core\\Xml\\Writer::instruction",
+    "hash": "01c17a6ebafbf0dc",
+    "questions": [
+      "How do I link a stylesheet to an XML feed?",
+      "Write a processing instruction into XML output",
+      "Add <?xml-stylesheet?> to a generated document",
+      "Put a note for the reading program in an XML file"
+    ]
+  },
+  "/reference/core/xml-writer/startdocument/": {
+    "feature": "Core\\Xml\\Writer::startDocument",
+    "hash": "edb52eac843a8378",
+    "questions": [
+      "How do I begin writing a new XML file?",
+      "Write the <?xml version=\"1.0\"?> declaration line",
+      "Create one XML document for each customer",
+      "Why does writing an element before starting the document fail?"
+    ]
+  },
+  "/reference/core/xml-writer/startelement/": {
+    "feature": "Core\\Xml\\Writer::startElement",
+    "hash": "799c1cdfc3aaacd5",
+    "questions": [
+      "How do I open a new tag in XML output?",
+      "Nest one element inside another when writing XML",
+      "Build a sitemap for a website",
+      "Which names are allowed for XML tags?"
+    ]
+  },
+  "/reference/core/zip/": {
+    "feature": "Core\\Zip",
+    "hash": "aa06c56b6175ae72",
+    "questions": [
+      "How do I work with zip files?",
+      "Open a zip archive safely",
+      "Protect against unsafe paths in uploaded archives",
+      "Handle zip uploads from users"
+    ]
+  },
+  "/reference/core/zip/entries/": {
+    "feature": "Core\\Zip::entries",
+    "hash": "13efe6f70e6df09f",
+    "questions": [
+      "How do I list the files in a zip archive?",
+      "See what is inside a zip without unpacking it",
+      "Check an uploaded zip before accepting it",
+      "Detect paths like ../ in an archive"
+    ]
+  },
+  "/reference/core/zip/extract/": {
+    "feature": "Core\\Zip::extract",
+    "hash": "6dee557fb0150fb9",
+    "questions": [
+      "How do I unzip an archive into a folder?",
+      "Unpack all files from a zip upload",
+      "Protect against zip bombs when unpacking",
+      "Install themes that users upload as zip files"
+    ]
+  },
+  "/reference/core/zip/read/": {
+    "feature": "Core\\Zip::read",
+    "hash": "96856a05a578dc71",
+    "questions": [
+      "How do I get one file out of a zip archive?",
+      "Read a single file from a zip in memory",
+      "Limit the size of a decompressed file",
+      "Import text files from an uploaded zip"
     ]
   }
 }
