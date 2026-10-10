@@ -1542,7 +1542,7 @@ need it and carries a comment saying why.
 and an uninstalled engine is narrowed away with `--engines`, so neither can turn a build, a test or a
 loop session red — nothing outside this suite reads any of it.
 
-<sub>See also [`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks), [`testing/perf-secondary-figures`](testing.md#testing-perf-secondary-figures), [`tooling/python-claims`](tooling.md#tooling-python-claims), [`programs/three-claims`](programs.md#programs-three-claims). Decided in [0100](../decisions/0100.md), [0026](../decisions/0026.md), [0065](../decisions/0065.md).</sub>
+<sub>See also [`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks), [`testing/perf-secondary-figures`](testing.md#testing-perf-secondary-figures), [`tooling/python-claims`](tooling.md#tooling-python-claims), [`programs/three-claims`](programs.md#programs-three-claims). Decided in [0100](../decisions/0100.md), [0065](../decisions/0065.md).</sub>
 
 <a id="tooling-telemetry-is-two-opt-ins"></a>
 

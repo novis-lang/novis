@@ -73,7 +73,7 @@ wasm's fixed 128-bit SIMD, not to be discovered from scalar loops, so JIT-compil
 Little is lost — a request's hot path is refcounting, ordered-hash lookups and tagged dispatch, not the
 dense homogeneous loops a vectorizer needs — and vectorizing a `float` reduction would reassociate its
 additions, which the priority ordering's rank 2 forbids outright. Two things to know before anyone claims a
-win: [0026](../decisions/0026.md)'s instruction counts flatter SIMD, because
+win: the instruction counts of `rule:testing/perf-two-mechanisms` flatter SIMD, because
 callgrind does not model vector port throughput, and Cranelift's own vector support is shaped by wasm's
 fixed 128-bit SIMD, which caps anything built on it there regardless.
 

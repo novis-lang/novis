@@ -1171,7 +1171,7 @@ this rule's question; "did Novis get faster" is [`testing/perf-two-mechanisms`](
 not overlap. There is no per-member cost table and there will not be one — a hand-written claim
 about what a `Core` member costs is a number with no guard test.
 
-<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger). Decided in [0079](../decisions/0079.md), [0018](../decisions/0018.md), [0041](../decisions/0041.md), [0026](../decisions/0026.md), [0004](../decisions/0004.md).</sub>
+<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger). Decided in [0079](../decisions/0079.md), [0018](../decisions/0018.md), [0041](../decisions/0041.md), [0004](../decisions/0004.md).</sub>
 
 <a id="testing-perf-two-mechanisms"></a>
 
@@ -1199,7 +1199,23 @@ from one.
 
 Benchmarking an Novis **program's** own code is neither of these — that is [`testing/bench-counters`](testing.md#testing-bench-counters).
 
-<sub>See also [`testing/perf-secondary-figures`](testing.md#testing-perf-secondary-figures), [`testing/perf-history-file`](testing.md#testing-perf-history-file), [`testing/bench-counters`](testing.md#testing-bench-counters), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger). Decided in [0026](../decisions/0026.md), [0143](../decisions/0143.md), [0228](../decisions/0228.md).</sub>
+The dashboard's runner is one more piece of infrastructure to keep alive. That cost is accepted,
+because the guards cannot answer its question: a self-relative ratio says whether a commit regressed
+against itself, never whether Novis got faster in an absolute sense.
+
+**Declined:**
+- **Counting VM opcodes or dispatch-loop iterations.** There is no interpreter tier to count.
+- **The hardware's instructions-retired counter** (`perf`, ETW, Instruments). It is locked to one
+  architecture and is a different tool on each OS, so it compares across machines of one
+  architecture and never across operating systems. Callgrind's emulated instruction stream has
+  neither limit.
+- **A fixed reference workload, such as a SHA-256 or matrix loop, timed on every machine.** The
+  guards' same-run ratios already normalize more simply for regressions, and the instruction count
+  is more precise for the trend with no extra reference binary to keep.
+- **Callgrind as the gate on every pull request.** Its emulation is one to two orders of magnitude
+  slower, which every pull request would pay, and it runs on only one of the three CI platforms.
+
+<sub>See also [`testing/perf-secondary-figures`](testing.md#testing-perf-secondary-figures), [`testing/perf-history-file`](testing.md#testing-perf-history-file), [`testing/bench-counters`](testing.md#testing-bench-counters), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger). Decided in [0143](../decisions/0143.md), [0228](../decisions/0228.md).</sub>
 
 <a id="testing-perf-secondary-figures"></a>
 
@@ -1220,7 +1236,7 @@ An instruction count is a proxy, and it can in principle improve while real late
 two figures exist to catch that divergence, so the dashboard is read together with them and never
 from the count alone.
 
-<sub>See also [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/perf-history-file`](testing.md#testing-perf-history-file), [`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks). Decided in [0026](../decisions/0026.md).</sub>
+<sub>See also [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/perf-history-file`](testing.md#testing-perf-history-file), [`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks).</sub>
 
 <a id="testing-perf-history-file"></a>
 
@@ -1239,7 +1255,7 @@ figures, because the process reads a file and compiles it before any of the work
 lower of the two is what gets recorded.** A trend line reads perfectly well at that resolution; a
 guard asserting equality between two runs would not, so no such guard exists.
 
-<sub>See also [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/perf-secondary-figures`](testing.md#testing-perf-secondary-figures), [`testing/valgrind-on-wsl`](testing.md#testing-valgrind-on-wsl). Decided in [0026](../decisions/0026.md).</sub>
+<sub>See also [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/perf-secondary-figures`](testing.md#testing-perf-secondary-figures), [`testing/valgrind-on-wsl`](testing.md#testing-valgrind-on-wsl).</sub>
 
 <a id="testing-member-perf-ledger"></a>
 
@@ -1287,7 +1303,7 @@ The gate accepts a record from any machine and only the report's clock columns i
 so a fresh clone owes nothing it already has a current record for. Nothing here gates a build. A
 regression is a row with a delta on it.
 
-<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks). Decided in [0134](../decisions/0134.md), [0026](../decisions/0026.md), [0191](../decisions/0191.md), [0220](../decisions/0220.md), [0224](../decisions/0224.md), [0226](../decisions/0226.md).</sub>
+<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks). Decided in [0134](../decisions/0134.md), [0191](../decisions/0191.md), [0220](../decisions/0220.md), [0224](../decisions/0224.md), [0226](../decisions/0226.md).</sub>
 
 <a id="testing-userland-benchmarks"></a>
 
@@ -1309,7 +1325,7 @@ It changes nothing about the historical dashboard, whose headline metric stays t
 count. Which workloads populate that dashboard is a benchmark-design question rather than a language
 decision, and it grows as real compiled programs exist to measure.
 
-<sub>See also [`testing/perf-secondary-figures`](testing.md#testing-perf-secondary-figures), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms). Decided in [0026](../decisions/0026.md), [0100](../decisions/0100.md).</sub>
+<sub>See also [`testing/perf-secondary-figures`](testing.md#testing-perf-secondary-figures), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms). Decided in [0100](../decisions/0100.md).</sub>
 
 <a id="testing-valgrind-on-wsl"></a>
 
@@ -1327,9 +1343,12 @@ need no Linux-only tooling and run everywhere.
 Per-function attribution inside JIT-compiled code is unavailable through callgrind, which sees no
 symbols for frames the backend registered none for; the aggregate total is unaffected, being a raw
 instruction count either way, and root-causing falls back to platform-native profiling on whichever
-machine reproduces the regression.
+machine reproduces the regression. The dashboard needs an aggregate trend rather than a call graph,
+so no symbol-registration shim exists; callgrind still runs JIT-compiled pages correctly, and an
+8-frame JIT call chain counts the same instructions on every run
+(`benches/abi-probe/examples/callgrind_spike.rs`).
 
-<sub>See also [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/perf-history-file`](testing.md#testing-perf-history-file), [`testing/the-deep-lane`](testing.md#testing-the-deep-lane). Decided in [0026](../decisions/0026.md).</sub>
+<sub>See also [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/perf-history-file`](testing.md#testing-perf-history-file), [`testing/the-deep-lane`](testing.md#testing-the-deep-lane).</sub>
 
 <a id="testing-ci-lanes"></a>
 
@@ -1378,7 +1397,7 @@ develops or pushes from, so no platform's coverage is ever traded away by a path
 contributor who never sees a Windows failure until the nightly is precisely the one who cannot
 reproduce it.
 
-<sub>See also [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/unknown-base-runs-everything`](testing.md#testing-unknown-base-runs-everything), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms). Decided in [0143](../decisions/0143.md), [0026](../decisions/0026.md), [0068](../decisions/0068.md).</sub>
+<sub>See also [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/unknown-base-runs-everything`](testing.md#testing-unknown-base-runs-everything), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms). Decided in [0143](../decisions/0143.md), [0068](../decisions/0068.md).</sub>
 
 <a id="testing-unknown-base-runs-everything"></a>
 

@@ -457,8 +457,7 @@ refused by name, and the harness warns when the binary is older than the newest 
 timings and their baseline-subtracted halves are printed; wall clock is a **same-host, same-minute** ratio
 and is not comparable across machines, which is why the cross-machine history in
 `rule:testing/perf-two-mechanisms` is counted in instructions instead. This
-suite is the § 3 secondary figure of [0026](../decisions/0026.md), the record behind that rule, in
-runnable form.
+suite is the PHP-ratio secondary figure of `rule:testing/perf-secondary-figures`, in runnable form.
 
 ## The server's throughput, in three legs that are not one series
 

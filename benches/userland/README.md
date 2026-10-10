@@ -1,7 +1,7 @@
 # The userland benchmark suite
 
 Twenty-odd pieces of ordinary web-and-CLI code, each written once per engine: `NN-slug.nvs`,
-`NN-slug.php`, `NN-slug.py` and `NN-slug.ts`. They are not micro-benchmarks of the runtime — [ADR 0026](../../docs/decisions/0026.md)
+`NN-slug.php`, `NN-slug.py` and `NN-slug.ts`. They are not micro-benchmarks of the runtime — `rule:testing/perf-two-mechanisms`
 owns *that* measurement, counted in instructions so it compares across machines. These are the loops a
 person actually writes: build a string, tally an array, sort a table, match a regex, encode a payload.
 
@@ -85,7 +85,7 @@ the symptom.
 Two things the table cannot say for itself:
 
 - **A ratio is one machine, one moment.** Wall clock is not comparable across machines, which is the whole
-  reason ADR 0026 counts instructions instead. Quote a ratio with the host it came from, or don't quote it.
+  reason the cross-machine history counts instructions instead (`rule:testing/perf-two-mechanisms`). Quote a ratio with the host it came from, or don't quote it.
 - **A ratio can depend on the size.** `03-string-concat` was the standing example — Novis's `.=` was
   quadratic where PHP's was flat, so that case's ratio was a statement about 20,000 rows and nothing
   else. It no longer is: the string gained capacity and n-ary concatenation, and

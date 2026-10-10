@@ -2,8 +2,7 @@
   "title": "Novis claims three things, and \"faster than PHP\" is not one of them",
   "status": "shipped",
   "because": [
-    "0080",
-    "0026"
+    "0080"
   ],
   "seeAlso": [
     "programs/audience",

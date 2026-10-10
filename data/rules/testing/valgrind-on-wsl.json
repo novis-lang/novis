@@ -1,15 +1,14 @@
 {
   "title": "The historical leg runs under callgrind on Linux or WSL, and nowhere else",
   "status": "shipped",
-  "because": [
-    "0026"
-  ],
+  "because": [],
   "seeAlso": [
     "testing/perf-two-mechanisms",
     "testing/perf-history-file",
     "testing/the-deep-lane"
   ],
   "guardedBy": [
-    "docs/setup.md"
+    "docs/setup.md",
+    "benches/abi-probe/examples/callgrind_spike.rs"
   ]
 }

@@ -17,7 +17,7 @@
 //! | [`process`] | the cost of the child process that [ADR 0006](/docs/decisions/0006.md) replaces with an in-process isolate |
 //! | `shared/isolate.rs` | the cost of the in-process isolate it is replaced *with* — the other half of that comparison, outside this library because it needs the compiler crates and those are dev-only |
 //! | `benches/*` | the quoted costs themselves, tracked over time |
-//! | `examples/callgrind_spike.rs` | the callgrind-instruction-count premise of [ADR 0026](/docs/decisions/0026.md)'s historical performance dashboard — Linux/WSL only, see that ADR |
+//! | `examples/callgrind_spike.rs` | the callgrind-instruction-count premise of `rule:testing/perf-two-mechanisms`'s historical performance dashboard — Linux/WSL only, see `rule:testing/valgrind-on-wsl` |
 //!
 //! # The ABI under test
 //!

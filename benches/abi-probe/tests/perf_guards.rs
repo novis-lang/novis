@@ -1622,7 +1622,8 @@ fn a_route_table_walk_costs_a_fraction_of_the_request_it_rides_in() {
 // what the *compiler emits*, so both guards below compile the frozen
 // `examples/arith.nvs` fixture through the real pipeline rather than
 // approximating it with hand-built IR. The first is structural and the honest
-// form of the claim; the second is a timing, and self-relative per ADR 0026.
+// form of the claim; the second is a timing, and self-relative per
+// `rule:testing/perf-two-mechanisms`.
 
 /// Compiles `examples/arith.nvs` and returns its lowered program alongside the
 /// compiled unit.
@@ -1779,7 +1780,7 @@ fn a_typed_arithmetic_loop_contains_no_call() {
 fn a_typed_arithmetic_loop_stays_in_the_native_cost_class() {
     let _quiet = serialised();
 
-    // Self-relative, per ADR 0026: the bound is a multiple of the
+    // Self-relative, per `rule:testing/perf-two-mechanisms`: the bound is a multiple of the
     // checked-return frame cost this file already measures on *this* machine,
     // never an absolute figure quoted from another one.
     //
@@ -1875,7 +1876,7 @@ fn compile_decimal_arith() -> nvs_codegen::Unit {
 fn a_typed_decimal_arithmetic_loop_stays_in_its_cost_class() {
     let _quiet = serialised();
 
-    // Self-relative, per ADR 0026: the bound is a multiple of the
+    // Self-relative, per `rule:testing/perf-two-mechanisms`: the bound is a multiple of the
     // checked-return frame cost this file already measures on *this* machine,
     // never an absolute figure quoted from another one.
     //
@@ -1947,7 +1948,7 @@ fn a_typed_decimal_arithmetic_loop_stays_in_its_cost_class() {
 fn a_refcount_one_array_member_mutates_in_place() {
     let _quiet = serialised();
 
-    // Self-relative, per ADR 0026: the bound compares two writes measured on
+    // Self-relative, per `rule:testing/perf-two-mechanisms`: the bound compares two writes measured on
     // *this* machine, never an absolute figure quoted from another one.
     //
     // ADR 0063 R3 says no `Core` member mutates its subject — every one
@@ -2247,7 +2248,7 @@ class Bench {
 fn the_linear_regex_tier_keeps_pace_with_the_backtracking_tier_on_one_corpus() {
     let _quiet = serialised();
 
-    // Self-relative, per ADR 0026: the two tiers are measured against each
+    // Self-relative, per `rule:testing/perf-two-mechanisms`: the two tiers are measured against each
     // other in the same run, never against a figure quoted from another
     // machine. Neither pattern matches anywhere in the corpus, so each leg is
     // a full scan of the same bytes rather than a race to an early hit.
@@ -2530,7 +2531,7 @@ fn a_class_without_a_property_observer_costs_nothing_extra() {
     // its cost would climb into the hooked one's class and this ratio would
     // approach 1.
     //
-    // Self-relative, per ADR 0026: both legs are measured on this machine, in
+    // Self-relative, per `rule:testing/perf-two-mechanisms`: both legs are measured on this machine, in
     // the same run, over the same class.
     //
     // The unhooked pair costs a small fraction of the hooked one, and the soft

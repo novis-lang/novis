@@ -244,7 +244,7 @@ jobs:
       # aarch64 is a different Cranelift backend entirely. The cost guards only run
       # in release, because the baselines they compare against are release figures
       # — a full compile of the workspace beside the debug one `test` does, and why a
-      # diff that cannot move a baseline does not pay for it (ADR 0143 § 2, amending 0026 § 1).
+      # diff that cannot move a baseline does not pay for it (ADR 0143 § 2, `rule:testing/perf-two-mechanisms`).
       - name: Architecture invariants and cost guards
         run: cargo test --release -p nvs-abi-probe
 

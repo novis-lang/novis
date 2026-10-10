@@ -1339,7 +1339,7 @@ is a defect**: it gets a hold with a date and a reason, or it gets updated. Bein
 neutral state, because the alternative is one enormous forced migration under a security deadline.
 The cadence applies in both of [`packaging/the-version-contract-starts-at-0-1-0`](packaging.md#packaging-the-version-contract-starts-at-0-1-0)'s regimes.
 
-<sub>See also [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), [`packaging/a-dependency-move-proves-two-things`](packaging.md#packaging-a-dependency-move-proves-two-things), [`packaging/one-bump-one-commit`](packaging.md#packaging-one-bump-one-commit), [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms). Decided in [0068](../decisions/0068.md), [0143](../decisions/0143.md), [0026](../decisions/0026.md).</sub>
+<sub>See also [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), [`packaging/a-dependency-move-proves-two-things`](packaging.md#packaging-a-dependency-move-proves-two-things), [`packaging/one-bump-one-commit`](packaging.md#packaging-one-bump-one-commit), [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms). Decided in [0068](../decisions/0068.md), [0143](../decisions/0143.md).</sub>
 
 <a id="packaging-an-extension-is-a-sandboxed-wasm-component"></a>
 

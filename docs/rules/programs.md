@@ -60,7 +60,7 @@ project says about itself first. The landing page, the tutorial and the first ex
 isolate and a qualifier, never with a benchmark and never with a PHP comparison. A PHP comparison page
 may exist; it is not the front door.
 
-<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0080](../decisions/0080.md), [0026](../decisions/0026.md).</sub>
+<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0080](../decisions/0080.md).</sub>
 
 <a id="programs-no-compatibility-promise"></a>
 

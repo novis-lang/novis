@@ -2,7 +2,6 @@
   "title": "A cross-engine comparison is a `benches/userland/` case with one twin per engine",
   "status": "shipped",
   "because": [
-    "0026",
     "0100"
   ],
   "seeAlso": [
