@@ -488,7 +488,7 @@ requires at least one modifier on a property, so `class A { int $x; }` is a pars
 here. Both shapes are what a porting author actually types, so both get the diagnostic that tells them the
 one thing they need to change.
 
-<sub>See also [`core-api/written-visibility`](core-api.md#core-api-written-visibility), [`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties), [`types/var-inference`](types.md#types-var-inference). Decided in [0094](../decisions/0094.md), [0037](../decisions/0037.md).</sub>
+<sub>See also [`core-api/written-visibility`](core-api.md#core-api-written-visibility), [`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties), [`types/var-inference`](types.md#types-var-inference). Decided in [0094](../decisions/0094.md).</sub>
 
 <a id="core-api-a-parameter-is-not-a-member"></a>
 

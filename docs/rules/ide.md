@@ -939,7 +939,7 @@ approved by a person ([`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-nar
 visible nowhere, which is how a program acquires a type nobody chose. A literal of one type has no such
 choice in it: the type is the one its elements state, so `var` takes it.
 
-<sub>See also [`types/var-inference`](types.md#types-var-inference), [`types/arrays`](types.md#types-arrays), [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal). Decided in [0114](../decisions/0114.md), [0007](../decisions/0007.md), [0037](../decisions/0037.md), [0252](../decisions/0252.md).</sub>
+<sub>See also [`types/var-inference`](types.md#types-var-inference), [`types/arrays`](types.md#types-arrays), [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal). Decided in [0114](../decisions/0114.md), [0007](../decisions/0007.md), [0252](../decisions/0252.md).</sub>
 
 <a id="ide-narrowing-is-a-diff-never-a-save-time-fix"></a>
 

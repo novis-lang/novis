@@ -38,7 +38,7 @@ declare the **same** type ([`statements/inout-is-the-by-reference-spelling`](sta
 or narrows is a diagnostic. There is no function-scope `static` and no global constant, so neither has
 a binding site at all ([`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global)).
 
-<sub>See also [`types/var-inference`](types.md#types-var-inference), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0007](../decisions/0007.md), [0022](../decisions/0022.md), [0037](../decisions/0037.md), [0008](../decisions/0008.md), [0011](../decisions/0011.md), [0251](../decisions/0251.md).</sub>
+<sub>See also [`types/var-inference`](types.md#types-var-inference), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0007](../decisions/0007.md), [0022](../decisions/0022.md), [0008](../decisions/0008.md), [0011](../decisions/0011.md), [0251](../decisions/0251.md).</sub>
 
 <a id="types-var-inference"></a>
 
@@ -83,7 +83,25 @@ written type gets, with one addition, because the type it misses is not on the l
 then `$prices[] = 12.5;` names `array<int|float> $prices = [10, 20];`, the element type widened at
 the depth the write went through.
 
-<sub>See also [`types/declaration`](types.md#types-declaration), [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/arrays`](types.md#types-arrays). Decided in [0037](../decisions/0037.md), [0007](../decisions/0007.md), [0114](../decisions/0114.md), [0251](../decisions/0251.md), [0252](../decisions/0252.md), [0279](../decisions/0279.md).</sub>
+`var` is not a solver. It reads only the filling expression, never how the binding is used later, and
+it finishes in one pass with no backtracking, so there is no second, inferred type system to keep in
+agreement with the declared one. Nothing after the checker sees it: every binding lowering and codegen
+meet already has a concrete type, exactly the one a written annotation would have given. `var` starts
+nothing else at statement position, so the parser needs no trial parse to tell it apart. What it costs
+is legibility: the type is not on the declaration line, and finding it means reading the initializer.
+
+- **Memory:** none. `var` is resolved entirely while checking, before any IR exists.
+
+**Declined:**
+- **Inference across a binding's later uses**, widening or narrowing the type from later assignments.
+  That is the second type system [`types/declaration`](types.md#types-declaration) rules out; a later write is checked against
+  the type the initializer gave.
+- **`var $x = [];` typed as `array<never>`.** The binding could never usefully hold anything without a
+  further `as`, which is a worse trap than a diagnostic at the declaration.
+- **A new keyword instead of `var`.** `var` was already a reserved token with no meaning in Novis, so
+  reusing it needed no lexer change and collides with nothing.
+
+<sub>See also [`types/declaration`](types.md#types-declaration), [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/arrays`](types.md#types-arrays). Decided in [0007](../decisions/0007.md), [0114](../decisions/0114.md), [0251](../decisions/0251.md), [0252](../decisions/0252.md), [0279](../decisions/0279.md).</sub>
 
 <a id="types-grammar"></a>
 
@@ -190,7 +208,7 @@ literal would be unwritable in any position lacking an annotation.
 would buy only a second spelling of what `as decimal` already says, in the two positions that lack a
 target: a `var` declaration ([`types/var-inference`](types.md#types-var-inference)) and a `mixed` or generic argument.
 
-<sub>See also [`types/decimal`](types.md#types-decimal), [`types/integer-literals`](types.md#types-integer-literals), [`types/var-inference`](types.md#types-var-inference), [`types/implicit-widening`](types.md#types-implicit-widening). Decided in [0054](../decisions/0054.md), [0007](../decisions/0007.md), [0037](../decisions/0037.md).</sub>
+<sub>See also [`types/decimal`](types.md#types-decimal), [`types/integer-literals`](types.md#types-integer-literals), [`types/var-inference`](types.md#types-var-inference), [`types/implicit-widening`](types.md#types-implicit-widening). Decided in [0054](../decisions/0054.md), [0007](../decisions/0007.md).</sub>
 
 <a id="types-uint"></a>
 
