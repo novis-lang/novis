@@ -3,8 +3,7 @@
   "status": "designed",
   "because": [
     "0041",
-    "0040",
-    "0018"
+    "0040"
   ],
   "seeAlso": [
     "observability/trace-events-carry-a-kind",

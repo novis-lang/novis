@@ -764,14 +764,14 @@ fn a_coroutine_round_trip_stays_cheap() {
 fn an_all_bits_off_debug_probe_stays_in_the_safepoint_cost_class() {
     let _quiet = serialised();
 
-    // ADR 0018 § 1's whole argument for a runtime-checked flag over a second
-    // compiled tier rests on this: the check is emitted at every statement
-    // boundary of every compiled unit, whether or not any request ever sets a
-    // bit, so its all-bits-off cost has to be the same cost class already
-    // accepted for the safepoint poll — one cached load and one
-    // predicted-not-taken branch. If it is not, that ADR's *Revisiting*
-    // section says the fix is coarsening the probe site to one per basic
-    // block, not loosening this number.
+    // `rule:testing/debug-probes`'s whole argument for a runtime-checked flag
+    // over a second compiled tier rests on this: the check is emitted at every
+    // statement boundary of every compiled unit, whether or not any request
+    // ever sets a bit, so its all-bits-off cost has to be the same cost class
+    // already accepted for the safepoint poll — one cached load and one
+    // predicted-not-taken branch. If it is not, that rule says the fix is
+    // coarsening the probe site to one per basic block, not loosening this
+    // number.
     //
     // The soft bound sits well under `a_checked_return_frame_stays_cheap`'s own:
     // a probe site does strictly less than a frame (no call, no 16-byte result
@@ -795,7 +795,7 @@ fn an_all_bits_off_debug_probe_stays_in_the_safepoint_cost_class() {
         "all-bits-off debug probe",
         PER_SITE,
         "That check is emitted at every statement boundary of every compiled unit; if this is \
-         real, ADR 0018 § Revisiting says to coarsen the probe site, not to raise this bound.",
+         real, rule:testing/debug-probes says to coarsen the probe site, not to raise this bound.",
         |yard| {
             let t_plain = ns_per_op(200_000, 5, || {
                 black_box(call(plain, &mut ctx, arg));
@@ -1704,7 +1704,7 @@ fn a_typed_arithmetic_loop_contains_no_call() {
     );
 
     // Half two: every `call` the *machine code* contains is accounted for by a
-    // safepoint poll, an ADR 0018 probe or an overflow raise — all out-of-line,
+    // safepoint poll, a debug probe or an overflow raise — all out-of-line,
     // the first two emitted unconditionally and guarded for cost separately
     // above. Tying the machine-code count to the IR site count is what makes
     // half one a claim about the emitted code rather than only about the IR.
@@ -1785,7 +1785,7 @@ fn a_typed_arithmetic_loop_stays_in_the_native_cost_class() {
     // never an absolute figure quoted from another one.
     //
     // An iteration does a compare, three arithmetic operations, a safepoint
-    // poll and the ADR 0018 probe checks at its statements and its loop
+    // poll and the debug probe checks at its statements and its loop
     // branch — and still costs less than one
     // cross-frame call, which is the whole of ADR 0007's claim. The soft bound
     // is set well above that. Arithmetic going through a runtime helper instead
@@ -2418,7 +2418,7 @@ class Cell {
 /// blocks are walked from the entry, and the **taken** edge of a
 /// `test`-then-`jnz` pair is not followed: that pair is how codegen renders
 /// every check of a status word — a call's error return, an overflow's `seto`,
-/// the safepoint's pending-exception field, the ADR 0018 probe's null table
+/// the safepoint's pending-exception field, the debug probe's null table
 /// pointer — so its target is by construction a block a run that throws
 /// nothing never enters. Every other edge is followed, the `cmpq`-driven
 /// branches a real condition compiles to included, so the loop's own two arms
@@ -2596,7 +2596,7 @@ fn a_class_without_a_property_observer_costs_nothing_extra() {
     // three more access pairs added.
     //
     // No probe/safepoint correction is needed: `path_calls` walks the path a
-    // run that throws nothing takes, and an ADR 0018 probe and a safepoint
+    // run that throws nothing takes, and a debug probe and a safepoint
     // poll each sit behind a status test, so neither is on it. A count over
     // the whole function would need them subtracted and would still hold the
     // landing blocks every added access brings, which is enough to read calls

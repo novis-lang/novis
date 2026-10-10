@@ -29,7 +29,7 @@ limited to what ships; this page also carries what is only planned, which that c
 | PHP CS Fixer / PHP_CodeSniffer | layout and style | `nvs fmt`, canonical and unconfigurable — and the bug-adjacent rules are compile errors already | `rule:tooling/fmt-is-one-canonical-style`; [0029](../decisions/0029.md), [0094](../decisions/0094.md) | errors on disk; `nvs fmt` M10 |
 | Rector | automated codebase rewrites | `nvs convert` for PHP→Novis; Novis→Novis declined, with a recorded reopen trigger | [0089](../decisions/0089.md); `rule:tooling/fmt-is-never-a-diagnostic` | M11 |
 | Xdebug — step debugging | breakpoints, stepping | `nvs dap`, on the safepoints codegen already emits | `rule:ide/the-debug-adapter-does-not-wait-for-an-editor` | M10 |
-| Xdebug — coverage, trace, profile | observing a run | `Core\Debug` over always-compiled probe sites; Clover/lcov/Callgrind out | [0018](../decisions/0018.md) | probes on disk (M3); surface M10 |
+| Xdebug — coverage, trace, profile | observing a run | `Core\Debug` over always-compiled probe sites; Clover/lcov/Callgrind out | `rule:testing/debug-probes`, `rule:testing/debug-surface` | probes on disk (M3); surface M10 |
 | phpDocumentor / Doctum | API docs from source | none — the one tool category with no answer; see the gaps below | — | open |
 | Deptrac / phpat / PHPStan custom rules | project-specific structural rules | a `#[Test]` walking `Core\Ast` / `Core\Reflect` / `Core\Program` | `rule:tooling/reflection-and-source-parsing-are-core-features`, [0079](../decisions/0079.md) | blocked; see the gaps below |
 | Faker | realistic fake data | out of scope — data, not tooling; § 13's generators cover the structural half | [0079](../decisions/0079.md) § 13 | — |

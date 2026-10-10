@@ -1872,7 +1872,7 @@
         [
           "`Core\\Debug`",
           "`dump(mixed ...$values)` and `render(mixed)` — replacing `var_dump`, `print_r`, `var_export`, `debug_zval_refcount` — plus the coverage, tracing and profiling controls",
-          "`dump`/`render`: [0092](../decisions/0092.md); the probes: [0018](../decisions/0018.md)"
+          "`dump`/`render`: [0092](../decisions/0092.md); the probes: `rule:testing/debug-probes`"
         ],
         [
           "`Core\\Signal`",

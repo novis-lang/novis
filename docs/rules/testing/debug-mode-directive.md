@@ -9,4 +9,10 @@ reconnaissance channel over call arguments and timing, which is not a trade this
 Writing a trace or a profile is its own capability — `debug.trace` and `debug.profile`, each granted
 to named roots, deny-by-default, and **separate from the grant to write a file**. Being able to
 write an ordinary file is not permission to persist a continuous log of every call's arguments,
-which can carry request data a coverage-only deployment never needed to expose.
+which can carry request data a coverage-only deployment never needed to expose. A grant of
+`debug.trace` is still a channel from request data to disk, so an operator names its roots
+explicitly, the same way a path-rooted spawn grant is named.
+
+**Declined:**
+- **`[debug] mode` as a directive a request may set freely.** Observability of a request's own
+  internals is not a request-local decision, for the reason above.

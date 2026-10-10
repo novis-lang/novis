@@ -15,3 +15,19 @@ Every bit off costs one cached load and one predicted-not-taken branch — the c
 safepoint poll already pays. Turning a bit on for a running request is exactly setting the word: no
 recompilation, no re-resolution, no second compiled unit. That is what makes starting and stopping
 coverage **mid-request** work at all, which a compiled-in-advance instrumented tier cannot do.
+
+The probe sites are their own, not the safepoint poll's. Safepoints sit only at loop back-edges and
+function entry, deliberately sparse, and line and branch counting need a site at every statement and
+edge. So the probes add more checks than the poll has, each of the same cheap shape, and the
+all-bits-off cost per site is a measured guard rather than an assumption. If that guard ever shows a
+real regression, the fix is coarsening the site to one per basic block, never dropping the flag word.
+A debugger's breakpoints stay on the safepoint poll itself: a debugged request may or may not also
+collect coverage, and the two are independent mechanisms.
+
+**Declined:**
+- **A second, instrumented compiled tier chosen per request.** A request's tier is fixed once it is
+  resolved, so starting coverage mid-request would need frames already running to have been
+  instrumented from the start. That either costs every request whether or not it asks, or leaves the
+  per-test bracketing a coverage harness relies on broken.
+- **Hooking a central dispatch routine, the way an interpreter's tracer does.** There is none to hook:
+  typed scalar operations lower to native instructions with no common dispatch point.

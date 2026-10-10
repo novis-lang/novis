@@ -501,7 +501,7 @@ hundred mutants that is the difference between minutes and most of a day.
 
 The operator set is enumerated where it is implemented, so adding an operator changes no rule.
 
-<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/feature-proofs`](testing.md#testing-feature-proofs). Decided in [0079](../decisions/0079.md), [0018](../decisions/0018.md), [0042](../decisions/0042.md).</sub>
+<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/feature-proofs`](testing.md#testing-feature-proofs). Decided in [0079](../decisions/0079.md), [0042](../decisions/0042.md).</sub>
 
 <a id="testing-runner-is-strict"></a>
 
@@ -563,7 +563,7 @@ summary, since a summary of zeros is a report of a run that did not happen and a
 its verdicts would make a consumer tell the two documents apart by a key's absence. `--format junit`,
 `--update` and a `.nvst` tree are each refused beside it rather than ignored.
 
-<sub>See also [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`testing/data-rows`](testing.md#testing-data-rows), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate), [`ide/the-test-tree-is-discovered-and-run-through-the-cli`](ide.md#ide-the-test-tree-is-discovered-and-run-through-the-cli). Decided in [0079](../decisions/0079.md), [0018](../decisions/0018.md), [0040](../decisions/0040.md), [0172](../decisions/0172.md).</sub>
+<sub>See also [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`testing/data-rows`](testing.md#testing-data-rows), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate), [`ide/the-test-tree-is-discovered-and-run-through-the-cli`](ide.md#ide-the-test-tree-is-discovered-and-run-through-the-cli). Decided in [0079](../decisions/0079.md), [0040](../decisions/0040.md), [0172](../decisions/0172.md).</sub>
 
 <a id="testing-coverage-report"></a>
 
@@ -922,9 +922,15 @@ reconnaissance channel over call arguments and timing, which is not a trade this
 Writing a trace or a profile is its own capability — `debug.trace` and `debug.profile`, each granted
 to named roots, deny-by-default, and **separate from the grant to write a file**. Being able to
 write an ordinary file is not permission to persist a continuous log of every call's arguments,
-which can carry request data a coverage-only deployment never needed to expose.
+which can carry request data a coverage-only deployment never needed to expose. A grant of
+`debug.trace` is still a channel from request data to disk, so an operator names its roots
+explicitly, the same way a path-rooted spawn grant is named.
 
-<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/debug-surface`](testing.md#testing-debug-surface). Decided in [0018](../decisions/0018.md), [0005](../decisions/0005.md), [0006](../decisions/0006.md).</sub>
+**Declined:**
+- **`[debug] mode` as a directive a request may set freely.** Observability of a request's own
+  internals is not a request-local decision, for the reason above.
+
+<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/debug-surface`](testing.md#testing-debug-surface). Decided in [0005](../decisions/0005.md), [0006](../decisions/0006.md).</sub>
 
 <a id="testing-debug-probes"></a>
 
@@ -950,7 +956,23 @@ safepoint poll already pays. Turning a bit on for a running request is exactly s
 recompilation, no re-resolution, no second compiled unit. That is what makes starting and stopping
 coverage **mid-request** work at all, which a compiled-in-advance instrumented tier cannot do.
 
-<sub>See also [`testing/debug-surface`](testing.md#testing-debug-surface), [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive), [`testing/bench-counters`](testing.md#testing-bench-counters). Decided in [0018](../decisions/0018.md), [0079](../decisions/0079.md), [0041](../decisions/0041.md).</sub>
+The probe sites are their own, not the safepoint poll's. Safepoints sit only at loop back-edges and
+function entry, deliberately sparse, and line and branch counting need a site at every statement and
+edge. So the probes add more checks than the poll has, each of the same cheap shape, and the
+all-bits-off cost per site is a measured guard rather than an assumption. If that guard ever shows a
+real regression, the fix is coarsening the site to one per basic block, never dropping the flag word.
+A debugger's breakpoints stay on the safepoint poll itself: a debugged request may or may not also
+collect coverage, and the two are independent mechanisms.
+
+**Declined:**
+- **A second, instrumented compiled tier chosen per request.** A request's tier is fixed once it is
+  resolved, so starting coverage mid-request would need frames already running to have been
+  instrumented from the start. That either costs every request whether or not it asks, or leaves the
+  per-test bracketing a coverage harness relies on broken.
+- **Hooking a central dispatch routine, the way an interpreter's tracer does.** There is none to hook:
+  typed scalar operations lower to native instructions with no common dispatch point.
+
+<sub>See also [`testing/debug-surface`](testing.md#testing-debug-surface), [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive), [`testing/bench-counters`](testing.md#testing-bench-counters). Decided in [0079](../decisions/0079.md), [0041](../decisions/0041.md).</sub>
 
 <a id="testing-debug-surface"></a>
 
@@ -965,18 +987,33 @@ change at all, which is the ergonomics CI uses day to day.
 
 What comes out is what existing tooling already reads: Clover and lcov for coverage, Callgrind for
 the profile. The trace is newline-delimited JSON, because no third-party tooling widely consumes any
-trace format either.
+trace format either. A coverage report opens in the CI dashboard a project already has configured,
+and a profile opens in KCachegrind or Webgrind unmodified, so there is no client to write. The price
+is three exporters to keep correct instead of one, and a low barrier to entry is worth it.
 
-Line and branch counters are bounded by the code a request touches, not by how often a loop
-iterates, so they live in the request's arena and are dropped with it. Trace and profile data are
-call-count-proportional, so they **stream to a sink** named when they start rather than accumulating
-in memory — nothing to bound with a limit this rule would otherwise have to invent.
+The profiler is deterministic: it times every call and attributes exact self and inclusive time per
+function. A sampling profiler answers a different question, a low-overhead view affordable in
+production, and the two stay separate tools.
+
+- **Memory:** line and branch counters are bounded by the code a request touches, not by how often a
+  loop iterates, so they live in the request's arena and are dropped with it. Trace and profile data
+  are call-count-proportional, so they **stream to a sink** named when they start and hold nothing in
+  memory, which leaves no buffer to bound with a new limit.
 
 A spawned isolate starts from its parent's current flag word and may only narrow it. Its own data
 never merges into the parent's live state; it comes back as fields on the result, by the same
 copy-out rule a value, an error and a usage figure already use.
 
-<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive), [`testing/report-formats`](testing.md#testing-report-formats). Decided in [0018](../decisions/0018.md), [0006](../decisions/0006.md), [0011](../decisions/0011.md).</sub>
+**Declined:**
+- **A Novis-native coverage and profile format with a converter.** Both already have dominant
+  consumers, and a conversion step is friction for every project that uses them.
+- **Xdebug's own trace-file format.** Nothing beyond Xdebug's own tooling reads it widely, so
+  matching it would buy no consumer.
+- **Merging a child's coverage or trace into the parent's live state.** That needs mutable state
+  crossing the arena boundary isolation exists to keep ([`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing)),
+  and returning it on the result costs nothing new.
+
+<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive), [`testing/report-formats`](testing.md#testing-report-formats). Decided in [0006](../decisions/0006.md), [0011](../decisions/0011.md).</sub>
 
 <a id="testing-probes-on-is-a-tested-configuration"></a>
 
@@ -997,7 +1034,7 @@ rules say under that one codegen, and this bug class lives only where a probe-at
 build of the same program prints something else. The cost is CI wall-clock proportional to the added
 axes, and nothing at all at run time.
 
-<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/the-deep-lane`](testing.md#testing-the-deep-lane), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate). Decided in [0018](../decisions/0018.md).</sub>
+<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/the-deep-lane`](testing.md#testing-the-deep-lane), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate).</sub>
 
 <a id="testing-writing-a-debug-record-to-disk-is-its-own-gate"></a>
 
@@ -1171,7 +1208,7 @@ this rule's question; "did Novis get faster" is [`testing/perf-two-mechanisms`](
 not overlap. There is no per-member cost table and there will not be one — a hand-written claim
 about what a `Core` member costs is a number with no guard test.
 
-<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger). Decided in [0079](../decisions/0079.md), [0018](../decisions/0018.md), [0041](../decisions/0041.md), [0004](../decisions/0004.md).</sub>
+<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger). Decided in [0079](../decisions/0079.md), [0041](../decisions/0041.md), [0004](../decisions/0004.md).</sub>
 
 <a id="testing-perf-two-mechanisms"></a>
 

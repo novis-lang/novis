@@ -554,7 +554,7 @@ One observable difference is named rather than denied: a fully folded call is no
 per-call probe does not fire for it. A *prepared* call — the common case — is still a call and probes
 normally, and the enclosing statement's probe is unaffected either way.
 
-<sub>See also [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments), [`expressions/intrinsic-list-is-closed`](expressions.md#expressions-intrinsic-list-is-closed). Decided in [0057](../decisions/0057.md), [0042](../decisions/0042.md), [0018](../decisions/0018.md), [0189](../decisions/0189.md).</sub>
+<sub>See also [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments), [`expressions/intrinsic-list-is-closed`](expressions.md#expressions-intrinsic-list-is-closed). Decided in [0057](../decisions/0057.md), [0042](../decisions/0042.md), [0189](../decisions/0189.md).</sub>
 
 <a id="expressions-pipeline-substitution"></a>
 

@@ -122,8 +122,7 @@ pub struct Ctx {
     /// How many times a helper suspended the coroutine.
     pub suspends: u64,
     /// Stands in for the real runtime's debug-flags word
-    /// ([ADR 0018](/docs/decisions/0018.md)
-    /// § 1) and, by the same shape, its safepoint word: compiled code loads
+    /// (`rule:testing/debug-probes`) and, by the same shape, its safepoint word: compiled code loads
     /// it and branches on non-zero at every probe site. Left zero throughout,
     /// because the number being guarded is the all-bits-*off* cost.
     pub debug_flags: u64,
@@ -323,8 +322,8 @@ probe_helper! {
     }
 }
 
-/// The slow path behind an [ADR 0018](/docs/decisions/0018.md)
-/// § 1 probe site — the shape `nvs_runtime::nvs_probe_stmt` has, reduced to
+/// The slow path behind a `rule:testing/debug-probes`
+/// probe site — the shape `nvs_runtime::nvs_probe_stmt` has, reduced to
 /// the one thing this probe needs to observe.
 ///
 /// It returns nothing: a coverage probe cannot fail, so unlike a helper there
@@ -470,8 +469,7 @@ impl Probe {
 
     /// [`Self::compile_chain`], with `stmts` statement-shaped stores in each
     /// frame ahead of its call, each optionally preceded by
-    /// [ADR 0018](/docs/decisions/0018.md)
-    /// § 1's debug-flags check: load one word out of the context, branch on
+    /// `rule:testing/debug-probes`'s debug-flags check: load one word out of the context, branch on
     /// non-zero, fall through to the next statement.
     ///
     /// # Why a store, and not just the check
@@ -547,7 +545,7 @@ impl Probe {
                 // call — see this method's own doc comment.
                 for stmt in 0..stmts {
                     if probe {
-                        // ADR 0018 § 1's site, exactly as `nvs-codegen` emits
+                        // `rule:testing/debug-probes`'s site, exactly as `nvs-codegen` emits
                         // it: one load of the context's flags word, one
                         // branch predicted not taken, and an out-of-line call
                         // that never runs while every bit is off. `MemFlagsData`

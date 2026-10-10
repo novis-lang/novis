@@ -4,8 +4,7 @@
   "because": [
     "0064",
     "0003",
-    "0006",
-    "0018"
+    "0006"
   ],
   "seeAlso": [
     "config/a-value-array-replaces-and-a-table-appends",
