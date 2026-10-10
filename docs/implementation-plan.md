@@ -40,12 +40,12 @@
 > that owns a topic, and `bun nv records --stats` shapes the whole set. What a crate still owes is
 > its own module doc's `# Known gaps`. What landed in which session is in `git log`.
 >
-> **Open now:** **`data/chain.json` is the list of what is open**, in the order the loop walks it,
-> and each goal is its prose at `docs/agent/goals/<slug>.md` plus its record under `data/goals/` —
-> this field restates neither. A goal's plan is its own record: the goal switch deletes the goal it
-> leaves and carries none of its checks. What a feature still owes of `rule:testing/feature-proofs`
-> is `bun nv proofs --owed`, and what a crate still owes is a gap record under `data/gaps/` naming
-> its owner.
+> **Open now:** **Looper's chain, `docs/goals/README.md`, is the list of what is open**, in the
+> order the loop walks it, and each goal is its file under `docs/goals/`. The nv driver's
+> `data/chain.json` holds only `looper-cutover` until its handover. This field restates neither. A
+> goal's plan is its own record: the goal switch deletes the goal it leaves and carries none of its
+> checks. What a feature still owes of `rule:testing/feature-proofs` is `bun nv proofs --owed`, and
+> what a crate still owes is a gap record under `data/gaps/` naming its owner.
 >
 > **Blocking:** Every `spec-*-outstanding.txt` ratchet under `crates/nvs-stdlib/tests/` holds zero
 > keys, and what a shipped feature still owes is a gap record under `data/gaps/` naming its owner.
@@ -92,19 +92,19 @@ somebody has already followed.
 | done | [M1](plan/m1.md) | Front end (~3 weeks) | 0.7 |
 | done | [M2](plan/m2.md) | HIR, types, IR (~4 weeks) | 1.5 |
 | done | [M3](plan/m3.md) | Baseline Cranelift backend → **Hello World** (~3 weeks) | 0.5 |
-| goal `class-scoped-enums` | [M4](plan/m4.md) | Language completeness — a usable CLI language (~10 weeks) | ~3 |
+| on the chain: `class-scoped-enums` | [M4](plan/m4.md) | Language completeness — a usable CLI language (~10 weeks) | ~3 |
 | done | [M4S](plan/m4s.md) | The `Core` API contract and its pure half (~5 weeks) | ~1.5 |
 | done | [M4B](plan/m4b.md) | Minimal `nvs-lsp`, syntax highlighting and the VS Code extension (~3 weeks) | ~1.5 |
 | done | [M5](plan/m5.md) | Concurrency and script isolates (~5 weeks) | ~3.5 |
 | done | [M6](plan/m6.md) | Config, limits, capabilities, disk cache (~3 weeks) | ~1 |
 | done | [M7](plan/m7.md) | Built-in HTTP server (~4 weeks) | ~2 |
-| goals `ldap`, `env-context` | [M8](plan/m8.md) | Stdlib and databases (~16 weeks) | ~6.5 |
+| on the chain: `env-context` | [M8](plan/m8.md) | Stdlib and databases (~16 weeks) | ~6.5 |
 | ongoing | [M9](plan/m9.md) | Extension system, and the `nvs:ext@1.0.0` world it freezes (not yet sized) | not estimated |
-| goals `decision-records-retired`, `nvs-code` | [M10](plan/m10.md) | Developer tooling and IDE integration (~14 weeks; scope shifted by `rule:ide/every-feature-is-staged-behind-its-dependency`, net change undetermined) | ~8 |
+| on the chain: `decision-records-retired`, `nvs-code` | [M10](plan/m10.md) | Developer tooling and IDE integration (~14 weeks; scope shifted by `rule:ide/every-feature-is-staged-behind-its-dependency`, net change undetermined) | ~8 |
 | ongoing | [M12](plan/m12.md) | Optimising JIT tier (ongoing) | measurement-bound |
 | backlog 4 | [M15](plan/m15.md) | Packages, the registry and the supply chain (~8 weeks) | ~3 + a calendar floor |
 | backlog 5 | [M16](plan/m16.md) | `nvs/web`, `nvs new`, and the framework (~12 weeks) | ~4 |
-| goals `pdf`, `spreadsheet` | [M17](plan/m17.md) | Document components: the image second wave, `nvs/pdf` and `nvs/spreadsheet` (not yet sized) | not estimated |
+| on the chain: `pdf`, `spreadsheet` | [M17](plan/m17.md) | Document components: the image second wave, `nvs/pdf` and `nvs/spreadsheet` (not yet sized) | not estimated |
 
 **One milestone is not one block of schedule, which is why the cell holds a list.** M8's work is spread
 across a row of goals, and the goals tagged `post-parity` in the chain land in no milestone at all. A

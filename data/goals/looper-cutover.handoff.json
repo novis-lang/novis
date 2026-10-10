@@ -1,28 +1,33 @@
 {
-  "state": "**Goal `looper-cutover`, Stage 2 (register and configure) is done; Stage 3 (import) is next.** `looper project add .` registered the tree as looper project 4 `mwl`, and `looper.toml` is committed with every § 1 value. Every key name matched looper's `design.md` § `looper.toml`, so no check text changed. Values not obvious from the runbook: `[budget] hard = 200000` with `kill` unset (the old driver only counts, `tools/nv/driver/transcript.ts`), `min_free_gb = 10` from `tools/nv/cmd/disk.ts:89`, `[checks] timeout = 1800` from `tools/nv/accept/runner.ts:82`, and `types` adding `build` for the handover's `build(loop)` commits (`tools/nv/driver/handover.ts:59`).\n\n`tools/git-hooks/commit-msg` runs the trailer check, then `looper hook commit-msg` when `looper` is on `PATH`. The hook skips looper's check on a merge (`MERGE_HEAD` exists) and on `fixup!`, `squash!` and `amend!` subjects, because looper's check refuses all of them, and this tree commits `merge:` and `Merge branch` subjects. A gap for looper itself, recorded in the backlog.\n\n`.gitignore` opens with looper's managed `gitignore v1` block, verbatim from looper's `templates/core/.gitignore`, and the project lines it duplicated are gone. The set of ignored paths did not change, and `looper sync --check` no longer lists `.gitignore`. Looper keeps all its runtime data under `LOOPER_HOME`, outside the tree (looper's ADR 0009), so nothing else needed ignoring.\n\n**Looper's location.** The user registry `Path` names `E:\\loop-plan-tool\\var\\bin\\0.1.0-f6ff8f38`, and `looper` resolves there in a session's shell. The driver's sweep after session 0001 still spawned `looper` with ENOENT. `putLooperFirst` (`tools/nv/cmd/loop.ts:719`) reads the registry each turn. If the next sweep's ENOENT repeats, that function is the place to look. It is in a file the driver loads, so read it but do not change its behaviour.\n\nThe record has no `waitFor`. `looper doctor` exits 1 on `.claude/settings.json` alone (no `looper guard` hook, `bunx` not on `PATH`), which the handover fixes and no session edits.",
+  "state": "**Goal `looper-cutover`, Stage 3 (import): the import, `nv-loop-retired` and the shrunk nv chain are on disk.** `looper import --from nv` wrote `docs/goals/`: the six chain goals, both side goals off the chain, and the README. Every § 2 condition of the runbook holds in those files: no `TODO`, no `-p`, `nvs-suite` checks run `bun nv suite … --case`, and each goal has its handoff and its `env` under `extra`. `docs/goals/nv-loop-retired.md` is position 1, with the four stages of the goal prose. `data/chain.json` names `looper-cutover` alone. The six goals' nv record, handoff and prose are deleted, and `docs/agent/goal-plan.md` is re-rendered. Four of the six Stage 3 checks pass: the chain import, the side goals, `bun nv chain --check` and both worktrees.\n\n**The playbook was not imported.** Looper's `playbook_dir` and nv's fragment directory are the same `docs/agent/playbook/`. nv's reader (`tools/nv/lib/playbook-fragments.ts:19`) drops a bullet without the `[until: …]` form, so looper's backtick trailer would hide every bullet from the running driver. The import ran once with `playbook_dir` pointed at scratch, and `looper.toml` is back to `docs/agent/playbook`. Converting the trailers is `nv-loop-retired`'s Stage 2. `docs/agent/playbook.md` gained the six `##` headings looper needs, named by each section's directory.\n\n**`bun nv chain --check`** exempts looper's `docs/goals/` from its gone-goal citations, as it exempts `docs/agent/goals/` (`tools/nv/cmd/chain.ts:81`). On any tree from before the import, the result is the same. The plan table and `docs/plan/m4.md` now name the moved goals without the `goal \\`x\\`` form. **`bun nv plan --check` is red** (CI only, `.github/workflows/ci.yml:933`): it derives each `Carried by` cell from `data/chain.json`. Re-pointing it is Stage 4 (a reader outside the driver) or `nv-loop-retired` Stage 2.\n\n**`looper lint` is still red, on three things.** (1) About 450 playbook bullets break looper's bullet shape: no path in backticks, or over 700 bytes. (2) `tools/nv/driver/test/session.test.ts:18` names a goal by number. (3) The Stage 4 sync: managed files missing or hand-edited. `.claude/settings.json` is in `[sync] skip`, because only the handover writes it, and the handover runs only after this goal's lint check is green. `nv-loop-retired` Stage 1 deletes that line.",
   "next": {
     "stage": 3,
     "title": "import",
-    "files": [],
-    "note": "one file set: `docs/goals/` (new), `docs/agent/playbook/`, `data/goals/`, `docs/agent/goals/`, `data/chain.json`, `docs/agent/goal-plan.md`.",
+    "files": [
+      "docs/agent/playbook/",
+      "data/playbook/",
+      "tools/nv/lib/playbook-fragments.ts",
+      "tools/nv/driver/test/session.test.ts"
+    ],
     "items": [
       {
         "done": false,
-        "text": "**The import** (`docs/agent/goals/looper-cutover.md:58`, the runbook's § 2 at `docs/agent/looper-cutover.md:61` and § 6 at `docs/agent/looper-cutover.md:151`): `looper import --from nv`, then `looper render` and `looper lint`, and read each § 2 condition in the files it wrote. Delete `docs/goals/looper-cutover.md` if the import writes it. Never touch `.agent-tmp/worktrees/side/`."
+        "text": "**Bullets name a path** (`tools/nv/lib/playbook-fragments.ts:79`, the first failing bullet `docs/agent/playbook/tooling/a-cargo-named-acceptance-check-can-report-a-test-red-that.md:1`): each bullet `looper lint` says names no path in backticks gets one, keeping its `[until: …]` trailer. A record's `files` under `data/playbook/<section>/<slug>.json` is the first source. Find first how `bun nv check` and `bun nv playbook --check` keep a fragment and its record in step. Write the bullets with `bun nv splice --patch`, never a script that writes files."
       },
       {
         "done": false,
-        "text": "**`nv-loop-retired` first** (`docs/agent/goals/looper-cutover.md:93`): `looper goal new nv-loop-retired`, fill its stages from that section, `looper goal move` it to position 1. Pinned by `looper-cutover-chain-imported`."
+        "text": "**Bullets fit 700 bytes** (`docs/agent/playbook/tooling/a-fact-restated-across-decision-documents-goes-stale-and-the.md:1`): each bullet over the cap is rewritten shorter. Wrapped lines count their newline and indent."
       },
       {
         "done": false,
-        "text": "**The nv chain shrinks to this goal** (`docs/agent/goals/looper-cutover.md:71`): delete every other goal's nv record, prose and handoff, leave `data/chain.json` naming `looper-cutover` alone and live, then `bun nv render`. Keep `data/goals/side/`. Pinned by `looper-cutover-nv-chain-holds-this-goal-alone`."
+        "text": "**The goal-by-number fixture** (`tools/nv/driver/test/session.test.ts:18`): that line's bold header string is a test fixture, and the running driver does not load it. Build its number at runtime with a template literal, so the test still covers `OWN_HEADER` and looper's text scan no longer matches. If that reads as changing the driver, move it to `nv-loop-retired` and say so."
       }
     ]
   },
   "backlog": [
-    "Looper's `hook commit-msg` refuses git's own merge, revert and autosquash subjects; the Novis hook skips them for now. A general looper feature closes this (the goal's standing decisions).",
-    "Stage 4: hooks, checks and rules (`docs/agent/goals/looper-cutover.md:77`), including `looper sync`, which will rewrite `.claude/CLAUDE.md` and other managed files.",
-    "The `.claude/settings.json` entries § 4 says the handover loses go into `nv-loop-retired`'s handoff for the user."
+    "Stage 4: the first `looper sync` (`docs/agent/looper-cutover.md` § 3, § 4 and § 8), which closes the managed-file lint findings and `looper-cutover`'s `sync --check`.",
+    "Stage 4: `bun nv plan --check` reads looper's goal files for its `Carried by` cells (`tools/nv/cmd/plan.ts`), or `nv-loop-retired` Stage 2 does it.",
+    "`looper hook commit-msg` refuses merge, `fixup!`, `squash!` and `amend!` subjects. This is a gap for looper itself, and the tree's hook skips those subjects.",
+    "The `[context]` manifest lacks `tools/nv/cmd/chain.ts` and `tools/nv/lib/playbook-fragments.ts`. This session needed both."
   ]
 }
