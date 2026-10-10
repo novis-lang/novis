@@ -482,7 +482,7 @@ Two caps bound a request body, each a `Runtime` default with a `[limits.hard]` c
 
 `Core\Request::bodyStream(): Iterable<bytes>` is the raw-body reader, for a body larger than a request's memory budget or a content type `files()` does not describe. It yields `tainted` chunks and is a **streaming** reader, so it keeps nothing, consumes the body, and may only be the first reader of it — [`http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`](http-server.md#http-server-buffering-readers-share-the-body-and-streaming-readers-consume-it) is which readers may follow which, for every member that reads a body. It is bounded by `request_body` on what a consumer retains, by the connection's `body_idle_timeout`, and by the multipart part-count cap ([`errors/multipart-part-count`](errors.md#errors-multipart-part-count)), which no byte cap bounds.
 
-<sub>See also [`http-server/four-idle-waits-all-finite`](http-server.md#http-server-four-idle-waits-all-finite), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`security/tainted-sources`](security.md#security-tainted-sources), [`http-server/a-part-is-a-file-iff-it-carries-a-filename`](http-server.md#http-server-a-part-is-a-file-iff-it-carries-a-filename), [`http-server/there-is-no-temp-file`](http-server.md#http-server-there-is-no-temp-file). Decided in [0156](../decisions/0156.md).</sub>
+<sub>See also [`http-server/four-idle-waits-all-finite`](http-server.md#http-server-four-idle-waits-all-finite), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`security/tainted-sources`](security.md#security-tainted-sources), [`http-server/a-part-is-a-file-iff-it-carries-a-filename`](http-server.md#http-server-a-part-is-a-file-iff-it-carries-a-filename), [`http-server/there-is-no-temp-file`](http-server.md#http-server-there-is-no-temp-file).</sub>
 
 <a id="http-server-buffering-readers-share-the-body-and-streaming-readers-consume-it"></a>
 
@@ -512,7 +512,13 @@ A reader that arrives after the body was consumed throws `LogicError` naming the
 
 The kinds are not a roster to maintain: a member is buffering exactly when it fills the hold, which is a fact the runtime already has, so a body reader added later classifies itself. The alternative — a closed exclusive set of three members with `post()` and then `json()` each carved out of it — was rejected on the second carve-out, because two exceptions to a rule are the rule, unwritten.
 
-<sub>See also [`http-server/the-body-is-read-on-demand-under-two-caps`](http-server.md#http-server-the-body-is-read-on-demand-under-two-caps), [`http-server/a-part-is-a-file-iff-it-carries-a-filename`](http-server.md#http-server-a-part-is-a-file-iff-it-carries-a-filename), [`http-server/an-upload-is-received-only-through-files`](http-server.md#http-server-an-upload-is-received-only-through-files), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0156](../decisions/0156.md).</sub>
+**Declined:**
+- **Adding `json()` and `jsonAs<T>()` to the exclusive set.** `json()` after `body()` would throw where nothing was consumed, and a handler that logs `body()` and then decodes `json()` is not a defect.
+- **Re-reading the wire for a second buffering reader.** A body already off the wire cannot be read again, and answering empty instead is the ambiguity [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused) refuses.
+- **Letting `bodyStream()` follow `body()` by replaying the hold.** The member would mean two things depending on what ran before it: bounded by the connection's idle timeout in one case and by nothing in the other. A streaming reader reads the wire or it is refused.
+- **Deciding a reader's kind by `Content-Type`.** A mislabelled but valid document is read, as `post()` reads one, and the kind of a reader is a property of the member, never of the request.
+
+<sub>See also [`http-server/the-body-is-read-on-demand-under-two-caps`](http-server.md#http-server-the-body-is-read-on-demand-under-two-caps), [`http-server/a-part-is-a-file-iff-it-carries-a-filename`](http-server.md#http-server-a-part-is-a-file-iff-it-carries-a-filename), [`http-server/an-upload-is-received-only-through-files`](http-server.md#http-server-an-upload-is-received-only-through-files), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`programs/memory-priority`](programs.md#programs-memory-priority).</sub>
 
 <a id="http-server-static-serving-is-one-policy"></a>
 
@@ -963,7 +969,7 @@ A part carries **no `size`**. There is no honest value to put there before the p
 **Declined:**
 - **A third directive for the buffered form fields.** Its right value is one nobody knows, and it would overlap `request_body` almost entirely.
 
-<sub>See also [`http-server/an-upload-is-received-only-through-files`](http-server.md#http-server-an-upload-is-received-only-through-files), [`http-server/request-body-and-upload-total-are-two-caps`](http-server.md#http-server-request-body-and-upload-total-are-two-caps), [`security/tainted-sources`](security.md#security-tainted-sources), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count). Decided in [0156](../decisions/0156.md).</sub>
+<sub>See also [`http-server/an-upload-is-received-only-through-files`](http-server.md#http-server-an-upload-is-received-only-through-files), [`http-server/request-body-and-upload-total-are-two-caps`](http-server.md#http-server-request-body-and-upload-total-are-two-caps), [`security/tainted-sources`](security.md#security-tainted-sources), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count).</sub>
 
 <a id="http-server-a-part-is-consumed-in-one-of-three-ways"></a>
 
@@ -990,7 +996,7 @@ A part's bytes are readable exactly once, in order, whichever of the three consu
 - **Streaming only, with no way to read a part into memory.** A small avatar to hash, a CSV about to be parsed or a value for a database column wants bytes, and forcing a loop on them buys no safety once the bound sits at the call site.
 - **A `max` required at every `readAll`.** The bare call is already bounded by `request_body`, the cap on every other byte parsed into memory, so the argument would buy visibility and no safety, at one argument per call site.
 
-<sub>See also [`http-server/an-upload-is-received-only-through-files`](http-server.md#http-server-an-upload-is-received-only-through-files), [`http-server/request-body-and-upload-total-are-two-caps`](http-server.md#http-server-request-body-and-upload-total-are-two-caps), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named). Decided in [0156](../decisions/0156.md).</sub>
+<sub>See also [`http-server/an-upload-is-received-only-through-files`](http-server.md#http-server-an-upload-is-received-only-through-files), [`http-server/request-body-and-upload-total-are-two-caps`](http-server.md#http-server-request-body-and-upload-total-are-two-caps), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named).</sub>
 
 <a id="http-server-request-body-and-upload-total-are-two-caps"></a>
 
