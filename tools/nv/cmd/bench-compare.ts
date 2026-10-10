@@ -848,7 +848,7 @@ export const SCENARIOS: Scenario[] = [
   {
     id: "cores",
     tree: "cases",
-    case: "hello",
+    case: "html-page",
     timed: async (t) => coresResult(await t.pass(1), await t.pass(4), CORES_IN_CODE[t.peer]),
   },
   {

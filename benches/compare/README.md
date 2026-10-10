@@ -94,11 +94,12 @@ escape, the developer calls an escaper, so the result is `your-code` and not `no
 
 - `cores` and `waiting` send no requests of their own. Each times a case the way a full run does, on
   a fresh stack per pass, with the run's `--requests` and `--reps`.
-- `cores` times hello at one cpu and at four. Throughput that grows by 2x or more is `built-in`, or
-  `your-code` where the peer's program carries a launcher to use the cores, as Bun's `serve.ts` does.
-  Less than 2x is `no`. nginx and `oha` each have four cpus, so near their ceiling the four-cpu
-  figure measures them and not the backend. The evidence keeps both figures, so a result read at
-  that ceiling shows as one.
+- `cores` times html-page at one cpu and at four. Throughput that grows by 2x or more is `built-in`,
+  or `your-code` where the peer's program carries a launcher to use the cores, as Bun's `serve.ts`
+  does. Less than 2x is `no`. nginx and `oha` each have four cpus, and hello reaches their ceiling
+  at four backend cpus with every peer, so the row times the case with the most work per request.
+  A peer whose four-cpu figure still nears that ceiling measures the front, and the evidence keeps
+  both figures so a reader can see it.
 - `isolation` sends 20 requests one after another. Each writes a static or module value from `?v=`
   and prints the value it found first. One request that found another's value makes the result `no`,
   because no code the developer writes gives a module back its first state.
