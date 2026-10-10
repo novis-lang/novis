@@ -2,8 +2,7 @@
   "title": "A declaration is reachable under exactly the name it was declared with",
   "status": "shipped",
   "because": [
-    "0113",
-    "0043"
+    "0113"
   ],
   "seeAlso": [
     "statements/a-qualified-name-is-absolute",

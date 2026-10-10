@@ -2,7 +2,6 @@
   "title": "A visibility keyword on a parameter promotes it to a property only in the `constructor`",
   "status": "shipped",
   "because": [
-    "0043",
     "0094"
   ],
   "seeAlso": [

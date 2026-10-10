@@ -15,3 +15,11 @@ IDE can see.
 override calling the source it wants by name (`rule:classes/member-conflict-is-an-error`). What it
 costs is that code using a trait is restructured by hand, and a trait's `static` property —
 silently copied per consuming class — has no destination at all.
+
+**Declined:**
+- **A narrower trait, without the `as` clause and with `insteadof` kept.** The reused behaviour still
+  has no type identity, properties are still copied per consuming class, and `insteadof` stays a
+  second, trait-only conflict mechanism beside the override every other collision uses.
+- **A `mixin` keyword that flattens like a trait and is a type like an interface.** It is a third
+  construct for a job interfaces already do, which is more surface to teach for nothing an existing
+  construct lacks (`rule:statements/nothing-gets-a-second-name`).

@@ -173,7 +173,7 @@ whether a name was resolved directly or through an alias.
 - **Import `as` kept for two libraries whose short names collide.** The fully-qualified name is more
   explicit for a little more typing, and a carve-out for collisions only does not stay narrow.
 
-<sub>See also [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute), [`statements/no-fallback-to-the-root-namespace`](statements.md#statements-no-fallback-to-the-root-namespace). Decided in [0113](../decisions/0113.md), [0043](../decisions/0043.md).</sub>
+<sub>See also [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute), [`statements/no-fallback-to-the-root-namespace`](statements.md#statements-no-fallback-to-the-root-namespace). Decided in [0113](../decisions/0113.md).</sub>
 
 <a id="statements-an-enum-name-is-a-type-everywhere"></a>
 

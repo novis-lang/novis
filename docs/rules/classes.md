@@ -196,7 +196,7 @@ inherited, initialized by the binding itself
 ([`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization)), namable by an `implements ... by $field` clause, and
 carrying whatever qualifiers its type does.
 
-<sub>See also [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field). Decided in [0043](../decisions/0043.md), [0094](../decisions/0094.md).</sub>
+<sub>See also [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field). Decided in [0094](../decisions/0094.md).</sub>
 
 <a id="classes-constructor-compatibility"></a>
 
@@ -261,7 +261,7 @@ not just a recompile.
 - **An `undefined` value for the unassigned state.** It widens every declared type
   ([`classes/no-undefined-value`](classes.md#classes-no-undefined-value)).
 
-<sub>See also [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws), [`classes/no-undefined-value`](classes.md#classes-no-undefined-value), [`classes/lateinit`](classes.md#classes-lateinit), [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor), [`types/declaration`](types.md#types-declaration). Decided in [0043](../decisions/0043.md).</sub>
+<sub>See also [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws), [`classes/no-undefined-value`](classes.md#classes-no-undefined-value), [`classes/lateinit`](classes.md#classes-lateinit), [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor), [`types/declaration`](types.md#types-declaration).</sub>
 
 <a id="classes-no-undefined-value"></a>
 
@@ -608,7 +608,7 @@ specific source explicitly — `InterfaceName::method()` for a default, or plain
 time, but not that two sources answer the same one. A class reaching two defaults for one name
 currently resolves to whichever the member walk finds first rather than being refused.
 
-<sub>See also [`classes/no-traits`](classes.md#classes-no-traits), [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field). Decided in [0043](../decisions/0043.md).</sub>
+<sub>See also [`classes/no-traits`](classes.md#classes-no-traits), [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field).</sub>
 
 <a id="classes-no-traits"></a>
 
@@ -634,7 +634,15 @@ override calling the source it wants by name ([`classes/member-conflict-is-an-er
 costs is that code using a trait is restructured by hand, and a trait's `static` property —
 silently copied per consuming class — has no destination at all.
 
-<sub>See also [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/interface-private-methods`](classes.md#classes-interface-private-methods), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field), [`classes/member-conflict-is-an-error`](classes.md#classes-member-conflict-is-an-error), [`types/no-legacy-cast`](types.md#types-no-legacy-cast). Decided in [0043](../decisions/0043.md).</sub>
+**Declined:**
+- **A narrower trait, without the `as` clause and with `insteadof` kept.** The reused behaviour still
+  has no type identity, properties are still copied per consuming class, and `insteadof` stays a
+  second, trait-only conflict mechanism beside the override every other collision uses.
+- **A `mixin` keyword that flattens like a trait and is a type like an interface.** It is a third
+  construct for a job interfaces already do, which is more surface to teach for nothing an existing
+  construct lacks ([`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name)).
+
+<sub>See also [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/interface-private-methods`](classes.md#classes-interface-private-methods), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field), [`classes/member-conflict-is-an-error`](classes.md#classes-member-conflict-is-an-error), [`types/no-legacy-cast`](types.md#types-no-legacy-cast).</sub>
 
 <a id="classes-interface-default-methods"></a>
 
@@ -657,7 +665,15 @@ To call one specific interface's default from an overriding method, `InterfaceNa
 to `$this`. That is one small addition to what a reader has to know `Identifier::method()` can mean,
 alongside `parent::`, `self::` and `static::`.
 
-<sub>See also [`classes/no-traits`](classes.md#classes-no-traits), [`classes/interface-private-methods`](classes.md#classes-interface-private-methods), [`classes/member-conflict-is-an-error`](classes.md#classes-member-conflict-is-an-error), [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces). Decided in [0043](../decisions/0043.md), [0094](../decisions/0094.md).</sub>
+**Declined:**
+- **Delegation alone, with every trait a generated interface and holder pair.** It is heavier than a
+  default for the common stateless case, and a class would hold a separate object only to answer one
+  method.
+- **A dedicated keyword for calling an interface's default, like Java's `I.super.m()`.** The
+  qualified-call shape `InterfaceName::method()` already does it, and a second way to write it is what
+  [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name) refuses.
+
+<sub>See also [`classes/no-traits`](classes.md#classes-no-traits), [`classes/interface-private-methods`](classes.md#classes-interface-private-methods), [`classes/member-conflict-is-an-error`](classes.md#classes-member-conflict-is-an-error), [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces). Decided in [0094](../decisions/0094.md).</sub>
 
 <a id="classes-interface-private-methods"></a>
 
@@ -678,7 +694,7 @@ inherits.
 The precedent is Java 9's private interface methods, and the addition is small: it changes who may
 call a member, not what an interface may hold. Interfaces still declare no state.
 
-<sub>See also [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/no-traits`](classes.md#classes-no-traits). Decided in [0043](../decisions/0043.md), [0094](../decisions/0094.md).</sub>
+<sub>See also [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/no-traits`](classes.md#classes-no-traits). Decided in [0094](../decisions/0094.md).</sub>
 
 <a id="classes-interfaces-declare-no-state"></a>
 
@@ -726,10 +742,18 @@ at the call site ([`statements/inout-is-written-at-the-call`](statements.md#stat
 Writing the member by hand is the way out. Every member the delegation does not supply is owed exactly
 as it would be without the clause.
 
-It spends one pointer-sized property per delegated interface per instance, plus the delegate object,
-and that state is an ordinary property a reader can inspect.
+**Memory:** each instance holds one pointer-sized property per delegated interface, plus the
+delegate object it points to. That replaces the state a trait copied into every consuming class, so it
+is not a new kind of cost, and it is an ordinary property a reader can inspect.
 
-<sub>See also [`classes/no-traits`](classes.md#classes-no-traits), [`classes/member-conflict-is-an-error`](classes.md#classes-member-conflict-is-an-error), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws), [`statements/inout-is-written-at-the-call`](statements.md#statements-inout-is-written-at-the-call). Decided in [0043](../decisions/0043.md).</sub>
+**Declined:**
+- **Default methods alone, with every forward written by hand.** It reproduces the boilerplate Kotlin's
+  `by` and Go's struct embedding exist to remove, for a shape (state shared across unrelated classes)
+  common enough in ported code to deserve its own syntax.
+- **A nullable delegate field, with a delegated call a no-op or a checked throw on `null`.** No case
+  needs it, and the field stays non-nullable.
+
+<sub>See also [`classes/no-traits`](classes.md#classes-no-traits), [`classes/member-conflict-is-an-error`](classes.md#classes-member-conflict-is-an-error), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws), [`statements/inout-is-written-at-the-call`](statements.md#statements-inout-is-written-at-the-call).</sub>
 
 <a id="classes-comparable"></a>
 

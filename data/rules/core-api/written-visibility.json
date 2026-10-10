@@ -2,8 +2,7 @@
   "title": "Every member declaration writes exactly one visibility keyword, and there is no implicit `public`",
   "status": "shipped",
   "because": [
-    "0094",
-    "0043"
+    "0094"
   ],
   "seeAlso": [
     "core-api/a-parameter-is-not-a-member",

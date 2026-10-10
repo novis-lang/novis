@@ -237,8 +237,8 @@ and `E0401`'s) — so one mistake reads one way whichever end sees it. Three sha
 throw rather than by dispatch, each because the row cannot describe them and not as a rule about erasure: a
 **non-`public`** member, since a `mixed` receiver is outside every class by construction and the row carries
 the visibility bit that says so; a **variadic or `inout`** parameter list, which is packed and written back
-at the *call site*, the limit `E0721` already names for [0043](../decisions/0043.md)
-§ 4's synthesized forward; and a **`Core`**-owned class, whose members are native symbols that *borrow*
+at the *call site*, the limit `E0721` already names for the synthesized forward
+(`rule:classes/delegation-by-field`); and a **`Core`**-owned class, whose members are native symbols that *borrow*
 argument 0 where a compiled method owns its parameters — the very difference that made `renderer` its own
 descriptor field rather than a row in the table, and reaching them from here wants a second field per
 member that no case asks for yet.

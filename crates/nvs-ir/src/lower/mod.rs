@@ -686,8 +686,10 @@ pub fn lower_program(
                     out,
                     synthesized,
                 ),
-                // An `interface`'s default and private method bodies (ADR
-                // 0043 § 2/§ 3) are ordinary compiled methods — the interface
+                // An `interface`'s default and private method bodies
+                // (`rule:classes/interface-default-methods`,
+                // `rule:classes/interface-private-methods`) are ordinary
+                // compiled methods — the interface
                 // is where they are *declared*, which is all that differs.
                 // Every bodiless member is skipped by the same `m.body`
                 // check an `abstract` class method already went through.

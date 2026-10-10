@@ -215,8 +215,8 @@ pub struct MethodSig {
     /// exactly what [`is_visible_from`] asks for.
     pub visibility: Visibility,
     /// Whether the declaration carries a *body* — false for an `abstract`
-    /// method and for an interface method declared without a default (ADR
-    /// 0043 § 2).
+    /// method and for an interface method declared without a default
+    /// (`rule:classes/interface-default-methods`).
     ///
     /// Recorded for the same reason [`Self::is_static`] is: the call site
     /// cannot see it. A call resolving to a bodiless declaration has no

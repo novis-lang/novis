@@ -872,7 +872,7 @@ advisory.
 declared property, method and constant, charged to the request that asked and freed with the
 description. A program that describes the same class in a loop pays on every call.
 
-<sub>See also [`core-classes/ast-is-inert`](core-classes.md#core-classes-ast-is-inert), [`enums/reflection`](enums.md#enums-reflection), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0043](../decisions/0043.md).</sub>
+<sub>See also [`core-classes/ast-is-inert`](core-classes.md#core-classes-ast-is-inert), [`enums/reflection`](enums.md#enums-reflection), [`types/erased-member-access`](types.md#types-erased-member-access).</sub>
 
 <a id="core-classes-ast-is-inert"></a>
 
@@ -1370,7 +1370,7 @@ Nesting on one connection issues `SAVEPOINT` and `ROLLBACK TO SAVEPOINT`, which 
 the callable on deadlock and serialization failure only, outermost transactions only, and defaults to
 `0` because re-running a callable that sends mail is worse than surfacing the conflict.
 
-<sub>See also [`core-classes/db-error`](core-classes.md#core-classes-db-error), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`errors/propagation`](errors.md#errors-propagation). Decided in [0067](../decisions/0067.md), [0043](../decisions/0043.md).</sub>
+<sub>See also [`core-classes/db-error`](core-classes.md#core-classes-db-error), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`errors/propagation`](errors.md#errors-propagation). Decided in [0067](../decisions/0067.md).</sub>
 
 <a id="core-classes-db-error"></a>
 

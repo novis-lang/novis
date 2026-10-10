@@ -453,8 +453,9 @@ fn target_declaration(target: &Expr, ctx: &Ctx<'_>, env: &Env<'_>) -> Option<(QN
 /// is attached to it, and one inherited from an ancestor is as real as an own
 /// one, neither of which the attach table can answer. Both rosters are
 /// consulted for the same reason [`sites_for`] consults both — `constructor`
-/// plus a name is both a property and a constructor parameter, and for an ADR
-/// 0043 § 4 promoted parameter it is one declaration reached two ways.
+/// plus a name is both a property and a constructor parameter, and for a
+/// promoted parameter (`rule:classes/promotion-is-constructor-only`) it is one
+/// declaration reached two ways.
 ///
 /// [`MethodSig::param_names`] is read directly rather than through
 /// [`MethodSig::param_index`]: a variadic tail is a parameter that can carry an

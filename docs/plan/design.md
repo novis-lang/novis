@@ -126,7 +126,7 @@ listener for it (`rule:http-server/two-deployments-and-nothing-a-proxy-owns`).
   provable rather than best-effort — a connection that cannot be proven clean is destroyed, because one
   tenant's session state arriving in another tenant's request is a leak, not a performance bug.
 - **An existing PHP application's framework and packages do not come along.** No trait, no `__call`, no
-  `ArrayAccess`, no runtime autoloader ([ADRs 0043](../decisions/0043.md),
+  `ArrayAccess`, no runtime autoloader (`rule:classes/no-traits`,
   `rule:iteration/no-magic-collection-interfaces`, `rule:classes/no-call-magic`,
   [0061](../decisions/0061.md)) means the ecosystem built on those is
   unreachable at any price — so `nvs convert` (M11) ports an application's own code onto Novis's own
