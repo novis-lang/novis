@@ -972,7 +972,7 @@ collect coverage, and the two are independent mechanisms.
 - **Hooking a central dispatch routine, the way an interpreter's tracer does.** There is none to hook:
   typed scalar operations lower to native instructions with no common dispatch point.
 
-<sub>See also [`testing/debug-surface`](testing.md#testing-debug-surface), [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive), [`testing/bench-counters`](testing.md#testing-bench-counters). Decided in [0079](../decisions/0079.md), [0041](../decisions/0041.md).</sub>
+<sub>See also [`testing/debug-surface`](testing.md#testing-debug-surface), [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive), [`testing/bench-counters`](testing.md#testing-bench-counters). Decided in [0079](../decisions/0079.md).</sub>
 
 <a id="testing-debug-surface"></a>
 
@@ -1208,7 +1208,7 @@ this rule's question; "did Novis get faster" is [`testing/perf-two-mechanisms`](
 not overlap. There is no per-member cost table and there will not be one — a hand-written claim
 about what a `Core` member costs is a number with no guard test.
 
-<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger). Decided in [0079](../decisions/0079.md), [0041](../decisions/0041.md).</sub>
+<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger). Decided in [0079](../decisions/0079.md).</sub>
 
 <a id="testing-perf-two-mechanisms"></a>
 

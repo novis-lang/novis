@@ -2,7 +2,6 @@
   "title": "A `call` event never becomes a span; the root, a `query`, an outbound HTTP call and a `spawn` do, and `gc` becomes a metric",
   "status": "designed",
   "because": [
-    "0041",
     "0076"
   ],
   "seeAlso": [

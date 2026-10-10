@@ -28,7 +28,7 @@ What it exports is [`observability/default-series`](observability.md#observabili
 [`observability/four-kinds-become-a-span`](observability.md#observability-four-kinds-become-a-span); what an application adds by hand goes through
 [`observability/metrics-three-members`](observability.md#observability-metrics-three-members).
 
-<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`observability/default-series`](observability.md#observability-default-series), [`observability/four-kinds-become-a-span`](observability.md#observability-four-kinds-become-a-span), [`observability/metrics-three-members`](observability.md#observability-metrics-three-members), [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind). Decided in [0076](../decisions/0076.md), [0041](../decisions/0041.md).</sub>
+<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`observability/default-series`](observability.md#observability-default-series), [`observability/four-kinds-become-a-span`](observability.md#observability-four-kinds-become-a-span), [`observability/metrics-three-members`](observability.md#observability-metrics-three-members), [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind). Decided in [0076](../decisions/0076.md).</sub>
 
 <a id="observability-a-trace-id-exists-for-every-request"></a>
 
@@ -141,7 +141,7 @@ into a core's registry ahead of [`observability/past-max-series-a-new-series-is-
 bound rather than counted through it, because a `max_series` small enough to refuse them would
 quietly turn "present the moment an exporter is configured" into a different configuration.
 
-<sub>See also [`observability/the-runtime-exports-what-it-already-measures`](observability.md#observability-the-runtime-exports-what-it-already-measures), [`observability/route-label-is-the-declared-name`](observability.md#observability-route-label-is-the-declared-name), [`observability/past-max-series-a-new-series-is-refused`](observability.md#observability-past-max-series-a-new-series-is-refused), [`concurrency/deferred-is-bounded-by-two-directives`](concurrency.md#concurrency-deferred-is-bounded-by-two-directives), [`config/scheduled-work-is-a-config-block`](config.md#config-scheduled-work-is-a-config-block), [`programs/memory-priority`](programs.md#programs-memory-priority), [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind). Decided in [0076](../decisions/0076.md), [0041](../decisions/0041.md), [0148](../decisions/0148.md).</sub>
+<sub>See also [`observability/the-runtime-exports-what-it-already-measures`](observability.md#observability-the-runtime-exports-what-it-already-measures), [`observability/route-label-is-the-declared-name`](observability.md#observability-route-label-is-the-declared-name), [`observability/past-max-series-a-new-series-is-refused`](observability.md#observability-past-max-series-a-new-series-is-refused), [`concurrency/deferred-is-bounded-by-two-directives`](concurrency.md#concurrency-deferred-is-bounded-by-two-directives), [`config/scheduled-work-is-a-config-block`](config.md#config-scheduled-work-is-a-config-block), [`programs/memory-priority`](programs.md#programs-memory-priority), [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind). Decided in [0076](../decisions/0076.md), [0148](../decisions/0148.md).</sub>
 
 <a id="observability-a-name-is-fixed-to-one-kind"></a>
 
@@ -287,7 +287,7 @@ The spans are derived from the same events the timeline already files; there is 
 probes for tracing, and export cost stays off the hot path the debug probes deliberately keep cheap.
 A retried outbound call is one span carrying an attempt count, not one span per attempt.
 
-<sub>See also [`observability/a-query-is-a-trace-event`](observability.md#observability-a-query-is-a-trace-event), [`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request), [`observability/sampling-is-head-based`](observability.md#observability-sampling-is-head-based), [`testing/debug-probes`](testing.md#testing-debug-probes), [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`observability/gc-pause-is-its-own-event`](observability.md#observability-gc-pause-is-its-own-event), [`observability/spawn-is-its-own-event`](observability.md#observability-spawn-is-its-own-event). Decided in [0076](../decisions/0076.md), [0041](../decisions/0041.md), [0067](../decisions/0067.md).</sub>
+<sub>See also [`observability/a-query-is-a-trace-event`](observability.md#observability-a-query-is-a-trace-event), [`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request), [`observability/sampling-is-head-based`](observability.md#observability-sampling-is-head-based), [`testing/debug-probes`](testing.md#testing-debug-probes), [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`observability/gc-pause-is-its-own-event`](observability.md#observability-gc-pause-is-its-own-event), [`observability/spawn-is-its-own-event`](observability.md#observability-spawn-is-its-own-event). Decided in [0076](../decisions/0076.md), [0067](../decisions/0067.md).</sub>
 
 <a id="observability-a-call-never-becomes-a-span"></a>
 
@@ -307,7 +307,7 @@ backend. And admitting one would put export cost on the per-call path that
 other kind was placed off of on purpose ([`observability/gc-pause-is-its-own-event`](observability.md#observability-gc-pause-is-its-own-event),
 [`observability/spawn-is-its-own-event`](observability.md#observability-spawn-is-its-own-event)).
 
-<sub>See also [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`observability/gc-pause-is-its-own-event`](observability.md#observability-gc-pause-is-its-own-event), [`observability/spawn-is-its-own-event`](observability.md#observability-spawn-is-its-own-event), [`observability/default-series`](observability.md#observability-default-series), [`observability/a-registry-is-per-core-and-nothing-reads-it`](observability.md#observability-a-registry-is-per-core-and-nothing-reads-it). Decided in [0041](../decisions/0041.md), [0076](../decisions/0076.md).</sub>
+<sub>See also [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`observability/gc-pause-is-its-own-event`](observability.md#observability-gc-pause-is-its-own-event), [`observability/spawn-is-its-own-event`](observability.md#observability-spawn-is-its-own-event), [`observability/default-series`](observability.md#observability-default-series), [`observability/a-registry-is-per-core-and-nothing-reads-it`](observability.md#observability-a-registry-is-per-core-and-nothing-reads-it). Decided in [0076](../decisions/0076.md).</sub>
 
 <a id="observability-trace-events-carry-a-kind"></a>
 
@@ -336,9 +336,19 @@ and nothing at all when the flag is off.
 
 The tag is what lets one stream serve every consumer: the timeline export, the profiler's
 attribution, and production telemetry all read these kinds and add no instrumentation of their
-own.
+own. The price is that every exporter handles every kind, so each new kind is surface in all of them
+at once, and a kind is added only for a routine whose cost the existing ones cannot show.
 
-<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`observability/a-query-is-a-trace-event`](observability.md#observability-a-query-is-a-trace-event). Decided in [0041](../decisions/0041.md), [0067](../decisions/0067.md), [0180](../decisions/0180.md).</sub>
+**Declined:**
+- **A kind for a coroutine's suspend and resume.** It would sit in the same cheap, already-slow place
+  as `gc` and `spawn`, but no debugging need for the scheduling gap between the two has been named.
+- **Starting or stopping tracing from outside a running process.** A channel that reaches into a live
+  process and reads call arguments and timing is a new trust boundary, not an export format, and it
+  would need a threat model of its own before it could exist.
+- **An allocation or heap-snapshot timeline.** No probe records an allocation, and adding one is a
+  larger design than a further kind on this stream.
+
+<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`observability/a-query-is-a-trace-event`](observability.md#observability-a-query-is-a-trace-event). Decided in [0067](../decisions/0067.md), [0180](../decisions/0180.md).</sub>
 
 <a id="observability-a-query-is-a-trace-event"></a>
 
@@ -362,7 +372,7 @@ reports what the caller waited. The same span feeds
 readers there are, and it is what becomes a query span in
 [`observability/four-kinds-become-a-span`](observability.md#observability-four-kinds-become-a-span). Both outputs are inert unless asked for.
 
-<sub>See also [`observability/a-slow-query-is-logged-past-a-threshold`](observability.md#observability-a-slow-query-is-logged-past-a-threshold), [`observability/four-kinds-become-a-span`](observability.md#observability-four-kinds-become-a-span), [`core-classes/db-error`](core-classes.md#core-classes-db-error), [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`testing/debug-probes`](testing.md#testing-debug-probes), [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind). Decided in [0067](../decisions/0067.md), [0041](../decisions/0041.md).</sub>
+<sub>See also [`observability/a-slow-query-is-logged-past-a-threshold`](observability.md#observability-a-slow-query-is-logged-past-a-threshold), [`observability/four-kinds-become-a-span`](observability.md#observability-four-kinds-become-a-span), [`core-classes/db-error`](core-classes.md#core-classes-db-error), [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`testing/debug-probes`](testing.md#testing-debug-probes), [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind). Decided in [0067](../decisions/0067.md).</sub>
 
 <a id="observability-a-slow-query-is-logged-past-a-threshold"></a>
 
@@ -406,7 +416,7 @@ of whichever function happened to be executing, and `PROFILE`'s self/inclusive f
 that function did not cause. With it the pause is its own bar on the timeline, and in production
 telemetry it becomes a metric rather than a span ([`observability/a-call-never-becomes-a-span`](observability.md#observability-a-call-never-becomes-a-span)).
 
-<sub>See also [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`testing/debug-probes`](testing.md#testing-debug-probes), [`observability/a-registry-is-per-core-and-nothing-reads-it`](observability.md#observability-a-registry-is-per-core-and-nothing-reads-it). Decided in [0041](../decisions/0041.md).</sub>
+<sub>See also [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`testing/debug-probes`](testing.md#testing-debug-probes), [`observability/a-registry-is-per-core-and-nothing-reads-it`](observability.md#observability-a-registry-is-per-core-and-nothing-reads-it).</sub>
 
 <a id="observability-spawn-is-its-own-event"></a>
 
@@ -444,7 +454,7 @@ bar, anchored at the spawn's timestamp, is therefore an export-time reading and 
 what carries a child's events to an export at all is [`testing/debug-probes`](testing.md#testing-debug-probes)'s sink's business,
 and nothing about it is a new cross-arena mechanism here.
 
-<sub>See also [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/isolate-failure-is-a-value`](security.md#security-isolate-failure-is-a-value), [`concurrency/on-worker-runs-the-child-on-another-core`](concurrency.md#concurrency-on-worker-runs-the-child-on-another-core). Decided in [0041](../decisions/0041.md).</sub>
+<sub>See also [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/isolate-failure-is-a-value`](security.md#security-isolate-failure-is-a-value), [`concurrency/on-worker-runs-the-child-on-another-core`](concurrency.md#concurrency-on-worker-runs-the-child-on-another-core).</sub>
 
 <a id="observability-an-inbound-traceparent-is-continued"></a>
 
@@ -603,7 +613,7 @@ The NDJSON trace remains the format no third-party tool reads; this export close
 visualisation, and for nothing else. The exact CLI flag that selects it is left to the exporter's
 implementation, the same way the Clover and lcov shapes were.
 
-<sub>See also [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`testing/debug-surface`](testing.md#testing-debug-surface). Decided in [0041](../decisions/0041.md), [0040](../decisions/0040.md).</sub>
+<sub>See also [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`testing/debug-surface`](testing.md#testing-debug-surface). Decided in [0040](../decisions/0040.md).</sub>
 
 <a id="observability-memory-is-three-numbers-on-core-budget"></a>
 

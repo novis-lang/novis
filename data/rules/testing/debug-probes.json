@@ -2,8 +2,7 @@
   "title": "Coverage, tracing and profiling are one per-request flag word checked at fixed probe sites, never a second compiled tier",
   "status": "shipped",
   "because": [
-    "0079",
-    "0041"
+    "0079"
   ],
   "seeAlso": [
     "testing/debug-surface",

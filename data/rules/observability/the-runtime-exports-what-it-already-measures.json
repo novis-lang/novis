@@ -2,8 +2,7 @@
   "title": "Production telemetry is read from the instrumentation that already exists, and adds no probe site to the measured path",
   "status": "shipped",
   "because": [
-    "0076",
-    "0041"
+    "0076"
   ],
   "seeAlso": [
     "testing/debug-probes",
