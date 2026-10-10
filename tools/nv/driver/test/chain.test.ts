@@ -1,12 +1,10 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
-import { chainGoals, currentPlan, gatesInFrontOfGroups, type Goal, goalPlan, liveGoal, setLive, SIDE_ENV, sideGoal, sidePlan } from "../../lib/chain.ts";
+import { chainGoals, currentPlan, gatesInFrontOfGroups, type Goal, goalPlan, liveGoal, liveStage, namedPlan, SIDE_ENV, sideGoal, sidePlan } from "../../lib/chain.ts";
 import { goneCitations } from "../../cmd/chain.ts";
 import { load, write } from "../../lib/store.ts";
 import { chain } from "../../schema/chain.ts";
-import { goal, sideGoal as sideGoalType } from "../../schema/goal.ts";
 import { scratch, type Scratch } from "../../test/scratch.ts";
+import { setLive } from "../old-chain.ts";
 
 let tmp: Scratch | undefined;
 afterEach(() => {
@@ -54,52 +52,85 @@ describe("gatesInFrontOfGroups", () => {
 });
 
 describe("the chain's live goal", () => {
-  function seed(): Scratch {
+  /** A looper goal file with front matter `fm`, written as JSON, which is YAML too. */
+  const goalFile = (fm: object) => `---\n${JSON.stringify({ looper: 1, ...fm })}\n---\n\n# t\n`;
+  const one = (stage: number, check: string, extra: object = {}) =>
+    goalFile({ title: "t", stages: [{ id: stage, title: "x", status: "open" }], checks: [{ id: check, stage, name: "n", run: [check] }], extra });
+
+  function seed(chainSlugs: string[] = ["b", "c"]): Scratch {
     const s = scratch();
-    write(chain, "chain", { live: "b", goals: ["a", "b", "c"] }, s.root);
-    write(goal, "a", g([{ number: 1, title: "x", summary: "s" }], [cmd("ta", 1, ["a"])]), s.root);
-    write(goal, "b", g([{ number: 2, title: "y", summary: "s" }], [cmd("tb", 2, ["b"])]), s.root);
-    write(goal, "c", g([{ number: 2, title: "z", summary: "s" }], [cmd("tc", 2, ["c"])]), s.root);
+    s.put("docs/goals/README.md", goalFile({ chain: chainSlugs, floor: [] }));
+    s.put("docs/goals/b.md", one(2, "tb", { milestone: "M1" }));
+    s.put("docs/goals/c.md", one(2, "tc"));
     return s;
   }
 
-  test("the live goal is data/chain.json's `live`, and its plan is its own record with no check of a goal in front of it", () => {
+  test("the live goal is the chain's first, and its plan is its own front matter with no check of another goal", () => {
     tmp = seed();
+    expect(chainGoals(tmp.root).map((c) => [c.slug, c.num, c.milestone, c.md])).toEqual([
+      ["b", 1, "M1", "docs/goals/b.md"],
+      ["c", 2, null, "docs/goals/c.md"],
+    ]);
     expect(liveGoal(undefined, tmp.root)?.slug).toBe("b");
-    expect(goalPlan("b", tmp.root)).toEqual(load(goal, tmp.root).find((r) => r.id === "b")!.value);
-    expect(goalPlan("c", tmp.root)!.checks.map((c) => c.id)).toEqual(["tc"]);
+    expect(goalPlan("c", tmp.root)!.checks).toEqual([{ id: "tc", kind: "command", stage: 2, name: "n", argv: ["tc"] }]);
     expect(goalPlan("gone", tmp.root)).toBeNull();
   });
 
-  test("setLive moves the pointer, keeps the order, and refuses a goal that is not on the chain", () => {
+  test("a check's kind follows from its fields, and Novis's own fields come from `extra`", () => {
     tmp = seed();
-    expect(setLive("c", tmp.root)).toBe("data/chain.json");
-    expect(load(chain, tmp.root)[0]!.value).toEqual({ live: "c", goals: ["a", "b", "c"] });
-    expect(() => setLive("gone", tmp!.root)).toThrow("not on the chain");
+    const fm = {
+      title: "t",
+      context: ["a.rs"],
+      stages: [
+        { id: 1, title: "one", status: "done" },
+        { id: 2, title: "two", status: "open", context: ["b.rs"], extra: { summary: "s", context: { rules: ["r/x"] } } },
+      ],
+      checks: [
+        { id: "cargo", stage: 2, run: ["cargo", "test", "--test", "t"], tests: ["a_test"] },
+        { id: "suite", stage: 2, run: ["bun", "nv", "suite", "tests/c/", "--case", "tests/c/x.nvst"], tests: ["tests/c/x.nvst"] },
+        { id: "cmd", stage: 2, run: ["bun", "nv", "x"], output_ordered: ["one", "two"], exit: "nonzero", cwd: "." },
+        { id: "out", stage: 2, run: ["bun", "nv", "y"], stdout_contains: ["z"] },
+        { id: "size", stage: 2, file: "f.json", min_bytes: 10 },
+        { id: "text", stage: 2, file: "f.json", output_contains: ["q"] },
+      ],
+      extra: { milestone: "M2", sweep: "done", files: ["f.nvs"], env: { wsl: { targetDir: "/t" } }, context: { rules: ["r/y"] } },
+    };
+    tmp.put("docs/goals/d.md", goalFile(fm));
+    const plan = goalPlan("d", tmp.root)!;
+    expect(plan.checks).toEqual([
+      { id: "cargo", kind: "cargo-named", stage: 2, args: ["test", "--test", "t"], tests: ["a_test"] },
+      { id: "suite", kind: "nvs-suite", stage: 2, args: ["test", "tests/c/"], cases: ["tests/c/x.nvst"] },
+      { id: "cmd", kind: "command", stage: 2, cwd: ".", exit: "nonzero", argv: ["bun", "nv", "x"], want: ["one", "two"] },
+      { id: "out", kind: "command", stage: 2, argv: ["bun", "nv", "y"], stdoutContains: ["z"] },
+      { id: "size", kind: "min-bytes", stage: 2, file: "f.json", minBytes: 10 },
+      { id: "text", kind: "contains", stage: 2, file: "f.json", stdoutContains: ["q"] },
+    ]);
+    expect([plan.milestone, plan.sweep, plan.files, plan.env]).toEqual(["M2", "done", ["f.nvs"], { wsl: { targetDir: "/t" } }]);
+    expect(plan.context).toEqual({ rules: ["r/y"], modules: ["a.rs"] });
+    expect(plan.stages[1]).toEqual({ number: 2, title: "two", summary: "s", status: "open", context: { rules: ["r/x"], modules: ["b.rs"] } });
+    expect(liveStage("d", tmp.root)).toBe(2);
   });
 
-  test("a side goal's plan is its own record, with no check of a chain goal", () => {
+  test("a side goal is a goal file off the chain, and its plan is its own with a WSL target of its own", () => {
     tmp = seed();
-    write(sideGoalType, "s", g([{ number: 2, title: "w", summary: "s" }], [cmd("ts", 2, ["s"])]), tmp.root);
+    tmp.put("docs/goals/s.md", one(2, "ts", { env: { wsl: { targetDir: "/var/tmp/t" } } }));
     expect(sidePlan("s", tmp.root)!.checks.map((c) => [c.id, c.stage])).toEqual([["ts", 2]]);
+    expect(sidePlan("s", tmp.root)!.env.wsl?.targetDir).toBe("/var/tmp/t-side-s");
+    expect(namedPlan("s", tmp.root)!.goal.env.wsl?.targetDir).toBe("/var/tmp/t-side-s");
+    expect(namedPlan("b", tmp.root)!.goal.checks.map((c) => c.id)).toEqual(["tb"]);
     expect(sidePlan("gone", tmp.root)).toBeNull();
   });
 
-  test("a side goal's WSL leg builds into a target of its own", () => {
-    tmp = seed();
-    write(sideGoalType, "s", { ...g([{ number: 2, title: "w", summary: "s" }], [cmd("ts", 2, ["s"])]), env: { wsl: { targetDir: "/var/tmp/t" } } }, tmp.root);
-    expect(sidePlan("s", tmp.root)!.env.wsl?.targetDir).toBe("/var/tmp/t-side-s");
-  });
-
-  test("a process runs a side goal only when the variable names one whose prose is on disk", () => {
+  test("a process runs a side goal only when the variable names a goal file off the chain", () => {
     tmp = seed();
     const before = process.env[SIDE_ENV];
     try {
       process.env[SIDE_ENV] = "s";
       expect(sideGoal(tmp.root)).toBeNull();
-      mkdirSync(join(tmp.root, "docs/agent/goals/side"), { recursive: true });
-      writeFileSync(join(tmp.root, "docs/agent/goals/side/s.md"), "# Side goal — s\n");
+      tmp.put("docs/goals/s.md", one(2, "ts"));
       expect(sideGoal(tmp.root)).toBe("s");
+      process.env[SIDE_ENV] = "b";
+      expect(sideGoal(tmp.root)).toBeNull();
       process.env[SIDE_ENV] = "../s";
       expect(sideGoal(tmp.root)).toBeNull();
     } finally {
@@ -119,19 +150,25 @@ describe("the chain's live goal", () => {
       delete process.env[SIDE_ENV];
       expect(plan()).toEqual(["b", ["tb"]]);
       process.env[SIDE_ENV] = "s";
-      mkdirSync(join(tmp.root, "docs/agent/goals/side"), { recursive: true });
-      writeFileSync(join(tmp.root, "docs/agent/goals/side/s.md"), "# Side goal — s\n");
-      // Prose with no record is a side run with no plan, and never the live goal's by mistake.
-      expect(plan()).toBeNull();
-      write(sideGoalType, "s", g([{ number: 2, title: "w", summary: "s" }], [cmd("ts", 2, ["s"])]), tmp.root);
+      tmp.put("docs/goals/s.md", one(2, "ts"));
       expect(plan()).toEqual(["s", ["ts"]]);
       delete process.env[SIDE_ENV];
-      write(chain, "chain", { live: "gone", goals: ["a", "b", "c", "gone"] }, tmp.root);
+      tmp.put("docs/goals/README.md", goalFile({ chain: ["gone", "b"], floor: [] }));
       expect(plan()).toBeNull();
     } finally {
       if (before === undefined) delete process.env[SIDE_ENV];
       else process.env[SIDE_ENV] = before;
     }
+  });
+});
+
+describe("the old driver's chain", () => {
+  test("setLive moves the pointer, keeps the order, and refuses a goal that is not on the chain", () => {
+    tmp = scratch();
+    write(chain, "chain", { live: "b", goals: ["a", "b", "c"] }, tmp.root);
+    expect(setLive("c", tmp.root)).toBe("data/chain.json");
+    expect(load(chain, tmp.root)[0]!.value).toEqual({ live: "c", goals: ["a", "b", "c"] });
+    expect(() => setLive("gone", tmp!.root)).toThrow("not on the chain");
   });
 });
 

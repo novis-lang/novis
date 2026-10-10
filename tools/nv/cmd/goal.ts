@@ -7,7 +7,7 @@
 
 import { existsSync } from "node:fs";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
-import { liveGoal } from "../lib/chain.ts";
+import { oldLive } from "../driver/old-chain.ts";
 import { ROOT } from "../lib/paths.ts";
 import { load, pathOf, write } from "../lib/store.ts";
 import { goal as goalType } from "../schema/goal.ts";
@@ -34,19 +34,19 @@ function repoPath(path: string, root: string): string {
 export function addModule(path: string, root: string = ROOT): Added {
   const rel = repoPath(path, root);
   if (!existsSync(join(root, rel))) throw new Error(`${rel} is not on disk`);
-  const live = liveGoal(undefined, root);
-  if (!live) throw new Error("no goal is live: data/chain.json names none on the chain");
-  const record = load(goalType, root).find((g) => g.id === live.slug);
-  if (!record) throw new Error(`the live goal \`${live.slug}\` has no record at ${pathOf(goalType, live.slug)}`);
+  const slug = oldLive(root);
+  if (slug === null) throw new Error("no goal is live: data/chain.json names none on the chain");
+  const record = load(goalType, root).find((g) => g.id === slug);
+  if (!record) throw new Error(`the live goal \`${slug}\` has no record at ${pathOf(goalType, slug)}`);
   if (goalType.schema.validate(record.value).length > 0) throw new Error(`${record.path} fails its schema; \`bun nv check\` names how`);
 
   const written: string[] = [];
   const modules = record.value.context.modules ?? [];
   if (!modules.includes(rel)) {
-    write(goalType, live.slug, { ...record.value, context: { ...record.value.context, modules: [...modules, rel] } }, root);
+    write(goalType, slug, { ...record.value, context: { ...record.value.context, modules: [...modules, rel] } }, root);
     written.push(record.path);
   }
-  return { path: rel, goal: live.slug, written };
+  return { path: rel, goal: slug, written };
 }
 
 export async function run(args: string[]): Promise<number> {

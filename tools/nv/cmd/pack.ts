@@ -4,7 +4,7 @@
 // `orient` calls the `run*` functions here for its own pack. The traps stay in `orient`.
 //
 // The goal is `--goal`, else `LOOPER_GOAL_ENV`, else the chain's live goal, read through `lib/chain.ts`.
-// The stage is `--stage`, else `LOOPER_STAGE_ENV`, else the stage the goal's handoff names. The goal's
+// The stage is `--stage`, else `LOOPER_STAGE_ENV`, else the goal's first stage not marked done. The goal's
 // `context` is the base selection and the stage's `context` adds to it (`manifest`). A goal with no
 // `context` at all prints no section.
 //
@@ -12,12 +12,12 @@
 // `printed` and `costs` read it back, so `orient` interleaves its own sections with these in one pack.
 // Every reader takes the root `begin` names, which is how a test runs the pack over a scratch tree.
 //
-//   bun nv pack                         the live goal, at the stage its handoff names
+//   bun nv pack                         the live goal, at its live stage
 //   bun nv pack --goal SLUG --stage N   goal SLUG at stage N
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { goalHandoff, LOOPER_STAGE_ENV, namedPlan } from "../lib/chain.ts";
+import { LOOPER_STAGE_ENV, liveStage, namedPlan } from "../lib/chain.ts";
 import { tracked } from "../lib/git.ts";
 import { ROOT } from "../lib/paths.ts";
 import { fill, pyRepr } from "../lib/py.ts";
@@ -766,7 +766,7 @@ export async function pack(args: string[], at: string = ROOT): Promise<{ code: n
   const named = namedPlan(goalFlag, at);
   if (named === null) return { code: 2, text: `nv pack: ${goalFlag ?? "the live goal"} has no goal record, so there is no context to print` };
   const envStage = (process.env[LOOPER_STAGE_ENV] ?? "").trim();
-  const stage = stageFlag ?? (/^\d+$/.test(envStage) ? Number(envStage) : (goalHandoff(named.slug, at)?.next.stage ?? null));
+  const stage = stageFlag ?? (/^\d+$/.test(envStage) ? Number(envStage) : liveStage(named.slug, at));
   const m = manifest(named.goal as unknown as GoalValue, stage);
   if (!m.present) return { code: 0, text: `nv pack: goal ${named.slug} has no \`context\`, so no section is printed` };
 

@@ -1,9 +1,6 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
-import { type Goal, LOOPER_GOAL_ENV, LOOPER_STAGE_ENV } from "../lib/chain.ts";
+import { type GoalContext, LOOPER_GOAL_ENV, LOOPER_STAGE_ENV } from "../lib/chain.ts";
 import { write } from "../lib/store.ts";
-import { chain } from "../schema/chain.ts";
-import { goal } from "../schema/goal.ts";
-import { handoff } from "../schema/handoff.ts";
 import { rule } from "../schema/rule.ts";
 import { topic } from "../schema/topic.ts";
 import { pack } from "../cmd/pack.ts";
@@ -14,28 +11,30 @@ import { type Scratch, scratch } from "./scratch.ts";
 // names nothing, and it is the live goal, so a pack that ignored the goal it was given prints nothing.
 const STATUS = { status: "s", done: "d", onDisk: "o", toolchain: "t", adrSlicesLanded: "a", openNow: "the open work", blocking: "nothing blocks" };
 
-const record = (context: Goal["context"], stageContext?: Goal["context"]): Goal => ({
-  title: "t",
-  milestone: null,
-  files: [],
-  context,
-  stages: [
-    { number: 1, title: "one", summary: "s" },
-    { number: 2, title: "two", summary: "s", ...(stageContext ? { context: stageContext } : {}) },
-  ],
-  checks: [],
-  env: {},
-});
+// Goal `g`'s stage 1 is done, so its live stage is 2. A goal file's front matter is written as JSON,
+// which is YAML too.
+const goalFile = (context: GoalContext, stageContext?: GoalContext): string => {
+  const fm = {
+    looper: 1,
+    title: "t",
+    stages: [
+      { id: 1, title: "one", status: "done" },
+      { id: 2, title: "two", status: "open", ...(stageContext ? { extra: { context: stageContext } } : {}) },
+    ],
+    checks: [],
+    extra: { context },
+  };
+  return `---\n${JSON.stringify(fm)}\n---\n\n# t\n`;
+};
 
 let s: Scratch;
 let saved: [string | undefined, string | undefined];
 
 beforeEach(() => {
   s = scratch();
-  write(chain, "chain", { live: "bare", goals: ["bare", "g"] }, s.root);
-  write(goal, "g", record({ rules: ["alpha/one"], shapes: ["A commit message"], plan: ["Open now"], milestones: ["M1:verify"] }, { rules: ["alpha/two"] }), s.root);
-  write(goal, "bare", record({}), s.root);
-  write(handoff, "g", { state: "s", next: { stage: 2, files: [], items: [] }, backlog: [] }, s.root);
+  s.put("docs/goals/README.md", `---\n${JSON.stringify({ looper: 1, chain: ["bare", "g"] })}\n---\n`);
+  s.put("docs/goals/g.md", goalFile({ rules: ["alpha/one"], shapes: ["A commit message"], plan: ["Open now"], milestones: ["M1:verify"] }, { rules: ["alpha/two"] }));
+  s.put("docs/goals/bare.md", goalFile({}));
   write(topic, "alpha", { title: "Alpha", order: 1, rules: ["alpha/one", "alpha/two"] }, s.root);
   write(rule, "alpha/one", { title: "The first rule", status: "shipped", because: [], seeAlso: [], guardedBy: [] }, s.root);
   write(rule, "alpha/two", { title: "The second rule", status: "shipped", because: [], seeAlso: [], guardedBy: [] }, s.root);
@@ -89,7 +88,7 @@ test("nv pack takes the goal and the stage from LOOPER_GOAL and LOOPER_STAGE whe
   expect(fromEnv.text).toContain("---- rule:alpha/one");
   expect(fromEnv.text).not.toContain("rule:alpha/two");
 
-  // A flag wins over the variable, and with no stage named anywhere the handoff's next stage applies.
+  // A flag wins over the variable, and with no stage named anywhere the goal's live stage applies.
   expect((await pack(["--stage", "2"], s.root)).text).toContain("---- rule:alpha/two");
   delete process.env[LOOPER_STAGE_ENV];
   expect((await pack([], s.root)).text).toContain("---- rule:alpha/two");

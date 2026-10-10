@@ -33,7 +33,7 @@
 
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { goalFiles } from "../lib/chain.ts";
+import { goalFiles } from "./old-chain.ts";
 import { ROOT } from "../lib/paths.ts";
 import { run as runProc, type RunResult } from "../lib/proc.ts";
 import { SETTINGS, withRules } from "../cmd/allow.ts";

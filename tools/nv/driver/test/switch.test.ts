@@ -1,11 +1,12 @@
 import { afterEach, expect, test } from "bun:test";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { type Goal, goalFiles, leaveGoal } from "../lib/chain.ts";
-import { load, write } from "../lib/store.ts";
-import { chain } from "../schema/chain.ts";
-import { goal } from "../schema/goal.ts";
-import { scratch, type Scratch } from "./scratch.ts";
+import type { RecordType } from "../../lib/schema.ts";
+import { load, write } from "../../lib/store.ts";
+import { chain } from "../../schema/chain.ts";
+import { goal } from "../../schema/goal.ts";
+import { scratch, type Scratch } from "../../test/scratch.ts";
+import { goalFiles, leaveGoal } from "../old-chain.ts";
 
 let tmp: Scratch | undefined;
 afterEach(() => {
@@ -13,7 +14,7 @@ afterEach(() => {
   tmp = undefined;
 });
 
-const record = (id: string): Goal => ({
+const record = (id: string): (typeof goal extends RecordType<infer T> ? T : never) => ({
   title: "t",
   milestone: null,
   files: [],

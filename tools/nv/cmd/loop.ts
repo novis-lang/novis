@@ -113,7 +113,8 @@ import { AllowWatch, loadSeen, record as recordAllow, saveSeen, settle as settle
 import { insideWorktree, landing, launchSide } from "../driver/side.ts";
 import { afterSession, type SweepVoice } from "./sweep.ts";
 import { bringUp, preflight } from "./services.ts";
-import { chainGoals, type Goal, goalPlan, leaveGoal, liveGoal, SIDE_ENV, sideGoal } from "../lib/chain.ts";
+import { chainGoals, type Goal, goalPlan, liveGoal, SIDE_ENV, sideGoal } from "../lib/chain.ts";
+import { leaveGoal } from "../driver/old-chain.ts";
 import { ROOT } from "../lib/paths.ts";
 import { ENV as PROGRESS_ENV, readProgress } from "../lib/progress.ts";
 import { goal as goalType } from "../schema/goal.ts";
@@ -148,7 +149,10 @@ import { sharedResources } from "../accept/sweep-lock.ts";
 import { type Check, featureMatches, heldByGate, tiers, withSetups } from "../accept/accept.ts";
 import { lastGreen, PlanSweep } from "../accept/runner.ts";
 import { type Current, livePlan, nameOf, type Progress, stageLabels, sweepOver } from "../accept/sweep.ts";
-import { awaitGate, CHAIN_FILE, gateShut, looperArgv, putLooperFirst, retireChain, startLooper } from "../driver/handover.ts";
+import { awaitGate, CHAIN_FILE, gateShut, looperArgv, putLooperFirst, retireChain, startLooper, type WaitFor } from "../driver/handover.ts";
+
+/** A goal with the old driver's two hand-over fields, which looper's goal files never set. */
+type DriverGoal = Goal & { waitFor?: WaitFor; handover?: "looper" };
 import { writeGoalPlan } from "../renderers/goal-plan.ts";
 
 
@@ -714,7 +718,8 @@ async function serve(f: TurnFlags, state: RunState, fresh: boolean, touched: Tou
   if (state.served >= f.maxSessions && pending === null) return end("budget", `hit --max-sessions (${f.maxSessions})`);
   const found = selected({});
   if (found === null) return end("chain-error", "the live goal's plan did not read; `bun nv check` and `bun nv chain --check` say why");
-  const { live, goal, labelOf, total } = found;
+  const { live, labelOf, total } = found;
+  const goal: DriverGoal = found.goal;
   if (fresh) step(live.num === null ? `side run: goal \`${live.slug}\`, ${placeOf(live, total)}` : `chain: resuming at goal \`${live.slug}\`, ${placeOf(live, total)}`, C.CYAN);
   if (goal.waitFor || goal.handover) putLooperFirst();
   if (goal.waitFor && pending === null) {
@@ -1029,7 +1034,7 @@ async function serve(f: TurnFlags, state: RunState, fresh: boolean, touched: Tou
     say(`GOAL REACHED: ${live.slug}`, C.GREEN);
     // A side goal is never switched from: its run ends, and a person lands the branch.
     if (live.num === null) return end("side-green", landing(live.slug, goal.env.wsl?.targetDir ?? null));
-    if (again.goal.handover === "looper") return handOver(state, live.slug);
+    if ((again.goal as DriverGoal).handover === "looper") return handOver(state, live.slug);
     const switched = await advance(state, live.slug);
     if (switched !== null) return switched;
     verdict(false, `goal reached -- the run carries on with \`${liveGoal()?.slug ?? "?"}\``);
