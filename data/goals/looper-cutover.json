@@ -2,23 +2,6 @@
   "title": "Novis's goals, checks, hooks and rules are in looper's format, and the next goal on looper's chain deletes the old driver",
   "milestone": null,
   "position": "last",
-  "waitFor": {
-    "argv": [
-      "looper",
-      "import",
-      "--from",
-      "nv",
-      "--dry-run"
-    ],
-    "want": [
-      "docs/goals/compare-page.md"
-    ],
-    "absent": [
-      "dropped",
-      "lost"
-    ],
-    "everyMin": 3
-  },
   "handover": "looper",
   "files": [],
   "context": {

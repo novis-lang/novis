@@ -26,14 +26,11 @@ this file names which stage does which of its sections and the calls the runbook
 ## Why here
 
 It goes directly behind `looper-ready`, which turns every hook looper will call into a `bun nv`
-command. It cannot start earlier, and nothing after it on today's chain runs under the old driver. Its
-record's `waitFor` keeps it from starting before the installed looper can import Novis without loss:
-`looper import --from nv --dry-run` must exit 0, name `docs/goals/compare-page.md`, and print no line
-with `dropped` or `lost`. Side goals arrive in the first stage of looper's `nv-import-fidelity`, and
-its later stages remove the last loss note (its test
-`import_nv_of_the_whole_fixture_prints_no_loss_note`), so the gate opens only once the whole importer
-is installed. The import also reads this goal's own record, so the gate stays shut while the importer
-refuses its `waitFor` and `handover` fields.
+command. It cannot start earlier, and nothing after it on today's chain runs under the old driver. It
+started once the installed looper imported Novis without loss: `looper import --from nv --dry-run`
+exited 0, named `docs/goals/compare-page.md`, and printed no line with `dropped` or `lost`. The record
+carries no `waitFor`, because the driver runs a gate before every session, and Stage 2's
+`playbook_dir` makes the dry run refuse the fragments already under `docs/agent/playbook/`.
 
 It carries `position: last` because every goal on the chain is pinned there.
 
